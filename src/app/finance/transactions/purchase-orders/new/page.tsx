@@ -285,11 +285,7 @@ export default function NewPurchaseOrderPage() {
   >([]);
 
   const [companyId, setCompanyId] = useState("");
-  const [recipientType, setRecipientType] = useState<"vendor" | "company">(
-    "vendor"
-  );
   const [vendorId, setVendorId] = useState("");
-  const [recipientCompanyId, setRecipientCompanyId] = useState("");
   const [vendorBankAccountId, setVendorBankAccountId] = useState("");
   const [paymentMethodId, setPaymentMethodId] = useState("");
   const [paymentTermsId, setPaymentTermsId] = useState("");
@@ -298,13 +294,16 @@ export default function NewPurchaseOrderPage() {
     new Date().toISOString().substring(0, 10)
   );
   const [expectedDeliveryDate, setExpectedDeliveryDate] = useState("");
+
   const [currencyCode, setCurrencyCode] = useState("");
   const [currencyId, setCurrencyId] = useState("");
   const [projectId, setProjectId] = useState("");
   const [taskId, setTaskId] = useState("");
   const [notes, setNotes] = useState("");
 
-  const [lines, setLines] = useState<PurchaseOrderLineDraft[]>([createEmptyLine()]);
+  const [lines, setLines] = useState<PurchaseOrderLineDraft[]>([
+    createEmptyLine(),
+  ]);
   const [isSaving, setIsSaving] = useState(false);
   const [isLoading, setIsLoading] = useState(true);
   const [errorMessage, setErrorMessage] = useState("");
@@ -324,63 +323,69 @@ export default function NewPurchaseOrderPage() {
   const [currencies, setCurrencies] = useState<CurrencyOption[]>([]);
   const [taxCodes, setTaxCodes] = useState<TaxCodeOption[]>([]);
   const [units, setUnits] = useState<UnitOption[]>([]);
-  const [expenseCategories, setExpenseCategories] = useState<ExpenseCategoryOption[]>([]);
+  const [expenseCategories, setExpenseCategories] = useState<
+    ExpenseCategoryOption[]
+  >([]);
   const [items, setItems] = useState<ItemOption[]>([]);
-  const [vendorQuotations, setVendorQuotations] = useState<VendorQuotationOption[]>([]);
+  const [vendorQuotations, setVendorQuotations] = useState<
+    VendorQuotationOption[]
+  >([]);
 
   const filteredVendorBankAccounts = useMemo(() => {
-    return vendorBankAccounts.filter((b) => b.vendor_id === vendorId);
+    return vendorBankAccounts.filter((bank) => bank.vendor_id === vendorId);
   }, [vendorBankAccounts, vendorId]);
 
   const selectedCompany = useMemo(() => {
-    return companies.find((c) => c.id === companyId) || null;
+    return companies.find((company) => company.id === companyId) || null;
   }, [companies, companyId]);
 
   const selectedVendor = useMemo(() => {
-    return vendors.find((v) => v.id === vendorId) || null;
+    return vendors.find((vendor) => vendor.id === vendorId) || null;
   }, [vendors, vendorId]);
 
-  const selectedRecipientCompany = useMemo(() => {
-    return companies.find((c) => c.id === recipientCompanyId) || null;
-  }, [companies, recipientCompanyId]);
-
   const selectedVendorBankAccount = useMemo(() => {
-    return filteredVendorBankAccounts.find((b) => b.id === vendorBankAccountId) || null;
+    return (
+      filteredVendorBankAccounts.find(
+        (bank) => bank.id === vendorBankAccountId
+      ) || null
+    );
   }, [filteredVendorBankAccounts, vendorBankAccountId]);
 
   const selectedPaymentTerm = useMemo(() => {
-    return paymentTerms.find((t) => t.id === paymentTermsId) || null;
+    return paymentTerms.find((term) => term.id === paymentTermsId) || null;
   }, [paymentTerms, paymentTermsId]);
 
   const selectedShippingTerm = useMemo(() => {
-    return shippingTerms.find((t) => t.id === shippingTermId) || null;
+    return shippingTerms.find((term) => term.id === shippingTermId) || null;
   }, [shippingTerms, shippingTermId]);
 
   const selectedPaymentMethod = useMemo(() => {
-    return paymentMethods.find((m) => m.id === paymentMethodId) || null;
+    return paymentMethods.find((method) => method.id === paymentMethodId) || null;
   }, [paymentMethods, paymentMethodId]);
 
   const selectedProject = useMemo(() => {
-    return projects.find((p) => p.id === projectId) || null;
+    return projects.find((project) => project.id === projectId) || null;
   }, [projects, projectId]);
 
   const selectedTask = useMemo(() => {
-    return tasks.find((t) => t.id === taskId) || null;
+    return tasks.find((task) => task.id === taskId) || null;
   }, [tasks, taskId]);
 
   const selectedCurrency = useMemo(() => {
-    return currencies.find((c) => c.id === currencyId) || null;
+    return currencies.find((currency) => currency.id === currencyId) || null;
   }, [currencies, currencyId]);
 
   const selectedVendorQuotation = useMemo(() => {
-    return vendorQuotations.find((vq) => vq.id === vendorQuotationId) || null;
+    return (
+      vendorQuotations.find(
+        (vendorQuotation) => vendorQuotation.id === vendorQuotationId
+      ) || null
+    );
   }, [vendorQuotations, vendorQuotationId]);
 
   const selectedRecipientTitle = useMemo(() => {
-    if (recipientType === "vendor") return selectedVendor?.legal_name || selectedVendor?.name || "—";
-    if (recipientType === "company") return selectedRecipientCompany?.legal_name || selectedRecipientCompany?.name || "—";
-    return "—";
-  }, [recipientType, selectedVendor, selectedRecipientCompany]);
+    return selectedVendor?.legal_name || selectedVendor?.name || "—";
+  }, [selectedVendor]);
 
   const filteredTasks = useMemo(() => {
     if (!projectId) return tasks;
@@ -462,13 +467,6 @@ export default function NewPurchaseOrderPage() {
         return {
           label: "Identifier",
           value: bank.account_identifier_value,
-        };
-      }
-
-      if (bank.account_number) {
-        return {
-          label: "Account",
-          value: bank.account_number,
         };
       }
 
@@ -641,8 +639,7 @@ export default function NewPurchaseOrderPage() {
             .eq("status", "active")
             .order("currency_code", { ascending: true })
         ),
-
-                loadLookup(
+        loadLookup(
           "Payment terms",
           supabase
             .from("finance_payment_terms")
@@ -775,7 +772,7 @@ export default function NewPurchaseOrderPage() {
       setItems(itemsResult.data as ItemOption[]);
       setVendorQuotations(mappedVendorQuotations);
 
-      if (!companyId && companiesResult.data.length === 1) {
+          if (!companyId && companiesResult.data.length === 1) {
         const onlyCompany = companiesResult.data[0] as CompanyOption;
         setCompanyId(onlyCompany.id);
       }
@@ -847,13 +844,13 @@ export default function NewPurchaseOrderPage() {
   }, [loadFormData]);
 
   useEffect(() => {
-    if (!selectedVendor || recipientType !== "vendor") return;
+    if (!selectedVendor) return;
 
     setCurrencyCode((current) => current || selectedVendor.currency_code || "");
     setPaymentTermsId(
       (current) => current || selectedVendor.payment_terms_id || ""
     );
-  }, [recipientType, selectedVendor]);
+  }, [selectedVendor]);
 
   const resetManualSource = useCallback(() => {
     setVendorQuotationId("");
@@ -912,18 +909,13 @@ export default function NewPurchaseOrderPage() {
       return;
     }
 
-    if (recipientType === "vendor" && !vendorId) {
+    if (!vendorId) {
       setErrorMessage("Vendor must be selected.");
       return;
     }
 
-    if (recipientType === "vendor" && !vendorBankAccountId) {
+    if (!vendorBankAccountId) {
       setErrorMessage("Vendor bank account must be selected.");
-      return;
-    }
-
-    if (recipientType === "company" && !recipientCompanyId) {
-      setErrorMessage("Recipient company must be selected.");
       return;
     }
 
@@ -962,12 +954,10 @@ export default function NewPurchaseOrderPage() {
         .from("finance_purchase_orders")
         .insert({
           company_id: companyId,
-          recipient_type: recipientType,
-          vendor_id: recipientType === "vendor" ? vendorId : null,
-          recipient_company_id:
-            recipientType === "company" ? recipientCompanyId : null,
-          vendor_bank_account_id:
-            recipientType === "vendor" ? vendorBankAccountId : null,
+          recipient_type: "vendor",
+          vendor_id: vendorId,
+          recipient_company_id: null,
+          vendor_bank_account_id: vendorBankAccountId,
           payment_method_id: paymentMethodId || null,
           payment_terms_id: paymentTermsId || null,
           shipping_term_id: shippingTermId || null,
@@ -984,12 +974,10 @@ export default function NewPurchaseOrderPage() {
                 : "manual_purchase_order",
             vendor_quotation_id:
               sourceMode === "vendor_quotation" ? vendorQuotationId || null : null,
-            recipient_type: recipientType,
-            vendor_id: recipientType === "vendor" ? vendorId : null,
-            recipient_company_id:
-              recipientType === "company" ? recipientCompanyId : null,
-            vendor_bank_account_id:
-              recipientType === "vendor" ? vendorBankAccountId : null,
+            recipient_type: "vendor",
+            vendor_id: vendorId,
+            recipient_company_id: null,
+            vendor_bank_account_id: vendorBankAccountId,
             preferred_payment_method_id: paymentMethodId || null,
             expected_flow:
               "vendor_quotation_to_purchase_order_to_vendor_bill_to_payment_made",
@@ -1056,8 +1044,6 @@ export default function NewPurchaseOrderPage() {
     paymentTermsId,
     poDate,
     projectId,
-    recipientCompanyId,
-    recipientType,
     shippingTermId,
     sourceMode,
     taskId,
@@ -1067,7 +1053,7 @@ export default function NewPurchaseOrderPage() {
   ]);
 
   useEffect(() => {
-    if (recipientType !== "vendor" || !vendorId) {
+    if (!vendorId) {
       setVendorBankAccountId("");
       return;
     }
@@ -1079,22 +1065,7 @@ export default function NewPurchaseOrderPage() {
     if (!selectedBankStillValid) {
       setVendorBankAccountId("");
     }
-  }, [
-    filteredVendorBankAccounts,
-    recipientType,
-    vendorBankAccountId,
-    vendorId,
-  ]);
-
-  useEffect(() => {
-    if (recipientType === "vendor") {
-      setRecipientCompanyId("");
-      return;
-    }
-
-    setVendorId("");
-    setVendorBankAccountId("");
-  }, [recipientType]);
+  }, [filteredVendorBankAccounts, vendorBankAccountId, vendorId]);
 
   useEffect(() => {
     if (!currencyCode) return;
@@ -1125,9 +1096,7 @@ export default function NewPurchaseOrderPage() {
     async function applyVendorQuotationSource() {
       if (!selectedVendorQuotation || sourceMode !== "vendor_quotation") return;
 
-      setRecipientType("vendor");
       setVendorId(selectedVendorQuotation.vendor_id || "");
-      setRecipientCompanyId("");
       setCompanyId(selectedVendorQuotation.company_id || "");
       setCurrencyCode(selectedVendorQuotation.currency_code || "");
       setPaymentTermsId(selectedVendorQuotation.payment_terms_id || "");
@@ -1245,7 +1214,7 @@ export default function NewPurchaseOrderPage() {
                 </div>
               </div>
 
-                            <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-1">
+              <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-1">
                 <div className="min-h-[148px] rounded-[24px] border border-white/10 bg-black/20 p-4">
                   <div className="flex items-start justify-between gap-3">
                     <div>
@@ -1387,125 +1356,122 @@ export default function NewPurchaseOrderPage() {
           </div>
         </div>
 
-        <div className="space-y-6">
-          <Card className={activeSectionClass}>
-            <CardHeader className="border-b border-white/10 px-5 py-4">
-              <div className="flex items-center gap-3">
-                <div className="rounded-2xl border border-violet-400/15 bg-violet-500/10 p-3 text-violet-200">
-                  <Link2 className="h-4 w-4" />
-                </div>
-                <div>
-                  <CardTitle className="text-sm font-semibold uppercase tracking-[0.18em] text-slate-400">
-                    Source Relationship
-                  </CardTitle>
-                  <CardDescription className="mt-1 text-xs text-slate-500">
-                    Create manually or from one accepted vendor quotation.
-                  </CardDescription>
-                </div>
+        <Card className={activeSectionClass}>
+          <CardHeader className="border-b border-white/10 px-5 py-4">
+            <div className="flex items-center gap-3">
+              <div className="rounded-2xl border border-violet-400/15 bg-violet-500/10 p-3 text-violet-200">
+                <Link2 className="h-4 w-4" />
               </div>
-            </CardHeader>
-
-            <CardContent className="grid grid-cols-1 gap-4 p-5 md:grid-cols-3">
-              <div className={summaryBlockClass}>
-                <div className={labelClass}>Creation Mode</div>
-                <select
-                  value={sourceMode}
-                  onChange={(event) => {
-                    const nextMode = event.target.value as
-                      | "manual"
-                      | "vendor_quotation";
-
-                    setSourceMode(nextMode);
-
-                    if (nextMode === "manual") {
-                      resetManualSource();
-                      return;
-                    }
-
-                    setVendorQuotationId("");
-                    setVendorQuotationLines([]);
-                    setLines([createEmptyLine()]);
-                    setNotes("");
-                    setErrorMessage("");
-                  }}
-                  className={fieldShellClass}
-                >
-                  <option value="manual">Manual Purchase Order</option>
-                  <option value="vendor_quotation">From Vendor Quotation</option>
-                </select>
+              <div>
+                <CardTitle className="text-sm font-semibold uppercase tracking-[0.18em] text-slate-400">
+                  Source Relationship
+                </CardTitle>
+                <CardDescription className="mt-1 text-xs text-slate-500">
+                  Create manually or from one accepted vendor quotation.
+                </CardDescription>
               </div>
+            </div>
+          </CardHeader>
 
-              <div className={summaryBlockClass}>
-                <div className={labelClass}>Accepted Vendor Quotation</div>
-                <select
-                  value={vendorQuotationId}
-                  onChange={(event) => setVendorQuotationId(event.target.value)}
-                  disabled={sourceMode !== "vendor_quotation"}
-                  className={fieldShellClass}
-                >
-                  <option value="">Select accepted quotation</option>
-                  {vendorQuotations.map((quotation) => (
-                    <option key={quotation.id} value={quotation.id}>
-                      {quotation.vendor_quotation_number} —{" "}
-                      {quotation.vendor_legal_name ||
-                        quotation.vendor_name ||
-                        "Vendor"}{" "}
-                      —{" "}
-                      {formatMoney(
-                        quotation.total_amount,
-                        quotation.currency_code || "USD"
-                      )}
-                    </option>
-                  ))}
-                </select>
+          <CardContent className="grid grid-cols-1 gap-4 p-5 md:grid-cols-3">
+            <div className={summaryBlockClass}>
+              <div className={labelClass}>Creation Mode</div>
+              <select
+                value={sourceMode}
+                onChange={(event) => {
+                  const nextMode = event.target.value as
+                    | "manual"
+                    | "vendor_quotation";
+
+                  setSourceMode(nextMode);
+
+                  if (nextMode === "manual") {
+                    resetManualSource();
+                    return;
+                  }
+
+                  setVendorQuotationId("");
+                  setVendorQuotationLines([]);
+                  setLines([createEmptyLine()]);
+                  setNotes("");
+                  setErrorMessage("");
+                }}
+                className={fieldShellClass}
+              >
+                <option value="manual">Manual Purchase Order</option>
+                <option value="vendor_quotation">From Vendor Quotation</option>
+              </select>
+            </div>
+
+            <div className={summaryBlockClass}>
+              <div className={labelClass}>Accepted Vendor Quotation</div>
+              <select
+                value={vendorQuotationId}
+                onChange={(event) => setVendorQuotationId(event.target.value)}
+                disabled={sourceMode !== "vendor_quotation"}
+                className={fieldShellClass}
+              >
+                <option value="">Select accepted quotation</option>
+                {vendorQuotations.map((quotation) => (
+                  <option key={quotation.id} value={quotation.id}>
+                    {quotation.vendor_quotation_number} —{" "}
+                    {quotation.vendor_legal_name ||
+                      quotation.vendor_name ||
+                      "Vendor"}{" "}
+                    —{" "}
+                    {formatMoney(
+                      quotation.total_amount,
+                      quotation.currency_code || "USD"
+                    )}
+                  </option>
+                ))}
+              </select>
+            </div>
+
+            <div className={summaryBlockClass}>
+              <div className={labelClass}>Source Status</div>
+              <div className="mt-2 text-xl font-semibold text-white">
+                {sourceDescription}
               </div>
+              <div className="mt-2 text-sm leading-6 text-slate-400">
+                {selectedVendorQuotation
+                  ? `External ref: ${
+                      selectedVendorQuotation.external_quotation_number || "—"
+                    }`
+                  : "Manual purchase order without source quotation."}
+              </div>
+            </div>
 
-              <div className={summaryBlockClass}>
-                <div className={labelClass}>Source Status</div>
-                <div className="mt-2 text-xl font-semibold text-white">
-                  {sourceDescription}
+            {selectedVendorQuotation ? (
+              <div className="rounded-[24px] border border-violet-400/15 bg-violet-500/10 p-4 md:col-span-3">
+                <div className={labelClass}>Source Vendor Quotation</div>
+                <div className="mt-2 text-2xl font-semibold text-white">
+                  {selectedVendorQuotation.vendor_quotation_number}
                 </div>
-                <div className="mt-2 text-sm leading-6 text-slate-400">
-                  {selectedVendorQuotation
-                    ? `External ref: ${
-                        selectedVendorQuotation.external_quotation_number ||
-                        "—"
-                      }`
-                    : "Manual purchase order without source quotation."}
-                </div>
-              </div>
-
-              {selectedVendorQuotation ? (
-                <div className="rounded-[24px] border border-violet-400/15 bg-violet-500/10 p-4 md:col-span-3">
-                  <div className={labelClass}>Source Vendor Quotation</div>
-                  <div className="mt-2 text-2xl font-semibold text-white">
-                    {selectedVendorQuotation.vendor_quotation_number}
+                <div className="mt-2 grid grid-cols-1 gap-3 text-sm leading-6 text-slate-300 md:grid-cols-4">
+                  <div>
+                    <span className="text-slate-500">Vendor:</span>{" "}
+                    {selectedVendorQuotation.vendor_legal_name ||
+                      selectedVendorQuotation.vendor_name ||
+                      "—"}
                   </div>
-                  <div className="mt-2 grid grid-cols-1 gap-3 text-sm leading-6 text-slate-300 md:grid-cols-4">
-                    <div>
-                      <span className="text-slate-500">Vendor:</span>{" "}
-                      {selectedVendorQuotation.vendor_legal_name ||
-                        selectedVendorQuotation.vendor_name ||
-                        "—"}
-                    </div>
-                    <div>
-                      <span className="text-slate-500">Date:</span>{" "}
-                      {formatDate(selectedVendorQuotation.quotation_date)}
-                    </div>
-                    <div>
-                      <span className="text-slate-500">Valid Until:</span>{" "}
-                      {formatDate(selectedVendorQuotation.valid_until)}
-                    </div>
-                    <div>
-                      <span className="text-slate-500">Lines:</span>{" "}
-                      {vendorQuotationLines.length}
-                    </div>
+                  <div>
+                    <span className="text-slate-500">Date:</span>{" "}
+                    {formatDate(selectedVendorQuotation.quotation_date)}
+                  </div>
+                  <div>
+                    <span className="text-slate-500">Valid Until:</span>{" "}
+                    {formatDate(selectedVendorQuotation.valid_until)}
+                  </div>
+                  <div>
+                    <span className="text-slate-500">Lines:</span>{" "}
+                    {vendorQuotationLines.length}
                   </div>
                 </div>
-              ) : null}
-            </CardContent>
-          </Card>
-        </div>
+              </div>
+            ) : null}
+          </CardContent>
+        </Card>
 
                 <div className="grid grid-cols-1 gap-6 xl:grid-cols-[minmax(0,1.45fr)_420px]">
           <div className="space-y-6">
@@ -1520,8 +1486,8 @@ export default function NewPurchaseOrderPage() {
                       Document Overview
                     </CardTitle>
                     <CardDescription className="mt-1 text-xs text-slate-500">
-                      Issuing company, recipient, terms, payment destination,
-                      timeline, currency, project, task, and notes.
+                      Issuing company, vendor recipient, vendor bank account,
+                      terms, timeline, currency, project, task, and notes.
                     </CardDescription>
                   </div>
                 </div>
@@ -1563,101 +1529,114 @@ export default function NewPurchaseOrderPage() {
                 </div>
 
                 <div className={summaryBlockClass}>
-                  <div className={labelClass}>Recipient Type</div>
+                  <div className={labelClass}>Vendor / Recipient</div>
                   <select
-                    value={recipientType}
-                    onChange={(event) =>
-                      setRecipientType(event.target.value as "vendor" | "company")
-                    }
+                    value={vendorId}
+                    onChange={(event) => setVendorId(event.target.value)}
                     disabled={sourceMode === "vendor_quotation"}
                     className={fieldShellClass}
                   >
-                    <option value="vendor">Vendor</option>
-                    <option value="company">Company</option>
+                    <option value="">Select vendor</option>
+                    {vendors.map((vendor) => (
+                      <option key={vendor.id} value={vendor.id}>
+                        {vendor.legal_name || vendor.name}
+                      </option>
+                    ))}
                   </select>
+
+                  {selectedVendor ? (
+                    <div className="mt-3 text-sm leading-6 text-slate-300">
+                      <div className="font-semibold text-white">
+                        {selectedVendor.legal_name || selectedVendor.name}
+                      </div>
+                      {getVendorAddress(selectedVendor) ? (
+                        <div>{getVendorAddress(selectedVendor)}</div>
+                      ) : null}
+                      {selectedVendor.email ? (
+                        <div>Email: {selectedVendor.email}</div>
+                      ) : null}
+                      {selectedVendor.phone ? (
+                        <div>Phone: {selectedVendor.phone}</div>
+                      ) : null}
+                    </div>
+                  ) : null}
                 </div>
 
-                {recipientType === "vendor" ? (
-                  <div className={summaryBlockClass}>
-                    <div className={labelClass}>Vendor / Recipient</div>
-                    <select
-                      value={vendorId}
-                      onChange={(event) => setVendorId(event.target.value)}
-                      disabled={sourceMode === "vendor_quotation"}
-                      className={fieldShellClass}
-                    >
-                      <option value="">Select vendor</option>
-                      {vendors.map((vendor) => (
-                        <option key={vendor.id} value={vendor.id}>
-                          {vendor.legal_name || vendor.name}
-                          {vendor.code ? ` — ${vendor.code}` : ""}
+                <div className={summaryBlockClass}>
+                  <div className={labelClass}>Vendor Bank Account</div>
+                  <select
+                    value={vendorBankAccountId}
+                    onChange={(event) =>
+                      setVendorBankAccountId(event.target.value)
+                    }
+                    disabled={!vendorId}
+                    className={fieldShellClass}
+                  >
+                    <option value="">Select vendor bank account</option>
+                    {filteredVendorBankAccounts.map((bank) => {
+                      const identifier = getVendorBankIdentifier(bank);
+
+                      return (
+                        <option key={bank.id} value={bank.id}>
+                          {bank.beneficiary_name ||
+                            bank.bank_name ||
+                            bank.bank_id}
+                          {identifier
+                            ? ` — ${identifier.label}: ${identifier.value}`
+                            : ""}
+                          {bank.currency_code ? ` — ${bank.currency_code}` : ""}
                         </option>
-                      ))}
-                    </select>
+                      );
+                    })}
+                  </select>
 
-                    {selectedVendor ? (
-                      <div className="mt-3 text-sm leading-6 text-slate-300">
+                  {selectedVendorBankAccount ? (
+                    <div className="mt-3 text-sm leading-6 text-slate-300">
+                      {selectedVendorBankAccount.beneficiary_name ? (
                         <div className="font-semibold text-white">
-                          {selectedVendor.legal_name || selectedVendor.name}
+                          {selectedVendorBankAccount.beneficiary_name}
                         </div>
-                        {getVendorAddress(selectedVendor) ? (
-                          <div>{getVendorAddress(selectedVendor)}</div>
-                        ) : null}
-                        {selectedVendor.email ? (
-                          <div>Email: {selectedVendor.email}</div>
-                        ) : null}
-                        {selectedVendor.phone ? (
-                          <div>Phone: {selectedVendor.phone}</div>
-                        ) : null}
-                        {selectedVendor.code ? (
-                          <div>Vendor Code: {selectedVendor.code}</div>
-                        ) : null}
-                        {selectedVendor.contact_person ? (
-                          <div>Contact: {selectedVendor.contact_person}</div>
-                        ) : null}
-                      </div>
-                    ) : null}
-                  </div>
-                ) : (
-                  <div className={summaryBlockClass}>
-                    <div className={labelClass}>Company / Recipient</div>
-                    <select
-                      value={recipientCompanyId}
-                      onChange={(event) =>
-                        setRecipientCompanyId(event.target.value)
-                      }
-                      disabled={sourceMode === "vendor_quotation"}
-                      className={fieldShellClass}
-                    >
-                      <option value="">Select company</option>
-                      {companies
-                        .filter((company) => company.id !== companyId)
-                        .map((company) => (
-                          <option key={company.id} value={company.id}>
-                            {company.legal_name || company.name}
-                          </option>
-                        ))}
-                    </select>
+                      ) : null}
+                      {selectedVendorBankAccount.bank_name ? (
+                        <div>{selectedVendorBankAccount.bank_name}</div>
+                      ) : null}
+                      {getVendorBankAddress(selectedVendorBankAccount) ? (
+                        <div>
+                          {getVendorBankAddress(selectedVendorBankAccount)}
+                        </div>
+                      ) : null}
+                      {selectedVendorBankAccount.account_number ? (
+                        <div>
+                          Account: {selectedVendorBankAccount.account_number}
+                        </div>
+                      ) : null}
+                      {getVendorBankIdentifier(selectedVendorBankAccount) ? (
+                        <div>
+                          {
+                            getVendorBankIdentifier(selectedVendorBankAccount)
+                              ?.label
+                          }
+                          :{" "}
+                          {
+                            getVendorBankIdentifier(selectedVendorBankAccount)
+                              ?.value
+                          }
+                        </div>
+                      ) : null}
+                      {selectedVendorBankAccount.currency_code ? (
+                        <div>
+                          Currency: {selectedVendorBankAccount.currency_code}
+                        </div>
+                      ) : null}
+                    </div>
+                  ) : null}
 
-                    {selectedRecipientCompany ? (
-                      <div className="mt-3 text-sm leading-6 text-slate-300">
-                        <div className="font-semibold text-white">
-                          {selectedRecipientCompany.legal_name ||
-                            selectedRecipientCompany.name}
-                        </div>
-                        {getCompanyAddress(selectedRecipientCompany) ? (
-                          <div>{getCompanyAddress(selectedRecipientCompany)}</div>
-                        ) : null}
-                        {selectedRecipientCompany.email ? (
-                          <div>Email: {selectedRecipientCompany.email}</div>
-                        ) : null}
-                        {selectedRecipientCompany.phone ? (
-                          <div>Phone: {selectedRecipientCompany.phone}</div>
-                        ) : null}
-                      </div>
-                    ) : null}
-                  </div>
-                )}
+                  {vendorId && !selectedVendorBankAccount ? (
+                    <div className="mt-3 text-sm leading-6 text-slate-400">
+                      Select the vendor bank account manually.
+                    </div>
+                  ) : null}
+                </div>
 
                 <div className={summaryBlockClass}>
                   <div className={labelClass}>Payment Terms</div>
@@ -1699,88 +1678,6 @@ export default function NewPurchaseOrderPage() {
                 </div>
 
                 <div className={summaryBlockClass}>
-                  <div className={labelClass}>Vendor Bank Account</div>
-                  <select
-                    value={vendorBankAccountId}
-                    onChange={(event) =>
-                      setVendorBankAccountId(event.target.value)
-                    }
-                    disabled={recipientType !== "vendor" || !vendorId}
-                    className={fieldShellClass}
-                  >
-                    <option value="">Select vendor bank account</option>
-                    {filteredVendorBankAccounts.map((bank) => {
-                      const identifier = getVendorBankIdentifier(bank);
-
-                      return (
-                        <option key={bank.id} value={bank.id}>
-                          {bank.beneficiary_name ||
-                            bank.bank_name ||
-                            bank.bank_id}
-                          {identifier
-                            ? ` — ${identifier.label}: ${identifier.value}`
-                            : ""}
-                          {bank.currency_code ? ` — ${bank.currency_code}` : ""}
-                        </option>
-                      );
-                    })}
-                  </select>
-
-                  {recipientType === "vendor" && selectedVendorBankAccount ? (
-                    <div className="mt-3 text-sm leading-6 text-slate-300">
-                      {selectedVendorBankAccount.beneficiary_name ? (
-                        <div className="font-semibold text-white">
-                          {selectedVendorBankAccount.beneficiary_name}
-                        </div>
-                      ) : null}
-                      {selectedVendorBankAccount.bank_name ? (
-                        <div>{selectedVendorBankAccount.bank_name}</div>
-                      ) : null}
-                      {getVendorBankAddress(selectedVendorBankAccount) ? (
-                        <div>
-                          {getVendorBankAddress(selectedVendorBankAccount)}
-                        </div>
-                      ) : null}
-                      {selectedVendorBankAccount.account_number ? (
-                        <div>
-                          Account: {selectedVendorBankAccount.account_number}
-                        </div>
-                      ) : null}
-                      {getVendorBankIdentifier(selectedVendorBankAccount) ? (
-                        <div>
-                          {
-                            getVendorBankIdentifier(selectedVendorBankAccount)
-                              ?.label
-                          }
-                          :{" "}
-                          {
-                            getVendorBankIdentifier(selectedVendorBankAccount)
-                              ?.value
-                          }
-                        </div>
-                      ) : null}
-                      {selectedVendorBankAccount.currency_code ? (
-                        <div>
-                          Currency: {selectedVendorBankAccount.currency_code}
-                        </div>
-                      ) : null}
-                    </div>
-                  ) : null}
-
-                  {recipientType === "vendor" && vendorId && !selectedVendorBankAccount ? (
-                    <div className="mt-3 text-sm leading-6 text-slate-400">
-                      Select the vendor bank account manually.
-                    </div>
-                  ) : null}
-
-                  {recipientType === "company" ? (
-                    <div className="mt-3 text-sm leading-6 text-slate-400">
-                      Company recipient does not require vendor bank account.
-                    </div>
-                  ) : null}
-                </div>
-
-                                <div className={summaryBlockClass}>
                   <div className={labelClass}>Preferred Payment Method</div>
                   <select
                     value={paymentMethodId}
@@ -1894,9 +1791,262 @@ export default function NewPurchaseOrderPage() {
               </CardContent>
             </Card>
 
+            <Card className={activeSectionClass}>
+              <CardHeader className="border-b border-white/10 px-5 py-4">
+                <CardTitle className="text-sm font-semibold uppercase tracking-[0.18em] text-slate-400">
+                  Line Items
+                </CardTitle>
+                <CardDescription className="mt-1 text-xs text-slate-500">
+                  Each line in this draft purchase order can be added or
+                  removed manually.
+                </CardDescription>
+              </CardHeader>
+
+              <CardContent className="space-y-3 p-5">
+                <div className="max-h-[720px] space-y-3 overflow-y-auto pr-1">
+                  {lines.map((line, index) => {
+                    const selectedItem = items.find(
+                      (item) => item.id === line.item_id
+                    );
+                    const selectedTax = taxCodes.find(
+                      (tax) => tax.id === line.tax_code_id
+                    );
+                    const selectedCategory = expenseCategories.find(
+                      (category) => category.id === line.expense_category_id
+                    );
+
+                    return (
+                      <div
+                        key={line.localId}
+                        className="rounded-[24px] border border-white/10 bg-black/20 p-4"
+                      >
+                        <div className="mb-4 flex items-center justify-between gap-4">
+                          <div className="flex flex-wrap items-center gap-2">
+                            <div className="text-sm font-semibold text-white">
+                              Line {index + 1}
+                            </div>
+
+                            {selectedItem ? (
+                              <Badge className="rounded-full border border-violet-400/20 bg-violet-500/10 px-3 py-1 text-[10px] font-semibold uppercase tracking-[0.18em] text-violet-200 shadow-none">
+                                {selectedItem.name}
+                              </Badge>
+                            ) : null}
+
+                            {selectedCategory ? (
+                              <Badge className="rounded-full border border-amber-400/20 bg-amber-500/10 px-3 py-1 text-[10px] font-semibold uppercase tracking-[0.18em] text-amber-200 shadow-none">
+                                {selectedCategory.name}
+                              </Badge>
+                            ) : null}
+                          </div>
+
+                          <Button
+                            variant="outline"
+                            onClick={() => removeLine(line.localId)}
+                            disabled={lines.length === 1}
+                            className="h-9 rounded-2xl border-white/10 bg-white/[0.05] px-3 text-white hover:bg-white/[0.08] disabled:cursor-not-allowed disabled:opacity-40"
+                          >
+                            <Trash2 className="h-4 w-4" />
+                          </Button>
+                        </div>
+
+                        <div className="grid grid-cols-1 gap-4 md:grid-cols-12">
+                          <label className="space-y-2 md:col-span-3">
+                            <div className={inputLabelClass}>Item</div>
+                            <select
+                              value={line.item_id}
+                              onChange={(event) =>
+                                handleItemChange(
+                                  line.localId,
+                                  event.target.value
+                                )
+                              }
+                              disabled={sourceMode === "vendor_quotation"}
+                              className={inputFieldClass}
+                            >
+                              <option value="">Manual item</option>
+                              {items.map((item) => (
+                                <option key={item.id} value={item.id}>
+                                  {item.name}
+                                </option>
+                              ))}
+                            </select>
+                          </label>
+
+                          <label className="space-y-2 md:col-span-4">
+                            <div className={inputLabelClass}>Description</div>
+                            <input
+                              value={line.description}
+                              onChange={(event) =>
+                                updateLine(line.localId, {
+                                  description: event.target.value,
+                                })
+                              }
+                              disabled={sourceMode === "vendor_quotation"}
+                              placeholder="Description"
+                              className={inputFieldClass}
+                            />
+                          </label>
+
+                          <label className="space-y-2 md:col-span-1">
+                            <div className={inputLabelClass}>Qty</div>
+                            <input
+                              value={line.quantity}
+                              onChange={(event) =>
+                                updateLine(line.localId, {
+                                  quantity: event.target.value,
+                                })
+                              }
+                              disabled={sourceMode === "vendor_quotation"}
+                              className={inputFieldClass}
+                            />
+                          </label>
+
+                          <label className="space-y-2 md:col-span-2">
+                            <div className={inputLabelClass}>Unit</div>
+                            <select
+                              value={line.unit_of_measure_id}
+                              onChange={(event) =>
+                                updateLine(line.localId, {
+                                  unit_of_measure_id: event.target.value,
+                                })
+                              }
+                              disabled={sourceMode === "vendor_quotation"}
+                              className={inputFieldClass}
+                            >
+                              <option value="">Select unit</option>
+                              {units.map((unit) => (
+                                <option key={unit.id} value={unit.id}>
+                                  {unit.name}
+                                </option>
+                              ))}
+                            </select>
+                          </label>
+
+                          <label className="space-y-2 md:col-span-2">
+                            <div className={inputLabelClass}>Unit Price</div>
+                            <input
+                              value={line.unit_price}
+                              onChange={(event) =>
+                                updateLine(line.localId, {
+                                  unit_price: event.target.value,
+                                })
+                              }
+                              disabled={sourceMode === "vendor_quotation"}
+                              className={inputFieldClass}
+                            />
+                          </label>
+
+                          <label className="space-y-2 md:col-span-2">
+                            <div className={inputLabelClass}>Discount</div>
+                            <input
+                              value={line.discount}
+                              onChange={(event) =>
+                                updateLine(line.localId, {
+                                  discount: event.target.value,
+                                })
+                              }
+                              disabled={sourceMode === "vendor_quotation"}
+                              className={inputFieldClass}
+                            />
+                          </label>
+
+                          <label className="space-y-2 md:col-span-2">
+                            <div className={inputLabelClass}>Tax Code</div>
+                            <select
+                              value={line.tax_code_id}
+                              onChange={(event) =>
+                                updateLine(line.localId, {
+                                  tax_code_id: event.target.value,
+                                })
+                              }
+                              disabled={sourceMode === "vendor_quotation"}
+                              className={inputFieldClass}
+                            >
+                              <option value="">Select tax</option>
+                              {taxCodes.map((tax) => (
+                                <option key={tax.id} value={tax.id}>
+                                  {tax.code ? `${tax.code} | ` : ""}
+                                  {tax.name} — {toNumber(tax.rate_percent)}%
+                                </option>
+                              ))}
+                            </select>
+
+                            {selectedTax ? (
+                              <div className="text-[11px] text-slate-500">
+                                {toNumber(selectedTax.rate_percent)}%
+                              </div>
+                            ) : null}
+                          </label>
+
+                                                    <label className="space-y-2 md:col-span-3">
+                            <div className={inputLabelClass}>
+                              Expense Category
+                            </div>
+                            <select
+                              value={line.expense_category_id}
+                              onChange={(event) =>
+                                updateLine(line.localId, {
+                                  expense_category_id: event.target.value,
+                                })
+                              }
+                              disabled={sourceMode === "vendor_quotation"}
+                              className={inputFieldClass}
+                            >
+                              <option value="">Select category</option>
+                              {expenseCategories.map((category) => (
+                                <option key={category.id} value={category.id}>
+                                  {category.code ? `${category.code} | ` : ""}
+                                  {category.name}
+                                </option>
+                              ))}
+                            </select>
+                          </label>
+
+                          <div className="space-y-2 md:col-span-3">
+                            <div className={inputLabelClass}>Line Total</div>
+                            <div className="flex min-h-[44px] items-center rounded-2xl border border-cyan-400/15 bg-cyan-500/10 px-4 text-sm font-semibold text-cyan-100">
+                              {formatMoney(
+                                lineTotals[index] || 0,
+                                currencyCode || "USD"
+                              )}
+                            </div>
+                          </div>
+
+                          <label className="space-y-2 md:col-span-12">
+                            <div className={inputLabelClass}>Line Notes</div>
+                            <input
+                              value={line.notes}
+                              onChange={(event) =>
+                                updateLine(line.localId, {
+                                  notes: event.target.value,
+                                })
+                              }
+                              disabled={sourceMode === "vendor_quotation"}
+                              placeholder="Optional line notes"
+                              className={inputFieldClass}
+                            />
+                          </label>
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+
+                {sourceMode === "manual" ? (
+                  <Button
+                    variant="outline"
+                    onClick={addLine}
+                    className="h-10 rounded-2xl border-white/10 bg-white/[0.05] px-4 text-white hover:bg-white/[0.08]"
+                  >
+                    <Plus className="mr-2 h-4 w-4" />
+                    Add Line
+                  </Button>
+                ) : null}
+              </CardContent>
+            </Card>
           </div>
 
-                            <div className="space-y-6">
+          <div className="space-y-6">
             <Card className={activeSectionClass}>
               <CardHeader className="border-b border-white/10 px-5 py-4">
                 <CardTitle className="text-sm font-semibold uppercase tracking-[0.18em] text-slate-400">
@@ -1913,6 +2063,7 @@ export default function NewPurchaseOrderPage() {
                   <div className="mt-2 text-2xl font-semibold text-white">
                     {selectedCompany?.legal_name || selectedCompany?.name || "—"}
                   </div>
+
                   {selectedCompany ? (
                     <div className="mt-2 text-sm leading-6 text-slate-400">
                       {getCompanyAddress(selectedCompany) ? (
@@ -1929,16 +2080,12 @@ export default function NewPurchaseOrderPage() {
                 </div>
 
                 <div className={summaryBlockClass}>
-                  <div className={labelClass}>
-                    {recipientType === "vendor"
-                      ? "Vendor / Recipient"
-                      : "Company / Recipient"}
-                  </div>
+                  <div className={labelClass}>Vendor / Recipient</div>
                   <div className="mt-2 text-2xl font-semibold text-white">
-                    {selectedRecipientTitle}
+                    {selectedVendor?.legal_name || selectedVendor?.name || "—"}
                   </div>
 
-                  {recipientType === "vendor" && selectedVendor ? (
+                  {selectedVendor ? (
                     <div className="mt-2 text-sm leading-6 text-slate-400">
                       {getVendorAddress(selectedVendor) ? (
                         <div>{getVendorAddress(selectedVendor)}</div>
@@ -1949,69 +2096,19 @@ export default function NewPurchaseOrderPage() {
                       {selectedVendor.phone ? (
                         <div>Phone: {selectedVendor.phone}</div>
                       ) : null}
-                      {selectedVendor.code ? (
-                        <div>Vendor Code: {selectedVendor.code}</div>
-                      ) : null}
-                      {selectedVendor.contact_person ? (
-                        <div>Contact: {selectedVendor.contact_person}</div>
-                      ) : null}
                     </div>
                   ) : null}
-
-                  {recipientType === "company" && selectedRecipientCompany ? (
-                    <div className="mt-2 text-sm leading-6 text-slate-400">
-                      {getCompanyAddress(selectedRecipientCompany) ? (
-                        <div>{getCompanyAddress(selectedRecipientCompany)}</div>
-                      ) : null}
-                      {selectedRecipientCompany.email ? (
-                        <div>Email: {selectedRecipientCompany.email}</div>
-                      ) : null}
-                      {selectedRecipientCompany.phone ? (
-                        <div>Phone: {selectedRecipientCompany.phone}</div>
-                      ) : null}
-                    </div>
-                  ) : null}
-                </div>
-
-                <div className={summaryBlockClass}>
-                  <div className={labelClass}>Payment Terms</div>
-                  <div className="mt-2 text-2xl font-semibold text-white">
-                    {selectedPaymentTerm?.name || "—"}
-                  </div>
-                  <div className="mt-2 text-sm leading-6 text-slate-400">
-                    {selectedPaymentTerm
-                      ? `${selectedPaymentTerm.code || "Terms"}${
-                          selectedPaymentTerm.due_days !== null &&
-                          selectedPaymentTerm.due_days !== undefined
-                            ? ` · Due in ${selectedPaymentTerm.due_days} days`
-                            : ""
-                        }`
-                      : "No payment terms selected"}
-                  </div>
-                </div>
-
-                <div className={summaryBlockClass}>
-                  <div className={labelClass}>Shipping Terms</div>
-                  <div className="mt-2 text-2xl font-semibold text-white">
-                    {selectedShippingTerm?.name || "—"}
-                  </div>
-                  <div className="mt-2 text-sm leading-6 text-slate-400">
-                    {selectedShippingTerm?.code ||
-                      "No shipping terms selected"}
-                  </div>
                 </div>
 
                 <div className={summaryBlockClass}>
                   <div className={labelClass}>Vendor Bank Account</div>
                   <div className="mt-2 text-2xl font-semibold text-white">
-                    {recipientType === "vendor"
-                      ? selectedVendorBankAccount?.beneficiary_name ||
-                        selectedVendorBankAccount?.bank_name ||
-                        "—"
-                      : "Not required"}
+                    {selectedVendorBankAccount?.beneficiary_name ||
+                      selectedVendorBankAccount?.bank_name ||
+                      "—"}
                   </div>
 
-                  {recipientType === "vendor" && selectedVendorBankAccount ? (
+                  {selectedVendorBankAccount ? (
                     <div className="mt-2 text-sm leading-6 text-slate-400">
                       {selectedVendorBankAccount.bank_name ? (
                         <div>{selectedVendorBankAccount.bank_name}</div>
@@ -2047,17 +2144,39 @@ export default function NewPurchaseOrderPage() {
                     </div>
                   ) : null}
 
-                  {recipientType === "vendor" && !selectedVendorBankAccount ? (
+                  {!selectedVendorBankAccount ? (
                     <div className="mt-2 text-sm leading-6 text-slate-400">
                       No vendor bank account selected.
                     </div>
                   ) : null}
+                </div>
 
-                  {recipientType === "company" ? (
-                    <div className="mt-2 text-sm leading-6 text-slate-400">
-                      Company recipient does not require vendor bank account.
-                    </div>
-                  ) : null}
+                <div className={summaryBlockClass}>
+                  <div className={labelClass}>Payment Terms</div>
+                  <div className="mt-2 text-2xl font-semibold text-white">
+                    {selectedPaymentTerm?.name || "—"}
+                  </div>
+                  <div className="mt-2 text-sm leading-6 text-slate-400">
+                    {selectedPaymentTerm
+                      ? `${selectedPaymentTerm.code || "Terms"}${
+                          selectedPaymentTerm.due_days !== null &&
+                          selectedPaymentTerm.due_days !== undefined
+                            ? ` · Due in ${selectedPaymentTerm.due_days} days`
+                            : ""
+                        }`
+                      : "No payment terms selected"}
+                  </div>
+                </div>
+
+                <div className={summaryBlockClass}>
+                  <div className={labelClass}>Shipping Terms</div>
+                  <div className="mt-2 text-2xl font-semibold text-white">
+                    {selectedShippingTerm?.name || "—"}
+                  </div>
+                  <div className="mt-2 text-sm leading-6 text-slate-400">
+                    {selectedShippingTerm?.code ||
+                      "No shipping terms selected"}
+                  </div>
                 </div>
 
                 <div className={summaryBlockClass}>
@@ -2174,235 +2293,6 @@ export default function NewPurchaseOrderPage() {
               </CardContent>
             </Card>
           </div>
-        </div>
-
-        <div className="space-y-6">
-          <Card className={activeSectionClass}>
-            <CardHeader className="border-b border-white/10 px-5 py-4">
-              <CardTitle className="text-sm font-semibold uppercase tracking-[0.18em] text-slate-400">
-                Line Items
-              </CardTitle>
-              <CardDescription className="mt-1 text-xs text-slate-500">
-                Each line in this draft purchase order can be added or removed manually.
-              </CardDescription>
-            </CardHeader>
-
-            <CardContent className="space-y-3 p-5">
-              <div className="space-y-3">
-                {lines.map((line, index) => {
-                  const selectedItem = items.find((i) => i.id === line.item_id);
-                  const selectedTax = taxCodes.find(
-                    (t) => t.id === line.tax_code_id
-                  );
-                  const selectedCategory = expenseCategories.find(
-                    (c) => c.id === line.expense_category_id
-                  );
-
-                  return (
-                    <div
-                      key={line.localId}
-                      className="rounded-[24px] border border-white/10 bg-black/20 p-4"
-                    >
-                      <div className="mb-4 flex items-center justify-between gap-4">
-                        <div className="flex flex-wrap items-center gap-2">
-                          <div className="text-sm font-semibold text-white">
-                            Line {index + 1}
-                          </div>
-                          {selectedItem ? (
-                            <Badge className="rounded-full border border-violet-400/20 bg-violet-500/10 px-3 py-1 text-[10px] font-semibold uppercase tracking-[0.18em] text-violet-200 shadow-none">
-                              {selectedItem.name}
-                            </Badge>
-                          ) : null}
-                          {selectedCategory ? (
-                            <Badge className="rounded-full border border-amber-400/20 bg-amber-500/10 px-3 py-1 text-[10px] font-semibold uppercase tracking-[0.18em] text-amber-200 shadow-none">
-                              {selectedCategory.name}
-                            </Badge>
-                          ) : null}
-                        </div>
-
-                        <Button
-                          variant="outline"
-                          onClick={() => removeLine(line.localId)}
-                          disabled={lines.length === 1}
-                          className="h-9 rounded-2xl border-white/10 bg-white/[0.05] px-3 text-white hover:bg-white/[0.08] disabled:cursor-not-allowed disabled:opacity-40"
-                        >
-                          <Trash2 className="h-4 w-4" />
-                        </Button>
-                      </div>
-
-                      <div className="grid grid-cols-1 gap-4 md:grid-cols-12">
-                        <label className="space-y-2 md:col-span-3">
-                          <div className={inputLabelClass}>Item</div>
-                          <select
-                            value={line.item_id}
-                            onChange={(e) => handleItemChange(line.localId, e.target.value)}
-                            disabled={sourceMode === "vendor_quotation"}
-                            className={inputFieldClass}
-                          >
-                            <option value="">Manual item</option>
-                            {items.map((item) => (
-                              <option key={item.id} value={item.id}>
-                                {item.name}
-                              </option>
-                            ))}
-                          </select>
-                        </label>
-
-                        <label className="space-y-2 md:col-span-4">
-                          <div className={inputLabelClass}>Description</div>
-                          <input
-                            value={line.description}
-                            onChange={(e) => updateLine(line.localId, { description: e.target.value })}
-                            disabled={sourceMode === "vendor_quotation"}
-                            placeholder="Description"
-                            className={inputFieldClass}
-                          />
-                        </label>
-
-                        <label className="space-y-2 md:col-span-1">
-                          <div className={inputLabelClass}>Qty</div>
-                          <input
-                            value={line.quantity}
-                            onChange={(e) => updateLine(line.localId, { quantity: e.target.value })}
-                            disabled={sourceMode === "vendor_quotation"}
-                            className={inputFieldClass}
-                          />
-                        </label>
-
-                        <label className="space-y-2 md:col-span-2">
-                          <div className={inputLabelClass}>Unit</div>
-                          <select
-                            value={line.unit_of_measure_id}
-                            onChange={(e) => updateLine(line.localId, { unit_of_measure_id: e.target.value })}
-                            disabled={sourceMode === "vendor_quotation"}
-                            className={inputFieldClass}
-                          >
-                            <option value="">Select unit</option>
-                            {units.map((unit) => (
-                              <option key={unit.id} value={unit.id}>
-                                {unit.name}
-                              </option>
-                            ))}
-                          </select>
-                        </label>
-
-                        <label className="space-y-2 md:col-span-2">
-                          <div className={inputLabelClass}>Unit Price</div>
-                          <input
-                            value={line.unit_price}
-                            onChange={(e) => updateLine(line.localId, { unit_price: e.target.value })}
-                            disabled={sourceMode === "vendor_quotation"}
-                            className={inputFieldClass}
-                          />
-                        </label>
-
-                                                <label className="space-y-2 md:col-span-2">
-                          <div className={inputLabelClass}>Discount</div>
-                          <input
-                            value={line.discount}
-                            onChange={(e) =>
-                              updateLine(line.localId, {
-                                discount: e.target.value,
-                              })
-                            }
-                            disabled={sourceMode === "vendor_quotation"}
-                            className={inputFieldClass}
-                          />
-                        </label>
-
-                        <label className="space-y-2 md:col-span-2">
-                          <div className={inputLabelClass}>Tax Code</div>
-                          <select
-                            value={line.tax_code_id}
-                            onChange={(e) =>
-                              updateLine(line.localId, {
-                                tax_code_id: e.target.value,
-                              })
-                            }
-                            disabled={sourceMode === "vendor_quotation"}
-                            className={inputFieldClass}
-                          >
-                            <option value="">Select tax</option>
-                            {taxCodes.map((tax) => (
-                              <option key={tax.id} value={tax.id}>
-                                {tax.code ? `${tax.code} | ` : ""}
-                                {tax.name} — {toNumber(tax.rate_percent)}%
-                              </option>
-                            ))}
-                          </select>
-                          {selectedTax ? (
-                            <div className="text-[11px] text-slate-500">
-                              {toNumber(selectedTax.rate_percent)}%
-                            </div>
-                          ) : null}
-                        </label>
-
-                        <label className="space-y-2 md:col-span-3">
-                          <div className={inputLabelClass}>
-                            Expense Category
-                          </div>
-                          <select
-                            value={line.expense_category_id}
-                            onChange={(e) =>
-                              updateLine(line.localId, {
-                                expense_category_id: e.target.value,
-                              })
-                            }
-                            disabled={sourceMode === "vendor_quotation"}
-                            className={inputFieldClass}
-                          >
-                            <option value="">Select category</option>
-                            {expenseCategories.map((category) => (
-                              <option key={category.id} value={category.id}>
-                                {category.code ? `${category.code} | ` : ""}
-                                {category.name}
-                              </option>
-                            ))}
-                          </select>
-                        </label>
-
-                        <div className="space-y-2 md:col-span-3">
-                          <div className={inputLabelClass}>Line Total</div>
-                          <div className="flex min-h-[44px] items-center rounded-2xl border border-cyan-400/15 bg-cyan-500/10 px-4 text-sm font-semibold text-cyan-100">
-                            {formatMoney(
-                              lineTotals[index] || 0,
-                              currencyCode || "USD"
-                            )}
-                          </div>
-                        </div>
-
-                        <label className="space-y-2 md:col-span-12">
-                          <div className={inputLabelClass}>Line Notes</div>
-                          <input
-                            value={line.notes}
-                            onChange={(e) =>
-                              updateLine(line.localId, {
-                                notes: e.target.value,
-                              })
-                            }
-                            disabled={sourceMode === "vendor_quotation"}
-                            placeholder="Optional line notes"
-                            className={inputFieldClass}
-                          />
-                        </label>
-                      </div>
-                    </div>
-                  );
-                })}
-              </div>
-
-              {sourceMode === "manual" ? (
-                <Button
-                  variant="outline"
-                  onClick={addLine}
-                  className="h-10 rounded-2xl border-white/10 bg-white/[0.05] px-4 text-white hover:bg-white/[0.08]"
-                >
-                  <Plus className="mr-2 h-4 w-4" />
-                  Add Line
-                </Button>
-              ) : null}
-            </CardContent>
-          </Card>
         </div>
       </div>
     </div>

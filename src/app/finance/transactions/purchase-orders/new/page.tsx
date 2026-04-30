@@ -2,7 +2,6 @@ import { useCallback, useEffect, useMemo, useState } from "react";
 import { useNavigate, useSearchParams } from "react-router-dom";
 import {
   ArrowRight,
-  FileText,
   Link2,
   Plus,
   Save,
@@ -272,6 +271,10 @@ function formatDate(value: string | null | undefined) {
 export default function NewPurchaseOrderPage() {
   const navigate = useNavigate();
   const [searchParams] = useSearchParams();
+  const sourceVendorQuotationId =
+    searchParams.get("vendorQuotationId") ||
+    searchParams.get("vendor_quotation_id") ||
+    "";
 
   const [sourceMode, setSourceMode] = useState<"manual" | "vendor_quotation">(
     "manual"

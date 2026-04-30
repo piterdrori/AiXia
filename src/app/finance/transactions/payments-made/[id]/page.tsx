@@ -352,6 +352,38 @@ function getBankName(bank: BankAccountOption | null) {
   return bank.bank_name || bank.institution_name || "Bank";
 }
 
+function resolveUploadMimeType(file: File) {
+  const currentType = file.type?.trim();
+
+  if (currentType && currentType !== "application/octet-stream") {
+    return currentType;
+  }
+
+  const extension = file.name.split(".").pop()?.toLowerCase();
+
+  switch (extension) {
+    case "pdf":
+      return "application/pdf";
+    case "png":
+      return "image/png";
+    case "jpg":
+    case "jpeg":
+      return "image/jpeg";
+    case "webp":
+      return "image/webp";
+    case "doc":
+      return "application/msword";
+    case "docx":
+      return "application/vnd.openxmlformats-officedocument.wordprocessingml.document";
+    case "xls":
+      return "application/vnd.ms-excel";
+    case "xlsx":
+      return "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet";
+    default:
+      return currentType || "application/octet-stream";
+  }
+}
+
 async function uploadPaymentMadeProof(
   paymentId: string,
   selectedFile: File,
@@ -359,11 +391,13 @@ async function uploadPaymentMadeProof(
 ) {
   const safeFileName = selectedFile.name.replace(/\s+/g, "-");
   const storagePath = `payments-made/${paymentId}/${Date.now()}-${safeFileName}`;
+  const resolvedMimeType = resolveUploadMimeType(selectedFile);
 
   const { error: uploadError } = await supabase.storage
     .from("finance-payment-made-proofs")
     .upload(storagePath, selectedFile, {
       upsert: false,
+      contentType: resolvedMimeType,
     });
 
   if (uploadError) throw uploadError;
@@ -375,7 +409,7 @@ async function uploadPaymentMadeProof(
       file_name: selectedFile.name,
       file_path: storagePath,
       file_size: selectedFile.size,
-      mime_type: selectedFile.type || null,
+      mime_type: resolvedMimeType,
       entity_type: "finance_payment_made",
     })
     .select("id")

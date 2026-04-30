@@ -32,12 +32,21 @@ type VendorOption = {
   currency_code: string | null;
 };
 
+type CompanyOption = {
+  id: string;
+  name: string;
+  legal_name: string | null;
+  currency_code: string | null;
+};
+
 type PurchaseOrderOption = {
   id: string;
   purchase_order_number: string;
   vendor_quotation_id: string | null;
   vendor_id: string;
   company_id: string | null;
+  company_name?: string | null;
+  company_legal_name?: string | null;
   po_date: string;
   expected_delivery_date: string | null;
   status: string;
@@ -203,6 +212,7 @@ export default function FinanceNewBillPage() {
   const sourcePurchaseOrderId = searchParams.get("purchase_order_id") || "";
 
   const [vendors, setVendors] = useState<VendorOption[]>([]);
+  const [companies, setCompanies] = useState<CompanyOption[]>([]);
   const [purchaseOrders, setPurchaseOrders] = useState<PurchaseOrderOption[]>([]);
   const [purchaseOrderLines, setPurchaseOrderLines] = useState<
     PurchaseOrderLine[]
@@ -223,6 +233,7 @@ export default function FinanceNewBillPage() {
   );
   const [purchaseOrderId, setPurchaseOrderId] = useState(sourcePurchaseOrderId);
   const [vendorId, setVendorId] = useState("");
+  const [companyId, setCompanyId] = useState("");
   const [documentType, setDocumentType] =
     useState<BillDocumentType>("vendor_invoice");
   const [externalDocumentNumber, setExternalDocumentNumber] = useState("");
@@ -244,6 +255,11 @@ export default function FinanceNewBillPage() {
     [purchaseOrderId, purchaseOrders]
   );
 
+    const selectedCompany = useMemo(
+    () => companies.find((company) => company.id === companyId) ?? null,
+    [companies, companyId]
+  );
+
   useEffect(() => {
     async function loadLookups() {
       try {
@@ -252,6 +268,7 @@ export default function FinanceNewBillPage() {
 
         const [
           vendorsResult,
+          companiesResult,
           purchaseOrdersResult,
           expenseCategoriesResult,
           currenciesResult,
@@ -261,6 +278,11 @@ export default function FinanceNewBillPage() {
           supabase
             .from("finance_vendors")
             .select("id, code, name, legal_name, currency_code")
+            .eq("status", "active")
+            .order("name", { ascending: true }),
+          supabase
+            .from("finance_companies")
+            .select("id, name, legal_name, currency_code")
             .eq("status", "active")
             .order("name", { ascending: true }),
           supabase
@@ -281,6 +303,7 @@ export default function FinanceNewBillPage() {
                 "total_amount",
                 "notes",
                 "finance_vendors(name, legal_name)",
+                "finance_companies!finance_purchase_orders_company_id_fkey(name, legal_name)",
               ].join(", ")
             )
             .in("status", ["issued", "sent", "acknowledged"])
@@ -306,6 +329,7 @@ export default function FinanceNewBillPage() {
         ]);
 
         if (vendorsResult.error) throw vendorsResult.error;
+        if (companiesResult.error) throw companiesResult.error;
         if (purchaseOrdersResult.error) throw purchaseOrdersResult.error;
         if (expenseCategoriesResult.error) throw expenseCategoriesResult.error;
         if (currenciesResult.error) throw currenciesResult.error;
@@ -319,16 +343,23 @@ export default function FinanceNewBillPage() {
               name?: string | null;
               legal_name?: string | null;
             } | null;
+            finance_companies?: {
+              name?: string | null;
+              legal_name?: string | null;
+            } | null;
           };
 
           return {
             ...row,
             vendor_name: row.finance_vendors?.name ?? null,
             vendor_legal_name: row.finance_vendors?.legal_name ?? null,
+            company_name: row.finance_companies?.name ?? null,
+            company_legal_name: row.finance_companies?.legal_name ?? null,
           };
         });
 
         setVendors((vendorsResult.data || []) as unknown as VendorOption[]);
+        setCompanies((companiesResult.data || []) as unknown as CompanyOption[]);
         setPurchaseOrders(mappedPurchaseOrders);
 
         setExpenseCategories(
@@ -352,6 +383,7 @@ export default function FinanceNewBillPage() {
       if (!selectedPurchaseOrder || sourceMode !== "purchase_order") return;
 
       setVendorId(selectedPurchaseOrder.vendor_id || "");
+      setCompanyId(selectedPurchaseOrder.company_id || "");
       setCurrencyCode(selectedPurchaseOrder.currency_code || "");
       setNotes(selectedPurchaseOrder.notes || "");
 
@@ -449,6 +481,7 @@ export default function FinanceNewBillPage() {
     }
 
     if (!vendorId) return "Select a vendor.";
+    if (!companyId) return "Select issued-to receiving company.";
     if (!currencyCode) return "Select currency.";
     if (!issueDate) return "Select issue date.";
     if (!dueDate) return "Select due date.";
@@ -470,6 +503,7 @@ export default function FinanceNewBillPage() {
 
     return "";
   }, [
+    companyId,
     currencyCode,
     dueDate,
     issueDate,
@@ -532,6 +566,7 @@ export default function FinanceNewBillPage() {
         .insert({
           bill_number: `${billNumberPrefix}-${Date.now()}`,
           vendor_id: vendorId,
+          company_id: companyId,
           issue_date: issueDate,
           due_date: dueDate,
           status: "draft",
@@ -597,6 +632,7 @@ export default function FinanceNewBillPage() {
       setIsSaving(false);
     }
   }, [
+    companyId,
     currencyCode,
     documentType,
     dueDate,
@@ -752,6 +788,7 @@ export default function FinanceNewBillPage() {
 
                       if (nextMode === "manual") {
                         setPurchaseOrderId("");
+                        setCompanyId("");
                         setPurchaseOrderLines([]);
                         setLines([createEmptyLine()]);
                       }
@@ -797,9 +834,14 @@ export default function FinanceNewBillPage() {
                       {selectedPurchaseOrder.purchase_order_number}
                     </div>
                     <div className="mt-2 text-sm leading-6 text-slate-300">
-                      Status: {selectedPurchaseOrder.status} · PO Date:{" "}
-                      {formatDate(selectedPurchaseOrder.po_date)} · Lines:{" "}
-                      {purchaseOrderLines.length}
+                      Status: {selectedPurchaseOrder.status} · Issued To:{" "}
+                      {selectedPurchaseOrder.company_legal_name ||
+                        selectedPurchaseOrder.company_name ||
+                        selectedCompany?.legal_name ||
+                        selectedCompany?.name ||
+                        "Company"}{" "}
+                      · PO Date: {formatDate(selectedPurchaseOrder.po_date)} ·
+                      Lines: {purchaseOrderLines.length}
                     </div>
                   </div>
                 ) : null}
@@ -840,7 +882,7 @@ export default function FinanceNewBillPage() {
                 </label>
 
                 <label className="space-y-2">
-                  <div className={labelClass}>Vendor</div>
+                  <div className={labelClass}>Vendor / Issued From</div>
                   <select
                     value={vendorId}
                     onChange={(event) => setVendorId(event.target.value)}
@@ -852,6 +894,23 @@ export default function FinanceNewBillPage() {
                       <option key={vendor.id} value={vendor.id}>
                         {vendor.legal_name || vendor.name}
                         {vendor.code ? ` — ${vendor.code}` : ""}
+                      </option>
+                    ))}
+                  </select>
+                </label>
+
+                <label className="space-y-2">
+                  <div className={labelClass}>Issued To / Receiving Company</div>
+                  <select
+                    value={companyId}
+                    onChange={(event) => setCompanyId(event.target.value)}
+                    disabled={sourceMode === "purchase_order"}
+                    className={`${fieldClass} disabled:opacity-70`}
+                  >
+                    <option value="">Select company</option>
+                    {companies.map((company) => (
+                      <option key={company.id} value={company.id}>
+                        {company.legal_name || company.name}
                       </option>
                     ))}
                   </select>

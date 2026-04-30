@@ -892,7 +892,7 @@ export default function NewPurchaseOrderPage() {
       setItems(itemsResult.data as ItemOption[]);
       setVendorQuotations(mappedVendorQuotations);
 
-          if (!companyId && companiesResult.data.length === 1) {
+      if (!companyId && companiesResult.data.length === 1) {
         const onlyCompany = companiesResult.data[0] as CompanyOption;
         setCompanyId(onlyCompany.id);
       }
@@ -1597,7 +1597,7 @@ export default function NewPurchaseOrderPage() {
           </CardContent>
         </Card>
 
-                <div className="grid grid-cols-1 gap-6 xl:grid-cols-[minmax(0,1.45fr)_420px]">
+        <div className="grid grid-cols-1 gap-6 xl:grid-cols-[minmax(0,1.45fr)_420px]">
           <div className="space-y-6">
             <Card className={activeSectionClass}>
               <CardHeader className="border-b border-white/10 px-5 py-4">
@@ -2425,7 +2425,7 @@ export default function NewPurchaseOrderPage() {
                 <div>• Issue/send action happens later from the PO detail page.</div>
                 <div>• Vendor PI / Invoice is received only after PO issue.</div>
                 <div>• Payment Made happens after vendor bill approval.</div>
-                <div>• This is the reverse mirror of the incoming receivables flow.</div>
+                <div>• This is the supplier procurement flow: vendor quotation → purchase order → vendor PI / invoice → payment made.</div>
               </CardContent>
             </Card>
           </div>

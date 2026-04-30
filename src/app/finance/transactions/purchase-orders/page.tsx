@@ -263,7 +263,7 @@ export default function FinancePurchaseOrdersPage() {
             "created_at",
             "updated_at",
             "finance_vendors(name, legal_name, code)",
-            "finance_companies(name, legal_name)",
+            "finance_companies!finance_purchase_orders_company_id_fkey(name, legal_name)",
             "finance_vendor_quotations(vendor_quotation_number, external_quotation_number)",
           ].join(", ")
         )

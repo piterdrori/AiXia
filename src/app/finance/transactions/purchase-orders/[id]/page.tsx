@@ -1883,10 +1883,6 @@ export default function FinancePurchaseOrderDetailPage() {
   }, []);
 
   const handleSaveOverview = useCallback(() => {
-    window.print();
-  }, []);
-
-  const handleSaveOverview = useCallback(() => {
     if (canEditDraft) {
       void handleSaveDraftChanges();
     }

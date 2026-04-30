@@ -2,7 +2,6 @@ import { useCallback, useEffect, useMemo, useState } from "react";
 import { useNavigate, useSearchParams } from "react-router-dom";
 import {
   ArrowRight,
-  FileText,
   Link2,
   Plus,
   Save,
@@ -272,6 +271,10 @@ function formatDate(value: string | null | undefined) {
 export default function NewPurchaseOrderPage() {
   const navigate = useNavigate();
   const [searchParams] = useSearchParams();
+  const sourceVendorQuotationId =
+    searchParams.get("vendorQuotationId") ||
+    searchParams.get("vendor_quotation_id") ||
+    "";
 
   const [sourceMode, setSourceMode] = useState<"manual" | "vendor_quotation">(
     "manual"
@@ -1407,9 +1410,6 @@ export default function NewPurchaseOrderPage() {
                   const selectedItem = items.find((i) => i.id === line.item_id);
                   const selectedTax = taxCodes.find(
                     (t) => t.id === line.tax_code_id
-                  );
-                  const selectedUnit = units.find(
-                    (u) => u.id === line.unit_of_measure_id
                   );
                   const selectedCategory = expenseCategories.find(
                     (c) => c.id === line.expense_category_id

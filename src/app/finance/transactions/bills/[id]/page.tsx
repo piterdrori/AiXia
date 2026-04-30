@@ -390,6 +390,38 @@ function createNewLineDraft(): BillLineDraft {
   };
 }
 
+function resolveUploadMimeType(file: File) {
+  const currentType = file.type?.trim();
+
+  if (currentType && currentType !== "application/octet-stream") {
+    return currentType;
+  }
+
+  const extension = file.name.split(".").pop()?.toLowerCase();
+
+  switch (extension) {
+    case "pdf":
+      return "application/pdf";
+    case "png":
+      return "image/png";
+    case "jpg":
+    case "jpeg":
+      return "image/jpeg";
+    case "webp":
+      return "image/webp";
+    case "doc":
+      return "application/msword";
+    case "docx":
+      return "application/vnd.openxmlformats-officedocument.wordprocessingml.document";
+    case "xls":
+      return "application/vnd.ms-excel";
+    case "xlsx":
+      return "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet";
+    default:
+      return currentType || "application/octet-stream";
+  }
+}
+
 async function uploadVendorBillDocument(
   billId: string,
   selectedFile: File,
@@ -397,11 +429,13 @@ async function uploadVendorBillDocument(
 ) {
   const safeFileName = selectedFile.name.replace(/\s+/g, "-");
   const storagePath = `vendor-bills/${billId}/${Date.now()}-${safeFileName}`;
+  const resolvedMimeType = resolveUploadMimeType(selectedFile);
 
   const { error: uploadError } = await supabase.storage
     .from("finance-vendor-bill-documents")
     .upload(storagePath, selectedFile, {
       upsert: false,
+      contentType: resolvedMimeType,
     });
 
   if (uploadError) throw uploadError;
@@ -413,7 +447,7 @@ async function uploadVendorBillDocument(
       file_name: selectedFile.name,
       file_path: storagePath,
       file_size: selectedFile.size,
-      mime_type: selectedFile.type || null,
+      mime_type: resolvedMimeType,
       entity_type: "finance_vendor_bill",
     })
     .select("id")
@@ -558,7 +592,7 @@ export default function FinanceBillDetailPage() {
   const canDelete =
     !!bill &&
     !hasPaymentHistory &&
-    !["deleted", "open", "partially_paid", "paid", "overdue"].includes(
+    !["archived", "deleted", "open", "partially_paid", "paid", "overdue"].includes(
       bill.status
     );
 
@@ -1102,7 +1136,7 @@ export default function FinanceBillDetailPage() {
     } finally {
       setIsSavingOverview(false);
     }
-  }, [bill, canEdit, loadBill, overviewDraft, purchaseOrderLink?.id]);
+  }, [bill, canEdit, loadBill, overviewDraft]);
 
   const saveLines = useCallback(async () => {
     if (!bill || !canEdit) return;
@@ -1490,7 +1524,7 @@ export default function FinanceBillDetailPage() {
           </div>
         </header>
 
-                <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
+        <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
           <div className="group relative min-h-[156px] overflow-hidden rounded-[28px] border border-white/10 bg-white/[0.045] p-5 backdrop-blur-xl transition hover:border-white/20 hover:bg-white/[0.055]">
             <div className="pointer-events-none absolute inset-0 bg-gradient-to-br from-violet-500/20 via-violet-400/10 to-transparent opacity-70" />
             <div className="relative flex h-full flex-col justify-between gap-5">
@@ -2019,7 +2053,7 @@ export default function FinanceBillDetailPage() {
               </CardContent>
             </Card>
 
-                        <Card className={sectionCardClass}>
+             <Card className={sectionCardClass}>
               <CardHeader className="flex flex-col gap-4 border-b border-white/10 px-5 py-4 md:flex-row md:items-center md:justify-between">
                 <div className="flex items-center gap-3">
                   <div className="rounded-2xl border border-amber-400/15 bg-amber-500/10 p-3 text-amber-200">
@@ -2515,7 +2549,7 @@ export default function FinanceBillDetailPage() {
               </CardContent>
             </Card>
 
-                        <Card className={sectionCardClass}>
+            <Card className={sectionCardClass}>
               <CardHeader className="border-b border-white/10 px-5 py-4">
                 <CardTitle className="text-sm font-semibold uppercase tracking-[0.18em] text-slate-400">
                   Archive

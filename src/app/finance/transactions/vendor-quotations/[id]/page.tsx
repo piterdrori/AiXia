@@ -567,7 +567,8 @@ export default function FinanceVendorQuotationDetailPage() {
     !!quotation &&
     !["archived", "deleted", "converted"].includes(quotation.status);
   const canDelete =
-    !!quotation && !["deleted", "converted"].includes(quotation.status);
+    !!quotation &&
+    !["archived", "deleted", "converted"].includes(quotation.status);
   const canRestore =
     !!quotation && ["archived", "deleted"].includes(quotation.status);
   const canHardDelete = !!quotation && quotation.status === "deleted";

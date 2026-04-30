@@ -2,6 +2,7 @@ import { useCallback, useEffect, useMemo, useState } from "react";
 import { useNavigate, useSearchParams } from "react-router-dom";
 import {
   ArrowRight,
+  FileText,
   Link2,
   Plus,
   Save,
@@ -271,10 +272,6 @@ function formatDate(value: string | null | undefined) {
 export default function NewPurchaseOrderPage() {
   const navigate = useNavigate();
   const [searchParams] = useSearchParams();
-  const sourceVendorQuotationId =
-    searchParams.get("vendorQuotationId") ||
-    searchParams.get("vendor_quotation_id") ||
-    "";
 
   const [sourceMode, setSourceMode] = useState<"manual" | "vendor_quotation">(
     "manual"
@@ -840,13 +837,7 @@ export default function NewPurchaseOrderPage() {
     } finally {
       setIsLoading(false);
     }
-  }, [
-    companyId,
-    paymentMethodId,
-    paymentTermsId,
-    shippingTermId,
-    sourceVendorQuotationId,
-  ]);
+  }, [sourceVendorQuotationId]);
 
   useEffect(() => {
     void loadFormData();
@@ -1393,234 +1384,7 @@ export default function NewPurchaseOrderPage() {
           </div>
         </div>
 
-                <div className="space-y-6">
-          <Card className={activeSectionClass}>
-            <CardHeader className="border-b border-white/10 px-5 py-4">
-              <CardTitle className="text-sm font-semibold uppercase tracking-[0.18em] text-slate-400">
-                Line Items
-              </CardTitle>
-              <CardDescription className="mt-1 text-xs text-slate-500">
-                Each line in this draft purchase order can be added or removed manually.
-              </CardDescription>
-            </CardHeader>
-
-            <CardContent className="space-y-3 p-5">
-              <div className="space-y-3">
-                {lines.map((line, index) => {
-                  const selectedItem = items.find((i) => i.id === line.item_id);
-                  const selectedTax = taxCodes.find(
-                    (t) => t.id === line.tax_code_id
-                  );
-                  const selectedCategory = expenseCategories.find(
-                    (c) => c.id === line.expense_category_id
-                  );
-
-                  return (
-                    <div
-                      key={line.localId}
-                      className="rounded-[24px] border border-white/10 bg-black/20 p-4"
-                    >
-                      <div className="mb-4 flex items-center justify-between gap-4">
-                        <div className="flex flex-wrap items-center gap-2">
-                          <div className="text-sm font-semibold text-white">
-                            Line {index + 1}
-                          </div>
-                          {selectedItem ? (
-                            <Badge className="rounded-full border border-violet-400/20 bg-violet-500/10 px-3 py-1 text-[10px] font-semibold uppercase tracking-[0.18em] text-violet-200 shadow-none">
-                              {selectedItem.name}
-                            </Badge>
-                          ) : null}
-                          {selectedCategory ? (
-                            <Badge className="rounded-full border border-amber-400/20 bg-amber-500/10 px-3 py-1 text-[10px] font-semibold uppercase tracking-[0.18em] text-amber-200 shadow-none">
-                              {selectedCategory.name}
-                            </Badge>
-                          ) : null}
-                        </div>
-
-                        <Button
-                          variant="outline"
-                          onClick={() => removeLine(line.localId)}
-                          disabled={lines.length === 1}
-                          className="h-9 rounded-2xl border-white/10 bg-white/[0.05] px-3 text-white hover:bg-white/[0.08] disabled:cursor-not-allowed disabled:opacity-40"
-                        >
-                          <Trash2 className="h-4 w-4" />
-                        </Button>
-                      </div>
-
-                      <div className="grid grid-cols-1 gap-4 md:grid-cols-12">
-                        <label className="space-y-2 md:col-span-3">
-                          <div className={inputLabelClass}>Item</div>
-                          <select
-                            value={line.item_id}
-                            onChange={(e) => handleItemChange(line.localId, e.target.value)}
-                            disabled={sourceMode === "vendor_quotation"}
-                            className={inputFieldClass}
-                          >
-                            <option value="">Manual item</option>
-                            {items.map((item) => (
-                              <option key={item.id} value={item.id}>
-                                {item.name}
-                              </option>
-                            ))}
-                          </select>
-                        </label>
-
-                        <label className="space-y-2 md:col-span-4">
-                          <div className={inputLabelClass}>Description</div>
-                          <input
-                            value={line.description}
-                            onChange={(e) => updateLine(line.localId, { description: e.target.value })}
-                            disabled={sourceMode === "vendor_quotation"}
-                            placeholder="Description"
-                            className={inputFieldClass}
-                          />
-                        </label>
-
-                        <label className="space-y-2 md:col-span-1">
-                          <div className={inputLabelClass}>Qty</div>
-                          <input
-                            value={line.quantity}
-                            onChange={(e) => updateLine(line.localId, { quantity: e.target.value })}
-                            disabled={sourceMode === "vendor_quotation"}
-                            className={inputFieldClass}
-                          />
-                        </label>
-
-                        <label className="space-y-2 md:col-span-2">
-                          <div className={inputLabelClass}>Unit</div>
-                          <select
-                            value={line.unit_of_measure_id}
-                            onChange={(e) => updateLine(line.localId, { unit_of_measure_id: e.target.value })}
-                            disabled={sourceMode === "vendor_quotation"}
-                            className={inputFieldClass}
-                          >
-                            <option value="">Select unit</option>
-                            {units.map((unit) => (
-                              <option key={unit.id} value={unit.id}>
-                                {unit.name}
-                              </option>
-                            ))}
-                          </select>
-                        </label>
-
-                        <label className="space-y-2 md:col-span-2">
-                          <div className={inputLabelClass}>Unit Price</div>
-                          <input
-                            value={line.unit_price}
-                            onChange={(e) => updateLine(line.localId, { unit_price: e.target.value })}
-                            disabled={sourceMode === "vendor_quotation"}
-                            className={inputFieldClass}
-                          />
-                        </label>
-
-                                                <label className="space-y-2 md:col-span-2">
-                          <div className={inputLabelClass}>Discount</div>
-                          <input
-                            value={line.discount}
-                            onChange={(e) =>
-                              updateLine(line.localId, {
-                                discount: e.target.value,
-                              })
-                            }
-                            disabled={sourceMode === "vendor_quotation"}
-                            className={inputFieldClass}
-                          />
-                        </label>
-
-                        <label className="space-y-2 md:col-span-2">
-                          <div className={inputLabelClass}>Tax Code</div>
-                          <select
-                            value={line.tax_code_id}
-                            onChange={(e) =>
-                              updateLine(line.localId, {
-                                tax_code_id: e.target.value,
-                              })
-                            }
-                            disabled={sourceMode === "vendor_quotation"}
-                            className={inputFieldClass}
-                          >
-                            <option value="">Select tax</option>
-                            {taxCodes.map((tax) => (
-                              <option key={tax.id} value={tax.id}>
-                                {tax.code ? `${tax.code} | ` : ""}
-                                {tax.name} — {toNumber(tax.rate_percent)}%
-                              </option>
-                            ))}
-                          </select>
-                          {selectedTax ? (
-                            <div className="text-[11px] text-slate-500">
-                              {toNumber(selectedTax.rate_percent)}%
-                            </div>
-                          ) : null}
-                        </label>
-
-                        <label className="space-y-2 md:col-span-3">
-                          <div className={inputLabelClass}>
-                            Expense Category
-                          </div>
-                          <select
-                            value={line.expense_category_id}
-                            onChange={(e) =>
-                              updateLine(line.localId, {
-                                expense_category_id: e.target.value,
-                              })
-                            }
-                            disabled={sourceMode === "vendor_quotation"}
-                            className={inputFieldClass}
-                          >
-                            <option value="">Select category</option>
-                            {expenseCategories.map((category) => (
-                              <option key={category.id} value={category.id}>
-                                {category.code ? `${category.code} | ` : ""}
-                                {category.name}
-                              </option>
-                            ))}
-                          </select>
-                        </label>
-
-                        <div className="space-y-2 md:col-span-3">
-                          <div className={inputLabelClass}>Line Total</div>
-                          <div className="flex min-h-[44px] items-center rounded-2xl border border-cyan-400/15 bg-cyan-500/10 px-4 text-sm font-semibold text-cyan-100">
-                            {formatMoney(
-                              lineTotals[index] || 0,
-                              currencyCode || "USD"
-                            )}
-                          </div>
-                        </div>
-
-                        <label className="space-y-2 md:col-span-12">
-                          <div className={inputLabelClass}>Line Notes</div>
-                          <input
-                            value={line.notes}
-                            onChange={(e) =>
-                              updateLine(line.localId, {
-                                notes: e.target.value,
-                              })
-                            }
-                            disabled={sourceMode === "vendor_quotation"}
-                            placeholder="Optional line notes"
-                            className={inputFieldClass}
-                          />
-                        </label>
-                      </div>
-                    </div>
-                  );
-                })}
-              </div>
-
-              {sourceMode === "manual" ? (
-                <Button
-                  variant="outline"
-                  onClick={addLine}
-                  className="h-10 rounded-2xl border-white/10 bg-white/[0.05] px-4 text-white hover:bg-white/[0.08]"
-                >
-                  <Plus className="mr-2 h-4 w-4" />
-                  Add Line
-                </Button>
-              ) : null}
-            </CardContent>
-          </Card>
-
+        <div className="space-y-6">
           <Card className={activeSectionClass}>
             <CardHeader className="border-b border-white/10 px-5 py-4">
               <div className="flex items-center gap-3">
@@ -2127,123 +1891,6 @@ export default function NewPurchaseOrderPage() {
               </CardContent>
             </Card>
 
-            <Card className={activeSectionClass}>
-              <CardHeader className="border-b border-white/10 px-5 py-4">
-                <div className="flex items-center gap-3">
-                  <div className="rounded-2xl border border-violet-400/15 bg-violet-500/10 p-3 text-violet-200">
-                    <Link2 className="h-4 w-4" />
-                  </div>
-                  <div>
-                    <CardTitle className="text-sm font-semibold uppercase tracking-[0.18em] text-slate-400">
-                      Source Relationship
-                    </CardTitle>
-                    <CardDescription className="mt-1 text-xs text-slate-500">
-                      Create manually or from one accepted vendor quotation.
-                    </CardDescription>
-                  </div>
-                </div>
-              </CardHeader>
-
-              <CardContent className="grid grid-cols-1 gap-4 p-5 md:grid-cols-3">
-                <div className={summaryBlockClass}>
-                  <div className={labelClass}>Creation Mode</div>
-                  <select
-                    value={sourceMode}
-                    onChange={(event) => {
-                      const nextMode = event.target.value as
-                        | "manual"
-                        | "vendor_quotation";
-
-                      setSourceMode(nextMode);
-
-                      if (nextMode === "manual") {
-                        resetManualSource();
-                        return;
-                      }
-
-                      setVendorQuotationId("");
-                      setVendorQuotationLines([]);
-                      setLines([createEmptyLine()]);
-                      setNotes("");
-                      setErrorMessage("");
-                    }}
-                    className={fieldShellClass}
-                  >
-                    <option value="manual">Manual Purchase Order</option>
-                    <option value="vendor_quotation">From Vendor Quotation</option>
-                  </select>
-                </div>
-
-                <div className={summaryBlockClass}>
-                  <div className={labelClass}>Accepted Vendor Quotation</div>
-                  <select
-                    value={vendorQuotationId}
-                    onChange={(event) => setVendorQuotationId(event.target.value)}
-                    disabled={sourceMode !== "vendor_quotation"}
-                    className={fieldShellClass}
-                  >
-                    <option value="">Select accepted quotation</option>
-                    {vendorQuotations.map((quotation) => (
-                      <option key={quotation.id} value={quotation.id}>
-                        {quotation.vendor_quotation_number} —{" "}
-                        {quotation.vendor_legal_name ||
-                          quotation.vendor_name ||
-                          "Vendor"}{" "}
-                        —{" "}
-                        {formatMoney(
-                          quotation.total_amount,
-                          quotation.currency_code || "USD"
-                        )}
-                      </option>
-                    ))}
-                  </select>
-                </div>
-
-                <div className={summaryBlockClass}>
-                  <div className={labelClass}>Source Status</div>
-                  <div className="mt-2 text-xl font-semibold text-white">
-                    {sourceDescription}
-                  </div>
-                  <div className="mt-2 text-sm leading-6 text-slate-400">
-                    {selectedVendorQuotation
-                      ? `External ref: ${
-                          selectedVendorQuotation.external_quotation_number ||
-                          "—"
-                        }`
-                      : "Manual purchase order without source quotation."}
-                  </div>
-                </div>
-
-                {selectedVendorQuotation ? (
-                  <div className="rounded-[24px] border border-violet-400/15 bg-violet-500/10 p-4 md:col-span-3">
-                    <div className={labelClass}>Source Vendor Quotation</div>
-                    <div className="mt-2 text-2xl font-semibold text-white">
-                      {selectedVendorQuotation.vendor_quotation_number}
-                    </div>
-                    <div className="mt-2 grid grid-cols-1 gap-3 text-sm leading-6 text-slate-300 md:grid-cols-4">
-                      <div>
-                        <span className="text-slate-500">Vendor:</span>{" "}
-                        {selectedVendorQuotation.vendor_legal_name ||
-                          selectedVendorQuotation.vendor_name ||
-                          "—"}
-                      </div>
-                      <div>
-                        <span className="text-slate-500">Date:</span>{" "}
-                        {formatDate(selectedVendorQuotation.quotation_date)}
-                      </div>
-                      <div>
-                        <span className="text-slate-500">Valid Until:</span>{" "}
-                        {formatDate(selectedVendorQuotation.valid_until)}
-                      </div>
-                      <div>
-                        <span className="text-slate-500">Lines:</span>{" "}
-                        {vendorQuotationLines.length}
-                      </div>
-                    </div>
-                  </div>
-                ) : null}
-              </CardContent>
-            </Card>
           </div>
 
                             <div className="space-y-6">
@@ -2524,6 +2171,235 @@ export default function NewPurchaseOrderPage() {
               </CardContent>
             </Card>
           </div>
+        </div>
+
+        <div className="space-y-6">
+          <Card className={activeSectionClass}>
+            <CardHeader className="border-b border-white/10 px-5 py-4">
+              <CardTitle className="text-sm font-semibold uppercase tracking-[0.18em] text-slate-400">
+                Line Items
+              </CardTitle>
+              <CardDescription className="mt-1 text-xs text-slate-500">
+                Each line in this draft purchase order can be added or removed manually.
+              </CardDescription>
+            </CardHeader>
+
+            <CardContent className="space-y-3 p-5">
+              <div className="space-y-3">
+                {lines.map((line, index) => {
+                  const selectedItem = items.find((i) => i.id === line.item_id);
+                  const selectedTax = taxCodes.find(
+                    (t) => t.id === line.tax_code_id
+                  );
+                  const selectedCategory = expenseCategories.find(
+                    (c) => c.id === line.expense_category_id
+                  );
+
+                  return (
+                    <div
+                      key={line.localId}
+                      className="rounded-[24px] border border-white/10 bg-black/20 p-4"
+                    >
+                      <div className="mb-4 flex items-center justify-between gap-4">
+                        <div className="flex flex-wrap items-center gap-2">
+                          <div className="text-sm font-semibold text-white">
+                            Line {index + 1}
+                          </div>
+                          {selectedItem ? (
+                            <Badge className="rounded-full border border-violet-400/20 bg-violet-500/10 px-3 py-1 text-[10px] font-semibold uppercase tracking-[0.18em] text-violet-200 shadow-none">
+                              {selectedItem.name}
+                            </Badge>
+                          ) : null}
+                          {selectedCategory ? (
+                            <Badge className="rounded-full border border-amber-400/20 bg-amber-500/10 px-3 py-1 text-[10px] font-semibold uppercase tracking-[0.18em] text-amber-200 shadow-none">
+                              {selectedCategory.name}
+                            </Badge>
+                          ) : null}
+                        </div>
+
+                        <Button
+                          variant="outline"
+                          onClick={() => removeLine(line.localId)}
+                          disabled={lines.length === 1}
+                          className="h-9 rounded-2xl border-white/10 bg-white/[0.05] px-3 text-white hover:bg-white/[0.08] disabled:cursor-not-allowed disabled:opacity-40"
+                        >
+                          <Trash2 className="h-4 w-4" />
+                        </Button>
+                      </div>
+
+                      <div className="grid grid-cols-1 gap-4 md:grid-cols-12">
+                        <label className="space-y-2 md:col-span-3">
+                          <div className={inputLabelClass}>Item</div>
+                          <select
+                            value={line.item_id}
+                            onChange={(e) => handleItemChange(line.localId, e.target.value)}
+                            disabled={sourceMode === "vendor_quotation"}
+                            className={inputFieldClass}
+                          >
+                            <option value="">Manual item</option>
+                            {items.map((item) => (
+                              <option key={item.id} value={item.id}>
+                                {item.name}
+                              </option>
+                            ))}
+                          </select>
+                        </label>
+
+                        <label className="space-y-2 md:col-span-4">
+                          <div className={inputLabelClass}>Description</div>
+                          <input
+                            value={line.description}
+                            onChange={(e) => updateLine(line.localId, { description: e.target.value })}
+                            disabled={sourceMode === "vendor_quotation"}
+                            placeholder="Description"
+                            className={inputFieldClass}
+                          />
+                        </label>
+
+                        <label className="space-y-2 md:col-span-1">
+                          <div className={inputLabelClass}>Qty</div>
+                          <input
+                            value={line.quantity}
+                            onChange={(e) => updateLine(line.localId, { quantity: e.target.value })}
+                            disabled={sourceMode === "vendor_quotation"}
+                            className={inputFieldClass}
+                          />
+                        </label>
+
+                        <label className="space-y-2 md:col-span-2">
+                          <div className={inputLabelClass}>Unit</div>
+                          <select
+                            value={line.unit_of_measure_id}
+                            onChange={(e) => updateLine(line.localId, { unit_of_measure_id: e.target.value })}
+                            disabled={sourceMode === "vendor_quotation"}
+                            className={inputFieldClass}
+                          >
+                            <option value="">Select unit</option>
+                            {units.map((unit) => (
+                              <option key={unit.id} value={unit.id}>
+                                {unit.name}
+                              </option>
+                            ))}
+                          </select>
+                        </label>
+
+                        <label className="space-y-2 md:col-span-2">
+                          <div className={inputLabelClass}>Unit Price</div>
+                          <input
+                            value={line.unit_price}
+                            onChange={(e) => updateLine(line.localId, { unit_price: e.target.value })}
+                            disabled={sourceMode === "vendor_quotation"}
+                            className={inputFieldClass}
+                          />
+                        </label>
+
+                                                <label className="space-y-2 md:col-span-2">
+                          <div className={inputLabelClass}>Discount</div>
+                          <input
+                            value={line.discount}
+                            onChange={(e) =>
+                              updateLine(line.localId, {
+                                discount: e.target.value,
+                              })
+                            }
+                            disabled={sourceMode === "vendor_quotation"}
+                            className={inputFieldClass}
+                          />
+                        </label>
+
+                        <label className="space-y-2 md:col-span-2">
+                          <div className={inputLabelClass}>Tax Code</div>
+                          <select
+                            value={line.tax_code_id}
+                            onChange={(e) =>
+                              updateLine(line.localId, {
+                                tax_code_id: e.target.value,
+                              })
+                            }
+                            disabled={sourceMode === "vendor_quotation"}
+                            className={inputFieldClass}
+                          >
+                            <option value="">Select tax</option>
+                            {taxCodes.map((tax) => (
+                              <option key={tax.id} value={tax.id}>
+                                {tax.code ? `${tax.code} | ` : ""}
+                                {tax.name} — {toNumber(tax.rate_percent)}%
+                              </option>
+                            ))}
+                          </select>
+                          {selectedTax ? (
+                            <div className="text-[11px] text-slate-500">
+                              {toNumber(selectedTax.rate_percent)}%
+                            </div>
+                          ) : null}
+                        </label>
+
+                        <label className="space-y-2 md:col-span-3">
+                          <div className={inputLabelClass}>
+                            Expense Category
+                          </div>
+                          <select
+                            value={line.expense_category_id}
+                            onChange={(e) =>
+                              updateLine(line.localId, {
+                                expense_category_id: e.target.value,
+                              })
+                            }
+                            disabled={sourceMode === "vendor_quotation"}
+                            className={inputFieldClass}
+                          >
+                            <option value="">Select category</option>
+                            {expenseCategories.map((category) => (
+                              <option key={category.id} value={category.id}>
+                                {category.code ? `${category.code} | ` : ""}
+                                {category.name}
+                              </option>
+                            ))}
+                          </select>
+                        </label>
+
+                        <div className="space-y-2 md:col-span-3">
+                          <div className={inputLabelClass}>Line Total</div>
+                          <div className="flex min-h-[44px] items-center rounded-2xl border border-cyan-400/15 bg-cyan-500/10 px-4 text-sm font-semibold text-cyan-100">
+                            {formatMoney(
+                              lineTotals[index] || 0,
+                              currencyCode || "USD"
+                            )}
+                          </div>
+                        </div>
+
+                        <label className="space-y-2 md:col-span-12">
+                          <div className={inputLabelClass}>Line Notes</div>
+                          <input
+                            value={line.notes}
+                            onChange={(e) =>
+                              updateLine(line.localId, {
+                                notes: e.target.value,
+                              })
+                            }
+                            disabled={sourceMode === "vendor_quotation"}
+                            placeholder="Optional line notes"
+                            className={inputFieldClass}
+                          />
+                        </label>
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+
+              {sourceMode === "manual" ? (
+                <Button
+                  variant="outline"
+                  onClick={addLine}
+                  className="h-10 rounded-2xl border-white/10 bg-white/[0.05] px-4 text-white hover:bg-white/[0.08]"
+                >
+                  <Plus className="mr-2 h-4 w-4" />
+                  Add Line
+                </Button>
+              ) : null}
+            </CardContent>
+          </Card>
         </div>
       </div>
     </div>

@@ -449,10 +449,10 @@ export default function FinanceVendorQuotationsPage() {
 
                 <p className="mt-3 max-w-4xl text-sm leading-6 text-slate-400 md:text-base md:leading-7">
                   Supplier quotation records received before AiXia issues a
-                  purchase order. This is the reverse-side starting point of the
-                  confirmed incoming receivables process.
+                  purchase order. This is the starting point of the supplier
+                  procurement flow.
                 </p>
-
+                
                 <div className="mt-5 flex flex-wrap gap-3">
                   <Button
                     onClick={() =>

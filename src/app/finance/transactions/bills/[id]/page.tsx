@@ -228,6 +228,7 @@ type BillLineDraft = {
 
 type OverviewDraft = {
   vendor_id: string;
+  company_id: string;
   document_type: BillDocumentType;
   external_document_number: string;
   issue_date: string;
@@ -453,6 +454,7 @@ export default function FinanceBillDetailPage() {
     useState<CompanyOption | null>(null);
 
   const [vendors, setVendors] = useState<VendorOption[]>([]);
+  const [companies, setCompanies] = useState<CompanyOption[]>([]);
   const [currencies, setCurrencies] = useState<CurrencyOption[]>([]);
   const [expenseCategories, setExpenseCategories] = useState<
     ExpenseCategoryOption[]
@@ -473,6 +475,7 @@ export default function FinanceBillDetailPage() {
 
   const [overviewDraft, setOverviewDraft] = useState<OverviewDraft>({
     vendor_id: "",
+    company_id: "",
     document_type: "vendor_invoice",
     external_document_number: "",
     issue_date: "",
@@ -491,6 +494,13 @@ export default function FinanceBillDetailPage() {
       vendors.find((vendor) => vendor.id === overviewDraft.vendor_id) ??
       selectedVendor,
     [overviewDraft.vendor_id, selectedVendor, vendors]
+  );
+
+  const selectedDraftCompany = useMemo(
+    () =>
+      companies.find((company) => company.id === overviewDraft.company_id) ??
+      receivingCompany,
+    [companies, overviewDraft.company_id, receivingCompany]
   );
 
   const billCurrencyCode = useMemo(() => {
@@ -561,6 +571,7 @@ export default function FinanceBillDetailPage() {
       vendorsResult,
       vendorAddressesResult,
       vendorPersonnelResult,
+      companiesResult,
       currenciesResult,
       expenseCategoriesResult,
     ] = await Promise.all([
@@ -587,6 +598,13 @@ export default function FinanceBillDetailPage() {
         .order("is_primary", { ascending: false })
         .order("sort_order", { ascending: true }),
       supabase
+        .from("finance_companies")
+        .select(
+          "id, name, legal_name, email, phone, contact_person, country, city, state_province, postal_code, address_line_1, address_line_2"
+        )
+        .eq("status", "active")
+        .order("name", { ascending: true }),
+      supabase
         .from("finance_currencies")
         .select(
           "id, currency_code, currency_name, currency_symbol, decimal_places, is_base_currency"
@@ -603,6 +621,7 @@ export default function FinanceBillDetailPage() {
     if (vendorsResult.error) throw vendorsResult.error;
     if (vendorAddressesResult.error) throw vendorAddressesResult.error;
     if (vendorPersonnelResult.error) throw vendorPersonnelResult.error;
+    if (companiesResult.error) throw companiesResult.error;
     if (currenciesResult.error) throw currenciesResult.error;
     if (expenseCategoriesResult.error) throw expenseCategoriesResult.error;
 
@@ -676,6 +695,7 @@ export default function FinanceBillDetailPage() {
     );
 
     setVendors(enrichedVendors);
+    setCompanies((companiesResult.data || []) as CompanyOption[]);
     setCurrencies((currenciesResult.data || []) as CurrencyOption[]);
     setExpenseCategories(
       (expenseCategoriesResult.data || []) as ExpenseCategoryOption[]
@@ -823,6 +843,7 @@ export default function FinanceBillDetailPage() {
 
         setOverviewDraft({
           vendor_id: typedBill.vendor_id || "",
+          company_id: sourcePurchaseOrder?.company_id || "",
           document_type: typedBill.document_type || "vendor_invoice",
           external_document_number: typedBill.external_document_number || "",
           issue_date: typedBill.issue_date || "",
@@ -968,6 +989,7 @@ export default function FinanceBillDetailPage() {
 
     setOverviewDraft({
       vendor_id: bill.vendor_id || "",
+      company_id: purchaseOrderLink?.company_id || "",
       document_type: bill.document_type || "vendor_invoice",
       external_document_number: bill.external_document_number || "",
       issue_date: bill.issue_date || "",
@@ -992,6 +1014,11 @@ export default function FinanceBillDetailPage() {
 
     if (!overviewDraft.vendor_id) {
       setErrorMessage("Select a vendor.");
+      return;
+    }
+
+    if (!overviewDraft.company_id) {
+      setErrorMessage("Select receiving company.");
       return;
     }
 
@@ -1043,6 +1070,18 @@ export default function FinanceBillDetailPage() {
 
       if (error) throw error;
 
+      if (purchaseOrderLink?.id) {
+        const { error: purchaseOrderError } = await supabase
+          .from("finance_purchase_orders")
+          .update({
+            company_id: overviewDraft.company_id,
+            updated_by: user.id,
+          })
+          .eq("id", purchaseOrderLink.id);
+
+        if (purchaseOrderError) throw purchaseOrderError;
+      }
+
       setIsOverviewEditMode(false);
       await loadBill(true);
     } catch (error) {
@@ -1053,7 +1092,7 @@ export default function FinanceBillDetailPage() {
     } finally {
       setIsSavingOverview(false);
     }
-  }, [bill, canEdit, loadBill, overviewDraft]);
+  }, [bill, canEdit, loadBill, overviewDraft, purchaseOrderLink?.id]);
 
   const saveLines = useCallback(async () => {
     if (!bill || !canEdit) return;
@@ -2225,97 +2264,6 @@ export default function FinanceBillDetailPage() {
                     );
                   })
                 )}
-              </CardContent>
-            </Card>
-
-            <Card className={sectionCardClass}>
-              <CardHeader className="border-b border-white/10 px-5 py-4">
-                <CardTitle className="text-sm font-semibold uppercase tracking-[0.18em] text-slate-400">
-                  Control State
-                </CardTitle>
-                <CardDescription className="mt-1 text-xs text-slate-500">
-                  System timestamps and posting state for this vendor document.
-                </CardDescription>
-              </CardHeader>
-
-              <CardContent className="grid grid-cols-1 gap-4 p-5 md:grid-cols-2">
-                <div className={innerPanelClass}>
-                  <div className={eyebrowClass}>AiXia Bill No.</div>
-                  <div className="mt-2 text-2xl font-semibold text-white">
-                    {bill.bill_number}
-                  </div>
-                  <div className="mt-2 text-sm leading-6 text-slate-400">
-                    Internal AiXia vendor document record number.
-                  </div>
-                </div>
-
-                <div className={innerPanelClass}>
-                  <div className={eyebrowClass}>Receiving Company</div>
-                  <div className="mt-2 text-lg font-semibold text-white">
-                    {receivingCompany?.legal_name ||
-                      receivingCompany?.name ||
-                      "No company linked"}
-                  </div>
-                  <div className="mt-2 text-sm leading-6 text-slate-400">
-                    {purchaseOrderLink?.purchase_order_number
-                      ? `Inherited from ${purchaseOrderLink.purchase_order_number}`
-                      : "No linked purchase order company found."}
-                  </div>
-                </div>
-
-                <div className={innerPanelClass}>
-                  <div className={eyebrowClass}>Document Status</div>
-                  <div className="mt-3 flex flex-wrap gap-2">
-                    <Badge
-                      className={`rounded-full border px-3 py-1 text-[11px] font-semibold uppercase tracking-[0.16em] shadow-none ${getStatusBadgeClass(
-                        bill.status
-                      )}`}
-                    >
-                      {normalizeStatusLabel(bill.status)}
-                    </Badge>
-
-                    <Badge
-                      className={`rounded-full border px-3 py-1 text-[11px] font-semibold uppercase tracking-[0.16em] shadow-none ${getApprovalBadgeClass(
-                        bill.approval_status
-                      )}`}
-                    >
-                      {normalizeStatusLabel(bill.approval_status || "pending")}
-                    </Badge>
-                  </div>
-                </div>
-
-                <div className={innerPanelClass}>
-                  <div className={eyebrowClass}>Ledger</div>
-                  <div className="mt-2 text-sm leading-6 text-slate-400">
-                    Posted:{" "}
-                    <span className="font-semibold text-white">
-                      {bill.posted_to_ledger ? "Yes" : "No"}
-                    </span>
-                    <br />
-                    Ledger posted at: {formatDateTime(bill.ledger_posted_at)}
-                    <br />
-                    Ledger entry: {bill.ledger_entry_id || "—"}
-                  </div>
-                </div>
-
-                <div className={innerPanelClass}>
-                  <div className={eyebrowClass}>Payment Link</div>
-                  <div className="mt-2 text-sm leading-6 text-slate-400">
-                    Linked to payment at:{" "}
-                    {formatDateTime(bill.linked_to_payment_at)}
-                    <br />
-                    Paid at: {formatDateTime(bill.paid_at)}
-                  </div>
-                </div>
-
-                <div className={innerPanelClass}>
-                  <div className={eyebrowClass}>Audit</div>
-                  <div className="mt-2 text-sm leading-6 text-slate-400">
-                    Created: {formatDateTime(bill.created_at)}
-                    <br />
-                    Updated: {formatDateTime(bill.updated_at)}
-                  </div>
-                </div>
               </CardContent>
             </Card>
           </div>

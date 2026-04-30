@@ -4,6 +4,7 @@ import {
   Archive,
   ArrowRight,
   CheckCircle,
+  Eye,
   FileText,
   Link2,
   Plus,
@@ -2055,7 +2056,9 @@ export default function FinancePurchaseOrderDetailPage() {
                   ) : null}
                 </div>
 
-                                <h1 className="mt-4 text-3xl font-semibold tracking-[-0.035em] text-white md:text-5xl">
+                </div>
+
+                <h1 className="mt-4 text-3xl font-semibold tracking-[-0.035em] text-white md:text-5xl">
                   {purchaseOrder.purchase_order_number || "Purchase Order"}
                 </h1>
 
@@ -2624,7 +2627,7 @@ export default function FinancePurchaseOrderDetailPage() {
               </CardContent>
             </Card>
 
-                        <Card className={sectionCardClass}>
+            <Card className={sectionCardClass}>
               <CardHeader className="flex flex-row items-center justify-between border-b border-white/10 px-5 py-4">
                 <div className="flex items-center gap-3">
                   <div className="rounded-2xl border border-emerald-400/15 bg-emerald-500/10 p-3 text-emerald-200">
@@ -4008,40 +4011,44 @@ export default function FinancePurchaseOrderDetailPage() {
                           <td className="px-5 py-4">
                             <div className="flex justify-end gap-2">
                               <Button
+                                type="button"
                                 variant="outline"
+                                title="Open purchase order"
                                 onClick={() =>
                                   navigate(
                                     `/finance/transactions/purchase-orders/${item.id}`
                                   )
                                 }
-                                className="h-8 rounded-xl border-white/10 bg-white/[0.05] px-3 text-xs text-white hover:bg-white/[0.08]"
+                                className="flex h-10 w-10 items-center justify-center rounded-full border-cyan-400/20 bg-cyan-500/10 p-0 text-cyan-200 hover:bg-cyan-500/20"
                               >
-                                Open
+                                <Eye className="h-4 w-4" />
                               </Button>
 
                               <Button
+                                type="button"
                                 variant="outline"
+                                title="Restore purchase order"
                                 onClick={() =>
                                   void handleRestorePurchaseOrder(item.id)
                                 }
                                 disabled={isDeleting}
-                                className="h-8 rounded-xl border-emerald-400/20 bg-emerald-500/10 px-3 text-xs text-emerald-200 hover:bg-emerald-500/20 disabled:cursor-not-allowed disabled:opacity-40"
+                                className="flex h-10 w-10 items-center justify-center rounded-full border-emerald-400/20 bg-emerald-500/10 p-0 text-emerald-200 hover:bg-emerald-500/20 disabled:cursor-not-allowed disabled:opacity-40"
                               >
-                                <RotateCcw className="mr-1.5 h-3.5 w-3.5" />
-                                Restore
+                                <RotateCcw className="h-4 w-4" />
                               </Button>
 
                               {archiveTab === "deleted" ? (
                                 <Button
+                                  type="button"
                                   variant="outline"
+                                  title="Hard delete purchase order"
                                   onClick={() =>
                                     void handleHardDeletePurchaseOrder(item.id)
                                   }
                                   disabled={isDeleting}
-                                  className="h-8 rounded-xl border-rose-400/20 bg-rose-500/10 px-3 text-xs text-rose-200 hover:bg-rose-500/20 disabled:cursor-not-allowed disabled:opacity-40"
+                                  className="flex h-10 w-10 items-center justify-center rounded-full border-rose-400/20 bg-rose-500/10 p-0 text-rose-200 hover:bg-rose-500/20 disabled:cursor-not-allowed disabled:opacity-40"
                                 >
-                                  <Trash2 className="mr-1.5 h-3.5 w-3.5" />
-                                  Hard Delete
+                                  <Trash2 className="h-4 w-4" />
                                 </Button>
                               ) : null}
                             </div>

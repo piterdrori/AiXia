@@ -168,6 +168,7 @@ type ItemOption = {
   name: string;
   description: string | null;
   sales_price: number | string | null;
+  purchase_price: number | string | null;
   unit_price: number | string | null;
   currency_code: string | null;
   unit_of_measure_id: string | null;
@@ -753,7 +754,7 @@ export default function NewPurchaseOrderPage() {
           supabase
             .from("finance_items")
             .select(
-              "id, name, description, sales_price, unit_price, currency_code, unit_of_measure_id, default_unit_of_measure_id, tax_code_id, default_tax_code_id, expense_category_id, revenue_category_id"
+              "id, name, description, sales_price, purchase_price, unit_price, currency_code, unit_of_measure_id, default_unit_of_measure_id, tax_code_id, default_tax_code_id, expense_category_id, revenue_category_id"
             )
             .eq("status", "active")
             .order("name", { ascending: true })
@@ -1010,7 +1011,9 @@ export default function NewPurchaseOrderPage() {
       updateLine(localId, {
         item_id: itemId,
         description: selected?.description || selected?.name || "",
-        unit_price: String(selected?.sales_price ?? selected?.unit_price ?? 0),
+        unit_price: String(
+          selected?.purchase_price ?? selected?.unit_price ?? selected?.sales_price ?? 0
+        ),
         unit_of_measure_id:
           selected?.unit_of_measure_id ||
           selected?.default_unit_of_measure_id ||

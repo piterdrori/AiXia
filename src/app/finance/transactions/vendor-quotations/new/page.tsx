@@ -119,6 +119,38 @@ function formatMoney(value: number | string | null | undefined, currency = "USD"
   }).format(toNumber(value));
 }
 
+function resolveUploadMimeType(file: File) {
+  const currentType = file.type?.trim();
+
+  if (currentType && currentType !== "application/octet-stream") {
+    return currentType;
+  }
+
+  const extension = file.name.split(".").pop()?.toLowerCase();
+
+  switch (extension) {
+    case "pdf":
+      return "application/pdf";
+    case "png":
+      return "image/png";
+    case "jpg":
+    case "jpeg":
+      return "image/jpeg";
+    case "webp":
+      return "image/webp";
+    case "doc":
+      return "application/msword";
+    case "docx":
+      return "application/vnd.openxmlformats-officedocument.wordprocessingml.document";
+    case "xls":
+      return "application/vnd.ms-excel";
+    case "xlsx":
+      return "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet";
+    default:
+      return currentType || "application/octet-stream";
+  }
+}
+
 async function uploadVendorQuotationDocument(
   vendorQuotationId: string,
   selectedFile: File,
@@ -126,11 +158,13 @@ async function uploadVendorQuotationDocument(
 ) {
   const safeFileName = selectedFile.name.replace(/\s+/g, "-");
   const storagePath = `vendor-quotations/${vendorQuotationId}/${Date.now()}-${safeFileName}`;
+  const resolvedMimeType = resolveUploadMimeType(selectedFile);
 
   const { error: uploadError } = await supabase.storage
     .from("finance-vendor-quotation-documents")
     .upload(storagePath, selectedFile, {
       upsert: false,
+      contentType: resolvedMimeType,
     });
 
   if (uploadError) throw uploadError;
@@ -142,7 +176,7 @@ async function uploadVendorQuotationDocument(
       file_name: selectedFile.name,
       file_path: storagePath,
       file_size: selectedFile.size,
-      mime_type: selectedFile.type || null,
+      mime_type: resolvedMimeType,
       entity_type: "finance_vendor_quotation",
     })
     .select("id")
@@ -643,7 +677,7 @@ export default function FinanceNewVendorQuotationPage() {
 
               <CardContent className="grid grid-cols-1 gap-4 p-5 md:grid-cols-2">
                 <label className="space-y-2">
-                  <div className={labelClass}>Vendor</div>
+                  <div className={labelClass}>Vendor / Issued From</div>
                   <select
                     value={vendorId}
                     onChange={(event) => setVendorId(event.target.value)}
@@ -660,7 +694,7 @@ export default function FinanceNewVendorQuotationPage() {
                 </label>
 
                 <label className="space-y-2">
-                  <div className={labelClass}>Receiving Company</div>
+                  <div className={labelClass}>Issued To / AiXia Company</div>
                   <select
                     value={companyId}
                     onChange={(event) => setCompanyId(event.target.value)}
@@ -676,7 +710,7 @@ export default function FinanceNewVendorQuotationPage() {
                 </label>
 
                 <label className="space-y-2">
-                  <div className={labelClass}>Vendor Quotation Ref.</div>
+                  <div className={labelClass}>Vendor Quotation Number</div>
                   <input
                     value={externalQuotationNumber}
                     onChange={(event) =>

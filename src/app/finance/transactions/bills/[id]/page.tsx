@@ -1600,6 +1600,35 @@ export default function FinanceBillDetailPage() {
                 </label>
 
                 <label className="space-y-2">
+                  <div className={labelClass}>Issued To / Receiving Company</div>
+                  {isOverviewEditMode ? (
+                    <select
+                      value={overviewDraft.company_id}
+                      onChange={(event) =>
+                        setOverviewDraft((current) => ({
+                          ...current,
+                          company_id: event.target.value,
+                        }))
+                      }
+                      className={fieldClass}
+                    >
+                      <option value="">Select company</option>
+                      {companies.map((company) => (
+                        <option key={company.id} value={company.id}>
+                          {company.legal_name || company.name}
+                        </option>
+                      ))}
+                    </select>
+                  ) : (
+                    <div className={readOnlyBoxClass}>
+                      {receivingCompany?.legal_name ||
+                        receivingCompany?.name ||
+                        "No company linked"}
+                    </div>
+                  )}
+                </label>
+
+                <label className="space-y-2">
                   <div className={labelClass}>Document Type</div>
                   {isOverviewEditMode ? (
                     <select
@@ -1642,11 +1671,6 @@ export default function FinanceBillDetailPage() {
                     </div>
                   )}
                 </label>
-
-                <div className="space-y-2">
-                  <div className={labelClass}>AiXia Bill No.</div>
-                  <div className={readOnlyBoxClass}>{bill.bill_number}</div>
-                </div>
 
                 <label className="space-y-2">
                   <div className={labelClass}>Issue Date</div>
@@ -1766,23 +1790,23 @@ export default function FinanceBillDetailPage() {
                 <div className="rounded-[24px] border border-white/10 bg-black/20 p-4">
                   <div className={eyebrowClass}>Issued To / Receiving Company</div>
                   <div className="mt-3 text-xl font-semibold text-white">
-                    {receivingCompany?.legal_name ||
-                      receivingCompany?.name ||
+                    {selectedDraftCompany?.legal_name ||
+                      selectedDraftCompany?.name ||
                       "No company linked"}
                   </div>
 
                   <div className="mt-3 space-y-1 text-sm leading-6 text-slate-300">
-                    {receivingCompany?.contact_person ? (
-                      <div>Contact: {receivingCompany.contact_person}</div>
+                    {selectedDraftCompany?.contact_person ? (
+                      <div>Contact: {selectedDraftCompany.contact_person}</div>
                     ) : null}
-                    {receivingCompany?.email ? (
-                      <div>Email: {receivingCompany.email}</div>
+                    {selectedDraftCompany?.email ? (
+                      <div>Email: {selectedDraftCompany.email}</div>
                     ) : null}
-                    {receivingCompany?.phone ? (
-                      <div>Phone: {receivingCompany.phone}</div>
+                    {selectedDraftCompany?.phone ? (
+                      <div>Phone: {selectedDraftCompany.phone}</div>
                     ) : null}
-                    {buildCompanyAddress(receivingCompany) ? (
-                      <div>{buildCompanyAddress(receivingCompany)}</div>
+                    {buildCompanyAddress(selectedDraftCompany) ? (
+                      <div>{buildCompanyAddress(selectedDraftCompany)}</div>
                     ) : null}
                     {purchaseOrderLink?.purchase_order_number ? (
                       <div>Linked PO: {purchaseOrderLink.purchase_order_number}</div>

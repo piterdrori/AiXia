@@ -699,7 +699,7 @@ export default function FinancePaymentMadeDetailPage() {
     setPaymentMethods(
       (paymentMethodsResult.data || []) as PaymentMethodOption[]
     );
-    setBankAccounts((bankAccountsResult.data || []) as BankAccountOption[]);
+    setBankAccounts((bankAccountsResult.data || []) as unknown as BankAccountOption[]);
     setCurrencies((currenciesResult.data || []) as CurrencyOption[]);
   }, []);
 

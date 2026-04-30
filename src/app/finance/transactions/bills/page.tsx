@@ -3,6 +3,7 @@ import { useNavigate } from "react-router-dom";
 import {
   Archive,
   ArrowRight,
+  Eye,
   FolderArchive,
   Plus,
   Receipt,
@@ -52,6 +53,7 @@ type BillRow = {
   paid_amount: number | string | null;
   balance_due: number | string | null;
   reference_number: string | null;
+  currency_code: string | null;
   notes: string | null;
   created_at: string;
   updated_at: string;
@@ -237,6 +239,7 @@ export default function FinanceBillsPage() {
             "paid_amount",
             "balance_due",
             "reference_number",
+            "currency_code",
             "notes",
             "created_at",
             "updated_at",
@@ -286,6 +289,7 @@ export default function FinanceBillsPage() {
             "paid_amount",
             "balance_due",
             "reference_number",
+            "currency_code",
             "notes",
             "created_at",
             "updated_at",
@@ -503,8 +507,8 @@ export default function FinanceBillsPage() {
 
                 <p className="mt-3 max-w-4xl text-sm leading-6 text-slate-400 md:text-base md:leading-7">
                   Vendor proforma invoices and vendor invoices received from
-                  suppliers after AiXia sends a purchase order. This mirrors the
-                  outgoing PI / invoice stage in the incoming flow.
+                  suppliers after AiXia sends a purchase order. This is the third
+                  step of the supplier procurement flow before payment made.
                 </p>
 
                 <div className="mt-5 flex flex-wrap gap-3">
@@ -812,12 +816,28 @@ export default function FinanceBillsPage() {
                             {formatDate(row.due_date)}
                           </td>
 
-                          <td className="px-5 py-4 font-semibold text-white">
-                            {formatMoney(row.total_amount, "USD")}
+                          <td className="px-5 py-4">
+                            <div className="font-semibold text-white">
+                              {formatMoney(
+                                row.total_amount,
+                                row.currency_code || "USD"
+                              )}
+                            </div>
+                            <div className="mt-1 text-xs text-slate-500">
+                              {row.currency_code || "USD"}
+                            </div>
                           </td>
 
-                          <td className="px-5 py-4 font-semibold text-white">
-                            {formatMoney(row.balance_due, "USD")}
+                          <td className="px-5 py-4">
+                            <div className="font-semibold text-white">
+                              {formatMoney(
+                                row.balance_due,
+                                row.currency_code || "USD"
+                              )}
+                            </div>
+                            <div className="mt-1 text-xs text-slate-500">
+                              {row.currency_code || "USD"}
+                            </div>
                           </td>
 
                           <td className="px-5 py-4">
@@ -842,39 +862,45 @@ export default function FinanceBillsPage() {
                           <td className="px-5 py-4">
                             <div className="flex justify-end gap-2">
                               <Button
+                                type="button"
                                 variant="outline"
+                                title="Open vendor document"
                                 onClick={() =>
                                   navigate(
                                     `/finance/transactions/bills/${row.id}`
                                   )
                                 }
-                                className="h-9 rounded-2xl border-cyan-400/20 bg-cyan-500/10 px-3 text-cyan-200 hover:bg-cyan-500/20"
+                                className="flex h-11 w-11 items-center justify-center rounded-full border-cyan-400/20 bg-cyan-500/10 p-0 text-cyan-200 hover:bg-cyan-500/20"
                               >
-                                Open
+                                <Eye className="h-4 w-4" />
                               </Button>
 
                               <Button
+                                type="button"
                                 variant="outline"
+                                title="Archive vendor document"
                                 onClick={() =>
                                   void runArchiveAction(
                                     "finance_archive_bill_received",
                                     row.id
                                   )
                                 }
-                                className="h-9 rounded-2xl border-amber-400/20 bg-amber-500/10 px-3 text-amber-200 hover:bg-amber-500/20"
+                                className="flex h-11 w-11 items-center justify-center rounded-full border-amber-400/20 bg-amber-500/10 p-0 text-amber-200 hover:bg-amber-500/20"
                               >
                                 <Archive className="h-4 w-4" />
                               </Button>
 
                               <Button
+                                type="button"
                                 variant="outline"
+                                title="Delete vendor document"
                                 onClick={() =>
                                   void runArchiveAction(
                                     "finance_delete_bill_received",
                                     row.id
                                   )
                                 }
-                                className="h-9 rounded-2xl border-rose-400/20 bg-rose-500/10 px-3 text-rose-200 hover:bg-rose-500/20"
+                                className="flex h-11 w-11 items-center justify-center rounded-full border-rose-400/20 bg-rose-500/10 p-0 text-rose-200 hover:bg-rose-500/20"
                               >
                                 <Trash2 className="h-4 w-4" />
                               </Button>
@@ -1010,7 +1036,7 @@ export default function FinanceBillsPage() {
                             </td>
 
                             <td className="px-5 py-4">
-                              {formatMoney(row.balance_due, "USD")}
+                              {formatMoney(row.balance_due, row.currency_code || "USD")}
                             </td>
 
                             <td className="px-5 py-4">
@@ -1020,32 +1046,48 @@ export default function FinanceBillsPage() {
                             <td className="px-5 py-4">
                               <div className="flex justify-end gap-2">
                                 <Button
+                                  type="button"
                                   variant="outline"
+                                  title="Open vendor document"
+                                  onClick={() =>
+                                    navigate(
+                                      `/finance/transactions/bills/${row.id}`
+                                    )
+                                  }
+                                  className="flex h-10 w-10 items-center justify-center rounded-full border-cyan-400/20 bg-cyan-500/10 p-0 text-cyan-200 hover:bg-cyan-500/20"
+                                >
+                                  <Eye className="h-4 w-4" />
+                                </Button>
+
+                                <Button
+                                  type="button"
+                                  variant="outline"
+                                  title="Restore vendor document"
                                   onClick={() =>
                                     void runArchiveAction(
                                       "finance_restore_bill_received",
                                       row.id
                                     )
                                   }
-                                  className="h-9 rounded-2xl border-emerald-400/20 bg-emerald-500/10 px-3 text-emerald-200 hover:bg-emerald-500/20"
+                                  className="flex h-10 w-10 items-center justify-center rounded-full border-emerald-400/20 bg-emerald-500/10 p-0 text-emerald-200 hover:bg-emerald-500/20"
                                 >
-                                  <RotateCcw className="mr-2 h-4 w-4" />
-                                  Restore
+                                  <RotateCcw className="h-4 w-4" />
                                 </Button>
 
                                 {archiveTab === "deleted" ? (
                                   <Button
+                                    type="button"
                                     variant="outline"
+                                    title="Hard delete vendor document"
                                     onClick={() =>
                                       void runArchiveAction(
                                         "finance_hard_delete_bill_received",
                                         row.id
                                       )
                                     }
-                                    className="h-9 rounded-2xl border-rose-400/20 bg-rose-500/10 px-3 text-rose-200 hover:bg-rose-500/20"
+                                    className="flex h-10 w-10 items-center justify-center rounded-full border-rose-400/20 bg-rose-500/10 p-0 text-rose-200 hover:bg-rose-500/20"
                                   >
-                                    <Trash2 className="mr-2 h-4 w-4" />
-                                    Hard Delete
+                                    <Trash2 className="h-4 w-4" />
                                   </Button>
                                 ) : null}
                               </div>

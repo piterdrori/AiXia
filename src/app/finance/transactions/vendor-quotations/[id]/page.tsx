@@ -1950,17 +1950,15 @@ export default function FinanceVendorQuotationDetailPage() {
               </CardHeader>
 
               <CardContent className="max-h-[720px] space-y-3 overflow-y-auto p-5 pr-2">
-                {lineItems.length === 0 ? (
-                  <div className="rounded-[24px] border border-dashed border-white/10 bg-black/20 px-5 py-10 text-center text-sm text-slate-500">
-                    No line items found.
-                  </div>
-                ) : (
-                  lineItems.map((line, index) => {
-                    const draft = lineDrafts.find((item) => item.id === line.id);
-
-                    return (
+                {isLinesEditMode ? (
+                  lineDrafts.length === 0 ? (
+                    <div className="rounded-[24px] border border-dashed border-white/10 bg-black/20 px-5 py-10 text-center text-sm text-slate-500">
+                      No line items found.
+                    </div>
+                  ) : (
+                    lineDrafts.map((draft, index) => (
                       <div
-                        key={line.id}
+                        key={draft.id}
                         className="rounded-[24px] border border-white/10 bg-black/20 p-4"
                       >
                         <div className="mb-4 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
@@ -1974,240 +1972,244 @@ export default function FinanceVendorQuotationDetailPage() {
                           </div>
 
                           <div className="flex flex-wrap items-center gap-2">
-                            {isLinesEditMode && draft ? (
-                              <Button
-                                variant="outline"
-                                onClick={() => removeLineDraft(draft.id)}
-                                disabled={lineDrafts.length <= 1}
-                                className="h-9 rounded-2xl border-rose-400/20 bg-rose-500/10 px-3 text-rose-200 hover:bg-rose-500/20 disabled:cursor-not-allowed disabled:opacity-40"
-                              >
-                                <Trash2 className="mr-2 h-4 w-4" />
-                                Remove
-                              </Button>
-                            ) : null}
+                            <Button
+                              variant="outline"
+                              onClick={() => removeLineDraft(draft.id)}
+                              disabled={lineDrafts.length <= 1}
+                              className="h-9 rounded-2xl border-rose-400/20 bg-rose-500/10 px-3 text-rose-200 hover:bg-rose-500/20 disabled:cursor-not-allowed disabled:opacity-40"
+                            >
+                              <Trash2 className="mr-2 h-4 w-4" />
+                              Remove
+                            </Button>
 
                             <div className="rounded-2xl border border-amber-400/15 bg-amber-500/10 px-4 py-2 text-sm font-semibold text-amber-100">
                               {formatMoney(
-                                isLinesEditMode
-                                  ? draftLineTotals[index] || 0
-                                  : line.line_total,
+                                draftLineTotals[index] || 0,
                                 quotationCurrencyCode
                               )}
                             </div>
                           </div>
                         </div>
 
-                        {isLinesEditMode && draft ? (
-                          <>
-                            <div className="grid grid-cols-1 gap-4 lg:grid-cols-[1.1fr_1.4fr_0.55fr_0.65fr]">
-                              <label className="space-y-2">
-                                <div className={labelClass}>Item</div>
-                                <select
-                                  value={draft.item_id}
-                                  onChange={(event) =>
-                                    handleItemChange(
-                                      draft.id,
-                                      event.target.value
-                                    )
-                                  }
-                                  className={fieldClass}
-                                >
-                                  <option value="">Manual item</option>
-                                  {items.map((item) => (
-                                    <option key={item.id} value={item.id}>
-                                      {item.name}
-                                    </option>
-                                  ))}
-                                </select>
-                              </label>
+                        <div className="grid grid-cols-1 gap-4 lg:grid-cols-[1.1fr_1.4fr_0.55fr_0.65fr]">
+                          <label className="space-y-2">
+                            <div className={labelClass}>Item</div>
+                            <select
+                              value={draft.item_id}
+                              onChange={(event) =>
+                                handleItemChange(draft.id, event.target.value)
+                              }
+                              className={fieldClass}
+                            >
+                              <option value="">Manual item</option>
+                              {items.map((item) => (
+                                <option key={item.id} value={item.id}>
+                                  {item.name}
+                                </option>
+                              ))}
+                            </select>
+                          </label>
 
-                              <label className="space-y-2">
-                                <div className={labelClass}>Description</div>
-                                <input
-                                  value={draft.description}
-                                  onChange={(event) =>
-                                    updateLineDraft(draft.id, {
-                                      description: event.target.value,
-                                    })
-                                  }
-                                  className={fieldClass}
-                                />
-                              </label>
+                          <label className="space-y-2">
+                            <div className={labelClass}>Description</div>
+                            <input
+                              value={draft.description}
+                              onChange={(event) =>
+                                updateLineDraft(draft.id, {
+                                  description: event.target.value,
+                                })
+                              }
+                              className={fieldClass}
+                            />
+                          </label>
 
-                              <label className="space-y-2">
-                                <div className={labelClass}>Qty</div>
-                                <input
-                                  value={draft.quantity}
-                                  onChange={(event) =>
-                                    updateLineDraft(draft.id, {
-                                      quantity: event.target.value,
-                                    })
-                                  }
-                                  className={fieldClass}
-                                />
-                              </label>
+                          <label className="space-y-2">
+                            <div className={labelClass}>Qty</div>
+                            <input
+                              value={draft.quantity}
+                              onChange={(event) =>
+                                updateLineDraft(draft.id, {
+                                  quantity: event.target.value,
+                                })
+                              }
+                              className={fieldClass}
+                            />
+                          </label>
 
-                              <label className="space-y-2">
-                                <div className={labelClass}>Unit Price</div>
-                                <input
-                                  value={draft.unit_price}
-                                  onChange={(event) =>
-                                    updateLineDraft(draft.id, {
-                                      unit_price: event.target.value,
-                                    })
-                                  }
-                                  className={fieldClass}
-                                />
-                              </label>
-                            </div>
+                          <label className="space-y-2">
+                            <div className={labelClass}>Unit Price</div>
+                            <input
+                              value={draft.unit_price}
+                              onChange={(event) =>
+                                updateLineDraft(draft.id, {
+                                  unit_price: event.target.value,
+                                })
+                              }
+                              className={fieldClass}
+                            />
+                          </label>
+                        </div>
 
-                            <div className="mt-4 grid grid-cols-1 gap-4 lg:grid-cols-[0.7fr_0.8fr_0.9fr_0.9fr]">
-                              <label className="space-y-2">
-                                <div className={labelClass}>Discount</div>
-                                <input
-                                  value={draft.discount}
-                                  onChange={(event) =>
-                                    updateLineDraft(draft.id, {
-                                      discount: event.target.value,
-                                    })
-                                  }
-                                  className={fieldClass}
-                                />
-                              </label>
+                        <div className="mt-4 grid grid-cols-1 gap-4 lg:grid-cols-[0.7fr_0.8fr_0.9fr_0.9fr]">
+                          <label className="space-y-2">
+                            <div className={labelClass}>Discount</div>
+                            <input
+                              value={draft.discount}
+                              onChange={(event) =>
+                                updateLineDraft(draft.id, {
+                                  discount: event.target.value,
+                                })
+                              }
+                              className={fieldClass}
+                            />
+                          </label>
 
-                              <label className="space-y-2">
-                                <div className={labelClass}>Unit</div>
-                                <select
-                                  value={draft.unit_of_measure_id}
-                                  onChange={(event) =>
-                                    updateLineDraft(draft.id, {
-                                      unit_of_measure_id: event.target.value,
-                                    })
-                                  }
-                                  className={fieldClass}
-                                >
-                                  <option value="">Select</option>
-                                  {units.map((unit) => (
-                                    <option key={unit.id} value={unit.id}>
-                                      {unit.code || unit.name}
-                                    </option>
-                                  ))}
-                                </select>
-                              </label>
+                          <label className="space-y-2">
+                            <div className={labelClass}>Unit</div>
+                            <select
+                              value={draft.unit_of_measure_id}
+                              onChange={(event) =>
+                                updateLineDraft(draft.id, {
+                                  unit_of_measure_id: event.target.value,
+                                })
+                              }
+                              className={fieldClass}
+                            >
+                              <option value="">Select</option>
+                              {units.map((unit) => (
+                                <option key={unit.id} value={unit.id}>
+                                  {unit.code || unit.name}
+                                </option>
+                              ))}
+                            </select>
+                          </label>
 
-                              <label className="space-y-2">
-                                <div className={labelClass}>Tax Code</div>
-                                <select
-                                  value={draft.tax_code_id}
-                                  onChange={(event) =>
-                                    updateLineDraft(draft.id, {
-                                      tax_code_id: event.target.value,
-                                    })
-                                  }
-                                  className={fieldClass}
-                                >
-                                  <option value="">No tax</option>
-                                  {taxCodes.map((tax) => (
-                                    <option key={tax.id} value={tax.id}>
-                                      {tax.name} — {toNumber(tax.rate_percent)}%
-                                    </option>
-                                  ))}
-                                </select>
-                              </label>
+                          <label className="space-y-2">
+                            <div className={labelClass}>Tax Code</div>
+                            <select
+                              value={draft.tax_code_id}
+                              onChange={(event) =>
+                                updateLineDraft(draft.id, {
+                                  tax_code_id: event.target.value,
+                                })
+                              }
+                              className={fieldClass}
+                            >
+                              <option value="">No tax</option>
+                              {taxCodes.map((tax) => (
+                                <option key={tax.id} value={tax.id}>
+                                  {tax.name} — {toNumber(tax.rate_percent)}%
+                                </option>
+                              ))}
+                            </select>
+                          </label>
 
-                              <label className="space-y-2">
-                                <div className={labelClass}>
-                                  Expense Category
-                                </div>
-                                <select
-                                  value={draft.expense_category_id}
-                                  onChange={(event) =>
-                                    updateLineDraft(draft.id, {
-                                      expense_category_id: event.target.value,
-                                    })
-                                  }
-                                  className={fieldClass}
-                                >
-                                  <option value="">Select</option>
-                                  {expenseCategories.map((category) => (
-                                    <option
-                                      key={category.id}
-                                      value={category.id}
-                                    >
-                                      {category.name}
-                                    </option>
-                                  ))}
-                                </select>
-                              </label>
-                            </div>
+                          <label className="space-y-2">
+                            <div className={labelClass}>Expense Category</div>
+                            <select
+                              value={draft.expense_category_id}
+                              onChange={(event) =>
+                                updateLineDraft(draft.id, {
+                                  expense_category_id: event.target.value,
+                                })
+                              }
+                              className={fieldClass}
+                            >
+                              <option value="">Select</option>
+                              {expenseCategories.map((category) => (
+                                <option key={category.id} value={category.id}>
+                                  {category.name}
+                                </option>
+                              ))}
+                            </select>
+                          </label>
+                        </div>
 
-                            <label className="mt-4 block space-y-2">
-                              <div className={labelClass}>Line Notes</div>
-                              <input
-                                value={draft.notes}
-                                onChange={(event) =>
-                                  updateLineDraft(draft.id, {
-                                    notes: event.target.value,
-                                  })
-                                }
-                                className={fieldClass}
-                              />
-                            </label>
-                          </>
-                        ) : (
-                          <div className="grid grid-cols-1 gap-4 md:grid-cols-4">
-                            <div>
-                              <div className="text-[11px] uppercase tracking-[0.18em] text-slate-500">
-                                Description
-                              </div>
-                              <div className="mt-2 text-sm text-white">
-                                {line.description}
-                              </div>
-                            </div>
-
-                            <div>
-                              <div className="text-[11px] uppercase tracking-[0.18em] text-slate-500">
-                                Quantity
-                              </div>
-                              <div className="mt-2 text-sm text-white">
-                                {toNumber(line.quantity)}
-                              </div>
-                            </div>
-
-                            <div>
-                              <div className="text-[11px] uppercase tracking-[0.18em] text-slate-500">
-                                Unit Price
-                              </div>
-                              <div className="mt-2 text-sm text-white">
-                                {formatMoney(
-                                  line.unit_price,
-                                  quotationCurrencyCode
-                                )}
-                              </div>
-                            </div>
-
-                            <div>
-                              <div className="text-[11px] uppercase tracking-[0.18em] text-slate-500">
-                                Discount
-                              </div>
-                              <div className="mt-2 text-sm text-white">
-                                {formatMoney(
-                                  line.discount,
-                                  quotationCurrencyCode
-                                )}
-                              </div>
-                            </div>
-                          </div>
-                        )}
-
-                        {line.notes && !isLinesEditMode ? (
-                          <div className="mt-4 rounded-2xl border border-white/10 bg-white/[0.03] px-4 py-3 text-sm text-slate-400">
-                            {line.notes}
-                          </div>
-                        ) : null}
+                        <label className="mt-4 block space-y-2">
+                          <div className={labelClass}>Line Notes</div>
+                          <input
+                            value={draft.notes}
+                            onChange={(event) =>
+                              updateLineDraft(draft.id, {
+                                notes: event.target.value,
+                              })
+                            }
+                            className={fieldClass}
+                          />
+                        </label>
                       </div>
-                    );
-                  })
+                    ))
+                  )
+                ) : lineItems.length === 0 ? (
+                  <div className="rounded-[24px] border border-dashed border-white/10 bg-black/20 px-5 py-10 text-center text-sm text-slate-500">
+                    No line items found.
+                  </div>
+                ) : (
+                  lineItems.map((line, index) => (
+                    <div
+                      key={line.id}
+                      className="rounded-[24px] border border-white/10 bg-black/20 p-4"
+                    >
+                      <div className="mb-4 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+                        <div>
+                          <div className="text-sm font-semibold text-white">
+                            Line {index + 1}
+                          </div>
+                          <div className="mt-1 text-xs text-slate-500">
+                            Sort order: {line.sort_order}
+                          </div>
+                        </div>
+
+                        <div className="rounded-2xl border border-amber-400/15 bg-amber-500/10 px-4 py-2 text-sm font-semibold text-amber-100">
+                          {formatMoney(line.line_total, quotationCurrencyCode)}
+                        </div>
+                      </div>
+
+                      <div className="grid grid-cols-1 gap-4 md:grid-cols-4">
+                        <div>
+                          <div className="text-[11px] uppercase tracking-[0.18em] text-slate-500">
+                            Description
+                          </div>
+                          <div className="mt-2 text-sm text-white">
+                            {line.description}
+                          </div>
+                        </div>
+
+                        <div>
+                          <div className="text-[11px] uppercase tracking-[0.18em] text-slate-500">
+                            Quantity
+                          </div>
+                          <div className="mt-2 text-sm text-white">
+                            {toNumber(line.quantity)}
+                          </div>
+                        </div>
+
+                        <div>
+                          <div className="text-[11px] uppercase tracking-[0.18em] text-slate-500">
+                            Unit Price
+                          </div>
+                          <div className="mt-2 text-sm text-white">
+                            {formatMoney(line.unit_price, quotationCurrencyCode)}
+                          </div>
+                        </div>
+
+                        <div>
+                          <div className="text-[11px] uppercase tracking-[0.18em] text-slate-500">
+                            Discount
+                          </div>
+                          <div className="mt-2 text-sm text-white">
+                            {formatMoney(line.discount, quotationCurrencyCode)}
+                          </div>
+                        </div>
+                      </div>
+
+                      {line.notes ? (
+                        <div className="mt-4 rounded-2xl border border-white/10 bg-white/[0.03] px-4 py-3 text-sm text-slate-400">
+                          {line.notes}
+                        </div>
+                      ) : null}
+                    </div>
+                  ))
                 )}
               </CardContent>
             </Card>

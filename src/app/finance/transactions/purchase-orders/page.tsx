@@ -3,10 +3,10 @@ import { useNavigate } from "react-router-dom";
 import {
   Archive,
   ArrowRight,
+  Eye,
   FileText,
   FolderArchive,
   Plus,
-  RefreshCw,
   RotateCcw,
   Search,
   Trash2,
@@ -472,8 +472,8 @@ export default function FinancePurchaseOrdersPage() {
 
                 <p className="mt-3 max-w-4xl text-sm leading-6 text-slate-400 md:text-base md:leading-7">
                   Official purchase orders sent by AiXia to suppliers after a
-                  vendor quotation is accepted. This is the reverse-side mirror
-                  of Customer PO, but outbound.
+                  vendor quotation is accepted. This is the second step of the
+                  supplier procurement flow.
                 </p>
 
                 <div className="mt-5 flex flex-wrap gap-3">
@@ -609,15 +609,6 @@ export default function FinancePurchaseOrdersPage() {
                     className="h-11 w-full rounded-2xl border border-white/10 bg-black/20 pl-11 pr-4 text-sm text-white outline-none transition placeholder:text-slate-600 focus:border-cyan-400/30 focus:bg-black/30 sm:w-[320px]"
                   />
                 </div>
-
-                <Button
-                  variant="outline"
-                  onClick={() => void loadRows()}
-                  className="h-11 rounded-2xl border-white/10 bg-white/[0.05] px-4 text-white hover:bg-white/[0.08]"
-                >
-                  <RefreshCw className="mr-2 h-4 w-4" />
-                  Sync
-                </Button>
               </div>
             </div>
           </CardHeader>
@@ -789,39 +780,45 @@ export default function FinancePurchaseOrdersPage() {
                           <td className="px-5 py-4">
                             <div className="flex justify-end gap-2">
                               <Button
+                                type="button"
                                 variant="outline"
+                                title="Open purchase order"
                                 onClick={() =>
                                   navigate(
                                     `/finance/transactions/purchase-orders/${row.id}`
                                   )
                                 }
-                                className="h-9 rounded-2xl border-cyan-400/20 bg-cyan-500/10 px-3 text-cyan-200 hover:bg-cyan-500/20"
+                                className="flex h-11 w-11 items-center justify-center rounded-full border-cyan-400/20 bg-cyan-500/10 p-0 text-cyan-200 hover:bg-cyan-500/20"
                               >
-                                Open
+                                <Eye className="h-4 w-4" />
                               </Button>
 
                               <Button
+                                type="button"
                                 variant="outline"
+                                title="Archive purchase order"
                                 onClick={() =>
                                   void runArchiveAction(
                                     "finance_archive_purchase_order",
                                     row.id
                                   )
                                 }
-                                className="h-9 rounded-2xl border-amber-400/20 bg-amber-500/10 px-3 text-amber-200 hover:bg-amber-500/20"
+                                className="flex h-11 w-11 items-center justify-center rounded-full border-amber-400/20 bg-amber-500/10 p-0 text-amber-200 hover:bg-amber-500/20"
                               >
                                 <Archive className="h-4 w-4" />
                               </Button>
 
                               <Button
+                                type="button"
                                 variant="outline"
+                                title="Delete purchase order"
                                 onClick={() =>
                                   void runArchiveAction(
                                     "finance_delete_purchase_order",
                                     row.id
                                   )
                                 }
-                                className="h-9 rounded-2xl border-rose-400/20 bg-rose-500/10 px-3 text-rose-200 hover:bg-rose-500/20"
+                                className="flex h-11 w-11 items-center justify-center rounded-full border-rose-400/20 bg-rose-500/10 p-0 text-rose-200 hover:bg-rose-500/20"
                               >
                                 <Trash2 className="h-4 w-4" />
                               </Button>

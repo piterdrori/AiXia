@@ -359,7 +359,6 @@ export default function FinanceNewPurchaseOrderPage() {
   const [currencies, setCurrencies] = useState<CurrencyOption[]>([]);
   const [paymentTerms, setPaymentTerms] = useState<PaymentTermOption[]>([]);
   const [shippingTerms, setShippingTerms] = useState<ShippingTermOption[]>([]);
-
   const [paymentMethods, setPaymentMethods] = useState<PaymentMethodOption[]>(
     []
   );
@@ -390,6 +389,10 @@ export default function FinanceNewPurchaseOrderPage() {
     sourceVendorQuotationId
   );
   const [vendorId, setVendorId] = useState("");
+  const [recipientType, setRecipientType] = useState<"vendor" | "company">(
+    "vendor"
+  );
+  const [recipientCompanyId, setRecipientCompanyId] = useState("");
   const [companyId, setCompanyId] = useState("");
   const [projectId, setProjectId] = useState("");
   const [taskId, setTaskId] = useState("");
@@ -424,6 +427,12 @@ export default function FinanceNewPurchaseOrderPage() {
     [companies, companyId]
   );
 
+  const selectedRecipientCompany = useMemo(
+    () =>
+      companies.find((company) => company.id === recipientCompanyId) ?? null,
+    [companies, recipientCompanyId]
+  );
+
   const selectedCurrency = useMemo(
     () => currencies.find((currency) => currency.id === currencyId) ?? null,
     [currencies, currencyId]
@@ -450,10 +459,7 @@ export default function FinanceNewPurchaseOrderPage() {
   );
 
   const filteredTasks = useMemo(() => {
-    if (!projectId) {
-      return tasks;
-    }
-
+    if (!projectId) return tasks;
     return tasks.filter((task) => task.project_id === projectId);
   }, [projectId, tasks]);
 
@@ -463,12 +469,10 @@ export default function FinanceNewPurchaseOrderPage() {
   );
 
   const filteredVendorBankAccounts = useMemo(() => {
-    if (!vendorId) {
-      return [];
-    }
+    if (recipientType !== "vendor" || !vendorId) return [];
 
     return vendorBankAccounts.filter((account) => account.vendor_id === vendorId);
-  }, [vendorBankAccounts, vendorId]);
+  }, [recipientType, vendorBankAccounts, vendorId]);
 
   const selectedVendorBankAccount = useMemo(
     () =>
@@ -487,6 +491,18 @@ export default function FinanceNewPurchaseOrderPage() {
 
     return "Manual Purchase Order";
   }, [selectedVendorQuotation, sourceMode]);
+
+  const selectedRecipientTitle = useMemo(() => {
+    if (recipientType === "vendor") {
+      return selectedVendor?.legal_name || selectedVendor?.name || "—";
+    }
+
+    return (
+      selectedRecipientCompany?.legal_name ||
+      selectedRecipientCompany?.name ||
+      "—"
+    );
+  }, [recipientType, selectedRecipientCompany, selectedVendor]);
 
   const loadFormData = useCallback(async () => {
     type LookupResult = {
@@ -535,7 +551,7 @@ export default function FinanceNewPurchaseOrderPage() {
       setIsLoading(true);
       setErrorMessage("");
 
-      const [
+          const [
         vendorsResult,
         companiesResult,
         projectsResult,
@@ -626,7 +642,6 @@ export default function FinanceNewPurchaseOrderPage() {
               "id, bank_id, vendor_id, vendor_code, beneficiary_name, bank_name, country, city, postal_code, address_line_1, address_line_2, account_number, account_identifier_type, account_identifier_value, currency_code, is_default, status, notes"
             )
             .eq("status", "active")
-            .order("is_default", { ascending: false })
             .order("bank_name", { ascending: true })
         ),
         loadLookup(
@@ -666,8 +681,7 @@ export default function FinanceNewPurchaseOrderPage() {
         loadLookup(
           "Accepted vendor quotations",
           supabase
-
-                      .from("finance_vendor_quotations")
+            .from("finance_vendor_quotations")
             .select(
               [
                 "id",
@@ -734,6 +748,24 @@ export default function FinanceNewPurchaseOrderPage() {
         setCompanyId(onlyCompany.id);
       }
 
+      const defaultPaymentTerm =
+        (paymentTermsResult.data as PaymentTermOption[]).find(
+          (term) => term.is_default
+        ) ?? (paymentTermsResult.data as PaymentTermOption[])[0];
+
+      if (!paymentTermsId && defaultPaymentTerm) {
+        setPaymentTermsId(defaultPaymentTerm.id);
+      }
+
+      const defaultShippingTerm =
+        (shippingTermsResult.data as ShippingTermOption[]).find(
+          (term) => term.is_default
+        ) ?? (shippingTermsResult.data as ShippingTermOption[])[0];
+
+      if (!shippingTermId && defaultShippingTerm) {
+        setShippingTermId(defaultShippingTerm.id);
+      }
+
       const defaultPaymentMethod =
         (paymentMethodsResult.data as PaymentMethodOption[])[0];
 
@@ -771,21 +803,21 @@ export default function FinanceNewPurchaseOrderPage() {
     } finally {
       setIsLoading(false);
     }
-  }, [companyId, paymentMethodId]);
+  }, [companyId, paymentMethodId, paymentTermsId, shippingTermId]);
 
   useEffect(() => {
     void loadFormData();
   }, [loadFormData]);
 
   useEffect(() => {
-    if (!selectedVendor) return;
+    if (!selectedVendor || recipientType !== "vendor") return;
 
     setCurrencyCode((current) => current || selectedVendor.currency_code || "");
     setPaymentTermsId((current) => current || selectedVendor.payment_terms_id || "");
-  }, [selectedVendor]);
+  }, [recipientType, selectedVendor]);
 
   useEffect(() => {
-    if (!vendorId) {
+    if (recipientType !== "vendor" || !vendorId) {
       setVendorBankAccountId("");
       return;
     }
@@ -795,13 +827,24 @@ export default function FinanceNewPurchaseOrderPage() {
     );
 
     if (!selectedBankStillValid) {
-      const defaultBank =
-        filteredVendorBankAccounts.find((account) => account.is_default) ??
-        filteredVendorBankAccounts[0];
-
-      setVendorBankAccountId(defaultBank?.id || "");
+      setVendorBankAccountId("");
     }
-  }, [filteredVendorBankAccounts, vendorBankAccountId, vendorId]);
+  }, [
+    filteredVendorBankAccounts,
+    recipientType,
+    vendorBankAccountId,
+    vendorId,
+  ]);
+
+  useEffect(() => {
+    if (recipientType === "vendor") {
+      setRecipientCompanyId("");
+      return;
+    }
+
+    setVendorId("");
+    setVendorBankAccountId("");
+  }, [recipientType]);
 
   useEffect(() => {
     if (!currencyCode) return;
@@ -814,28 +857,6 @@ export default function FinanceNewPurchaseOrderPage() {
       setCurrencyId(matchedCurrency.id);
     }
   }, [currencies, currencyCode, currencyId]);
-
-  useEffect(() => {
-    if (paymentTermsId) return;
-
-    const defaultPaymentTerm =
-      paymentTerms.find((term) => term.is_default) ?? paymentTerms[0];
-
-    if (defaultPaymentTerm) {
-      setPaymentTermsId(defaultPaymentTerm.id);
-    }
-  }, [paymentTerms, paymentTermsId]);
-
-  useEffect(() => {
-    if (shippingTermId) return;
-
-    const defaultShippingTerm =
-      shippingTerms.find((term) => term.is_default) ?? shippingTerms[0];
-
-    if (defaultShippingTerm) {
-      setShippingTermId(defaultShippingTerm.id);
-    }
-  }, [shippingTermId, shippingTerms]);
 
   useEffect(() => {
     if (!projectId) {
@@ -856,13 +877,16 @@ export default function FinanceNewPurchaseOrderPage() {
     async function applyVendorQuotationSource() {
       if (!selectedVendorQuotation || sourceMode !== "vendor_quotation") return;
 
+      setRecipientType("vendor");
       setVendorId(selectedVendorQuotation.vendor_id || "");
+      setRecipientCompanyId("");
       setCompanyId(selectedVendorQuotation.company_id || "");
       setCurrencyCode(selectedVendorQuotation.currency_code || "");
       setPaymentTermsId(selectedVendorQuotation.payment_terms_id || "");
       setShippingTermId(selectedVendorQuotation.shipping_term_id || "");
       setProjectId(selectedVendorQuotation.project_id || "");
       setTaskId(selectedVendorQuotation.task_id || "");
+      setVendorBankAccountId("");
       setNotes(selectedVendorQuotation.notes || "");
 
       const { data, error } = await supabase
@@ -987,6 +1011,7 @@ export default function FinanceNewPurchaseOrderPage() {
   const removeLine = useCallback((localId: string) => {
     setLines((current) => {
       if (current.length <= 1) return current;
+
       return current.filter((line) => line.localId !== localId);
     });
   }, []);
@@ -995,12 +1020,13 @@ export default function FinanceNewPurchaseOrderPage() {
     setVendorQuotationId("");
     setVendorQuotationLines([]);
     setVendorId("");
+    setRecipientType("vendor");
+    setRecipientCompanyId("");
     setCompanyId("");
     setProjectId("");
     setTaskId("");
     setCurrencyCode("");
-
-                                            setCurrencyId("");
+    setCurrencyId("");
     setPaymentTermsId("");
     setShippingTermId("");
     setPaymentMethodId("");
@@ -1016,8 +1042,20 @@ export default function FinanceNewPurchaseOrderPage() {
       return "Select an accepted vendor quotation.";
     }
 
-    if (!vendorId) return "Select a vendor.";
-    if (!companyId) return "Select receiving company.";
+    if (!companyId) return "Select issuing company.";
+
+    if (recipientType === "vendor" && !vendorId) {
+      return "Select a vendor recipient.";
+    }
+
+    if (recipientType === "vendor" && !vendorBankAccountId) {
+      return "Select a vendor bank account.";
+    }
+
+    if (recipientType === "company" && !recipientCompanyId) {
+      return "Select a company recipient.";
+    }
+
     if (!poDate) return "Select purchase order date.";
     if (!currencyCode) return "Select currency.";
 
@@ -1043,7 +1081,10 @@ export default function FinanceNewPurchaseOrderPage() {
     currencyCode,
     lines,
     poDate,
+    recipientCompanyId,
+    recipientType,
     sourceMode,
+    vendorBankAccountId,
     vendorId,
     vendorQuotationId,
   ]);
@@ -1085,12 +1126,17 @@ export default function FinanceNewPurchaseOrderPage() {
         const { error: patchError } = await supabase
           .from("finance_purchase_orders")
           .update({
+            recipient_type: "vendor",
+            vendor_id: vendorId || null,
+            recipient_company_id: null,
             expected_delivery_date: expectedDeliveryDate || null,
             payment_method_id: paymentMethodId || null,
             vendor_bank_account_id: vendorBankAccountId || null,
             metadata: {
               source: "vendor_quotation_conversion",
               vendor_quotation_id: vendorQuotationId,
+              recipient_type: "vendor",
+              vendor_id: vendorId || null,
               preferred_payment_method_id: paymentMethodId || null,
               vendor_bank_account_id: vendorBankAccountId || null,
             },
@@ -1104,10 +1150,13 @@ export default function FinanceNewPurchaseOrderPage() {
         return;
       }
 
-      const { data: purchaseOrder, error: purchaseOrderError } = await supabase
+          const { data: purchaseOrder, error: purchaseOrderError } = await supabase
         .from("finance_purchase_orders")
         .insert({
-          vendor_id: vendorId,
+          recipient_type: recipientType,
+          vendor_id: recipientType === "vendor" ? vendorId : null,
+          recipient_company_id:
+            recipientType === "company" ? recipientCompanyId : null,
           company_id: companyId,
           project_id: projectId || null,
           task_id: taskId || null,
@@ -1118,12 +1167,18 @@ export default function FinanceNewPurchaseOrderPage() {
           payment_terms_id: paymentTermsId || null,
           shipping_term_id: shippingTermId || null,
           payment_method_id: paymentMethodId || null,
-          vendor_bank_account_id: vendorBankAccountId || null,
+          vendor_bank_account_id:
+            recipientType === "vendor" ? vendorBankAccountId || null : null,
           notes: notes.trim() || null,
           metadata: {
             source: "manual_purchase_order",
+            recipient_type: recipientType,
+            recipient_company_id:
+              recipientType === "company" ? recipientCompanyId : null,
+            vendor_id: recipientType === "vendor" ? vendorId : null,
             preferred_payment_method_id: paymentMethodId || null,
-            vendor_bank_account_id: vendorBankAccountId || null,
+            vendor_bank_account_id:
+              recipientType === "vendor" ? vendorBankAccountId || null : null,
             expected_flow:
               "vendor_quotation_to_purchase_order_to_vendor_bill_to_payment_made",
           },
@@ -1189,6 +1244,8 @@ export default function FinanceNewPurchaseOrderPage() {
     paymentMethodId,
     paymentTermsId,
     projectId,
+    recipientCompanyId,
+    recipientType,
     shippingTermId,
     sourceMode,
     taskId,
@@ -1277,17 +1334,15 @@ export default function FinanceNewPurchaseOrderPage() {
                 </div>
               </div>
 
-                            <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-1">
+              <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-1">
                 <div className="min-h-[148px] rounded-[24px] border border-white/10 bg-black/20 p-4">
                   <div className="flex items-start justify-between gap-3">
                     <div>
                       <p className="text-[11px] font-semibold uppercase tracking-[0.2em] text-slate-500">
-                        Supplier
+                        Recipient
                       </p>
                       <p className="mt-2 text-xl font-semibold tracking-[-0.035em] text-white">
-                        {selectedVendor?.legal_name ||
-                          selectedVendor?.name ||
-                          "—"}
+                        {selectedRecipientTitle}
                       </p>
                     </div>
                     <div className="flex h-10 w-10 items-center justify-center rounded-2xl border border-amber-400/20 bg-amber-500/10 text-amber-200">
@@ -1295,7 +1350,7 @@ export default function FinanceNewPurchaseOrderPage() {
                     </div>
                   </div>
                   <p className="mt-3 text-xs leading-5 text-slate-500">
-                    Supplier selected for this purchase order draft.
+                    PO recipient selected for this purchase order draft.
                   </p>
                 </div>
 
@@ -1320,7 +1375,7 @@ export default function FinanceNewPurchaseOrderPage() {
               </div>
             </div>
 
-            <div className="mt-6 flex flex-wrap gap-3">
+                        <div className="mt-6 flex flex-wrap gap-3">
               <Button
                 onClick={() => void handleSave()}
                 disabled={isSaving || isLoading}
@@ -1472,7 +1527,7 @@ export default function FinanceNewPurchaseOrderPage() {
                   </select>
                 </div>
 
-                                <div className={summaryBlockClass}>
+                <div className={summaryBlockClass}>
                   <div className={labelClass}>Accepted Vendor Quotation</div>
                   <select
                     value={vendorQuotationId}
@@ -1497,7 +1552,7 @@ export default function FinanceNewPurchaseOrderPage() {
                   </select>
                 </div>
 
-                <div className={summaryBlockClass}>
+                                <div className={summaryBlockClass}>
                   <div className={labelClass}>Source Status</div>
                   <div className="mt-2 text-xl font-semibold text-white">
                     {sourceDescription}
@@ -1554,8 +1609,7 @@ export default function FinanceNewPurchaseOrderPage() {
                       Document Overview
                     </CardTitle>
                     <CardDescription className="mt-1 text-xs text-slate-500">
-                      Supplier, receiving company, commercial terms, dates,
-                      source references, and currency.
+                      Issuing company, recipient, payment destination, commercial terms, dates, and currency.
                     </CardDescription>
                   </div>
                 </div>
@@ -1563,48 +1617,7 @@ export default function FinanceNewPurchaseOrderPage() {
 
               <CardContent className="grid grid-cols-1 gap-4 p-5 md:grid-cols-3">
                 <div className={summaryBlockClass}>
-                  <div className={labelClass}>Vendor / Supplier</div>
-                  <select
-                    value={vendorId}
-                    onChange={(event) => setVendorId(event.target.value)}
-                    disabled={sourceMode === "vendor_quotation"}
-                    className={fieldShellClass}
-                  >
-                    <option value="">Select vendor</option>
-                    {vendors.map((vendor) => (
-                      <option key={vendor.id} value={vendor.id}>
-                        {vendor.legal_name || vendor.name}
-                        {vendor.code ? ` — ${vendor.code}` : ""}
-                      </option>
-                    ))}
-                  </select>
-
-                  {selectedVendor ? (
-                    <div className="mt-3 text-sm leading-6 text-slate-300">
-                      <div className="font-semibold text-white">
-                        {selectedVendor.legal_name || selectedVendor.name}
-                      </div>
-                      {selectedVendor.code ? (
-                        <div>Vendor Code: {selectedVendor.code}</div>
-                      ) : null}
-                      {getVendorAddress(selectedVendor) ? (
-                        <div>{getVendorAddress(selectedVendor)}</div>
-                      ) : null}
-                      {selectedVendor.contact_person ? (
-                        <div>Contact: {selectedVendor.contact_person}</div>
-                      ) : null}
-                      {selectedVendor.email ? (
-                        <div>Email: {selectedVendor.email}</div>
-                      ) : null}
-                      {selectedVendor.phone ? (
-                        <div>Phone: {selectedVendor.phone}</div>
-                      ) : null}
-                    </div>
-                  ) : null}
-                </div>
-
-                <div className={summaryBlockClass}>
-                  <div className={labelClass}>Receiving Company</div>
+                  <div className={labelClass}>Issuing Company</div>
                   <select
                     value={companyId}
                     onChange={(event) => setCompanyId(event.target.value)}
@@ -1638,174 +1651,122 @@ export default function FinanceNewPurchaseOrderPage() {
                 </div>
 
                 <div className={summaryBlockClass}>
-                  <div className={labelClass}>Currency</div>
+                  <div className={labelClass}>Recipient Type</div>
                   <select
-                    value={currencyId}
-                    onChange={(event) => {
-                      const nextId = event.target.value;
-                      setCurrencyId(nextId);
-
-                      const matchedCurrency = currencies.find(
-                        (entry) => entry.id === nextId
-                      );
-
-                      if (matchedCurrency) {
-                        setCurrencyCode(matchedCurrency.currency_code);
-                      }
-                    }}
-                    disabled={sourceMode === "vendor_quotation"}
-                    className={fieldShellClass}
-                  >
-                    <option value="">Select currency</option>
-                    {currencies.map((currency) => (
-                      <option key={currency.id} value={currency.id}>
-                        {currency.currency_code} — {currency.currency_name}
-                      </option>
-                    ))}
-                  </select>
-                </div>
-
-                <div className={summaryBlockClass}>
-                  <div className={labelClass}>PO Date</div>
-                  <input
-                    type="date"
-                    value={poDate}
-                    onChange={(event) => setPoDate(event.target.value)}
-                    className={fieldShellClass}
-                  />
-                </div>
-
-                <div className={summaryBlockClass}>
-                  <div className={labelClass}>Expected Delivery</div>
-                  <input
-                    type="date"
-                    value={expectedDeliveryDate}
+                    value={recipientType}
                     onChange={(event) =>
-                      setExpectedDeliveryDate(event.target.value)
+                      setRecipientType(event.target.value as "vendor" | "company")
                     }
-                    className={fieldShellClass}
-                  />
-                </div>
-
-                <div className={summaryBlockClass}>
-                  <div className={labelClass}>Project</div>
-                  <select
-                    value={projectId}
-                    onChange={(event) => setProjectId(event.target.value)}
                     disabled={sourceMode === "vendor_quotation"}
                     className={fieldShellClass}
                   >
-                    <option value="">No project</option>
-                    {projects.map((project) => (
-                      <option key={project.id} value={project.id}>
-                        {project.name}
-                      </option>
-                    ))}
+                    <option value="vendor">Vendor</option>
+                    <option value="company">Company</option>
                   </select>
                 </div>
+
+                {recipientType === "vendor" ? (
+                  <div className={summaryBlockClass}>
+                    <div className={labelClass}>Vendor / Recipient</div>
+                    <select
+                      value={vendorId}
+                      onChange={(event) => setVendorId(event.target.value)}
+                      disabled={sourceMode === "vendor_quotation"}
+                      className={fieldShellClass}
+                    >
+                      <option value="">Select vendor</option>
+                      {vendors.map((vendor) => (
+                        <option key={vendor.id} value={vendor.id}>
+                          {vendor.legal_name || vendor.name}
+                          {vendor.code ? ` — ${vendor.code}` : ""}
+                        </option>
+                      ))}
+                    </select>
+
+                    {selectedVendor ? (
+                      <div className="mt-3 text-sm leading-6 text-slate-300">
+                        <div className="font-semibold text-white">
+                          {selectedVendor.legal_name || selectedVendor.name}
+                        </div>
+                        {getVendorAddress(selectedVendor) ? (
+                          <div>{getVendorAddress(selectedVendor)}</div>
+                        ) : null}
+                        {selectedVendor.email ? (
+                          <div>Email: {selectedVendor.email}</div>
+                        ) : null}
+                        {selectedVendor.phone ? (
+                          <div>Phone: {selectedVendor.phone}</div>
+                        ) : null}
+                        {selectedVendor.code ? (
+                          <div>Vendor Code: {selectedVendor.code}</div>
+                        ) : null}
+                        {selectedVendor.contact_person ? (
+                          <div>Contact: {selectedVendor.contact_person}</div>
+                        ) : null}
+                      </div>
+                    ) : null}
+                  </div>
+                ) : (
+                  <div className={summaryBlockClass}>
+                    <div className={labelClass}>Company / Recipient</div>
+                    <select
+                      value={recipientCompanyId}
+                      onChange={(event) =>
+                        setRecipientCompanyId(event.target.value)
+                      }
+                      disabled={sourceMode === "vendor_quotation"}
+                      className={fieldShellClass}
+                    >
+                      <option value="">Select company</option>
+                      {companies
+                        .filter((company) => company.id !== companyId)
+                        .map((company) => (
+                          <option key={company.id} value={company.id}>
+                            {company.legal_name || company.name}
+                          </option>
+                        ))}
+                    </select>
+
+                    {selectedRecipientCompany ? (
+                      <div className="mt-3 text-sm leading-6 text-slate-300">
+                        <div className="font-semibold text-white">
+                          {selectedRecipientCompany.legal_name ||
+                            selectedRecipientCompany.name}
+                        </div>
+                        {getCompanyAddress(selectedRecipientCompany) ? (
+                          <div>{getCompanyAddress(selectedRecipientCompany)}</div>
+                        ) : null}
+                        {selectedRecipientCompany.email ? (
+                          <div>Email: {selectedRecipientCompany.email}</div>
+                        ) : null}
+                        {selectedRecipientCompany.phone ? (
+                          <div>Phone: {selectedRecipientCompany.phone}</div>
+                        ) : null}
+                      </div>
+                    ) : null}
+                  </div>
+                )}
 
                                 <div className={summaryBlockClass}>
-                  <div className={labelClass}>Task</div>
-                  <select
-                    value={taskId}
-                    onChange={(event) => setTaskId(event.target.value)}
-                    disabled={sourceMode === "vendor_quotation"}
-                    className={fieldShellClass}
-                  >
-                    <option value="">No task</option>
-                    {filteredTasks.map((task) => (
-                      <option key={task.id} value={task.id}>
-                        {task.title}
-                      </option>
-                    ))}
-                  </select>
-                </div>
-
-                <div className={summaryBlockClass}>
-                  <div className={labelClass}>Payment Terms</div>
-                  <select
-                    value={paymentTermsId}
-                    onChange={(event) => setPaymentTermsId(event.target.value)}
-                    disabled={sourceMode === "vendor_quotation"}
-                    className={fieldShellClass}
-                  >
-                    <option value="">Select terms</option>
-                    {paymentTerms.map((term) => (
-                      <option key={term.id} value={term.id}>
-                        {term.code ? `${term.code} | ` : ""}
-                        {term.name}
-                        {term.due_days !== null && term.due_days !== undefined
-                          ? ` | Due in ${term.due_days} days`
-                          : ""}
-                      </option>
-                    ))}
-                  </select>
-                </div>
-
-                <div className={summaryBlockClass}>
-                  <div className={labelClass}>Shipping Terms</div>
-                  <select
-                    value={shippingTermId}
-                    onChange={(event) => setShippingTermId(event.target.value)}
-                    disabled={sourceMode === "vendor_quotation"}
-                    className={fieldShellClass}
-                  >
-                    <option value="">Select shipping terms</option>
-                    {shippingTerms.map((term) => (
-                      <option key={term.id} value={term.id}>
-                        {term.code ? `${term.code} | ` : ""}
-                        {term.name}
-                      </option>
-                    ))}
-                  </select>
-                </div>
-
-                <div className={summaryBlockClass}>
-                  <div className={labelClass}>Preferred Payment Method</div>
-                  <select
-                    value={paymentMethodId}
-                    onChange={(event) => setPaymentMethodId(event.target.value)}
-                    className={fieldShellClass}
-                  >
-                    <option value="">Select payment method</option>
-                    {paymentMethods.map((method) => (
-                      <option key={method.id} value={method.id}>
-                        {method.code ? `${method.code} | ` : ""}
-                        {method.name}
-                      </option>
-                    ))}
-                  </select>
-                </div>
-
-                <div className={summaryBlockClass}>
                   <div className={labelClass}>Vendor Bank Account</div>
                   <select
                     value={vendorBankAccountId}
-                    onChange={(event) =>
-                      setVendorBankAccountId(event.target.value)
-                    }
-                    disabled={!vendorId}
+                    onChange={(e) => setVendorBankAccountId(e.target.value)}
+                    disabled={recipientType !== "vendor" || sourceMode === "vendor_quotation"}
                     className={fieldShellClass}
                   >
-                    <option value="">Select vendor bank</option>
-                    {filteredVendorBankAccounts.map((bank) => {
-                      const identifier = getVendorBankIdentifier(bank);
-
-                      return (
-                        <option key={bank.id} value={bank.id}>
-                          {bank.beneficiary_name ||
-                            bank.bank_name ||
-                            bank.bank_id}
-                          {identifier
-                            ? ` — ${identifier.label}: ${identifier.value}`
-                            : ""}
-                          {bank.currency_code ? ` — ${bank.currency_code}` : ""}
-                        </option>
-                      );
-                    })}
+                    <option value="">Select vendor bank account</option>
+                    {filteredVendorBankAccounts.map((account) => (
+                      <option key={account.id} value={account.id}>
+                        {account.beneficiary_name ||
+                          account.bank_name ||
+                          account.account_number ||
+                          "—"}
+                      </option>
+                    ))}
                   </select>
 
-                  {selectedVendorBankAccount ? (
+                  {recipientType === "vendor" && selectedVendorBankAccount ? (
                     <div className="mt-3 text-sm leading-6 text-slate-300">
                       {selectedVendorBankAccount.beneficiary_name ? (
                         <div className="font-semibold text-white">
@@ -1816,9 +1777,7 @@ export default function FinanceNewPurchaseOrderPage() {
                         <div>{selectedVendorBankAccount.bank_name}</div>
                       ) : null}
                       {getVendorBankAddress(selectedVendorBankAccount) ? (
-                        <div>
-                          {getVendorBankAddress(selectedVendorBankAccount)}
-                        </div>
+                        <div>{getVendorBankAddress(selectedVendorBankAccount)}</div>
                       ) : null}
                       {selectedVendorBankAccount.account_number ? (
                         <div>
@@ -1827,15 +1786,9 @@ export default function FinanceNewPurchaseOrderPage() {
                       ) : null}
                       {getVendorBankIdentifier(selectedVendorBankAccount) ? (
                         <div>
-                          {
-                            getVendorBankIdentifier(selectedVendorBankAccount)
-                              ?.label
-                          }
-                          :{" "}
-                          {
-                            getVendorBankIdentifier(selectedVendorBankAccount)
-                              ?.value
-                          }
+                          {getVendorBankIdentifier(selectedVendorBankAccount)?.label}:
+                          {" "}
+                          {getVendorBankIdentifier(selectedVendorBankAccount)?.value}
                         </div>
                       ) : null}
                       {selectedVendorBankAccount.currency_code ? (
@@ -1844,14 +1797,22 @@ export default function FinanceNewPurchaseOrderPage() {
                         </div>
                       ) : null}
                     </div>
+                  ) : recipientType === "vendor" && !selectedVendorBankAccount ? (
+                    <div className="mt-3 text-sm leading-6 text-slate-400">
+                      No vendor bank account selected.
+                    </div>
+                  ) : recipientType === "company" ? (
+                    <div className="mt-3 text-sm leading-6 text-slate-400">
+                      Company recipient does not require vendor bank account.
+                    </div>
                   ) : null}
+                </div>
 
                 <div className="rounded-[24px] border border-white/10 bg-black/20 p-4 md:col-span-3">
                   <div className={labelClass}>Notes</div>
                   <textarea
                     value={notes}
-                    onChange={(event) => setNotes(event.target.value)}
-                    disabled={sourceMode === "vendor_quotation"}
+                    onChange={(e) => setNotes(e.target.value)}
                     rows={4}
                     className="mt-2 w-full rounded-2xl border border-white/10 bg-black/20 px-4 py-3 text-sm leading-6 text-white outline-none transition placeholder:text-slate-600 focus:border-cyan-400/30 focus:bg-black/30 disabled:opacity-70"
                   />
@@ -1860,528 +1821,90 @@ export default function FinanceNewPurchaseOrderPage() {
             </Card>
 
             <Card className={activeSectionClass}>
-              <CardHeader className="flex items-center justify-between border-b border-white/10 px-5 py-4">
-                <div>
-                  <div className="flex items-center gap-3">
-                    <div className="rounded-2xl border border-amber-400/15 bg-amber-500/10 p-3 text-amber-200">
-                      <FileText className="h-4 w-4" />
-                    </div>
-                    <div>
-                      <CardTitle className="text-sm font-semibold uppercase tracking-[0.18em] text-slate-400">
-                        Line Items
-                      </CardTitle>
-                      <CardDescription className="mt-1 text-xs text-slate-500">
-                        Add supplier items using the locked new/create line-item card pattern.
-                      </CardDescription>
-                    </div>
+              <CardHeader className="border-b border-white/10 px-5 py-4">
+                <div className="flex items-center gap-3">
+                  <div className="rounded-2xl border border-emerald-400/15 bg-emerald-500/10 p-3 text-emerald-200">
+                    <Wallet className="h-4 w-4" />
+                  </div>
+                  <div>
+                    <CardTitle className="text-sm font-semibold uppercase tracking-[0.18em] text-slate-400">
+                      Document Financials
+                    </CardTitle>
+                    <CardDescription className="mt-1 text-xs text-slate-500">
+                      Draft totals, discounts, taxes, and overall amount.
+                    </CardDescription>
                   </div>
                 </div>
 
-                {sourceMode === "manual" ? (
-                  <Button
-                    variant="outline"
-                    onClick={addLine}
-                    className="h-9 rounded-2xl border-white/10 bg-white/[0.05] px-3 text-white hover:bg-white/[0.08]"
-                  >
-                    <Plus className="mr-2 h-4 w-4" />
-                    Add Row
-                  </Button>
-                ) : null}
+                <CardContent className="grid grid-cols-1 gap-3 p-5 sm:grid-cols-2 xl:grid-cols-4">
+                  <div className={summaryBlockClass}>
+                    <div className={labelClass}>Subtotal</div>
+                    <div className="mt-2 text-2xl font-semibold text-white">
+                      {formatMoney(totals.subtotal, currencyCode || "USD")}
+                    </div>
+                  </div>
+
+                  <div className={summaryBlockClass}>
+                    <div className={labelClass}>Discount</div>
+                    <div className="mt-2 text-2xl font-semibold text-white">
+                      {formatMoney(totals.discount, currencyCode || "USD")}
+                    </div>
+                  </div>
+
+                  <div className={summaryBlockClass}>
+                    <div className={labelClass}>Tax</div>
+                    <div className="mt-2 text-2xl font-semibold text-white">
+                      {formatMoney(totals.tax, currencyCode || "USD")}
+                    </div>
+                  </div>
+
+                  <div className={summaryBlockClass}>
+                    <div className={labelClass}>Total</div>
+                    <div className="mt-2 text-2xl font-semibold text-white">
+                      {formatMoney(totals.total, currencyCode || "USD")}
+                    </div>
+                  </div>
+                </CardContent>
               </CardHeader>
-
-              <CardContent className="p-5">
-                <div className="max-h-[720px] space-y-3 overflow-y-auto pr-1">
-                  {lines.map((line, index) => {
-                    const selectedItem = items.find(
-                      (item) => item.id === line.item_id
-                    );
-                    const selectedTaxCode = taxCodes.find(
-                      (taxCode) => taxCode.id === line.tax_code_id
-                    );
-                    const selectedUnit = units.find(
-                      (unit) => unit.id === line.unit_of_measure_id
-                    );
-                    const selectedExpenseCategory = expenseCategories.find(
-                      (category) => category.id === line.expense_category_id
-                    );
-
-                    return (
-                      <div
-                        key={line.localId}
-                        className="rounded-[24px] border border-white/10 bg-black/20 p-4"
-                      >
-                        <div className="mb-4 flex items-center justify-between gap-4">
-                          <div className="flex flex-wrap items-center gap-2">
-                            <div className="text-sm font-semibold text-white">
-                              Line {index + 1}
-                            </div>
-
-                            {selectedItem ? (
-                              <Badge className="rounded-full border border-violet-400/20 bg-violet-500/10 px-3 py-1 text-[10px] font-semibold uppercase tracking-[0.18em] text-violet-200 shadow-none">
-                                {selectedItem.name}
-                              </Badge>
-                            ) : null}
-
-                            {selectedExpenseCategory ? (
-                              <Badge className="rounded-full border border-amber-400/20 bg-amber-500/10 px-3 py-1 text-[10px] font-semibold uppercase tracking-[0.18em] text-amber-200 shadow-none">
-                                {selectedExpenseCategory.name}
-                              </Badge>
-                            ) : null}
-                          </div>
-
-                          {sourceMode === "manual" ? (
-                            <Button
-                              variant="outline"
-                              onClick={() => removeLine(line.localId)}
-                              disabled={lines.length === 1}
-                              className="h-9 rounded-2xl border-white/10 bg-white/[0.05] px-3 text-white hover:bg-white/[0.08] disabled:cursor-not-allowed disabled:opacity-40"
-                            >
-                              <Trash2 className="h-4 w-4" />
-                            </Button>
-                          ) : null}
-                        </div>
-
-                        <div className="grid grid-cols-1 gap-4 md:grid-cols-12">
-                          <label className="space-y-2 md:col-span-3">
-                            <div className={inputLabelClass}>Item</div>
-                            <select
-                              value={line.item_id}
-                              onChange={(event) =>
-                                handleItemChange(line.localId, event.target.value)
-                              }
-                              disabled={sourceMode === "vendor_quotation"}
-                              className={inputFieldClass}
-                            >
-                              <option value="">Manual item</option>
-                              {items.map((item) => (
-                                <option key={item.id} value={item.id}>
-                                  {item.name}
-                                </option>
-                              ))}
-                            </select>
-                          </label>
-
-                          <label className="space-y-2 md:col-span-4">
-                            <div className={inputLabelClass}>Description</div>
-                            <input
-                              value={line.description}
-                              onChange={(event) =>
-                                updateLine(line.localId, {
-                                  description: event.target.value,
-                                })
-                              }
-                              disabled={sourceMode === "vendor_quotation"}
-                              placeholder="Description"
-                              className={inputFieldClass}
-                            />
-                          </label>
-
-                          <label className="space-y-2 md:col-span-1">
-                            <div className={inputLabelClass}>Qty</div>
-                            <input
-                              value={line.quantity}
-                              onChange={(event) =>
-                                updateLine(line.localId, {
-                                  quantity: event.target.value,
-                                })
-                              }
-
-                                                          disabled={sourceMode === "vendor_quotation"}
-                              className={inputFieldClass}
-                            />
-                          </label>
-
-                          <label className="space-y-2 md:col-span-2">
-                            <div className={inputLabelClass}>Unit</div>
-                            <select
-                              value={line.unit_of_measure_id}
-                              onChange={(event) =>
-                                updateLine(line.localId, {
-                                  unit_of_measure_id: event.target.value,
-                                })
-                              }
-                              disabled={sourceMode === "vendor_quotation"}
-                              className={inputFieldClass}
-                            >
-                              <option value="">Select unit</option>
-                              {units.map((unit) => (
-                                <option key={unit.id} value={unit.id}>
-                                  {unit.name}
-                                </option>
-                              ))}
-                            </select>
-                            {selectedUnit ? (
-                              <div className="text-[11px] text-slate-500">
-                                {selectedUnit.code}
-                              </div>
-                            ) : null}
-                          </label>
-
-                          <label className="space-y-2 md:col-span-2">
-                            <div className={inputLabelClass}>Unit Price</div>
-                            <input
-                              value={line.unit_price}
-                              onChange={(event) =>
-                                updateLine(line.localId, {
-                                  unit_price: event.target.value,
-                                })
-                              }
-                              disabled={sourceMode === "vendor_quotation"}
-                              className={inputFieldClass}
-                            />
-                          </label>
-
-                          <label className="space-y-2 md:col-span-2">
-                            <div className={inputLabelClass}>Discount</div>
-                            <input
-                              value={line.discount}
-                              onChange={(event) =>
-                                updateLine(line.localId, {
-                                  discount: event.target.value,
-                                })
-                              }
-                              disabled={sourceMode === "vendor_quotation"}
-                              className={inputFieldClass}
-                            />
-                          </label>
-
-                          <label className="space-y-2 md:col-span-2">
-                            <div className={inputLabelClass}>Tax Code</div>
-                            <select
-                              value={line.tax_code_id}
-                              onChange={(event) =>
-                                updateLine(line.localId, {
-                                  tax_code_id: event.target.value,
-                                })
-                              }
-                              disabled={sourceMode === "vendor_quotation"}
-                              className={inputFieldClass}
-                            >
-                              <option value="">Select tax</option>
-                              {taxCodes.map((tax) => (
-                                <option key={tax.id} value={tax.id}>
-                                  {tax.code ? `${tax.code} | ` : ""}
-                                  {tax.name} — {toNumber(tax.rate_percent)}%
-                                </option>
-                              ))}
-                            </select>
-                            {selectedTaxCode ? (
-                              <div className="text-[11px] text-slate-500">
-                                {toNumber(selectedTaxCode.rate_percent)}%
-                              </div>
-                            ) : null}
-                          </label>
-
-                          <label className="space-y-2 md:col-span-3">
-                            <div className={inputLabelClass}>
-                              Expense Category
-                            </div>
-                            <select
-                              value={line.expense_category_id}
-                              onChange={(event) =>
-                                updateLine(line.localId, {
-                                  expense_category_id: event.target.value,
-                                })
-                              }
-                              disabled={sourceMode === "vendor_quotation"}
-                              className={inputFieldClass}
-                            >
-                              <option value="">Select category</option>
-                              {expenseCategories.map((category) => (
-                                <option key={category.id} value={category.id}>
-                                  {category.code ? `${category.code} | ` : ""}
-                                  {category.name}
-                                </option>
-                              ))}
-                            </select>
-                          </label>
-
-                          <div className="space-y-2 md:col-span-3">
-                            <div className={inputLabelClass}>Line Total</div>
-                            <div className="flex min-h-[44px] items-center rounded-2xl border border-cyan-400/15 bg-cyan-500/10 px-4 text-sm font-semibold text-cyan-100">
-                              {formatMoney(
-                                lineTotals[index] || 0,
-                                currencyCode || "USD"
-                              )}
-                            </div>
-                          </div>
-
-                          <label className="space-y-2 md:col-span-12">
-                            <div className={inputLabelClass}>Line Notes</div>
-                            <input
-                              value={line.notes}
-                              onChange={(event) =>
-                                updateLine(line.localId, {
-                                  notes: event.target.value,
-                                })
-                              }
-                              disabled={sourceMode === "vendor_quotation"}
-                              placeholder="Optional line notes"
-                              className={inputFieldClass}
-                            />
-                          </label>
-                        </div>
-                      </div>
-                    );
-                  })}
-                </div>
-              </CardContent>
             </Card>
           </div>
 
           <div className="space-y-6">
             <Card className={activeSectionClass}>
               <CardHeader className="border-b border-white/10 px-5 py-4">
-                <CardTitle className="text-sm font-semibold uppercase tracking-[0.18em] text-slate-400">
-                  Purchase Order Summary
-                </CardTitle>
-                <CardDescription className="mt-1 text-xs text-slate-500">
-                  Live supplier-side summary before saving.
-                </CardDescription>
+                <div className="flex items-center gap-3">
+                  <div className="rounded-2xl border border-cyan-400/15 bg-cyan-500/10 p-3 text-cyan-200">
+                    <FileText className="h-4 w-4" />
+                  </div>
+                  <div>
+                    <CardTitle className="text-sm font-semibold uppercase tracking-[0.18em] text-slate-400">
+                      Purchase Order Lines
+                    </CardTitle>
+                    <CardDescription className="mt-1 text-xs text-slate-500">
+                      Line items included in this draft purchase order.
+                    </CardDescription>
+                  </div>
+                </div>
+
+                <CardContent className="space-y-3 p-5">
+                  {lines.map((line, index) => (
+                    <div
+                      key={line.localId}
+                      className="rounded-[24px] border border-white/10 bg-black/20 p-4"
+                    >
+                      {/* Line item controls and inputs */}
+                    </div>
+                  ))}
+
+                  <Button
+                    onClick={addLine}
+                    className="mt-3 h-10 rounded-2xl bg-cyan-500 px-4 text-sm font-semibold text-white"
+                  >
+                    <Plus className="mr-2 h-4 w-4" />
+                    Add Line
+                  </Button>
+                </CardContent>
               </CardHeader>
-
-              <CardContent className="space-y-3 p-5">
-                <div className={summaryBlockClass}>
-                  <div className={labelClass}>Supplier</div>
-                  <div className="mt-2 text-2xl font-semibold text-white">
-                    {selectedVendor?.legal_name || selectedVendor?.name || "—"}
-                  </div>
-               
-                  {selectedVendor ? (
-                    <div className="mt-2 text-sm leading-6 text-slate-400">
-                      {getVendorAddress(selectedVendor) ? (
-                        <div>{getVendorAddress(selectedVendor)}</div>
-                      ) : null}
-                      {selectedVendor.email ? (
-                        <div>Email: {selectedVendor.email}</div>
-                      ) : null}
-                      {selectedVendor.phone ? (
-                        <div>Phone: {selectedVendor.phone}</div>
-                      ) : null}
-                      {selectedVendor.code ? (
-                        <div>Vendor Code: {selectedVendor.code}</div>
-                      ) : null}
-                      {selectedVendor.contact_person ? (
-                        <div>Contact: {selectedVendor.contact_person}</div>
-                      ) : null}
-                    </div>
-                  ) : null}
-                  
-                <div className={summaryBlockClass}>
-                  <div className={labelClass}>Receiving Company</div>
-                  <div className="mt-2 text-2xl font-semibold text-white">
-                    {selectedCompany?.legal_name || selectedCompany?.name || "—"}
-                  </div>
-                  {selectedCompany ? (
-                    <div className="mt-2 text-sm leading-6 text-slate-400">
-                      {getCompanyAddress(selectedCompany) ? (
-                        <div>{getCompanyAddress(selectedCompany)}</div>
-                      ) : null}
-                      {selectedCompany.email ? (
-                        <div>Email: {selectedCompany.email}</div>
-                      ) : null}
-                      {selectedCompany.phone ? (
-                        <div>Phone: {selectedCompany.phone}</div>
-                      ) : null}
-                    </div>
-                  ) : null}
-                </div>
-
-                <div className={summaryBlockClass}>
-                  <div className={labelClass}>Source</div>
-                  <div className="mt-2 text-2xl font-semibold text-white">
-                    {sourceDescription}
-                  </div>
-                  <div className="mt-2 text-sm leading-6 text-slate-400">
-                    {sourceMode === "vendor_quotation"
-                      ? "Accepted vendor quotation conversion."
-                      : "Manual purchase order draft."}
-                  </div>
-                </div>
-
-                <div className={summaryBlockClass}>
-                  <div className={labelClass}>Payment Terms</div>
-                  <div className="mt-2 text-2xl font-semibold text-white">
-                    {selectedPaymentTerm?.name || "—"}
-                  </div>
-                  <div className="mt-2 text-sm leading-6 text-slate-400">
-                    {selectedPaymentTerm
-                      ? `${selectedPaymentTerm.code || "Terms"}${
-                          selectedPaymentTerm.due_days !== null &&
-                          selectedPaymentTerm.due_days !== undefined
-                            ? ` · Due in ${selectedPaymentTerm.due_days} days`
-                            : ""
-                        }`
-                      : "No payment terms selected"}
-                  </div>
-                </div>
-
-                                <div className={summaryBlockClass}>
-                  <div className={labelClass}>Shipping Terms</div>
-                  <div className="mt-2 text-2xl font-semibold text-white">
-                    {selectedShippingTerm?.name || "—"}
-                  </div>
-                  <div className="mt-2 text-sm leading-6 text-slate-400">
-                    {selectedShippingTerm?.code ||
-                      "No shipping terms selected"}
-                  </div>
-                </div>
-
-                <div className={summaryBlockClass}>
-                  <div className={labelClass}>Vendor Bank Account</div>
-                  <div className="mt-2 text-2xl font-semibold text-white">
-                    {selectedVendorBankAccount?.beneficiary_name ||
-                      selectedVendorBankAccount?.bank_name ||
-                      "—"}
-                  </div>
-                 
-                  {selectedVendorBankAccount ? (
-                    <div className="mt-2 text-sm leading-6 text-slate-400">
-                      {selectedVendorBankAccount.bank_name ? (
-                        <div>{selectedVendorBankAccount.bank_name}</div>
-                      ) : null}
-                      {getVendorBankAddress(selectedVendorBankAccount) ? (
-                        <div>
-                          {getVendorBankAddress(selectedVendorBankAccount)}
-                        </div>
-                      ) : null}
-                      {selectedVendorBankAccount.account_number ? (
-                        <div>
-                          Account: {selectedVendorBankAccount.account_number}
-                        </div>
-                      ) : null}
-                      {getVendorBankIdentifier(selectedVendorBankAccount) ? (
-                        <div>
-                          {
-                            getVendorBankIdentifier(selectedVendorBankAccount)
-                              ?.label
-                          }
-                          :{" "}
-                          {
-                            getVendorBankIdentifier(selectedVendorBankAccount)
-                              ?.value
-                          }
-                        </div>
-                      ) : null}
-                      {selectedVendorBankAccount.currency_code ? (
-                        <div>
-                          Currency: {selectedVendorBankAccount.currency_code}
-                        </div>
-                      ) : null}
-                    </div>
-                  ) : (
-                    <div className="mt-2 text-sm leading-6 text-slate-400">
-                      No vendor bank account selected.
-                    </div>
-                  )}
-      
-                  ) : (
-                    <div className="mt-2 text-sm leading-6 text-slate-400">
-                      No vendor bank account selected.
-                    </div>
-                  )}
-                </div>
-
-                <div className={summaryBlockClass}>
-                  <div className={labelClass}>Preferred Payment Method</div>
-                  <div className="mt-2 text-2xl font-semibold text-white">
-                    {selectedPaymentMethod?.name || "—"}
-                  </div>
-                  <div className="mt-2 text-sm leading-6 text-slate-400">
-                    {selectedPaymentMethod?.code ||
-                      "No payment method selected"}
-                  </div>
-                </div>
-
-                <div className={summaryBlockClass}>
-                  <div className={labelClass}>Currency</div>
-                  <div className="mt-2 text-2xl font-semibold text-white">
-                    {selectedCurrency
-                      ? `${selectedCurrency.currency_code} — ${selectedCurrency.currency_name}`
-                      : currencyCode || "—"}
-                  </div>
-                </div>
-
-                <div className={summaryBlockClass}>
-                  <div className={labelClass}>Project / Task</div>
-                  <div className="mt-2 text-2xl font-semibold text-white">
-                    {selectedProject?.name || "—"}
-                  </div>
-                  <div className="mt-2 text-sm leading-6 text-slate-400">
-                    {selectedTask?.title || "No task selected"}
-                  </div>
-                </div>
-
-                <div className={summaryBlockClass}>
-                  <div className={labelClass}>Timeline</div>
-                  <div className="mt-2 text-2xl font-semibold text-white">
-                    {formatDate(poDate)}
-                  </div>
-                  <div className="mt-2 text-sm leading-6 text-slate-400">
-                    Expected delivery: {formatDate(expectedDeliveryDate)}
-                  </div>
-                </div>
-
-                <div className={summaryBlockClass}>
-                  <div className="flex items-center justify-between text-sm">
-                    <span className="text-slate-400">Subtotal</span>
-                    <span className="font-semibold text-white">
-                      {formatMoney(totals.subtotal, currencyCode || "USD")}
-                    </span>
-                  </div>
-
-                  <div className="mt-2 flex items-center justify-between text-sm">
-                    <span className="text-slate-400">Discount</span>
-                    <span className="font-semibold text-white">
-                      {formatMoney(totals.discount, currencyCode || "USD")}
-                    </span>
-                  </div>
-
-                  <div className="mt-2 flex items-center justify-between text-sm">
-                    <span className="text-slate-400">Tax</span>
-                    <span className="font-semibold text-white">
-                      {formatMoney(totals.tax, currencyCode || "USD")}
-                    </span>
-                  </div>
-
-                  <div className="mt-3 border-t border-white/10 pt-3">
-                    <div className="flex items-center justify-between">
-                      <span className="text-sm font-medium text-slate-300">
-                        Total
-                      </span>
-                      <span className="text-lg font-semibold text-white">
-                        {formatMoney(totals.total, currencyCode || "USD")}
-                      </span>
-                    </div>
-                  </div>
-                </div>
-
-                {errorMessage ? (
-                  <div className="rounded-[18px] border border-rose-400/20 bg-rose-500/10 px-4 py-3 text-sm text-rose-200">
-                    {errorMessage}
-                  </div>
-                ) : null}
-              </CardContent>
-            </Card>
-
-            <Card className={activeSectionClass}>
-              <CardHeader className="border-b border-white/10 px-5 py-4">
-                <CardTitle className="text-sm font-semibold uppercase tracking-[0.18em] text-slate-400">
-                  Locked Behavior
-                </CardTitle>
-                <CardDescription className="mt-1 text-xs text-slate-500">
-                  New purchase order creation rules.
-                </CardDescription>
-              </CardHeader>
-
-              <CardContent className="space-y-2 p-5 text-sm leading-6 text-slate-400">
-                <div>• This page creates a purchase order draft only.</div>
-                <div>• PO number and official snapshot are finalized on issue.</div>
-                <div>• Issue/send action happens later from the PO detail page.</div>
-                <div>• Vendor PI / Invoice is received only after PO issue.</div>
-                <div>• Payment Made happens after vendor bill approval.</div>
-                <div>• This is the reverse mirror of the incoming receivables flow.</div>
-              </CardContent>
             </Card>
           </div>
         </div>

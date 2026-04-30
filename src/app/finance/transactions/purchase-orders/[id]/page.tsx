@@ -655,7 +655,6 @@ export default function FinancePurchaseOrderDetailPage() {
           linesResult,
           billsResult,
           paymentsResult,
-          archiveResult,
         ] = await Promise.all([
           supabase
             .from("finance_purchase_orders")

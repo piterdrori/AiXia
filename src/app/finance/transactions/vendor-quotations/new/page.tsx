@@ -241,6 +241,11 @@ export default function FinanceNewVendorQuotationPage() {
     [vendorId, vendors]
   );
 
+  const selectedCompany = useMemo(
+    () => companies.find((company) => company.id === companyId) ?? null,
+    [companies, companyId]
+  );
+
   useEffect(() => {
     async function loadLookups() {
       try {
@@ -417,6 +422,7 @@ export default function FinanceNewVendorQuotationPage() {
 
   const validateForm = useCallback(() => {
     if (!vendorId) return "Select a vendor.";
+    if (!companyId) return "Select the AiXia company this vendor quotation was issued to.";
     if (!quotationDate) return "Select quotation date.";
     if (!currencyCode) return "Select currency.";
     if (!selectedFile) return "Upload the received vendor quotation document.";
@@ -438,7 +444,7 @@ export default function FinanceNewVendorQuotationPage() {
     }
 
     return "";
-  }, [currencyCode, lines, quotationDate, selectedFile, vendorId]);
+  }, [companyId, currencyCode, lines, quotationDate, selectedFile, vendorId]);
 
   const handleSave = useCallback(async () => {
     const validationError = validateForm();
@@ -601,9 +607,10 @@ export default function FinanceNewVendorQuotationPage() {
                 </h1>
 
                 <p className="mt-3 max-w-4xl text-sm leading-6 text-slate-400 md:text-base md:leading-7">
-                  Capture the vendor quotation received from a supplier, attach
-                  the original document, and prepare it for review, acceptance,
-                  and conversion into an AiXia purchase order.
+                  Register a quotation received from a vendor and issued to one
+                  of your AiXia companies. Attach the original vendor document,
+                  review the commercial lines, then accept it and convert it into
+                  an AiXia purchase order.
                 </p>
 
                 <div className="mt-5 flex flex-wrap gap-3">
@@ -627,7 +634,7 @@ export default function FinanceNewVendorQuotationPage() {
               <div className="grid gap-4">
                 <div className="min-h-[148px] rounded-[24px] border border-white/10 bg-black/20 p-4">
                   <div className="text-[11px] font-semibold uppercase tracking-[0.2em] text-slate-500">
-                    Vendor
+                    Vendor / Issued From
                   </div>
                   <div className="mt-2 text-xl font-semibold text-white">
                     {selectedVendor?.legal_name ||
@@ -636,6 +643,20 @@ export default function FinanceNewVendorQuotationPage() {
                   </div>
                   <div className="mt-3 text-xs leading-5 text-slate-500">
                     {selectedVendor?.code || "Choose the quotation supplier."}
+                  </div>
+                </div>
+
+                <div className="min-h-[148px] rounded-[24px] border border-white/10 bg-black/20 p-4">
+                  <div className="text-[11px] font-semibold uppercase tracking-[0.2em] text-slate-500">
+                    Issued To / AiXia Company
+                  </div>
+                  <div className="mt-2 text-xl font-semibold text-white">
+                    {selectedCompany?.legal_name ||
+                      selectedCompany?.name ||
+                      "Not selected"}
+                  </div>
+                  <div className="mt-3 text-xs leading-5 text-slate-500">
+                    This is your company receiving the vendor quotation.
                   </div>
                 </div>
 
@@ -668,8 +689,8 @@ export default function FinanceNewVendorQuotationPage() {
                       Document Overview
                     </CardTitle>
                     <CardDescription className="mt-1 text-xs text-slate-500">
-                      Vendor, quotation reference, receiving company, dates, and
-                      commercial settings.
+                      Vendor-issued quotation details, the AiXia company it was
+                      issued to, dates, currency, terms, and commercial settings.
                     </CardDescription>
                   </div>
                 </div>
@@ -1112,7 +1133,7 @@ export default function FinanceNewVendorQuotationPage() {
                 <div>• Original document must be stored.</div>
                 <div>• Quotation can be reviewed and accepted.</div>
                 <div>• Accepted quotation converts to purchase order.</div>
-                <div>• Purchase order continues to vendor PI / invoice.</div>
+                <div>• Purchase order continues to vendor PI or vendor invoice received from the supplier.</div>
               </CardContent>
             </Card>
           </div>

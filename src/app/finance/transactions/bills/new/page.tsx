@@ -157,6 +157,38 @@ function getDocumentTypeLabel(documentType: BillDocumentType) {
   return documentType === "vendor_pi" ? "Vendor PI" : "Vendor Invoice";
 }
 
+function resolveUploadMimeType(file: File) {
+  const currentType = file.type?.trim();
+
+  if (currentType && currentType !== "application/octet-stream") {
+    return currentType;
+  }
+
+  const extension = file.name.split(".").pop()?.toLowerCase();
+
+  switch (extension) {
+    case "pdf":
+      return "application/pdf";
+    case "png":
+      return "image/png";
+    case "jpg":
+    case "jpeg":
+      return "image/jpeg";
+    case "webp":
+      return "image/webp";
+    case "doc":
+      return "application/msword";
+    case "docx":
+      return "application/vnd.openxmlformats-officedocument.wordprocessingml.document";
+    case "xls":
+      return "application/vnd.ms-excel";
+    case "xlsx":
+      return "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet";
+    default:
+      return currentType || "application/octet-stream";
+  }
+}
+
 async function uploadVendorBillDocument(
   billId: string,
   selectedFile: File,
@@ -164,11 +196,13 @@ async function uploadVendorBillDocument(
 ) {
   const safeFileName = selectedFile.name.replace(/\s+/g, "-");
   const storagePath = `vendor-bills/${billId}/${Date.now()}-${safeFileName}`;
+  const resolvedMimeType = resolveUploadMimeType(selectedFile);
 
   const { error: uploadError } = await supabase.storage
     .from("finance-vendor-bill-documents")
     .upload(storagePath, selectedFile, {
       upsert: false,
+      contentType: resolvedMimeType,
     });
 
   if (uploadError) throw uploadError;
@@ -180,7 +214,7 @@ async function uploadVendorBillDocument(
       file_name: selectedFile.name,
       file_path: storagePath,
       file_size: selectedFile.size,
-      mime_type: selectedFile.type || null,
+      mime_type: resolvedMimeType,
       entity_type: "finance_vendor_bill",
     })
     .select("id")
@@ -242,7 +276,7 @@ export default function FinanceNewBillPage() {
   );
   const [dueDate, setDueDate] = useState(new Date().toISOString().slice(0, 10));
   const [currencyCode, setCurrencyCode] = useState("");
-  const [referenceNumber, setReferenceNumber] = useState("");
+
   const [notes, setNotes] = useState("");
   const [selectedFile, setSelectedFile] = useState<File | null>(null);
   const [lines, setLines] = useState<BillLineDraft[]>([createEmptyLine()]);
@@ -255,7 +289,7 @@ export default function FinanceNewBillPage() {
     [purchaseOrderId, purchaseOrders]
   );
 
-    const selectedCompany = useMemo(
+  const selectedCompany = useMemo(
     () => companies.find((company) => company.id === companyId) ?? null,
     [companies, companyId]
   );
@@ -575,7 +609,7 @@ export default function FinanceNewBillPage() {
           currency_code: currencyCode,
           external_document_number:
             externalDocumentNumber.trim() || null,
-          reference_number: referenceNumber.trim() || null,
+          reference_number: null,
           notes: notes.trim() || null,
           metadata: {
             source: "manual_vendor_bill_page",
@@ -642,7 +676,6 @@ export default function FinanceNewBillPage() {
     navigate,
     notes,
     purchaseOrderId,
-    referenceNumber,
     selectedFile,
     sourceMode,
     validateForm,
@@ -859,8 +892,8 @@ export default function FinanceNewBillPage() {
                       Document Overview
                     </CardTitle>
                     <CardDescription className="mt-1 text-xs text-slate-500">
-                      Vendor document type, vendor reference, dates, and
-                      supplier.
+                      Vendor document type, supplier, receiving company, vendor
+                      document number, dates, and currency.
                     </CardDescription>
                   </div>
                 </div>
@@ -916,7 +949,7 @@ export default function FinanceNewBillPage() {
                   </select>
                 </label>
 
-                                <label className="space-y-2">
+                <label className="space-y-2">
                   <div className={labelClass}>Vendor Document Number</div>
                   <input
                     value={externalDocumentNumber}
@@ -925,21 +958,6 @@ export default function FinanceNewBillPage() {
                     }
                     placeholder="Vendor PI / invoice number"
                     className={fieldClass}
-                  />
-                </label>
-
-                <label className="space-y-2">
-                  <div className={labelClass}>Reference Number</div>
-                  <input
-                    value={referenceNumber}
-                    onChange={(event) => setReferenceNumber(event.target.value)}
-                    disabled={sourceMode === "purchase_order"}
-                    placeholder={
-                      sourceMode === "purchase_order"
-                        ? "Controlled by purchase order conversion"
-                        : "Internal or payment reference"
-                    }
-                    className={`${fieldClass} disabled:opacity-70`}
                   />
                 </label>
 

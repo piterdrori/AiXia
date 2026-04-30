@@ -967,32 +967,48 @@ export default function FinancePurchaseOrdersPage() {
                             <td className="px-5 py-4">
                               <div className="flex justify-end gap-2">
                                 <Button
+                                  type="button"
                                   variant="outline"
+                                  title="Open purchase order"
+                                  onClick={() =>
+                                    navigate(
+                                      `/finance/transactions/purchase-orders/${row.id}`
+                                    )
+                                  }
+                                  className="flex h-10 w-10 items-center justify-center rounded-full border-cyan-400/20 bg-cyan-500/10 p-0 text-cyan-200 hover:bg-cyan-500/20"
+                                >
+                                  <Eye className="h-4 w-4" />
+                                </Button>
+
+                                <Button
+                                  type="button"
+                                  variant="outline"
+                                  title="Restore purchase order"
                                   onClick={() =>
                                     void runArchiveAction(
                                       "finance_restore_purchase_order",
                                       row.id
                                     )
                                   }
-                                  className="h-9 rounded-2xl border-emerald-400/20 bg-emerald-500/10 px-3 text-emerald-200 hover:bg-emerald-500/20"
+                                  className="flex h-10 w-10 items-center justify-center rounded-full border-emerald-400/20 bg-emerald-500/10 p-0 text-emerald-200 hover:bg-emerald-500/20"
                                 >
-                                  <RotateCcw className="mr-2 h-4 w-4" />
-                                  Restore
+                                  <RotateCcw className="h-4 w-4" />
                                 </Button>
 
                                 {archiveTab === "deleted" ? (
                                   <Button
+                                    type="button"
                                     variant="outline"
+                                    title="Hard delete purchase order"
                                     onClick={() =>
                                       void runArchiveAction(
                                         "finance_hard_delete_purchase_order",
                                         row.id
                                       )
                                     }
-                                    className="h-9 rounded-2xl border-rose-400/20 bg-rose-500/10 px-3 text-rose-200 hover:bg-rose-500/20"
+                                    className="flex h-10 w-10 items-center justify-center rounded-full border-rose-400/20 bg-rose-500/10 p-0 text-rose-200 hover:bg-rose-500/20"
                                   >
-                                    <Trash2 className="mr-2 h-4 w-4" />
-                                    Hard Delete
+                                    <Trash2 className="h-4 w-4" />
                                   </Button>
                                 ) : null}
                               </div>

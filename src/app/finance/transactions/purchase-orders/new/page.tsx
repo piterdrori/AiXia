@@ -1820,6 +1820,11 @@ export default function FinanceNewPurchaseOrderPage() {
                           {getVendorBankAddress(selectedVendorBankAccount)}
                         </div>
                       ) : null}
+                      {selectedVendorBankAccount.account_number ? (
+                        <div>
+                          Account: {selectedVendorBankAccount.account_number}
+                        </div>
+                      ) : null}
                       {getVendorBankIdentifier(selectedVendorBankAccount) ? (
                         <div>
                           {
@@ -1840,7 +1845,6 @@ export default function FinanceNewPurchaseOrderPage() {
                       ) : null}
                     </div>
                   ) : null}
-                </div>
 
                 <div className="rounded-[24px] border border-white/10 bg-black/20 p-4 md:col-span-3">
                   <div className={labelClass}>Notes</div>
@@ -2142,16 +2146,11 @@ export default function FinanceNewPurchaseOrderPage() {
                   <div className="mt-2 text-2xl font-semibold text-white">
                     {selectedVendor?.legal_name || selectedVendor?.name || "—"}
                   </div>
+               
                   {selectedVendor ? (
                     <div className="mt-2 text-sm leading-6 text-slate-400">
-                      {selectedVendor.code ? (
-                        <div>Vendor Code: {selectedVendor.code}</div>
-                      ) : null}
                       {getVendorAddress(selectedVendor) ? (
                         <div>{getVendorAddress(selectedVendor)}</div>
-                      ) : null}
-                      {selectedVendor.contact_person ? (
-                        <div>Contact: {selectedVendor.contact_person}</div>
                       ) : null}
                       {selectedVendor.email ? (
                         <div>Email: {selectedVendor.email}</div>
@@ -2159,10 +2158,15 @@ export default function FinanceNewPurchaseOrderPage() {
                       {selectedVendor.phone ? (
                         <div>Phone: {selectedVendor.phone}</div>
                       ) : null}
+                      {selectedVendor.code ? (
+                        <div>Vendor Code: {selectedVendor.code}</div>
+                      ) : null}
+                      {selectedVendor.contact_person ? (
+                        <div>Contact: {selectedVendor.contact_person}</div>
+                      ) : null}
                     </div>
                   ) : null}
-                </div>
-
+                  
                 <div className={summaryBlockClass}>
                   <div className={labelClass}>Receiving Company</div>
                   <div className="mt-2 text-2xl font-semibold text-white">
@@ -2230,6 +2234,7 @@ export default function FinanceNewPurchaseOrderPage() {
                       selectedVendorBankAccount?.bank_name ||
                       "—"}
                   </div>
+                 
                   {selectedVendorBankAccount ? (
                     <div className="mt-2 text-sm leading-6 text-slate-400">
                       {selectedVendorBankAccount.bank_name ? (
@@ -2238,6 +2243,11 @@ export default function FinanceNewPurchaseOrderPage() {
                       {getVendorBankAddress(selectedVendorBankAccount) ? (
                         <div>
                           {getVendorBankAddress(selectedVendorBankAccount)}
+                        </div>
+                      ) : null}
+                      {selectedVendorBankAccount.account_number ? (
+                        <div>
+                          Account: {selectedVendorBankAccount.account_number}
                         </div>
                       ) : null}
                       {getVendorBankIdentifier(selectedVendorBankAccount) ? (
@@ -2259,6 +2269,12 @@ export default function FinanceNewPurchaseOrderPage() {
                         </div>
                       ) : null}
                     </div>
+                  ) : (
+                    <div className="mt-2 text-sm leading-6 text-slate-400">
+                      No vendor bank account selected.
+                    </div>
+                  )}
+      
                   ) : (
                     <div className="mt-2 text-sm leading-6 text-slate-400">
                       No vendor bank account selected.

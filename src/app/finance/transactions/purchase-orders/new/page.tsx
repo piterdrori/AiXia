@@ -1343,7 +1343,7 @@ export default function NewPurchaseOrderPage() {
                   <div className="flex items-start justify-between gap-3">
                     <div>
                       <p className="text-[11px] font-semibold uppercase tracking-[0.2em] text-slate-500">
-                        Recipient
+                        Vendor / Recipient
                       </p>
                       <p className="mt-2 text-xl font-semibold tracking-[-0.035em] text-white">
                         {selectedRecipientTitle}

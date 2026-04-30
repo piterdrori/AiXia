@@ -1459,7 +1459,7 @@ export default function FinanceBillDetailPage() {
                 <div className="min-h-[148px] rounded-[24px] border border-white/10 bg-black/20 p-4">
                   <div className="flex items-start justify-between gap-3">
                     <div>
-                      <div className={eyebrowClass}>Vendor</div>
+                      <div className={eyebrowClass}>Vendor / Issued From</div>
                       <div className="mt-2 text-xl font-semibold tracking-[-0.035em] text-white">
                         {selectedVendor?.legal_name ||
                           selectedVendor?.name ||
@@ -1478,7 +1478,7 @@ export default function FinanceBillDetailPage() {
                 <div className="min-h-[148px] rounded-[24px] border border-white/10 bg-black/20 p-4">
                   <div className="flex items-start justify-between gap-3">
                     <div>
-                      <div className={eyebrowClass}>Issued To</div>
+                      <div className={eyebrowClass}>Issued To / Receiving Company</div>
                       <div className="mt-2 text-xl font-semibold tracking-[-0.035em] text-white">
                         {receivingCompany?.legal_name ||
                           receivingCompany?.name ||

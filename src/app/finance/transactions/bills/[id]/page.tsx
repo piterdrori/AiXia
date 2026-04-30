@@ -2532,6 +2532,7 @@ export default function FinanceBillDetailPage() {
                 </CardDescription>
               </CardHeader>
 
+              <CardContent className="space-y-3 p-5">
                 <div className={innerPanelClass}>
                   <div className={eyebrowClass}>AiXia Bill No.</div>
                   <div className="mt-2 text-2xl font-semibold text-white">

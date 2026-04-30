@@ -47,6 +47,7 @@ type BillRecord = {
   id: string;
   bill_number: string;
   vendor_id: string;
+  company_id: string;
   purchase_order_id: string | null;
   vendor_quotation_id: string | null;
   document_type: BillDocumentType;
@@ -785,6 +786,9 @@ export default function FinanceBillDetailPage() {
         let sourceVendorQuotation: VendorQuotationLinkRow | null = null;
         let sourceReceivingCompany: CompanyOption | null = null;
 
+        const receivingCompanyId =
+          typedBill.company_id || sourcePurchaseOrder?.company_id || null;
+         
         if (typedBill.purchase_order_id) {
           const { data: purchaseOrderData, error: purchaseOrderError } =
             await supabase
@@ -800,13 +804,16 @@ export default function FinanceBillDetailPage() {
           sourcePurchaseOrder =
             (purchaseOrderData || null) as PurchaseOrderLinkRow | null;
 
-          if (sourcePurchaseOrder?.company_id) {
+          const receivingCompanyId =
+            typedBill.company_id || sourcePurchaseOrder?.company_id || null;
+
+          if (receivingCompanyId) {
             const { data: companyData, error: companyError } = await supabase
               .from("finance_companies")
               .select(
                 "id, name, legal_name, email, phone, contact_person, country, city, state_province, postal_code, address_line_1, address_line_2"
               )
-              .eq("id", sourcePurchaseOrder.company_id)
+              .eq("id", receivingCompanyId)
               .maybeSingle();
 
             if (companyError) throw companyError;
@@ -815,6 +822,20 @@ export default function FinanceBillDetailPage() {
           }
         }
 
+        if (!sourceReceivingCompany && typedBill.company_id) {
+          const { data: companyData, error: companyError } = await supabase
+            .from("finance_companies")
+            .select(
+              "id, name, legal_name, email, phone, contact_person, country, city, state_province, postal_code, address_line_1, address_line_2"
+            )
+            .eq("id", typedBill.company_id)
+            .maybeSingle();
+
+          if (companyError) throw companyError;
+
+          sourceReceivingCompany = (companyData || null) as CompanyOption | null;
+        }
+        
         if (typedBill.vendor_quotation_id) {
           const { data: quotationData, error: quotationError } = await supabase
             .from("finance_vendor_quotations")
@@ -843,7 +864,7 @@ export default function FinanceBillDetailPage() {
 
         setOverviewDraft({
           vendor_id: typedBill.vendor_id || "",
-          company_id: sourcePurchaseOrder?.company_id || "",
+          company_id: typedBill.company_id || sourcePurchaseOrder?.company_id || "",
           document_type: typedBill.document_type || "vendor_invoice",
           external_document_number: typedBill.external_document_number || "",
           issue_date: typedBill.issue_date || "",
@@ -989,7 +1010,7 @@ export default function FinanceBillDetailPage() {
 
     setOverviewDraft({
       vendor_id: bill.vendor_id || "",
-      company_id: purchaseOrderLink?.company_id || "",
+      company_id: bill.company_id || purchaseOrderLink?.company_id || "",
       document_type: bill.document_type || "vendor_invoice",
       external_document_number: bill.external_document_number || "",
       issue_date: bill.issue_date || "",
@@ -1051,6 +1072,7 @@ export default function FinanceBillDetailPage() {
         .from("finance_bills_received")
         .update({
           vendor_id: overviewDraft.vendor_id,
+          company_id: overviewDraft.company_id,
           document_type: overviewDraft.document_type,
           external_document_number:
             overviewDraft.external_document_number.trim() || null,
@@ -1069,18 +1091,6 @@ export default function FinanceBillDetailPage() {
         .eq("status", "draft");
 
       if (error) throw error;
-
-      if (purchaseOrderLink?.id) {
-        const { error: purchaseOrderError } = await supabase
-          .from("finance_purchase_orders")
-          .update({
-            company_id: overviewDraft.company_id,
-            updated_by: user.id,
-          })
-          .eq("id", purchaseOrderLink.id);
-
-        if (purchaseOrderError) throw purchaseOrderError;
-      }
 
       setIsOverviewEditMode(false);
       await loadBill(true);
@@ -1649,7 +1659,8 @@ export default function FinanceBillDetailPage() {
                           company_id: event.target.value,
                         }))
                       }
-                      className={fieldClass}
+                      disabled={!!purchaseOrderLink}
+                      className={`${fieldClass} disabled:opacity-70`}
                     >
                       <option value="">Select company</option>
                       {companies.map((company) => (

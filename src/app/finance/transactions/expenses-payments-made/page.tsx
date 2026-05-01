@@ -268,8 +268,8 @@ const tabs: Array<{
   },
   {
     key: "payments",
-    label: "Payment Made",
-    description: "All Payment Made records across vendor bills and operating expenses.",
+    label: "Operating Expense Payments Made",
+    description: "Only operating expense Payment Made records linked to expenses.",
   },
   {
     key: "recipient_tracking",
@@ -798,6 +798,7 @@ export default function FinancePaymentsMadePage() {
               "updated_at",
             ].join(", ")
           )
+          .eq("payment_source_type", "operating_expense")
           .order("updated_at", { ascending: false })
           .limit(300),
 
@@ -1432,16 +1433,16 @@ export default function FinancePaymentsMadePage() {
                               disabled={isRunningAction}
                               onClick={() => void addExpenseToFundingBatch(expense)}
                             />
-                            <ActionButton
+                           <ActionButton
                               label="Pay"
                               icon={WalletCards}
                               tone="emerald"
                               disabled={isRunningAction}
                               onClick={() =>
-                                navigate(
-                                  `/finance/transactions/payments-made/new?source=expense&expenseId=${expense.id}`
-                                )
-                              }
+                              navigate(
+                             `/finance/transactions/expenses-payments-made/new?source=expense&expenseId=${expense.id}`
+                              )
+                             }
                             />
                           </>
                         ) : null}
@@ -1566,11 +1567,11 @@ export default function FinancePaymentsMadePage() {
                         tone="amber"
                         disabled={isRunningAction}
                         onClick={() =>
-                          navigate(
-                            `/finance/transactions/payments-made/new?source=batch&batchId=${batch.id}`
-                          )
-                        }
-                      />
+                        navigate(
+                      `/finance/transactions/expenses-payments-made/new?source=batch&batchId=${batch.id}`
+                        )
+                       }
+                     />
                     </div>
                   </td>
                 </tr>
@@ -1598,7 +1599,7 @@ export default function FinancePaymentsMadePage() {
             No Payment Made records found
           </div>
           <div className="mt-2 text-sm leading-6 text-slate-500">
-            Vendor bill payments and expense reimbursements will appear here.
+            Only operating expense payments linked to expenses will appear here.
           </div>
         </div>
       );
@@ -1647,21 +1648,21 @@ export default function FinancePaymentsMadePage() {
                   className="border-b border-white/5 text-sm text-slate-300 transition hover:bg-white/[0.035]"
                 >
                   <td className="px-5 py-4">
-                    <button
-                      type="button"
-                      onClick={() =>
-                        navigate(`/finance/transactions/payments-made/${payment.id}`)
-                      }
+                  <button
+                     type="button"
+                     onClick={() =>
+                      navigate(`/finance/transactions/expenses-payments-made/${payment.id}`)
+                       }
                       className="font-semibold text-cyan-200 transition hover:text-cyan-100"
-                    >
-                      {payment.reference_number || "Payment Made"}
+                       >
+                     {payment.reference_number || "Expense Payment Made"}
                     </button>
                     <div className="mt-1 text-xs text-slate-500">
                       {formatDate(payment.payment_date)}
                     </div>
                   </td>
                   <td className="px-5 py-4">
-                    <StatusBadge value={payment.payment_source_type || "vendor_bill"} />
+                    <StatusBadge value={payment.payment_source_type || "operating_expense"} />
                   </td>
                   <td className="px-5 py-4">{payment.companyName}</td>
                   <td className="px-5 py-4">{payment.bankLabel}</td>
@@ -1685,13 +1686,13 @@ export default function FinancePaymentsMadePage() {
                   </td>
                   <td className="px-5 py-4">
                     <div className="flex justify-end">
-                      <ActionButton
-                        label="Open"
-                        icon={Eye}
-                        tone="cyan"
-                        disabled={isRunningAction}
-                        onClick={() =>
-                          navigate(`/finance/transactions/payments-made/${payment.id}`)
+                  <ActionButton
+                   label="Open"
+                   icon={Eye}
+                   tone="cyan"
+                   disabled={isRunningAction}
+                   onClick={() =>
+                   navigate(`/finance/transactions/expenses-payments-made/${payment.id}`)
                         }
                       />
                     </div>
@@ -1727,17 +1728,17 @@ export default function FinancePaymentsMadePage() {
               <div>
                 <div className="inline-flex w-fit items-center gap-2 rounded-full border border-cyan-400/20 bg-cyan-500/10 px-3 py-1 text-[11px] font-semibold uppercase tracking-[0.22em] text-cyan-200">
                   <Sparkles className="h-3.5 w-3.5" />
-                  Payments Made Workbench
+                  Operating Expense Payments Workbench
                 </div>
 
                 <h1 className="mt-4 text-3xl font-semibold tracking-[-0.035em] text-white md:text-5xl">
-                  Finance Payment Execution
+                  Operating Expense Payment Execution
                 </h1>
 
                 <p className="mt-3 max-w-4xl text-sm leading-6 text-slate-400 md:text-base md:leading-7">
-                  Review expense requests, approve spending, verify documentation, confirm online
-                  shopping records, create funding batches, and track Payment Made records and
-                  recipient confirmation.
+                  Review operating expense requests, approve spending, verify documentation,
+                  confirm online shopping records, create funding batches, and track operating
+                  expense Payment Made records and recipient confirmation.
                 </p>
               </div>
 
@@ -1865,13 +1866,13 @@ export default function FinancePaymentsMadePage() {
                 New Batch
               </button>
 
-              <button
+               <button
                 type="button"
-                onClick={() => navigate("/finance/transactions/payments-made/new")}
+                 onClick={() => navigate("/finance/transactions/expenses-payments-made/new")}
                 className="inline-flex h-11 items-center justify-center gap-2 rounded-2xl border border-cyan-400/20 bg-cyan-500/10 px-4 text-sm font-semibold text-cyan-100 transition hover:bg-cyan-500/15"
-              >
-                <WalletCards className="h-4 w-4" />
-                New Payment
+                >
+                 <WalletCards className="h-4 w-4" />
+                  New Operating Expense Payment
               </button>
             </div>
           </div>

@@ -578,7 +578,7 @@ export default function FinanceNewPaymentMadePage() {
         throw new Error("User not authenticated");
       }
 
-          const { data: payment, error: paymentError } = await supabase
+      const { data: payment, error: paymentError } = await supabase
         .from("finance_payments_made")
         .insert({
           bill_id: billId,
@@ -598,6 +598,7 @@ export default function FinanceNewPaymentMadePage() {
           exchange_rate_source: exchangeRateSource || "Frankfurter live API",
           exchange_rate_date:
             exchangeRateDate || new Date().toISOString().slice(0, 10),
+          paid_from_company_id: paidFromCompanyId,
           paid_from_bank_account_id: paidFromBankAccountId || null,
           metadata: {
             source: "new_payment_made_page",

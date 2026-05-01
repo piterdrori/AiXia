@@ -852,26 +852,26 @@ export default function FinancePaymentMadeDetailPage() {
 
           sourcePurchaseOrder =
             (purchaseOrderData || null) as PurchaseOrderLinkRow | null;
+        }
 
-          const paidFromCompanyId =
-            typedPayment.paid_from_company_id ||
-            sourceBill?.company_id ||
-            sourcePurchaseOrder?.company_id ||
-            null;
+        const paidFromCompanyId =
+          typedPayment.paid_from_company_id ||
+          sourceBill?.company_id ||
+          sourcePurchaseOrder?.company_id ||
+          null;
 
-          if (paidFromCompanyId) {
-            const { data: companyData, error: companyError } = await supabase
-              .from("finance_companies")
-              .select(
-                "id, name, legal_name, email, phone, contact_person, country, city, state_province, postal_code, address_line_1, address_line_2"
-              )
-              .eq("id", paidFromCompanyId)
-              .maybeSingle();
+        if (paidFromCompanyId) {
+          const { data: companyData, error: companyError } = await supabase
+            .from("finance_companies")
+            .select(
+              "id, name, legal_name, email, phone, contact_person, country, city, state_province, postal_code, address_line_1, address_line_2"
+            )
+            .eq("id", paidFromCompanyId)
+            .maybeSingle();
 
-            if (companyError) throw companyError;
+          if (companyError) throw companyError;
 
-            sourceCompany = (companyData || null) as CompanyOption | null;
-          }
+          sourceCompany = (companyData || null) as CompanyOption | null;
         }
 
         const vendorQuotationId =
@@ -1100,6 +1100,7 @@ export default function FinancePaymentMadeDetailPage() {
       notes: payment.notes || "",
     });
   }, [
+    billLink?.company_id,
     billLink?.currency_code,
     payment,
     purchaseOrderLink?.company_id,
@@ -1649,7 +1650,8 @@ export default function FinancePaymentMadeDetailPage() {
                           paid_from_bank_account_id: "",
                         }))
                       }
-                      className={fieldClass}
+                      disabled={!!billLink}
+                      className={`${fieldClass} disabled:opacity-70`}
                     >
                       <option value="">Select company</option>
                       {companies.map((company) => (

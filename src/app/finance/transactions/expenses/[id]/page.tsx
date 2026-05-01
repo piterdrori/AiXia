@@ -15,7 +15,6 @@ import {
   ShieldCheck,
   ShoppingCart,
   UploadCloud,
-  UserRound,
   WalletCards,
   XCircle,
 } from "lucide-react";
@@ -624,7 +623,7 @@ export default function FinanceExpenseDetailPage() {
 
       if (expenseResult.error) throw expenseResult.error;
 
-      const loadedExpense = expenseResult.data as ExpenseRow;
+      const loadedExpense = expenseResult.data as unknown as ExpenseRow;
       setExpense(loadedExpense);
       setDocumentationLink(loadedExpense.metadata?.documentation_link || "");
 
@@ -703,7 +702,7 @@ export default function FinanceExpenseDetailPage() {
       if (companiesResult.error) throw companiesResult.error;
       if (bankAccountsResult.error) throw bankAccountsResult.error;
 
-      const loadedAllocations = (allocationsResult.data || []) as AllocationRow[];
+      const loadedAllocations = (allocationsResult.data || []) as unknown as AllocationRow[];
       setCompany((companyResult.data || null) as CompanyRow | null);
       setEmployee((employeeResult.data || null) as EmployeeRefRow | null);
       setAllocations(loadedAllocations);
@@ -744,7 +743,7 @@ export default function FinanceExpenseDetailPage() {
           .in("id", paymentIds);
 
         if (paymentsResult.error) throw paymentsResult.error;
-        setPayments((paymentsResult.data || []) as PaymentMadeRow[]);
+        setPayments((paymentsResult.data || []) as unknown as PaymentMadeRow[]);
       } else {
         setPayments([]);
       }
@@ -1360,7 +1359,7 @@ export default function FinanceExpenseDetailPage() {
                           ? companyMap.get(allocation.funding_company_id)
                           : null;
                         const bank = allocation.paid_from_bank_account_id
-                          ? bankAccountMap.get(allocation.paid_from_bank_account_id)
+                          ? bankAccountMap.get(allocation.paid_from_bank_account_id) ?? null
                           : null;
                         const batch = allocation.funding_batch_id
                           ? fundingBatchMap.get(allocation.funding_batch_id)

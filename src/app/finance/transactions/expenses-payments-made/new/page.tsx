@@ -9,7 +9,6 @@ import {
   Receipt,
   Save,
   Search,
-  ShieldCheck,
   Sparkles,
   UploadCloud,
   WalletCards,

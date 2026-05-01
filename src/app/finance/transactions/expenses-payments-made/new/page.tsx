@@ -16,7 +16,7 @@ import {
 
 import { supabase } from "@/lib/supabase";
 
-type PaymentMode = "operating_expense" | "reimbursement";
+type PaymentMode = "operating_expense";
 type SaveMode = "draft" | "confirm";
 
 type ExpenseRow = {
@@ -128,7 +128,7 @@ type FormState = {
 };
 
 const initialFormState: FormState = {
-  paymentMode: "reimbursement",
+  paymentMode: "operating_expense",
   paymentDate: new Date().toISOString().slice(0, 10),
   fundingCompanyId: "",
   paidFromBankAccountId: "",
@@ -972,18 +972,18 @@ export default function FinanceExpensesPaymentsMadeNewPage() {
               className="mb-5 inline-flex items-center justify-center gap-2 rounded-full border border-white/10 bg-white/[0.05] px-5 py-2 text-[11px] font-semibold uppercase tracking-[0.22em] text-slate-300 transition hover:border-white/20 hover:bg-white/[0.08] hover:text-white"
             >
               <ArrowRight className="h-3.5 w-3.5 rotate-180" />
-              Expenses Payments Made
+              Operating Expense Payments
             </button>
 
             <div className="grid gap-6 xl:grid-cols-[minmax(0,1fr)_430px] xl:items-end">
               <div>
                 <div className="inline-flex w-fit items-center gap-2 rounded-full border border-cyan-400/20 bg-cyan-500/10 px-3 py-1 text-[11px] font-semibold uppercase tracking-[0.22em] text-cyan-200">
                   <Sparkles className="h-3.5 w-3.5" />
-                  New Expense Payment
+                  New Operating Expense Payment
                 </div>
 
                 <h1 className="mt-4 text-3xl font-semibold tracking-[-0.035em] text-white md:text-5xl">
-                  Create Payment Made / Reimbursement
+                  Create Operating Expense Payment
                 </h1>
 
                 <p className="mt-3 max-w-4xl text-sm leading-6 text-slate-400 md:text-base md:leading-7">
@@ -996,7 +996,7 @@ export default function FinanceExpensesPaymentsMadeNewPage() {
                 <SummaryBlock
                   title="Selected Expenses"
                   value={String(selectedExpenseIds.length)}
-                  subtitle="Only verified and not fully covered expenses can be selected."
+                  subtitle="Only verified and not fully covered operating expenses can be selected."
                 />
                 <SummaryBlock
                   title="Allocated Payment"
@@ -1032,25 +1032,18 @@ export default function FinanceExpensesPaymentsMadeNewPage() {
                     Payment Setup
                   </div>
                   <p className="mt-1 text-xs leading-5 text-slate-500">
-                    This page handles expense/reimbursement payments only.
+                    This page handles operating expense payments only.
                   </p>
                 </div>
               </div>
 
               <div className="grid gap-4 p-5 md:grid-cols-2">
-                <label className="grid gap-2">
+                <div className="grid gap-2">
                   <span className={labelClass()}>Payment Type</span>
-                  <select
-                    value={form.paymentMode}
-                    onChange={(event) =>
-                      updateField("paymentMode", event.target.value as PaymentMode)
-                    }
-                    className={inputClass()}
-                  >
-                    <option value="reimbursement">Reimbursement</option>
-                    <option value="operating_expense">Operating Expense</option>
-                  </select>
-                </label>
+                  <div className="flex h-11 items-center rounded-2xl border border-cyan-400/15 bg-cyan-500/10 px-4 text-sm font-semibold text-cyan-100">
+                    Operating Expense
+                  </div>
+                </div>
 
                 <label className="grid gap-2">
                   <span className={labelClass()}>Payment Date</span>
@@ -1471,8 +1464,8 @@ export default function FinanceExpensesPaymentsMadeNewPage() {
                     What this page does not do
                   </div>
                   <div className="mt-2 text-xs leading-5 text-slate-500">
-                    It does not handle vendor bills, payroll, or other payment-made flows.
-                    Those stay in their own pages.
+                    It does not handle reimbursements, vendor bills, payroll, or other
+                    payment-made flows. Those stay in their own pages.
                   </div>
                 </div>
               </div>

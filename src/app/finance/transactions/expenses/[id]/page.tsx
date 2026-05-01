@@ -10,12 +10,15 @@ import {
   FileText,
   Link2,
   Loader2,
+  Pencil,
   Receipt,
   RefreshCcw,
+  Save,
   ShieldCheck,
   ShoppingCart,
   UploadCloud,
   WalletCards,
+  X,
   XCircle,
 } from "lucide-react";
 
@@ -196,6 +199,58 @@ type TimelineItem = {
   tone: "cyan" | "emerald" | "amber" | "rose" | "slate" | "violet";
 };
 
+type ExpenseMadeByType = "employee" | "owner_management" | "company_direct" | "other";
+
+type ExpenseEditFormState = {
+  title: string;
+  description: string;
+  companyId: string;
+  expenseMadeByType: ExpenseMadeByType;
+  employeeRefId: string;
+  responsiblePersonName: string;
+  otherMadeByExplanation: string;
+  expenseType: string;
+  expenseSourceName: string;
+  otherExpenseExplanation: string;
+  amount: string;
+  currencyCode: string;
+  expenseDate: string;
+  isRetroactive: boolean;
+  retroactiveReason: string;
+  onlinePlatform: string;
+  onlineOrderNumber: string;
+  onlineOrderDate: string;
+  onlineOrderUrl: string;
+  onlineTrackingNumber: string;
+  notes: string;
+};
+
+const EXPENSE_TYPES = [
+  { value: "office_support", label: "Office Support" },
+  { value: "utilities", label: "Utilities" },
+  { value: "software_subscription", label: "Software Subscription" },
+  { value: "online_shopping", label: "Online Shopping" },
+  { value: "travel", label: "Travel" },
+  { value: "meals", label: "Meals" },
+  { value: "bank_charges", label: "Bank Charges" },
+  { value: "legal_accounting", label: "Legal / Accounting" },
+  { value: "government_fee", label: "Government Fee" },
+  { value: "repair_service", label: "Repair / Service" },
+  { value: "company_support", label: "Company Support" },
+  { value: "other", label: "Other" },
+];
+
+const CURRENCY_CODES = ["USD", "EUR", "ILS", "CNY", "HKD", "GBP"];
+
+const EDITABLE_REQUEST_STATUSES = new Set([
+  "draft",
+  "requested",
+  "approved_to_spend",
+  "expense_made",
+  "documentation_submitted",
+  "documentation_issue",
+]);
+
 const statusToneMap: Record<
   string,
   "cyan" | "emerald" | "amber" | "rose" | "violet" | "slate"
@@ -351,6 +406,14 @@ function StatusBadge({ value }: { value: string | null | undefined }) {
   );
 }
 
+function inputClass() {
+  return "h-11 w-full rounded-2xl border border-white/10 bg-black/20 px-4 text-sm text-white outline-none transition placeholder:text-slate-600 focus:border-cyan-400/30 focus:bg-black/30";
+}
+
+function textareaClass() {
+  return "min-h-[112px] w-full rounded-2xl border border-white/10 bg-black/20 px-4 py-3 text-sm text-white outline-none transition placeholder:text-slate-600 focus:border-cyan-400/30 focus:bg-black/30";
+}
+
 function ValueBlock({
   label,
   value,
@@ -448,6 +511,7 @@ export default function FinanceExpenseDetailPage() {
   const [payments, setPayments] = useState<PaymentMadeRow[]>([]);
   const [fundingBatches, setFundingBatches] = useState<FundingBatchRow[]>([]);
   const [companies, setCompanies] = useState<CompanyRow[]>([]);
+  const [employees, setEmployees] = useState<EmployeeRefRow[]>([]);
   const [bankAccounts, setBankAccounts] = useState<BankAccountRow[]>([]);
   const [attachments, setAttachments] = useState<AttachmentWithFile[]>([]);
   const [documentationFile, setDocumentationFile] = useState<File | null>(null);
@@ -456,6 +520,9 @@ export default function FinanceExpenseDetailPage() {
   const [isLoading, setIsLoading] = useState(true);
   const [isUploadingDocumentation, setIsUploadingDocumentation] = useState(false);
   const [isConfirmingReceipt, setIsConfirmingReceipt] = useState(false);
+  const [isEditingOverview, setIsEditingOverview] = useState(false);
+  const [isSavingOverview, setIsSavingOverview] = useState(false);
+  const [editForm, setEditForm] = useState<ExpenseEditFormState | null>(null);
   const [pageError, setPageError] = useState<string | null>(null);
   const [pageMessage, setPageMessage] = useState<string | null>(null);
 
@@ -497,6 +564,224 @@ export default function FinanceExpenseDetailPage() {
     if (!expense) return "—";
     return getExpenseMadeByLabel(expense, employee);
   }, [employee, expense]);
+
+  const canEditOverview = useMemo(() => {
+    if (!expense) return false;
+
+    const requestStatus = expense.request_status || expense.status || "draft";
+
+    return EDITABLE_REQUEST_STATUSES.has(requestStatus);
+  }, [expense]);
+
+  const updateEditField = useCallback(
+    <Key extends keyof ExpenseEditFormState>(key: Key, value: ExpenseEditFormState[Key]) => {
+      setEditForm((current) => {
+        if (!current) return current;
+
+        return {
+          ...current,
+          [key]: value,
+        };
+      });
+
+      setPageError(null);
+      setPageMessage(null);
+    },
+    []
+  );
+
+  const startEditingOverview = useCallback(() => {
+    if (!expense) return;
+
+    setEditForm({
+      title: expense.title || "",
+      description: expense.description || "",
+      companyId: expense.company_id || "",
+      expenseMadeByType: (expense.expense_made_by_type || "employee") as ExpenseMadeByType,
+      employeeRefId: expense.employee_ref_id || "",
+      responsiblePersonName: expense.responsible_person_name || "",
+      otherMadeByExplanation: expense.other_made_by_explanation || "",
+      expenseType: expense.expense_type || "office_support",
+      expenseSourceName: expense.expense_source_name || "",
+      otherExpenseExplanation: expense.other_expense_explanation || "",
+      amount: String(expense.final_amount || expense.requested_amount || expense.amount || ""),
+      currencyCode: expense.currency_code || "USD",
+      expenseDate: expense.expense_date || "",
+      isRetroactive: Boolean(expense.is_retroactive),
+      retroactiveReason: expense.retroactive_reason || "",
+      onlinePlatform: expense.online_platform || "",
+      onlineOrderNumber: expense.online_order_number || "",
+      onlineOrderDate: expense.online_order_date || "",
+      onlineOrderUrl: expense.online_order_url || "",
+      onlineTrackingNumber: expense.online_tracking_number || "",
+      notes: expense.notes || "",
+    });
+
+    setIsEditingOverview(true);
+    setPageError(null);
+    setPageMessage(null);
+  }, [expense]);
+
+  const cancelEditingOverview = useCallback(() => {
+    setIsEditingOverview(false);
+    setEditForm(null);
+    setPageError(null);
+  }, []);
+
+  const saveOverviewEdits = useCallback(async () => {
+    if (!expense || !editForm) return;
+
+    setIsSavingOverview(true);
+    setPageError(null);
+    setPageMessage(null);
+
+    try {
+      const amountValue = Number(editForm.amount);
+
+      if (!editForm.title.trim()) {
+        throw new Error("Expense title is required.");
+      }
+
+      if (!editForm.companyId) {
+        throw new Error("Expense company is required.");
+      }
+
+      if (!editForm.expenseSourceName.trim()) {
+        throw new Error("Expense source is required.");
+      }
+
+      if (!Number.isFinite(amountValue) || amountValue <= 0) {
+        throw new Error("Expense amount must be greater than zero.");
+      }
+
+      if (editForm.expenseMadeByType === "employee" && !editForm.employeeRefId) {
+        throw new Error("Employee is required when Expense Made By is Employee.");
+      }
+
+      if (
+        editForm.expenseMadeByType === "owner_management" &&
+        !editForm.responsiblePersonName.trim()
+      ) {
+        throw new Error("Responsible person name is required for Owner / Management expenses.");
+      }
+
+      if (
+        editForm.expenseMadeByType === "other" &&
+        !editForm.otherMadeByExplanation.trim()
+      ) {
+        throw new Error("Other explanation is required when Expense Made By is Other.");
+      }
+
+      if (editForm.expenseType === "other" && !editForm.otherExpenseExplanation.trim()) {
+        throw new Error("Other expense explanation is required.");
+      }
+
+      if (editForm.isRetroactive && !editForm.retroactiveReason.trim()) {
+        throw new Error("Retroactive reason is required.");
+      }
+
+      if (editForm.expenseType === "online_shopping" && !editForm.onlinePlatform.trim()) {
+        throw new Error("Online platform is required for online shopping expenses.");
+      }
+
+      const authResult = await supabase.auth.getUser();
+      if (authResult.error) throw authResult.error;
+
+      const userId = authResult.data.user?.id ?? null;
+
+      const metadata = {
+        ...(expense.metadata || {}),
+        online_shopping:
+          editForm.expenseType === "online_shopping"
+            ? {
+                platform: editForm.onlinePlatform.trim(),
+                order_number: editForm.onlineOrderNumber.trim(),
+                order_date: editForm.onlineOrderDate || null,
+                order_url: editForm.onlineOrderUrl.trim(),
+                tracking_number: editForm.onlineTrackingNumber.trim(),
+              }
+            : null,
+      };
+
+      const updateResult = await supabase
+        .from("finance_expenses")
+        .update({
+          title: editForm.title.trim(),
+          description: editForm.description.trim() || null,
+          company_id: editForm.companyId,
+          expense_made_by_type: editForm.expenseMadeByType,
+          employee_ref_id:
+            editForm.expenseMadeByType === "employee" ? editForm.employeeRefId : null,
+          responsible_person_name:
+            editForm.expenseMadeByType === "owner_management"
+              ? editForm.responsiblePersonName.trim()
+              : null,
+          other_made_by_explanation:
+            editForm.expenseMadeByType === "other"
+              ? editForm.otherMadeByExplanation.trim()
+              : null,
+          expense_type: editForm.expenseType,
+          expense_source_name: editForm.expenseSourceName.trim(),
+          other_expense_explanation:
+            editForm.expenseType === "other"
+              ? editForm.otherExpenseExplanation.trim()
+              : null,
+          amount: amountValue,
+          requested_amount: amountValue,
+          final_amount: amountValue,
+          currency_code: editForm.currencyCode.trim().toUpperCase(),
+          expense_date: editForm.expenseDate,
+          is_retroactive: editForm.isRetroactive,
+          retroactive_reason: editForm.isRetroactive
+            ? editForm.retroactiveReason.trim()
+            : null,
+          online_platform:
+            editForm.expenseType === "online_shopping"
+              ? editForm.onlinePlatform.trim()
+              : null,
+          online_order_number:
+            editForm.expenseType === "online_shopping"
+              ? editForm.onlineOrderNumber.trim() || null
+              : null,
+          online_order_date:
+            editForm.expenseType === "online_shopping" && editForm.onlineOrderDate
+              ? editForm.onlineOrderDate
+              : null,
+          online_order_url:
+            editForm.expenseType === "online_shopping"
+              ? editForm.onlineOrderUrl.trim() || null
+              : null,
+          online_tracking_number:
+            editForm.expenseType === "online_shopping"
+              ? editForm.onlineTrackingNumber.trim() || null
+              : null,
+          online_confirmation_status:
+            editForm.expenseType === "online_shopping"
+              ? expense.online_confirmation_status === "not_applicable"
+                ? "not_confirmed"
+                : expense.online_confirmation_status || "not_confirmed"
+              : "not_applicable",
+          notes: editForm.notes.trim() || null,
+          metadata,
+          updated_by: userId,
+        })
+        .eq("id", expense.id);
+
+      if (updateResult.error) throw updateResult.error;
+
+      setIsEditingOverview(false);
+      setEditForm(null);
+      setPageMessage("Expense overview updated.");
+      await loadExpense();
+    } catch (error) {
+      console.error("Failed to update expense overview:", error);
+      setPageError(
+        error instanceof Error ? error.message : "Failed to update expense overview."
+      );
+    } finally {
+      setIsSavingOverview(false);
+    }
+  }, [editForm, expense, loadExpense]);
 
   const timelineItems = useMemo<TimelineItem[]>(() => {
     if (!expense) return [];
@@ -633,6 +918,7 @@ export default function FinanceExpenseDetailPage() {
         allocationsResult,
         attachmentsResult,
         companiesResult,
+        employeesResult,
         bankAccountsResult,
       ] = await Promise.all([
         loadedExpense.company_id
@@ -688,6 +974,12 @@ export default function FinanceExpenseDetailPage() {
         supabase.from("finance_companies").select("id, name").order("name"),
 
         supabase
+          .from("finance_employee_refs")
+          .select("id, user_id, code, status, mark, metadata")
+          .eq("status", "active")
+          .order("code"),
+
+        supabase
           .from("finance_bank_accounts")
           .select(
             "id, name, bank_name, institution_name, masked_account_number, currency_code, company_id"
@@ -700,6 +992,7 @@ export default function FinanceExpenseDetailPage() {
       if (allocationsResult.error) throw allocationsResult.error;
       if (attachmentsResult.error) throw attachmentsResult.error;
       if (companiesResult.error) throw companiesResult.error;
+      if (employeesResult.error) throw employeesResult.error;
       if (bankAccountsResult.error) throw bankAccountsResult.error;
 
       const loadedAllocations = (allocationsResult.data || []) as unknown as AllocationRow[];
@@ -707,6 +1000,7 @@ export default function FinanceExpenseDetailPage() {
       setEmployee((employeeResult.data || null) as EmployeeRefRow | null);
       setAllocations(loadedAllocations);
       setCompanies((companiesResult.data || []) as CompanyRow[]);
+      setEmployees((employeesResult.data || []) as EmployeeRefRow[]);
       setBankAccounts((bankAccountsResult.data || []) as BankAccountRow[]);
 
       const paymentIds = Array.from(
@@ -1154,37 +1448,376 @@ export default function FinanceExpenseDetailPage() {
               description="Core request and company context."
               icon={Building2}
             >
-              <div className="grid gap-4 md:grid-cols-2">
-                <ValueBlock label="Expense Company" value={company?.name || "—"} />
-                <ValueBlock label="Expense Made By" value={expenseMadeByLabel} />
-                <ValueBlock label="Expense Type" value={formatLabel(expense.expense_type)} />
-                <ValueBlock
-                  label="Expense Source"
-                  value={expense.expense_source_name || "—"}
-                  detail="Where this expense comes from or what generated the cost."
-                />
-                <ValueBlock label="Expense Date" value={formatDate(expense.expense_date)} />
-                <ValueBlock label="Currency" value={currencyCode} />
-                <ValueBlock
-                  label="Description"
-                  value={expense.description || "—"}
-                  detail={expense.notes || undefined}
-                />
-                <ValueBlock
-                  label="Retroactive"
-                  value={expense.is_retroactive ? "Yes" : "No"}
-                  detail={expense.retroactive_reason || undefined}
-                />
-                {expense.other_expense_explanation ? (
-                  <ValueBlock
-                    label="Other Expense Explanation"
-                    value={expense.other_expense_explanation}
-                  />
-                ) : null}
-                {expense.rejection_reason ? (
-                  <ValueBlock label="Rejection Reason" value={expense.rejection_reason} />
-                ) : null}
+              <div className="mb-5 flex flex-col gap-3 rounded-[24px] border border-white/10 bg-black/20 p-4 md:flex-row md:items-center md:justify-between">
+                <div>
+                  <div className="text-sm font-semibold text-white">
+                    Requester-side editable details
+                  </div>
+                  <div className="mt-1 text-xs leading-5 text-slate-500">
+                    Finance review, funding, payment allocation, and coverage are not edited here.
+                  </div>
+                </div>
+
+                {isEditingOverview ? (
+                  <div className="flex gap-2">
+                    <button
+                      type="button"
+                      disabled={isSavingOverview}
+                      onClick={cancelEditingOverview}
+                      className="inline-flex h-10 items-center justify-center gap-2 rounded-2xl border border-white/10 bg-white/[0.05] px-4 text-sm font-semibold text-slate-300 transition hover:bg-white/[0.08] hover:text-white disabled:cursor-not-allowed disabled:opacity-50"
+                    >
+                      <X className="h-4 w-4" />
+                      Cancel
+                    </button>
+
+                    <button
+                      type="button"
+                      disabled={isSavingOverview}
+                      onClick={() => void saveOverviewEdits()}
+                      className="inline-flex h-10 items-center justify-center gap-2 rounded-2xl border border-emerald-400/20 bg-emerald-500/10 px-4 text-sm font-semibold text-emerald-100 transition hover:bg-emerald-500/15 disabled:cursor-not-allowed disabled:opacity-50"
+                    >
+                      {isSavingOverview ? (
+                        <Loader2 className="h-4 w-4 animate-spin" />
+                      ) : (
+                        <Save className="h-4 w-4" />
+                      )}
+                      Save
+                    </button>
+                  </div>
+                ) : (
+                  <button
+                    type="button"
+                    disabled={!canEditOverview}
+                    onClick={startEditingOverview}
+                    className="inline-flex h-10 items-center justify-center gap-2 rounded-2xl border border-cyan-400/20 bg-cyan-500/10 px-4 text-sm font-semibold text-cyan-100 transition hover:bg-cyan-500/15 disabled:cursor-not-allowed disabled:opacity-40"
+                  >
+                    <Pencil className="h-4 w-4" />
+                    Edit
+                  </button>
+                )}
               </div>
+
+              {isEditingOverview && editForm ? (
+                <div className="grid gap-4 md:grid-cols-2">
+                  <label className="grid gap-2 md:col-span-2">
+                    <span className="text-sm font-medium text-slate-300">Expense Title</span>
+                    <input
+                      value={editForm.title}
+                      onChange={(event) => updateEditField("title", event.target.value)}
+                      className={inputClass()}
+                      placeholder="Expense title"
+                    />
+                  </label>
+
+                  <label className="grid gap-2">
+                    <span className="text-sm font-medium text-slate-300">Expense Company</span>
+                    <select
+                      value={editForm.companyId}
+                      onChange={(event) => updateEditField("companyId", event.target.value)}
+                      className={inputClass()}
+                    >
+                      <option value="">Select company</option>
+                      {companies.map((item) => (
+                        <option key={item.id} value={item.id}>
+                          {item.name || "Unnamed company"}
+                        </option>
+                      ))}
+                    </select>
+                  </label>
+
+                  <label className="grid gap-2">
+                    <span className="text-sm font-medium text-slate-300">Expense Made By Type</span>
+                    <select
+                      value={editForm.expenseMadeByType}
+                      onChange={(event) =>
+                        updateEditField(
+                          "expenseMadeByType",
+                          event.target.value as ExpenseMadeByType
+                        )
+                      }
+                      className={inputClass()}
+                    >
+                      <option value="employee">Employee</option>
+                      <option value="owner_management">Owner / Management</option>
+                      <option value="company_direct">Company Direct</option>
+                      <option value="other">Other</option>
+                    </select>
+                  </label>
+
+                  {editForm.expenseMadeByType === "employee" ? (
+                    <label className="grid gap-2 md:col-span-2">
+                      <span className="text-sm font-medium text-slate-300">Employee</span>
+                      <select
+                        value={editForm.employeeRefId}
+                        onChange={(event) =>
+                          updateEditField("employeeRefId", event.target.value)
+                        }
+                        className={inputClass()}
+                      >
+                        <option value="">Select employee</option>
+                        {employees.map((item) => (
+                          <option key={item.id} value={item.id}>
+                            {getEmployeeLabel(item)}
+                          </option>
+                        ))}
+                      </select>
+                    </label>
+                  ) : null}
+
+                  {editForm.expenseMadeByType === "owner_management" ? (
+                    <label className="grid gap-2 md:col-span-2">
+                      <span className="text-sm font-medium text-slate-300">Responsible Person</span>
+                      <input
+                        value={editForm.responsiblePersonName}
+                        onChange={(event) =>
+                          updateEditField("responsiblePersonName", event.target.value)
+                        }
+                        className={inputClass()}
+                        placeholder="Owner / manager name"
+                      />
+                    </label>
+                  ) : null}
+
+                  {editForm.expenseMadeByType === "other" ? (
+                    <label className="grid gap-2 md:col-span-2">
+                      <span className="text-sm font-medium text-slate-300">Other Made By Explanation</span>
+                      <input
+                        value={editForm.otherMadeByExplanation}
+                        onChange={(event) =>
+                          updateEditField("otherMadeByExplanation", event.target.value)
+                        }
+                        className={inputClass()}
+                        placeholder="Explain who made this expense"
+                      />
+                    </label>
+                  ) : null}
+
+                  <label className="grid gap-2">
+                    <span className="text-sm font-medium text-slate-300">Expense Type</span>
+                    <select
+                      value={editForm.expenseType}
+                      onChange={(event) => updateEditField("expenseType", event.target.value)}
+                      className={inputClass()}
+                    >
+                      {EXPENSE_TYPES.map((item) => (
+                        <option key={item.value} value={item.value}>
+                          {item.label}
+                        </option>
+                      ))}
+                    </select>
+                  </label>
+
+                  <label className="grid gap-2">
+                    <span className="text-sm font-medium text-slate-300">Expense Date</span>
+                    <input
+                      type="date"
+                      value={editForm.expenseDate}
+                      onChange={(event) => updateEditField("expenseDate", event.target.value)}
+                      className={inputClass()}
+                    />
+                  </label>
+
+                  <label className="grid gap-2 md:col-span-2">
+                    <span className="text-sm font-medium text-slate-300">Expense Source</span>
+                    <input
+                      value={editForm.expenseSourceName}
+                      onChange={(event) =>
+                        updateEditField("expenseSourceName", event.target.value)
+                      }
+                      className={inputClass()}
+                      placeholder="Where this expense comes from"
+                    />
+                  </label>
+
+                  {editForm.expenseType === "other" ? (
+                    <label className="grid gap-2 md:col-span-2">
+                      <span className="text-sm font-medium text-slate-300">Other Expense Explanation</span>
+                      <input
+                        value={editForm.otherExpenseExplanation}
+                        onChange={(event) =>
+                          updateEditField("otherExpenseExplanation", event.target.value)
+                        }
+                        className={inputClass()}
+                        placeholder="Explain the Other expense type"
+                      />
+                    </label>
+                  ) : null}
+
+                  <label className="grid gap-2">
+                    <span className="text-sm font-medium text-slate-300">Expense Amount</span>
+                    <input
+                      value={editForm.amount}
+                      onChange={(event) => updateEditField("amount", event.target.value)}
+                      className={inputClass()}
+                      inputMode="decimal"
+                      placeholder="0.00"
+                    />
+                  </label>
+
+                  <label className="grid gap-2">
+                    <span className="text-sm font-medium text-slate-300">Currency</span>
+                    <select
+                      value={editForm.currencyCode}
+                      onChange={(event) =>
+                        updateEditField("currencyCode", event.target.value.toUpperCase())
+                      }
+                      className={inputClass()}
+                    >
+                      {CURRENCY_CODES.map((item) => (
+                        <option key={item} value={item}>
+                          {item}
+                        </option>
+                      ))}
+                    </select>
+                  </label>
+
+                  <label className="flex items-center gap-3 rounded-2xl border border-white/10 bg-black/20 px-4 py-3">
+                    <input
+                      type="checkbox"
+                      checked={editForm.isRetroactive}
+                      onChange={(event) =>
+                        updateEditField("isRetroactive", event.target.checked)
+                      }
+                      className="h-4 w-4 rounded border-white/20 bg-black/20"
+                    />
+                    <span className="text-sm text-slate-300">
+                      Retroactive expense already happened
+                    </span>
+                  </label>
+
+                  {editForm.isRetroactive ? (
+                    <label className="grid gap-2">
+                      <span className="text-sm font-medium text-slate-300">Retroactive Reason</span>
+                      <input
+                        value={editForm.retroactiveReason}
+                        onChange={(event) =>
+                          updateEditField("retroactiveReason", event.target.value)
+                        }
+                        className={inputClass()}
+                        placeholder="Why this was not requested before spending"
+                      />
+                    </label>
+                  ) : null}
+
+                  {editForm.expenseType === "online_shopping" ? (
+                    <>
+                      <label className="grid gap-2">
+                        <span className="text-sm font-medium text-slate-300">Online Platform</span>
+                        <input
+                          value={editForm.onlinePlatform}
+                          onChange={(event) =>
+                            updateEditField("onlinePlatform", event.target.value)
+                          }
+                          className={inputClass()}
+                          placeholder="Amazon, Alibaba, Taobao..."
+                        />
+                      </label>
+
+                      <label className="grid gap-2">
+                        <span className="text-sm font-medium text-slate-300">Order Number</span>
+                        <input
+                          value={editForm.onlineOrderNumber}
+                          onChange={(event) =>
+                            updateEditField("onlineOrderNumber", event.target.value)
+                          }
+                          className={inputClass()}
+                          placeholder="Order number"
+                        />
+                      </label>
+
+                      <label className="grid gap-2">
+                        <span className="text-sm font-medium text-slate-300">Order Date</span>
+                        <input
+                          type="date"
+                          value={editForm.onlineOrderDate}
+                          onChange={(event) =>
+                            updateEditField("onlineOrderDate", event.target.value)
+                          }
+                          className={inputClass()}
+                        />
+                      </label>
+
+                      <label className="grid gap-2">
+                        <span className="text-sm font-medium text-slate-300">Tracking Number</span>
+                        <input
+                          value={editForm.onlineTrackingNumber}
+                          onChange={(event) =>
+                            updateEditField("onlineTrackingNumber", event.target.value)
+                          }
+                          className={inputClass()}
+                          placeholder="Tracking number"
+                        />
+                      </label>
+
+                      <label className="grid gap-2 md:col-span-2">
+                        <span className="text-sm font-medium text-slate-300">Order URL</span>
+                        <input
+                          value={editForm.onlineOrderUrl}
+                          onChange={(event) =>
+                            updateEditField("onlineOrderUrl", event.target.value)
+                          }
+                          className={inputClass()}
+                          placeholder="Online order link"
+                        />
+                      </label>
+                    </>
+                  ) : null}
+
+                  <label className="grid gap-2 md:col-span-2">
+                    <span className="text-sm font-medium text-slate-300">Description / Reason</span>
+                    <textarea
+                      value={editForm.description}
+                      onChange={(event) =>
+                        updateEditField("description", event.target.value)
+                      }
+                      className={textareaClass()}
+                      placeholder="Explain why this expense is needed"
+                    />
+                  </label>
+
+                  <label className="grid gap-2 md:col-span-2">
+                    <span className="text-sm font-medium text-slate-300">Internal Notes</span>
+                    <textarea
+                      value={editForm.notes}
+                      onChange={(event) => updateEditField("notes", event.target.value)}
+                      className={textareaClass()}
+                      placeholder="Optional notes"
+                    />
+                  </label>
+                </div>
+              ) : (
+                <div className="grid gap-4 md:grid-cols-2">
+                  <ValueBlock label="Expense Company" value={company?.name || "—"} />
+                  <ValueBlock label="Expense Made By" value={expenseMadeByLabel} />
+                  <ValueBlock label="Expense Type" value={formatLabel(expense.expense_type)} />
+                  <ValueBlock
+                    label="Expense Source"
+                    value={expense.expense_source_name || "—"}
+                    detail="Where this expense comes from or what generated the cost."
+                  />
+                  <ValueBlock label="Expense Date" value={formatDate(expense.expense_date)} />
+                  <ValueBlock label="Currency" value={currencyCode} />
+                  <ValueBlock
+                    label="Description"
+                    value={expense.description || "—"}
+                    detail={expense.notes || undefined}
+                  />
+                  <ValueBlock
+                    label="Retroactive"
+                    value={expense.is_retroactive ? "Yes" : "No"}
+                    detail={expense.retroactive_reason || undefined}
+                  />
+                  {expense.other_expense_explanation ? (
+                    <ValueBlock
+                      label="Other Expense Explanation"
+                      value={expense.other_expense_explanation}
+                    />
+                  ) : null}
+                  {expense.rejection_reason ? (
+                    <ValueBlock label="Rejection Reason" value={expense.rejection_reason} />
+                  ) : null}
+                </div>
+              )}
             </SectionCard>
 
             <SectionCard

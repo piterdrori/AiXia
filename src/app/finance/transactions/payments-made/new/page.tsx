@@ -280,13 +280,11 @@ export default function FinanceNewPaymentMadePage() {
   );
 
   const filteredBankAccounts = useMemo(() => {
-    if (!paidFromCompanyId) return bankAccounts;
+    if (!paidFromCompanyId) return [];
 
-    const companyBanks = bankAccounts.filter(
-      (bank) => !bank.company_id || bank.company_id === paidFromCompanyId
+    return bankAccounts.filter(
+      (bank) => bank.company_id === paidFromCompanyId
     );
-
-    return companyBanks.length > 0 ? companyBanks : bankAccounts;
   }, [bankAccounts, paidFromCompanyId]);
 
   const selectedBankAccount = useMemo(

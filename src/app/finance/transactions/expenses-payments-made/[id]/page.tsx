@@ -110,6 +110,7 @@ type ExpenseRow = {
   id: string;
   expense_number: string | null;
   title: string;
+  description: string | null;
   amount: number | string | null;
   requested_amount: number | string | null;
   approved_amount: number | string | null;
@@ -606,6 +607,7 @@ export default function FinanceExpensesPaymentsMadeDetailPage() {
               "id",
               "expense_number",
               "title",
+              "description",
               "amount",
               "requested_amount",
               "approved_amount",
@@ -977,6 +979,9 @@ export default function FinanceExpensesPaymentsMadeDetailPage() {
                             Expense
                           </th>
                           <th className="px-5 py-4 text-left text-[11px] font-semibold uppercase tracking-[0.18em] text-slate-500">
+                            What Is It For
+                          </th>
+                          <th className="px-5 py-4 text-left text-[11px] font-semibold uppercase tracking-[0.18em] text-slate-500">
                             Expense Company
                           </th>
                           <th className="px-5 py-4 text-left text-[11px] font-semibold uppercase tracking-[0.18em] text-slate-500">
@@ -1027,6 +1032,18 @@ export default function FinanceExpensesPaymentsMadeDetailPage() {
                               </div>
                               <div className="mt-1 text-xs text-slate-500">
                                 {formatDate(allocation.expense?.expense_date)}
+                              </div>
+                            </td>
+
+                            <td className="min-w-[300px] px-5 py-4">
+                              <div className="font-medium text-white">
+                                {allocation.expense?.expense_source_name || "No source entered"}
+                              </div>
+                              <div className="mt-1 text-xs text-cyan-200">
+                                {formatLabel(allocation.expense?.expense_type)}
+                              </div>
+                              <div className="mt-2 line-clamp-2 text-xs leading-5 text-slate-500">
+                                {allocation.expense?.description || "No description / reason entered."}
                               </div>
                             </td>
 

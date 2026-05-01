@@ -8,6 +8,7 @@ import {
   Upload,
 } from "lucide-react";
 
+import { convertCurrencyLive } from "@/lib/integrations/frankfurter";
 import { supabase } from "@/lib/supabase";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -25,6 +26,7 @@ type BillOption = {
   external_document_number: string | null;
   document_type: "vendor_pi" | "vendor_invoice";
   vendor_id: string;
+  company_id: string | null;
   purchase_order_id: string | null;
   vendor_quotation_id: string | null;
   issue_date: string;
@@ -38,6 +40,8 @@ type BillOption = {
   vendor_name?: string | null;
   vendor_legal_name?: string | null;
   vendor_code?: string | null;
+  company_name?: string | null;
+  company_legal_name?: string | null;
   purchase_order_number?: string | null;
   vendor_quotation_number?: string | null;
 };
@@ -50,6 +54,13 @@ type VendorOption = {
   currency_code: string | null;
 };
 
+type CompanyOption = {
+  id: string;
+  name: string;
+  legal_name: string | null;
+  currency_code: string | null;
+};
+
 type PaymentMethodOption = {
   id: string;
   name: string;
@@ -57,6 +68,8 @@ type PaymentMethodOption = {
 
 type BankAccountOption = {
   id: string;
+  company_id: string | null;
+  company_code: string | null;
   bank_name: string | null;
   institution_name: string | null;
   beneficiary_name: string | null;
@@ -123,6 +136,10 @@ function getBankIdentifier(bank: BankAccountOption) {
   if (bank.account_number) return bank.account_number;
 
   return "No identifier";
+}
+
+function getBankName(bank: BankAccountOption) {
+  return bank.bank_name || bank.institution_name || "Bank";
 }
 
 function resolveUploadMimeType(file: File) {
@@ -215,16 +232,19 @@ export default function FinanceNewPaymentMadePage() {
 
   const [bills, setBills] = useState<BillOption[]>([]);
   const [vendors, setVendors] = useState<VendorOption[]>([]);
+  const [companies, setCompanies] = useState<CompanyOption[]>([]);
   const [paymentMethods, setPaymentMethods] = useState<PaymentMethodOption[]>([]);
   const [bankAccounts, setBankAccounts] = useState<BankAccountOption[]>([]);
   const [currencies, setCurrencies] = useState<CurrencyOption[]>([]);
 
   const [isLoading, setIsLoading] = useState(true);
   const [isSaving, setIsSaving] = useState(false);
+  const [isConvertingExchangeRate, setIsConvertingExchangeRate] = useState(false);
   const [errorMessage, setErrorMessage] = useState("");
 
   const [billId, setBillId] = useState(sourceBillId);
   const [vendorId, setVendorId] = useState("");
+  const [paidFromCompanyId, setPaidFromCompanyId] = useState("");
   const [paymentDate, setPaymentDate] = useState(
     new Date().toISOString().slice(0, 10)
   );
@@ -233,7 +253,8 @@ export default function FinanceNewPaymentMadePage() {
   const [billCurrencyCode, setBillCurrencyCode] = useState("");
   const [exchangeRate, setExchangeRate] = useState("1");
   const [convertedAmount, setConvertedAmount] = useState("");
-  const [exchangeRateSource, setExchangeRateSource] = useState("");
+  const [exchangeRateSource, setExchangeRateSource] =
+    useState("Frankfurter live API");
   const [exchangeRateDate, setExchangeRateDate] = useState(
     new Date().toISOString().slice(0, 10)
   );
@@ -253,9 +274,26 @@ export default function FinanceNewPaymentMadePage() {
     [vendorId, vendors]
   );
 
+  const selectedCompany = useMemo(
+    () => companies.find((company) => company.id === paidFromCompanyId) ?? null,
+    [companies, paidFromCompanyId]
+  );
+
+  const filteredBankAccounts = useMemo(() => {
+    if (!paidFromCompanyId) return bankAccounts;
+
+    const companyBanks = bankAccounts.filter(
+      (bank) => !bank.company_id || bank.company_id === paidFromCompanyId
+    );
+
+    return companyBanks.length > 0 ? companyBanks : bankAccounts;
+  }, [bankAccounts, paidFromCompanyId]);
+
   const selectedBankAccount = useMemo(
-    () => bankAccounts.find((bank) => bank.id === paidFromBankAccountId) ?? null,
-    [bankAccounts, paidFromBankAccountId]
+    () =>
+      filteredBankAccounts.find((bank) => bank.id === paidFromBankAccountId) ??
+      null,
+    [filteredBankAccounts, paidFromBankAccountId]
   );
 
   useEffect(() => {
@@ -267,6 +305,7 @@ export default function FinanceNewPaymentMadePage() {
         const [
           billsResult,
           vendorsResult,
+          companiesResult,
           paymentMethodsResult,
           bankAccountsResult,
           currenciesResult,
@@ -280,6 +319,7 @@ export default function FinanceNewPaymentMadePage() {
                 "external_document_number",
                 "document_type",
                 "vendor_id",
+                "company_id",
                 "purchase_order_id",
                 "vendor_quotation_id",
                 "issue_date",
@@ -291,6 +331,7 @@ export default function FinanceNewPaymentMadePage() {
                 "balance_due",
                 "currency_code",
                 "finance_vendors(name, legal_name, code)",
+                "finance_companies(name, legal_name)",
                 "finance_purchase_orders(purchase_order_number)",
                 "finance_vendor_quotations(vendor_quotation_number)",
               ].join(", ")
@@ -304,6 +345,11 @@ export default function FinanceNewPaymentMadePage() {
             .select("id, code, name, legal_name, currency_code")
             .order("name", { ascending: true }),
           supabase
+            .from("finance_companies")
+            .select("id, name, legal_name, currency_code")
+            .eq("status", "active")
+            .order("name", { ascending: true }),
+          supabase
             .from("finance_payment_methods")
             .select("id, name")
             .eq("status", "active")
@@ -313,6 +359,8 @@ export default function FinanceNewPaymentMadePage() {
             .select(
               [
                 "id",
+                "company_id",
+                "company_code",
                 "bank_name",
                 "institution_name",
                 "beneficiary_name",
@@ -337,6 +385,7 @@ export default function FinanceNewPaymentMadePage() {
 
         if (billsResult.error) throw billsResult.error;
         if (vendorsResult.error) throw vendorsResult.error;
+        if (companiesResult.error) throw companiesResult.error;
         if (paymentMethodsResult.error) throw paymentMethodsResult.error;
         if (bankAccountsResult.error) throw bankAccountsResult.error;
         if (currenciesResult.error) throw currenciesResult.error;
@@ -348,6 +397,10 @@ export default function FinanceNewPaymentMadePage() {
                 name?: string | null;
                 legal_name?: string | null;
                 code?: string | null;
+              } | null;
+              finance_companies?: {
+                name?: string | null;
+                legal_name?: string | null;
               } | null;
               finance_purchase_orders?: {
                 purchase_order_number?: string | null;
@@ -362,6 +415,8 @@ export default function FinanceNewPaymentMadePage() {
               vendor_name: row.finance_vendors?.name ?? null,
               vendor_legal_name: row.finance_vendors?.legal_name ?? null,
               vendor_code: row.finance_vendors?.code ?? null,
+              company_name: row.finance_companies?.name ?? null,
+              company_legal_name: row.finance_companies?.legal_name ?? null,
               purchase_order_number:
                 row.finance_purchase_orders?.purchase_order_number ?? null,
               vendor_quotation_number:
@@ -372,6 +427,7 @@ export default function FinanceNewPaymentMadePage() {
 
         setBills(mappedBills);
         setVendors((vendorsResult.data || []) as unknown as VendorOption[]);
+        setCompanies((companiesResult.data || []) as unknown as CompanyOption[]);
         setPaymentMethods(
           (paymentMethodsResult.data || []) as unknown as PaymentMethodOption[]
         );
@@ -399,30 +455,85 @@ export default function FinanceNewPaymentMadePage() {
       selectedBill.currency_code || selectedVendor?.currency_code || "USD";
 
     setVendorId(selectedBill.vendor_id || "");
+    setPaidFromCompanyId(selectedBill.company_id || "");
+    setPaidFromBankAccountId("");
     setAmount(String(selectedBill.balance_due ?? ""));
-    setConvertedAmount(String(selectedBill.balance_due ?? ""));
     setBillCurrencyCode(resolvedBillCurrency);
     setPaymentCurrencyCode(resolvedBillCurrency);
-    setReferenceNumber((current) => current || selectedBill.external_document_number || "");
+    setReferenceNumber(
+      (current) => current || selectedBill.external_document_number || ""
+    );
   }, [selectedBill, selectedVendor?.currency_code]);
 
   useEffect(() => {
     const rawAmount = toNumber(amount);
-    const rawExchangeRate = toNumber(exchangeRate) || 1;
-    const calculated = Math.round(rawAmount * rawExchangeRate * 100) / 100;
 
-    setConvertedAmount(String(calculated));
-  }, [amount, exchangeRate]);
+    if (!rawAmount || rawAmount <= 0 || !paymentCurrencyCode || !billCurrencyCode) {
+      setConvertedAmount("");
+      setExchangeRate("1");
+      setExchangeRateSource("Frankfurter live API");
+      setExchangeRateDate(new Date().toISOString().slice(0, 10));
+      return;
+    }
+
+    let isCancelled = false;
+
+    async function convertPaymentAmount() {
+      try {
+        setIsConvertingExchangeRate(true);
+
+        const result = await convertCurrencyLive(
+          rawAmount,
+          paymentCurrencyCode,
+          billCurrencyCode
+        );
+
+        if (isCancelled) return;
+
+        setExchangeRate(String(result.rate));
+        setConvertedAmount(String(result.convertedAmount));
+        setExchangeRateSource("Frankfurter live API");
+        setExchangeRateDate(result.date);
+      } catch (error) {
+        if (isCancelled) return;
+
+        console.error("Failed to convert payment currency:", error);
+        setConvertedAmount(String(rawAmount));
+        setExchangeRate(paymentCurrencyCode === billCurrencyCode ? "1" : "");
+        setExchangeRateSource("Frankfurter live API");
+        setExchangeRateDate(new Date().toISOString().slice(0, 10));
+        setErrorMessage(
+          error instanceof Error
+            ? error.message
+            : "Failed to convert payment currency."
+        );
+      } finally {
+        if (!isCancelled) {
+          setIsConvertingExchangeRate(false);
+        }
+      }
+    }
+
+    void convertPaymentAmount();
+
+    return () => {
+      isCancelled = true;
+    };
+  }, [amount, paymentCurrencyCode, billCurrencyCode]);
 
   const validateForm = useCallback(() => {
     if (!billId) return "Select an approved vendor PI / invoice.";
     if (!vendorId) return "Vendor is required.";
+    if (!paidFromCompanyId) return "Paid from company is required.";
     if (!paymentDate) return "Select payment date.";
     if (!amount || toNumber(amount) <= 0) return "Payment amount must be above 0.";
     if (!paymentCurrencyCode) return "Select payment currency.";
     if (!billCurrencyCode) return "Select bill currency.";
     if (!exchangeRate || toNumber(exchangeRate) <= 0) {
-      return "Exchange rate must be above 0.";
+      return "Live exchange rate is required.";
+    }
+    if (!convertedAmount || toNumber(convertedAmount) <= 0) {
+      return "Effective bill amount is required.";
     }
     if (!paymentMethodId) return "Select payment method.";
     if (!selectedFile) return "Upload payment proof.";
@@ -438,6 +549,7 @@ export default function FinanceNewPaymentMadePage() {
     billId,
     convertedAmount,
     exchangeRate,
+    paidFromCompanyId,
     paymentCurrencyCode,
     paymentDate,
     paymentMethodId,
@@ -466,7 +578,7 @@ export default function FinanceNewPaymentMadePage() {
         throw new Error("User not authenticated");
       }
 
-      const { data: payment, error: paymentError } = await supabase
+          const { data: payment, error: paymentError } = await supabase
         .from("finance_payments_made")
         .insert({
           bill_id: billId,
@@ -483,8 +595,9 @@ export default function FinanceNewPaymentMadePage() {
           bill_currency_code: billCurrencyCode,
           exchange_rate: toNumber(exchangeRate),
           converted_amount: toNumber(convertedAmount),
-          exchange_rate_source: exchangeRateSource.trim() || null,
-          exchange_rate_date: exchangeRateDate || null,
+          exchange_rate_source: exchangeRateSource || "Frankfurter live API",
+          exchange_rate_date:
+            exchangeRateDate || new Date().toISOString().slice(0, 10),
           paid_from_bank_account_id: paidFromBankAccountId || null,
           metadata: {
             source: "new_payment_made_page",
@@ -493,6 +606,10 @@ export default function FinanceNewPaymentMadePage() {
             source_bill_number: selectedBill?.bill_number || null,
             source_vendor_document_number:
               selectedBill?.external_document_number || null,
+            paid_from_company_id: paidFromCompanyId,
+            paid_from_company_name:
+              selectedCompany?.legal_name || selectedCompany?.name || null,
+            exchange_rate_provider: "Frankfurter live API",
           },
           created_by: user.id,
           updated_by: user.id,
@@ -526,21 +643,30 @@ export default function FinanceNewPaymentMadePage() {
     navigate,
     notes,
     paidFromBankAccountId,
+    paidFromCompanyId,
     paymentCurrencyCode,
     paymentDate,
     paymentMethodId,
     referenceNumber,
     selectedBill,
+    selectedCompany?.legal_name,
+    selectedCompany?.name,
     selectedFile,
     validateForm,
     vendorId,
   ]);
 
   const fieldClass =
-    "h-11 w-full rounded-2xl border border-white/10 bg-black/20 px-4 text-sm text-white outline-none transition focus:border-emerald-400/30 focus:bg-black/30";
+    "h-11 w-full rounded-2xl border border-white/10 bg-black/20 px-4 text-sm text-white outline-none transition focus:border-emerald-400/30 focus:bg-black/30 disabled:cursor-not-allowed disabled:opacity-60";
+  const readOnlyBoxClass =
+    "flex min-h-[44px] items-center rounded-2xl border border-white/10 bg-black/20 px-4 py-3 text-sm leading-6 text-white";
   const labelClass = "text-sm font-medium text-slate-300";
   const sectionCardClass =
     "overflow-hidden rounded-[30px] border border-white/10 bg-white/[0.045] backdrop-blur-xl";
+  const innerPanelClass =
+    "rounded-[24px] border border-white/10 bg-black/20 p-4";
+  const eyebrowClass =
+    "text-[11px] font-semibold uppercase tracking-[0.2em] text-slate-500";
 
   if (isLoading) {
     return (
@@ -553,6 +679,11 @@ export default function FinanceNewPaymentMadePage() {
       </div>
     );
   }
+
+  const remainingAfterDraft =
+    selectedBill && convertedAmount
+      ? Math.max(toNumber(selectedBill.balance_due) - toNumber(convertedAmount), 0)
+      : 0;
 
   return (
     <div className="min-h-screen bg-[#05070d] px-4 py-4 text-white md:px-6 md:py-6">
@@ -580,6 +711,12 @@ export default function FinanceNewPaymentMadePage() {
                   <Badge className="w-fit rounded-full border border-cyan-400/20 bg-cyan-500/10 px-3 py-1 text-[11px] font-semibold uppercase tracking-[0.22em] text-cyan-200 shadow-none">
                     Step 04
                   </Badge>
+
+                  {isConvertingExchangeRate ? (
+                    <Badge className="w-fit rounded-full border border-violet-400/20 bg-violet-500/10 px-3 py-1 text-[11px] font-semibold uppercase tracking-[0.22em] text-violet-200 shadow-none">
+                      Converting
+                    </Badge>
+                  ) : null}
                 </div>
 
                 <h1 className="mt-4 text-3xl font-semibold tracking-[-0.035em] text-white md:text-5xl">
@@ -588,18 +725,22 @@ export default function FinanceNewPaymentMadePage() {
 
                 <p className="mt-3 max-w-4xl text-sm leading-6 text-slate-400 md:text-base md:leading-7">
                   Create an outgoing payment against an approved vendor PI /
-                  invoice. The payment is saved as draft first and confirmed
-                  from the ID page after verification.
+                  invoice. Currency conversion is calculated automatically using
+                  the Frankfurter live API and the payment is saved as draft first.
                 </p>
 
                 <div className="mt-5 flex flex-wrap gap-3">
                   <Button
                     onClick={() => void handleSave()}
-                    disabled={isSaving}
+                    disabled={isSaving || isConvertingExchangeRate}
                     className="h-11 rounded-2xl border border-emerald-400/20 bg-emerald-500 px-4 text-sm font-semibold text-white transition hover:bg-emerald-400 disabled:cursor-not-allowed disabled:opacity-50"
                   >
                     <Save className="mr-2 h-4 w-4" />
-                    {isSaving ? "Saving..." : "Save Payment Draft"}
+                    {isSaving
+                      ? "Saving..."
+                      : isConvertingExchangeRate
+                        ? "Converting..."
+                        : "Save Payment Draft"}
                   </Button>
 
                   {errorMessage ? (
@@ -612,9 +753,7 @@ export default function FinanceNewPaymentMadePage() {
 
               <div className="grid gap-4">
                 <div className="min-h-[148px] rounded-[24px] border border-white/10 bg-black/20 p-4">
-                  <div className="text-[11px] font-semibold uppercase tracking-[0.2em] text-slate-500">
-                    Vendor
-                  </div>
+                  <div className={eyebrowClass}>Paid To / Vendor</div>
                   <div className="mt-2 text-xl font-semibold text-white">
                     {selectedVendor?.legal_name ||
                       selectedVendor?.name ||
@@ -626,17 +765,28 @@ export default function FinanceNewPaymentMadePage() {
                 </div>
 
                 <div className="min-h-[148px] rounded-[24px] border border-white/10 bg-black/20 p-4">
-                  <div className="text-[11px] font-semibold uppercase tracking-[0.2em] text-slate-500">
-                    Payment Amount
-                  </div>
+                  <div className={eyebrowClass}>Paid From / AiXia Company</div>
                   <div className="mt-2 text-xl font-semibold text-white">
-                    {formatMoney(
-                      convertedAmount || amount,
-                      billCurrencyCode || paymentCurrencyCode || "USD"
-                    )}
+                    {selectedCompany?.legal_name ||
+                      selectedCompany?.name ||
+                      selectedBill?.company_legal_name ||
+                      selectedBill?.company_name ||
+                      "Not selected"}
                   </div>
                   <div className="mt-3 text-xs leading-5 text-slate-500">
-                    Saved as draft before confirmation.
+                    {selectedBill?.purchase_order_number
+                      ? `From ${selectedBill.purchase_order_number}`
+                      : "Loaded from selected vendor document."}
+                  </div>
+                </div>
+
+                <div className="min-h-[148px] rounded-[24px] border border-white/10 bg-black/20 p-4">
+                  <div className={eyebrowClass}>Effective Bill Amount</div>
+                  <div className="mt-2 text-xl font-semibold text-white">
+                    {formatMoney(convertedAmount || amount, billCurrencyCode || "USD")}
+                  </div>
+                  <div className="mt-3 text-xs leading-5 text-slate-500">
+                    Paid: {formatMoney(amount, paymentCurrencyCode || "USD")}
                   </div>
                 </div>
               </div>
@@ -675,11 +825,8 @@ export default function FinanceNewPaymentMadePage() {
                     {bills.map((bill) => (
                       <option key={bill.id} value={bill.id}>
                         {bill.bill_number} — {getDocumentTypeLabel(bill.document_type)} —{" "}
-                        {bill.vendor_legal_name || bill.vendor_name || "Vendor"} — Balance{" "}
-                        {formatMoney(
-                          bill.balance_due,
-                          bill.currency_code || selectedVendor?.currency_code || "USD"
-                        )}
+                        {bill.vendor_legal_name || bill.vendor_name || "Vendor"} —{" "}
+                        Balance {formatMoney(bill.balance_due, bill.currency_code || "USD")}
                       </option>
                     ))}
                   </select>
@@ -695,12 +842,14 @@ export default function FinanceNewPaymentMadePage() {
                     </div>
                     <div className="mt-2 text-sm leading-6 text-slate-300">
                       Vendor Ref:{" "}
-                      {selectedBill.external_document_number || "—"} · Due:{" "}
-                      {formatDate(selectedBill.due_date)} · Balance:{" "}
-                      {formatMoney(
-                        selectedBill.balance_due,
-                        billCurrencyCode || selectedVendor?.currency_code || "USD"
-                      )}
+                      {selectedBill.external_document_number || "—"} · Issued To:{" "}
+                      {selectedBill.company_legal_name ||
+                        selectedBill.company_name ||
+                        selectedCompany?.legal_name ||
+                        selectedCompany?.name ||
+                        "Company"}{" "}
+                      · Due: {formatDate(selectedBill.due_date)} · Balance:{" "}
+                      {formatMoney(selectedBill.balance_due, billCurrencyCode || "USD")}
                     </div>
                   </div>
                 ) : null}
@@ -718,7 +867,8 @@ export default function FinanceNewPaymentMadePage() {
                       Payment Details
                     </CardTitle>
                     <CardDescription className="mt-1 text-xs text-slate-500">
-                      Amount, payment method, currency, and bank source.
+                      Amount, payment method, live currency conversion, and bank
+                      source.
                     </CardDescription>
                   </div>
                 </div>
@@ -776,43 +926,31 @@ export default function FinanceNewPaymentMadePage() {
                   </select>
                 </label>
 
-                <label className="space-y-2">
+                <div className="space-y-2">
                   <div className={labelClass}>Exchange Rate</div>
-                  <input
-                    value={exchangeRate}
-                    onChange={(event) => setExchangeRate(event.target.value)}
-                    className={fieldClass}
-                  />
-                </label>
+                  <div className={readOnlyBoxClass}>
+                    {isConvertingExchangeRate ? "Converting..." : toNumber(exchangeRate || 1)}
+                  </div>
+                </div>
 
-                <label className="space-y-2">
-                  <div className={labelClass}>Converted / Effective Amount</div>
-                  <input
-                    value={convertedAmount}
-                    onChange={(event) => setConvertedAmount(event.target.value)}
-                    className={fieldClass}
-                  />
-                </label>
+                <div className="space-y-2">
+                  <div className={labelClass}>Effective Bill Amount</div>
+                  <div className={readOnlyBoxClass}>
+                    {isConvertingExchangeRate
+                      ? "Converting..."
+                      : formatMoney(convertedAmount || amount, billCurrencyCode || "USD")}
+                  </div>
+                </div>
 
-                <label className="space-y-2">
+                <div className="space-y-2">
                   <div className={labelClass}>Exchange Rate Source</div>
-                  <input
-                    value={exchangeRateSource}
-                    onChange={(event) => setExchangeRateSource(event.target.value)}
-                    placeholder="Bank / Wise / manual"
-                    className={fieldClass}
-                  />
-                </label>
+                  <div className={readOnlyBoxClass}>{exchangeRateSource}</div>
+                </div>
 
-                <label className="space-y-2">
+                <div className="space-y-2">
                   <div className={labelClass}>Exchange Rate Date</div>
-                  <input
-                    type="date"
-                    value={exchangeRateDate}
-                    onChange={(event) => setExchangeRateDate(event.target.value)}
-                    className={fieldClass}
-                  />
-                </label>
+                  <div className={readOnlyBoxClass}>{exchangeRateDate || "—"}</div>
+                </div>
 
                 <label className="space-y-2">
                   <div className={labelClass}>Payment Method</div>
@@ -840,10 +978,9 @@ export default function FinanceNewPaymentMadePage() {
                     className={fieldClass}
                   >
                     <option value="">Select company bank account</option>
-                    {bankAccounts.map((bank) => (
+                    {filteredBankAccounts.map((bank) => (
                       <option key={bank.id} value={bank.id}>
-                        {bank.bank_name || bank.institution_name || "Bank"} —{" "}
-                        {getBankIdentifier(bank)}
+                        {getBankName(bank)} — {getBankIdentifier(bank)}
                         {bank.currency_code ? ` — ${bank.currency_code}` : ""}
                       </option>
                     ))}
@@ -920,51 +1057,41 @@ export default function FinanceNewPaymentMadePage() {
               </CardHeader>
 
               <CardContent className="space-y-3 p-5">
-                <div className="rounded-[24px] border border-white/10 bg-black/20 p-4">
-                  <div className="text-[11px] uppercase tracking-[0.2em] text-slate-500">
-                    Payment Amount
-                  </div>
+                <div className={innerPanelClass}>
+                  <div className={eyebrowClass}>Payment Amount</div>
                   <div className="mt-2 text-2xl font-semibold text-white">
                     {formatMoney(amount, paymentCurrencyCode || "USD")}
                   </div>
                 </div>
 
-                <div className="rounded-[24px] border border-white/10 bg-black/20 p-4">
-                  <div className="text-[11px] uppercase tracking-[0.2em] text-slate-500">
-                    Effective Bill Amount
-                  </div>
+                <div className={innerPanelClass}>
+                  <div className={eyebrowClass}>Effective Bill Amount</div>
                   <div className="mt-2 text-2xl font-semibold text-white">
                     {formatMoney(convertedAmount, billCurrencyCode || "USD")}
                   </div>
                 </div>
 
                 {selectedBill ? (
-                  <div className="rounded-[24px] border border-white/10 bg-black/20 p-4">
-                    <div className="text-[11px] uppercase tracking-[0.2em] text-slate-500">
-                      Remaining After Draft
-                    </div>
+                  <div className={innerPanelClass}>
+                    <div className={eyebrowClass}>Remaining After Draft</div>
                     <div className="mt-2 text-2xl font-semibold text-white">
-                      {formatMoney(
-                        Math.max(
-                          toNumber(selectedBill.balance_due) -
-                            toNumber(convertedAmount),
-                          0
-                        ),
-                        billCurrencyCode || "USD"
-                      )}
+                      {formatMoney(remainingAfterDraft, billCurrencyCode || "USD")}
                     </div>
                   </div>
                 ) : null}
 
                 {selectedBankAccount ? (
                   <div className="rounded-[20px] border border-cyan-400/15 bg-cyan-500/10 px-4 py-3 text-sm leading-6 text-cyan-100">
-                    Paid from:{" "}
-                    {selectedBankAccount.bank_name ||
-                      selectedBankAccount.institution_name ||
-                      "Bank"}{" "}
-                    · {getBankIdentifier(selectedBankAccount)}
+                    Paid from: {getBankName(selectedBankAccount)} ·{" "}
+                    {getBankIdentifier(selectedBankAccount)}
                   </div>
                 ) : null}
+
+                <div className="rounded-[20px] border border-violet-400/15 bg-violet-500/10 px-4 py-3 text-sm leading-6 text-violet-100">
+                  Exchange: {paymentCurrencyCode || "—"} →{" "}
+                  {billCurrencyCode || "—"} · Source: {exchangeRateSource} · Date:{" "}
+                  {exchangeRateDate || "—"}
+                </div>
 
                 <div className="rounded-[20px] border border-emerald-400/15 bg-emerald-500/10 px-4 py-3 text-sm leading-6 text-emerald-100">
                   This payment is saved as draft. Confirm from the ID page after
@@ -989,8 +1116,8 @@ export default function FinanceNewPaymentMadePage() {
               <CardContent className="space-y-2 p-5 text-sm leading-6 text-slate-400">
                 <div>• Vendor PI / invoice is approved.</div>
                 <div>• Payment made draft is created with proof.</div>
+                <div>• Exchange rate is calculated automatically.</div>
                 <div>• Payment is confirmed from the ID page.</div>
-                <div>• Confirmed payment updates paid amount.</div>
                 <div>• Bill balance updates automatically.</div>
               </CardContent>
             </Card>

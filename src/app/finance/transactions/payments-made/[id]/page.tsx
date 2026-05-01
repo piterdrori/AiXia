@@ -56,6 +56,7 @@ type PaymentMadeRecord = {
   converted_amount: number | string | null;
   exchange_rate_source: string | null;
   exchange_rate_date: string | null;
+  paid_from_company_id: string | null;
   paid_from_bank_account_id: string | null;
   bank_account_id?: string | null;
   posted_to_ledger: boolean;
@@ -139,6 +140,7 @@ type BillLinkRow = {
   issue_date: string;
   due_date: string;
   currency_code: string | null;
+  company_id: string | null;
   purchase_order_id: string | null;
   vendor_quotation_id: string | null;
 };
@@ -823,7 +825,7 @@ export default function FinancePaymentMadeDetailPage() {
           const { data: billData, error: billError } = await supabase
             .from("finance_bills_received")
             .select(
-              "id, bill_number, external_document_number, document_type, status, approval_status, total_amount, paid_amount, balance_due, issue_date, due_date, currency_code, purchase_order_id, vendor_quotation_id"
+              "id, bill_number, external_document_number, document_type, status, approval_status, total_amount, paid_amount, balance_due, issue_date, due_date, currency_code, company_id, purchase_order_id, vendor_quotation_id"
             )
             .eq("id", typedPayment.bill_id)
             .maybeSingle();
@@ -851,13 +853,19 @@ export default function FinancePaymentMadeDetailPage() {
           sourcePurchaseOrder =
             (purchaseOrderData || null) as PurchaseOrderLinkRow | null;
 
-          if (sourcePurchaseOrder?.company_id) {
+          const paidFromCompanyId =
+            typedPayment.paid_from_company_id ||
+            sourceBill?.company_id ||
+            sourcePurchaseOrder?.company_id ||
+            null;
+
+          if (paidFromCompanyId) {
             const { data: companyData, error: companyError } = await supabase
               .from("finance_companies")
               .select(
                 "id, name, legal_name, email, phone, contact_person, country, city, state_province, postal_code, address_line_1, address_line_2"
               )
-              .eq("id", sourcePurchaseOrder.company_id)
+              .eq("id", paidFromCompanyId)
               .maybeSingle();
 
             if (companyError) throw companyError;
@@ -897,7 +905,11 @@ export default function FinancePaymentMadeDetailPage() {
 
         setOverviewDraft({
           vendor_id: typedPayment.vendor_id || "",
-          paid_from_company_id: sourcePurchaseOrder?.company_id || "",
+          paid_from_company_id:
+            typedPayment.paid_from_company_id ||
+            sourceBill?.company_id ||
+            sourcePurchaseOrder?.company_id ||
+            "",
           bill_id: typedPayment.bill_id || "",
           payment_date: typedPayment.payment_date || "",
           amount: String(typedPayment.amount ?? ""),
@@ -1057,7 +1069,11 @@ export default function FinancePaymentMadeDetailPage() {
 
     setOverviewDraft({
       vendor_id: payment.vendor_id || "",
-      paid_from_company_id: purchaseOrderLink?.company_id || "",
+      paid_from_company_id:
+        payment.paid_from_company_id ||
+        billLink?.company_id ||
+        purchaseOrderLink?.company_id ||
+        "",
       bill_id: payment.bill_id || "",
       payment_date: payment.payment_date || "",
       amount: String(payment.amount ?? ""),
@@ -1138,6 +1154,7 @@ export default function FinancePaymentMadeDetailPage() {
         .from("finance_payments_made")
         .update({
           vendor_id: overviewDraft.vendor_id,
+          paid_from_company_id: overviewDraft.paid_from_company_id,
           payment_date: overviewDraft.payment_date,
           amount: toNumber(overviewDraft.amount),
           payment_currency_code: overviewDraft.payment_currency_code,

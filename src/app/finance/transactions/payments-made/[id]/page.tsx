@@ -540,13 +540,11 @@ export default function FinancePaymentMadeDetailPage() {
   const filteredBankAccounts = useMemo(() => {
     const companyId = overviewDraft.paid_from_company_id || paidFromCompany?.id;
 
-    if (!companyId) return bankAccounts;
+    if (!companyId) return [];
 
-    const companyBanks = bankAccounts.filter(
-      (bank) => !bank.company_id || bank.company_id === companyId
+    return bankAccounts.filter(
+      (bank) => bank.company_id === companyId
     );
-
-    return companyBanks.length > 0 ? companyBanks : bankAccounts;
   }, [bankAccounts, overviewDraft.paid_from_company_id, paidFromCompany?.id]);
 
   const paymentCurrencyCode =

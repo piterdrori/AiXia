@@ -769,10 +769,81 @@ export default function FinanceExpenseDetailPage() {
 
       if (updateResult.error) throw updateResult.error;
 
+      setExpense((current) => {
+        if (!current) return current;
+
+        return {
+          ...current,
+          title: editForm.title.trim(),
+          description: editForm.description.trim() || null,
+          company_id: editForm.companyId,
+          expense_made_by_type: editForm.expenseMadeByType,
+          employee_ref_id:
+            editForm.expenseMadeByType === "employee" ? editForm.employeeRefId : null,
+          responsible_person_name:
+            editForm.expenseMadeByType === "owner_management"
+              ? editForm.responsiblePersonName.trim()
+              : null,
+          other_made_by_explanation:
+            editForm.expenseMadeByType === "other"
+              ? editForm.otherMadeByExplanation.trim()
+              : null,
+          expense_type: editForm.expenseType,
+          expense_source_name: editForm.expenseSourceName.trim(),
+          other_expense_explanation:
+            editForm.expenseType === "other"
+              ? editForm.otherExpenseExplanation.trim()
+              : null,
+          amount: amountValue,
+          requested_amount: amountValue,
+          final_amount: amountValue,
+          currency_code: editForm.currencyCode.trim().toUpperCase(),
+          expense_date: editForm.expenseDate,
+          is_retroactive: editForm.isRetroactive,
+          retroactive_reason: editForm.isRetroactive
+            ? editForm.retroactiveReason.trim()
+            : null,
+          online_platform:
+            editForm.expenseType === "online_shopping"
+              ? editForm.onlinePlatform.trim()
+              : null,
+          online_order_number:
+            editForm.expenseType === "online_shopping"
+              ? editForm.onlineOrderNumber.trim() || null
+              : null,
+          online_order_date:
+            editForm.expenseType === "online_shopping" && editForm.onlineOrderDate
+              ? editForm.onlineOrderDate
+              : null,
+          online_order_url:
+            editForm.expenseType === "online_shopping"
+              ? editForm.onlineOrderUrl.trim() || null
+              : null,
+          online_tracking_number:
+            editForm.expenseType === "online_shopping"
+              ? editForm.onlineTrackingNumber.trim() || null
+              : null,
+          online_confirmation_status:
+            editForm.expenseType === "online_shopping"
+              ? current.online_confirmation_status === "not_applicable"
+                ? "not_confirmed"
+                : current.online_confirmation_status || "not_confirmed"
+              : "not_applicable",
+          notes: editForm.notes.trim() || null,
+          metadata,
+          updated_at: new Date().toISOString(),
+        };
+      });
+
+      setCompany(companies.find((item) => item.id === editForm.companyId) || null);
+      setEmployee(
+        editForm.expenseMadeByType === "employee"
+          ? employees.find((item) => item.id === editForm.employeeRefId) || null
+          : null
+      );
       setIsEditingOverview(false);
       setEditForm(null);
       setPageMessage("Expense overview updated.");
-      await loadExpense();
     } catch (error) {
       console.error("Failed to update expense overview:", error);
       setPageError(
@@ -781,7 +852,7 @@ export default function FinanceExpenseDetailPage() {
     } finally {
       setIsSavingOverview(false);
     }
-  }, [editForm, expense, loadExpense]);
+  }, [companies, editForm, employees, expense]);
 
   const timelineItems = useMemo<TimelineItem[]>(() => {
     if (!expense) return [];

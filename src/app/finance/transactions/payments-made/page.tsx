@@ -4,6 +4,7 @@ import {
   Archive,
   ArrowRight,
   CreditCard,
+  Eye,
   FolderArchive,
   Plus,
   RotateCcw,
@@ -797,39 +798,45 @@ export default function FinancePaymentsMadePage() {
                           <td className="px-5 py-4">
                             <div className="flex justify-end gap-2">
                               <Button
+                                type="button"
                                 variant="outline"
+                                title="Open payment made"
                                 onClick={() =>
                                   navigate(
                                     `/finance/transactions/payments-made/${row.id}`
                                   )
                                 }
-                                className="h-9 rounded-2xl border-cyan-400/20 bg-cyan-500/10 px-3 text-cyan-200 hover:bg-cyan-500/20"
+                                className="flex h-11 w-11 items-center justify-center rounded-full border-cyan-400/20 bg-cyan-500/10 p-0 text-cyan-200 hover:bg-cyan-500/20"
                               >
-                                Open
+                                <Eye className="h-4 w-4" />
                               </Button>
 
                               <Button
+                                type="button"
                                 variant="outline"
+                                title="Archive payment made"
                                 onClick={() =>
                                   void runArchiveAction(
                                     "finance_archive_payment_made",
                                     row.id
                                   )
                                 }
-                                className="h-9 rounded-2xl border-amber-400/20 bg-amber-500/10 px-3 text-amber-200 hover:bg-amber-500/20"
+                                className="flex h-11 w-11 items-center justify-center rounded-full border-amber-400/20 bg-amber-500/10 p-0 text-amber-200 hover:bg-amber-500/20"
                               >
                                 <Archive className="h-4 w-4" />
                               </Button>
 
                               <Button
+                                type="button"
                                 variant="outline"
+                                title="Delete payment made"
                                 onClick={() =>
                                   void runArchiveAction(
                                     "finance_delete_payment_made",
                                     row.id
                                   )
                                 }
-                                className="h-9 rounded-2xl border-rose-400/20 bg-rose-500/10 px-3 text-rose-200 hover:bg-rose-500/20"
+                                className="flex h-11 w-11 items-center justify-center rounded-full border-rose-400/20 bg-rose-500/10 p-0 text-rose-200 hover:bg-rose-500/20"
                               >
                                 <Trash2 className="h-4 w-4" />
                               </Button>
@@ -980,32 +987,48 @@ export default function FinancePaymentsMadePage() {
                             <td className="px-5 py-4">
                               <div className="flex justify-end gap-2">
                                 <Button
+                                  type="button"
                                   variant="outline"
+                                  title="Open payment made"
+                                  onClick={() =>
+                                    navigate(
+                                      `/finance/transactions/payments-made/${row.id}`
+                                    )
+                                  }
+                                  className="flex h-10 w-10 items-center justify-center rounded-full border-cyan-400/20 bg-cyan-500/10 p-0 text-cyan-200 hover:bg-cyan-500/20"
+                                >
+                                  <Eye className="h-4 w-4" />
+                                </Button>
+
+                                <Button
+                                  type="button"
+                                  variant="outline"
+                                  title="Restore payment made"
                                   onClick={() =>
                                     void runArchiveAction(
                                       "finance_restore_payment_made",
                                       row.id
                                     )
                                   }
-                                  className="h-9 rounded-2xl border-emerald-400/20 bg-emerald-500/10 px-3 text-emerald-200 hover:bg-emerald-500/20"
+                                  className="flex h-10 w-10 items-center justify-center rounded-full border-emerald-400/20 bg-emerald-500/10 p-0 text-emerald-200 hover:bg-emerald-500/20"
                                 >
-                                  <RotateCcw className="mr-2 h-4 w-4" />
-                                  Restore
+                                  <RotateCcw className="h-4 w-4" />
                                 </Button>
 
                                 {archiveTab === "deleted" ? (
                                   <Button
+                                    type="button"
                                     variant="outline"
+                                    title="Hard delete payment made"
                                     onClick={() =>
                                       void runArchiveAction(
                                         "finance_hard_delete_payment_made",
                                         row.id
                                       )
                                     }
-                                    className="h-9 rounded-2xl border-rose-400/20 bg-rose-500/10 px-3 text-rose-200 hover:bg-rose-500/20"
+                                    className="flex h-10 w-10 items-center justify-center rounded-full border-rose-400/20 bg-rose-500/10 p-0 text-rose-200 hover:bg-rose-500/20"
                                   >
-                                    <Trash2 className="mr-2 h-4 w-4" />
-                                    Hard Delete
+                                    <Trash2 className="h-4 w-4" />
                                   </Button>
                                 ) : null}
                               </div>

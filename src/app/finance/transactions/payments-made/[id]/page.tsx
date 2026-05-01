@@ -1170,7 +1170,7 @@ export default function FinancePaymentMadeDetailPage() {
     } finally {
       setIsSavingOverview(false);
     }
-  }, [canEdit, loadPayment, overviewDraft, payment, purchaseOrderLink?.id]);
+  }, [canEdit, loadPayment, overviewDraft, payment]);
 
   const uploadProof = useCallback(async () => {
     if (!payment || !uploadFile) return;

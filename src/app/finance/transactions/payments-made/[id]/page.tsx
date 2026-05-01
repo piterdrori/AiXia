@@ -574,7 +574,7 @@ export default function FinancePaymentMadeDetailPage() {
   const canCancel = !!payment && ["draft", "confirmed"].includes(payment.status);
   const canArchive = !!payment && ["draft", "cancelled"].includes(payment.status);
   const canDelete =
-    !!payment && ["draft", "cancelled", "archived"].includes(payment.status);
+    !!payment && ["draft", "cancelled"].includes(payment.status);
   const canRestore = !!payment && ["archived", "deleted"].includes(payment.status);
   const canHardDelete = !!payment && payment.status === "deleted";
   const canUploadProof = !!payment && canEdit;
@@ -1159,18 +1159,6 @@ export default function FinancePaymentMadeDetailPage() {
         .eq("status", "draft");
 
       if (error) throw error;
-
-      if (purchaseOrderLink?.id) {
-        const { error: purchaseOrderError } = await supabase
-          .from("finance_purchase_orders")
-          .update({
-            company_id: overviewDraft.paid_from_company_id,
-            updated_by: user.id,
-          })
-          .eq("id", purchaseOrderLink.id);
-
-        if (purchaseOrderError) throw purchaseOrderError;
-      }
 
       setIsOverviewEditMode(false);
       await loadPayment(true);

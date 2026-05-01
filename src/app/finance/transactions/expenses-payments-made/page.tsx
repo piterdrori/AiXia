@@ -259,7 +259,7 @@ const tabs: Array<{
   {
     key: "verified_for_payment",
     label: "Ready For Payment",
-    description: "Verified expenses ready for funding batch and reimbursement.",
+    description: "Verified operating expenses ready for funding batch and payment.",
   },
   {
     key: "funding_batches",
@@ -459,7 +459,7 @@ function getTargetAmount(expense: ExpenseRow) {
   return toNumber(expense.final_amount || expense.approved_amount || expense.requested_amount || expense.amount);
 }
 
-export default function FinancePaymentsMadePage() {
+export default function FinanceExpensesPaymentsMadePage() {
   const navigate = useNavigate();
 
   const [activeTab, setActiveTab] = useState<WorkbenchTab>("permission_requests");

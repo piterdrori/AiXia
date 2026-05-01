@@ -3,19 +3,16 @@ import { useNavigate } from "react-router-dom";
 import {
   Archive,
   ArrowRight,
-  Building2,
   CheckCircle2,
   ChevronDown,
   ChevronUp,
   Eye,
-  FileCheck2,
   FileText,
   Receipt,
   RotateCcw,
   Search,
   Sparkles,
   Trash2,
-  UserRound,
   WalletCards,
   X,
 } from "lucide-react";
@@ -438,7 +435,7 @@ export default function FinanceExpensesPage() {
       if (companiesResult.error) throw companiesResult.error;
       if (employeesResult.error) throw employeesResult.error;
 
-      const loadedExpenses = (expensesResult.data || []) as ExpenseRow[];
+      const loadedExpenses = (expensesResult.data || []) as unknown as ExpenseRow[];
       setExpenses(loadedExpenses);
       setCompanies((companiesResult.data || []) as CompanyRow[]);
       setEmployees((employeesResult.data || []) as EmployeeRefRow[]);

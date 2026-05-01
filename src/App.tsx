@@ -111,9 +111,9 @@ import PaymentsReceivedPage from "@/app/finance/transactions/payments-received/p
 import PaymentReceivedDetailPage from "@/app/finance/transactions/payments-received/[id]/page";
 import NewPaymentReceivedPage from "@/app/finance/transactions/payments-received/new/page";
 
-import FinanceExpensesPage from "@/app/finance/expenses/page";
-import FinanceNewExpensePage from "@/app/finance/expenses/new/page";
-import FinanceExpenseDetailPage from "@/app/finance/expenses/[id]/page";
+import FinanceExpensesPage from "@/app/finance/transactions/expenses/page";
+import FinanceNewExpensePage from "@/app/finance/transactions/expenses/new/page";
+import FinanceExpenseDetailPage from "@/app/finance/transactions/expenses/[id]/page";
 
 import FinanceReimbursementsPage from "@/app/finance/reimbursements/page";
 import FinanceReimbursementDetailPage from "@/app/finance/reimbursements/[id]/page";

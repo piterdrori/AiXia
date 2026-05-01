@@ -725,6 +725,10 @@ const ROUTE_PERMISSIONS: Record<string, RoutePermission> = {
   "/finance/expenses/new": { permission: "createExpenses" },
   "/finance/expenses/:id": { permission: "viewExpenses" },
 
+  "/finance/transactions/expenses": { permission: "viewExpenses" },
+  "/finance/transactions/expenses/new": { permission: "createExpenses" },
+  "/finance/transactions/expenses/:id": { permission: "viewExpenses" },
+
   "/finance/reimbursements": { permission: "viewReimbursements" },
   "/finance/reimbursements/:id": { permission: "viewReimbursements" },
 

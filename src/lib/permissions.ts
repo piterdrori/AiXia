@@ -727,6 +727,9 @@ const ROUTE_PERMISSIONS: Record<string, RoutePermission> = {
 
   "/finance/transactions/expenses-payments-made": { permission: "viewFinance" },
   "/finance/transactions/expenses-payments-made/new": { permission: "recordPaymentsMade" },
+  "/finance/transactions/expenses-payments-made/review/:id": { permission: "viewFinance" },
+  "/finance/transactions/expenses-payments-made/funding-batches/new": { permission: "recordPaymentsMade" },
+  "/finance/transactions/expenses-payments-made/funding-batches/:id": { permission: "viewFinance" },
   "/finance/transactions/expenses-payments-made/:id": { permission: "viewFinance" },
 
   "/finance/reimbursements": { permission: "viewReimbursements" },

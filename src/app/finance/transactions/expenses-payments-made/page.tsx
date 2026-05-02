@@ -376,6 +376,26 @@ function StatusBadge({ value }: { value: string | null | undefined }) {
   );
 }
 
+function getSoftBadgeToneClasses(
+  tone: "cyan" | "emerald" | "amber" | "rose" | "violet" | "slate"
+) {
+  switch (tone) {
+    case "emerald":
+      return "border-emerald-400/20 bg-emerald-500/10 text-emerald-200";
+    case "amber":
+      return "border-amber-400/20 bg-amber-500/10 text-amber-200";
+    case "rose":
+      return "border-rose-400/20 bg-rose-500/10 text-rose-200";
+    case "violet":
+      return "border-violet-400/20 bg-violet-500/10 text-violet-200";
+    case "cyan":
+      return "border-cyan-400/20 bg-cyan-500/10 text-cyan-200";
+    case "slate":
+    default:
+      return "border-white/10 bg-white/[0.06] text-slate-300";
+  }
+}
+
 function SoftBadge({
   value,
   tone,
@@ -383,12 +403,10 @@ function SoftBadge({
   value: string;
   tone: "cyan" | "emerald" | "amber" | "rose" | "violet" | "slate";
 }) {
-  const toneKey = tone === "slate" ? "manual" : tone === "violet" ? "funding_batch" : tone;
-
   return (
     <span
-      className={`inline-flex max-w-[320px] items-center rounded-full border px-3 py-1 text-[11px] font-semibold uppercase tracking-[0.12em] ${getStatusToneClasses(
-        toneKey
+      className={`inline-flex max-w-[320px] items-center rounded-full border px-3 py-1 text-[11px] font-semibold uppercase tracking-[0.12em] ${getSoftBadgeToneClasses(
+        tone
       )}`}
     >
       <span className="truncate">{value}</span>
@@ -1419,7 +1437,7 @@ export default function FinanceExpensesPaymentsMadePage() {
   );
 
   const renderExpenseTable = useCallback(
-    (rows: EnrichedExpense[]) => {
+    (rows: EnrichedExpense[], mode: "active" | "archive" = "active") => {
       return (
         <div className="overflow-x-auto rounded-[24px] border border-white/10 bg-black/20">
           <div className="max-h-[720px] overflow-y-auto">
@@ -1459,7 +1477,7 @@ export default function FinanceExpensesPaymentsMadePage() {
                 </tr>
               </thead>
 
-              <tbody>{renderExpenseRows(rows, "active")}</tbody>
+              <tbody>{renderExpenseRows(rows, mode)}</tbody>
             </table>
           </div>
         </div>
@@ -1622,7 +1640,7 @@ export default function FinanceExpensesPaymentsMadePage() {
   );
 
   const renderExecutionTable = useCallback(
-    (rows: ExecutionRecord[]) => {
+    (rows: ExecutionRecord[], mode: "active" | "archive" = "active") => {
       return (
         <div className="overflow-x-auto rounded-[24px] border border-white/10 bg-black/20">
           <div className="max-h-[720px] overflow-y-auto">
@@ -1656,7 +1674,7 @@ export default function FinanceExpensesPaymentsMadePage() {
                 </tr>
               </thead>
 
-              <tbody>{renderExecutionRows(rows, "active")}</tbody>
+              <tbody>{renderExecutionRows(rows, mode)}</tbody>
             </table>
           </div>
         </div>

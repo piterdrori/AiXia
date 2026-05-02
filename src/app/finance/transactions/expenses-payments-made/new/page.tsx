@@ -107,8 +107,6 @@ type ExistingExpenseAllocationRow = {
 };
 
 type ExpenseAllocationDraft = {
-
-type ExpenseAllocationDraft = {
   expenseId: string;
   paymentCurrencyAmount: string;
 };

@@ -1801,34 +1801,58 @@ export default function FinanceExpensesPaymentsMadePage() {
               </p>
             </div>
 
-            <div className="flex flex-col gap-3 sm:flex-row sm:items-center">
-              <div className="relative">
-                <Search className="pointer-events-none absolute left-4 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-500" />
-                <input
-                  value={searchQuery}
-                  onChange={(event) => setSearchQuery(event.target.value)}
-                  placeholder="Search workflow or payment execution..."
-                  className="h-11 w-full rounded-2xl border border-white/10 bg-black/20 pl-11 pr-4 text-sm text-white outline-none transition placeholder:text-slate-600 focus:border-cyan-400/30 focus:bg-black/30 sm:w-[360px]"
-                />
+            <div className="flex flex-col gap-3 xl:items-end">
+              <div className="flex flex-col gap-3 sm:flex-row sm:items-center">
+                <div className="relative">
+                  <Search className="pointer-events-none absolute left-4 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-500" />
+                  <input
+                    value={searchQuery}
+                    onChange={(event) => setSearchQuery(event.target.value)}
+                    placeholder="Search workflow or payment execution..."
+                    className="h-11 w-full rounded-2xl border border-white/10 bg-black/20 pl-11 pr-4 text-sm text-white outline-none transition placeholder:text-slate-600 focus:border-cyan-400/30 focus:bg-black/30 sm:w-[360px]"
+                  />
+                </div>
+
+                <button
+                  type="button"
+                  onClick={() => openArchiveModal("workflow")}
+                  className="inline-flex h-11 items-center justify-center gap-2 rounded-2xl border border-white/10 bg-white/[0.05] px-4 text-sm font-semibold text-slate-300 transition hover:border-white/20 hover:bg-white/[0.08] hover:text-white"
+                >
+                  <Archive className="h-4 w-4" />
+                  Workflow Archive
+                </button>
+
+                <button
+                  type="button"
+                  onClick={() => openArchiveModal("execution")}
+                  className="inline-flex h-11 items-center justify-center gap-2 rounded-2xl border border-violet-400/20 bg-violet-500/10 px-4 text-sm font-semibold text-violet-100 transition hover:bg-violet-500/15"
+                >
+                  <WalletCards className="h-4 w-4" />
+                  Execution Archive
+                </button>
               </div>
 
-              <button
-                type="button"
-                onClick={() => openArchiveModal("workflow")}
-                className="inline-flex h-11 items-center justify-center gap-2 rounded-2xl border border-white/10 bg-white/[0.05] px-4 text-sm font-semibold text-slate-300 transition hover:border-white/20 hover:bg-white/[0.08] hover:text-white"
-              >
-                <Archive className="h-4 w-4" />
-                Workflow Archive
-              </button>
+              <div className="flex flex-col gap-3 sm:flex-row sm:items-center">
+                <button
+                  type="button"
+                  onClick={() =>
+                    navigate("/finance/transactions/expenses-payments-made/funding-batches/new")
+                  }
+                  className="inline-flex h-11 items-center justify-center gap-2 rounded-2xl border border-violet-400/20 bg-violet-500/10 px-4 text-sm font-semibold text-violet-100 transition hover:bg-violet-500/15"
+                >
+                  <Archive className="h-4 w-4" />
+                  Allocate New Funds
+                </button>
 
-              <button
-                type="button"
-                onClick={() => openArchiveModal("execution")}
-                className="inline-flex h-11 items-center justify-center gap-2 rounded-2xl border border-violet-400/20 bg-violet-500/10 px-4 text-sm font-semibold text-violet-100 transition hover:bg-violet-500/15"
-              >
-                <WalletCards className="h-4 w-4" />
-                Execution Archive
-              </button>
+                <button
+                  type="button"
+                  onClick={() => navigate("/finance/transactions/expenses-payments-made/new")}
+                  className="inline-flex h-11 items-center justify-center gap-2 rounded-2xl border border-emerald-400/20 bg-emerald-500/10 px-4 text-sm font-semibold text-emerald-100 transition hover:bg-emerald-500/15"
+                >
+                  <WalletCards className="h-4 w-4" />
+                  Disburse Funds Across Expenses
+                </button>
+              </div>
             </div>
           </div>
 

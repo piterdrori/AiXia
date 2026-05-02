@@ -460,74 +460,7 @@ export default function FinanceExpenseFundingBatchNewPage() {
     [fundingProofFile]
   );
 
-          const uploadFundingProof = useCallback(
-    async (batchId: string) => {
-      if (!fundingProofFile) return false;
-
-      const authResult = await supabase.auth.getUser();
-      if (authResult.error) throw authResult.error;
-
-      const userId = authResult.data.user?.id ?? null;
-      const resolvedMimeType = resolveMimeType(fundingProofFile);
-      const safeFileName = fundingProofFile.name.replace(/[^\w.\-]+/g, "_");
-      const filePath = `${batchId}/${Date.now()}-${safeFileName}`;
-
-      const uploadResult = await supabase.storage
-        .from("finance-expense-funding-batch-documents")
-        .upload(filePath, fundingProofFile, {
-          contentType: resolvedMimeType,
-          upsert: false,
-        });
-
-      if (uploadResult.error) throw uploadResult.error;
-
-      const fileUploadResult = await supabase
-        .from("file_uploads")
-        .insert({
-          user_id: userId,
-          file_name: fundingProofFile.name,
-          file_path: uploadResult.data.path,
-          file_size: fundingProofFile.size,
-          mime_type: resolvedMimeType,
-          entity_type: "finance_expense_funding_batch",
-        })
-        .select("id")
-        .single();
-
-      if (fileUploadResult.error) throw fileUploadResult.error;
-
-      const attachmentResult = await supabase.from("finance_record_attachments").insert({
-        entity_type: "finance_expense_funding_batch",
-        entity_id: batchId,
-        file_upload_id: fileUploadResult.data.id,
-        uploaded_by: userId,
-        notes: "Funding pool proof",
-        metadata: {
-          bucket: "finance-expense-funding-batch-documents",
-          uploaded_from: "funding_pool_new_page",
-          resolved_mime_type: resolvedMimeType,
-        },
-      });
-
-      if (attachmentResult.error) throw attachmentResult.error;
-
-      const documentationResult = await supabase.rpc(
-        "finance_mark_expense_funding_batch_documentation",
-        {
-          p_batch_id: batchId,
-          p_documentation_status: "uploaded",
-          p_notes: "Funding pool proof uploaded.",
-        }
-      );
-
-      if (documentationResult.error) throw documentationResult.error;
-
-      return true;
-    },
-    [fundingProofFile]
-  );
-
-          const saveFundingBatch = useCallback(
+  const saveFundingBatch = useCallback(
     async (saveMode: SaveMode) => {
       if (isSaving) return;
 

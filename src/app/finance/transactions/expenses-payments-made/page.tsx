@@ -13,7 +13,6 @@ import {
   Loader2,
   PackageCheck,
   Receipt,
-  RefreshCcw,
   Search,
   ShieldCheck,
   ShoppingCart,
@@ -91,6 +90,16 @@ type EmployeeRefRow = {
     source_role?: string | null;
     source_status?: string | null;
   } | null;
+};
+
+type ProfileRow = {
+  user_id: string;
+  full_name: string | null;
+  display_name: string | null;
+  email: string | null;
+  company: string | null;
+  job_title: string | null;
+  member_type: string | null;
 };
 
 type BankAccountRow = {
@@ -174,6 +183,8 @@ type EnrichedExpense = ExpenseRow & {
   targetAmount: number;
   allocatedAmount: number;
   documentationLabel: string;
+  nextStepLabel: string;
+  nextStepTone: "cyan" | "emerald" | "amber" | "rose" | "violet" | "slate";
 };
 
 type EnrichedFundingBatch = FundingBatchRow & {
@@ -243,38 +254,44 @@ const tabs: Array<{
 }> = [
   {
     key: "permission_requests",
-    label: "Permission Requests",
-    description: "Approve, reject, or request more information before spending.",
+    label: "Spend Approval",
+    description:
+      "Approve, reject, or request more information before the person spends money.",
   },
   {
     key: "approved_to_spend",
-    label: "Approved To Spend",
-    description: "Expenses approved before they are made.",
+    label: "Approved Expenses",
+    description:
+      "Expenses approved by Finance/Admin and waiting for the user to spend and upload proof.",
   },
   {
     key: "documentation",
-    label: "Documentation",
-    description: "Verify documents and online shopping records after expense is made.",
+    label: "Document Review",
+    description:
+      "Track approved expenses waiting for proof, then review uploaded receipts, screenshots, invoices, and links.",
   },
   {
     key: "verified_for_payment",
-    label: "Ready For Payment",
-    description: "Verified operating expenses ready for funding batch and payment.",
+    label: "Ready to Pay",
+    description:
+      "Verified operating expenses that are ready for funding allocation or direct payment.",
   },
   {
     key: "funding_batches",
-    label: "Funding Batches",
-    description: "End-of-month allocation batches and funding documentation.",
+    label: "Funding Allocation",
+    description:
+      "Monthly or grouped funding allocation batches prepared before payments are made.",
   },
   {
     key: "payments",
-    label: "Operating Expense Payments Made",
-    description: "Only operating expense Payment Made records linked to expenses.",
+    label: "Expense Payments",
+    description: "Payment Made records created for operating expenses and reimbursements.",
   },
   {
     key: "recipient_tracking",
-    label: "Recipient Tracking",
-    description: "Track who got paid and whether they confirmed receipt.",
+    label: "Recipient Confirmation",
+    description:
+      "Track whether the person who made the expense confirmed that payment was received.",
   },
 ];
 
@@ -344,6 +361,26 @@ function StatusBadge({ value }: { value: string | null | undefined }) {
   );
 }
 
+function SoftBadge({
+  value,
+  tone,
+}: {
+  value: string;
+  tone: "cyan" | "emerald" | "amber" | "rose" | "violet" | "slate";
+}) {
+  const toneKey = tone === "slate" ? "manual" : tone === "violet" ? "admin_closed" : tone;
+
+  return (
+    <span
+      className={`inline-flex max-w-[260px] items-center rounded-full border px-3 py-1 text-[11px] font-semibold uppercase tracking-[0.12em] ${getStatusToneClasses(
+        toneKey
+      )}`}
+    >
+      <span className="truncate">{value}</span>
+    </span>
+  );
+}
+
 function ActionButton({
   label,
   icon: Icon,
@@ -374,7 +411,7 @@ function ActionButton({
       type="button"
       disabled={disabled}
       onClick={onClick}
-      className={`inline-flex h-9 min-w-[128px] items-center justify-center gap-2 whitespace-nowrap rounded-full border px-3 text-[11px] font-semibold uppercase tracking-[0.14em] transition disabled:cursor-not-allowed disabled:opacity-40 ${toneClass}`}
+      className={`inline-flex h-9 min-w-[124px] items-center justify-center gap-2 whitespace-nowrap rounded-full border px-3 text-[11px] font-semibold uppercase tracking-[0.12em] transition disabled:cursor-not-allowed disabled:opacity-40 ${toneClass}`}
     >
       <Icon className="h-3.5 w-3.5 shrink-0" />
       <span>{label}</span>
@@ -411,13 +448,35 @@ function SummaryCard({
   );
 }
 
-function getEmployeeLabel(employee: EmployeeRefRow | null | undefined) {
+function getEmployeeLabel(
+  employee: EmployeeRefRow | null | undefined,
+  profileMap?: Map<string, ProfileRow>
+) {
   if (!employee) return "—";
 
-  const role = employee.metadata?.job_title || employee.metadata?.source_role || employee.mark;
-  const company = employee.metadata?.company;
+  const profile = employee.user_id && profileMap ? profileMap.get(employee.user_id) : null;
 
-  return [employee.code || "Employee", role, company].filter(Boolean).join(" • ");
+  const employeeName =
+    profile?.full_name?.trim() ||
+    profile?.display_name?.trim() ||
+    profile?.email?.trim() ||
+    employee.metadata?.member_type?.trim() ||
+    employee.code?.trim() ||
+    "Employee";
+
+  const role =
+    profile?.job_title?.trim() ||
+    employee.metadata?.job_title?.trim() ||
+    employee.metadata?.source_role?.trim() ||
+    employee.mark?.trim() ||
+    null;
+
+  const company =
+    profile?.company?.trim() ||
+    employee.metadata?.company?.trim() ||
+    null;
+
+  return [employeeName, role, company].filter(Boolean).join(" • ");
 }
 
 function getBankLabel(bank: BankAccountRow | null | undefined) {
@@ -434,10 +493,11 @@ function getBankLabel(bank: BankAccountRow | null | undefined) {
 
 function getExpenseMadeByLabel(
   expense: ExpenseRow,
-  employeeMap: Map<string, EmployeeRefRow>
+  employeeMap: Map<string, EmployeeRefRow>,
+  profileMap: Map<string, ProfileRow>
 ) {
   if (expense.expense_made_by_type === "employee" && expense.employee_ref_id) {
-    return getEmployeeLabel(employeeMap.get(expense.employee_ref_id));
+    return getEmployeeLabel(employeeMap.get(expense.employee_ref_id), profileMap);
   }
 
   if (expense.expense_made_by_type === "owner_management") {
@@ -456,7 +516,74 @@ function getExpenseMadeByLabel(
 }
 
 function getTargetAmount(expense: ExpenseRow) {
-  return toNumber(expense.final_amount || expense.approved_amount || expense.requested_amount || expense.amount);
+  return toNumber(
+    expense.final_amount || expense.approved_amount || expense.requested_amount || expense.amount
+  );
+}
+
+function getNextStep(expense: ExpenseRow): {
+  label: string;
+  tone: "cyan" | "emerald" | "amber" | "rose" | "violet" | "slate";
+} {
+  const requestStatus = expense.request_status || expense.status;
+  const docsStatus = expense.documentation_status;
+
+  if (requestStatus === "approved_to_spend" && docsStatus === "missing") {
+    return {
+      label: "Waiting for user to spend and upload proof",
+      tone: "amber",
+    };
+  }
+
+  if (requestStatus === "approved_to_spend") {
+    return {
+      label: "Approved; user should spend and complete proof",
+      tone: "cyan",
+    };
+  }
+
+  if (requestStatus === "expense_made" && docsStatus === "missing") {
+    return {
+      label: "Expense made; upload proof required",
+      tone: "amber",
+    };
+  }
+
+  if (requestStatus === "documentation_submitted") {
+    return {
+      label: "Ready for Finance document review",
+      tone: "cyan",
+    };
+  }
+
+  if (requestStatus === "documentation_issue") {
+    return {
+      label: "Waiting for corrected document proof",
+      tone: "rose",
+    };
+  }
+
+  if (
+    requestStatus === "verified_for_payment" ||
+    expense.finance_review_status === "approved_for_payment"
+  ) {
+    return {
+      label: "Ready for funding allocation or payment",
+      tone: "emerald",
+    };
+  }
+
+  if (["partially_covered", "covered"].includes(expense.coverage_status || "")) {
+    return {
+      label: "Waiting for recipient confirmation",
+      tone: "violet",
+    };
+  }
+
+  return {
+    label: "Review current workflow status",
+    tone: "slate",
+  };
 }
 
 export default function FinanceExpensesPaymentsMadePage() {
@@ -466,6 +593,7 @@ export default function FinanceExpensesPaymentsMadePage() {
   const [expenses, setExpenses] = useState<ExpenseRow[]>([]);
   const [companies, setCompanies] = useState<CompanyRow[]>([]);
   const [employees, setEmployees] = useState<EmployeeRefRow[]>([]);
+  const [profiles, setProfiles] = useState<ProfileRow[]>([]);
   const [bankAccounts, setBankAccounts] = useState<BankAccountRow[]>([]);
   const [fundingBatches, setFundingBatches] = useState<FundingBatchRow[]>([]);
   const [fundingBatchLines, setFundingBatchLines] = useState<FundingBatchLineRow[]>([]);
@@ -473,6 +601,8 @@ export default function FinanceExpensesPaymentsMadePage() {
   const [expenseAllocations, setExpenseAllocations] = useState<ExpenseAllocationRow[]>([]);
   const [searchQuery, setSearchQuery] = useState("");
   const [isLoading, setIsLoading] = useState(true);
+  const [isRefreshing, setIsRefreshing] = useState(false);
+  const [hasLoadedOnce, setHasLoadedOnce] = useState(false);
   const [isRunningAction, setIsRunningAction] = useState(false);
   const [pageError, setPageError] = useState<string | null>(null);
   const [pageMessage, setPageMessage] = useState<string | null>(null);
@@ -485,12 +615,18 @@ export default function FinanceExpensesPaymentsMadePage() {
     return new Map(employees.map((employee) => [employee.id, employee]));
   }, [employees]);
 
+  const profileMap = useMemo(() => {
+    return new Map(profiles.map((profile) => [profile.user_id, profile]));
+  }, [profiles]);
+
   const bankAccountMap = useMemo(() => {
     return new Map(bankAccounts.map((bank) => [bank.id, bank]));
   }, [bankAccounts]);
 
   const activeFundingBatches = useMemo(() => {
-    return fundingBatches.filter((batch) => !["archived", "deleted", "cancelled"].includes(batch.status));
+    return fundingBatches.filter(
+      (batch) => !["archived", "deleted", "cancelled"].includes(batch.status)
+    );
   }, [fundingBatches]);
 
   const enrichedExpenses = useMemo<EnrichedExpense[]>(() => {
@@ -503,21 +639,25 @@ export default function FinanceExpensesPaymentsMadePage() {
           0
         );
 
+      const nextStep = getNextStep(expense);
+
       return {
         ...expense,
         companyName: expense.company_id
           ? companyMap.get(expense.company_id)?.name || "Unknown company"
           : "No company",
-        madeByLabel: getExpenseMadeByLabel(expense, employeeMap),
+        madeByLabel: getExpenseMadeByLabel(expense, employeeMap, profileMap),
         targetAmount: getTargetAmount(expense),
         allocatedAmount: allocationTotal,
         documentationLabel:
           expense.documentation_status === "missing"
             ? "Missing"
             : formatLabel(expense.documentation_status),
+        nextStepLabel: nextStep.label,
+        nextStepTone: nextStep.tone,
       };
     });
-  }, [companyMap, employeeMap, expenseAllocations, expenses]);
+  }, [companyMap, employeeMap, expenseAllocations, expenses, profileMap]);
 
   const enrichedFundingBatches = useMemo<EnrichedFundingBatch[]>(() => {
     return fundingBatches.map((batch) => ({
@@ -526,7 +666,9 @@ export default function FinanceExpensesPaymentsMadePage() {
       bankLabel: batch.funding_bank_account_id
         ? getBankLabel(bankAccountMap.get(batch.funding_bank_account_id))
         : "No bank selected",
-      lineCount: fundingBatchLines.filter((line) => line.funding_batch_id === batch.id && line.status !== "cancelled").length,
+      lineCount: fundingBatchLines.filter(
+        (line) => line.funding_batch_id === batch.id && line.status !== "cancelled"
+      ).length,
     }));
   }, [bankAccountMap, companyMap, fundingBatchLines, fundingBatches]);
 
@@ -576,6 +718,7 @@ export default function FinanceExpensesPaymentsMadePage() {
         expense.recipient_confirmation_status,
         expense.online_platform,
         expense.online_order_number,
+        expense.nextStepLabel,
       ]
         .filter(Boolean)
         .join(" ")
@@ -636,9 +779,12 @@ export default function FinanceExpensesPaymentsMadePage() {
   );
 
   const documentationRows = filteredExpenses.filter((expense) =>
-    ["expense_made", "documentation_submitted", "documentation_issue"].includes(
-      expense.request_status || ""
-    )
+    [
+      "approved_to_spend",
+      "expense_made",
+      "documentation_submitted",
+      "documentation_issue",
+    ].includes(expense.request_status || "")
   );
 
   const verifiedRows = filteredExpenses.filter(
@@ -647,16 +793,20 @@ export default function FinanceExpensesPaymentsMadePage() {
       expense.finance_review_status === "approved_for_payment"
   );
 
-  const recipientTrackingRows = filteredExpenses.filter((expense) =>
-    ["partially_covered", "covered"].includes(expense.coverage_status || "") ||
-    ["pending_confirmation", "received_confirmed", "not_received", "disputed"].includes(
-      expense.recipient_confirmation_status || ""
-    )
+  const recipientTrackingRows = filteredExpenses.filter(
+    (expense) =>
+      ["partially_covered", "covered"].includes(expense.coverage_status || "") ||
+      ["pending_confirmation", "received_confirmed", "not_received", "disputed"].includes(
+        expense.recipient_confirmation_status || ""
+      )
   );
 
   const metrics = useMemo(() => {
     const activeExpenses = enrichedExpenses.filter(
-      (expense) => !["archived", "deleted", "cancelled"].includes(expense.request_status || expense.status)
+      (expense) =>
+        !["archived", "deleted", "cancelled"].includes(
+          expense.request_status || expense.status
+        )
     );
 
     return {
@@ -684,194 +834,212 @@ export default function FinanceExpensesPaymentsMadePage() {
     verifiedRows,
   ]);
 
-  const loadWorkbench = useCallback(async () => {
-    setIsLoading(true);
-    setPageError(null);
+  const loadWorkbench = useCallback(
+    async (mode: "initial" | "silent" = "initial") => {
+      if (mode === "initial" && !hasLoadedOnce) {
+        setIsLoading(true);
+      } else {
+        setIsRefreshing(true);
+      }
 
-    try {
-      const [
-        expensesResult,
-        companiesResult,
-        employeesResult,
-        bankAccountsResult,
-        fundingBatchesResult,
-        fundingBatchLinesResult,
-        paymentsResult,
-        allocationsResult,
-      ] = await Promise.all([
-        supabase
-          .from("finance_expenses")
-          .select(
-            [
-              "id",
-              "expense_number",
-              "title",
-              "description",
-              "amount",
-              "requested_amount",
-              "approved_amount",
-              "final_amount",
-              "currency_code",
-              "expense_date",
-              "expense_type",
-              "status",
-              "approval_status",
-              "payment_status",
-              "request_status",
-              "documentation_status",
-              "finance_review_status",
-              "funding_status",
-              "coverage_status",
-              "recipient_confirmation_status",
-              "company_id",
-              "employee_ref_id",
-              "expense_made_by_type",
-              "responsible_person_name",
-              "other_made_by_explanation",
-              "expense_source_name",
-              "online_platform",
-              "online_order_number",
-              "online_confirmation_status",
-              "verified_for_payment_at",
-              "verification_notes",
-              "metadata",
-              "created_at",
-              "updated_at",
-            ].join(", ")
-          )
-          .order("updated_at", { ascending: false })
-          .limit(500),
+      setPageError(null);
 
-        supabase.from("finance_companies").select("id, name").order("name"),
+      try {
+        const [
+          expensesResult,
+          companiesResult,
+          employeesResult,
+          profilesResult,
+          bankAccountsResult,
+          fundingBatchesResult,
+          fundingBatchLinesResult,
+          paymentsResult,
+          allocationsResult,
+        ] = await Promise.all([
+          supabase
+            .from("finance_expenses")
+            .select(
+              [
+                "id",
+                "expense_number",
+                "title",
+                "description",
+                "amount",
+                "requested_amount",
+                "approved_amount",
+                "final_amount",
+                "currency_code",
+                "expense_date",
+                "expense_type",
+                "status",
+                "approval_status",
+                "payment_status",
+                "request_status",
+                "documentation_status",
+                "finance_review_status",
+                "funding_status",
+                "coverage_status",
+                "recipient_confirmation_status",
+                "company_id",
+                "employee_ref_id",
+                "expense_made_by_type",
+                "responsible_person_name",
+                "other_made_by_explanation",
+                "expense_source_name",
+                "online_platform",
+                "online_order_number",
+                "online_confirmation_status",
+                "verified_for_payment_at",
+                "verification_notes",
+                "metadata",
+                "created_at",
+                "updated_at",
+              ].join(", ")
+            )
+            .order("updated_at", { ascending: false })
+            .limit(500),
 
-        supabase
-          .from("finance_employee_refs")
-          .select("id, user_id, code, status, mark, metadata")
-          .order("code"),
+          supabase.from("finance_companies").select("id, name").order("name"),
 
-        supabase
-          .from("finance_bank_accounts")
-          .select(
-            "id, name, bank_name, institution_name, masked_account_number, currency_code, company_id, is_default"
-          )
-          .order("name"),
+          supabase
+            .from("finance_employee_refs")
+            .select("id, user_id, code, status, mark, metadata")
+            .order("code"),
 
-        supabase
-          .from("finance_expense_funding_batches")
-          .select(
-            "id, batch_number, funding_company_id, funding_bank_account_id, allocation_date, currency_code, allocated_amount, status, documentation_status, notes, created_at, updated_at"
-          )
-          .order("updated_at", { ascending: false })
-          .limit(300),
+          supabase
+            .from("profiles")
+            .select("user_id, full_name, display_name, email, company, job_title, member_type")
+            .order("full_name"),
 
-        supabase
-          .from("finance_expense_funding_batch_lines")
-          .select(
-            "id, funding_batch_id, expense_id, approved_amount, allocated_amount, currency_code, status"
-          )
-          .limit(1000),
+          supabase
+            .from("finance_bank_accounts")
+            .select(
+              "id, name, bank_name, institution_name, masked_account_number, currency_code, company_id, is_default"
+            )
+            .order("name"),
 
-        supabase
-          .from("finance_payments_made")
-          .select(
-            [
-              "id",
-              "amount",
-              "payment_date",
-              "payment_method_id",
-              "status",
-              "reference_number",
-              "vendor_id",
-              "bill_id",
-              "notes",
-              "payment_source_type",
-              "expense_funding_batch_id",
-              "recipient_employee_ref_id",
-              "recipient_person_name",
-              "recipient_confirmation_status",
-              "paid_from_company_id",
-              "paid_from_bank_account_id",
-              "payment_currency_code",
-              "converted_amount",
-              "created_at",
-              "updated_at",
-            ].join(", ")
-          )
-          .eq("payment_source_type", "operating_expense")
-          .order("updated_at", { ascending: false })
-          .limit(300),
+          supabase
+            .from("finance_expense_funding_batches")
+            .select(
+              "id, batch_number, funding_company_id, funding_bank_account_id, allocation_date, currency_code, allocated_amount, status, documentation_status, notes, created_at, updated_at"
+            )
+            .order("updated_at", { ascending: false })
+            .limit(300),
 
-        supabase
-          .from("finance_payment_made_expense_allocations")
-          .select(
-            [
-              "id",
-              "payment_made_id",
-              "expense_id",
-              "funding_batch_id",
-              "funding_company_id",
-              "paid_from_bank_account_id",
-              "recipient_employee_ref_id",
-              "recipient_person_name",
-              "allocated_amount",
-              "currency_code",
-              "converted_amount",
-              "recipient_confirmation_status",
-              "created_at",
-            ].join(", ")
-          )
-          .limit(1000),
-      ]);
+          supabase
+            .from("finance_expense_funding_batch_lines")
+            .select(
+              "id, funding_batch_id, expense_id, approved_amount, allocated_amount, currency_code, status"
+            )
+            .limit(1000),
 
-      if (expensesResult.error) throw expensesResult.error;
-      if (companiesResult.error) throw companiesResult.error;
-      if (employeesResult.error) throw employeesResult.error;
-      if (bankAccountsResult.error) throw bankAccountsResult.error;
-      if (fundingBatchesResult.error) throw fundingBatchesResult.error;
-      if (fundingBatchLinesResult.error) throw fundingBatchLinesResult.error;
-      if (paymentsResult.error) throw paymentsResult.error;
-      if (allocationsResult.error) throw allocationsResult.error;
+          supabase
+            .from("finance_payments_made")
+            .select(
+              [
+                "id",
+                "amount",
+                "payment_date",
+                "payment_method_id",
+                "status",
+                "reference_number",
+                "vendor_id",
+                "bill_id",
+                "notes",
+                "payment_source_type",
+                "expense_funding_batch_id",
+                "recipient_employee_ref_id",
+                "recipient_person_name",
+                "recipient_confirmation_status",
+                "paid_from_company_id",
+                "paid_from_bank_account_id",
+                "payment_currency_code",
+                "converted_amount",
+                "created_at",
+                "updated_at",
+              ].join(", ")
+            )
+            .eq("payment_source_type", "operating_expense")
+            .order("updated_at", { ascending: false })
+            .limit(300),
 
-      setExpenses((expensesResult.data || []) as unknown as ExpenseRow[]);
-      setCompanies((companiesResult.data || []) as CompanyRow[]);
-      setEmployees((employeesResult.data || []) as EmployeeRefRow[]);
-      setBankAccounts((bankAccountsResult.data || []) as BankAccountRow[]);
-      setFundingBatches((fundingBatchesResult.data || []) as FundingBatchRow[]);
-      setFundingBatchLines(
-        (fundingBatchLinesResult.data || []) as FundingBatchLineRow[]
-      );
-      setPayments((paymentsResult.data || []) as unknown as PaymentMadeRow[]);
-      setExpenseAllocations(
-        (allocationsResult.data || []) as unknown as ExpenseAllocationRow[]
-      );
-    } catch (error) {
-      console.error("Failed to load Payments Made workbench:", error);
-      setPageError(
-        error instanceof Error
-          ? error.message
-          : "Failed to load Payments Made workbench."
-      );
-    } finally {
-      setIsLoading(false);
-    }
-  }, []);
+          supabase
+            .from("finance_payment_made_expense_allocations")
+            .select(
+              [
+                "id",
+                "payment_made_id",
+                "expense_id",
+                "funding_batch_id",
+                "funding_company_id",
+                "paid_from_bank_account_id",
+                "recipient_employee_ref_id",
+                "recipient_person_name",
+                "allocated_amount",
+                "currency_code",
+                "converted_amount",
+                "recipient_confirmation_status",
+                "created_at",
+              ].join(", ")
+            )
+            .limit(1000),
+        ]);
+
+        if (expensesResult.error) throw expensesResult.error;
+        if (companiesResult.error) throw companiesResult.error;
+        if (employeesResult.error) throw employeesResult.error;
+        if (profilesResult.error) throw profilesResult.error;
+        if (bankAccountsResult.error) throw bankAccountsResult.error;
+        if (fundingBatchesResult.error) throw fundingBatchesResult.error;
+        if (fundingBatchLinesResult.error) throw fundingBatchLinesResult.error;
+        if (paymentsResult.error) throw paymentsResult.error;
+        if (allocationsResult.error) throw allocationsResult.error;
+
+        setExpenses((expensesResult.data || []) as unknown as ExpenseRow[]);
+        setCompanies((companiesResult.data || []) as CompanyRow[]);
+        setEmployees((employeesResult.data || []) as EmployeeRefRow[]);
+        setProfiles((profilesResult.data || []) as ProfileRow[]);
+        setBankAccounts((bankAccountsResult.data || []) as BankAccountRow[]);
+        setFundingBatches((fundingBatchesResult.data || []) as FundingBatchRow[]);
+        setFundingBatchLines(
+          (fundingBatchLinesResult.data || []) as FundingBatchLineRow[]
+        );
+        setPayments((paymentsResult.data || []) as unknown as PaymentMadeRow[]);
+        setExpenseAllocations(
+          (allocationsResult.data || []) as unknown as ExpenseAllocationRow[]
+        );
+        setHasLoadedOnce(true);
+      } catch (error) {
+        console.error("Failed to load operating expense payment control:", error);
+        setPageError(
+          error instanceof Error
+            ? error.message
+            : "Failed to load operating expense payment control."
+        );
+      } finally {
+        setIsLoading(false);
+        setIsRefreshing(false);
+      }
+    },
+    [hasLoadedOnce]
+  );
 
   useEffect(() => {
-    void loadWorkbench();
+    void loadWorkbench("initial");
   }, [loadWorkbench]);
 
   useEffect(() => {
     const channel = supabase
-      .channel("finance-payments-made-workbench")
+      .channel("finance-operating-expense-payment-control")
       .on(
         "postgres_changes",
         { event: "*", schema: "public", table: "finance_expenses" },
-        () => void loadWorkbench()
+        () => void loadWorkbench("silent")
       )
       .on(
         "postgres_changes",
         { event: "*", schema: "public", table: "finance_payments_made" },
-        () => void loadWorkbench()
+        () => void loadWorkbench("silent")
       )
       .on(
         "postgres_changes",
@@ -880,7 +1048,7 @@ export default function FinanceExpensesPaymentsMadePage() {
           schema: "public",
           table: "finance_payment_made_expense_allocations",
         },
-        () => void loadWorkbench()
+        () => void loadWorkbench("silent")
       )
       .on(
         "postgres_changes",
@@ -889,7 +1057,7 @@ export default function FinanceExpensesPaymentsMadePage() {
           schema: "public",
           table: "finance_expense_funding_batches",
         },
-        () => void loadWorkbench()
+        () => void loadWorkbench("silent")
       )
       .on(
         "postgres_changes",
@@ -898,12 +1066,12 @@ export default function FinanceExpensesPaymentsMadePage() {
           schema: "public",
           table: "finance_expense_funding_batch_lines",
         },
-        () => void loadWorkbench()
+        () => void loadWorkbench("silent")
       )
       .subscribe();
 
     const intervalId = window.setInterval(() => {
-      void loadWorkbench();
+      void loadWorkbench("silent");
     }, 60000);
 
     return () => {
@@ -927,7 +1095,7 @@ export default function FinanceExpensesPaymentsMadePage() {
         if (result.error) throw result.error;
 
         setPageMessage(successMessage);
-        await loadWorkbench();
+        await loadWorkbench("silent");
       } catch (error) {
         console.error(`Failed to run ${rpcName}:`, error);
         setPageError(error instanceof Error ? error.message : "Action failed.");
@@ -962,7 +1130,7 @@ export default function FinanceExpensesPaymentsMadePage() {
           p_approved_amount: amount,
           p_notes: notes,
         },
-        "Expense approved to spend."
+        "Expense approved. It now appears in Document Review waiting for the user to spend and upload proof."
       );
     },
     [runExpenseRpc]
@@ -1006,7 +1174,13 @@ export default function FinanceExpensesPaymentsMadePage() {
     async (expense: EnrichedExpense) => {
       const amountInput = window.prompt(
         "Final expense amount",
-        String(expense.final_amount || expense.approved_amount || expense.requested_amount || expense.amount || "")
+        String(
+          expense.final_amount ||
+            expense.approved_amount ||
+            expense.requested_amount ||
+            expense.amount ||
+            ""
+        )
       );
 
       if (amountInput === null) return;
@@ -1034,6 +1208,11 @@ export default function FinanceExpensesPaymentsMadePage() {
 
   const verifyDocumentation = useCallback(
     async (expense: EnrichedExpense) => {
+      if (expense.documentation_status === "missing") {
+        setPageError("This expense is still missing proof. The user must upload a receipt, screenshot, invoice, document, or link from the expense ID page before Finance can verify it.");
+        return;
+      }
+
       const notes = window.prompt("Verification notes, optional", "") || null;
 
       await runExpenseRpc(
@@ -1066,7 +1245,10 @@ export default function FinanceExpensesPaymentsMadePage() {
   );
 
   const confirmOnlineShopping = useCallback(
-    async (expense: EnrichedExpense, status: "confirmed" | "issue_found" | "cancelled_refunded") => {
+    async (
+      expense: EnrichedExpense,
+      status: "confirmed" | "issue_found" | "cancelled_refunded"
+    ) => {
       const notes = window.prompt("Online shopping confirmation notes, optional", "") || null;
 
       await runExpenseRpc(
@@ -1087,7 +1269,10 @@ export default function FinanceExpensesPaymentsMadePage() {
   }, [navigate]);
 
   const renderExpenseTable = useCallback(
-    (rows: EnrichedExpense[], mode: "permission" | "approved" | "documentation" | "verified" | "recipient") => {
+    (
+      rows: EnrichedExpense[],
+      mode: "permission" | "approved" | "documentation" | "verified" | "recipient"
+    ) => {
       if (rows.length === 0) {
         return (
           <div className="rounded-[24px] border border-dashed border-white/10 bg-black/20 px-6 py-12 text-center">
@@ -1103,26 +1288,20 @@ export default function FinanceExpensesPaymentsMadePage() {
       return (
         <div className="overflow-x-auto rounded-[24px] border border-white/10 bg-black/20">
           <div className="max-h-[720px] overflow-y-auto">
-            <table className="w-full min-w-[1720px] border-collapse">
+            <table className="w-full min-w-[1500px] border-collapse">
               <thead className="sticky top-0 z-20 border-b border-white/10 bg-black/70 backdrop-blur-xl">
                 <tr>
                   <th className="px-5 py-4 text-left text-[11px] font-semibold uppercase tracking-[0.18em] text-slate-500">
                     Expense
                   </th>
                   <th className="px-5 py-4 text-left text-[11px] font-semibold uppercase tracking-[0.18em] text-slate-500">
-                    Company
-                  </th>
-                  <th className="px-5 py-4 text-left text-[11px] font-semibold uppercase tracking-[0.18em] text-slate-500">
                     Made By
                   </th>
                   <th className="px-5 py-4 text-left text-[11px] font-semibold uppercase tracking-[0.18em] text-slate-500">
-                    Type / Source
+                    Type
                   </th>
                   <th className="px-5 py-4 text-right text-[11px] font-semibold uppercase tracking-[0.18em] text-slate-500">
                     Amount
-                  </th>
-                  <th className="px-5 py-4 text-left text-[11px] font-semibold uppercase tracking-[0.18em] text-slate-500">
-                    Request
                   </th>
                   <th className="px-5 py-4 text-left text-[11px] font-semibold uppercase tracking-[0.18em] text-slate-500">
                     Docs
@@ -1131,12 +1310,12 @@ export default function FinanceExpensesPaymentsMadePage() {
                     Review
                   </th>
                   <th className="px-5 py-4 text-left text-[11px] font-semibold uppercase tracking-[0.18em] text-slate-500">
-                    Funding
-                  </th>
-                  <th className="px-5 py-4 text-left text-[11px] font-semibold uppercase tracking-[0.18em] text-slate-500">
                     Coverage
                   </th>
-                  <th className="sticky right-0 min-w-[180px] bg-black/80 px-4 py-4 text-center text-[11px] font-semibold uppercase tracking-[0.18em] text-slate-500 shadow-[-18px_0_24px_rgba(0,0,0,0.35)] backdrop-blur-xl">
+                  <th className="px-5 py-4 text-left text-[11px] font-semibold uppercase tracking-[0.18em] text-slate-500">
+                    Next Step
+                  </th>
+                  <th className="sticky right-0 min-w-[170px] bg-black/80 px-4 py-4 text-center text-[11px] font-semibold uppercase tracking-[0.18em] text-slate-500 shadow-[-18px_0_24px_rgba(0,0,0,0.35)] backdrop-blur-xl">
                     Actions
                   </th>
                 </tr>
@@ -1148,7 +1327,7 @@ export default function FinanceExpensesPaymentsMadePage() {
                     key={expense.id}
                     className="border-b border-white/5 text-sm text-slate-300 transition hover:bg-white/[0.035]"
                   >
-                    <td className="min-w-[220px] px-5 py-4">
+                    <td className="min-w-[260px] px-5 py-4">
                       <button
                         type="button"
                         onClick={() =>
@@ -1160,24 +1339,28 @@ export default function FinanceExpensesPaymentsMadePage() {
                       >
                         {expense.expense_number || "Expense"}
                       </button>
-                      <div className="mt-1 text-xs text-white">{expense.title}</div>
+                      <div className="mt-1 line-clamp-1 text-xs text-white">
+                        {expense.title}
+                      </div>
                       <div className="mt-1 text-xs text-slate-500">
-                        {formatDate(expense.expense_date)}
+                        {formatDate(expense.expense_date)} • {expense.companyName}
                       </div>
                     </td>
 
-                    <td className="min-w-[180px] px-5 py-4">{expense.companyName}</td>
-                    <td className="min-w-[220px] px-5 py-4">
-                      <div className="font-medium text-slate-200">{expense.madeByLabel}</div>
+                    <td className="min-w-[240px] px-5 py-4">
+                      <div className="line-clamp-1 font-medium text-slate-200">
+                        {expense.madeByLabel}
+                      </div>
                       <div className="mt-1 text-xs text-slate-500">
                         {formatLabel(expense.expense_made_by_type)}
                       </div>
                     </td>
-                    <td className="min-w-[240px] px-5 py-4">
+
+                    <td className="min-w-[200px] px-5 py-4">
                       <div className="font-medium text-slate-200">
                         {formatLabel(expense.expense_type)}
                       </div>
-                      <div className="mt-1 text-xs text-slate-500">
+                      <div className="mt-1 line-clamp-1 text-xs text-slate-500">
                         {expense.expense_source_name || "—"}
                       </div>
                       {expense.expense_type === "online_shopping" ? (
@@ -1186,24 +1369,22 @@ export default function FinanceExpensesPaymentsMadePage() {
                         </div>
                       ) : null}
                     </td>
+
                     <td className="whitespace-nowrap px-5 py-4 text-right font-semibold text-white">
                       {expense.currency_code || "USD"} {formatMoney(expense.targetAmount)}
                       <div className="mt-1 text-xs text-slate-500">
                         Covered {formatMoney(expense.allocatedAmount)}
                       </div>
                     </td>
-                    <td className="whitespace-nowrap px-5 py-4">
-                      <StatusBadge value={expense.request_status || expense.status} />
-                    </td>
+
                     <td className="whitespace-nowrap px-5 py-4">
                       <StatusBadge value={expense.documentation_status} />
                     </td>
+
                     <td className="whitespace-nowrap px-5 py-4">
                       <StatusBadge value={expense.finance_review_status} />
                     </td>
-                    <td className="whitespace-nowrap px-5 py-4">
-                      <StatusBadge value={expense.funding_status} />
-                    </td>
+
                     <td className="whitespace-nowrap px-5 py-4">
                       <StatusBadge value={expense.coverage_status} />
                       {mode === "recipient" ? (
@@ -1212,7 +1393,15 @@ export default function FinanceExpensesPaymentsMadePage() {
                         </div>
                       ) : null}
                     </td>
-                    <td className="sticky right-0 min-w-[180px] bg-[#05070d]/95 px-4 py-4 shadow-[-18px_0_24px_rgba(0,0,0,0.35)] backdrop-blur-xl">
+
+                    <td className="min-w-[280px] px-5 py-4">
+                      <SoftBadge value={expense.nextStepLabel} tone={expense.nextStepTone} />
+                      <div className="mt-2 text-xs text-slate-500">
+                        {formatLabel(expense.request_status || expense.status)}
+                      </div>
+                    </td>
+
+                    <td className="sticky right-0 min-w-[170px] bg-[#05070d]/95 px-4 py-4 shadow-[-18px_0_24px_rgba(0,0,0,0.35)] backdrop-blur-xl">
                       <div className="flex flex-col items-stretch gap-2">
                         <ActionButton
                           label="Open"
@@ -1253,31 +1442,57 @@ export default function FinanceExpensesPaymentsMadePage() {
                         ) : null}
 
                         {mode === "approved" ? (
-                          <ActionButton
-                            label="Made"
-                            icon={PackageCheck}
-                            tone="emerald"
-                            disabled={isRunningAction}
-                            onClick={() => void markExpenseMade(expense)}
-                          />
+                          <>
+                            <ActionButton
+                              label="Open"
+                              icon={FileText}
+                              tone="amber"
+                              disabled={isRunningAction}
+                              onClick={() =>
+                                navigate(`/finance/transactions/expenses/${expense.id}`)
+                              }
+                            />
+                            <ActionButton
+                              label="Made"
+                              icon={PackageCheck}
+                              tone="emerald"
+                              disabled={isRunningAction}
+                              onClick={() => void markExpenseMade(expense)}
+                            />
+                          </>
                         ) : null}
 
                         {mode === "documentation" ? (
                           <>
-                            <ActionButton
-                              label="Verify"
-                              icon={FileCheck2}
-                              tone="emerald"
-                              disabled={isRunningAction}
-                              onClick={() => void verifyDocumentation(expense)}
-                            />
-                            <ActionButton
-                              label="Issue"
-                              icon={AlertTriangle}
-                              tone="amber"
-                              disabled={isRunningAction}
-                              onClick={() => void markDocumentationIssue(expense)}
-                            />
+                            {expense.documentation_status === "missing" ? (
+                              <ActionButton
+                                label="Upload Page"
+                                icon={FileText}
+                                tone="amber"
+                                disabled={isRunningAction}
+                                onClick={() =>
+                                  navigate(`/finance/transactions/expenses/${expense.id}`)
+                                }
+                              />
+                            ) : (
+                              <>
+                                <ActionButton
+                                  label="Verify"
+                                  icon={FileCheck2}
+                                  tone="emerald"
+                                  disabled={isRunningAction}
+                                  onClick={() => void verifyDocumentation(expense)}
+                                />
+                                <ActionButton
+                                  label="Issue"
+                                  icon={AlertTriangle}
+                                  tone="amber"
+                                  disabled={isRunningAction}
+                                  onClick={() => void markDocumentationIssue(expense)}
+                                />
+                              </>
+                            )}
+
                             {expense.expense_type === "online_shopping" ? (
                               <>
                                 <ActionButton
@@ -1314,16 +1529,16 @@ export default function FinanceExpensesPaymentsMadePage() {
                                 )
                               }
                             />
-                           <ActionButton
+                            <ActionButton
                               label="Pay"
                               icon={WalletCards}
                               tone="emerald"
                               disabled={isRunningAction}
                               onClick={() =>
-                              navigate(
-                             `/finance/transactions/expenses-payments-made/new?source=expense&expenseId=${expense.id}`
-                              )
-                             }
+                                navigate(
+                                  `/finance/transactions/expenses-payments-made/new?source=expense&expenseId=${expense.id}`
+                                )
+                              }
                             />
                           </>
                         ) : null}
@@ -1356,10 +1571,10 @@ export default function FinanceExpensesPaymentsMadePage() {
         <div className="rounded-[24px] border border-dashed border-white/10 bg-black/20 px-6 py-12 text-center">
           <Archive className="mx-auto h-8 w-8 text-slate-500" />
           <div className="mt-4 text-sm font-semibold text-white">
-            No funding batches found
+            No funding allocation records found
           </div>
           <div className="mt-2 text-sm leading-6 text-slate-500">
-            Create an end-of-month funding allocation batch when expenses are verified for payment.
+            Create a monthly or grouped funding allocation when expenses are verified for payment.
           </div>
         </div>
       );
@@ -1372,7 +1587,7 @@ export default function FinanceExpensesPaymentsMadePage() {
             <thead className="sticky top-0 z-20 border-b border-white/10 bg-black/70 backdrop-blur-xl">
               <tr>
                 <th className="px-5 py-4 text-left text-[11px] font-semibold uppercase tracking-[0.18em] text-slate-500">
-                  Batch
+                  Allocation
                 </th>
                 <th className="px-5 py-4 text-left text-[11px] font-semibold uppercase tracking-[0.18em] text-slate-500">
                   Funding Company
@@ -1460,10 +1675,10 @@ export default function FinanceExpensesPaymentsMadePage() {
         <div className="rounded-[24px] border border-dashed border-white/10 bg-black/20 px-6 py-12 text-center">
           <WalletCards className="mx-auto h-8 w-8 text-slate-500" />
           <div className="mt-4 text-sm font-semibold text-white">
-            No Payment Made records found
+            No expense payment records found
           </div>
           <div className="mt-2 text-sm leading-6 text-slate-500">
-            Only operating expense payments linked to expenses will appear here.
+            Operating expense Payment Made records linked to expenses will appear here.
           </div>
         </div>
       );
@@ -1512,14 +1727,14 @@ export default function FinanceExpensesPaymentsMadePage() {
                   className="border-b border-white/5 text-sm text-slate-300 transition hover:bg-white/[0.035]"
                 >
                   <td className="px-5 py-4">
-                  <button
-                     type="button"
-                     onClick={() =>
-                      navigate(`/finance/transactions/expenses-payments-made/${payment.id}`)
-                       }
+                    <button
+                      type="button"
+                      onClick={() =>
+                        navigate(`/finance/transactions/expenses-payments-made/${payment.id}`)
+                      }
                       className="font-semibold text-cyan-200 transition hover:text-cyan-100"
-                       >
-                     {payment.reference_number || "Expense Payment Made"}
+                    >
+                      {payment.reference_number || "Expense Payment"}
                     </button>
                     <div className="mt-1 text-xs text-slate-500">
                       {formatDate(payment.payment_date)}
@@ -1550,13 +1765,13 @@ export default function FinanceExpensesPaymentsMadePage() {
                   </td>
                   <td className="px-5 py-4">
                     <div className="flex justify-end">
-                  <ActionButton
-                   label="Open"
-                   icon={Eye}
-                   tone="cyan"
-                   disabled={isRunningAction}
-                   onClick={() =>
-                   navigate(`/finance/transactions/expenses-payments-made/${payment.id}`)
+                      <ActionButton
+                        label="Open"
+                        icon={Eye}
+                        tone="cyan"
+                        disabled={isRunningAction}
+                        onClick={() =>
+                          navigate(`/finance/transactions/expenses-payments-made/${payment.id}`)
                         }
                       />
                     </div>
@@ -1592,17 +1807,16 @@ export default function FinanceExpensesPaymentsMadePage() {
               <div>
                 <div className="inline-flex w-fit items-center gap-2 rounded-full border border-cyan-400/20 bg-cyan-500/10 px-3 py-1 text-[11px] font-semibold uppercase tracking-[0.22em] text-cyan-200">
                   <Sparkles className="h-3.5 w-3.5" />
-                  Operating Expense Payments Workbench
+                  Operating Expense Payment Control
                 </div>
 
                 <h1 className="mt-4 text-3xl font-semibold tracking-[-0.035em] text-white md:text-5xl">
-                  Operating Expense Payment Execution
+                  Operating Expense Payment Control
                 </h1>
 
                 <p className="mt-3 max-w-4xl text-sm leading-6 text-slate-400 md:text-base md:leading-7">
-                  Review operating expense requests, approve spending, verify documentation,
-                  confirm online shopping records, create funding batches, and track operating
-                  expense Payment Made records and recipient confirmation.
+                  Approve spending, track the user proof upload step, review documents, allocate
+                  funding, create expense payments, and confirm the recipient received payment.
                 </p>
               </div>
 
@@ -1611,7 +1825,7 @@ export default function FinanceExpensesPaymentsMadePage() {
                   <div className="flex items-start justify-between gap-3">
                     <div>
                       <div className="text-[11px] font-semibold uppercase tracking-[0.2em] text-slate-500">
-                        Ready
+                        Ready to Pay
                       </div>
                       <div className="mt-2 text-3xl font-semibold text-emerald-100">
                         {isLoading ? "—" : metrics.readyForPayment}
@@ -1637,7 +1851,7 @@ export default function FinanceExpensesPaymentsMadePage() {
                     <WalletCards className="h-5 w-5 text-cyan-200" />
                   </div>
                   <div className="mt-3 text-xs leading-5 text-slate-500">
-                    Confirmed Payment Made amount.
+                    Confirmed expense payment amount.
                   </div>
                 </div>
               </div>
@@ -1647,21 +1861,21 @@ export default function FinanceExpensesPaymentsMadePage() {
 
         <section className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
           <SummaryCard
-            title="Permission Requests"
+            title="Spend Approval"
             value={isLoading ? "—" : metrics.pendingRequests}
-            detail="Expenses waiting Finance/Admin decision."
+            detail="Expenses waiting for Finance/Admin decision."
             icon={Clock3}
           />
           <SummaryCard
-            title="Documentation"
+            title="Document Review"
             value={isLoading ? "—" : metrics.documentation}
-            detail="Expenses needing document review or correction."
+            detail="Approved expenses waiting for proof or document review."
             icon={FileText}
           />
           <SummaryCard
-            title="Funding Batches"
+            title="Funding Allocation"
             value={isLoading ? "—" : metrics.openBatches}
-            detail="Active end-of-month funding allocations."
+            detail="Active grouped funding allocations."
             icon={Archive}
           />
           <SummaryCard
@@ -1701,24 +1915,16 @@ export default function FinanceExpensesPaymentsMadePage() {
                 <input
                   value={searchQuery}
                   onChange={(event) => setSearchQuery(event.target.value)}
-                  placeholder="Search workbench..."
+                  placeholder="Search payment control..."
                   className="h-11 w-full rounded-2xl border border-white/10 bg-black/20 pl-11 pr-4 text-sm text-white outline-none transition placeholder:text-slate-600 focus:border-cyan-400/30 focus:bg-black/30 sm:w-[340px]"
                 />
               </div>
 
-              <button
-                type="button"
-                disabled={isRunningAction}
-                onClick={() => void loadWorkbench()}
-                className="inline-flex h-11 items-center justify-center gap-2 rounded-2xl border border-white/10 bg-white/[0.05] px-4 text-sm font-semibold text-slate-300 transition hover:bg-white/[0.08] hover:text-white disabled:cursor-not-allowed disabled:opacity-50"
-              >
-                {isLoading ? (
-                  <Loader2 className="h-4 w-4 animate-spin" />
-                ) : (
-                  <RefreshCcw className="h-4 w-4" />
-                )}
-                Reload
-              </button>
+              {isRefreshing ? (
+                <div className="inline-flex h-11 items-center justify-center rounded-2xl border border-white/10 bg-white/[0.04] px-4 text-xs font-semibold uppercase tracking-[0.16em] text-slate-400">
+                  Silent Refresh
+                </div>
+              ) : null}
 
               <button
                 type="button"
@@ -1763,7 +1969,7 @@ export default function FinanceExpensesPaymentsMadePage() {
               <div className="rounded-[24px] border border-white/10 bg-black/20 px-6 py-12 text-center">
                 <Loader2 className="mx-auto h-8 w-8 animate-spin text-cyan-200" />
                 <div className="mt-4 text-sm text-slate-400">
-                  Loading Payments Made workbench...
+                  Loading operating expense payment control...
                 </div>
               </div>
             ) : null}
@@ -1803,7 +2009,7 @@ export default function FinanceExpensesPaymentsMadePage() {
                     </button>
                   </div>
                 </div>
-                
+
                 {renderExpenseTable(verifiedRows, "verified")}
               </div>
             ) : null}

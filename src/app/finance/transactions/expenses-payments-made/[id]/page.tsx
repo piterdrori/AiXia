@@ -517,17 +517,6 @@ function getEmployeeLabel(employee: EmployeeRefRow | null | undefined) {
   return [employee.code || "Employee", role, company].filter(Boolean).join(" • ");
 }
 
-function getExpenseTargetAmount(expense: ExpenseRow | null) {
-  if (!expense) return 0;
-
-  return toNumber(
-    expense.final_amount ||
-      expense.approved_amount ||
-      expense.requested_amount ||
-      expense.amount
-  );
-}
-
 function getExpenseCurrency(expense: ExpenseRow | null, fallback: string) {
   return normalizeCurrencyCode(expense?.currency_code || fallback);
 }
@@ -674,8 +663,7 @@ export default function FinanceExpensesPaymentsMadeDetailPage() {
         expenseCurrencyCode: expenseCurrency,
         exchangeRate:
           getMetadataNumber(allocation.metadata, "exchange_rate") ??
-          toNumber(payment?.exchange_rate) ||
-          null,
+          (toNumber(payment?.exchange_rate) > 0 ? toNumber(payment?.exchange_rate) : null),
         conversionDate:
           getMetadataString(allocation.metadata, "conversion_date") ||
           payment?.exchange_rate_date ||

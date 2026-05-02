@@ -28,6 +28,7 @@ type ExpenseRow = {
   title: string;
   description: string | null;
   amount: number | string | null;
+  currency_code: string | null;
   expense_date: string;
   expense_type: string;
   status: string;
@@ -452,6 +453,7 @@ export default function FinanceExpensesPage() {
                   "title",
                   "description",
                   "amount",
+                  "currency_code",
                   "expense_date",
                   "expense_type",
                   "status",
@@ -522,7 +524,7 @@ export default function FinanceExpensesPage() {
 
           if (allocationsResult.error) throw allocationsResult.error;
 
-          setAllocations((allocationsResult.data || []) as AllocationRow[]);
+          setAllocations((allocationsResult.data || []) as unknown as AllocationRow[]);
         }
 
         setHasLoadedOnce(true);

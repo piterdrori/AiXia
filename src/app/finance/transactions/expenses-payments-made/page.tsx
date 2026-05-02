@@ -1241,7 +1241,9 @@ export default function FinanceExpensesPaymentsMadePage() {
           : "finance_hard_delete_payment_made",
       };
 
-      const args = isBatch ? { p_batch_id: record.id } : { p_payment_id: record.id };
+      const args: Record<string, string> = isBatch
+        ? { p_batch_id: record.id }
+        : { p_payment_id: record.id };
 
       const messageMap = {
         archive: isBatch

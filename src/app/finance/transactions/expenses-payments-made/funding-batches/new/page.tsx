@@ -130,6 +130,7 @@ type FormState = {
   fundingBankAccountId: string;
   allocationDate: string;
   currencyCode: string;
+  allocatedFundsAmount: string;
   notes: string;
 };
 
@@ -138,6 +139,7 @@ const initialFormState: FormState = {
   fundingBankAccountId: "",
   allocationDate: new Date().toISOString().slice(0, 10),
   currencyCode: "USD",
+  allocatedFundsAmount: "",
   notes: "",
 };
 
@@ -477,11 +479,15 @@ export default function FinanceExpenseFundingBatchNewPage() {
     form.currencyCode || selectedExpenses[0]?.currency_code || "USD"
   );
 
+  const allocatedFundsAmount = toNumber(form.allocatedFundsAmount);
+
   const totalAllocated = useMemo(() => {
     return allocationDrafts
       .filter((draft) => selectedExpenseIds.includes(draft.expenseId))
       .reduce((sum, draft) => sum + toNumber(draft.amount), 0);
   }, [allocationDrafts, selectedExpenseIds]);
+
+  const remainingAllocatedFunds = allocatedFundsAmount - totalAllocated;
 
   const totalConvertedToExpenseCurrencies = useMemo(() => {
     return selectedExpenseIds.reduce((sum, expenseId) => {
@@ -909,8 +915,16 @@ export default function FinanceExpenseFundingBatchNewPage() {
       if (!form.fundingCompanyId) return "Funding company is required.";
       if (!form.allocationDate) return "Allocation date is required.";
       if (!selectedCurrency) return "Funding currency is required.";
+      if (allocatedFundsAmount <= 0) return "Allocated funds amount must be greater than zero.";
       if (selectedExpenseIds.length === 0) return "Select at least one expense.";
-      if (totalAllocated <= 0) return "Total allocated amount must be greater than zero.";
+      if (totalAllocated <= 0) return "Distributed allocation amount must be greater than zero.";
+      if (totalAllocated > allocatedFundsAmount) {
+        return "Distributed allocation cannot be greater than the allocated funds amount.";
+      }
+
+      if (saveMode === "allocated" && Math.abs(allocatedFundsAmount - totalAllocated) > 0.01) {
+        return "Before marking allocated, the distributed amount must match the allocated funds amount.";
+      }
 
       const invalidAllocation = allocationDrafts
         .filter((draft) => selectedExpenseIds.includes(draft.expenseId))
@@ -1036,12 +1050,21 @@ export default function FinanceExpenseFundingBatchNewPage() {
           return;
         }
 
+        const batchNotes = [
+          form.notes.trim() || null,
+          `Allocated funds amount: ${selectedCurrency} ${formatMoney(allocatedFundsAmount)}`,
+          `Distributed to selected expenses: ${selectedCurrency} ${formatMoney(totalAllocated)}`,
+          `Remaining unassigned funds: ${selectedCurrency} ${formatMoney(remainingAllocatedFunds)}`,
+        ]
+          .filter(Boolean)
+          .join("\n");
+
         const createResult = await supabase.rpc("finance_create_expense_funding_batch", {
           p_funding_company_id: form.fundingCompanyId,
           p_funding_bank_account_id: form.fundingBankAccountId || null,
           p_allocation_date: form.allocationDate,
           p_currency_code: selectedCurrency,
-          p_notes: form.notes.trim() || null,
+          p_notes: batchNotes,
         });
 
         if (createResult.error) throw createResult.error;
@@ -1212,7 +1235,7 @@ export default function FinanceExpenseFundingBatchNewPage() {
                 </div>
               </div>
 
-              <div className="grid gap-4 p-5 md:grid-cols-2">
+              <div className="grid gap-4 p-5 md:grid-cols-3">
                 <label className="grid gap-2">
                   <span className={labelClass()}>Funding Company</span>
                   <select
@@ -1278,7 +1301,23 @@ export default function FinanceExpenseFundingBatchNewPage() {
                   </select>
                 </label>
 
-                <label className="grid gap-2 md:col-span-2">
+                <label className="grid gap-2">
+                  <span className={labelClass()}>Allocated Funds Amount</span>
+                  <input
+                    value={form.allocatedFundsAmount}
+                    onChange={(event) =>
+                      updateField("allocatedFundsAmount", event.target.value)
+                    }
+                    inputMode="decimal"
+                    placeholder="0.00"
+                    className={inputClass()}
+                  />
+                  <span className="text-xs leading-5 text-slate-500">
+                    Total funds reserved by Finance before distribution.
+                  </span>
+                </label>
+
+                <label className="grid gap-2 md:col-span-3">
                   <span className={labelClass()}>Funding Notes</span>
                   <textarea
                     value={form.notes}

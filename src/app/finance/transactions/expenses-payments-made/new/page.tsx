@@ -501,6 +501,36 @@ async function buildFundingUsagePreview(
   }
 }
 
+async function buildDefaultPaymentAmountFromExpense(
+  expenseAmount: number,
+  expenseCurrencyCode: string,
+  paymentCurrencyCode: string
+): Promise<string> {
+  const normalizedExpenseCurrency = normalizeCurrencyCode(expenseCurrencyCode);
+  const normalizedPaymentCurrency = normalizeCurrencyCode(paymentCurrencyCode);
+
+  if (!normalizedExpenseCurrency || !normalizedPaymentCurrency || expenseAmount <= 0) {
+    return "";
+  }
+
+  if (normalizedExpenseCurrency === normalizedPaymentCurrency) {
+    return String(expenseAmount);
+  }
+
+  try {
+    const result = await convertCurrencyLive(
+      expenseAmount,
+      normalizedExpenseCurrency,
+      normalizedPaymentCurrency
+    );
+
+    return String(Number(result.convertedAmount.toFixed(2)));
+  } catch (error) {
+    console.error("Failed to calculate default payment amount:", error);
+    return "";
+  }
+}
+
 export default function FinanceExpensesPaymentsMadeNewPage() {
   const navigate = useNavigate();
   const [searchParams] = useSearchParams();
@@ -794,7 +824,7 @@ export default function FinanceExpensesPaymentsMadeNewPage() {
     }
   }, [initialBatchId]);
 
-        useEffect(() => {
+  useEffect(() => {
     void loadOptions();
   }, [loadOptions]);
 
@@ -870,25 +900,67 @@ export default function FinanceExpensesPaymentsMadeNewPage() {
   ]);
 
   useEffect(() => {
-    setAllocationDrafts((current) => {
-      const nextMap = new Map(
-        current.map((item) => [item.expenseId, item.paymentCurrencyAmount])
+    let isCancelled = false;
+
+    async function refreshDefaultPaymentAmounts() {
+      const currentMap = new Map(
+        allocationDrafts.map((item) => [item.expenseId, item.paymentCurrencyAmount])
       );
 
-      selectedExpenses.forEach((expense) => {
-        if (!nextMap.has(expense.id)) {
-          nextMap.set(expense.id, String(expense.targetAmount));
-        }
-      });
+      const nextEntries: Array<[string, string]> = [];
 
-      return Array.from(nextMap.entries())
+      for (const expense of selectedExpenses) {
+        const existingAmount = currentMap.get(expense.id);
+
+        if (existingAmount && toNumber(existingAmount) > 0) {
+          nextEntries.push([expense.id, existingAmount]);
+          continue;
+        }
+
+        const expenseCurrency = normalizeCurrencyCode(
+          expense.currency_code || paymentCurrencyCode
+        );
+
+        const convertedDefaultAmount = await buildDefaultPaymentAmountFromExpense(
+          expense.targetAmount,
+          expenseCurrency,
+          paymentCurrencyCode
+        );
+
+        nextEntries.push([expense.id, convertedDefaultAmount]);
+      }
+
+      if (isCancelled) return;
+
+      const nextDrafts = nextEntries
         .filter(([expenseId]) => selectedExpenseIds.includes(expenseId))
         .map(([expenseId, paymentCurrencyAmount]) => ({
           expenseId,
           paymentCurrencyAmount,
         }));
-    });
-  }, [selectedExpenseIds, selectedExpenses]);
+
+      const currentComparable = allocationDrafts
+        .filter((draft) => selectedExpenseIds.includes(draft.expenseId))
+        .map((draft) => `${draft.expenseId}:${draft.paymentCurrencyAmount}`)
+        .sort()
+        .join("|");
+
+      const nextComparable = nextDrafts
+        .map((draft) => `${draft.expenseId}:${draft.paymentCurrencyAmount}`)
+        .sort()
+        .join("|");
+
+      if (currentComparable !== nextComparable) {
+        setAllocationDrafts(nextDrafts);
+      }
+    }
+
+    void refreshDefaultPaymentAmounts();
+
+    return () => {
+      isCancelled = true;
+    };
+  }, [allocationDrafts, paymentCurrencyCode, selectedExpenseIds, selectedExpenses]);
 
   const toggleExpense = useCallback((expense: EnrichedExpense) => {
     setSelectedExpenseIds((current) => {
@@ -908,7 +980,7 @@ export default function FinanceExpensesPaymentsMadeNewPage() {
         ...current,
         {
           expenseId: expense.id,
-          paymentCurrencyAmount: String(expense.targetAmount),
+          paymentCurrencyAmount: "",
         },
       ];
     });

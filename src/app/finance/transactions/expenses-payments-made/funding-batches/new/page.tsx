@@ -15,6 +15,7 @@ import {
 } from "lucide-react";
 
 import { supabase } from "@/lib/supabase";
+import { convertCurrencyLive } from "@/lib/integrations/frankfurter";
 
 type SaveMode = "draft" | "allocated";
 

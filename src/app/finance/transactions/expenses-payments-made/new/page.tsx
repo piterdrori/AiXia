@@ -221,6 +221,33 @@ function roundMoney(value: number) {
   return Math.round((value + Number.EPSILON) * 100) / 100;
 }
 
+const FX_ROUNDING_TOLERANCE = 0.05;
+
+function isFxRoundingDifference(
+  preview: ConversionPreview | null | undefined,
+  remainingAmount: number
+) {
+  if (!preview || preview.expenseCurrencyAmount === null) return false;
+  if (preview.source === "same_currency") return false;
+
+  const difference = roundMoney(preview.expenseCurrencyAmount - remainingAmount);
+
+  return difference > 0 && difference <= FX_ROUNDING_TOLERANCE;
+}
+
+function getCappedExpenseCoverageAmount(
+  preview: ConversionPreview | null | undefined,
+  remainingAmount: number
+) {
+  if (!preview || preview.expenseCurrencyAmount === null) return null;
+
+  if (isFxRoundingDifference(preview, remainingAmount)) {
+    return roundMoney(remainingAmount);
+  }
+
+  return roundMoney(preview.expenseCurrencyAmount);
+}
+
 function normalizeCurrencyCode(value: string | null | undefined) {
   return (value || "").trim().toUpperCase();
 }
@@ -792,12 +819,17 @@ export default function FinanceExpensesPaymentsMadeNewPage() {
 
   const totalExpenseCurrencyCovered = useMemo(() => {
     return roundMoney(
-      selectedExpenseIds.reduce((sum, expenseId) => {
-        const preview = conversionPreviews[expenseId];
-        return sum + toNumber(preview?.expenseCurrencyAmount);
+      selectedExpenses.reduce((sum, expense) => {
+        const preview = conversionPreviews[expense.id];
+        const cappedCoverageAmount = getCappedExpenseCoverageAmount(
+          preview,
+          expense.remainingAmount
+        );
+
+        return sum + toNumber(cappedCoverageAmount);
       }, 0)
     );
-  }, [conversionPreviews, selectedExpenseIds]);
+  }, [conversionPreviews, selectedExpenses]);
 
   const currentFundingCurrencyUsed = roundMoney(
     toNumber(fundingUsagePreview?.fundingCurrencyAmount)
@@ -1221,7 +1253,13 @@ export default function FinanceExpensesPaymentsMadeNewPage() {
 
     const overpaidExpense = selectedExpenses.find((expense) => {
       const preview = conversionPreviews[expense.id];
-      return toNumber(preview?.expenseCurrencyAmount) > expense.remainingAmount + 0.01;
+
+      if (!preview || preview.expenseCurrencyAmount === null) return false;
+
+      return (
+        preview.expenseCurrencyAmount >
+        expense.remainingAmount + FX_ROUNDING_TOLERANCE
+      );
     });
 
     if (overpaidExpense) {
@@ -1345,7 +1383,7 @@ export default function FinanceExpensesPaymentsMadeNewPage() {
             throw new Error("Missing conversion preview during final validation.");
           }
 
-          if (preview.expenseCurrencyAmount > remainingNow + 0.01) {
+          if (preview.expenseCurrencyAmount > remainingNow + FX_ROUNDING_TOLERANCE) {
             throw new Error(
               `Payment would over-cover ${expense.expense_number || expense.title}. Reload and review the remaining balance.`
             );
@@ -1441,6 +1479,15 @@ export default function FinanceExpensesPaymentsMadeNewPage() {
             const expenseCurrencyCode = normalizeCurrencyCode(
               expense.currency_code || paymentCurrencyCode
             );
+            const cappedExpenseCurrencyAmount = getCappedExpenseCoverageAmount(
+              preview,
+              expense.remainingAmount
+            );
+
+            if (cappedExpenseCurrencyAmount === null) {
+              throw new Error("Selected expense capped coverage amount could not be calculated.");
+            }
+
             const fundingCurrencyAmountUsedForLine =
               fundingUsagePreview.exchangeRate === null
                 ? null
@@ -1456,7 +1503,7 @@ export default function FinanceExpensesPaymentsMadeNewPage() {
               paid_from_bank_account_id: selectedFundingPool.funding_bank_account_id,
               recipient_employee_ref_id: expense.employee_ref_id,
               recipient_person_name: expense.madeByLabel,
-              allocated_amount: preview.expenseCurrencyAmount,
+              allocated_amount: cappedExpenseCurrencyAmount,
               currency_code: expenseCurrencyCode,
               payment_currency_code: paymentCurrencyCode,
               converted_amount: paymentCurrencyAmount,
@@ -1473,7 +1520,9 @@ export default function FinanceExpensesPaymentsMadeNewPage() {
                 payment_reference_number: referenceNumber,
                 payment_currency_amount: paymentCurrencyAmount,
                 payment_currency_code: paymentCurrencyCode,
-                expense_currency_amount: preview.expenseCurrencyAmount,
+                expense_currency_amount: cappedExpenseCurrencyAmount,
+                raw_converted_expense_currency_amount: preview.expenseCurrencyAmount,
+                fx_rounding_adjustment_applied: cappedExpenseCurrencyAmount !== preview.expenseCurrencyAmount,
                 expense_currency_code: expenseCurrencyCode,
                 exchange_rate: preview.exchangeRate,
                 conversion_source: preview.source,
@@ -1486,7 +1535,7 @@ export default function FinanceExpensesPaymentsMadeNewPage() {
                 previous_expense_covered_amount: expense.existingCoveredAmount,
                 expense_remaining_before_payment: expense.remainingAmount,
                 expense_remaining_after_payment: roundMoney(
-                  expense.remainingAmount - preview.expenseCurrencyAmount
+                  expense.remainingAmount - cappedExpenseCurrencyAmount
                 ),
               },
               created_by: userId,
@@ -1838,11 +1887,18 @@ export default function FinanceExpensesPaymentsMadeNewPage() {
                               expense.currency_code || paymentCurrencyCode
                             );
                             const preview = conversionPreviews[expense.id];
+                            const displayedExpenseCoverageAmount =
+                              getCappedExpenseCoverageAmount(preview, expense.remainingAmount);
+                            const hasFxRoundingDifference = isFxRoundingDifference(
+                              preview,
+                              expense.remainingAmount
+                            );
                             const overCovers =
                               isSelected &&
                               preview?.expenseCurrencyAmount !== null &&
                               preview?.expenseCurrencyAmount !== undefined &&
-                              preview.expenseCurrencyAmount > expense.remainingAmount + 0.01;
+                              preview.expenseCurrencyAmount >
+                                expense.remainingAmount + FX_ROUNDING_TOLERANCE;
 
                             return (
                               <tr
@@ -1960,7 +2016,7 @@ export default function FinanceExpensesPaymentsMadeNewPage() {
                                         }`}
                                       >
                                         {expenseCurrency}{" "}
-                                        {formatMoney(preview.expenseCurrencyAmount)}
+                                        {formatMoney(displayedExpenseCoverageAmount)}
                                       </div>
                                       <div className="mt-1 text-[11px] text-slate-500">
                                         {preview.source === "same_currency"
@@ -1970,6 +2026,10 @@ export default function FinanceExpensesPaymentsMadeNewPage() {
                                       {overCovers ? (
                                         <div className="mt-1 text-[11px] text-rose-200">
                                           Over remaining balance
+                                        </div>
+                                      ) : hasFxRoundingDifference ? (
+                                        <div className="mt-1 text-[11px] text-emerald-200">
+                                          Full remaining balance covered
                                         </div>
                                       ) : null}
                                     </div>

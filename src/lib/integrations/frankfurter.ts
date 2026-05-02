@@ -14,6 +14,16 @@ function normalizeCurrencyCode(value: string): string {
   return value.trim().toUpperCase();
 }
 
+function normalizeConversionDate(value: string): string {
+  const trimmed = value.trim();
+
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(trimmed)) {
+    throw new Error("Conversion date must use YYYY-MM-DD format.");
+  }
+
+  return trimmed;
+}
+
 export async function convertCurrencyLive(
   amount: number,
   fromCurrency: string,
@@ -79,6 +89,79 @@ export async function convertCurrencyLive(
     rates: data.rates,
     convertedAmount,
     rate: convertedAmount / amount,
+    targetCurrency: to,
+  };
+}
+
+export async function convertCurrencyAtDate(
+  amount: number,
+  fromCurrency: string,
+  toCurrency: string,
+  conversionDate: string,
+): Promise<LiveConversionResult> {
+  const from = normalizeCurrencyCode(fromCurrency);
+  const to = normalizeCurrencyCode(toCurrency);
+  const date = normalizeConversionDate(conversionDate);
+
+  if (!Number.isFinite(amount) || amount <= 0) {
+    throw new Error("Amount must be greater than 0.");
+  }
+
+  if (!from || !to) {
+    throw new Error("Both source and target currencies are required.");
+  }
+
+  if (from === to) {
+    return {
+      amount,
+      base: from,
+      date,
+      rates: { [to]: amount },
+      convertedAmount: amount,
+      rate: 1,
+      targetCurrency: to,
+    };
+  }
+
+  const url =
+    `${FRANKFURTER_API_BASE}/${encodeURIComponent(date)}` +
+    `?amount=${encodeURIComponent(String(amount))}` +
+    `&base=${encodeURIComponent(from)}` +
+    `&symbols=${encodeURIComponent(to)}`;
+
+  const response = await fetch(url, {
+    method: "GET",
+    headers: {
+      Accept: "application/json",
+    },
+  });
+
+  if (!response.ok) {
+    throw new Error(`Historical conversion request failed with status ${response.status}.`);
+  }
+
+  const data = (await response.json()) as {
+    amount?: number;
+    base: string;
+    date: string;
+    rates: Record<string, number>;
+  };
+
+  const rate = data.rates?.[to];
+
+  if (typeof rate !== "number") {
+    throw new Error("Target conversion rate was not returned.");
+  }
+
+  const convertedAmount = amount * rate;
+
+  return {
+    amount,
+    base: data.base,
+    date: data.date,
+    rates: data.rates,
+    convertedAmount,
+    rate,
     targetCurrency: to,
   };
 }

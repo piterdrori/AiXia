@@ -1,14 +1,19 @@
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useState, type ReactNode } from "react";
 import { useNavigate } from "react-router-dom";
 import {
   ArrowRight,
+  CalendarClock,
   CheckCircle2,
+  CreditCard,
   Link2,
   Loader2,
+  Plus,
   Receipt,
   Save,
+  ShieldCheck,
   ShoppingCart,
   Sparkles,
+  Trash2,
   UploadCloud,
   UserRound,
 } from "lucide-react";
@@ -46,6 +51,25 @@ type ProfileRow = {
 };
 
 type ExpenseMadeByType = "employee" | "owner_management" | "company_direct" | "other";
+type BillingFrequency = "monthly" | "yearly" | "one_year_upfront" | "other";
+type SubscriptionAmountBasis =
+  | "monthly_payment"
+  | "yearly_payment"
+  | "one_year_upfront_payment"
+  | "other_subscription_payment";
+type SubscriptionPaymentMethod = "not_selected" | "no_card" | "credit_card";
+
+type CreditCardDraft = {
+  id: string;
+  nickname: string;
+  cardholderName: string;
+  brand: string;
+  last4: string;
+  expiryMonth: string;
+  expiryYear: string;
+  billingCompany: string;
+  notes: string;
+};
 
 type FormState = {
   companyId: string;
@@ -70,6 +94,25 @@ type FormState = {
   onlineTrackingNumber: string;
   externalDocumentationLink: string;
   notes: string;
+  isSubscriptionExpense: boolean;
+  subscriptionProviderName: string;
+  subscriptionBillingFrequency: BillingFrequency;
+  subscriptionAmountBasis: SubscriptionAmountBasis;
+  subscriptionStartDate: string;
+  subscriptionRenewalDate: string;
+  subscriptionAccountReference: string;
+  subscriptionAutoCreateFutureExpenses: boolean;
+  subscriptionRenewalReminder: boolean;
+  subscriptionPaymentMethod: SubscriptionPaymentMethod;
+  subscriptionAdminNotes: string;
+  subscriptionCards: CreditCardDraft[];
+};
+
+type CachedOptionsPayload = {
+  companies: CompanyRow[];
+  employees: EmployeeRefRow[];
+  profiles: ProfileRow[];
+  cachedAt: number;
 };
 
 const EXPENSE_TYPES = [
@@ -87,7 +130,58 @@ const EXPENSE_TYPES = [
   { value: "other", label: "Other" },
 ];
 
+const BILLING_FREQUENCIES: { value: BillingFrequency; label: string; helper: string }[] = [
+  {
+    value: "monthly",
+    label: "Monthly",
+    helper: "Example: ChatGPT at 20 USD every month.",
+  },
+  {
+    value: "yearly",
+    label: "Yearly",
+    helper: "A yearly subscription charged once every renewal cycle.",
+  },
+  {
+    value: "one_year_upfront",
+    label: "One Year Upfront",
+    helper: "One payment now that covers the full year.",
+  },
+  {
+    value: "other",
+    label: "Other",
+    helper: "Use this when the billing cycle is custom.",
+  },
+];
+
+const SUBSCRIPTION_AMOUNT_BASIS_OPTIONS: {
+  value: SubscriptionAmountBasis;
+  label: string;
+}[] = [
+  { value: "monthly_payment", label: "Monthly payment" },
+  { value: "yearly_payment", label: "Yearly payment" },
+  { value: "one_year_upfront_payment", label: "One-year upfront payment" },
+  { value: "other_subscription_payment", label: "Other subscription payment" },
+];
+
+const CARD_BRANDS = ["Visa", "Mastercard", "American Express", "Discover", "UnionPay", "Other"];
 const CURRENCY_CODES = ["USD", "EUR", "ILS", "CNY", "HKD", "GBP"];
+const OPTIONS_CACHE_KEY = "aixia.finance.expenses.new.options.v1";
+const OPTIONS_CACHE_TTL_MS = 1000 * 60 * 5;
+
+const initialSubscriptionCard = (): CreditCardDraft => ({
+  id:
+    typeof crypto !== "undefined" && "randomUUID" in crypto
+      ? crypto.randomUUID()
+      : `card-${Math.random().toString(36).slice(2)}`,
+  nickname: "",
+  cardholderName: "",
+  brand: "Visa",
+  last4: "",
+  expiryMonth: "",
+  expiryYear: "",
+  billingCompany: "",
+  notes: "",
+});
 
 const initialFormState: FormState = {
   companyId: "",
@@ -112,6 +206,18 @@ const initialFormState: FormState = {
   onlineTrackingNumber: "",
   externalDocumentationLink: "",
   notes: "",
+  isSubscriptionExpense: false,
+  subscriptionProviderName: "",
+  subscriptionBillingFrequency: "monthly",
+  subscriptionAmountBasis: "monthly_payment",
+  subscriptionStartDate: new Date().toISOString().slice(0, 10),
+  subscriptionRenewalDate: "",
+  subscriptionAccountReference: "",
+  subscriptionAutoCreateFutureExpenses: true,
+  subscriptionRenewalReminder: true,
+  subscriptionPaymentMethod: "not_selected",
+  subscriptionAdminNotes: "",
+  subscriptionCards: [initialSubscriptionCard()],
 };
 
 function buildExpenseNumber() {
@@ -160,6 +266,13 @@ function toAmount(value: string) {
   return parsed;
 }
 
+function formatMoney(currencyCode: string, amount: number) {
+  return `${currencyCode} ${amount > 0 ? amount.toLocaleString(undefined, {
+    minimumFractionDigits: 2,
+    maximumFractionDigits: 2,
+  }) : "0.00"}`;
+}
+
 function formatEmployeeLabel(
   employee: EmployeeRefRow,
   profileMap: Map<string, ProfileRow>
@@ -200,6 +313,45 @@ function labelClass() {
   return "text-sm font-medium text-slate-300";
 }
 
+function normalizeLast4(value: string) {
+  return value.replace(/\D/g, "").slice(0, 4);
+}
+
+function maskCard(last4: string) {
+  const cleanLast4 = normalizeLast4(last4);
+  return cleanLast4 ? `•••• •••• •••• ${cleanLast4}` : "Hidden after save";
+}
+
+function readOptionsCache(): CachedOptionsPayload | null {
+  try {
+    const rawPayload = window.sessionStorage.getItem(OPTIONS_CACHE_KEY);
+    if (!rawPayload) return null;
+
+    const parsedPayload = JSON.parse(rawPayload) as CachedOptionsPayload;
+    const isFresh = Date.now() - parsedPayload.cachedAt < OPTIONS_CACHE_TTL_MS;
+
+    if (!isFresh) return null;
+
+    return parsedPayload;
+  } catch {
+    return null;
+  }
+}
+
+function writeOptionsCache(payload: Omit<CachedOptionsPayload, "cachedAt">) {
+  try {
+    window.sessionStorage.setItem(
+      OPTIONS_CACHE_KEY,
+      JSON.stringify({
+        ...payload,
+        cachedAt: Date.now(),
+      })
+    );
+  } catch {
+    // Cache is only used to prevent reload flicker. If storage is unavailable, continue normally.
+  }
+}
+
 function SummaryBlock({
   title,
   value,
@@ -210,11 +362,11 @@ function SummaryBlock({
   subtitle: string;
 }) {
   return (
-    <div className="rounded-[24px] border border-white/10 bg-black/20 p-4">
+    <div className="min-h-[148px] rounded-[24px] border border-white/10 bg-black/20 p-4">
       <div className="text-[11px] font-semibold uppercase tracking-[0.2em] text-slate-500">
         {title}
       </div>
-      <div className="mt-2 text-2xl font-semibold text-white">{value}</div>
+      <div className="mt-2 break-words text-2xl font-semibold text-white">{value}</div>
       <div className="mt-2 text-sm leading-6 text-slate-400">{subtitle}</div>
     </div>
   );
@@ -229,7 +381,7 @@ function SectionCard({
   title: string;
   description: string;
   icon: typeof Receipt;
-  children: React.ReactNode;
+  children: ReactNode;
 }) {
   return (
     <section className="overflow-hidden rounded-[30px] border border-white/10 bg-white/[0.045] backdrop-blur-xl">
@@ -249,6 +401,23 @@ function SectionCard({
   );
 }
 
+function SmallInfoPill({
+  title,
+  value,
+}: {
+  title: string;
+  value: string;
+}) {
+  return (
+    <div className="rounded-2xl border border-white/10 bg-black/20 px-4 py-3">
+      <div className="text-[10px] font-semibold uppercase tracking-[0.18em] text-slate-500">
+        {title}
+      </div>
+      <div className="mt-1 text-sm font-semibold text-slate-200">{value}</div>
+    </div>
+  );
+}
+
 export default function FinanceNewExpensePage() {
   const navigate = useNavigate();
 
@@ -258,12 +427,15 @@ export default function FinanceNewExpensePage() {
   const [form, setForm] = useState<FormState>(initialFormState);
   const [documentationFile, setDocumentationFile] = useState<File | null>(null);
   const [isLoadingOptions, setIsLoadingOptions] = useState(true);
+  const [isRefreshingOptions, setIsRefreshingOptions] = useState(false);
   const [isSaving, setIsSaving] = useState(false);
   const [formError, setFormError] = useState<string | null>(null);
   const [formSuccess, setFormSuccess] = useState<string | null>(null);
 
   const isOnlineShopping = form.expenseType === "online_shopping";
   const isOtherExpenseType = form.expenseType === "other";
+  const isSubscriptionType = form.expenseType === "software_subscription";
+  const isSubscriptionExpense = isSubscriptionType || form.isSubscriptionExpense;
   const amountValue = toAmount(form.requestedAmount);
 
   const selectedCompany = useMemo(() => {
@@ -289,6 +461,54 @@ export default function FinanceNewExpensePage() {
     return "missing";
   }, [documentationFile, form.externalDocumentationLink]);
 
+  const subscriptionSummary = useMemo(() => {
+    if (!isSubscriptionExpense) return "One-time expense";
+
+    const frequencyLabel =
+      BILLING_FREQUENCIES.find(
+        (frequency) => frequency.value === form.subscriptionBillingFrequency
+      )?.label ?? "Subscription";
+
+    return `${frequencyLabel} • ${formatMoney(form.currencyCode, amountValue)}`;
+  }, [
+    amountValue,
+    form.currencyCode,
+    form.subscriptionBillingFrequency,
+    isSubscriptionExpense,
+  ]);
+
+  const sanitizedSubscriptionCards = useMemo(() => {
+    return form.subscriptionCards
+      .map((card) => ({
+        id: card.id,
+        nickname: card.nickname.trim(),
+        cardholder_name: card.cardholderName.trim(),
+        brand: card.brand.trim(),
+        last4: normalizeLast4(card.last4),
+        masked_number: maskCard(card.last4),
+        expiry_month: card.expiryMonth.trim(),
+        expiry_year: card.expiryYear.trim(),
+        billing_company: card.billingCompany.trim(),
+        notes: card.notes.trim(),
+        full_card_number_stored: false,
+        sensitive_details_hidden: true,
+      }))
+      .filter((card) => {
+        return (
+          card.nickname ||
+          card.cardholder_name ||
+          card.brand ||
+          card.last4 ||
+          card.expiry_month ||
+          card.expiry_year ||
+          card.billing_company ||
+          card.notes
+        );
+      });
+  }, [form.subscriptionCards]);
+
+  const hasUsableOptions = companies.length > 0 || employees.length > 0;
+
   const updateField = useCallback(
     <Key extends keyof FormState>(key: Key, value: FormState[Key]) => {
       setForm((current) => ({
@@ -298,47 +518,174 @@ export default function FinanceNewExpensePage() {
       setFormError(null);
       setFormSuccess(null);
     },
+
+          []
+  );
+
+  const updateSubscriptionCard = useCallback(
+    <Key extends keyof CreditCardDraft>(
+      cardId: string,
+      key: Key,
+      value: CreditCardDraft[Key]
+    ) => {
+      setForm((current) => ({
+        ...current,
+        subscriptionCards: current.subscriptionCards.map((card) =>
+          card.id === cardId
+            ? {
+                ...card,
+                [key]: key === "last4" ? normalizeLast4(String(value)) : value,
+              }
+            : card
+        ),
+      }));
+      setFormError(null);
+      setFormSuccess(null);
+    },
     []
   );
 
-  const loadOptions = useCallback(async () => {
-    setIsLoadingOptions(true);
-
-    try {
-      const [companiesResult, employeesResult, profilesResult] = await Promise.all([
-        supabase.from("finance_companies").select("id, name").order("name"),
-        supabase
-          .from("finance_employee_refs")
-          .select("id, user_id, code, status, mark, metadata")
-          .eq("status", "active")
-          .order("code"),
-        supabase
-          .from("profiles")
-          .select("user_id, full_name, display_name, email, company, job_title, member_type")
-          .order("full_name"),
-      ]);
-
-      if (companiesResult.error) throw companiesResult.error;
-      if (employeesResult.error) throw employeesResult.error;
-      if (profilesResult.error) throw profilesResult.error;
-
-      setCompanies((companiesResult.data || []) as CompanyRow[]);
-      setEmployees((employeesResult.data || []) as EmployeeRefRow[]);
-      setProfiles((profilesResult.data || []) as ProfileRow[]);
-    } catch (error) {
-      console.error("Failed to load expense request options:", error);
-      setFormError("Failed to load companies or employees.");
-      setCompanies([]);
-      setEmployees([]);
-      setProfiles([]);
-    } finally {
-      setIsLoadingOptions(false);
-    }
+  const addSubscriptionCard = useCallback(() => {
+    setForm((current) => ({
+      ...current,
+      subscriptionPaymentMethod: "credit_card",
+      subscriptionCards: [...current.subscriptionCards, initialSubscriptionCard()],
+    }));
+    setFormError(null);
+    setFormSuccess(null);
   }, []);
 
+  const removeSubscriptionCard = useCallback((cardId: string) => {
+    setForm((current) => {
+      const nextCards = current.subscriptionCards.filter((card) => card.id !== cardId);
+
+      return {
+        ...current,
+        subscriptionCards: nextCards.length ? nextCards : [initialSubscriptionCard()],
+      };
+    });
+    setFormError(null);
+    setFormSuccess(null);
+  }, []);
+
+  const applyOptionsPayload = useCallback((payload: Omit<CachedOptionsPayload, "cachedAt">) => {
+    setCompanies(payload.companies);
+    setEmployees(payload.employees);
+    setProfiles(payload.profiles);
+  }, []);
+
+  const loadOptions = useCallback(
+    async (mode: "initial" | "silent" = "initial") => {
+      const cachedOptions = mode === "initial" ? readOptionsCache() : null;
+
+      if (cachedOptions) {
+        applyOptionsPayload(cachedOptions);
+        setIsLoadingOptions(false);
+        setIsRefreshingOptions(true);
+      } else if (mode === "initial") {
+        setIsLoadingOptions(true);
+      } else {
+        setIsRefreshingOptions(true);
+      }
+
+      try {
+        const [companiesResult, employeesResult, profilesResult] = await Promise.all([
+          supabase.from("finance_companies").select("id, name").order("name"),
+          supabase
+            .from("finance_employee_refs")
+            .select("id, user_id, code, status, mark, metadata")
+            .eq("status", "active")
+            .order("code"),
+          supabase
+            .from("profiles")
+            .select("user_id, full_name, display_name, email, company, job_title, member_type")
+            .order("full_name"),
+        ]);
+
+        if (companiesResult.error) throw companiesResult.error;
+        if (employeesResult.error) throw employeesResult.error;
+        if (profilesResult.error) throw profilesResult.error;
+
+        const nextPayload = {
+          companies: (companiesResult.data || []) as CompanyRow[],
+          employees: (employeesResult.data || []) as EmployeeRefRow[],
+          profiles: (profilesResult.data || []) as ProfileRow[],
+        };
+
+        applyOptionsPayload(nextPayload);
+        writeOptionsCache(nextPayload);
+      } catch (error) {
+        console.error("Failed to load expense request options:", error);
+
+        if (!hasUsableOptions) {
+          setFormError("Failed to load companies or employees.");
+          setCompanies([]);
+          setEmployees([]);
+          setProfiles([]);
+        }
+      } finally {
+        setIsLoadingOptions(false);
+        setIsRefreshingOptions(false);
+      }
+    },
+    [applyOptionsPayload, hasUsableOptions]
+  );
+
   useEffect(() => {
-    void loadOptions();
+    void loadOptions("initial");
+
+    const refreshInterval = window.setInterval(() => {
+      void loadOptions("silent");
+    }, 60000);
+
+    return () => {
+      window.clearInterval(refreshInterval);
+    };
   }, [loadOptions]);
+
+  useEffect(() => {
+    if (form.expenseType !== "software_subscription") return;
+
+    setForm((current) => {
+      if (current.isSubscriptionExpense) return current;
+
+      return {
+        ...current,
+        isSubscriptionExpense: true,
+        subscriptionPaymentMethod:
+          current.subscriptionPaymentMethod === "not_selected"
+            ? "credit_card"
+            : current.subscriptionPaymentMethod,
+      };
+    });
+  }, [form.expenseType]);
+
+  useEffect(() => {
+    if (!isSubscriptionExpense) return;
+
+    setForm((current) => {
+      let nextAmountBasis = current.subscriptionAmountBasis;
+
+      if (current.subscriptionBillingFrequency === "monthly") {
+        nextAmountBasis = "monthly_payment";
+      }
+
+      if (current.subscriptionBillingFrequency === "yearly") {
+        nextAmountBasis = "yearly_payment";
+      }
+
+      if (current.subscriptionBillingFrequency === "one_year_upfront") {
+        nextAmountBasis = "one_year_upfront_payment";
+      }
+
+      if (nextAmountBasis === current.subscriptionAmountBasis) return current;
+
+      return {
+        ...current,
+        subscriptionAmountBasis: nextAmountBasis,
+      };
+    });
+  }, [form.subscriptionBillingFrequency, isSubscriptionExpense]);
 
   const validateForm = useCallback(
     (submitMode: "draft" | "request") => {
@@ -376,13 +723,60 @@ export default function FinanceNewExpensePage() {
         return "Online platform is required for online shopping expenses.";
       }
 
+      if (isSubscriptionExpense) {
+        if (!form.subscriptionProviderName.trim()) {
+          return "Provider / service name is required for subscription expenses.";
+        }
+
+        if (!form.subscriptionStartDate) {
+          return "Subscription start date is required.";
+        }
+
+        if (!form.subscriptionBillingFrequency) {
+          return "Billing frequency is required.";
+        }
+
+        if (form.subscriptionPaymentMethod === "not_selected") {
+          return "Choose whether this subscription uses a credit card.";
+        }
+
+        if (
+          form.subscriptionPaymentMethod === "credit_card" &&
+          sanitizedSubscriptionCards.length === 0
+        ) {
+          return "Add at least one masked credit card for this subscription or choose No Card.";
+        }
+
+        if (
+          form.subscriptionPaymentMethod === "credit_card" &&
+          sanitizedSubscriptionCards.some((card) => card.last4.length !== 4)
+        ) {
+          return "Every subscription card must include exactly the last 4 digits only.";
+        }
+
+        if (
+          form.subscriptionPaymentMethod === "credit_card" &&
+          sanitizedSubscriptionCards.some((card) => !card.nickname)
+        ) {
+          return "Every subscription card needs a nickname so Finance/Admin can identify it later.";
+        }
+      }
+
       if (submitMode === "request" && documentationStatus === "missing" && form.isRetroactive) {
         return "Retroactive requests need documentation upload or documentation link.";
       }
 
       return null;
     },
-    [amountValue, documentationStatus, form, isOnlineShopping, isOtherExpenseType]
+    [
+      amountValue,
+      documentationStatus,
+      form,
+      isOnlineShopping,
+      isOtherExpenseType,
+      isSubscriptionExpense,
+      sanitizedSubscriptionCards,
+    ]
   );
 
   const uploadDocumentation = useCallback(
@@ -456,6 +850,38 @@ export default function FinanceNewExpensePage() {
         const expenseNumber = buildExpenseNumber();
         const requestStatus = submitMode === "request" ? "requested" : "draft";
 
+        const subscriptionMetadata = isSubscriptionExpense
+          ? {
+              is_subscription: true,
+              admin_only_option: true,
+              permission_enforcement_pending: true,
+              provider_name: form.subscriptionProviderName.trim(),
+              billing_frequency: form.subscriptionBillingFrequency,
+              account_reference: form.subscriptionAccountReference.trim() || null,
+              start_date: form.subscriptionStartDate || null,
+              end_date: form.subscriptionRenewalDate || null,
+              renewal_date: form.subscriptionRenewalDate || null,
+              renewal_reminder: form.subscriptionRenewalReminder,
+              auto_create_future_expenses:
+                form.subscriptionAutoCreateFutureExpenses,
+              automatic_generation_status: form.subscriptionAutoCreateFutureExpenses
+                ? "metadata_ready_scheduler_required"
+                : "manual_only",
+              amount_basis: form.subscriptionAmountBasis,
+              amount: amountValue,
+              currency_code: form.currencyCode.trim().toUpperCase(),
+              next_expected_expense_date: form.subscriptionRenewalDate || null,
+              payment_method: form.subscriptionPaymentMethod,
+              cards:
+                form.subscriptionPaymentMethod === "credit_card"
+                  ? sanitizedSubscriptionCards
+                  : [],
+              card_details_hidden_after_save: true,
+              sensitive_card_data_stored: false,
+              admin_notes: form.subscriptionAdminNotes.trim() || null,
+            }
+          : null;
+
         const metadata = {
           online_shopping: isOnlineShopping
             ? {
@@ -464,6 +890,28 @@ export default function FinanceNewExpensePage() {
                 order_date: form.onlineOrderDate || null,
                 order_url: form.onlineOrderUrl.trim(),
                 tracking_number: form.onlineTrackingNumber.trim(),
+              }
+            : null,
+          subscription: subscriptionMetadata,
+          credit_card:
+            isSubscriptionExpense && form.subscriptionPaymentMethod === "credit_card"
+              ? {
+                  admin_only_option: true,
+                  permission_enforcement_pending: true,
+                  cards: sanitizedSubscriptionCards,
+                  display_rule:
+                    "Show masked card only. Never expose full card number in requester views.",
+                  editable_by: "admin_later_permission_gate",
+                  sensitive_card_data_stored: false,
+                }
+              : null,
+          admin_subscription_context: isSubscriptionExpense
+            ? {
+                created_from: "expenses_new_request",
+                future_expense_generation:
+                  "metadata_only_until_backend_scheduler_is_added",
+                requested_behavior:
+                  "Create monthly/yearly subscription expense records automatically after backend scheduler is implemented.",
               }
             : null,
           documentation_link: form.externalDocumentationLink.trim() || null,
@@ -564,7 +1012,9 @@ export default function FinanceNewExpensePage() {
       form,
       isOnlineShopping,
       isOtherExpenseType,
+      isSubscriptionExpense,
       navigate,
+      sanitizedSubscriptionCards,
       selectedCompany?.name,
       selectedEmployee?.code,
       selectedEmployeeLabel,
@@ -577,7 +1027,7 @@ export default function FinanceNewExpensePage() {
     <div className="min-h-screen bg-[#05070d] px-4 py-4 text-white md:px-6 md:py-6">
       <div className="mx-auto flex w-full max-w-[1600px] flex-col gap-6">
         <header className="relative overflow-hidden rounded-[34px] border border-white/10 bg-white/[0.045] p-6 shadow-2xl shadow-black/30 backdrop-blur-xl">
-          <div className="pointer-events-none absolute inset-0 bg-[radial-gradient(circle_at_top_left,rgba(6,182,212,0.16),transparent_38%),radial-gradient(circle_at_top_right,rgba(139,92,246,0.12),transparent_34%)]" />
+          <div className="pointer-events-none absolute inset-0 bg-[radial-gradient(circle_at_top_left,rgba(6,182,212,0.16),transparent_38%),radial-gradient(circle_at_top_right,rgba(139,92,246,0.12),transparent_34%),radial-gradient(circle_at_bottom_right,rgba(16,185,129,0.10),transparent_30%)]" />
 
           <div className="relative">
             <button
@@ -589,7 +1039,7 @@ export default function FinanceNewExpensePage() {
               Expenses
             </button>
 
-            <div className="grid gap-6 xl:grid-cols-[minmax(0,1fr)_430px] xl:items-end">
+                        <div className="grid gap-6 xl:grid-cols-[minmax(0,1fr)_430px] xl:items-end">
               <div>
                 <div className="inline-flex w-fit items-center gap-2 rounded-full border border-cyan-400/20 bg-cyan-500/10 px-3 py-1 text-[11px] font-semibold uppercase tracking-[0.22em] text-cyan-200">
                   <Sparkles className="h-3.5 w-3.5" />
@@ -597,34 +1047,47 @@ export default function FinanceNewExpensePage() {
                 </div>
 
                 <h1 className="mt-4 text-3xl font-semibold tracking-[-0.035em] text-white md:text-5xl">
-                  Request Permission Before Spending
+                  Request, Subscription, or Recurring Expense
                 </h1>
 
                 <p className="mt-3 max-w-4xl text-sm leading-6 text-slate-400 md:text-base md:leading-7">
-                  Create an internal expense request. The requester does not choose funding
-                  company, bank account, or payment allocation here. Finance handles approval,
-                  funding, reimbursement, and Payment Made from the Payments Made tab.
+                  Create one-time operating expenses or admin-prepared subscription expenses.
+                  Funding, bank allocation, payment execution, and coverage are still handled
+                  later by Finance/Admin in the Operating Expense Payments flow.
                 </p>
+
+                <div className="mt-5 grid gap-3 md:grid-cols-3">
+                  <SmallInfoPill
+                    title="Page Mode"
+                    value={isSubscriptionExpense ? "Subscription Ready" : "One-Time Request"}
+                  />
+                  <SmallInfoPill
+                    title="Options"
+                    value={
+                      isRefreshingOptions
+                        ? "Silent Refresh"
+                        : isLoadingOptions
+                          ? "Loading"
+                          : "Ready"
+                    }
+                  />
+                  <SmallInfoPill
+                    title="Permissions"
+                    value="Admin Gate Later"
+                  />
+                </div>
               </div>
 
               <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-1">
                 <SummaryBlock
                   title="Requested Amount"
-                  value={`${form.currencyCode} ${amountValue > 0 ? amountValue.toLocaleString() : "0.00"}`}
-                  subtitle="This is the estimated or actual expense amount."
+                  value={formatMoney(form.currencyCode, amountValue)}
+                  subtitle="This is the estimated, actual, or recurring subscription amount."
                 />
                 <SummaryBlock
-                  title="Documentation"
-                  value={
-                    documentationStatus === "missing"
-                      ? "Missing"
-                      : documentationStatus === "files_and_links"
-                        ? "Files + Link"
-                        : documentationStatus === "uploaded"
-                          ? "Uploaded"
-                          : "Linked"
-                  }
-                  subtitle="Documentation is required before Finance verification."
+                  title="Schedule"
+                  value={subscriptionSummary}
+                  subtitle="Automatic generation is metadata-ready and needs backend scheduler later."
                 />
               </div>
             </div>
@@ -665,7 +1128,7 @@ export default function FinanceNewExpensePage() {
                       value={form.employeeRefId}
                       onChange={(event) => updateField("employeeRefId", event.target.value)}
                       className={inputClass()}
-                      disabled={isLoadingOptions}
+                      disabled={isLoadingOptions && !hasUsableOptions}
                     >
                       <option value="">Select employee</option>
                       {employees.map((employee) => (
@@ -719,7 +1182,7 @@ export default function FinanceNewExpensePage() {
                     value={form.companyId}
                     onChange={(event) => updateField("companyId", event.target.value)}
                     className={inputClass()}
-                    disabled={isLoadingOptions}
+                    disabled={isLoadingOptions && !hasUsableOptions}
                   >
                     <option value="">Select company</option>
                     {companies.map((company) => (
@@ -763,7 +1226,7 @@ export default function FinanceNewExpensePage() {
                       updateField("expenseSourceName", event.target.value)
                     }
                     className={inputClass()}
-                    placeholder="Where this expense comes from, for example Amazon order, legal service, office support"
+                    placeholder="Where this expense comes from, for example ChatGPT, Amazon order, legal service, office support"
                   />
                 </label>
 
@@ -788,7 +1251,7 @@ export default function FinanceNewExpensePage() {
                     onChange={(event) => updateField("requestedAmount", event.target.value)}
                     className={inputClass()}
                     inputMode="decimal"
-                    placeholder="0.00"
+                    placeholder="20.00"
                   />
                 </label>
 
@@ -819,7 +1282,7 @@ export default function FinanceNewExpensePage() {
                   />
                 </label>
 
-                <label className="flex items-center gap-3 rounded-2xl border border-white/10 bg-black/20 px-4 py-3">
+                <label className="flex min-h-[44px] items-center gap-3 rounded-2xl border border-white/10 bg-black/20 px-4 py-3">
                   <input
                     type="checkbox"
                     checked={form.isRetroactive}
@@ -858,6 +1321,399 @@ export default function FinanceNewExpensePage() {
                 </label>
               </div>
             </SectionCard>
+
+            <SectionCard
+              title="Admin Subscription Option"
+              description="Prepare monthly, yearly, or one-year upfront recurring expenses. Permissions will be enforced later."
+              icon={CalendarClock}
+            >
+              <div className="grid gap-4">
+                <div className="grid gap-4 lg:grid-cols-[minmax(0,1fr)_280px]">
+                  <label className="flex min-h-[72px] items-center gap-3 rounded-[24px] border border-cyan-400/15 bg-cyan-500/10 px-4 py-3">
+                    <input
+                      type="checkbox"
+                      checked={isSubscriptionExpense}
+                      onChange={(event) =>
+                        updateField("isSubscriptionExpense", event.target.checked)
+                      }
+                      disabled={isSubscriptionType}
+                      className="h-4 w-4 rounded border-white/20 bg-black/20"
+                    />
+                    <span>
+                      <span className="block text-sm font-semibold text-cyan-100">
+                        This is a subscription / recurring expense
+                      </span>
+                      <span className="mt-1 block text-xs leading-5 text-cyan-100/70">
+                        Admin-only option now. Permission gate will be added later.
+                      </span>
+                    </span>
+                  </label>
+
+                  <div className="rounded-[24px] border border-white/10 bg-black/20 p-4">
+                    <div className="text-[11px] font-semibold uppercase tracking-[0.18em] text-slate-500">
+                      Auto Future Expenses
+                    </div>
+                    <div className="mt-2 text-sm leading-6 text-slate-300">
+                      This page stores the schedule. Backend scheduler/RPC can generate future
+                      expenses later without redesigning this page.
+                    </div>
+                  </div>
+                </div>
+
+                {isSubscriptionExpense ? (
+                  <div className="grid gap-4 rounded-[28px] border border-white/10 bg-black/20 p-4 md:grid-cols-2">
+                    <label className="grid gap-2">
+                      <span className={labelClass()}>Provider / Service Name</span>
+                      <input
+                        value={form.subscriptionProviderName}
+                        onChange={(event) =>
+                          updateField("subscriptionProviderName", event.target.value)
+                        }
+                        className={inputClass()}
+                        placeholder="ChatGPT, Google Workspace, Adobe..."
+                      />
+                    </label>
+
+                    <label className="grid gap-2">
+                      <span className={labelClass()}>Account / Contract Reference</span>
+                      <input
+                        value={form.subscriptionAccountReference}
+                        onChange={(event) =>
+                          updateField("subscriptionAccountReference", event.target.value)
+                        }
+                        className={inputClass()}
+                        placeholder="Account email, contract ID, workspace name"
+                      />
+                    </label>
+
+                    <label className="grid gap-2">
+                      <span className={labelClass()}>Billing Frequency</span>
+                      <select
+                        value={form.subscriptionBillingFrequency}
+                        onChange={(event) =>
+                          updateField(
+                            "subscriptionBillingFrequency",
+                            event.target.value as BillingFrequency
+                          )
+                        }
+                        className={inputClass()}
+                      >
+                        {BILLING_FREQUENCIES.map((frequency) => (
+                          <option key={frequency.value} value={frequency.value}>
+                            {frequency.label}
+                          </option>
+                        ))}
+                      </select>
+                      <span className="text-xs leading-5 text-slate-500">
+                        {
+                          BILLING_FREQUENCIES.find(
+                            (frequency) =>
+                              frequency.value === form.subscriptionBillingFrequency
+                          )?.helper
+                        }
+                      </span>
+                    </label>
+
+                    <label className="grid gap-2">
+                      <span className={labelClass()}>Amount Basis</span>
+                      <select
+                        value={form.subscriptionAmountBasis}
+                        onChange={(event) =>
+                          updateField(
+                            "subscriptionAmountBasis",
+                            event.target.value as SubscriptionAmountBasis
+                          )
+                        }
+                        className={inputClass()}
+                      >
+                        {SUBSCRIPTION_AMOUNT_BASIS_OPTIONS.map((basis) => (
+                          <option key={basis.value} value={basis.value}>
+                            {basis.label}
+                          </option>
+                        ))}
+                      </select>
+                    </label>
+
+                    <label className="grid gap-2">
+                      <span className={labelClass()}>Subscription Start Date</span>
+                      <input
+                        type="date"
+                        value={form.subscriptionStartDate}
+                        onChange={(event) =>
+                          updateField("subscriptionStartDate", event.target.value)
+                        }
+                        className={inputClass()}
+                      />
+                    </label>
+
+                    <label className="grid gap-2">
+                      <span className={labelClass()}>End / Renewal Date</span>
+                      <input
+                        type="date"
+                        value={form.subscriptionRenewalDate}
+                        onChange={(event) =>
+                          updateField("subscriptionRenewalDate", event.target.value)
+                        }
+                        className={inputClass()}
+                      />
+                    </label>
+
+                    <label className="flex min-h-[72px] items-center gap-3 rounded-2xl border border-white/10 bg-white/[0.035] px-4 py-3">
+                      <input
+                        type="checkbox"
+                        checked={form.subscriptionAutoCreateFutureExpenses}
+                        onChange={(event) =>
+                          updateField(
+                            "subscriptionAutoCreateFutureExpenses",
+                            event.target.checked
+                          )
+                        }
+                        className="h-4 w-4 rounded border-white/20 bg-black/20"
+                      />
+                      <span className="text-sm leading-6 text-slate-300">
+                        Mark this subscription as ready for automatic future expense creation.
+                      </span>
+                    </label>
+
+                    <label className="flex min-h-[72px] items-center gap-3 rounded-2xl border border-white/10 bg-white/[0.035] px-4 py-3">
+                      <input
+                        type="checkbox"
+                        checked={form.subscriptionRenewalReminder}
+                        onChange={(event) =>
+                          updateField("subscriptionRenewalReminder", event.target.checked)
+                        }
+                        className="h-4 w-4 rounded border-white/20 bg-black/20"
+                      />
+                      <span className="text-sm leading-6 text-slate-300">
+                        Keep renewal reminder enabled for Finance/Admin.
+                      </span>
+                    </label>
+
+                    <label className="grid gap-2 md:col-span-2">
+                      <span className={labelClass()}>Admin Subscription Notes</span>
+                      <textarea
+                        value={form.subscriptionAdminNotes}
+                        onChange={(event) =>
+                          updateField("subscriptionAdminNotes", event.target.value)
+                        }
+                        className={textareaClass()}
+                        placeholder="Internal notes for admin subscription control"
+                      />
+                    </label>
+                  </div>
+                ) : null}
+              </div>
+            </SectionCard>
+
+                        {isSubscriptionExpense ? (
+              <SectionCard
+                title="Subscription Credit Card"
+                description="Store masked card references only. Full card numbers are not stored here."
+                icon={CreditCard}
+              >
+                <div className="grid gap-4">
+                  <div className="grid gap-4 md:grid-cols-2">
+                    <label className="grid gap-2">
+                      <span className={labelClass()}>Subscription Payment Method</span>
+                      <select
+                        value={form.subscriptionPaymentMethod}
+                        onChange={(event) =>
+                          updateField(
+                            "subscriptionPaymentMethod",
+                            event.target.value as SubscriptionPaymentMethod
+                          )
+                        }
+                        className={inputClass()}
+                      >
+                        <option value="not_selected">Select payment method</option>
+                        <option value="no_card">No credit card / manual payment</option>
+                        <option value="credit_card">Credit card on file</option>
+                      </select>
+                    </label>
+
+                    <div className="rounded-[24px] border border-amber-400/20 bg-amber-500/10 p-4">
+                      <div className="flex items-center gap-2 text-sm font-semibold text-amber-100">
+                        <ShieldCheck className="h-4 w-4" />
+                        Hidden After Save
+                      </div>
+                      <p className="mt-2 text-xs leading-5 text-amber-100/70">
+                        Save nickname, brand, holder, expiry, and last 4 only. Do not enter or
+                        store the full card number in this page.
+                      </p>
+                    </div>
+                  </div>
+
+                  {form.subscriptionPaymentMethod === "credit_card" ? (
+                    <div className="grid gap-3">
+                      {form.subscriptionCards.map((card, cardIndex) => (
+                        <div
+                          key={card.id}
+                          className="rounded-[24px] border border-white/10 bg-black/20 p-4"
+                        >
+                          <div className="mb-4 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+                            <div>
+                              <div className="text-sm font-semibold text-white">
+                                Card {cardIndex + 1}
+                              </div>
+                              <div className="mt-1 text-xs text-slate-500">
+                                {maskCard(card.last4)}
+                              </div>
+                            </div>
+
+                            <button
+                              type="button"
+                              onClick={() => removeSubscriptionCard(card.id)}
+                              className="inline-flex h-10 items-center justify-center gap-2 rounded-2xl border border-rose-400/20 bg-rose-500/10 px-4 text-sm font-semibold text-rose-100 transition hover:bg-rose-500/15"
+                            >
+                              <Trash2 className="h-4 w-4" />
+                              Remove
+                            </button>
+                          </div>
+
+                          <div className="grid gap-4 md:grid-cols-2">
+                            <label className="grid gap-2">
+                              <span className={labelClass()}>Card Nickname</span>
+                              <input
+                                value={card.nickname}
+                                onChange={(event) =>
+                                  updateSubscriptionCard(
+                                    card.id,
+                                    "nickname",
+                                    event.target.value
+                                  )
+                                }
+                                className={inputClass()}
+                                placeholder="Admin Visa, ChatGPT Card..."
+                              />
+                            </label>
+
+                            <label className="grid gap-2">
+                              <span className={labelClass()}>Cardholder Name</span>
+                              <input
+                                value={card.cardholderName}
+                                onChange={(event) =>
+                                  updateSubscriptionCard(
+                                    card.id,
+                                    "cardholderName",
+                                    event.target.value
+                                  )
+                                }
+                                className={inputClass()}
+                                placeholder="Name on card"
+                              />
+                            </label>
+
+                            <label className="grid gap-2">
+                              <span className={labelClass()}>Card Brand</span>
+                              <select
+                                value={card.brand}
+                                onChange={(event) =>
+                                  updateSubscriptionCard(card.id, "brand", event.target.value)
+                                }
+                                className={inputClass()}
+                              >
+                                {CARD_BRANDS.map((brand) => (
+                                  <option key={brand} value={brand}>
+                                    {brand}
+                                  </option>
+                                ))}
+                              </select>
+                            </label>
+
+                            <label className="grid gap-2">
+                              <span className={labelClass()}>Last 4 Digits Only</span>
+                              <input
+                                value={card.last4}
+                                onChange={(event) =>
+                                  updateSubscriptionCard(card.id, "last4", event.target.value)
+                                }
+                                className={inputClass()}
+                                inputMode="numeric"
+                                maxLength={4}
+                                placeholder="1234"
+                              />
+                            </label>
+
+                            <label className="grid gap-2">
+                              <span className={labelClass()}>Expiry Month</span>
+                              <input
+                                value={card.expiryMonth}
+                                onChange={(event) =>
+                                  updateSubscriptionCard(
+                                    card.id,
+                                    "expiryMonth",
+                                    event.target.value
+                                  )
+                                }
+                                className={inputClass()}
+                                inputMode="numeric"
+                                maxLength={2}
+                                placeholder="MM"
+                              />
+                            </label>
+
+                            <label className="grid gap-2">
+                              <span className={labelClass()}>Expiry Year</span>
+                              <input
+                                value={card.expiryYear}
+                                onChange={(event) =>
+                                  updateSubscriptionCard(
+                                    card.id,
+                                    "expiryYear",
+                                    event.target.value
+                                  )
+                                }
+                                className={inputClass()}
+                                inputMode="numeric"
+                                maxLength={4}
+                                placeholder="YYYY"
+                              />
+                            </label>
+
+                            <label className="grid gap-2 md:col-span-2">
+                              <span className={labelClass()}>Billing Company / Context</span>
+                              <input
+                                value={card.billingCompany}
+                                onChange={(event) =>
+                                  updateSubscriptionCard(
+                                    card.id,
+                                    "billingCompany",
+                                    event.target.value
+                                  )
+                                }
+                                className={inputClass()}
+                                placeholder="Company, department, or use context"
+                              />
+                            </label>
+
+                            <label className="grid gap-2 md:col-span-2">
+                              <span className={labelClass()}>Card Notes</span>
+                              <textarea
+                                value={card.notes}
+                                onChange={(event) =>
+                                  updateSubscriptionCard(card.id, "notes", event.target.value)
+                                }
+                                className={textareaClass()}
+                                placeholder="Internal admin notes. Do not write full card number here."
+                              />
+                            </label>
+                          </div>
+                        </div>
+                      ))}
+
+                      <button
+                        type="button"
+                        onClick={addSubscriptionCard}
+                        className="inline-flex h-11 w-fit items-center justify-center gap-2 rounded-2xl border border-cyan-400/20 bg-cyan-500/10 px-5 text-sm font-semibold text-cyan-100 transition hover:bg-cyan-500/15"
+                      >
+                        <Plus className="h-4 w-4" />
+                        Add Another Card
+                      </button>
+                    </div>
+                  ) : null}
+                </div>
+              </SectionCard>
+            ) : null}
 
             {isOnlineShopping ? (
               <SectionCard
@@ -981,7 +1837,7 @@ export default function FinanceNewExpensePage() {
             </SectionCard>
           </div>
 
-          <aside className="sticky top-6 grid gap-6">
+          <aside className="sticky top-6 grid gap-6 self-start">
             <section className="overflow-hidden rounded-[30px] border border-white/10 bg-white/[0.045] backdrop-blur-xl">
               <div className="border-b border-white/10 px-5 py-4">
                 <div className="text-sm font-semibold uppercase tracking-[0.18em] text-slate-400">
@@ -1016,6 +1872,30 @@ export default function FinanceNewExpensePage() {
                   value={form.expenseSourceName || "Not entered"}
                   subtitle="The source that generated the expense."
                 />
+                <SummaryBlock
+                  title="Subscription"
+                  value={isSubscriptionExpense ? "Enabled" : "Disabled"}
+                  subtitle={
+                    isSubscriptionExpense
+                      ? `${form.subscriptionProviderName || "Provider not entered"} • ${subscriptionSummary}`
+                      : "This request is currently a one-time expense."
+                  }
+                />
+                <SummaryBlock
+                  title="Card"
+                  value={
+                    isSubscriptionExpense &&
+                    form.subscriptionPaymentMethod === "credit_card"
+                      ? `${sanitizedSubscriptionCards.length} masked card${
+                          sanitizedSubscriptionCards.length === 1 ? "" : "s"
+                        }`
+                      : isSubscriptionExpense &&
+                          form.subscriptionPaymentMethod === "no_card"
+                        ? "No Card"
+                        : "Not selected"
+                  }
+                  subtitle="Only masked card references are saved in metadata."
+                />
               </div>
             </section>
 
@@ -1035,7 +1915,7 @@ export default function FinanceNewExpensePage() {
               <div className="grid gap-3">
                 <button
                   type="button"
-                  disabled={isSaving || isLoadingOptions}
+                  disabled={isSaving || (isLoadingOptions && !hasUsableOptions)}
                   onClick={() => void saveExpense("request")}
                   className="inline-flex h-12 items-center justify-center gap-2 rounded-2xl border border-cyan-400/20 bg-cyan-500/10 px-5 text-sm font-semibold text-cyan-100 transition hover:bg-cyan-500/15 disabled:cursor-not-allowed disabled:opacity-50"
                 >
@@ -1049,18 +1929,23 @@ export default function FinanceNewExpensePage() {
 
                 <button
                   type="button"
-                  disabled={isSaving || isLoadingOptions}
+                  disabled={isSaving || (isLoadingOptions && !hasUsableOptions)}
                   onClick={() => void saveExpense("draft")}
                   className="inline-flex h-12 items-center justify-center gap-2 rounded-2xl border border-white/10 bg-white/[0.05] px-5 text-sm font-semibold text-slate-300 transition hover:bg-white/[0.08] hover:text-white disabled:cursor-not-allowed disabled:opacity-50"
                 >
-                  {isSaving ? <Loader2 className="h-4 w-4 animate-spin" /> : <Save className="h-4 w-4" />}
+                  {isSaving ? (
+                    <Loader2 className="h-4 w-4 animate-spin" />
+                  ) : (
+                    <Save className="h-4 w-4" />
+                  )}
                   Save Draft
                 </button>
               </div>
 
               <div className="mt-4 rounded-[24px] border border-white/10 bg-black/20 p-4 text-xs leading-5 text-slate-500">
                 Funding company, bank account, Payment Made creation, and allocation are handled
-                later by Finance/Admin in Payments Made.
+                later by Finance/Admin in Operating Expense Payments. This page never reloads
+                visible options during silent refresh if cached data is already available.
               </div>
             </section>
           </aside>

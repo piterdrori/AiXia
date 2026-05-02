@@ -587,7 +587,21 @@ function initialSubscriptionCard(): CreditCardDraft {
 }
 
 function toNumber(value: number | string | null | undefined) {
-  return Number(value ?? 0);
+  const parsed = Number(value ?? 0);
+  return Number.isFinite(parsed) ? parsed : 0;
+}
+
+function roundMoney(value: number) {
+  return Math.round((value + Number.EPSILON) * 100) / 100;
+}
+
+function getCalculatedCoverageStatus(targetAmount: number, coveredAmount: number) {
+  const roundedCoveredAmount = roundMoney(coveredAmount);
+  const remainingAmount = roundMoney(targetAmount - roundedCoveredAmount);
+
+  if (roundedCoveredAmount <= 0) return "not_covered";
+  if (remainingAmount <= 0.01) return "covered";
+  return "partially_covered";
 }
 
 function formatMoney(value: number | string | null | undefined) {
@@ -1559,13 +1573,16 @@ export default function FinanceExpenseDetailPage() {
   }, [allocations, confirmedPaymentIdSet]);
 
   const coveredAmount = useMemo(() => {
-    return confirmedAllocations.reduce(
-      (sum, item) => sum + toNumber(item.converted_amount || item.allocated_amount),
-      0
+    return roundMoney(
+      confirmedAllocations.reduce((sum, item) => sum + toNumber(item.allocated_amount), 0)
     );
   }, [confirmedAllocations]);
 
-  const remainingAmount = Math.max(expenseAmount - coveredAmount, 0);
+  const calculatedCoverageStatus = useMemo(() => {
+    return getCalculatedCoverageStatus(expenseAmount, coveredAmount);
+  }, [coveredAmount, expenseAmount]);
+
+  const remainingAmount = Math.max(roundMoney(expenseAmount - coveredAmount), 0);
 
   const canSubmitRecipientConfirmation =
     expense?.recipient_confirmation_status === "pending_confirmation";
@@ -2223,9 +2240,9 @@ export default function FinanceExpenseDetailPage() {
       },
       {
         label: "Coverage",
-        value: formatLabel(expense.coverage_status),
+        value: formatLabel(calculatedCoverageStatus),
         detail: `${expense.currency_code || "USD"} ${formatMoney(coveredAmount)} covered`,
-        tone: statusToneMap[expense.coverage_status || ""] ?? "slate",
+        tone: statusToneMap[calculatedCoverageStatus] ?? "slate",
       },
       {
         label: "Recipient",
@@ -2236,7 +2253,7 @@ export default function FinanceExpenseDetailPage() {
         tone: statusToneMap[expense.recipient_confirmation_status || ""] ?? "slate",
       },
     ];
-  }, [coveredAmount, expense]);
+  }, [calculatedCoverageStatus, coveredAmount, expense]);
 
   const loadExpense = useCallback(
     async (mode: "initial" | "silent" = "initial") => {
@@ -3920,7 +3937,7 @@ export default function FinanceExpenseDetailPage() {
                   <StatusBadge value={expense.request_status || expense.status} />
                   <StatusBadge value={expense.documentation_status} />
                   <StatusBadge value={expense.finance_review_status} />
-                  <StatusBadge value={expense.coverage_status} />
+                  <StatusBadge value={calculatedCoverageStatus} />
                   {isRefreshing ? (
                     <span className="inline-flex rounded-full border border-white/10 bg-white/[0.06] px-3 py-1 text-[11px] font-semibold uppercase tracking-[0.14em] text-slate-300">
                       Silent Refresh
@@ -4640,9 +4657,7 @@ export default function FinanceExpenseDetailPage() {
                             </td>
                             <td className="px-5 py-4 text-right font-semibold text-white">
                               {allocation.currency_code || currencyCode}{" "}
-                              {formatMoney(
-                                allocation.converted_amount || allocation.allocated_amount
-                              )}
+                              {formatMoney(allocation.allocated_amount)}
                             </td>
                             <td className="px-5 py-4">
                               <StatusBadge value={allocation.recipient_confirmation_status} />
@@ -4678,7 +4693,7 @@ export default function FinanceExpenseDetailPage() {
                 />
                 <ValueBlock
                   label="Coverage"
-                  value={<StatusBadge value={expense.coverage_status} />}
+                  value={<StatusBadge value={calculatedCoverageStatus} />}
                 />
                 <ValueBlock
                   label="Recipient Confirmation"

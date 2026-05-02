@@ -85,12 +85,10 @@ type AllocationRow = {
 };
 
 type SortKey =
-  | "expense_number"
   | "expense_date"
-  | "company"
   | "made_by"
   | "expense_type"
-  | "expense_source"
+  | "expense"
   | "amount"
   | "documentation_status"
   | "finance_review_status"
@@ -101,6 +99,8 @@ type SortKey =
 type EnrichedExpenseRow = ExpenseRow & {
   companyName: string;
   madeByLabel: string;
+  expenseLabel: string;
+  expenseSubLabel: string;
   allocatedAmount: number;
 };
 
@@ -196,7 +196,7 @@ function getStatusToneClasses(value: string | null | undefined) {
 function StatusBadge({ value }: { value: string | null | undefined }) {
   return (
     <span
-      className={`inline-flex max-w-full items-center rounded-full border px-3 py-1 text-[11px] font-semibold uppercase tracking-[0.14em] ${getStatusToneClasses(
+      className={`inline-flex max-w-full items-center rounded-full border px-3 py-1 text-[10px] font-semibold uppercase tracking-[0.12em] ${getStatusToneClasses(
         value
       )}`}
     >
@@ -257,7 +257,7 @@ function SortHeader({
   const SortIcon = direction === "asc" ? ChevronUp : ChevronDown;
 
   return (
-    <th className={`px-5 py-4 ${alignRight ? "text-right" : "text-left"}`}>
+    <th className={`px-4 py-4 ${alignRight ? "text-right" : "text-left"}`}>
       <button
         type="button"
         onClick={() => onSort(sortKey)}
@@ -332,20 +332,31 @@ function getMadeByLabel(
   return "—";
 }
 
+function getExpenseLabel(row: ExpenseRow) {
+  return row.title?.trim() || row.expense_source_name?.trim() || row.expense_number || "Expense";
+}
+
+function getExpenseSubLabel(row: ExpenseRow) {
+  const source = row.expense_source_name?.trim();
+  const onlineContext = [row.online_platform, row.online_order_number]
+    .filter(Boolean)
+    .join(" • ");
+
+  if (source && source !== row.title) return source;
+  if (onlineContext) return onlineContext;
+  return row.expense_number || formatLabel(row.request_status || row.status);
+}
+
 function getSortValue(row: EnrichedExpenseRow, sortKey: SortKey) {
   switch (sortKey) {
-    case "expense_number":
-      return row.expense_number || "";
     case "expense_date":
       return row.expense_date || "";
-    case "company":
-      return row.companyName || "";
     case "made_by":
       return row.madeByLabel || "";
     case "expense_type":
       return row.expense_type || "";
-    case "expense_source":
-      return row.expense_source_name || "";
+    case "expense":
+      return `${row.expenseLabel} ${row.expenseSubLabel}`;
     case "amount":
       return toNumber(row.amount);
     case "documentation_status":
@@ -371,6 +382,8 @@ export default function FinanceExpensesPage() {
   const [profiles, setProfiles] = useState<ProfileRow[]>([]);
   const [allocations, setAllocations] = useState<AllocationRow[]>([]);
   const [isLoading, setIsLoading] = useState(true);
+  const [isRefreshing, setIsRefreshing] = useState(false);
+  const [hasLoadedOnce, setHasLoadedOnce] = useState(false);
   const [searchQuery, setSearchQuery] = useState("");
   const [sortKey, setSortKey] = useState<SortKey>("updated_at");
   const [sortDirection, setSortDirection] = useState<SortDirection>("desc");
@@ -390,100 +403,114 @@ export default function FinanceExpensesPage() {
     return new Map(profiles.map((profile) => [profile.user_id, profile]));
   }, [profiles]);
 
-  const loadExpenses = useCallback(async () => {
-    setIsLoading(true);
-    setActionError(null);
-
-    try {
-      const [expensesResult, companiesResult, employeesResult, profilesResult] =
-        await Promise.all([
-          supabase
-            .from("finance_expenses")
-            .select(
-              [
-                "id",
-                "expense_number",
-                "title",
-                "description",
-                "amount",
-                "expense_date",
-                "expense_type",
-                "status",
-                "request_status",
-                "documentation_status",
-                "finance_review_status",
-                "coverage_status",
-                "recipient_confirmation_status",
-                "company_id",
-                "employee_ref_id",
-                "expense_made_by_type",
-                "responsible_person_name",
-                "expense_source_name",
-                "online_platform",
-                "online_order_number",
-                "created_at",
-                "updated_at",
-              ].join(", ")
-            )
-            .order("updated_at", { ascending: false })
-            .limit(500),
-
-          supabase.from("finance_companies").select("id, name").order("name"),
-
-          supabase
-            .from("finance_employee_refs")
-            .select("id, user_id, code, mark, status, metadata")
-            .order("code"),
-
-          supabase
-            .from("profiles")
-            .select(
-              "user_id, full_name, display_name, email, company, job_title, member_type"
-            )
-            .order("full_name"),
-        ]);
-
-      if (expensesResult.error) throw expensesResult.error;
-      if (companiesResult.error) throw companiesResult.error;
-      if (employeesResult.error) throw employeesResult.error;
-      if (profilesResult.error) throw profilesResult.error;
-
-      const loadedExpenses = (expensesResult.data || []) as unknown as ExpenseRow[];
-
-      setExpenses(loadedExpenses);
-      setCompanies((companiesResult.data || []) as CompanyRow[]);
-      setEmployees((employeesResult.data || []) as EmployeeRefRow[]);
-      setProfiles((profilesResult.data || []) as ProfileRow[]);
-
-      const expenseIds = loadedExpenses.map((item) => item.id);
-
-      if (expenseIds.length === 0) {
-        setAllocations([]);
+  const loadExpenses = useCallback(
+    async (mode: "initial" | "silent" = "initial") => {
+      if (mode === "initial" && !hasLoadedOnce) {
+        setIsLoading(true);
       } else {
-        const allocationsResult = await supabase
-          .from("finance_payment_made_expense_allocations")
-          .select("id, expense_id, allocated_amount, recipient_confirmation_status")
-          .in("expense_id", expenseIds);
-
-        if (allocationsResult.error) throw allocationsResult.error;
-
-        setAllocations((allocationsResult.data || []) as AllocationRow[]);
+        setIsRefreshing(true);
       }
-    } catch (error) {
-      console.error("Failed to load operating expenses:", error);
-      setActionError("Failed to load expenses.");
-      setExpenses([]);
-      setCompanies([]);
-      setEmployees([]);
-      setProfiles([]);
-      setAllocations([]);
-    } finally {
-      setIsLoading(false);
-    }
-  }, []);
+
+      setActionError(null);
+
+      try {
+        const [expensesResult, companiesResult, employeesResult, profilesResult] =
+          await Promise.all([
+            supabase
+              .from("finance_expenses")
+              .select(
+                [
+                  "id",
+                  "expense_number",
+                  "title",
+                  "description",
+                  "amount",
+                  "expense_date",
+                  "expense_type",
+                  "status",
+                  "request_status",
+                  "documentation_status",
+                  "finance_review_status",
+                  "coverage_status",
+                  "recipient_confirmation_status",
+                  "company_id",
+                  "employee_ref_id",
+                  "expense_made_by_type",
+                  "responsible_person_name",
+                  "expense_source_name",
+                  "online_platform",
+                  "online_order_number",
+                  "created_at",
+                  "updated_at",
+                ].join(", ")
+              )
+              .order("updated_at", { ascending: false })
+              .limit(500),
+
+            supabase.from("finance_companies").select("id, name").order("name"),
+
+            supabase
+              .from("finance_employee_refs")
+              .select("id, user_id, code, mark, status, metadata")
+              .order("code"),
+
+            supabase
+              .from("profiles")
+              .select(
+                "user_id, full_name, display_name, email, company, job_title, member_type"
+              )
+              .order("full_name"),
+          ]);
+
+        if (expensesResult.error) throw expensesResult.error;
+        if (companiesResult.error) throw companiesResult.error;
+        if (employeesResult.error) throw employeesResult.error;
+        if (profilesResult.error) throw profilesResult.error;
+
+        const loadedExpenses = (expensesResult.data || []) as unknown as ExpenseRow[];
+
+        setExpenses(loadedExpenses);
+        setCompanies((companiesResult.data || []) as CompanyRow[]);
+        setEmployees((employeesResult.data || []) as EmployeeRefRow[]);
+        setProfiles((profilesResult.data || []) as ProfileRow[]);
+
+        const expenseIds = loadedExpenses.map((item) => item.id);
+
+        if (expenseIds.length === 0) {
+          setAllocations([]);
+        } else {
+          const allocationsResult = await supabase
+            .from("finance_payment_made_expense_allocations")
+            .select("id, expense_id, allocated_amount, recipient_confirmation_status")
+            .in("expense_id", expenseIds);
+
+          if (allocationsResult.error) throw allocationsResult.error;
+
+          setAllocations((allocationsResult.data || []) as AllocationRow[]);
+        }
+
+        setHasLoadedOnce(true);
+      } catch (error) {
+        console.error("Failed to load operating expenses:", error);
+        setActionError("Failed to load expenses.");
+
+        if (!hasLoadedOnce) {
+          setExpenses([]);
+          setCompanies([]);
+          setEmployees([]);
+          setProfiles([]);
+          setAllocations([]);
+        }
+      } finally {
+        setIsLoading(false);
+        setIsRefreshing(false);
+      }
+    },
+    [hasLoadedOnce]
+  );
 
   useEffect(() => {
-    void loadExpenses();
+    void loadExpenses("initial");
   }, [loadExpenses]);
 
   useEffect(() => {
@@ -492,7 +519,7 @@ export default function FinanceExpensesPage() {
       .on(
         "postgres_changes",
         { event: "*", schema: "public", table: "finance_expenses" },
-        () => void loadExpenses()
+        () => void loadExpenses("silent")
       )
       .on(
         "postgres_changes",
@@ -501,12 +528,12 @@ export default function FinanceExpensesPage() {
           schema: "public",
           table: "finance_payment_made_expense_allocations",
         },
-        () => void loadExpenses()
+        () => void loadExpenses("silent")
       )
       .subscribe();
 
     const intervalId = window.setInterval(() => {
-      void loadExpenses();
+      void loadExpenses("silent");
     }, 60000);
 
     return () => {
@@ -529,6 +556,8 @@ export default function FinanceExpensesPage() {
           ? companyMap.get(row.company_id)?.name || "Unknown company"
           : "No company",
         madeByLabel: getMadeByLabel(row, employeeMap, profileMap),
+        expenseLabel: getExpenseLabel(row),
+        expenseSubLabel: getExpenseSubLabel(row),
         allocatedAmount,
       };
     });
@@ -546,6 +575,8 @@ export default function FinanceExpensesPage() {
         row.description,
         row.companyName,
         row.madeByLabel,
+        row.expenseLabel,
+        row.expenseSubLabel,
         row.expense_type,
         row.expense_source_name,
         row.online_platform,
@@ -591,7 +622,9 @@ export default function FinanceExpensesPage() {
     });
   }, [activeRows, sortDirection, sortKey]);
 
-  const archiveRows = archiveTab === "archived" ? archivedRows : deletedRows;
+  const archiveRows = useMemo(() => {
+    return archiveTab === "archived" ? archivedRows : deletedRows;
+  }, [archiveTab, archivedRows, deletedRows]);
 
   const metrics = useMemo(() => {
     const active = enrichedExpenses.filter(isActive);
@@ -639,7 +672,7 @@ export default function FinanceExpensesPage() {
         return;
       }
 
-      await loadExpenses();
+      await loadExpenses("silent");
     },
     [loadExpenses]
   );
@@ -649,7 +682,7 @@ export default function FinanceExpensesPage() {
       if (rows.length === 0) {
         return (
           <tr>
-            <td colSpan={12} className="px-5 py-12 text-center">
+            <td colSpan={10} className="px-5 py-12 text-center">
               <div className="text-sm font-medium text-white">
                 No expense records found
               </div>
@@ -666,63 +699,55 @@ export default function FinanceExpensesPage() {
           key={row.id}
           className="border-b border-white/5 text-sm text-slate-300 transition hover:bg-white/[0.035]"
         >
-          <td className="whitespace-nowrap px-5 py-4">
-            <div className="font-semibold text-white">
+          <td className="whitespace-nowrap px-4 py-4">
+            <div className="font-medium text-slate-200">{formatDate(row.expense_date)}</div>
+            <div className="mt-1 text-[11px] text-slate-500">
               {row.expense_number || "Draft expense"}
             </div>
-            <div className="mt-1 text-xs text-slate-500">{formatDate(row.updated_at)}</div>
           </td>
 
-          <td className="whitespace-nowrap px-5 py-4">{formatDate(row.expense_date)}</td>
-
-          <td className="min-w-[180px] px-5 py-4">
-            <div className="font-medium text-slate-200">{row.companyName}</div>
-          </td>
-
-          <td className="min-w-[220px] px-5 py-4">
-            <div className="font-medium text-slate-200">{row.madeByLabel}</div>
-            <div className="mt-1 text-xs text-slate-500">
+          <td className="min-w-[180px] px-4 py-4">
+            <div className="line-clamp-1 font-medium text-slate-200">{row.madeByLabel}</div>
+            <div className="mt-1 line-clamp-1 text-[11px] text-slate-500">
               {formatLabel(row.expense_made_by_type)}
             </div>
           </td>
 
-          <td className="min-w-[170px] px-5 py-4">{formatLabel(row.expense_type)}</td>
-
-          <td className="min-w-[220px] px-5 py-4">
-            <div className="font-medium text-slate-200">
-              {row.expense_source_name || row.title || "—"}
-            </div>
-            {row.online_platform || row.online_order_number ? (
-              <div className="mt-1 text-xs text-cyan-200/80">
-                {[row.online_platform, row.online_order_number].filter(Boolean).join(" • ")}
-              </div>
-            ) : null}
+          <td className="min-w-[128px] px-4 py-4">
+            <div className="line-clamp-2 text-slate-300">{formatLabel(row.expense_type)}</div>
           </td>
 
-          <td className="whitespace-nowrap px-5 py-4 text-right font-semibold text-white">
+          <td className="min-w-[260px] px-4 py-4">
+            <div className="line-clamp-1 font-semibold text-white">{row.expenseLabel}</div>
+            <div className="mt-1 line-clamp-1 text-xs text-slate-500">
+              {row.expenseSubLabel}
+            </div>
+          </td>
+
+          <td className="whitespace-nowrap px-4 py-4 text-right font-semibold text-white">
             ${formatMoney(row.amount)}
           </td>
 
-          <td className="whitespace-nowrap px-5 py-4">
+          <td className="whitespace-nowrap px-4 py-4">
             <StatusBadge value={row.documentation_status} />
           </td>
 
-          <td className="whitespace-nowrap px-5 py-4">
+          <td className="whitespace-nowrap px-4 py-4">
             <StatusBadge value={row.finance_review_status} />
           </td>
 
-          <td className="whitespace-nowrap px-5 py-4">
+          <td className="whitespace-nowrap px-4 py-4">
             <StatusBadge value={row.coverage_status} />
-            <div className="mt-1 text-xs text-slate-500">
-              Covered ${formatMoney(row.allocatedAmount)}
+            <div className="mt-1 text-[11px] text-slate-500">
+              ${formatMoney(row.allocatedAmount)}
             </div>
           </td>
 
-          <td className="min-w-[170px] px-5 py-4">
+          <td className="min-w-[150px] px-4 py-4">
             <StatusBadge value={row.recipient_confirmation_status} />
           </td>
 
-          <td className="sticky right-0 bg-[#05070d]/95 px-5 py-4 backdrop-blur-xl">
+          <td className="sticky right-0 bg-[#05070d]/95 px-4 py-4 backdrop-blur-xl">
             <div className="flex items-center justify-end gap-2">
               <IconButton
                 label="Open expense"
@@ -814,14 +839,19 @@ export default function FinanceExpensesPage() {
 
                 <div className="mt-5 flex flex-wrap gap-2">
                   <div className="rounded-full border border-cyan-400/20 bg-cyan-500/10 px-3 py-1 text-[11px] font-semibold uppercase tracking-[0.16em] text-cyan-200">
-                    No payment controls here
+                    Compact Registry
                   </div>
                   <div className="rounded-full border border-emerald-400/20 bg-emerald-500/10 px-3 py-1 text-[11px] font-semibold uppercase tracking-[0.16em] text-emerald-200">
-                    Documentation required
+                    Documentation
                   </div>
                   <div className="rounded-full border border-violet-400/20 bg-violet-500/10 px-3 py-1 text-[11px] font-semibold uppercase tracking-[0.16em] text-violet-200">
-                    Recipient confirmation
+                    Recipient Confirmation
                   </div>
+                  {isRefreshing ? (
+                    <div className="rounded-full border border-white/10 bg-white/[0.05] px-3 py-1 text-[11px] font-semibold uppercase tracking-[0.16em] text-slate-400">
+                      Silent Refresh
+                    </div>
+                  ) : null}
                 </div>
               </div>
 
@@ -913,8 +943,8 @@ export default function FinanceExpensesPage() {
                 Expense Registry
               </div>
               <p className="mt-1 text-xs leading-5 text-slate-500">
-                Intake records only. Finance review and payment execution happen inside Payments
-                Made.
+                Compact intake registry: Date, Made By, Type, Expense, Amount, Docs, Review,
+                Coverage, and Recipient.
               </p>
             </div>
 
@@ -957,26 +987,12 @@ export default function FinanceExpensesPage() {
 
           <div className="overflow-x-auto">
             <div className="max-h-[720px] overflow-y-auto">
-              <table className="w-full min-w-[1540px] border-collapse">
+              <table className="w-full min-w-[1180px] border-collapse">
                 <thead className="sticky top-0 z-20 border-b border-white/10 bg-black/70 backdrop-blur-xl">
                   <tr>
                     <SortHeader
-                      label="Expense ID"
-                      sortKey="expense_number"
-                      activeKey={sortKey}
-                      direction={sortDirection}
-                      onSort={handleSort}
-                    />
-                    <SortHeader
                       label="Date"
                       sortKey="expense_date"
-                      activeKey={sortKey}
-                      direction={sortDirection}
-                      onSort={handleSort}
-                    />
-                    <SortHeader
-                      label="Company"
-                      sortKey="company"
                       activeKey={sortKey}
                       direction={sortDirection}
                       onSort={handleSort}
@@ -996,8 +1012,8 @@ export default function FinanceExpensesPage() {
                       onSort={handleSort}
                     />
                     <SortHeader
-                      label="Expense Source"
-                      sortKey="expense_source"
+                      label="Expense"
+                      sortKey="expense"
                       activeKey={sortKey}
                       direction={sortDirection}
                       onSort={handleSort}
@@ -1038,7 +1054,7 @@ export default function FinanceExpensesPage() {
                       direction={sortDirection}
                       onSort={handleSort}
                     />
-                    <th className="sticky right-0 bg-black/70 px-5 py-4 text-right text-[11px] font-semibold uppercase tracking-[0.18em] text-slate-500 backdrop-blur-xl">
+                    <th className="sticky right-0 bg-black/70 px-4 py-4 text-right text-[11px] font-semibold uppercase tracking-[0.18em] text-slate-500 backdrop-blur-xl">
                       Actions
                     </th>
                   </tr>
@@ -1053,7 +1069,7 @@ export default function FinanceExpensesPage() {
 
       {archiveModalOpen ? (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 px-4 py-6 backdrop-blur-xl">
-          <div className="flex max-h-[90vh] w-full max-w-[1480px] flex-col overflow-hidden rounded-[34px] border border-white/10 bg-[#080b12] shadow-2xl shadow-black/50">
+          <div className="flex max-h-[90vh] w-full max-w-[1280px] flex-col overflow-hidden rounded-[34px] border border-white/10 bg-[#080b12] shadow-2xl shadow-black/50">
             <div className="flex items-start justify-between gap-4 border-b border-white/10 p-5">
               <div>
                 <div className="inline-flex w-fit items-center gap-2 rounded-full border border-amber-400/20 bg-amber-500/10 px-3 py-1 text-[11px] font-semibold uppercase tracking-[0.22em] text-amber-200">
@@ -1105,43 +1121,37 @@ export default function FinanceExpensesPage() {
 
             <div className="overflow-x-auto">
               <div className="max-h-[620px] overflow-y-auto">
-                <table className="w-full min-w-[1540px] border-collapse">
+                <table className="w-full min-w-[1180px] border-collapse">
                   <thead className="sticky top-0 z-20 border-b border-white/10 bg-black/70 backdrop-blur-xl">
                     <tr>
-                      <th className="px-5 py-4 text-left text-[11px] font-semibold uppercase tracking-[0.18em] text-slate-500">
-                        Expense ID
-                      </th>
-                      <th className="px-5 py-4 text-left text-[11px] font-semibold uppercase tracking-[0.18em] text-slate-500">
+                      <th className="px-4 py-4 text-left text-[11px] font-semibold uppercase tracking-[0.18em] text-slate-500">
                         Date
                       </th>
-                      <th className="px-5 py-4 text-left text-[11px] font-semibold uppercase tracking-[0.18em] text-slate-500">
-                        Company
-                      </th>
-                      <th className="px-5 py-4 text-left text-[11px] font-semibold uppercase tracking-[0.18em] text-slate-500">
+                      <th className="px-4 py-4 text-left text-[11px] font-semibold uppercase tracking-[0.18em] text-slate-500">
                         Made By
                       </th>
-                      <th className="px-5 py-4 text-left text-[11px] font-semibold uppercase tracking-[0.18em] text-slate-500">
+                      <th className="px-4 py-4 text-left text-[11px] font-semibold uppercase tracking-[0.18em] text-slate-500">
                         Type
                       </th>
-                      <th className="px-5 py-4 text-left text-[11px] font-semibold uppercase tracking-[0.18em] text-slate-500">
-                        Expense Source
+                      <th className="px-4 py-4 text-left text-[11px] font-semibold uppercase tracking-[0.18em] text-slate-500">
+                        Expense
                       </th>
-                      <th className="px-5 py-4 text-right text-[11px] font-semibold uppercase tracking-[0.18em] text-slate-500">
+                      <th className="px-4 py-4 text-right text-[11px] font-semibold uppercase tracking-[0.18em] text-slate-500">
                         Amount
                       </th>
-                      <th className="px-5 py-4 text-left text-[11px] font-semibold uppercase tracking-[0.18em] text-slate-500">
+                      <th className="px-4 py-4 text-left text-[11px] font-semibold uppercase tracking-[0.18em] text-slate-500">
                         Docs
                       </th>
-                      <th className="px-5 py-4 text-left text-[11px] font-semibold uppercase tracking-[0.18em] text-slate-500">
+                      <th className="px-4 py-4 text-left text-[11px] font-semibold uppercase tracking-[0.18em] text-slate-500">
                         Review
                       </th>
-                      <th className="px-5 py-4 text-left text-[11px] font-semibold uppercase tracking-[0.18em] text-slate-500">
+                      <th className="px-4 py-4 text-left text-[11px] font-semibold uppercase tracking-[0.18em] text-slate-500">
                         Coverage
                       </th>
-                      <th className="px-5 py-4 text-left text-[11px] font-semibold uppercase tracking-[0.18em] text-slate-500">
+                      <th className="px-4 py-4 text-left text-[11px] font-semibold uppercase tracking-[0.18em] text-slate-500">
                         Recipient
                       </th>
-                      <th className="sticky right-0 bg-black/70 px-5 py-4 text-right text-[11px] font-semibold uppercase tracking-[0.18em] text-slate-500 backdrop-blur-xl">
+                      <th className="sticky right-0 bg-black/70 px-4 py-4 text-right text-[11px] font-semibold uppercase tracking-[0.18em] text-slate-500 backdrop-blur-xl">
                         Actions
                       </th>
                     </tr>

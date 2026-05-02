@@ -956,6 +956,7 @@ export default function FinanceExpenseFundingBatchNewPage() {
       return null;
     },
     [
+      allocatedFundsAmount,
       allocationDrafts,
       allocationProofFile,
       bankAccountMap,
@@ -1141,6 +1142,7 @@ export default function FinanceExpenseFundingBatchNewPage() {
       }
     },
     [
+      allocatedFundsAmount,
       allocationDrafts,
       conversionPreviews,
       form.allocationDate,
@@ -1148,9 +1150,11 @@ export default function FinanceExpenseFundingBatchNewPage() {
       form.fundingCompanyId,
       form.notes,
       navigate,
+      remainingAllocatedFunds,
       selectedCurrency,
       selectedExpenseIds,
       selectedExpenses,
+      totalAllocated,
       uploadAllocationProof,
       validateForm,
     ]
@@ -1192,14 +1196,19 @@ export default function FinanceExpenseFundingBatchNewPage() {
 
               <div className="grid gap-3">
                 <SummaryBlock
-                  title="Selected Expenses"
-                  value={String(selectedExpenseIds.length)}
-                  subtitle="Approved / verified expenses included in this funding batch."
+                  title="Allocated Funds"
+                  value={`${selectedCurrency} ${formatMoney(allocatedFundsAmount)}`}
+                  subtitle="Total money Finance is reserving for this batch."
                 />
                 <SummaryBlock
-                  title="Planned Allocation"
+                  title="Distributed"
                   value={`${selectedCurrency} ${formatMoney(totalAllocated)}`}
-                  subtitle="Total internal money reserved for selected expenses."
+                  subtitle={`${selectedExpenseIds.length} selected expenses in this batch.`}
+                />
+                <SummaryBlock
+                  title="Remaining"
+                  value={`${selectedCurrency} ${formatMoney(remainingAllocatedFunds)}`}
+                  subtitle="Unassigned amount still available for distribution."
                 />
               </div>
             </div>
@@ -1600,9 +1609,19 @@ export default function FinanceExpenseFundingBatchNewPage() {
                   subtitle="Optional funding account reference."
                 />
                 <SummaryBlock
-                  title="Total Planned"
+                  title="Allocated Funds"
+                  value={`${selectedCurrency} ${formatMoney(allocatedFundsAmount)}`}
+                  subtitle="Total funds reserved by Finance."
+                />
+                <SummaryBlock
+                  title="Distributed"
                   value={`${selectedCurrency} ${formatMoney(totalAllocated)}`}
-                  subtitle="Internal funds allocated to selected expenses."
+                  subtitle="Amount assigned to selected expenses."
+                />
+                <SummaryBlock
+                  title="Remaining"
+                  value={`${selectedCurrency} ${formatMoney(remainingAllocatedFunds)}`}
+                  subtitle="Must be zero before marking allocated."
                 />
                 <SummaryBlock
                   title="Converted Preview"

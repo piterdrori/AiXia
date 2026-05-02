@@ -1563,6 +1563,29 @@ export default function FinanceExpenseDetailPage() {
     return (expense.request_status || expense.status || "draft") === "draft";
   }, [expense]);
 
+  const needsSpendAndUploadProof = useMemo(() => {
+    if (!expense) return false;
+
+    return (
+      expense.request_status === "approved_to_spend" &&
+      (!expense.documentation_status || expense.documentation_status === "missing")
+    );
+  }, [expense]);
+
+  const needsDocumentationCorrection = useMemo(() => {
+    if (!expense) return false;
+
+    return expense.request_status === "documentation_issue";
+  }, [expense]);
+
+  const hasSubmittedDocumentation = useMemo(() => {
+    if (!expense) return false;
+
+    return ["uploaded", "linked", "files_and_links", "verified"].includes(
+      expense.documentation_status || ""
+    );
+  }, [expense]);
+
   const generatedExpenseIdentity = useMemo(() => {
     if (!editForm) return null;
     return buildGeneratedExpenseIdentity(editForm);
@@ -2588,8 +2611,7 @@ export default function FinanceExpenseDetailPage() {
           request_status:
             expense.request_status === "approved_to_spend" ||
             expense.request_status === "expense_made" ||
-            expense.request_status === "draft" ||
-            expense.request_status === "requested"
+            expense.request_status === "documentation_issue"
               ? "documentation_submitted"
               : expense.request_status,
           metadata: {
@@ -2603,7 +2625,13 @@ export default function FinanceExpenseDetailPage() {
       if (updateResult.error) throw updateResult.error;
 
       setDocumentationFile(null);
-      setPageMessage("Documentation updated.");
+      setPageMessage(
+        expense.request_status === "approved_to_spend" ||
+          expense.request_status === "expense_made" ||
+          expense.request_status === "documentation_issue"
+          ? "Proof submitted. This expense is now ready for Finance document review."
+          : "Documentation updated."
+      );
       await loadExpense("silent");
     } catch (error) {
       console.error("Failed to upload expense documentation:", error);
@@ -4297,13 +4325,127 @@ export default function FinanceExpenseDetailPage() {
             </SectionCard>
 
             <SectionCard
-              title="Supporting Documentation"
-              description="Expense proof files and links. Finance verification cannot happen without documentation."
+              title={
+                needsSpendAndUploadProof
+                  ? "Documentation Required — Spend and Upload Proof"
+                  : needsDocumentationCorrection
+                    ? "Documentation Correction Required"
+                    : "Supporting Documentation"
+              }
+              description={
+                needsSpendAndUploadProof
+                  ? "This expense was approved. The next step is for the user to spend the money and upload the receipt, screenshot, invoice, document, or link."
+                  : needsDocumentationCorrection
+                    ? "Finance found an issue with the submitted proof. Upload corrected documentation or replace the documentation link."
+                    : "Expense proof files and links. Finance verification cannot happen without documentation."
+              }
               icon={FileCheck2}
             >
+              {needsSpendAndUploadProof ? (
+                <div className="mb-5 rounded-[28px] border border-amber-400/20 bg-amber-500/10 p-5">
+                  <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
+                    <div>
+                      <div className="inline-flex rounded-full border border-amber-400/20 bg-amber-500/10 px-3 py-1 text-[11px] font-semibold uppercase tracking-[0.18em] text-amber-200">
+                        Next Required Step
+                      </div>
+                      <h3 className="mt-4 text-xl font-semibold text-white">
+                        Spend the approved expense and upload proof
+                      </h3>
+                      <p className="mt-2 max-w-3xl text-sm leading-6 text-amber-100/75">
+                        Finance/Admin approved this request. After the money is spent, upload a
+                        receipt, screenshot, invoice, official document, or valid link here. After
+                        upload, this expense will move to Document Review automatically.
+                      </p>
+                    </div>
+
+                    <div className="rounded-[22px] border border-white/10 bg-black/20 p-4 text-sm leading-6 text-slate-300 lg:min-w-[260px]">
+                      <div className="text-[11px] font-semibold uppercase tracking-[0.18em] text-slate-500">
+                        Current Status
+                      </div>
+                      <div className="mt-3 flex flex-wrap gap-2">
+                        <StatusBadge value={expense.request_status} />
+                        <StatusBadge value={expense.documentation_status} />
+                      </div>
+                    </div>
+                  </div>
+
+                  <div className="mt-5 grid gap-3 md:grid-cols-3">
+                    <div className="rounded-[22px] border border-white/10 bg-black/20 p-4">
+                      <div className="text-[11px] font-semibold uppercase tracking-[0.18em] text-slate-500">
+                        Step 1
+                      </div>
+                      <div className="mt-2 text-sm font-semibold text-white">Spend the money</div>
+                      <div className="mt-1 text-xs leading-5 text-slate-500">
+                        Complete the approved expense only after approval.
+                      </div>
+                    </div>
+
+                    <div className="rounded-[22px] border border-white/10 bg-black/20 p-4">
+                      <div className="text-[11px] font-semibold uppercase tracking-[0.18em] text-slate-500">
+                        Step 2
+                      </div>
+                      <div className="mt-2 text-sm font-semibold text-white">Upload proof</div>
+                      <div className="mt-1 text-xs leading-5 text-slate-500">
+                        Add receipt, screenshot, invoice, document, or link.
+                      </div>
+                    </div>
+
+                    <div className="rounded-[22px] border border-white/10 bg-black/20 p-4">
+                      <div className="text-[11px] font-semibold uppercase tracking-[0.18em] text-slate-500">
+                        Step 3
+                      </div>
+                      <div className="mt-2 text-sm font-semibold text-white">
+                        Finance reviews it
+                      </div>
+                      <div className="mt-1 text-xs leading-5 text-slate-500">
+                        The status becomes Documentation Submitted automatically.
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              ) : null}
+
+              {needsDocumentationCorrection ? (
+                <div className="mb-5 rounded-[28px] border border-rose-400/20 bg-rose-500/10 p-5">
+                  <div className="inline-flex rounded-full border border-rose-400/20 bg-rose-500/10 px-3 py-1 text-[11px] font-semibold uppercase tracking-[0.18em] text-rose-200">
+                    Correction Required
+                  </div>
+                  <h3 className="mt-4 text-xl font-semibold text-white">
+                    Upload corrected proof for Finance review
+                  </h3>
+                  <p className="mt-2 max-w-3xl text-sm leading-6 text-rose-100/75">
+                    Finance marked an issue with the previous documentation. Upload the corrected
+                    receipt, screenshot, invoice, document, or link here. After upload, the expense
+                    returns to Document Review.
+                  </p>
+                  {expense.verification_notes ? (
+                    <div className="mt-4 rounded-[22px] border border-white/10 bg-black/20 p-4 text-sm leading-6 text-rose-100">
+                      {expense.verification_notes}
+                    </div>
+                  ) : null}
+                </div>
+              ) : null}
+
+              {hasSubmittedDocumentation && !needsSpendAndUploadProof && !needsDocumentationCorrection ? (
+                <div className="mb-5 rounded-[28px] border border-cyan-400/20 bg-cyan-500/10 p-5">
+                  <div className="inline-flex rounded-full border border-cyan-400/20 bg-cyan-500/10 px-3 py-1 text-[11px] font-semibold uppercase tracking-[0.18em] text-cyan-200">
+                    Proof Submitted
+                  </div>
+                  <h3 className="mt-4 text-xl font-semibold text-white">
+                    Documentation is submitted for Finance review
+                  </h3>
+                  <p className="mt-2 max-w-3xl text-sm leading-6 text-cyan-100/75">
+                    Uploaded proof is now visible to Finance/Admin in the Document Review tab.
+                    You can upload an additional file or replace/update the link if needed.
+                  </p>
+                </div>
+              ) : null}
+
               <div className="grid gap-4 md:grid-cols-2">
                 <label className="grid gap-2">
-                  <span className={labelClass()}>Upload Documentation</span>
+                  <span className={labelClass()}>
+                    {needsSpendAndUploadProof ? "Upload Proof After Spending" : "Upload Documentation"}
+                  </span>
                   <div className="rounded-[24px] border border-dashed border-white/15 bg-black/20 p-4">
                     <input
                       type="file"
@@ -4322,14 +4464,16 @@ export default function FinanceExpenseDetailPage() {
                 </label>
 
                 <label className="grid gap-2">
-                  <span className={labelClass()}>Documentation Link</span>
+                  <span className={labelClass()}>
+                    {needsSpendAndUploadProof ? "Proof Link" : "Documentation Link"}
+                  </span>
                   <div className="relative">
                     <Link2 className="pointer-events-none absolute left-4 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-500" />
                     <input
                       value={documentationLink}
                       onChange={(event) => setDocumentationLink(event.target.value)}
                       className="h-11 w-full rounded-2xl border border-white/10 bg-black/20 pl-11 pr-4 text-sm text-white outline-none transition placeholder:text-slate-600 focus:border-cyan-400/30 focus:bg-black/30"
-                      placeholder="Receipt, order, Drive, or portal link"
+                      placeholder="Receipt, order, Drive, portal, screenshot, or invoice link"
                     />
                   </div>
 
@@ -4337,14 +4481,22 @@ export default function FinanceExpenseDetailPage() {
                     type="button"
                     disabled={isUploadingDocumentation}
                     onClick={() => void uploadDocumentation()}
-                    className="mt-2 inline-flex h-11 items-center justify-center gap-2 rounded-2xl border border-cyan-400/20 bg-cyan-500/10 px-4 text-sm font-semibold text-cyan-100 transition hover:bg-cyan-500/15 disabled:cursor-not-allowed disabled:opacity-50"
+                    className={`mt-2 inline-flex h-11 items-center justify-center gap-2 rounded-2xl border px-4 text-sm font-semibold transition disabled:cursor-not-allowed disabled:opacity-50 ${
+                      needsSpendAndUploadProof || needsDocumentationCorrection
+                        ? "border-amber-400/20 bg-amber-500/10 text-amber-100 hover:bg-amber-500/15"
+                        : "border-cyan-400/20 bg-cyan-500/10 text-cyan-100 hover:bg-cyan-500/15"
+                    }`}
                   >
                     {isUploadingDocumentation ? (
                       <Loader2 className="h-4 w-4 animate-spin" />
                     ) : (
                       <UploadCloud className="h-4 w-4" />
                     )}
-                    Update Documentation
+                    {needsSpendAndUploadProof
+                      ? "Submit Proof for Finance Review"
+                      : needsDocumentationCorrection
+                        ? "Submit Corrected Proof"
+                        : "Update Documentation"}
                   </button>
                 </label>
               </div>
@@ -4355,7 +4507,9 @@ export default function FinanceExpenseDetailPage() {
                 </div>
                 {attachments.length === 0 ? (
                   <div className="px-4 py-8 text-center text-sm text-slate-500">
-                    No uploaded documentation files yet.
+                    {needsSpendAndUploadProof
+                      ? "No proof uploaded yet. Spend the approved expense, then upload the receipt, screenshot, invoice, document, or link."
+                      : "No uploaded documentation files yet."}
                   </div>
                 ) : (
                   <div className="divide-y divide-white/5">

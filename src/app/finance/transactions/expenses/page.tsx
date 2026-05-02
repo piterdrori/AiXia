@@ -80,8 +80,13 @@ type ProfileRow = {
 type AllocationRow = {
   id: string;
   expense_id: string;
+  payment_made_id: string;
   allocated_amount: number | string | null;
   recipient_confirmation_status: string | null;
+  payment_made: {
+    id: string;
+    status: string | null;
+  } | null;
 };
 
 type SortKey =
@@ -103,6 +108,7 @@ type EnrichedExpenseRow = ExpenseRow & {
   expenseLabel: string;
   expenseSubLabel: string;
   allocatedAmount: number;
+  calculatedCoverageStatus: string;
 };
 
 const statusToneMap: Record<
@@ -141,7 +147,25 @@ const statusToneMap: Record<
 };
 
 function toNumber(value: number | string | null | undefined) {
-  return Number(value ?? 0);
+  const parsed = Number(value ?? 0);
+  return Number.isFinite(parsed) ? parsed : 0;
+}
+
+function roundMoney(value: number) {
+  return Math.round((value + Number.EPSILON) * 100) / 100;
+}
+
+function getTargetAmount(row: ExpenseRow) {
+  return toNumber(row.amount);
+}
+
+function getCalculatedCoverageStatus(targetAmount: number, allocatedAmount: number) {
+  const roundedAllocatedAmount = roundMoney(allocatedAmount);
+  const remainingAmount = roundMoney(targetAmount - roundedAllocatedAmount);
+
+  if (roundedAllocatedAmount <= 0) return "not_covered";
+  if (remainingAmount <= 0.01) return "covered";
+  return "partially_covered";
 }
 
 function formatMoney(value: number | string | null | undefined) {
@@ -367,7 +391,7 @@ function getSortValue(row: EnrichedExpenseRow, sortKey: SortKey) {
     case "finance_review_status":
       return row.finance_review_status || "";
     case "coverage_status":
-      return row.coverage_status || "";
+      return row.calculatedCoverageStatus || "";
     case "recipient_confirmation_status":
       return row.recipient_confirmation_status || "";
     case "updated_at":
@@ -484,7 +508,16 @@ export default function FinanceExpensesPage() {
         } else {
           const allocationsResult = await supabase
             .from("finance_payment_made_expense_allocations")
-            .select("id, expense_id, allocated_amount, recipient_confirmation_status")
+            .select(
+              [
+                "id",
+                "expense_id",
+                "payment_made_id",
+                "allocated_amount",
+                "recipient_confirmation_status",
+                "payment_made:finance_payments_made!finance_payment_made_expense_allocations_payment_made_id_fkey(id, status)",
+              ].join(", ")
+            )
             .in("expense_id", expenseIds);
 
           if (allocationsResult.error) throw allocationsResult.error;
@@ -547,10 +580,18 @@ export default function FinanceExpensesPage() {
 
   const enrichedExpenses = useMemo<EnrichedExpenseRow[]>(() => {
     return expenses.map((row) => {
-      const rowAllocations = allocations.filter((item) => item.expense_id === row.id);
-      const allocatedAmount = rowAllocations.reduce(
-        (sum, item) => sum + toNumber(item.allocated_amount),
-        0
+      const rowAllocations = allocations.filter(
+        (item) => item.expense_id === row.id && item.payment_made?.status === "confirmed"
+      );
+
+      const allocatedAmount = roundMoney(
+        rowAllocations.reduce((sum, item) => sum + toNumber(item.allocated_amount), 0)
+      );
+
+      const targetAmount = getTargetAmount(row);
+      const calculatedCoverageStatus = getCalculatedCoverageStatus(
+        targetAmount,
+        allocatedAmount
       );
 
       return {
@@ -562,6 +603,7 @@ export default function FinanceExpensesPage() {
         expenseLabel: getExpenseLabel(row),
         expenseSubLabel: getExpenseSubLabel(row),
         allocatedAmount,
+        calculatedCoverageStatus,
       };
     });
   }, [allocations, companyMap, employeeMap, expenses, profileMap]);
@@ -637,7 +679,7 @@ export default function FinanceExpensesPage() {
     const readyForPayment = active.filter(
       (row) => row.finance_review_status === "approved_for_payment"
     ).length;
-    const covered = active.filter((row) => row.coverage_status === "covered").length;
+    const covered = active.filter((row) => row.calculatedCoverageStatus === "covered").length;
 
     return {
       active: active.length,
@@ -732,7 +774,7 @@ export default function FinanceExpensesPage() {
           </td>
 
           <td className="whitespace-nowrap px-4 py-4 text-right font-semibold text-white">
-            ${formatMoney(row.amount)}
+            {row.currency_code || "USD"} {formatMoney(row.amount)}
           </td>
 
           <td className="whitespace-nowrap px-4 py-4">
@@ -744,9 +786,9 @@ export default function FinanceExpensesPage() {
           </td>
 
           <td className="whitespace-nowrap px-4 py-4">
-            <StatusBadge value={row.coverage_status} />
+            <StatusBadge value={row.calculatedCoverageStatus} />
             <div className="mt-1 text-[11px] text-slate-500">
-              ${formatMoney(row.allocatedAmount)}
+              {row.currency_code || "USD"} {formatMoney(row.allocatedAmount)}
             </div>
           </td>
 

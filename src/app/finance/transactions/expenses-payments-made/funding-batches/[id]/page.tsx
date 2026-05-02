@@ -14,6 +14,7 @@ import {
   Receipt,
   RefreshCcw,
   ShieldCheck,
+  Sparkles,
   Trash2,
   UploadCloud,
   WalletCards,
@@ -557,7 +558,7 @@ export default function FinanceExpenseFundingBatchDetailPage() {
 
       if (batchResult.error) throw batchResult.error;
 
-      const loadedBatch = batchResult.data as FundingBatchRow;
+      const loadedBatch = batchResult.data as unknown as FundingBatchRow;
       setBatch(loadedBatch);
 
       const [
@@ -623,7 +624,7 @@ export default function FinanceExpenseFundingBatchDetailPage() {
       if (employeesResult.error) throw employeesResult.error;
       if (attachmentsResult.error) throw attachmentsResult.error;
 
-      const loadedLines = (linesResult.data || []) as FundingBatchLineRow[];
+      const loadedLines = (linesResult.data || []) as unknown as FundingBatchLineRow[];
       setLines(loadedLines);
       setCompanies((companiesResult.data || []) as CompanyRow[]);
       setBankAccounts((bankAccountsResult.data || []) as BankAccountRow[]);

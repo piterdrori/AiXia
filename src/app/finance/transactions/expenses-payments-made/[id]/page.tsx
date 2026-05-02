@@ -1,4 +1,6 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
+import type { ReactNode } from "react";
+import type { LucideIcon } from "lucide-react";
 import { useNavigate, useParams } from "react-router-dom";
 import {
   AlertTriangle,
@@ -10,7 +12,6 @@ import {
   FileText,
   Loader2,
   Receipt,
-  RefreshCcw,
   ShieldCheck,
   Sparkles,
   UploadCloud,
@@ -19,6 +20,68 @@ import {
 } from "lucide-react";
 
 import { supabase } from "@/lib/supabase";
+
+type PaymentMetadata = {
+  source_area?: string | null;
+  selected_expense_ids?: string[];
+  funding_pool_id?: string | null;
+  funding_pool_number?: string | null;
+  funding_batch_id?: string | null;
+  funding_batch_number?: string | null;
+  funding_company_id?: string | null;
+  funding_company_name?: string | null;
+  paid_from_bank_account_id?: string | null;
+  paid_from_bank_label?: string | null;
+  funding_currency_code?: string | null;
+  funding_pool_total?: number | string | null;
+  funding_currency_amount_used_before_payment?: number | string | null;
+  funding_currency_amount_available_before_payment?: number | string | null;
+  funding_currency_amount_used_for_payment?: number | string | null;
+  funding_currency_remaining_after_payment?: number | string | null;
+  payment_currency_code?: string | null;
+  payment_currency_amount?: number | string | null;
+  payment_to_funding_exchange_rate?: number | string | null;
+  payment_to_funding_conversion_source?: string | null;
+  payment_to_funding_conversion_date?: string | null;
+  accounting_amount_basis?: string | null;
+  expense_currency_coverage_total?: number | string | null;
+  payment_proof?: {
+    bucket?: string | null;
+    path?: string | null;
+    file_name?: string | null;
+    file_size?: number | null;
+    mime_type?: string | null;
+    uploaded_at?: string | null;
+  } | null;
+  [key: string]: unknown;
+};
+
+type AllocationMetadata = {
+  source_area?: string | null;
+  funding_pool_id?: string | null;
+  funding_pool_number?: string | null;
+  funding_batch_id?: string | null;
+  funding_batch_number?: string | null;
+  expense_number?: string | null;
+  expense_title?: string | null;
+  payment_reference_number?: string | null;
+  payment_currency_amount?: number | string | null;
+  payment_currency_code?: string | null;
+  expense_currency_amount?: number | string | null;
+  expense_currency_code?: string | null;
+  exchange_rate?: number | string | null;
+  conversion_source?: string | null;
+  conversion_date?: string | null;
+  funding_currency_code?: string | null;
+  payment_to_funding_exchange_rate?: number | string | null;
+  payment_to_funding_conversion_date?: string | null;
+  funding_currency_amount_used_for_line?: number | string | null;
+  accounting_amount_basis?: string | null;
+  previous_expense_covered_amount?: number | string | null;
+  expense_remaining_before_payment?: number | string | null;
+  expense_remaining_after_payment?: number | string | null;
+  [key: string]: unknown;
+};
 
 type PaymentMadeRow = {
   id: string;
@@ -33,21 +96,7 @@ type PaymentMadeRow = {
   paid_from_bank_account_id: string | null;
   paid_from_company_id: string | null;
   notes: string | null;
-  metadata: {
-    source_area?: string | null;
-    selected_expense_ids?: string[];
-    funding_company_name?: string | null;
-    paid_from_bank_label?: string | null;
-    payment_proof?: {
-      bucket?: string | null;
-      path?: string | null;
-      file_name?: string | null;
-      file_size?: number | null;
-      mime_type?: string | null;
-      uploaded_at?: string | null;
-    } | null;
-    [key: string]: unknown;
-  } | null;
+  metadata: PaymentMetadata | null;
   project_id: string | null;
   task_id: string | null;
   posted_to_ledger: boolean | null;
@@ -95,13 +144,7 @@ type AllocationRow = {
   recipient_confirmed_by: string | null;
   recipient_confirmation_notes: string | null;
   recipient_dispute_reason: string | null;
-  metadata: {
-    source_area?: string | null;
-    expense_number?: string | null;
-    expense_title?: string | null;
-    payment_reference_number?: string | null;
-    [key: string]: unknown;
-  } | null;
+  metadata: AllocationMetadata | null;
   created_at: string;
   updated_at: string;
 };
@@ -164,7 +207,7 @@ type EmployeeRefRow = {
   } | null;
 };
 
-type FundingBatchRow = {
+type FundingPoolRow = {
   id: string;
   batch_number: string;
   funding_company_id: string;
@@ -175,6 +218,7 @@ type FundingBatchRow = {
   status: string;
   documentation_status: string | null;
   notes: string | null;
+  metadata: Record<string, unknown> | null;
 };
 
 type EnrichedAllocation = AllocationRow & {
@@ -183,7 +227,19 @@ type EnrichedAllocation = AllocationRow & {
   fundingCompanyName: string;
   bankLabel: string;
   recipientLabel: string;
+  paymentCurrencyAmount: number;
+  paymentCurrencyCode: string;
+  expenseCurrencyAmount: number;
+  expenseCurrencyCode: string;
+  exchangeRate: number | null;
+  conversionDate: string | null;
+  fundingCurrencyAmountUsed: number | null;
+  fundingCurrencyCode: string;
+  expenseRemainingBeforePayment: number | null;
+  expenseRemainingAfterPayment: number | null;
 };
+
+type RunningAction = "confirm_payment";
 
 const statusToneMap: Record<
   string,
@@ -221,7 +277,12 @@ const statusToneMap: Record<
 };
 
 function toNumber(value: number | string | null | undefined) {
-  return Number(value ?? 0);
+  const parsed = Number(value ?? 0);
+  return Number.isFinite(parsed) ? parsed : 0;
+}
+
+function normalizeCurrencyCode(value: string | null | undefined) {
+  return (value || "").trim().toUpperCase();
 }
 
 function formatMoney(value: number | string | null | undefined) {
@@ -269,6 +330,32 @@ function formatLabel(value: string | null | undefined) {
     .join(" ");
 }
 
+function getMetadataNumber(
+  metadata: Record<string, unknown> | null | undefined,
+  key: string
+) {
+  const value = metadata?.[key];
+
+  if (typeof value === "number" && Number.isFinite(value)) {
+    return value;
+  }
+
+  if (typeof value === "string") {
+    const parsed = Number(value);
+    return Number.isFinite(parsed) ? parsed : null;
+  }
+
+  return null;
+}
+
+function getMetadataString(
+  metadata: Record<string, unknown> | null | undefined,
+  key: string
+) {
+  const value = metadata?.[key];
+  return typeof value === "string" ? value : "";
+}
+
 function getStatusToneClasses(value: string | null | undefined) {
   const tone = statusToneMap[value ?? ""] ?? "slate";
 
@@ -301,14 +388,41 @@ function StatusBadge({ value }: { value: string | null | undefined }) {
   );
 }
 
+function SummaryBlock({
+  title,
+  value,
+  subtitle,
+  icon: Icon,
+}: {
+  title: string;
+  value: string;
+  subtitle: string;
+  icon: LucideIcon;
+}) {
+  return (
+    <div className="min-h-[148px] rounded-[24px] border border-white/10 bg-black/20 p-4">
+      <div className="flex items-start justify-between gap-3">
+        <div>
+          <div className="text-[11px] font-semibold uppercase tracking-[0.2em] text-slate-500">
+            {title}
+          </div>
+          <div className="mt-2 text-xl font-semibold text-white">{value}</div>
+        </div>
+        <Icon className="h-5 w-5 text-cyan-200" />
+      </div>
+      <div className="mt-3 text-xs leading-5 text-slate-500">{subtitle}</div>
+    </div>
+  );
+}
+
 function ValueBlock({
   label,
   value,
   detail,
 }: {
   label: string;
-  value: React.ReactNode;
-  detail?: React.ReactNode;
+  value: ReactNode;
+  detail?: ReactNode;
 }) {
   return (
     <div className="rounded-[24px] border border-white/10 bg-black/20 p-4">
@@ -329,8 +443,8 @@ function SectionCard({
 }: {
   title: string;
   description: string;
-  icon: typeof Receipt;
-  children: React.ReactNode;
+  icon: LucideIcon;
+  children: ReactNode;
 }) {
   return (
     <section className="overflow-hidden rounded-[30px] border border-white/10 bg-white/[0.045] backdrop-blur-xl">
@@ -347,6 +461,38 @@ function SectionCard({
       </div>
       <div className="p-5">{children}</div>
     </section>
+  );
+}
+
+function ActionButton({
+  label,
+  loadingLabel,
+  icon: Icon,
+  disabled,
+  isRunning,
+  onClick,
+}: {
+  label: string;
+  loadingLabel: string;
+  icon: LucideIcon;
+  disabled?: boolean;
+  isRunning?: boolean;
+  onClick: () => void;
+}) {
+  return (
+    <button
+      type="button"
+      disabled={disabled || isRunning}
+      onClick={onClick}
+      className="inline-flex h-12 items-center justify-center gap-2 rounded-2xl border border-emerald-400/20 bg-emerald-500/10 px-5 text-sm font-semibold text-emerald-100 transition hover:bg-emerald-500/15 disabled:cursor-not-allowed disabled:opacity-50"
+    >
+      {isRunning ? (
+        <Loader2 className="h-4 w-4 animate-spin" />
+      ) : (
+        <Icon className="h-4 w-4" />
+      )}
+      {isRunning ? loadingLabel : label}
+    </button>
   );
 }
 
@@ -382,6 +528,10 @@ function getExpenseTargetAmount(expense: ExpenseRow | null) {
   );
 }
 
+function getExpenseCurrency(expense: ExpenseRow | null, fallback: string) {
+  return normalizeCurrencyCode(expense?.currency_code || fallback);
+}
+
 export default function FinanceExpensesPaymentsMadeDetailPage() {
   const navigate = useNavigate();
   const params = useParams();
@@ -393,9 +543,11 @@ export default function FinanceExpensesPaymentsMadeDetailPage() {
   const [companies, setCompanies] = useState<CompanyRow[]>([]);
   const [bankAccounts, setBankAccounts] = useState<BankAccountRow[]>([]);
   const [employees, setEmployees] = useState<EmployeeRefRow[]>([]);
-  const [fundingBatch, setFundingBatch] = useState<FundingBatchRow | null>(null);
+  const [fundingPool, setFundingPool] = useState<FundingPoolRow | null>(null);
   const [isLoading, setIsLoading] = useState(true);
-  const [isConfirming, setIsConfirming] = useState(false);
+  const [hasLoadedOnce, setHasLoadedOnce] = useState(false);
+  const [isRefreshing, setIsRefreshing] = useState(false);
+  const [runningAction, setRunningAction] = useState<RunningAction | null>(null);
   const [pageError, setPageError] = useState<string | null>(null);
   const [pageMessage, setPageMessage] = useState<string | null>(null);
 
@@ -415,12 +567,61 @@ export default function FinanceExpensesPaymentsMadeDetailPage() {
     return new Map(expenses.map((expense) => [expense.id, expense]));
   }, [expenses]);
 
-  const paymentCurrency = payment?.payment_currency_code || "USD";
+  const paymentCurrency = normalizeCurrencyCode(
+    payment?.payment_currency_code || payment?.metadata?.payment_currency_code || "USD"
+  );
 
-  const totalAllocated = useMemo(() => {
+  const fundingCurrency = normalizeCurrencyCode(
+    payment?.metadata?.funding_currency_code || fundingPool?.currency_code || paymentCurrency
+  );
+
+  const paymentCurrencyAmount = toNumber(
+    payment?.metadata?.payment_currency_amount || payment?.converted_amount || payment?.amount
+  );
+
+  const fundingCurrencyUsedForPayment = toNumber(
+    payment?.metadata?.funding_currency_amount_used_for_payment
+  );
+
+  const fundingCurrencyRemainingAfterPayment = toNumber(
+    payment?.metadata?.funding_currency_remaining_after_payment
+  );
+
+  const fundingPoolTotal = toNumber(
+    payment?.metadata?.funding_pool_total || fundingPool?.allocated_amount
+  );
+
+  const fundingCurrencyAvailableBeforePayment = toNumber(
+    payment?.metadata?.funding_currency_amount_available_before_payment
+  );
+
+  const paymentToFundingExchangeRate = toNumber(
+    payment?.metadata?.payment_to_funding_exchange_rate
+  );
+
+  const paymentToFundingConversionDate =
+    payment?.metadata?.payment_to_funding_conversion_date ||
+    payment?.exchange_rate_date ||
+    payment?.payment_date;
+
+  const paymentToFundingConversionSource =
+    payment?.metadata?.payment_to_funding_conversion_source || payment?.exchange_rate_source || "";
+
+  const proofMetadata = payment?.metadata?.payment_proof || null;
+  const isArchivedOrDeleted =
+    payment?.status === "archived" || payment?.status === "deleted" || payment?.status === "cancelled";
+  const canConfirmPayment = payment?.status === "draft" && !isArchivedOrDeleted;
+  const actionLocked = Boolean(runningAction);
+
+  const totalPaymentCurrencyAllocated = useMemo(() => {
     return allocations.reduce(
       (sum, allocation) =>
-        sum + toNumber(allocation.converted_amount || allocation.allocated_amount),
+        sum +
+        toNumber(
+          allocation.metadata?.payment_currency_amount ||
+            allocation.converted_amount ||
+            allocation.allocated_amount
+        ),
       0
     );
   }, [allocations]);
@@ -432,6 +633,19 @@ export default function FinanceExpensesPaymentsMadeDetailPage() {
         ? employeeMap.get(allocation.recipient_employee_ref_id)
         : null;
 
+      const expenseCurrency = normalizeCurrencyCode(
+        allocation.metadata?.expense_currency_code ||
+          allocation.currency_code ||
+          expense?.currency_code ||
+          paymentCurrency
+      );
+
+      const allocationPaymentCurrency = normalizeCurrencyCode(
+        allocation.metadata?.payment_currency_code ||
+          allocation.payment_currency_code ||
+          paymentCurrency
+      );
+
       return {
         ...allocation,
         expense,
@@ -440,225 +654,281 @@ export default function FinanceExpensesPaymentsMadeDetailPage() {
           : "No expense company",
         fundingCompanyName: allocation.funding_company_id
           ? companyMap.get(allocation.funding_company_id)?.name || "Unknown funding company"
-          : "No funding company",
+          : payment?.metadata?.funding_company_name || "No funding company",
         bankLabel: allocation.paid_from_bank_account_id
           ? getBankLabel(bankAccountMap.get(allocation.paid_from_bank_account_id))
-          : "No bank account",
+          : payment?.metadata?.paid_from_bank_label || "No bank account",
         recipientLabel:
           allocation.recipient_person_name ||
           getEmployeeLabel(recipientEmployee) ||
           "Recipient",
+        paymentCurrencyAmount: toNumber(
+          allocation.metadata?.payment_currency_amount ||
+            allocation.converted_amount ||
+            allocation.allocated_amount
+        ),
+        paymentCurrencyCode: allocationPaymentCurrency,
+        expenseCurrencyAmount: toNumber(
+          allocation.metadata?.expense_currency_amount || allocation.allocated_amount
+        ),
+        expenseCurrencyCode: expenseCurrency,
+        exchangeRate:
+          getMetadataNumber(allocation.metadata, "exchange_rate") ??
+          toNumber(payment?.exchange_rate) ||
+          null,
+        conversionDate:
+          getMetadataString(allocation.metadata, "conversion_date") ||
+          payment?.exchange_rate_date ||
+          payment?.payment_date ||
+          null,
+        fundingCurrencyAmountUsed: getMetadataNumber(
+          allocation.metadata,
+          "funding_currency_amount_used_for_line"
+        ),
+        fundingCurrencyCode: normalizeCurrencyCode(
+          allocation.metadata?.funding_currency_code || fundingCurrency
+        ),
+        expenseRemainingBeforePayment: getMetadataNumber(
+          allocation.metadata,
+          "expense_remaining_before_payment"
+        ),
+        expenseRemainingAfterPayment: getMetadataNumber(
+          allocation.metadata,
+          "expense_remaining_after_payment"
+        ),
       };
     });
-  }, [allocations, bankAccountMap, companyMap, employeeMap, expenseMap]);
+  }, [
+    allocations,
+    bankAccountMap,
+    companyMap,
+    employeeMap,
+    expenseMap,
+    fundingCurrency,
+    payment?.exchange_rate,
+    payment?.exchange_rate_date,
+    payment?.metadata?.funding_company_name,
+    payment?.metadata?.paid_from_bank_label,
+    payment?.payment_date,
+    paymentCurrency,
+  ]);
 
-  const proofMetadata = payment?.metadata?.payment_proof || null;
+  const loadPayment = useCallback(
+    async (mode: "initial" | "silent" = "initial") => {
+      if (!paymentId) {
+        setPageError("Missing payment ID.");
+        setIsLoading(false);
+        return;
+      }
 
-  const loadPayment = useCallback(async () => {
-    if (!paymentId) {
-      setPageError("Missing payment ID.");
-      setIsLoading(false);
-      return;
-    }
+      if (mode === "initial" && !hasLoadedOnce) {
+        setIsLoading(true);
+      } else {
+        setIsRefreshing(true);
+      }
 
-    setIsLoading(true);
-    setPageError(null);
+      setPageError(null);
 
-    try {
-      const paymentResult = await supabase
-        .from("finance_payments_made")
-        .select(
-          [
-            "id",
-            "amount",
-            "payment_date",
-            "payment_method_id",
-            "status",
-            "reference_number",
-            "vendor_id",
-            "bill_id",
-            "bank_account_id",
-            "paid_from_bank_account_id",
-            "paid_from_company_id",
-            "notes",
-            "metadata",
-            "project_id",
-            "task_id",
-            "posted_to_ledger",
-            "created_at",
-            "updated_at",
-            "created_by",
-            "updated_by",
-            "ledger_posted_at",
-            "ledger_entry_id",
-            "purchase_order_id",
-            "vendor_quotation_id",
-            "payment_currency_code",
-            "bill_currency_code",
-            "exchange_rate",
-            "converted_amount",
-            "exchange_rate_source",
-            "exchange_rate_date",
-            "payment_source_type",
-            "expense_funding_batch_id",
-            "recipient_employee_ref_id",
-            "recipient_person_name",
-            "recipient_confirmation_status",
-            "recipient_confirmed_at",
-            "recipient_confirmed_by",
-            "recipient_confirmation_notes",
-          ].join(", ")
-        )
-        .eq("id", paymentId)
-        .single();
-
-      if (paymentResult.error) throw paymentResult.error;
-
-      const loadedPayment = paymentResult.data as unknown as PaymentMadeRow;
-      setPayment(loadedPayment);
-
-      const [
-        allocationsResult,
-        companiesResult,
-        bankAccountsResult,
-        employeesResult,
-        fundingBatchResult,
-      ] = await Promise.all([
-        supabase
-          .from("finance_payment_made_expense_allocations")
+      try {
+        const paymentResult = await supabase
+          .from("finance_payments_made")
           .select(
             [
               "id",
-              "payment_made_id",
-              "expense_id",
-              "funding_batch_id",
-              "funding_batch_line_id",
-              "expense_company_id",
-              "funding_company_id",
+              "amount",
+              "payment_date",
+              "payment_method_id",
+              "status",
+              "reference_number",
+              "vendor_id",
+              "bill_id",
+              "bank_account_id",
               "paid_from_bank_account_id",
+              "paid_from_company_id",
+              "notes",
+              "metadata",
+              "project_id",
+              "task_id",
+              "posted_to_ledger",
+              "created_at",
+              "updated_at",
+              "created_by",
+              "updated_by",
+              "ledger_posted_at",
+              "ledger_entry_id",
+              "purchase_order_id",
+              "vendor_quotation_id",
+              "payment_currency_code",
+              "bill_currency_code",
+              "exchange_rate",
+              "converted_amount",
+              "exchange_rate_source",
+              "exchange_rate_date",
+              "payment_source_type",
+              "expense_funding_batch_id",
               "recipient_employee_ref_id",
               "recipient_person_name",
-              "allocated_amount",
-              "currency_code",
-              "payment_currency_code",
-              "converted_amount",
               "recipient_confirmation_status",
               "recipient_confirmed_at",
               "recipient_confirmed_by",
               "recipient_confirmation_notes",
-              "recipient_dispute_reason",
-              "metadata",
-              "created_at",
-              "updated_at",
             ].join(", ")
           )
-          .eq("payment_made_id", loadedPayment.id)
-          .order("created_at", { ascending: false }),
+          .eq("id", paymentId)
+          .single();
 
-        supabase.from("finance_companies").select("id, name").order("name"),
+        if (paymentResult.error) throw paymentResult.error;
 
-        supabase
-          .from("finance_bank_accounts")
-          .select(
-            "id, name, bank_name, institution_name, masked_account_number, currency_code, company_id"
-          )
-          .order("name"),
+        const loadedPayment = paymentResult.data as unknown as PaymentMadeRow;
 
-        supabase
-          .from("finance_employee_refs")
-          .select("id, user_id, code, status, mark, metadata")
-          .order("code"),
+        const [
+          allocationsResult,
+          companiesResult,
+          bankAccountsResult,
+          employeesResult,
+          fundingPoolResult,
+        ] = await Promise.all([
+          supabase
+            .from("finance_payment_made_expense_allocations")
+            .select(
+              [
+                "id",
+                "payment_made_id",
+                "expense_id",
+                "funding_batch_id",
+                "funding_batch_line_id",
+                "expense_company_id",
+                "funding_company_id",
+                "paid_from_bank_account_id",
+                "recipient_employee_ref_id",
+                "recipient_person_name",
+                "allocated_amount",
+                "currency_code",
+                "payment_currency_code",
+                "converted_amount",
+                "recipient_confirmation_status",
+                "recipient_confirmed_at",
+                "recipient_confirmed_by",
+                "recipient_confirmation_notes",
+                "recipient_dispute_reason",
+                "metadata",
+                "created_at",
+                "updated_at",
+              ].join(", ")
+            )
+            .eq("payment_made_id", loadedPayment.id)
+            .order("created_at", { ascending: false }),
 
-        loadedPayment.expense_funding_batch_id
-          ? supabase
-              .from("finance_expense_funding_batches")
-              .select(
-                "id, batch_number, funding_company_id, funding_bank_account_id, allocation_date, currency_code, allocated_amount, status, documentation_status, notes"
-              )
-              .eq("id", loadedPayment.expense_funding_batch_id)
-              .maybeSingle()
-          : Promise.resolve({ data: null, error: null }),
-      ]);
+          supabase.from("finance_companies").select("id, name").order("name"),
 
-      if (allocationsResult.error) throw allocationsResult.error;
-      if (companiesResult.error) throw companiesResult.error;
-      if (bankAccountsResult.error) throw bankAccountsResult.error;
-      if (employeesResult.error) throw employeesResult.error;
-      if (fundingBatchResult.error) throw fundingBatchResult.error;
+          supabase
+            .from("finance_bank_accounts")
+            .select(
+              "id, name, bank_name, institution_name, masked_account_number, currency_code, company_id"
+            )
+            .order("name"),
 
-      const loadedAllocations =
-        (allocationsResult.data || []) as unknown as AllocationRow[];
+          supabase
+            .from("finance_employee_refs")
+            .select("id, user_id, code, status, mark, metadata")
+            .order("code"),
 
-      setAllocations(loadedAllocations);
-      setCompanies((companiesResult.data || []) as CompanyRow[]);
-      setBankAccounts((bankAccountsResult.data || []) as BankAccountRow[]);
-      setEmployees((employeesResult.data || []) as EmployeeRefRow[]);
-      setFundingBatch((fundingBatchResult.data || null) as FundingBatchRow | null);
+          loadedPayment.expense_funding_batch_id
+            ? supabase
+                .from("finance_expense_funding_batches")
+                .select(
+                  "id, batch_number, funding_company_id, funding_bank_account_id, allocation_date, currency_code, allocated_amount, status, documentation_status, notes, metadata"
+                )
+                .eq("id", loadedPayment.expense_funding_batch_id)
+                .maybeSingle()
+            : Promise.resolve({ data: null, error: null }),
+        ]);
 
-      const expenseIds = Array.from(
-        new Set(loadedAllocations.map((allocation) => allocation.expense_id))
-      );
+        if (allocationsResult.error) throw allocationsResult.error;
+        if (companiesResult.error) throw companiesResult.error;
+        if (bankAccountsResult.error) throw bankAccountsResult.error;
+        if (employeesResult.error) throw employeesResult.error;
+        if (fundingPoolResult.error) throw fundingPoolResult.error;
 
-      if (expenseIds.length > 0) {
-        const expensesResult = await supabase
-          .from("finance_expenses")
-          .select(
-            [
-              "id",
-              "expense_number",
-              "title",
-              "description",
-              "amount",
-              "requested_amount",
-              "approved_amount",
-              "final_amount",
-              "currency_code",
-              "expense_date",
-              "expense_type",
-              "request_status",
-              "finance_review_status",
-              "documentation_status",
-              "funding_status",
-              "coverage_status",
-              "recipient_confirmation_status",
-              "company_id",
-              "employee_ref_id",
-              "expense_made_by_type",
-              "responsible_person_name",
-              "other_made_by_explanation",
-              "expense_source_name",
-              "created_at",
-              "updated_at",
-            ].join(", ")
-          )
-          .in("id", expenseIds);
+        const loadedAllocations =
+          (allocationsResult.data || []) as unknown as AllocationRow[];
 
-        if (expensesResult.error) throw expensesResult.error;
+        setPayment(loadedPayment);
+        setAllocations(loadedAllocations);
+        setCompanies((companiesResult.data || []) as CompanyRow[]);
+        setBankAccounts((bankAccountsResult.data || []) as BankAccountRow[]);
+        setEmployees((employeesResult.data || []) as EmployeeRefRow[]);
+        setFundingPool((fundingPoolResult.data || null) as FundingPoolRow | null);
 
-        setExpenses((expensesResult.data || []) as unknown as ExpenseRow[]);
-      } else {
-        setExpenses([]);
+        const expenseIds = Array.from(
+          new Set(loadedAllocations.map((allocation) => allocation.expense_id))
+        );
+
+        if (expenseIds.length > 0) {
+          const expensesResult = await supabase
+            .from("finance_expenses")
+            .select(
+              [
+                "id",
+                "expense_number",
+                "title",
+                "description",
+                "amount",
+                "requested_amount",
+                "approved_amount",
+                "final_amount",
+                "currency_code",
+                "expense_date",
+                "expense_type",
+                "request_status",
+                "finance_review_status",
+                "documentation_status",
+                "funding_status",
+                "coverage_status",
+                "recipient_confirmation_status",
+                "company_id",
+                "employee_ref_id",
+                "expense_made_by_type",
+                "responsible_person_name",
+                "other_made_by_explanation",
+                "expense_source_name",
+                "created_at",
+                "updated_at",
+              ].join(", ")
+            )
+            .in("id", expenseIds);
+
+          if (expensesResult.error) throw expensesResult.error;
+
+          setExpenses((expensesResult.data || []) as unknown as ExpenseRow[]);
+        } else {
+          setExpenses([]);
+        }
+
+        setHasLoadedOnce(true);
+      } catch (error) {
+        console.error("Failed to load expense payment distribution detail:", error);
+        setPageError(
+          error instanceof Error ? error.message : "Failed to load payment distribution detail."
+        );
+        if (!hasLoadedOnce) setPayment(null);
+      } finally {
+        setIsLoading(false);
+        setIsRefreshing(false);
       }
-    } catch (error) {
-      console.error("Failed to load expense payment detail:", error);
-      setPageError(
-        error instanceof Error ? error.message : "Failed to load payment detail."
-      );
-      setPayment(null);
-    } finally {
-      setIsLoading(false);
-    }
-  }, [paymentId]);
+    },
+    [hasLoadedOnce, paymentId]
+  );
 
   useEffect(() => {
-    void loadPayment();
+    void loadPayment("initial");
   }, [loadPayment]);
 
   useEffect(() => {
     if (!paymentId) return undefined;
 
     const channel = supabase
-      .channel(`finance-expenses-payment-made-detail-${paymentId}`)
+      .channel(`finance-expenses-payment-distribution-detail-${paymentId}`)
       .on(
         "postgres_changes",
         {
@@ -667,7 +937,7 @@ export default function FinanceExpensesPaymentsMadeDetailPage() {
           table: "finance_payments_made",
           filter: `id=eq.${paymentId}`,
         },
-        () => void loadPayment()
+        () => void loadPayment("silent")
       )
       .on(
         "postgres_changes",
@@ -677,12 +947,12 @@ export default function FinanceExpensesPaymentsMadeDetailPage() {
           table: "finance_payment_made_expense_allocations",
           filter: `payment_made_id=eq.${paymentId}`,
         },
-        () => void loadPayment()
+        () => void loadPayment("silent")
       )
       .subscribe();
 
     const intervalId = window.setInterval(() => {
-      void loadPayment();
+      void loadPayment("silent");
     }, 60000);
 
     return () => {
@@ -692,9 +962,9 @@ export default function FinanceExpensesPaymentsMadeDetailPage() {
   }, [loadPayment, paymentId]);
 
   const confirmPayment = useCallback(async () => {
-    if (!payment) return;
+    if (!payment || runningAction) return;
 
-    setIsConfirming(true);
+    setRunningAction("confirm_payment");
     setPageError(null);
     setPageMessage(null);
 
@@ -705,15 +975,19 @@ export default function FinanceExpensesPaymentsMadeDetailPage() {
 
       if (confirmResult.error) throw confirmResult.error;
 
-      setPageMessage("Payment confirmed.");
-      await loadPayment();
+      setPageMessage("Expense payment distribution confirmed.");
+      await loadPayment("silent");
     } catch (error) {
-      console.error("Failed to confirm payment:", error);
-      setPageError(error instanceof Error ? error.message : "Failed to confirm payment.");
+      console.error("Failed to confirm expense payment distribution:", error);
+      setPageError(
+        error instanceof Error
+          ? error.message
+          : "Failed to confirm expense payment distribution."
+      );
     } finally {
-      setIsConfirming(false);
+      setRunningAction(null);
     }
-  }, [loadPayment, payment]);
+  }, [loadPayment, payment, runningAction]);
 
   if (isLoading) {
     return (
@@ -721,7 +995,9 @@ export default function FinanceExpensesPaymentsMadeDetailPage() {
         <div className="mx-auto flex w-full max-w-[1600px] flex-col gap-6">
           <div className="rounded-[34px] border border-white/10 bg-white/[0.045] p-12 text-center backdrop-blur-xl">
             <Loader2 className="mx-auto h-8 w-8 animate-spin text-cyan-200" />
-            <div className="mt-4 text-sm text-slate-400">Loading payment detail...</div>
+            <div className="mt-4 text-sm text-slate-400">
+              Loading expense payment distribution...
+            </div>
           </div>
         </div>
       </div>
@@ -735,10 +1011,10 @@ export default function FinanceExpensesPaymentsMadeDetailPage() {
           <div className="rounded-[34px] border border-rose-400/20 bg-rose-500/10 p-12 text-center">
             <AlertTriangle className="mx-auto h-8 w-8 text-rose-200" />
             <div className="mt-4 text-lg font-semibold text-white">
-              Payment Made record not found
+              Expense payment distribution not found
             </div>
             <div className="mt-2 text-sm text-rose-100">
-              {pageError || "The requested payment record could not be loaded."}
+              {pageError || "The requested expense payment distribution could not be loaded."}
             </div>
             <button
               type="button"
@@ -746,7 +1022,7 @@ export default function FinanceExpensesPaymentsMadeDetailPage() {
               className="mt-6 inline-flex h-11 items-center justify-center gap-2 rounded-2xl border border-white/10 bg-white/[0.05] px-5 text-sm font-semibold text-white transition hover:bg-white/[0.08]"
             >
               <ArrowRight className="h-4 w-4 rotate-180" />
-              Expenses Payments Made
+              Payment Control
             </button>
           </div>
         </div>
@@ -762,6 +1038,19 @@ export default function FinanceExpensesPaymentsMadeDetailPage() {
     ? bankAccountMap.get(payment.paid_from_bank_account_id)
     : null;
 
+  const fundingPoolNumber =
+    payment.metadata?.funding_pool_number ||
+    payment.metadata?.funding_batch_number ||
+    fundingPool?.batch_number ||
+    "Not linked";
+
+  const fundingPeriodFrom = getMetadataString(fundingPool?.metadata, "funding_period_from");
+  const fundingPeriodTo = getMetadataString(fundingPool?.metadata, "funding_period_to");
+  const fundingPeriodLabel =
+    fundingPeriodFrom && fundingPeriodTo
+      ? `${formatDate(fundingPeriodFrom)} → ${formatDate(fundingPeriodTo)}`
+      : "Not saved";
+
   return (
     <div className="min-h-screen bg-[#05070d] px-4 py-4 text-white md:px-6 md:py-6">
       <div className="mx-auto flex w-full max-w-[1600px] flex-col gap-6">
@@ -775,84 +1064,63 @@ export default function FinanceExpensesPaymentsMadeDetailPage() {
               className="mb-5 inline-flex items-center justify-center gap-2 rounded-full border border-white/10 bg-white/[0.05] px-5 py-2 text-[11px] font-semibold uppercase tracking-[0.22em] text-slate-300 transition hover:border-white/20 hover:bg-white/[0.08] hover:text-white"
             >
               <ArrowRight className="h-3.5 w-3.5 rotate-180" />
-              Expenses Payments Made
+              Payment Control
             </button>
 
             <div className="grid gap-6 xl:grid-cols-[minmax(0,1fr)_520px] xl:items-end">
               <div>
                 <div className="inline-flex w-fit items-center gap-2 rounded-full border border-cyan-400/20 bg-cyan-500/10 px-3 py-1 text-[11px] font-semibold uppercase tracking-[0.22em] text-cyan-200">
                   <Sparkles className="h-3.5 w-3.5" />
-                  Payment Made Detail
+                  Expense Payment Distribution
                 </div>
 
                 <h1 className="mt-4 text-3xl font-semibold tracking-[-0.035em] text-white md:text-5xl">
-                  {payment.reference_number || "Expense Payment"}
+                  {payment.reference_number || "Expense Payment Distribution"}
                 </h1>
 
                 <p className="mt-3 max-w-4xl text-sm leading-6 text-slate-400 md:text-base md:leading-7">
-                  Expense/reimbursement payment record with linked allocations, funding source,
-                  payment proof metadata, and recipient confirmation tracking.
+                  This page shows how a confirmed Funding Pool was distributed across verified
+                  operating expenses, including payment-date currency conversion and recipient
+                  confirmation status.
                 </p>
 
                 <div className="mt-5 flex flex-wrap gap-2">
                   <StatusBadge value={payment.status} />
                   <StatusBadge value={payment.payment_source_type} />
                   <StatusBadge value={payment.recipient_confirmation_status} />
+                  {isRefreshing ? (
+                    <span className="inline-flex rounded-full border border-white/10 bg-white/[0.06] px-3 py-1 text-[11px] font-semibold uppercase tracking-[0.14em] text-slate-300">
+                      Silent Refresh
+                    </span>
+                  ) : null}
                 </div>
               </div>
 
-              <div className="grid gap-3 sm:grid-cols-3">
-                <div className="min-h-[148px] rounded-[24px] border border-white/10 bg-black/20 p-4">
-                  <div className="flex items-start justify-between gap-3">
-                    <div>
-                      <div className="text-[11px] font-semibold uppercase tracking-[0.2em] text-slate-500">
-                        Payment Amount
-                      </div>
-                      <div className="mt-2 text-xl font-semibold text-white">
-                        {paymentCurrency}{" "}
-                        {formatMoney(payment.converted_amount || payment.amount)}
-                      </div>
-                    </div>
-                    <WalletCards className="h-5 w-5 text-cyan-200" />
-                  </div>
-                  <div className="mt-3 text-xs leading-5 text-slate-500">
-                    Current payment amount.
-                  </div>
-                </div>
-
-                <div className="min-h-[148px] rounded-[24px] border border-white/10 bg-black/20 p-4">
-                  <div className="flex items-start justify-between gap-3">
-                    <div>
-                      <div className="text-[11px] font-semibold uppercase tracking-[0.2em] text-slate-500">
-                        Allocated
-                      </div>
-                      <div className="mt-2 text-xl font-semibold text-emerald-100">
-                        {paymentCurrency} {formatMoney(totalAllocated)}
-                      </div>
-                    </div>
-                    <Receipt className="h-5 w-5 text-emerald-200" />
-                  </div>
-                  <div className="mt-3 text-xs leading-5 text-slate-500">
-                    Sum of linked expense allocations.
-                  </div>
-                </div>
-
-                <div className="min-h-[148px] rounded-[24px] border border-white/10 bg-black/20 p-4">
-                  <div className="flex items-start justify-between gap-3">
-                    <div>
-                      <div className="text-[11px] font-semibold uppercase tracking-[0.2em] text-slate-500">
-                        Linked Expenses
-                      </div>
-                      <div className="mt-2 text-xl font-semibold text-amber-100">
-                        {allocations.length}
-                      </div>
-                    </div>
-                    <FileCheck2 className="h-5 w-5 text-amber-200" />
-                  </div>
-                  <div className="mt-3 text-xs leading-5 text-slate-500">
-                    Expenses covered by this payment.
-                  </div>
-                </div>
+              <div className="grid gap-3 sm:grid-cols-2">
+                <SummaryBlock
+                  title="Payment Amount"
+                  value={`${paymentCurrency} ${formatMoney(paymentCurrencyAmount)}`}
+                  subtitle="Amount entered in the payment currency."
+                  icon={WalletCards}
+                />
+                <SummaryBlock
+                  title="Funding Used"
+                  value={`${fundingCurrency} ${formatMoney(fundingCurrencyUsedForPayment)}`}
+                  subtitle="Payment converted into Funding Pool currency."
+                  icon={Banknote}
+                />
+                <SummaryBlock
+                  title="Remaining After"
+                  value={`${fundingCurrency} ${formatMoney(fundingCurrencyRemainingAfterPayment)}`}
+                  subtitle="Funding Pool balance after this distribution."
+                  icon={ShieldCheck}
+                />
+                <SummaryBlock
+                  title="Linked Expenses"
+                  value={String(allocations.length)}
+                  subtitle="Expense allocation lines connected to this distribution."
+                  icon={Receipt}
+                />
               </div>
             </div>
           </div>
@@ -873,90 +1141,180 @@ export default function FinanceExpensesPaymentsMadeDetailPage() {
         <div className="grid items-start gap-6 xl:grid-cols-[minmax(0,1fr)_430px]">
           <div className="grid gap-6">
             <SectionCard
-              title="Payment Overview"
-              description="Funding source, payment identity, and confirmation state."
+              title="Distribution Overview"
+              description="Payment identity, source Funding Pool, and confirmation state."
               icon={WalletCards}
             >
               <div className="grid gap-4 md:grid-cols-2">
                 <ValueBlock label="Reference Number" value={payment.reference_number || "—"} />
                 <ValueBlock label="Payment Date" value={formatDate(payment.payment_date)} />
                 <ValueBlock
-                  label="Payment Source Type"
+                  label="Distribution Status"
+                  value={<StatusBadge value={payment.status} />}
+                />
+                <ValueBlock
+                  label="Payment Source"
                   value={<StatusBadge value={payment.payment_source_type} />}
                 />
-                <ValueBlock label="Status" value={<StatusBadge value={payment.status} />} />
                 <ValueBlock
                   label="Funding Company"
                   value={fundingCompany?.name || payment.metadata?.funding_company_name || "—"}
                 />
-                <ValueBlock label="Paid From Bank" value={getBankLabel(paidFromBank)} />
                 <ValueBlock
-                  label="Payment Currency"
-                  value={payment.payment_currency_code || "—"}
+                  label="Paid From Bank"
+                  value={getBankLabel(paidFromBank)}
+                  detail={payment.metadata?.paid_from_bank_label || undefined}
                 />
                 <ValueBlock
                   label="Recipient Confirmation"
                   value={<StatusBadge value={payment.recipient_confirmation_status} />}
+                  detail={
+                    payment.recipient_confirmed_at
+                      ? `Confirmed ${formatDateTime(payment.recipient_confirmed_at)}`
+                      : "Recipient confirmation closes the distribution loop."
+                  }
                 />
                 <ValueBlock
                   label="Recipient"
-                  value={payment.recipient_person_name || "Multiple / not specified"}
+                  value={payment.recipient_person_name || "Multiple recipients"}
                 />
                 <ValueBlock
                   label="Created"
                   value={formatDateTime(payment.created_at)}
                   detail={`Updated ${formatDateTime(payment.updated_at)}`}
                 />
+                <ValueBlock
+                  label="Posted To Ledger"
+                  value={payment.posted_to_ledger ? "Yes" : "No"}
+                  detail={
+                    payment.ledger_posted_at
+                      ? `Posted ${formatDateTime(payment.ledger_posted_at)}`
+                      : "Not posted yet"
+                  }
+                />
                 {payment.notes ? (
-                  <ValueBlock label="Notes" value={payment.notes} />
+                  <div className="md:col-span-2">
+                    <ValueBlock label="Notes" value={payment.notes} />
+                  </div>
                 ) : null}
               </div>
             </SectionCard>
 
             <SectionCard
-              title="Funding Batch"
-              description="End-of-month allocation batch connected to this payment when available."
+              title="Funding Pool Source"
+              description="Reserved funding source used by this distribution. This is not an expense approval step."
               icon={Banknote}
             >
-              {fundingBatch ? (
+              {fundingPool || payment.metadata?.funding_pool_id || payment.metadata?.funding_batch_id ? (
                 <div className="grid gap-4 md:grid-cols-2">
-                  <ValueBlock label="Batch Number" value={fundingBatch.batch_number} />
-                  <ValueBlock label="Allocation Date" value={formatDate(fundingBatch.allocation_date)} />
+                  <ValueBlock label="Funding Pool" value={fundingPoolNumber} />
                   <ValueBlock
-                    label="Batch Status"
-                    value={<StatusBadge value={fundingBatch.status} />}
+                    label="Funding Period"
+                    value={fundingPeriodLabel}
+                    detail="Stored on the Funding Pool metadata when available."
                   />
                   <ValueBlock
-                    label="Batch Documentation"
-                    value={<StatusBadge value={fundingBatch.documentation_status} />}
+                    label="Pool Status"
+                    value={<StatusBadge value={fundingPool?.status || "allocated"} />}
                   />
                   <ValueBlock
-                    label="Batch Amount"
-                    value={`${fundingBatch.currency_code || paymentCurrency} ${formatMoney(
-                      fundingBatch.allocated_amount
+                    label="Pool Documentation"
+                    value={<StatusBadge value={fundingPool?.documentation_status || "verified"} />}
+                  />
+                  <ValueBlock
+                    label="Pool Total"
+                    value={`${fundingCurrency} ${formatMoney(fundingPoolTotal)}`}
+                  />
+                  <ValueBlock
+                    label="Available Before This Payment"
+                    value={`${fundingCurrency} ${formatMoney(
+                      fundingCurrencyAvailableBeforePayment
                     )}`}
                   />
-                  {fundingBatch.notes ? (
-                    <ValueBlock label="Batch Notes" value={fundingBatch.notes} />
+                  <ValueBlock
+                    label="Used By This Payment"
+                    value={`${fundingCurrency} ${formatMoney(fundingCurrencyUsedForPayment)}`}
+                    detail={
+                      paymentToFundingExchangeRate > 0
+                        ? `Rate ${formatMoney(paymentToFundingExchangeRate)} • ${paymentToFundingConversionSource || "conversion"} • ${formatDate(paymentToFundingConversionDate)}`
+                        : `Same currency or rate not stored • ${formatDate(paymentToFundingConversionDate)}`
+                    }
+                  />
+                  <ValueBlock
+                    label="Remaining After This Payment"
+                    value={`${fundingCurrency} ${formatMoney(
+                      fundingCurrencyRemainingAfterPayment
+                    )}`}
+                  />
+                  {fundingPool?.notes ? (
+                    <div className="md:col-span-2">
+                      <ValueBlock label="Funding Pool Notes" value={fundingPool.notes} />
+                    </div>
                   ) : null}
                 </div>
               ) : (
                 <div className="rounded-[24px] border border-dashed border-white/10 bg-black/20 px-6 py-12 text-center">
                   <Banknote className="mx-auto h-8 w-8 text-slate-500" />
                   <div className="mt-4 text-sm font-semibold text-white">
-                    No funding batch linked
+                    No Funding Pool linked
                   </div>
                   <div className="mt-2 text-sm leading-6 text-slate-500">
-                    This payment was created without an end-of-month funding batch or the batch was
-                    not linked.
+                    This distribution does not have a linked Funding Pool record or metadata.
                   </div>
                 </div>
               )}
             </SectionCard>
 
             <SectionCard
+              title="Currency Conversion Summary"
+              description="How payment currency was converted into Funding Pool currency and expense currencies."
+              icon={FileCheck2}
+            >
+              <div className="grid gap-4 md:grid-cols-2">
+                <ValueBlock
+                  label="Payment Currency Amount"
+                  value={`${paymentCurrency} ${formatMoney(paymentCurrencyAmount)}`}
+                  detail="The amount entered when the distribution was created."
+                />
+                <ValueBlock
+                  label="Allocation Lines Total"
+                  value={`${paymentCurrency} ${formatMoney(totalPaymentCurrencyAllocated)}`}
+                  detail="Sum of linked allocation lines in payment currency."
+                />
+                <ValueBlock
+                  label="Funding Pool Currency Used"
+                  value={`${fundingCurrency} ${formatMoney(fundingCurrencyUsedForPayment)}`}
+                  detail="Converted from payment currency using the payment date."
+                />
+                <ValueBlock
+                  label="Payment → Funding Rate"
+                  value={
+                    paymentToFundingExchangeRate > 0
+                      ? formatMoney(paymentToFundingExchangeRate)
+                      : "Same currency / not stored"
+                  }
+                />
+                <ValueBlock
+                  label="Conversion Date"
+                  value={formatDate(paymentToFundingConversionDate)}
+                  detail={paymentToFundingConversionSource || "Payment-date conversion context"}
+                />
+                <ValueBlock
+                  label="Expense Coverage Basis"
+                  value={payment.metadata?.accounting_amount_basis || "expense_currency_coverage"}
+                  detail="Each line stores coverage in the expense currency."
+                />
+                <ValueBlock
+                  label="Expense Currency Coverage Total"
+                  value={formatMoney(payment.metadata?.expense_currency_coverage_total || payment.amount)}
+                  detail="Combined coverage preview across selected expense currencies."
+                />
+              </div>
+            </SectionCard>
+
+            <SectionCard
               title="Linked Expense Allocations"
-              description="Who got paid, for what, and how much was allocated to each expense."
+              description="Each line shows the expense covered, payment currency amount, expense currency coverage, and recipient status."
               icon={Receipt}
             >
               {enrichedAllocations.length === 0 ? (
@@ -972,32 +1330,32 @@ export default function FinanceExpensesPaymentsMadeDetailPage() {
               ) : (
                 <div className="overflow-x-auto rounded-[24px] border border-white/10 bg-black/20">
                   <div className="max-h-[720px] overflow-y-auto">
-                    <table className="w-full min-w-[1420px] border-collapse">
+                    <table className="w-full min-w-[1780px] border-collapse">
                       <thead className="sticky top-0 z-20 border-b border-white/10 bg-black/70 backdrop-blur-xl">
                         <tr>
                           <th className="px-5 py-4 text-left text-[11px] font-semibold uppercase tracking-[0.18em] text-slate-500">
                             Expense
                           </th>
                           <th className="px-5 py-4 text-left text-[11px] font-semibold uppercase tracking-[0.18em] text-slate-500">
-                            What Is It For
-                          </th>
-                          <th className="px-5 py-4 text-left text-[11px] font-semibold uppercase tracking-[0.18em] text-slate-500">
-                            Expense Company
-                          </th>
-                          <th className="px-5 py-4 text-left text-[11px] font-semibold uppercase tracking-[0.18em] text-slate-500">
-                            Funding Company
+                            Purpose
                           </th>
                           <th className="px-5 py-4 text-left text-[11px] font-semibold uppercase tracking-[0.18em] text-slate-500">
                             Recipient
                           </th>
                           <th className="px-5 py-4 text-right text-[11px] font-semibold uppercase tracking-[0.18em] text-slate-500">
-                            Expense Amount
+                            Payment Amount
                           </th>
                           <th className="px-5 py-4 text-right text-[11px] font-semibold uppercase tracking-[0.18em] text-slate-500">
-                            Allocated
+                            Expense Coverage
                           </th>
-                          <th className="px-5 py-4 text-left text-[11px] font-semibold uppercase tracking-[0.18em] text-slate-500">
-                            Coverage
+                          <th className="px-5 py-4 text-right text-[11px] font-semibold uppercase tracking-[0.18em] text-slate-500">
+                            Rate
+                          </th>
+                          <th className="px-5 py-4 text-right text-[11px] font-semibold uppercase tracking-[0.18em] text-slate-500">
+                            Funding Used
+                          </th>
+                          <th className="px-5 py-4 text-right text-[11px] font-semibold uppercase tracking-[0.18em] text-slate-500">
+                            Expense Remaining
                           </th>
                           <th className="px-5 py-4 text-left text-[11px] font-semibold uppercase tracking-[0.18em] text-slate-500">
                             Recipient Status
@@ -1006,97 +1364,128 @@ export default function FinanceExpensesPaymentsMadeDetailPage() {
                       </thead>
 
                       <tbody>
-                        {enrichedAllocations.map((allocation) => (
-                          <tr
-                            key={allocation.id}
-                            className="border-b border-white/5 text-sm text-slate-300 transition hover:bg-white/[0.035]"
-                          >
-                            <td className="min-w-[240px] px-5 py-4">
-                              <button
-                                type="button"
-                                onClick={() =>
-                                  navigate(
-                                    `/finance/transactions/expenses/${allocation.expense_id}`
-                                  )
-                                }
-                                className="text-left font-semibold text-cyan-200 transition hover:text-cyan-100"
-                              >
-                                {allocation.expense?.expense_number ||
-                                  allocation.metadata?.expense_number ||
-                                  "Expense"}
-                              </button>
-                              <div className="mt-1 text-xs text-white">
-                                {allocation.expense?.title ||
-                                  allocation.metadata?.expense_title ||
-                                  "—"}
-                              </div>
-                              <div className="mt-1 text-xs text-slate-500">
-                                {formatDate(allocation.expense?.expense_date)}
-                              </div>
-                            </td>
+                        {enrichedAllocations.map((allocation) => {
+                          const expenseCurrency = getExpenseCurrency(
+                            allocation.expense,
+                            allocation.expenseCurrencyCode
+                          );
 
-                            <td className="min-w-[300px] px-5 py-4">
-                              <div className="font-medium text-white">
-                                {allocation.expense?.expense_source_name || "No source entered"}
-                              </div>
-                              <div className="mt-1 text-xs text-cyan-200">
-                                {formatLabel(allocation.expense?.expense_type)}
-                              </div>
-                              <div className="mt-2 line-clamp-2 text-xs leading-5 text-slate-500">
-                                {allocation.expense?.description || "No description / reason entered."}
-                              </div>
-                            </td>
-
-                            <td className="min-w-[180px] px-5 py-4">
-                              {allocation.expenseCompanyName}
-                            </td>
-
-                            <td className="min-w-[180px] px-5 py-4">
-                              {allocation.fundingCompanyName}
-                              <div className="mt-1 text-xs text-slate-500">
-                                {allocation.bankLabel}
-                              </div>
-                            </td>
-
-                            <td className="min-w-[220px] px-5 py-4">
-                              <div className="font-medium text-slate-200">
-                                {allocation.recipientLabel}
-                              </div>
-                            </td>
-
-                            <td className="whitespace-nowrap px-5 py-4 text-right font-semibold text-white">
-                              {allocation.expense?.currency_code || allocation.currency_code || paymentCurrency}{" "}
-                              {formatMoney(getExpenseTargetAmount(allocation.expense))}
-                            </td>
-
-                            <td className="whitespace-nowrap px-5 py-4 text-right font-semibold text-white">
-                              {allocation.payment_currency_code ||
-                                allocation.currency_code ||
-                                paymentCurrency}{" "}
-                              {formatMoney(
-                                allocation.converted_amount || allocation.allocated_amount
-                              )}
-                            </td>
-
-                            <td className="whitespace-nowrap px-5 py-4">
-                              <StatusBadge value={allocation.expense?.coverage_status} />
-                            </td>
-
-                            <td className="whitespace-nowrap px-5 py-4">
-                              <StatusBadge value={allocation.recipient_confirmation_status} />
-                              {allocation.recipient_confirmation_notes ? (
-                                <div className="mt-2 max-w-[260px] text-xs leading-5 text-slate-500">
-                                  {allocation.recipient_confirmation_notes}
+                          return (
+                            <tr
+                              key={allocation.id}
+                              className="border-b border-white/5 text-sm text-slate-300 transition hover:bg-white/[0.035]"
+                            >
+                              <td className="min-w-[240px] px-5 py-4">
+                                <button
+                                  type="button"
+                                  onClick={() =>
+                                    navigate(
+                                      `/finance/transactions/expenses/${allocation.expense_id}`
+                                    )
+                                  }
+                                  className="text-left font-semibold text-cyan-200 transition hover:text-cyan-100"
+                                >
+                                  {allocation.expense?.expense_number ||
+                                    allocation.metadata?.expense_number ||
+                                    "Expense"}
+                                </button>
+                                <div className="mt-1 text-xs text-white">
+                                  {allocation.expense?.title ||
+                                    allocation.metadata?.expense_title ||
+                                    "—"}
                                 </div>
-                              ) : null}
-                              {allocation.recipient_dispute_reason ? (
-                                <div className="mt-2 max-w-[260px] text-xs leading-5 text-rose-200">
-                                  {allocation.recipient_dispute_reason}
+                                <div className="mt-1 text-xs text-slate-500">
+                                  {formatDate(allocation.expense?.expense_date)}
                                 </div>
-                              ) : null}
-                            </td>
-                          </tr>
-                        ))}
+                              </td>
+
+                              <td className="min-w-[300px] px-5 py-4">
+                                <div className="font-medium text-white">
+                                  {allocation.expense?.expense_source_name || "No source entered"}
+                                </div>
+                                <div className="mt-1 text-xs text-cyan-200">
+                                  {formatLabel(allocation.expense?.expense_type)}
+                                </div>
+                                <div className="mt-2 line-clamp-2 text-xs leading-5 text-slate-500">
+                                  {allocation.expense?.description ||
+                                    "No description / reason entered."}
+                                </div>
+                              </td>
+
+                              <td className="min-w-[220px] px-5 py-4">
+                                <div className="font-medium text-slate-200">
+                                  {allocation.recipientLabel}
+                                </div>
+                                <div className="mt-1 text-xs text-slate-500">
+                                  {allocation.expenseCompanyName}
+                                </div>
+                              </td>
+
+                              <td className="whitespace-nowrap px-5 py-4 text-right font-semibold text-white">
+                                {allocation.paymentCurrencyCode}{" "}
+                                {formatMoney(allocation.paymentCurrencyAmount)}
+                              </td>
+
+                              <td className="whitespace-nowrap px-5 py-4 text-right font-semibold text-emerald-100">
+                                {allocation.expenseCurrencyCode || expenseCurrency}{" "}
+                                {formatMoney(allocation.expenseCurrencyAmount)}
+                              </td>
+
+                              <td className="whitespace-nowrap px-5 py-4 text-right">
+                                <div className="font-semibold text-white">
+                                  {allocation.exchangeRate
+                                    ? formatMoney(allocation.exchangeRate)
+                                    : "—"}
+                                </div>
+                                <div className="mt-1 text-[11px] text-slate-500">
+                                  {allocation.conversionDate
+                                    ? formatDate(allocation.conversionDate)
+                                    : "No date"}
+                                </div>
+                              </td>
+
+                              <td className="whitespace-nowrap px-5 py-4 text-right font-semibold text-violet-100">
+                                {allocation.fundingCurrencyCode}{" "}
+                                {allocation.fundingCurrencyAmountUsed !== null
+                                  ? formatMoney(allocation.fundingCurrencyAmountUsed)
+                                  : "—"}
+                              </td>
+
+                              <td className="whitespace-nowrap px-5 py-4 text-right">
+                                <div className="font-semibold text-slate-200">
+                                  Before:{" "}
+                                  {allocation.expenseRemainingBeforePayment !== null
+                                    ? `${allocation.expenseCurrencyCode} ${formatMoney(
+                                        allocation.expenseRemainingBeforePayment
+                                      )}`
+                                    : "—"}
+                                </div>
+                                <div className="mt-1 text-xs text-amber-100">
+                                  After:{" "}
+                                  {allocation.expenseRemainingAfterPayment !== null
+                                    ? `${allocation.expenseCurrencyCode} ${formatMoney(
+                                        allocation.expenseRemainingAfterPayment
+                                      )}`
+                                    : "—"}
+                                </div>
+                              </td>
+
+                              <td className="whitespace-nowrap px-5 py-4">
+                                <StatusBadge value={allocation.recipient_confirmation_status} />
+                                {allocation.recipient_confirmation_notes ? (
+                                  <div className="mt-2 max-w-[260px] text-xs leading-5 text-slate-500">
+                                    {allocation.recipient_confirmation_notes}
+                                  </div>
+                                ) : null}
+                                {allocation.recipient_dispute_reason ? (
+                                  <div className="mt-2 max-w-[260px] text-xs leading-5 text-rose-200">
+                                    {allocation.recipient_dispute_reason}
+                                  </div>
+                                ) : null}
+                              </td>
+                            </tr>
+                          );
+                        })}
                       </tbody>
                     </table>
                   </div>
@@ -1136,7 +1525,8 @@ export default function FinanceExpensesPaymentsMadeDetailPage() {
                     No payment proof metadata
                   </div>
                   <div className="mt-2 text-sm leading-6 text-slate-500">
-                    Payment proof can be uploaded during payment creation.
+                    Payment proof can be uploaded during payment creation or added later if the
+                    workflow allows it.
                   </div>
                 </div>
               )}
@@ -1146,48 +1536,74 @@ export default function FinanceExpensesPaymentsMadeDetailPage() {
           <aside className="sticky top-6 grid gap-6">
             <SectionCard
               title="Action Center"
-              description="Confirm draft payment and refresh current record."
+              description="Only relevant actions for this distribution are shown."
               icon={ShieldCheck}
             >
               <div className="grid gap-3">
-                <button
-                  type="button"
-                  disabled={isConfirming || payment.status !== "draft"}
-                  onClick={() => void confirmPayment()}
-                  className="inline-flex h-12 items-center justify-center gap-2 rounded-2xl border border-emerald-400/20 bg-emerald-500/10 px-5 text-sm font-semibold text-emerald-100 transition hover:bg-emerald-500/15 disabled:cursor-not-allowed disabled:opacity-50"
-                >
-                  {isConfirming ? (
-                    <Loader2 className="h-4 w-4 animate-spin" />
-                  ) : (
-                    <CheckCircle2 className="h-4 w-4" />
-                  )}
-                  Confirm Payment
-                </button>
-
-                <button
-                  type="button"
-                  onClick={() => void loadPayment()}
-                  className="inline-flex h-12 items-center justify-center gap-2 rounded-2xl border border-white/10 bg-white/[0.05] px-5 text-sm font-semibold text-slate-300 transition hover:bg-white/[0.08] hover:text-white"
-                >
-                  <RefreshCcw className="h-4 w-4" />
-                  Reload
-                </button>
+                {canConfirmPayment ? (
+                  <ActionButton
+                    label="Confirm Distribution"
+                    loadingLabel="Confirming..."
+                    icon={CheckCircle2}
+                    disabled={actionLocked}
+                    isRunning={runningAction === "confirm_payment"}
+                    onClick={() => void confirmPayment()}
+                  />
+                ) : (
+                  <div className="rounded-[24px] border border-white/10 bg-black/20 p-4 text-sm leading-6 text-slate-400">
+                    No confirmation action is available for the current status.
+                  </div>
+                )}
               </div>
 
               <div className="mt-4 rounded-[24px] border border-white/10 bg-black/20 p-4 text-xs leading-5 text-slate-500">
-                Confirming a draft payment calls{" "}
+                Confirming a draft distribution calls{" "}
                 <span className="text-slate-300">finance_confirm_payment_made</span>.
-                Expense coverage is recalculated through allocation triggers.
+                Confirmed distributions update expense coverage and set recipient confirmation to
+                pending where relevant.
+              </div>
+            </SectionCard>
+
+            <SectionCard
+              title="Recipient Confirmation"
+              description="This is the closing step after Finance distributes money."
+              icon={UserRound}
+            >
+              <div className="grid gap-3">
+                <ValueBlock
+                  label="Overall Recipient Status"
+                  value={<StatusBadge value={payment.recipient_confirmation_status} />}
+                  detail={
+                    payment.recipient_confirmation_notes ||
+                    "Recipient confirmation proves the person received the distributed money."
+                  }
+                />
+                <ValueBlock
+                  label="Confirmed At"
+                  value={formatDateTime(payment.recipient_confirmed_at)}
+                />
+                <ValueBlock
+                  label="Recipient"
+                  value={payment.recipient_person_name || "Multiple recipients"}
+                />
+                <ValueBlock
+                  label="Linked Recipient Lines"
+                  value={String(enrichedAllocations.length)}
+                  detail="Each allocation line also carries its own recipient status."
+                />
               </div>
             </SectionCard>
 
             <SectionCard
               title="Status Summary"
-              description="Current payment and recipient state."
+              description="Current distribution and posting state."
               icon={Clock3}
             >
               <div className="grid gap-3">
-                <ValueBlock label="Payment Status" value={<StatusBadge value={payment.status} />} />
+                <ValueBlock
+                  label="Distribution Status"
+                  value={<StatusBadge value={payment.status} />}
+                />
                 <ValueBlock
                   label="Payment Source"
                   value={<StatusBadge value={payment.payment_source_type} />}
@@ -1209,9 +1625,9 @@ export default function FinanceExpensesPaymentsMadeDetailPage() {
             </SectionCard>
 
             <SectionCard
-              title="Record Notes"
-              description="Internal payment notes and metadata context."
-              icon={UserRound}
+              title="Record Context"
+              description="Internal notes and metadata references."
+              icon={FileCheck2}
             >
               <div className="grid gap-3">
                 <ValueBlock label="Notes" value={payment.notes || "—"} />
@@ -1222,7 +1638,16 @@ export default function FinanceExpensesPaymentsMadeDetailPage() {
                 <ValueBlock
                   label="Selected Expense IDs"
                   value={String(payment.metadata?.selected_expense_ids?.length || allocations.length)}
-                  detail="Number of expenses attached to this payment record."
+                  detail="Number of expenses attached to this distribution."
+                />
+                <ValueBlock
+                  label="Funding Pool ID"
+                  value={
+                    payment.metadata?.funding_pool_id ||
+                    payment.metadata?.funding_batch_id ||
+                    payment.expense_funding_batch_id ||
+                    "—"
+                  }
                 />
               </div>
             </SectionCard>

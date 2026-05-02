@@ -1544,12 +1544,26 @@ export default function FinanceExpenseDetailPage() {
     return toNumber(expense?.final_amount || expense?.requested_amount || expense?.amount);
   }, [expense]);
 
+  const confirmedPaymentIdSet = useMemo(() => {
+    return new Set(
+      payments
+        .filter((payment) => payment.status === "confirmed")
+        .map((payment) => payment.id)
+    );
+  }, [payments]);
+
+  const confirmedAllocations = useMemo(() => {
+    return allocations.filter((allocation) =>
+      confirmedPaymentIdSet.has(allocation.payment_made_id)
+    );
+  }, [allocations, confirmedPaymentIdSet]);
+
   const coveredAmount = useMemo(() => {
-    return allocations.reduce(
+    return confirmedAllocations.reduce(
       (sum, item) => sum + toNumber(item.converted_amount || item.allocated_amount),
       0
     );
-  }, [allocations]);
+  }, [confirmedAllocations]);
 
   const remainingAmount = Math.max(expenseAmount - coveredAmount, 0);
 
@@ -4557,7 +4571,7 @@ export default function FinanceExpenseDetailPage() {
                     <thead className="border-b border-white/10 bg-black/30">
                       <tr>
                         <th className="px-5 py-4 text-left text-[11px] font-semibold uppercase tracking-[0.18em] text-slate-500">
-                          Payment Made
+                          Expense Payment Distribution
                         </th>
                         <th className="px-5 py-4 text-left text-[11px] font-semibold uppercase tracking-[0.18em] text-slate-500">
                           Funding Company
@@ -4566,7 +4580,7 @@ export default function FinanceExpenseDetailPage() {
                           Bank Account
                         </th>
                         <th className="px-5 py-4 text-left text-[11px] font-semibold uppercase tracking-[0.18em] text-slate-500">
-                          Funding Batch
+                          Funding Pool
                         </th>
                         <th className="px-5 py-4 text-right text-[11px] font-semibold uppercase tracking-[0.18em] text-slate-500">
                           Allocated
@@ -4599,16 +4613,16 @@ export default function FinanceExpenseDetailPage() {
                                 type="button"
                                 onClick={() =>
                                   navigate(
-                                    `/finance/transactions/payments-made/${allocation.payment_made_id}`
+                                    `/finance/transactions/expenses-payments-made/${allocation.payment_made_id}`
                                   )
                                 }
                                 className="font-semibold text-cyan-200 transition hover:text-cyan-100"
                               >
-                                {payment?.reference_number || "Payment Made"}
+                                {payment?.reference_number || "Expense Payment Distribution"}
                               </button>
-                              <div className="mt-1 text-xs text-slate-500">
-                                {payment ? formatDate(payment.payment_date) : "—"} •{" "}
-                                {payment?.status || "—"}
+                              <div className="mt-1 flex flex-wrap items-center gap-2 text-xs text-slate-500">
+                                <span>{payment ? formatDate(payment.payment_date) : "—"}</span>
+                                <StatusBadge value={payment?.status} />
                               </div>
                             </td>
                             <td className="px-5 py-4">{fundingCompany?.name || "—"}</td>

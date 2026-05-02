@@ -60,7 +60,18 @@ type ProfileRow = {
   member_type: string | null;
 };
 
+type CurrencyRow = {
+  id: string;
+  currency_code: string;
+  currency_name: string;
+  currency_symbol: string | null;
+  decimal_places: number;
+  is_base_currency: boolean;
+  status: string;
+};
+
 type ExpenseMadeByType = "employee" | "owner_management" | "company_direct" | "other";
+
 type BillingFrequency = "monthly" | "yearly" | "one_year_upfront" | "other";
 type SubscriptionAmountBasis =
   | "monthly_payment"
@@ -197,6 +208,7 @@ type CachedOptionsPayload = {
   companies: CompanyRow[];
   employees: EmployeeRefRow[];
   profiles: ProfileRow[];
+  currencies: CurrencyRow[];
   cachedAt: number;
 };
 
@@ -373,8 +385,7 @@ const CARD_BRANDS: SelectOption[] = [
   { value: "other", label: "Other" },
 ];
 
-const CURRENCY_CODES = ["USD", "EUR", "ILS", "CNY", "HKD", "GBP"];
-const OPTIONS_CACHE_KEY = "aixia.finance.expenses.new.options.v2";
+const OPTIONS_CACHE_KEY = "aixia.finance.expenses.new.options.v3";
 const OPTIONS_CACHE_TTL_MS = 1000 * 60 * 5;
 
 const initialSubscriptionCard = (): CreditCardDraft => ({
@@ -579,6 +590,175 @@ function getAmountBasisLabel(value: SubscriptionAmountBasis, otherValue: string)
 function getPaymentMethodLabel(value: SubscriptionPaymentMethod, otherValue: string) {
   if (value === "other") return otherValue.trim() || "Other";
   return SUBSCRIPTION_PAYMENT_METHODS.find((method) => method.value === value)?.label || value;
+}
+
+function formatCurrencyOption(currency: CurrencyRow) {
+  const symbol = currency.currency_symbol ? ` (${currency.currency_symbol})` : "";
+  const base = currency.is_base_currency ? " • Base" : "";
+  return `${currency.currency_code} — ${currency.currency_name}${symbol}${base}`;
+}
+
+function buildGeneratedExpenseIdentity(form: FormState) {
+  const expenseTypeLabel = getOptionLabel(
+    EXPENSE_TYPES,
+    form.expenseType,
+    form.otherExpenseExplanation
+  );
+
+  if (form.expenseType === "office_support") {
+    const supplierLabel = getOptionLabel(
+      OFFICE_SUPPLIER_TYPES,
+      form.officeSupplierType,
+      form.officeSupplierTypeOther
+    );
+    const locationLabel = getOptionLabel(
+      OFFICE_LOCATION_TYPES,
+      form.officeLocationType,
+      form.officeLocationTypeOther
+    );
+
+    return {
+      title: `Office Support - ${supplierLabel}`,
+      source: `${supplierLabel} • ${locationLabel}`,
+    };
+  }
+
+  if (form.expenseType === "utilities") {
+    const utilityLabel = getOptionLabel(
+      UTILITY_TYPES,
+      form.utilityType,
+      form.utilityTypeOther
+    );
+    const provider = form.utilityProviderName.trim() || "Utility Provider";
+
+    return {
+      title: `Utilities - ${utilityLabel}`,
+      source: `${provider} - ${utilityLabel}`,
+    };
+  }
+
+  if (form.expenseType === "software_subscription") {
+    const provider = form.subscriptionProviderName.trim() || "Subscription Provider";
+    const frequencyLabel = getBillingFrequencyLabel(
+      form.subscriptionBillingFrequency,
+      form.subscriptionBillingFrequencyOther
+    );
+
+    return {
+      title: `Subscription - ${provider}`,
+      source: `${provider} - ${frequencyLabel}`,
+    };
+  }
+
+  if (form.expenseType === "online_shopping") {
+    const platformLabel = getOptionLabel(
+      ONLINE_PLATFORMS,
+      form.onlinePlatform,
+      form.onlinePlatformOther
+    );
+    const orderContext = form.onlineOrderNumber.trim()
+      ? `Order ${form.onlineOrderNumber.trim()}`
+      : form.onlineOrderUrl.trim()
+        ? "Order Link"
+        : "Online Order";
+
+    return {
+      title: `Online Shopping - ${platformLabel}`,
+      source: `${platformLabel} - ${orderContext}`,
+    };
+  }
+
+  if (form.expenseType === "travel") {
+    const travelLabel = getOptionLabel(TRAVEL_TYPES, form.travelType, form.travelTypeOther);
+    const from = form.travelFrom.trim();
+    const to = form.travelTo.trim();
+
+    return {
+      title: `Travel - ${travelLabel}`,
+      source: from && to ? `${travelLabel}: ${from} → ${to}` : travelLabel,
+    };
+  }
+
+  if (form.expenseType === "meals") {
+    const mealLabel = getOptionLabel(MEAL_TYPES, form.mealType, form.mealTypeOther);
+    const vendor = form.mealVendorName.trim() || "Restaurant / Vendor";
+
+    return {
+      title: `Meals - ${mealLabel}`,
+      source: `${vendor} - ${mealLabel}`,
+    };
+  }
+
+  if (form.expenseType === "bank_charges") {
+    const feeLabel = getOptionLabel(BANK_FEE_TYPES, form.bankFeeType, form.bankFeeTypeOther);
+    const bank = form.bankName.trim() || "Bank";
+
+    return {
+      title: `Bank Charges - ${feeLabel}`,
+      source: `${bank} - ${feeLabel}`,
+    };
+  }
+
+  if (form.expenseType === "legal_accounting") {
+    const serviceLabel = getOptionLabel(
+      LEGAL_SERVICE_TYPES,
+      form.legalServiceType,
+      form.legalServiceTypeOther
+    );
+    const provider = form.legalProviderName.trim() || "Service Provider";
+
+    return {
+      title: `Legal / Accounting - ${serviceLabel}`,
+      source: `${provider} - ${serviceLabel}`,
+    };
+  }
+
+  if (form.expenseType === "government_fee") {
+    const feeLabel = getOptionLabel(
+      GOVERNMENT_FEE_TYPES,
+      form.governmentFeeType,
+      form.governmentFeeTypeOther
+    );
+    const authority = form.governmentAuthorityName.trim() || "Government Authority";
+
+    return {
+      title: `Government Fee - ${feeLabel}`,
+      source: `${authority} - ${feeLabel}`,
+    };
+  }
+
+  if (form.expenseType === "repair_service") {
+    const serviceLabel = getOptionLabel(
+      REPAIR_SERVICE_TYPES,
+      form.repairServiceType,
+      form.repairServiceTypeOther
+    );
+    const asset = form.repairAssetName.trim() || "Asset / Equipment";
+
+    return {
+      title: `Repair / Service - ${serviceLabel}`,
+      source: `${asset} - ${serviceLabel}`,
+    };
+  }
+
+  if (form.expenseType === "company_support") {
+    const supportLabel = getOptionLabel(
+      COMPANY_SUPPORT_TYPES,
+      form.companySupportType,
+      form.companySupportTypeOther
+    );
+    const recipient = form.companySupportRecipient.trim() || "Recipient";
+
+    return {
+      title: `Company Support - ${supportLabel}`,
+      source: `${recipient} - ${supportLabel}`,
+    };
+  }
+
+  return {
+    title: form.title.trim() || expenseTypeLabel,
+    source: form.expenseSourceName.trim() || expenseTypeLabel,
+  };
 }
 
 function formatEmployeeLabel(
@@ -789,6 +969,7 @@ export default function FinanceNewExpensePage() {
   const [companies, setCompanies] = useState<CompanyRow[]>([]);
   const [employees, setEmployees] = useState<EmployeeRefRow[]>([]);
   const [profiles, setProfiles] = useState<ProfileRow[]>([]);
+  const [currencies, setCurrencies] = useState<CurrencyRow[]>([]);
   const [form, setForm] = useState<FormState>(initialFormState);
   const [documentationFile, setDocumentationFile] = useState<File | null>(null);
   const [isLoadingOptions, setIsLoadingOptions] = useState(true);
@@ -801,7 +982,7 @@ export default function FinanceNewExpensePage() {
   const isSubscriptionType = form.expenseType === "software_subscription";
   const isSubscriptionExpense = isSubscriptionType || form.isSubscriptionExpense;
   const amountValue = toAmount(form.requestedAmount);
-  const hasUsableOptions = companies.length > 0 || employees.length > 0;
+  const hasUsableOptions = companies.length > 0 || employees.length > 0 || currencies.length > 0;
 
   const selectedCompany = useMemo(() => {
     return companies.find((company) => company.id === form.companyId) ?? null;
@@ -825,6 +1006,19 @@ export default function FinanceNewExpensePage() {
     if (form.externalDocumentationLink.trim()) return "linked";
     return "missing";
   }, [documentationFile, form.externalDocumentationLink]);
+
+  const selectedCurrency = useMemo(() => {
+    return (
+      currencies.find((currency) => currency.currency_code === form.currencyCode) ??
+      currencies.find((currency) => currency.is_base_currency) ??
+      currencies[0] ??
+      null
+    );
+  }, [currencies, form.currencyCode]);
+
+  const generatedExpenseIdentity = useMemo(() => {
+    return buildGeneratedExpenseIdentity(form);
+  }, [form]);
 
   const subscriptionSummary = useMemo(() => {
     if (!isSubscriptionExpense) return "One-time expense";
@@ -937,6 +1131,22 @@ export default function FinanceNewExpensePage() {
     setCompanies(payload.companies);
     setEmployees(payload.employees);
     setProfiles(payload.profiles);
+    setCurrencies(payload.currencies);
+
+    setForm((current) => {
+      if (current.currencyCode) return current;
+
+      const baseCurrency =
+        payload.currencies.find((currency) => currency.is_base_currency) ??
+        payload.currencies[0];
+
+      if (!baseCurrency) return current;
+
+      return {
+        ...current,
+        currencyCode: baseCurrency.currency_code,
+      };
+    });
   }, []);
 
   const loadOptions = useCallback(
@@ -954,27 +1164,38 @@ export default function FinanceNewExpensePage() {
       }
 
       try {
-        const [companiesResult, employeesResult, profilesResult] = await Promise.all([
-          supabase.from("finance_companies").select("id, name").order("name"),
-          supabase
-            .from("finance_employee_refs")
-            .select("id, user_id, code, status, mark, metadata")
-            .eq("status", "active")
-            .order("code"),
-          supabase
-            .from("profiles")
-            .select("user_id, full_name, display_name, email, company, job_title, member_type")
-            .order("full_name"),
-        ]);
+        const [companiesResult, employeesResult, profilesResult, currenciesResult] =
+          await Promise.all([
+            supabase.from("finance_companies").select("id, name").order("name"),
+            supabase
+              .from("finance_employee_refs")
+              .select("id, user_id, code, status, mark, metadata")
+              .eq("status", "active")
+              .order("code"),
+            supabase
+              .from("profiles")
+              .select("user_id, full_name, display_name, email, company, job_title, member_type")
+              .order("full_name"),
+            supabase
+              .from("finance_currencies")
+              .select(
+                "id, currency_code, currency_name, currency_symbol, decimal_places, is_base_currency, status"
+              )
+              .eq("status", "active")
+              .order("is_base_currency", { ascending: false })
+              .order("currency_code"),
+          ]);
 
         if (companiesResult.error) throw companiesResult.error;
         if (employeesResult.error) throw employeesResult.error;
         if (profilesResult.error) throw profilesResult.error;
+        if (currenciesResult.error) throw currenciesResult.error;
 
         const nextPayload = {
           companies: (companiesResult.data || []) as CompanyRow[],
           employees: (employeesResult.data || []) as EmployeeRefRow[],
           profiles: (profilesResult.data || []) as ProfileRow[],
+          currencies: (currenciesResult.data || []) as CurrencyRow[],
         };
 
         applyOptionsPayload(nextPayload);
@@ -983,10 +1204,11 @@ export default function FinanceNewExpensePage() {
         console.error("Failed to load expense request options:", error);
 
         if (!hasUsableOptions) {
-          setFormError("Failed to load companies or employees.");
+          setFormError("Failed to load companies, employees, or currencies.");
           setCompanies([]);
           setEmployees([]);
           setProfiles([]);
+          setCurrencies([]);
         }
       } finally {
         setIsLoadingOptions(false);
@@ -1426,11 +1648,18 @@ export default function FinanceNewExpensePage() {
 
   const validateForm = useCallback(
     (submitMode: "draft" | "request") => {
-      if (!form.title.trim()) return "Expense title is required.";
+      if (form.expenseType === "other" && !form.title.trim()) {
+        return "Expense title is required when Expense Type is Other.";
+      }
+
+      if (form.expenseType === "other" && !form.expenseSourceName.trim()) {
+        return "Expense source is required when Expense Type is Other.";
+      }
+
       if (!form.companyId) return "Company is required.";
       if (!form.expenseDate) return "Expected expense date is required.";
       if (!form.expenseType) return "Expense type is required.";
-      if (!form.expenseSourceName.trim()) return "Expense Source is required.";
+      if (!form.currencyCode) return "Currency is required.";
       if (amountValue <= 0) return "Requested amount must be greater than zero.";
 
       if (form.expenseMadeByType === "employee" && !form.employeeRefId) {
@@ -1581,6 +1810,12 @@ export default function FinanceNewExpensePage() {
         const expenseNumber = buildExpenseNumber();
         const requestStatus = submitMode === "request" ? "requested" : "draft";
         const expenseTypeDetails = buildExpenseTypeMetadata();
+        const finalExpenseTitle =
+          form.expenseType === "other" ? form.title.trim() : generatedExpenseIdentity.title;
+        const finalExpenseSource =
+          form.expenseType === "other"
+            ? form.expenseSourceName.trim()
+            : generatedExpenseIdentity.source;
 
         const subscriptionMetadata = isSubscriptionExpense
           ? {
@@ -1679,6 +1914,23 @@ export default function FinanceNewExpensePage() {
                   "Create monthly/yearly subscription expense records automatically after backend scheduler is implemented.",
               }
             : null,
+          generated_identity: {
+            title: finalExpenseTitle,
+            source: finalExpenseSource,
+            title_source_rule:
+              form.expenseType === "other"
+                ? "manual_title_and_source_required"
+                : "auto_generated_from_expense_type_details",
+          },
+          selected_currency: selectedCurrency
+            ? {
+                currency_code: selectedCurrency.currency_code,
+                currency_name: selectedCurrency.currency_name,
+                currency_symbol: selectedCurrency.currency_symbol,
+                decimal_places: selectedCurrency.decimal_places,
+                is_base_currency: selectedCurrency.is_base_currency,
+              }
+            : null,
           documentation_link: form.externalDocumentationLink.trim() || null,
           selected_company_name: selectedCompany?.name ?? null,
           selected_employee_code: selectedEmployee?.code ?? null,
@@ -1690,7 +1942,7 @@ export default function FinanceNewExpensePage() {
           .from("finance_expenses")
           .insert({
             expense_number: expenseNumber,
-            title: form.title.trim(),
+            title: finalExpenseTitle,
             description: form.description.trim() || null,
             amount: amountValue,
             requested_amount: amountValue,
@@ -1710,7 +1962,7 @@ export default function FinanceNewExpensePage() {
               form.expenseMadeByType === "other"
                 ? form.otherMadeByExplanation.trim()
                 : null,
-            expense_source_name: form.expenseSourceName.trim(),
+            expense_source_name: finalExpenseSource,
             other_expense_explanation: isOtherExpenseType
               ? form.otherExpenseExplanation.trim()
               : null,
@@ -1793,7 +2045,10 @@ export default function FinanceNewExpensePage() {
       isSubscriptionExpense,
       navigate,
       sanitizedSubscriptionCards,
+      generatedExpenseIdentity.source,
+      generatedExpenseIdentity.title,
       selectedCompany?.name,
+      selectedCurrency,
       selectedEmployee?.code,
       selectedEmployeeLabel,
       uploadDocumentation,
@@ -2723,27 +2978,55 @@ export default function FinanceNewExpensePage() {
                   </select>
                 </label>
 
-                <label className="grid gap-2 md:col-span-2">
-                  <span className={labelClass()}>Expense Title</span>
-                  <input
-                    value={form.title}
-                    onChange={(event) => updateField("title", event.target.value)}
-                    className={inputClass()}
-                    placeholder="Short title for this expense request"
-                  />
-                </label>
+                {form.expenseType === "other" ? (
+                  <>
+                    <label className="grid gap-2 md:col-span-2">
+                      <span className={labelClass()}>Expense Title</span>
+                      <input
+                        value={form.title}
+                        onChange={(event) => updateField("title", event.target.value)}
+                        className={inputClass()}
+                        placeholder="Write a clear title for this unusual expense"
+                      />
+                    </label>
 
-                <label className="grid gap-2 md:col-span-2">
-                  <span className={labelClass()}>Expense Source</span>
-                  <input
-                    value={form.expenseSourceName}
-                    onChange={(event) =>
-                      updateField("expenseSourceName", event.target.value)
-                    }
-                    className={inputClass()}
-                    placeholder="Where this expense comes from, for example ChatGPT, Amazon order, legal service, office support"
-                  />
-                </label>
+                    <label className="grid gap-2 md:col-span-2">
+                      <span className={labelClass()}>Expense Source</span>
+                      <input
+                        value={form.expenseSourceName}
+                        onChange={(event) =>
+                          updateField("expenseSourceName", event.target.value)
+                        }
+                        className={inputClass()}
+                        placeholder="Write where this unusual expense comes from"
+                      />
+                    </label>
+                  </>
+                ) : (
+                  <div className="grid gap-3 rounded-[24px] border border-cyan-400/15 bg-cyan-500/10 p-4 md:col-span-2">
+                    <div className="text-[11px] font-semibold uppercase tracking-[0.18em] text-cyan-200">
+                      Auto Title / Source Preview
+                    </div>
+                    <div className="grid gap-3 md:grid-cols-2">
+                      <div className="rounded-2xl border border-white/10 bg-black/20 p-4">
+                        <div className="text-[10px] font-semibold uppercase tracking-[0.18em] text-slate-500">
+                          Auto Title
+                        </div>
+                        <div className="mt-2 text-sm font-semibold text-white">
+                          {generatedExpenseIdentity.title}
+                        </div>
+                      </div>
+                      <div className="rounded-2xl border border-white/10 bg-black/20 p-4">
+                        <div className="text-[10px] font-semibold uppercase tracking-[0.18em] text-slate-500">
+                          Auto Source
+                        </div>
+                        <div className="mt-2 text-sm font-semibold text-white">
+                          {generatedExpenseIdentity.source}
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                )}
 
                 <label className="grid gap-2">
                   <span className={labelClass()}>Requested Amount</span>
@@ -2764,10 +3047,16 @@ export default function FinanceNewExpensePage() {
                       updateField("currencyCode", event.target.value.toUpperCase())
                     }
                     className={inputClass()}
+                    disabled={isLoadingOptions && currencies.length === 0}
                   >
-                    {CURRENCY_CODES.map((currency) => (
-                      <option key={currency} value={currency}>
-                        {currency}
+                    {currencies.length === 0 ? (
+                      <option value={form.currencyCode || ""}>
+                        {form.currencyCode || "Loading currencies"}
+                      </option>
+                    ) : null}
+                    {currencies.map((currency) => (
+                      <option key={currency.id} value={currency.currency_code}>
+                        {formatCurrencyOption(currency)}
                       </option>
                     ))}
                   </select>
@@ -3340,9 +3629,30 @@ export default function FinanceNewExpensePage() {
                   subtitle="The person or context that made the expense."
                 />
                 <SummaryBlock
+                  title="Expense Title"
+                  value={
+                    form.expenseType === "other"
+                      ? form.title || "Not entered"
+                      : generatedExpenseIdentity.title
+                  }
+                  subtitle={
+                    form.expenseType === "other"
+                      ? "Manual title is required for Other expenses."
+                      : "Auto-generated from the selected expense details."
+                  }
+                />
+                <SummaryBlock
                   title="Expense Source"
-                  value={form.expenseSourceName || "Not entered"}
-                  subtitle="The source that generated the expense."
+                  value={
+                    form.expenseType === "other"
+                      ? form.expenseSourceName || "Not entered"
+                      : generatedExpenseIdentity.source
+                  }
+                  subtitle={
+                    form.expenseType === "other"
+                      ? "Manual source is required for Other expenses."
+                      : "Auto-generated from the selected expense details."
+                  }
                 />
                 <SummaryBlock
                   title="Expense Type"

@@ -183,6 +183,7 @@ type EnrichedExpense = ExpenseRow & {
   madeByLabel: string;
   targetAmount: number;
   allocatedAmount: number;
+  calculatedCoverageStatus: string;
   nextStepLabel: string;
   nextStepTone: "cyan" | "emerald" | "amber" | "rose" | "violet" | "slate";
 };
@@ -698,15 +699,26 @@ export default function FinanceExpensesPaymentsMadePage() {
 
   const enrichedExpenses = useMemo<EnrichedExpense[]>(() => {
     return expenses.map((expense) => {
+      const targetAmount = getTargetAmount(expense);
+
       const allocationTotal = confirmedExpenseAllocations
         .filter((allocation) => allocation.expense_id === expense.id)
-        .reduce(
-          (sum, allocation) =>
-            sum + toNumber(allocation.converted_amount || allocation.allocated_amount),
-          0
-        );
+        .reduce((sum, allocation) => sum + toNumber(allocation.allocated_amount), 0);
 
-      const nextStep = getNextStep(expense);
+      const roundedAllocationTotal = Math.round((allocationTotal + Number.EPSILON) * 100) / 100;
+      const remainingAmount = Math.round((targetAmount - roundedAllocationTotal + Number.EPSILON) * 100) / 100;
+
+      const calculatedCoverageStatus =
+        roundedAllocationTotal <= 0
+          ? "not_covered"
+          : remainingAmount <= 0.01
+            ? "covered"
+            : "partially_covered";
+
+      const nextStep = getNextStep({
+        ...expense,
+        coverage_status: calculatedCoverageStatus,
+      });
 
       return {
         ...expense,
@@ -714,8 +726,9 @@ export default function FinanceExpensesPaymentsMadePage() {
           ? companyMap.get(expense.company_id)?.name || "Unknown company"
           : "No company",
         madeByLabel: getExpenseMadeByLabel(expense, employeeMap, profileMap),
-        targetAmount: getTargetAmount(expense),
-        allocatedAmount: allocationTotal,
+        targetAmount,
+        allocatedAmount: roundedAllocationTotal,
+        calculatedCoverageStatus,
         nextStepLabel: nextStep.label,
         nextStepTone: nextStep.tone,
       };
@@ -753,8 +766,7 @@ export default function FinanceExpensesPaymentsMadePage() {
           : "No bank selected",
         linkedExpenseCount: linkedAllocations.length,
         linkedExpenseAmount: linkedAllocations.reduce(
-          (sum, allocation) =>
-            sum + toNumber(allocation.converted_amount || allocation.allocated_amount),
+          (sum, allocation) => sum + toNumber(allocation.allocated_amount),
           0
         ),
       };
@@ -914,7 +926,7 @@ export default function FinanceExpensesPaymentsMadePage() {
 
   const recipientTrackingRows = activeExpenseRows.filter(
     (expense) =>
-      ["partially_covered", "covered"].includes(expense.coverage_status || "") ||
+      ["partially_covered", "covered"].includes(expense.calculatedCoverageStatus) ||
       ["pending_confirmation", "received_confirmed", "not_received", "disputed"].includes(
         expense.recipient_confirmation_status || ""
       )
@@ -1361,7 +1373,7 @@ export default function FinanceExpensesPaymentsMadePage() {
             <td className="whitespace-nowrap px-5 py-4 text-right font-semibold text-white">
               {expense.currency_code || "USD"} {formatMoney(expense.targetAmount)}
               <div className="mt-1 text-xs text-slate-500">
-                Covered {formatMoney(expense.allocatedAmount)}
+                Covered {expense.currency_code || "USD"} {formatMoney(expense.allocatedAmount)}
               </div>
             </td>
 
@@ -1374,7 +1386,7 @@ export default function FinanceExpensesPaymentsMadePage() {
             </td>
 
             <td className="whitespace-nowrap px-5 py-4">
-              <StatusBadge value={expense.coverage_status} />
+              <StatusBadge value={expense.calculatedCoverageStatus} />
             </td>
 
             <td className="whitespace-nowrap px-5 py-4">

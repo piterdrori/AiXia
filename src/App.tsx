@@ -107,6 +107,7 @@ import BillDetailPage from "@/app/finance/transactions/bills/[id]/page";
 import FinancePaymentsMadePage from "@/app/finance/transactions/expenses-payments-made/page";
 import FinanceNewPaymentMadePage from "@/app/finance/transactions/expenses-payments-made/new/page";
 import PaymentMadeDetailPage from "@/app/finance/transactions/expenses-payments-made/[id]/page";
+import FinanceExpensePaymentReviewPage from "@/app/finance/transactions/expenses-payments-made/review/[id]/page";
 import PaymentsReceivedPage from "@/app/finance/transactions/payments-received/page";
 import PaymentReceivedDetailPage from "@/app/finance/transactions/payments-received/[id]/page";
 import NewPaymentReceivedPage from "@/app/finance/transactions/payments-received/new/page";
@@ -1415,6 +1416,17 @@ function AppRoutes() {
     <ProtectedRoute>
       <DashboardLayout>
         <FinanceNewPaymentMadePage />
+      </DashboardLayout>
+    </ProtectedRoute>
+  }
+/>
+
+<Route
+  path="/finance/transactions/expenses-payments-made/review/:id"
+  element={
+    <ProtectedRoute>
+      <DashboardLayout>
+        <FinanceExpensePaymentReviewPage />
       </DashboardLayout>
     </ProtectedRoute>
   }

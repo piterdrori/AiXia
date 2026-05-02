@@ -35,6 +35,16 @@ type EmployeeRefRow = {
   } | null;
 };
 
+type ProfileRow = {
+  user_id: string;
+  full_name: string | null;
+  display_name: string | null;
+  email: string | null;
+  company: string | null;
+  job_title: string | null;
+  member_type: string | null;
+};
+
 type ExpenseMadeByType = "employee" | "owner_management" | "company_direct" | "other";
 
 type FormState = {
@@ -150,11 +160,32 @@ function toAmount(value: string) {
   return parsed;
 }
 
-function formatEmployeeLabel(employee: EmployeeRefRow) {
-  const role = employee.metadata?.job_title || employee.metadata?.source_role || employee.mark;
-  const company = employee.metadata?.company;
+function formatEmployeeLabel(
+  employee: EmployeeRefRow,
+  profileMap: Map<string, ProfileRow>
+) {
+  const profile = employee.user_id ? profileMap.get(employee.user_id) : null;
 
-  return [employee.code || "Employee", role, company].filter(Boolean).join(" • ");
+  const employeeName =
+    profile?.full_name?.trim() ||
+    profile?.display_name?.trim() ||
+    profile?.email?.trim() ||
+    employee.code?.trim() ||
+    "Employee";
+
+  const role =
+    profile?.job_title?.trim() ||
+    employee.metadata?.job_title?.trim() ||
+    employee.metadata?.source_role?.trim() ||
+    employee.mark?.trim() ||
+    null;
+
+  const company =
+    profile?.company?.trim() ||
+    employee.metadata?.company?.trim() ||
+    null;
+
+  return [employeeName, role, company].filter(Boolean).join(" • ");
 }
 
 function inputClass() {
@@ -223,6 +254,7 @@ export default function FinanceNewExpensePage() {
 
   const [companies, setCompanies] = useState<CompanyRow[]>([]);
   const [employees, setEmployees] = useState<EmployeeRefRow[]>([]);
+  const [profiles, setProfiles] = useState<ProfileRow[]>([]);
   const [form, setForm] = useState<FormState>(initialFormState);
   const [documentationFile, setDocumentationFile] = useState<File | null>(null);
   const [isLoadingOptions, setIsLoadingOptions] = useState(true);
@@ -241,6 +273,14 @@ export default function FinanceNewExpensePage() {
   const selectedEmployee = useMemo(() => {
     return employees.find((employee) => employee.id === form.employeeRefId) ?? null;
   }, [employees, form.employeeRefId]);
+
+  const profileMap = useMemo(() => {
+    return new Map(profiles.map((profile) => [profile.user_id, profile]));
+  }, [profiles]);
+
+  const selectedEmployeeLabel = selectedEmployee
+    ? formatEmployeeLabel(selectedEmployee, profileMap)
+    : "";
 
   const documentationStatus = useMemo(() => {
     if (documentationFile && form.externalDocumentationLink.trim()) return "files_and_links";
@@ -265,23 +305,32 @@ export default function FinanceNewExpensePage() {
     setIsLoadingOptions(true);
 
     try {
-      const [companiesResult, employeesResult] = await Promise.all([
+      const [companiesResult, employeesResult, profilesResult] = await Promise.all([
         supabase.from("finance_companies").select("id, name").order("name"),
         supabase
           .from("finance_employee_refs")
           .select("id, user_id, code, status, mark, metadata")
           .eq("status", "active")
           .order("code"),
+        supabase
+          .from("profiles")
+          .select("user_id, full_name, display_name, email, company, job_title, member_type")
+          .order("full_name"),
       ]);
 
       if (companiesResult.error) throw companiesResult.error;
       if (employeesResult.error) throw employeesResult.error;
+      if (profilesResult.error) throw profilesResult.error;
 
       setCompanies((companiesResult.data || []) as CompanyRow[]);
       setEmployees((employeesResult.data || []) as EmployeeRefRow[]);
+      setProfiles((profilesResult.data || []) as ProfileRow[]);
     } catch (error) {
       console.error("Failed to load expense request options:", error);
       setFormError("Failed to load companies or employees.");
+      setCompanies([]);
+      setEmployees([]);
+      setProfiles([]);
     } finally {
       setIsLoadingOptions(false);
     }
@@ -420,6 +469,7 @@ export default function FinanceNewExpensePage() {
           documentation_link: form.externalDocumentationLink.trim() || null,
           selected_company_name: selectedCompany?.name ?? null,
           selected_employee_code: selectedEmployee?.code ?? null,
+          selected_employee_name: selectedEmployeeLabel || null,
           intake_context: "expenses_tab_public_request",
         };
 
@@ -517,6 +567,7 @@ export default function FinanceNewExpensePage() {
       navigate,
       selectedCompany?.name,
       selectedEmployee?.code,
+      selectedEmployeeLabel,
       uploadDocumentation,
       validateForm,
     ]
@@ -619,7 +670,7 @@ export default function FinanceNewExpensePage() {
                       <option value="">Select employee</option>
                       {employees.map((employee) => (
                         <option key={employee.id} value={employee.id}>
-                          {formatEmployeeLabel(employee)}
+                          {formatEmployeeLabel(employee, profileMap)}
                         </option>
                       ))}
                     </select>
@@ -951,12 +1002,12 @@ export default function FinanceNewExpensePage() {
                   title="Made By"
                   value={
                     form.expenseMadeByType === "employee"
-                      ? selectedEmployee?.code || "Employee not selected"
+                      ? selectedEmployeeLabel || "Employee not selected"
                       : form.expenseMadeByType === "owner_management"
                         ? form.responsiblePersonName || "Owner / Management"
                         : form.expenseMadeByType === "company_direct"
                           ? "Company Direct"
-                          : "Other"
+                          : form.otherMadeByExplanation || "Other"
                   }
                   subtitle="The person or context that made the expense."
                 />

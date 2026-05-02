@@ -6,7 +6,6 @@ import {
   Building2,
   CalendarClock,
   CheckCircle2,
-  CreditCard,
   ExternalLink,
   FileCheck2,
   FileText,
@@ -301,21 +300,6 @@ function formatLabel(value: string | null | undefined) {
 
 function getMetadataRecord(metadata: Record<string, unknown> | null | undefined, key: string) {
   const value = metadata?.[key];
-
-  if (value && typeof value === "object" && !Array.isArray(value)) {
-    return value as Record<string, unknown>;
-  }
-
-  return {};
-}
-
-function getNestedMetadataRecord(
-  metadata: Record<string, unknown> | null | undefined,
-  parentKey: string,
-  childKey: string
-) {
-  const parent = getMetadataRecord(metadata, parentKey);
-  const value = parent[childKey];
 
   if (value && typeof value === "object" && !Array.isArray(value)) {
     return value as Record<string, unknown>;

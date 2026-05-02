@@ -781,6 +781,10 @@ export default function FinanceExpensesPaymentsMadeNewPage() {
     toNumber(fundingUsagePreview?.fundingCurrencyAmount)
   );
 
+  const fundingCurrencyRemainingAfterPayment = roundMoney(
+    fundingPoolRemainingBeforePayment - currentFundingCurrencyUsed
+  );
+
   const updateField = useCallback(
     <Key extends keyof FormState>(key: Key, value: FormState[Key]) => {
       setForm((current) => ({

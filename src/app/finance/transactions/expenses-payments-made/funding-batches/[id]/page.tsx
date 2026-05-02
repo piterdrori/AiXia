@@ -716,7 +716,16 @@ export default function FinanceExpenseFundingBatchDetailPage() {
     setPageMessage(null);
   }, [batch, buildEditForm, isArchivedOrDeleted]);
 
-    const saveEdit = useCallback(async () => {
+  const cancelEditing = useCallback(() => {
+    if (!batch || runningAction) return;
+
+    setEditForm(buildEditForm(batch));
+    setIsEditing(false);
+    setPageError(null);
+    setPageMessage(null);
+  }, [batch, buildEditForm, runningAction]);
+
+  const saveEdit = useCallback(async () => {
     if (!batch || !editForm || runningAction) return;
 
     setRunningAction("save_edit");

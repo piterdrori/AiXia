@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
-import type { LucideIcon, ReactNode } from "lucide-react";
+import type { ReactNode } from "react";
+import type { LucideIcon } from "lucide-react";
 import { useNavigate, useParams } from "react-router-dom";
 import {
   AlertTriangle,
@@ -742,7 +743,7 @@ export default function FinanceExpenseFundingBatchDetailPage() {
     } finally {
       setIsSavingEdit(false);
     }
-  }, [bank, bankAccountMap, editForm, loadBatch]);
+  }, [batch, bankAccountMap, editForm, loadBatch]);
 
   const runBatchRpc = useCallback(
     async (

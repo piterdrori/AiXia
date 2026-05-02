@@ -113,6 +113,13 @@ type ExistingExpenseAllocationRow = {
   metadata: Record<string, unknown> | null;
 };
 
+type ExistingPaymentMadeRow = {
+  id: string;
+  status: string | null;
+  payment_source_type: string | null;
+  expense_funding_batch_id: string | null;
+};
+
 type ExpenseAllocationDraft = {
   expenseId: string;
   paymentCurrencyAmount: string;
@@ -618,6 +625,7 @@ export default function FinanceExpensesPaymentsMadeNewPage() {
   const [existingAllocations, setExistingAllocations] = useState<
     ExistingExpenseAllocationRow[]
   >([]);
+  const [existingPayments, setExistingPayments] = useState<ExistingPaymentMadeRow[]>([]);
   const [selectedExpenseIds, setSelectedExpenseIds] = useState<string[]>(
     initialExpenseId ? [initialExpenseId] : []
   );
@@ -670,10 +678,24 @@ export default function FinanceExpensesPaymentsMadeNewPage() {
 
   const fundingPoolTotal = toNumber(selectedFundingPool?.allocated_amount);
 
+  const confirmedPaymentIdSet = useMemo(() => {
+    return new Set(
+      existingPayments
+        .filter((payment) => payment.status === "confirmed")
+        .map((payment) => payment.id)
+    );
+  }, [existingPayments]);
+
+  const confirmedExistingAllocations = useMemo(() => {
+    return existingAllocations.filter((allocation) =>
+      confirmedPaymentIdSet.has(allocation.payment_made_id)
+    );
+  }, [confirmedPaymentIdSet, existingAllocations]);
+
   const existingExpenseCoverageMap = useMemo(() => {
     const map = new Map<string, number>();
 
-    for (const allocation of existingAllocations) {
+    for (const allocation of confirmedExistingAllocations) {
       map.set(
         allocation.expense_id,
         roundMoney((map.get(allocation.expense_id) || 0) + toNumber(allocation.allocated_amount))
@@ -681,13 +703,13 @@ export default function FinanceExpensesPaymentsMadeNewPage() {
     }
 
     return map;
-  }, [existingAllocations]);
+  }, [confirmedExistingAllocations]);
 
   const previousFundingPoolUsage = useMemo(() => {
     if (!selectedFundingPool) return 0;
 
     return roundMoney(
-      existingAllocations
+      confirmedExistingAllocations
         .filter((allocation) => allocation.funding_batch_id === selectedFundingPool.id)
         .reduce(
           (sum, allocation) =>
@@ -695,7 +717,7 @@ export default function FinanceExpensesPaymentsMadeNewPage() {
           0
         )
     );
-  }, [existingAllocations, fundingCurrencyCode, selectedFundingPool]);
+  }, [confirmedExistingAllocations, fundingCurrencyCode, selectedFundingPool]);
 
   const fundingPoolRemainingBeforePayment = roundMoney(
     Math.max(fundingPoolTotal - previousFundingPoolUsage, 0)
@@ -829,6 +851,7 @@ export default function FinanceExpensesPaymentsMadeNewPage() {
         currenciesResult,
         fundingPoolsResult,
         existingAllocationsResult,
+        existingPaymentsResult,
       ] = await Promise.all([
         supabase
           .from("finance_expenses")
@@ -902,6 +925,12 @@ export default function FinanceExpensesPaymentsMadeNewPage() {
             "id, expense_id, payment_made_id, funding_batch_id, allocated_amount, currency_code, payment_currency_code, converted_amount, metadata"
           )
           .not("expense_id", "is", null),
+
+        supabase
+          .from("finance_payments_made")
+          .select("id, status, payment_source_type, expense_funding_batch_id")
+          .eq("payment_source_type", "operating_expense")
+          .limit(1000),
       ]);
 
       if (expensesResult.error) throw expensesResult.error;
@@ -911,12 +940,15 @@ export default function FinanceExpensesPaymentsMadeNewPage() {
       if (currenciesResult.error) throw currenciesResult.error;
       if (fundingPoolsResult.error) throw fundingPoolsResult.error;
       if (existingAllocationsResult.error) throw existingAllocationsResult.error;
+      if (existingPaymentsResult.error) throw existingPaymentsResult.error;
 
       const loadedExpenses = (expensesResult.data || []) as unknown as ExpenseRow[];
       const loadedPools = (fundingPoolsResult.data || []) as unknown as FundingPoolRow[];
       const loadedCurrencies = (currenciesResult.data || []) as unknown as CurrencyRow[];
       const loadedExistingAllocations = (existingAllocationsResult.data ||
         []) as unknown as ExistingExpenseAllocationRow[];
+      const loadedExistingPayments = (existingPaymentsResult.data ||
+        []) as unknown as ExistingPaymentMadeRow[];
 
       setExpenses(loadedExpenses);
       setCompanies((companiesResult.data || []) as CompanyRow[]);
@@ -925,6 +957,7 @@ export default function FinanceExpensesPaymentsMadeNewPage() {
       setCurrencies(loadedCurrencies);
       setFundingPools(loadedPools);
       setExistingAllocations(loadedExistingAllocations);
+      setExistingPayments(loadedExistingPayments);
 
       const initialPool = initialFundingPoolId
         ? loadedPools.find((pool) => pool.id === initialFundingPoolId)
@@ -1256,13 +1289,41 @@ export default function FinanceExpensesPaymentsMadeNewPage() {
 
         if (freshDuplicateCheckResult.error) throw freshDuplicateCheckResult.error;
 
+        const freshAllocationRows = (freshDuplicateCheckResult.data || []) as Array<{
+          id: string;
+          expense_id: string;
+          payment_made_id: string;
+          allocated_amount: number | string | null;
+          currency_code: string | null;
+        }>;
+
+        const freshPaymentIds = Array.from(
+          new Set(freshAllocationRows.map((allocation) => allocation.payment_made_id))
+        );
+
+        const freshConfirmedPaymentIdSet = new Set<string>();
+
+        if (freshPaymentIds.length > 0) {
+          const freshPaymentsResult = await supabase
+            .from("finance_payments_made")
+            .select("id, status")
+            .in("id", freshPaymentIds);
+
+          if (freshPaymentsResult.error) throw freshPaymentsResult.error;
+
+          for (const payment of freshPaymentsResult.data || []) {
+            if (payment.status === "confirmed") {
+              freshConfirmedPaymentIdSet.add(payment.id);
+            }
+          }
+        }
+
         const freshCoverageMap = new Map<string, number>();
 
-        for (const allocation of freshDuplicateCheckResult.data || []) {
-          const allocationRow = allocation as {
-            expense_id: string;
-            allocated_amount: number | string | null;
-          };
+        for (const allocationRow of freshAllocationRows) {
+          if (!freshConfirmedPaymentIdSet.has(allocationRow.payment_made_id)) {
+            continue;
+          }
 
           freshCoverageMap.set(
             allocationRow.expense_id,

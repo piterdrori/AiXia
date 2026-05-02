@@ -1280,7 +1280,11 @@ export default function FinanceExpensesPaymentsMadePage() {
                     <td className="min-w-[220px] px-5 py-4">
                       <button
                         type="button"
-                        onClick={() => navigate(`/finance/transactions/expenses/${expense.id}`)}
+                        onClick={() =>
+                          navigate(
+                            `/finance/transactions/expenses-payments-made/review/${expense.id}`
+                          )
+                        }
                         className="text-left font-semibold text-cyan-200 transition hover:text-cyan-100"
                       >
                         {expense.expense_number || "Expense"}
@@ -1345,7 +1349,9 @@ export default function FinanceExpensesPaymentsMadePage() {
                           tone="cyan"
                           disabled={isRunningAction}
                           onClick={() =>
-                            navigate(`/finance/transactions/expenses/${expense.id}`)
+                            navigate(
+                              `/finance/transactions/expenses-payments-made/review/${expense.id}`
+                            )
                           }
                         />
 

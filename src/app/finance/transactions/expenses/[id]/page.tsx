@@ -20,7 +20,6 @@ import {
   ShoppingCart,
   Trash2,
   UploadCloud,
-  UserRound,
   WalletCards,
   Wrench,
   X,
@@ -1322,7 +1321,6 @@ function buildExpenseTypeMetadata(form: ExpenseEditFormState) {
 
 function buildEditForm(expense: ExpenseRow): ExpenseEditFormState {
   const metadata = expense.metadata || {};
-  const details = getMetadataRecord(metadata, "expense_type_details");
   const subscription = getMetadataRecord(metadata, "subscription");
   const creditCard = getMetadataRecord(metadata, "credit_card");
 
@@ -2148,7 +2146,6 @@ export default function FinanceExpenseDetailPage() {
     editForm,
     expense,
     generatedExpenseIdentity,
-    loadExpense,
     sanitizedSubscriptionCards,
     selectedCurrency,
     validateExpenseTypeFields,

@@ -101,6 +101,25 @@ type AttachmentWithFile = AttachmentRow & {
   fileUpload: FileUploadRow | null;
 };
 
+type ConfirmedPoolPaymentRow = {
+  id: string;
+  status: string;
+  payment_source_type: string | null;
+  expense_funding_batch_id: string | null;
+  amount: number | string | null;
+  converted_amount: number | string | null;
+  payment_currency_code: string | null;
+  metadata: {
+    funding_currency_amount_used_for_payment?: number | string | null;
+    funding_currency_code?: string | null;
+    payment_currency_amount?: number | string | null;
+    payment_currency_code?: string | null;
+    [key: string]: unknown;
+  } | null;
+  created_at: string;
+  updated_at: string;
+};
+
 type EditFormState = {
   fundingCompanyId: string;
   fundingBankAccountId: string;
@@ -439,6 +458,7 @@ export default function FinanceExpenseFundingBatchDetailPage() {
   const [bankAccounts, setBankAccounts] = useState<BankAccountRow[]>([]);
   const [currencies, setCurrencies] = useState<CurrencyRow[]>([]);
   const [attachments, setAttachments] = useState<AttachmentWithFile[]>([]);
+  const [confirmedPoolPayments, setConfirmedPoolPayments] = useState<ConfirmedPoolPaymentRow[]>([]);
   const [editForm, setEditForm] = useState<EditFormState | null>(null);
   const [fundingProofFile, setFundingProofFile] = useState<File | null>(null);
   const [isLoading, setIsLoading] = useState(true);
@@ -463,6 +483,41 @@ export default function FinanceExpenseFundingBatchDetailPage() {
 
   const currencyCode = normalizeCurrencyCode(batch?.currency_code || "USD");
   const fundingPoolAmount = toNumber(batch?.allocated_amount);
+
+  const confirmedPoolUsedAmount = useMemo(() => {
+    return confirmedPoolPayments.reduce((sum, payment) => {
+      const metadataUsedAmount = toNumber(
+        payment.metadata?.funding_currency_amount_used_for_payment
+      );
+
+      if (metadataUsedAmount > 0) {
+        return sum + metadataUsedAmount;
+      }
+
+      const paymentCurrencyCode = normalizeCurrencyCode(
+        payment.metadata?.payment_currency_code || payment.payment_currency_code
+      );
+      const fundingCurrencyCode = normalizeCurrencyCode(
+        payment.metadata?.funding_currency_code || currencyCode
+      );
+
+      if (paymentCurrencyCode && paymentCurrencyCode === fundingCurrencyCode) {
+        return sum + toNumber(payment.metadata?.payment_currency_amount || payment.converted_amount);
+      }
+
+      return sum;
+    }, 0);
+  }, [confirmedPoolPayments, currencyCode]);
+
+  const remainingFundingPoolAmount = Math.max(
+    fundingPoolAmount - confirmedPoolUsedAmount,
+    0
+  );
+
+  const fundingPoolUsagePercent =
+    fundingPoolAmount > 0
+      ? Math.min((confirmedPoolUsedAmount / fundingPoolAmount) * 100, 100)
+      : 0;
 
   const fundingPeriodFrom = getMetadataString(batch?.metadata, "funding_period_from");
   const fundingPeriodTo = getMetadataString(batch?.metadata, "funding_period_to");
@@ -550,44 +605,63 @@ export default function FinanceExpenseFundingBatchDetailPage() {
 
         const loadedBatch = batchResult.data as unknown as FundingBatchRow;
 
-        const [companiesResult, bankAccountsResult, currenciesResult, attachmentsResult] =
-          await Promise.all([
-            supabase.from("finance_companies").select("id, name").order("name"),
+        const [
+          companiesResult,
+          bankAccountsResult,
+          currenciesResult,
+          attachmentsResult,
+          confirmedPaymentsResult,
+        ] = await Promise.all([
+          supabase.from("finance_companies").select("id, name").order("name"),
 
-            supabase
-              .from("finance_bank_accounts")
-              .select(
-                "id, name, bank_name, institution_name, masked_account_number, currency_code, company_id, is_default"
-              )
-              .order("name"),
+          supabase
+            .from("finance_bank_accounts")
+            .select(
+              "id, name, bank_name, institution_name, masked_account_number, currency_code, company_id, is_default"
+            )
+            .order("name"),
 
-            supabase
-              .from("finance_currencies")
-              .select(
-                "id, currency_code, currency_name, currency_symbol, decimal_places, is_base_currency, status"
-              )
-              .eq("status", "active")
-              .order("currency_code"),
+          supabase
+            .from("finance_currencies")
+            .select(
+              "id, currency_code, currency_name, currency_symbol, decimal_places, is_base_currency, status"
+            )
+            .eq("status", "active")
+            .order("currency_code"),
 
-            supabase
-              .from("finance_record_attachments")
-              .select(
-                "id, entity_type, entity_id, file_upload_id, uploaded_by, notes, metadata, created_at"
-              )
-              .eq("entity_type", "finance_expense_funding_batch")
-              .eq("entity_id", loadedBatch.id)
-              .order("created_at", { ascending: false }),
-          ]);
+          supabase
+            .from("finance_record_attachments")
+            .select(
+              "id, entity_type, entity_id, file_upload_id, uploaded_by, notes, metadata, created_at"
+            )
+            .eq("entity_type", "finance_expense_funding_batch")
+            .eq("entity_id", loadedBatch.id)
+            .order("created_at", { ascending: false }),
+
+          supabase
+            .from("finance_payments_made")
+            .select(
+              "id, status, payment_source_type, expense_funding_batch_id, amount, converted_amount, payment_currency_code, metadata, created_at, updated_at"
+            )
+            .eq("payment_source_type", "operating_expense")
+            .eq("expense_funding_batch_id", loadedBatch.id)
+            .eq("status", "confirmed")
+            .order("updated_at", { ascending: false }),
+        ]);
 
         if (companiesResult.error) throw companiesResult.error;
         if (bankAccountsResult.error) throw bankAccountsResult.error;
         if (currenciesResult.error) throw currenciesResult.error;
         if (attachmentsResult.error) throw attachmentsResult.error;
+        if (confirmedPaymentsResult.error) throw confirmedPaymentsResult.error;
 
         setBatch(loadedBatch);
         setCompanies((companiesResult.data || []) as CompanyRow[]);
         setBankAccounts((bankAccountsResult.data || []) as BankAccountRow[]);
         setCurrencies((currenciesResult.data || []) as unknown as CurrencyRow[]);
+        setConfirmedPoolPayments(
+          (confirmedPaymentsResult.data || []) as unknown as ConfirmedPoolPaymentRow[]
+        );
 
         if (!isEditing) {
           setEditForm(buildEditForm(loadedBatch));
@@ -660,6 +734,16 @@ export default function FinanceExpenseFundingBatchDetailPage() {
           schema: "public",
           table: "finance_record_attachments",
           filter: `entity_id=eq.${batchId}`,
+        },
+        () => void loadBatch("silent")
+      )
+      .on(
+        "postgres_changes",
+        {
+          event: "*",
+          schema: "public",
+          table: "finance_payments_made",
+          filter: `expense_funding_batch_id=eq.${batchId}`,
         },
         () => void loadBatch("silent")
       )
@@ -1051,9 +1135,19 @@ export default function FinanceExpenseFundingBatchDetailPage() {
 
               <div className="grid gap-3 sm:grid-cols-2">
                 <SummaryBlock
-                  title="Funding Pool"
+                  title="Funding Pool Total"
                   value={`${currencyCode} ${formatMoney(fundingPoolAmount)}`}
-                  subtitle="Total amount reserved by Finance."
+                  subtitle="Original amount reserved by Finance."
+                />
+                <SummaryBlock
+                  title="Confirmed Used"
+                  value={`${currencyCode} ${formatMoney(confirmedPoolUsedAmount)}`}
+                  subtitle="Confirmed payment distributions already used from this pool."
+                />
+                <SummaryBlock
+                  title="Remaining Balance"
+                  value={`${currencyCode} ${formatMoney(remainingFundingPoolAmount)}`}
+                  subtitle="Available funding pool balance for future distributions."
                 />
                 <SummaryBlock
                   title="Funding Period"
@@ -1262,11 +1356,21 @@ export default function FinanceExpenseFundingBatchDetailPage() {
                 </div>
               ) : (
                 <div className="grid gap-4 md:grid-cols-3">
-                  <ValueBlock label="Batch Number" value={batch.batch_number} />
+                  <ValueBlock label="Funding Pool Number" value={batch.batch_number} />
                   <ValueBlock
-                    label="Funding Pool"
+                    label="Funding Pool Total"
                     value={`${currencyCode} ${formatMoney(fundingPoolAmount)}`}
-                    detail="Total amount reserved by Finance."
+                    detail="Original amount reserved by Finance."
+                  />
+                  <ValueBlock
+                    label="Confirmed Used"
+                    value={`${currencyCode} ${formatMoney(confirmedPoolUsedAmount)}`}
+                    detail="Only confirmed expense payment distributions count as used."
+                  />
+                  <ValueBlock
+                    label="Remaining Balance"
+                    value={`${currencyCode} ${formatMoney(remainingFundingPoolAmount)}`}
+                    detail={`${formatMoney(fundingPoolUsagePercent)}% of this funding pool has been used.`}
                   />
                   <ValueBlock label="Funding Period" value={fundingPeriodLabel} />
                   <ValueBlock label="Allocation Date" value={formatDate(batch.allocation_date)} />
@@ -1458,9 +1562,19 @@ export default function FinanceExpenseFundingBatchDetailPage() {
                   value={<StatusBadge value={batch.documentation_status} />}
                 />
                 <ValueBlock
-                  label="Funding Pool"
+                  label="Funding Pool Total"
                   value={`${currencyCode} ${formatMoney(fundingPoolAmount)}`}
                   detail="Period-based money reserve."
+                />
+                <ValueBlock
+                  label="Confirmed Used"
+                  value={`${currencyCode} ${formatMoney(confirmedPoolUsedAmount)}`}
+                  detail="Confirmed expense payment distributions only."
+                />
+                <ValueBlock
+                  label="Remaining Balance"
+                  value={`${currencyCode} ${formatMoney(remainingFundingPoolAmount)}`}
+                  detail="Available for future expense payment distributions."
                 />
                 <ValueBlock
                   label="Funding Period"

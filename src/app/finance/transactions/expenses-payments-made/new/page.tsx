@@ -14,6 +14,7 @@ import {
   WalletCards,
 } from "lucide-react";
 
+import { convertCurrencyLive } from "@/lib/integrations/frankfurter";
 import { supabase } from "@/lib/supabase";
 
 type PaymentMode = "operating_expense";
@@ -79,6 +80,16 @@ type BankAccountRow = {
   is_default: boolean | null;
 };
 
+type CurrencyRow = {
+  id: string;
+  currency_code: string;
+  currency_name: string;
+  currency_symbol: string | null;
+  decimal_places: number;
+  is_base_currency: boolean;
+  status: string;
+};
+
 type FundingBatchRow = {
   id: string;
   batch_number: string;
@@ -92,35 +103,43 @@ type FundingBatchRow = {
   notes: string | null;
 };
 
-type FundingBatchLineRow = {
-  id: string;
-  funding_batch_id: string;
-  expense_id: string;
-  approved_amount: number | string | null;
-  allocated_amount: number | string | null;
-  currency_code: string | null;
-  status: string;
-};
-
 type ExpenseAllocationDraft = {
   expenseId: string;
-  amount: string;
+  paymentCurrencyAmount: string;
 };
 
 type EnrichedExpense = ExpenseRow & {
   companyName: string;
   madeByLabel: string;
   targetAmount: number;
-  defaultAllocationAmount: number;
-  batchLineId: string | null;
-  batchNumber: string | null;
 };
+
+type ConversionPreview = {
+  expenseId: string;
+  paymentCurrencyCode: string;
+  expenseCurrencyCode: string;
+  paymentCurrencyAmount: number;
+  expenseCurrencyAmount: number | null;
+  exchangeRate: number | null;
+  source: "live" | "same_currency" | "missing";
+  error: string | null;
+};
+
+type FundingUsagePreview = {
+  paymentCurrencyCode: string;
+  fundingCurrencyCode: string;
+  paymentCurrencyAmount: number;
+  fundingCurrencyAmount: number | null;
+  exchangeRate: number | null;
+  source: "live" | "same_currency" | "missing";
+  error: string | null;
+};
+
+type ConversionPreviewMap = Record<string, ConversionPreview>;
 
 type FormState = {
   paymentMode: PaymentMode;
   paymentDate: string;
-  fundingCompanyId: string;
-  paidFromBankAccountId: string;
   fundingBatchId: string;
   paymentCurrencyCode: string;
   referenceNumber: string;
@@ -130,8 +149,6 @@ type FormState = {
 const initialFormState: FormState = {
   paymentMode: "operating_expense",
   paymentDate: new Date().toISOString().slice(0, 10),
-  fundingCompanyId: "",
-  paidFromBankAccountId: "",
   fundingBatchId: "",
   paymentCurrencyCode: "USD",
   referenceNumber: "",
@@ -162,7 +179,6 @@ const statusToneMap: Record<
   not_received: "rose",
   disputed: "rose",
   draft: "slate",
-  allocated_batch: "violet",
 };
 
 function buildReferenceNumber() {
@@ -177,6 +193,10 @@ function buildReferenceNumber() {
 
 function toNumber(value: number | string | null | undefined) {
   return Number(value ?? 0);
+}
+
+function normalizeCurrencyCode(value: string | null | undefined) {
+  return (value || "").trim().toUpperCase();
 }
 
 function formatMoney(value: number | string | null | undefined) {
@@ -242,7 +262,7 @@ function StatusBadge({ value }: { value: string | null | undefined }) {
 }
 
 function inputClass() {
-  return "h-11 w-full rounded-2xl border border-white/10 bg-black/20 px-4 text-sm text-white outline-none transition placeholder:text-slate-600 focus:border-cyan-400/30 focus:bg-black/30";
+  return "h-11 w-full rounded-2xl border border-white/10 bg-black/20 px-4 text-sm text-white outline-none transition placeholder:text-slate-600 focus:border-cyan-400/30 focus:bg-black/30 disabled:cursor-not-allowed disabled:opacity-50";
 }
 
 function textareaClass() {
@@ -346,14 +366,139 @@ function SummaryBlock({
   subtitle: string;
 }) {
   return (
-    <div className="rounded-[24px] border border-white/10 bg-black/20 p-4">
+    <div className="min-h-[148px] rounded-[24px] border border-white/10 bg-black/20 p-4">
       <div className="text-[11px] font-semibold uppercase tracking-[0.2em] text-slate-500">
         {title}
       </div>
-      <div className="mt-2 text-2xl font-semibold text-white">{value}</div>
-      <div className="mt-2 text-sm leading-6 text-slate-400">{subtitle}</div>
+      <div className="mt-3 text-2xl font-semibold tracking-[-0.03em] text-white">
+        {value}
+      </div>
+      <div className="mt-3 text-sm leading-6 text-slate-400">{subtitle}</div>
     </div>
   );
+}
+
+async function buildLiveConversionPreview(
+  expenseId: string,
+  amount: number,
+  fromCurrency: string,
+  toCurrency: string
+): Promise<ConversionPreview> {
+  const paymentCurrencyCode = normalizeCurrencyCode(fromCurrency);
+  const expenseCurrencyCode = normalizeCurrencyCode(toCurrency);
+
+  if (!paymentCurrencyCode || !expenseCurrencyCode || amount <= 0) {
+    return {
+      expenseId,
+      paymentCurrencyCode,
+      expenseCurrencyCode,
+      paymentCurrencyAmount: amount,
+      expenseCurrencyAmount: null,
+      exchangeRate: null,
+      source: "missing",
+      error: "Missing currency or payment amount.",
+    };
+  }
+
+  if (paymentCurrencyCode === expenseCurrencyCode) {
+    return {
+      expenseId,
+      paymentCurrencyCode,
+      expenseCurrencyCode,
+      paymentCurrencyAmount: amount,
+      expenseCurrencyAmount: amount,
+      exchangeRate: 1,
+      source: "same_currency",
+      error: null,
+    };
+  }
+
+  try {
+    const result = await convertCurrencyLive(amount, paymentCurrencyCode, expenseCurrencyCode);
+
+    return {
+      expenseId,
+      paymentCurrencyCode,
+      expenseCurrencyCode,
+      paymentCurrencyAmount: amount,
+      expenseCurrencyAmount: result.convertedAmount,
+      exchangeRate: result.rate,
+      source: "live",
+      error: null,
+    };
+  } catch (error) {
+    return {
+      expenseId,
+      paymentCurrencyCode,
+      expenseCurrencyCode,
+      paymentCurrencyAmount: amount,
+      expenseCurrencyAmount: null,
+      exchangeRate: null,
+      source: "missing",
+      error: error instanceof Error ? error.message : "Live conversion failed.",
+    };
+  }
+}
+
+async function buildFundingUsagePreview(
+  paymentCurrencyAmount: number,
+  paymentCurrencyCode: string,
+  fundingCurrencyCode: string
+): Promise<FundingUsagePreview> {
+  const normalizedPaymentCurrency = normalizeCurrencyCode(paymentCurrencyCode);
+  const normalizedFundingCurrency = normalizeCurrencyCode(fundingCurrencyCode);
+
+  if (!normalizedPaymentCurrency || !normalizedFundingCurrency || paymentCurrencyAmount <= 0) {
+    return {
+      paymentCurrencyCode: normalizedPaymentCurrency,
+      fundingCurrencyCode: normalizedFundingCurrency,
+      paymentCurrencyAmount,
+      fundingCurrencyAmount: paymentCurrencyAmount <= 0 ? 0 : null,
+      exchangeRate: paymentCurrencyAmount <= 0 ? 1 : null,
+      source: paymentCurrencyAmount <= 0 ? "same_currency" : "missing",
+      error: paymentCurrencyAmount <= 0 ? null : "Missing currency or payment amount.",
+    };
+  }
+
+  if (normalizedPaymentCurrency === normalizedFundingCurrency) {
+    return {
+      paymentCurrencyCode: normalizedPaymentCurrency,
+      fundingCurrencyCode: normalizedFundingCurrency,
+      paymentCurrencyAmount,
+      fundingCurrencyAmount: paymentCurrencyAmount,
+      exchangeRate: 1,
+      source: "same_currency",
+      error: null,
+    };
+  }
+
+  try {
+    const result = await convertCurrencyLive(
+      paymentCurrencyAmount,
+      normalizedPaymentCurrency,
+      normalizedFundingCurrency
+    );
+
+    return {
+      paymentCurrencyCode: normalizedPaymentCurrency,
+      fundingCurrencyCode: normalizedFundingCurrency,
+      paymentCurrencyAmount,
+      fundingCurrencyAmount: result.convertedAmount,
+      exchangeRate: result.rate,
+      source: "live",
+      error: null,
+    };
+  } catch (error) {
+    return {
+      paymentCurrencyCode: normalizedPaymentCurrency,
+      fundingCurrencyCode: normalizedFundingCurrency,
+      paymentCurrencyAmount,
+      fundingCurrencyAmount: null,
+      exchangeRate: null,
+      source: "missing",
+      error: error instanceof Error ? error.message : "Live conversion failed.",
+    };
+  }
 }
 
 export default function FinanceExpensesPaymentsMadeNewPage() {
@@ -372,15 +517,19 @@ export default function FinanceExpensesPaymentsMadeNewPage() {
   const [companies, setCompanies] = useState<CompanyRow[]>([]);
   const [employees, setEmployees] = useState<EmployeeRefRow[]>([]);
   const [bankAccounts, setBankAccounts] = useState<BankAccountRow[]>([]);
+  const [currencies, setCurrencies] = useState<CurrencyRow[]>([]);
   const [fundingBatches, setFundingBatches] = useState<FundingBatchRow[]>([]);
-  const [fundingBatchLines, setFundingBatchLines] = useState<FundingBatchLineRow[]>([]);
   const [selectedExpenseIds, setSelectedExpenseIds] = useState<string[]>(
     initialExpenseId ? [initialExpenseId] : []
   );
   const [allocationDrafts, setAllocationDrafts] = useState<ExpenseAllocationDraft[]>([]);
+  const [conversionPreviews, setConversionPreviews] = useState<ConversionPreviewMap>({});
+  const [fundingUsagePreview, setFundingUsagePreview] =
+    useState<FundingUsagePreview | null>(null);
   const [paymentProofFile, setPaymentProofFile] = useState<File | null>(null);
   const [searchQuery, setSearchQuery] = useState("");
   const [isLoading, setIsLoading] = useState(true);
+  const [isConverting, setIsConverting] = useState(false);
   const [isSaving, setIsSaving] = useState(false);
   const [pageError, setPageError] = useState<string | null>(null);
   const [pageMessage, setPageMessage] = useState<string | null>(null);
@@ -397,27 +546,32 @@ export default function FinanceExpensesPaymentsMadeNewPage() {
     return new Map(bankAccounts.map((bank) => [bank.id, bank]));
   }, [bankAccounts]);
 
+  const currencyOptions = useMemo(() => {
+    return currencies.filter((currency) => currency.status === "active");
+  }, [currencies]);
+
   const selectedFundingBatch = useMemo(() => {
     return fundingBatches.find((batch) => batch.id === form.fundingBatchId) || null;
   }, [form.fundingBatchId, fundingBatches]);
 
-  const availableBankAccounts = useMemo(() => {
-    if (!form.fundingCompanyId) return [];
-    return bankAccounts.filter((bank) => bank.company_id === form.fundingCompanyId);
-  }, [bankAccounts, form.fundingCompanyId]);
+  const fundingCompany = selectedFundingBatch
+    ? companyMap.get(selectedFundingBatch.funding_company_id) || null
+    : null;
+
+  const paidFromBankAccount = selectedFundingBatch?.funding_bank_account_id
+    ? bankAccountMap.get(selectedFundingBatch.funding_bank_account_id) || null
+    : null;
+
+  const fundingCurrencyCode = normalizeCurrencyCode(
+    selectedFundingBatch?.currency_code || form.paymentCurrencyCode || "USD"
+  );
+
+  const paymentCurrencyCode = normalizeCurrencyCode(form.paymentCurrencyCode || fundingCurrencyCode);
+
+  const allocatedFundsAvailable = toNumber(selectedFundingBatch?.allocated_amount);
 
   const enrichedExpenses = useMemo<EnrichedExpense[]>(() => {
     return expenses.map((expense) => {
-      const batchLine =
-        form.fundingBatchId
-          ? fundingBatchLines.find(
-              (line) =>
-                line.funding_batch_id === form.fundingBatchId &&
-                line.expense_id === expense.id &&
-                line.status !== "cancelled"
-            )
-          : null;
-
       const targetAmount = getExpenseTargetAmount(expense);
 
       return {
@@ -427,12 +581,9 @@ export default function FinanceExpensesPaymentsMadeNewPage() {
           : "No company",
         madeByLabel: getExpenseMadeByLabel(expense, employeeMap),
         targetAmount,
-        defaultAllocationAmount: toNumber(batchLine?.allocated_amount || targetAmount),
-        batchLineId: batchLine?.id || null,
-        batchNumber: selectedFundingBatch?.batch_number || null,
       };
     });
-  }, [companyMap, employeeMap, expenses, form.fundingBatchId, fundingBatchLines, selectedFundingBatch]);
+  }, [companyMap, employeeMap, expenses]);
 
   const normalizedSearch = searchQuery.trim().toLowerCase();
 
@@ -473,28 +624,46 @@ export default function FinanceExpensesPaymentsMadeNewPage() {
     return enrichedExpenses.filter((expense) => selectedExpenseIds.includes(expense.id));
   }, [enrichedExpenses, selectedExpenseIds]);
 
-  const totalAllocated = useMemo(() => {
+  const totalPaymentCurrencyAllocated = useMemo(() => {
     return allocationDrafts
       .filter((draft) => selectedExpenseIds.includes(draft.expenseId))
-      .reduce((sum, draft) => sum + toNumber(draft.amount), 0);
+      .reduce((sum, draft) => sum + toNumber(draft.paymentCurrencyAmount), 0);
   }, [allocationDrafts, selectedExpenseIds]);
 
-  const selectedCurrency = form.paymentCurrencyCode || selectedExpenses[0]?.currency_code || "USD";
+  const totalExpenseCurrencyCovered = useMemo(() => {
+    return selectedExpenseIds.reduce((sum, expenseId) => {
+      const preview = conversionPreviews[expenseId];
+      return sum + toNumber(preview?.expenseCurrencyAmount);
+    }, 0);
+  }, [conversionPreviews, selectedExpenseIds]);
+
+  const fundingCurrencyUsed = toNumber(fundingUsagePreview?.fundingCurrencyAmount);
+  const fundingCurrencyRemaining = allocatedFundsAvailable - fundingCurrencyUsed;
 
   const updateField = useCallback(
     <Key extends keyof FormState>(key: Key, value: FormState[Key]) => {
-      setForm((current) => {
-        const next = {
-          ...current,
-          [key]: value,
-        };
+      setForm((current) => ({
+        ...current,
+        [key]: key === "paymentCurrencyCode" ? normalizeCurrencyCode(String(value)) : value,
+      }));
 
-        if (key === "fundingCompanyId") {
-          next.paidFromBankAccountId = "";
-        }
+      setPageError(null);
+      setPageMessage(null);
+    },
+    []
+  );
 
-        return next;
-      });
+  const applyFundingBatchToForm = useCallback(
+    (batchId: string, loadedBatches: FundingBatchRow[]) => {
+      const batch = loadedBatches.find((item) => item.id === batchId) || null;
+
+      setForm((current) => ({
+        ...current,
+        fundingBatchId: batchId,
+        paymentCurrencyCode: normalizeCurrencyCode(
+          batch?.currency_code || current.paymentCurrencyCode || "USD"
+        ),
+      }));
 
       setPageError(null);
       setPageMessage(null);
@@ -512,8 +681,8 @@ export default function FinanceExpensesPaymentsMadeNewPage() {
         companiesResult,
         employeesResult,
         bankAccountsResult,
+        currenciesResult,
         fundingBatchesResult,
-        fundingBatchLinesResult,
       ] = await Promise.all([
         supabase
           .from("finance_expenses")
@@ -565,63 +734,56 @@ export default function FinanceExpensesPaymentsMadeNewPage() {
           .order("name"),
 
         supabase
+          .from("finance_currencies")
+          .select(
+            "id, currency_code, currency_name, currency_symbol, decimal_places, is_base_currency, status"
+          )
+          .eq("status", "active")
+          .order("currency_code"),
+
+        supabase
           .from("finance_expense_funding_batches")
           .select(
             "id, batch_number, funding_company_id, funding_bank_account_id, allocation_date, currency_code, allocated_amount, status, documentation_status, notes"
           )
-          .in("status", ["draft", "allocated"])
+          .eq("status", "allocated")
           .order("updated_at", { ascending: false })
           .limit(300),
-
-        supabase
-          .from("finance_expense_funding_batch_lines")
-          .select(
-            "id, funding_batch_id, expense_id, approved_amount, allocated_amount, currency_code, status"
-          )
-          .limit(1000),
       ]);
 
       if (expensesResult.error) throw expensesResult.error;
       if (companiesResult.error) throw companiesResult.error;
       if (employeesResult.error) throw employeesResult.error;
       if (bankAccountsResult.error) throw bankAccountsResult.error;
+      if (currenciesResult.error) throw currenciesResult.error;
       if (fundingBatchesResult.error) throw fundingBatchesResult.error;
-      if (fundingBatchLinesResult.error) throw fundingBatchLinesResult.error;
 
       const loadedExpenses = (expensesResult.data || []) as unknown as ExpenseRow[];
-      const loadedBatches = (fundingBatchesResult.data || []) as FundingBatchRow[];
-      const loadedBanks = (bankAccountsResult.data || []) as BankAccountRow[];
+      const loadedBatches = (fundingBatchesResult.data || []) as unknown as FundingBatchRow[];
+      const loadedCurrencies = (currenciesResult.data || []) as unknown as CurrencyRow[];
 
       setExpenses(loadedExpenses);
       setCompanies((companiesResult.data || []) as CompanyRow[]);
       setEmployees((employeesResult.data || []) as EmployeeRefRow[]);
-      setBankAccounts(loadedBanks);
+      setBankAccounts((bankAccountsResult.data || []) as BankAccountRow[]);
+      setCurrencies(loadedCurrencies);
       setFundingBatches(loadedBatches);
-      setFundingBatchLines(
-        (fundingBatchLinesResult.data || []) as FundingBatchLineRow[]
-      );
 
       const initialBatch = initialBatchId
         ? loadedBatches.find((batch) => batch.id === initialBatchId)
-        : null;
+        : loadedBatches[0] || null;
 
-      if (initialBatch) {
-        const defaultBank =
-          initialBatch.funding_bank_account_id ||
-          loadedBanks.find(
-            (bank) => bank.company_id === initialBatch.funding_company_id && bank.is_default
-          )?.id ||
-          loadedBanks.find((bank) => bank.company_id === initialBatch.funding_company_id)?.id ||
-          "";
+      const defaultCurrency =
+        initialBatch?.currency_code ||
+        loadedCurrencies.find((currency) => currency.is_base_currency)?.currency_code ||
+        loadedCurrencies[0]?.currency_code ||
+        "USD";
 
-        setForm((current) => ({
-          ...current,
-          fundingBatchId: initialBatch.id,
-          fundingCompanyId: initialBatch.funding_company_id,
-          paidFromBankAccountId: defaultBank,
-          paymentCurrencyCode: initialBatch.currency_code || current.paymentCurrencyCode,
-        }));
-      }
+      setForm((current) => ({
+        ...current,
+        fundingBatchId: current.fundingBatchId || initialBatch?.id || "",
+        paymentCurrencyCode: normalizeCurrencyCode(current.paymentCurrencyCode || defaultCurrency),
+      }));
     } catch (error) {
       console.error("Failed to load expense payment options:", error);
       setPageError(
@@ -632,55 +794,98 @@ export default function FinanceExpensesPaymentsMadeNewPage() {
     }
   }, [initialBatchId]);
 
-  useEffect(() => {
+        useEffect(() => {
     void loadOptions();
   }, [loadOptions]);
 
   useEffect(() => {
-    if (!form.fundingBatchId) return;
+    if (!selectedFundingBatch) return;
 
-    const selectedBatch = fundingBatches.find((batch) => batch.id === form.fundingBatchId);
-    if (!selectedBatch) return;
+    setForm((current) => ({
+      ...current,
+      paymentCurrencyCode: normalizeCurrencyCode(
+        current.paymentCurrencyCode || selectedFundingBatch.currency_code || "USD"
+      ),
+    }));
+  }, [selectedFundingBatch]);
 
-    const batchLines = fundingBatchLines.filter(
-      (line) => line.funding_batch_id === selectedBatch.id && line.status !== "cancelled"
-    );
+  useEffect(() => {
+    let isCancelled = false;
 
-    if (batchLines.length > 0 && selectedExpenseIds.length === 0) {
-      setSelectedExpenseIds(batchLines.map((line) => line.expense_id));
+    async function refreshConversionPreviews() {
+      if (selectedExpenseIds.length === 0) {
+        setConversionPreviews({});
+        setFundingUsagePreview(null);
+        return;
+      }
+
+      setIsConverting(true);
+
+      const nextPreviews: ConversionPreviewMap = {};
+
+      const selectedDrafts = allocationDrafts.filter((draft) =>
+        selectedExpenseIds.includes(draft.expenseId)
+      );
+
+      for (const draft of selectedDrafts) {
+        const expense = selectedExpenses.find((item) => item.id === draft.expenseId);
+        const paymentAmount = toNumber(draft.paymentCurrencyAmount);
+        const expenseCurrency = normalizeCurrencyCode(
+          expense?.currency_code || paymentCurrencyCode
+        );
+
+        nextPreviews[draft.expenseId] = await buildLiveConversionPreview(
+          draft.expenseId,
+          paymentAmount,
+          paymentCurrencyCode,
+          expenseCurrency
+        );
+      }
+
+      const nextFundingUsagePreview = await buildFundingUsagePreview(
+        totalPaymentCurrencyAllocated,
+        paymentCurrencyCode,
+        fundingCurrencyCode
+      );
+
+      if (!isCancelled) {
+        setConversionPreviews(nextPreviews);
+        setFundingUsagePreview(nextFundingUsagePreview);
+        setIsConverting(false);
+      }
     }
 
-    setAllocationDrafts((current) => {
-      const nextMap = new Map(current.map((item) => [item.expenseId, item.amount]));
+    void refreshConversionPreviews();
 
-      batchLines.forEach((line) => {
-        if (!nextMap.has(line.expense_id)) {
-          nextMap.set(line.expense_id, String(toNumber(line.allocated_amount)));
-        }
-      });
-
-      return Array.from(nextMap.entries()).map(([expenseId, amount]) => ({
-        expenseId,
-        amount,
-      }));
-    });
-  }, [form.fundingBatchId, fundingBatchLines, fundingBatches, selectedExpenseIds.length]);
+    return () => {
+      isCancelled = true;
+    };
+  }, [
+    allocationDrafts,
+    fundingCurrencyCode,
+    paymentCurrencyCode,
+    selectedExpenseIds,
+    selectedExpenses,
+    totalPaymentCurrencyAllocated,
+  ]);
 
   useEffect(() => {
     setAllocationDrafts((current) => {
-      const nextMap = new Map(current.map((item) => [item.expenseId, item.amount]));
+      const nextMap = new Map(
+        current.map((item) => [item.expenseId, item.paymentCurrencyAmount])
+      );
 
       selectedExpenses.forEach((expense) => {
         if (!nextMap.has(expense.id)) {
-          nextMap.set(expense.id, String(expense.defaultAllocationAmount));
+          nextMap.set(expense.id, String(expense.targetAmount));
         }
       });
 
       return Array.from(nextMap.entries())
         .filter(([expenseId]) => selectedExpenseIds.includes(expenseId))
-        .map(([expenseId, amount]) => ({
+        .map(([expenseId, paymentCurrencyAmount]) => ({
           expenseId,
-          amount,
+          paymentCurrencyAmount,
         }));
     });
   }, [selectedExpenseIds, selectedExpenses]);
@@ -703,7 +908,7 @@ export default function FinanceExpensesPaymentsMadeNewPage() {
         ...current,
         {
           expenseId: expense.id,
-          amount: String(expense.defaultAllocationAmount),
+          paymentCurrencyAmount: String(expense.targetAmount),
         },
       ];
     });
@@ -712,55 +917,71 @@ export default function FinanceExpensesPaymentsMadeNewPage() {
     setPageMessage(null);
   }, []);
 
-  const updateAllocationAmount = useCallback((expenseId: string, amount: string) => {
-    setAllocationDrafts((current) => {
-      const exists = current.some((draft) => draft.expenseId === expenseId);
+  const updateAllocationAmount = useCallback(
+    (expenseId: string, paymentCurrencyAmount: string) => {
+      setAllocationDrafts((current) => {
+        const exists = current.some((draft) => draft.expenseId === expenseId);
 
-      if (!exists) {
-        return [...current, { expenseId, amount }];
-      }
+        if (!exists) {
+          return [...current, { expenseId, paymentCurrencyAmount }];
+        }
 
-      return current.map((draft) =>
-        draft.expenseId === expenseId ? { ...draft, amount } : draft
-      );
-    });
+        return current.map((draft) =>
+          draft.expenseId === expenseId ? { ...draft, paymentCurrencyAmount } : draft
+        );
+      });
 
-    setPageError(null);
-    setPageMessage(null);
-  }, []);
+      setPageError(null);
+      setPageMessage(null);
+    },
+    []
+  );
 
   const validateForm = useCallback(() => {
     if (!form.paymentDate) return "Payment date is required.";
-    if (!form.fundingCompanyId) return "Funding company is required.";
-    if (!form.paidFromBankAccountId) return "Paid-from bank account is required.";
-    if (!form.paymentCurrencyCode.trim()) return "Payment currency is required.";
+    if (!selectedFundingBatch) return "Funding batch is required.";
+    if (!selectedFundingBatch.funding_company_id) return "Funding company is missing from batch.";
+    if (!selectedFundingBatch.funding_bank_account_id) return "Paid-from bank account is missing from batch.";
+    if (!paymentCurrencyCode) return "Payment currency is required.";
     if (selectedExpenseIds.length === 0) return "Select at least one expense.";
-    if (totalAllocated <= 0) return "Allocated payment amount must be greater than zero.";
+    if (totalPaymentCurrencyAllocated <= 0) {
+      return "Allocated payment amount must be greater than zero.";
+    }
 
-    const selectedBank = bankAccountMap.get(form.paidFromBankAccountId);
+    if (!fundingUsagePreview || fundingUsagePreview.fundingCurrencyAmount === null) {
+      return "Missing currency conversion from payment currency to funding currency.";
+    }
 
-    if (!selectedBank) return "Selected bank account was not found.";
-
-    if (selectedBank.company_id !== form.fundingCompanyId) {
-      return "Paid-from bank account must belong to the funding company.";
+    if (fundingUsagePreview.fundingCurrencyAmount > allocatedFundsAvailable + 0.01) {
+      return "Payment allocation cannot exceed available allocated funds.";
     }
 
     const invalidAllocation = allocationDrafts
       .filter((draft) => selectedExpenseIds.includes(draft.expenseId))
-      .find((draft) => toNumber(draft.amount) <= 0);
+      .find((draft) => toNumber(draft.paymentCurrencyAmount) <= 0);
 
-    if (invalidAllocation) return "Every selected expense must have an allocation amount.";
+    if (invalidAllocation) return "Every selected expense must have a payment allocation amount.";
+
+    const missingExpenseConversion = selectedExpenseIds.some((expenseId) => {
+      const preview = conversionPreviews[expenseId];
+      return !preview || preview.expenseCurrencyAmount === null || preview.exchangeRate === null;
+    });
+
+    if (missingExpenseConversion) {
+      return "Missing currency conversion for one or more selected expenses.";
+    }
 
     return null;
   }, [
+    allocatedFundsAvailable,
     allocationDrafts,
-    bankAccountMap,
-    form.fundingCompanyId,
-    form.paidFromBankAccountId,
-    form.paymentCurrencyCode,
+    conversionPreviews,
     form.paymentDate,
+    fundingUsagePreview,
+    paymentCurrencyCode,
     selectedExpenseIds,
-    totalAllocated,
+    selectedFundingBatch,
+    totalPaymentCurrencyAllocated,
   ]);
 
   const uploadPaymentProof = useCallback(
@@ -806,32 +1027,62 @@ export default function FinanceExpensesPaymentsMadeNewPage() {
           return;
         }
 
+        if (!selectedFundingBatch || !fundingUsagePreview) {
+          setPageError("Funding batch or funding conversion preview is missing.");
+          return;
+        }
+
         const authResult = await supabase.auth.getUser();
         if (authResult.error) throw authResult.error;
 
         const userId = authResult.data.user?.id ?? null;
-        const selectedBank = bankAccountMap.get(form.paidFromBankAccountId);
         const referenceNumber = form.referenceNumber.trim() || buildReferenceNumber();
+
+        const selectedBank = selectedFundingBatch.funding_bank_account_id
+          ? bankAccountMap.get(selectedFundingBatch.funding_bank_account_id)
+          : null;
 
         const recipientNames = selectedExpenses
           .map((expense) => expense.madeByLabel)
           .filter(Boolean);
 
+        const paymentMetadata = {
+          source_area: "expenses_payments_made",
+          payment_mode: "operating_expense",
+          selected_expense_ids: selectedExpenseIds,
+          funding_batch_id: selectedFundingBatch.id,
+          funding_batch_number: selectedFundingBatch.batch_number,
+          funding_company_id: selectedFundingBatch.funding_company_id,
+          funding_company_name:
+            companyMap.get(selectedFundingBatch.funding_company_id)?.name || null,
+          paid_from_bank_account_id: selectedFundingBatch.funding_bank_account_id,
+          paid_from_bank_label: getBankLabel(selectedBank),
+          funding_currency_code: fundingCurrencyCode,
+          funding_currency_amount_used: fundingUsagePreview.fundingCurrencyAmount,
+          funding_currency_amount_available: allocatedFundsAvailable,
+          funding_currency_remaining:
+            allocatedFundsAvailable - toNumber(fundingUsagePreview.fundingCurrencyAmount),
+          payment_currency_code: paymentCurrencyCode,
+          payment_currency_amount: totalPaymentCurrencyAllocated,
+          payment_to_funding_exchange_rate: fundingUsagePreview.exchangeRate,
+          payment_to_funding_conversion_source: fundingUsagePreview.source,
+        };
+
         const paymentInsertResult = await supabase
           .from("finance_payments_made")
           .insert({
-            amount: totalAllocated,
+            amount: totalPaymentCurrencyAllocated,
             payment_date: form.paymentDate,
             status: "draft",
             reference_number: referenceNumber,
             vendor_id: null,
             bill_id: null,
-            bank_account_id: form.paidFromBankAccountId,
-            paid_from_bank_account_id: form.paidFromBankAccountId,
-            paid_from_company_id: form.fundingCompanyId,
+            bank_account_id: selectedFundingBatch.funding_bank_account_id,
+            paid_from_bank_account_id: selectedFundingBatch.funding_bank_account_id,
+            paid_from_company_id: selectedFundingBatch.funding_company_id,
             notes: form.notes.trim() || null,
             payment_source_type: form.paymentMode,
-            expense_funding_batch_id: form.fundingBatchId || null,
+            expense_funding_batch_id: selectedFundingBatch.id,
             recipient_employee_ref_id:
               selectedExpenses.length === 1 ? selectedExpenses[0]?.employee_ref_id || null : null,
             recipient_person_name:
@@ -839,15 +1090,9 @@ export default function FinanceExpensesPaymentsMadeNewPage() {
                 ? selectedExpenses[0]?.madeByLabel || null
                 : `Multiple recipients (${recipientNames.length})`,
             recipient_confirmation_status: "not_required",
-            payment_currency_code: form.paymentCurrencyCode.trim().toUpperCase(),
-            converted_amount: totalAllocated,
-            metadata: {
-              source_area: "expenses_payments_made",
-              selected_expense_ids: selectedExpenseIds,
-              funding_company_name:
-                companyMap.get(form.fundingCompanyId)?.name || null,
-              paid_from_bank_label: getBankLabel(selectedBank),
-            },
+            payment_currency_code: paymentCurrencyCode,
+            converted_amount: fundingUsagePreview.fundingCurrencyAmount,
+            metadata: paymentMetadata,
             created_by: userId,
             updated_by: userId,
           })
@@ -857,7 +1102,6 @@ export default function FinanceExpensesPaymentsMadeNewPage() {
         if (paymentInsertResult.error) throw paymentInsertResult.error;
 
         const paymentId = paymentInsertResult.data.id as string;
-
         const proofMetadata = await uploadPaymentProof(paymentId);
 
         if (proofMetadata) {
@@ -865,11 +1109,7 @@ export default function FinanceExpensesPaymentsMadeNewPage() {
             .from("finance_payments_made")
             .update({
               metadata: {
-                source_area: "expenses_payments_made",
-                selected_expense_ids: selectedExpenseIds,
-                funding_company_name:
-                  companyMap.get(form.fundingCompanyId)?.name || null,
-                paid_from_bank_label: getBankLabel(selectedBank),
+                ...paymentMetadata,
                 payment_proof: proofMetadata,
               },
               updated_by: userId,
@@ -883,32 +1123,55 @@ export default function FinanceExpensesPaymentsMadeNewPage() {
           .filter((draft) => selectedExpenseIds.includes(draft.expenseId))
           .map((draft) => {
             const expense = selectedExpenses.find((item) => item.id === draft.expenseId);
-            const amount = toNumber(draft.amount);
+            const preview = conversionPreviews[draft.expenseId];
 
             if (!expense) {
               throw new Error("Selected expense was not found.");
             }
 
+            if (!preview || preview.expenseCurrencyAmount === null || preview.exchangeRate === null) {
+              throw new Error("Selected expense conversion preview was not found.");
+            }
+
+            const paymentCurrencyAmount = toNumber(draft.paymentCurrencyAmount);
+            const expenseCurrencyCode = normalizeCurrencyCode(
+              expense.currency_code || paymentCurrencyCode
+            );
+
             return {
               payment_made_id: paymentId,
               expense_id: expense.id,
-              funding_batch_id: form.fundingBatchId || null,
-              funding_batch_line_id: expense.batchLineId,
+              funding_batch_id: selectedFundingBatch.id,
+              funding_batch_line_id: null,
               expense_company_id: expense.company_id,
-              funding_company_id: form.fundingCompanyId,
-              paid_from_bank_account_id: form.paidFromBankAccountId,
+              funding_company_id: selectedFundingBatch.funding_company_id,
+              paid_from_bank_account_id: selectedFundingBatch.funding_bank_account_id,
               recipient_employee_ref_id: expense.employee_ref_id,
               recipient_person_name: expense.madeByLabel,
-              allocated_amount: amount,
-              currency_code: expense.currency_code || form.paymentCurrencyCode,
-              payment_currency_code: form.paymentCurrencyCode.trim().toUpperCase(),
-              converted_amount: amount,
+              allocated_amount: paymentCurrencyAmount,
+              currency_code: expenseCurrencyCode,
+              payment_currency_code: paymentCurrencyCode,
+              converted_amount: preview.expenseCurrencyAmount,
               recipient_confirmation_status: "pending_confirmation",
               metadata: {
                 source_area: "expenses_payments_made",
+                funding_batch_id: selectedFundingBatch.id,
+                funding_batch_number: selectedFundingBatch.batch_number,
                 expense_number: expense.expense_number,
                 expense_title: expense.title,
                 payment_reference_number: referenceNumber,
+                payment_currency_amount: paymentCurrencyAmount,
+                payment_currency_code: paymentCurrencyCode,
+                expense_currency_amount: preview.expenseCurrencyAmount,
+                expense_currency_code: expenseCurrencyCode,
+                exchange_rate: preview.exchangeRate,
+                conversion_source: preview.source,
+                funding_currency_code: fundingCurrencyCode,
+                payment_to_funding_exchange_rate: fundingUsagePreview.exchangeRate,
+                funding_currency_amount_used_for_line:
+                  fundingUsagePreview.exchangeRate === null
+                    ? null
+                    : paymentCurrencyAmount * fundingUsagePreview.exchangeRate,
               },
               created_by: userId,
               updated_by: userId,
@@ -946,14 +1209,23 @@ export default function FinanceExpensesPaymentsMadeNewPage() {
       }
     },
     [
+      allocatedFundsAvailable,
       allocationDrafts,
       bankAccountMap,
       companyMap,
-      form,
+      conversionPreviews,
+      form.notes,
+      form.paymentDate,
+      form.paymentMode,
+      form.referenceNumber,
+      fundingCurrencyCode,
+      fundingUsagePreview,
       navigate,
+      paymentCurrencyCode,
       selectedExpenseIds,
       selectedExpenses,
-      totalAllocated,
+      selectedFundingBatch,
+      totalPaymentCurrencyAllocated,
       uploadPaymentProof,
       validateForm,
     ]
@@ -975,7 +1247,7 @@ export default function FinanceExpensesPaymentsMadeNewPage() {
               Operating Expense Payments
             </button>
 
-            <div className="grid gap-6 xl:grid-cols-[minmax(0,1fr)_430px] xl:items-end">
+            <div className="grid gap-6 xl:grid-cols-[minmax(0,1fr)_520px] xl:items-end">
               <div>
                 <div className="inline-flex w-fit items-center gap-2 rounded-full border border-cyan-400/20 bg-cyan-500/10 px-3 py-1 text-[11px] font-semibold uppercase tracking-[0.22em] text-cyan-200">
                   <Sparkles className="h-3.5 w-3.5" />
@@ -987,21 +1259,31 @@ export default function FinanceExpensesPaymentsMadeNewPage() {
                 </h1>
 
                 <p className="mt-3 max-w-4xl text-sm leading-6 text-slate-400 md:text-base md:leading-7">
-                  Select verified expenses, choose funding company and bank account, allocate
-                  payment amounts, upload payment proof, then save draft or confirm the payment.
+                  Use an allocated funding batch to pay verified operating expenses, convert
+                  payment currency into each expense currency, and store the payment proof.
                 </p>
               </div>
 
-              <div className="grid gap-3">
+              <div className="grid gap-3 sm:grid-cols-2">
                 <SummaryBlock
-                  title="Selected Expenses"
-                  value={String(selectedExpenseIds.length)}
-                  subtitle="Only verified and not fully covered operating expenses can be selected."
+                  title="Available Funds"
+                  value={`${fundingCurrencyCode} ${formatMoney(allocatedFundsAvailable)}`}
+                  subtitle="Allocated funds from the selected funding batch."
                 />
                 <SummaryBlock
-                  title="Allocated Payment"
-                  value={`${selectedCurrency} ${formatMoney(totalAllocated)}`}
-                  subtitle="Total amount allocated across selected expense records."
+                  title="Payment Used"
+                  value={`${paymentCurrencyCode} ${formatMoney(totalPaymentCurrencyAllocated)}`}
+                  subtitle="Payment amount distributed across selected expenses."
+                />
+                <SummaryBlock
+                  title="Funding Used"
+                  value={`${fundingCurrencyCode} ${formatMoney(fundingCurrencyUsed)}`}
+                  subtitle="Converted payment usage against allocated funds."
+                />
+                <SummaryBlock
+                  title="Remaining"
+                  value={`${fundingCurrencyCode} ${formatMoney(fundingCurrencyRemaining)}`}
+                  subtitle="Available allocated funds after this payment."
                 />
               </div>
             </div>
@@ -1032,7 +1314,7 @@ export default function FinanceExpensesPaymentsMadeNewPage() {
                     Payment Setup
                   </div>
                   <p className="mt-1 text-xs leading-5 text-slate-500">
-                    This page handles operating expense payments only.
+                    Company and bank come from the selected allocated funding batch.
                   </p>
                 </div>
               </div>
@@ -1055,88 +1337,64 @@ export default function FinanceExpensesPaymentsMadeNewPage() {
                   />
                 </label>
 
-                <label className="grid gap-2">
+                <label className="grid gap-2 md:col-span-2">
                   <span className={labelClass()}>Funding Batch</span>
                   <select
                     value={form.fundingBatchId}
-                    onChange={(event) => {
-                      const batchId = event.target.value;
-                      const batch = fundingBatches.find((item) => item.id === batchId);
-
-                      setForm((current) => ({
-                        ...current,
-                        fundingBatchId: batchId,
-                        fundingCompanyId: batch?.funding_company_id || current.fundingCompanyId,
-                        paidFromBankAccountId:
-                          batch?.funding_bank_account_id || current.paidFromBankAccountId,
-                        paymentCurrencyCode:
-                          batch?.currency_code || current.paymentCurrencyCode,
-                      }));
-                    }}
+                    onChange={(event) =>
+                      applyFundingBatchToForm(event.target.value, fundingBatches)
+                    }
                     className={inputClass()}
                   >
-                    <option value="">No batch / manual selection</option>
+                    <option value="">Select allocated funding batch</option>
                     {fundingBatches.map((batch) => (
                       <option key={batch.id} value={batch.id}>
                         {batch.batch_number} •{" "}
                         {companyMap.get(batch.funding_company_id)?.name || "Company"} •{" "}
-                        {formatMoney(batch.allocated_amount)}
+                        {batch.currency_code || "USD"} {formatMoney(batch.allocated_amount)}
                       </option>
                     ))}
                   </select>
                 </label>
 
-                <label className="grid gap-2">
+                <div className="grid gap-2">
                   <span className={labelClass()}>Funding Company</span>
-                  <select
-                    value={form.fundingCompanyId}
-                    onChange={(event) =>
-                      updateField("fundingCompanyId", event.target.value)
-                    }
-                    className={inputClass()}
-                  >
-                    <option value="">Select company</option>
-                    {companies.map((company) => (
-                      <option key={company.id} value={company.id}>
-                        {company.name || "Unnamed company"}
-                      </option>
-                    ))}
-                  </select>
-                </label>
+                  <div className="flex h-11 items-center rounded-2xl border border-white/10 bg-black/20 px-4 text-sm font-semibold text-white">
+                    {fundingCompany?.name || "Select funding batch first"}
+                  </div>
+                </div>
 
-                <label className="grid gap-2">
+                <div className="grid gap-2">
                   <span className={labelClass()}>Paid From Bank Account</span>
-                  <select
-                    value={form.paidFromBankAccountId}
-                    onChange={(event) =>
-                      updateField("paidFromBankAccountId", event.target.value)
-                    }
-                    className={inputClass()}
-                    disabled={!form.fundingCompanyId}
-                  >
-                    <option value="">Select bank account</option>
-                    {availableBankAccounts.map((bank) => (
-                      <option key={bank.id} value={bank.id}>
-                        {getBankLabel(bank)}
-                      </option>
-                    ))}
-                  </select>
-                </label>
+                  <div className="flex h-11 items-center rounded-2xl border border-white/10 bg-black/20 px-4 text-sm font-semibold text-white">
+                    {getBankLabel(paidFromBankAccount)}
+                  </div>
+                </div>
 
                 <label className="grid gap-2">
                   <span className={labelClass()}>Payment Currency</span>
-                  <input
-                    value={form.paymentCurrencyCode}
+                  <select
+                    value={paymentCurrencyCode}
                     onChange={(event) =>
-                      updateField(
-                        "paymentCurrencyCode",
-                        event.target.value.toUpperCase().slice(0, 3)
-                      )
+                      updateField("paymentCurrencyCode", event.target.value)
                     }
                     className={inputClass()}
-                    placeholder="USD"
-                  />
+                  >
+                    <option value="">Select currency</option>
+                    {currencyOptions.map((currency) => (
+                      <option key={currency.id} value={currency.currency_code}>
+                        {currency.currency_code} — {currency.currency_name}
+                      </option>
+                    ))}
+                  </select>
                 </label>
+
+                <div className="grid gap-2">
+                  <span className={labelClass()}>Funding Currency</span>
+                  <div className="flex h-11 items-center rounded-2xl border border-violet-400/15 bg-violet-500/10 px-4 text-sm font-semibold text-violet-100">
+                    {fundingCurrencyCode}
+                  </div>
+                </div>
 
                 <label className="grid gap-2 md:col-span-2">
                   <span className={labelClass()}>Reference Number</span>
@@ -1173,7 +1431,8 @@ export default function FinanceExpensesPaymentsMadeNewPage() {
                       Select Expenses
                     </div>
                     <p className="mt-1 text-xs leading-5 text-slate-500">
-                      Choose verified expenses and allocate the payment amount.
+                      Enter payment amount in payment currency. Converted coverage is shown per
+                      expense.
                     </p>
                   </div>
                 </div>
@@ -1210,7 +1469,7 @@ export default function FinanceExpensesPaymentsMadeNewPage() {
                 ) : (
                   <div className="overflow-x-auto rounded-[24px] border border-white/10 bg-black/20">
                     <div className="max-h-[720px] overflow-y-auto">
-                      <table className="w-full min-w-[1420px] border-collapse">
+                      <table className="w-full min-w-[1660px] border-collapse">
                         <thead className="sticky top-0 z-20 border-b border-white/10 bg-black/70 backdrop-blur-xl">
                           <tr>
                             <th className="px-5 py-4 text-left text-[11px] font-semibold uppercase tracking-[0.18em] text-slate-500">
@@ -1229,13 +1488,16 @@ export default function FinanceExpensesPaymentsMadeNewPage() {
                               Docs
                             </th>
                             <th className="px-5 py-4 text-left text-[11px] font-semibold uppercase tracking-[0.18em] text-slate-500">
-                              Funding
+                              Coverage
                             </th>
                             <th className="px-5 py-4 text-right text-[11px] font-semibold uppercase tracking-[0.18em] text-slate-500">
-                              Target
+                              Expense Amount
                             </th>
                             <th className="px-5 py-4 text-right text-[11px] font-semibold uppercase tracking-[0.18em] text-slate-500">
-                              Allocation
+                              Pay In {paymentCurrencyCode}
+                            </th>
+                            <th className="px-5 py-4 text-right text-[11px] font-semibold uppercase tracking-[0.18em] text-slate-500">
+                              Covers In Expense Currency
                             </th>
                           </tr>
                         </thead>
@@ -1246,7 +1508,11 @@ export default function FinanceExpensesPaymentsMadeNewPage() {
                             const allocationValue =
                               allocationDrafts.find(
                                 (draft) => draft.expenseId === expense.id
-                              )?.amount || "";
+                              )?.paymentCurrencyAmount || "";
+                            const expenseCurrency = normalizeCurrencyCode(
+                              expense.currency_code || paymentCurrencyCode
+                            );
+                            const preview = conversionPreviews[expense.id];
 
                             return (
                               <tr
@@ -1298,23 +1564,11 @@ export default function FinanceExpensesPaymentsMadeNewPage() {
                                 </td>
 
                                 <td className="whitespace-nowrap px-5 py-4">
-                                  <StatusBadge
-                                    value={
-                                      expense.batchLineId
-                                        ? "allocated_batch"
-                                        : expense.funding_status
-                                    }
-                                  />
-                                  {expense.batchNumber ? (
-                                    <div className="mt-1 text-xs text-slate-500">
-                                      {expense.batchNumber}
-                                    </div>
-                                  ) : null}
+                                  <StatusBadge value={expense.coverage_status} />
                                 </td>
 
                                 <td className="whitespace-nowrap px-5 py-4 text-right font-semibold text-white">
-                                  {expense.currency_code || selectedCurrency}{" "}
-                                  {formatMoney(expense.targetAmount)}
+                                  {expenseCurrency} {formatMoney(expense.targetAmount)}
                                 </td>
 
                                 <td className="whitespace-nowrap px-5 py-4 text-right">
@@ -1328,8 +1582,53 @@ export default function FinanceExpensesPaymentsMadeNewPage() {
                                     }
                                     disabled={!isSelected}
                                     inputMode="decimal"
+                                    placeholder="0.00"
                                     className="h-10 w-[150px] rounded-2xl border border-white/10 bg-black/20 px-4 text-right text-sm text-white outline-none transition disabled:cursor-not-allowed disabled:opacity-40 focus:border-cyan-400/30 focus:bg-black/30"
                                   />
+                                </td>
+
+                                <td className="whitespace-nowrap px-5 py-4 text-right">
+                                  {!isSelected ? (
+                                    <div>
+                                      <div className="font-semibold text-slate-400">
+                                        Not selected
+                                      </div>
+                                      <div className="mt-1 text-[11px] text-slate-600">
+                                        Select to convert
+                                      </div>
+                                    </div>
+                                  ) : isConverting ? (
+                                    <div>
+                                      <div className="font-semibold text-cyan-200">
+                                        Converting...
+                                      </div>
+                                      <div className="mt-1 text-[11px] text-slate-500">
+                                        {paymentCurrencyCode} → {expenseCurrency}
+                                      </div>
+                                    </div>
+                                  ) : !preview ||
+                                    preview.expenseCurrencyAmount === null ||
+                                    preview.exchangeRate === null ? (
+                                    <div>
+                                      <div className="font-semibold text-rose-200">
+                                        Missing conversion
+                                      </div>
+                                      <div className="mt-1 text-[11px] text-slate-500">
+                                        {paymentCurrencyCode} → {expenseCurrency}
+                                      </div>
+                                    </div>
+                                  ) : (
+                                    <div>
+                                      <div className="font-semibold text-emerald-100">
+                                        {expenseCurrency}{" "}
+                                        {formatMoney(preview.expenseCurrencyAmount)}
+                                      </div>
+                                      <div className="mt-1 text-[11px] text-slate-500">
+                                        1 {paymentCurrencyCode} ={" "}
+                                        {formatMoney(preview.exchangeRate)} {expenseCurrency}
+                                      </div>
+                                    </div>
+                                  )}
                                 </td>
                               </tr>
                             );
@@ -1350,25 +1649,50 @@ export default function FinanceExpensesPaymentsMadeNewPage() {
                   Payment Summary
                 </div>
                 <p className="mt-1 text-xs leading-5 text-slate-500">
-                  Review before saving or confirming.
+                  Review funding usage before saving or confirming.
                 </p>
               </div>
 
               <div className="grid gap-3 p-5">
                 <SummaryBlock
+                  title="Funding Batch"
+                  value={selectedFundingBatch?.batch_number || "Not selected"}
+                  subtitle="Allocated batch used as payment source."
+                />
+                <SummaryBlock
                   title="Funding Company"
-                  value={companyMap.get(form.fundingCompanyId)?.name || "Not selected"}
-                  subtitle="The company allocating funds for this payment."
+                  value={fundingCompany?.name || "Not selected"}
+                  subtitle="Derived from selected funding batch."
                 />
                 <SummaryBlock
                   title="Bank Account"
-                  value={getBankLabel(bankAccountMap.get(form.paidFromBankAccountId))}
-                  subtitle="The bank account used for the payment."
+                  value={getBankLabel(paidFromBankAccount)}
+                  subtitle="Derived from selected funding batch."
                 />
                 <SummaryBlock
-                  title="Total Allocation"
-                  value={`${selectedCurrency} ${formatMoney(totalAllocated)}`}
-                  subtitle="Total payment amount allocated to selected expenses."
+                  title="Allocated Funds"
+                  value={`${fundingCurrencyCode} ${formatMoney(allocatedFundsAvailable)}`}
+                  subtitle="Available amount in funding batch currency."
+                />
+                <SummaryBlock
+                  title="Payment Used"
+                  value={`${paymentCurrencyCode} ${formatMoney(totalPaymentCurrencyAllocated)}`}
+                  subtitle="Amount distributed in payment currency."
+                />
+                <SummaryBlock
+                  title="Funding Used"
+                  value={`${fundingCurrencyCode} ${formatMoney(fundingCurrencyUsed)}`}
+                  subtitle="Converted usage against allocated funds."
+                />
+                <SummaryBlock
+                  title="Remaining"
+                  value={`${fundingCurrencyCode} ${formatMoney(fundingCurrencyRemaining)}`}
+                  subtitle="Funding batch balance after this payment."
+                />
+                <SummaryBlock
+                  title="Expense Coverage"
+                  value={formatMoney(totalExpenseCurrencyCovered)}
+                  subtitle="Combined converted coverage preview across expense currencies."
                 />
               </div>
             </section>
@@ -1408,7 +1732,7 @@ export default function FinanceExpensesPaymentsMadeNewPage() {
               <div className="grid gap-3">
                 <button
                   type="button"
-                  disabled={isSaving}
+                  disabled={isSaving || isConverting}
                   onClick={() => void savePayment("confirm")}
                   className="inline-flex h-12 items-center justify-center gap-2 rounded-2xl border border-emerald-400/20 bg-emerald-500/10 px-5 text-sm font-semibold text-emerald-100 transition hover:bg-emerald-500/15 disabled:cursor-not-allowed disabled:opacity-50"
                 >
@@ -1422,7 +1746,7 @@ export default function FinanceExpensesPaymentsMadeNewPage() {
 
                 <button
                   type="button"
-                  disabled={isSaving}
+                  disabled={isSaving || isConverting}
                   onClick={() => void savePayment("draft")}
                   className="inline-flex h-12 items-center justify-center gap-2 rounded-2xl border border-white/10 bg-white/[0.05] px-5 text-sm font-semibold text-slate-300 transition hover:bg-white/[0.08] hover:text-white disabled:cursor-not-allowed disabled:opacity-50"
                 >
@@ -1437,7 +1761,7 @@ export default function FinanceExpensesPaymentsMadeNewPage() {
 
               <div className="mt-4 rounded-[24px] border border-white/10 bg-black/20 p-4 text-xs leading-5 text-slate-500">
                 Confirming calls <span className="text-slate-300">finance_confirm_payment_made</span>.
-                Expense coverage updates from the allocation table automatically.
+                Currency conversion is saved into payment and allocation metadata.
               </div>
             </section>
 
@@ -1449,8 +1773,9 @@ export default function FinanceExpensesPaymentsMadeNewPage() {
                     What this page does
                   </div>
                   <div className="mt-2 text-xs leading-5 text-slate-500">
-                    It creates a Payment Made record, links it to selected expenses, allocates
-                    amounts, stores proof metadata, and optionally confirms the payment.
+                    It creates a Payment Made record from an allocated funding batch,
+                    distributes the payment amount to selected expenses, converts currencies,
+                    and optionally confirms the payment.
                   </div>
                 </div>
               </div>
@@ -1464,8 +1789,8 @@ export default function FinanceExpensesPaymentsMadeNewPage() {
                     What this page does not do
                   </div>
                   <div className="mt-2 text-xs leading-5 text-slate-500">
-                    It does not handle reimbursements, vendor bills, payroll, or other
-                    payment-made flows. Those stay in their own pages.
+                    It does not create funding reserves. Funding Allocation is handled by the
+                    funding batch pages before this payment step.
                   </div>
                 </div>
               </div>

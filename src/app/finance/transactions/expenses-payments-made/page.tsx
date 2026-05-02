@@ -472,7 +472,6 @@ export default function FinanceExpensesPaymentsMadePage() {
   const [payments, setPayments] = useState<PaymentMadeRow[]>([]);
   const [expenseAllocations, setExpenseAllocations] = useState<ExpenseAllocationRow[]>([]);
   const [searchQuery, setSearchQuery] = useState("");
-  const [selectedFundingBatchId, setSelectedFundingBatchId] = useState("");
   const [isLoading, setIsLoading] = useState(true);
   const [isRunningAction, setIsRunningAction] = useState(false);
   const [pageError, setPageError] = useState<string | null>(null);
@@ -1421,7 +1420,6 @@ export default function FinanceExpensesPaymentsMadePage() {
                   </td>
                   <td className="px-5 py-4">
                     <div className="flex flex-wrap items-center justify-end gap-2">
-                    <div className="flex flex-wrap items-center justify-end gap-2">
                       <ActionButton
                         label="Open"
                         icon={Eye}
@@ -1786,36 +1784,26 @@ export default function FinanceExpensesPaymentsMadePage() {
               <div className="grid gap-4">
                 <div className="rounded-[24px] border border-white/10 bg-black/20 p-4">
                   <div className="text-sm font-semibold text-white">
-                    Selected funding batch
+                    Funding allocation happens on the full Funding Allocation page.
                   </div>
-                  <div className="mt-2 grid gap-3 md:grid-cols-[minmax(0,1fr)_auto] md:items-center">
-                    <select
-                      value={selectedFundingBatchId}
-                      onChange={(event) => setSelectedFundingBatchId(event.target.value)}
-                      className="h-11 w-full rounded-2xl border border-white/10 bg-black/20 px-4 text-sm text-white outline-none transition focus:border-cyan-400/30 focus:bg-black/30"
-                    >
-                      <option value="">Use first active batch / select a batch</option>
-                      {activeFundingBatches.map((batch) => (
-                        <option key={batch.id} value={batch.id}>
-                          {batch.batch_number} •{" "}
-                          {companyMap.get(batch.funding_company_id)?.name || "Company"} •{" "}
-                          {formatMoney(batch.allocated_amount)}
-                        </option>
-                      ))}
-                    </select>
+                  <div className="mt-2 flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
+                    <p className="text-sm leading-6 text-slate-500">
+                      Select an expense below and click Allocate, or create a new funding
+                      allocation batch for multiple verified expenses.
+                    </p>
 
                     <button
                       type="button"
                       disabled={isRunningAction}
                       onClick={openCreateFundingBatchModal}
-                      className="inline-flex h-11 items-center justify-center gap-2 rounded-2xl border border-violet-400/20 bg-violet-500/10 px-4 text-sm font-semibold text-violet-100 transition hover:bg-violet-500/15 disabled:cursor-not-allowed disabled:opacity-50"
+                      className="inline-flex h-11 shrink-0 items-center justify-center gap-2 rounded-2xl border border-violet-400/20 bg-violet-500/10 px-4 text-sm font-semibold text-violet-100 transition hover:bg-violet-500/15 disabled:cursor-not-allowed disabled:opacity-50"
                     >
                       <Archive className="h-4 w-4" />
                       Create Funding Allocation
                     </button>
                   </div>
                 </div>
-
+                
                 {renderExpenseTable(verifiedRows, "verified")}
               </div>
             ) : null}

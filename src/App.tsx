@@ -108,6 +108,8 @@ import FinancePaymentsMadePage from "@/app/finance/transactions/expenses-payment
 import FinanceNewPaymentMadePage from "@/app/finance/transactions/expenses-payments-made/new/page";
 import PaymentMadeDetailPage from "@/app/finance/transactions/expenses-payments-made/[id]/page";
 import FinanceExpensePaymentReviewPage from "@/app/finance/transactions/expenses-payments-made/review/[id]/page";
+import FinanceExpenseFundingBatchNewPage from "@/app/finance/transactions/expenses-payments-made/funding-batches/new/page";
+import FinanceExpenseFundingBatchDetailPage from "@/app/finance/transactions/expenses-payments-made/funding-batches/[id]/page";
 import PaymentsReceivedPage from "@/app/finance/transactions/payments-received/page";
 import PaymentReceivedDetailPage from "@/app/finance/transactions/payments-received/[id]/page";
 import NewPaymentReceivedPage from "@/app/finance/transactions/payments-received/new/page";
@@ -1427,6 +1429,28 @@ function AppRoutes() {
     <ProtectedRoute>
       <DashboardLayout>
         <FinanceExpensePaymentReviewPage />
+      </DashboardLayout>
+    </ProtectedRoute>
+  }
+/>
+
+<Route
+  path="/finance/transactions/expenses-payments-made/funding-batches/new"
+  element={
+    <ProtectedRoute>
+      <DashboardLayout>
+        <FinanceExpenseFundingBatchNewPage />
+      </DashboardLayout>
+    </ProtectedRoute>
+  }
+/>
+
+<Route
+  path="/finance/transactions/expenses-payments-made/funding-batches/:id"
+  element={
+    <ProtectedRoute>
+      <DashboardLayout>
+        <FinanceExpenseFundingBatchDetailPage />
       </DashboardLayout>
     </ProtectedRoute>
   }

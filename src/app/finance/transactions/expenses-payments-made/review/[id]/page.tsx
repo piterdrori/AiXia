@@ -1610,8 +1610,9 @@ export default function FinanceExpenseReviewPage() {
     if (isVerifiedForPayment) {
       return (
         <div className="rounded-[24px] border border-emerald-400/20 bg-emerald-500/10 p-4 text-sm leading-6 text-emerald-100">
-          This expense is verified and ready for payment execution. Use Funding Allocation or
-          Expense Payments from the payment control page.
+          This expense is verified and ready to be included in the monthly payment cycle. No
+          single-expense payment action is needed here. Finance will allocate funds and distribute
+          payments later from the separate Payment Execution Tools.
         </div>
       );
     }
@@ -2125,45 +2126,36 @@ export default function FinanceExpenseReviewPage() {
           <aside className="sticky top-6 grid gap-6">
             <SectionCard
               title="Finance Decision"
-              description="Only the valid action for the current workflow stage is shown."
+              description="This page controls only the expense review flow, not monthly fund allocation or payment distribution."
               icon={ShieldCheck}
             >
               <div className="grid gap-4">
                 {renderStageGuidance()}
 
-                <TextareaField
-                  label="Finance Notes / Reason"
-                  value={financeNotes}
-                  onChange={setFinanceNotes}
-                  placeholder="Write approval notes, rejection reason, review issue, or confirmation notes."
-                />
+                {isInitialReviewStage || isDocumentationSubmitted ? (
+                  <TextareaField
+                    label="Finance Notes / Reason"
+                    value={financeNotes}
+                    onChange={setFinanceNotes}
+                    placeholder="Write approval notes, rejection reason, or document review issue."
+                  />
+                ) : null}
 
                 {renderFinanceActions()}
 
                 {isVerifiedForPayment ? (
-                  <div className="grid gap-3">
-                    <ActionButton
-                      label="Create Funding Allocation"
-                      icon={WalletCards}
-                      tone="violet"
-                      disabled={actionLocked}
-                      onClick={() =>
-                        navigate(
-                          `/finance/transactions/expenses-payments-made/funding-batches/new?expenseId=${expense.id}`
-                        )
-                      }
-                    />
-                    <ActionButton
-                      label="Create Expense Payment"
-                      icon={WalletCards}
-                      tone="emerald"
-                      disabled={actionLocked}
-                      onClick={() =>
-                        navigate(
-                          `/finance/transactions/expenses-payments-made/new?source=expense&expenseId=${expense.id}`
-                        )
-                      }
-                    />
+                  <div className="rounded-[24px] border border-cyan-400/20 bg-cyan-500/10 p-4 text-sm leading-6 text-cyan-100">
+                    <div className="text-[11px] font-semibold uppercase tracking-[0.18em] text-cyan-200">
+                      Ready To Pay
+                    </div>
+                    <div className="mt-3 font-semibold text-white">
+                      This expense is complete from the review side.
+                    </div>
+                    <div className="mt-2 text-sm leading-6 text-cyan-100/75">
+                      It will wait in the monthly Finance payment cycle until Finance allocates a
+                      pool of money and distributes payments across verified expenses. The only
+                      later connection back to this expense is recipient confirmation after payment.
+                    </div>
                   </div>
                 ) : null}
 

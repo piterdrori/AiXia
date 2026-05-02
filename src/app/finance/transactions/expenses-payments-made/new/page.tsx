@@ -100,6 +100,14 @@ type FundingBatchRow = {
   notes: string | null;
 };
 
+type ExistingExpenseAllocationRow = {
+  id: string;
+  expense_id: string;
+  payment_made_id: string;
+};
+
+type ExpenseAllocationDraft = {
+
 type ExpenseAllocationDraft = {
   expenseId: string;
   paymentCurrencyAmount: string;
@@ -516,6 +524,9 @@ export default function FinanceExpensesPaymentsMadeNewPage() {
   const [bankAccounts, setBankAccounts] = useState<BankAccountRow[]>([]);
   const [currencies, setCurrencies] = useState<CurrencyRow[]>([]);
   const [fundingBatches, setFundingBatches] = useState<FundingBatchRow[]>([]);
+  const [alreadyPaidExpenseIds, setAlreadyPaidExpenseIds] = useState<Set<string>>(
+    () => new Set()
+  );
   const [selectedExpenseIds, setSelectedExpenseIds] = useState<string[]>(
     initialExpenseId ? [initialExpenseId] : []
   );
@@ -590,8 +601,9 @@ export default function FinanceExpensesPaymentsMadeNewPage() {
         expense.finance_review_status === "approved_for_payment";
 
       const isNotFullyCovered = expense.coverage_status !== "covered";
+      const isNotAlreadyPaid = !alreadyPaidExpenseIds.has(expense.id);
 
-      if (!isReady || !isNotFullyCovered) return false;
+      if (!isReady || !isNotFullyCovered || !isNotAlreadyPaid) return false;
 
       if (!normalizedSearch) return true;
 
@@ -614,7 +626,7 @@ export default function FinanceExpensesPaymentsMadeNewPage() {
 
       return content.includes(normalizedSearch);
     });
-  }, [enrichedExpenses, normalizedSearch]);
+  }, [alreadyPaidExpenseIds, enrichedExpenses, normalizedSearch]);
 
   const selectedExpenses = useMemo(() => {
     return enrichedExpenses.filter((expense) => selectedExpenseIds.includes(expense.id));
@@ -679,6 +691,7 @@ export default function FinanceExpensesPaymentsMadeNewPage() {
         bankAccountsResult,
         currenciesResult,
         fundingBatchesResult,
+        existingAllocationsResult,
       ] = await Promise.all([
         supabase
           .from("finance_expenses")
@@ -745,6 +758,11 @@ export default function FinanceExpensesPaymentsMadeNewPage() {
           .eq("status", "allocated")
           .order("updated_at", { ascending: false })
           .limit(300),
+
+        supabase
+          .from("finance_payment_made_expense_allocations")
+          .select("id, expense_id, payment_made_id")
+          .not("expense_id", "is", null),
       ]);
 
       if (expensesResult.error) throw expensesResult.error;
@@ -753,10 +771,13 @@ export default function FinanceExpensesPaymentsMadeNewPage() {
       if (bankAccountsResult.error) throw bankAccountsResult.error;
       if (currenciesResult.error) throw currenciesResult.error;
       if (fundingBatchesResult.error) throw fundingBatchesResult.error;
+      if (existingAllocationsResult.error) throw existingAllocationsResult.error;
 
       const loadedExpenses = (expensesResult.data || []) as unknown as ExpenseRow[];
       const loadedBatches = (fundingBatchesResult.data || []) as unknown as FundingBatchRow[];
       const loadedCurrencies = (currenciesResult.data || []) as unknown as CurrencyRow[];
+      const existingAllocations = (existingAllocationsResult.data ||
+        []) as unknown as ExistingExpenseAllocationRow[];
 
       setExpenses(loadedExpenses);
       setCompanies((companiesResult.data || []) as CompanyRow[]);
@@ -764,6 +785,9 @@ export default function FinanceExpensesPaymentsMadeNewPage() {
       setBankAccounts((bankAccountsResult.data || []) as BankAccountRow[]);
       setCurrencies(loadedCurrencies);
       setFundingBatches(loadedBatches);
+      setAlreadyPaidExpenseIds(
+        new Set(existingAllocations.map((allocation) => allocation.expense_id))
+      );
 
       const initialBatch = initialBatchId
         ? loadedBatches.find((batch) => batch.id === initialBatchId)
@@ -982,6 +1006,15 @@ export default function FinanceExpensesPaymentsMadeNewPage() {
     if (!selectedFundingBatch.funding_bank_account_id) return "Paid-from bank account is missing from batch.";
     if (!paymentCurrencyCode) return "Payment currency is required.";
     if (selectedExpenseIds.length === 0) return "Select at least one expense.";
+
+    const duplicateSelectedExpense = selectedExpenseIds.find((expenseId) =>
+      alreadyPaidExpenseIds.has(expenseId)
+    );
+
+    if (duplicateSelectedExpense) {
+      return "One or more selected expenses already have a Payment Made allocation.";
+    }
+
     if (totalPaymentCurrencyAllocated <= 0) {
       return "Allocated payment amount must be greater than zero.";
     }
@@ -1013,6 +1046,7 @@ export default function FinanceExpensesPaymentsMadeNewPage() {
   }, [
     allocatedFundsAvailable,
     allocationDrafts,
+    alreadyPaidExpenseIds,
     conversionPreviews,
     form.paymentDate,
     fundingUsagePreview,
@@ -1054,6 +1088,20 @@ export default function FinanceExpensesPaymentsMadeNewPage() {
         const recipientNames = selectedExpenses
           .map((expense) => expense.madeByLabel)
           .filter(Boolean);
+
+        const duplicateCheckResult = await supabase
+          .from("finance_payment_made_expense_allocations")
+          .select("id, expense_id, payment_made_id")
+          .in("expense_id", selectedExpenseIds)
+          .limit(1);
+
+        if (duplicateCheckResult.error) throw duplicateCheckResult.error;
+
+        if ((duplicateCheckResult.data || []).length > 0) {
+          throw new Error(
+            "One or more selected expenses already have a Payment Made allocation. Reload the page and select only unpaid expenses."
+          );
+        }
 
         const paymentMetadata = {
           source_area: "expenses_payments_made",
@@ -1211,6 +1259,7 @@ export default function FinanceExpensesPaymentsMadeNewPage() {
     [
       allocatedFundsAvailable,
       allocationDrafts,
+      alreadyPaidExpenseIds,
       bankAccountMap,
       companyMap,
       conversionPreviews,

@@ -51,18 +51,36 @@ type CurrencyRow = {
 type FormState = {
   fundingCompanyId: string;
   fundingBankAccountId: string;
+  fundingPeriodFrom: string;
+  fundingPeriodTo: string;
   allocationDate: string;
   currencyCode: string;
-  allocatedFundsAmount: string;
+  fundingPoolAmount: string;
   notes: string;
 };
+
+function getTodayIsoDate() {
+  return new Date().toISOString().slice(0, 10);
+}
+
+function getCurrentMonthStartIsoDate() {
+  const today = new Date();
+  return new Date(today.getFullYear(), today.getMonth(), 1).toISOString().slice(0, 10);
+}
+
+function getCurrentMonthEndIsoDate() {
+  const today = new Date();
+  return new Date(today.getFullYear(), today.getMonth() + 1, 0).toISOString().slice(0, 10);
+}
 
 const initialFormState: FormState = {
   fundingCompanyId: "",
   fundingBankAccountId: "",
-  allocationDate: new Date().toISOString().slice(0, 10),
+  fundingPeriodFrom: getCurrentMonthStartIsoDate(),
+  fundingPeriodTo: getCurrentMonthEndIsoDate(),
+  allocationDate: getTodayIsoDate(),
   currencyCode: "USD",
-  allocatedFundsAmount: "",
+  fundingPoolAmount: "",
   notes: "",
 };
 
@@ -78,6 +96,19 @@ function formatMoney(value: number | string | null | undefined) {
   return toNumber(value).toLocaleString(undefined, {
     minimumFractionDigits: 2,
     maximumFractionDigits: 2,
+  });
+}
+
+function formatDate(value: string | null | undefined) {
+  if (!value) return "—";
+
+  const parsed = new Date(value);
+  if (Number.isNaN(parsed.getTime())) return value;
+
+  return parsed.toLocaleDateString(undefined, {
+    year: "numeric",
+    month: "short",
+    day: "numeric",
   });
 }
 
@@ -188,14 +219,15 @@ export default function FinanceExpenseFundingBatchNewPage() {
   const [companies, setCompanies] = useState<CompanyRow[]>([]);
   const [bankAccounts, setBankAccounts] = useState<BankAccountRow[]>([]);
   const [currencies, setCurrencies] = useState<CurrencyRow[]>([]);
-  const [allocationProofFile, setAllocationProofFile] = useState<File | null>(null);
+  const [fundingProofFile, setFundingProofFile] = useState<File | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [isSaving, setIsSaving] = useState(false);
+  const [savingMode, setSavingMode] = useState<SaveMode | null>(null);
   const [pageError, setPageError] = useState<string | null>(null);
   const [pageMessage, setPageMessage] = useState<string | null>(null);
 
   const selectedCurrency = normalizeCurrencyCode(form.currencyCode || "USD");
-  const allocatedFundsAmount = toNumber(form.allocatedFundsAmount);
+  const fundingPoolAmount = toNumber(form.fundingPoolAmount);
 
   const companyMap = useMemo(() => {
     return new Map(companies.map((company) => [company.id, company]));
@@ -218,6 +250,11 @@ export default function FinanceExpenseFundingBatchNewPage() {
     companyMap.get(form.fundingCompanyId)?.name || "Not selected";
 
   const selectedBankLabel = getBankLabel(bankAccountMap.get(form.fundingBankAccountId));
+
+  const fundingPeriodLabel =
+    form.fundingPeriodFrom && form.fundingPeriodTo
+      ? `${formatDate(form.fundingPeriodFrom)} → ${formatDate(form.fundingPeriodTo)}`
+      : "Not selected";
 
   const updateField = useCallback(
     <Key extends keyof FormState>(key: Key, value: FormState[Key]) => {
@@ -304,10 +341,8 @@ export default function FinanceExpenseFundingBatchNewPage() {
         currencyCode: current.currencyCode || defaultCurrency,
       }));
     } catch (error) {
-      console.error("Failed to load funding allocation setup:", error);
-      setPageError(
-        error instanceof Error ? error.message : "Failed to load funding allocation setup."
-      );
+      console.error("Failed to load funding pool setup:", error);
+      setPageError(error instanceof Error ? error.message : "Failed to load funding pool setup.");
     } finally {
       setIsLoading(false);
     }
@@ -321,9 +356,14 @@ export default function FinanceExpenseFundingBatchNewPage() {
     (saveMode: SaveMode) => {
       if (!form.fundingCompanyId) return "Funding company is required.";
       if (!form.allocationDate) return "Allocation date is required.";
+      if (!form.fundingPeriodFrom) return "Funding period start date is required.";
+      if (!form.fundingPeriodTo) return "Funding period end date is required.";
+      if (form.fundingPeriodTo < form.fundingPeriodFrom) {
+        return "Funding period end date cannot be before the start date.";
+      }
       if (!selectedCurrency) return "Funding currency is required.";
-      if (allocatedFundsAmount <= 0) {
-        return "Allocated funds amount must be greater than zero.";
+      if (fundingPoolAmount <= 0) {
+        return "Funding pool amount must be greater than zero.";
       }
 
       const selectedBank = form.fundingBankAccountId
@@ -334,38 +374,40 @@ export default function FinanceExpenseFundingBatchNewPage() {
         return "Funding bank account must belong to the funding company.";
       }
 
-      if (saveMode === "allocated" && !allocationProofFile) {
-        return "Allocation proof document is required before marking funds allocated.";
+      if (saveMode === "allocated" && !fundingProofFile) {
+        return "Funding proof document is required before creating a confirmed funding pool.";
       }
 
       return null;
     },
     [
-      allocatedFundsAmount,
-      allocationProofFile,
       bankAccountMap,
       form.allocationDate,
       form.fundingBankAccountId,
       form.fundingCompanyId,
+      form.fundingPeriodFrom,
+      form.fundingPeriodTo,
+      fundingPoolAmount,
+      fundingProofFile,
       selectedCurrency,
     ]
   );
 
-  const uploadAllocationProof = useCallback(
+  const uploadFundingProof = useCallback(
     async (batchId: string) => {
-      if (!allocationProofFile) return false;
+      if (!fundingProofFile) return false;
 
       const authResult = await supabase.auth.getUser();
       if (authResult.error) throw authResult.error;
 
       const userId = authResult.data.user?.id ?? null;
-      const resolvedMimeType = resolveMimeType(allocationProofFile);
-      const safeFileName = allocationProofFile.name.replace(/[^\w.\-]+/g, "_");
+      const resolvedMimeType = resolveMimeType(fundingProofFile);
+      const safeFileName = fundingProofFile.name.replace(/[^\w.\-]+/g, "_");
       const filePath = `${batchId}/${Date.now()}-${safeFileName}`;
 
       const uploadResult = await supabase.storage
         .from("finance-expense-funding-batch-documents")
-        .upload(filePath, allocationProofFile, {
+        .upload(filePath, fundingProofFile, {
           contentType: resolvedMimeType,
           upsert: false,
         });
@@ -376,9 +418,9 @@ export default function FinanceExpenseFundingBatchNewPage() {
         .from("file_uploads")
         .insert({
           user_id: userId,
-          file_name: allocationProofFile.name,
+          file_name: fundingProofFile.name,
           file_path: uploadResult.data.path,
-          file_size: allocationProofFile.size,
+          file_size: fundingProofFile.size,
           mime_type: resolvedMimeType,
           entity_type: "finance_expense_funding_batch",
         })
@@ -392,10 +434,10 @@ export default function FinanceExpenseFundingBatchNewPage() {
         entity_id: batchId,
         file_upload_id: fileUploadResult.data.id,
         uploaded_by: userId,
-        notes: "Funding allocation proof",
+        notes: "Funding pool proof",
         metadata: {
           bucket: "finance-expense-funding-batch-documents",
-          uploaded_from: "funding_allocation_new_page",
+          uploaded_from: "funding_pool_new_page",
           resolved_mime_type: resolvedMimeType,
         },
       });
@@ -407,7 +449,7 @@ export default function FinanceExpenseFundingBatchNewPage() {
         {
           p_batch_id: batchId,
           p_documentation_status: "uploaded",
-          p_notes: "Funding allocation proof uploaded.",
+          p_notes: "Funding pool proof uploaded.",
         }
       );
 
@@ -415,12 +457,82 @@ export default function FinanceExpenseFundingBatchNewPage() {
 
       return true;
     },
-    [allocationProofFile]
+    [fundingProofFile]
   );
 
-  const saveFundingBatch = useCallback(
+          const uploadFundingProof = useCallback(
+    async (batchId: string) => {
+      if (!fundingProofFile) return false;
+
+      const authResult = await supabase.auth.getUser();
+      if (authResult.error) throw authResult.error;
+
+      const userId = authResult.data.user?.id ?? null;
+      const resolvedMimeType = resolveMimeType(fundingProofFile);
+      const safeFileName = fundingProofFile.name.replace(/[^\w.\-]+/g, "_");
+      const filePath = `${batchId}/${Date.now()}-${safeFileName}`;
+
+      const uploadResult = await supabase.storage
+        .from("finance-expense-funding-batch-documents")
+        .upload(filePath, fundingProofFile, {
+          contentType: resolvedMimeType,
+          upsert: false,
+        });
+
+      if (uploadResult.error) throw uploadResult.error;
+
+      const fileUploadResult = await supabase
+        .from("file_uploads")
+        .insert({
+          user_id: userId,
+          file_name: fundingProofFile.name,
+          file_path: uploadResult.data.path,
+          file_size: fundingProofFile.size,
+          mime_type: resolvedMimeType,
+          entity_type: "finance_expense_funding_batch",
+        })
+        .select("id")
+        .single();
+
+      if (fileUploadResult.error) throw fileUploadResult.error;
+
+      const attachmentResult = await supabase.from("finance_record_attachments").insert({
+        entity_type: "finance_expense_funding_batch",
+        entity_id: batchId,
+        file_upload_id: fileUploadResult.data.id,
+        uploaded_by: userId,
+        notes: "Funding pool proof",
+        metadata: {
+          bucket: "finance-expense-funding-batch-documents",
+          uploaded_from: "funding_pool_new_page",
+          resolved_mime_type: resolvedMimeType,
+        },
+      });
+
+      if (attachmentResult.error) throw attachmentResult.error;
+
+      const documentationResult = await supabase.rpc(
+        "finance_mark_expense_funding_batch_documentation",
+        {
+          p_batch_id: batchId,
+          p_documentation_status: "uploaded",
+          p_notes: "Funding pool proof uploaded.",
+        }
+      );
+
+      if (documentationResult.error) throw documentationResult.error;
+
+      return true;
+    },
+    [fundingProofFile]
+  );
+
+          const saveFundingBatch = useCallback(
     async (saveMode: SaveMode) => {
+      if (isSaving) return;
+
       setIsSaving(true);
+      setSavingMode(saveMode);
       setPageError(null);
       setPageMessage(null);
 
@@ -434,8 +546,10 @@ export default function FinanceExpenseFundingBatchNewPage() {
 
         const batchNotes = [
           form.notes.trim() || null,
-          `Allocated funds amount: ${selectedCurrency} ${formatMoney(allocatedFundsAmount)}`,
-          `Funding allocation type: lump_sum_reserve`,
+          `Funding pool amount: ${selectedCurrency} ${formatMoney(fundingPoolAmount)}`,
+          `Funding period: ${form.fundingPeriodFrom} to ${form.fundingPeriodTo}`,
+          `Funding pool type: monthly_or_period_reserve`,
+          `Control rule: no expense distribution on funding pool creation`,
         ]
           .filter(Boolean)
           .join("\n");
@@ -453,25 +567,30 @@ export default function FinanceExpenseFundingBatchNewPage() {
         const batchId = String(createResult.data || "");
 
         if (!batchId) {
-          throw new Error("Funding batch was created but no batch ID was returned.");
+          throw new Error("Funding pool was created but no batch ID was returned.");
         }
 
         const updateResult = await supabase
           .from("finance_expense_funding_batches")
           .update({
-            allocated_amount: allocatedFundsAmount,
+            allocated_amount: fundingPoolAmount,
             metadata: {
-              allocation_mode: "lump_sum_reserve",
-              allocated_funds_amount: allocatedFundsAmount,
-              allocated_funds_currency: selectedCurrency,
-              created_from: "funding_allocation_new_page",
+              allocation_mode: "funding_pool_reserve",
+              funding_pool_amount: fundingPoolAmount,
+              funding_pool_currency: selectedCurrency,
+              funding_period_from: form.fundingPeriodFrom,
+              funding_period_to: form.fundingPeriodTo,
+              created_from: "funding_pool_new_page",
+              process_scope: "payment_execution_tools",
+              expense_selection_allowed: false,
+              expense_distribution_allowed: false,
             },
           })
           .eq("id", batchId);
 
         if (updateResult.error) throw updateResult.error;
 
-        await uploadAllocationProof(batchId);
+        await uploadFundingProof(batchId);
 
         if (saveMode === "allocated") {
           const allocatedResult = await supabase.rpc(
@@ -486,29 +605,31 @@ export default function FinanceExpenseFundingBatchNewPage() {
 
         setPageMessage(
           saveMode === "allocated"
-            ? "Funding allocation created and marked allocated."
-            : "Funding allocation draft created."
+            ? "Funding pool created and confirmed."
+            : "Funding pool draft created."
         );
 
         navigate(`/finance/transactions/expenses-payments-made/funding-batches/${batchId}`);
       } catch (error) {
-        console.error("Failed to save funding allocation:", error);
-        setPageError(
-          error instanceof Error ? error.message : "Failed to save funding allocation."
-        );
+        console.error("Failed to save funding pool:", error);
+        setPageError(error instanceof Error ? error.message : "Failed to save funding pool.");
       } finally {
         setIsSaving(false);
+        setSavingMode(null);
       }
     },
     [
-      allocatedFundsAmount,
       form.allocationDate,
       form.fundingBankAccountId,
       form.fundingCompanyId,
+      form.fundingPeriodFrom,
+      form.fundingPeriodTo,
       form.notes,
+      fundingPoolAmount,
+      isSaving,
       navigate,
       selectedCurrency,
-      uploadAllocationProof,
+      uploadFundingProof,
       validateForm,
     ]
   );
@@ -526,36 +647,36 @@ export default function FinanceExpenseFundingBatchNewPage() {
               className="mb-5 inline-flex items-center justify-center gap-2 rounded-full border border-white/10 bg-white/[0.05] px-5 py-2 text-[11px] font-semibold uppercase tracking-[0.22em] text-slate-300 transition hover:border-white/20 hover:bg-white/[0.08] hover:text-white"
             >
               <ArrowRight className="h-3.5 w-3.5 rotate-180" />
-              Operating Expense Payments
+              Payment Control
             </button>
 
             <div className="grid gap-6 xl:grid-cols-[minmax(0,1fr)_520px] xl:items-end">
               <div>
                 <div className="inline-flex w-fit items-center gap-2 rounded-full border border-violet-400/20 bg-violet-500/10 px-3 py-1 text-[11px] font-semibold uppercase tracking-[0.22em] text-violet-200">
                   <Sparkles className="h-3.5 w-3.5" />
-                  New Funding Allocation
+                  New Funding Pool
                 </div>
 
                 <h1 className="mt-4 text-3xl font-semibold tracking-[-0.035em] text-white md:text-5xl">
-                  Create Funding Allocation Batch
+                  Create Monthly Funding Pool
                 </h1>
 
                 <p className="mt-3 max-w-4xl text-sm leading-6 text-slate-400 md:text-base md:leading-7">
-                  Reserve internal funds from a selected company and bank account. This page
-                  does not distribute funds to expenses.
+                  Reserve a pool of company money for a selected period. This page does not select
+                  expenses, distribute money, or connect this pool to one specific expense.
                 </p>
               </div>
 
               <div className="grid gap-3 sm:grid-cols-2">
                 <SummaryBlock
-                  title="Allocated Funds"
-                  value={`${selectedCurrency} ${formatMoney(allocatedFundsAmount)}`}
-                  subtitle="Total money Finance is reserving in this batch."
+                  title="Funding Pool"
+                  value={`${selectedCurrency} ${formatMoney(fundingPoolAmount)}`}
+                  subtitle="Total money Finance is reserving for the selected period."
                 />
                 <SummaryBlock
-                  title="Allocation Type"
-                  value="Lump Sum"
-                  subtitle="Distribution to expenses happens later in payment execution."
+                  title="Funding Period"
+                  value={fundingPeriodLabel}
+                  subtitle="The operating-expense period this pool is intended to cover."
                 />
               </div>
             </div>
@@ -583,10 +704,11 @@ export default function FinanceExpenseFundingBatchNewPage() {
                 </div>
                 <div>
                   <div className="text-sm font-semibold uppercase tracking-[0.18em] text-slate-400">
-                    Funding Allocation Setup
+                    Funding Pool Setup
                   </div>
                   <p className="mt-1 text-xs leading-5 text-slate-500">
-                    Pure fund reserve. No expense selection happens on this page.
+                    Create a Finance reserve for a period. Expense matching and disbursement happen
+                    later on the Expense Payments page.
                   </p>
                 </div>
               </div>
@@ -596,11 +718,9 @@ export default function FinanceExpenseFundingBatchNewPage() {
                   <span className={labelClass()}>Funding Company</span>
                   <select
                     value={form.fundingCompanyId}
-                    onChange={(event) =>
-                      updateField("fundingCompanyId", event.target.value)
-                    }
+                    onChange={(event) => updateField("fundingCompanyId", event.target.value)}
                     className={inputClass()}
-                    disabled={isLoading}
+                    disabled={isLoading || isSaving}
                   >
                     <option value="">Select company</option>
                     {companies.map((company) => (
@@ -615,10 +735,8 @@ export default function FinanceExpenseFundingBatchNewPage() {
                   <span className={labelClass()}>Funding Bank Account</span>
                   <select
                     value={form.fundingBankAccountId}
-                    onChange={(event) =>
-                      updateField("fundingBankAccountId", event.target.value)
-                    }
-                    disabled={!form.fundingCompanyId || isLoading}
+                    onChange={(event) => updateField("fundingBankAccountId", event.target.value)}
+                    disabled={!form.fundingCompanyId || isLoading || isSaving}
                     className={inputClass()}
                   >
                     <option value="">No bank selected</option>
@@ -635,11 +753,34 @@ export default function FinanceExpenseFundingBatchNewPage() {
                   <input
                     type="date"
                     value={form.allocationDate}
-                    onChange={(event) =>
-                      updateField("allocationDate", event.target.value)
-                    }
+                    onChange={(event) => updateField("allocationDate", event.target.value)}
                     className={inputClass()}
-                    disabled={isLoading}
+                    disabled={isLoading || isSaving}
+                  />
+                  <span className="text-xs leading-5 text-slate-500">
+                    The date Finance creates or approves this reserve.
+                  </span>
+                </label>
+
+                <label className="grid gap-2">
+                  <span className={labelClass()}>Funding Period From</span>
+                  <input
+                    type="date"
+                    value={form.fundingPeriodFrom}
+                    onChange={(event) => updateField("fundingPeriodFrom", event.target.value)}
+                    className={inputClass()}
+                    disabled={isLoading || isSaving}
+                  />
+                </label>
+
+                <label className="grid gap-2">
+                  <span className={labelClass()}>Funding Period To</span>
+                  <input
+                    type="date"
+                    value={form.fundingPeriodTo}
+                    onChange={(event) => updateField("fundingPeriodTo", event.target.value)}
+                    className={inputClass()}
+                    disabled={isLoading || isSaving}
                   />
                 </label>
 
@@ -649,7 +790,7 @@ export default function FinanceExpenseFundingBatchNewPage() {
                     value={selectedCurrency}
                     onChange={(event) => updateField("currencyCode", event.target.value)}
                     className={inputClass()}
-                    disabled={isLoading}
+                    disabled={isLoading || isSaving}
                   >
                     <option value="">Select currency</option>
                     {currencyOptions.map((currency) => (
@@ -661,29 +802,28 @@ export default function FinanceExpenseFundingBatchNewPage() {
                 </label>
 
                 <label className="grid gap-2">
-                  <span className={labelClass()}>Allocated Funds Amount</span>
+                  <span className={labelClass()}>Funding Pool Amount</span>
                   <input
-                    value={form.allocatedFundsAmount}
-                    onChange={(event) =>
-                      updateField("allocatedFundsAmount", event.target.value)
-                    }
+                    value={form.fundingPoolAmount}
+                    onChange={(event) => updateField("fundingPoolAmount", event.target.value)}
                     inputMode="decimal"
                     placeholder="0.00"
                     className={inputClass()}
-                    disabled={isLoading}
+                    disabled={isLoading || isSaving}
                   />
                   <span className="text-xs leading-5 text-slate-500">
-                    Total funds reserved by Finance.
+                    Total money reserved for this period.
                   </span>
                 </label>
 
-                <div className="grid gap-2">
-                  <span className={labelClass()}>Allocation Meaning</span>
-                  <div className="flex h-11 items-center rounded-2xl border border-emerald-400/15 bg-emerald-500/10 px-4 text-sm font-semibold text-emerald-100">
-                    Reserve only — no expense distribution
+                <div className="grid gap-2 md:col-span-2">
+                  <span className={labelClass()}>Pool Meaning</span>
+                  <div className="flex min-h-[44px] items-center rounded-2xl border border-emerald-400/15 bg-emerald-500/10 px-4 text-sm font-semibold text-emerald-100">
+                    Reserve only — no expense selection and no money distribution on this page
                   </div>
                   <span className="text-xs leading-5 text-slate-500">
-                    Expense matching happens later.
+                    This pool is used later by Expense Payments to reimburse or pay many verified
+                    expenses.
                   </span>
                 </div>
 
@@ -693,8 +833,8 @@ export default function FinanceExpenseFundingBatchNewPage() {
                     value={form.notes}
                     onChange={(event) => updateField("notes", event.target.value)}
                     className={textareaClass()}
-                    placeholder="Internal allocation notes"
-                    disabled={isLoading}
+                    placeholder="Internal funding notes, monthly context, approval reference, or reserve explanation"
+                    disabled={isLoading || isSaving}
                   />
                 </label>
               </div>
@@ -707,11 +847,11 @@ export default function FinanceExpenseFundingBatchNewPage() {
                 </div>
                 <div>
                   <div className="text-sm font-semibold uppercase tracking-[0.18em] text-slate-400">
-                    Allocation Proof
+                    Funding Proof
                   </div>
                   <p className="mt-1 text-xs leading-5 text-slate-500">
-                    Upload proof that funds were reserved or allocated. Required before
-                    marking allocated.
+                    Upload proof that this money pool was approved, reserved, or transferred.
+                    Required before creating a confirmed funding pool.
                   </p>
                 </div>
               </div>
@@ -721,19 +861,18 @@ export default function FinanceExpenseFundingBatchNewPage() {
                   <input
                     type="file"
                     accept=".pdf,.png,.jpg,.jpeg,.webp,.doc,.docx,.xls,.xlsx"
-                    onChange={(event) =>
-                      setAllocationProofFile(event.target.files?.[0] ?? null)
-                    }
-                    className="block w-full text-sm text-slate-400 file:mr-4 file:rounded-full file:border-0 file:bg-violet-500/10 file:px-4 file:py-2 file:text-sm file:font-semibold file:text-violet-100"
+                    disabled={isLoading || isSaving}
+                    onChange={(event) => setFundingProofFile(event.target.files?.[0] ?? null)}
+                    className="block w-full text-sm text-slate-400 file:mr-4 file:rounded-full file:border-0 file:bg-violet-500/10 file:px-4 file:py-2 file:text-sm file:font-semibold file:text-violet-100 disabled:cursor-not-allowed disabled:opacity-50"
                   />
 
-                  {allocationProofFile ? (
+                  {fundingProofFile ? (
                     <div className="mt-4 rounded-2xl border border-violet-400/15 bg-violet-500/10 px-4 py-3 text-sm text-violet-100">
-                      {allocationProofFile.name}
+                      {fundingProofFile.name}
                     </div>
                   ) : (
                     <div className="mt-4 rounded-2xl border border-amber-400/15 bg-amber-500/10 px-4 py-3 text-sm text-amber-100">
-                      Proof is optional for draft and required for allocated status.
+                      Proof is optional for draft and required for Create Funding Pool.
                     </div>
                   )}
                 </div>
@@ -743,11 +882,11 @@ export default function FinanceExpenseFundingBatchNewPage() {
                     Document Purpose
                   </div>
                   <div className="mt-3 text-sm font-semibold leading-6 text-white">
-                    Proof of internal money allocation
+                    Proof of internal funding pool approval or reserve
                   </div>
                   <div className="mt-3 text-sm leading-6 text-slate-400">
-                    This can be a bank confirmation, internal approval, finance allocation
-                    report, or signed reserve document.
+                    This can be a bank confirmation, internal approval, Finance allocation report,
+                    signed reserve document, or management approval.
                   </div>
                 </div>
               </div>
@@ -758,10 +897,10 @@ export default function FinanceExpenseFundingBatchNewPage() {
             <section className="overflow-hidden rounded-[30px] border border-white/10 bg-white/[0.045] backdrop-blur-xl">
               <div className="border-b border-white/10 px-5 py-4">
                 <div className="text-sm font-semibold uppercase tracking-[0.18em] text-slate-400">
-                  Allocation Summary
+                  Funding Pool Summary
                 </div>
                 <p className="mt-1 text-xs leading-5 text-slate-500">
-                  Review reserved funds before saving.
+                  Review the reserved money pool before saving.
                 </p>
               </div>
 
@@ -777,14 +916,19 @@ export default function FinanceExpenseFundingBatchNewPage() {
                   subtitle="Optional funding account reference."
                 />
                 <SummaryBlock
-                  title="Allocated Funds"
-                  value={`${selectedCurrency} ${formatMoney(allocatedFundsAmount)}`}
+                  title="Funding Period"
+                  value={fundingPeriodLabel}
+                  subtitle="The expense period this pool should cover."
+                />
+                <SummaryBlock
+                  title="Funding Pool"
+                  value={`${selectedCurrency} ${formatMoney(fundingPoolAmount)}`}
                   subtitle="Total internal money reserved."
                 />
                 <SummaryBlock
                   title="Proof Status"
-                  value={allocationProofFile ? "Attached" : "Not Attached"}
-                  subtitle="Required before Create & Mark Allocated."
+                  value={fundingProofFile ? "Attached" : "Not Attached"}
+                  subtitle="Required before Create Funding Pool."
                 />
               </div>
             </section>
@@ -797,12 +941,12 @@ export default function FinanceExpenseFundingBatchNewPage() {
                   onClick={() => void saveFundingBatch("allocated")}
                   className="inline-flex h-12 items-center justify-center gap-2 rounded-2xl border border-emerald-400/20 bg-emerald-500/10 px-5 text-sm font-semibold text-emerald-100 transition hover:bg-emerald-500/15 disabled:cursor-not-allowed disabled:opacity-50"
                 >
-                  {isSaving ? (
+                  {savingMode === "allocated" ? (
                     <Loader2 className="h-4 w-4 animate-spin" />
                   ) : (
                     <CheckCircle2 className="h-4 w-4" />
                   )}
-                  Create & Mark Allocated
+                  {savingMode === "allocated" ? "Creating Funding Pool..." : "Create Funding Pool"}
                 </button>
 
                 <button
@@ -811,52 +955,51 @@ export default function FinanceExpenseFundingBatchNewPage() {
                   onClick={() => void saveFundingBatch("draft")}
                   className="inline-flex h-12 items-center justify-center gap-2 rounded-2xl border border-white/10 bg-white/[0.05] px-5 text-sm font-semibold text-slate-300 transition hover:bg-white/[0.08] hover:text-white disabled:cursor-not-allowed disabled:opacity-50"
                 >
-                  {isSaving ? (
+                  {savingMode === "draft" ? (
                     <Loader2 className="h-4 w-4 animate-spin" />
                   ) : (
                     <Save className="h-4 w-4" />
                   )}
-                  Save Draft
+                  {savingMode === "draft" ? "Saving Draft..." : "Save Draft"}
                 </button>
               </div>
 
               <div className="mt-4 rounded-[24px] border border-white/10 bg-black/20 p-4 text-xs leading-5 text-slate-500">
-                This creates a funding reserve only. Expense distribution happens later
-                from Operating Expense Payment execution.
+                This creates a funding pool only. Expense matching and payment distribution happen
+                later from Expense Payments.
               </div>
             </section>
 
-            <InfoCard icon={Coins} title="Funding Allocation">
-              Reserve a lump sum of internal funds from one company and optional bank
-              account.
+            <InfoCard icon={Coins} title="Funding Pool">
+              Reserve a period-based money pool from one company and optional bank account.
             </InfoCard>
 
-            <InfoCard icon={WalletCards} title="Payment Execution">
-              Actual payment and expense matching happen on the New Operating Expense
-              Payment page.
+            <InfoCard icon={WalletCards} title="Expense Payments">
+              Actual distribution across verified expenses happens later on the Expense Payments
+              page.
             </InfoCard>
 
             <InfoCard icon={ShieldCheck} title="Control Rule">
-              Draft can be saved without proof. Mark Allocated requires proof.
+              Draft can be saved without proof. Create Funding Pool requires proof.
             </InfoCard>
 
             <InfoCard icon={Building2} title="No Expense Selection">
-              This page does not select or distribute money to expenses.
+              This page does not select, match, or distribute money to individual expenses.
             </InfoCard>
 
-            <InfoCard icon={CalendarDays} title="Audit Context">
-              Allocation date, company, bank, currency, amount, and proof are stored for
-              finance review.
+            <InfoCard icon={CalendarDays} title="Funding Period">
+              Funding Period From/To is stored in metadata for now so Finance can group monthly or
+              custom-period reserves.
             </InfoCard>
 
             <InfoCard icon={Banknote} title="Backend">
-              Uses funding batch creation, proof documentation, and mark allocated RPCs
-              only.
+              Uses funding batch creation, proof documentation, mark allocated RPC, and metadata for
+              the period.
             </InfoCard>
 
             <InfoCard icon={FileCheck2} title="Clean Split">
-              Funding Allocation reserves funds. Operating Expense Payment distributes
-              funds against expenses.
+              Funding Pool reserves money. Expense Payments distributes that money across verified
+              expenses.
             </InfoCard>
           </aside>
         </div>

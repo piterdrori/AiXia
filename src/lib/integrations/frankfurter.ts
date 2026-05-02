@@ -126,8 +126,8 @@ export async function convertCurrencyAtDate(
   const url =
     `${FRANKFURTER_API_BASE}/${encodeURIComponent(date)}` +
     `?amount=${encodeURIComponent(String(amount))}` +
-    `&base=${encodeURIComponent(from)}` +
-    `&symbols=${encodeURIComponent(to)}`;
+    `&from=${encodeURIComponent(from)}` +
+    `&to=${encodeURIComponent(to)}`;
 
   const response = await fetch(url, {
     method: "GET",
@@ -141,27 +141,25 @@ export async function convertCurrencyAtDate(
   }
 
   const data = (await response.json()) as {
-    amount?: number;
+    amount: number;
     base: string;
     date: string;
     rates: Record<string, number>;
   };
 
-  const rate = data.rates?.[to];
+  const convertedAmount = data.rates?.[to];
 
-  if (typeof rate !== "number") {
-    throw new Error("Target conversion rate was not returned.");
+  if (typeof convertedAmount !== "number") {
+    throw new Error("Target conversion amount was not returned.");
   }
 
-  const convertedAmount = amount * rate;
-
   return {
-    amount,
+    amount: data.amount,
     base: data.base,
     date: data.date,
     rates: data.rates,
     convertedAmount,
-    rate,
+    rate: convertedAmount / amount,
     targetCurrency: to,
   };
 }

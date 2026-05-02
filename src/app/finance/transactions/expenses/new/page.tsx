@@ -797,7 +797,6 @@ export default function FinanceNewExpensePage() {
   const [formError, setFormError] = useState<string | null>(null);
   const [formSuccess, setFormSuccess] = useState<string | null>(null);
 
-  const isOnlineShopping = form.expenseType === "online_shopping";
   const isOtherExpenseType = form.expenseType === "other";
   const isSubscriptionType = form.expenseType === "software_subscription";
   const isSubscriptionExpense = isSubscriptionType || form.isSubscriptionExpense;
@@ -1643,7 +1642,20 @@ export default function FinanceNewExpensePage() {
           expense_type_details: expenseTypeDetails,
           online_shopping:
             form.expenseType === "online_shopping"
-              ? expenseTypeDetails.online_shopping
+              ? {
+                  platform: getOptionLabel(
+                    ONLINE_PLATFORMS,
+                    form.onlinePlatform,
+                    form.onlinePlatformOther
+                  ),
+                  platform_key: form.onlinePlatform,
+                  platform_other:
+                    form.onlinePlatform === "other" ? form.onlinePlatformOther.trim() : null,
+                  order_number: form.onlineOrderNumber.trim(),
+                  order_date: form.onlineOrderDate || null,
+                  order_url: form.onlineOrderUrl.trim(),
+                  tracking_number: form.onlineTrackingNumber.trim(),
+                }
               : null,
           subscription: subscriptionMetadata,
           credit_card:

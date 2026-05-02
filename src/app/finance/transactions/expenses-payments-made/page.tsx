@@ -1087,75 +1087,6 @@ export default function FinanceExpensesPaymentsMadePage() {
     navigate("/finance/transactions/expenses-payments-made/funding-batches/new");
   }, [navigate]);
 
-  const addExpenseToFundingBatch = useCallback(
-    async (expense: EnrichedExpense) => {
-      const batchId = selectedFundingBatchId || activeFundingBatches[0]?.id;
-
-      if (!batchId) {
-        setPageError("Create or select a funding batch first.");
-        return;
-      }
-
-      const amountInput = window.prompt(
-        "Allocated amount",
-        String(expense.final_amount || expense.approved_amount || expense.requested_amount || expense.amount || "")
-      );
-
-      if (amountInput === null) return;
-
-      const amount = Number(amountInput);
-
-      if (!Number.isFinite(amount) || amount <= 0) {
-        setPageError("Allocated amount must be greater than zero.");
-        return;
-      }
-
-      const notes = window.prompt("Allocation notes, optional", "") || null;
-
-      await runExpenseRpc(
-        "finance_add_expense_to_funding_batch",
-        {
-          p_batch_id: batchId,
-          p_expense_id: expense.id,
-          p_allocated_amount: amount,
-          p_notes: notes,
-        },
-        "Expense added to funding batch."
-      );
-    },
-    [activeFundingBatches, runExpenseRpc, selectedFundingBatchId]
-  );
-
-  const markBatchAllocated = useCallback(
-    async (batch: EnrichedFundingBatch) => {
-      await runExpenseRpc(
-        "finance_mark_expense_funding_batch_allocated",
-        {
-          p_batch_id: batch.id,
-        },
-        "Funding batch marked allocated."
-      );
-    },
-    [runExpenseRpc]
-  );
-
-  const markBatchDocumentation = useCallback(
-    async (batch: EnrichedFundingBatch, documentationStatus: "uploaded" | "linked" | "files_and_links" | "verified" | "issue_found") => {
-      const notes = window.prompt("Documentation notes, optional", "") || null;
-
-      await runExpenseRpc(
-        "finance_mark_expense_funding_batch_documentation",
-        {
-          p_batch_id: batch.id,
-          p_documentation_status: documentationStatus,
-          p_notes: notes,
-        },
-        "Funding batch documentation updated."
-      );
-    },
-    [runExpenseRpc]
-  );
-
   const renderExpenseTable = useCallback(
     (rows: EnrichedExpense[], mode: "permission" | "approved" | "documentation" | "verified" | "recipient") => {
       if (rows.length === 0) {
@@ -1408,7 +1339,6 @@ export default function FinanceExpensesPaymentsMadePage() {
       );
     },
     [
-      addExpenseToFundingBatch,
       approveExpense,
       confirmOnlineShopping,
       isRunningAction,
@@ -1491,38 +1421,30 @@ export default function FinanceExpensesPaymentsMadePage() {
                   </td>
                   <td className="px-5 py-4">
                     <div className="flex flex-wrap items-center justify-end gap-2">
+                    <div className="flex flex-wrap items-center justify-end gap-2">
                       <ActionButton
-                        label="Use"
-                        icon={CheckCircle2}
-                        tone={selectedFundingBatchId === batch.id ? "emerald" : "cyan"}
+                        label="Open"
+                        icon={Eye}
+                        tone="cyan"
                         disabled={isRunningAction}
-                        onClick={() => setSelectedFundingBatchId(batch.id)}
+                        onClick={() =>
+                          navigate(
+                            `/finance/transactions/expenses-payments-made/funding-batches/${batch.id}`
+                          )
+                        }
                       />
-                      <ActionButton
-                        label="Allocated"
-                        icon={ShieldCheck}
-                        tone="emerald"
-                        disabled={isRunningAction}
-                        onClick={() => void markBatchAllocated(batch)}
-                      />
-                      <ActionButton
-                        label="Docs"
-                        icon={FileCheck2}
-                        tone="violet"
-                        disabled={isRunningAction}
-                        onClick={() => void markBatchDocumentation(batch, "verified")}
-                      />
+
                       <ActionButton
                         label="Pay"
                         icon={WalletCards}
-                        tone="amber"
+                        tone="emerald"
                         disabled={isRunningAction}
                         onClick={() =>
-                        navigate(
-                      `/finance/transactions/expenses-payments-made/new?source=batch&batchId=${batch.id}`
-                        )
-                       }
-                     />
+                          navigate(
+                            `/finance/transactions/expenses-payments-made/new?source=batch&batchId=${batch.id}`
+                          )
+                        }
+                      />
                     </div>
                   </td>
                 </tr>
@@ -1532,14 +1454,7 @@ export default function FinanceExpensesPaymentsMadePage() {
         </div>
       </div>
     );
-  }, [
-    filteredBatches,
-    isRunningAction,
-    markBatchAllocated,
-    markBatchDocumentation,
-    navigate,
-    selectedFundingBatchId,
-  ]);
+  }, [filteredBatches, isRunningAction, navigate]);
 
   const renderPayments = useCallback(() => {
     if (filteredPayments.length === 0) {

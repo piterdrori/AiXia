@@ -1286,110 +1286,104 @@ export default function FinanceExpensesPaymentsMadePage() {
         );
       }
 
-      return rows.map((expense) => (
-        <tr
-          key={expense.id}
-          className="border-b border-white/5 text-sm text-slate-300 transition hover:bg-white/[0.035]"
-        >
-          <td className="min-w-[260px] px-5 py-4">
-            <button
-              type="button"
-              onClick={() => navigate(`/finance/transactions/expenses/${expense.id}`)}
-              className="text-left font-semibold text-cyan-200 transition hover:text-cyan-100"
-            >
-              {expense.expense_number || "Expense"}
-            </button>
-            <div className="mt-1 line-clamp-1 text-xs text-white">{expense.title}</div>
-            <div className="mt-1 text-xs text-slate-500">
-              {formatDate(expense.expense_date)} • {expense.companyName}
-            </div>
-          </td>
+      return rows.map((expense) => {
+        const reviewRoute = `/finance/transactions/expenses-payments-made/review/${expense.id}`;
 
-          <td className="min-w-[220px] px-5 py-4">
-            <div className="line-clamp-1 font-medium text-slate-200">
-              {expense.madeByLabel}
-            </div>
-            <div className="mt-1 text-xs text-slate-500">
-              {formatLabel(expense.expense_made_by_type)}
-            </div>
-          </td>
+        return (
+          <tr
+            key={expense.id}
+            className="border-b border-white/5 text-sm text-slate-300 transition hover:bg-white/[0.035]"
+          >
+            <td className="min-w-[260px] px-5 py-4">
+              <button
+                type="button"
+                onClick={() => navigate(reviewRoute)}
+                className="text-left font-semibold text-cyan-200 transition hover:text-cyan-100"
+              >
+                {expense.expense_number || "Expense"}
+              </button>
+              <div className="mt-1 line-clamp-1 text-xs text-white">{expense.title}</div>
+              <div className="mt-1 text-xs text-slate-500">
+                {formatDate(expense.expense_date)} • {expense.companyName}
+              </div>
+            </td>
 
-          <td className="min-w-[180px] px-5 py-4">
-            <div className="font-medium text-slate-200">
-              {formatLabel(expense.expense_type)}
-            </div>
-            <div className="mt-1 line-clamp-1 text-xs text-slate-500">
-              {expense.expense_source_name || "—"}
-            </div>
-          </td>
+            <td className="min-w-[220px] px-5 py-4">
+              <div className="line-clamp-1 font-medium text-slate-200">
+                {expense.madeByLabel}
+              </div>
+              <div className="mt-1 text-xs text-slate-500">
+                {formatLabel(expense.expense_made_by_type)}
+              </div>
+            </td>
 
-          <td className="whitespace-nowrap px-5 py-4 text-right font-semibold text-white">
-            {expense.currency_code || "USD"} {formatMoney(expense.targetAmount)}
-            <div className="mt-1 text-xs text-slate-500">
-              Covered {formatMoney(expense.allocatedAmount)}
-            </div>
-          </td>
+            <td className="min-w-[180px] px-5 py-4">
+              <div className="font-medium text-slate-200">
+                {formatLabel(expense.expense_type)}
+              </div>
+              <div className="mt-1 line-clamp-1 text-xs text-slate-500">
+                {expense.expense_source_name || "—"}
+              </div>
+            </td>
 
-          <td className="whitespace-nowrap px-5 py-4">
-            <StatusBadge value={expense.documentation_status} />
-          </td>
+            <td className="whitespace-nowrap px-5 py-4 text-right font-semibold text-white">
+              {expense.currency_code || "USD"} {formatMoney(expense.targetAmount)}
+              <div className="mt-1 text-xs text-slate-500">
+                Covered {formatMoney(expense.allocatedAmount)}
+              </div>
+            </td>
 
-          <td className="whitespace-nowrap px-5 py-4">
-            <StatusBadge value={expense.finance_review_status} />
-          </td>
+            <td className="whitespace-nowrap px-5 py-4">
+              <StatusBadge value={expense.documentation_status} />
+            </td>
 
-          <td className="whitespace-nowrap px-5 py-4">
-            <StatusBadge value={expense.coverage_status} />
-          </td>
+            <td className="whitespace-nowrap px-5 py-4">
+              <StatusBadge value={expense.finance_review_status} />
+            </td>
 
-          <td className="whitespace-nowrap px-5 py-4">
-            <StatusBadge value={expense.recipient_confirmation_status} />
-          </td>
+            <td className="whitespace-nowrap px-5 py-4">
+              <StatusBadge value={expense.coverage_status} />
+            </td>
 
-          <td className="min-w-[300px] px-5 py-4">
-            <SoftBadge value={expense.nextStepLabel} tone={expense.nextStepTone} />
-            <div className="mt-2 text-xs text-slate-500">
-              {formatLabel(expense.request_status || expense.status)}
-            </div>
-          </td>
+            <td className="whitespace-nowrap px-5 py-4">
+              <StatusBadge value={expense.recipient_confirmation_status} />
+            </td>
 
-          <td className="sticky right-0 bg-[#05070d]/95 px-4 py-4 shadow-[-18px_0_24px_rgba(0,0,0,0.35)] backdrop-blur-xl">
-            <div className="flex items-center justify-end gap-2">
-              <IconButton
-                label="Open expense"
-                icon={Eye}
-                tone="cyan"
-                disabled={isRunningAction}
-                onClick={() => navigate(`/finance/transactions/expenses/${expense.id}`)}
-              />
+            <td className="min-w-[300px] px-5 py-4">
+              <SoftBadge value={expense.nextStepLabel} tone={expense.nextStepTone} />
+              <div className="mt-2 text-xs text-slate-500">
+                {formatLabel(expense.request_status || expense.status)}
+              </div>
+            </td>
 
-              {mode === "active" ? (
-                <>
-                  <IconButton
-                    label="Archive expense"
-                    icon={Archive}
-                    tone="amber"
-                    disabled={isRunningAction}
-                    onClick={() => void runWorkflowAction("archive", expense.id)}
-                  />
-                  <IconButton
-                    label="Delete expense"
-                    icon={Trash2}
-                    tone="rose"
-                    disabled={isRunningAction}
-                    onClick={() => void runWorkflowAction("delete", expense.id)}
-                  />
-                </>
-              ) : archiveTab === "archived" ? (
+            <td className="sticky right-0 bg-[#05070d]/95 px-4 py-4 shadow-[-18px_0_24px_rgba(0,0,0,0.35)] backdrop-blur-xl">
+              <div className="flex items-center justify-end gap-2">
                 <IconButton
-                  label="Restore expense"
-                  icon={RotateCcw}
-                  tone="emerald"
+                  label="Open Finance review"
+                  icon={Eye}
+                  tone="cyan"
                   disabled={isRunningAction}
-                  onClick={() => void runWorkflowAction("restore", expense.id)}
+                  onClick={() => navigate(reviewRoute)}
                 />
-              ) : (
-                <>
+
+                {mode === "active" ? (
+                  <>
+                    <IconButton
+                      label="Archive expense"
+                      icon={Archive}
+                      tone="amber"
+                      disabled={isRunningAction}
+                      onClick={() => void runWorkflowAction("archive", expense.id)}
+                    />
+                    <IconButton
+                      label="Delete expense"
+                      icon={Trash2}
+                      tone="rose"
+                      disabled={isRunningAction}
+                      onClick={() => void runWorkflowAction("delete", expense.id)}
+                    />
+                  </>
+                ) : archiveTab === "archived" ? (
                   <IconButton
                     label="Restore expense"
                     icon={RotateCcw}
@@ -1397,19 +1391,29 @@ export default function FinanceExpensesPaymentsMadePage() {
                     disabled={isRunningAction}
                     onClick={() => void runWorkflowAction("restore", expense.id)}
                   />
-                  <IconButton
-                    label="Hard delete expense"
-                    icon={Trash2}
-                    tone="rose"
-                    disabled={isRunningAction}
-                    onClick={() => void runWorkflowAction("hard_delete", expense.id)}
-                  />
-                </>
-              )}
-            </div>
-          </td>
-        </tr>
-      ));
+                ) : (
+                  <>
+                    <IconButton
+                      label="Restore expense"
+                      icon={RotateCcw}
+                      tone="emerald"
+                      disabled={isRunningAction}
+                      onClick={() => void runWorkflowAction("restore", expense.id)}
+                    />
+                    <IconButton
+                      label="Hard delete expense"
+                      icon={Trash2}
+                      tone="rose"
+                      disabled={isRunningAction}
+                      onClick={() => void runWorkflowAction("hard_delete", expense.id)}
+                    />
+                  </>
+                )}
+              </div>
+            </td>
+          </tr>
+        );
+      });
     },
     [archiveTab, isRunningAction, navigate, runWorkflowAction]
   );

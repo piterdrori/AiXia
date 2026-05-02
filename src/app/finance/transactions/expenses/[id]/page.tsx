@@ -1413,13 +1413,41 @@ export default function FinanceExpenseDetailPage() {
                   Expense Detail
                 </div>
 
-                <h1 className="mt-4 text-3xl font-semibold tracking-[-0.035em] text-white md:text-5xl">
+                <div className="mt-4 text-[11px] font-semibold uppercase tracking-[0.22em] text-slate-500">
+                  Expense Reference
+                </div>
+
+                <h1 className="mt-2 text-3xl font-semibold tracking-[-0.035em] text-white md:text-5xl">
                   {expense.expense_number || "Expense Request"}
                 </h1>
 
-                <p className="mt-3 max-w-4xl text-sm leading-6 text-slate-400 md:text-base md:leading-7">
-                  {expense.title}
-                </p>
+                <div className="mt-6 rounded-[30px] border border-cyan-400/20 bg-cyan-500/10 p-5 shadow-2xl shadow-cyan-950/10">
+                  <div className="inline-flex w-fit items-center rounded-full border border-cyan-400/20 bg-black/25 px-3 py-1 text-[10px] font-semibold uppercase tracking-[0.22em] text-cyan-200">
+                    What This Payment Is For
+                  </div>
+
+                  <div className="mt-4 text-4xl font-semibold leading-tight tracking-[-0.04em] text-white md:text-6xl">
+                    {expense.title || "No expense title entered"}
+                  </div>
+
+                  <div className="mt-4 flex flex-wrap items-center gap-2">
+                    <span className="rounded-full border border-white/10 bg-black/25 px-3 py-1 text-[11px] font-semibold uppercase tracking-[0.16em] text-slate-300">
+                      {formatLabel(expense.expense_type)}
+                    </span>
+
+                    <span className="rounded-full border border-cyan-400/20 bg-cyan-500/10 px-3 py-1 text-[11px] font-semibold uppercase tracking-[0.16em] text-cyan-100">
+                      {expense.expense_source_name || "No source entered"}
+                    </span>
+
+                    <span className="rounded-full border border-white/10 bg-black/25 px-3 py-1 text-[11px] font-semibold uppercase tracking-[0.16em] text-slate-300">
+                      {currencyCode} {formatMoney(expenseAmount)}
+                    </span>
+                  </div>
+
+                  <div className="mt-4 max-w-5xl text-base font-medium leading-7 text-slate-200 md:text-lg md:leading-8">
+                    {expense.description || "No description / reason entered for this expense."}
+                  </div>
+                </div>
 
                 <div className="mt-5 flex flex-wrap gap-2">
                   <StatusBadge value={expense.request_status || expense.status} />

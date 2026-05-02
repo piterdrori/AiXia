@@ -515,7 +515,7 @@ export default function FinanceExpensesPage() {
     };
   }, [loadExpenses]);
 
-  const enrichedExpenses = useMemo<EnrichedExpenseRow[]>((() => {
+  const enrichedExpenses = useMemo<EnrichedExpenseRow[]>(() => {
     return expenses.map((row) => {
       const rowAllocations = allocations.filter((item) => item.expense_id === row.id);
       const allocatedAmount = rowAllocations.reduce(

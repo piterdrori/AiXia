@@ -86,6 +86,7 @@ type AllocationRow = {
 
 type SortKey =
   | "expense_date"
+  | "request_status"
   | "made_by"
   | "expense_type"
   | "expense"
@@ -351,6 +352,8 @@ function getSortValue(row: EnrichedExpenseRow, sortKey: SortKey) {
   switch (sortKey) {
     case "expense_date":
       return row.expense_date || "";
+    case "request_status":
+      return row.request_status || row.status || "";
     case "made_by":
       return row.madeByLabel || "";
     case "expense_type":
@@ -682,7 +685,7 @@ export default function FinanceExpensesPage() {
       if (rows.length === 0) {
         return (
           <tr>
-            <td colSpan={10} className="px-5 py-12 text-center">
+            <td colSpan={11} className="px-5 py-12 text-center">
               <div className="text-sm font-medium text-white">
                 No expense records found
               </div>
@@ -704,6 +707,10 @@ export default function FinanceExpensesPage() {
             <div className="mt-1 text-[11px] text-slate-500">
               {row.expense_number || "Draft expense"}
             </div>
+          </td>
+
+          <td className="whitespace-nowrap px-4 py-4">
+            <StatusBadge value={row.request_status || row.status} />
           </td>
 
           <td className="min-w-[180px] px-4 py-4">
@@ -943,8 +950,8 @@ export default function FinanceExpensesPage() {
                 Expense Registry
               </div>
               <p className="mt-1 text-xs leading-5 text-slate-500">
-                Compact intake registry: Date, Made By, Type, Expense, Amount, Docs, Review,
-                Coverage, and Recipient.
+                Compact intake registry: Date, Request, Made By, Type, Expense, Amount, Docs,
+                Review, Coverage, and Recipient.
               </p>
             </div>
 
@@ -987,12 +994,19 @@ export default function FinanceExpensesPage() {
 
           <div className="overflow-x-auto">
             <div className="max-h-[720px] overflow-y-auto">
-              <table className="w-full min-w-[1180px] border-collapse">
+              <table className="w-full min-w-[1320px] border-collapse">
                 <thead className="sticky top-0 z-20 border-b border-white/10 bg-black/70 backdrop-blur-xl">
                   <tr>
                     <SortHeader
                       label="Date"
                       sortKey="expense_date"
+                      activeKey={sortKey}
+                      direction={sortDirection}
+                      onSort={handleSort}
+                    />
+                    <SortHeader
+                      label="Request"
+                      sortKey="request_status"
                       activeKey={sortKey}
                       direction={sortDirection}
                       onSort={handleSort}
@@ -1121,11 +1135,14 @@ export default function FinanceExpensesPage() {
 
             <div className="overflow-x-auto">
               <div className="max-h-[620px] overflow-y-auto">
-                <table className="w-full min-w-[1180px] border-collapse">
+                <table className="w-full min-w-[1320px] border-collapse">
                   <thead className="sticky top-0 z-20 border-b border-white/10 bg-black/70 backdrop-blur-xl">
                     <tr>
                       <th className="px-4 py-4 text-left text-[11px] font-semibold uppercase tracking-[0.18em] text-slate-500">
                         Date
+                      </th>
+                      <th className="px-4 py-4 text-left text-[11px] font-semibold uppercase tracking-[0.18em] text-slate-500">
+                        Request
                       </th>
                       <th className="px-4 py-4 text-left text-[11px] font-semibold uppercase tracking-[0.18em] text-slate-500">
                         Made By

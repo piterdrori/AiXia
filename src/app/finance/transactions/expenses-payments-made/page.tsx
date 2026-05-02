@@ -2,23 +2,21 @@ import { useCallback, useEffect, useMemo, useState } from "react";
 import type { ReactNode } from "react";
 import { useNavigate } from "react-router-dom";
 import {
-  AlertTriangle,
   Archive,
   ArrowRight,
   CheckCircle2,
   Clock3,
   Eye,
-  FileCheck2,
   FileText,
   Loader2,
-  PackageCheck,
   Receipt,
+  RotateCcw,
   Search,
   ShieldCheck,
-  ShoppingCart,
   Sparkles,
+  Trash2,
   WalletCards,
-  XCircle,
+  X,
 } from "lucide-react";
 
 import { supabase } from "@/lib/supabase";
@@ -28,9 +26,12 @@ type WorkbenchTab =
   | "approved_to_spend"
   | "documentation"
   | "verified_for_payment"
+  | "recipient_tracking"
   | "funding_batches"
-  | "payments"
-  | "recipient_tracking";
+  | "payments";
+
+type ArchiveScope = "workflow" | "execution";
+type ArchiveTab = "archived" | "deleted";
 
 type ExpenseRow = {
   id: string;
@@ -182,7 +183,6 @@ type EnrichedExpense = ExpenseRow & {
   madeByLabel: string;
   targetAmount: number;
   allocatedAmount: number;
-  documentationLabel: string;
   nextStepLabel: string;
   nextStepTone: "cyan" | "emerald" | "amber" | "rose" | "violet" | "slate";
 };
@@ -191,6 +191,7 @@ type EnrichedFundingBatch = FundingBatchRow & {
   companyName: string;
   bankLabel: string;
   lineCount: number;
+  recordType: "funding_batch";
 };
 
 type EnrichedPaymentMade = PaymentMadeRow & {
@@ -198,7 +199,10 @@ type EnrichedPaymentMade = PaymentMadeRow & {
   bankLabel: string;
   linkedExpenseCount: number;
   linkedExpenseAmount: number;
+  recordType: "payment_made";
 };
+
+type ExecutionRecord = EnrichedFundingBatch | EnrichedPaymentMade;
 
 const statusToneMap: Record<
   string,
@@ -239,15 +243,16 @@ const statusToneMap: Record<
   not_confirmed: "amber",
   confirmed: "emerald",
   cancelled_refunded: "rose",
-  vendor_bill: "violet",
   operating_expense: "cyan",
   reimbursement: "emerald",
+  funding_batch: "violet",
+  payment_made: "cyan",
   manual: "slate",
   archived: "amber",
   deleted: "rose",
 };
 
-const tabs: Array<{
+const mainWorkflowTabs: Array<{
   key: WorkbenchTab;
   label: string;
   description: string;
@@ -256,44 +261,54 @@ const tabs: Array<{
     key: "permission_requests",
     label: "Spend Approval",
     description:
-      "Approve, reject, or request more information before the person spends money.",
+      "Finance/Admin reviews new expense requests before the user spends money.",
   },
   {
     key: "approved_to_spend",
     label: "Approved Expenses",
     description:
-      "Expenses approved by Finance/Admin and waiting for the user to spend and upload proof.",
+      "Approved expenses waiting for the user to spend the money and upload proof.",
   },
   {
     key: "documentation",
     label: "Document Review",
     description:
-      "Track approved expenses waiting for proof, then review uploaded receipts, screenshots, invoices, and links.",
+      "Tracks missing proof and submitted receipts, screenshots, invoices, documents, or links.",
   },
   {
     key: "verified_for_payment",
     label: "Ready to Pay",
     description:
-      "Verified operating expenses that are ready for funding allocation or direct payment.",
-  },
-  {
-    key: "funding_batches",
-    label: "Funding Allocation",
-    description:
-      "Monthly or grouped funding allocation batches prepared before payments are made.",
-  },
-  {
-    key: "payments",
-    label: "Expense Payments",
-    description: "Payment Made records created for operating expenses and reimbursements.",
+      "Verified expenses that are ready for reimbursement/payment handling.",
   },
   {
     key: "recipient_tracking",
     label: "Recipient Confirmation",
     description:
-      "Track whether the person who made the expense confirmed that payment was received.",
+      "Final closing step: recipient confirms payment received or reports a problem.",
   },
 ];
+
+const executionTabs: Array<{
+  key: WorkbenchTab;
+  label: string;
+  description: string;
+}> = [
+  {
+    key: "funding_batches",
+    label: "Funding Allocation",
+    description:
+      "Reserve or set aside money for a group of verified expenses.",
+  },
+  {
+    key: "payments",
+    label: "Expense Payments",
+    description:
+      "Actual payment records showing how allocated money was paid across expenses.",
+  },
+];
+
+const allTabs = [...mainWorkflowTabs, ...executionTabs];
 
 function toNumber(value: number | string | null | undefined) {
   return Number(value ?? 0);
@@ -368,11 +383,11 @@ function SoftBadge({
   value: string;
   tone: "cyan" | "emerald" | "amber" | "rose" | "violet" | "slate";
 }) {
-  const toneKey = tone === "slate" ? "manual" : tone === "violet" ? "admin_closed" : tone;
+  const toneKey = tone === "slate" ? "manual" : tone === "violet" ? "funding_batch" : tone;
 
   return (
     <span
-      className={`inline-flex max-w-[260px] items-center rounded-full border px-3 py-1 text-[11px] font-semibold uppercase tracking-[0.12em] ${getStatusToneClasses(
+      className={`inline-flex max-w-[320px] items-center rounded-full border px-3 py-1 text-[11px] font-semibold uppercase tracking-[0.12em] ${getStatusToneClasses(
         toneKey
       )}`}
     >
@@ -381,7 +396,7 @@ function SoftBadge({
   );
 }
 
-function ActionButton({
+function IconButton({
   label,
   icon: Icon,
   tone,
@@ -390,31 +405,29 @@ function ActionButton({
 }: {
   label: string;
   icon: typeof Eye;
-  tone: "cyan" | "emerald" | "amber" | "rose" | "violet" | "slate";
+  tone: "cyan" | "emerald" | "amber" | "rose";
   disabled?: boolean;
   onClick: () => void;
 }) {
   const toneClass = {
-    cyan: "border-cyan-400/20 bg-cyan-500/10 text-cyan-100 hover:bg-cyan-500/15",
+    cyan: "border-cyan-400/20 bg-cyan-500/10 text-cyan-200 hover:bg-cyan-500/15",
     emerald:
-      "border-emerald-400/20 bg-emerald-500/10 text-emerald-100 hover:bg-emerald-500/15",
+      "border-emerald-400/20 bg-emerald-500/10 text-emerald-200 hover:bg-emerald-500/15",
     amber:
-      "border-amber-400/20 bg-amber-500/10 text-amber-100 hover:bg-amber-500/15",
-    rose: "border-rose-400/20 bg-rose-500/10 text-rose-100 hover:bg-rose-500/15",
-    violet:
-      "border-violet-400/20 bg-violet-500/10 text-violet-100 hover:bg-violet-500/15",
-    slate: "border-white/10 bg-white/[0.05] text-slate-300 hover:bg-white/[0.08]",
+      "border-amber-400/20 bg-amber-500/10 text-amber-200 hover:bg-amber-500/15",
+    rose: "border-rose-400/20 bg-rose-500/10 text-rose-200 hover:bg-rose-500/15",
   }[tone];
 
   return (
     <button
       type="button"
+      title={label}
+      aria-label={label}
       disabled={disabled}
       onClick={onClick}
-      className={`inline-flex h-9 min-w-[124px] items-center justify-center gap-2 whitespace-nowrap rounded-full border px-3 text-[11px] font-semibold uppercase tracking-[0.12em] transition disabled:cursor-not-allowed disabled:opacity-40 ${toneClass}`}
+      className={`inline-flex h-9 w-9 items-center justify-center rounded-full border transition disabled:cursor-not-allowed disabled:opacity-40 ${toneClass}`}
     >
-      <Icon className="h-3.5 w-3.5 shrink-0" />
-      <span>{label}</span>
+      <Icon className="h-4 w-4" />
     </button>
   );
 }
@@ -471,10 +484,7 @@ function getEmployeeLabel(
     employee.mark?.trim() ||
     null;
 
-  const company =
-    profile?.company?.trim() ||
-    employee.metadata?.company?.trim() ||
-    null;
+  const company = profile?.company?.trim() || employee.metadata?.company?.trim() || null;
 
   return [employeeName, role, company].filter(Boolean).join(" • ");
 }
@@ -519,6 +529,34 @@ function getTargetAmount(expense: ExpenseRow) {
   return toNumber(
     expense.final_amount || expense.approved_amount || expense.requested_amount || expense.amount
   );
+}
+
+function getExpenseLifecycle(expense: ExpenseRow) {
+  return expense.request_status || expense.status || "draft";
+}
+
+function isWorkflowArchived(expense: ExpenseRow) {
+  return getExpenseLifecycle(expense) === "archived" || expense.status === "archived";
+}
+
+function isWorkflowDeleted(expense: ExpenseRow) {
+  return getExpenseLifecycle(expense) === "deleted" || expense.status === "deleted";
+}
+
+function isWorkflowActive(expense: ExpenseRow) {
+  return !isWorkflowArchived(expense) && !isWorkflowDeleted(expense);
+}
+
+function isExecutionArchived(record: FundingBatchRow | PaymentMadeRow) {
+  return record.status === "archived";
+}
+
+function isExecutionDeleted(record: FundingBatchRow | PaymentMadeRow) {
+  return record.status === "deleted";
+}
+
+function isExecutionActive(record: FundingBatchRow | PaymentMadeRow) {
+  return !isExecutionArchived(record) && !isExecutionDeleted(record);
 }
 
 function getNextStep(expense: ExpenseRow): {
@@ -600,6 +638,9 @@ export default function FinanceExpensesPaymentsMadePage() {
   const [payments, setPayments] = useState<PaymentMadeRow[]>([]);
   const [expenseAllocations, setExpenseAllocations] = useState<ExpenseAllocationRow[]>([]);
   const [searchQuery, setSearchQuery] = useState("");
+  const [archiveScope, setArchiveScope] = useState<ArchiveScope>("workflow");
+  const [archiveTab, setArchiveTab] = useState<ArchiveTab>("archived");
+  const [archiveModalOpen, setArchiveModalOpen] = useState(false);
   const [isLoading, setIsLoading] = useState(true);
   const [isRefreshing, setIsRefreshing] = useState(false);
   const [hasLoadedOnce, setHasLoadedOnce] = useState(false);
@@ -623,12 +664,6 @@ export default function FinanceExpensesPaymentsMadePage() {
     return new Map(bankAccounts.map((bank) => [bank.id, bank]));
   }, [bankAccounts]);
 
-  const activeFundingBatches = useMemo(() => {
-    return fundingBatches.filter(
-      (batch) => !["archived", "deleted", "cancelled"].includes(batch.status)
-    );
-  }, [fundingBatches]);
-
   const enrichedExpenses = useMemo<EnrichedExpense[]>(() => {
     return expenses.map((expense) => {
       const allocationTotal = expenseAllocations
@@ -649,10 +684,6 @@ export default function FinanceExpensesPaymentsMadePage() {
         madeByLabel: getExpenseMadeByLabel(expense, employeeMap, profileMap),
         targetAmount: getTargetAmount(expense),
         allocatedAmount: allocationTotal,
-        documentationLabel:
-          expense.documentation_status === "missing"
-            ? "Missing"
-            : formatLabel(expense.documentation_status),
         nextStepLabel: nextStep.label,
         nextStepTone: nextStep.tone,
       };
@@ -662,6 +693,7 @@ export default function FinanceExpensesPaymentsMadePage() {
   const enrichedFundingBatches = useMemo<EnrichedFundingBatch[]>(() => {
     return fundingBatches.map((batch) => ({
       ...batch,
+      recordType: "funding_batch",
       companyName: companyMap.get(batch.funding_company_id)?.name || "Unknown company",
       bankLabel: batch.funding_bank_account_id
         ? getBankLabel(bankAccountMap.get(batch.funding_bank_account_id))
@@ -680,6 +712,7 @@ export default function FinanceExpensesPaymentsMadePage() {
 
       return {
         ...payment,
+        recordType: "payment_made",
         companyName: payment.paid_from_company_id
           ? companyMap.get(payment.paid_from_company_id)?.name || "Unknown company"
           : "No company",
@@ -695,6 +728,12 @@ export default function FinanceExpensesPaymentsMadePage() {
       };
     });
   }, [bankAccountMap, companyMap, expenseAllocations, payments]);
+
+  const enrichedExecutionRecords = useMemo<ExecutionRecord[]>(() => {
+    return [...enrichedFundingBatches, ...enrichedPayments].sort((a, b) =>
+      String(b.updated_at || "").localeCompare(String(a.updated_at || ""))
+    );
+  }, [enrichedFundingBatches, enrichedPayments]);
 
   const normalizedSearch = searchQuery.trim().toLowerCase();
 
@@ -770,15 +809,63 @@ export default function FinanceExpensesPaymentsMadePage() {
     });
   }, [enrichedPayments, normalizedSearch]);
 
-  const pendingPermissionRows = filteredExpenses.filter((expense) =>
+  const activeExpenseRows = useMemo(() => {
+    return filteredExpenses.filter(isWorkflowActive);
+  }, [filteredExpenses]);
+
+  const archivedExpenseRows = useMemo(() => {
+    return filteredExpenses.filter(isWorkflowArchived);
+  }, [filteredExpenses]);
+
+  const deletedExpenseRows = useMemo(() => {
+    return filteredExpenses.filter(isWorkflowDeleted);
+  }, [filteredExpenses]);
+
+  const activeBatchRows = useMemo(() => {
+    return filteredBatches.filter(isExecutionActive);
+  }, [filteredBatches]);
+
+  const archivedBatchRows = useMemo(() => {
+    return filteredBatches.filter(isExecutionArchived);
+  }, [filteredBatches]);
+
+  const deletedBatchRows = useMemo(() => {
+    return filteredBatches.filter(isExecutionDeleted);
+  }, [filteredBatches]);
+
+  const activePaymentRows = useMemo(() => {
+    return filteredPayments.filter(isExecutionActive);
+  }, [filteredPayments]);
+
+  const archivedPaymentRows = useMemo(() => {
+    return filteredPayments.filter(isExecutionArchived);
+  }, [filteredPayments]);
+
+  const deletedPaymentRows = useMemo(() => {
+    return filteredPayments.filter(isExecutionDeleted);
+  }, [filteredPayments]);
+
+  const archivedExecutionRows = useMemo<ExecutionRecord[]>(() => {
+    return [...archivedBatchRows, ...archivedPaymentRows].sort((a, b) =>
+      String(b.updated_at || "").localeCompare(String(a.updated_at || ""))
+    );
+  }, [archivedBatchRows, archivedPaymentRows]);
+
+  const deletedExecutionRows = useMemo<ExecutionRecord[]>(() => {
+    return [...deletedBatchRows, ...deletedPaymentRows].sort((a, b) =>
+      String(b.updated_at || "").localeCompare(String(a.updated_at || ""))
+    );
+  }, [deletedBatchRows, deletedPaymentRows]);
+
+  const pendingPermissionRows = activeExpenseRows.filter((expense) =>
     ["draft", "requested", "submitted"].includes(expense.request_status || expense.status)
   );
 
-  const approvedToSpendRows = filteredExpenses.filter(
+  const approvedToSpendRows = activeExpenseRows.filter(
     (expense) => expense.request_status === "approved_to_spend"
   );
 
-  const documentationRows = filteredExpenses.filter((expense) =>
+  const documentationRows = activeExpenseRows.filter((expense) =>
     [
       "approved_to_spend",
       "expense_made",
@@ -787,13 +874,13 @@ export default function FinanceExpensesPaymentsMadePage() {
     ].includes(expense.request_status || "")
   );
 
-  const verifiedRows = filteredExpenses.filter(
+  const verifiedRows = activeExpenseRows.filter(
     (expense) =>
       expense.request_status === "verified_for_payment" ||
       expense.finance_review_status === "approved_for_payment"
   );
 
-  const recipientTrackingRows = filteredExpenses.filter(
+  const recipientTrackingRows = activeExpenseRows.filter(
     (expense) =>
       ["partially_covered", "covered"].includes(expense.coverage_status || "") ||
       ["pending_confirmation", "received_confirmed", "not_received", "disputed"].includes(
@@ -802,37 +889,37 @@ export default function FinanceExpensesPaymentsMadePage() {
   );
 
   const metrics = useMemo(() => {
-    const activeExpenses = enrichedExpenses.filter(
-      (expense) =>
-        !["archived", "deleted", "cancelled"].includes(
-          expense.request_status || expense.status
-        )
-    );
-
     return {
       pendingRequests: pendingPermissionRows.length,
       documentation: documentationRows.length,
       readyForPayment: verifiedRows.length,
-      openBatches: activeFundingBatches.length,
-      payments: payments.length,
-      recipientPending: enrichedExpenses.filter(
+      recipientPending: activeExpenseRows.filter(
         (expense) => expense.recipient_confirmation_status === "pending_confirmation"
       ).length,
-      totalReadyAmount: verifiedRows.reduce((sum, expense) => sum + expense.targetAmount, 0),
-      totalPaidAmount: enrichedPayments
+      openBatches: activeBatchRows.length,
+      payments: activePaymentRows.length,
+      totalPaidAmount: activePaymentRows
         .filter((payment) => payment.status === "confirmed")
         .reduce((sum, payment) => sum + toNumber(payment.converted_amount || payment.amount), 0),
-      activeExpenses: activeExpenses.length,
+      workflowArchived: archivedExpenseRows.length,
+      workflowDeleted: deletedExpenseRows.length,
+      executionArchived: archivedExecutionRows.length,
+      executionDeleted: deletedExecutionRows.length,
     };
   }, [
-    activeFundingBatches.length,
+    activeBatchRows.length,
+    activeExpenseRows,
+    activePaymentRows,
+    archivedExpenseRows.length,
+    archivedExecutionRows.length,
+    deletedExpenseRows.length,
+    deletedExecutionRows.length,
     documentationRows.length,
-    enrichedExpenses,
-    enrichedPayments,
-    payments.length,
     pendingPermissionRows.length,
-    verifiedRows,
+    verifiedRows.length,
   ]);
+
+  const activeTabMeta = allTabs.find((tab) => tab.key === activeTab) || allTabs[0];
 
   const loadWorkbench = useCallback(
     async (mode: "initial" | "silent" = "initial") => {
@@ -1001,9 +1088,7 @@ export default function FinanceExpensesPaymentsMadePage() {
         setProfiles((profilesResult.data || []) as ProfileRow[]);
         setBankAccounts((bankAccountsResult.data || []) as BankAccountRow[]);
         setFundingBatches((fundingBatchesResult.data || []) as FundingBatchRow[]);
-        setFundingBatchLines(
-          (fundingBatchLinesResult.data || []) as FundingBatchLineRow[]
-        );
+        setFundingBatchLines((fundingBatchLinesResult.data || []) as FundingBatchLineRow[]);
         setPayments((paymentsResult.data || []) as unknown as PaymentMadeRow[]);
         setExpenseAllocations(
           (allocationsResult.data || []) as unknown as ExpenseAllocationRow[]
@@ -1080,10 +1165,10 @@ export default function FinanceExpensesPaymentsMadePage() {
     };
   }, [loadWorkbench]);
 
-  const runExpenseRpc = useCallback(
+  const runRpcAction = useCallback(
     async (
       rpcName: string,
-      args: Record<string, string | number | null>,
+      args: Record<string, string>,
       successMessage: string
     ) => {
       setIsRunningAction(true);
@@ -1106,185 +1191,229 @@ export default function FinanceExpensesPaymentsMadePage() {
     [loadWorkbench]
   );
 
-  const approveExpense = useCallback(
-    async (expense: EnrichedExpense) => {
-      const amountInput = window.prompt(
-        "Approved amount",
-        String(expense.approved_amount || expense.requested_amount || expense.amount || "")
-      );
-
-      if (amountInput === null) return;
-
-      const amount = Number(amountInput);
-      if (!Number.isFinite(amount) || amount <= 0) {
-        setPageError("Approved amount must be greater than zero.");
-        return;
-      }
-
-      const notes = window.prompt("Approval notes, optional", "") || null;
-
-      await runExpenseRpc(
-        "finance_approve_expense_to_spend",
-        {
-          p_expense_id: expense.id,
-          p_approved_amount: amount,
-          p_notes: notes,
-        },
-        "Expense approved. It now appears in Document Review waiting for the user to spend and upload proof."
-      );
-    },
-    [runExpenseRpc]
-  );
-
-  const rejectExpense = useCallback(
-    async (expense: EnrichedExpense) => {
-      const reason = window.prompt("Rejection reason");
-      if (!reason?.trim()) return;
-
-      await runExpenseRpc(
-        "finance_reject_expense_before_spend",
-        {
-          p_expense_id: expense.id,
-          p_reason: reason.trim(),
-        },
-        "Expense rejected."
-      );
-    },
-    [runExpenseRpc]
-  );
-
-  const requestMoreInformation = useCallback(
-    async (expense: EnrichedExpense) => {
-      const message = window.prompt("What information or correction is needed?");
-      if (!message?.trim()) return;
-
-      await runExpenseRpc(
-        "finance_request_expense_more_information",
-        {
-          p_expense_id: expense.id,
-          p_message: message.trim(),
-        },
-        "More information requested."
-      );
-    },
-    [runExpenseRpc]
-  );
-
-  const markExpenseMade = useCallback(
-    async (expense: EnrichedExpense) => {
-      const amountInput = window.prompt(
-        "Final expense amount",
-        String(
-          expense.final_amount ||
-            expense.approved_amount ||
-            expense.requested_amount ||
-            expense.amount ||
-            ""
-        )
-      );
-
-      if (amountInput === null) return;
-
-      const amount = Number(amountInput);
-      if (!Number.isFinite(amount) || amount <= 0) {
-        setPageError("Final amount must be greater than zero.");
-        return;
-      }
-
-      const notes = window.prompt("Notes, optional", "") || null;
-
-      await runExpenseRpc(
-        "finance_mark_expense_made",
-        {
-          p_expense_id: expense.id,
-          p_final_amount: amount,
-          p_notes: notes,
-        },
-        "Expense marked as made."
-      );
-    },
-    [runExpenseRpc]
-  );
-
-  const verifyDocumentation = useCallback(
-    async (expense: EnrichedExpense) => {
-      if (expense.documentation_status === "missing") {
-        setPageError("This expense is still missing proof. The user must upload a receipt, screenshot, invoice, document, or link from the expense ID page before Finance can verify it.");
-        return;
-      }
-
-      const notes = window.prompt("Verification notes, optional", "") || null;
-
-      await runExpenseRpc(
-        "finance_verify_expense_documentation",
-        {
-          p_expense_id: expense.id,
-          p_notes: notes,
-        },
-        "Expense documentation verified."
-      );
-    },
-    [runExpenseRpc]
-  );
-
-  const markDocumentationIssue = useCallback(
-    async (expense: EnrichedExpense) => {
-      const issueNotes = window.prompt("Documentation issue notes");
-      if (!issueNotes?.trim()) return;
-
-      await runExpenseRpc(
-        "finance_mark_expense_documentation_issue",
-        {
-          p_expense_id: expense.id,
-          p_issue_notes: issueNotes.trim(),
-        },
-        "Documentation issue marked."
-      );
-    },
-    [runExpenseRpc]
-  );
-
-  const confirmOnlineShopping = useCallback(
+  const runWorkflowAction = useCallback(
     async (
-      expense: EnrichedExpense,
-      status: "confirmed" | "issue_found" | "cancelled_refunded"
+      action: "archive" | "delete" | "restore" | "hard_delete",
+      expenseId: string
     ) => {
-      const notes = window.prompt("Online shopping confirmation notes, optional", "") || null;
+      const rpcMap = {
+        archive: "finance_archive_expense",
+        delete: "finance_delete_expense",
+        restore: "finance_restore_expense",
+        hard_delete: "finance_hard_delete_expense",
+      };
 
-      await runExpenseRpc(
-        "finance_confirm_expense_online_shopping",
-        {
-          p_expense_id: expense.id,
-          p_confirmation_status: status,
-          p_notes: notes,
-        },
-        "Online shopping record updated."
+      const messageMap = {
+        archive: "Expense moved to Workflow Archive.",
+        delete: "Expense moved to Deleted Workflow records.",
+        restore: "Expense restored.",
+        hard_delete: "Expense permanently deleted.",
+      };
+
+      await runRpcAction(
+        rpcMap[action],
+        { p_expense_id: expenseId },
+        messageMap[action]
       );
     },
-    [runExpenseRpc]
+    [runRpcAction]
   );
 
-  const openCreateFundingBatchModal = useCallback(() => {
-    navigate("/finance/transactions/expenses-payments-made/funding-batches/new");
-  }, [navigate]);
-
-  const renderExpenseTable = useCallback(
-    (
-      rows: EnrichedExpense[],
-      mode: "permission" | "approved" | "documentation" | "verified" | "recipient"
+  const runExecutionAction = useCallback(
+    async (
+      action: "archive" | "delete" | "restore" | "hard_delete",
+      record: ExecutionRecord
     ) => {
+      const isBatch = record.recordType === "funding_batch";
+
+      const rpcMap = {
+        archive: isBatch
+          ? "finance_archive_expense_funding_batch"
+          : "finance_archive_payment_made",
+        delete: isBatch
+          ? "finance_delete_expense_funding_batch"
+          : "finance_delete_payment_made",
+        restore: isBatch
+          ? "finance_restore_expense_funding_batch"
+          : "finance_restore_payment_made",
+        hard_delete: isBatch
+          ? "finance_hard_delete_expense_funding_batch"
+          : "finance_hard_delete_payment_made",
+      };
+
+      const args = isBatch ? { p_batch_id: record.id } : { p_payment_id: record.id };
+
+      const messageMap = {
+        archive: isBatch
+          ? "Funding allocation moved to Payment Execution Archive."
+          : "Expense payment moved to Payment Execution Archive.",
+        delete: isBatch
+          ? "Funding allocation moved to Deleted Payment Execution records."
+          : "Expense payment moved to Deleted Payment Execution records.",
+        restore: isBatch
+          ? "Funding allocation restored."
+          : "Expense payment restored.",
+        hard_delete: isBatch
+          ? "Funding allocation permanently deleted."
+          : "Expense payment permanently deleted.",
+      };
+
+      await runRpcAction(rpcMap[action], args, messageMap[action]);
+    },
+    [runRpcAction]
+  );
+
+  const openArchiveModal = useCallback((scope: ArchiveScope) => {
+    setArchiveScope(scope);
+    setArchiveTab("archived");
+    setArchiveModalOpen(true);
+  }, []);
+
+  const renderExpenseRows = useCallback(
+    (rows: EnrichedExpense[], mode: "active" | "archive") => {
       if (rows.length === 0) {
         return (
-          <div className="rounded-[24px] border border-dashed border-white/10 bg-black/20 px-6 py-12 text-center">
-            <Receipt className="mx-auto h-8 w-8 text-slate-500" />
-            <div className="mt-4 text-sm font-semibold text-white">No records found</div>
-            <div className="mt-2 text-sm leading-6 text-slate-500">
-              Matching expenses will appear here when they enter this workflow stage.
-            </div>
-          </div>
+          <tr>
+            <td colSpan={10} className="px-5 py-12 text-center">
+              <div className="text-sm font-medium text-white">No expense records found</div>
+              <div className="mt-2 text-sm text-slate-500">
+                Matching expense workflow records will appear here.
+              </div>
+            </td>
+          </tr>
         );
       }
 
+      return rows.map((expense) => (
+        <tr
+          key={expense.id}
+          className="border-b border-white/5 text-sm text-slate-300 transition hover:bg-white/[0.035]"
+        >
+          <td className="min-w-[260px] px-5 py-4">
+            <button
+              type="button"
+              onClick={() => navigate(`/finance/transactions/expenses/${expense.id}`)}
+              className="text-left font-semibold text-cyan-200 transition hover:text-cyan-100"
+            >
+              {expense.expense_number || "Expense"}
+            </button>
+            <div className="mt-1 line-clamp-1 text-xs text-white">{expense.title}</div>
+            <div className="mt-1 text-xs text-slate-500">
+              {formatDate(expense.expense_date)} • {expense.companyName}
+            </div>
+          </td>
+
+          <td className="min-w-[220px] px-5 py-4">
+            <div className="line-clamp-1 font-medium text-slate-200">
+              {expense.madeByLabel}
+            </div>
+            <div className="mt-1 text-xs text-slate-500">
+              {formatLabel(expense.expense_made_by_type)}
+            </div>
+          </td>
+
+          <td className="min-w-[180px] px-5 py-4">
+            <div className="font-medium text-slate-200">
+              {formatLabel(expense.expense_type)}
+            </div>
+            <div className="mt-1 line-clamp-1 text-xs text-slate-500">
+              {expense.expense_source_name || "—"}
+            </div>
+          </td>
+
+          <td className="whitespace-nowrap px-5 py-4 text-right font-semibold text-white">
+            {expense.currency_code || "USD"} {formatMoney(expense.targetAmount)}
+            <div className="mt-1 text-xs text-slate-500">
+              Covered {formatMoney(expense.allocatedAmount)}
+            </div>
+          </td>
+
+          <td className="whitespace-nowrap px-5 py-4">
+            <StatusBadge value={expense.documentation_status} />
+          </td>
+
+          <td className="whitespace-nowrap px-5 py-4">
+            <StatusBadge value={expense.finance_review_status} />
+          </td>
+
+          <td className="whitespace-nowrap px-5 py-4">
+            <StatusBadge value={expense.coverage_status} />
+          </td>
+
+          <td className="whitespace-nowrap px-5 py-4">
+            <StatusBadge value={expense.recipient_confirmation_status} />
+          </td>
+
+          <td className="min-w-[300px] px-5 py-4">
+            <SoftBadge value={expense.nextStepLabel} tone={expense.nextStepTone} />
+            <div className="mt-2 text-xs text-slate-500">
+              {formatLabel(expense.request_status || expense.status)}
+            </div>
+          </td>
+
+          <td className="sticky right-0 bg-[#05070d]/95 px-4 py-4 shadow-[-18px_0_24px_rgba(0,0,0,0.35)] backdrop-blur-xl">
+            <div className="flex items-center justify-end gap-2">
+              <IconButton
+                label="Open expense"
+                icon={Eye}
+                tone="cyan"
+                disabled={isRunningAction}
+                onClick={() => navigate(`/finance/transactions/expenses/${expense.id}`)}
+              />
+
+              {mode === "active" ? (
+                <>
+                  <IconButton
+                    label="Archive expense"
+                    icon={Archive}
+                    tone="amber"
+                    disabled={isRunningAction}
+                    onClick={() => void runWorkflowAction("archive", expense.id)}
+                  />
+                  <IconButton
+                    label="Delete expense"
+                    icon={Trash2}
+                    tone="rose"
+                    disabled={isRunningAction}
+                    onClick={() => void runWorkflowAction("delete", expense.id)}
+                  />
+                </>
+              ) : archiveTab === "archived" ? (
+                <IconButton
+                  label="Restore expense"
+                  icon={RotateCcw}
+                  tone="emerald"
+                  disabled={isRunningAction}
+                  onClick={() => void runWorkflowAction("restore", expense.id)}
+                />
+              ) : (
+                <>
+                  <IconButton
+                    label="Restore expense"
+                    icon={RotateCcw}
+                    tone="emerald"
+                    disabled={isRunningAction}
+                    onClick={() => void runWorkflowAction("restore", expense.id)}
+                  />
+                  <IconButton
+                    label="Hard delete expense"
+                    icon={Trash2}
+                    tone="rose"
+                    disabled={isRunningAction}
+                    onClick={() => void runWorkflowAction("hard_delete", expense.id)}
+                  />
+                </>
+              )}
+            </div>
+          </td>
+        </tr>
+      ));
+    },
+    [archiveTab, isRunningAction, navigate, runWorkflowAction]
+  );
+
+  const renderExpenseTable = useCallback(
+    (rows: EnrichedExpense[]) => {
       return (
         <div className="overflow-x-auto rounded-[24px] border border-white/10 bg-black/20">
           <div className="max-h-[720px] overflow-y-auto">
@@ -1313,479 +1442,226 @@ export default function FinanceExpensesPaymentsMadePage() {
                     Coverage
                   </th>
                   <th className="px-5 py-4 text-left text-[11px] font-semibold uppercase tracking-[0.18em] text-slate-500">
+                    Recipient
+                  </th>
+                  <th className="px-5 py-4 text-left text-[11px] font-semibold uppercase tracking-[0.18em] text-slate-500">
                     Next Step
                   </th>
-                  <th className="sticky right-0 min-w-[170px] bg-black/80 px-4 py-4 text-center text-[11px] font-semibold uppercase tracking-[0.18em] text-slate-500 shadow-[-18px_0_24px_rgba(0,0,0,0.35)] backdrop-blur-xl">
+                  <th className="sticky right-0 bg-black/70 px-4 py-4 text-right text-[11px] font-semibold uppercase tracking-[0.18em] text-slate-500 shadow-[-18px_0_24px_rgba(0,0,0,0.35)] backdrop-blur-xl">
                     Actions
                   </th>
                 </tr>
               </thead>
 
-              <tbody>
-                {rows.map((expense) => (
-                  <tr
-                    key={expense.id}
-                    className="border-b border-white/5 text-sm text-slate-300 transition hover:bg-white/[0.035]"
-                  >
-                    <td className="min-w-[260px] px-5 py-4">
-                      <button
-                        type="button"
-                        onClick={() =>
-                          navigate(
-                            `/finance/transactions/expenses-payments-made/review/${expense.id}`
-                          )
-                        }
-                        className="text-left font-semibold text-cyan-200 transition hover:text-cyan-100"
-                      >
-                        {expense.expense_number || "Expense"}
-                      </button>
-                      <div className="mt-1 line-clamp-1 text-xs text-white">
-                        {expense.title}
-                      </div>
-                      <div className="mt-1 text-xs text-slate-500">
-                        {formatDate(expense.expense_date)} • {expense.companyName}
-                      </div>
-                    </td>
-
-                    <td className="min-w-[240px] px-5 py-4">
-                      <div className="line-clamp-1 font-medium text-slate-200">
-                        {expense.madeByLabel}
-                      </div>
-                      <div className="mt-1 text-xs text-slate-500">
-                        {formatLabel(expense.expense_made_by_type)}
-                      </div>
-                    </td>
-
-                    <td className="min-w-[200px] px-5 py-4">
-                      <div className="font-medium text-slate-200">
-                        {formatLabel(expense.expense_type)}
-                      </div>
-                      <div className="mt-1 line-clamp-1 text-xs text-slate-500">
-                        {expense.expense_source_name || "—"}
-                      </div>
-                      {expense.expense_type === "online_shopping" ? (
-                        <div className="mt-2">
-                          <StatusBadge value={expense.online_confirmation_status} />
-                        </div>
-                      ) : null}
-                    </td>
-
-                    <td className="whitespace-nowrap px-5 py-4 text-right font-semibold text-white">
-                      {expense.currency_code || "USD"} {formatMoney(expense.targetAmount)}
-                      <div className="mt-1 text-xs text-slate-500">
-                        Covered {formatMoney(expense.allocatedAmount)}
-                      </div>
-                    </td>
-
-                    <td className="whitespace-nowrap px-5 py-4">
-                      <StatusBadge value={expense.documentation_status} />
-                    </td>
-
-                    <td className="whitespace-nowrap px-5 py-4">
-                      <StatusBadge value={expense.finance_review_status} />
-                    </td>
-
-                    <td className="whitespace-nowrap px-5 py-4">
-                      <StatusBadge value={expense.coverage_status} />
-                      {mode === "recipient" ? (
-                        <div className="mt-2">
-                          <StatusBadge value={expense.recipient_confirmation_status} />
-                        </div>
-                      ) : null}
-                    </td>
-
-                    <td className="min-w-[280px] px-5 py-4">
-                      <SoftBadge value={expense.nextStepLabel} tone={expense.nextStepTone} />
-                      <div className="mt-2 text-xs text-slate-500">
-                        {formatLabel(expense.request_status || expense.status)}
-                      </div>
-                    </td>
-
-                    <td className="sticky right-0 min-w-[170px] bg-[#05070d]/95 px-4 py-4 shadow-[-18px_0_24px_rgba(0,0,0,0.35)] backdrop-blur-xl">
-                      <div className="flex flex-col items-stretch gap-2">
-                        <ActionButton
-                          label="Open"
-                          icon={Eye}
-                          tone="cyan"
-                          disabled={isRunningAction}
-                          onClick={() =>
-                            navigate(
-                              `/finance/transactions/expenses-payments-made/review/${expense.id}`
-                            )
-                          }
-                        />
-
-                        {mode === "permission" ? (
-                          <>
-                            <ActionButton
-                              label="Approve"
-                              icon={CheckCircle2}
-                              tone="emerald"
-                              disabled={isRunningAction}
-                              onClick={() => void approveExpense(expense)}
-                            />
-                            <ActionButton
-                              label="More Info"
-                              icon={AlertTriangle}
-                              tone="amber"
-                              disabled={isRunningAction}
-                              onClick={() => void requestMoreInformation(expense)}
-                            />
-                            <ActionButton
-                              label="Reject"
-                              icon={XCircle}
-                              tone="rose"
-                              disabled={isRunningAction}
-                              onClick={() => void rejectExpense(expense)}
-                            />
-                          </>
-                        ) : null}
-
-                        {mode === "approved" ? (
-                          <>
-                            <ActionButton
-                              label="Open"
-                              icon={FileText}
-                              tone="amber"
-                              disabled={isRunningAction}
-                              onClick={() =>
-                                navigate(`/finance/transactions/expenses/${expense.id}`)
-                              }
-                            />
-                            <ActionButton
-                              label="Made"
-                              icon={PackageCheck}
-                              tone="emerald"
-                              disabled={isRunningAction}
-                              onClick={() => void markExpenseMade(expense)}
-                            />
-                          </>
-                        ) : null}
-
-                        {mode === "documentation" ? (
-                          <>
-                            {expense.documentation_status === "missing" ? (
-                              <ActionButton
-                                label="Upload Page"
-                                icon={FileText}
-                                tone="amber"
-                                disabled={isRunningAction}
-                                onClick={() =>
-                                  navigate(`/finance/transactions/expenses/${expense.id}`)
-                                }
-                              />
-                            ) : (
-                              <>
-                                <ActionButton
-                                  label="Verify"
-                                  icon={FileCheck2}
-                                  tone="emerald"
-                                  disabled={isRunningAction}
-                                  onClick={() => void verifyDocumentation(expense)}
-                                />
-                                <ActionButton
-                                  label="Issue"
-                                  icon={AlertTriangle}
-                                  tone="amber"
-                                  disabled={isRunningAction}
-                                  onClick={() => void markDocumentationIssue(expense)}
-                                />
-                              </>
-                            )}
-
-                            {expense.expense_type === "online_shopping" ? (
-                              <>
-                                <ActionButton
-                                  label="Online OK"
-                                  icon={ShoppingCart}
-                                  tone="cyan"
-                                  disabled={isRunningAction}
-                                  onClick={() => void confirmOnlineShopping(expense, "confirmed")}
-                                />
-                                <ActionButton
-                                  label="Online Issue"
-                                  icon={AlertTriangle}
-                                  tone="rose"
-                                  disabled={isRunningAction}
-                                  onClick={() =>
-                                    void confirmOnlineShopping(expense, "issue_found")
-                                  }
-                                />
-                              </>
-                            ) : null}
-                          </>
-                        ) : null}
-
-                        {mode === "verified" ? (
-                          <>
-                            <ActionButton
-                              label="Allocate"
-                              icon={Archive}
-                              tone="violet"
-                              disabled={isRunningAction}
-                              onClick={() =>
-                                navigate(
-                                  `/finance/transactions/expenses-payments-made/funding-batches/new?expenseId=${expense.id}`
-                                )
-                              }
-                            />
-                            <ActionButton
-                              label="Pay"
-                              icon={WalletCards}
-                              tone="emerald"
-                              disabled={isRunningAction}
-                              onClick={() =>
-                                navigate(
-                                  `/finance/transactions/expenses-payments-made/new?source=expense&expenseId=${expense.id}`
-                                )
-                              }
-                            />
-                          </>
-                        ) : null}
-                      </div>
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
+              <tbody>{renderExpenseRows(rows, "active")}</tbody>
             </table>
           </div>
         </div>
       );
     },
-    [
-      approveExpense,
-      confirmOnlineShopping,
-      isRunningAction,
-      markDocumentationIssue,
-      markExpenseMade,
-      navigate,
-      rejectExpense,
-      requestMoreInformation,
-      verifyDocumentation,
-    ]
+    [renderExpenseRows]
   );
 
-  const renderFundingBatches = useCallback(() => {
-    if (filteredBatches.length === 0) {
+  const renderExecutionRows = useCallback(
+    (rows: ExecutionRecord[], mode: "active" | "archive") => {
+      if (rows.length === 0) {
+        return (
+          <tr>
+            <td colSpan={8} className="px-5 py-12 text-center">
+              <div className="text-sm font-medium text-white">
+                No payment execution records found
+              </div>
+              <div className="mt-2 text-sm text-slate-500">
+                Funding allocations and expense payments will appear here.
+              </div>
+            </td>
+          </tr>
+        );
+      }
+
+      return rows.map((record) => {
+        const isBatch = record.recordType === "funding_batch";
+        const title = isBatch ? record.batch_number : record.reference_number || "Expense Payment";
+        const route = isBatch
+          ? `/finance/transactions/expenses-payments-made/funding-batches/${record.id}`
+          : `/finance/transactions/expenses-payments-made/${record.id}`;
+        const amount = isBatch
+          ? record.allocated_amount
+          : record.converted_amount || record.amount;
+        const currency = isBatch
+          ? record.currency_code || "USD"
+          : record.payment_currency_code || "USD";
+
+        return (
+          <tr
+            key={`${record.recordType}-${record.id}`}
+            className="border-b border-white/5 text-sm text-slate-300 transition hover:bg-white/[0.035]"
+          >
+            <td className="min-w-[230px] px-5 py-4">
+              <button
+                type="button"
+                onClick={() => navigate(route)}
+                className="text-left font-semibold text-cyan-200 transition hover:text-cyan-100"
+              >
+                {title}
+              </button>
+              <div className="mt-1 text-xs text-slate-500">
+                {isBatch ? formatDate(record.allocation_date) : formatDate(record.payment_date)}
+              </div>
+            </td>
+
+            <td className="px-5 py-4">
+              <StatusBadge value={record.recordType} />
+            </td>
+
+            <td className="min-w-[220px] px-5 py-4">
+              <div className="font-medium text-slate-200">{record.companyName}</div>
+              <div className="mt-1 line-clamp-1 text-xs text-slate-500">
+                {record.bankLabel}
+              </div>
+            </td>
+
+            <td className="px-5 py-4 text-right font-semibold text-white">
+              {currency} {formatMoney(amount)}
+            </td>
+
+            <td className="px-5 py-4">
+              {isBatch ? (
+                <div>
+                  <div className="font-medium text-white">{record.lineCount}</div>
+                  <div className="mt-1 text-xs text-slate-500">Allocated expenses</div>
+                </div>
+              ) : (
+                <div>
+                  <div className="font-medium text-white">{record.linkedExpenseCount}</div>
+                  <div className="mt-1 text-xs text-slate-500">
+                    Paid {formatMoney(record.linkedExpenseAmount)}
+                  </div>
+                </div>
+              )}
+            </td>
+
+            <td className="px-5 py-4">
+              <StatusBadge value={record.status} />
+            </td>
+
+            <td className="px-5 py-4">
+              {isBatch ? (
+                <StatusBadge value={record.documentation_status} />
+              ) : (
+                <StatusBadge value={record.recipient_confirmation_status} />
+              )}
+            </td>
+
+            <td className="sticky right-0 bg-[#05070d]/95 px-4 py-4 shadow-[-18px_0_24px_rgba(0,0,0,0.35)] backdrop-blur-xl">
+              <div className="flex items-center justify-end gap-2">
+                <IconButton
+                  label="Open record"
+                  icon={Eye}
+                  tone="cyan"
+                  disabled={isRunningAction}
+                  onClick={() => navigate(route)}
+                />
+
+                {mode === "active" ? (
+                  <>
+                    <IconButton
+                      label="Archive record"
+                      icon={Archive}
+                      tone="amber"
+                      disabled={isRunningAction}
+                      onClick={() => void runExecutionAction("archive", record)}
+                    />
+                    <IconButton
+                      label="Delete record"
+                      icon={Trash2}
+                      tone="rose"
+                      disabled={isRunningAction}
+                      onClick={() => void runExecutionAction("delete", record)}
+                    />
+                  </>
+                ) : archiveTab === "archived" ? (
+                  <IconButton
+                    label="Restore record"
+                    icon={RotateCcw}
+                    tone="emerald"
+                    disabled={isRunningAction}
+                    onClick={() => void runExecutionAction("restore", record)}
+                  />
+                ) : (
+                  <>
+                    <IconButton
+                      label="Restore record"
+                      icon={RotateCcw}
+                      tone="emerald"
+                      disabled={isRunningAction}
+                      onClick={() => void runExecutionAction("restore", record)}
+                    />
+                    <IconButton
+                      label="Hard delete record"
+                      icon={Trash2}
+                      tone="rose"
+                      disabled={isRunningAction}
+                      onClick={() => void runExecutionAction("hard_delete", record)}
+                    />
+                  </>
+                )}
+              </div>
+            </td>
+          </tr>
+        );
+      });
+    },
+    [archiveTab, isRunningAction, navigate, runExecutionAction]
+  );
+
+  const renderExecutionTable = useCallback(
+    (rows: ExecutionRecord[]) => {
       return (
-        <div className="rounded-[24px] border border-dashed border-white/10 bg-black/20 px-6 py-12 text-center">
-          <Archive className="mx-auto h-8 w-8 text-slate-500" />
-          <div className="mt-4 text-sm font-semibold text-white">
-            No funding allocation records found
-          </div>
-          <div className="mt-2 text-sm leading-6 text-slate-500">
-            Create a monthly or grouped funding allocation when expenses are verified for payment.
+        <div className="overflow-x-auto rounded-[24px] border border-white/10 bg-black/20">
+          <div className="max-h-[720px] overflow-y-auto">
+            <table className="w-full min-w-[1240px] border-collapse">
+              <thead className="sticky top-0 z-20 border-b border-white/10 bg-black/70 backdrop-blur-xl">
+                <tr>
+                  <th className="px-5 py-4 text-left text-[11px] font-semibold uppercase tracking-[0.18em] text-slate-500">
+                    Record
+                  </th>
+                  <th className="px-5 py-4 text-left text-[11px] font-semibold uppercase tracking-[0.18em] text-slate-500">
+                    Type
+                  </th>
+                  <th className="px-5 py-4 text-left text-[11px] font-semibold uppercase tracking-[0.18em] text-slate-500">
+                    Company / Bank
+                  </th>
+                  <th className="px-5 py-4 text-right text-[11px] font-semibold uppercase tracking-[0.18em] text-slate-500">
+                    Amount
+                  </th>
+                  <th className="px-5 py-4 text-left text-[11px] font-semibold uppercase tracking-[0.18em] text-slate-500">
+                    Lines
+                  </th>
+                  <th className="px-5 py-4 text-left text-[11px] font-semibold uppercase tracking-[0.18em] text-slate-500">
+                    Status
+                  </th>
+                  <th className="px-5 py-4 text-left text-[11px] font-semibold uppercase tracking-[0.18em] text-slate-500">
+                    Docs / Recipient
+                  </th>
+                  <th className="sticky right-0 bg-black/70 px-4 py-4 text-right text-[11px] font-semibold uppercase tracking-[0.18em] text-slate-500 shadow-[-18px_0_24px_rgba(0,0,0,0.35)] backdrop-blur-xl">
+                    Actions
+                  </th>
+                </tr>
+              </thead>
+
+              <tbody>{renderExecutionRows(rows, "active")}</tbody>
+            </table>
           </div>
         </div>
       );
-    }
+    },
+    [renderExecutionRows]
+  );
 
-    return (
-      <div className="overflow-x-auto rounded-[24px] border border-white/10 bg-black/20">
-        <div className="max-h-[720px] overflow-y-auto">
-          <table className="w-full min-w-[1240px] border-collapse">
-            <thead className="sticky top-0 z-20 border-b border-white/10 bg-black/70 backdrop-blur-xl">
-              <tr>
-                <th className="px-5 py-4 text-left text-[11px] font-semibold uppercase tracking-[0.18em] text-slate-500">
-                  Allocation
-                </th>
-                <th className="px-5 py-4 text-left text-[11px] font-semibold uppercase tracking-[0.18em] text-slate-500">
-                  Funding Company
-                </th>
-                <th className="px-5 py-4 text-left text-[11px] font-semibold uppercase tracking-[0.18em] text-slate-500">
-                  Bank Account
-                </th>
-                <th className="px-5 py-4 text-right text-[11px] font-semibold uppercase tracking-[0.18em] text-slate-500">
-                  Allocated
-                </th>
-                <th className="px-5 py-4 text-left text-[11px] font-semibold uppercase tracking-[0.18em] text-slate-500">
-                  Status
-                </th>
-                <th className="px-5 py-4 text-left text-[11px] font-semibold uppercase tracking-[0.18em] text-slate-500">
-                  Docs
-                </th>
-                <th className="px-5 py-4 text-right text-[11px] font-semibold uppercase tracking-[0.18em] text-slate-500">
-                  Actions
-                </th>
-              </tr>
-            </thead>
-
-            <tbody>
-              {filteredBatches.map((batch) => (
-                <tr
-                  key={batch.id}
-                  className="border-b border-white/5 text-sm text-slate-300 transition hover:bg-white/[0.035]"
-                >
-                  <td className="px-5 py-4">
-                    <div className="font-semibold text-white">{batch.batch_number}</div>
-                    <div className="mt-1 text-xs text-slate-500">
-                      {formatDate(batch.allocation_date)} • {batch.lineCount} expenses
-                    </div>
-                  </td>
-                  <td className="px-5 py-4">{batch.companyName}</td>
-                  <td className="px-5 py-4">{batch.bankLabel}</td>
-                  <td className="px-5 py-4 text-right font-semibold text-white">
-                    {batch.currency_code || "USD"} {formatMoney(batch.allocated_amount)}
-                  </td>
-                  <td className="px-5 py-4">
-                    <StatusBadge value={batch.status} />
-                  </td>
-                  <td className="px-5 py-4">
-                    <StatusBadge value={batch.documentation_status} />
-                  </td>
-                  <td className="px-5 py-4">
-                    <div className="flex flex-wrap items-center justify-end gap-2">
-                      <ActionButton
-                        label="Open"
-                        icon={Eye}
-                        tone="cyan"
-                        disabled={isRunningAction}
-                        onClick={() =>
-                          navigate(
-                            `/finance/transactions/expenses-payments-made/funding-batches/${batch.id}`
-                          )
-                        }
-                      />
-
-                      <ActionButton
-                        label="Pay"
-                        icon={WalletCards}
-                        tone="emerald"
-                        disabled={isRunningAction}
-                        onClick={() =>
-                          navigate(
-                            `/finance/transactions/expenses-payments-made/new?source=batch&batchId=${batch.id}`
-                          )
-                        }
-                      />
-                    </div>
-                  </td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        </div>
-      </div>
-    );
-  }, [filteredBatches, isRunningAction, navigate]);
-
-  const renderPayments = useCallback(() => {
-    if (filteredPayments.length === 0) {
-      return (
-        <div className="rounded-[24px] border border-dashed border-white/10 bg-black/20 px-6 py-12 text-center">
-          <WalletCards className="mx-auto h-8 w-8 text-slate-500" />
-          <div className="mt-4 text-sm font-semibold text-white">
-            No expense payment records found
-          </div>
-          <div className="mt-2 text-sm leading-6 text-slate-500">
-            Operating expense Payment Made records linked to expenses will appear here.
-          </div>
-        </div>
-      );
-    }
-
-    return (
-      <div className="overflow-x-auto rounded-[24px] border border-white/10 bg-black/20">
-        <div className="max-h-[720px] overflow-y-auto">
-          <table className="w-full min-w-[1340px] border-collapse">
-            <thead className="sticky top-0 z-20 border-b border-white/10 bg-black/70 backdrop-blur-xl">
-              <tr>
-                <th className="px-5 py-4 text-left text-[11px] font-semibold uppercase tracking-[0.18em] text-slate-500">
-                  Payment
-                </th>
-                <th className="px-5 py-4 text-left text-[11px] font-semibold uppercase tracking-[0.18em] text-slate-500">
-                  Source
-                </th>
-                <th className="px-5 py-4 text-left text-[11px] font-semibold uppercase tracking-[0.18em] text-slate-500">
-                  Funding Company
-                </th>
-                <th className="px-5 py-4 text-left text-[11px] font-semibold uppercase tracking-[0.18em] text-slate-500">
-                  Bank Account
-                </th>
-                <th className="px-5 py-4 text-right text-[11px] font-semibold uppercase tracking-[0.18em] text-slate-500">
-                  Amount
-                </th>
-                <th className="px-5 py-4 text-left text-[11px] font-semibold uppercase tracking-[0.18em] text-slate-500">
-                  Linked Expenses
-                </th>
-                <th className="px-5 py-4 text-left text-[11px] font-semibold uppercase tracking-[0.18em] text-slate-500">
-                  Status
-                </th>
-                <th className="px-5 py-4 text-left text-[11px] font-semibold uppercase tracking-[0.18em] text-slate-500">
-                  Recipient
-                </th>
-                <th className="px-5 py-4 text-right text-[11px] font-semibold uppercase tracking-[0.18em] text-slate-500">
-                  Actions
-                </th>
-              </tr>
-            </thead>
-
-            <tbody>
-              {filteredPayments.map((payment) => (
-                <tr
-                  key={payment.id}
-                  className="border-b border-white/5 text-sm text-slate-300 transition hover:bg-white/[0.035]"
-                >
-                  <td className="px-5 py-4">
-                    <button
-                      type="button"
-                      onClick={() =>
-                        navigate(`/finance/transactions/expenses-payments-made/${payment.id}`)
-                      }
-                      className="font-semibold text-cyan-200 transition hover:text-cyan-100"
-                    >
-                      {payment.reference_number || "Expense Payment"}
-                    </button>
-                    <div className="mt-1 text-xs text-slate-500">
-                      {formatDate(payment.payment_date)}
-                    </div>
-                  </td>
-                  <td className="px-5 py-4">
-                    <StatusBadge value={payment.payment_source_type || "operating_expense"} />
-                  </td>
-                  <td className="px-5 py-4">{payment.companyName}</td>
-                  <td className="px-5 py-4">{payment.bankLabel}</td>
-                  <td className="px-5 py-4 text-right font-semibold text-white">
-                    {payment.payment_currency_code || "USD"}{" "}
-                    {formatMoney(payment.converted_amount || payment.amount)}
-                  </td>
-                  <td className="px-5 py-4">
-                    <div className="font-medium text-white">
-                      {payment.linkedExpenseCount}
-                    </div>
-                    <div className="mt-1 text-xs text-slate-500">
-                      Allocated {formatMoney(payment.linkedExpenseAmount)}
-                    </div>
-                  </td>
-                  <td className="px-5 py-4">
-                    <StatusBadge value={payment.status} />
-                  </td>
-                  <td className="px-5 py-4">
-                    <StatusBadge value={payment.recipient_confirmation_status} />
-                  </td>
-                  <td className="px-5 py-4">
-                    <div className="flex justify-end">
-                      <ActionButton
-                        label="Open"
-                        icon={Eye}
-                        tone="cyan"
-                        disabled={isRunningAction}
-                        onClick={() =>
-                          navigate(`/finance/transactions/expenses-payments-made/${payment.id}`)
-                        }
-                      />
-                    </div>
-                  </td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        </div>
-      </div>
-    );
-  }, [filteredPayments, isRunningAction, navigate]);
-
-  const activeTabMeta = tabs.find((tab) => tab.key === activeTab) || tabs[0];
+  const workflowArchiveRows = archiveTab === "archived" ? archivedExpenseRows : deletedExpenseRows;
+  const executionArchiveRows =
+    archiveTab === "archived" ? archivedExecutionRows : deletedExecutionRows;
 
   return (
     <div className="min-h-screen bg-[#05070d] px-4 py-4 text-white md:px-6 md:py-6">
@@ -1803,21 +1679,35 @@ export default function FinanceExpensesPaymentsMadePage() {
               Transactions
             </button>
 
-            <div className="grid gap-6 xl:grid-cols-[minmax(0,1fr)_460px] xl:items-end">
+            <div className="grid gap-6 xl:grid-cols-[minmax(0,1fr)_520px] xl:items-end">
               <div>
                 <div className="inline-flex w-fit items-center gap-2 rounded-full border border-cyan-400/20 bg-cyan-500/10 px-3 py-1 text-[11px] font-semibold uppercase tracking-[0.22em] text-cyan-200">
                   <Sparkles className="h-3.5 w-3.5" />
-                  Operating Expense Payment Control
+                  Operating Expense Control
                 </div>
 
                 <h1 className="mt-4 text-3xl font-semibold tracking-[-0.035em] text-white md:text-5xl">
-                  Operating Expense Payment Control
+                  Expense Workflow & Payment Execution
                 </h1>
 
                 <p className="mt-3 max-w-4xl text-sm leading-6 text-slate-400 md:text-base md:leading-7">
-                  Approve spending, track the user proof upload step, review documents, allocate
-                  funding, create expense payments, and confirm the recipient received payment.
+                  Two separate functions in one control page: the main expense workflow, and the
+                  payment execution tools used after expenses are ready to pay.
                 </p>
+
+                <div className="mt-5 flex flex-wrap gap-2">
+                  <div className="rounded-full border border-cyan-400/20 bg-cyan-500/10 px-3 py-1 text-[11px] font-semibold uppercase tracking-[0.16em] text-cyan-200">
+                    Main Workflow
+                  </div>
+                  <div className="rounded-full border border-violet-400/20 bg-violet-500/10 px-3 py-1 text-[11px] font-semibold uppercase tracking-[0.16em] text-violet-200">
+                    Payment Execution Tools
+                  </div>
+                  {isRefreshing ? (
+                    <div className="rounded-full border border-white/10 bg-white/[0.05] px-3 py-1 text-[11px] font-semibold uppercase tracking-[0.16em] text-slate-400">
+                      Silent Refresh
+                    </div>
+                  ) : null}
+                </div>
               </div>
 
               <div className="grid gap-3 sm:grid-cols-2">
@@ -1834,7 +1724,7 @@ export default function FinanceExpensesPaymentsMadePage() {
                     <CheckCircle2 className="h-5 w-5 text-emerald-200" />
                   </div>
                   <div className="mt-3 text-xs leading-5 text-slate-500">
-                    Verified expenses ready for funding or payment.
+                    Verified expenses ready for reimbursement/payment handling.
                   </div>
                 </div>
 
@@ -1842,16 +1732,16 @@ export default function FinanceExpensesPaymentsMadePage() {
                   <div className="flex items-start justify-between gap-3">
                     <div>
                       <div className="text-[11px] font-semibold uppercase tracking-[0.2em] text-slate-500">
-                        Paid Total
+                        Payment Records
                       </div>
-                      <div className="mt-2 text-2xl font-semibold text-white">
-                        ${isLoading ? "—" : formatMoney(metrics.totalPaidAmount)}
+                      <div className="mt-2 text-3xl font-semibold text-white">
+                        {isLoading ? "—" : enrichedExecutionRecords.length}
                       </div>
                     </div>
                     <WalletCards className="h-5 w-5 text-cyan-200" />
                   </div>
                   <div className="mt-3 text-xs leading-5 text-slate-500">
-                    Confirmed expense payment amount.
+                    Funding allocations plus expense payment records.
                   </div>
                 </div>
               </div>
@@ -1863,7 +1753,7 @@ export default function FinanceExpensesPaymentsMadePage() {
           <SummaryCard
             title="Spend Approval"
             value={isLoading ? "—" : metrics.pendingRequests}
-            detail="Expenses waiting for Finance/Admin decision."
+            detail="New expense requests waiting for Finance/Admin decision."
             icon={Clock3}
           />
           <SummaryCard
@@ -1875,7 +1765,7 @@ export default function FinanceExpensesPaymentsMadePage() {
           <SummaryCard
             title="Funding Allocation"
             value={isLoading ? "—" : metrics.openBatches}
-            detail="Active grouped funding allocations."
+            detail="Money reserved for grouped verified expenses."
             icon={Archive}
           />
           <SummaryCard
@@ -1915,53 +1805,71 @@ export default function FinanceExpensesPaymentsMadePage() {
                 <input
                   value={searchQuery}
                   onChange={(event) => setSearchQuery(event.target.value)}
-                  placeholder="Search payment control..."
-                  className="h-11 w-full rounded-2xl border border-white/10 bg-black/20 pl-11 pr-4 text-sm text-white outline-none transition placeholder:text-slate-600 focus:border-cyan-400/30 focus:bg-black/30 sm:w-[340px]"
+                  placeholder="Search workflow or payment execution..."
+                  className="h-11 w-full rounded-2xl border border-white/10 bg-black/20 pl-11 pr-4 text-sm text-white outline-none transition placeholder:text-slate-600 focus:border-cyan-400/30 focus:bg-black/30 sm:w-[360px]"
                 />
               </div>
 
-              {isRefreshing ? (
-                <div className="inline-flex h-11 items-center justify-center rounded-2xl border border-white/10 bg-white/[0.04] px-4 text-xs font-semibold uppercase tracking-[0.16em] text-slate-400">
-                  Silent Refresh
-                </div>
-              ) : null}
-
               <button
                 type="button"
-                disabled={isRunningAction}
-                onClick={openCreateFundingBatchModal}
-                className="inline-flex h-11 items-center justify-center gap-2 rounded-2xl border border-violet-400/20 bg-violet-500/10 px-4 text-sm font-semibold text-violet-100 transition hover:bg-violet-500/15 disabled:cursor-not-allowed disabled:opacity-50"
+                onClick={() => openArchiveModal("workflow")}
+                className="inline-flex h-11 items-center justify-center gap-2 rounded-2xl border border-white/10 bg-white/[0.05] px-4 text-sm font-semibold text-slate-300 transition hover:border-white/20 hover:bg-white/[0.08] hover:text-white"
               >
                 <Archive className="h-4 w-4" />
-                New Funding Allocation
+                Workflow Archive
               </button>
 
               <button
                 type="button"
-                onClick={() => navigate("/finance/transactions/expenses-payments-made/new")}
-                className="inline-flex h-11 items-center justify-center gap-2 rounded-2xl border border-cyan-400/20 bg-cyan-500/10 px-4 text-sm font-semibold text-cyan-100 transition hover:bg-cyan-500/15"
+                onClick={() => openArchiveModal("execution")}
+                className="inline-flex h-11 items-center justify-center gap-2 rounded-2xl border border-violet-400/20 bg-violet-500/10 px-4 text-sm font-semibold text-violet-100 transition hover:bg-violet-500/15"
               >
                 <WalletCards className="h-4 w-4" />
-                New Expense Payment
+                Execution Archive
               </button>
             </div>
           </div>
 
-          <div className="flex gap-2 overflow-x-auto border-b border-white/10 px-5 py-4 [scrollbar-width:thin]">
-            {tabs.map((tab) => (
-              <button
-                key={tab.key}
-                type="button"
-                onClick={() => setActiveTab(tab.key)}
-                className={`shrink-0 rounded-full border px-4 py-2 text-xs font-semibold uppercase tracking-[0.16em] transition ${
-                  activeTab === tab.key
-                    ? "border-cyan-400/20 bg-cyan-500/10 text-cyan-200"
-                    : "border-white/10 bg-white/[0.04] text-slate-400 hover:bg-white/[0.07] hover:text-white"
-                }`}
-              >
-                {tab.label}
-              </button>
-            ))}
+          <div className="border-b border-white/10 px-5 py-4">
+            <div className="mb-3 text-[11px] font-semibold uppercase tracking-[0.2em] text-slate-500">
+              Main Expense Workflow
+            </div>
+            <div className="flex gap-2 overflow-x-auto [scrollbar-width:thin]">
+              {mainWorkflowTabs.map((tab) => (
+                <button
+                  key={tab.key}
+                  type="button"
+                  onClick={() => setActiveTab(tab.key)}
+                  className={`shrink-0 rounded-full border px-4 py-2 text-xs font-semibold uppercase tracking-[0.16em] transition ${
+                    activeTab === tab.key
+                      ? "border-cyan-400/20 bg-cyan-500/10 text-cyan-200"
+                      : "border-white/10 bg-white/[0.04] text-slate-400 hover:bg-white/[0.07] hover:text-white"
+                  }`}
+                >
+                  {tab.label}
+                </button>
+              ))}
+            </div>
+
+            <div className="mt-5 mb-3 text-[11px] font-semibold uppercase tracking-[0.2em] text-slate-500">
+              Payment Execution Tools
+            </div>
+            <div className="flex gap-2 overflow-x-auto [scrollbar-width:thin]">
+              {executionTabs.map((tab) => (
+                <button
+                  key={tab.key}
+                  type="button"
+                  onClick={() => setActiveTab(tab.key)}
+                  className={`shrink-0 rounded-full border px-4 py-2 text-xs font-semibold uppercase tracking-[0.16em] transition ${
+                    activeTab === tab.key
+                      ? "border-violet-400/20 bg-violet-500/10 text-violet-200"
+                      : "border-white/10 bg-white/[0.04] text-slate-400 hover:bg-white/[0.07] hover:text-white"
+                  }`}
+                >
+                  {tab.label}
+                </button>
+              ))}
+            </div>
           </div>
 
           <div className="p-5">
@@ -1969,61 +1877,185 @@ export default function FinanceExpensesPaymentsMadePage() {
               <div className="rounded-[24px] border border-white/10 bg-black/20 px-6 py-12 text-center">
                 <Loader2 className="mx-auto h-8 w-8 animate-spin text-cyan-200" />
                 <div className="mt-4 text-sm text-slate-400">
-                  Loading operating expense payment control...
+                  Loading operating expense control...
                 </div>
               </div>
             ) : null}
 
             {!isLoading && activeTab === "permission_requests"
-              ? renderExpenseTable(pendingPermissionRows, "permission")
+              ? renderExpenseTable(pendingPermissionRows)
               : null}
 
             {!isLoading && activeTab === "approved_to_spend"
-              ? renderExpenseTable(approvedToSpendRows, "approved")
+              ? renderExpenseTable(approvedToSpendRows)
               : null}
 
             {!isLoading && activeTab === "documentation"
-              ? renderExpenseTable(documentationRows, "documentation")
+              ? renderExpenseTable(documentationRows)
               : null}
 
-            {!isLoading && activeTab === "verified_for_payment" ? (
-              <div className="grid gap-4">
-                <div className="rounded-[24px] border border-white/10 bg-black/20 p-4">
-                  <div className="text-sm font-semibold text-white">
-                    Funding allocation happens on the full Funding Allocation page.
-                  </div>
-                  <div className="mt-2 flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
-                    <p className="text-sm leading-6 text-slate-500">
-                      Select an expense below and click Allocate, or create a new funding
-                      allocation batch for multiple verified expenses.
-                    </p>
-
-                    <button
-                      type="button"
-                      disabled={isRunningAction}
-                      onClick={openCreateFundingBatchModal}
-                      className="inline-flex h-11 shrink-0 items-center justify-center gap-2 rounded-2xl border border-violet-400/20 bg-violet-500/10 px-4 text-sm font-semibold text-violet-100 transition hover:bg-violet-500/15 disabled:cursor-not-allowed disabled:opacity-50"
-                    >
-                      <Archive className="h-4 w-4" />
-                      Create Funding Allocation
-                    </button>
-                  </div>
-                </div>
-
-                {renderExpenseTable(verifiedRows, "verified")}
-              </div>
-            ) : null}
-
-            {!isLoading && activeTab === "funding_batches" ? renderFundingBatches() : null}
-
-            {!isLoading && activeTab === "payments" ? renderPayments() : null}
+            {!isLoading && activeTab === "verified_for_payment"
+              ? renderExpenseTable(verifiedRows)
+              : null}
 
             {!isLoading && activeTab === "recipient_tracking"
-              ? renderExpenseTable(recipientTrackingRows, "recipient")
+              ? renderExpenseTable(recipientTrackingRows)
+              : null}
+
+            {!isLoading && activeTab === "funding_batches"
+              ? renderExecutionTable(activeBatchRows)
+              : null}
+
+            {!isLoading && activeTab === "payments"
+              ? renderExecutionTable(activePaymentRows)
               : null}
           </div>
         </section>
       </div>
+
+      {archiveModalOpen ? (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 px-4 py-6 backdrop-blur-xl">
+          <div className="flex max-h-[90vh] w-full max-w-[1320px] flex-col overflow-hidden rounded-[34px] border border-white/10 bg-[#080b12] shadow-2xl shadow-black/50">
+            <div className="flex items-start justify-between gap-4 border-b border-white/10 p-5">
+              <div>
+                <div className="inline-flex w-fit items-center gap-2 rounded-full border border-amber-400/20 bg-amber-500/10 px-3 py-1 text-[11px] font-semibold uppercase tracking-[0.22em] text-amber-200">
+                  <Archive className="h-3.5 w-3.5" />
+                  {archiveScope === "workflow"
+                    ? "Expense Workflow Archive"
+                    : "Payment Execution Archive"}
+                </div>
+                <h2 className="mt-3 text-2xl font-semibold text-white">
+                  {archiveScope === "workflow"
+                    ? "Archived & Deleted Expense Workflow Records"
+                    : "Archived & Deleted Payment Execution Records"}
+                </h2>
+                <p className="mt-2 text-sm leading-6 text-slate-400">
+                  {archiveScope === "workflow"
+                    ? "Workflow archive contains expense request records only."
+                    : "Payment execution archive contains funding allocations and expense payment records only."}
+                </p>
+              </div>
+
+              <button
+                type="button"
+                onClick={() => setArchiveModalOpen(false)}
+                className="inline-flex h-10 w-10 items-center justify-center rounded-full border border-white/10 bg-white/[0.05] text-slate-300 transition hover:bg-white/[0.08] hover:text-white"
+              >
+                <X className="h-4 w-4" />
+              </button>
+            </div>
+
+            <div className="flex gap-2 border-b border-white/10 px-5 py-4">
+              <button
+                type="button"
+                onClick={() => setArchiveTab("archived")}
+                className={`rounded-full border px-4 py-2 text-xs font-semibold uppercase tracking-[0.18em] transition ${
+                  archiveTab === "archived"
+                    ? "border-amber-400/20 bg-amber-500/10 text-amber-200"
+                    : "border-white/10 bg-white/[0.04] text-slate-400 hover:bg-white/[0.07]"
+                }`}
+              >
+                Archived (
+                {archiveScope === "workflow"
+                  ? metrics.workflowArchived
+                  : metrics.executionArchived}
+                )
+              </button>
+              <button
+                type="button"
+                onClick={() => setArchiveTab("deleted")}
+                className={`rounded-full border px-4 py-2 text-xs font-semibold uppercase tracking-[0.18em] transition ${
+                  archiveTab === "deleted"
+                    ? "border-rose-400/20 bg-rose-500/10 text-rose-200"
+                    : "border-white/10 bg-white/[0.04] text-slate-400 hover:bg-white/[0.07]"
+                }`}
+              >
+                Deleted (
+                {archiveScope === "workflow"
+                  ? metrics.workflowDeleted
+                  : metrics.executionDeleted}
+                )
+              </button>
+            </div>
+
+            <div className="overflow-x-auto">
+              <div className="max-h-[620px] overflow-y-auto">
+                {archiveScope === "workflow" ? (
+                  <table className="w-full min-w-[1500px] border-collapse">
+                    <thead className="sticky top-0 z-20 border-b border-white/10 bg-black/70 backdrop-blur-xl">
+                      <tr>
+                        <th className="px-5 py-4 text-left text-[11px] font-semibold uppercase tracking-[0.18em] text-slate-500">
+                          Expense
+                        </th>
+                        <th className="px-5 py-4 text-left text-[11px] font-semibold uppercase tracking-[0.18em] text-slate-500">
+                          Made By
+                        </th>
+                        <th className="px-5 py-4 text-left text-[11px] font-semibold uppercase tracking-[0.18em] text-slate-500">
+                          Type
+                        </th>
+                        <th className="px-5 py-4 text-right text-[11px] font-semibold uppercase tracking-[0.18em] text-slate-500">
+                          Amount
+                        </th>
+                        <th className="px-5 py-4 text-left text-[11px] font-semibold uppercase tracking-[0.18em] text-slate-500">
+                          Docs
+                        </th>
+                        <th className="px-5 py-4 text-left text-[11px] font-semibold uppercase tracking-[0.18em] text-slate-500">
+                          Review
+                        </th>
+                        <th className="px-5 py-4 text-left text-[11px] font-semibold uppercase tracking-[0.18em] text-slate-500">
+                          Coverage
+                        </th>
+                        <th className="px-5 py-4 text-left text-[11px] font-semibold uppercase tracking-[0.18em] text-slate-500">
+                          Recipient
+                        </th>
+                        <th className="px-5 py-4 text-left text-[11px] font-semibold uppercase tracking-[0.18em] text-slate-500">
+                          Next Step
+                        </th>
+                        <th className="sticky right-0 bg-black/70 px-4 py-4 text-right text-[11px] font-semibold uppercase tracking-[0.18em] text-slate-500 shadow-[-18px_0_24px_rgba(0,0,0,0.35)] backdrop-blur-xl">
+                          Actions
+                        </th>
+                      </tr>
+                    </thead>
+                    <tbody>{renderExpenseRows(workflowArchiveRows, "archive")}</tbody>
+                  </table>
+                ) : (
+                  <table className="w-full min-w-[1240px] border-collapse">
+                    <thead className="sticky top-0 z-20 border-b border-white/10 bg-black/70 backdrop-blur-xl">
+                      <tr>
+                        <th className="px-5 py-4 text-left text-[11px] font-semibold uppercase tracking-[0.18em] text-slate-500">
+                          Record
+                        </th>
+                        <th className="px-5 py-4 text-left text-[11px] font-semibold uppercase tracking-[0.18em] text-slate-500">
+                          Type
+                        </th>
+                        <th className="px-5 py-4 text-left text-[11px] font-semibold uppercase tracking-[0.18em] text-slate-500">
+                          Company / Bank
+                        </th>
+                        <th className="px-5 py-4 text-right text-[11px] font-semibold uppercase tracking-[0.18em] text-slate-500">
+                          Amount
+                        </th>
+                        <th className="px-5 py-4 text-left text-[11px] font-semibold uppercase tracking-[0.18em] text-slate-500">
+                          Lines
+                        </th>
+                        <th className="px-5 py-4 text-left text-[11px] font-semibold uppercase tracking-[0.18em] text-slate-500">
+                          Status
+                        </th>
+                        <th className="px-5 py-4 text-left text-[11px] font-semibold uppercase tracking-[0.18em] text-slate-500">
+                          Docs / Recipient
+                        </th>
+                        <th className="sticky right-0 bg-black/70 px-4 py-4 text-right text-[11px] font-semibold uppercase tracking-[0.18em] text-slate-500 shadow-[-18px_0_24px_rgba(0,0,0,0.35)] backdrop-blur-xl">
+                          Actions
+                        </th>
+                      </tr>
+                    </thead>
+                    <tbody>{renderExecutionRows(executionArchiveRows, "archive")}</tbody>
+                  </table>
+                )}
+              </div>
+            </div>
+          </div>
+        </div>
+      ) : null}
     </div>
   );
 }

@@ -34,7 +34,6 @@ type ExpenseRow = {
   request_status: string | null;
   documentation_status: string | null;
   finance_review_status: string | null;
-  funding_status: string | null;
   coverage_status: string | null;
   recipient_confirmation_status: string | null;
   company_id: string | null;
@@ -55,17 +54,11 @@ type CompanyRow = {
 
 type EmployeeRefRow = {
   id: string;
+  user_id: string | null;
   code: string | null;
   mark: string | null;
   status: string | null;
   metadata: {
-    name?: string | null;
-    full_name?: string | null;
-    display_name?: string | null;
-    employee_name?: string | null;
-    first_name?: string | null;
-    last_name?: string | null;
-    email?: string | null;
     company?: string | null;
     job_title?: string | null;
     member_type?: string | null;
@@ -74,10 +67,19 @@ type EmployeeRefRow = {
   } | null;
 };
 
+type ProfileRow = {
+  user_id: string;
+  full_name: string | null;
+  display_name: string | null;
+  email: string | null;
+  company: string | null;
+  job_title: string | null;
+  member_type: string | null;
+};
+
 type AllocationRow = {
   id: string;
   expense_id: string;
-  funding_company_id: string | null;
   allocated_amount: number | string | null;
   recipient_confirmation_status: string | null;
 };
@@ -92,7 +94,6 @@ type SortKey =
   | "amount"
   | "documentation_status"
   | "finance_review_status"
-  | "funding_status"
   | "coverage_status"
   | "recipient_confirmation_status"
   | "updated_at";
@@ -100,7 +101,6 @@ type SortKey =
 type EnrichedExpenseRow = ExpenseRow & {
   companyName: string;
   madeByLabel: string;
-  fundingCompaniesLabel: string;
   allocatedAmount: number;
 };
 
@@ -126,10 +126,6 @@ const statusToneMap: Record<
   approved_for_payment: "emerald",
   rejected: "rose",
   needs_correction: "amber",
-  not_allocated: "slate",
-  partially_allocated: "amber",
-  allocated: "emerald",
-  allocation_cancelled: "rose",
   not_covered: "slate",
   partially_covered: "amber",
   covered: "emerald",
@@ -156,6 +152,7 @@ function formatMoney(value: number | string | null | undefined) {
 
 function formatDate(value: string | null | undefined) {
   if (!value) return "—";
+
   const parsed = new Date(value);
   if (Number.isNaN(parsed.getTime())) return value;
 
@@ -168,6 +165,7 @@ function formatDate(value: string | null | undefined) {
 
 function formatLabel(value: string | null | undefined) {
   if (!value) return "—";
+
   return value
     .split("_")
     .filter(Boolean)
@@ -290,26 +288,27 @@ function isActive(row: ExpenseRow) {
   return !isArchived(row) && !isDeleted(row);
 }
 
-function getMadeByLabel(row: ExpenseRow, employeeMap: Map<string, EmployeeRefRow>) {
+function getMadeByLabel(
+  row: ExpenseRow,
+  employeeMap: Map<string, EmployeeRefRow>,
+  profileMap: Map<string, ProfileRow>
+) {
   if (row.expense_made_by_type === "employee" && row.employee_ref_id) {
     const employee = employeeMap.get(row.employee_ref_id);
 
     if (!employee) return "Employee";
 
-    const firstName = employee.metadata?.first_name?.trim() || "";
-    const lastName = employee.metadata?.last_name?.trim() || "";
-    const combinedName = [firstName, lastName].filter(Boolean).join(" ").trim();
+    const profile = employee.user_id ? profileMap.get(employee.user_id) : null;
 
     const employeeName =
-      employee.metadata?.full_name?.trim() ||
-      employee.metadata?.display_name?.trim() ||
-      employee.metadata?.employee_name?.trim() ||
-      employee.metadata?.name?.trim() ||
-      combinedName ||
-      employee.metadata?.email?.trim() ||
+      profile?.full_name?.trim() ||
+      profile?.display_name?.trim() ||
+      profile?.email?.trim() ||
+      employee.code?.trim() ||
       "Employee";
 
     const employeeRole =
+      profile?.job_title?.trim() ||
       employee.metadata?.job_title?.trim() ||
       employee.metadata?.source_role?.trim() ||
       employee.mark?.trim() ||
@@ -333,29 +332,6 @@ function getMadeByLabel(row: ExpenseRow, employeeMap: Map<string, EmployeeRefRow
   return "—";
 }
 
-function getFundingCompaniesLabel(
-  row: ExpenseRow,
-  allocations: AllocationRow[],
-  companyMap: Map<string, CompanyRow>
-) {
-  const rowAllocations = allocations.filter((item) => item.expense_id === row.id);
-  const uniqueCompanies = Array.from(
-    new Set(
-      rowAllocations
-        .map((item) => item.funding_company_id)
-        .filter((value): value is string => Boolean(value))
-    )
-  );
-
-  if (uniqueCompanies.length === 0) return "Not funded";
-
-  const names = uniqueCompanies.map((id) => companyMap.get(id)?.name || "Company");
-
-  if (names.length === 1) return names[0];
-
-  return `${names[0]} +${names.length - 1}`;
-}
-
 function getSortValue(row: EnrichedExpenseRow, sortKey: SortKey) {
   switch (sortKey) {
     case "expense_number":
@@ -376,8 +352,6 @@ function getSortValue(row: EnrichedExpenseRow, sortKey: SortKey) {
       return row.documentation_status || "";
     case "finance_review_status":
       return row.finance_review_status || "";
-    case "funding_status":
-      return row.funding_status || "";
     case "coverage_status":
       return row.coverage_status || "";
     case "recipient_confirmation_status":
@@ -394,6 +368,7 @@ export default function FinanceExpensesPage() {
   const [expenses, setExpenses] = useState<ExpenseRow[]>([]);
   const [companies, setCompanies] = useState<CompanyRow[]>([]);
   const [employees, setEmployees] = useState<EmployeeRefRow[]>([]);
+  const [profiles, setProfiles] = useState<ProfileRow[]>([]);
   const [allocations, setAllocations] = useState<AllocationRow[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [searchQuery, setSearchQuery] = useState("");
@@ -411,60 +386,74 @@ export default function FinanceExpensesPage() {
     return new Map(employees.map((employee) => [employee.id, employee]));
   }, [employees]);
 
+  const profileMap = useMemo(() => {
+    return new Map(profiles.map((profile) => [profile.user_id, profile]));
+  }, [profiles]);
+
   const loadExpenses = useCallback(async () => {
     setIsLoading(true);
     setActionError(null);
 
     try {
-      const [expensesResult, companiesResult, employeesResult] = await Promise.all([
-        supabase
-          .from("finance_expenses")
-          .select(
-            [
-              "id",
-              "expense_number",
-              "title",
-              "description",
-              "amount",
-              "expense_date",
-              "expense_type",
-              "status",
-              "request_status",
-              "documentation_status",
-              "finance_review_status",
-              "funding_status",
-              "coverage_status",
-              "recipient_confirmation_status",
-              "company_id",
-              "employee_ref_id",
-              "expense_made_by_type",
-              "responsible_person_name",
-              "expense_source_name",
-              "online_platform",
-              "online_order_number",
-              "created_at",
-              "updated_at",
-            ].join(", ")
-          )
-          .order("updated_at", { ascending: false })
-          .limit(500),
+      const [expensesResult, companiesResult, employeesResult, profilesResult] =
+        await Promise.all([
+          supabase
+            .from("finance_expenses")
+            .select(
+              [
+                "id",
+                "expense_number",
+                "title",
+                "description",
+                "amount",
+                "expense_date",
+                "expense_type",
+                "status",
+                "request_status",
+                "documentation_status",
+                "finance_review_status",
+                "coverage_status",
+                "recipient_confirmation_status",
+                "company_id",
+                "employee_ref_id",
+                "expense_made_by_type",
+                "responsible_person_name",
+                "expense_source_name",
+                "online_platform",
+                "online_order_number",
+                "created_at",
+                "updated_at",
+              ].join(", ")
+            )
+            .order("updated_at", { ascending: false })
+            .limit(500),
 
-        supabase.from("finance_companies").select("id, name").order("name"),
+          supabase.from("finance_companies").select("id, name").order("name"),
 
-        supabase
-          .from("finance_employee_refs")
-          .select("id, code, mark, status, metadata")
-          .order("code"),
-      ]);
+          supabase
+            .from("finance_employee_refs")
+            .select("id, user_id, code, mark, status, metadata")
+            .order("code"),
+
+          supabase
+            .from("profiles")
+            .select(
+              "user_id, full_name, display_name, email, company, job_title, member_type"
+            )
+            .order("full_name"),
+        ]);
 
       if (expensesResult.error) throw expensesResult.error;
       if (companiesResult.error) throw companiesResult.error;
       if (employeesResult.error) throw employeesResult.error;
+      if (profilesResult.error) throw profilesResult.error;
 
       const loadedExpenses = (expensesResult.data || []) as unknown as ExpenseRow[];
+
       setExpenses(loadedExpenses);
       setCompanies((companiesResult.data || []) as CompanyRow[]);
       setEmployees((employeesResult.data || []) as EmployeeRefRow[]);
+      setProfiles((profilesResult.data || []) as ProfileRow[]);
 
       const expenseIds = loadedExpenses.map((item) => item.id);
 
@@ -473,9 +462,7 @@ export default function FinanceExpensesPage() {
       } else {
         const allocationsResult = await supabase
           .from("finance_payment_made_expense_allocations")
-          .select(
-            "id, expense_id, funding_company_id, allocated_amount, recipient_confirmation_status"
-          )
+          .select("id, expense_id, allocated_amount, recipient_confirmation_status")
           .in("expense_id", expenseIds);
 
         if (allocationsResult.error) throw allocationsResult.error;
@@ -488,6 +475,7 @@ export default function FinanceExpensesPage() {
       setExpenses([]);
       setCompanies([]);
       setEmployees([]);
+      setProfiles([]);
       setAllocations([]);
     } finally {
       setIsLoading(false);
@@ -527,7 +515,7 @@ export default function FinanceExpensesPage() {
     };
   }, [loadExpenses]);
 
-  const enrichedExpenses = useMemo<EnrichedExpenseRow[]>(() => {
+  const enrichedExpenses = useMemo<EnrichedExpenseRow[]>((() => {
     return expenses.map((row) => {
       const rowAllocations = allocations.filter((item) => item.expense_id === row.id);
       const allocatedAmount = rowAllocations.reduce(
@@ -540,12 +528,11 @@ export default function FinanceExpensesPage() {
         companyName: row.company_id
           ? companyMap.get(row.company_id)?.name || "Unknown company"
           : "No company",
-        madeByLabel: getMadeByLabel(row, employeeMap),
-        fundingCompaniesLabel: getFundingCompaniesLabel(row, allocations, companyMap),
+        madeByLabel: getMadeByLabel(row, employeeMap, profileMap),
         allocatedAmount,
       };
     });
-  }, [allocations, companyMap, employeeMap, expenses]);
+  }, [allocations, companyMap, employeeMap, expenses, profileMap]);
 
   const filteredExpenses = useMemo(() => {
     const normalizedSearch = searchQuery.trim().toLowerCase();
@@ -566,7 +553,6 @@ export default function FinanceExpensesPage() {
         row.request_status,
         row.documentation_status,
         row.finance_review_status,
-        row.funding_status,
         row.coverage_status,
         row.recipient_confirmation_status,
       ]
@@ -663,7 +649,7 @@ export default function FinanceExpensesPage() {
       if (rows.length === 0) {
         return (
           <tr>
-            <td colSpan={13} className="px-5 py-12 text-center">
+            <td colSpan={12} className="px-5 py-12 text-center">
               <div className="text-sm font-medium text-white">
                 No expense records found
               </div>
@@ -686,17 +672,22 @@ export default function FinanceExpensesPage() {
             </div>
             <div className="mt-1 text-xs text-slate-500">{formatDate(row.updated_at)}</div>
           </td>
+
           <td className="whitespace-nowrap px-5 py-4">{formatDate(row.expense_date)}</td>
+
           <td className="min-w-[180px] px-5 py-4">
             <div className="font-medium text-slate-200">{row.companyName}</div>
           </td>
-          <td className="min-w-[190px] px-5 py-4">
+
+          <td className="min-w-[220px] px-5 py-4">
             <div className="font-medium text-slate-200">{row.madeByLabel}</div>
             <div className="mt-1 text-xs text-slate-500">
               {formatLabel(row.expense_made_by_type)}
             </div>
           </td>
+
           <td className="min-w-[170px] px-5 py-4">{formatLabel(row.expense_type)}</td>
+
           <td className="min-w-[220px] px-5 py-4">
             <div className="font-medium text-slate-200">
               {row.expense_source_name || row.title || "—"}
@@ -707,28 +698,30 @@ export default function FinanceExpensesPage() {
               </div>
             ) : null}
           </td>
+
           <td className="whitespace-nowrap px-5 py-4 text-right font-semibold text-white">
             ${formatMoney(row.amount)}
           </td>
+
           <td className="whitespace-nowrap px-5 py-4">
             <StatusBadge value={row.documentation_status} />
           </td>
+
           <td className="whitespace-nowrap px-5 py-4">
             <StatusBadge value={row.finance_review_status} />
           </td>
-          <td className="whitespace-nowrap px-5 py-4">
-            <StatusBadge value={row.funding_status} />
-          </td>
+
           <td className="whitespace-nowrap px-5 py-4">
             <StatusBadge value={row.coverage_status} />
             <div className="mt-1 text-xs text-slate-500">
               Covered ${formatMoney(row.allocatedAmount)}
             </div>
           </td>
+
           <td className="min-w-[170px] px-5 py-4">
             <StatusBadge value={row.recipient_confirmation_status} />
-            <div className="mt-1 text-xs text-slate-500">{row.fundingCompaniesLabel}</div>
           </td>
+
           <td className="sticky right-0 bg-[#05070d]/95 px-5 py-4 backdrop-blur-xl">
             <div className="flex items-center justify-end gap-2">
               <IconButton
@@ -815,7 +808,7 @@ export default function FinanceExpensesPage() {
 
                 <p className="mt-3 max-w-4xl text-sm leading-6 text-slate-400 md:text-base md:leading-7">
                   Public/internal expense request intake. People request permission, upload
-                  documentation, track finance review, see funding coverage, and confirm received
+                  documentation, track finance review, see payment coverage, and confirm received
                   reimbursement after payment.
                 </p>
 
@@ -920,8 +913,8 @@ export default function FinanceExpensesPage() {
                 Expense Registry
               </div>
               <p className="mt-1 text-xs leading-5 text-slate-500">
-                Intake records only. Finance review, fund allocation, and payment execution happen
-                inside Payments Made.
+                Intake records only. Finance review and payment execution happen inside Payments
+                Made.
               </p>
             </div>
 
@@ -964,7 +957,7 @@ export default function FinanceExpensesPage() {
 
           <div className="overflow-x-auto">
             <div className="max-h-[720px] overflow-y-auto">
-              <table className="w-full min-w-[1680px] border-collapse">
+              <table className="w-full min-w-[1540px] border-collapse">
                 <thead className="sticky top-0 z-20 border-b border-white/10 bg-black/70 backdrop-blur-xl">
                   <tr>
                     <SortHeader
@@ -1027,13 +1020,6 @@ export default function FinanceExpensesPage() {
                     <SortHeader
                       label="Review"
                       sortKey="finance_review_status"
-                      activeKey={sortKey}
-                      direction={sortDirection}
-                      onSort={handleSort}
-                    />
-                    <SortHeader
-                      label="Funding"
-                      sortKey="funding_status"
                       activeKey={sortKey}
                       direction={sortDirection}
                       onSort={handleSort}
@@ -1119,7 +1105,7 @@ export default function FinanceExpensesPage() {
 
             <div className="overflow-x-auto">
               <div className="max-h-[620px] overflow-y-auto">
-                <table className="w-full min-w-[1680px] border-collapse">
+                <table className="w-full min-w-[1540px] border-collapse">
                   <thead className="sticky top-0 z-20 border-b border-white/10 bg-black/70 backdrop-blur-xl">
                     <tr>
                       <th className="px-5 py-4 text-left text-[11px] font-semibold uppercase tracking-[0.18em] text-slate-500">
@@ -1148,9 +1134,6 @@ export default function FinanceExpensesPage() {
                       </th>
                       <th className="px-5 py-4 text-left text-[11px] font-semibold uppercase tracking-[0.18em] text-slate-500">
                         Review
-                      </th>
-                      <th className="px-5 py-4 text-left text-[11px] font-semibold uppercase tracking-[0.18em] text-slate-500">
-                        Funding
                       </th>
                       <th className="px-5 py-4 text-left text-[11px] font-semibold uppercase tracking-[0.18em] text-slate-500">
                         Coverage

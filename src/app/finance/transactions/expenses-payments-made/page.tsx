@@ -682,9 +682,23 @@ export default function FinanceExpensesPaymentsMadePage() {
     return new Map(bankAccounts.map((bank) => [bank.id, bank]));
   }, [bankAccounts]);
 
+  const confirmedPaymentIdSet = useMemo(() => {
+    return new Set(
+      payments
+        .filter((payment) => payment.status === "confirmed")
+        .map((payment) => payment.id)
+    );
+  }, [payments]);
+
+  const confirmedExpenseAllocations = useMemo(() => {
+    return expenseAllocations.filter((allocation) =>
+      confirmedPaymentIdSet.has(allocation.payment_made_id)
+    );
+  }, [confirmedPaymentIdSet, expenseAllocations]);
+
   const enrichedExpenses = useMemo<EnrichedExpense[]>(() => {
     return expenses.map((expense) => {
-      const allocationTotal = expenseAllocations
+      const allocationTotal = confirmedExpenseAllocations
         .filter((allocation) => allocation.expense_id === expense.id)
         .reduce(
           (sum, allocation) =>
@@ -706,7 +720,7 @@ export default function FinanceExpensesPaymentsMadePage() {
         nextStepTone: nextStep.tone,
       };
     });
-  }, [companyMap, employeeMap, expenseAllocations, expenses, profileMap]);
+  }, [companyMap, confirmedExpenseAllocations, employeeMap, expenses, profileMap]);
 
   const enrichedFundingBatches = useMemo<EnrichedFundingBatch[]>(() => {
     return fundingBatches.map((batch) => ({
@@ -1535,7 +1549,11 @@ export default function FinanceExpensesPaymentsMadePage() {
             </td>
 
             <td className="px-5 py-4">
-              <StatusBadge value={record.recordType} />
+              {isBatch ? (
+                <SoftBadge value="Funding Pool" tone="violet" />
+              ) : (
+                <SoftBadge value="Expense Payment" tone="cyan" />
+              )}
             </td>
 
             <td className="min-w-[220px] px-5 py-4">

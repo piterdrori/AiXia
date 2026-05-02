@@ -1083,68 +1083,9 @@ export default function FinanceExpensesPaymentsMadePage() {
     [runExpenseRpc]
   );
 
-  const createFundingBatch = useCallback(async () => {
-    const companyOptions = companies
-      .map((company) => `${company.id} — ${company.name || "Unnamed company"}`)
-      .join("\n");
-
-    const companyId = window.prompt(
-      `Paste funding company ID:\n\n${companyOptions}`
-    );
-
-    if (!companyId?.trim()) return;
-
-    const matchingCompany = companies.find((company) => company.id === companyId.trim());
-
-    if (!matchingCompany) {
-      setPageError("Funding company ID was not found.");
-      return;
-    }
-
-    const companyBanks = bankAccounts.filter((bank) => bank.company_id === matchingCompany.id);
-    const bankOptions = companyBanks
-      .map((bank) => `${bank.id} — ${getBankLabel(bank)}`)
-      .join("\n");
-
-    const bankId =
-      window.prompt(
-        `Paste funding bank account ID, or leave empty:\n\n${bankOptions || "No bank accounts found for this company."}`
-      ) || null;
-
-    if (bankId && !companyBanks.some((bank) => bank.id === bankId.trim())) {
-      setPageError("Funding bank account does not belong to the selected company.");
-      return;
-    }
-
-    const currencyCode = window.prompt("Currency code", "USD") || "USD";
-    const notes = window.prompt("Funding batch notes, optional", "") || null;
-
-    setIsRunningAction(true);
-    setPageError(null);
-    setPageMessage(null);
-
-    try {
-      const result = await supabase.rpc("finance_create_expense_funding_batch", {
-        p_funding_company_id: matchingCompany.id,
-        p_funding_bank_account_id: bankId?.trim() || null,
-        p_allocation_date: new Date().toISOString().slice(0, 10),
-        p_currency_code: currencyCode.trim().toUpperCase(),
-        p_notes: notes,
-      });
-
-      if (result.error) throw result.error;
-
-      setSelectedFundingBatchId(String(result.data || ""));
-      setActiveTab("funding_batches");
-      setPageMessage("Funding batch created.");
-      await loadWorkbench();
-    } catch (error) {
-      console.error("Failed to create funding batch:", error);
-      setPageError(error instanceof Error ? error.message : "Failed to create funding batch.");
-    } finally {
-      setIsRunningAction(false);
-    }
-  }, [bankAccounts, companies, loadWorkbench]);
+  const openCreateFundingBatchModal = useCallback(() => {
+    navigate("/finance/transactions/expenses-payments-made/funding-batches/new");
+  }, [navigate]);
 
   const addExpenseToFundingBatch = useCallback(
     async (expense: EnrichedExpense) => {
@@ -1433,11 +1374,15 @@ export default function FinanceExpensesPaymentsMadePage() {
                         {mode === "verified" ? (
                           <>
                             <ActionButton
-                              label="Add Batch"
+                              label="Allocate"
                               icon={Archive}
                               tone="violet"
                               disabled={isRunningAction}
-                              onClick={() => void addExpenseToFundingBatch(expense)}
+                              onClick={() =>
+                                navigate(
+                                  `/finance/transactions/expenses-payments-made/funding-batches/new?expenseId=${expense.id}`
+                                )
+                              }
                             />
                            <ActionButton
                               label="Pay"
@@ -1865,20 +1810,20 @@ export default function FinanceExpensesPaymentsMadePage() {
               <button
                 type="button"
                 disabled={isRunningAction}
-                onClick={() => void createFundingBatch()}
+                onClick={openCreateFundingBatchModal}
                 className="inline-flex h-11 items-center justify-center gap-2 rounded-2xl border border-violet-400/20 bg-violet-500/10 px-4 text-sm font-semibold text-violet-100 transition hover:bg-violet-500/15 disabled:cursor-not-allowed disabled:opacity-50"
               >
                 <Archive className="h-4 w-4" />
-                New Batch
+                New Funding Allocation
               </button>
 
-               <button
+              <button
                 type="button"
-                 onClick={() => navigate("/finance/transactions/expenses-payments-made/new")}
+                onClick={() => navigate("/finance/transactions/expenses-payments-made/new")}
                 className="inline-flex h-11 items-center justify-center gap-2 rounded-2xl border border-cyan-400/20 bg-cyan-500/10 px-4 text-sm font-semibold text-cyan-100 transition hover:bg-cyan-500/15"
-                >
-                 <WalletCards className="h-4 w-4" />
-                  New Operating Expense Payment
+              >
+                <WalletCards className="h-4 w-4" />
+                New Expense Payment
               </button>
             </div>
           </div>
@@ -1947,11 +1892,11 @@ export default function FinanceExpensesPaymentsMadePage() {
                     <button
                       type="button"
                       disabled={isRunningAction}
-                      onClick={() => void createFundingBatch()}
+                      onClick={openCreateFundingBatchModal}
                       className="inline-flex h-11 items-center justify-center gap-2 rounded-2xl border border-violet-400/20 bg-violet-500/10 px-4 text-sm font-semibold text-violet-100 transition hover:bg-violet-500/15 disabled:cursor-not-allowed disabled:opacity-50"
                     >
                       <Archive className="h-4 w-4" />
-                      Create Batch
+                      Create Funding Allocation
                     </button>
                   </div>
                 </div>

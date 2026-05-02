@@ -1,23 +1,27 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
-import type { ReactNode } from "react";
+import type { LucideIcon, ReactNode } from "lucide-react";
 import { useNavigate, useParams } from "react-router-dom";
 import {
   AlertTriangle,
   Archive,
   ArrowRight,
   Banknote,
+  Building2,
+  CalendarDays,
   CheckCircle2,
   Clock3,
+  Coins,
+  Edit3,
   FileCheck2,
   FileText,
   Loader2,
-  Receipt,
   RefreshCcw,
+  Save,
   ShieldCheck,
   Sparkles,
-  Trash2,
   UploadCloud,
   WalletCards,
+  X,
 } from "lucide-react";
 
 import { supabase } from "@/lib/supabase";
@@ -41,56 +45,6 @@ type FundingBatchRow = {
   updated_by: string | null;
 };
 
-type FundingBatchLineRow = {
-  id: string;
-  funding_batch_id: string;
-  expense_id: string;
-  expense_company_id: string | null;
-  expense_made_by_type: string | null;
-  employee_ref_id: string | null;
-  responsible_person_name: string | null;
-  approved_amount: number | string | null;
-  allocated_amount: number | string | null;
-  currency_code: string | null;
-  status: string;
-  notes: string | null;
-  metadata: Record<string, unknown> | null;
-  created_at: string;
-  updated_at: string;
-  created_by: string | null;
-  updated_by: string | null;
-};
-
-type ExpenseRow = {
-  id: string;
-  expense_number: string | null;
-  title: string;
-  description: string | null;
-  amount: number | string | null;
-  requested_amount: number | string | null;
-  approved_amount: number | string | null;
-  final_amount: number | string | null;
-  currency_code: string | null;
-  expense_date: string;
-  expense_type: string;
-  request_status: string | null;
-  finance_review_status: string | null;
-  documentation_status: string | null;
-  funding_status: string | null;
-  coverage_status: string | null;
-  recipient_confirmation_status: string | null;
-  company_id: string | null;
-  employee_ref_id: string | null;
-  expense_made_by_type: string | null;
-  responsible_person_name: string | null;
-  other_made_by_explanation: string | null;
-  expense_source_name: string | null;
-  online_platform: string | null;
-  online_order_number: string | null;
-  created_at: string;
-  updated_at: string;
-};
-
 type CompanyRow = {
   id: string;
   name: string | null;
@@ -107,19 +61,14 @@ type BankAccountRow = {
   is_default: boolean | null;
 };
 
-type EmployeeRefRow = {
+type CurrencyRow = {
   id: string;
-  user_id: string | null;
-  code: string | null;
-  status: string | null;
-  mark: string | null;
-  metadata: {
-    company?: string | null;
-    job_title?: string | null;
-    member_type?: string | null;
-    source_role?: string | null;
-    source_status?: string | null;
-  } | null;
+  currency_code: string;
+  currency_name: string;
+  currency_symbol: string | null;
+  decimal_places: number;
+  is_base_currency: boolean;
+  status: string;
 };
 
 type AttachmentRow = {
@@ -152,11 +101,13 @@ type AttachmentWithFile = AttachmentRow & {
   fileUpload: FileUploadRow | null;
 };
 
-type EnrichedLine = FundingBatchLineRow & {
-  expense: ExpenseRow | null;
-  expenseCompanyName: string;
-  madeByLabel: string;
-  targetAmount: number;
+type EditFormState = {
+  fundingCompanyId: string;
+  fundingBankAccountId: string;
+  allocationDate: string;
+  currencyCode: string;
+  allocatedFundsAmount: string;
+  notes: string;
 };
 
 const statusToneMap: Record<
@@ -174,27 +125,14 @@ const statusToneMap: Record<
   files_and_links: "cyan",
   verified: "emerald",
   issue_found: "rose",
-  verified_for_payment: "emerald",
-  approved_for_payment: "emerald",
-  pending_review: "amber",
-  not_allocated: "slate",
-  partially_allocated: "amber",
-  allocation_cancelled: "rose",
-  allocated_batch: "violet",
-  not_covered: "slate",
-  partially_covered: "amber",
-  covered: "emerald",
-  not_paid_yet: "slate",
-  pending_confirmation: "amber",
-  received_confirmed: "emerald",
-  not_received: "rose",
-  disputed: "rose",
-  paid: "emerald",
-  partially_paid: "amber",
 };
 
 function toNumber(value: number | string | null | undefined) {
   return Number(value ?? 0);
+}
+
+function normalizeCurrencyCode(value: string | null | undefined) {
+  return (value || "").trim().toUpperCase();
 }
 
 function formatMoney(value: number | string | null | undefined) {
@@ -274,91 +212,16 @@ function StatusBadge({ value }: { value: string | null | undefined }) {
   );
 }
 
-function ValueBlock({
-  label,
-  value,
-  detail,
-}: {
-  label: string;
-  value: ReactNode;
-  detail?: ReactNode;
-}) {
-  return (
-    <div className="rounded-[24px] border border-white/10 bg-black/20 p-4">
-      <div className="text-[11px] font-semibold uppercase tracking-[0.2em] text-slate-500">
-        {label}
-      </div>
-      <div className="mt-2 text-sm font-semibold leading-6 text-white">{value}</div>
-      {detail ? <div className="mt-2 text-xs leading-5 text-slate-500">{detail}</div> : null}
-    </div>
-  );
+function inputClass() {
+  return "h-11 w-full rounded-2xl border border-white/10 bg-black/20 px-4 text-sm text-white outline-none transition placeholder:text-slate-600 focus:border-cyan-400/30 focus:bg-black/30";
 }
 
-function SectionCard({
-  title,
-  description,
-  icon: Icon,
-  children,
-}: {
-  title: string;
-  description: string;
-  icon: typeof Receipt;
-  children: ReactNode;
-}) {
-  return (
-    <section className="overflow-hidden rounded-[30px] border border-white/10 bg-white/[0.045] backdrop-blur-xl">
-      <div className="flex items-start gap-4 border-b border-white/10 px-5 py-4">
-        <div className="rounded-2xl border border-violet-400/15 bg-violet-500/10 p-3 text-violet-200">
-          <Icon className="h-4 w-4" />
-        </div>
-        <div>
-          <div className="text-sm font-semibold uppercase tracking-[0.18em] text-slate-400">
-            {title}
-          </div>
-          <p className="mt-1 text-xs leading-5 text-slate-500">{description}</p>
-        </div>
-      </div>
-      <div className="p-5">{children}</div>
-    </section>
-  );
+function textareaClass() {
+  return "min-h-[132px] w-full rounded-2xl border border-white/10 bg-black/20 px-4 py-3 text-sm text-white outline-none transition placeholder:text-slate-600 focus:border-cyan-400/30 focus:bg-black/30";
 }
 
-function ActionButton({
-  label,
-  icon: Icon,
-  tone,
-  disabled,
-  onClick,
-}: {
-  label: string;
-  icon: typeof CheckCircle2;
-  tone: "cyan" | "emerald" | "amber" | "rose" | "violet" | "slate";
-  disabled?: boolean;
-  onClick: () => void;
-}) {
-  const toneClass = {
-    cyan: "border-cyan-400/20 bg-cyan-500/10 text-cyan-100 hover:bg-cyan-500/15",
-    emerald:
-      "border-emerald-400/20 bg-emerald-500/10 text-emerald-100 hover:bg-emerald-500/15",
-    amber:
-      "border-amber-400/20 bg-amber-500/10 text-amber-100 hover:bg-amber-500/15",
-    rose: "border-rose-400/20 bg-rose-500/10 text-rose-100 hover:bg-rose-500/15",
-    violet:
-      "border-violet-400/20 bg-violet-500/10 text-violet-100 hover:bg-violet-500/15",
-    slate: "border-white/10 bg-white/[0.05] text-slate-300 hover:bg-white/[0.08]",
-  }[tone];
-
-  return (
-    <button
-      type="button"
-      disabled={disabled}
-      onClick={onClick}
-      className={`inline-flex h-11 items-center justify-center gap-2 rounded-2xl border px-4 text-sm font-semibold transition disabled:cursor-not-allowed disabled:opacity-50 ${toneClass}`}
-    >
-      <Icon className="h-4 w-4 shrink-0" />
-      {label}
-    </button>
-  );
+function labelClass() {
+  return "text-sm font-medium text-slate-300";
 }
 
 function getBankLabel(bank: BankAccountRow | null | undefined) {
@@ -371,53 +234,6 @@ function getBankLabel(bank: BankAccountRow | null | undefined) {
   ]
     .filter(Boolean)
     .join(" • ");
-}
-
-function getEmployeeLabel(employee: EmployeeRefRow | null | undefined) {
-  if (!employee) return "—";
-
-  const role = employee.metadata?.job_title || employee.metadata?.source_role || employee.mark;
-  const company = employee.metadata?.company;
-
-  return [employee.code || "Employee", role, company].filter(Boolean).join(" • ");
-}
-
-function getExpenseTargetAmount(expense: ExpenseRow | null) {
-  if (!expense) return 0;
-
-  return toNumber(
-    expense.final_amount ||
-      expense.approved_amount ||
-      expense.requested_amount ||
-      expense.amount
-  );
-}
-
-function getExpenseMadeByLabel(
-  line: FundingBatchLineRow,
-  expense: ExpenseRow | null,
-  employeeMap: Map<string, EmployeeRefRow>
-) {
-  const employeeId = line.employee_ref_id || expense?.employee_ref_id || null;
-  const madeByType = line.expense_made_by_type || expense?.expense_made_by_type || null;
-
-  if (madeByType === "employee" && employeeId) {
-    return getEmployeeLabel(employeeMap.get(employeeId));
-  }
-
-  if (madeByType === "owner_management") {
-    return line.responsible_person_name || expense?.responsible_person_name || "Owner / Management";
-  }
-
-  if (madeByType === "company_direct") {
-    return "Company Direct";
-  }
-
-  if (madeByType === "other") {
-    return expense?.other_made_by_explanation || "Other";
-  }
-
-  return "—";
 }
 
 function resolveMimeType(file: File) {
@@ -450,20 +266,154 @@ function resolveMimeType(file: File) {
   }
 }
 
+function SummaryBlock({
+  title,
+  value,
+  subtitle,
+}: {
+  title: string;
+  value: string;
+  subtitle: string;
+}) {
+  return (
+    <div className="min-h-[148px] rounded-[24px] border border-white/10 bg-black/20 p-4">
+      <div className="text-[11px] font-semibold uppercase tracking-[0.2em] text-slate-500">
+        {title}
+      </div>
+      <div className="mt-3 text-2xl font-semibold tracking-[-0.03em] text-white">
+        {value}
+      </div>
+      <div className="mt-3 text-sm leading-6 text-slate-400">{subtitle}</div>
+    </div>
+  );
+}
+
+function ValueBlock({
+  label,
+  value,
+  detail,
+}: {
+  label: string;
+  value: ReactNode;
+  detail?: ReactNode;
+}) {
+  return (
+    <div className="rounded-[24px] border border-white/10 bg-black/20 p-4">
+      <div className="text-[11px] font-semibold uppercase tracking-[0.2em] text-slate-500">
+        {label}
+      </div>
+      <div className="mt-2 text-sm font-semibold leading-6 text-white">{value}</div>
+      {detail ? <div className="mt-2 text-xs leading-5 text-slate-500">{detail}</div> : null}
+    </div>
+  );
+}
+
+function SectionCard({
+  title,
+  description,
+  icon: Icon,
+  children,
+}: {
+  title: string;
+  description: string;
+  icon: LucideIcon;
+  children: ReactNode;
+}) {
+  return (
+    <section className="overflow-hidden rounded-[30px] border border-white/10 bg-white/[0.045] backdrop-blur-xl">
+      <div className="flex items-start gap-4 border-b border-white/10 px-5 py-4">
+        <div className="rounded-2xl border border-violet-400/15 bg-violet-500/10 p-3 text-violet-200">
+          <Icon className="h-4 w-4" />
+        </div>
+        <div>
+          <div className="text-sm font-semibold uppercase tracking-[0.18em] text-slate-400">
+            {title}
+          </div>
+          <p className="mt-1 text-xs leading-5 text-slate-500">{description}</p>
+        </div>
+      </div>
+      <div className="p-5">{children}</div>
+    </section>
+  );
+}
+
+function ActionButton({
+  label,
+  icon: Icon,
+  tone,
+  disabled,
+  onClick,
+}: {
+  label: string;
+  icon: LucideIcon;
+  tone: "cyan" | "emerald" | "amber" | "rose" | "violet" | "slate";
+  disabled?: boolean;
+  onClick: () => void;
+}) {
+  const toneClass = {
+    cyan: "border-cyan-400/20 bg-cyan-500/10 text-cyan-100 hover:bg-cyan-500/15",
+    emerald:
+      "border-emerald-400/20 bg-emerald-500/10 text-emerald-100 hover:bg-emerald-500/15",
+    amber:
+      "border-amber-400/20 bg-amber-500/10 text-amber-100 hover:bg-amber-500/15",
+    rose: "border-rose-400/20 bg-rose-500/10 text-rose-100 hover:bg-rose-500/15",
+    violet:
+      "border-violet-400/20 bg-violet-500/10 text-violet-100 hover:bg-violet-500/15",
+    slate: "border-white/10 bg-white/[0.05] text-slate-300 hover:bg-white/[0.08]",
+  }[tone];
+
+  return (
+    <button
+      type="button"
+      disabled={disabled}
+      onClick={onClick}
+      className={`inline-flex h-11 items-center justify-center gap-2 rounded-2xl border px-4 text-sm font-semibold transition disabled:cursor-not-allowed disabled:opacity-50 ${toneClass}`}
+    >
+      <Icon className="h-4 w-4 shrink-0" />
+      {label}
+    </button>
+  );
+}
+
+function InfoCard({
+  icon: Icon,
+  title,
+  children,
+}: {
+  icon: LucideIcon;
+  title: string;
+  children: string;
+}) {
+  return (
+    <section className="overflow-hidden rounded-[30px] border border-white/10 bg-white/[0.045] p-5 backdrop-blur-xl">
+      <div className="flex items-start gap-3">
+        <div className="rounded-2xl border border-violet-400/15 bg-violet-500/10 p-3 text-violet-200">
+          <Icon className="h-4 w-4" />
+        </div>
+        <div>
+          <div className="text-sm font-semibold text-white">{title}</div>
+          <div className="mt-2 text-xs leading-5 text-slate-500">{children}</div>
+        </div>
+      </div>
+    </section>
+  );
+}
+
 export default function FinanceExpenseFundingBatchDetailPage() {
   const navigate = useNavigate();
   const params = useParams();
   const batchId = params.id;
 
   const [batch, setBatch] = useState<FundingBatchRow | null>(null);
-  const [lines, setLines] = useState<FundingBatchLineRow[]>([]);
-  const [expenses, setExpenses] = useState<ExpenseRow[]>([]);
   const [companies, setCompanies] = useState<CompanyRow[]>([]);
   const [bankAccounts, setBankAccounts] = useState<BankAccountRow[]>([]);
-  const [employees, setEmployees] = useState<EmployeeRefRow[]>([]);
+  const [currencies, setCurrencies] = useState<CurrencyRow[]>([]);
   const [attachments, setAttachments] = useState<AttachmentWithFile[]>([]);
+  const [editForm, setEditForm] = useState<EditFormState | null>(null);
   const [allocationProofFile, setAllocationProofFile] = useState<File | null>(null);
   const [isLoading, setIsLoading] = useState(true);
+  const [isEditing, setIsEditing] = useState(false);
+  const [isSavingEdit, setIsSavingEdit] = useState(false);
   const [isRunningAction, setIsRunningAction] = useState(false);
   const [isUploadingProof, setIsUploadingProof] = useState(false);
   const [pageError, setPageError] = useState<string | null>(null);
@@ -477,48 +427,32 @@ export default function FinanceExpenseFundingBatchDetailPage() {
     return new Map(bankAccounts.map((bank) => [bank.id, bank]));
   }, [bankAccounts]);
 
-  const employeeMap = useMemo(() => {
-    return new Map(employees.map((employee) => [employee.id, employee]));
-  }, [employees]);
+  const currencyOptions = useMemo(() => {
+    return currencies.filter((currency) => currency.status === "active");
+  }, [currencies]);
 
-  const expenseMap = useMemo(() => {
-    return new Map(expenses.map((expense) => [expense.id, expense]));
-  }, [expenses]);
-
-  const currencyCode = batch?.currency_code || lines[0]?.currency_code || "USD";
+  const currencyCode = normalizeCurrencyCode(batch?.currency_code || "USD");
+  const allocatedAmount = toNumber(batch?.allocated_amount);
 
   const fundingCompany = batch ? companyMap.get(batch.funding_company_id) || null : null;
   const fundingBankAccount =
     batch?.funding_bank_account_id ? bankAccountMap.get(batch.funding_bank_account_id) || null : null;
 
-  const activeLines = useMemo(() => {
-    return lines.filter((line) => line.status !== "cancelled");
-  }, [lines]);
+  const availableEditBankAccounts = useMemo(() => {
+    if (!editForm?.fundingCompanyId) return [];
+    return bankAccounts.filter((bank) => bank.company_id === editForm.fundingCompanyId);
+  }, [bankAccounts, editForm?.fundingCompanyId]);
 
-  const totalAllocated = useMemo(() => {
-    return activeLines.reduce((sum, line) => sum + toNumber(line.allocated_amount), 0);
-  }, [activeLines]);
-
-  const totalApproved = useMemo(() => {
-    return activeLines.reduce((sum, line) => sum + toNumber(line.approved_amount), 0);
-  }, [activeLines]);
-
-  const enrichedLines = useMemo<EnrichedLine[]>(() => {
-    return activeLines.map((line) => {
-      const expense = expenseMap.get(line.expense_id) || null;
-      const expenseCompanyId = line.expense_company_id || expense?.company_id || null;
-
-      return {
-        ...line,
-        expense,
-        expenseCompanyName: expenseCompanyId
-          ? companyMap.get(expenseCompanyId)?.name || "Unknown company"
-          : "No company",
-        madeByLabel: getExpenseMadeByLabel(line, expense, employeeMap),
-        targetAmount: getExpenseTargetAmount(expense),
-      };
-    });
-  }, [activeLines, companyMap, employeeMap, expenseMap]);
+  const buildEditForm = useCallback((nextBatch: FundingBatchRow): EditFormState => {
+    return {
+      fundingCompanyId: nextBatch.funding_company_id || "",
+      fundingBankAccountId: nextBatch.funding_bank_account_id || "",
+      allocationDate: nextBatch.allocation_date || new Date().toISOString().slice(0, 10),
+      currencyCode: normalizeCurrencyCode(nextBatch.currency_code || "USD"),
+      allocatedFundsAmount: String(toNumber(nextBatch.allocated_amount)),
+      notes: nextBatch.notes || "",
+    };
+  }, []);
 
   const loadBatch = useCallback(async () => {
     if (!batchId) {
@@ -559,120 +493,48 @@ export default function FinanceExpenseFundingBatchDetailPage() {
       if (batchResult.error) throw batchResult.error;
 
       const loadedBatch = batchResult.data as unknown as FundingBatchRow;
-      setBatch(loadedBatch);
 
-      const [
-        linesResult,
-        companiesResult,
-        bankAccountsResult,
-        employeesResult,
-        attachmentsResult,
-      ] = await Promise.all([
-        supabase
-          .from("finance_expense_funding_batch_lines")
-          .select(
-            [
-              "id",
-              "funding_batch_id",
-              "expense_id",
-              "expense_company_id",
-              "expense_made_by_type",
-              "employee_ref_id",
-              "responsible_person_name",
-              "approved_amount",
-              "allocated_amount",
-              "currency_code",
-              "status",
-              "notes",
-              "metadata",
-              "created_at",
-              "updated_at",
-              "created_by",
-              "updated_by",
-            ].join(", ")
-          )
-          .eq("funding_batch_id", loadedBatch.id)
-          .order("created_at", { ascending: true }),
+      const [companiesResult, bankAccountsResult, currenciesResult, attachmentsResult] =
+        await Promise.all([
+          supabase.from("finance_companies").select("id, name").order("name"),
 
-        supabase.from("finance_companies").select("id, name").order("name"),
+          supabase
+            .from("finance_bank_accounts")
+            .select(
+              "id, name, bank_name, institution_name, masked_account_number, currency_code, company_id, is_default"
+            )
+            .order("name"),
 
-        supabase
-          .from("finance_bank_accounts")
-          .select(
-            "id, name, bank_name, institution_name, masked_account_number, currency_code, company_id, is_default"
-          )
-          .order("name"),
+          supabase
+            .from("finance_currencies")
+            .select(
+              "id, currency_code, currency_name, currency_symbol, decimal_places, is_base_currency, status"
+            )
+            .eq("status", "active")
+            .order("currency_code"),
 
-        supabase
-          .from("finance_employee_refs")
-          .select("id, user_id, code, status, mark, metadata")
-          .order("code"),
+          supabase
+            .from("finance_record_attachments")
+            .select(
+              "id, entity_type, entity_id, file_upload_id, uploaded_by, notes, metadata, created_at"
+            )
+            .eq("entity_type", "finance_expense_funding_batch")
+            .eq("entity_id", loadedBatch.id)
+            .order("created_at", { ascending: false }),
+        ]);
 
-        supabase
-          .from("finance_record_attachments")
-          .select(
-            "id, entity_type, entity_id, file_upload_id, uploaded_by, notes, metadata, created_at"
-          )
-          .eq("entity_type", "finance_expense_funding_batch")
-          .eq("entity_id", loadedBatch.id)
-          .order("created_at", { ascending: false }),
-      ]);
-
-      if (linesResult.error) throw linesResult.error;
       if (companiesResult.error) throw companiesResult.error;
       if (bankAccountsResult.error) throw bankAccountsResult.error;
-      if (employeesResult.error) throw employeesResult.error;
+      if (currenciesResult.error) throw currenciesResult.error;
       if (attachmentsResult.error) throw attachmentsResult.error;
 
-      const loadedLines = (linesResult.data || []) as unknown as FundingBatchLineRow[];
-      setLines(loadedLines);
+      setBatch(loadedBatch);
       setCompanies((companiesResult.data || []) as CompanyRow[]);
       setBankAccounts((bankAccountsResult.data || []) as BankAccountRow[]);
-      setEmployees((employeesResult.data || []) as EmployeeRefRow[]);
+      setCurrencies((currenciesResult.data || []) as unknown as CurrencyRow[]);
 
-      const expenseIds = Array.from(new Set(loadedLines.map((line) => line.expense_id)));
-
-      if (expenseIds.length > 0) {
-        const expensesResult = await supabase
-          .from("finance_expenses")
-          .select(
-            [
-              "id",
-              "expense_number",
-              "title",
-              "description",
-              "amount",
-              "requested_amount",
-              "approved_amount",
-              "final_amount",
-              "currency_code",
-              "expense_date",
-              "expense_type",
-              "request_status",
-              "finance_review_status",
-              "documentation_status",
-              "funding_status",
-              "coverage_status",
-              "recipient_confirmation_status",
-              "company_id",
-              "employee_ref_id",
-              "expense_made_by_type",
-              "responsible_person_name",
-              "other_made_by_explanation",
-              "expense_source_name",
-              "online_platform",
-              "online_order_number",
-              "created_at",
-              "updated_at",
-            ].join(", ")
-          )
-          .in("id", expenseIds);
-
-        if (expensesResult.error) throw expensesResult.error;
-
-        setExpenses((expensesResult.data || []) as unknown as ExpenseRow[]);
-      } else {
-        setExpenses([]);
+      if (!isEditing) {
+        setEditForm(buildEditForm(loadedBatch));
       }
 
       const attachmentRows = (attachmentsResult.data || []) as AttachmentRow[];
@@ -713,7 +575,7 @@ export default function FinanceExpenseFundingBatchDetailPage() {
     } finally {
       setIsLoading(false);
     }
-  }, [batchId]);
+  }, [batchId, buildEditForm, isEditing]);
 
   useEffect(() => {
     void loadBatch();
@@ -739,16 +601,6 @@ export default function FinanceExpenseFundingBatchDetailPage() {
         {
           event: "*",
           schema: "public",
-          table: "finance_expense_funding_batch_lines",
-          filter: `funding_batch_id=eq.${batchId}`,
-        },
-        () => void loadBatch()
-      )
-      .on(
-        "postgres_changes",
-        {
-          event: "*",
-          schema: "public",
           table: "finance_record_attachments",
           filter: `entity_id=eq.${batchId}`,
         },
@@ -765,6 +617,132 @@ export default function FinanceExpenseFundingBatchDetailPage() {
       supabase.removeChannel(channel);
     };
   }, [batchId, loadBatch]);
+
+  const updateEditField = useCallback(
+    <Key extends keyof EditFormState>(key: Key, value: EditFormState[Key]) => {
+      setEditForm((current) => {
+        if (!current) return current;
+
+        const next = {
+          ...current,
+          [key]: value,
+        };
+
+        if (key === "fundingCompanyId") {
+          const defaultBank =
+            bankAccounts.find((bank) => bank.company_id === value && bank.is_default)?.id ||
+            bankAccounts.find((bank) => bank.company_id === value)?.id ||
+            "";
+
+          next.fundingBankAccountId = defaultBank;
+        }
+
+        if (key === "currencyCode") {
+          next.currencyCode = normalizeCurrencyCode(String(value));
+        }
+
+        return next;
+      });
+
+      setPageError(null);
+      setPageMessage(null);
+    },
+    [bankAccounts]
+  );
+
+  const startEditing = useCallback(() => {
+    if (!batch) return;
+
+    setEditForm(buildEditForm(batch));
+    setIsEditing(true);
+    setPageError(null);
+    setPageMessage(null);
+  }, [batch, buildEditForm]);
+
+  const cancelEditing = useCallback(() => {
+    if (!batch) return;
+
+    setEditForm(buildEditForm(batch));
+    setIsEditing(false);
+    setPageError(null);
+    setPageMessage(null);
+  }, [batch, buildEditForm]);
+
+  const saveEdit = useCallback(async () => {
+    if (!batch || !editForm) return;
+
+    setIsSavingEdit(true);
+    setPageError(null);
+    setPageMessage(null);
+
+    try {
+      const nextAmount = toNumber(editForm.allocatedFundsAmount);
+      const nextCurrency = normalizeCurrencyCode(editForm.currencyCode);
+
+      if (!editForm.fundingCompanyId) {
+        setPageError("Funding company is required.");
+        return;
+      }
+
+      if (!editForm.allocationDate) {
+        setPageError("Allocation date is required.");
+        return;
+      }
+
+      if (!nextCurrency) {
+        setPageError("Funding currency is required.");
+        return;
+      }
+
+      if (nextAmount <= 0) {
+        setPageError("Allocated funds amount must be greater than zero.");
+        return;
+      }
+
+      const selectedBank = editForm.fundingBankAccountId
+        ? bankAccountMap.get(editForm.fundingBankAccountId)
+        : null;
+
+      if (selectedBank && selectedBank.company_id !== editForm.fundingCompanyId) {
+        setPageError("Funding bank account must belong to the funding company.");
+        return;
+      }
+
+      const nextMetadata = {
+        ...(batch.metadata || {}),
+        allocation_mode: "lump_sum_reserve",
+        allocated_funds_amount: nextAmount,
+        allocated_funds_currency: nextCurrency,
+        last_edited_from: "funding_allocation_detail_page",
+      };
+
+      const updateResult = await supabase
+        .from("finance_expense_funding_batches")
+        .update({
+          funding_company_id: editForm.fundingCompanyId,
+          funding_bank_account_id: editForm.fundingBankAccountId || null,
+          allocation_date: editForm.allocationDate,
+          currency_code: nextCurrency,
+          allocated_amount: nextAmount,
+          notes: editForm.notes.trim() || null,
+          metadata: nextMetadata,
+        })
+        .eq("id", batch.id);
+
+      if (updateResult.error) throw updateResult.error;
+
+      setPageMessage("Funding allocation details updated.");
+      setIsEditing(false);
+      await loadBatch();
+    } catch (error) {
+      console.error("Failed to update funding allocation:", error);
+      setPageError(
+        error instanceof Error ? error.message : "Failed to update funding allocation."
+      );
+    } finally {
+      setIsSavingEdit(false);
+    }
+  }, [bank, bankAccountMap, editForm, loadBatch]);
 
   const runBatchRpc = useCallback(
     async (
@@ -795,6 +773,11 @@ export default function FinanceExpenseFundingBatchDetailPage() {
   const markAllocated = useCallback(async () => {
     if (!batch) return;
 
+    if (attachments.length === 0) {
+      setPageError("Allocation proof is required before marking allocated.");
+      return;
+    }
+
     await runBatchRpc(
       "finance_mark_expense_funding_batch_allocated",
       {
@@ -802,55 +785,21 @@ export default function FinanceExpenseFundingBatchDetailPage() {
       },
       "Funding allocation marked allocated."
     );
+  }, [attachments.length, batch, runBatchRpc]);
+
+  const markDocumentationVerified = useCallback(async () => {
+    if (!batch) return;
+
+    await runBatchRpc(
+      "finance_mark_expense_funding_batch_documentation",
+      {
+        p_batch_id: batch.id,
+        p_documentation_status: "verified",
+        p_notes: "Funding allocation documentation verified.",
+      },
+      "Funding allocation documentation verified."
+    );
   }, [batch, runBatchRpc]);
-
-  const markDocumentation = useCallback(
-    async (
-      documentationStatus:
-        | "uploaded"
-        | "linked"
-        | "files_and_links"
-        | "verified"
-        | "issue_found"
-    ) => {
-      if (!batch) return;
-
-      const notes = window.prompt("Documentation notes, optional", "") || null;
-
-      await runBatchRpc(
-        "finance_mark_expense_funding_batch_documentation",
-        {
-          p_batch_id: batch.id,
-          p_documentation_status: documentationStatus,
-          p_notes: notes,
-        },
-        "Funding allocation documentation updated."
-      );
-    },
-    [batch, runBatchRpc]
-  );
-
-  const removeExpenseLine = useCallback(
-    async (line: EnrichedLine) => {
-      if (!batch) return;
-
-      const confirmed = window.confirm(
-        `Remove ${line.expense?.expense_number || "this expense"} from this funding allocation?`
-      );
-
-      if (!confirmed) return;
-
-      await runBatchRpc(
-        "finance_remove_expense_from_funding_batch",
-        {
-          p_batch_id: batch.id,
-          p_expense_id: line.expense_id,
-        },
-        "Expense removed from funding allocation."
-      );
-    },
-    [batch, runBatchRpc]
-  );
 
   const uploadAllocationProof = useCallback(async () => {
     if (!batch || !allocationProofFile) return;
@@ -974,7 +923,7 @@ export default function FinanceExpenseFundingBatchDetailPage() {
     );
   }
 
-  const canEditDraft = batch.status === "draft";
+  const editableForm = editForm || buildEditForm(batch);
 
   return (
     <div className="min-h-screen bg-[#05070d] px-4 py-4 text-white md:px-6 md:py-6">
@@ -1004,8 +953,7 @@ export default function FinanceExpenseFundingBatchDetailPage() {
                 </h1>
 
                 <p className="mt-3 max-w-4xl text-sm leading-6 text-slate-400 md:text-base md:leading-7">
-                  Internal reserved funds for approved operating expenses before the actual
-                  outgoing payment is created.
+                  Reserved internal funds before actual outgoing payment execution.
                 </p>
 
                 <div className="mt-5 flex flex-wrap gap-2">
@@ -1014,42 +962,17 @@ export default function FinanceExpenseFundingBatchDetailPage() {
                 </div>
               </div>
 
-              <div className="grid gap-3 sm:grid-cols-3">
-                <div className="min-h-[148px] rounded-[24px] border border-white/10 bg-black/20 p-4">
-                  <div className="text-[11px] font-semibold uppercase tracking-[0.2em] text-slate-500">
-                    Planned Allocation
-                  </div>
-                  <div className="mt-2 text-xl font-semibold text-white">
-                    {currencyCode} {formatMoney(totalAllocated)}
-                  </div>
-                  <div className="mt-3 text-xs leading-5 text-slate-500">
-                    Sum of active batch lines.
-                  </div>
-                </div>
-
-                <div className="min-h-[148px] rounded-[24px] border border-white/10 bg-black/20 p-4">
-                  <div className="text-[11px] font-semibold uppercase tracking-[0.2em] text-slate-500">
-                    Approved Amount
-                  </div>
-                  <div className="mt-2 text-xl font-semibold text-emerald-100">
-                    {currencyCode} {formatMoney(totalApproved)}
-                  </div>
-                  <div className="mt-3 text-xs leading-5 text-slate-500">
-                    Approved request total.
-                  </div>
-                </div>
-
-                <div className="min-h-[148px] rounded-[24px] border border-white/10 bg-black/20 p-4">
-                  <div className="text-[11px] font-semibold uppercase tracking-[0.2em] text-slate-500">
-                    Expenses
-                  </div>
-                  <div className="mt-2 text-xl font-semibold text-violet-100">
-                    {activeLines.length}
-                  </div>
-                  <div className="mt-3 text-xs leading-5 text-slate-500">
-                    Included in this batch.
-                  </div>
-                </div>
+              <div className="grid gap-3 sm:grid-cols-2">
+                <SummaryBlock
+                  title="Allocated Funds"
+                  value={`${currencyCode} ${formatMoney(allocatedAmount)}`}
+                  subtitle="Total amount reserved by Finance."
+                />
+                <SummaryBlock
+                  title="Allocation Type"
+                  value="Lump Sum"
+                  subtitle="Expense distribution happens later in payment execution."
+                />
               </div>
             </div>
           </div>
@@ -1071,162 +994,195 @@ export default function FinanceExpenseFundingBatchDetailPage() {
           <div className="grid gap-6">
             <SectionCard
               title="Funding Allocation Overview"
-              description="Funding source, allocation identity, and documentation status."
+              description="Funding source, allocation amount, date, and audit context."
               icon={Archive}
             >
-              <div className="grid gap-4 md:grid-cols-2">
-                <ValueBlock label="Batch Number" value={batch.batch_number} />
-                <ValueBlock label="Allocation Date" value={formatDate(batch.allocation_date)} />
-                <ValueBlock label="Funding Company" value={fundingCompany?.name || "—"} />
-                <ValueBlock label="Funding Bank" value={getBankLabel(fundingBankAccount)} />
-                <ValueBlock label="Currency" value={batch.currency_code || "—"} />
-                <ValueBlock label="Status" value={<StatusBadge value={batch.status} />} />
-                <ValueBlock
-                  label="Documentation"
-                  value={<StatusBadge value={batch.documentation_status} />}
-                />
-                <ValueBlock
-                  label="Created"
-                  value={formatDateTime(batch.created_at)}
-                  detail={`Updated ${formatDateTime(batch.updated_at)}`}
-                />
-                {batch.notes ? <ValueBlock label="Notes" value={batch.notes} /> : null}
-              </div>
-            </SectionCard>
-
-            <SectionCard
-              title="Included Expenses"
-              description="Approved / verified expenses reserved inside this funding allocation."
-              icon={Receipt}
-            >
-              {enrichedLines.length === 0 ? (
-                <div className="rounded-[24px] border border-dashed border-white/10 bg-black/20 px-6 py-12 text-center">
-                  <Receipt className="mx-auto h-8 w-8 text-slate-500" />
-                  <div className="mt-4 text-sm font-semibold text-white">
-                    No expenses in this funding allocation
+              <div className="mb-5 flex flex-col gap-3 rounded-[24px] border border-white/10 bg-black/20 p-4 md:flex-row md:items-center md:justify-between">
+                <div>
+                  <div className="text-sm font-semibold text-white">
+                    {isEditing ? "Editing allocation details" : "Allocation details"}
                   </div>
-                  <div className="mt-2 text-sm leading-6 text-slate-500">
-                    Add expenses from the funding allocation create page.
+                  <div className="mt-1 text-xs leading-5 text-slate-500">
+                    You can edit the allocated amount and funding details from this page.
                   </div>
                 </div>
-              ) : (
-                <div className="overflow-x-auto rounded-[24px] border border-white/10 bg-black/20">
-                  <div className="max-h-[720px] overflow-y-auto">
-                    <table className="w-full min-w-[1480px] border-collapse">
-                      <thead className="sticky top-0 z-20 border-b border-white/10 bg-black/70 backdrop-blur-xl">
-                        <tr>
-                          <th className="px-5 py-4 text-left text-[11px] font-semibold uppercase tracking-[0.18em] text-slate-500">
-                            Expense
-                          </th>
-                          <th className="px-5 py-4 text-left text-[11px] font-semibold uppercase tracking-[0.18em] text-slate-500">
-                            What Is It For
-                          </th>
-                          <th className="px-5 py-4 text-left text-[11px] font-semibold uppercase tracking-[0.18em] text-slate-500">
-                            Expense Company
-                          </th>
-                          <th className="px-5 py-4 text-left text-[11px] font-semibold uppercase tracking-[0.18em] text-slate-500">
-                            Made By
-                          </th>
-                          <th className="px-5 py-4 text-right text-[11px] font-semibold uppercase tracking-[0.18em] text-slate-500">
-                            Approved
-                          </th>
-                          <th className="px-5 py-4 text-right text-[11px] font-semibold uppercase tracking-[0.18em] text-slate-500">
-                            Allocated
-                          </th>
-                          <th className="px-5 py-4 text-left text-[11px] font-semibold uppercase tracking-[0.18em] text-slate-500">
-                            Line Status
-                          </th>
-                          <th className="px-5 py-4 text-left text-[11px] font-semibold uppercase tracking-[0.18em] text-slate-500">
-                            Expense Funding
-                          </th>
-                          <th className="px-5 py-4 text-right text-[11px] font-semibold uppercase tracking-[0.18em] text-slate-500">
-                            Actions
-                          </th>
-                        </tr>
-                      </thead>
 
-                      <tbody>
-                        {enrichedLines.map((line) => (
-                          <tr
-                            key={line.id}
-                            className="border-b border-white/5 text-sm text-slate-300 transition hover:bg-white/[0.035]"
-                          >
-                            <td className="min-w-[240px] px-5 py-4">
-                              <button
-                                type="button"
-                                onClick={() =>
-                                  navigate(
-                                    `/finance/transactions/expenses-payments-made/review/${line.expense_id}`
-                                  )
-                                }
-                                className="text-left font-semibold text-cyan-200 transition hover:text-cyan-100"
-                              >
-                                {line.expense?.expense_number || "Expense"}
-                              </button>
-                              <div className="mt-1 text-xs text-white">
-                                {line.expense?.title || "—"}
-                              </div>
-                              <div className="mt-1 text-xs text-slate-500">
-                                {formatDate(line.expense?.expense_date)}
-                              </div>
-                            </td>
+                <div className="flex flex-wrap gap-2">
+                  {isEditing ? (
+                    <>
+                      <ActionButton
+                        label="Save Changes"
+                        icon={Save}
+                        tone="emerald"
+                        disabled={isSavingEdit}
+                        onClick={() => void saveEdit()}
+                      />
+                      <ActionButton
+                        label="Cancel"
+                        icon={X}
+                        tone="slate"
+                        disabled={isSavingEdit}
+                        onClick={cancelEditing}
+                      />
+                    </>
+                  ) : (
+                    <ActionButton
+                      label="Edit"
+                      icon={Edit3}
+                      tone="cyan"
+                      disabled={isSavingEdit}
+                      onClick={startEditing}
+                    />
+                  )}
+                </div>
+              </div>
 
-                            <td className="min-w-[300px] px-5 py-4">
-                              <div className="font-medium text-white">
-                                {line.expense?.expense_source_name || "No source entered"}
-                              </div>
-                              <div className="mt-1 text-xs text-violet-200">
-                                {formatLabel(line.expense?.expense_type)}
-                              </div>
-                              <div className="mt-2 line-clamp-2 text-xs leading-5 text-slate-500">
-                                {line.expense?.description || "No description / reason entered."}
-                              </div>
-                            </td>
+              {isEditing ? (
+                <div className="grid gap-4 md:grid-cols-3">
+                  <label className="grid gap-2">
+                    <span className={labelClass()}>Funding Company</span>
+                    <select
+                      value={editableForm.fundingCompanyId}
+                      onChange={(event) =>
+                        updateEditField("fundingCompanyId", event.target.value)
+                      }
+                      className={inputClass()}
+                    >
+                      <option value="">Select company</option>
+                      {companies.map((company) => (
+                        <option key={company.id} value={company.id}>
+                          {company.name || "Unnamed company"}
+                        </option>
+                      ))}
+                    </select>
+                  </label>
 
-                            <td className="min-w-[180px] px-5 py-4">
-                              {line.expenseCompanyName}
-                            </td>
+                  <label className="grid gap-2">
+                    <span className={labelClass()}>Funding Bank Account</span>
+                    <select
+                      value={editableForm.fundingBankAccountId}
+                      onChange={(event) =>
+                        updateEditField("fundingBankAccountId", event.target.value)
+                      }
+                      disabled={!editableForm.fundingCompanyId}
+                      className={inputClass()}
+                    >
+                      <option value="">No bank selected</option>
+                      {availableEditBankAccounts.map((bank) => (
+                        <option key={bank.id} value={bank.id}>
+                          {getBankLabel(bank)}
+                        </option>
+                      ))}
+                    </select>
+                  </label>
 
-                            <td className="min-w-[220px] px-5 py-4">
-                              <div className="font-medium text-slate-200">
-                                {line.madeByLabel}
-                              </div>
-                            </td>
+                  <label className="grid gap-2">
+                    <span className={labelClass()}>Allocation Date</span>
+                    <input
+                      type="date"
+                      value={editableForm.allocationDate}
+                      onChange={(event) =>
+                        updateEditField("allocationDate", event.target.value)
+                      }
+                      className={inputClass()}
+                    />
+                  </label>
 
-                            <td className="whitespace-nowrap px-5 py-4 text-right font-semibold text-white">
-                              {line.currency_code || currencyCode}{" "}
-                              {formatMoney(line.approved_amount || line.targetAmount)}
-                            </td>
+                  <label className="grid gap-2">
+                    <span className={labelClass()}>Funding Currency</span>
+                    <select
+                      value={editableForm.currencyCode}
+                      onChange={(event) =>
+                        updateEditField("currencyCode", event.target.value)
+                      }
+                      className={inputClass()}
+                    >
+                      <option value="">Select currency</option>
+                      {currencyOptions.map((currency) => (
+                        <option key={currency.id} value={currency.currency_code}>
+                          {currency.currency_code} — {currency.currency_name}
+                        </option>
+                      ))}
+                    </select>
+                  </label>
 
-                            <td className="whitespace-nowrap px-5 py-4 text-right font-semibold text-white">
-                              {line.currency_code || currencyCode}{" "}
-                              {formatMoney(line.allocated_amount)}
-                            </td>
+                  <label className="grid gap-2">
+                    <span className={labelClass()}>Allocated Funds Amount</span>
+                    <input
+                      value={editableForm.allocatedFundsAmount}
+                      onChange={(event) =>
+                        updateEditField("allocatedFundsAmount", event.target.value)
+                      }
+                      inputMode="decimal"
+                      placeholder="0.00"
+                      className={inputClass()}
+                    />
+                    <span className="text-xs leading-5 text-slate-500">
+                      Total amount reserved by Finance.
+                    </span>
+                  </label>
 
-                            <td className="whitespace-nowrap px-5 py-4">
-                              <StatusBadge value={line.status} />
-                            </td>
-
-                            <td className="whitespace-nowrap px-5 py-4">
-                              <StatusBadge value={line.expense?.funding_status} />
-                            </td>
-
-                            <td className="px-5 py-4">
-                              <div className="flex justify-end">
-                                <ActionButton
-                                  label="Remove"
-                                  icon={Trash2}
-                                  tone="rose"
-                                  disabled={isRunningAction || !canEditDraft}
-                                  onClick={() => void removeExpenseLine(line)}
-                                />
-                              </div>
-                            </td>
-                          </tr>
-                        ))}
-                      </tbody>
-                    </table>
+                  <div className="grid gap-2">
+                    <span className={labelClass()}>Allocation Meaning</span>
+                    <div className="flex h-11 items-center rounded-2xl border border-emerald-400/15 bg-emerald-500/10 px-4 text-sm font-semibold text-emerald-100">
+                      Reserve only — no expense distribution
+                    </div>
+                    <span className="text-xs leading-5 text-slate-500">
+                      Expense matching happens later.
+                    </span>
                   </div>
+
+                  <label className="grid gap-2 md:col-span-3">
+                    <span className={labelClass()}>Funding Notes</span>
+                    <textarea
+                      value={editableForm.notes}
+                      onChange={(event) => updateEditField("notes", event.target.value)}
+                      className={textareaClass()}
+                      placeholder="Internal allocation notes"
+                    />
+                  </label>
+                </div>
+              ) : (
+                <div className="grid gap-4 md:grid-cols-3">
+                  <ValueBlock label="Batch Number" value={batch.batch_number} />
+                  <ValueBlock
+                    label="Allocated Funds Amount"
+                    value={`${currencyCode} ${formatMoney(allocatedAmount)}`}
+                    detail="Total amount reserved by Finance."
+                  />
+                  <ValueBlock label="Allocation Date" value={formatDate(batch.allocation_date)} />
+                  <ValueBlock label="Funding Company" value={fundingCompany?.name || "—"} />
+                  <ValueBlock label="Funding Bank" value={getBankLabel(fundingBankAccount)} />
+                  <ValueBlock label="Currency" value={batch.currency_code || "—"} />
+                  <ValueBlock label="Status" value={<StatusBadge value={batch.status} />} />
+                  <ValueBlock
+                    label="Documentation"
+                    value={<StatusBadge value={batch.documentation_status} />}
+                  />
+                  <ValueBlock
+                    label="Created"
+                    value={formatDateTime(batch.created_at)}
+                    detail={`Updated ${formatDateTime(batch.updated_at)}`}
+                  />
+                  <ValueBlock
+                    label="Allocation Meaning"
+                    value="Reserve only — no expense distribution"
+                    detail="Expense matching happens later in payment execution."
+                  />
+                  <ValueBlock
+                    label="Allocated By"
+                    value={batch.allocated_by ? "Recorded" : "Not allocated yet"}
+                  />
+                  <ValueBlock
+                    label="Proof"
+                    value={attachments.length > 0 ? "Attached" : "Not attached"}
+                    detail="Proof is required before marking allocated."
+                  />
+                  {batch.notes ? (
+                    <div className="md:col-span-3">
+                      <ValueBlock label="Notes" value={batch.notes} />
+                    </div>
+                  ) : null}
                 </div>
               )}
             </SectionCard>
@@ -1273,7 +1229,7 @@ export default function FinanceExpenseFundingBatchDetailPage() {
           <aside className="sticky top-6 grid gap-6">
             <SectionCard
               title="Action Center"
-              description="Confirm allocation, upload proof, and create real payment."
+              description="Confirm allocation, upload proof, and continue to payment execution."
               icon={ShieldCheck}
             >
               <div className="grid gap-3">
@@ -1289,8 +1245,8 @@ export default function FinanceExpenseFundingBatchDetailPage() {
                   label="Verify Docs"
                   icon={FileCheck2}
                   tone="violet"
-                  disabled={isRunningAction}
-                  onClick={() => void markDocumentation("verified")}
+                  disabled={isRunningAction || attachments.length === 0}
+                  onClick={() => void markDocumentationVerified()}
                 />
 
                 <ActionButton
@@ -1364,9 +1320,9 @@ export default function FinanceExpenseFundingBatchDetailPage() {
                   value={<StatusBadge value={batch.documentation_status} />}
                 />
                 <ValueBlock
-                  label="Line Count"
-                  value={String(activeLines.length)}
-                  detail="Active expenses included in this funding allocation."
+                  label="Allocated Funds"
+                  value={`${currencyCode} ${formatMoney(allocatedAmount)}`}
+                  detail="Lump sum reserved by Finance."
                 />
                 <ValueBlock
                   label="Allocated By"
@@ -1375,17 +1331,29 @@ export default function FinanceExpenseFundingBatchDetailPage() {
               </div>
             </SectionCard>
 
-            <SectionCard
-              title="Meaning"
-              description="What this funding allocation represents."
-              icon={Banknote}
-            >
-              <div className="rounded-[24px] border border-white/10 bg-black/20 p-4 text-xs leading-5 text-slate-500">
-                Funding Allocation means internal money was reserved or approved for selected
-                expenses. It is not the real outgoing payment. Actual payment is created from the
-                Expense Payment page.
-              </div>
-            </SectionCard>
+            <InfoCard icon={Coins} title="Funding Allocation">
+              This record reserves a lump sum of internal funds from one company and
+              optional bank account.
+            </InfoCard>
+
+            <InfoCard icon={WalletCards} title="Payment Execution">
+              Actual payment and expense matching happen on the New Operating Expense
+              Payment page.
+            </InfoCard>
+
+            <InfoCard icon={Building2} title="No Expense Selection">
+              This page does not select or distribute money to expenses.
+            </InfoCard>
+
+            <InfoCard icon={CalendarDays} title="Audit Context">
+              Allocation date, company, bank, currency, amount, and proof are stored for
+              finance review.
+            </InfoCard>
+
+            <InfoCard icon={Banknote} title="Clean Split">
+              Funding Allocation reserves funds. Operating Expense Payment distributes
+              funds against expenses.
+            </InfoCard>
           </aside>
         </div>
       </div>

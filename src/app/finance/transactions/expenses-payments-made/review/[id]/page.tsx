@@ -2035,7 +2035,7 @@ export default function FinanceExpenseReviewPage() {
 
             <SectionCard
               title="Funding & Payment Coverage"
-              description="Shows allocated funds and Payment Made records covering this expense."
+              description="Shows Funding Pool usage and Expense Payment Distribution records covering this expense."
               icon={WalletCards}
             >
               {allocations.length === 0 ? (
@@ -2102,7 +2102,7 @@ export default function FinanceExpenseReviewPage() {
                                 }
                                 className="font-semibold text-cyan-200 transition hover:text-cyan-100"
                               >
-                                {payment?.reference_number || "Payment Made"}
+                                {payment?.reference_number || "Expense Payment Distribution"}
                               </button>
                               <div className="mt-1 flex flex-wrap items-center gap-2 text-xs text-slate-500">
                                 <span>{payment ? formatDate(payment.payment_date) : "—"}</span>

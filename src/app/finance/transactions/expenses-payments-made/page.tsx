@@ -374,10 +374,10 @@ function ActionButton({
       type="button"
       disabled={disabled}
       onClick={onClick}
-      className={`inline-flex h-9 items-center justify-center gap-2 rounded-full border px-3 text-[11px] font-semibold uppercase tracking-[0.14em] transition disabled:cursor-not-allowed disabled:opacity-40 ${toneClass}`}
+      className={`inline-flex h-9 min-w-[128px] items-center justify-center gap-2 whitespace-nowrap rounded-full border px-3 text-[11px] font-semibold uppercase tracking-[0.14em] transition disabled:cursor-not-allowed disabled:opacity-40 ${toneClass}`}
     >
-      <Icon className="h-3.5 w-3.5" />
-      {label}
+      <Icon className="h-3.5 w-3.5 shrink-0" />
+      <span>{label}</span>
     </button>
   );
 }
@@ -1232,7 +1232,7 @@ export default function FinanceExpensesPaymentsMadePage() {
       return (
         <div className="overflow-x-auto rounded-[24px] border border-white/10 bg-black/20">
           <div className="max-h-[720px] overflow-y-auto">
-            <table className="w-full min-w-[1540px] border-collapse">
+            <table className="w-full min-w-[1720px] border-collapse">
               <thead className="sticky top-0 z-20 border-b border-white/10 bg-black/70 backdrop-blur-xl">
                 <tr>
                   <th className="px-5 py-4 text-left text-[11px] font-semibold uppercase tracking-[0.18em] text-slate-500">
@@ -1265,7 +1265,7 @@ export default function FinanceExpensesPaymentsMadePage() {
                   <th className="px-5 py-4 text-left text-[11px] font-semibold uppercase tracking-[0.18em] text-slate-500">
                     Coverage
                   </th>
-                  <th className="sticky right-0 bg-black/70 px-5 py-4 text-right text-[11px] font-semibold uppercase tracking-[0.18em] text-slate-500 backdrop-blur-xl">
+                  <th className="sticky right-0 min-w-[180px] bg-black/80 px-4 py-4 text-center text-[11px] font-semibold uppercase tracking-[0.18em] text-slate-500 shadow-[-18px_0_24px_rgba(0,0,0,0.35)] backdrop-blur-xl">
                     Actions
                   </th>
                 </tr>
@@ -1337,8 +1337,8 @@ export default function FinanceExpensesPaymentsMadePage() {
                         </div>
                       ) : null}
                     </td>
-                    <td className="sticky right-0 bg-[#05070d]/95 px-5 py-4 backdrop-blur-xl">
-                      <div className="flex flex-wrap items-center justify-end gap-2">
+                    <td className="sticky right-0 min-w-[180px] bg-[#05070d]/95 px-4 py-4 shadow-[-18px_0_24px_rgba(0,0,0,0.35)] backdrop-blur-xl">
+                      <div className="flex flex-col items-stretch gap-2">
                         <ActionButton
                           label="Open"
                           icon={Eye}
@@ -1877,7 +1877,7 @@ export default function FinanceExpensesPaymentsMadePage() {
             </div>
           </div>
 
-          <div className="flex gap-2 overflow-x-auto border-b border-white/10 px-5 py-4">
+          <div className="flex gap-2 overflow-x-auto border-b border-white/10 px-5 py-4 [scrollbar-width:thin]">
             {tabs.map((tab) => (
               <button
                 key={tab.key}

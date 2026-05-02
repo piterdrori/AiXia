@@ -2,15 +2,12 @@ import { useCallback, useEffect, useMemo, useState } from "react";
 import { useNavigate, useSearchParams } from "react-router-dom";
 import {
   ArrowRight,
-  Banknote,
   CheckCircle2,
-  FileCheck2,
   Loader2,
   Receipt,
   Save,
   Search,
   Sparkles,
-  UploadCloud,
   WalletCards,
 } from "lucide-react";
 
@@ -326,36 +323,6 @@ function getExpenseTargetAmount(expense: ExpenseRow) {
   );
 }
 
-function resolveMimeType(file: File) {
-  if (file.type && file.type !== "application/octet-stream") {
-    return file.type;
-  }
-
-  const extension = file.name.split(".").pop()?.toLowerCase();
-
-  switch (extension) {
-    case "pdf":
-      return "application/pdf";
-    case "png":
-      return "image/png";
-    case "jpg":
-    case "jpeg":
-      return "image/jpeg";
-    case "webp":
-      return "image/webp";
-    case "doc":
-      return "application/msword";
-    case "docx":
-      return "application/vnd.openxmlformats-officedocument.wordprocessingml.document";
-    case "xls":
-      return "application/vnd.ms-excel";
-    case "xlsx":
-      return "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet";
-    default:
-      return file.type || "application/octet-stream";
-  }
-}
-
 function SummaryBlock({
   title,
   value,
@@ -556,7 +523,6 @@ export default function FinanceExpensesPaymentsMadeNewPage() {
   const [conversionPreviews, setConversionPreviews] = useState<ConversionPreviewMap>({});
   const [fundingUsagePreview, setFundingUsagePreview] =
     useState<FundingUsagePreview | null>(null);
-  const [paymentProofFile, setPaymentProofFile] = useState<File | null>(null);
   const [searchQuery, setSearchQuery] = useState("");
   const [isLoading, setIsLoading] = useState(true);
   const [isConverting, setIsConverting] = useState(false);
@@ -1056,35 +1022,6 @@ export default function FinanceExpensesPaymentsMadeNewPage() {
     totalPaymentCurrencyAllocated,
   ]);
 
-  const uploadPaymentProof = useCallback(
-    async (paymentId: string) => {
-      if (!paymentProofFile) return null;
-
-      const resolvedMimeType = resolveMimeType(paymentProofFile);
-      const safeFileName = paymentProofFile.name.replace(/[^\w.\-]+/g, "_");
-      const filePath = `${paymentId}/${Date.now()}-${safeFileName}`;
-
-      const uploadResult = await supabase.storage
-        .from("finance-payment-made-proofs")
-        .upload(filePath, paymentProofFile, {
-          contentType: resolvedMimeType,
-          upsert: false,
-        });
-
-      if (uploadResult.error) throw uploadResult.error;
-
-      return {
-        bucket: "finance-payment-made-proofs",
-        path: uploadResult.data.path,
-        file_name: paymentProofFile.name,
-        file_size: paymentProofFile.size,
-        mime_type: resolvedMimeType,
-        uploaded_at: new Date().toISOString(),
-      };
-    },
-    [paymentProofFile]
-  );
-
   const savePayment = useCallback(
     async (saveMode: SaveMode) => {
       setIsSaving(true);
@@ -1143,7 +1080,7 @@ export default function FinanceExpensesPaymentsMadeNewPage() {
         const paymentInsertResult = await supabase
           .from("finance_payments_made")
           .insert({
-            amount: totalPaymentCurrencyAllocated,
+            amount: totalExpenseCurrencyCovered,
             payment_date: form.paymentDate,
             status: "draft",
             reference_number: referenceNumber,
@@ -1163,8 +1100,14 @@ export default function FinanceExpensesPaymentsMadeNewPage() {
                 : `Multiple recipients (${recipientNames.length})`,
             recipient_confirmation_status: "not_required",
             payment_currency_code: paymentCurrencyCode,
-            converted_amount: fundingUsagePreview.fundingCurrencyAmount,
-            metadata: paymentMetadata,
+            converted_amount: totalPaymentCurrencyAllocated,
+            metadata: {
+              ...paymentMetadata,
+              accounting_amount_basis: "expense_currency_coverage",
+              payment_currency_amount: totalPaymentCurrencyAllocated,
+              payment_currency_code: paymentCurrencyCode,
+              expense_currency_coverage_total: totalExpenseCurrencyCovered,
+            },
             created_by: userId,
             updated_by: userId,
           })
@@ -1174,22 +1117,6 @@ export default function FinanceExpensesPaymentsMadeNewPage() {
         if (paymentInsertResult.error) throw paymentInsertResult.error;
 
         const paymentId = paymentInsertResult.data.id as string;
-        const proofMetadata = await uploadPaymentProof(paymentId);
-
-        if (proofMetadata) {
-          const proofUpdateResult = await supabase
-            .from("finance_payments_made")
-            .update({
-              metadata: {
-                ...paymentMetadata,
-                payment_proof: proofMetadata,
-              },
-              updated_by: userId,
-            })
-            .eq("id", paymentId);
-
-          if (proofUpdateResult.error) throw proofUpdateResult.error;
-        }
 
         const allocationRows = allocationDrafts
           .filter((draft) => selectedExpenseIds.includes(draft.expenseId))
@@ -1220,10 +1147,10 @@ export default function FinanceExpensesPaymentsMadeNewPage() {
               paid_from_bank_account_id: selectedFundingBatch.funding_bank_account_id,
               recipient_employee_ref_id: expense.employee_ref_id,
               recipient_person_name: expense.madeByLabel,
-              allocated_amount: paymentCurrencyAmount,
+              allocated_amount: preview.expenseCurrencyAmount,
               currency_code: expenseCurrencyCode,
               payment_currency_code: paymentCurrencyCode,
-              converted_amount: preview.expenseCurrencyAmount,
+              converted_amount: paymentCurrencyAmount,
               recipient_confirmation_status: "pending_confirmation",
               metadata: {
                 source_area: "expenses_payments_made",
@@ -1244,6 +1171,7 @@ export default function FinanceExpensesPaymentsMadeNewPage() {
                   fundingUsagePreview.exchangeRate === null
                     ? null
                     : paymentCurrencyAmount * fundingUsagePreview.exchangeRate,
+                accounting_amount_basis: "expense_currency_coverage",
               },
               created_by: userId,
               updated_by: userId,
@@ -1297,8 +1225,8 @@ export default function FinanceExpensesPaymentsMadeNewPage() {
       selectedExpenseIds,
       selectedExpenses,
       selectedFundingBatch,
+      totalExpenseCurrencyCovered,
       totalPaymentCurrencyAllocated,
-      uploadPaymentProof,
       validateForm,
     ]
   );
@@ -1331,8 +1259,8 @@ export default function FinanceExpensesPaymentsMadeNewPage() {
                 </h1>
 
                 <p className="mt-3 max-w-4xl text-sm leading-6 text-slate-400 md:text-base md:leading-7">
-                  Use an allocated funding batch to pay verified operating expenses, convert
-                  payment currency into each expense currency, and store the payment proof.
+                  Use an allocated funding batch to assign reserved funds toward verified
+                  operating expenses and convert payment currency into each expense currency.
                 </p>
               </div>
 
@@ -1770,37 +1698,6 @@ export default function FinanceExpensesPaymentsMadeNewPage() {
             </section>
 
             <section className="overflow-hidden rounded-[30px] border border-white/10 bg-white/[0.045] p-5 backdrop-blur-xl">
-              <div className="flex items-start gap-4">
-                <div className="rounded-2xl border border-amber-400/15 bg-amber-500/10 p-3 text-amber-200">
-                  <UploadCloud className="h-4 w-4" />
-                </div>
-                <div>
-                  <div className="text-sm font-semibold uppercase tracking-[0.18em] text-slate-400">
-                    Payment Proof
-                  </div>
-                  <p className="mt-1 text-xs leading-5 text-slate-500">
-                    Optional now, but recommended before confirming.
-                  </p>
-                </div>
-              </div>
-
-              <div className="mt-4 rounded-[24px] border border-dashed border-white/15 bg-black/20 p-4">
-                <input
-                  type="file"
-                  accept=".pdf,.png,.jpg,.jpeg,.webp,.doc,.docx,.xls,.xlsx"
-                  onChange={(event) => setPaymentProofFile(event.target.files?.[0] ?? null)}
-                  className="block w-full text-sm text-slate-400 file:mr-4 file:rounded-full file:border-0 file:bg-cyan-500/10 file:px-4 file:py-2 file:text-sm file:font-semibold file:text-cyan-100"
-                />
-
-                {paymentProofFile ? (
-                  <div className="mt-3 rounded-2xl border border-cyan-400/15 bg-cyan-500/10 px-4 py-3 text-sm text-cyan-100">
-                    {paymentProofFile.name}
-                  </div>
-                ) : null}
-              </div>
-            </section>
-
-            <section className="overflow-hidden rounded-[30px] border border-white/10 bg-white/[0.045] p-5 backdrop-blur-xl">
               <div className="grid gap-3">
                 <button
                   type="button"
@@ -1832,39 +1729,8 @@ export default function FinanceExpensesPaymentsMadeNewPage() {
               </div>
 
               <div className="mt-4 rounded-[24px] border border-white/10 bg-black/20 p-4 text-xs leading-5 text-slate-500">
-                Confirming calls <span className="text-slate-300">finance_confirm_payment_made</span>.
-                Currency conversion is saved into payment and allocation metadata.
-              </div>
-            </section>
-
-            <section className="overflow-hidden rounded-[30px] border border-white/10 bg-white/[0.045] p-5 backdrop-blur-xl">
-              <div className="flex items-start gap-3">
-                <Banknote className="mt-0.5 h-5 w-5 text-cyan-200" />
-                <div>
-                  <div className="text-sm font-semibold text-white">
-                    What this page does
-                  </div>
-                  <div className="mt-2 text-xs leading-5 text-slate-500">
-                    It creates a Payment Made record from an allocated funding batch,
-                    distributes the payment amount to selected expenses, converts currencies,
-                    and optionally confirms the payment.
-                  </div>
-                </div>
-              </div>
-            </section>
-
-            <section className="overflow-hidden rounded-[30px] border border-white/10 bg-white/[0.045] p-5 backdrop-blur-xl">
-              <div className="flex items-start gap-3">
-                <FileCheck2 className="mt-0.5 h-5 w-5 text-emerald-200" />
-                <div>
-                  <div className="text-sm font-semibold text-white">
-                    What this page does not do
-                  </div>
-                  <div className="mt-2 text-xs leading-5 text-slate-500">
-                    It does not create funding reserves. Funding Allocation is handled by the
-                    funding batch pages before this payment step.
-                  </div>
-                </div>
+                This step allocates reserved funds toward selected expenses. No document
+                upload is required here.
               </div>
             </section>
           </aside>

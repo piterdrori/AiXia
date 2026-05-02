@@ -298,13 +298,13 @@ const executionTabs: Array<{
     key: "funding_batches",
     label: "Funding Allocation",
     description:
-      "Reserve or set aside money for a group of verified expenses.",
+      "Monthly Finance tool: reserve a pool of money for operating expenses. This is separate from the expense review workflow.",
   },
   {
     key: "payments",
     label: "Expense Payments",
     description:
-      "Actual payment records showing how allocated money was paid across expenses.",
+      "Monthly Finance tool: distribute allocated money across verified expenses and track recipient confirmation.",
   },
 ];
 
@@ -606,7 +606,7 @@ function getNextStep(expense: ExpenseRow): {
     expense.finance_review_status === "approved_for_payment"
   ) {
     return {
-      label: "Ready for funding allocation or payment",
+      label: "Ready for monthly payment cycle",
       tone: "emerald",
     };
   }
@@ -1697,8 +1697,9 @@ export default function FinanceExpensesPaymentsMadePage() {
                 </h1>
 
                 <p className="mt-3 max-w-4xl text-sm leading-6 text-slate-400 md:text-base md:leading-7">
-                  Two separate functions in one control page: the main expense workflow, and the
-                  payment execution tools used after expenses are ready to pay.
+                  Two separate functions in one control page: the uninterrupted expense workflow,
+                  and the monthly Finance payment execution tools. Funding allocation and expense
+                  payments do not interrupt the expense review process.
                 </p>
 
                 <div className="mt-5 flex flex-wrap gap-2">
@@ -1730,7 +1731,7 @@ export default function FinanceExpensesPaymentsMadePage() {
                     <CheckCircle2 className="h-5 w-5 text-emerald-200" />
                   </div>
                   <div className="mt-3 text-xs leading-5 text-slate-500">
-                    Verified expenses ready for reimbursement/payment handling.
+                    Verified expenses waiting for the monthly Finance payment cycle.
                   </div>
                 </div>
 
@@ -1771,7 +1772,7 @@ export default function FinanceExpensesPaymentsMadePage() {
           <SummaryCard
             title="Funding Allocation"
             value={isLoading ? "—" : metrics.openBatches}
-            detail="Money reserved for grouped verified expenses."
+            detail="Monthly money pools reserved by Finance. Separate from expense review."
             icon={Archive}
           />
           <SummaryCard

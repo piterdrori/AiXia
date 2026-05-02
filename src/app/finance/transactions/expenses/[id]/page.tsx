@@ -1567,6 +1567,9 @@ export default function FinanceExpenseDetailPage() {
 
   const remainingAmount = Math.max(expenseAmount - coveredAmount, 0);
 
+  const canSubmitRecipientConfirmation =
+    expense?.recipient_confirmation_status === "pending_confirmation";
+
   const expenseMadeByLabel = useMemo(() => {
     if (!expense) return "—";
     return getExpenseMadeByLabel(expense, employee, profileMap);
@@ -4551,7 +4554,7 @@ export default function FinanceExpenseDetailPage() {
 
             <SectionCard
               title="Funding & Payment Coverage"
-              description="Shows what Finance/Admin allocated and which Payment Made records covered this expense."
+              description="Shows Funding Pool usage and Expense Payment Distribution records covering this expense."
               icon={WalletCards}
             >
               {allocations.length === 0 ? (
@@ -4561,8 +4564,8 @@ export default function FinanceExpenseDetailPage() {
                     No payment allocations yet
                   </div>
                   <p className="mt-2 text-sm leading-6 text-slate-500">
-                    Finance/Admin will allocate funds and create Payment Made from the Payments
-                    Made tab.
+                    Finance/Admin will reserve money in a Funding Pool and then create an Expense
+                    Payment Distribution from Payment Execution Tools.
                   </p>
                 </div>
               ) : (
@@ -4700,10 +4703,7 @@ export default function FinanceExpenseDetailPage() {
                 <div className="grid gap-3">
                   <button
                     type="button"
-                    disabled={
-                      isConfirmingReceipt ||
-                      expense.recipient_confirmation_status === "not_paid_yet"
-                    }
+                    disabled={isConfirmingReceipt || !canSubmitRecipientConfirmation}
                     onClick={() => void confirmReceived("received_confirmed")}
                     className="inline-flex h-11 items-center justify-center gap-2 rounded-2xl border border-emerald-400/20 bg-emerald-500/10 px-4 text-sm font-semibold text-emerald-100 transition hover:bg-emerald-500/15 disabled:cursor-not-allowed disabled:opacity-50"
                   >
@@ -4717,10 +4717,7 @@ export default function FinanceExpenseDetailPage() {
 
                   <button
                     type="button"
-                    disabled={
-                      isConfirmingReceipt ||
-                      expense.recipient_confirmation_status === "not_paid_yet"
-                    }
+                    disabled={isConfirmingReceipt || !canSubmitRecipientConfirmation}
                     onClick={() => void confirmReceived("not_received")}
                     className="inline-flex h-11 items-center justify-center gap-2 rounded-2xl border border-amber-400/20 bg-amber-500/10 px-4 text-sm font-semibold text-amber-100 transition hover:bg-amber-500/15 disabled:cursor-not-allowed disabled:opacity-50"
                   >
@@ -4730,10 +4727,7 @@ export default function FinanceExpenseDetailPage() {
 
                   <button
                     type="button"
-                    disabled={
-                      isConfirmingReceipt ||
-                      expense.recipient_confirmation_status === "not_paid_yet"
-                    }
+                    disabled={isConfirmingReceipt || !canSubmitRecipientConfirmation}
                     onClick={() => void confirmReceived("disputed")}
                     className="inline-flex h-11 items-center justify-center gap-2 rounded-2xl border border-rose-400/20 bg-rose-500/10 px-4 text-sm font-semibold text-rose-100 transition hover:bg-rose-500/15 disabled:cursor-not-allowed disabled:opacity-50"
                   >

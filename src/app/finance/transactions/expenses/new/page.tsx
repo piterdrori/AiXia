@@ -1,10 +1,19 @@
-import { useCallback, useEffect, useMemo, useState, type ReactNode } from "react";
+import {
+  useCallback,
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+  type ReactNode,
+} from "react";
 import { useNavigate } from "react-router-dom";
 import {
   ArrowRight,
+  Building2,
   CalendarClock,
   CheckCircle2,
   CreditCard,
+  Landmark,
   Link2,
   Loader2,
   Plus,
@@ -16,6 +25,7 @@ import {
   Trash2,
   UploadCloud,
   UserRound,
+  Wrench,
 } from "lucide-react";
 
 import { supabase } from "@/lib/supabase";
@@ -57,13 +67,14 @@ type SubscriptionAmountBasis =
   | "yearly_payment"
   | "one_year_upfront_payment"
   | "other_subscription_payment";
-type SubscriptionPaymentMethod = "not_selected" | "no_card" | "credit_card";
+type SubscriptionPaymentMethod = "not_selected" | "no_card" | "credit_card" | "other";
 
 type CreditCardDraft = {
   id: string;
   nickname: string;
   cardholderName: string;
   brand: string;
+  brandOther: string;
   last4: string;
   expiryMonth: string;
   expiryYear: string;
@@ -87,23 +98,97 @@ type FormState = {
   expenseDate: string;
   isRetroactive: boolean;
   retroactiveReason: string;
+  externalDocumentationLink: string;
+  notes: string;
+
+  officeSupplierType: string;
+  officeSupplierTypeOther: string;
+  officeLocationType: string;
+  officeLocationTypeOther: string;
+  officePurchasePurpose: string;
+
+  utilityProviderName: string;
+  utilityType: string;
+  utilityTypeOther: string;
+  utilityPeriodFrom: string;
+  utilityPeriodTo: string;
+  utilityAccountReference: string;
+
   onlinePlatform: string;
+  onlinePlatformOther: string;
   onlineOrderNumber: string;
   onlineOrderDate: string;
   onlineOrderUrl: string;
   onlineTrackingNumber: string;
-  externalDocumentationLink: string;
-  notes: string;
+
+  travelType: string;
+  travelTypeOther: string;
+  travelFrom: string;
+  travelTo: string;
+  travelDate: string;
+  travelReason: string;
+  travelRelatedProject: string;
+
+  mealVendorName: string;
+  mealType: string;
+  mealTypeOther: string;
+  mealDate: string;
+  mealAttendees: string;
+  mealBusinessPurpose: string;
+
+  bankName: string;
+  bankFeeType: string;
+  bankFeeTypeOther: string;
+  bankAccountReference: string;
+  bankTransactionReference: string;
+  bankFeePeriodFrom: string;
+  bankFeePeriodTo: string;
+
+  legalProviderName: string;
+  legalServiceType: string;
+  legalServiceTypeOther: string;
+  legalPeriodFrom: string;
+  legalPeriodTo: string;
+  legalMatterReference: string;
+
+  governmentAuthorityName: string;
+  governmentFeeType: string;
+  governmentFeeTypeOther: string;
+  governmentReferenceNumber: string;
+  governmentDueDate: string;
+  governmentPaymentLink: string;
+
+  repairProviderName: string;
+  repairServiceType: string;
+  repairServiceTypeOther: string;
+  repairAssetName: string;
+  repairServiceDate: string;
+  repairIssueDescription: string;
+  repairServiceResult: string;
+
+  companySupportType: string;
+  companySupportTypeOther: string;
+  companySupportRecipient: string;
+  companySupportReason: string;
+  companySupportPeriodFrom: string;
+  companySupportPeriodTo: string;
+
+  otherExpenseCategory: string;
+  otherExpenseCategoryOther: string;
+
   isSubscriptionExpense: boolean;
   subscriptionProviderName: string;
   subscriptionBillingFrequency: BillingFrequency;
+  subscriptionBillingFrequencyOther: string;
   subscriptionAmountBasis: SubscriptionAmountBasis;
+  subscriptionAmountBasisOther: string;
   subscriptionStartDate: string;
   subscriptionRenewalDate: string;
   subscriptionAccountReference: string;
   subscriptionAutoCreateFutureExpenses: boolean;
   subscriptionRenewalReminder: boolean;
   subscriptionPaymentMethod: SubscriptionPaymentMethod;
+  subscriptionPaymentMethodOther: string;
   subscriptionAdminNotes: string;
   subscriptionCards: CreditCardDraft[];
 };
@@ -115,7 +200,12 @@ type CachedOptionsPayload = {
   cachedAt: number;
 };
 
-const EXPENSE_TYPES = [
+type SelectOption = {
+  value: string;
+  label: string;
+};
+
+const EXPENSE_TYPES: SelectOption[] = [
   { value: "office_support", label: "Office Support" },
   { value: "utilities", label: "Utilities" },
   { value: "software_subscription", label: "Software Subscription" },
@@ -127,6 +217,110 @@ const EXPENSE_TYPES = [
   { value: "government_fee", label: "Government Fee" },
   { value: "repair_service", label: "Repair / Service" },
   { value: "company_support", label: "Company Support" },
+  { value: "other", label: "Other" },
+];
+
+const OFFICE_SUPPLIER_TYPES: SelectOption[] = [
+  { value: "local_shop", label: "Local Shop" },
+  { value: "online_vendor", label: "Online Vendor" },
+  { value: "office_supplier", label: "Office Supplier" },
+  { value: "service_provider", label: "Service Provider" },
+  { value: "other", label: "Other" },
+];
+
+const OFFICE_LOCATION_TYPES: SelectOption[] = [
+  { value: "main_office", label: "Main Office" },
+  { value: "factory", label: "Factory" },
+  { value: "warehouse", label: "Warehouse" },
+  { value: "home_office", label: "Home Office" },
+  { value: "other", label: "Other" },
+];
+
+const UTILITY_TYPES: SelectOption[] = [
+  { value: "electricity", label: "Electricity" },
+  { value: "water", label: "Water" },
+  { value: "internet", label: "Internet" },
+  { value: "phone", label: "Phone" },
+  { value: "rent_related", label: "Rent Related" },
+  { value: "other", label: "Other" },
+];
+
+const ONLINE_PLATFORMS: SelectOption[] = [
+  { value: "amazon", label: "Amazon" },
+  { value: "alibaba", label: "Alibaba" },
+  { value: "taobao", label: "Taobao" },
+  { value: "jd", label: "JD" },
+  { value: "vendor_website", label: "Vendor Website" },
+  { value: "other", label: "Other" },
+];
+
+const TRAVEL_TYPES: SelectOption[] = [
+  { value: "taxi", label: "Taxi" },
+  { value: "train", label: "Train" },
+  { value: "flight", label: "Flight" },
+  { value: "hotel", label: "Hotel" },
+  { value: "parking", label: "Parking" },
+  { value: "mileage", label: "Mileage" },
+  { value: "other", label: "Other" },
+];
+
+const MEAL_TYPES: SelectOption[] = [
+  { value: "business_meal", label: "Business Meal" },
+  { value: "team_meal", label: "Team Meal" },
+  { value: "client_meal", label: "Client Meal" },
+  { value: "travel_meal", label: "Travel Meal" },
+  { value: "other", label: "Other" },
+];
+
+const BANK_FEE_TYPES: SelectOption[] = [
+  { value: "transfer_fee", label: "Transfer Fee" },
+  { value: "account_fee", label: "Account Fee" },
+  { value: "wire_fee", label: "Wire Fee" },
+  { value: "currency_exchange_fee", label: "Currency Exchange Fee" },
+  { value: "card_fee", label: "Card Fee" },
+  { value: "other", label: "Other" },
+];
+
+const LEGAL_SERVICE_TYPES: SelectOption[] = [
+  { value: "legal", label: "Legal" },
+  { value: "accounting", label: "Accounting" },
+  { value: "audit", label: "Audit" },
+  { value: "tax", label: "Tax" },
+  { value: "consulting", label: "Consulting" },
+  { value: "other", label: "Other" },
+];
+
+const GOVERNMENT_FEE_TYPES: SelectOption[] = [
+  { value: "tax", label: "Tax" },
+  { value: "license", label: "License" },
+  { value: "registration", label: "Registration" },
+  { value: "filing_fee", label: "Filing Fee" },
+  { value: "official_service", label: "Official Service" },
+  { value: "other", label: "Other" },
+];
+
+const REPAIR_SERVICE_TYPES: SelectOption[] = [
+  { value: "machine_repair", label: "Machine Repair" },
+  { value: "computer_repair", label: "Computer Repair" },
+  { value: "office_maintenance", label: "Office Maintenance" },
+  { value: "facility_service", label: "Facility Service" },
+  { value: "vehicle_service", label: "Vehicle Service" },
+  { value: "other", label: "Other" },
+];
+
+const COMPANY_SUPPORT_TYPES: SelectOption[] = [
+  { value: "employee_support", label: "Employee Support" },
+  { value: "department_support", label: "Department Support" },
+  { value: "company_internal_support", label: "Company Internal Support" },
+  { value: "project_support", label: "Project Support" },
+  { value: "other", label: "Other" },
+];
+
+const OTHER_EXPENSE_CATEGORIES: SelectOption[] = [
+  { value: "temporary_exception", label: "Temporary Exception" },
+  { value: "one_time_special_case", label: "One-Time Special Case" },
+  { value: "uncategorized_vendor_cost", label: "Uncategorized Vendor Cost" },
+  { value: "internal_special_cost", label: "Internal Special Cost" },
   { value: "other", label: "Other" },
 ];
 
@@ -157,15 +351,30 @@ const SUBSCRIPTION_AMOUNT_BASIS_OPTIONS: {
   value: SubscriptionAmountBasis;
   label: string;
 }[] = [
-  { value: "monthly_payment", label: "Monthly payment" },
-  { value: "yearly_payment", label: "Yearly payment" },
-  { value: "one_year_upfront_payment", label: "One-year upfront payment" },
-  { value: "other_subscription_payment", label: "Other subscription payment" },
+  { value: "monthly_payment", label: "Monthly Payment" },
+  { value: "yearly_payment", label: "Yearly Payment" },
+  { value: "one_year_upfront_payment", label: "One-Year Upfront Payment" },
+  { value: "other_subscription_payment", label: "Other Subscription Payment" },
 ];
 
-const CARD_BRANDS = ["Visa", "Mastercard", "American Express", "Discover", "UnionPay", "Other"];
+const SUBSCRIPTION_PAYMENT_METHODS: { value: SubscriptionPaymentMethod; label: string }[] = [
+  { value: "not_selected", label: "Select Payment Method" },
+  { value: "no_card", label: "No Credit Card / Manual Payment" },
+  { value: "credit_card", label: "Credit Card On File" },
+  { value: "other", label: "Other" },
+];
+
+const CARD_BRANDS: SelectOption[] = [
+  { value: "visa", label: "Visa" },
+  { value: "mastercard", label: "Mastercard" },
+  { value: "american_express", label: "American Express" },
+  { value: "discover", label: "Discover" },
+  { value: "unionpay", label: "UnionPay" },
+  { value: "other", label: "Other" },
+];
+
 const CURRENCY_CODES = ["USD", "EUR", "ILS", "CNY", "HKD", "GBP"];
-const OPTIONS_CACHE_KEY = "aixia.finance.expenses.new.options.v1";
+const OPTIONS_CACHE_KEY = "aixia.finance.expenses.new.options.v2";
 const OPTIONS_CACHE_TTL_MS = 1000 * 60 * 5;
 
 const initialSubscriptionCard = (): CreditCardDraft => ({
@@ -175,7 +384,8 @@ const initialSubscriptionCard = (): CreditCardDraft => ({
       : `card-${Math.random().toString(36).slice(2)}`,
   nickname: "",
   cardholderName: "",
-  brand: "Visa",
+  brand: "visa",
+  brandOther: "",
   last4: "",
   expiryMonth: "",
   expiryYear: "",
@@ -199,23 +409,97 @@ const initialFormState: FormState = {
   expenseDate: new Date().toISOString().slice(0, 10),
   isRetroactive: false,
   retroactiveReason: "",
-  onlinePlatform: "",
+  externalDocumentationLink: "",
+  notes: "",
+
+  officeSupplierType: "local_shop",
+  officeSupplierTypeOther: "",
+  officeLocationType: "main_office",
+  officeLocationTypeOther: "",
+  officePurchasePurpose: "",
+
+  utilityProviderName: "",
+  utilityType: "electricity",
+  utilityTypeOther: "",
+  utilityPeriodFrom: "",
+  utilityPeriodTo: "",
+  utilityAccountReference: "",
+
+  onlinePlatform: "amazon",
+  onlinePlatformOther: "",
   onlineOrderNumber: "",
   onlineOrderDate: "",
   onlineOrderUrl: "",
   onlineTrackingNumber: "",
-  externalDocumentationLink: "",
-  notes: "",
+
+  travelType: "taxi",
+  travelTypeOther: "",
+  travelFrom: "",
+  travelTo: "",
+  travelDate: new Date().toISOString().slice(0, 10),
+  travelReason: "",
+  travelRelatedProject: "",
+
+  mealVendorName: "",
+  mealType: "business_meal",
+  mealTypeOther: "",
+  mealDate: new Date().toISOString().slice(0, 10),
+  mealAttendees: "",
+  mealBusinessPurpose: "",
+
+  bankName: "",
+  bankFeeType: "transfer_fee",
+  bankFeeTypeOther: "",
+  bankAccountReference: "",
+  bankTransactionReference: "",
+  bankFeePeriodFrom: "",
+  bankFeePeriodTo: "",
+
+  legalProviderName: "",
+  legalServiceType: "legal",
+  legalServiceTypeOther: "",
+  legalPeriodFrom: "",
+  legalPeriodTo: "",
+  legalMatterReference: "",
+
+  governmentAuthorityName: "",
+  governmentFeeType: "tax",
+  governmentFeeTypeOther: "",
+  governmentReferenceNumber: "",
+  governmentDueDate: "",
+  governmentPaymentLink: "",
+
+  repairProviderName: "",
+  repairServiceType: "machine_repair",
+  repairServiceTypeOther: "",
+  repairAssetName: "",
+  repairServiceDate: new Date().toISOString().slice(0, 10),
+  repairIssueDescription: "",
+  repairServiceResult: "",
+
+  companySupportType: "employee_support",
+  companySupportTypeOther: "",
+  companySupportRecipient: "",
+  companySupportReason: "",
+  companySupportPeriodFrom: "",
+  companySupportPeriodTo: "",
+
+  otherExpenseCategory: "temporary_exception",
+  otherExpenseCategoryOther: "",
+
   isSubscriptionExpense: false,
   subscriptionProviderName: "",
   subscriptionBillingFrequency: "monthly",
+  subscriptionBillingFrequencyOther: "",
   subscriptionAmountBasis: "monthly_payment",
+  subscriptionAmountBasisOther: "",
   subscriptionStartDate: new Date().toISOString().slice(0, 10),
   subscriptionRenewalDate: "",
   subscriptionAccountReference: "",
   subscriptionAutoCreateFutureExpenses: true,
   subscriptionRenewalReminder: true,
   subscriptionPaymentMethod: "not_selected",
+  subscriptionPaymentMethodOther: "",
   subscriptionAdminNotes: "",
   subscriptionCards: [initialSubscriptionCard()],
 };
@@ -267,10 +551,34 @@ function toAmount(value: string) {
 }
 
 function formatMoney(currencyCode: string, amount: number) {
-  return `${currencyCode} ${amount > 0 ? amount.toLocaleString(undefined, {
-    minimumFractionDigits: 2,
-    maximumFractionDigits: 2,
-  }) : "0.00"}`;
+  return `${currencyCode} ${
+    amount > 0
+      ? amount.toLocaleString(undefined, {
+          minimumFractionDigits: 2,
+          maximumFractionDigits: 2,
+        })
+      : "0.00"
+  }`;
+}
+
+function getOptionLabel(options: SelectOption[], value: string, otherValue?: string) {
+  if (value === "other") return otherValue?.trim() || "Other";
+  return options.find((option) => option.value === value)?.label || value || "Not selected";
+}
+
+function getBillingFrequencyLabel(value: BillingFrequency, otherValue: string) {
+  if (value === "other") return otherValue.trim() || "Other";
+  return BILLING_FREQUENCIES.find((frequency) => frequency.value === value)?.label || value;
+}
+
+function getAmountBasisLabel(value: SubscriptionAmountBasis, otherValue: string) {
+  if (value === "other_subscription_payment") return otherValue.trim() || "Other";
+  return SUBSCRIPTION_AMOUNT_BASIS_OPTIONS.find((basis) => basis.value === value)?.label || value;
+}
+
+function getPaymentMethodLabel(value: SubscriptionPaymentMethod, otherValue: string) {
+  if (value === "other") return otherValue.trim() || "Other";
+  return SUBSCRIPTION_PAYMENT_METHODS.find((method) => method.value === value)?.label || value;
 }
 
 function formatEmployeeLabel(
@@ -418,8 +726,65 @@ function SmallInfoPill({
   );
 }
 
+function SelectField({
+  label,
+  value,
+  onChange,
+  options,
+  disabled,
+}: {
+  label: string;
+  value: string;
+  onChange: (value: string) => void;
+  options: SelectOption[];
+  disabled?: boolean;
+}) {
+  return (
+    <label className="grid gap-2">
+      <span className={labelClass()}>{label}</span>
+      <select
+        value={value}
+        onChange={(event) => onChange(event.target.value)}
+        className={inputClass()}
+        disabled={disabled}
+      >
+        {options.map((option) => (
+          <option key={option.value} value={option.value}>
+            {option.label}
+          </option>
+        ))}
+      </select>
+    </label>
+  );
+}
+
+function OtherTextField({
+  label,
+  value,
+  onChange,
+  placeholder,
+}: {
+  label: string;
+  value: string;
+  onChange: (value: string) => void;
+  placeholder: string;
+}) {
+  return (
+    <label className="grid gap-2">
+      <span className={labelClass()}>{label}</span>
+      <input
+        value={value}
+        onChange={(event) => onChange(event.target.value)}
+        className={inputClass()}
+        placeholder={placeholder}
+      />
+    </label>
+  );
+}
+
 export default function FinanceNewExpensePage() {
   const navigate = useNavigate();
+  const hasMountedRef = useRef(false);
 
   const [companies, setCompanies] = useState<CompanyRow[]>([]);
   const [employees, setEmployees] = useState<EmployeeRefRow[]>([]);
@@ -437,6 +802,7 @@ export default function FinanceNewExpensePage() {
   const isSubscriptionType = form.expenseType === "software_subscription";
   const isSubscriptionExpense = isSubscriptionType || form.isSubscriptionExpense;
   const amountValue = toAmount(form.requestedAmount);
+  const hasUsableOptions = companies.length > 0 || employees.length > 0;
 
   const selectedCompany = useMemo(() => {
     return companies.find((company) => company.id === form.companyId) ?? null;
@@ -464,16 +830,17 @@ export default function FinanceNewExpensePage() {
   const subscriptionSummary = useMemo(() => {
     if (!isSubscriptionExpense) return "One-time expense";
 
-    const frequencyLabel =
-      BILLING_FREQUENCIES.find(
-        (frequency) => frequency.value === form.subscriptionBillingFrequency
-      )?.label ?? "Subscription";
+    const frequencyLabel = getBillingFrequencyLabel(
+      form.subscriptionBillingFrequency,
+      form.subscriptionBillingFrequencyOther
+    );
 
     return `${frequencyLabel} • ${formatMoney(form.currencyCode, amountValue)}`;
   }, [
     amountValue,
     form.currencyCode,
     form.subscriptionBillingFrequency,
+    form.subscriptionBillingFrequencyOther,
     isSubscriptionExpense,
   ]);
 
@@ -483,7 +850,9 @@ export default function FinanceNewExpensePage() {
         id: card.id,
         nickname: card.nickname.trim(),
         cardholder_name: card.cardholderName.trim(),
-        brand: card.brand.trim(),
+        brand: getOptionLabel(CARD_BRANDS, card.brand, card.brandOther),
+        brand_key: card.brand,
+        brand_other: card.brand === "other" ? card.brandOther.trim() : null,
         last4: normalizeLast4(card.last4),
         masked_number: maskCard(card.last4),
         expiry_month: card.expiryMonth.trim(),
@@ -507,8 +876,6 @@ export default function FinanceNewExpensePage() {
       });
   }, [form.subscriptionCards]);
 
-  const hasUsableOptions = companies.length > 0 || employees.length > 0;
-
   const updateField = useCallback(
     <Key extends keyof FormState>(key: Key, value: FormState[Key]) => {
       setForm((current) => ({
@@ -518,8 +885,7 @@ export default function FinanceNewExpensePage() {
       setFormError(null);
       setFormSuccess(null);
     },
-
-          []
+    []
   );
 
   const updateSubscriptionCard = useCallback(
@@ -632,6 +998,9 @@ export default function FinanceNewExpensePage() {
   );
 
   useEffect(() => {
+    if (hasMountedRef.current) return;
+    hasMountedRef.current = true;
+
     void loadOptions("initial");
 
     const refreshInterval = window.setInterval(() => {
@@ -687,6 +1056,375 @@ export default function FinanceNewExpensePage() {
     });
   }, [form.subscriptionBillingFrequency, isSubscriptionExpense]);
 
+  const buildExpenseTypeMetadata = useCallback(() => {
+    const base = {
+      expense_type_key: form.expenseType,
+      expense_type_label: getOptionLabel(
+        EXPENSE_TYPES,
+        form.expenseType,
+        form.otherExpenseExplanation
+      ),
+    };
+
+    if (form.expenseType === "office_support") {
+      return {
+        ...base,
+        office_support: {
+          supplier_type: form.officeSupplierType,
+          supplier_type_label: getOptionLabel(
+            OFFICE_SUPPLIER_TYPES,
+            form.officeSupplierType,
+            form.officeSupplierTypeOther
+          ),
+          location_type: form.officeLocationType,
+          location_type_label: getOptionLabel(
+            OFFICE_LOCATION_TYPES,
+            form.officeLocationType,
+            form.officeLocationTypeOther
+          ),
+          purchase_purpose: form.officePurchasePurpose.trim() || null,
+        },
+      };
+    }
+
+    if (form.expenseType === "utilities") {
+      return {
+        ...base,
+        utilities: {
+          provider_name: form.utilityProviderName.trim(),
+          utility_type: form.utilityType,
+          utility_type_label: getOptionLabel(
+            UTILITY_TYPES,
+            form.utilityType,
+            form.utilityTypeOther
+          ),
+          period_from: form.utilityPeriodFrom || null,
+          period_to: form.utilityPeriodTo || null,
+          account_reference: form.utilityAccountReference.trim() || null,
+        },
+      };
+    }
+
+    if (form.expenseType === "online_shopping") {
+      return {
+        ...base,
+        online_shopping: {
+          platform: getOptionLabel(
+            ONLINE_PLATFORMS,
+            form.onlinePlatform,
+            form.onlinePlatformOther
+          ),
+          platform_key: form.onlinePlatform,
+          platform_other:
+            form.onlinePlatform === "other" ? form.onlinePlatformOther.trim() : null,
+          order_number: form.onlineOrderNumber.trim(),
+          order_date: form.onlineOrderDate || null,
+          order_url: form.onlineOrderUrl.trim(),
+          tracking_number: form.onlineTrackingNumber.trim(),
+        },
+      };
+    }
+
+    if (form.expenseType === "travel") {
+      return {
+        ...base,
+        travel: {
+          travel_type: form.travelType,
+          travel_type_label: getOptionLabel(
+            TRAVEL_TYPES,
+            form.travelType,
+            form.travelTypeOther
+          ),
+          from: form.travelFrom.trim(),
+          to: form.travelTo.trim(),
+          travel_date: form.travelDate || null,
+          reason: form.travelReason.trim(),
+          related_project: form.travelRelatedProject.trim() || null,
+        },
+      };
+    }
+
+    if (form.expenseType === "meals") {
+      return {
+        ...base,
+        meals: {
+          vendor_name: form.mealVendorName.trim(),
+          meal_type: form.mealType,
+          meal_type_label: getOptionLabel(MEAL_TYPES, form.mealType, form.mealTypeOther),
+          meal_date: form.mealDate || null,
+          attendees: form.mealAttendees.trim(),
+          business_purpose: form.mealBusinessPurpose.trim(),
+        },
+      };
+    }
+
+    if (form.expenseType === "bank_charges") {
+      return {
+        ...base,
+        bank_charges: {
+          bank_name: form.bankName.trim(),
+          fee_type: form.bankFeeType,
+          fee_type_label: getOptionLabel(
+            BANK_FEE_TYPES,
+            form.bankFeeType,
+            form.bankFeeTypeOther
+          ),
+          account_reference: form.bankAccountReference.trim() || null,
+          transaction_reference: form.bankTransactionReference.trim() || null,
+          fee_period_from: form.bankFeePeriodFrom || null,
+          fee_period_to: form.bankFeePeriodTo || null,
+        },
+      };
+    }
+
+    if (form.expenseType === "legal_accounting") {
+      return {
+        ...base,
+        legal_accounting: {
+          provider_name: form.legalProviderName.trim(),
+          service_type: form.legalServiceType,
+          service_type_label: getOptionLabel(
+            LEGAL_SERVICE_TYPES,
+            form.legalServiceType,
+            form.legalServiceTypeOther
+          ),
+          period_from: form.legalPeriodFrom || null,
+          period_to: form.legalPeriodTo || null,
+          matter_reference: form.legalMatterReference.trim() || null,
+        },
+      };
+    }
+
+    if (form.expenseType === "government_fee") {
+      return {
+        ...base,
+        government_fee: {
+          authority_name: form.governmentAuthorityName.trim(),
+          fee_type: form.governmentFeeType,
+          fee_type_label: getOptionLabel(
+            GOVERNMENT_FEE_TYPES,
+            form.governmentFeeType,
+            form.governmentFeeTypeOther
+          ),
+          reference_number: form.governmentReferenceNumber.trim() || null,
+          due_date: form.governmentDueDate || null,
+          payment_link: form.governmentPaymentLink.trim() || null,
+        },
+      };
+    }
+
+    if (form.expenseType === "repair_service") {
+      return {
+        ...base,
+        repair_service: {
+          provider_name: form.repairProviderName.trim(),
+          service_type: form.repairServiceType,
+          service_type_label: getOptionLabel(
+            REPAIR_SERVICE_TYPES,
+            form.repairServiceType,
+            form.repairServiceTypeOther
+          ),
+          asset_name: form.repairAssetName.trim(),
+          service_date: form.repairServiceDate || null,
+          issue_description: form.repairIssueDescription.trim(),
+          service_result: form.repairServiceResult.trim() || null,
+        },
+      };
+    }
+
+    if (form.expenseType === "company_support") {
+      return {
+        ...base,
+        company_support: {
+          support_type: form.companySupportType,
+          support_type_label: getOptionLabel(
+            COMPANY_SUPPORT_TYPES,
+            form.companySupportType,
+            form.companySupportTypeOther
+          ),
+          recipient: form.companySupportRecipient.trim(),
+          reason: form.companySupportReason.trim(),
+          period_from: form.companySupportPeriodFrom || null,
+          period_to: form.companySupportPeriodTo || null,
+        },
+      };
+    }
+
+    if (form.expenseType === "other") {
+      return {
+        ...base,
+        other: {
+          category: form.otherExpenseCategory,
+          category_label: getOptionLabel(
+            OTHER_EXPENSE_CATEGORIES,
+            form.otherExpenseCategory,
+            form.otherExpenseCategoryOther
+          ),
+          explanation: form.otherExpenseExplanation.trim(),
+        },
+      };
+    }
+
+    return base;
+  }, [form]);
+
+        const validateOtherDropdowns = useCallback(() => {
+    if (form.expenseMadeByType === "other" && !form.otherMadeByExplanation.trim()) {
+      return "Other explanation is required when Expense Made By is Other.";
+    }
+
+    if (form.expenseType === "other" && !form.otherExpenseExplanation.trim()) {
+      return "Other Expense Explanation is required when Expense Type is Other.";
+    }
+
+    if (form.officeSupplierType === "other" && !form.officeSupplierTypeOther.trim()) {
+      return "Write the other office supplier type.";
+    }
+
+    if (form.officeLocationType === "other" && !form.officeLocationTypeOther.trim()) {
+      return "Write the other office/location type.";
+    }
+
+    if (form.utilityType === "other" && !form.utilityTypeOther.trim()) {
+      return "Write the other utility type.";
+    }
+
+    if (form.onlinePlatform === "other" && !form.onlinePlatformOther.trim()) {
+      return "Write the other online platform.";
+    }
+
+    if (form.travelType === "other" && !form.travelTypeOther.trim()) {
+      return "Write the other travel type.";
+    }
+
+    if (form.mealType === "other" && !form.mealTypeOther.trim()) {
+      return "Write the other meal type.";
+    }
+
+    if (form.bankFeeType === "other" && !form.bankFeeTypeOther.trim()) {
+      return "Write the other bank charge type.";
+    }
+
+    if (form.legalServiceType === "other" && !form.legalServiceTypeOther.trim()) {
+      return "Write the other legal/accounting service type.";
+    }
+
+    if (form.governmentFeeType === "other" && !form.governmentFeeTypeOther.trim()) {
+      return "Write the other government fee type.";
+    }
+
+    if (form.repairServiceType === "other" && !form.repairServiceTypeOther.trim()) {
+      return "Write the other repair/service type.";
+    }
+
+    if (form.companySupportType === "other" && !form.companySupportTypeOther.trim()) {
+      return "Write the other company support type.";
+    }
+
+    if (form.otherExpenseCategory === "other" && !form.otherExpenseCategoryOther.trim()) {
+      return "Write the other expense category.";
+    }
+
+    if (
+      isSubscriptionExpense &&
+      form.subscriptionBillingFrequency === "other" &&
+      !form.subscriptionBillingFrequencyOther.trim()
+    ) {
+      return "Write the other subscription billing frequency.";
+    }
+
+    if (
+      isSubscriptionExpense &&
+      form.subscriptionAmountBasis === "other_subscription_payment" &&
+      !form.subscriptionAmountBasisOther.trim()
+    ) {
+      return "Write the other subscription amount basis.";
+    }
+
+    if (
+      isSubscriptionExpense &&
+      form.subscriptionPaymentMethod === "other" &&
+      !form.subscriptionPaymentMethodOther.trim()
+    ) {
+      return "Write the other subscription payment method.";
+    }
+
+    if (
+      isSubscriptionExpense &&
+      form.subscriptionPaymentMethod === "credit_card" &&
+      form.subscriptionCards.some((card) => card.brand === "other" && !card.brandOther.trim())
+    ) {
+      return "Write the other credit card brand.";
+    }
+
+    return null;
+  }, [form, isSubscriptionExpense]);
+
+  const validateExpenseTypeFields = useCallback(() => {
+    if (form.expenseType === "office_support") {
+      if (!form.officePurchasePurpose.trim()) return "Purchase purpose is required.";
+    }
+
+    if (form.expenseType === "utilities") {
+      if (!form.utilityProviderName.trim()) return "Utility provider is required.";
+      if (!form.utilityPeriodFrom) return "Utility period from date is required.";
+      if (!form.utilityPeriodTo) return "Utility period to date is required.";
+    }
+
+    if (form.expenseType === "online_shopping") {
+      if (!form.onlinePlatform.trim()) return "Online platform is required.";
+      if (!form.onlineOrderUrl.trim() && !form.onlineOrderNumber.trim()) {
+        return "Online shopping needs an order URL or order number.";
+      }
+    }
+
+    if (form.expenseType === "travel") {
+      if (!form.travelFrom.trim()) return "Travel From is required.";
+      if (!form.travelTo.trim()) return "Travel To is required.";
+      if (!form.travelDate) return "Travel date is required.";
+      if (!form.travelReason.trim()) return "Travel reason is required.";
+    }
+
+    if (form.expenseType === "meals") {
+      if (!form.mealVendorName.trim()) return "Restaurant / vendor name is required.";
+      if (!form.mealDate) return "Meal date is required.";
+      if (!form.mealAttendees.trim()) return "Meal attendees are required.";
+      if (!form.mealBusinessPurpose.trim()) return "Meal business purpose is required.";
+    }
+
+    if (form.expenseType === "bank_charges") {
+      if (!form.bankName.trim()) return "Bank name is required.";
+      if (!form.bankTransactionReference.trim() && !form.bankAccountReference.trim()) {
+        return "Bank charge needs an account reference or transaction reference.";
+      }
+    }
+
+    if (form.expenseType === "legal_accounting") {
+      if (!form.legalProviderName.trim()) return "Legal / accounting provider is required.";
+      if (!form.legalPeriodFrom) return "Service period from date is required.";
+      if (!form.legalPeriodTo) return "Service period to date is required.";
+    }
+
+    if (form.expenseType === "government_fee") {
+      if (!form.governmentAuthorityName.trim()) return "Government authority is required.";
+      if (!form.governmentReferenceNumber.trim()) return "Government reference number is required.";
+    }
+
+    if (form.expenseType === "repair_service") {
+      if (!form.repairProviderName.trim()) return "Repair / service provider is required.";
+      if (!form.repairAssetName.trim()) return "Asset / equipment is required.";
+      if (!form.repairServiceDate) return "Repair / service date is required.";
+      if (!form.repairIssueDescription.trim()) return "Issue description is required.";
+    }
+
+    if (form.expenseType === "company_support") {
+      if (!form.companySupportRecipient.trim()) return "Receiving person / company is required.";
+      if (!form.companySupportReason.trim()) return "Company support reason is required.";
+    }
+
+    return null;
+  }, [form]);
+
   const validateForm = useCallback(
     (submitMode: "draft" | "request") => {
       if (!form.title.trim()) return "Expense title is required.";
@@ -707,20 +1445,14 @@ export default function FinanceNewExpensePage() {
         return "Responsible person name is required for Owner / Management expenses.";
       }
 
-      if (form.expenseMadeByType === "other" && !form.otherMadeByExplanation.trim()) {
-        return "Other explanation is required when Expense Made By is Other.";
-      }
+      const otherValidationError = validateOtherDropdowns();
+      if (otherValidationError) return otherValidationError;
 
-      if (isOtherExpenseType && !form.otherExpenseExplanation.trim()) {
-        return "Other Expense Explanation is required when Expense Type is Other.";
-      }
+      const expenseTypeValidationError = validateExpenseTypeFields();
+      if (expenseTypeValidationError) return expenseTypeValidationError;
 
       if (form.isRetroactive && !form.retroactiveReason.trim()) {
         return "Retroactive reason is required.";
-      }
-
-      if (isOnlineShopping && !form.onlinePlatform.trim()) {
-        return "Online platform is required for online shopping expenses.";
       }
 
       if (isSubscriptionExpense) {
@@ -772,10 +1504,10 @@ export default function FinanceNewExpensePage() {
       amountValue,
       documentationStatus,
       form,
-      isOnlineShopping,
-      isOtherExpenseType,
       isSubscriptionExpense,
       sanitizedSubscriptionCards,
+      validateExpenseTypeFields,
+      validateOtherDropdowns,
     ]
   );
 
@@ -849,6 +1581,7 @@ export default function FinanceNewExpensePage() {
         const userId = authResult.data.user?.id ?? null;
         const expenseNumber = buildExpenseNumber();
         const requestStatus = submitMode === "request" ? "requested" : "draft";
+        const expenseTypeDetails = buildExpenseTypeMetadata();
 
         const subscriptionMetadata = isSubscriptionExpense
           ? {
@@ -857,6 +1590,14 @@ export default function FinanceNewExpensePage() {
               permission_enforcement_pending: true,
               provider_name: form.subscriptionProviderName.trim(),
               billing_frequency: form.subscriptionBillingFrequency,
+              billing_frequency_label: getBillingFrequencyLabel(
+                form.subscriptionBillingFrequency,
+                form.subscriptionBillingFrequencyOther
+              ),
+              billing_frequency_other:
+                form.subscriptionBillingFrequency === "other"
+                  ? form.subscriptionBillingFrequencyOther.trim()
+                  : null,
               account_reference: form.subscriptionAccountReference.trim() || null,
               start_date: form.subscriptionStartDate || null,
               end_date: form.subscriptionRenewalDate || null,
@@ -868,10 +1609,26 @@ export default function FinanceNewExpensePage() {
                 ? "metadata_ready_scheduler_required"
                 : "manual_only",
               amount_basis: form.subscriptionAmountBasis,
+              amount_basis_label: getAmountBasisLabel(
+                form.subscriptionAmountBasis,
+                form.subscriptionAmountBasisOther
+              ),
+              amount_basis_other:
+                form.subscriptionAmountBasis === "other_subscription_payment"
+                  ? form.subscriptionAmountBasisOther.trim()
+                  : null,
               amount: amountValue,
               currency_code: form.currencyCode.trim().toUpperCase(),
               next_expected_expense_date: form.subscriptionRenewalDate || null,
               payment_method: form.subscriptionPaymentMethod,
+              payment_method_label: getPaymentMethodLabel(
+                form.subscriptionPaymentMethod,
+                form.subscriptionPaymentMethodOther
+              ),
+              payment_method_other:
+                form.subscriptionPaymentMethod === "other"
+                  ? form.subscriptionPaymentMethodOther.trim()
+                  : null,
               cards:
                 form.subscriptionPaymentMethod === "credit_card"
                   ? sanitizedSubscriptionCards
@@ -883,15 +1640,11 @@ export default function FinanceNewExpensePage() {
           : null;
 
         const metadata = {
-          online_shopping: isOnlineShopping
-            ? {
-                platform: form.onlinePlatform.trim(),
-                order_number: form.onlineOrderNumber.trim(),
-                order_date: form.onlineOrderDate || null,
-                order_url: form.onlineOrderUrl.trim(),
-                tracking_number: form.onlineTrackingNumber.trim(),
-              }
-            : null,
+          expense_type_details: expenseTypeDetails,
+          online_shopping:
+            form.expenseType === "online_shopping"
+              ? expenseTypeDetails.online_shopping
+              : null,
           subscription: subscriptionMetadata,
           credit_card:
             isSubscriptionExpense && form.subscriptionPaymentMethod === "credit_card"
@@ -960,19 +1713,32 @@ export default function FinanceNewExpensePage() {
             funding_status: "not_allocated",
             coverage_status: "not_covered",
             recipient_confirmation_status: "not_paid_yet",
-            online_platform: isOnlineShopping ? form.onlinePlatform.trim() : null,
-            online_order_number: isOnlineShopping
-              ? form.onlineOrderNumber.trim() || null
-              : null,
+            online_platform:
+              form.expenseType === "online_shopping"
+                ? getOptionLabel(
+                    ONLINE_PLATFORMS,
+                    form.onlinePlatform,
+                    form.onlinePlatformOther
+                  )
+                : null,
+            online_order_number:
+              form.expenseType === "online_shopping"
+                ? form.onlineOrderNumber.trim() || null
+                : null,
             online_order_date:
-              isOnlineShopping && form.onlineOrderDate ? form.onlineOrderDate : null,
-            online_order_url: isOnlineShopping ? form.onlineOrderUrl.trim() || null : null,
-            online_tracking_number: isOnlineShopping
-              ? form.onlineTrackingNumber.trim() || null
-              : null,
-            online_confirmation_status: isOnlineShopping
-              ? "not_confirmed"
-              : "not_applicable",
+              form.expenseType === "online_shopping" && form.onlineOrderDate
+                ? form.onlineOrderDate
+                : null,
+            online_order_url:
+              form.expenseType === "online_shopping"
+                ? form.onlineOrderUrl.trim() || null
+                : null,
+            online_tracking_number:
+              form.expenseType === "online_shopping"
+                ? form.onlineTrackingNumber.trim() || null
+                : null,
+            online_confirmation_status:
+              form.expenseType === "online_shopping" ? "not_confirmed" : "not_applicable",
             notes: form.notes.trim() || null,
             metadata,
             submitter_user_id: userId,
@@ -1008,9 +1774,9 @@ export default function FinanceNewExpensePage() {
     },
     [
       amountValue,
+      buildExpenseTypeMetadata,
       documentationStatus,
       form,
-      isOnlineShopping,
       isOtherExpenseType,
       isSubscriptionExpense,
       navigate,
@@ -1022,6 +1788,746 @@ export default function FinanceNewExpensePage() {
       validateForm,
     ]
   );
+
+  const renderDynamicExpenseSection = () => {
+    if (form.expenseType === "office_support") {
+      return (
+        <SectionCard
+          title="Office Support Details"
+          description="Define the office support context and purchase purpose."
+          icon={Building2}
+        >
+          <div className="grid gap-4 md:grid-cols-2">
+            <SelectField
+              label="Supplier / Shop Type"
+              value={form.officeSupplierType}
+              onChange={(value) => updateField("officeSupplierType", value)}
+              options={OFFICE_SUPPLIER_TYPES}
+            />
+            {form.officeSupplierType === "other" ? (
+              <OtherTextField
+                label="Write Other Supplier / Shop Type"
+                value={form.officeSupplierTypeOther}
+                onChange={(value) => updateField("officeSupplierTypeOther", value)}
+                placeholder="Write the supplier/shop type"
+              />
+            ) : null}
+
+            <SelectField
+              label="Office / Location"
+              value={form.officeLocationType}
+              onChange={(value) => updateField("officeLocationType", value)}
+              options={OFFICE_LOCATION_TYPES}
+            />
+            {form.officeLocationType === "other" ? (
+              <OtherTextField
+                label="Write Other Office / Location"
+                value={form.officeLocationTypeOther}
+                onChange={(value) => updateField("officeLocationTypeOther", value)}
+                placeholder="Write the location"
+              />
+            ) : null}
+
+            <label className="grid gap-2 md:col-span-2">
+              <span className={labelClass()}>Purchase Purpose</span>
+              <textarea
+                value={form.officePurchasePurpose}
+                onChange={(event) => updateField("officePurchasePurpose", event.target.value)}
+                className={textareaClass()}
+                placeholder="Explain what was purchased and why the office needs it"
+              />
+            </label>
+          </div>
+        </SectionCard>
+      );
+    }
+
+    if (form.expenseType === "utilities") {
+      return (
+        <SectionCard
+          title="Utility Bill Details"
+          description="Capture utility provider, bill period, and account reference."
+          icon={Receipt}
+        >
+          <div className="grid gap-4 md:grid-cols-2">
+            <label className="grid gap-2">
+              <span className={labelClass()}>Utility Provider</span>
+              <input
+                value={form.utilityProviderName}
+                onChange={(event) => updateField("utilityProviderName", event.target.value)}
+                className={inputClass()}
+                placeholder="Provider name"
+              />
+            </label>
+
+            <SelectField
+              label="Utility Type"
+              value={form.utilityType}
+              onChange={(value) => updateField("utilityType", value)}
+              options={UTILITY_TYPES}
+            />
+            {form.utilityType === "other" ? (
+              <OtherTextField
+                label="Write Other Utility Type"
+                value={form.utilityTypeOther}
+                onChange={(value) => updateField("utilityTypeOther", value)}
+                placeholder="Write the utility type"
+              />
+            ) : null}
+
+            <label className="grid gap-2">
+              <span className={labelClass()}>Bill Period From</span>
+              <input
+                type="date"
+                value={form.utilityPeriodFrom}
+                onChange={(event) => updateField("utilityPeriodFrom", event.target.value)}
+                className={inputClass()}
+              />
+            </label>
+
+            <label className="grid gap-2">
+              <span className={labelClass()}>Bill Period To</span>
+              <input
+                type="date"
+                value={form.utilityPeriodTo}
+                onChange={(event) => updateField("utilityPeriodTo", event.target.value)}
+                className={inputClass()}
+              />
+            </label>
+
+            <label className="grid gap-2 md:col-span-2">
+              <span className={labelClass()}>Account / Contract Number</span>
+              <input
+                value={form.utilityAccountReference}
+                onChange={(event) =>
+                  updateField("utilityAccountReference", event.target.value)
+                }
+                className={inputClass()}
+                placeholder="Account number, contract number, or bill reference"
+              />
+            </label>
+          </div>
+        </SectionCard>
+      );
+    }
+
+    if (form.expenseType === "online_shopping") {
+      return (
+        <SectionCard
+          title="Online Shopping Confirmation"
+          description="Capture order details, platform, link, and tracking information."
+          icon={ShoppingCart}
+        >
+          <div className="grid gap-4 md:grid-cols-2">
+            <SelectField
+              label="Online Platform"
+              value={form.onlinePlatform}
+              onChange={(value) => updateField("onlinePlatform", value)}
+              options={ONLINE_PLATFORMS}
+            />
+            {form.onlinePlatform === "other" ? (
+              <OtherTextField
+                label="Write Other Online Platform"
+                value={form.onlinePlatformOther}
+                onChange={(value) => updateField("onlinePlatformOther", value)}
+                placeholder="Write the online platform"
+              />
+            ) : null}
+
+            <label className="grid gap-2">
+              <span className={labelClass()}>Order Number</span>
+              <input
+                value={form.onlineOrderNumber}
+                onChange={(event) => updateField("onlineOrderNumber", event.target.value)}
+                className={inputClass()}
+                placeholder="Order number"
+              />
+            </label>
+
+            <label className="grid gap-2">
+              <span className={labelClass()}>Order Date</span>
+              <input
+                type="date"
+                value={form.onlineOrderDate}
+                onChange={(event) => updateField("onlineOrderDate", event.target.value)}
+                className={inputClass()}
+              />
+            </label>
+
+            <label className="grid gap-2">
+              <span className={labelClass()}>Tracking Number</span>
+              <input
+                value={form.onlineTrackingNumber}
+                onChange={(event) =>
+                  updateField("onlineTrackingNumber", event.target.value)
+                }
+                className={inputClass()}
+                placeholder="Tracking number if available"
+              />
+            </label>
+
+            <label className="grid gap-2 md:col-span-2">
+              <span className={labelClass()}>Order URL</span>
+              <input
+                value={form.onlineOrderUrl}
+                onChange={(event) => updateField("onlineOrderUrl", event.target.value)}
+                className={inputClass()}
+                placeholder="Online order link"
+              />
+            </label>
+          </div>
+        </SectionCard>
+      );
+    }
+
+    if (form.expenseType === "travel") {
+      return (
+        <SectionCard
+          title="Travel Details"
+          description="Capture from/to, travel type, reason, and related context."
+          icon={CalendarClock}
+        >
+          <div className="grid gap-4 md:grid-cols-2">
+            <SelectField
+              label="Travel Type"
+              value={form.travelType}
+              onChange={(value) => updateField("travelType", value)}
+              options={TRAVEL_TYPES}
+            />
+            {form.travelType === "other" ? (
+              <OtherTextField
+                label="Write Other Travel Type"
+                value={form.travelTypeOther}
+                onChange={(value) => updateField("travelTypeOther", value)}
+                placeholder="Write the travel type"
+              />
+            ) : null}
+
+            <label className="grid gap-2">
+              <span className={labelClass()}>From</span>
+              <input
+                value={form.travelFrom}
+                onChange={(event) => updateField("travelFrom", event.target.value)}
+                className={inputClass()}
+                placeholder="Start location"
+              />
+            </label>
+
+            <label className="grid gap-2">
+              <span className={labelClass()}>To</span>
+              <input
+                value={form.travelTo}
+                onChange={(event) => updateField("travelTo", event.target.value)}
+                className={inputClass()}
+                placeholder="Destination"
+              />
+            </label>
+
+            <label className="grid gap-2">
+              <span className={labelClass()}>Travel Date</span>
+              <input
+                type="date"
+                value={form.travelDate}
+                onChange={(event) => updateField("travelDate", event.target.value)}
+                className={inputClass()}
+              />
+            </label>
+
+            <label className="grid gap-2">
+              <span className={labelClass()}>Related Project / Client</span>
+              <input
+                value={form.travelRelatedProject}
+                onChange={(event) => updateField("travelRelatedProject", event.target.value)}
+                className={inputClass()}
+                placeholder="Optional project or client"
+              />
+            </label>
+
+            <label className="grid gap-2 md:col-span-2">
+              <span className={labelClass()}>Business Reason</span>
+              <textarea
+                value={form.travelReason}
+                onChange={(event) => updateField("travelReason", event.target.value)}
+                className={textareaClass()}
+                placeholder="Explain why this travel was needed"
+              />
+            </label>
+          </div>
+        </SectionCard>
+      );
+    }
+
+    if (form.expenseType === "meals") {
+      return (
+        <SectionCard
+          title="Meal Details"
+          description="Capture restaurant/vendor, attendees, and business purpose."
+          icon={Receipt}
+        >
+          <div className="grid gap-4 md:grid-cols-2">
+            <label className="grid gap-2">
+              <span className={labelClass()}>Restaurant / Vendor</span>
+              <input
+                value={form.mealVendorName}
+                onChange={(event) => updateField("mealVendorName", event.target.value)}
+                className={inputClass()}
+                placeholder="Restaurant or vendor name"
+              />
+            </label>
+
+            <SelectField
+              label="Meal Type"
+              value={form.mealType}
+              onChange={(value) => updateField("mealType", value)}
+              options={MEAL_TYPES}
+            />
+            {form.mealType === "other" ? (
+              <OtherTextField
+                label="Write Other Meal Type"
+                value={form.mealTypeOther}
+                onChange={(value) => updateField("mealTypeOther", value)}
+                placeholder="Write the meal type"
+              />
+            ) : null}
+
+            <label className="grid gap-2">
+              <span className={labelClass()}>Meal Date</span>
+              <input
+                type="date"
+                value={form.mealDate}
+                onChange={(event) => updateField("mealDate", event.target.value)}
+                className={inputClass()}
+              />
+            </label>
+
+            <label className="grid gap-2">
+              <span className={labelClass()}>Attendees</span>
+              <input
+                value={form.mealAttendees}
+                onChange={(event) => updateField("mealAttendees", event.target.value)}
+                className={inputClass()}
+                placeholder="Names or team/group"
+              />
+            </label>
+
+            <label className="grid gap-2 md:col-span-2">
+              <span className={labelClass()}>Business Purpose</span>
+              <textarea
+                value={form.mealBusinessPurpose}
+                onChange={(event) => updateField("mealBusinessPurpose", event.target.value)}
+                className={textareaClass()}
+                placeholder="Explain the business purpose"
+              />
+            </label>
+          </div>
+        </SectionCard>
+      );
+    }
+
+    if (form.expenseType === "bank_charges") {
+      return (
+        <SectionCard
+          title="Bank Charge Details"
+          description="Capture bank fee type, reference, period, and bank context."
+          icon={Landmark}
+        >
+          <div className="grid gap-4 md:grid-cols-2">
+            <label className="grid gap-2">
+              <span className={labelClass()}>Bank Name</span>
+              <input
+                value={form.bankName}
+                onChange={(event) => updateField("bankName", event.target.value)}
+                className={inputClass()}
+                placeholder="Bank name"
+              />
+            </label>
+
+            <SelectField
+              label="Fee Type"
+              value={form.bankFeeType}
+              onChange={(value) => updateField("bankFeeType", value)}
+              options={BANK_FEE_TYPES}
+            />
+            {form.bankFeeType === "other" ? (
+              <OtherTextField
+                label="Write Other Bank Charge Type"
+                value={form.bankFeeTypeOther}
+                onChange={(value) => updateField("bankFeeTypeOther", value)}
+                placeholder="Write the bank charge type"
+              />
+            ) : null}
+
+            <label className="grid gap-2">
+              <span className={labelClass()}>Account Reference</span>
+              <input
+                value={form.bankAccountReference}
+                onChange={(event) => updateField("bankAccountReference", event.target.value)}
+                className={inputClass()}
+                placeholder="Account or bank reference"
+              />
+            </label>
+
+            <label className="grid gap-2">
+              <span className={labelClass()}>Transaction Reference</span>
+              <input
+                value={form.bankTransactionReference}
+                onChange={(event) =>
+                  updateField("bankTransactionReference", event.target.value)
+                }
+                className={inputClass()}
+                placeholder="Transaction reference"
+              />
+            </label>
+
+            <label className="grid gap-2">
+              <span className={labelClass()}>Fee Period From</span>
+              <input
+                type="date"
+                value={form.bankFeePeriodFrom}
+                onChange={(event) => updateField("bankFeePeriodFrom", event.target.value)}
+                className={inputClass()}
+              />
+            </label>
+
+            <label className="grid gap-2">
+              <span className={labelClass()}>Fee Period To</span>
+              <input
+                type="date"
+                value={form.bankFeePeriodTo}
+                onChange={(event) => updateField("bankFeePeriodTo", event.target.value)}
+                className={inputClass()}
+              />
+            </label>
+          </div>
+        </SectionCard>
+      );
+    }
+
+    if (form.expenseType === "legal_accounting") {
+      return (
+        <SectionCard
+          title="Legal / Accounting Details"
+          description="Capture service provider, service period, and matter reference."
+          icon={Receipt}
+        >
+          <div className="grid gap-4 md:grid-cols-2">
+            <label className="grid gap-2">
+              <span className={labelClass()}>Service Provider</span>
+              <input
+                value={form.legalProviderName}
+                onChange={(event) => updateField("legalProviderName", event.target.value)}
+                className={inputClass()}
+                placeholder="Lawyer, accountant, auditor, consultant"
+              />
+            </label>
+
+            <SelectField
+              label="Service Type"
+              value={form.legalServiceType}
+              onChange={(value) => updateField("legalServiceType", value)}
+              options={LEGAL_SERVICE_TYPES}
+            />
+            {form.legalServiceType === "other" ? (
+              <OtherTextField
+                label="Write Other Service Type"
+                value={form.legalServiceTypeOther}
+                onChange={(value) => updateField("legalServiceTypeOther", value)}
+                placeholder="Write the service type"
+              />
+            ) : null}
+
+            <label className="grid gap-2">
+              <span className={labelClass()}>Service Period From</span>
+              <input
+                type="date"
+                value={form.legalPeriodFrom}
+                onChange={(event) => updateField("legalPeriodFrom", event.target.value)}
+                className={inputClass()}
+              />
+            </label>
+
+            <label className="grid gap-2">
+              <span className={labelClass()}>Service Period To</span>
+              <input
+                type="date"
+                value={form.legalPeriodTo}
+                onChange={(event) => updateField("legalPeriodTo", event.target.value)}
+                className={inputClass()}
+              />
+            </label>
+
+            <label className="grid gap-2 md:col-span-2">
+              <span className={labelClass()}>Matter / Case / Project Reference</span>
+              <input
+                value={form.legalMatterReference}
+                onChange={(event) => updateField("legalMatterReference", event.target.value)}
+                className={inputClass()}
+                placeholder="Case, matter, audit, tax, or project reference"
+              />
+            </label>
+          </div>
+        </SectionCard>
+      );
+    }
+
+    if (form.expenseType === "government_fee") {
+      return (
+        <SectionCard
+          title="Government Fee Details"
+          description="Capture authority, official fee type, reference number, and due date."
+          icon={Landmark}
+        >
+          <div className="grid gap-4 md:grid-cols-2">
+            <label className="grid gap-2">
+              <span className={labelClass()}>Government Authority</span>
+              <input
+                value={form.governmentAuthorityName}
+                onChange={(event) =>
+                  updateField("governmentAuthorityName", event.target.value)
+                }
+                className={inputClass()}
+                placeholder="Authority or office name"
+              />
+            </label>
+
+            <SelectField
+              label="Fee Type"
+              value={form.governmentFeeType}
+              onChange={(value) => updateField("governmentFeeType", value)}
+              options={GOVERNMENT_FEE_TYPES}
+            />
+            {form.governmentFeeType === "other" ? (
+              <OtherTextField
+                label="Write Other Government Fee Type"
+                value={form.governmentFeeTypeOther}
+                onChange={(value) => updateField("governmentFeeTypeOther", value)}
+                placeholder="Write the fee type"
+              />
+            ) : null}
+
+            <label className="grid gap-2">
+              <span className={labelClass()}>Reference Number</span>
+              <input
+                value={form.governmentReferenceNumber}
+                onChange={(event) =>
+                  updateField("governmentReferenceNumber", event.target.value)
+                }
+                className={inputClass()}
+                placeholder="Official reference number"
+              />
+            </label>
+
+            <label className="grid gap-2">
+              <span className={labelClass()}>Due Date</span>
+              <input
+                type="date"
+                value={form.governmentDueDate}
+                onChange={(event) => updateField("governmentDueDate", event.target.value)}
+                className={inputClass()}
+              />
+            </label>
+
+            <label className="grid gap-2 md:col-span-2">
+              <span className={labelClass()}>Payment Link</span>
+              <input
+                value={form.governmentPaymentLink}
+                onChange={(event) => updateField("governmentPaymentLink", event.target.value)}
+                className={inputClass()}
+                placeholder="Optional official payment link"
+              />
+            </label>
+          </div>
+        </SectionCard>
+      );
+    }
+
+    if (form.expenseType === "repair_service") {
+      return (
+        <SectionCard
+          title="Repair / Service Details"
+          description="Capture provider, asset, service date, issue, and service result."
+          icon={Wrench}
+        >
+          <div className="grid gap-4 md:grid-cols-2">
+            <label className="grid gap-2">
+              <span className={labelClass()}>Service Provider</span>
+              <input
+                value={form.repairProviderName}
+                onChange={(event) => updateField("repairProviderName", event.target.value)}
+                className={inputClass()}
+                placeholder="Service provider name"
+              />
+            </label>
+
+            <SelectField
+              label="Service Type"
+              value={form.repairServiceType}
+              onChange={(value) => updateField("repairServiceType", value)}
+              options={REPAIR_SERVICE_TYPES}
+            />
+            {form.repairServiceType === "other" ? (
+              <OtherTextField
+                label="Write Other Service Type"
+                value={form.repairServiceTypeOther}
+                onChange={(value) => updateField("repairServiceTypeOther", value)}
+                placeholder="Write the service type"
+              />
+            ) : null}
+
+            <label className="grid gap-2">
+              <span className={labelClass()}>Asset / Equipment</span>
+              <input
+                value={form.repairAssetName}
+                onChange={(event) => updateField("repairAssetName", event.target.value)}
+                className={inputClass()}
+                placeholder="Machine, computer, vehicle, facility"
+              />
+            </label>
+
+            <label className="grid gap-2">
+              <span className={labelClass()}>Service Date</span>
+              <input
+                type="date"
+                value={form.repairServiceDate}
+                onChange={(event) => updateField("repairServiceDate", event.target.value)}
+                className={inputClass()}
+              />
+            </label>
+
+            <label className="grid gap-2 md:col-span-2">
+              <span className={labelClass()}>Issue Description</span>
+              <textarea
+                value={form.repairIssueDescription}
+                onChange={(event) =>
+                  updateField("repairIssueDescription", event.target.value)
+                }
+                className={textareaClass()}
+                placeholder="Explain the issue"
+              />
+            </label>
+
+            <label className="grid gap-2 md:col-span-2">
+              <span className={labelClass()}>Service Result</span>
+              <textarea
+                value={form.repairServiceResult}
+                onChange={(event) => updateField("repairServiceResult", event.target.value)}
+                className={textareaClass()}
+                placeholder="Optional service result or report summary"
+              />
+            </label>
+          </div>
+        </SectionCard>
+      );
+    }
+
+    if (form.expenseType === "company_support") {
+      return (
+        <SectionCard
+          title="Company Support Details"
+          description="Capture support type, recipient, reason, and optional support period."
+          icon={Building2}
+        >
+          <div className="grid gap-4 md:grid-cols-2">
+            <SelectField
+              label="Support Type"
+              value={form.companySupportType}
+              onChange={(value) => updateField("companySupportType", value)}
+              options={COMPANY_SUPPORT_TYPES}
+            />
+            {form.companySupportType === "other" ? (
+              <OtherTextField
+                label="Write Other Support Type"
+                value={form.companySupportTypeOther}
+                onChange={(value) => updateField("companySupportTypeOther", value)}
+                placeholder="Write the support type"
+              />
+            ) : null}
+
+            <label className="grid gap-2">
+              <span className={labelClass()}>Receiving Person / Company</span>
+              <input
+                value={form.companySupportRecipient}
+                onChange={(event) =>
+                  updateField("companySupportRecipient", event.target.value)
+                }
+                className={inputClass()}
+                placeholder="Recipient name or company"
+              />
+            </label>
+
+            <label className="grid gap-2">
+              <span className={labelClass()}>Support Period From</span>
+              <input
+                type="date"
+                value={form.companySupportPeriodFrom}
+                onChange={(event) =>
+                  updateField("companySupportPeriodFrom", event.target.value)
+                }
+                className={inputClass()}
+              />
+            </label>
+
+            <label className="grid gap-2">
+              <span className={labelClass()}>Support Period To</span>
+              <input
+                type="date"
+                value={form.companySupportPeriodTo}
+                onChange={(event) =>
+                  updateField("companySupportPeriodTo", event.target.value)
+                }
+                className={inputClass()}
+              />
+            </label>
+
+            <label className="grid gap-2 md:col-span-2">
+              <span className={labelClass()}>Support Reason</span>
+              <textarea
+                value={form.companySupportReason}
+                onChange={(event) => updateField("companySupportReason", event.target.value)}
+                className={textareaClass()}
+                placeholder="Explain why this support is needed"
+              />
+            </label>
+          </div>
+        </SectionCard>
+      );
+    }
+
+    return (
+      <SectionCard
+        title="Other Expense Details"
+        description="Use this only when the expense does not fit the standard categories."
+        icon={Receipt}
+      >
+        <div className="grid gap-4 md:grid-cols-2">
+          <SelectField
+            label="Other Category"
+            value={form.otherExpenseCategory}
+            onChange={(value) => updateField("otherExpenseCategory", value)}
+            options={OTHER_EXPENSE_CATEGORIES}
+          />
+          {form.otherExpenseCategory === "other" ? (
+            <OtherTextField
+              label="Write Other Category"
+              value={form.otherExpenseCategoryOther}
+              onChange={(value) => updateField("otherExpenseCategoryOther", value)}
+              placeholder="Write the other category"
+            />
+          ) : null}
+
+          <label className="grid gap-2 md:col-span-2">
+            <span className={labelClass()}>Why It Does Not Fit Existing Types</span>
+            <textarea
+              value={form.otherExpenseExplanation}
+              onChange={(event) => updateField("otherExpenseExplanation", event.target.value)}
+              className={textareaClass()}
+              placeholder="Explain why this expense does not fit any existing type"
+            />
+          </label>
+        </div>
+      </SectionCard>
+    );
+  };
 
   return (
     <div className="min-h-screen bg-[#05070d] px-4 py-4 text-white md:px-6 md:py-6">
@@ -1039,7 +2545,7 @@ export default function FinanceNewExpensePage() {
               Expenses
             </button>
 
-                        <div className="grid gap-6 xl:grid-cols-[minmax(0,1fr)_430px] xl:items-end">
+            <div className="grid gap-6 xl:grid-cols-[minmax(0,1fr)_430px] xl:items-end">
               <div>
                 <div className="inline-flex w-fit items-center gap-2 rounded-full border border-cyan-400/20 bg-cyan-500/10 px-3 py-1 text-[11px] font-semibold uppercase tracking-[0.22em] text-cyan-200">
                   <Sparkles className="h-3.5 w-3.5" />
@@ -1052,8 +2558,8 @@ export default function FinanceNewExpensePage() {
 
                 <p className="mt-3 max-w-4xl text-sm leading-6 text-slate-400 md:text-base md:leading-7">
                   Create one-time operating expenses or admin-prepared subscription expenses.
-                  Funding, bank allocation, payment execution, and coverage are still handled
-                  later by Finance/Admin in the Operating Expense Payments flow.
+                  Each expense type opens the exact fields needed for that category, with
+                  required “Other” explanations when Other is selected.
                 </p>
 
                 <div className="mt-5 grid gap-3 md:grid-cols-3">
@@ -1071,10 +2577,7 @@ export default function FinanceNewExpensePage() {
                           : "Ready"
                     }
                   />
-                  <SmallInfoPill
-                    title="Permissions"
-                    value="Admin Gate Later"
-                  />
+                  <SmallInfoPill title="Permissions" value="Admin Gate Later" />
                 </div>
               </div>
 
@@ -1230,20 +2733,6 @@ export default function FinanceNewExpensePage() {
                   />
                 </label>
 
-                {isOtherExpenseType ? (
-                  <label className="grid gap-2 md:col-span-2">
-                    <span className={labelClass()}>Other Expense Explanation</span>
-                    <input
-                      value={form.otherExpenseExplanation}
-                      onChange={(event) =>
-                        updateField("otherExpenseExplanation", event.target.value)
-                      }
-                      className={inputClass()}
-                      placeholder="Explain the Other expense type"
-                    />
-                  </label>
-                ) : null}
-
                 <label className="grid gap-2">
                   <span className={labelClass()}>Requested Amount</span>
                   <input
@@ -1321,6 +2810,8 @@ export default function FinanceNewExpensePage() {
                 </label>
               </div>
             </SectionCard>
+
+            {renderDynamicExpenseSection()}
 
             <SectionCard
               title="Admin Subscription Option"
@@ -1414,6 +2905,17 @@ export default function FinanceNewExpensePage() {
                       </span>
                     </label>
 
+                    {form.subscriptionBillingFrequency === "other" ? (
+                      <OtherTextField
+                        label="Write Other Billing Frequency"
+                        value={form.subscriptionBillingFrequencyOther}
+                        onChange={(value) =>
+                          updateField("subscriptionBillingFrequencyOther", value)
+                        }
+                        placeholder="Write the billing frequency"
+                      />
+                    ) : null}
+
                     <label className="grid gap-2">
                       <span className={labelClass()}>Amount Basis</span>
                       <select
@@ -1433,6 +2935,15 @@ export default function FinanceNewExpensePage() {
                         ))}
                       </select>
                     </label>
+
+                    {form.subscriptionAmountBasis === "other_subscription_payment" ? (
+                      <OtherTextField
+                        label="Write Other Amount Basis"
+                        value={form.subscriptionAmountBasisOther}
+                        onChange={(value) => updateField("subscriptionAmountBasisOther", value)}
+                        placeholder="Write the amount basis"
+                      />
+                    ) : null}
 
                     <label className="grid gap-2">
                       <span className={labelClass()}>Subscription Start Date</span>
@@ -1505,7 +3016,7 @@ export default function FinanceNewExpensePage() {
               </div>
             </SectionCard>
 
-                        {isSubscriptionExpense ? (
+            {isSubscriptionExpense ? (
               <SectionCard
                 title="Subscription Credit Card"
                 description="Store masked card references only. Full card numbers are not stored here."
@@ -1525,13 +3036,26 @@ export default function FinanceNewExpensePage() {
                         }
                         className={inputClass()}
                       >
-                        <option value="not_selected">Select payment method</option>
-                        <option value="no_card">No credit card / manual payment</option>
-                        <option value="credit_card">Credit card on file</option>
+                        {SUBSCRIPTION_PAYMENT_METHODS.map((method) => (
+                          <option key={method.value} value={method.value}>
+                            {method.label}
+                          </option>
+                        ))}
                       </select>
                     </label>
 
-                    <div className="rounded-[24px] border border-amber-400/20 bg-amber-500/10 p-4">
+                    {form.subscriptionPaymentMethod === "other" ? (
+                      <OtherTextField
+                        label="Write Other Payment Method"
+                        value={form.subscriptionPaymentMethodOther}
+                        onChange={(value) =>
+                          updateField("subscriptionPaymentMethodOther", value)
+                        }
+                        placeholder="Write the payment method"
+                      />
+                    ) : null}
+
+                    <div className="rounded-[24px] border border-amber-400/20 bg-amber-500/10 p-4 md:col-span-2">
                       <div className="flex items-center gap-2 text-sm font-semibold text-amber-100">
                         <ShieldCheck className="h-4 w-4" />
                         Hidden After Save
@@ -1603,22 +3127,24 @@ export default function FinanceNewExpensePage() {
                               />
                             </label>
 
-                            <label className="grid gap-2">
-                              <span className={labelClass()}>Card Brand</span>
-                              <select
-                                value={card.brand}
-                                onChange={(event) =>
-                                  updateSubscriptionCard(card.id, "brand", event.target.value)
+                            <SelectField
+                              label="Card Brand"
+                              value={card.brand}
+                              onChange={(value) =>
+                                updateSubscriptionCard(card.id, "brand", value)
+                              }
+                              options={CARD_BRANDS}
+                            />
+                            {card.brand === "other" ? (
+                              <OtherTextField
+                                label="Write Other Card Brand"
+                                value={card.brandOther}
+                                onChange={(value) =>
+                                  updateSubscriptionCard(card.id, "brandOther", value)
                                 }
-                                className={inputClass()}
-                              >
-                                {CARD_BRANDS.map((brand) => (
-                                  <option key={brand} value={brand}>
-                                    {brand}
-                                  </option>
-                                ))}
-                              </select>
-                            </label>
+                                placeholder="Write the card brand"
+                              />
+                            ) : null}
 
                             <label className="grid gap-2">
                               <span className={labelClass()}>Last 4 Digits Only</span>
@@ -1715,80 +3241,14 @@ export default function FinanceNewExpensePage() {
               </SectionCard>
             ) : null}
 
-            {isOnlineShopping ? (
-              <SectionCard
-                title="Online Shopping Confirmation"
-                description="Capture online order details for later Finance confirmation."
-                icon={ShoppingCart}
-              >
-                <div className="grid gap-4 md:grid-cols-2">
-                  <label className="grid gap-2">
-                    <span className={labelClass()}>Online Platform</span>
-                    <input
-                      value={form.onlinePlatform}
-                      onChange={(event) => updateField("onlinePlatform", event.target.value)}
-                      className={inputClass()}
-                      placeholder="Amazon, Alibaba, Taobao, JD..."
-                    />
-                  </label>
-
-                  <label className="grid gap-2">
-                    <span className={labelClass()}>Order Number</span>
-                    <input
-                      value={form.onlineOrderNumber}
-                      onChange={(event) =>
-                        updateField("onlineOrderNumber", event.target.value)
-                      }
-                      className={inputClass()}
-                      placeholder="Order number"
-                    />
-                  </label>
-
-                  <label className="grid gap-2">
-                    <span className={labelClass()}>Order Date</span>
-                    <input
-                      type="date"
-                      value={form.onlineOrderDate}
-                      onChange={(event) =>
-                        updateField("onlineOrderDate", event.target.value)
-                      }
-                      className={inputClass()}
-                    />
-                  </label>
-
-                  <label className="grid gap-2">
-                    <span className={labelClass()}>Tracking Number</span>
-                    <input
-                      value={form.onlineTrackingNumber}
-                      onChange={(event) =>
-                        updateField("onlineTrackingNumber", event.target.value)
-                      }
-                      className={inputClass()}
-                      placeholder="Tracking number if available"
-                    />
-                  </label>
-
-                  <label className="grid gap-2 md:col-span-2">
-                    <span className={labelClass()}>Order URL</span>
-                    <input
-                      value={form.onlineOrderUrl}
-                      onChange={(event) => updateField("onlineOrderUrl", event.target.value)}
-                      className={inputClass()}
-                      placeholder="Online order link"
-                    />
-                  </label>
-                </div>
-              </SectionCard>
-            ) : null}
-
             <SectionCard
               title="Supporting Documentation"
-              description="Upload a file or add a documentation link. Documentation is required before Finance verification."
+              description="Upload a file, screenshot, receipt, invoice, official document, or add a documentation link."
               icon={UploadCloud}
             >
               <div className="grid gap-4 md:grid-cols-2">
                 <label className="grid gap-2">
-                  <span className={labelClass()}>Upload File</span>
+                  <span className={labelClass()}>Upload File / Screenshot / Document</span>
                   <div className="rounded-[24px] border border-dashed border-white/15 bg-black/20 p-4">
                     <input
                       type="file"
@@ -1799,7 +3259,7 @@ export default function FinanceNewExpensePage() {
                       className="block w-full text-sm text-slate-400 file:mr-4 file:rounded-full file:border-0 file:bg-cyan-500/10 file:px-4 file:py-2 file:text-sm file:font-semibold file:text-cyan-100"
                     />
                     <div className="mt-3 text-xs leading-5 text-slate-500">
-                      PDF, image, Word, or Excel. MIME type is resolved before upload.
+                      PDF, image/screenshot, Word, or Excel. MIME type is resolved before upload.
                     </div>
                     {documentationFile ? (
                       <div className="mt-3 rounded-2xl border border-cyan-400/15 bg-cyan-500/10 px-4 py-3 text-sm text-cyan-100">
@@ -1819,7 +3279,7 @@ export default function FinanceNewExpensePage() {
                         updateField("externalDocumentationLink", event.target.value)
                       }
                       className={`${inputClass()} pl-11`}
-                      placeholder="Receipt, order, Drive, or portal link"
+                      placeholder="Receipt, order, Drive, portal, or official link"
                     />
                   </div>
                 </label>
@@ -1873,6 +3333,15 @@ export default function FinanceNewExpensePage() {
                   subtitle="The source that generated the expense."
                 />
                 <SummaryBlock
+                  title="Expense Type"
+                  value={getOptionLabel(
+                    EXPENSE_TYPES,
+                    form.expenseType,
+                    form.otherExpenseExplanation
+                  )}
+                  subtitle="The dynamic section changes by expense type."
+                />
+                <SummaryBlock
                   title="Subscription"
                   value={isSubscriptionExpense ? "Enabled" : "Disabled"}
                   subtitle={
@@ -1892,7 +3361,10 @@ export default function FinanceNewExpensePage() {
                       : isSubscriptionExpense &&
                           form.subscriptionPaymentMethod === "no_card"
                         ? "No Card"
-                        : "Not selected"
+                        : isSubscriptionExpense &&
+                            form.subscriptionPaymentMethod === "other"
+                          ? form.subscriptionPaymentMethodOther || "Other"
+                          : "Not selected"
                   }
                   subtitle="Only masked card references are saved in metadata."
                 />
@@ -1944,8 +3416,8 @@ export default function FinanceNewExpensePage() {
 
               <div className="mt-4 rounded-[24px] border border-white/10 bg-black/20 p-4 text-xs leading-5 text-slate-500">
                 Funding company, bank account, Payment Made creation, and allocation are handled
-                later by Finance/Admin in Operating Expense Payments. This page never reloads
-                visible options during silent refresh if cached data is already available.
+                later by Finance/Admin in Operating Expense Payments. This page keeps existing
+                options visible during silent refresh to avoid reload flicker.
               </div>
             </section>
           </aside>

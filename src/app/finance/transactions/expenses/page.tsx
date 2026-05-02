@@ -59,6 +59,13 @@ type EmployeeRefRow = {
   mark: string | null;
   status: string | null;
   metadata: {
+    name?: string | null;
+    full_name?: string | null;
+    display_name?: string | null;
+    employee_name?: string | null;
+    first_name?: string | null;
+    last_name?: string | null;
+    email?: string | null;
     company?: string | null;
     job_title?: string | null;
     member_type?: string | null;
@@ -286,10 +293,29 @@ function isActive(row: ExpenseRow) {
 function getMadeByLabel(row: ExpenseRow, employeeMap: Map<string, EmployeeRefRow>) {
   if (row.expense_made_by_type === "employee" && row.employee_ref_id) {
     const employee = employeeMap.get(row.employee_ref_id);
+
     if (!employee) return "Employee";
-    return `${employee.code ?? "Employee"}${
-      employee.mark ? ` • ${employee.mark}` : ""
-    }`;
+
+    const firstName = employee.metadata?.first_name?.trim() || "";
+    const lastName = employee.metadata?.last_name?.trim() || "";
+    const combinedName = [firstName, lastName].filter(Boolean).join(" ").trim();
+
+    const employeeName =
+      employee.metadata?.full_name?.trim() ||
+      employee.metadata?.display_name?.trim() ||
+      employee.metadata?.employee_name?.trim() ||
+      employee.metadata?.name?.trim() ||
+      combinedName ||
+      employee.metadata?.email?.trim() ||
+      "Employee";
+
+    const employeeRole =
+      employee.metadata?.job_title?.trim() ||
+      employee.metadata?.source_role?.trim() ||
+      employee.mark?.trim() ||
+      null;
+
+    return [employeeName, employeeRole].filter(Boolean).join(" • ");
   }
 
   if (row.expense_made_by_type === "owner_management") {
@@ -301,7 +327,7 @@ function getMadeByLabel(row: ExpenseRow, employeeMap: Map<string, EmployeeRefRow
   }
 
   if (row.expense_made_by_type === "other") {
-    return "Other";
+    return row.responsible_person_name || "Other";
   }
 
   return "—";

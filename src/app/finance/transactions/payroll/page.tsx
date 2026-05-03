@@ -570,11 +570,6 @@ function getBankLabel(bank: BankAccountRow | null | undefined) {
     .join(" • ");
 }
 
-function getCompanyName(company: CompanyRow | null | undefined) {
-  if (!company) return "No company";
-  return company.legal_name || company.name || "Unnamed Company";
-}
-
 function getEmployeeName(request: PaycheckRequestRow) {
   const profileName =
     request.profile?.full_name?.trim() ||

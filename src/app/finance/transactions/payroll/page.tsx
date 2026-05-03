@@ -1011,7 +1011,16 @@ function PayrollRequestTable({
                         <CreditCard className="h-3.5 w-3.5" />
                         Pay
                       </button>
-                    ) : null}
+                    ) : (
+                      <button
+                        type="button"
+                        onClick={() => onOpenRequest(row.id)}
+                        className="inline-flex h-9 items-center justify-center gap-2 rounded-2xl border border-amber-400/20 bg-amber-500/10 px-3 text-xs font-semibold text-amber-100 transition hover:bg-amber-500/15"
+                      >
+                        <WalletCards className="h-3.5 w-3.5" />
+                        Connect Funds
+                      </button>
+                    )}
 
                     <button
                       type="button"

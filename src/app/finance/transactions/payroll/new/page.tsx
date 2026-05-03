@@ -4,8 +4,6 @@ import { useNavigate } from "react-router-dom";
 import {
   ArrowRight,
   BadgeCheck,
-  Building2,
-  CalendarDays,
   Landmark,
   ReceiptText,
   Save,

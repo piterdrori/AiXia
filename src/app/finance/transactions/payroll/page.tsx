@@ -1422,7 +1422,6 @@ export default function PayrollMainPage() {
                 "employee_ref:finance_employee_refs!finance_paycheck_requests_employee_ref_id_fkey(id, user_id, code, status, mark, metadata)",
                 "profile:profiles!finance_paycheck_requests_employee_user_id_fkey(user_id, full_name, display_name, email)",
                 "pay_profile:finance_pay_profiles!finance_paycheck_requests_pay_profile_id_fkey(id, profile_number, user_id, pay_type, payment_frequency, currency_code)",
-                "company:finance_companies!finance_paycheck_requests_company_id_fkey(id, name, legal_name)",
               ].join(", ")
             )
             .order("created_at", { ascending: false }),
@@ -1639,7 +1638,7 @@ export default function PayrollMainPage() {
         ...request,
         employeeName: getEmployeeName(request),
         employeeLabel: getEmployeeLabel(request),
-        companyName: getCompanyName(request.company),
+        companyName: request.company_id ? "Company selected" : "No company selected",
         payProfileLabel: getPayProfileLabel(request),
         periodLabel: getRequestPeriodLabel(request),
         connectedFundLabel: getConnectedFundLabel(request, fundRunMap),

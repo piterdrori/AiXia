@@ -5,9 +5,7 @@ import {
   ArrowRight,
   CreditCard,
   FileSignature,
-  Landmark,
   LinkIcon,
-  ReceiptText,
   Save,
   WalletCards,
 } from "lucide-react";

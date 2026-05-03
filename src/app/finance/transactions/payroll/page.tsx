@@ -795,14 +795,17 @@ function PayrollRequestTable({
   sortKey,
   sortDirection,
   onSort,
-  onOpen,
+  onOpenRequest,
+  onOpenPaycheck,
 }: {
   rows: EnrichedPaycheckRequestRow[];
   sortKey: RequestSortKey;
   sortDirection: SortDirection;
   onSort: (key: RequestSortKey) => void;
-  onOpen: (id: string) => void;
+  onOpenRequest: (id: string) => void;
+  onOpenPaycheck: (id: string) => void;
 }) {
+
   if (rows.length === 0) {
     return (
       <div className="rounded-[28px] border border-dashed border-white/10 bg-black/20 px-6 py-14 text-center">
@@ -915,7 +918,11 @@ function PayrollRequestTable({
                 <td className="min-w-[220px] px-5 py-4">
                   <button
                     type="button"
-                    onClick={() => onOpen(row.id)}
+                    onClick={() =>
+                      row.linked_paycheck_id
+                        ? onOpenPaycheck(row.linked_paycheck_id)
+                        : onOpenRequest(row.id)
+                    }
                     className="text-left font-semibold text-cyan-200 transition hover:text-cyan-100"
                   >
                     {row.request_number || row.reference_number || "Paycheck Request"}
@@ -994,14 +1001,27 @@ function PayrollRequestTable({
                 </td>
 
                 <td className="sticky right-0 bg-[#05070d]/95 px-5 py-4 text-right shadow-[-18px_0_24px_rgba(0,0,0,0.35)] backdrop-blur-xl">
-                  <button
-                    type="button"
-                    onClick={() => onOpen(row.id)}
-                    className="inline-flex h-9 items-center justify-center gap-2 rounded-2xl border border-cyan-400/20 bg-cyan-500/10 px-3 text-xs font-semibold text-cyan-100 transition hover:bg-cyan-500/15"
-                  >
-                    <Eye className="h-3.5 w-3.5" />
-                    Open Request
-                  </button>
+                  <div className="flex items-center justify-end gap-2">
+                    {row.linked_paycheck_id ? (
+                      <button
+                        type="button"
+                        onClick={() => onOpenPaycheck(row.linked_paycheck_id as string)}
+                        className="inline-flex h-9 items-center justify-center gap-2 rounded-2xl border border-emerald-400/20 bg-emerald-500/10 px-3 text-xs font-semibold text-emerald-100 transition hover:bg-emerald-500/15"
+                      >
+                        <CreditCard className="h-3.5 w-3.5" />
+                        Pay
+                      </button>
+                    ) : null}
+
+                    <button
+                      type="button"
+                      onClick={() => onOpenRequest(row.id)}
+                      className="inline-flex h-9 items-center justify-center gap-2 rounded-2xl border border-cyan-400/20 bg-cyan-500/10 px-3 text-xs font-semibold text-cyan-100 transition hover:bg-cyan-500/15"
+                    >
+                      <Eye className="h-3.5 w-3.5" />
+                      Request
+                    </button>
+                  </div>
                 </td>
               </tr>
             ))}
@@ -2165,8 +2185,11 @@ export default function PayrollMainPage() {
               sortKey={requestSortKey}
               sortDirection={requestSortDirection}
               onSort={handleRequestSort}
-              onOpen={(requestId) =>
+              onOpenRequest={(requestId) =>
                 navigate(`/finance/transactions/paycheck-requests/${requestId}`)
+              }
+              onOpenPaycheck={(paycheckId) =>
+                navigate(`/finance/transactions/payroll/${paycheckId}`)
               }
             />
           ) : (

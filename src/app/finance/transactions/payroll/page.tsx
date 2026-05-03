@@ -4,7 +4,6 @@ import {
   Archive,
   ArrowRight,
   BadgeCheck,
-  CalendarDays,
   CreditCard,
   Eye,
   MoreHorizontal,
@@ -746,7 +745,7 @@ export default function PayrollRunsPage() {
     };
   }, [loadPayrollRuns]);
 
-  const enrichedRuns = useMemo<EnrichedPayrollRunRow[]>((() => {
+  const enrichedRuns = useMemo<EnrichedPayrollRunRow[]>(() => {
     const paychecksByRun = new Map<string, PaycheckRow[]>();
 
     paychecks.forEach((paycheck) => {

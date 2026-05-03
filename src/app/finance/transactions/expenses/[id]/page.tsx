@@ -247,6 +247,10 @@ type ExpenseEditFormState = {
   externalDocumentationLink: string;
   notes: string;
 
+  reimbursementPaymentMethod: string;
+  reimbursementPaymentMethodOther: string;
+  reimbursementReason: string;
+
   officeSupplierType: string;
   officeSupplierTypeOther: string;
   officeLocationType: string;
@@ -353,6 +357,7 @@ type SelectOption = {
 
 const EXPENSE_TYPES: SelectOption[] = [
   { value: "office_support", label: "Office Support" },
+  { value: "reimbursement", label: "Reimbursement" },
   { value: "utilities", label: "Utilities" },
   { value: "software_subscription", label: "Software Subscription" },
   { value: "online_shopping", label: "Online Shopping" },
@@ -467,6 +472,14 @@ const OTHER_EXPENSE_CATEGORIES: SelectOption[] = [
   { value: "one_time_special_case", label: "One-Time Special Case" },
   { value: "uncategorized_vendor_cost", label: "Uncategorized Vendor Cost" },
   { value: "internal_special_cost", label: "Internal Special Cost" },
+  { value: "other", label: "Other" },
+];
+
+const REIMBURSEMENT_PAYMENT_METHODS: SelectOption[] = [
+  { value: "personal_cash", label: "Personal Cash" },
+  { value: "personal_card", label: "Personal Card" },
+  { value: "personal_bank_transfer", label: "Personal Bank Transfer" },
+  { value: "personal_digital_wallet", label: "Personal Digital Wallet" },
   { value: "other", label: "Other" },
 ];
 
@@ -820,6 +833,16 @@ function getExpenseMadeByLabel(
   return "—";
 }
 
+function getExpenseRequestType(expense: ExpenseRow | null | undefined) {
+  return expense?.expense_type === "reimbursement" ? "reimbursement" : "planned_expense";
+}
+
+function getExpenseRequestTypeDescription(expense: ExpenseRow | null | undefined) {
+  return getExpenseRequestType(expense) === "reimbursement"
+    ? "Already paid personally. Skips spend approval and goes directly to document review."
+    : "Approval before spending. User spends and uploads proof after approval.";
+}
+
 function getMetadataRecord(metadata: Record<string, unknown> | null | undefined, key: string) {
   const value = metadata?.[key];
   if (value && typeof value === "object" && !Array.isArray(value)) {
@@ -986,6 +1009,19 @@ function buildGeneratedExpenseIdentity(form: ExpenseEditFormState) {
     form.otherExpenseExplanation
   );
 
+  if (form.expenseType === "reimbursement") {
+    const methodLabel = getOptionLabel(
+      REIMBURSEMENT_PAYMENT_METHODS,
+      form.reimbursementPaymentMethod,
+      form.reimbursementPaymentMethodOther
+    );
+
+    return {
+      title: `Reimbursement - ${methodLabel}`,
+      source: `Already paid personally • ${methodLabel}`,
+    };
+  }
+
   if (form.expenseType === "office_support") {
     const supplierLabel = getOptionLabel(
       OFFICE_SUPPLIER_TYPES,
@@ -1151,6 +1187,29 @@ function buildExpenseTypeMetadata(form: ExpenseEditFormState) {
       form.otherExpenseExplanation
     ),
   };
+
+  if (form.expenseType === "reimbursement") {
+    return {
+      ...base,
+      reimbursement: {
+        request_type: "reimbursement",
+        already_paid: true,
+        payment_method: form.reimbursementPaymentMethod,
+        payment_method_label: getOptionLabel(
+          REIMBURSEMENT_PAYMENT_METHODS,
+          form.reimbursementPaymentMethod,
+          form.reimbursementPaymentMethodOther
+        ),
+        payment_method_other:
+          form.reimbursementPaymentMethod === "other"
+            ? form.reimbursementPaymentMethodOther.trim()
+            : null,
+        reimbursement_reason: form.reimbursementReason.trim(),
+        original_payment_date: form.expenseDate,
+        proof_required_on_submit: true,
+      },
+    };
+  }
 
   if (form.expenseType === "office_support") {
     return {
@@ -1350,6 +1409,7 @@ function buildEditForm(expense: ExpenseRow): ExpenseEditFormState {
   const governmentFee = getNestedMetadataRecord(metadata, "expense_type_details", "government_fee");
   const repairService = getNestedMetadataRecord(metadata, "expense_type_details", "repair_service");
   const companySupport = getNestedMetadataRecord(metadata, "expense_type_details", "company_support");
+  const reimbursement = getNestedMetadataRecord(metadata, "expense_type_details", "reimbursement");
   const otherExpense = getNestedMetadataRecord(metadata, "expense_type_details", "other");
   const subscriptionCards = creditCard.cards || subscription.cards;
 
@@ -1375,6 +1435,11 @@ function buildEditForm(expense: ExpenseRow): ExpenseEditFormState {
     externalDocumentationLink:
       getMetadataString(metadata.documentation_link) || expense.online_order_url || "",
     notes: expense.notes || "",
+
+    reimbursementPaymentMethod:
+      getMetadataString(reimbursement.payment_method) || "personal_card",
+    reimbursementPaymentMethodOther: getMetadataString(reimbursement.payment_method_other),
+    reimbursementReason: getMetadataString(reimbursement.reimbursement_reason),
 
     officeSupplierType: getMetadataString(officeSupport.supplier_type) || "local_shop",
     officeSupplierTypeOther: "",
@@ -1812,6 +1877,14 @@ export default function FinanceExpenseDetailPage() {
     }
 
     if (
+      editForm.expenseType === "reimbursement" &&
+      editForm.reimbursementPaymentMethod === "other" &&
+      !editForm.reimbursementPaymentMethodOther.trim()
+    ) {
+      return "Write the other reimbursement payment method.";
+    }
+
+    if (
       editForm.isSubscriptionExpense &&
       editForm.subscriptionBillingFrequency === "other" &&
       !editForm.subscriptionBillingFrequencyOther.trim()
@@ -1848,6 +1921,12 @@ export default function FinanceExpenseDetailPage() {
 
   const validateExpenseTypeFields = useCallback(() => {
     if (!editForm) return "Missing edit form.";
+
+    if (editForm.expenseType === "reimbursement") {
+      if (!editForm.reimbursementReason.trim()) {
+        return "Reimbursement reason is required.";
+      }
+    }
 
     if (editForm.expenseType === "office_support") {
       if (!editForm.officePurchasePurpose.trim()) return "Purchase purpose is required.";
@@ -1996,6 +2075,8 @@ export default function FinanceExpenseDetailPage() {
 
       const userId = authResult.data.user?.id ?? null;
       const expenseTypeDetails = buildExpenseTypeMetadata(editForm);
+      const expenseRequestType =
+        editForm.expenseType === "reimbursement" ? "reimbursement" : "planned_expense";
       const finalExpenseTitle =
         editForm.expenseType === "other" ? editForm.title.trim() : generatedExpenseIdentity.title;
       const finalExpenseSource =
@@ -2060,6 +2141,18 @@ export default function FinanceExpenseDetailPage() {
 
       const metadata = {
         ...(expense.metadata || {}),
+        expense_request_type: expenseRequestType,
+        expense_request_type_label:
+          expenseRequestType === "reimbursement" ? "Reimbursement" : "Planned Expense",
+        reimbursement_flow:
+          expenseRequestType === "reimbursement"
+            ? {
+                already_paid: true,
+                skips_spend_approval: true,
+                next_step: "finance_document_review",
+                proof_required_on_submit: true,
+              }
+            : null,
         expense_type_details: expenseTypeDetails,
         online_shopping:
           editForm.expenseType === "online_shopping"
@@ -2716,6 +2809,58 @@ export default function FinanceExpenseDetailPage() {
 
   const renderDynamicExpenseSection = () => {
     if (!editForm) return null;
+
+    if (editForm.expenseType === "reimbursement") {
+      return (
+        <SectionCard
+          title="Reimbursement Details"
+          description="Use this when the person already paid personally and needs the company to reimburse them."
+          icon={WalletCards}
+        >
+          <div className="grid gap-4 md:grid-cols-2">
+            <SelectField
+              label="Original Payment Method"
+              value={editForm.reimbursementPaymentMethod}
+              onChange={(value) => updateEditField("reimbursementPaymentMethod", value)}
+              options={REIMBURSEMENT_PAYMENT_METHODS}
+            />
+
+            {editForm.reimbursementPaymentMethod === "other" ? (
+              <OtherTextField
+                label="Write Other Payment Method"
+                value={editForm.reimbursementPaymentMethodOther}
+                onChange={(value) =>
+                  updateEditField("reimbursementPaymentMethodOther", value)
+                }
+                placeholder="Write how the person originally paid"
+              />
+            ) : null}
+
+            <label className="grid gap-2 md:col-span-2">
+              <span className={labelClass()}>Reimbursement Reason</span>
+              <textarea
+                value={editForm.reimbursementReason}
+                onChange={(event) =>
+                  updateEditField("reimbursementReason", event.target.value)
+                }
+                className={textareaClass()}
+                placeholder="Explain what was already paid, why it was needed, and why the company should reimburse it"
+              />
+            </label>
+
+            <div className="rounded-[24px] border border-amber-400/20 bg-amber-500/10 p-4 md:col-span-2">
+              <div className="text-sm font-semibold text-amber-100">
+                Reimbursement skips spend approval
+              </div>
+              <p className="mt-2 text-xs leading-5 text-amber-100/75">
+                This record means the person already paid personally. Finance reviews proof, then
+                the record moves to payment distribution and recipient confirmation.
+              </p>
+            </div>
+          </div>
+        </SectionCard>
+      );
+    }
 
     if (editForm.expenseType === "office_support") {
       return (
@@ -3888,7 +4033,7 @@ export default function FinanceExpenseDetailPage() {
               className="mt-6 inline-flex h-11 items-center justify-center gap-2 rounded-2xl border border-white/10 bg-white/[0.05] px-5 text-sm font-semibold text-white transition hover:bg-white/[0.08]"
             >
               <ArrowRight className="h-4 w-4 rotate-180" />
-              Expenses
+              Expenses & Reimbursements
             </button>
           </div>
         </div>
@@ -3911,22 +4056,30 @@ export default function FinanceExpenseDetailPage() {
               className="mb-5 inline-flex items-center justify-center gap-2 rounded-full border border-white/10 bg-white/[0.05] px-5 py-2 text-[11px] font-semibold uppercase tracking-[0.22em] text-slate-300 transition hover:border-white/20 hover:bg-white/[0.08] hover:text-white"
             >
               <ArrowRight className="h-3.5 w-3.5 rotate-180" />
-              Expenses
+              Expenses & Reimbursements
             </button>
 
             <div className="grid gap-6 xl:grid-cols-[minmax(0,1fr)_520px] xl:items-end">
               <div>
                 <div className="inline-flex w-fit items-center gap-2 rounded-full border border-cyan-400/20 bg-cyan-500/10 px-3 py-1 text-[11px] font-semibold uppercase tracking-[0.22em] text-cyan-200">
                   <Receipt className="h-3.5 w-3.5" />
-                  Expense Detail
+                  {getExpenseRequestType(expense) === "reimbursement"
+                    ? "Reimbursement Detail"
+                    : "Expense Detail"}
                 </div>
 
                 <div className="mt-4 text-[11px] font-semibold uppercase tracking-[0.22em] text-slate-500">
-                  {expense.expense_number || "Draft Expense"}
+                  {expense.expense_number || "Draft Expense"} •{" "}
+                  {getExpenseRequestType(expense) === "reimbursement"
+                    ? "Reimbursement"
+                    : "Planned Expense"}
                 </div>
 
                 <h1 className="mt-2 text-3xl font-semibold tracking-[-0.035em] text-white md:text-5xl">
-                  {expense.title || "Expense Request"}
+                  {expense.title ||
+                    (getExpenseRequestType(expense) === "reimbursement"
+                      ? "Reimbursement Request"
+                      : "Expense Request")}
                 </h1>
 
                 <p className="mt-3 max-w-4xl text-sm leading-6 text-slate-400 md:text-base md:leading-7">
@@ -3934,6 +4087,7 @@ export default function FinanceExpenseDetailPage() {
                 </p>
 
                 <div className="mt-5 flex flex-wrap gap-2">
+                  <StatusBadge value={getExpenseRequestType(expense)} />
                   <StatusBadge value={expense.request_status || expense.status} />
                   <StatusBadge value={expense.documentation_status} />
                   <StatusBadge value={expense.finance_review_status} />
@@ -3997,8 +4151,8 @@ export default function FinanceExpenseDetailPage() {
         <div className="grid items-start gap-6 xl:grid-cols-[minmax(0,1fr)_430px]">
           <div className="grid gap-6">
             <SectionCard
-              title="Expense Overview"
-              description="Draft records use the same structure and rules as the New Expense page."
+              title="Expense / Reimbursement Overview"
+              description="Draft records use the same structure and rules as the New Expense / Reimbursement page."
               icon={Building2}
             >
               <div className="mb-5 flex flex-col gap-3 rounded-[24px] border border-white/10 bg-black/20 p-4 md:flex-row md:items-center md:justify-between">
@@ -4327,6 +4481,11 @@ export default function FinanceExpenseDetailPage() {
                 <div className="grid gap-4 md:grid-cols-2">
                   <ValueBlock label="Expense Company" value={company?.name || "—"} />
                   <ValueBlock label="Expense Made By" value={expenseMadeByLabel} />
+                  <ValueBlock
+                    label="Request Type"
+                    value={formatLabel(getExpenseRequestType(expense))}
+                    detail={getExpenseRequestTypeDescription(expense)}
+                  />
                   <ValueBlock label="Expense Type" value={formatLabel(expense.expense_type)} />
                   <ValueBlock
                     label="Expense"
@@ -4360,18 +4519,22 @@ export default function FinanceExpenseDetailPage() {
 
             <SectionCard
               title={
-                needsSpendAndUploadProof
-                  ? "Documentation Required — Spend and Upload Proof"
-                  : needsDocumentationCorrection
-                    ? "Documentation Correction Required"
-                    : "Supporting Documentation"
+                getExpenseRequestType(expense) === "reimbursement"
+                  ? "Reimbursement Proof"
+                  : needsSpendAndUploadProof
+                    ? "Documentation Required — Spend and Upload Proof"
+                    : needsDocumentationCorrection
+                      ? "Documentation Correction Required"
+                      : "Supporting Documentation"
               }
               description={
-                needsSpendAndUploadProof
-                  ? "This expense was approved. The next step is for the user to spend the money and upload the receipt, screenshot, invoice, document, or link."
-                  : needsDocumentationCorrection
-                    ? "Finance found an issue with the submitted proof. Upload corrected documentation or replace the documentation link."
-                    : "Expense proof files and links. Finance verification cannot happen without documentation."
+                getExpenseRequestType(expense) === "reimbursement"
+                  ? "Reimbursement proof files and links. This record skips spend approval because the money was already paid personally."
+                  : needsSpendAndUploadProof
+                    ? "This expense was approved. The next step is for the user to spend the money and upload the receipt, screenshot, invoice, document, or link."
+                    : needsDocumentationCorrection
+                      ? "Finance found an issue with the submitted proof. Upload corrected documentation or replace the documentation link."
+                      : "Expense proof files and links. Finance verification cannot happen without documentation."
               }
               icon={FileCheck2}
             >
@@ -4679,6 +4842,11 @@ export default function FinanceExpenseDetailPage() {
               icon={ShieldCheck}
             >
               <div className="grid gap-3">
+                <ValueBlock
+                  label="Request Type"
+                  value={<StatusBadge value={getExpenseRequestType(expense)} />}
+                  detail={getExpenseRequestTypeDescription(expense)}
+                />
                 <ValueBlock
                   label="Request Status"
                   value={<StatusBadge value={expense.request_status || expense.status} />}

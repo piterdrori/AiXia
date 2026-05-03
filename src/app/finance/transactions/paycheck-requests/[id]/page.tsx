@@ -7,9 +7,7 @@ import {
   ExternalLink,
   FileSignature,
   LinkIcon,
-  RotateCcw,
   Send,
-  ShieldCheck,
   UploadCloud,
   UserRound,
   WalletCards,
@@ -18,7 +16,6 @@ import {
 
 import { supabase } from "@/lib/supabase";
 
-type ReviewDecision = "approve" | "reject" | "needs_correction";
 type ConfirmationDecision = "received_confirmed" | "not_received" | "disputed";
 
 type EmployeeRefRow = {
@@ -118,6 +115,13 @@ type PaycheckRequestRow = {
   signed_form_external_url: string | null;
   signed_form_uploaded_at: string | null;
   signed_form_submitted_at: string | null;
+  admin_signed_form_status: string;
+  admin_signed_form_storage_bucket: string | null;
+  admin_signed_form_storage_path: string | null;
+  admin_signed_form_external_url: string | null;
+  admin_signed_form_uploaded_at: string | null;
+  admin_signed_form_uploaded_by: string | null;
+  admin_signed_form_notes: string | null;
   submitted_at: string | null;
   reviewed_at: string | null;
   reviewed_by: string | null;
@@ -226,6 +230,7 @@ function formatDateTime(value: string | null | undefined) {
 
 function formatLabel(value: string | null | undefined) {
   if (!value) return "—";
+
   return value
     .replaceAll("_", " ")
     .replace(/\b\w/g, (character) => character.toUpperCase());
@@ -276,6 +281,16 @@ function getEmployeeSubLabel(request: PaycheckRequestRow | null) {
 function getRequestPeriodLabel(request: PaycheckRequestRow | null) {
   if (!request) return "—";
   return `${formatDate(request.period_start)} → ${formatDate(request.period_end)}`;
+}
+
+function hasEmployeeSignedForm(request: PaycheckRequestRow) {
+  return Boolean(request.signed_form_storage_path || request.signed_form_external_url);
+}
+
+function hasAdminSignedForm(request: PaycheckRequestRow) {
+  return Boolean(
+    request.admin_signed_form_storage_path || request.admin_signed_form_external_url
+  );
 }
 
 function StatusBadge({ value }: { value: string | null | undefined }) {
@@ -373,6 +388,36 @@ function AmountCard({
   );
 }
 
+function StageGuide({
+  stage,
+  title,
+  children,
+  tone = "cyan",
+}: {
+  stage: string;
+  title: string;
+  children: React.ReactNode;
+  tone?: "cyan" | "emerald" | "amber" | "violet" | "rose";
+}) {
+  const toneClass = {
+    cyan: "border-cyan-400/20 bg-cyan-500/10 text-cyan-100",
+    emerald: "border-emerald-400/20 bg-emerald-500/10 text-emerald-100",
+    amber: "border-amber-400/20 bg-amber-500/10 text-amber-100",
+    violet: "border-violet-400/20 bg-violet-500/10 text-violet-100",
+    rose: "border-rose-400/20 bg-rose-500/10 text-rose-100",
+  }[tone];
+
+  return (
+    <div className={`rounded-[24px] border p-4 ${toneClass}`}>
+      <div className="text-[11px] font-semibold uppercase tracking-[0.2em] opacity-75">
+        {stage}
+      </div>
+      <div className="mt-1 text-sm font-semibold text-white">{title}</div>
+      <div className="mt-2 text-xs leading-5 opacity-75">{children}</div>
+    </div>
+  );
+}
+
 export default function PaycheckRequestDetailPage() {
   const navigate = useNavigate();
   const { id } = useParams<{ id: string }>();
@@ -380,10 +425,10 @@ export default function PaycheckRequestDetailPage() {
   const [request, setRequest] = useState<PaycheckRequestRow | null>(null);
   const [currentUserId, setCurrentUserId] = useState<string | null>(null);
   const [signedFormUrl, setSignedFormUrl] = useState<string | null>(null);
+  const [adminSignedFormUrl, setAdminSignedFormUrl] = useState<string | null>(null);
 
   const [replacementFile, setReplacementFile] = useState<File | null>(null);
   const [replacementLink, setReplacementLink] = useState("");
-  const [reviewNotes, setReviewNotes] = useState("");
   const [confirmationNotes, setConfirmationNotes] = useState("");
 
   const [isLoading, setIsLoading] = useState(true);
@@ -398,19 +443,16 @@ export default function PaycheckRequestDetailPage() {
   const canEmployeeSubmit = Boolean(
     request &&
       isEmployeeOwner &&
+      !isWorking &&
       (request.status === "draft" || request.status === "needs_correction")
-  );
-
-  const canFinanceReview = Boolean(
-    request &&
-      ["submitted", "needs_correction"].includes(request.status) &&
-      request.review_status !== "approved"
   );
 
   const canEmployeeConfirmPayment = Boolean(
     request &&
       isEmployeeOwner &&
-      (request.status === "payment_sent" || request.status === "disputed")
+      !isWorking &&
+      (request.status === "payment_sent" || request.status === "disputed") &&
+      request.recipient_confirmation_status !== "received_confirmed"
   );
 
   const requestCurrency = request?.requested_currency_code || "USD";
@@ -459,6 +501,13 @@ export default function PaycheckRequestDetailPage() {
             "signed_form_external_url",
             "signed_form_uploaded_at",
             "signed_form_submitted_at",
+            "admin_signed_form_status",
+            "admin_signed_form_storage_bucket",
+            "admin_signed_form_storage_path",
+            "admin_signed_form_external_url",
+            "admin_signed_form_uploaded_at",
+            "admin_signed_form_uploaded_by",
+            "admin_signed_form_notes",
             "submitted_at",
             "reviewed_at",
             "reviewed_by",
@@ -501,22 +550,31 @@ export default function PaycheckRequestDetailPage() {
       const loadedRequest = result.data as unknown as PaycheckRequestRow;
       setRequest(loadedRequest);
       setReplacementLink(loadedRequest.signed_form_external_url || "");
-      setReviewNotes(loadedRequest.review_notes || "");
       setConfirmationNotes(loadedRequest.confirmation_notes || "");
 
       if (loadedRequest.signed_form_storage_path) {
-        const bucket = loadedRequest.signed_form_storage_bucket || BUCKET_NAME;
+        const employeeBucket = loadedRequest.signed_form_storage_bucket || BUCKET_NAME;
         const signedResult = await supabase.storage
-          .from(bucket)
+          .from(employeeBucket)
           .createSignedUrl(loadedRequest.signed_form_storage_path, 3600);
 
-        if (!signedResult.error) {
-          setSignedFormUrl(signedResult.data.signedUrl);
-        } else {
-          setSignedFormUrl(null);
-        }
+        setSignedFormUrl(signedResult.error ? null : signedResult.data.signedUrl);
       } else {
         setSignedFormUrl(null);
+      }
+
+      if (loadedRequest.admin_signed_form_storage_path) {
+        const adminBucket =
+          loadedRequest.admin_signed_form_storage_bucket || BUCKET_NAME;
+        const adminSignedResult = await supabase.storage
+          .from(adminBucket)
+          .createSignedUrl(loadedRequest.admin_signed_form_storage_path, 3600);
+
+        setAdminSignedFormUrl(
+          adminSignedResult.error ? null : adminSignedResult.data.signedUrl
+        );
+      } else {
+        setAdminSignedFormUrl(null);
       }
     } catch (error) {
       console.error("Failed to load paycheck request:", error);
@@ -524,6 +582,8 @@ export default function PaycheckRequestDetailPage() {
         error instanceof Error ? error.message : "Failed to load paycheck request."
       );
       setRequest(null);
+      setSignedFormUrl(null);
+      setAdminSignedFormUrl(null);
     } finally {
       setIsLoading(false);
     }
@@ -607,6 +667,14 @@ export default function PaycheckRequestDetailPage() {
       throw new Error("Missing request or user context.");
     }
 
+    if (!isEmployeeOwner) {
+      throw new Error("Only the employee owner can submit this paycheck request.");
+    }
+
+    if (!["draft", "needs_correction"].includes(request.status)) {
+      throw new Error("Only draft or correction requests can be submitted.");
+    }
+
     const uploadInfo = await uploadReplacementForm();
 
     const hasFile = Boolean(uploadInfo.path);
@@ -640,9 +708,17 @@ export default function PaycheckRequestDetailPage() {
     });
 
     if (submitResult.error) throw submitResult.error;
-  }, [currentUserId, replacementLink, request, uploadReplacementForm]);
+  }, [
+    currentUserId,
+    isEmployeeOwner,
+    replacementLink,
+    request,
+    uploadReplacementForm,
+  ]);
 
   const handleSubmitRequest = useCallback(async () => {
+    if (isWorking) return;
+
     setIsWorking(true);
     setActionError(null);
     setActionMessage(null);
@@ -660,49 +736,11 @@ export default function PaycheckRequestDetailPage() {
     } finally {
       setIsWorking(false);
     }
-  }, [loadRequest, updateSignedFormAndMaybeSubmit]);
-
-  const handleReview = useCallback(
-    async (decision: ReviewDecision) => {
-      if (!request || !currentUserId) return;
-
-      setIsWorking(true);
-      setActionError(null);
-      setActionMessage(null);
-
-      try {
-        const result = await supabase.rpc("finance_review_paycheck_request", {
-          p_request_id: request.id,
-          p_actor_user_id: currentUserId,
-          p_decision: decision,
-          p_review_notes: reviewNotes.trim() || null,
-        });
-
-        if (result.error) throw result.error;
-
-        setActionMessage(
-          decision === "approve"
-            ? "Paycheck request approved for payroll."
-            : decision === "reject"
-              ? "Paycheck request rejected."
-              : "Correction requested from employee."
-        );
-
-        await loadRequest();
-      } catch (error) {
-        console.error("Failed to review paycheck request:", error);
-        setActionError(
-          error instanceof Error ? error.message : "Failed to review paycheck request."
-        );
-      } finally {
-        setIsWorking(false);
-      }
-    },
-    [currentUserId, loadRequest, request, reviewNotes]
-  );
+  }, [isWorking, loadRequest, updateSignedFormAndMaybeSubmit]);
 
   const handleConfirmation = useCallback(
     async (decision: ConfirmationDecision) => {
+      if (isWorking) return;
       if (!request || !currentUserId) return;
 
       setIsWorking(true);
@@ -710,6 +748,21 @@ export default function PaycheckRequestDetailPage() {
       setActionMessage(null);
 
       try {
+        if (!isEmployeeOwner) {
+          throw new Error("Only the employee owner can confirm paycheck receipt.");
+        }
+
+        if (!["payment_sent", "disputed"].includes(request.status)) {
+          throw new Error("Payment must be sent before employee confirmation.");
+        }
+
+        if (
+          decision === "received_confirmed" &&
+          request.recipient_confirmation_status === "received_confirmed"
+        ) {
+          throw new Error("Payment receipt was already confirmed.");
+        }
+
         const result = await supabase.rpc(
           "finance_confirm_paycheck_request_payment",
           {
@@ -740,7 +793,14 @@ export default function PaycheckRequestDetailPage() {
         setIsWorking(false);
       }
     },
-    [confirmationNotes, currentUserId, loadRequest, request]
+    [
+      confirmationNotes,
+      currentUserId,
+      isEmployeeOwner,
+      isWorking,
+      loadRequest,
+      request,
+    ]
   );
 
   if (isLoading) {
@@ -783,6 +843,9 @@ export default function PaycheckRequestDetailPage() {
     request.payment?.paycheck_currency_code ||
     requestCurrency;
 
+  const employeeSignedFormExists = hasEmployeeSignedForm(request);
+  const adminSignedFormExists = hasAdminSignedForm(request);
+
   return (
     <div className="min-h-screen bg-[#05070d] px-4 py-4 text-white md:px-6 md:py-6">
       <div className="mx-auto flex w-full max-w-[1600px] flex-col gap-6">
@@ -822,6 +885,7 @@ export default function PaycheckRequestDetailPage() {
                   <StatusBadge value={request.status} />
                   <StatusBadge value={request.review_status} />
                   <StatusBadge value={request.signed_form_status} />
+                  <StatusBadge value={request.admin_signed_form_status} />
                   <StatusBadge value={request.recipient_confirmation_status} />
                 </div>
               </div>
@@ -834,7 +898,9 @@ export default function PaycheckRequestDetailPage() {
                 />
                 <ValueBlock
                   label="Payment Status"
-                  value={<StatusBadge value={request.paycheck?.payment_status || request.status} />}
+                  value={
+                    <StatusBadge value={request.paycheck?.payment_status || request.status} />
+                  }
                   detail={`Payment sent: ${formatDateTime(request.payment_sent_at)}`}
                 />
               </div>
@@ -861,6 +927,28 @@ export default function PaycheckRequestDetailPage() {
               description="Employee, pay profile, period, and current workflow state."
               icon={UserRound}
             >
+              <div className="mb-5 grid gap-4 md:grid-cols-2">
+                <StageGuide
+                  stage="Stage 1 — Employee Request"
+                  title="Request created by employee"
+                  tone="cyan"
+                >
+                  The employee creates the paycheck request, checks the period and
+                  amount, generates the PRC Pay Slip form, signs the employee side,
+                  uploads the signed document, and submits it to Finance.
+                </StageGuide>
+
+                <StageGuide
+                  stage="Stage 2 — Employee Submission"
+                  title="Waiting for Finance review after submission"
+                  tone="violet"
+                >
+                  After submission, the employee cannot approve the request. The
+                  employee can only monitor status, view Finance notes, and upload a
+                  corrected signed form if Finance requests correction.
+                </StageGuide>
+              </div>
+
               <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">
                 <ValueBlock
                   label="Employee"
@@ -883,16 +971,16 @@ export default function PaycheckRequestDetailPage() {
                   }
                   detail={request.pay_profile?.profile_number || "No pay profile linked"}
                 />
-                <ValueBlock label="Status" value={<StatusBadge value={request.status} />} />
+                <ValueBlock label="Request Status" value={<StatusBadge value={request.status} />} />
                 <ValueBlock
-                  label="Review"
+                  label="Review Status"
                   value={<StatusBadge value={request.review_status} />}
                   detail={request.review_notes || request.correction_notes || request.rejected_reason}
                 />
                 <ValueBlock
-                  label="Signed Form"
-                  value={<StatusBadge value={request.signed_form_status} />}
-                  detail={`Submitted: ${formatDateTime(request.signed_form_submitted_at)}`}
+                  label="Submitted"
+                  value={formatDateTime(request.submitted_at)}
+                  detail={`Created: ${formatDateTime(request.created_at)}`}
                 />
               </div>
             </SectionCard>
@@ -937,166 +1025,300 @@ export default function PaycheckRequestDetailPage() {
             </SectionCard>
 
             <SectionCard
-              title="Signed Form"
-              description="Uploaded signed form or external signed-form link used for Finance review."
+              title="Signed Forms"
+              description="Employee-signed form and Finance/Admin-signed form status."
               icon={UploadCloud}
             >
-              <div className="grid gap-4 lg:grid-cols-[minmax(0,1fr)_280px]">
-                <div className="grid gap-4">
-                  <div className="grid gap-3 rounded-[24px] border border-white/10 bg-black/20 p-4">
-                    <div className="text-sm font-semibold text-white">
-                      Current Form
+              <div className="mb-5 grid gap-4 md:grid-cols-2">
+                <StageGuide
+                  stage="Stage 3 — Finance Review"
+                  title="Finance reviews the uploaded employee form"
+                  tone="amber"
+                >
+                  Finance opens the employee-signed form from the payroll run page,
+                  verifies the details, signs the manager/admin side, and uploads the
+                  admin-signed form before approval.
+                </StageGuide>
+
+                <StageGuide
+                  stage="Stage 4 — Admin Signed Form"
+                  title="Two-sided signature required"
+                  tone={adminSignedFormExists ? "emerald" : "amber"}
+                >
+                  Approval is locked until the admin/manager signed form is uploaded
+                  or linked by Finance. The employee can see the admin signed-form
+                  status here, but cannot upload it.
+                </StageGuide>
+              </div>
+
+              <div className="grid gap-4 lg:grid-cols-2">
+                <div className="grid gap-4 rounded-[24px] border border-white/10 bg-black/20 p-4">
+                  <div className="flex items-start justify-between gap-3">
+                    <div>
+                      <div className="text-sm font-semibold text-white">
+                        Employee Signed Form
+                      </div>
+                      <p className="mt-1 text-xs leading-5 text-slate-500">
+                        This is the form uploaded by the employee after signing the
+                        employee signature side.
+                      </p>
+                    </div>
+                    <StatusBadge value={request.signed_form_status} />
+                  </div>
+
+                  <div className="grid gap-3">
+                    <ValueBlock
+                      label="Employee Form Status"
+                      value={employeeSignedFormExists ? "Attached" : "Missing"}
+                      detail={`Uploaded: ${formatDateTime(request.signed_form_uploaded_at)}`}
+                    />
+
+                    <div className="flex flex-wrap gap-2">
+                      {signedFormUrl ? (
+                        <a
+                          href={signedFormUrl}
+                          target="_blank"
+                          rel="noreferrer"
+                          className="inline-flex h-10 items-center gap-2 rounded-2xl border border-cyan-400/20 bg-cyan-500/10 px-4 text-sm font-semibold text-cyan-100 transition hover:bg-cyan-500/15"
+                        >
+                          <Download className="h-4 w-4" />
+                          Open Employee File
+                        </a>
+                      ) : null}
+
+                      {request.signed_form_external_url ? (
+                        <a
+                          href={request.signed_form_external_url}
+                          target="_blank"
+                          rel="noreferrer"
+                          className="inline-flex h-10 items-center gap-2 rounded-2xl border border-emerald-400/20 bg-emerald-500/10 px-4 text-sm font-semibold text-emerald-100 transition hover:bg-emerald-500/15"
+                        >
+                          <ExternalLink className="h-4 w-4" />
+                          Open Employee Link
+                        </a>
+                      ) : null}
                     </div>
 
-                    {signedFormUrl ? (
-                      <a
-                        href={signedFormUrl}
-                        target="_blank"
-                        rel="noreferrer"
-                        className="inline-flex w-fit items-center gap-2 rounded-2xl border border-cyan-400/20 bg-cyan-500/10 px-4 py-2 text-sm font-semibold text-cyan-100 transition hover:bg-cyan-500/15"
-                      >
-                        <Download className="h-4 w-4" />
-                        Open Uploaded Form
-                      </a>
-                    ) : null}
-
-                    {request.signed_form_external_url ? (
-                      <a
-                        href={request.signed_form_external_url}
-                        target="_blank"
-                        rel="noreferrer"
-                        className="inline-flex w-fit items-center gap-2 rounded-2xl border border-emerald-400/20 bg-emerald-500/10 px-4 py-2 text-sm font-semibold text-emerald-100 transition hover:bg-emerald-500/15"
-                      >
-                        <ExternalLink className="h-4 w-4" />
-                        Open External Link
-                      </a>
-                    ) : null}
-
-                    {!signedFormUrl && !request.signed_form_external_url ? (
-                      <div className="text-sm text-slate-500">
-                        No signed form is attached yet.
+                    {!employeeSignedFormExists ? (
+                      <div className="rounded-2xl border border-rose-400/20 bg-rose-500/10 p-3 text-xs leading-5 text-rose-100">
+                        No employee signed form is attached yet.
                       </div>
                     ) : null}
                   </div>
-
-                  {canEmployeeSubmit ? (
-                    <>
-                      <label className="grid gap-2">
-                        <span className={labelClass()}>Upload Corrected / Signed Form</span>
-                        <input
-                          type="file"
-                          accept=".pdf,.png,.jpg,.jpeg,.webp,.doc,.docx"
-                          onChange={(event) =>
-                            setReplacementFile(event.target.files?.[0] || null)
-                          }
-                          className="block w-full rounded-2xl border border-white/10 bg-black/20 px-4 py-3 text-sm text-slate-300 file:mr-4 file:rounded-xl file:border-0 file:bg-cyan-500/10 file:px-4 file:py-2 file:text-sm file:font-semibold file:text-cyan-100 hover:file:bg-cyan-500/15"
-                        />
-                      </label>
-
-                      <label className="grid gap-2">
-                        <span className={labelClass()}>Signed Form Link</span>
-                        <div className="relative">
-                          <LinkIcon className="pointer-events-none absolute left-4 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-500" />
-                          <input
-                            value={replacementLink}
-                            onChange={(event) => setReplacementLink(event.target.value)}
-                            placeholder="Paste signed form link if stored externally"
-                            className={`${inputClass()} pl-11`}
-                          />
-                        </div>
-                      </label>
-
-                      <button
-                        type="button"
-                        onClick={() => void handleSubmitRequest()}
-                        disabled={isWorking}
-                        className="inline-flex h-11 w-fit items-center justify-center gap-2 rounded-2xl border border-cyan-400/20 bg-cyan-500/10 px-4 text-sm font-semibold text-cyan-100 transition hover:bg-cyan-500/15 disabled:cursor-not-allowed disabled:opacity-50"
-                      >
-                        <Send className="h-4 w-4" />
-                        Submit To Finance Review
-                      </button>
-                    </>
-                  ) : null}
                 </div>
 
-                <div className="rounded-[24px] border border-amber-400/20 bg-amber-500/10 p-4">
-                  <div className="text-sm font-semibold text-amber-100">
-                    Signed form status
+                <div className="grid gap-4 rounded-[24px] border border-white/10 bg-black/20 p-4">
+                  <div className="flex items-start justify-between gap-3">
+                    <div>
+                      <div className="text-sm font-semibold text-white">
+                        Admin / Manager Signed Form
+                      </div>
+                      <p className="mt-1 text-xs leading-5 text-slate-500">
+                        Finance/Admin uploads this after reviewing and signing the
+                        manager/admin side.
+                      </p>
+                    </div>
+                    <StatusBadge value={request.admin_signed_form_status} />
                   </div>
-                  <div className="mt-3">
-                    <StatusBadge value={request.signed_form_status} />
-                  </div>
-                  <p className="mt-3 text-xs leading-5 text-amber-100/75">
-                    Finance reviews only submitted signed forms. If correction is required,
-                    the employee can upload a replacement and resubmit.
-                  </p>
-                </div>
-              </div>
-            </SectionCard>
-
-                        <SectionCard
-              title="Finance Review"
-              description="Finance/Admin can approve, reject, or request correction after the signed form is submitted."
-              icon={ShieldCheck}
-            >
-              <div className="grid gap-4 lg:grid-cols-[minmax(0,1fr)_320px]">
-                <label className="grid gap-2">
-                  <span className={labelClass()}>Review Notes</span>
-                  <textarea
-                    value={reviewNotes}
-                    onChange={(event) => setReviewNotes(event.target.value)}
-                    placeholder="Write review notes, rejection reason, or correction instructions"
-                    className={textareaClass()}
-                  />
-                </label>
-
-                <div className="grid gap-3">
-                  <ValueBlock
-                    label="Current Review Status"
-                    value={<StatusBadge value={request.review_status} />}
-                    detail={request.review_notes || request.correction_notes || request.rejected_reason}
-                  />
 
                   <div className="grid gap-3">
-                    <button
-                      type="button"
-                      onClick={() => void handleReview("approve")}
-                      disabled={isWorking || !canFinanceReview}
-                      className="inline-flex h-11 items-center justify-center gap-2 rounded-2xl border border-emerald-400/20 bg-emerald-500/10 px-4 text-sm font-semibold text-emerald-100 transition hover:bg-emerald-500/15 disabled:cursor-not-allowed disabled:opacity-50"
-                    >
-                      <BadgeCheck className="h-4 w-4" />
-                      Approve For Payroll
-                    </button>
+                    <ValueBlock
+                      label="Admin Form Status"
+                      value={adminSignedFormExists ? "Attached" : "Missing"}
+                      detail={`Uploaded: ${formatDateTime(request.admin_signed_form_uploaded_at)}`}
+                    />
 
-                    <button
-                      type="button"
-                      onClick={() => void handleReview("needs_correction")}
-                      disabled={isWorking || !canFinanceReview}
-                      className="inline-flex h-11 items-center justify-center gap-2 rounded-2xl border border-amber-400/20 bg-amber-500/10 px-4 text-sm font-semibold text-amber-100 transition hover:bg-amber-500/15 disabled:cursor-not-allowed disabled:opacity-50"
-                    >
-                      <RotateCcw className="h-4 w-4" />
-                      Request Correction
-                    </button>
+                    <div className="flex flex-wrap gap-2">
+                      {adminSignedFormUrl ? (
+                        <a
+                          href={adminSignedFormUrl}
+                          target="_blank"
+                          rel="noreferrer"
+                          className="inline-flex h-10 items-center gap-2 rounded-2xl border border-violet-400/20 bg-violet-500/10 px-4 text-sm font-semibold text-violet-100 transition hover:bg-violet-500/15"
+                        >
+                          <Download className="h-4 w-4" />
+                          Open Admin File
+                        </a>
+                      ) : null}
 
-                    <button
-                      type="button"
-                      onClick={() => void handleReview("reject")}
-                      disabled={isWorking || !canFinanceReview}
-                      className="inline-flex h-11 items-center justify-center gap-2 rounded-2xl border border-rose-400/20 bg-rose-500/10 px-4 text-sm font-semibold text-rose-100 transition hover:bg-rose-500/15 disabled:cursor-not-allowed disabled:opacity-50"
-                    >
-                      <XCircle className="h-4 w-4" />
-                      Reject
-                    </button>
+                      {request.admin_signed_form_external_url ? (
+                        <a
+                          href={request.admin_signed_form_external_url}
+                          target="_blank"
+                          rel="noreferrer"
+                          className="inline-flex h-10 items-center gap-2 rounded-2xl border border-emerald-400/20 bg-emerald-500/10 px-4 text-sm font-semibold text-emerald-100 transition hover:bg-emerald-500/15"
+                        >
+                          <ExternalLink className="h-4 w-4" />
+                          Open Admin Link
+                        </a>
+                      ) : null}
+                    </div>
+
+                    {request.admin_signed_form_notes ? (
+                      <div className="rounded-2xl border border-white/10 bg-white/[0.04] p-3 text-xs leading-5 text-slate-300">
+                        {request.admin_signed_form_notes}
+                      </div>
+                    ) : null}
+
+                    {!adminSignedFormExists ? (
+                      <div className="rounded-2xl border border-amber-400/20 bg-amber-500/10 p-3 text-xs leading-5 text-amber-100">
+                        Waiting for Finance/Admin to upload the reviewed and signed
+                        admin-side form.
+                      </div>
+                    ) : null}
                   </div>
                 </div>
+              </div>
+
+              {canEmployeeSubmit ? (
+                <div className="mt-5 grid gap-4 rounded-[24px] border border-cyan-400/20 bg-cyan-500/10 p-4">
+                  <StageGuide
+                    stage="Stage 6 — Correction Loop"
+                    title={
+                      request.status === "needs_correction"
+                        ? "Correction requested by Finance"
+                        : "Draft submission"
+                    }
+                    tone={request.status === "needs_correction" ? "amber" : "cyan"}
+                  >
+                    {request.status === "needs_correction"
+                      ? "Read the Finance correction instructions, upload the corrected signed form, and resubmit it to Finance review."
+                      : "Upload the employee-signed form or provide a secure signed-form link, then submit the request to Finance review."}
+                  </StageGuide>
+
+                  {request.correction_notes ? (
+                    <div className="rounded-[24px] border border-amber-400/20 bg-amber-500/10 p-4">
+                      <div className="text-[11px] font-semibold uppercase tracking-[0.2em] text-amber-100/75">
+                        Correction Instructions
+                      </div>
+                      <div className="mt-2 text-sm leading-6 text-amber-50">
+                        {request.correction_notes}
+                      </div>
+                    </div>
+                  ) : null}
+
+                  <label className="grid gap-2">
+                    <span className={labelClass()}>Upload Corrected / Signed Form</span>
+                    <input
+                      type="file"
+                      accept=".pdf,.png,.jpg,.jpeg,.webp,.doc,.docx"
+                      onChange={(event) =>
+                        setReplacementFile(event.target.files?.[0] || null)
+                      }
+                      disabled={isWorking}
+                      className="block w-full rounded-2xl border border-white/10 bg-black/20 px-4 py-3 text-sm text-slate-300 file:mr-4 file:rounded-xl file:border-0 file:bg-cyan-500/10 file:px-4 file:py-2 file:text-sm file:font-semibold file:text-cyan-100 hover:file:bg-cyan-500/15 disabled:cursor-not-allowed disabled:opacity-50"
+                    />
+                  </label>
+
+                  <label className="grid gap-2">
+                    <span className={labelClass()}>Signed Form Link</span>
+                    <div className="relative">
+                      <LinkIcon className="pointer-events-none absolute left-4 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-500" />
+                      <input
+                        value={replacementLink}
+                        onChange={(event) => setReplacementLink(event.target.value)}
+                        placeholder="Paste signed form link if stored externally"
+                        disabled={isWorking}
+                        className={`${inputClass()} pl-11 disabled:cursor-not-allowed disabled:opacity-50`}
+                      />
+                    </div>
+                  </label>
+
+                  <button
+                    type="button"
+                    onClick={() => void handleSubmitRequest()}
+                    disabled={!canEmployeeSubmit}
+                    className="inline-flex h-11 w-fit items-center justify-center gap-2 rounded-2xl border border-cyan-400/20 bg-cyan-500/10 px-4 text-sm font-semibold text-cyan-100 transition hover:bg-cyan-500/15 disabled:cursor-not-allowed disabled:opacity-50"
+                  >
+                    <Send className="h-4 w-4" />
+                    {request.status === "needs_correction"
+                      ? "Resubmit Corrected Form"
+                      : "Submit To Finance Review"}
+                  </button>
+                </div>
+              ) : null}
+            </SectionCard>
+
+            <SectionCard
+              title="Finance Review Status"
+              description="Finance review result is shown here. Approval actions happen only inside the payroll run page."
+              icon={FileSignature}
+            >
+              <div className="mb-5">
+                <StageGuide
+                  stage="Stage 5 — Approval / Correction / Rejection"
+                  title="Finance decision is status-only on this page"
+                  tone={
+                    request.review_status === "approved"
+                      ? "emerald"
+                      : request.review_status === "rejected"
+                        ? "rose"
+                        : request.review_status === "needs_correction"
+                          ? "amber"
+                          : "cyan"
+                  }
+                >
+                  Finance/Admin reviews this request from the payroll run page. The
+                  employee cannot approve, reject, or request correction from this
+                  page. This section only shows the current review result and notes.
+                </StageGuide>
+              </div>
+
+              <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">
+                <ValueBlock
+                  label="Current Review"
+                  value={<StatusBadge value={request.review_status} />}
+                  detail={`Reviewed: ${formatDateTime(request.reviewed_at)}`}
+                />
+                <ValueBlock
+                  label="Approved"
+                  value={formatDateTime(request.approved_at)}
+                  detail={request.approved_by ? "Approved by Finance/Admin." : "Not approved yet."}
+                />
+                <ValueBlock
+                  label="Admin Signed Form"
+                  value={<StatusBadge value={request.admin_signed_form_status} />}
+                  detail={
+                    adminSignedFormExists
+                      ? `Uploaded: ${formatDateTime(request.admin_signed_form_uploaded_at)}`
+                      : "Required before Finance approval."
+                  }
+                />
+                <ValueBlock
+                  label="Review Notes"
+                  value={request.review_notes || "—"}
+                  detail="General Finance review notes."
+                />
+                <ValueBlock
+                  label="Correction Instructions"
+                  value={request.correction_notes || "—"}
+                  detail="Shown when Finance requests correction."
+                />
+                <ValueBlock
+                  label="Rejected Reason"
+                  value={request.rejected_reason || "—"}
+                  detail="Shown only if the request is rejected."
+                />
               </div>
             </SectionCard>
 
             <SectionCard
               title="Payroll / Paycheck Link"
-              description="Approved requests are linked to payroll run, paycheck, and payment execution."
+              description="Approved requests are linked to payroll run, paycheck, and payment execution by Finance/Admin."
               icon={WalletCards}
             >
+              <div className="mb-5">
+                <StageGuide
+                  stage="Stage 7 — Link To Payroll Run"
+                  title="Finance links approved requests"
+                  tone="violet"
+                >
+                  Only Finance/Admin can link an approved request into a payroll
+                  basket/run. Linking creates or connects the paycheck line for later
+                  payment execution.
+                </StageGuide>
+              </div>
+
               <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">
                 <ValueBlock
                   label="Payroll Run"
@@ -1165,6 +1387,18 @@ export default function PaycheckRequestDetailPage() {
               description="After Finance sends the paycheck, the employee confirms whether the money was received."
               icon={BadgeCheck}
             >
+              <div className="mb-5">
+                <StageGuide
+                  stage="Stage 9 — Employee Payment Confirmation"
+                  title="Confirm only after money arrives"
+                  tone="emerald"
+                >
+                  After Finance records payment, the employee confirms received,
+                  not received, or disputed. This action is one-click protected and
+                  becomes disabled after the confirmation status changes.
+                </StageGuide>
+              </div>
+
               <div className="grid gap-4 lg:grid-cols-[minmax(0,1fr)_320px]">
                 <label className="grid gap-2">
                   <span className={labelClass()}>Confirmation Notes</span>
@@ -1172,7 +1406,8 @@ export default function PaycheckRequestDetailPage() {
                     value={confirmationNotes}
                     onChange={(event) => setConfirmationNotes(event.target.value)}
                     placeholder="Optional note: received, not received, payment issue, or dispute details"
-                    className={textareaClass()}
+                    disabled={isWorking || !canEmployeeConfirmPayment}
+                    className={`${textareaClass()} disabled:cursor-not-allowed disabled:opacity-50`}
                   />
                 </label>
 
@@ -1186,7 +1421,7 @@ export default function PaycheckRequestDetailPage() {
                   <button
                     type="button"
                     onClick={() => void handleConfirmation("received_confirmed")}
-                    disabled={isWorking || !canEmployeeConfirmPayment}
+                    disabled={!canEmployeeConfirmPayment}
                     className="inline-flex h-11 items-center justify-center gap-2 rounded-2xl border border-emerald-400/20 bg-emerald-500/10 px-4 text-sm font-semibold text-emerald-100 transition hover:bg-emerald-500/15 disabled:cursor-not-allowed disabled:opacity-50"
                   >
                     <BadgeCheck className="h-4 w-4" />
@@ -1196,7 +1431,7 @@ export default function PaycheckRequestDetailPage() {
                   <button
                     type="button"
                     onClick={() => void handleConfirmation("not_received")}
-                    disabled={isWorking || !canEmployeeConfirmPayment}
+                    disabled={!canEmployeeConfirmPayment}
                     className="inline-flex h-11 items-center justify-center gap-2 rounded-2xl border border-amber-400/20 bg-amber-500/10 px-4 text-sm font-semibold text-amber-100 transition hover:bg-amber-500/15 disabled:cursor-not-allowed disabled:opacity-50"
                   >
                     <XCircle className="h-4 w-4" />
@@ -1206,7 +1441,7 @@ export default function PaycheckRequestDetailPage() {
                   <button
                     type="button"
                     onClick={() => void handleConfirmation("disputed")}
-                    disabled={isWorking || !canEmployeeConfirmPayment}
+                    disabled={!canEmployeeConfirmPayment}
                     className="inline-flex h-11 items-center justify-center gap-2 rounded-2xl border border-rose-400/20 bg-rose-500/10 px-4 text-sm font-semibold text-rose-100 transition hover:bg-rose-500/15 disabled:cursor-not-allowed disabled:opacity-50"
                   >
                     <XCircle className="h-4 w-4" />
@@ -1224,7 +1459,8 @@ export default function PaycheckRequestDetailPage() {
                   Workflow Status
                 </div>
                 <p className="mt-1 text-xs leading-5 text-slate-500">
-                  Request, form, review, payroll, payment, and confirmation state.
+                  Request, employee form, admin form, review, payroll, payment, and
+                  confirmation state.
                 </p>
               </div>
 
@@ -1242,33 +1478,65 @@ export default function PaycheckRequestDetailPage() {
                 />
 
                 <ValueBlock
-                  label="Signed Form"
+                  label="Employee Signed Form"
                   value={<StatusBadge value={request.signed_form_status} />}
-                  detail={`Uploaded: ${formatDateTime(request.signed_form_uploaded_at)}`}
+                  detail={
+                    employeeSignedFormExists
+                      ? `Uploaded: ${formatDateTime(request.signed_form_uploaded_at)}`
+                      : "Employee signed form missing"
+                  }
+                />
+
+                <ValueBlock
+                  label="Admin Signed Form"
+                  value={<StatusBadge value={request.admin_signed_form_status} />}
+                  detail={
+                    adminSignedFormExists
+                      ? `Uploaded: ${formatDateTime(request.admin_signed_form_uploaded_at)}`
+                      : "Waiting for Finance/Admin signature"
+                  }
                 />
 
                 <ValueBlock
                   label="Documentation"
                   value={<StatusBadge value={request.documentation_status} />}
-                  detail={request.signed_form_storage_path || request.signed_form_external_url || "No form attached"}
+                  detail={
+                    request.signed_form_storage_path ||
+                    request.signed_form_external_url ||
+                    "No form attached"
+                  }
                 />
 
                 <ValueBlock
                   label="Payroll Link"
                   value={request.linked_payroll_run_id ? "Linked" : "Not Linked"}
-                  detail={request.payroll_run?.run_number || "Waiting for Finance/Admin payroll run"}
+                  detail={
+                    request.payroll_run?.run_number ||
+                    "Waiting for Finance/Admin payroll run"
+                  }
                 />
 
                 <ValueBlock
                   label="Payment"
-                  value={<StatusBadge value={request.payment?.status || request.paycheck?.payment_status || "pending"} />}
+                  value={
+                    <StatusBadge
+                      value={
+                        request.payment?.status ||
+                        request.paycheck?.payment_status ||
+                        "pending"
+                      }
+                    />
+                  }
                   detail={request.payment?.payment_number || "No payment recorded yet"}
                 />
 
                 <ValueBlock
                   label="Confirmation"
                   value={<StatusBadge value={request.recipient_confirmation_status} />}
-                  detail={request.confirmation_notes || "Waiting for employee confirmation after payment sent"}
+                  detail={
+                    request.confirmation_notes ||
+                    "Waiting for employee confirmation after payment sent"
+                  }
                 />
               </div>
             </section>
@@ -1290,6 +1558,16 @@ export default function PaycheckRequestDetailPage() {
                   label="Submitted"
                   value={formatDateTime(request.submitted_at)}
                   detail="Employee submitted signed form for review."
+                />
+                <ValueBlock
+                  label="Employee Form Uploaded"
+                  value={formatDateTime(request.signed_form_uploaded_at)}
+                  detail="Employee signed form was uploaded or linked."
+                />
+                <ValueBlock
+                  label="Admin Form Uploaded"
+                  value={formatDateTime(request.admin_signed_form_uploaded_at)}
+                  detail="Finance/Admin signed form was uploaded or linked."
                 />
                 <ValueBlock
                   label="Approved"

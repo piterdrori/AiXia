@@ -1053,7 +1053,7 @@ export default function PayrollAdminExecutionPage() {
           .order("created_at", { ascending: false });
 
         if (paymentsResult.error) throw paymentsResult.error;
-        loadedPayments = (paymentsResult.data || []) as PayrollPaymentRow[];
+        loadedPayments = (paymentsResult.data || []) as unknown as PayrollPaymentRow[];
       }
 
       setPayments(loadedPayments);
@@ -1090,7 +1090,7 @@ export default function PayrollAdminExecutionPage() {
         .limit(1000);
 
       if (allPaymentsResult.error) throw allPaymentsResult.error;
-      setAllPayments((allPaymentsResult.data || []) as PayrollPaymentRow[]);
+      setAllPayments((allPaymentsResult.data || []) as unknown as PayrollPaymentRow[]);
 
       const defaultFund =
         loadedFunds.find((fund) => fund.id === loadedRequest.linked_payroll_run_id) ||

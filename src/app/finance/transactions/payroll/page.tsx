@@ -5,12 +5,9 @@ import {
   Archive,
   ArrowRight,
   BadgeCheck,
-  Building2,
-  CalendarDays,
   CreditCard,
   Eye,
   FileSignature,
-  Landmark,
   MoreHorizontal,
   Plus,
   ReceiptText,
@@ -18,7 +15,6 @@ import {
   Search,
   ShieldCheck,
   Trash2,
-  UserRound,
   WalletCards,
   X,
 } from "lucide-react";
@@ -1551,7 +1547,6 @@ export default function PayrollMainPage() {
     };
   }, [loadPayrollMain]);
 
-  const paymentsByPaycheckId = useMemo(() => {
     const map = new Map<string, PayrollPaymentRow[]>();
 
     payments.forEach((payment) => {

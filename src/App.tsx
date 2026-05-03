@@ -1635,50 +1635,6 @@ function AppRoutes() {
 />
 
 <Route
-  path="/finance/payroll/profiles"
-  element={
-    <ProtectedRoute>
-      <DashboardLayout>
-        <FinancePayrollProfilesPage />
-      </DashboardLayout>
-    </ProtectedRoute>
-  }
-/>
-
-<Route
-  path="/finance/payroll/periods"
-  element={
-    <ProtectedRoute>
-      <DashboardLayout>
-        <FinancePayrollPeriodsPage />
-      </DashboardLayout>
-    </ProtectedRoute>
-  }
-/>
-
-<Route
-  path="/finance/payroll/runs"
-  element={
-    <ProtectedRoute>
-      <DashboardLayout>
-        <FinancePayrollRunsPage />
-      </DashboardLayout>
-    </ProtectedRoute>
-  }
-/>
-
-<Route
-  path="/finance/payroll/runs/:id"
-  element={
-    <ProtectedRoute>
-      <DashboardLayout>
-        <FinancePayrollRunDetailPage />
-      </DashboardLayout>
-    </ProtectedRoute>
-  }
-/>
-
-<Route
   path="/finance/ledger"
   element={
     <ProtectedRoute>

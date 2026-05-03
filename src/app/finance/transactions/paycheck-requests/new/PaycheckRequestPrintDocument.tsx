@@ -86,7 +86,7 @@ function formatDate(value: string | null | undefined) {
 
   return parsed.toLocaleDateString(undefined, {
     year: "numeric",
-    month: "long",
+    month: "short",
     day: "numeric",
   });
 }
@@ -209,6 +209,10 @@ export default function PaycheckRequestPrintDocument({
 
           html,
           body {
+            width: 210mm !important;
+            height: 297mm !important;
+            margin: 0 !important;
+            padding: 0 !important;
             background: #ffffff !important;
             -webkit-print-color-adjust: exact;
             print-color-adjust: exact;
@@ -228,10 +232,16 @@ export default function PaycheckRequestPrintDocument({
             left: 0 !important;
             top: 0 !important;
             width: 210mm !important;
+            height: 297mm !important;
             min-height: 297mm !important;
+            max-height: 297mm !important;
             margin: 0 !important;
             padding: 0 !important;
+            overflow: hidden !important;
             background: #ffffff !important;
+            page-break-after: avoid !important;
+            page-break-before: avoid !important;
+            page-break-inside: avoid !important;
           }
         }
 
@@ -246,7 +256,9 @@ export default function PaycheckRequestPrintDocument({
         <div
           style={{
             width: "210mm",
+            height: "297mm",
             minHeight: "297mm",
+            maxHeight: "297mm",
             background: "#ffffff",
             color: "#101827",
             fontFamily:
@@ -260,7 +272,7 @@ export default function PaycheckRequestPrintDocument({
               position: "absolute",
               inset: 0,
               background:
-                "linear-gradient(180deg, #f8fafc 0%, #ffffff 33%, #ffffff 100%)",
+                "linear-gradient(180deg, #f8fafc 0%, #ffffff 30%, #ffffff 100%)",
               zIndex: 0,
             }}
           />
@@ -268,12 +280,12 @@ export default function PaycheckRequestPrintDocument({
           <div
             style={{
               position: "absolute",
-              left: "-32mm",
-              top: "-48mm",
-              width: "118mm",
-              height: "118mm",
+              left: "-42mm",
+              top: "-56mm",
+              width: "112mm",
+              height: "112mm",
               borderRadius: "999px",
-              background: "rgba(8, 145, 178, 0.10)",
+              background: "rgba(8, 145, 178, 0.08)",
               zIndex: 1,
             }}
           />
@@ -281,12 +293,12 @@ export default function PaycheckRequestPrintDocument({
           <div
             style={{
               position: "absolute",
-              right: "-42mm",
-              top: "-34mm",
-              width: "126mm",
-              height: "126mm",
+              right: "-48mm",
+              top: "-42mm",
+              width: "118mm",
+              height: "118mm",
               borderRadius: "999px",
-              background: "rgba(99, 102, 241, 0.08)",
+              background: "rgba(99, 102, 241, 0.06)",
               zIndex: 1,
             }}
           />
@@ -295,24 +307,26 @@ export default function PaycheckRequestPrintDocument({
             style={{
               position: "relative",
               zIndex: 2,
-              padding: "14mm 17mm 13mm 17mm",
+              padding: "10mm 14mm 9mm 14mm",
+              height: "297mm",
+              boxSizing: "border-box",
             }}
           >
             <header
               style={{
                 display: "grid",
-                gridTemplateColumns: "1fr 54mm",
-                gap: "10mm",
+                gridTemplateColumns: "1fr 48mm",
+                gap: "8mm",
                 alignItems: "start",
-                borderBottom: "1pt solid #dbe3ef",
-                paddingBottom: "8mm",
-                marginBottom: "8mm",
+                borderBottom: "0.8pt solid #dbe3ef",
+                paddingBottom: "5mm",
+                marginBottom: "5mm",
               }}
             >
               <div>
                 <div
                   style={{
-                    fontSize: "15pt",
+                    fontSize: "13pt",
                     fontWeight: 800,
                     letterSpacing: "-0.02em",
                     color: "#0f172a",
@@ -324,10 +338,10 @@ export default function PaycheckRequestPrintDocument({
                 {companyAddress ? (
                   <div
                     style={{
-                      marginTop: "2mm",
-                      maxWidth: "116mm",
-                      fontSize: "8.3pt",
-                      lineHeight: 1.45,
+                      marginTop: "1.4mm",
+                      maxWidth: "122mm",
+                      fontSize: "7.4pt",
+                      lineHeight: 1.3,
                       color: "#64748b",
                     }}
                   >
@@ -337,16 +351,16 @@ export default function PaycheckRequestPrintDocument({
 
                 <div
                   style={{
-                    marginTop: "6mm",
+                    marginTop: "4mm",
                     display: "inline-flex",
-                    border: "0.6pt solid #bae6fd",
+                    border: "0.5pt solid #bae6fd",
                     background: "#ecfeff",
                     color: "#155e75",
-                    padding: "2.2mm 4mm",
+                    padding: "1.6mm 3.2mm",
                     borderRadius: "99px",
-                    fontSize: "7.4pt",
+                    fontSize: "6.8pt",
                     fontWeight: 800,
-                    letterSpacing: "0.14em",
+                    letterSpacing: "0.13em",
                     textTransform: "uppercase",
                   }}
                 >
@@ -357,15 +371,15 @@ export default function PaycheckRequestPrintDocument({
               <div
                 style={{
                   textAlign: "right",
-                  border: "0.8pt solid #e2e8f0",
-                  borderRadius: "4mm",
+                  border: "0.7pt solid #e2e8f0",
+                  borderRadius: "3mm",
                   background: "#ffffff",
-                  padding: "4mm",
+                  padding: "3mm",
                 }}
               >
                 <div
                   style={{
-                    fontSize: "7.2pt",
+                    fontSize: "6.6pt",
                     fontWeight: 800,
                     textTransform: "uppercase",
                     letterSpacing: "0.14em",
@@ -376,8 +390,8 @@ export default function PaycheckRequestPrintDocument({
                 </div>
                 <div
                   style={{
-                    marginTop: "2mm",
-                    fontSize: "16pt",
+                    marginTop: "1.5mm",
+                    fontSize: "14pt",
                     lineHeight: 1,
                     fontWeight: 800,
                     color: "#0f172a",
@@ -388,10 +402,10 @@ export default function PaycheckRequestPrintDocument({
                 </div>
                 <div
                   style={{
-                    marginTop: "3mm",
-                    fontSize: "8pt",
+                    marginTop: "2.4mm",
+                    fontSize: "7.2pt",
                     color: "#64748b",
-                    lineHeight: 1.5,
+                    lineHeight: 1.35,
                   }}
                 >
                   Generated Date
@@ -407,8 +421,8 @@ export default function PaycheckRequestPrintDocument({
               style={{
                 display: "grid",
                 gridTemplateColumns: "1fr 1fr",
-                gap: "4mm",
-                marginBottom: "6mm",
+                gap: "3mm",
+                marginBottom: "4mm",
               }}
             >
               <InfoCard label="Employee" value={employeeName} detail={`Code ${employeeCode}`} />
@@ -423,18 +437,18 @@ export default function PaycheckRequestPrintDocument({
 
             <section
               style={{
-                border: "0.8pt solid #e2e8f0",
-                borderRadius: "5mm",
+                border: "0.7pt solid #e2e8f0",
+                borderRadius: "4mm",
                 overflow: "hidden",
                 background: "#ffffff",
-                marginBottom: "6mm",
+                marginBottom: "4mm",
               }}
             >
               <div
                 style={{
                   background: "#0f172a",
                   color: "#ffffff",
-                  padding: "3.4mm 5mm",
+                  padding: "2.6mm 4mm",
                   display: "flex",
                   justifyContent: "space-between",
                   alignItems: "center",
@@ -442,7 +456,7 @@ export default function PaycheckRequestPrintDocument({
               >
                 <div
                   style={{
-                    fontSize: "9pt",
+                    fontSize: "8pt",
                     fontWeight: 800,
                     letterSpacing: "0.08em",
                     textTransform: "uppercase",
@@ -452,7 +466,7 @@ export default function PaycheckRequestPrintDocument({
                 </div>
                 <div
                   style={{
-                    fontSize: "8pt",
+                    fontSize: "7.2pt",
                     color: "#cbd5e1",
                   }}
                 >
@@ -462,10 +476,10 @@ export default function PaycheckRequestPrintDocument({
 
               <div
                 style={{
-                  padding: "5mm",
+                  padding: "3.8mm 4mm",
                   display: "grid",
                   gridTemplateColumns: "1fr 1fr",
-                  gap: "4mm 6mm",
+                  gap: "3mm 5mm",
                 }}
               >
                 <AmountRow label="Basic Salary" value={basicSalary} highlight />
@@ -476,21 +490,21 @@ export default function PaycheckRequestPrintDocument({
 
               <div
                 style={{
-                  margin: "0 5mm 5mm 5mm",
-                  borderRadius: "4mm",
+                  margin: "0 4mm 4mm 4mm",
+                  borderRadius: "3.5mm",
                   background: "linear-gradient(135deg, #0f172a 0%, #1e293b 100%)",
                   color: "#ffffff",
-                  padding: "5mm",
+                  padding: "3.8mm 4mm",
                   display: "grid",
                   gridTemplateColumns: "1fr auto",
                   alignItems: "center",
-                  gap: "8mm",
+                  gap: "6mm",
                 }}
               >
                 <div>
                   <div
                     style={{
-                      fontSize: "8pt",
+                      fontSize: "7.2pt",
                       fontWeight: 800,
                       letterSpacing: "0.14em",
                       textTransform: "uppercase",
@@ -501,8 +515,8 @@ export default function PaycheckRequestPrintDocument({
                   </div>
                   <div
                     style={{
-                      marginTop: "1mm",
-                      fontSize: "8pt",
+                      marginTop: "0.8mm",
+                      fontSize: "7.2pt",
                       color: "#cbd5e1",
                     }}
                   >
@@ -512,7 +526,7 @@ export default function PaycheckRequestPrintDocument({
 
                 <div
                   style={{
-                    fontSize: "18pt",
+                    fontSize: "16pt",
                     fontWeight: 900,
                     letterSpacing: "-0.02em",
                     whiteSpace: "nowrap",
@@ -525,25 +539,25 @@ export default function PaycheckRequestPrintDocument({
 
             <section
               style={{
-                border: "0.8pt solid #e2e8f0",
-                borderRadius: "5mm",
+                border: "0.7pt solid #e2e8f0",
+                borderRadius: "4mm",
                 background: "#ffffff",
-                padding: "5mm",
-                marginBottom: "6mm",
+                padding: "4mm",
+                marginBottom: "4mm",
               }}
             >
               <div
                 style={{
                   display: "grid",
-                  gridTemplateColumns: "44mm minmax(0, 1fr)",
-                  gap: "7mm",
+                  gridTemplateColumns: "38mm minmax(0, 1fr)",
+                  gap: "5mm",
                   alignItems: "start",
                 }}
               >
                 <div>
                   <div
                     style={{
-                      fontSize: "8pt",
+                      fontSize: "7.2pt",
                       fontWeight: 800,
                       letterSpacing: "0.12em",
                       textTransform: "uppercase",
@@ -554,8 +568,8 @@ export default function PaycheckRequestPrintDocument({
                   </div>
                   <div
                     style={{
-                      marginTop: "1.5mm",
-                      fontSize: "9.5pt",
+                      marginTop: "1.2mm",
+                      fontSize: "8.7pt",
                       fontWeight: 800,
                       color: "#0f172a",
                     }}
@@ -567,18 +581,21 @@ export default function PaycheckRequestPrintDocument({
                 <div>
                   <div
                     style={{
-                      borderRadius: "3mm",
-                      background: socialInsuranceContributionType === "by_employer"
-                        ? "#ecfdf5"
-                        : "#eff6ff",
-                      border: socialInsuranceContributionType === "by_employer"
-                        ? "0.7pt solid #bbf7d0"
-                        : "0.7pt solid #bfdbfe",
-                      color: socialInsuranceContributionType === "by_employer"
-                        ? "#166534"
-                        : "#1d4ed8",
-                      padding: "3mm 4mm",
-                      fontSize: "9.5pt",
+                      borderRadius: "2.6mm",
+                      background:
+                        socialInsuranceContributionType === "by_employer"
+                          ? "#ecfdf5"
+                          : "#eff6ff",
+                      border:
+                        socialInsuranceContributionType === "by_employer"
+                          ? "0.6pt solid #bbf7d0"
+                          : "0.6pt solid #bfdbfe",
+                      color:
+                        socialInsuranceContributionType === "by_employer"
+                          ? "#166534"
+                          : "#1d4ed8",
+                      padding: "2.3mm 3.2mm",
+                      fontSize: "8.5pt",
                       fontWeight: 800,
                     }}
                   >
@@ -587,11 +604,11 @@ export default function PaycheckRequestPrintDocument({
 
                   <div
                     style={{
-                      marginTop: "3mm",
+                      marginTop: "2.4mm",
                       display: "grid",
                       gridTemplateColumns: "1fr 1fr",
-                      gap: "3mm",
-                      fontSize: "8.5pt",
+                      gap: "2.5mm",
+                      fontSize: "7.8pt",
                     }}
                   >
                     <CheckBoxLine
@@ -608,12 +625,12 @@ export default function PaycheckRequestPrintDocument({
                   socialInsuranceContributionDetails.trim() ? (
                     <div
                       style={{
-                        marginTop: "3mm",
-                        borderTop: "0.6pt solid #e2e8f0",
-                        paddingTop: "3mm",
-                        fontSize: "8.5pt",
+                        marginTop: "2.4mm",
+                        borderTop: "0.5pt solid #e2e8f0",
+                        paddingTop: "2.4mm",
+                        fontSize: "7.6pt",
                         color: "#475569",
-                        lineHeight: 1.55,
+                        lineHeight: 1.35,
                       }}
                     >
                       <strong style={{ color: "#0f172a" }}>Employer Details: </strong>
@@ -628,8 +645,8 @@ export default function PaycheckRequestPrintDocument({
               style={{
                 display: "grid",
                 gridTemplateColumns: "1fr 1fr",
-                gap: "4mm",
-                marginBottom: "7mm",
+                gap: "3mm",
+                marginBottom: "4mm",
               }}
             >
               <MiniSummary label="Employee Code" value={employeeCode} />
@@ -653,8 +670,8 @@ export default function PaycheckRequestPrintDocument({
               style={{
                 display: "grid",
                 gridTemplateColumns: "1fr 1fr",
-                gap: "7mm",
-                marginTop: "7mm",
+                gap: "4mm",
+                marginTop: "4mm",
               }}
             >
               <SignatureBox label="Employee Signature" />
@@ -665,8 +682,8 @@ export default function PaycheckRequestPrintDocument({
               style={{
                 display: "grid",
                 gridTemplateColumns: "1fr 1fr",
-                gap: "7mm",
-                marginTop: "7mm",
+                gap: "4mm",
+                marginTop: "3.5mm",
               }}
             >
               <SignatureBox label="Employee Signature Date" compact />
@@ -676,18 +693,18 @@ export default function PaycheckRequestPrintDocument({
             <footer
               style={{
                 position: "absolute",
-                left: "17mm",
-                right: "17mm",
-                bottom: "12mm",
-                borderTop: "0.6pt solid #e2e8f0",
-                paddingTop: "3mm",
+                left: "14mm",
+                right: "14mm",
+                bottom: "8mm",
+                borderTop: "0.5pt solid #e2e8f0",
+                paddingTop: "2.3mm",
                 display: "grid",
                 gridTemplateColumns: "1fr auto",
-                gap: "8mm",
+                gap: "6mm",
                 alignItems: "center",
-                fontSize: "7.2pt",
+                fontSize: "6.6pt",
                 color: "#64748b",
-                lineHeight: 1.45,
+                lineHeight: 1.3,
               }}
             >
               <div>
@@ -725,18 +742,18 @@ function InfoCard({
   return (
     <div
       style={{
-        minHeight: "20mm",
-        border: "0.8pt solid #e2e8f0",
-        borderRadius: "4mm",
+        minHeight: "16mm",
+        border: "0.7pt solid #e2e8f0",
+        borderRadius: "3mm",
         background: "#ffffff",
-        padding: "3.6mm 4mm",
+        padding: "2.7mm 3.2mm",
       }}
     >
       <div
         style={{
-          fontSize: "7.2pt",
+          fontSize: "6.7pt",
           fontWeight: 800,
-          letterSpacing: "0.13em",
+          letterSpacing: "0.12em",
           textTransform: "uppercase",
           color: "#64748b",
         }}
@@ -745,8 +762,8 @@ function InfoCard({
       </div>
       <div
         style={{
-          marginTop: "1.5mm",
-          fontSize: "11pt",
+          marginTop: "1mm",
+          fontSize: "9.5pt",
           fontWeight: 800,
           color: "#0f172a",
           wordBreak: "break-word",
@@ -756,10 +773,10 @@ function InfoCard({
       </div>
       <div
         style={{
-          marginTop: "1mm",
-          fontSize: "7.8pt",
+          marginTop: "0.6mm",
+          fontSize: "7pt",
           color: "#64748b",
-          lineHeight: 1.35,
+          lineHeight: 1.25,
           wordBreak: "break-word",
         }}
       >
@@ -781,15 +798,15 @@ function AmountRow({
   return (
     <div
       style={{
-        borderBottom: "0.6pt solid #e2e8f0",
-        paddingBottom: "2.5mm",
+        borderBottom: "0.5pt solid #e2e8f0",
+        paddingBottom: "1.8mm",
       }}
     >
       <div
         style={{
-          fontSize: "7.2pt",
+          fontSize: "6.7pt",
           fontWeight: 800,
-          letterSpacing: "0.13em",
+          letterSpacing: "0.12em",
           textTransform: "uppercase",
           color: "#64748b",
         }}
@@ -798,8 +815,8 @@ function AmountRow({
       </div>
       <div
         style={{
-          marginTop: "1mm",
-          fontSize: highlight ? "13pt" : "11pt",
+          marginTop: "0.8mm",
+          fontSize: highlight ? "11.5pt" : "9.8pt",
           fontWeight: highlight ? 900 : 800,
           color: "#0f172a",
           fontVariantNumeric: "tabular-nums",
@@ -816,11 +833,11 @@ function CheckBoxLine({ label, checked }: { label: string; checked: boolean }) {
     <div
       style={{
         display: "flex",
-        gap: "2.5mm",
+        gap: "2mm",
         alignItems: "center",
-        border: "0.6pt solid #e2e8f0",
-        borderRadius: "3mm",
-        padding: "2.5mm 3mm",
+        border: "0.5pt solid #e2e8f0",
+        borderRadius: "2.4mm",
+        padding: "2mm 2.5mm",
         background: checked ? "#f8fafc" : "#ffffff",
         color: "#0f172a",
         fontWeight: checked ? 800 : 500,
@@ -828,14 +845,14 @@ function CheckBoxLine({ label, checked }: { label: string; checked: boolean }) {
     >
       <div
         style={{
-          width: "4.2mm",
-          height: "4.2mm",
-          border: "0.8pt solid #0f172a",
-          borderRadius: "1mm",
+          width: "3.5mm",
+          height: "3.5mm",
+          border: "0.7pt solid #0f172a",
+          borderRadius: "0.8mm",
           display: "flex",
           alignItems: "center",
           justifyContent: "center",
-          fontSize: "8pt",
+          fontSize: "7pt",
           lineHeight: 1,
         }}
       >
@@ -850,17 +867,18 @@ function MiniSummary({ label, value }: { label: string; value: string }) {
   return (
     <div
       style={{
-        border: "0.8pt solid #e2e8f0",
-        borderRadius: "4mm",
+        minHeight: "15mm",
+        border: "0.7pt solid #e2e8f0",
+        borderRadius: "3mm",
         background: "#f8fafc",
-        padding: "3.5mm 4mm",
+        padding: "2.7mm 3.2mm",
       }}
     >
       <div
         style={{
-          fontSize: "7.2pt",
+          fontSize: "6.7pt",
           fontWeight: 800,
-          letterSpacing: "0.13em",
+          letterSpacing: "0.12em",
           textTransform: "uppercase",
           color: "#64748b",
         }}
@@ -869,11 +887,11 @@ function MiniSummary({ label, value }: { label: string; value: string }) {
       </div>
       <div
         style={{
-          marginTop: "1.2mm",
-          fontSize: "9.5pt",
+          marginTop: "0.9mm",
+          fontSize: "8.4pt",
           fontWeight: 800,
           color: "#0f172a",
-          lineHeight: 1.35,
+          lineHeight: 1.25,
           wordBreak: "break-word",
         }}
       >
@@ -893,18 +911,18 @@ function SignatureBox({
   return (
     <div
       style={{
-        border: "0.8pt solid #e2e8f0",
-        borderRadius: "4mm",
+        border: "0.7pt solid #e2e8f0",
+        borderRadius: "3mm",
         background: "#ffffff",
-        padding: compact ? "3mm 4mm" : "4mm",
-        minHeight: compact ? "16mm" : "25mm",
+        padding: compact ? "2.5mm 3.2mm" : "3.2mm",
+        minHeight: compact ? "13mm" : "20mm",
       }}
     >
       <div
         style={{
-          fontSize: "7.2pt",
+          fontSize: "6.7pt",
           fontWeight: 800,
-          letterSpacing: "0.13em",
+          letterSpacing: "0.12em",
           textTransform: "uppercase",
           color: "#64748b",
         }}
@@ -913,8 +931,8 @@ function SignatureBox({
       </div>
       <div
         style={{
-          marginTop: compact ? "5mm" : "12mm",
-          borderBottom: "0.8pt solid #0f172a",
+          marginTop: compact ? "4mm" : "9mm",
+          borderBottom: "0.7pt solid #0f172a",
           height: "1mm",
         }}
       />

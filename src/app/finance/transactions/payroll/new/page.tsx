@@ -501,6 +501,130 @@ export default function NewPayrollFundAllocationPage() {
         throw new Error("Missing user or payroll period context.");
       }
 
+      const existingRunResult = await supabase
+        .from("finance_payroll_runs")
+        .select(
+          [
+            "id",
+            "allocated_funding_amount",
+            "allocation_metadata",
+            "metadata",
+            "status",
+            "allocation_status",
+          ].join(", ")
+        )
+        .eq("payroll_period_id", selectedPeriod.id)
+        .not("status", "in", "(archived,deleted)")
+        .maybeSingle();
+
+      if (existingRunResult.error) throw existingRunResult.error;
+
+      const existingRun = existingRunResult.data as
+        | {
+            id: string;
+            allocated_funding_amount: number | string | null;
+            allocation_metadata: Record<string, unknown> | null;
+            metadata: Record<string, unknown> | null;
+            status: string | null;
+            allocation_status: string | null;
+          }
+        | null;
+
+      const existingAllocatedAmount = toNumber(existingRun?.allocated_funding_amount);
+      const nextAllocatedAmount = existingAllocatedAmount + allocatedFundingAmount;
+
+      const newAllocationEntry = {
+        amount: allocatedFundingAmount,
+        currency_code: form.fundingCurrencyCode.trim().toUpperCase(),
+        allocation_date: form.allocatedFundingDate,
+        allocation_reference: form.allocationReference.trim() || null,
+        allocation_notes: form.allocationNotes.trim() || null,
+        basket_name: form.basketName.trim(),
+        created_at: new Date().toISOString(),
+        created_by: currentUserId,
+      };
+
+      const previousAllocationHistory = Array.isArray(
+        existingRun?.allocation_metadata?.allocation_history
+      )
+        ? existingRun?.allocation_metadata?.allocation_history
+        : [];
+
+      if (existingRun) {
+        const updateResult = await supabase
+          .from("finance_payroll_runs")
+          .update({
+            status:
+              existingRun.status && existingRun.status !== "completed"
+                ? existingRun.status
+                : "draft",
+            notes: form.allocationNotes.trim() || null,
+            metadata: {
+              ...(existingRun.metadata || {}),
+              basket_name: form.basketName.trim(),
+              basket_type: "payroll_fund_allocation",
+              approved_request_context: {
+                approved_request_count: periodApprovedRequests.length,
+                approved_request_total_by_currency: approvedTotalByCurrency,
+                approved_request_total_same_currency: approvedTotalMainCurrency,
+                context_only: true,
+                linking_happens_on_id_page: true,
+              },
+            },
+            funding_company_id: selectedBankAccount?.company_id || null,
+            funding_bank_account_id: form.fundingBankAccountId || null,
+            funding_currency_code: form.fundingCurrencyCode.trim().toUpperCase(),
+            allocated_funding_amount: nextAllocatedAmount,
+            allocated_funding_date: form.allocatedFundingDate,
+            allocation_reference: form.allocationReference.trim() || null,
+            allocation_notes: form.allocationNotes.trim() || null,
+            allocation_status: "allocated",
+            allocation_metadata: {
+              ...(existingRun.allocation_metadata || {}),
+              funding_bank_snapshot: selectedBankAccount
+                ? {
+                    id: selectedBankAccount.id,
+                    name: selectedBankAccount.name,
+                    bank_name: selectedBankAccount.bank_name,
+                    institution_name: selectedBankAccount.institution_name,
+                    masked_account_number: selectedBankAccount.masked_account_number,
+                    beneficiary_name: selectedBankAccount.beneficiary_name,
+                    currency_code: selectedBankAccount.currency_code,
+                    iban: selectedBankAccount.iban,
+                    swift_code: selectedBankAccount.swift_code,
+                    identifier: getBankIdentifier(selectedBankAccount),
+                    company_id: selectedBankAccount.company_id,
+                  }
+                : null,
+              allocation_summary: {
+                basket_name: form.basketName.trim(),
+                funding_currency_code: form.fundingCurrencyCode.trim().toUpperCase(),
+                allocated_funding_amount: nextAllocatedAmount,
+                allocated_funding_added_amount: allocatedFundingAmount,
+                allocated_funding_date: form.allocatedFundingDate,
+                allocation_reference: form.allocationReference.trim() || null,
+                approved_request_total_by_currency: approvedTotalByCurrency,
+                approved_request_count: periodApprovedRequests.length,
+              },
+              allocation_history: [
+                ...previousAllocationHistory,
+                newAllocationEntry,
+              ],
+            },
+            updated_by: currentUserId,
+            updated_at: new Date().toISOString(),
+          })
+          .eq("id", existingRun.id)
+          .select("id")
+          .single();
+
+        if (updateResult.error) throw updateResult.error;
+
+        setActionMessage("Payroll fund allocation updated.");
+        navigate("/finance/transactions/payroll");
+        return;
+      }
+
       const insertResult = await supabase
         .from("finance_payroll_runs")
         .insert({
@@ -524,7 +648,7 @@ export default function NewPayrollFundAllocationPage() {
             },
           },
           funding_company_id: selectedBankAccount?.company_id || null,
-          funding_bank_account_id: form.fundingBankAccountId,
+          funding_bank_account_id: form.fundingBankAccountId || null,
           funding_currency_code: form.fundingCurrencyCode.trim().toUpperCase(),
           allocated_funding_amount: allocatedFundingAmount,
           allocated_funding_date: form.allocatedFundingDate,
@@ -556,6 +680,7 @@ export default function NewPayrollFundAllocationPage() {
               approved_request_total_by_currency: approvedTotalByCurrency,
               approved_request_count: periodApprovedRequests.length,
             },
+            allocation_history: [newAllocationEntry],
           },
           created_by: currentUserId,
           updated_by: currentUserId,
@@ -565,10 +690,8 @@ export default function NewPayrollFundAllocationPage() {
 
       if (insertResult.error) throw insertResult.error;
 
-      const payrollRunId = insertResult.data.id as string;
-
       setActionMessage("Payroll fund basket created.");
-      navigate(`/finance/transactions/payroll/${payrollRunId}`);
+      navigate("/finance/transactions/payroll");
     } catch (error) {
       console.error("Failed to create payroll fund basket:", error);
       setActionError(

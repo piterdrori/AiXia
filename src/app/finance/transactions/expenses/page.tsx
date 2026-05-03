@@ -373,6 +373,16 @@ function getExpenseSubLabel(row: ExpenseRow) {
   return row.expense_number || formatLabel(row.request_status || row.status);
 }
 
+function getExpenseRequestType(row: ExpenseRow) {
+  return row.expense_type === "reimbursement" ? "reimbursement" : "planned_expense";
+}
+
+function getExpenseRequestTypeDescription(row: ExpenseRow) {
+  return getExpenseRequestType(row) === "reimbursement"
+    ? "Already paid personally"
+    : "Approval before spending";
+}
+
 function getSortValue(row: EnrichedExpenseRow, sortKey: SortKey) {
   switch (sortKey) {
     case "expense_date":
@@ -764,8 +774,14 @@ export default function FinanceExpensesPage() {
             </div>
           </td>
 
-          <td className="min-w-[128px] px-4 py-4">
-            <div className="line-clamp-2 text-slate-300">{formatLabel(row.expense_type)}</div>
+          <td className="min-w-[160px] px-4 py-4">
+            <StatusBadge value={getExpenseRequestType(row)} />
+            <div className="mt-1 text-[11px] text-slate-500">
+              {getExpenseRequestTypeDescription(row)}
+            </div>
+            <div className="mt-1 line-clamp-1 text-[11px] text-slate-600">
+              {formatLabel(row.expense_type)}
+            </div>
           </td>
 
           <td className="min-w-[260px] px-4 py-4">
@@ -875,25 +891,25 @@ export default function FinanceExpensesPage() {
               <div>
                 <div className="inline-flex w-fit items-center gap-2 rounded-full border border-cyan-400/20 bg-cyan-500/10 px-3 py-1 text-[11px] font-semibold uppercase tracking-[0.22em] text-cyan-200">
                   <Sparkles className="h-3.5 w-3.5" />
-                  Operating Expenses
+                  Expenses & Reimbursements
                 </div>
 
                 <h1 className="mt-4 text-3xl font-semibold tracking-[-0.035em] text-white md:text-5xl">
-                  Expense Requests
+                  Expenses & Reimbursements
                 </h1>
 
                 <p className="mt-3 max-w-4xl text-sm leading-6 text-slate-400 md:text-base md:leading-7">
-                  Public/internal expense request intake. People request permission, upload
-                  documentation, track finance review, see payment coverage, and confirm received
-                  reimbursement after payment.
+                  Public/internal intake for planned expenses and reimbursement requests.
+                  Planned expenses ask for approval before spending. Reimbursements are for
+                  money already paid personally and move directly to document review.
                 </p>
 
                 <div className="mt-5 flex flex-wrap gap-2">
                   <div className="rounded-full border border-cyan-400/20 bg-cyan-500/10 px-3 py-1 text-[11px] font-semibold uppercase tracking-[0.16em] text-cyan-200">
-                    Compact Registry
+                    Planned Expenses
                   </div>
                   <div className="rounded-full border border-emerald-400/20 bg-emerald-500/10 px-3 py-1 text-[11px] font-semibold uppercase tracking-[0.16em] text-emerald-200">
-                    Documentation
+                    Reimbursements
                   </div>
                   <div className="rounded-full border border-violet-400/20 bg-violet-500/10 px-3 py-1 text-[11px] font-semibold uppercase tracking-[0.16em] text-violet-200">
                     Recipient Confirmation
@@ -920,7 +936,7 @@ export default function FinanceExpensesPage() {
                     <Receipt className="h-5 w-5 text-cyan-200" />
                   </div>
                   <div className="mt-3 text-xs leading-5 text-slate-500">
-                    Active expense requests excluding archived and deleted records.
+                    Active planned expenses and reimbursement requests excluding archived and deleted records.
                   </div>
                 </div>
 
@@ -991,11 +1007,11 @@ export default function FinanceExpensesPage() {
           <div className="flex flex-col gap-4 border-b border-white/10 px-5 py-4 xl:flex-row xl:items-center xl:justify-between">
             <div>
               <div className="text-sm font-semibold uppercase tracking-[0.18em] text-slate-400">
-                Expense Registry
+                Expenses & Reimbursements Registry
               </div>
               <p className="mt-1 text-xs leading-5 text-slate-500">
-                Compact intake registry: Date, Request, Made By, Type, Expense, Amount, Docs,
-                Review, Coverage, and Recipient.
+                Compact intake registry: Date, Request, Made By, Request Type, Expense, Amount,
+                Docs, Review, Coverage, and Recipient.
               </p>
             </div>
 
@@ -1005,7 +1021,7 @@ export default function FinanceExpensesPage() {
                 <input
                   value={searchQuery}
                   onChange={(event) => setSearchQuery(event.target.value)}
-                  placeholder="Search expenses..."
+                  placeholder="Search expenses or reimbursements..."
                   className="h-11 w-full rounded-2xl border border-white/10 bg-black/20 pl-11 pr-4 text-sm text-white outline-none transition placeholder:text-slate-600 focus:border-cyan-400/30 focus:bg-black/30 sm:w-[320px]"
                 />
               </div>
@@ -1025,7 +1041,7 @@ export default function FinanceExpensesPage() {
                 className="inline-flex h-11 items-center justify-center gap-2 rounded-2xl border border-cyan-400/20 bg-cyan-500/10 px-4 text-sm font-semibold text-cyan-100 transition hover:bg-cyan-500/15"
               >
                 <Receipt className="h-4 w-4" />
-                New Request
+                New Expense / Reimbursement
               </button>
             </div>
           </div>
@@ -1063,7 +1079,7 @@ export default function FinanceExpensesPage() {
                       onSort={handleSort}
                     />
                     <SortHeader
-                      label="Type"
+                      label="Request Type"
                       sortKey="expense_type"
                       activeKey={sortKey}
                       direction={sortDirection}
@@ -1132,10 +1148,10 @@ export default function FinanceExpensesPage() {
               <div>
                 <div className="inline-flex w-fit items-center gap-2 rounded-full border border-amber-400/20 bg-amber-500/10 px-3 py-1 text-[11px] font-semibold uppercase tracking-[0.22em] text-amber-200">
                   <Archive className="h-3.5 w-3.5" />
-                  Expense Archive
+                  Expenses & Reimbursements Archive
                 </div>
                 <h2 className="mt-3 text-2xl font-semibold text-white">
-                  Archived & Deleted Expenses
+                  Archived & Deleted Expenses / Reimbursements
                 </h2>
                 <p className="mt-2 text-sm leading-6 text-slate-400">
                   Archived records can be restored. Deleted records can be restored or permanently
@@ -1192,7 +1208,7 @@ export default function FinanceExpensesPage() {
                         Made By
                       </th>
                       <th className="px-4 py-4 text-left text-[11px] font-semibold uppercase tracking-[0.18em] text-slate-500">
-                        Type
+                        Request Type
                       </th>
                       <th className="px-4 py-4 text-left text-[11px] font-semibold uppercase tracking-[0.18em] text-slate-500">
                         Expense

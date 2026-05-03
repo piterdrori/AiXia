@@ -1547,17 +1547,6 @@ export default function PayrollMainPage() {
     };
   }, [loadPayrollMain]);
 
-    const map = new Map<string, PayrollPaymentRow[]>();
-
-    payments.forEach((payment) => {
-      const current = map.get(payment.paycheck_id) || [];
-      current.push(payment);
-      map.set(payment.paycheck_id, current);
-    });
-
-    return map;
-  }, [payments]);
-
   const paycheckRunMap = useMemo(() => {
     const map = new Map<string, string>();
 

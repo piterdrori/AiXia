@@ -4,52 +4,35 @@ import { useNavigate } from "react-router-dom";
 import {
   Archive,
   ArrowRight,
-  BadgeCheck,
+  CheckCircle2,
+  Clock3,
   CreditCard,
   Eye,
   FileSignature,
-  MoreHorizontal,
-  Plus,
+  FileText,
+  Loader2,
   ReceiptText,
   RotateCcw,
   Search,
   ShieldCheck,
+  Sparkles,
   Trash2,
   WalletCards,
   X,
 } from "lucide-react";
-import type { LucideIcon } from "lucide-react";
 
 import { supabase } from "@/lib/supabase";
 
-type MainTab = "paycheck_requests" | "allocated_funds";
+type WorkbenchTab =
+  | "paycheck_requests"
+  | "approved_for_payroll"
+  | "paycheck_execution"
+  | "employee_confirmation"
+  | "allocated_funds"
+  | "payments";
+
+type ArchiveScope = "workflow" | "execution";
 type ArchiveTab = "archived" | "deleted";
-type SortDirection = "asc" | "desc";
-
-type RequestSortKey =
-  | "request_number"
-  | "employee"
-  | "period_start"
-  | "period_end"
-  | "requested_pay_date"
-  | "requested_net_amount"
-  | "status"
-  | "review_status"
-  | "updated_at"
-  | "created_at";
-
-type FundSortKey =
-  | "run_number"
-  | "period_name"
-  | "period_start"
-  | "period_end"
-  | "pay_date"
-  | "status"
-  | "allocation_status"
-  | "allocated_funding_amount"
-  | "total_net"
-  | "updated_at"
-  | "created_at";
 
 type PayrollPeriodRow = {
   id: string;
@@ -131,14 +114,24 @@ type EmployeeRefRow = {
   code: string;
   status: string;
   mark: string | null;
-  metadata: Record<string, unknown> | null;
+  metadata: {
+    company?: string | null;
+    job_title?: string | null;
+    member_type?: string | null;
+    source_role?: string | null;
+    source_status?: string | null;
+    [key: string]: unknown;
+  } | null;
 };
 
 type ProfileRow = {
   user_id: string;
   full_name: string | null;
   display_name: string | null;
-  email?: string | null;
+  email: string | null;
+  company?: string | null;
+  job_title?: string | null;
+  member_type?: string | null;
 };
 
 type PayProfileRow = {
@@ -203,30 +196,80 @@ type PaycheckRequestRow = {
   employee_ref?: EmployeeRefRow | null;
   profile?: ProfileRow | null;
   pay_profile?: PayProfileRow | null;
-  company?: CompanyRow | null;
 };
 
 type PaycheckRow = {
   id: string;
   payroll_run_id: string;
   user_id: string;
+  paycheck_number: string | null;
   payment_status: string;
+  gross_pay: number | string | null;
+  deduction_total: number | string | null;
+  bonus_total: number | string | null;
+  reimbursement_total: number | string | null;
   net_pay: number | string | null;
+  paid_at: string | null;
+  bank_account_id: string | null;
+  reference_number: string | null;
+  notes: string | null;
+  metadata: Record<string, unknown> | null;
+  project_id: string | null;
+  task_id: string | null;
+  created_at: string;
+  updated_at: string;
 };
 
 type PayrollPaymentRow = {
   id: string;
+  payment_number: string | null;
   paycheck_id: string;
-  status: string;
+  user_id: string;
   amount: number | string | null;
-  paycheck_amount: number | string | null;
-  payment_amount: number | string | null;
+  payment_date: string;
+  payment_method_id: string | null;
+  bank_account_id: string | null;
+  status: string;
+  reference_number: string | null;
+  notes: string | null;
+  metadata: Record<string, unknown> | null;
   paycheck_currency_code: string | null;
   payment_currency_code: string | null;
+  paycheck_amount: number | string | null;
+  payment_amount: number | string | null;
+  conversion_rate: number | string | null;
+  conversion_date: string | null;
+  conversion_source: string | null;
+  conversion_metadata: Record<string, unknown> | null;
+  created_at: string;
+  updated_at: string;
 };
 
-type EnrichedPayrollRunRow = PayrollRunRow & {
-  periodName: string;
+type EnrichedPaycheckRequest = PaycheckRequestRow & {
+  employeeName: string;
+  employeeLabel: string;
+  companyName: string;
+  payProfileLabel: string;
+  targetAmount: number;
+  resolvedPaycheckId: string | null;
+  nextStepLabel: string;
+  nextStepTone: "cyan" | "emerald" | "amber" | "rose" | "violet" | "slate";
+};
+
+type EnrichedPaycheck = PaycheckRow & {
+  employeeName: string;
+  employeeLabel: string;
+  requestNumber: string;
+  requestId: string | null;
+  requestStatus: string | null;
+  reviewStatus: string | null;
+  recipientStatus: string | null;
+  currencyCode: string;
+  paidAmount: number;
+  remainingAmount: number;
+};
+
+type EnrichedPayrollRun = PayrollRunRow & {
   periodLabel: string;
   companyName: string;
   bankLabel: string;
@@ -234,81 +277,107 @@ type EnrichedPayrollRunRow = PayrollRunRow & {
   allocatedAmount: number;
   usedAmount: number;
   remainingAmount: number;
-  linkedRequestCount: number;
   paycheckCount: number;
-  paidPaycheckCount: number;
-  confirmedPaymentCount: number;
+  requestCount: number;
 };
 
-type EnrichedPaycheckRequestRow = PaycheckRequestRow & {
+type EnrichedPayrollPayment = PayrollPaymentRow & {
   employeeName: string;
-  employeeLabel: string;
-  companyName: string;
-  payProfileLabel: string;
-  periodLabel: string;
-  connectedFundLabel: string;
-  nextStepLabel: string;
-  nextStepTone: "cyan" | "emerald" | "amber" | "rose" | "violet" | "slate";
+  paycheckNumber: string;
+  requestNumber: string;
+  bankLabel: string;
 };
 
-const statusToneMap: Record<string, string> = {
-  draft: "border-slate-400/20 bg-slate-500/10 text-slate-300",
-  submitted: "border-cyan-400/20 bg-cyan-500/10 text-cyan-200",
-  pending_review: "border-cyan-400/20 bg-cyan-500/10 text-cyan-200",
-  needs_correction: "border-amber-400/20 bg-amber-500/10 text-amber-200",
-  approved_for_payroll: "border-emerald-400/20 bg-emerald-500/10 text-emerald-200",
-  approved: "border-emerald-400/20 bg-emerald-500/10 text-emerald-200",
-  rejected: "border-rose-400/20 bg-rose-500/10 text-rose-200",
-  linked_to_payroll: "border-violet-400/20 bg-violet-500/10 text-violet-200",
-  payment_sent: "border-blue-400/20 bg-blue-500/10 text-blue-200",
-  received_confirmed: "border-emerald-400/20 bg-emerald-500/10 text-emerald-200",
-  disputed: "border-rose-400/20 bg-rose-500/10 text-rose-200",
-  not_received: "border-rose-400/20 bg-rose-500/10 text-rose-200",
-  not_paid_yet: "border-slate-400/20 bg-slate-500/10 text-slate-300",
-  not_uploaded: "border-slate-400/20 bg-slate-500/10 text-slate-300",
-  missing: "border-rose-400/20 bg-rose-500/10 text-rose-200",
-  uploaded: "border-emerald-400/20 bg-emerald-500/10 text-emerald-200",
-  linked: "border-cyan-400/20 bg-cyan-500/10 text-cyan-200",
-  files_and_links: "border-violet-400/20 bg-violet-500/10 text-violet-200",
-  pending: "border-amber-400/20 bg-amber-500/10 text-amber-200",
-  scheduled: "border-blue-400/20 bg-blue-500/10 text-blue-200",
-  confirmed: "border-emerald-400/20 bg-emerald-500/10 text-emerald-200",
-  paid: "border-emerald-400/20 bg-emerald-500/10 text-emerald-200",
-  failed: "border-rose-400/20 bg-rose-500/10 text-rose-200",
-  processing: "border-cyan-400/20 bg-cyan-500/10 text-cyan-200",
-  completed: "border-emerald-400/20 bg-emerald-500/10 text-emerald-200",
-  pending_approval: "border-amber-400/20 bg-amber-500/10 text-amber-200",
-  archived: "border-slate-400/20 bg-slate-500/10 text-slate-300",
-  deleted: "border-rose-400/20 bg-rose-500/10 text-rose-200",
-  allocated: "border-cyan-400/20 bg-cyan-500/10 text-cyan-200",
-  partially_used: "border-amber-400/20 bg-amber-500/10 text-amber-200",
-  fully_used: "border-emerald-400/20 bg-emerald-500/10 text-emerald-200",
-  over_allocated: "border-rose-400/20 bg-rose-500/10 text-rose-200",
-};
+type ExecutionRecord = EnrichedPayrollRun | EnrichedPayrollPayment;
 
-const tabMeta: Record<
-  MainTab,
+const workflowTabs: Array<{
+  key: WorkbenchTab;
+  label: string;
+  description: string;
+}> = [
   {
-    label: string;
-    eyebrow: string;
-    description: string;
-    tone: "cyan" | "violet";
-  }
+    key: "paycheck_requests",
+    label: "Paycheck Requests",
+    description:
+      "Employee paycheck requests, signed form state, admin form state, and review status.",
+  },
+  {
+    key: "approved_for_payroll",
+    label: "Approved Requests",
+    description:
+      "Approved requests ready to become payroll paychecks. Payroll action creates/opens the paycheck page.",
+  },
+  {
+    key: "paycheck_execution",
+    label: "Paycheck Execution",
+    description:
+      "Individual paycheck records. Open the payroll page to pay one paycheck and check allocated funds.",
+  },
+  {
+    key: "employee_confirmation",
+    label: "Employee Confirmation",
+    description:
+      "Paychecks where payment was sent and the employee must confirm received, not received, or disputed.",
+  },
+];
+
+const executionTabs: Array<{
+  key: WorkbenchTab;
+  label: string;
+  description: string;
+}> = [
+  {
+    key: "allocated_funds",
+    label: "Allocated Funds",
+    description:
+      "Finance funding pools. These are not connected to requests; they are checked only when paying a paycheck.",
+  },
+  {
+    key: "payments",
+    label: "Payroll Payments",
+    description:
+      "Recorded paycheck payments and deductions from available allocated payroll funds.",
+  },
+];
+
+const allTabs = [...workflowTabs, ...executionTabs];
+
+const statusToneMap: Record<
+  string,
+  "cyan" | "emerald" | "amber" | "rose" | "violet" | "slate"
 > = {
-  paycheck_requests: {
-    label: "Paycheck Request Workflow",
-    eyebrow: "Individual Paycheck Requests",
-    description:
-      "Individual employee paycheck requests. Open the request ID page to handle the individual signed-form cycle, review status, correction loop, payment status, and employee confirmation.",
-    tone: "cyan",
-  },
-  allocated_funds: {
-    label: "Allocated Payroll Funds",
-    eyebrow: "Payroll Fund Baskets",
-    description:
-      "Allocated payroll fund baskets. Open the payroll fund ID page to review allocation, connected requests, used amount, remaining amount, and currency conversion summary. Do not perform every individual paycheck action here.",
-    tone: "violet",
-  },
+  draft: "slate",
+  submitted: "cyan",
+  pending_review: "amber",
+  needs_correction: "amber",
+  approved_for_payroll: "emerald",
+  approved: "emerald",
+  rejected: "rose",
+  linked_to_payroll: "violet",
+  payment_sent: "cyan",
+  received_confirmed: "emerald",
+  not_received: "rose",
+  disputed: "rose",
+  not_paid_yet: "slate",
+  not_uploaded: "slate",
+  missing: "rose",
+  uploaded: "cyan",
+  linked: "cyan",
+  files_and_links: "cyan",
+  pending: "amber",
+  scheduled: "cyan",
+  confirmed: "emerald",
+  paid: "emerald",
+  failed: "rose",
+  processing: "cyan",
+  completed: "emerald",
+  pending_approval: "amber",
+  archived: "amber",
+  deleted: "rose",
+  allocated: "emerald",
+  partially_used: "amber",
+  fully_used: "emerald",
+  over_allocated: "rose",
 };
 
 function toNumber(value: number | string | null | undefined) {
@@ -321,18 +390,6 @@ function formatMoney(value: number | string | null | undefined) {
     minimumFractionDigits: 2,
     maximumFractionDigits: 2,
   });
-}
-
-function formatCount(value: number) {
-  return value.toLocaleString();
-}
-
-function formatLabel(value: string | null | undefined) {
-  if (!value) return "—";
-
-  return value
-    .replaceAll("_", " ")
-    .replace(/\b\w/g, (character) => character.toUpperCase());
 }
 
 function formatDate(value: string | null | undefined) {
@@ -348,29 +405,60 @@ function formatDate(value: string | null | undefined) {
   });
 }
 
-function formatDateTime(value: string | null | undefined) {
+function formatLabel(value: string | null | undefined) {
   if (!value) return "—";
 
-  const parsed = new Date(value);
-  if (Number.isNaN(parsed.getTime())) return value;
-
-  return parsed.toLocaleString(undefined, {
-    year: "numeric",
-    month: "short",
-    day: "numeric",
-    hour: "2-digit",
-    minute: "2-digit",
-  });
+  return value
+    .split("_")
+    .filter(Boolean)
+    .map((part) => part.charAt(0).toUpperCase() + part.slice(1))
+    .join(" ");
 }
 
-function getStatusTone(value: string | null | undefined) {
-  return statusToneMap[value || ""] || "border-white/10 bg-white/[0.06] text-slate-300";
+function getStatusToneClasses(value: string | null | undefined) {
+  const tone = statusToneMap[value ?? ""] ?? "slate";
+
+  switch (tone) {
+    case "emerald":
+      return "border-emerald-400/20 bg-emerald-500/10 text-emerald-200";
+    case "amber":
+      return "border-amber-400/20 bg-amber-500/10 text-amber-200";
+    case "rose":
+      return "border-rose-400/20 bg-rose-500/10 text-rose-200";
+    case "violet":
+      return "border-violet-400/20 bg-violet-500/10 text-violet-200";
+    case "cyan":
+      return "border-cyan-400/20 bg-cyan-500/10 text-cyan-200";
+    case "slate":
+    default:
+      return "border-white/10 bg-white/[0.06] text-slate-300";
+  }
+}
+
+function getSoftBadgeToneClasses(
+  tone: "cyan" | "emerald" | "amber" | "rose" | "violet" | "slate"
+) {
+  switch (tone) {
+    case "emerald":
+      return "border-emerald-400/20 bg-emerald-500/10 text-emerald-200";
+    case "amber":
+      return "border-amber-400/20 bg-amber-500/10 text-amber-200";
+    case "rose":
+      return "border-rose-400/20 bg-rose-500/10 text-rose-200";
+    case "violet":
+      return "border-violet-400/20 bg-violet-500/10 text-violet-200";
+    case "cyan":
+      return "border-cyan-400/20 bg-cyan-500/10 text-cyan-200";
+    case "slate":
+    default:
+      return "border-white/10 bg-white/[0.06] text-slate-300";
+  }
 }
 
 function StatusBadge({ value }: { value: string | null | undefined }) {
   return (
     <span
-      className={`inline-flex max-w-full items-center rounded-full border px-2.5 py-1 text-[11px] font-semibold uppercase tracking-[0.12em] ${getStatusTone(
+      className={`inline-flex max-w-full items-center rounded-full border px-3 py-1 text-[11px] font-semibold uppercase tracking-[0.14em] ${getStatusToneClasses(
         value
       )}`}
     >
@@ -386,202 +474,93 @@ function SoftBadge({
   value: string;
   tone: "cyan" | "emerald" | "amber" | "rose" | "violet" | "slate";
 }) {
-  const toneClass = {
-    cyan: "border-cyan-400/20 bg-cyan-500/10 text-cyan-200",
-    emerald: "border-emerald-400/20 bg-emerald-500/10 text-emerald-200",
-    amber: "border-amber-400/20 bg-amber-500/10 text-amber-200",
-    rose: "border-rose-400/20 bg-rose-500/10 text-rose-200",
-    violet: "border-violet-400/20 bg-violet-500/10 text-violet-200",
-    slate: "border-white/10 bg-white/[0.06] text-slate-300",
-  }[tone];
-
   return (
     <span
-      className={`inline-flex max-w-[360px] items-center rounded-full border px-3 py-1 text-[11px] font-semibold uppercase tracking-[0.12em] ${toneClass}`}
+      className={`inline-flex max-w-[320px] items-center rounded-full border px-3 py-1 text-[11px] font-semibold uppercase tracking-[0.12em] ${getSoftBadgeToneClasses(
+        tone
+      )}`}
     >
       <span className="truncate">{value}</span>
     </span>
   );
 }
 
-function KpiCard({
+function IconButton({
   label,
+  icon: Icon,
+  tone,
+  disabled,
+  onClick,
+}: {
+  label: string;
+  icon: typeof Eye;
+  tone: "cyan" | "emerald" | "amber" | "rose";
+  disabled?: boolean;
+  onClick: () => void;
+}) {
+  const toneClass = {
+    cyan: "border-cyan-400/20 bg-cyan-500/10 text-cyan-200 hover:bg-cyan-500/15",
+    emerald:
+      "border-emerald-400/20 bg-emerald-500/10 text-emerald-200 hover:bg-emerald-500/15",
+    amber:
+      "border-amber-400/20 bg-amber-500/10 text-amber-200 hover:bg-amber-500/15",
+    rose: "border-rose-400/20 bg-rose-500/10 text-rose-200 hover:bg-rose-500/15",
+  }[tone];
+
+  return (
+    <button
+      type="button"
+      title={label}
+      aria-label={label}
+      disabled={disabled}
+      onClick={onClick}
+      className={`inline-flex h-9 w-9 items-center justify-center rounded-full border transition disabled:cursor-not-allowed disabled:opacity-40 ${toneClass}`}
+    >
+      <Icon className="h-4 w-4" />
+    </button>
+  );
+}
+
+function SummaryCard({
+  title,
   value,
   detail,
   icon: Icon,
-  tone,
-}: {
-  label: string;
-  value: string;
-  detail: string;
-  icon: LucideIcon;
-  tone: "cyan" | "emerald" | "amber" | "violet" | "rose";
-}) {
-  const toneClasses = {
-    cyan: "border-cyan-400/20 bg-cyan-500/10 text-cyan-200",
-    emerald: "border-emerald-400/20 bg-emerald-500/10 text-emerald-200",
-    amber: "border-amber-400/20 bg-amber-500/10 text-amber-200",
-    violet: "border-violet-400/20 bg-violet-500/10 text-violet-200",
-    rose: "border-rose-400/20 bg-rose-500/10 text-rose-200",
-  }[tone];
-
-  return (
-    <div className="relative min-h-[156px] overflow-hidden rounded-[28px] border border-white/10 bg-white/[0.045] p-5 backdrop-blur-xl">
-      <div className="pointer-events-none absolute inset-0 bg-[radial-gradient(circle_at_top_left,rgba(255,255,255,0.08),transparent_48%)]" />
-
-      <div className="relative flex h-full flex-col justify-between gap-5">
-        <div className="flex items-start justify-between gap-4">
-          <div>
-            <div className="text-[11px] font-semibold uppercase tracking-[0.2em] text-slate-500">
-              {label}
-            </div>
-            <div className="mt-2 text-3xl font-semibold tracking-[-0.035em] text-white">
-              {value}
-            </div>
-          </div>
-
-          <div
-            className={`flex h-12 w-12 shrink-0 items-center justify-center rounded-2xl border ${toneClasses}`}
-          >
-            <Icon className="h-5 w-5" />
-          </div>
-        </div>
-
-        <div className="text-sm leading-6 text-slate-400">{detail}</div>
-      </div>
-    </div>
-  );
-}
-
-function SectionCard({
-  title,
-  description,
-  icon: Icon,
-  children,
 }: {
   title: string;
-  description: string;
-  icon: LucideIcon;
-  children: ReactNode;
+  value: ReactNode;
+  detail: string;
+  icon: typeof ReceiptText;
 }) {
   return (
-    <section className="overflow-hidden rounded-[30px] border border-white/10 bg-white/[0.045] backdrop-blur-xl">
-      <div className="flex items-start justify-between gap-4 border-b border-white/10 px-5 py-4">
-        <div className="min-w-0">
-          <div className="text-sm font-semibold uppercase tracking-[0.18em] text-slate-400">
+    <div className="min-h-[156px] rounded-[28px] border border-white/10 bg-white/[0.045] p-5 backdrop-blur-xl">
+      <div className="flex items-start justify-between gap-4">
+        <div>
+          <div className="text-[11px] font-semibold uppercase tracking-[0.2em] text-slate-500">
             {title}
           </div>
-          <p className="mt-1 text-xs leading-5 text-slate-500">{description}</p>
+          <div className="mt-3 text-3xl font-semibold text-white">{value}</div>
         </div>
-
-        <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-2xl border border-cyan-400/20 bg-cyan-500/10 text-cyan-200">
+        <div className="rounded-2xl border border-cyan-400/15 bg-cyan-500/10 p-3 text-cyan-200">
           <Icon className="h-5 w-5" />
         </div>
       </div>
-
-      <div className="p-5">{children}</div>
-    </section>
-  );
-}
-
-function DirectionBox({
-  stage,
-  title,
-  children,
-  tone,
-}: {
-  stage: string;
-  title: string;
-  children: ReactNode;
-  tone: "cyan" | "emerald" | "amber" | "violet";
-}) {
-  const toneClass = {
-    cyan: "border-cyan-400/20 bg-cyan-500/10 text-cyan-100",
-    emerald: "border-emerald-400/20 bg-emerald-500/10 text-emerald-100",
-    amber: "border-amber-400/20 bg-amber-500/10 text-amber-100",
-    violet: "border-violet-400/20 bg-violet-500/10 text-violet-100",
-  }[tone];
-
-  return (
-    <div className={`rounded-[24px] border p-4 ${toneClass}`}>
-      <div className="text-[11px] font-semibold uppercase tracking-[0.2em] opacity-75">
-        {stage}
-      </div>
-      <div className="mt-1 text-sm font-semibold text-white">{title}</div>
-      <div className="mt-2 text-xs leading-5 opacity-75">{children}</div>
+      <div className="mt-4 text-xs leading-5 text-slate-500">{detail}</div>
     </div>
   );
 }
 
-function SortHeader<T extends string>({
-  label,
-  sortKey,
-  activeKey,
-  direction,
-  onSort,
-  className = "",
-}: {
-  label: string;
-  sortKey: T;
-  activeKey: T;
-  direction: SortDirection;
-  onSort: (key: T) => void;
-  className?: string;
-}) {
-  const isActive = activeKey === sortKey;
-
+function getEmployeeNameFromRequest(request: PaycheckRequestRow) {
   return (
-    <th className={`px-5 py-4 text-left ${className}`}>
-      <button
-        type="button"
-        onClick={() => onSort(sortKey)}
-        className="inline-flex items-center gap-2 text-[11px] font-semibold uppercase tracking-[0.18em] text-slate-500 transition hover:text-slate-200"
-      >
-        {label}
-        <span className={isActive ? "text-cyan-300" : "text-slate-700"}>
-          {isActive ? (direction === "asc" ? "↑" : "↓") : "↕"}
-        </span>
-      </button>
-    </th>
+    request.profile?.full_name?.trim() ||
+    request.profile?.display_name?.trim() ||
+    request.profile?.email?.trim() ||
+    request.employee_ref?.code?.trim() ||
+    "Employee"
   );
 }
 
-function getPeriodName(row: PayrollRunRow) {
-  return row.payroll_period?.period_name || row.payroll_period?.period_number || "Payroll Period";
-}
-
-function getPeriodLabel(row: PayrollRunRow) {
-  if (!row.payroll_period) return "No period linked";
-
-  return `${formatDate(row.payroll_period.period_start)} → ${formatDate(
-    row.payroll_period.period_end
-  )}`;
-}
-
-function getBankLabel(bank: BankAccountRow | null | undefined) {
-  if (!bank) return "No bank selected";
-
-  return [
-    bank.bank_name || bank.institution_name || bank.name || "Bank Account",
-    bank.currency_code,
-    bank.masked_account_number,
-  ]
-    .filter(Boolean)
-    .join(" • ");
-}
-
-function getEmployeeName(request: PaycheckRequestRow) {
-  const profileName =
-    request.profile?.full_name?.trim() ||
-    request.profile?.display_name?.trim() ||
-    request.profile?.email?.trim();
-
-  if (profileName) return profileName;
-  if (request.employee_ref?.code) return `Employee ${request.employee_ref.code}`;
-  return "Employee";
-}
-
-function getEmployeeLabel(request: PaycheckRequestRow) {
+function getEmployeeLabelFromRequest(request: PaycheckRequestRow) {
   return [
     request.employee_ref?.code ? `Code ${request.employee_ref.code}` : null,
     request.employee_ref?.mark ? formatLabel(request.employee_ref.mark) : null,
@@ -594,786 +573,543 @@ function getEmployeeLabel(request: PaycheckRequestRow) {
     .join(" • ");
 }
 
-function getPayProfileLabel(request: PaycheckRequestRow) {
-  if (!request.pay_profile) return "No pay profile";
+function getBankLabel(bank: BankAccountRow | null | undefined) {
+  if (!bank) return "—";
 
   return [
-    request.pay_profile.profile_number || "Pay Profile",
-    formatLabel(request.pay_profile.pay_type),
-    formatLabel(request.pay_profile.payment_frequency),
-    request.pay_profile.currency_code,
+    bank.name || bank.bank_name || bank.institution_name || "Bank Account",
+    bank.currency_code,
+    bank.masked_account_number,
   ]
     .filter(Boolean)
     .join(" • ");
 }
 
-function getRequestPeriodLabel(request: PaycheckRequestRow) {
-  return `${formatDate(request.period_start)} → ${formatDate(request.period_end)}`;
+function getRequestTargetAmount(request: PaycheckRequestRow) {
+  return toNumber(
+    request.requested_net_amount ??
+      toNumber(request.requested_gross_amount) +
+        toNumber(request.requested_bonus_amount) +
+        toNumber(request.requested_reimbursement_amount) -
+        toNumber(request.requested_deduction_amount)
+  );
 }
 
-function getConnectedFundLabel(
-  request: PaycheckRequestRow,
-  fundRunMap: Map<string, EnrichedPayrollRunRow>
-) {
-  if (!request.linked_payroll_run_id) return "Not connected to allocated funds";
-  return fundRunMap.get(request.linked_payroll_run_id)?.run_number || "Connected fund basket";
-}
-
-function getNextRequestStep(request: PaycheckRequestRow): {
+function getRequestNextStep(request: PaycheckRequestRow): {
   label: string;
   tone: "cyan" | "emerald" | "amber" | "rose" | "violet" | "slate";
 } {
-  if (request.status === "draft") {
+  if (request.linked_paycheck_id) {
     return {
-      label: "Employee must upload signed form and submit",
-      tone: "amber",
+      label: "Payroll paycheck ready — open payroll page",
+      tone: "emerald",
+    };
+  }
+
+  if (request.status === "approved_for_payroll" && request.review_status === "approved") {
+    return {
+      label: "Create payroll paycheck",
+      tone: "emerald",
     };
   }
 
   if (request.status === "submitted" || request.review_status === "pending_review") {
     return {
-      label: "Finance must review signed employee form",
+      label: "Finance review required",
       tone: "cyan",
     };
   }
 
   if (request.status === "needs_correction") {
     return {
-      label: "Employee must upload corrected signed form",
+      label: "Waiting for employee correction",
       tone: "amber",
     };
   }
 
   if (request.status === "rejected" || request.review_status === "rejected") {
     return {
-      label: "Request rejected by Finance",
+      label: "Request rejected",
       tone: "rose",
-    };
-  }
-
-  if (request.status === "approved_for_payroll") {
-    return {
-      label: "Ready to connect to allocated payroll funds",
-      tone: "emerald",
-    };
-  }
-
-  if (request.status === "linked_to_payroll") {
-    return {
-      label: "Connected to payroll fund basket; payment pending",
-      tone: "violet",
     };
   }
 
   if (request.status === "payment_sent") {
     return {
-      label: "Payment sent; waiting for employee confirmation",
-      tone: "cyan",
+      label: "Waiting for employee confirmation",
+      tone: "violet",
     };
   }
 
   if (request.status === "received_confirmed") {
     return {
-      label: "Employee confirmed payment received",
+      label: "Employee confirmed payment",
       tone: "emerald",
     };
   }
 
-  if (request.status === "disputed") {
-    return {
-      label: "Payment issue reported",
-      tone: "rose",
-    };
-  }
-
   return {
-    label: "Review current request status",
+    label: "Review current workflow state",
     tone: "slate",
   };
 }
 
-function getRequestSortValue(row: EnrichedPaycheckRequestRow, key: RequestSortKey) {
-  switch (key) {
-    case "request_number":
-      return row.request_number || row.reference_number || "";
-    case "employee":
-      return row.employeeName || "";
-    case "period_start":
-      return row.period_start || "";
-    case "period_end":
-      return row.period_end || "";
-    case "requested_pay_date":
-      return row.requested_pay_date || "";
-    case "requested_net_amount":
-      return toNumber(row.requested_net_amount);
-    case "status":
-      return row.status || "";
-    case "review_status":
-      return row.review_status || "";
-    case "updated_at":
-      return row.updated_at || "";
-    case "created_at":
-    default:
-      return row.created_at || "";
-  }
+function isWorkflowArchived(request: EnrichedPaycheckRequest) {
+  return request.status === "archived";
 }
 
-function getFundSortValue(row: EnrichedPayrollRunRow, key: FundSortKey) {
-  switch (key) {
-    case "run_number":
-      return row.run_number || row.reference_number || "";
-    case "period_name":
-      return row.periodName || "";
-    case "period_start":
-      return row.payroll_period?.period_start || "";
-    case "period_end":
-      return row.payroll_period?.period_end || "";
-    case "pay_date":
-      return row.payroll_period?.pay_date || "";
-    case "status":
-      return row.status || "";
-    case "allocation_status":
-      return row.allocation_status || "";
-    case "allocated_funding_amount":
-      return toNumber(row.allocated_funding_amount);
-    case "total_net":
-      return toNumber(row.total_net);
-    case "updated_at":
-      return row.updated_at || "";
-    case "created_at":
-    default:
-      return row.created_at || "";
-  }
+function isWorkflowDeleted(request: EnrichedPaycheckRequest) {
+  return request.status === "deleted";
 }
 
-function sortRequestRows(
-  rows: EnrichedPaycheckRequestRow[],
-  key: RequestSortKey,
-  direction: SortDirection
-) {
-  return [...rows].sort((a, b) => {
-    const aValue = getRequestSortValue(a, key);
-    const bValue = getRequestSortValue(b, key);
-
-    if (typeof aValue === "number" && typeof bValue === "number") {
-      return direction === "asc" ? aValue - bValue : bValue - aValue;
-    }
-
-    const result = String(aValue).localeCompare(String(bValue), undefined, {
-      numeric: true,
-      sensitivity: "base",
-    });
-
-    return direction === "asc" ? result : -result;
-  });
+function isWorkflowActive(request: EnrichedPaycheckRequest) {
+  return !isWorkflowArchived(request) && !isWorkflowDeleted(request);
 }
 
-function sortFundRows(
-  rows: EnrichedPayrollRunRow[],
-  key: FundSortKey,
-  direction: SortDirection
-) {
-  return [...rows].sort((a, b) => {
-    const aValue = getFundSortValue(a, key);
-    const bValue = getFundSortValue(b, key);
-
-    if (typeof aValue === "number" && typeof bValue === "number") {
-      return direction === "asc" ? aValue - bValue : bValue - aValue;
-    }
-
-    const result = String(aValue).localeCompare(String(bValue), undefined, {
-      numeric: true,
-      sensitivity: "base",
-    });
-
-    return direction === "asc" ? result : -result;
-  });
+function isExecutionArchived(record: EnrichedPayrollRun | EnrichedPayrollPayment) {
+  return record.status === "archived";
 }
 
-function PayrollRequestTable({
-  rows,
-  sortKey,
-  sortDirection,
-  onSort,
-  onOpenPayroll,
-}: {
-  rows: EnrichedPaycheckRequestRow[];
-  sortKey: RequestSortKey;
-  sortDirection: SortDirection;
-  onSort: (key: RequestSortKey) => void;
-  onOpenPayroll: (paycheckId: string) => void;
-}) {
-
-  if (rows.length === 0) {
-    return (
-      <div className="rounded-[28px] border border-dashed border-white/10 bg-black/20 px-6 py-14 text-center">
-        <div className="mx-auto flex h-12 w-12 items-center justify-center rounded-2xl border border-cyan-400/20 bg-cyan-500/10 text-cyan-200">
-          <FileSignature className="h-5 w-5" />
-        </div>
-        <div className="mt-4 text-sm font-semibold text-white">
-          No paycheck requests found
-        </div>
-        <p className="mx-auto mt-2 max-w-xl text-sm leading-6 text-slate-500">
-          Employee paycheck requests will appear here. Each request has its own ID page
-          for the signed-form cycle, Finance review status, correction loop, payment
-          tracking, and employee confirmation.
-        </p>
-      </div>
-    );
-  }
-
-  return (
-    <div className="max-h-[720px] overflow-y-auto rounded-[26px] border border-white/10 bg-black/20">
-      <div className="overflow-x-auto">
-        <table className="w-full min-w-[1640px] border-collapse">
-          <thead className="sticky top-0 z-10 border-b border-white/10 bg-black/80 backdrop-blur-xl">
-            <tr>
-              <SortHeader
-                label="Request"
-                sortKey="request_number"
-                activeKey={sortKey}
-                direction={sortDirection}
-                onSort={onSort}
-              />
-              <SortHeader
-                label="Employee"
-                sortKey="employee"
-                activeKey={sortKey}
-                direction={sortDirection}
-                onSort={onSort}
-              />
-              <SortHeader
-                label="Period Start"
-                sortKey="period_start"
-                activeKey={sortKey}
-                direction={sortDirection}
-                onSort={onSort}
-              />
-              <SortHeader
-                label="Period End"
-                sortKey="period_end"
-                activeKey={sortKey}
-                direction={sortDirection}
-                onSort={onSort}
-              />
-              <SortHeader
-                label="Pay Date"
-                sortKey="requested_pay_date"
-                activeKey={sortKey}
-                direction={sortDirection}
-                onSort={onSort}
-              />
-              <SortHeader
-                label="Net"
-                sortKey="requested_net_amount"
-                activeKey={sortKey}
-                direction={sortDirection}
-                onSort={onSort}
-                className="text-right"
-              />
-              <SortHeader
-                label="Status"
-                sortKey="status"
-                activeKey={sortKey}
-                direction={sortDirection}
-                onSort={onSort}
-              />
-              <SortHeader
-                label="Review"
-                sortKey="review_status"
-                activeKey={sortKey}
-                direction={sortDirection}
-                onSort={onSort}
-              />
-              <th className="px-5 py-4 text-left text-[11px] font-semibold uppercase tracking-[0.18em] text-slate-500">
-                Forms
-              </th>
-              <th className="px-5 py-4 text-left text-[11px] font-semibold uppercase tracking-[0.18em] text-slate-500">
-                Fund Connection
-              </th>
-              <th className="px-5 py-4 text-left text-[11px] font-semibold uppercase tracking-[0.18em] text-slate-500">
-                Next Step
-              </th>
-              <SortHeader
-                label="Updated"
-                sortKey="updated_at"
-                activeKey={sortKey}
-                direction={sortDirection}
-                onSort={onSort}
-              />
-              <th className="sticky right-0 bg-black/80 px-5 py-4 text-right text-[11px] font-semibold uppercase tracking-[0.18em] text-slate-500 shadow-[-18px_0_24px_rgba(0,0,0,0.35)] backdrop-blur-xl">
-                Action
-              </th>
-            </tr>
-          </thead>
-
-          <tbody className="divide-y divide-white/5">
-            {rows.map((row) => (
-              <tr
-                key={row.id}
-                className="text-sm text-slate-300 transition hover:bg-white/[0.035]"
-              >
-                <td className="min-w-[220px] px-5 py-4">
-                  <button
-                    type="button"
-                    onClick={() => {
-                      if (row.linked_paycheck_id) {
-                        onOpenPayroll(row.linked_paycheck_id);
-                      }
-                    }}
-                    disabled={!row.linked_paycheck_id}
-                    className="text-left font-semibold text-cyan-200 transition hover:text-cyan-100 disabled:cursor-not-allowed disabled:text-slate-500"
-                  >
-                    {row.request_number || row.reference_number || "Paycheck Request"}
-                  </button>
-                  <div className="mt-1 text-[11px] text-slate-500">
-                    Created {formatDate(row.created_at)}
-                  </div>
-                </td>
-
-                <td className="min-w-[260px] px-5 py-4">
-                  <div className="font-medium text-white">{row.employeeName}</div>
-                  <div className="mt-1 text-[11px] text-slate-500">
-                    {row.employeeLabel || "Employee registry"}
-                  </div>
-                  <div className="mt-1 text-[11px] text-slate-500">
-                    {row.payProfileLabel}
-                  </div>
-                </td>
-
-                <td className="whitespace-nowrap px-5 py-4">
-                  {formatDate(row.period_start)}
-                </td>
-
-                <td className="whitespace-nowrap px-5 py-4">
-                  {formatDate(row.period_end)}
-                </td>
-
-                <td className="whitespace-nowrap px-5 py-4">
-                  {formatDate(row.requested_pay_date)}
-                </td>
-
-                <td className="whitespace-nowrap px-5 py-4 text-right font-semibold text-cyan-100">
-                  {row.requested_currency_code} {formatMoney(row.requested_net_amount)}
-                </td>
-
-                <td className="whitespace-nowrap px-5 py-4">
-                  <StatusBadge value={row.status} />
-                </td>
-
-                <td className="whitespace-nowrap px-5 py-4">
-                  <StatusBadge value={row.review_status} />
-                </td>
-
-                <td className="min-w-[240px] px-5 py-4">
-                  <div className="flex flex-col gap-2">
-                    <div className="flex items-center justify-between gap-3 rounded-2xl border border-white/10 bg-white/[0.03] px-3 py-2">
-                      <span className="text-[11px] font-semibold uppercase tracking-[0.16em] text-slate-500">
-                        Employee
-                      </span>
-                      <StatusBadge value={row.signed_form_status} />
-                    </div>
-                    <div className="flex items-center justify-between gap-3 rounded-2xl border border-white/10 bg-white/[0.03] px-3 py-2">
-                      <span className="text-[11px] font-semibold uppercase tracking-[0.16em] text-slate-500">
-                        Admin
-                      </span>
-                      <StatusBadge value={row.admin_signed_form_status || "not_uploaded"} />
-                    </div>
-                  </div>
-                </td>
-
-                <td className="min-w-[220px] px-5 py-4">
-                  <div className="font-medium text-white">{row.connectedFundLabel}</div>
-                  <div className="mt-1 text-[11px] text-slate-500">
-                    {row.linked_payroll_run_id
-                      ? "Connected to allocated payroll fund basket"
-                      : "Not yet connected"}
-                  </div>
-                </td>
-
-                <td className="min-w-[300px] px-5 py-4">
-                  <SoftBadge value={row.nextStepLabel} tone={row.nextStepTone} />
-                </td>
-
-                <td className="whitespace-nowrap px-5 py-4 text-slate-400">
-                  {formatDateTime(row.updated_at)}
-                </td>
-
-                <td className="sticky right-0 bg-[#05070d]/95 px-5 py-4 text-right shadow-[-18px_0_24px_rgba(0,0,0,0.35)] backdrop-blur-xl">
-                  <div className="flex items-center justify-end">
-                    <button
-                      type="button"
-                      onClick={() => {
-                        if (row.linked_paycheck_id) {
-                          onOpenPayroll(row.linked_paycheck_id);
-                        }
-                      }}
-                      disabled={!row.linked_paycheck_id}
-                      className="inline-flex h-9 items-center justify-center gap-2 rounded-2xl border border-emerald-400/20 bg-emerald-500/10 px-3 text-xs font-semibold text-emerald-100 transition hover:bg-emerald-500/15 disabled:cursor-not-allowed disabled:border-slate-400/20 disabled:bg-slate-500/10 disabled:text-slate-500"
-                    >
-                      <CreditCard className="h-3.5 w-3.5" />
-                      Payroll
-                    </button>
-                  </div>
-                </td>
-              </tr>
-            ))}
-          </tbody>
-        </table>
-      </div>
-    </div>
-  );
+function isExecutionDeleted(record: EnrichedPayrollRun | EnrichedPayrollPayment) {
+  return record.status === "deleted";
 }
 
-function PayrollFundTable({
-  rows,
-  sortKey,
-  sortDirection,
-  onSort,
-  onOpen,
-  onArchive,
-  onDelete,
-  archiveMode = false,
-  archiveTab = "archived",
-  onRestore,
-  onHardDelete,
-}: {
-  rows: EnrichedPayrollRunRow[];
-  sortKey: FundSortKey;
-  sortDirection: SortDirection;
-  onSort: (key: FundSortKey) => void;
-  onOpen: (id: string) => void;
-  onArchive?: (id: string) => void;
-  onDelete?: (id: string) => void;
-  archiveMode?: boolean;
-  archiveTab?: ArchiveTab;
-  onRestore?: (id: string) => void;
-  onHardDelete?: (id: string) => void;
-}) {
-  if (rows.length === 0) {
-    return (
-      <div className="rounded-[28px] border border-dashed border-white/10 bg-black/20 px-6 py-14 text-center">
-        <div className="mx-auto flex h-12 w-12 items-center justify-center rounded-2xl border border-violet-400/20 bg-violet-500/10 text-violet-200">
-          <WalletCards className="h-5 w-5" />
-        </div>
-        <div className="mt-4 text-sm font-semibold text-white">
-          No allocated payroll funds found
-        </div>
-        <p className="mx-auto mt-2 max-w-xl text-sm leading-6 text-slate-500">
-          Payroll fund baskets will appear here. Each fund basket ID page should show
-          allocation details, connected requests, used amount, remaining amount, and
-          currency conversion summary.
-        </p>
-      </div>
-    );
-  }
-
-  return (
-    <div className="max-h-[720px] overflow-y-auto rounded-[26px] border border-white/10 bg-black/20">
-      <div className="overflow-x-auto">
-        <table className="w-full min-w-[1680px] border-collapse">
-          <thead className="sticky top-0 z-10 border-b border-white/10 bg-black/80 backdrop-blur-xl">
-            <tr>
-              <SortHeader
-                label="Fund Basket"
-                sortKey="run_number"
-                activeKey={sortKey}
-                direction={sortDirection}
-                onSort={onSort}
-              />
-              <SortHeader
-                label="Period"
-                sortKey="period_name"
-                activeKey={sortKey}
-                direction={sortDirection}
-                onSort={onSort}
-              />
-              <SortHeader
-                label="Start"
-                sortKey="period_start"
-                activeKey={sortKey}
-                direction={sortDirection}
-                onSort={onSort}
-              />
-              <SortHeader
-                label="End"
-                sortKey="period_end"
-                activeKey={sortKey}
-                direction={sortDirection}
-                onSort={onSort}
-              />
-              <SortHeader
-                label="Pay Date"
-                sortKey="pay_date"
-                activeKey={sortKey}
-                direction={sortDirection}
-                onSort={onSort}
-              />
-              <th className="px-5 py-4 text-left text-[11px] font-semibold uppercase tracking-[0.18em] text-slate-500">
-                Company / Bank
-              </th>
-              <SortHeader
-                label="Allocation"
-                sortKey="allocated_funding_amount"
-                activeKey={sortKey}
-                direction={sortDirection}
-                onSort={onSort}
-                className="text-right"
-              />
-              <th className="px-5 py-4 text-right text-[11px] font-semibold uppercase tracking-[0.18em] text-slate-500">
-                Used
-              </th>
-              <th className="px-5 py-4 text-right text-[11px] font-semibold uppercase tracking-[0.18em] text-slate-500">
-                Remaining
-              </th>
-              <SortHeader
-                label="Payroll Net"
-                sortKey="total_net"
-                activeKey={sortKey}
-                direction={sortDirection}
-                onSort={onSort}
-                className="text-right"
-              />
-              <SortHeader
-                label="Status"
-                sortKey="status"
-                activeKey={sortKey}
-                direction={sortDirection}
-                onSort={onSort}
-              />
-              <SortHeader
-                label="Allocation Status"
-                sortKey="allocation_status"
-                activeKey={sortKey}
-                direction={sortDirection}
-                onSort={onSort}
-              />
-              <th className="px-5 py-4 text-left text-[11px] font-semibold uppercase tracking-[0.18em] text-slate-500">
-                Connected Records
-              </th>
-              <SortHeader
-                label="Updated"
-                sortKey="updated_at"
-                activeKey={sortKey}
-                direction={sortDirection}
-                onSort={onSort}
-              />
-              <th className="sticky right-0 bg-black/80 px-5 py-4 text-right text-[11px] font-semibold uppercase tracking-[0.18em] text-slate-500 shadow-[-18px_0_24px_rgba(0,0,0,0.35)] backdrop-blur-xl">
-                Actions
-              </th>
-            </tr>
-          </thead>
-
-          <tbody className="divide-y divide-white/5">
-            {rows.map((row) => (
-              <tr
-                key={row.id}
-                className="text-sm text-slate-300 transition hover:bg-white/[0.035]"
-              >
-                <td className="min-w-[220px] px-5 py-4">
-                  <button
-                    type="button"
-                    onClick={() => onOpen(row.id)}
-                    className="text-left font-semibold text-violet-200 transition hover:text-violet-100"
-                  >
-                    {row.run_number || row.reference_number || "Payroll Fund Basket"}
-                  </button>
-                  <div className="mt-1 text-[11px] text-slate-500">
-                    Created {formatDate(row.created_at)}
-                  </div>
-                </td>
-
-                <td className="min-w-[240px] px-5 py-4">
-                  <div className="font-medium text-white">{row.periodName}</div>
-                  <div className="mt-1 text-[11px] text-slate-500">
-                    {row.periodLabel}
-                  </div>
-                </td>
-
-                <td className="whitespace-nowrap px-5 py-4">
-                  {formatDate(row.payroll_period?.period_start)}
-                </td>
-
-                <td className="whitespace-nowrap px-5 py-4">
-                  {formatDate(row.payroll_period?.period_end)}
-                </td>
-
-                <td className="whitespace-nowrap px-5 py-4">
-                  {formatDate(row.payroll_period?.pay_date)}
-                </td>
-
-                <td className="min-w-[260px] px-5 py-4">
-                  <div className="font-medium text-white">{row.companyName}</div>
-                  <div className="mt-1 text-[11px] text-slate-500">
-                    {row.bankLabel}
-                  </div>
-                </td>
-
-                <td className="whitespace-nowrap px-5 py-4 text-right font-semibold text-cyan-100">
-                  {row.fundingCurrency} {formatMoney(row.allocatedAmount)}
-                </td>
-
-                <td className="whitespace-nowrap px-5 py-4 text-right font-semibold text-violet-100">
-                  {row.fundingCurrency} {formatMoney(row.usedAmount)}
-                </td>
-
-                <td
-                  className={`whitespace-nowrap px-5 py-4 text-right font-semibold ${
-                    row.remainingAmount < 0 ? "text-rose-100" : "text-emerald-100"
-                  }`}
-                >
-                  {row.fundingCurrency} {formatMoney(row.remainingAmount)}
-                </td>
-
-                <td className="whitespace-nowrap px-5 py-4 text-right font-semibold text-amber-100">
-                  {row.fundingCurrency} {formatMoney(row.total_net)}
-                </td>
-
-                <td className="whitespace-nowrap px-5 py-4">
-                  <StatusBadge value={row.status} />
-                </td>
-
-                <td className="whitespace-nowrap px-5 py-4">
-                  <StatusBadge value={row.allocation_status || "pending"} />
-                </td>
-
-                <td className="min-w-[220px] px-5 py-4">
-                  <div className="text-xs text-slate-400">
-                    Requests:{" "}
-                    <span className="font-semibold text-white">
-                      {formatCount(row.linkedRequestCount)}
-                    </span>
-                  </div>
-                  <div className="mt-1 text-xs text-slate-400">
-                    Paychecks:{" "}
-                    <span className="font-semibold text-white">
-                      {formatCount(row.paycheckCount)}
-                    </span>
-                    {" / Paid: "}
-                    <span className="font-semibold text-emerald-100">
-                      {formatCount(row.paidPaycheckCount)}
-                    </span>
-                  </div>
-                  <div className="mt-1 text-xs text-slate-400">
-                    Payments:{" "}
-                    <span className="font-semibold text-cyan-100">
-                      {formatCount(row.confirmedPaymentCount)}
-                    </span>
-                  </div>
-                </td>
-
-                <td className="whitespace-nowrap px-5 py-4 text-slate-400">
-                  {formatDateTime(row.updated_at)}
-                </td>
-
-                <td className="sticky right-0 bg-[#05070d]/95 px-5 py-4 text-right shadow-[-18px_0_24px_rgba(0,0,0,0.35)] backdrop-blur-xl">
-                  <div className="flex items-center justify-end gap-2">
-                    {!archiveMode ? (
-                      <>
-                        <button
-                          type="button"
-                          onClick={() => onOpen(row.id)}
-                          className="inline-flex h-9 items-center justify-center gap-2 rounded-2xl border border-violet-400/20 bg-violet-500/10 px-3 text-xs font-semibold text-violet-100 transition hover:bg-violet-500/15"
-                        >
-                          <Eye className="h-3.5 w-3.5" />
-                          Open Fund
-                        </button>
-
-                        <button
-                          type="button"
-                          onClick={() => onArchive?.(row.id)}
-                          className="inline-flex h-9 items-center justify-center rounded-2xl border border-amber-400/20 bg-amber-500/10 px-3 text-amber-100 transition hover:bg-amber-500/15"
-                          title="Archive"
-                        >
-                          <Archive className="h-3.5 w-3.5" />
-                        </button>
-
-                        <button
-                          type="button"
-                          onClick={() => onDelete?.(row.id)}
-                          className="inline-flex h-9 items-center justify-center rounded-2xl border border-rose-400/20 bg-rose-500/10 px-3 text-rose-100 transition hover:bg-rose-500/15"
-                          title="Delete"
-                        >
-                          <Trash2 className="h-3.5 w-3.5" />
-                        </button>
-                      </>
-                    ) : (
-                      <>
-                        <button
-                          type="button"
-                          onClick={() => onOpen(row.id)}
-                          className="inline-flex h-9 items-center justify-center gap-2 rounded-2xl border border-violet-400/20 bg-violet-500/10 px-3 text-xs font-semibold text-violet-100 transition hover:bg-violet-500/15"
-                        >
-                          <Eye className="h-3.5 w-3.5" />
-                          View
-                        </button>
-
-                        <button
-                          type="button"
-                          onClick={() => onRestore?.(row.id)}
-                          className="inline-flex h-9 items-center justify-center gap-2 rounded-2xl border border-emerald-400/20 bg-emerald-500/10 px-3 text-xs font-semibold text-emerald-100 transition hover:bg-emerald-500/15"
-                        >
-                          <RotateCcw className="h-3.5 w-3.5" />
-                          Restore
-                        </button>
-
-                        {archiveTab === "deleted" ? (
-                          <button
-                            type="button"
-                            onClick={() => onHardDelete?.(row.id)}
-                            className="inline-flex h-9 items-center justify-center gap-2 rounded-2xl border border-rose-400/20 bg-rose-500/10 px-3 text-xs font-semibold text-rose-100 transition hover:bg-rose-500/15"
-                          >
-                            <Trash2 className="h-3.5 w-3.5" />
-                            Hard Delete
-                          </button>
-                        ) : null}
-                      </>
-                    )}
-                  </div>
-                </td>
-              </tr>
-            ))}
-          </tbody>
-        </table>
-      </div>
-    </div>
-  );
+function isExecutionActive(record: EnrichedPayrollRun | EnrichedPayrollPayment) {
+  return !isExecutionArchived(record) && !isExecutionDeleted(record);
 }
 
-export default function PayrollMainPage() {
+export default function FinancePayrollControlPage() {
   const navigate = useNavigate();
 
-  const [activeTab, setActiveTab] = useState<MainTab>("paycheck_requests");
-  const [archiveOpen, setArchiveOpen] = useState(false);
-  const [archiveTab, setArchiveTab] = useState<ArchiveTab>("archived");
-
+  const [activeTab, setActiveTab] = useState<WorkbenchTab>("paycheck_requests");
   const [requests, setRequests] = useState<PaycheckRequestRow[]>([]);
-  const [funds, setFunds] = useState<PayrollRunRow[]>([]);
+  const [companies, setCompanies] = useState<CompanyRow[]>([]);
   const [paychecks, setPaychecks] = useState<PaycheckRow[]>([]);
+  const [payrollRuns, setPayrollRuns] = useState<PayrollRunRow[]>([]);
   const [payments, setPayments] = useState<PayrollPaymentRow[]>([]);
-
-  const [requestSearch, setRequestSearch] = useState("");
-  const [fundSearch, setFundSearch] = useState("");
-
-  const [requestSortKey, setRequestSortKey] = useState<RequestSortKey>("created_at");
-  const [requestSortDirection, setRequestSortDirection] =
-    useState<SortDirection>("desc");
-
-  const [fundSortKey, setFundSortKey] = useState<FundSortKey>("created_at");
-  const [fundSortDirection, setFundSortDirection] = useState<SortDirection>("desc");
-
+  const [bankAccounts, setBankAccounts] = useState<BankAccountRow[]>([]);
+  const [searchQuery, setSearchQuery] = useState("");
+  const [archiveScope, setArchiveScope] = useState<ArchiveScope>("workflow");
+  const [archiveTab, setArchiveTab] = useState<ArchiveTab>("archived");
+  const [archiveModalOpen, setArchiveModalOpen] = useState(false);
   const [isLoading, setIsLoading] = useState(true);
+  const [isRefreshing, setIsRefreshing] = useState(false);
+  const [hasLoadedOnce, setHasLoadedOnce] = useState(false);
   const [isRunningAction, setIsRunningAction] = useState(false);
-  const [actionError, setActionError] = useState<string | null>(null);
-  const [actionMessage, setActionMessage] = useState<string | null>(null);
+  const [pageError, setPageError] = useState<string | null>(null);
+  const [pageMessage, setPageMessage] = useState<string | null>(null);
 
-  const loadPayrollMain = useCallback(async () => {
-    setIsLoading(true);
-    setActionError(null);
+  const companyMap = useMemo(() => {
+    return new Map(companies.map((company) => [company.id, company]));
+  }, [companies]);
 
-    try {
-      const [requestsResult, fundsResult, paychecksResult, paymentsResult] =
-        await Promise.all([
+  const paycheckMap = useMemo(() => {
+    return new Map(paychecks.map((paycheck) => [paycheck.id, paycheck]));
+  }, [paychecks]);
+
+  const paycheckByRunAndUserMap = useMemo(() => {
+    return new Map(
+      paychecks.map((paycheck) => [
+        `${paycheck.payroll_run_id}:${paycheck.user_id}`,
+        paycheck,
+      ])
+    );
+  }, [paychecks]);
+
+  const requestByPaycheckIdMap = useMemo(() => {
+    const map = new Map<string, PaycheckRequestRow>();
+
+    requests.forEach((request) => {
+      if (request.linked_paycheck_id) {
+        map.set(request.linked_paycheck_id, request);
+      }
+    });
+
+    return map;
+  }, [requests]);
+
+  const bankAccountMap = useMemo(() => {
+    return new Map(bankAccounts.map((bank) => [bank.id, bank]));
+  }, [bankAccounts]);
+
+  const payrollRunMap = useMemo(() => {
+    return new Map(payrollRuns.map((run) => [run.id, run]));
+  }, [payrollRuns]);
+
+  const paymentsByPaycheckId = useMemo(() => {
+    const map = new Map<string, PayrollPaymentRow[]>();
+
+    payments.forEach((payment) => {
+      const current = map.get(payment.paycheck_id) || [];
+      current.push(payment);
+      map.set(payment.paycheck_id, current);
+    });
+
+    return map;
+  }, [payments]);
+
+  const paymentsByRunId = useMemo(() => {
+    const map = new Map<string, PayrollPaymentRow[]>();
+
+    payments.forEach((payment) => {
+      const paycheck = paycheckMap.get(payment.paycheck_id);
+      if (!paycheck) return;
+
+      const current = map.get(paycheck.payroll_run_id) || [];
+      current.push(payment);
+      map.set(paycheck.payroll_run_id, current);
+    });
+
+    return map;
+  }, [paycheckMap, payments]);
+
+  const requestsByRunId = useMemo(() => {
+    const map = new Map<string, PaycheckRequestRow[]>();
+
+    requests.forEach((request) => {
+      if (!request.linked_payroll_run_id) return;
+
+      const current = map.get(request.linked_payroll_run_id) || [];
+      current.push(request);
+      map.set(request.linked_payroll_run_id, current);
+    });
+
+    return map;
+  }, [requests]);
+
+  const enrichedRequests = useMemo<EnrichedPaycheckRequest[]>(() => {
+    return requests.map((request) => {
+      const derivedPaycheck =
+        request.linked_paycheck_id
+          ? paycheckMap.get(request.linked_paycheck_id) || null
+          : request.linked_payroll_run_id
+            ? paycheckByRunAndUserMap.get(
+                `${request.linked_payroll_run_id}:${request.employee_user_id}`
+              ) || null
+            : null;
+
+      const resolvedPaycheckId = request.linked_paycheck_id || derivedPaycheck?.id || null;
+      const nextStep = getRequestNextStep({
+        ...request,
+        linked_paycheck_id: resolvedPaycheckId,
+      });
+
+      return {
+        ...request,
+        linked_paycheck_id: resolvedPaycheckId,
+        employeeName: getEmployeeNameFromRequest(request),
+        employeeLabel: getEmployeeLabelFromRequest(request),
+        companyName: request.company_id
+          ? companyMap.get(request.company_id)?.legal_name ||
+            companyMap.get(request.company_id)?.name ||
+            "Company selected"
+          : "No company selected",
+        payProfileLabel: request.pay_profile
+          ? [
+              request.pay_profile.profile_number || "Pay Profile",
+              formatLabel(request.pay_profile.pay_type),
+              formatLabel(request.pay_profile.payment_frequency),
+              request.pay_profile.currency_code,
+            ]
+              .filter(Boolean)
+              .join(" • ")
+          : "No pay profile",
+        targetAmount: getRequestTargetAmount(request),
+        resolvedPaycheckId,
+        nextStepLabel: nextStep.label,
+        nextStepTone: nextStep.tone,
+      };
+    });
+  }, [companyMap, paycheckByRunAndUserMap, paycheckMap, requests]);
+
+  const enrichedPaychecks = useMemo<EnrichedPaycheck[]>(() => {
+    return paychecks.map((paycheck) => {
+      const request = requestByPaycheckIdMap.get(paycheck.id) || null;
+      const paycheckPayments = paymentsByPaycheckId.get(paycheck.id) || [];
+      const paidAmount = paycheckPayments
+        .filter((payment) => payment.status === "confirmed")
+        .reduce((sum, payment) => sum + toNumber(payment.paycheck_amount || payment.amount), 0);
+
+      return {
+        ...paycheck,
+        employeeName: request ? getEmployeeNameFromRequest(request) : "Employee",
+        employeeLabel: request ? getEmployeeLabelFromRequest(request) : paycheck.user_id,
+        requestNumber: request?.request_number || request?.reference_number || "No request",
+        requestId: request?.id || null,
+        requestStatus: request?.status || null,
+        reviewStatus: request?.review_status || null,
+        recipientStatus: request?.recipient_confirmation_status || null,
+        currencyCode: request?.requested_currency_code || "USD",
+        paidAmount,
+        remainingAmount: Math.max(toNumber(paycheck.net_pay) - paidAmount, 0),
+      };
+    });
+  }, [paychecks, paymentsByPaycheckId, requestByPaycheckIdMap]);
+
+  const enrichedRuns = useMemo<EnrichedPayrollRun[]>(() => {
+    return payrollRuns.map((run) => {
+      const runPayments = paymentsByRunId.get(run.id) || [];
+      const runRequests = requestsByRunId.get(run.id) || [];
+      const runPaychecks = paychecks.filter((paycheck) => paycheck.payroll_run_id === run.id);
+      const fundingCurrency = run.funding_currency_code || "USD";
+      const allocatedAmount = toNumber(run.allocated_funding_amount);
+      const usedAmount = runPayments
+        .filter((payment) => payment.status === "confirmed")
+        .filter((payment) => (payment.payment_currency_code || fundingCurrency) === fundingCurrency)
+        .reduce((sum, payment) => sum + toNumber(payment.payment_amount || payment.amount), 0);
+
+      return {
+        ...run,
+        periodLabel: run.payroll_period
+          ? `${formatDate(run.payroll_period.period_start)} → ${formatDate(
+              run.payroll_period.period_end
+            )}`
+          : "No payroll period",
+        companyName: run.funding_company_id
+          ? companyMap.get(run.funding_company_id)?.legal_name ||
+            companyMap.get(run.funding_company_id)?.name ||
+            "Funding company"
+          : "No funding company",
+        bankLabel: run.funding_bank_account_id
+          ? getBankLabel(bankAccountMap.get(run.funding_bank_account_id))
+          : "No bank selected",
+        fundingCurrency,
+        allocatedAmount,
+        usedAmount,
+        remainingAmount: allocatedAmount - usedAmount,
+        paycheckCount: runPaychecks.length,
+        requestCount: runRequests.length,
+      };
+    });
+  }, [bankAccountMap, companyMap, paychecks, paymentsByRunId, payrollRuns, requestsByRunId]);
+
+  const enrichedPayments = useMemo<EnrichedPayrollPayment[]>(() => {
+    return payments.map((payment) => {
+      const paycheck = paycheckMap.get(payment.paycheck_id) || null;
+      const request = paycheck ? requestByPaycheckIdMap.get(paycheck.id) || null : null;
+
+      return {
+        ...payment,
+        employeeName: request ? getEmployeeNameFromRequest(request) : "Employee",
+        paycheckNumber: paycheck?.paycheck_number || "Paycheck",
+        requestNumber: request?.request_number || request?.reference_number || "No request",
+        bankLabel: payment.bank_account_id
+          ? getBankLabel(bankAccountMap.get(payment.bank_account_id))
+          : "No bank selected",
+      };
+    });
+  }, [bankAccountMap, paycheckMap, payments, requestByPaycheckIdMap]);
+
+  const normalizedSearch = searchQuery.trim().toLowerCase();
+
+  const filteredRequests = useMemo(() => {
+    if (!normalizedSearch) return enrichedRequests;
+
+    return enrichedRequests.filter((request) => {
+      const content = [
+        request.request_number,
+        request.reference_number,
+        request.employeeName,
+        request.employeeLabel,
+        request.companyName,
+        request.payProfileLabel,
+        request.status,
+        request.review_status,
+        request.signed_form_status,
+        request.admin_signed_form_status,
+        request.recipient_confirmation_status,
+        request.requested_currency_code,
+        request.nextStepLabel,
+      ]
+        .filter(Boolean)
+        .join(" ")
+        .toLowerCase();
+
+      return content.includes(normalizedSearch);
+    });
+  }, [enrichedRequests, normalizedSearch]);
+
+  const filteredPaychecks = useMemo(() => {
+    if (!normalizedSearch) return enrichedPaychecks;
+
+    return enrichedPaychecks.filter((paycheck) => {
+      const content = [
+        paycheck.paycheck_number,
+        paycheck.employeeName,
+        paycheck.employeeLabel,
+        paycheck.requestNumber,
+        paycheck.payment_status,
+        paycheck.requestStatus,
+        paycheck.reviewStatus,
+        paycheck.recipientStatus,
+        paycheck.currencyCode,
+      ]
+        .filter(Boolean)
+        .join(" ")
+        .toLowerCase();
+
+      return content.includes(normalizedSearch);
+    });
+  }, [enrichedPaychecks, normalizedSearch]);
+
+  const filteredRuns = useMemo(() => {
+    if (!normalizedSearch) return enrichedRuns;
+
+    return enrichedRuns.filter((run) => {
+      const content = [
+        run.run_number,
+        run.reference_number,
+        run.status,
+        run.allocation_status,
+        run.companyName,
+        run.bankLabel,
+        run.fundingCurrency,
+        run.allocation_reference,
+        run.allocation_notes,
+        run.periodLabel,
+      ]
+        .filter(Boolean)
+        .join(" ")
+        .toLowerCase();
+
+      return content.includes(normalizedSearch);
+    });
+  }, [enrichedRuns, normalizedSearch]);
+
+  const filteredPayments = useMemo(() => {
+    if (!normalizedSearch) return enrichedPayments;
+
+    return enrichedPayments.filter((payment) => {
+      const content = [
+        payment.payment_number,
+        payment.reference_number,
+        payment.employeeName,
+        payment.paycheckNumber,
+        payment.requestNumber,
+        payment.status,
+        payment.bankLabel,
+        payment.paycheck_currency_code,
+        payment.payment_currency_code,
+        payment.conversion_source,
+      ]
+        .filter(Boolean)
+        .join(" ")
+        .toLowerCase();
+
+      return content.includes(normalizedSearch);
+    });
+  }, [enrichedPayments, normalizedSearch]);
+
+  const activeRequestRows = filteredRequests.filter(isWorkflowActive);
+  const archivedRequestRows = filteredRequests.filter(isWorkflowArchived);
+  const deletedRequestRows = filteredRequests.filter(isWorkflowDeleted);
+
+  const pendingRequestRows = activeRequestRows.filter((request) =>
+    ["draft", "submitted", "needs_correction"].includes(request.status)
+  );
+
+  const approvedRequestRows = activeRequestRows.filter(
+    (request) =>
+      request.status === "approved_for_payroll" ||
+      Boolean(request.linked_paycheck_id)
+  );
+
+  const confirmationRows = activeRequestRows.filter((request) =>
+    ["payment_sent", "received_confirmed", "not_received", "disputed"].includes(
+      request.status
+    ) ||
+    ["pending_confirmation", "received_confirmed", "not_received", "disputed"].includes(
+      request.recipient_confirmation_status || ""
+    )
+  );
+
+  const activePaycheckRows = filteredPaychecks;
+  const activeRunRows = filteredRuns.filter(isExecutionActive);
+  const archivedRunRows = filteredRuns.filter(isExecutionArchived);
+  const deletedRunRows = filteredRuns.filter(isExecutionDeleted);
+
+  const activePaymentRows = filteredPayments.filter(isExecutionActive);
+  const archivedPaymentRows = filteredPayments.filter(isExecutionArchived);
+  const deletedPaymentRows = filteredPayments.filter(isExecutionDeleted);
+
+  const archivedExecutionRows = [...archivedRunRows, ...archivedPaymentRows].sort((a, b) =>
+    String(b.updated_at || "").localeCompare(String(a.updated_at || ""))
+  );
+
+  const deletedExecutionRows = [...deletedRunRows, ...deletedPaymentRows].sort((a, b) =>
+    String(b.updated_at || "").localeCompare(String(a.updated_at || ""))
+  );
+
+  const metrics = useMemo(() => {
+    const readyToCreatePaycheck = activeRequestRows.filter(
+      (request) =>
+        request.status === "approved_for_payroll" &&
+        request.review_status === "approved" &&
+        !request.linked_paycheck_id
+    ).length;
+
+    const waitingConfirmation = activeRequestRows.filter((request) =>
+      ["payment_sent", "pending_confirmation"].includes(
+        request.recipient_confirmation_status || request.status
+      )
+    ).length;
+
+    const allocatedTotal = activeRunRows.reduce(
+      (sum, run) => sum + run.allocatedAmount,
+      0
+    );
+
+    const usedTotal = activeRunRows.reduce((sum, run) => sum + run.usedAmount, 0);
+
+    return {
+      pendingRequests: pendingRequestRows.length,
+      approvedRequests: approvedRequestRows.length,
+      readyToCreatePaycheck,
+      activePaychecks: activePaycheckRows.length,
+      waitingConfirmation,
+      allocatedFunds: allocatedTotal,
+      usedFunds: usedTotal,
+      remainingFunds: allocatedTotal - usedTotal,
+      paymentRecords: activePaymentRows.length,
+      workflowArchived: archivedRequestRows.length,
+      workflowDeleted: deletedRequestRows.length,
+      executionArchived: archivedExecutionRows.length,
+      executionDeleted: deletedExecutionRows.length,
+    };
+  }, [
+    activePaycheckRows.length,
+    activePaymentRows.length,
+    activeRequestRows,
+    activeRunRows,
+    approvedRequestRows.length,
+    archivedExecutionRows.length,
+    archivedRequestRows.length,
+    deletedExecutionRows.length,
+    deletedRequestRows.length,
+    pendingRequestRows.length,
+  ]);
+
+  const activeTabMeta = allTabs.find((tab) => tab.key === activeTab) || allTabs[0];
+
+  const loadPayrollControl = useCallback(
+    async (mode: "initial" | "silent" = "initial") => {
+      if (mode === "initial" && !hasLoadedOnce) {
+        setIsLoading(true);
+      } else {
+        setIsRefreshing(true);
+      }
+
+      setPageError(null);
+
+      try {
+        const [
+          requestsResult,
+          companiesResult,
+          paychecksResult,
+          payrollRunsResult,
+          paymentsResult,
+          bankAccountsResult,
+        ] = await Promise.all([
           supabase
             .from("finance_paycheck_requests")
             .select(
@@ -1432,7 +1168,41 @@ export default function PayrollMainPage() {
                 "pay_profile:finance_pay_profiles!finance_paycheck_requests_pay_profile_id_fkey(id, profile_number, user_id, pay_type, payment_frequency, currency_code)",
               ].join(", ")
             )
-            .order("created_at", { ascending: false }),
+            .order("updated_at", { ascending: false })
+            .limit(500),
+
+          supabase
+            .from("finance_companies")
+            .select("id, name, legal_name")
+            .order("name"),
+
+          supabase
+            .from("finance_paychecks")
+            .select(
+              [
+                "id",
+                "payroll_run_id",
+                "user_id",
+                "paycheck_number",
+                "payment_status",
+                "gross_pay",
+                "deduction_total",
+                "bonus_total",
+                "reimbursement_total",
+                "net_pay",
+                "paid_at",
+                "bank_account_id",
+                "reference_number",
+                "notes",
+                "metadata",
+                "project_id",
+                "task_id",
+                "created_at",
+                "updated_at",
+              ].join(", ")
+            )
+            .order("updated_at", { ascending: false })
+            .limit(500),
 
           supabase
             .from("finance_payroll_runs")
@@ -1479,385 +1249,125 @@ export default function PayrollMainPage() {
                 "funding_bank_account:finance_bank_accounts!finance_payroll_runs_funding_bank_account_id_fkey(id, code, name, account_type, institution_name, masked_account_number, status, beneficiary_name, currency_code, swift_code, iban, bank_name, company_id)",
               ].join(", ")
             )
-            .order("created_at", { ascending: false }),
-
-          supabase
-            .from("finance_paychecks")
-            .select("id, payroll_run_id, user_id, payment_status, net_pay"),
+            .order("updated_at", { ascending: false })
+            .limit(300),
 
           supabase
             .from("finance_payroll_payments")
             .select(
-              "id, paycheck_id, status, amount, paycheck_amount, payment_amount, paycheck_currency_code, payment_currency_code"
-            ),
+              [
+                "id",
+                "payment_number",
+                "paycheck_id",
+                "user_id",
+                "amount",
+                "payment_date",
+                "payment_method_id",
+                "bank_account_id",
+                "status",
+                "reference_number",
+                "notes",
+                "metadata",
+                "paycheck_currency_code",
+                "payment_currency_code",
+                "paycheck_amount",
+                "payment_amount",
+                "conversion_rate",
+                "conversion_date",
+                "conversion_source",
+                "conversion_metadata",
+                "created_at",
+                "updated_at",
+              ].join(", ")
+            )
+            .order("updated_at", { ascending: false })
+            .limit(500),
+
+          supabase
+            .from("finance_bank_accounts")
+            .select(
+              "id, code, name, account_type, institution_name, masked_account_number, status, beneficiary_name, currency_code, swift_code, iban, bank_name, company_id"
+            )
+            .order("name"),
         ]);
 
-      if (requestsResult.error) throw requestsResult.error;
-      if (fundsResult.error) throw fundsResult.error;
-      if (paychecksResult.error) throw paychecksResult.error;
-      if (paymentsResult.error) throw paymentsResult.error;
+        if (requestsResult.error) throw requestsResult.error;
+        if (companiesResult.error) throw companiesResult.error;
+        if (paychecksResult.error) throw paychecksResult.error;
+        if (payrollRunsResult.error) throw payrollRunsResult.error;
+        if (paymentsResult.error) throw paymentsResult.error;
+        if (bankAccountsResult.error) throw bankAccountsResult.error;
 
-      setRequests((requestsResult.data || []) as unknown as PaycheckRequestRow[]);
-      setFunds((fundsResult.data || []) as unknown as PayrollRunRow[]);
-      setPaychecks((paychecksResult.data || []) as PaycheckRow[]);
-      setPayments((paymentsResult.data || []) as PayrollPaymentRow[]);
-    } catch (error) {
-      console.error("Failed to load payroll main page:", error);
-      setActionError(
-        error instanceof Error ? error.message : "Failed to load payroll main page."
-      );
-      setRequests([]);
-      setFunds([]);
-      setPaychecks([]);
-      setPayments([]);
-    } finally {
-      setIsLoading(false);
-    }
-  }, []);
+        setRequests((requestsResult.data || []) as unknown as PaycheckRequestRow[]);
+        setCompanies((companiesResult.data || []) as CompanyRow[]);
+        setPaychecks((paychecksResult.data || []) as PaycheckRow[]);
+        setPayrollRuns((payrollRunsResult.data || []) as unknown as PayrollRunRow[]);
+        setPayments((paymentsResult.data || []) as unknown as PayrollPaymentRow[]);
+        setBankAccounts((bankAccountsResult.data || []) as BankAccountRow[]);
+        setHasLoadedOnce(true);
+      } catch (error) {
+        console.error("Failed to load payroll control:", error);
+        setPageError(
+          error instanceof Error ? error.message : "Failed to load payroll control."
+        );
+      } finally {
+        setIsLoading(false);
+        setIsRefreshing(false);
+      }
+    },
+    [hasLoadedOnce]
+  );
 
   useEffect(() => {
-    void loadPayrollMain();
-  }, [loadPayrollMain]);
+    void loadPayrollControl("initial");
+  }, [loadPayrollControl]);
 
   useEffect(() => {
     const channel = supabase
-      .channel("finance-payroll-main-page")
+      .channel("finance-payroll-control")
       .on(
         "postgres_changes",
         { event: "*", schema: "public", table: "finance_paycheck_requests" },
-        () => void loadPayrollMain()
-      )
-      .on(
-        "postgres_changes",
-        { event: "*", schema: "public", table: "finance_payroll_runs" },
-        () => void loadPayrollMain()
+        () => void loadPayrollControl("silent")
       )
       .on(
         "postgres_changes",
         { event: "*", schema: "public", table: "finance_paychecks" },
-        () => void loadPayrollMain()
+        () => void loadPayrollControl("silent")
+      )
+      .on(
+        "postgres_changes",
+        { event: "*", schema: "public", table: "finance_payroll_runs" },
+        () => void loadPayrollControl("silent")
       )
       .on(
         "postgres_changes",
         { event: "*", schema: "public", table: "finance_payroll_payments" },
-        () => void loadPayrollMain()
+        () => void loadPayrollControl("silent")
       )
       .subscribe();
 
     const intervalId = window.setInterval(() => {
-      void loadPayrollMain();
+      void loadPayrollControl("silent");
     }, 60000);
 
     return () => {
       window.clearInterval(intervalId);
       supabase.removeChannel(channel);
     };
-  }, [loadPayrollMain]);
+  }, [loadPayrollControl]);
 
-  const paycheckRunMap = useMemo(() => {
-    const map = new Map<string, string>();
-
-    paychecks.forEach((paycheck) => {
-      map.set(paycheck.id, paycheck.payroll_run_id);
-    });
-
-    return map;
-  }, [paychecks]);
-
-  const paycheckByRunAndEmployeeMap = useMemo(() => {
-    const map = new Map<string, PaycheckRow>();
-
-    paychecks.forEach((paycheck) => {
-      map.set(`${paycheck.payroll_run_id}:${paycheck.user_id}`, paycheck);
-    });
-
-    return map;
-  }, [paychecks]);
-
-  const paymentsByRunId = useMemo(() => {
-    const map = new Map<string, PayrollPaymentRow[]>();
-
-    payments.forEach((payment) => {
-      const runId = paycheckRunMap.get(payment.paycheck_id);
-      if (!runId) return;
-
-      const current = map.get(runId) || [];
-      current.push(payment);
-      map.set(runId, current);
-    });
-
-    return map;
-  }, [paycheckRunMap, payments]);
-
-  const requestsByRunId = useMemo(() => {
-    const map = new Map<string, PaycheckRequestRow[]>();
-
-    requests.forEach((request) => {
-      if (!request.linked_payroll_run_id) return;
-
-      const current = map.get(request.linked_payroll_run_id) || [];
-      current.push(request);
-      map.set(request.linked_payroll_run_id, current);
-    });
-
-    return map;
-  }, [requests]);
-
-  const enrichedFunds = useMemo<EnrichedPayrollRunRow[]>(() => {
-    return funds.map((fund) => {
-      const runPaychecks = paychecks.filter(
-        (paycheck) => paycheck.payroll_run_id === fund.id
-      );
-      const runPayments = paymentsByRunId.get(fund.id) || [];
-      const runRequests = requestsByRunId.get(fund.id) || [];
-      const fundingCurrency = fund.funding_currency_code || "USD";
-      const allocatedAmount = toNumber(fund.allocated_funding_amount);
-
-      const usedAmount = runPayments.reduce((sum, payment) => {
-        if (payment.status !== "confirmed") return sum;
-
-        const paymentCurrency = payment.payment_currency_code || fundingCurrency;
-        if (paymentCurrency !== fundingCurrency) return sum;
-
-        return sum + toNumber(payment.payment_amount || payment.amount);
-      }, 0);
-
-      return {
-        ...fund,
-        periodName: getPeriodName(fund),
-        periodLabel: getPeriodLabel(fund),
-        companyName: "Funding company",
-        bankLabel: getBankLabel(fund.funding_bank_account),
-        fundingCurrency,
-        allocatedAmount,
-        usedAmount,
-        remainingAmount: allocatedAmount - usedAmount,
-        linkedRequestCount: runRequests.length,
-        paycheckCount: runPaychecks.length,
-        paidPaycheckCount: runPaychecks.filter(
-          (paycheck) => paycheck.payment_status === "paid"
-        ).length,
-        confirmedPaymentCount: runPayments.filter(
-          (payment) => payment.status === "confirmed"
-        ).length,
-      };
-    });
-  }, [funds, paymentsByRunId, paychecks, requestsByRunId]);
-
-  const fundRunMap = useMemo(() => {
-    return new Map(enrichedFunds.map((fund) => [fund.id, fund]));
-  }, [enrichedFunds]);
-
-  const enrichedRequests = useMemo<EnrichedPaycheckRequestRow[]>(() => {
-    return requests.map((request) => {
-      const nextStep = getNextRequestStep(request);
-
-      const derivedPaycheck =
-        request.linked_paycheck_id
-          ? null
-          : request.linked_payroll_run_id
-            ? paycheckByRunAndEmployeeMap.get(
-                `${request.linked_payroll_run_id}:${request.employee_user_id}`
-              ) || null
-            : null;
-
-      const resolvedLinkedPaycheckId =
-        request.linked_paycheck_id || derivedPaycheck?.id || null;
-
-      return {
-        ...request,
-        linked_paycheck_id: resolvedLinkedPaycheckId,
-        employeeName: getEmployeeName(request),
-        employeeLabel: getEmployeeLabel(request),
-        companyName: request.company_id ? "Company selected" : "No company selected",
-        payProfileLabel: getPayProfileLabel(request),
-        periodLabel: getRequestPeriodLabel(request),
-        connectedFundLabel: getConnectedFundLabel(request, fundRunMap),
-        nextStepLabel: resolvedLinkedPaycheckId
-          ? "Payroll paycheck created — open payroll page"
-          : nextStep.label,
-        nextStepTone: resolvedLinkedPaycheckId ? "emerald" : nextStep.tone,
-      };
-    });
-  }, [fundRunMap, paycheckByRunAndEmployeeMap, requests]);
-
-  const activeRequests = useMemo(() => {
-    return enrichedRequests.filter(
-      (request) => request.status !== "archived" && request.status !== "deleted"
-    );
-  }, [enrichedRequests]);
-
-  const activeFunds = useMemo(() => {
-    return enrichedFunds.filter(
-      (fund) => fund.status !== "archived" && fund.status !== "deleted"
-    );
-  }, [enrichedFunds]);
-
-  const archivedFunds = useMemo(() => {
-    return enrichedFunds.filter((fund) => fund.status === "archived");
-  }, [enrichedFunds]);
-
-  const deletedFunds = useMemo(() => {
-    return enrichedFunds.filter((fund) => fund.status === "deleted");
-  }, [enrichedFunds]);
-
-  const filteredRequests = useMemo(() => {
-    const query = requestSearch.trim().toLowerCase();
-
-    if (!query) return activeRequests;
-
-    return activeRequests.filter((request) => {
-      const haystack = [
-        request.request_number,
-        request.reference_number,
-        request.employeeName,
-        request.employeeLabel,
-        request.companyName,
-        request.payProfileLabel,
-        request.periodLabel,
-        request.requested_currency_code,
-        request.status,
-        request.review_status,
-        request.signed_form_status,
-        request.admin_signed_form_status,
-        request.recipient_confirmation_status,
-        request.connectedFundLabel,
-        request.nextStepLabel,
-      ]
-        .filter(Boolean)
-        .join(" ")
-        .toLowerCase();
-
-      return haystack.includes(query);
-    });
-  }, [activeRequests, requestSearch]);
-
-  const filteredFunds = useMemo(() => {
-    const query = fundSearch.trim().toLowerCase();
-
-    const sourceRows = archiveOpen
-      ? archiveTab === "archived"
-        ? archivedFunds
-        : deletedFunds
-      : activeFunds;
-
-    if (!query) return sourceRows;
-
-    return sourceRows.filter((fund) => {
-      const haystack = [
-        fund.run_number,
-        fund.reference_number,
-        fund.periodName,
-        fund.periodLabel,
-        fund.status,
-        fund.allocation_status,
-        fund.fundingCurrency,
-        fund.companyName,
-        fund.bankLabel,
-        fund.allocation_reference,
-        fund.allocation_notes,
-        fund.notes,
-      ]
-        .filter(Boolean)
-        .join(" ")
-        .toLowerCase();
-
-      return haystack.includes(query);
-    });
-  }, [activeFunds, archiveOpen, archiveTab, archivedFunds, deletedFunds, fundSearch]);
-
-  const sortedRequests = useMemo(() => {
-    return sortRequestRows(filteredRequests, requestSortKey, requestSortDirection);
-  }, [filteredRequests, requestSortDirection, requestSortKey]);
-
-  const sortedFunds = useMemo(() => {
-    return sortFundRows(filteredFunds, fundSortKey, fundSortDirection);
-  }, [filteredFunds, fundSortDirection, fundSortKey]);
-
-  const metrics = useMemo(() => {
-    const submittedRequests = activeRequests.filter((request) =>
-      ["submitted", "needs_correction"].includes(request.status)
-    ).length;
-
-    const approvedRequests = activeRequests.filter(
-      (request) => request.status === "approved_for_payroll"
-    ).length;
-
-    const linkedRequests = activeRequests.filter((request) =>
-      Boolean(request.linked_payroll_run_id)
-    ).length;
-
-    const pendingAdminSignature = activeRequests.filter(
-      (request) =>
-        ["submitted", "needs_correction"].includes(request.status) &&
-        request.review_status !== "approved" &&
-        !["uploaded", "linked", "files_and_links"].includes(
-          request.admin_signed_form_status || "not_uploaded"
-        )
-    ).length;
-
-    const totalAllocated = activeFunds.reduce(
-      (sum, fund) => sum + fund.allocatedAmount,
-      0
-    );
-
-    const totalUsed = activeFunds.reduce((sum, fund) => sum + fund.usedAmount, 0);
-
-    const totalRemaining = activeFunds.reduce(
-      (sum, fund) => sum + fund.remainingAmount,
-      0
-    );
-
-    return {
-      activeRequests: activeRequests.length,
-      submittedRequests,
-      approvedRequests,
-      linkedRequests,
-      pendingAdminSignature,
-      activeFunds: activeFunds.length,
-      totalAllocated,
-      totalUsed,
-      totalRemaining,
-      archivedFunds: archivedFunds.length,
-      deletedFunds: deletedFunds.length,
-    };
-  }, [activeFunds, activeRequests, archivedFunds.length, deletedFunds.length]);
-
-  const handleRequestSort = useCallback(
-    (key: RequestSortKey) => {
-      if (requestSortKey === key) {
-        setRequestSortDirection((current) =>
-          current === "asc" ? "desc" : "asc"
-        );
-        return;
-      }
-
-      setRequestSortKey(key);
-      setRequestSortDirection("asc");
-    },
-    [requestSortKey]
-  );
-
-  const handleFundSort = useCallback(
-    (key: FundSortKey) => {
-      if (fundSortKey === key) {
-        setFundSortDirection((current) => (current === "asc" ? "desc" : "asc"));
-        return;
-      }
-
-      setFundSortKey(key);
-      setFundSortDirection("asc");
-    },
-    [fundSortKey]
-  );
-
-  const runPayrollRunRpcAction = useCallback(
-    async (rpcName: string, payrollRunId: string, successMessage: string) => {
+  const runRpcAction = useCallback(
+    async (
+      rpcName: string,
+      args: Record<string, string>,
+      successMessage: string
+    ) => {
       if (isRunningAction) return;
 
       setIsRunningAction(true);
-      setActionError(null);
-      setActionMessage(null);
+      setPageError(null);
+      setPageMessage(null);
 
       try {
         const {
@@ -1869,69 +1379,700 @@ export default function PayrollMainPage() {
         }
 
         const result = await supabase.rpc(rpcName, {
-          p_payroll_run_id: payrollRunId,
+          ...args,
           p_actor_user_id: user.id,
         });
 
         if (result.error) throw result.error;
 
-        setActionMessage(successMessage);
-        await loadPayrollMain();
+        setPageMessage(successMessage);
+        await loadPayrollControl("silent");
       } catch (error) {
         console.error(`Failed to run ${rpcName}:`, error);
-        setActionError(error instanceof Error ? error.message : "Action failed.");
+        setPageError(error instanceof Error ? error.message : "Action failed.");
       } finally {
         setIsRunningAction(false);
       }
     },
-    [isRunningAction, loadPayrollMain]
+    [isRunningAction, loadPayrollControl]
   );
 
-  const archiveFund = useCallback(
-    async (id: string) => {
-      await runPayrollRunRpcAction(
-        "finance_archive_payroll_run",
-        id,
-        "Payroll fund basket archived."
+  const preparePayrollFromRequest = useCallback(
+    async (requestId: string) => {
+      if (isRunningAction) return;
+
+      setIsRunningAction(true);
+      setPageError(null);
+      setPageMessage(null);
+
+      try {
+        const {
+          data: { user },
+        } = await supabase.auth.getUser();
+
+        if (!user?.id) {
+          throw new Error("You must be signed in to create a payroll paycheck.");
+        }
+
+        const result = await supabase.rpc(
+          "finance_create_paycheck_from_approved_request",
+          {
+            p_request_id: requestId,
+            p_actor_user_id: user.id,
+          }
+        );
+
+        if (result.error) throw result.error;
+
+        const paycheckId = result.data as string | null;
+
+        if (!paycheckId) {
+          throw new Error("Payroll paycheck was not returned by the backend.");
+        }
+
+        setPageMessage("Payroll paycheck created.");
+        await loadPayrollControl("silent");
+        navigate(`/finance/transactions/payroll/${paycheckId}`);
+      } catch (error) {
+        console.error("Failed to prepare payroll paycheck:", error);
+        setPageError(
+          error instanceof Error ? error.message : "Failed to prepare payroll paycheck."
+        );
+      } finally {
+        setIsRunningAction(false);
+      }
+    },
+    [isRunningAction, loadPayrollControl, navigate]
+  );
+
+  const runWorkflowAction = useCallback(
+    async (
+      action: "archive" | "delete" | "restore" | "hard_delete",
+      requestId: string
+    ) => {
+      const rpcMap = {
+        archive: "finance_archive_paycheck_request",
+        delete: "finance_delete_paycheck_request",
+        restore: "finance_restore_paycheck_request",
+        hard_delete: "finance_hard_delete_paycheck_request",
+      };
+
+      const messageMap = {
+        archive: "Paycheck request moved to Workflow Archive.",
+        delete: "Paycheck request moved to Deleted Workflow records.",
+        restore: "Paycheck request restored.",
+        hard_delete: "Paycheck request permanently deleted.",
+      };
+
+      await runRpcAction(
+        rpcMap[action],
+        { p_request_id: requestId },
+        messageMap[action]
       );
     },
-    [runPayrollRunRpcAction]
+    [runRpcAction]
   );
 
-  const deleteFund = useCallback(
-    async (id: string) => {
-      await runPayrollRunRpcAction(
-        "finance_delete_payroll_run",
-        id,
-        "Payroll fund basket moved to deleted."
+  const runPayrollRunAction = useCallback(
+    async (
+      action: "archive" | "delete" | "restore" | "hard_delete",
+      payrollRunId: string
+    ) => {
+      const rpcMap = {
+        archive: "finance_archive_payroll_run",
+        delete: "finance_delete_payroll_run",
+        restore: "finance_restore_payroll_run",
+        hard_delete: "finance_hard_delete_payroll_run",
+      };
+
+      const messageMap = {
+        archive: "Allocated payroll fund record moved to Execution Archive.",
+        delete: "Allocated payroll fund record moved to Deleted Execution records.",
+        restore: "Allocated payroll fund record restored.",
+        hard_delete: "Allocated payroll fund record permanently deleted.",
+      };
+
+      await runRpcAction(
+        rpcMap[action],
+        { p_payroll_run_id: payrollRunId },
+        messageMap[action]
       );
     },
-    [runPayrollRunRpcAction]
+    [runRpcAction]
   );
 
-  const restoreFund = useCallback(
-    async (id: string) => {
-      await runPayrollRunRpcAction(
-        "finance_restore_payroll_run",
-        id,
-        "Payroll fund basket restored."
+  const openArchiveModal = useCallback((scope: ArchiveScope) => {
+    setArchiveScope(scope);
+    setArchiveTab("archived");
+    setArchiveModalOpen(true);
+  }, []);
+
+  const renderRequestRows = useCallback(
+    (rows: EnrichedPaycheckRequest[], mode: "active" | "archive") => {
+      if (rows.length === 0) {
+        return (
+          <tr>
+            <td colSpan={11} className="px-5 py-12 text-center">
+              <div className="text-sm font-medium text-white">
+                No paycheck request records found
+              </div>
+              <div className="mt-2 text-sm text-slate-500">
+                Matching paycheck workflow records will appear here.
+              </div>
+            </td>
+          </tr>
+        );
+      }
+
+      return rows.map((request) => {
+        const canPreparePayroll =
+          request.status === "approved_for_payroll" &&
+          request.review_status === "approved";
+
+        return (
+          <tr
+            key={request.id}
+            className="border-b border-white/5 text-sm text-slate-300 transition hover:bg-white/[0.035]"
+          >
+            <td className="min-w-[250px] px-5 py-4">
+              <div className="font-semibold text-cyan-200">
+                {request.request_number || request.reference_number || "Paycheck Request"}
+              </div>
+              <div className="mt-1 line-clamp-1 text-xs text-white">
+                {request.employeeName}
+              </div>
+              <div className="mt-1 text-xs text-slate-500">
+                {formatDate(request.period_start)} → {formatDate(request.period_end)}
+              </div>
+            </td>
+
+            <td className="min-w-[240px] px-5 py-4">
+              <div className="line-clamp-1 font-medium text-slate-200">
+                {request.employeeLabel || "Employee"}
+              </div>
+              <div className="mt-1 text-xs text-slate-500">
+                {request.companyName}
+              </div>
+            </td>
+
+            <td className="min-w-[220px] px-5 py-4">
+              <div className="font-medium text-slate-200">
+                {request.payProfileLabel}
+              </div>
+              <div className="mt-1 text-xs text-slate-500">
+                Pay date {formatDate(request.requested_pay_date)}
+              </div>
+            </td>
+
+            <td className="whitespace-nowrap px-5 py-4 text-right font-semibold text-white">
+              {request.requested_currency_code || "USD"} {formatMoney(request.targetAmount)}
+              <div className="mt-1 text-xs text-slate-500">
+                Gross {formatMoney(request.requested_gross_amount)}
+              </div>
+            </td>
+
+            <td className="whitespace-nowrap px-5 py-4">
+              <StatusBadge value={request.status} />
+            </td>
+
+            <td className="whitespace-nowrap px-5 py-4">
+              <StatusBadge value={request.review_status} />
+            </td>
+
+            <td className="whitespace-nowrap px-5 py-4">
+              <StatusBadge value={request.signed_form_status} />
+            </td>
+
+            <td className="whitespace-nowrap px-5 py-4">
+              <StatusBadge value={request.admin_signed_form_status || "not_uploaded"} />
+            </td>
+
+            <td className="whitespace-nowrap px-5 py-4">
+              <StatusBadge value={request.recipient_confirmation_status} />
+            </td>
+
+            <td className="min-w-[300px] px-5 py-4">
+              <SoftBadge value={request.nextStepLabel} tone={request.nextStepTone} />
+              <div className="mt-2 text-xs text-slate-500">
+                {request.resolvedPaycheckId
+                  ? "Payroll paycheck exists"
+                  : "No payroll paycheck yet"}
+              </div>
+            </td>
+
+            <td className="sticky right-0 bg-[#05070d]/95 px-4 py-4 shadow-[-18px_0_24px_rgba(0,0,0,0.35)] backdrop-blur-xl">
+              <div className="flex items-center justify-end gap-2">
+                {mode === "active" ? (
+                  <>
+                    <IconButton
+                      label="Open payroll paycheck"
+                      icon={CreditCard}
+                      tone={request.resolvedPaycheckId ? "emerald" : "amber"}
+                      disabled={isRunningAction || (!request.resolvedPaycheckId && !canPreparePayroll)}
+                      onClick={() => {
+                        if (request.resolvedPaycheckId) {
+                          navigate(`/finance/transactions/payroll/${request.resolvedPaycheckId}`);
+                          return;
+                        }
+
+                        void preparePayrollFromRequest(request.id);
+                      }}
+                    />
+
+                    <IconButton
+                      label="Archive paycheck request"
+                      icon={Archive}
+                      tone="amber"
+                      disabled={isRunningAction}
+                      onClick={() => void runWorkflowAction("archive", request.id)}
+                    />
+
+                    <IconButton
+                      label="Delete paycheck request"
+                      icon={Trash2}
+                      tone="rose"
+                      disabled={isRunningAction}
+                      onClick={() => void runWorkflowAction("delete", request.id)}
+                    />
+                  </>
+                ) : archiveTab === "archived" ? (
+                  <IconButton
+                    label="Restore paycheck request"
+                    icon={RotateCcw}
+                    tone="emerald"
+                    disabled={isRunningAction}
+                    onClick={() => void runWorkflowAction("restore", request.id)}
+                  />
+                ) : (
+                  <>
+                    <IconButton
+                      label="Restore paycheck request"
+                      icon={RotateCcw}
+                      tone="emerald"
+                      disabled={isRunningAction}
+                      onClick={() => void runWorkflowAction("restore", request.id)}
+                    />
+                    <IconButton
+                      label="Hard delete paycheck request"
+                      icon={Trash2}
+                      tone="rose"
+                      disabled={isRunningAction}
+                      onClick={() => void runWorkflowAction("hard_delete", request.id)}
+                    />
+                  </>
+                )}
+              </div>
+            </td>
+          </tr>
+        );
+      });
+    },
+    [
+      archiveTab,
+      isRunningAction,
+      navigate,
+      preparePayrollFromRequest,
+      runWorkflowAction,
+    ]
+  );
+
+  const renderRequestTable = useCallback(
+    (rows: EnrichedPaycheckRequest[], mode: "active" | "archive" = "active") => {
+      return (
+        <div className="overflow-x-auto rounded-[24px] border border-white/10 bg-black/20">
+          <div className="max-h-[720px] overflow-y-auto">
+            <table className="w-full min-w-[1680px] border-collapse">
+              <thead className="sticky top-0 z-20 border-b border-white/10 bg-black/70 backdrop-blur-xl">
+                <tr>
+                  <th className="px-5 py-4 text-left text-[11px] font-semibold uppercase tracking-[0.18em] text-slate-500">
+                    Request
+                  </th>
+                  <th className="px-5 py-4 text-left text-[11px] font-semibold uppercase tracking-[0.18em] text-slate-500">
+                    Employee
+                  </th>
+                  <th className="px-5 py-4 text-left text-[11px] font-semibold uppercase tracking-[0.18em] text-slate-500">
+                    Pay Profile
+                  </th>
+                  <th className="px-5 py-4 text-right text-[11px] font-semibold uppercase tracking-[0.18em] text-slate-500">
+                    Amount
+                  </th>
+                  <th className="px-5 py-4 text-left text-[11px] font-semibold uppercase tracking-[0.18em] text-slate-500">
+                    Status
+                  </th>
+                  <th className="px-5 py-4 text-left text-[11px] font-semibold uppercase tracking-[0.18em] text-slate-500">
+                    Review
+                  </th>
+                  <th className="px-5 py-4 text-left text-[11px] font-semibold uppercase tracking-[0.18em] text-slate-500">
+                    Employee Form
+                  </th>
+                  <th className="px-5 py-4 text-left text-[11px] font-semibold uppercase tracking-[0.18em] text-slate-500">
+                    Admin Form
+                  </th>
+                  <th className="px-5 py-4 text-left text-[11px] font-semibold uppercase tracking-[0.18em] text-slate-500">
+                    Confirmation
+                  </th>
+                  <th className="px-5 py-4 text-left text-[11px] font-semibold uppercase tracking-[0.18em] text-slate-500">
+                    Next Step
+                  </th>
+                  <th className="sticky right-0 bg-black/70 px-4 py-4 text-right text-[11px] font-semibold uppercase tracking-[0.18em] text-slate-500 shadow-[-18px_0_24px_rgba(0,0,0,0.35)] backdrop-blur-xl">
+                    Actions
+                  </th>
+                </tr>
+              </thead>
+
+              <tbody>{renderRequestRows(rows, mode)}</tbody>
+            </table>
+          </div>
+        </div>
       );
     },
-    [runPayrollRunRpcAction]
+    [renderRequestRows]
   );
 
-  const hardDeleteFund = useCallback(
-    async (id: string) => {
-      await runPayrollRunRpcAction(
-        "finance_hard_delete_payroll_run",
-        id,
-        "Payroll fund basket permanently deleted."
+  const renderPaycheckRows = useCallback(
+    (rows: EnrichedPaycheck[]) => {
+      if (rows.length === 0) {
+        return (
+          <tr>
+            <td colSpan={9} className="px-5 py-12 text-center">
+              <div className="text-sm font-medium text-white">
+                No payroll paycheck records found
+              </div>
+              <div className="mt-2 text-sm text-slate-500">
+                Approved requests become payroll paychecks after pressing the Payroll action.
+              </div>
+            </td>
+          </tr>
+        );
+      }
+
+      return rows.map((paycheck) => (
+        <tr
+          key={paycheck.id}
+          className="border-b border-white/5 text-sm text-slate-300 transition hover:bg-white/[0.035]"
+        >
+          <td className="min-w-[230px] px-5 py-4">
+            <button
+              type="button"
+              onClick={() => navigate(`/finance/transactions/payroll/${paycheck.id}`)}
+              className="text-left font-semibold text-cyan-200 transition hover:text-cyan-100"
+            >
+              {paycheck.paycheck_number || "Payroll Paycheck"}
+            </button>
+            <div className="mt-1 text-xs text-slate-500">
+              Created {formatDate(paycheck.created_at)}
+            </div>
+          </td>
+
+          <td className="min-w-[240px] px-5 py-4">
+            <div className="font-medium text-white">{paycheck.employeeName}</div>
+            <div className="mt-1 text-xs text-slate-500">{paycheck.employeeLabel}</div>
+          </td>
+
+          <td className="min-w-[190px] px-5 py-4">
+            <div className="font-medium text-slate-200">{paycheck.requestNumber}</div>
+            <div className="mt-1 text-xs text-slate-500">
+              Review {formatLabel(paycheck.reviewStatus)}
+            </div>
+          </td>
+
+          <td className="whitespace-nowrap px-5 py-4 text-right font-semibold text-white">
+            {paycheck.currencyCode} {formatMoney(paycheck.net_pay)}
+            <div className="mt-1 text-xs text-slate-500">
+              Paid {paycheck.currencyCode} {formatMoney(paycheck.paidAmount)}
+            </div>
+          </td>
+
+          <td className="whitespace-nowrap px-5 py-4 text-right font-semibold text-amber-100">
+            {paycheck.currencyCode} {formatMoney(paycheck.remainingAmount)}
+          </td>
+
+          <td className="whitespace-nowrap px-5 py-4">
+            <StatusBadge value={paycheck.payment_status} />
+          </td>
+
+          <td className="whitespace-nowrap px-5 py-4">
+            <StatusBadge value={paycheck.requestStatus} />
+          </td>
+
+          <td className="whitespace-nowrap px-5 py-4">
+            <StatusBadge value={paycheck.recipientStatus} />
+          </td>
+
+          <td className="sticky right-0 bg-[#05070d]/95 px-4 py-4 shadow-[-18px_0_24px_rgba(0,0,0,0.35)] backdrop-blur-xl">
+            <div className="flex items-center justify-end gap-2">
+              <IconButton
+                label="Open payroll paycheck"
+                icon={CreditCard}
+                tone="emerald"
+                disabled={isRunningAction}
+                onClick={() => navigate(`/finance/transactions/payroll/${paycheck.id}`)}
+              />
+            </div>
+          </td>
+        </tr>
+      ));
+    },
+    [isRunningAction, navigate]
+  );
+
+  const renderPaycheckTable = useCallback(
+    (rows: EnrichedPaycheck[]) => {
+      return (
+        <div className="overflow-x-auto rounded-[24px] border border-white/10 bg-black/20">
+          <div className="max-h-[720px] overflow-y-auto">
+            <table className="w-full min-w-[1320px] border-collapse">
+              <thead className="sticky top-0 z-20 border-b border-white/10 bg-black/70 backdrop-blur-xl">
+                <tr>
+                  <th className="px-5 py-4 text-left text-[11px] font-semibold uppercase tracking-[0.18em] text-slate-500">
+                    Paycheck
+                  </th>
+                  <th className="px-5 py-4 text-left text-[11px] font-semibold uppercase tracking-[0.18em] text-slate-500">
+                    Employee
+                  </th>
+                  <th className="px-5 py-4 text-left text-[11px] font-semibold uppercase tracking-[0.18em] text-slate-500">
+                    Request
+                  </th>
+                  <th className="px-5 py-4 text-right text-[11px] font-semibold uppercase tracking-[0.18em] text-slate-500">
+                    Net / Paid
+                  </th>
+                  <th className="px-5 py-4 text-right text-[11px] font-semibold uppercase tracking-[0.18em] text-slate-500">
+                    Remaining
+                  </th>
+                  <th className="px-5 py-4 text-left text-[11px] font-semibold uppercase tracking-[0.18em] text-slate-500">
+                    Payment
+                  </th>
+                  <th className="px-5 py-4 text-left text-[11px] font-semibold uppercase tracking-[0.18em] text-slate-500">
+                    Request Status
+                  </th>
+                  <th className="px-5 py-4 text-left text-[11px] font-semibold uppercase tracking-[0.18em] text-slate-500">
+                    Confirmation
+                  </th>
+                  <th className="sticky right-0 bg-black/70 px-4 py-4 text-right text-[11px] font-semibold uppercase tracking-[0.18em] text-slate-500 shadow-[-18px_0_24px_rgba(0,0,0,0.35)] backdrop-blur-xl">
+                    Actions
+                  </th>
+                </tr>
+              </thead>
+
+              <tbody>{renderPaycheckRows(rows)}</tbody>
+            </table>
+          </div>
+        </div>
       );
     },
-    [runPayrollRunRpcAction]
+    [renderPaycheckRows]
   );
 
-  const currentTab = tabMeta[activeTab];
+  const renderExecutionRows = useCallback(
+    (rows: ExecutionRecord[], mode: "active" | "archive") => {
+      if (rows.length === 0) {
+        return (
+          <tr>
+            <td colSpan={8} className="px-5 py-12 text-center">
+              <div className="text-sm font-medium text-white">
+                No payroll execution records found
+              </div>
+              <div className="mt-2 text-sm text-slate-500">
+                Allocated funds and payroll payment records will appear here.
+              </div>
+            </td>
+          </tr>
+        );
+      }
+
+      return rows.map((record) => {
+        const isRun = "run_number" in record;
+        const title = isRun
+          ? record.run_number || record.reference_number || "Allocated Payroll Funds"
+          : record.payment_number || record.reference_number || "Payroll Payment";
+        const amount = isRun
+          ? record.allocatedAmount
+          : record.payment_amount || record.amount;
+        const currency = isRun
+          ? record.fundingCurrency
+          : record.payment_currency_code || "USD";
+        const route = isRun ? "/finance/transactions/payroll" : `/finance/transactions/payroll/${record.paycheck_id}`;
+
+        return (
+          <tr
+            key={`${isRun ? "run" : "payment"}-${record.id}`}
+            className="border-b border-white/5 text-sm text-slate-300 transition hover:bg-white/[0.035]"
+          >
+            <td className="min-w-[240px] px-5 py-4">
+              <div className="font-semibold text-cyan-200">{title}</div>
+              <div className="mt-1 text-xs text-slate-500">
+                {isRun
+                  ? formatDate(record.allocated_funding_date)
+                  : formatDate(record.payment_date)}
+              </div>
+            </td>
+
+            <td className="px-5 py-4">
+              {isRun ? (
+                <SoftBadge value="Allocated Fund Pool" tone="violet" />
+              ) : (
+                <SoftBadge value="Payroll Payment" tone="cyan" />
+              )}
+            </td>
+
+            <td className="min-w-[240px] px-5 py-4">
+              <div className="font-medium text-slate-200">
+                {isRun ? record.companyName : record.employeeName}
+              </div>
+              <div className="mt-1 line-clamp-1 text-xs text-slate-500">
+                {isRun ? record.bankLabel : record.bankLabel}
+              </div>
+            </td>
+
+            <td className="px-5 py-4 text-right font-semibold text-white">
+              {currency} {formatMoney(amount)}
+            </td>
+
+            <td className="px-5 py-4 text-right">
+              {isRun ? (
+                <div>
+                  <div className="font-semibold text-emerald-100">
+                    {record.fundingCurrency} {formatMoney(record.remainingAmount)}
+                  </div>
+                  <div className="mt-1 text-xs text-slate-500">
+                    Used {formatMoney(record.usedAmount)}
+                  </div>
+                </div>
+              ) : (
+                <div>
+                  <div className="font-semibold text-slate-200">
+                    {record.paycheck_currency_code || "USD"}{" "}
+                    {formatMoney(record.paycheck_amount)}
+                  </div>
+                  <div className="mt-1 text-xs text-slate-500">
+                    Rate {record.conversion_rate || "1"}
+                  </div>
+                </div>
+              )}
+            </td>
+
+            <td className="px-5 py-4">
+              <StatusBadge value={record.status} />
+            </td>
+
+            <td className="px-5 py-4">
+              {isRun ? (
+                <StatusBadge value={record.allocation_status} />
+              ) : (
+                <StatusBadge value={record.conversion_source || "confirmed"} />
+              )}
+            </td>
+
+            <td className="sticky right-0 bg-[#05070d]/95 px-4 py-4 shadow-[-18px_0_24px_rgba(0,0,0,0.35)] backdrop-blur-xl">
+              <div className="flex items-center justify-end gap-2">
+                {!isRun ? (
+                  <IconButton
+                    label="Open payroll paycheck"
+                    icon={Eye}
+                    tone="cyan"
+                    disabled={isRunningAction}
+                    onClick={() => navigate(route)}
+                  />
+                ) : mode === "active" ? (
+                  <>
+                    <IconButton
+                      label="Archive allocated funds"
+                      icon={Archive}
+                      tone="amber"
+                      disabled={isRunningAction}
+                      onClick={() => void runPayrollRunAction("archive", record.id)}
+                    />
+                    <IconButton
+                      label="Delete allocated funds"
+                      icon={Trash2}
+                      tone="rose"
+                      disabled={isRunningAction}
+                      onClick={() => void runPayrollRunAction("delete", record.id)}
+                    />
+                  </>
+                ) : archiveTab === "archived" ? (
+                  <IconButton
+                    label="Restore allocated funds"
+                    icon={RotateCcw}
+                    tone="emerald"
+                    disabled={isRunningAction}
+                    onClick={() => void runPayrollRunAction("restore", record.id)}
+                  />
+                ) : (
+                  <>
+                    <IconButton
+                      label="Restore allocated funds"
+                      icon={RotateCcw}
+                      tone="emerald"
+                      disabled={isRunningAction}
+                      onClick={() => void runPayrollRunAction("restore", record.id)}
+                    />
+                    <IconButton
+                      label="Hard delete allocated funds"
+                      icon={Trash2}
+                      tone="rose"
+                      disabled={isRunningAction}
+                      onClick={() => void runPayrollRunAction("hard_delete", record.id)}
+                    />
+                  </>
+                )}
+              </div>
+            </td>
+          </tr>
+        );
+      });
+    },
+    [archiveTab, isRunningAction, navigate, runPayrollRunAction]
+  );
+
+  const renderExecutionTable = useCallback(
+    (rows: ExecutionRecord[], mode: "active" | "archive" = "active") => {
+      return (
+        <div className="overflow-x-auto rounded-[24px] border border-white/10 bg-black/20">
+          <div className="max-h-[720px] overflow-y-auto">
+            <table className="w-full min-w-[1280px] border-collapse">
+              <thead className="sticky top-0 z-20 border-b border-white/10 bg-black/70 backdrop-blur-xl">
+                <tr>
+                  <th className="px-5 py-4 text-left text-[11px] font-semibold uppercase tracking-[0.18em] text-slate-500">
+                    Record
+                  </th>
+                  <th className="px-5 py-4 text-left text-[11px] font-semibold uppercase tracking-[0.18em] text-slate-500">
+                    Type
+                  </th>
+                  <th className="px-5 py-4 text-left text-[11px] font-semibold uppercase tracking-[0.18em] text-slate-500">
+                    Owner / Bank
+                  </th>
+                  <th className="px-5 py-4 text-right text-[11px] font-semibold uppercase tracking-[0.18em] text-slate-500">
+                    Amount
+                  </th>
+                  <th className="px-5 py-4 text-right text-[11px] font-semibold uppercase tracking-[0.18em] text-slate-500">
+                    Remaining / Converted
+                  </th>
+                  <th className="px-5 py-4 text-left text-[11px] font-semibold uppercase tracking-[0.18em] text-slate-500">
+                    Status
+                  </th>
+                  <th className="px-5 py-4 text-left text-[11px] font-semibold uppercase tracking-[0.18em] text-slate-500">
+                    Allocation / Source
+                  </th>
+                  <th className="sticky right-0 bg-black/70 px-4 py-4 text-right text-[11px] font-semibold uppercase tracking-[0.18em] text-slate-500 shadow-[-18px_0_24px_rgba(0,0,0,0.35)] backdrop-blur-xl">
+                    Actions
+                  </th>
+                </tr>
+              </thead>
+
+              <tbody>{renderExecutionRows(rows, mode)}</tbody>
+            </table>
+          </div>
+        </div>
+      );
+    },
+    [renderExecutionRows]
+  );
+
+  const workflowArchiveRows =
+    archiveTab === "archived" ? archivedRequestRows : deletedRequestRows;
+  const executionArchiveRows =
+    archiveTab === "archived" ? archivedExecutionRows : deletedExecutionRows;
 
   return (
     <div className="min-h-screen bg-[#05070d] px-4 py-4 text-white md:px-6 md:py-6">
@@ -1949,73 +2090,70 @@ export default function PayrollMainPage() {
               Transactions
             </button>
 
-            <div className="grid gap-6 xl:grid-cols-[minmax(0,1fr)_460px] xl:items-stretch">
-              <div className="min-w-0">
+            <div className="grid gap-6 xl:grid-cols-[minmax(0,1fr)_520px] xl:items-end">
+              <div>
                 <div className="inline-flex w-fit items-center gap-2 rounded-full border border-cyan-400/20 bg-cyan-500/10 px-3 py-1 text-[11px] font-semibold uppercase tracking-[0.22em] text-cyan-200">
-                  <ReceiptText className="h-3.5 w-3.5" />
+                  <Sparkles className="h-3.5 w-3.5" />
                   Payroll Control
                 </div>
 
                 <h1 className="mt-4 text-3xl font-semibold tracking-[-0.035em] text-white md:text-5xl">
-                  Paycheck Workflow & Allocated Payroll Funds
+                  Paycheck Workflow & Payment Execution
                 </h1>
 
                 <p className="mt-3 max-w-4xl text-sm leading-6 text-slate-400 md:text-base md:leading-7">
-                  Strict separation between individual paycheck requests and allocated
-                  payroll fund baskets. Individual paycheck actions stay on the request
-                  ID page. Allocated funds stay on payroll fund basket ID pages.
+                  Two separate functions in one control page: paycheck request workflow,
+                  and Finance payroll payment execution. Allocated funds are not connected
+                  to requests; they are checked only when paying a specific paycheck.
                 </p>
 
                 <div className="mt-5 flex flex-wrap gap-2">
                   <div className="rounded-full border border-cyan-400/20 bg-cyan-500/10 px-3 py-1 text-[11px] font-semibold uppercase tracking-[0.16em] text-cyan-200">
-                    Paycheck Request Workflow
+                    Main Workflow
                   </div>
                   <div className="rounded-full border border-violet-400/20 bg-violet-500/10 px-3 py-1 text-[11px] font-semibold uppercase tracking-[0.16em] text-violet-200">
-                    Allocated Payroll Funds
+                    Payment Execution Tools
                   </div>
-                  <div className="rounded-full border border-emerald-400/20 bg-emerald-500/10 px-3 py-1 text-[11px] font-semibold uppercase tracking-[0.16em] text-emerald-200">
-                    Currency Conversion Summary
-                  </div>
+                  {isRefreshing ? (
+                    <div className="rounded-full border border-white/10 bg-white/[0.05] px-3 py-1 text-[11px] font-semibold uppercase tracking-[0.16em] text-slate-400">
+                      Silent Refresh
+                    </div>
+                  ) : null}
                 </div>
               </div>
 
-              <div className="grid gap-3">
+              <div className="grid gap-3 sm:grid-cols-2">
                 <div className="min-h-[148px] rounded-[24px] border border-white/10 bg-black/20 p-4">
                   <div className="flex items-start justify-between gap-3">
                     <div>
                       <div className="text-[11px] font-semibold uppercase tracking-[0.2em] text-slate-500">
-                        Active Requests
+                        Ready Payroll
                       </div>
-                      <div className="mt-2 text-2xl font-semibold text-white">
-                        {isLoading ? "—" : formatCount(metrics.activeRequests)}
+                      <div className="mt-2 text-3xl font-semibold text-emerald-100">
+                        {isLoading ? "—" : metrics.readyToCreatePaycheck}
                       </div>
                     </div>
-                    <div className="flex h-10 w-10 items-center justify-center rounded-2xl border border-cyan-400/20 bg-cyan-500/10 text-cyan-200">
-                      <FileSignature className="h-4 w-4" />
-                    </div>
+                    <CheckCircle2 className="h-5 w-5 text-emerald-200" />
                   </div>
                   <div className="mt-3 text-xs leading-5 text-slate-500">
-                    Individual paycheck request records.
+                    Approved requests ready to create payroll paycheck records.
                   </div>
                 </div>
 
-                <div className="grid gap-3 sm:grid-cols-2">
-                  <div className="rounded-[24px] border border-white/10 bg-black/20 p-4">
-                    <div className="text-[11px] font-semibold uppercase tracking-[0.2em] text-slate-500">
-                      Fund Baskets
+                <div className="min-h-[148px] rounded-[24px] border border-white/10 bg-black/20 p-4">
+                  <div className="flex items-start justify-between gap-3">
+                    <div>
+                      <div className="text-[11px] font-semibold uppercase tracking-[0.2em] text-slate-500">
+                        Fund Balance
+                      </div>
+                      <div className="mt-2 text-3xl font-semibold text-white">
+                        {isLoading ? "—" : formatMoney(metrics.remainingFunds)}
+                      </div>
                     </div>
-                    <div className="mt-2 text-xl font-semibold text-violet-100">
-                      {isLoading ? "—" : formatCount(metrics.activeFunds)}
-                    </div>
+                    <WalletCards className="h-5 w-5 text-cyan-200" />
                   </div>
-
-                  <div className="rounded-[24px] border border-white/10 bg-black/20 p-4">
-                    <div className="text-[11px] font-semibold uppercase tracking-[0.2em] text-slate-500">
-                      Admin Signature Needed
-                    </div>
-                    <div className="mt-2 text-xl font-semibold text-amber-100">
-                      {isLoading ? "—" : formatCount(metrics.pendingAdminSignature)}
-                    </div>
+                  <div className="mt-3 text-xs leading-5 text-slate-500">
+                    Remaining allocated payroll funds after confirmed payments.
                   </div>
                 </div>
               </div>
@@ -2024,283 +2162,324 @@ export default function PayrollMainPage() {
         </header>
 
         <section className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
-          <KpiCard
-            label="Submitted Requests"
-            value={isLoading ? "—" : formatCount(metrics.submittedRequests)}
-            detail="Requests submitted or needing correction, waiting in the individual request workflow."
-            icon={ShieldCheck}
-            tone="cyan"
+          <SummaryCard
+            title="Paycheck Requests"
+            value={isLoading ? "—" : metrics.pendingRequests}
+            detail="Submitted or correction-stage paycheck requests in the workflow."
+            icon={Clock3}
           />
-          <KpiCard
-            label="Approved Requests"
-            value={isLoading ? "—" : formatCount(metrics.approvedRequests)}
-            detail="Requests approved for payroll and ready to connect to an allocated fund basket."
-            icon={BadgeCheck}
-            tone="emerald"
+          <SummaryCard
+            title="Approved Payroll"
+            value={isLoading ? "—" : metrics.approvedRequests}
+            detail="Approved requests and linked paycheck records ready for payroll execution."
+            icon={FileText}
           />
-          <KpiCard
-            label="Allocated Funds"
-            value={isLoading ? "—" : formatMoney(metrics.totalAllocated)}
-            detail="Total allocated payroll funds across active fund baskets."
-            icon={WalletCards}
-            tone="violet"
-          />
-          <KpiCard
-            label="Remaining Funds"
-            value={isLoading ? "—" : formatMoney(metrics.totalRemaining)}
-            detail="Total remaining allocated payroll balance after confirmed payments."
+          <SummaryCard
+            title="Active Paychecks"
+            value={isLoading ? "—" : metrics.activePaychecks}
+            detail="Individual payroll paycheck records that can be opened and paid one by one."
             icon={CreditCard}
-            tone={metrics.totalRemaining < 0 ? "rose" : "amber"}
+          />
+          <SummaryCard
+            title="Employee Pending"
+            value={isLoading ? "—" : metrics.waitingConfirmation}
+            detail="Payment confirmation still pending from employees."
+            icon={ShieldCheck}
           />
         </section>
 
-        {actionError ? (
-          <div className="rounded-[24px] border border-rose-400/20 bg-rose-500/10 px-5 py-4 text-sm text-rose-100">
-            {actionError}
+        {pageError ? (
+          <div className="rounded-[24px] border border-rose-400/20 bg-rose-500/10 p-4 text-sm leading-6 text-rose-100">
+            {pageError}
           </div>
         ) : null}
 
-        {actionMessage ? (
-          <div className="rounded-[24px] border border-emerald-400/20 bg-emerald-500/10 px-5 py-4 text-sm text-emerald-100">
-            {actionMessage}
+        {pageMessage ? (
+          <div className="rounded-[24px] border border-emerald-400/20 bg-emerald-500/10 p-4 text-sm leading-6 text-emerald-100">
+            {pageMessage}
           </div>
         ) : null}
 
-        <section className="grid gap-4 md:grid-cols-2">
-          <DirectionBox
-            stage="Workflow Area"
-            title="Paycheck requests stay individual"
-            tone="cyan"
-          >
-            Open a paycheck request to see one employee request, employee signed
-            form, admin signed form status, correction loop, review result, payment
-            state, and employee confirmation.
-          </DirectionBox>
-
-          <DirectionBox
-            stage="Allocated Funds Area"
-            title="Payroll fund baskets stay separate"
-            tone="violet"
-          >
-            Open an allocated payroll fund basket to see allocated amount, used
-            amount, remaining amount, connected requests, and conversion summary.
-            Do not use the fund basket as the action page for every paycheck.
-          </DirectionBox>
-        </section>
-
-        <SectionCard
-          title={currentTab.label}
-          description={currentTab.description}
-          icon={activeTab === "paycheck_requests" ? FileSignature : WalletCards}
-        >
-          <div className="mb-5 flex flex-col gap-4 xl:flex-row xl:items-center xl:justify-between">
+        <section className="overflow-hidden rounded-[30px] border border-white/10 bg-white/[0.045] backdrop-blur-xl">
+          <div className="flex flex-col gap-4 border-b border-white/10 px-5 py-4 xl:flex-row xl:items-center xl:justify-between">
             <div>
-              <div
-                className={`inline-flex w-fit rounded-full border px-3 py-1 text-[11px] font-semibold uppercase tracking-[0.22em] ${
-                  currentTab.tone === "cyan"
-                    ? "border-cyan-400/20 bg-cyan-500/10 text-cyan-200"
-                    : "border-violet-400/20 bg-violet-500/10 text-violet-200"
-                }`}
-              >
-                {currentTab.eyebrow}
+              <div className="text-sm font-semibold uppercase tracking-[0.18em] text-slate-400">
+                {activeTabMeta.label}
               </div>
+              <p className="mt-1 text-xs leading-5 text-slate-500">
+                {activeTabMeta.description}
+              </p>
             </div>
 
-            <div className="flex flex-col gap-3 sm:flex-row sm:items-center">
-              <div className="flex rounded-2xl border border-white/10 bg-black/20 p-1">
-                <button
-                  type="button"
-                  onClick={() => setActiveTab("paycheck_requests")}
-                  className={`rounded-xl px-4 py-2 text-sm font-semibold transition ${
-                    activeTab === "paycheck_requests"
-                      ? "bg-cyan-500/15 text-cyan-100"
-                      : "text-slate-500 hover:text-slate-200"
-                  }`}
-                >
-                  Paycheck Requests
-                </button>
-
-                <button
-                  type="button"
-                  onClick={() => setActiveTab("allocated_funds")}
-                  className={`rounded-xl px-4 py-2 text-sm font-semibold transition ${
-                    activeTab === "allocated_funds"
-                      ? "bg-violet-500/15 text-violet-100"
-                      : "text-slate-500 hover:text-slate-200"
-                  }`}
-                >
-                  Allocated Funds
-                </button>
-              </div>
-
-              {activeTab === "paycheck_requests" ? (
-                <>
-                  <label className="relative block min-w-[280px]">
-                    <Search className="pointer-events-none absolute left-4 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-500" />
-                    <input
-                      value={requestSearch}
-                      onChange={(event) => setRequestSearch(event.target.value)}
-                      placeholder="Search paycheck requests..."
-                      className="h-11 w-full rounded-2xl border border-white/10 bg-black/20 pl-11 pr-4 text-sm text-white outline-none transition placeholder:text-slate-600 focus:border-cyan-400/30 focus:bg-black/30"
-                    />
-                  </label>
-
-                  <button
-                    type="button"
-                    onClick={() =>
-                      navigate("/finance/transactions/paycheck-requests/new")
-                    }
-                    className="inline-flex h-11 items-center justify-center gap-2 rounded-2xl border border-cyan-400/20 bg-cyan-500/10 px-4 text-sm font-semibold text-cyan-100 transition hover:bg-cyan-500/15"
-                  >
-                    <Plus className="h-4 w-4" />
-                    New Request
-                  </button>
-                </>
-              ) : (
-                <>
-                  <label className="relative block min-w-[280px]">
-                    <Search className="pointer-events-none absolute left-4 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-500" />
-                    <input
-                      value={fundSearch}
-                      onChange={(event) => setFundSearch(event.target.value)}
-                      placeholder="Search allocated payroll funds..."
-                      className="h-11 w-full rounded-2xl border border-white/10 bg-black/20 pl-11 pr-4 text-sm text-white outline-none transition placeholder:text-slate-600 focus:border-violet-400/30 focus:bg-black/30"
-                    />
-                  </label>
-
-                  <button
-                    type="button"
-                    onClick={() => {
-                      setArchiveOpen(true);
-                      setArchiveTab("archived");
-                    }}
-                    className="inline-flex h-11 items-center justify-center gap-2 rounded-2xl border border-white/10 bg-white/[0.04] px-4 text-sm font-semibold text-slate-200 transition hover:border-white/20 hover:bg-white/[0.07]"
-                  >
-                    <MoreHorizontal className="h-4 w-4" />
-                    Archive
-                  </button>
-
-                  <button
-                    type="button"
-                    onClick={() => navigate("/finance/transactions/payroll/new")}
-                    className="inline-flex h-11 items-center justify-center gap-2 rounded-2xl border border-violet-400/20 bg-violet-500/10 px-4 text-sm font-semibold text-violet-100 transition hover:bg-violet-500/15"
-                  >
-                    <Plus className="h-4 w-4" />
-                    Allocate Payroll Funds
-                  </button>
-                </>
-              )}
-            </div>
-          </div>
-
-          {isLoading ? (
-            <div className="rounded-[28px] border border-white/10 bg-black/20 px-6 py-14 text-center text-sm text-slate-500">
-              Loading payroll control...
-            </div>
-          ) : activeTab === "paycheck_requests" ? (
-            <PayrollRequestTable
-              rows={sortedRequests}
-              sortKey={requestSortKey}
-              sortDirection={requestSortDirection}
-              onSort={handleRequestSort}
-              onOpenPayroll={(paycheckId) =>
-                navigate(`/finance/transactions/payroll/${paycheckId}`)
-              }
-            />
-          ) : (
-            <PayrollFundTable
-              rows={sortedFunds}
-              sortKey={fundSortKey}
-              sortDirection={fundSortDirection}
-              onSort={handleFundSort}
-              onOpen={(fundId) => navigate(`/finance/transactions/payroll/${fundId}`)}
-              onArchive={archiveFund}
-              onDelete={deleteFund}
-            />
-          )}
-        </SectionCard>
-
-        {archiveOpen ? (
-          <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 px-4 py-6 backdrop-blur-md">
-            <div className="flex max-h-[92vh] w-full max-w-[1500px] flex-col overflow-hidden rounded-[34px] border border-white/10 bg-[#070b14] shadow-2xl shadow-black/40">
-              <div className="flex items-start justify-between gap-4 border-b border-white/10 p-6">
-                <div>
-                  <div className="inline-flex w-fit rounded-full border border-violet-400/20 bg-violet-500/10 px-3 py-1 text-[11px] font-semibold uppercase tracking-[0.22em] text-violet-200">
-                    Allocated Payroll Funds Archive
-                  </div>
-                  <h2 className="mt-3 text-2xl font-semibold text-white">
-                    Archived & Deleted Payroll Fund Baskets
-                  </h2>
-                  <p className="mt-2 text-sm leading-6 text-slate-400">
-                    Archive only applies to allocated payroll fund baskets. Individual
-                    paycheck request records are managed from their own request workflow.
-                  </p>
-                </div>
-
-                <button
-                  type="button"
-                  onClick={() => setArchiveOpen(false)}
-                  className="flex h-10 w-10 items-center justify-center rounded-2xl border border-white/10 bg-white/[0.04] text-slate-300 transition hover:bg-white/[0.08] hover:text-white"
-                >
-                  <X className="h-4 w-4" />
-                </button>
-              </div>
-
-              <div className="flex flex-wrap items-center justify-between gap-3 border-b border-white/10 px-6 py-4">
-                <div className="flex rounded-2xl border border-white/10 bg-black/20 p-1">
-                  <button
-                    type="button"
-                    onClick={() => setArchiveTab("archived")}
-                    className={`rounded-xl px-4 py-2 text-sm font-semibold transition ${
-                      archiveTab === "archived"
-                        ? "bg-violet-500/15 text-violet-100"
-                        : "text-slate-500 hover:text-slate-200"
-                    }`}
-                  >
-                    Archived ({formatCount(metrics.archivedFunds)})
-                  </button>
-
-                  <button
-                    type="button"
-                    onClick={() => setArchiveTab("deleted")}
-                    className={`rounded-xl px-4 py-2 text-sm font-semibold transition ${
-                      archiveTab === "deleted"
-                        ? "bg-rose-500/15 text-rose-100"
-                        : "text-slate-500 hover:text-slate-200"
-                    }`}
-                  >
-                    Deleted ({formatCount(metrics.deletedFunds)})
-                  </button>
-                </div>
-
-                <label className="relative block min-w-[280px]">
+            <div className="flex flex-col gap-3 xl:items-end">
+              <div className="flex flex-col gap-3 sm:flex-row sm:items-center">
+                <div className="relative">
                   <Search className="pointer-events-none absolute left-4 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-500" />
                   <input
-                    value={fundSearch}
-                    onChange={(event) => setFundSearch(event.target.value)}
-                    placeholder="Search fund archive..."
-                    className="h-11 w-full rounded-2xl border border-white/10 bg-black/20 pl-11 pr-4 text-sm text-white outline-none transition placeholder:text-slate-600 focus:border-violet-400/30 focus:bg-black/30"
+                    value={searchQuery}
+                    onChange={(event) => setSearchQuery(event.target.value)}
+                    placeholder="Search payroll workflow or execution..."
+                    className="h-11 w-full rounded-2xl border border-white/10 bg-black/20 pl-11 pr-4 text-sm text-white outline-none transition placeholder:text-slate-600 focus:border-cyan-400/30 focus:bg-black/30 sm:w-[360px]"
                   />
-                </label>
+                </div>
+
+                <button
+                  type="button"
+                  onClick={() => openArchiveModal("workflow")}
+                  className="inline-flex h-11 items-center justify-center gap-2 rounded-2xl border border-white/10 bg-white/[0.05] px-4 text-sm font-semibold text-slate-300 transition hover:border-white/20 hover:bg-white/[0.08] hover:text-white"
+                >
+                  <Archive className="h-4 w-4" />
+                  Workflow Archive
+                </button>
+
+                <button
+                  type="button"
+                  onClick={() => openArchiveModal("execution")}
+                  className="inline-flex h-11 items-center justify-center gap-2 rounded-2xl border border-violet-400/20 bg-violet-500/10 px-4 text-sm font-semibold text-violet-100 transition hover:bg-violet-500/15"
+                >
+                  <WalletCards className="h-4 w-4" />
+                  Execution Archive
+                </button>
               </div>
 
-              <div className="min-h-0 overflow-y-auto p-6">
-                <PayrollFundTable
-                  rows={sortedFunds}
-                  sortKey={fundSortKey}
-                  sortDirection={fundSortDirection}
-                  onSort={handleFundSort}
-                  onOpen={(fundId) => navigate(`/finance/transactions/payroll/${fundId}`)}
-                  archiveMode
-                  archiveTab={archiveTab}
-                  onRestore={restoreFund}
-                  onHardDelete={hardDeleteFund}
-                />
+              <div className="flex flex-col gap-3 sm:flex-row sm:items-center">
+                <button
+                  type="button"
+                  onClick={() => navigate("/finance/transactions/payroll/new")}
+                  className="inline-flex h-11 items-center justify-center gap-2 rounded-2xl border border-violet-400/20 bg-violet-500/10 px-4 text-sm font-semibold text-violet-100 transition hover:bg-violet-500/15"
+                >
+                  <Archive className="h-4 w-4" />
+                  Allocate Payroll Funds
+                </button>
               </div>
             </div>
           </div>
-        ) : null}
+
+          <div className="border-b border-white/10 px-5 py-4">
+            <div className="mb-3 text-[11px] font-semibold uppercase tracking-[0.2em] text-slate-500">
+              Main Payroll Workflow
+            </div>
+            <div className="flex gap-2 overflow-x-auto [scrollbar-width:thin]">
+              {workflowTabs.map((tab) => (
+                <button
+                  key={tab.key}
+                  type="button"
+                  onClick={() => setActiveTab(tab.key)}
+                  className={`shrink-0 rounded-full border px-4 py-2 text-xs font-semibold uppercase tracking-[0.16em] transition ${
+                    activeTab === tab.key
+                      ? "border-cyan-400/20 bg-cyan-500/10 text-cyan-200"
+                      : "border-white/10 bg-white/[0.04] text-slate-400 hover:bg-white/[0.07] hover:text-white"
+                  }`}
+                >
+                  {tab.label}
+                </button>
+              ))}
+            </div>
+
+            <div className="mt-5 mb-3 text-[11px] font-semibold uppercase tracking-[0.2em] text-slate-500">
+              Payment Execution Tools
+            </div>
+            <div className="flex gap-2 overflow-x-auto [scrollbar-width:thin]">
+              {executionTabs.map((tab) => (
+                <button
+                  key={tab.key}
+                  type="button"
+                  onClick={() => setActiveTab(tab.key)}
+                  className={`shrink-0 rounded-full border px-4 py-2 text-xs font-semibold uppercase tracking-[0.16em] transition ${
+                    activeTab === tab.key
+                      ? "border-violet-400/20 bg-violet-500/10 text-violet-200"
+                      : "border-white/10 bg-white/[0.04] text-slate-400 hover:bg-white/[0.07] hover:text-white"
+                  }`}
+                >
+                  {tab.label}
+                </button>
+              ))}
+            </div>
+          </div>
+
+          <div className="p-5">
+            {isLoading ? (
+              <div className="rounded-[24px] border border-white/10 bg-black/20 px-6 py-12 text-center">
+                <Loader2 className="mx-auto h-8 w-8 animate-spin text-cyan-200" />
+                <div className="mt-4 text-sm text-slate-400">
+                  Loading payroll control...
+                </div>
+              </div>
+            ) : null}
+
+            {!isLoading && activeTab === "paycheck_requests"
+              ? renderRequestTable(pendingRequestRows)
+              : null}
+
+            {!isLoading && activeTab === "approved_for_payroll"
+              ? renderRequestTable(approvedRequestRows)
+              : null}
+
+            {!isLoading && activeTab === "paycheck_execution"
+              ? renderPaycheckTable(activePaycheckRows)
+              : null}
+
+            {!isLoading && activeTab === "employee_confirmation"
+              ? renderRequestTable(confirmationRows)
+              : null}
+
+            {!isLoading && activeTab === "allocated_funds"
+              ? renderExecutionTable(activeRunRows)
+              : null}
+
+            {!isLoading && activeTab === "payments"
+              ? renderExecutionTable(activePaymentRows)
+              : null}
+          </div>
+        </section>
       </div>
+
+      {archiveModalOpen ? (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 px-4 py-6 backdrop-blur-xl">
+          <div className="flex max-h-[90vh] w-full max-w-[1320px] flex-col overflow-hidden rounded-[34px] border border-white/10 bg-[#080b12] shadow-2xl shadow-black/50">
+            <div className="flex items-start justify-between gap-4 border-b border-white/10 p-5">
+              <div>
+                <div className="inline-flex w-fit items-center gap-2 rounded-full border border-amber-400/20 bg-amber-500/10 px-3 py-1 text-[11px] font-semibold uppercase tracking-[0.22em] text-amber-200">
+                  <Archive className="h-3.5 w-3.5" />
+                  {archiveScope === "workflow"
+                    ? "Paycheck Workflow Archive"
+                    : "Payroll Execution Archive"}
+                </div>
+                <h2 className="mt-3 text-2xl font-semibold text-white">
+                  {archiveScope === "workflow"
+                    ? "Archived & Deleted Paycheck Request Records"
+                    : "Archived & Deleted Payroll Execution Records"}
+                </h2>
+                <p className="mt-2 text-sm leading-6 text-slate-400">
+                  {archiveScope === "workflow"
+                    ? "Workflow archive contains paycheck request records only."
+                    : "Execution archive contains allocated payroll fund records and payroll payment records."}
+                </p>
+              </div>
+
+              <button
+                type="button"
+                onClick={() => setArchiveModalOpen(false)}
+                className="inline-flex h-10 w-10 items-center justify-center rounded-full border border-white/10 bg-white/[0.05] text-slate-300 transition hover:bg-white/[0.08] hover:text-white"
+              >
+                <X className="h-4 w-4" />
+              </button>
+            </div>
+
+            <div className="flex gap-2 border-b border-white/10 px-5 py-4">
+              <button
+                type="button"
+                onClick={() => setArchiveTab("archived")}
+                className={`rounded-full border px-4 py-2 text-xs font-semibold uppercase tracking-[0.18em] transition ${
+                  archiveTab === "archived"
+                    ? "border-amber-400/20 bg-amber-500/10 text-amber-200"
+                    : "border-white/10 bg-white/[0.04] text-slate-400 hover:bg-white/[0.07]"
+                }`}
+              >
+                Archived (
+                {archiveScope === "workflow"
+                  ? metrics.workflowArchived
+                  : metrics.executionArchived}
+                )
+              </button>
+              <button
+                type="button"
+                onClick={() => setArchiveTab("deleted")}
+                className={`rounded-full border px-4 py-2 text-xs font-semibold uppercase tracking-[0.18em] transition ${
+                  archiveTab === "deleted"
+                    ? "border-rose-400/20 bg-rose-500/10 text-rose-200"
+                    : "border-white/10 bg-white/[0.04] text-slate-400 hover:bg-white/[0.07]"
+                }`}
+              >
+                Deleted (
+                {archiveScope === "workflow"
+                  ? metrics.workflowDeleted
+                  : metrics.executionDeleted}
+                )
+              </button>
+            </div>
+
+            <div className="overflow-x-auto">
+              <div className="max-h-[620px] overflow-y-auto">
+                {archiveScope === "workflow" ? (
+                  <table className="w-full min-w-[1680px] border-collapse">
+                    <thead className="sticky top-0 z-20 border-b border-white/10 bg-black/70 backdrop-blur-xl">
+                      <tr>
+                        <th className="px-5 py-4 text-left text-[11px] font-semibold uppercase tracking-[0.18em] text-slate-500">
+                          Request
+                        </th>
+                        <th className="px-5 py-4 text-left text-[11px] font-semibold uppercase tracking-[0.18em] text-slate-500">
+                          Employee
+                        </th>
+                        <th className="px-5 py-4 text-left text-[11px] font-semibold uppercase tracking-[0.18em] text-slate-500">
+                          Pay Profile
+                        </th>
+                        <th className="px-5 py-4 text-right text-[11px] font-semibold uppercase tracking-[0.18em] text-slate-500">
+                          Amount
+                        </th>
+                        <th className="px-5 py-4 text-left text-[11px] font-semibold uppercase tracking-[0.18em] text-slate-500">
+                          Status
+                        </th>
+                        <th className="px-5 py-4 text-left text-[11px] font-semibold uppercase tracking-[0.18em] text-slate-500">
+                          Review
+                        </th>
+                        <th className="px-5 py-4 text-left text-[11px] font-semibold uppercase tracking-[0.18em] text-slate-500">
+                          Employee Form
+                        </th>
+                        <th className="px-5 py-4 text-left text-[11px] font-semibold uppercase tracking-[0.18em] text-slate-500">
+                          Admin Form
+                        </th>
+                        <th className="px-5 py-4 text-left text-[11px] font-semibold uppercase tracking-[0.18em] text-slate-500">
+                          Confirmation
+                        </th>
+                        <th className="px-5 py-4 text-left text-[11px] font-semibold uppercase tracking-[0.18em] text-slate-500">
+                          Next Step
+                        </th>
+                        <th className="sticky right-0 bg-black/70 px-4 py-4 text-right text-[11px] font-semibold uppercase tracking-[0.18em] text-slate-500 shadow-[-18px_0_24px_rgba(0,0,0,0.35)] backdrop-blur-xl">
+                          Actions
+                        </th>
+                      </tr>
+                    </thead>
+                    <tbody>{renderRequestRows(workflowArchiveRows, "archive")}</tbody>
+                  </table>
+                ) : (
+                  <table className="w-full min-w-[1280px] border-collapse">
+                    <thead className="sticky top-0 z-20 border-b border-white/10 bg-black/70 backdrop-blur-xl">
+                      <tr>
+                        <th className="px-5 py-4 text-left text-[11px] font-semibold uppercase tracking-[0.18em] text-slate-500">
+                          Record
+                        </th>
+                        <th className="px-5 py-4 text-left text-[11px] font-semibold uppercase tracking-[0.18em] text-slate-500">
+                          Type
+                        </th>
+                        <th className="px-5 py-4 text-left text-[11px] font-semibold uppercase tracking-[0.18em] text-slate-500">
+                          Owner / Bank
+                        </th>
+                        <th className="px-5 py-4 text-right text-[11px] font-semibold uppercase tracking-[0.18em] text-slate-500">
+                          Amount
+                        </th>
+                        <th className="px-5 py-4 text-right text-[11px] font-semibold uppercase tracking-[0.18em] text-slate-500">
+                          Remaining / Converted
+                        </th>
+                        <th className="px-5 py-4 text-left text-[11px] font-semibold uppercase tracking-[0.18em] text-slate-500">
+                          Status
+                        </th>
+                        <th className="px-5 py-4 text-left text-[11px] font-semibold uppercase tracking-[0.18em] text-slate-500">
+                          Allocation / Source
+                        </th>
+                        <th className="sticky right-0 bg-black/70 px-4 py-4 text-right text-[11px] font-semibold uppercase tracking-[0.18em] text-slate-500 shadow-[-18px_0_24px_rgba(0,0,0,0.35)] backdrop-blur-xl">
+                          Actions
+                        </th>
+                      </tr>
+                    </thead>
+                    <tbody>{renderExecutionRows(executionArchiveRows, "archive")}</tbody>
+                  </table>
+                )}
+              </div>
+            </div>
+          </div>
+        </div>
+      ) : null}
     </div>
   );
 }

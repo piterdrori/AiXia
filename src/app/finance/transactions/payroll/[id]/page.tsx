@@ -157,7 +157,6 @@ type PaycheckRequestRow = {
   review_status: string;
   documentation_status: string;
   signed_form_status: string;
-  signed_form_status_detail?: string | null;
   recipient_confirmation_status: string;
   signed_form_storage_bucket: string | null;
   signed_form_storage_path: string | null;
@@ -818,7 +817,6 @@ export default function PayrollAdminExecutionPage() {
             "review_status",
             "documentation_status",
             "signed_form_status",
-            "signed_form_status_detail",
             "recipient_confirmation_status",
             "signed_form_storage_bucket",
             "signed_form_storage_path",

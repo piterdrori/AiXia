@@ -114,6 +114,13 @@ import PaymentsReceivedPage from "@/app/finance/transactions/payments-received/p
 import PaymentReceivedDetailPage from "@/app/finance/transactions/payments-received/[id]/page";
 import NewPaymentReceivedPage from "@/app/finance/transactions/payments-received/new/page";
 
+import FinancePaycheckRequestsPage from "@/app/finance/transactions/paycheck-requests/page";
+import FinanceNewPaycheckRequestPage from "@/app/finance/transactions/paycheck-requests/new/page";
+import FinancePaycheckRequestDetailPage from "@/app/finance/transactions/paycheck-requests/[id]/page";
+import FinanceTransactionPayrollPage from "@/app/finance/transactions/payroll/page";
+import FinanceNewTransactionPayrollPage from "@/app/finance/transactions/payroll/new/page";
+import FinanceTransactionPayrollDetailPage from "@/app/finance/transactions/payroll/[id]/page";
+
 import FinanceExpensesPage from "@/app/finance/transactions/expenses/page";
 import FinanceNewExpensePage from "@/app/finance/transactions/expenses/new/page";
 import FinanceExpenseDetailPage from "@/app/finance/transactions/expenses/[id]/page";
@@ -1567,11 +1574,66 @@ function AppRoutes() {
 />
 
 <Route
+  path="/finance/transactions/paycheck-requests"
+  element={
+    <ProtectedRoute>
+      <DashboardLayout>
+        <FinancePaycheckRequestsPage />
+      </DashboardLayout>
+    </ProtectedRoute>
+  }
+/>
+
+<Route
+  path="/finance/transactions/paycheck-requests/new"
+  element={
+    <ProtectedRoute>
+      <DashboardLayout>
+        <FinanceNewPaycheckRequestPage />
+      </DashboardLayout>
+    </ProtectedRoute>
+  }
+/>
+
+<Route
+  path="/finance/transactions/paycheck-requests/:id"
+  element={
+    <ProtectedRoute>
+      <DashboardLayout>
+        <FinancePaycheckRequestDetailPage />
+      </DashboardLayout>
+    </ProtectedRoute>
+  }
+/>
+
+<Route
   path="/finance/transactions/payroll"
   element={
     <ProtectedRoute>
       <DashboardLayout>
-        <FinancePayrollPage />
+        <FinanceTransactionPayrollPage />
+      </DashboardLayout>
+    </ProtectedRoute>
+  }
+/>
+
+<Route
+  path="/finance/transactions/payroll/new"
+  element={
+    <ProtectedRoute>
+      <DashboardLayout>
+        <FinanceNewTransactionPayrollPage />
+      </DashboardLayout>
+    </ProtectedRoute>
+  }
+/>
+
+<Route
+  path="/finance/transactions/payroll/:id"
+  element={
+    <ProtectedRoute>
+      <DashboardLayout>
+        <FinanceTransactionPayrollDetailPage />
       </DashboardLayout>
     </ProtectedRoute>
   }

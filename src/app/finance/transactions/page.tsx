@@ -38,6 +38,7 @@ type TransactionModuleKey =
   | "payments-received"
   | "approvals"
   | "purchase-orders"
+  | "paycheck-requests"
   | "payroll";
 
 type TransactionModuleCard = {
@@ -159,6 +160,7 @@ type TransactionsPageData = {
     paymentsReceived: number;
     approvals: number;
     purchaseOrders: number;
+    paycheckRequests: number;
     payrollRuns: number;
   };
   totals: {
@@ -190,6 +192,7 @@ const EMPTY_TRANSACTIONS_DATA: TransactionsPageData = {
     paymentsReceived: 0,
     approvals: 0,
     purchaseOrders: 0,
+    paycheckRequests: 0,
     payrollRuns: 0,
   },
   totals: {
@@ -660,6 +663,7 @@ export default function FinanceTransactionsPage() {
         paymentsMadeResult,
         paymentsReceivedResult,
         payrollRunsResult,
+        paycheckRequestsResult,
         proformaInvoicesResult,
         purchaseOrdersResult,
       ] = await Promise.all([
@@ -710,6 +714,8 @@ export default function FinanceTransactionsPage() {
           .select("id, run_number, status, total_net, created_at")
           .order("created_at", { ascending: false })
           .limit(50),
+
+        safeCount("finance_paycheck_requests"),
 
         safeCount("finance_proforma_invoices"),
 
@@ -830,6 +836,7 @@ export default function FinanceTransactionsPage() {
           paymentsReceived: paymentsReceived.length,
           approvals: approvals.length,
           purchaseOrders: getCount(purchaseOrdersResult),
+          paycheckRequests: getCount(paycheckRequestsResult),
           payrollRuns: payrollRuns.length,
         },
         totals: {
@@ -894,6 +901,11 @@ export default function FinanceTransactionsPage() {
       .on(
         "postgres_changes",
         { event: "*", schema: "public", table: "finance_payroll_runs" },
+        () => void loadTransactionsData()
+      )
+      .on(
+        "postgres_changes",
+        { event: "*", schema: "public", table: "finance_paycheck_requests" },
         () => void loadTransactionsData()
       )
       .subscribe();
@@ -1078,11 +1090,22 @@ export default function FinanceTransactionsPage() {
         statusLabel: data.counts.purchaseOrders > 0 ? "Live" : "Route ready",
         lastUpdatedLabel: data.counts.purchaseOrders > 0 ? "Live" : "Ready",
       },
+      "paycheck-requests": {
+        key: "paycheck-requests",
+        title: "Paycheck Requests",
+        description:
+          "Employee paycheck request intake, signed form review, approval, and employee confirmation.",
+        route: "/finance/transactions/paycheck-requests",
+        icon: FileText,
+        count: data.counts.paycheckRequests,
+        statusLabel: "Live",
+        lastUpdatedLabel: "Live",
+      },
       payroll: {
         key: "payroll",
-        title: "Payroll",
+        title: "Payroll Fund Basket",
         description:
-          "Payroll runs, salary obligations, approvals, and execution control.",
+          "Payroll fund allocation baskets, linked paychecks, payment execution, and confirmation control.",
         route: "/finance/transactions/payroll",
         icon: BriefcaseBusiness,
         count: data.counts.payrollRuns,
@@ -1157,20 +1180,22 @@ export default function FinanceTransactionsPage() {
         key: "internal-flows",
         title: "Internal Finance Flows",
         subtitle:
-          "Internal obligations focused on payroll runs, salary obligations, approvals, and employee-related payment execution.",
+          "Employee paycheck requests, signed form review, payroll fund basket allocation, per-paycheck payment execution, and employee confirmation.",
         tone: "internal",
         modules: [
           {
-            module: allModuleCards.payroll,
+            module: allModuleCards["paycheck-requests"],
             sequenceLabel: "01",
-            titleOverride: "Payroll",
+            titleOverride: "Paycheck Requests",
+            descriptionOverride:
+              "Employees submit paycheck requests with signed forms. Finance reviews, approves, rejects, or requests correction.",
           },
           {
-            module: allModuleCards["payments-made"],
+            module: allModuleCards.payroll,
             sequenceLabel: "02",
-            titleOverride: "Payroll Payment Execution",
+            titleOverride: "Payroll Fund Basket",
             descriptionOverride:
-              "Outgoing payroll payment execution after payroll approval and control.",
+              "Finance allocates a payroll funding basket, links approved paycheck requests, and records per-paycheck payments.",
           },
         ],
       },

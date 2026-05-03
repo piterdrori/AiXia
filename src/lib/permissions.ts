@@ -489,9 +489,9 @@ const ROLE_PERMISSIONS: Record<Role, PermissionMap> = {
     addFinanceAttachments: false,
     removeFinanceAttachments: false,
 
-         accessPayroll: false,
-    viewPayroll: false,
-    viewOwnPaychecks: false,
+         accessPayroll: true,
+    viewPayroll: true,
+    viewOwnPaychecks: true,
     viewAllPaychecks: false,
     createPayrollRuns: false,
     editPayrollRuns: false,
@@ -731,6 +731,14 @@ const ROUTE_PERMISSIONS: Record<string, RoutePermission> = {
   "/finance/transactions/expenses-payments-made/funding-batches/new": { permission: "recordPaymentsMade" },
   "/finance/transactions/expenses-payments-made/funding-batches/:id": { permission: "viewFinance" },
   "/finance/transactions/expenses-payments-made/:id": { permission: "viewFinance" },
+
+  "/finance/transactions/paycheck-requests": { permission: "viewOwnPaychecks" },
+  "/finance/transactions/paycheck-requests/new": { permission: "viewOwnPaychecks" },
+  "/finance/transactions/paycheck-requests/:id": { permission: "viewOwnPaychecks" },
+
+  "/finance/transactions/payroll": { permission: "viewPayroll" },
+  "/finance/transactions/payroll/new": { permission: "createPayrollRuns" },
+  "/finance/transactions/payroll/:id": { permission: "viewPayroll" },
 
   "/finance/reimbursements": { permission: "viewReimbursements" },
   "/finance/reimbursements/:id": { permission: "viewReimbursements" },

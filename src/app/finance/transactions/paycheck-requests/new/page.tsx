@@ -456,7 +456,6 @@ export default function NewPaycheckRequestPage() {
               "profile:profiles!finance_employee_refs_user_id_fkey(user_id, full_name, display_name)",
             ].join(", ")
           )
-          .eq("status", "active")
           .order("created_at", { ascending: false }),
 
         supabase

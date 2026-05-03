@@ -1,19 +1,24 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
+import type { ReactNode } from "react";
 import { useNavigate } from "react-router-dom";
+import type { LucideIcon } from "lucide-react";
 import {
   ArrowRight,
+  Building2,
   CalendarDays,
   Download,
   FileSignature,
   LinkIcon,
   Save,
   Send,
+  ShieldCheck,
   UploadCloud,
   UserRound,
   WalletCards,
 } from "lucide-react";
 
 import { supabase } from "@/lib/supabase";
+import PaycheckRequestPrintDocument from "./PaycheckRequestPrintDocument";
 
 type EmployeeRefRow = {
   id: string;
@@ -57,9 +62,47 @@ type CurrencyRow = {
   status: string;
 };
 
+type CompanyRow = {
+  id: string;
+  name: string | null;
+  legal_name: string | null;
+  email: string | null;
+  phone: string | null;
+  currency_code: string | null;
+  country: string | null;
+  city: string | null;
+  state_province: string | null;
+  postal_code: string | null;
+  address_line_1: string | null;
+  address_line_2: string | null;
+  status: string;
+};
+
+type PrintCompanyRow = {
+  id: string;
+  company_name: string | null;
+  legal_name: string | null;
+  display_name: string | null;
+  registration_number: string | null;
+  tax_id: string | null;
+  email: string | null;
+  phone: string | null;
+  address_line1: string | null;
+  address_line2: string | null;
+  city: string | null;
+  state_region: string | null;
+  postal_code: string | null;
+  country: string | null;
+  status: string;
+};
+
+type SocialInsuranceContributionType = "by_employee" | "by_employer";
+
 type FormState = {
+  companyId: string;
   employeeRefId: string;
   payProfileId: string;
+  joinDate: string;
   periodStart: string;
   periodEnd: string;
   requestedPayDate: string;
@@ -68,6 +111,8 @@ type FormState = {
   bonusAmount: string;
   deductionAmount: string;
   reimbursementAmount: string;
+  socialInsuranceContributionType: SocialInsuranceContributionType;
+  socialInsuranceContributionDetails: string;
   signedFormExternalUrl: string;
   notes: string;
 };
@@ -117,6 +162,7 @@ function formatDate(value: string | null | undefined) {
 
 function formatLabel(value: string | null | undefined) {
   if (!value) return "—";
+
   return value
     .replaceAll("_", " ")
     .replace(/\b\w/g, (character) => character.toUpperCase());
@@ -153,6 +199,35 @@ function buildPayProfileLabel(row: PayProfileRow | null | undefined) {
     .join(" • ");
 }
 
+function buildCompanyLabel(row: CompanyRow | null | undefined) {
+  if (!row) return "Select company";
+  return row.legal_name || row.name || "Unnamed company";
+}
+
+function buildCompanySubLabel(row: CompanyRow | null | undefined) {
+  if (!row) return "Company master data required";
+
+  return [
+    row.currency_code ? `Currency ${row.currency_code}` : null,
+    [row.city, row.country].filter(Boolean).join(", ") || null,
+  ]
+    .filter(Boolean)
+    .join(" • ");
+}
+
+function buildCompanyAddress(row: CompanyRow | null | undefined) {
+  if (!row) return "";
+
+  return [
+    row.address_line_1,
+    row.address_line_2,
+    [row.city, row.state_province, row.postal_code].filter(Boolean).join(", "),
+    row.country,
+  ]
+    .filter(Boolean)
+    .join("\n");
+}
+
 function sanitizePathPart(value: string) {
   return value.replace(/[^a-zA-Z0-9-_]/g, "-").slice(0, 80);
 }
@@ -177,8 +252,8 @@ function SectionCard({
 }: {
   title: string;
   description: string;
-  icon: typeof FileSignature;
-  children: React.ReactNode;
+  icon: LucideIcon;
+  children: ReactNode;
 }) {
   return (
     <section className="overflow-hidden rounded-[30px] border border-white/10 bg-white/[0.045] backdrop-blur-xl">
@@ -229,7 +304,7 @@ function SelectShell({
   label: string;
   value: string;
   onChange: (value: string) => void;
-  children: React.ReactNode;
+  children: ReactNode;
 }) {
   return (
     <label className="grid gap-2">
@@ -251,11 +326,14 @@ export default function NewPaycheckRequestPage() {
   const [employeeRefs, setEmployeeRefs] = useState<EmployeeRefRow[]>([]);
   const [payProfiles, setPayProfiles] = useState<PayProfileRow[]>([]);
   const [currencies, setCurrencies] = useState<CurrencyRow[]>([]);
+  const [companies, setCompanies] = useState<CompanyRow[]>([]);
   const [currentUserId, setCurrentUserId] = useState<string | null>(null);
 
   const [form, setForm] = useState<FormState>({
+    companyId: "",
     employeeRefId: "",
     payProfileId: "",
+    joinDate: "",
     periodStart: defaultPeriodStart(),
     periodEnd: defaultPeriodEnd(),
     requestedPayDate: todayDate(),
@@ -264,6 +342,8 @@ export default function NewPaycheckRequestPage() {
     bonusAmount: "0",
     deductionAmount: "0",
     reimbursementAmount: "0",
+    socialInsuranceContributionType: "by_employee",
+    socialInsuranceContributionDetails: "",
     signedFormExternalUrl: "",
     notes: "",
   });
@@ -285,6 +365,32 @@ export default function NewPaycheckRequestPage() {
   const selectedPayProfile = useMemo(() => {
     return payProfiles.find((row) => row.id === form.payProfileId) || null;
   }, [form.payProfileId, payProfiles]);
+
+  const selectedCompany = useMemo(() => {
+    return companies.find((row) => row.id === form.companyId) || null;
+  }, [companies, form.companyId]);
+
+  const printCompany = useMemo<PrintCompanyRow | null>(() => {
+    if (!selectedCompany) return null;
+
+    return {
+      id: selectedCompany.id,
+      company_name: selectedCompany.name,
+      legal_name: selectedCompany.legal_name,
+      display_name: selectedCompany.name,
+      registration_number: null,
+      tax_id: null,
+      email: selectedCompany.email,
+      phone: selectedCompany.phone,
+      address_line1: selectedCompany.address_line_1,
+      address_line2: selectedCompany.address_line_2,
+      city: selectedCompany.city,
+      state_region: selectedCompany.state_province,
+      postal_code: selectedCompany.postal_code,
+      country: selectedCompany.country,
+      status: selectedCompany.status,
+    };
+  }, [selectedCompany]);
 
   const filteredPayProfiles = useMemo(() => {
     if (!selectedEmployee) return [];
@@ -330,69 +436,86 @@ export default function NewPaycheckRequestPage() {
 
       setCurrentUserId(user.id);
 
-      const [employeeRefsResult, payProfilesResult, currenciesResult] =
-        await Promise.all([
-          supabase
-            .from("finance_employee_refs")
-            .select(
-              [
-                "id",
-                "user_id",
-                "code",
-                "status",
-                "mark",
-                "metadata",
-                "profile:profiles!finance_employee_refs_user_id_fkey(user_id, full_name, display_name)",
-              ].join(", ")
-            )
-            .eq("status", "active")
-            .order("created_at", { ascending: false }),
+      const [
+        employeeRefsResult,
+        payProfilesResult,
+        currenciesResult,
+        companiesResult,
+      ] = await Promise.all([
+        supabase
+          .from("finance_employee_refs")
+          .select(
+            [
+              "id",
+              "user_id",
+              "code",
+              "status",
+              "mark",
+              "metadata",
+              "profile:profiles!finance_employee_refs_user_id_fkey(user_id, full_name, display_name)",
+            ].join(", ")
+          )
+          .eq("status", "active")
+          .order("created_at", { ascending: false }),
 
-          supabase
-            .from("finance_pay_profiles")
-            .select(
-              [
-                "id",
-                "profile_number",
-                "user_id",
-                "pay_type",
-                "payment_frequency",
-                "base_salary",
-                "hourly_rate",
-                "default_hours",
-                "currency_code",
-                "active",
-                "status",
-                "effective_from",
-                "effective_to",
-                "notes",
-                "metadata",
-              ].join(", ")
-            )
-            .eq("active", true)
-            .eq("status", "active")
-            .order("effective_from", { ascending: false }),
+        supabase
+          .from("finance_pay_profiles")
+          .select(
+            [
+              "id",
+              "profile_number",
+              "user_id",
+              "pay_type",
+              "payment_frequency",
+              "base_salary",
+              "hourly_rate",
+              "default_hours",
+              "currency_code",
+              "active",
+              "status",
+              "effective_from",
+              "effective_to",
+              "notes",
+              "metadata",
+            ].join(", ")
+          )
+          .eq("active", true)
+          .eq("status", "active")
+          .order("effective_from", { ascending: false }),
 
-          supabase
-            .from("finance_currencies")
-            .select(
-              "id, currency_code, currency_name, currency_symbol, decimal_places, is_base_currency, status"
-            )
-            .eq("status", "active")
-            .order("currency_code", { ascending: true }),
-        ]);
+        supabase
+          .from("finance_currencies")
+          .select(
+            "id, currency_code, currency_name, currency_symbol, decimal_places, is_base_currency, status"
+          )
+          .eq("status", "active")
+          .order("currency_code", { ascending: true }),
+
+        supabase
+          .from("finance_companies")
+          .select(
+            "id, name, legal_name, email, phone, currency_code, country, city, state_province, postal_code, address_line_1, address_line_2, status"
+          )
+          .eq("status", "active")
+          .order("name", { ascending: true }),
+      ]);
 
       if (employeeRefsResult.error) throw employeeRefsResult.error;
       if (payProfilesResult.error) throw payProfilesResult.error;
       if (currenciesResult.error) throw currenciesResult.error;
+      if (companiesResult.error) throw companiesResult.error;
 
-      const loadedEmployeeRefs = (employeeRefsResult.data || []) as unknown as EmployeeRefRow[];
-      const loadedPayProfiles = (payProfilesResult.data || []) as unknown as PayProfileRow[];
+      const loadedEmployeeRefs = (employeeRefsResult.data ||
+        []) as unknown as EmployeeRefRow[];
+      const loadedPayProfiles = (payProfilesResult.data ||
+        []) as unknown as PayProfileRow[];
       const loadedCurrencies = (currenciesResult.data || []) as CurrencyRow[];
+      const loadedCompanies = (companiesResult.data || []) as CompanyRow[];
 
       setEmployeeRefs(loadedEmployeeRefs);
       setPayProfiles(loadedPayProfiles);
       setCurrencies(loadedCurrencies);
+      setCompanies(loadedCompanies);
 
       const ownEmployee =
         loadedEmployeeRefs.find((row) => row.user_id === user.id) ||
@@ -400,11 +523,18 @@ export default function NewPaycheckRequestPage() {
         null;
 
       const ownPayProfile = ownEmployee
-        ? loadedPayProfiles.find((row) => row.user_id === ownEmployee.user_id) || null
+        ? loadedPayProfiles.find((row) => row.user_id === ownEmployee.user_id) ||
+          null
         : null;
+
+      const defaultCompany =
+        loadedCompanies.find((row) => row.currency_code === ownPayProfile?.currency_code) ||
+        loadedCompanies[0] ||
+        null;
 
       setForm((current) => ({
         ...current,
+        companyId: defaultCompany?.id || current.companyId,
         employeeRefId: ownEmployee?.id || current.employeeRefId,
         payProfileId: ownPayProfile?.id || current.payProfileId,
         requestedCurrencyCode:
@@ -445,14 +575,18 @@ export default function NewPaycheckRequestPage() {
     if (!firstProfile) return;
 
     setForm((current) => {
-      if (current.payProfileId && filteredPayProfiles.some((row) => row.id === current.payProfileId)) {
+      if (
+        current.payProfileId &&
+        filteredPayProfiles.some((row) => row.id === current.payProfileId)
+      ) {
         return current;
       }
 
       return {
         ...current,
         payProfileId: firstProfile.id,
-        requestedCurrencyCode: firstProfile.currency_code || current.requestedCurrencyCode,
+        requestedCurrencyCode:
+          firstProfile.currency_code || current.requestedCurrencyCode,
         grossAmount:
           firstProfile.pay_type === "hourly"
             ? String(
@@ -485,12 +619,20 @@ export default function NewPaycheckRequestPage() {
     (submitMode: "draft" | "submit") => {
       if (!currentUserId) return "You must be signed in.";
 
+      if (!form.companyId) {
+        return "Select a company.";
+      }
+
       if (!form.employeeRefId) {
         return "Select an employee reference.";
       }
 
       if (!selectedEmployee) {
         return "Selected employee reference is invalid.";
+      }
+
+      if (!form.joinDate) {
+        return "Join date is required for the payslip form.";
       }
 
       if (!form.periodStart) {
@@ -517,7 +659,19 @@ export default function NewPaycheckRequestPage() {
         return "Net amount must be greater than 0.";
       }
 
-      if (submitMode === "submit" && !signedFormFile && !uploadedPath && !form.signedFormExternalUrl.trim()) {
+      if (
+        form.socialInsuranceContributionType === "by_employer" &&
+        !form.socialInsuranceContributionDetails.trim()
+      ) {
+        return "Employer social insurance details are required when contribution is by employer.";
+      }
+
+      if (
+        submitMode === "submit" &&
+        !signedFormFile &&
+        !uploadedPath &&
+        !form.signedFormExternalUrl.trim()
+      ) {
         return "Signed form upload or signed form link is required before submission.";
       }
 
@@ -526,11 +680,15 @@ export default function NewPaycheckRequestPage() {
     [
       bonusAmount,
       currentUserId,
+      form.companyId,
       form.employeeRefId,
+      form.joinDate,
       form.periodEnd,
       form.periodStart,
       form.requestedCurrencyCode,
       form.signedFormExternalUrl,
+      form.socialInsuranceContributionDetails,
+      form.socialInsuranceContributionType,
       grossAmount,
       netAmount,
       reimbursementAmount,
@@ -556,7 +714,9 @@ export default function NewPaycheckRequestPage() {
 
       const extension = signedFormFile.name.split(".").pop() || "file";
       const safeCode = sanitizePathPart(selectedEmployee.code || "employee");
-      const safeName = sanitizePathPart(signedFormFile.name.replace(/\.[^.]+$/, ""));
+      const safeName = sanitizePathPart(
+        signedFormFile.name.replace(/\.[^.]+$/, "")
+      );
       const path = `${safeCode}/${requestId}/${Date.now()}-${safeName}.${extension}`;
 
       const uploadResult = await supabase.storage
@@ -583,60 +743,29 @@ export default function NewPaycheckRequestPage() {
     [selectedEmployee, signedFormFile, uploadedAt, uploadedBucket, uploadedPath]
   );
 
-  const downloadFormTemplate = useCallback(() => {
-    const employeeName = buildEmployeeLabel(selectedEmployee);
-    const employeeCode = selectedEmployee?.code || "—";
-    const payProfileLabel = buildPayProfileLabel(selectedPayProfile);
-    const currency = form.requestedCurrencyCode || "USD";
+  const generateFilledPdfForm = useCallback(() => {
+    if (!selectedEmployee) {
+      setActionError("Select an employee before generating the form.");
+      return;
+    }
 
-    const lines = [
-      "AIXIA PAYCHECK REQUEST FORM",
-      "",
-      `Employee: ${employeeName}`,
-      `Employee Code: ${employeeCode}`,
-      `Pay Profile: ${payProfileLabel}`,
-      `Payroll Period: ${formatDate(form.periodStart)} to ${formatDate(form.periodEnd)}`,
-      `Requested Pay Date: ${formatDate(form.requestedPayDate)}`,
-      "",
-      "PAYCHECK AMOUNTS",
-      `Gross Amount: ${currency} ${formatMoney(grossAmount)}`,
-      `Bonus Amount: ${currency} ${formatMoney(bonusAmount)}`,
-      `Deduction Amount: ${currency} ${formatMoney(deductionAmount)}`,
-      `Reimbursement Amount: ${currency} ${formatMoney(reimbursementAmount)}`,
-      `Net Amount: ${currency} ${formatMoney(netAmount)}`,
-      "",
-      "EMPLOYEE DECLARATION",
-      "I confirm that the information above is correct and request payroll processing for this period.",
-      "",
-      "Employee Signature: ______________________________",
-      "Date: ______________________________",
-    ];
+    if (!selectedCompany) {
+      setActionError("Select a company before generating the form.");
+      return;
+    }
 
-    const blob = new Blob([lines.join("\n")], {
-      type: "text/plain;charset=utf-8",
-    });
+    if (!form.joinDate) {
+      setActionError("Enter join date before generating the form.");
+      return;
+    }
 
-    const url = URL.createObjectURL(blob);
-    const anchor = document.createElement("a");
-    anchor.href = url;
-    anchor.download = `paycheck-request-${selectedEmployee?.code || "employee"}-${form.periodStart}.txt`;
-    document.body.appendChild(anchor);
-    anchor.click();
-    anchor.remove();
-    URL.revokeObjectURL(url);
-  }, [
-    bonusAmount,
-    deductionAmount,
-    form.periodEnd,
-    form.periodStart,
-    form.requestedCurrencyCode,
-    form.requestedPayDate,
-    grossAmount,
-    netAmount,
-    reimbursementAmount,
-    selectedEmployee,
-    selectedPayProfile,
-  ]);
+    setActionError(null);
+    setActionMessage("Print dialog opened. Choose Save as PDF if needed.");
+
+    window.setTimeout(() => {
+      window.print();
+    }, 120);
+  }, [form.joinDate, selectedCompany, selectedEmployee]);
 
   const saveRequest = useCallback(
     async (submitMode: "draft" | "submit") => {
@@ -655,6 +784,22 @@ export default function NewPaycheckRequestPage() {
           throw new Error("Missing employee or user context.");
         }
 
+        const companySnapshot = selectedCompany
+          ? {
+              company_id: selectedCompany.id,
+              company_name: selectedCompany.name,
+              legal_name: selectedCompany.legal_name,
+              email: selectedCompany.email,
+              phone: selectedCompany.phone,
+              currency_code: selectedCompany.currency_code,
+              address: buildCompanyAddress(selectedCompany),
+              city: selectedCompany.city,
+              state_province: selectedCompany.state_province,
+              postal_code: selectedCompany.postal_code,
+              country: selectedCompany.country,
+            }
+          : null;
+
         const insertResult = await supabase
           .from("finance_paycheck_requests")
           .insert({
@@ -664,7 +809,9 @@ export default function NewPaycheckRequestPage() {
             period_start: form.periodStart,
             period_end: form.periodEnd,
             requested_pay_date: form.requestedPayDate || null,
-            requested_currency_code: form.requestedCurrencyCode.trim().toUpperCase(),
+            requested_currency_code: form.requestedCurrencyCode
+              .trim()
+              .toUpperCase(),
             requested_gross_amount: grossAmount,
             requested_bonus_amount: bonusAmount,
             requested_deduction_amount: deductionAmount,
@@ -677,6 +824,7 @@ export default function NewPaycheckRequestPage() {
             recipient_confirmation_status: "not_paid_yet",
             notes: form.notes.trim() || null,
             metadata: {
+              company_snapshot: companySnapshot,
               employee_snapshot: {
                 employee_ref_id: selectedEmployee.id,
                 employee_user_id: selectedEmployee.user_id,
@@ -698,6 +846,24 @@ export default function NewPaycheckRequestPage() {
                     effective_to: selectedPayProfile.effective_to,
                   }
                 : null,
+              payslip_form_snapshot: {
+                company_id: form.companyId,
+                company_label: buildCompanyLabel(selectedCompany),
+                join_date: form.joinDate,
+                position: selectedEmployee.mark
+                  ? formatLabel(selectedEmployee.mark)
+                  : null,
+                social_insurance_contribution_type:
+                  form.socialInsuranceContributionType,
+                social_insurance_contribution_label:
+                  form.socialInsuranceContributionType === "by_employer"
+                    ? "By Employer"
+                    : "By Employee",
+                social_insurance_contribution_details:
+                  form.socialInsuranceContributionDetails.trim() || null,
+                form_type: "prc_pay_slip",
+                generated_from_page: true,
+              },
               requested_amounts: {
                 gross: grossAmount,
                 bonus: bonusAmount,
@@ -707,7 +873,7 @@ export default function NewPaycheckRequestPage() {
                 currency_code: form.requestedCurrencyCode.trim().toUpperCase(),
               },
               form_template: {
-                downloaded_available: true,
+                downloadable_pdf_available: true,
                 generated_from_page: true,
               },
             },
@@ -745,7 +911,8 @@ export default function NewPaycheckRequestPage() {
             signed_form_status: signedFormStatus,
             signed_form_storage_bucket: uploadInfo.bucket,
             signed_form_storage_path: uploadInfo.path,
-            signed_form_external_url: form.signedFormExternalUrl.trim() || null,
+            signed_form_external_url:
+              form.signedFormExternalUrl.trim() || null,
             signed_form_uploaded_at: uploadInfo.uploadedAt,
             updated_by: currentUserId,
           })
@@ -754,10 +921,13 @@ export default function NewPaycheckRequestPage() {
         if (updateResult.error) throw updateResult.error;
 
         if (submitMode === "submit") {
-          const submitResult = await supabase.rpc("finance_submit_paycheck_request", {
-            p_request_id: requestId,
-            p_actor_user_id: currentUserId,
-          });
+          const submitResult = await supabase.rpc(
+            "finance_submit_paycheck_request",
+            {
+              p_request_id: requestId,
+              p_actor_user_id: currentUserId,
+            }
+          );
 
           if (submitResult.error) throw submitResult.error;
         }
@@ -784,6 +954,8 @@ export default function NewPaycheckRequestPage() {
       bonusAmount,
       currentUserId,
       deductionAmount,
+      form.companyId,
+      form.joinDate,
       form.notes,
       form.payProfileId,
       form.periodEnd,
@@ -791,10 +963,13 @@ export default function NewPaycheckRequestPage() {
       form.requestedCurrencyCode,
       form.requestedPayDate,
       form.signedFormExternalUrl,
+      form.socialInsuranceContributionDetails,
+      form.socialInsuranceContributionType,
       grossAmount,
       navigate,
       netAmount,
       reimbursementAmount,
+      selectedCompany,
       selectedEmployee,
       selectedPayProfile,
       uploadSignedFormIfNeeded,
@@ -831,7 +1006,8 @@ export default function NewPaycheckRequestPage() {
 
                 <p className="mt-3 max-w-4xl text-sm leading-6 text-slate-400 md:text-base md:leading-7">
                   Create an employee paycheck request, pull pay profile defaults,
-                  download the form, upload the signed form, and submit to Finance review.
+                  generate the filled payslip form, upload the signed form, and submit
+                  to Finance review.
                 </p>
 
                 <div className="mt-5 flex flex-wrap gap-2">
@@ -840,6 +1016,9 @@ export default function NewPaycheckRequestPage() {
                   </div>
                   <div className="rounded-full border border-emerald-400/20 bg-emerald-500/10 px-3 py-1 text-[11px] font-semibold uppercase tracking-[0.16em] text-emerald-200">
                     Pay Profile Defaults
+                  </div>
+                  <div className="rounded-full border border-violet-400/20 bg-violet-500/10 px-3 py-1 text-[11px] font-semibold uppercase tracking-[0.16em] text-violet-200">
+                    Filled PDF Form
                   </div>
                   <div className="rounded-full border border-amber-400/20 bg-amber-500/10 px-3 py-1 text-[11px] font-semibold uppercase tracking-[0.16em] text-amber-200">
                     Signed Form Required
@@ -878,11 +1057,24 @@ export default function NewPaycheckRequestPage() {
         <section className="grid items-start gap-6 xl:grid-cols-[minmax(0,1fr)_430px]">
           <div className="grid gap-6">
             <SectionCard
-              title="Employee & Pay Profile"
-              description="Select the employee reference and pay profile used for this paycheck request."
-              icon={UserRound}
+              title="Company & Employee"
+              description="Select the company and employee used for this paycheck request and payslip form."
+              icon={Building2}
             >
               <div className="grid gap-4 md:grid-cols-2">
+                <SelectShell
+                  label="Company"
+                  value={form.companyId}
+                  onChange={(value) => updateField("companyId", value)}
+                >
+                  <option value="">Select company</option>
+                  {companies.map((row) => (
+                    <option key={row.id} value={row.id}>
+                      {buildCompanyLabel(row)} — {buildCompanySubLabel(row)}
+                    </option>
+                  ))}
+                </SelectShell>
+
                 <SelectShell
                   label="Employee Reference"
                   value={form.employeeRefId}
@@ -898,7 +1090,28 @@ export default function NewPaycheckRequestPage() {
                     </option>
                   ))}
                 </SelectShell>
+              </div>
 
+              <div className="mt-4 grid gap-4 md:grid-cols-2">
+                <SummaryBlock
+                  label="Selected Company"
+                  value={buildCompanyLabel(selectedCompany)}
+                  detail={buildCompanySubLabel(selectedCompany)}
+                />
+                <SummaryBlock
+                  label="Employee"
+                  value={buildEmployeeLabel(selectedEmployee)}
+                  detail={buildEmployeeSubLabel(selectedEmployee)}
+                />
+              </div>
+            </SectionCard>
+
+            <SectionCard
+              title="Pay Profile Defaults"
+              description="Select the employee pay profile used to fill salary, frequency, currency, and gross amount defaults."
+              icon={UserRound}
+            >
+              <div className="grid gap-4 md:grid-cols-2">
                 <SelectShell
                   label="Pay Profile"
                   value={form.payProfileId}
@@ -911,7 +1124,30 @@ export default function NewPaycheckRequestPage() {
                     </option>
                   ))}
                 </SelectShell>
+
+                <label className="grid gap-2">
+                  <span className={labelClass()}>Join Date</span>
+                  <input
+                    type="date"
+                    value={form.joinDate}
+                    onChange={(event) => updateField("joinDate", event.target.value)}
+                    className={inputClass()}
+                  />
+                </label>
               </div>
+
+              {selectedEmployee && filteredPayProfiles.length === 0 ? (
+                <div className="mt-4 rounded-[24px] border border-amber-400/20 bg-amber-500/10 p-4">
+                  <div className="text-sm font-semibold text-amber-100">
+                    No active pay profile found for this employee.
+                  </div>
+                  <p className="mt-2 text-xs leading-5 text-amber-100/75">
+                    You can still enter paycheck amounts manually, but Finance/Admin
+                    should create the employee pay profile from Finance Master Data →
+                    Employees so future requests auto-fill correctly.
+                  </p>
+                </div>
+              ) : null}
 
               <div className="mt-4 grid gap-4 md:grid-cols-3">
                 <SummaryBlock
@@ -927,7 +1163,7 @@ export default function NewPaycheckRequestPage() {
                 <SummaryBlock
                   label="Profile Currency"
                   value={selectedPayProfile?.currency_code || "—"}
-                  detail="Can be changed if request currency differs."
+                  detail="Used as the default request currency."
                 />
               </div>
             </SectionCard>
@@ -943,7 +1179,9 @@ export default function NewPaycheckRequestPage() {
                   <input
                     type="date"
                     value={form.periodStart}
-                    onChange={(event) => updateField("periodStart", event.target.value)}
+                    onChange={(event) =>
+                      updateField("periodStart", event.target.value)
+                    }
                     className={inputClass()}
                   />
                 </label>
@@ -953,7 +1191,9 @@ export default function NewPaycheckRequestPage() {
                   <input
                     type="date"
                     value={form.periodEnd}
-                    onChange={(event) => updateField("periodEnd", event.target.value)}
+                    onChange={(event) =>
+                      updateField("periodEnd", event.target.value)
+                    }
                     className={inputClass()}
                   />
                 </label>
@@ -997,7 +1237,9 @@ export default function NewPaycheckRequestPage() {
                     min="0"
                     step="0.01"
                     value={form.grossAmount}
-                    onChange={(event) => updateField("grossAmount", event.target.value)}
+                    onChange={(event) =>
+                      updateField("grossAmount", event.target.value)
+                    }
                     className={inputClass()}
                   />
                 </label>
@@ -1009,7 +1251,9 @@ export default function NewPaycheckRequestPage() {
                     min="0"
                     step="0.01"
                     value={form.bonusAmount}
-                    onChange={(event) => updateField("bonusAmount", event.target.value)}
+                    onChange={(event) =>
+                      updateField("bonusAmount", event.target.value)
+                    }
                     className={inputClass()}
                   />
                 </label>
@@ -1057,20 +1301,72 @@ export default function NewPaycheckRequestPage() {
             </SectionCard>
 
             <SectionCard
+              title="Social Insurance"
+              description="Select how social insurance contribution should appear on the filled payslip form."
+              icon={ShieldCheck}
+            >
+              <div className="grid gap-4 md:grid-cols-2">
+                <SelectShell
+                  label="Social Insurance Contribution"
+                  value={form.socialInsuranceContributionType}
+                  onChange={(value) =>
+                    updateField(
+                      "socialInsuranceContributionType",
+                      value as SocialInsuranceContributionType
+                    )
+                  }
+                >
+                  <option value="by_employee">By Employee</option>
+                  <option value="by_employer">By Employer</option>
+                </SelectShell>
+
+                {form.socialInsuranceContributionType === "by_employer" ? (
+                  <label className="grid gap-2">
+                    <span className={labelClass()}>Employer Contribution Details</span>
+                    <input
+                      value={form.socialInsuranceContributionDetails}
+                      onChange={(event) =>
+                        updateField(
+                          "socialInsuranceContributionDetails",
+                          event.target.value
+                        )
+                      }
+                      placeholder="Enter employer social insurance details"
+                      className={inputClass()}
+                    />
+                  </label>
+                ) : (
+                  <div className="rounded-[24px] border border-white/10 bg-black/20 p-4">
+                    <div className="text-[11px] font-semibold uppercase tracking-[0.2em] text-slate-500">
+                      PDF Form Output
+                    </div>
+                    <div className="mt-2 text-lg font-semibold text-white">
+                      By Employee
+                    </div>
+                    <div className="mt-2 text-sm leading-6 text-slate-400">
+                      The payslip form will mark social insurance contribution as
+                      employee-paid.
+                    </div>
+                  </div>
+                )}
+              </div>
+            </SectionCard>
+
+            <SectionCard
               title="Signed Form"
-              description="Download the request form, sign it, then upload the signed form or provide a signed-form link."
+              description="Generate the filled PDF form, print/sign it, then upload the signed form or provide a signed-form link."
               icon={UploadCloud}
             >
-              <div className="grid gap-4 lg:grid-cols-[minmax(0,1fr)_260px]">
+              <div className="grid gap-4 lg:grid-cols-[minmax(0,1fr)_280px]">
                 <div className="grid gap-4">
                   <button
                     type="button"
-                    onClick={downloadFormTemplate}
-                    disabled={!selectedEmployee}
+                    onClick={generateFilledPdfForm}
+                    disabled={!selectedEmployee || !selectedCompany}
                     className="inline-flex h-11 w-fit items-center justify-center gap-2 rounded-2xl border border-emerald-400/20 bg-emerald-500/10 px-4 text-sm font-semibold text-emerald-100 transition hover:bg-emerald-500/15 disabled:cursor-not-allowed disabled:opacity-50"
                   >
                     <Download className="h-4 w-4" />
-                    Download Form Template
+                    Generate Filled PDF Form
                   </button>
 
                   <label className="grid gap-2">
@@ -1116,8 +1412,10 @@ export default function NewPaycheckRequestPage() {
                     Signed form required for submission
                   </div>
                   <p className="mt-2 text-xs leading-5 text-amber-100/75">
-                    Drafts can be saved without a signed form. Submitting to Finance review
-                    requires either an uploaded signed form or an external signed-form link.
+                    Generate the filled form, save as PDF or print it, sign it, then
+                    upload the signed file. Drafts can be saved without a signed
+                    form. Submission requires an uploaded signed form or external
+                    signed-form link.
                   </p>
                   <div className="mt-4 text-xs leading-5 text-amber-100/75">
                     Bucket: {BUCKET_NAME}
@@ -1145,6 +1443,12 @@ export default function NewPaycheckRequestPage() {
 
               <div className="grid gap-4 p-5">
                 <SummaryBlock
+                  label="Company"
+                  value={buildCompanyLabel(selectedCompany)}
+                  detail={buildCompanySubLabel(selectedCompany)}
+                />
+
+                <SummaryBlock
                   label="Employee"
                   value={buildEmployeeLabel(selectedEmployee)}
                   detail={buildEmployeeSubLabel(selectedEmployee)}
@@ -1160,6 +1464,20 @@ export default function NewPaycheckRequestPage() {
                   label="Net Paycheck Request"
                   value={`${form.requestedCurrencyCode || "USD"} ${formatMoney(netAmount)}`}
                   detail="Calculated from the amount fields."
+                />
+
+                <SummaryBlock
+                  label="Social Insurance"
+                  value={
+                    form.socialInsuranceContributionType === "by_employer"
+                      ? "By Employer"
+                      : "By Employee"
+                  }
+                  detail={
+                    form.socialInsuranceContributionType === "by_employer"
+                      ? form.socialInsuranceContributionDetails || "Details required."
+                      : "Employee-paid contribution option."
+                  }
                 />
 
                 <SummaryBlock
@@ -1198,6 +1516,24 @@ export default function NewPaycheckRequestPage() {
           </aside>
         </section>
       </div>
+
+      <PaycheckRequestPrintDocument
+        company={printCompany}
+        employee={selectedEmployee}
+        payProfile={selectedPayProfile}
+        joinDate={form.joinDate}
+        periodStart={form.periodStart}
+        periodEnd={form.periodEnd}
+        requestedPayDate={todayDate()}
+        requestedCurrencyCode={form.requestedCurrencyCode || "USD"}
+        grossAmount={grossAmount}
+        bonusAmount={bonusAmount}
+        deductionAmount={deductionAmount}
+        reimbursementAmount={reimbursementAmount}
+        netAmount={netAmount}
+        socialInsuranceContributionType={form.socialInsuranceContributionType}
+        socialInsuranceContributionDetails={form.socialInsuranceContributionDetails}
+      />
     </div>
   );
 }

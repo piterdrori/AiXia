@@ -8,7 +8,6 @@ import {
   Clock3,
   CreditCard,
   Eye,
-  FileSignature,
   FileText,
   Loader2,
   ReceiptText,
@@ -732,10 +731,6 @@ export default function FinancePayrollControlPage() {
     return new Map(bankAccounts.map((bank) => [bank.id, bank]));
   }, [bankAccounts]);
 
-  const payrollRunMap = useMemo(() => {
-    return new Map(payrollRuns.map((run) => [run.id, run]));
-  }, [payrollRuns]);
-
   const paymentsByPaycheckId = useMemo(() => {
     const map = new Map<string, PayrollPaymentRow[]>();
 
@@ -1300,7 +1295,7 @@ export default function FinancePayrollControlPage() {
 
         setRequests((requestsResult.data || []) as unknown as PaycheckRequestRow[]);
         setCompanies((companiesResult.data || []) as CompanyRow[]);
-        setPaychecks((paychecksResult.data || []) as PaycheckRow[]);
+        setPaychecks((paychecksResult.data || []) as unknown as PaycheckRow[]);
         setPayrollRuns((payrollRunsResult.data || []) as unknown as PayrollRunRow[]);
         setPayments((paymentsResult.data || []) as unknown as PayrollPaymentRow[]);
         setBankAccounts((bankAccountsResult.data || []) as BankAccountRow[]);

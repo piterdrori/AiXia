@@ -25,6 +25,7 @@ import {
   Trash2,
   UploadCloud,
   UserRound,
+  WalletCards,
   Wrench,
 } from "lucide-react";
 
@@ -111,6 +112,10 @@ type FormState = {
   retroactiveReason: string;
   externalDocumentationLink: string;
   notes: string;
+
+  reimbursementPaymentMethod: string;
+  reimbursementPaymentMethodOther: string;
+  reimbursementReason: string;
 
   officeSupplierType: string;
   officeSupplierTypeOther: string;
@@ -219,6 +224,7 @@ type SelectOption = {
 
 const EXPENSE_TYPES: SelectOption[] = [
   { value: "office_support", label: "Office Support" },
+  { value: "reimbursement", label: "Reimbursement" },
   { value: "utilities", label: "Utilities" },
   { value: "software_subscription", label: "Software Subscription" },
   { value: "online_shopping", label: "Online Shopping" },
@@ -336,6 +342,14 @@ const OTHER_EXPENSE_CATEGORIES: SelectOption[] = [
   { value: "other", label: "Other" },
 ];
 
+const REIMBURSEMENT_PAYMENT_METHODS: SelectOption[] = [
+  { value: "personal_cash", label: "Personal Cash" },
+  { value: "personal_card", label: "Personal Card" },
+  { value: "personal_bank_transfer", label: "Personal Bank Transfer" },
+  { value: "personal_digital_wallet", label: "Personal Digital Wallet" },
+  { value: "other", label: "Other" },
+];
+
 const BILLING_FREQUENCIES: { value: BillingFrequency; label: string; helper: string }[] = [
   {
     value: "monthly",
@@ -422,6 +436,10 @@ const initialFormState: FormState = {
   retroactiveReason: "",
   externalDocumentationLink: "",
   notes: "",
+
+  reimbursementPaymentMethod: "personal_card",
+  reimbursementPaymentMethodOther: "",
+  reimbursementReason: "",
 
   officeSupplierType: "local_shop",
   officeSupplierTypeOther: "",
@@ -604,6 +622,19 @@ function buildGeneratedExpenseIdentity(form: FormState) {
     form.expenseType,
     form.otherExpenseExplanation
   );
+
+  if (form.expenseType === "reimbursement") {
+    const methodLabel = getOptionLabel(
+      REIMBURSEMENT_PAYMENT_METHODS,
+      form.reimbursementPaymentMethod,
+      form.reimbursementPaymentMethodOther
+    );
+
+    return {
+      title: `Reimbursement - ${methodLabel}`,
+      source: `Already paid personally • ${methodLabel}`,
+    };
+  }
 
   if (form.expenseType === "office_support") {
     const supplierLabel = getOptionLabel(
@@ -979,6 +1010,7 @@ export default function FinanceNewExpensePage() {
   const [formSuccess, setFormSuccess] = useState<string | null>(null);
 
   const isOtherExpenseType = form.expenseType === "other";
+  const isReimbursementType = form.expenseType === "reimbursement";
   const isSubscriptionType = form.expenseType === "software_subscription";
   const isSubscriptionExpense = isSubscriptionType || form.isSubscriptionExpense;
   const amountValue = toAmount(form.requestedAmount);
@@ -1287,6 +1319,29 @@ export default function FinanceNewExpensePage() {
       ),
     };
 
+    if (form.expenseType === "reimbursement") {
+      return {
+        ...base,
+        reimbursement: {
+          request_type: "reimbursement",
+          already_paid: true,
+          payment_method: form.reimbursementPaymentMethod,
+          payment_method_label: getOptionLabel(
+            REIMBURSEMENT_PAYMENT_METHODS,
+            form.reimbursementPaymentMethod,
+            form.reimbursementPaymentMethodOther
+          ),
+          payment_method_other:
+            form.reimbursementPaymentMethod === "other"
+              ? form.reimbursementPaymentMethodOther.trim()
+              : null,
+          reimbursement_reason: form.reimbursementReason.trim(),
+          original_payment_date: form.expenseDate,
+          proof_required_on_submit: true,
+        },
+      };
+    }
+
     if (form.expenseType === "office_support") {
       return {
         ...base,
@@ -1547,6 +1602,14 @@ export default function FinanceNewExpensePage() {
     }
 
     if (
+      form.expenseType === "reimbursement" &&
+      form.reimbursementPaymentMethod === "other" &&
+      !form.reimbursementPaymentMethodOther.trim()
+    ) {
+      return "Write the other reimbursement payment method.";
+    }
+
+    if (
       isSubscriptionExpense &&
       form.subscriptionBillingFrequency === "other" &&
       !form.subscriptionBillingFrequencyOther.trim()
@@ -1582,6 +1645,12 @@ export default function FinanceNewExpensePage() {
   }, [form, isSubscriptionExpense]);
 
   const validateExpenseTypeFields = useCallback(() => {
+    if (form.expenseType === "reimbursement") {
+      if (!form.reimbursementReason.trim()) {
+        return "Reimbursement reason is required.";
+      }
+    }
+
     if (form.expenseType === "office_support") {
       if (!form.officePurchasePurpose.trim()) return "Purchase purpose is required.";
     }
@@ -1726,6 +1795,14 @@ export default function FinanceNewExpensePage() {
         return "Retroactive requests need documentation upload or documentation link.";
       }
 
+      if (
+        submitMode === "request" &&
+        form.expenseType === "reimbursement" &&
+        documentationStatus === "missing"
+      ) {
+        return "Reimbursement requests need proof upload or documentation link because the money was already spent.";
+      }
+
       return null;
     },
     [
@@ -1808,7 +1885,13 @@ export default function FinanceNewExpensePage() {
 
         const userId = authResult.data.user?.id ?? null;
         const expenseNumber = buildExpenseNumber();
-        const requestStatus = submitMode === "request" ? "requested" : "draft";
+        const expenseRequestType = isReimbursementType ? "reimbursement" : "planned_expense";
+        const requestStatus =
+          submitMode === "request"
+            ? isReimbursementType
+              ? "documentation_submitted"
+              : "requested"
+            : "draft";
         const expenseTypeDetails = buildExpenseTypeMetadata();
         const finalExpenseTitle =
           form.expenseType === "other" ? form.title.trim() : generatedExpenseIdentity.title;
@@ -1874,6 +1957,19 @@ export default function FinanceNewExpensePage() {
           : null;
 
         const metadata = {
+          expense_request_type: expenseRequestType,
+          expense_request_type_label: isReimbursementType
+            ? "Reimbursement"
+            : "Planned Expense",
+          reimbursement_flow:
+            isReimbursementType
+              ? {
+                  already_paid: true,
+                  skips_spend_approval: true,
+                  next_step: "finance_document_review",
+                  proof_required_on_submit: true,
+                }
+              : null,
           expense_type_details: expenseTypeDetails,
           online_shopping:
             form.expenseType === "online_shopping"
@@ -1970,9 +2066,16 @@ export default function FinanceNewExpensePage() {
             retroactive_reason: form.isRetroactive ? form.retroactiveReason.trim() : null,
             request_status: requestStatus,
             status: submitMode === "request" ? "submitted" : "draft",
-            approval_status: submitMode === "request" ? "pending" : "not_required",
+            approval_status:
+              submitMode === "request" && !isReimbursementType ? "pending" : "not_required",
             payment_status: "not_applicable",
             documentation_status: documentationStatus,
+            documentation_submitted_at:
+              submitMode === "request" &&
+              isReimbursementType &&
+              documentationStatus !== "missing"
+                ? new Date().toISOString()
+                : null,
             finance_review_status: "pending_review",
             funding_status: "not_allocated",
             coverage_status: "not_covered",
@@ -2042,6 +2145,7 @@ export default function FinanceNewExpensePage() {
       documentationStatus,
       form,
       isOtherExpenseType,
+      isReimbursementType,
       isSubscriptionExpense,
       navigate,
       sanitizedSubscriptionCards,
@@ -2057,6 +2161,54 @@ export default function FinanceNewExpensePage() {
   );
 
   const renderDynamicExpenseSection = () => {
+    if (form.expenseType === "reimbursement") {
+      return (
+        <SectionCard
+          title="Reimbursement Details"
+          description="Use this when the person already paid personally and needs the company to reimburse them."
+          icon={WalletCards}
+        >
+          <div className="grid gap-4 md:grid-cols-2">
+            <SelectField
+              label="Original Payment Method"
+              value={form.reimbursementPaymentMethod}
+              onChange={(value) => updateField("reimbursementPaymentMethod", value)}
+              options={REIMBURSEMENT_PAYMENT_METHODS}
+            />
+
+            {form.reimbursementPaymentMethod === "other" ? (
+              <OtherTextField
+                label="Write Other Payment Method"
+                value={form.reimbursementPaymentMethodOther}
+                onChange={(value) => updateField("reimbursementPaymentMethodOther", value)}
+                placeholder="Write how the person originally paid"
+              />
+            ) : null}
+
+            <label className="grid gap-2 md:col-span-2">
+              <span className={labelClass()}>Reimbursement Reason</span>
+              <textarea
+                value={form.reimbursementReason}
+                onChange={(event) => updateField("reimbursementReason", event.target.value)}
+                className={textareaClass()}
+                placeholder="Explain what was already paid, why it was needed, and why the company should reimburse it"
+              />
+            </label>
+
+            <div className="rounded-[24px] border border-amber-400/20 bg-amber-500/10 p-4 md:col-span-2">
+              <div className="text-sm font-semibold text-amber-100">
+                Proof is required for reimbursement submission
+              </div>
+              <p className="mt-2 text-xs leading-5 text-amber-100/75">
+                Reimbursement skips spend approval because the money was already spent. Upload a receipt,
+                screenshot, invoice, document, or link before submitting.
+              </p>
+            </div>
+          </div>
+        </SectionCard>
+      );
+    }
+
     if (form.expenseType === "office_support") {
       return (
         <SectionCard
@@ -3543,8 +3695,12 @@ export default function FinanceNewExpensePage() {
             ) : null}
 
             <SectionCard
-              title="Supporting Documentation"
-              description="Upload a file, screenshot, receipt, invoice, official document, or add a documentation link."
+              title={isReimbursementType ? "Required Reimbursement Proof" : "Supporting Documentation"}
+              description={
+                isReimbursementType
+                  ? "Upload proof for the money already paid personally. Reimbursement cannot be submitted without proof."
+                  : "Upload a file, screenshot, receipt, invoice, official document, or add a documentation link."
+              }
               icon={UploadCloud}
             >
               <div className="grid gap-4 md:grid-cols-2">
@@ -3718,7 +3874,7 @@ export default function FinanceNewExpensePage() {
                   ) : (
                     <CheckCircle2 className="h-4 w-4" />
                   )}
-                  Submit Request
+                  {isReimbursementType ? "Submit Reimbursement" : "Submit Request"}
                 </button>
 
                 <button
@@ -3737,9 +3893,9 @@ export default function FinanceNewExpensePage() {
               </div>
 
               <div className="mt-4 rounded-[24px] border border-white/10 bg-black/20 p-4 text-xs leading-5 text-slate-500">
-                Funding company, bank account, Payment Made creation, and allocation are handled
-                later by Finance/Admin in Operating Expense Payments. This page keeps existing
-                options visible during silent refresh to avoid reload flicker.
+                Funding company, bank account, Funding Pool, and Expense Payment Distribution are
+                handled later by Finance/Admin. Planned expenses go through spend approval first.
+                Reimbursements skip spend approval and go directly to document review.
               </div>
             </section>
           </aside>

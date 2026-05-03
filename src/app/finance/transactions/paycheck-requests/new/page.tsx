@@ -387,7 +387,7 @@ export default function NewPaycheckRequestPage() {
       if (currenciesResult.error) throw currenciesResult.error;
 
       const loadedEmployeeRefs = (employeeRefsResult.data || []) as unknown as EmployeeRefRow[];
-      const loadedPayProfiles = (payProfilesResult.data || []) as PayProfileRow[];
+      const loadedPayProfiles = (payProfilesResult.data || []) as unknown as PayProfileRow[];
       const loadedCurrencies = (currenciesResult.data || []) as CurrencyRow[];
 
       setEmployeeRefs(loadedEmployeeRefs);
@@ -583,7 +583,7 @@ export default function NewPaycheckRequestPage() {
     [selectedEmployee, signedFormFile, uploadedAt, uploadedBucket, uploadedPath]
   );
 
-          const downloadFormTemplate = useCallback(() => {
+  const downloadFormTemplate = useCallback(() => {
     const employeeName = buildEmployeeLabel(selectedEmployee);
     const employeeCode = selectedEmployee?.code || "—";
     const payProfileLabel = buildPayProfileLabel(selectedPayProfile);

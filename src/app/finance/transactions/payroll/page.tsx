@@ -1580,6 +1580,16 @@ export default function PayrollMainPage() {
     return map;
   }, [paychecks]);
 
+  const paycheckByRunAndEmployeeMap = useMemo(() => {
+    const map = new Map<string, PaycheckRow>();
+
+    paychecks.forEach((paycheck) => {
+      map.set(`${paycheck.payroll_run_id}:${paycheck.user_id}`, paycheck);
+    });
+
+    return map;
+  }, [paychecks]);
+
   const paymentsByRunId = useMemo(() => {
     const map = new Map<string, PayrollPaymentRow[]>();
 
@@ -1658,19 +1668,34 @@ export default function PayrollMainPage() {
     return requests.map((request) => {
       const nextStep = getNextRequestStep(request);
 
+      const derivedPaycheck =
+        request.linked_paycheck_id
+          ? null
+          : request.linked_payroll_run_id
+            ? paycheckByRunAndEmployeeMap.get(
+                `${request.linked_payroll_run_id}:${request.employee_user_id}`
+              ) || null
+            : null;
+
+      const resolvedLinkedPaycheckId =
+        request.linked_paycheck_id || derivedPaycheck?.id || null;
+
       return {
         ...request,
+        linked_paycheck_id: resolvedLinkedPaycheckId,
         employeeName: getEmployeeName(request),
         employeeLabel: getEmployeeLabel(request),
         companyName: request.company_id ? "Company selected" : "No company selected",
         payProfileLabel: getPayProfileLabel(request),
         periodLabel: getRequestPeriodLabel(request),
         connectedFundLabel: getConnectedFundLabel(request, fundRunMap),
-        nextStepLabel: nextStep.label,
-        nextStepTone: nextStep.tone,
+        nextStepLabel: resolvedLinkedPaycheckId
+          ? "Payroll paycheck created — open payroll page"
+          : nextStep.label,
+        nextStepTone: resolvedLinkedPaycheckId ? "emerald" : nextStep.tone,
       };
     });
-  }, [fundRunMap, requests]);
+  }, [fundRunMap, paycheckByRunAndEmployeeMap, requests]);
 
   const activeRequests = useMemo(() => {
     return enrichedRequests.filter(

@@ -3,25 +3,17 @@ import type { ReactNode } from "react";
 import { useNavigate, useParams } from "react-router-dom";
 import {
   ArrowRight,
-  BadgeCheck,
   CreditCard,
-  Download,
-  ExternalLink,
   FileSignature,
+  Landmark,
   LinkIcon,
   ReceiptText,
-  RotateCcw,
   Save,
-  ShieldCheck,
-  UploadCloud,
   WalletCards,
-  XCircle,
 } from "lucide-react";
 import type { LucideIcon } from "lucide-react";
 
 import { supabase } from "@/lib/supabase";
-
-type ReviewDecision = "approve" | "reject" | "needs_correction";
 
 type PayrollPeriodRow = {
   id: string;
@@ -106,11 +98,7 @@ type PayProfileRow = {
   user_id: string;
   pay_type: string;
   payment_frequency: string;
-  base_salary?: number | string | null;
-  hourly_rate?: number | string | null;
-  default_hours?: number | string | null;
   currency_code: string;
-  active?: boolean;
   status: string;
 };
 
@@ -156,7 +144,7 @@ type PaycheckRequestRow = {
   documentation_status: string;
   signed_form_status: string;
   recipient_confirmation_status: string;
-  signed_form_file_upload_id: string | null;
+  signed_form_status_detail?: string | null;
   signed_form_storage_bucket: string | null;
   signed_form_storage_path: string | null;
   signed_form_external_url: string | null;
@@ -167,8 +155,6 @@ type PaycheckRequestRow = {
   admin_signed_form_storage_path: string | null;
   admin_signed_form_external_url: string | null;
   admin_signed_form_uploaded_at: string | null;
-  admin_signed_form_uploaded_by: string | null;
-  admin_signed_form_notes: string | null;
   submitted_at: string | null;
   reviewed_at: string | null;
   reviewed_by: string | null;
@@ -218,17 +204,11 @@ type PayrollPaymentRow = {
   updated_at: string;
 };
 
-type AdminSignedFormState = {
-  file: File | null;
-  externalUrl: string;
-  notes: string;
-};
-
 type PaymentFormState = {
   paycheckAmount: string;
   paycheckCurrencyCode: string;
-  paymentAmount: string;
-  paymentCurrencyCode: string;
+  fundDeductionAmount: string;
+  fundingCurrencyCode: string;
   paymentDate: string;
   conversionRate: string;
   conversionDate: string;
@@ -238,7 +218,6 @@ type PaymentFormState = {
   notes: string;
 };
 
-const BUCKET_NAME = "finance-paycheck-forms";
 const FRANKFURTER_API_BASE = "https://api.frankfurter.dev/v1";
 
 const statusToneMap: Record<string, string> = {
@@ -326,10 +305,6 @@ function normalizeCurrencyCode(value: string) {
   return value.trim().toUpperCase();
 }
 
-function sanitizePathPart(value: string) {
-  return value.replace(/[^a-zA-Z0-9-_]/g, "-").slice(0, 80);
-}
-
 function inputClass() {
   return "h-11 w-full rounded-2xl border border-white/10 bg-black/20 px-4 text-sm text-white outline-none transition placeholder:text-slate-600 focus:border-cyan-400/30 focus:bg-black/30 disabled:cursor-not-allowed disabled:opacity-50";
 }
@@ -342,48 +317,13 @@ function labelClass() {
   return "text-sm font-medium text-slate-300";
 }
 
-function hasEmployeeSignedForm(request: PaycheckRequestRow | null) {
-  if (!request) return false;
-  return Boolean(request.signed_form_storage_path || request.signed_form_external_url);
-}
-
-function hasAdminSignedForm(request: PaycheckRequestRow | null) {
-  if (!request) return false;
-  return Boolean(
-    request.admin_signed_form_storage_path || request.admin_signed_form_external_url
-  );
-}
-
-function isReviewableRequest(request: PaycheckRequestRow | null) {
-  if (!request) return false;
-
+function getEmployeeName(profile: ProfileRow | null) {
   return (
-    ["submitted", "needs_correction"].includes(request.status) &&
-    request.review_status !== "approved" &&
-    request.review_status !== "rejected"
+    profile?.full_name?.trim() ||
+    profile?.display_name?.trim() ||
+    profile?.email?.trim() ||
+    "Employee"
   );
-}
-
-function canApproveRequest(request: PaycheckRequestRow | null) {
-  if (!request) return false;
-
-  return (
-    isReviewableRequest(request) &&
-    hasEmployeeSignedForm(request) &&
-    hasAdminSignedForm(request) &&
-    ["uploaded", "linked", "files_and_links"].includes(
-      request.admin_signed_form_status || "not_uploaded"
-    )
-  );
-}
-
-function getEmployeeName(profile: ProfileRow | null, request: PaycheckRequestRow | null) {
-  const profileName =
-    profile?.full_name?.trim() || profile?.display_name?.trim() || profile?.email?.trim();
-
-  if (profileName) return profileName;
-  if (request?.employee_ref_id) return "Employee";
-  return "Employee";
 }
 
 function getEmployeeSubLabel(
@@ -420,6 +360,17 @@ function getBankIdentifier(row: BankAccountRow | null | undefined) {
   if (row.swift_code) return `SWIFT ${row.swift_code}`;
   if (row.masked_account_number) return row.masked_account_number;
   return row.code || "No bank identifier";
+}
+
+function canPayRequest(request: PaycheckRequestRow | null) {
+  if (!request) return false;
+
+  return (
+    request.review_status === "approved" &&
+    ["approved_for_payroll", "linked_to_payroll", "payment_sent", "received_confirmed"].includes(
+      request.status
+    )
+  );
 }
 
 function StatusBadge({ value }: { value: string | null | undefined }) {
@@ -482,7 +433,9 @@ function ValueBlock({
         {label}
       </div>
       <div className="mt-2 text-sm font-semibold text-white">{value}</div>
-      {detail ? <div className="mt-2 text-xs leading-5 text-slate-500">{detail}</div> : null}
+      {detail ? (
+        <div className="mt-2 text-xs leading-5 text-slate-500">{detail}</div>
+      ) : null}
     </div>
   );
 }
@@ -521,40 +474,27 @@ function AmountBlock({
   );
 }
 
-function StepBox({
-  number,
+function InstructionBox({
   title,
   text,
-  done,
+  tone = "cyan",
 }: {
-  number: string;
   title: string;
   text: string;
-  done: boolean;
+  tone?: "cyan" | "emerald" | "amber" | "rose" | "violet";
 }) {
+  const toneClass = {
+    cyan: "border-cyan-400/20 bg-cyan-500/10 text-cyan-100",
+    emerald: "border-emerald-400/20 bg-emerald-500/10 text-emerald-100",
+    amber: "border-amber-400/20 bg-amber-500/10 text-amber-100",
+    rose: "border-rose-400/20 bg-rose-500/10 text-rose-100",
+    violet: "border-violet-400/20 bg-violet-500/10 text-violet-100",
+  }[tone];
+
   return (
-    <div
-      className={`rounded-[24px] border p-4 ${
-        done
-          ? "border-emerald-400/20 bg-emerald-500/10 text-emerald-100"
-          : "border-amber-400/20 bg-amber-500/10 text-amber-100"
-      }`}
-    >
-      <div className="flex items-start gap-3">
-        <div
-          className={`flex h-8 w-8 shrink-0 items-center justify-center rounded-2xl border text-xs font-bold ${
-            done
-              ? "border-emerald-300/30 bg-emerald-400/10"
-              : "border-amber-300/30 bg-amber-400/10"
-          }`}
-        >
-          {number}
-        </div>
-        <div>
-          <div className="text-sm font-semibold text-white">{title}</div>
-          <div className="mt-1 text-xs leading-5 opacity-75">{text}</div>
-        </div>
-      </div>
+    <div className={`rounded-[24px] border p-4 ${toneClass}`}>
+      <div className="text-sm font-semibold text-white">{title}</div>
+      <div className="mt-2 text-xs leading-5 opacity-75">{text}</div>
     </div>
   );
 }
@@ -620,7 +560,7 @@ async function convertCurrencyLive(
   };
 }
 
-export default function PayrollPaycheckDetailPage() {
+export default function PayrollPaycheckPaymentPage() {
   const navigate = useNavigate();
   const { id } = useParams<{ id: string }>();
 
@@ -636,22 +576,13 @@ export default function PayrollPaycheckDetailPage() {
   const [currencies, setCurrencies] = useState<CurrencyRow[]>([]);
   const [payments, setPayments] = useState<PayrollPaymentRow[]>([]);
   const [runPayments, setRunPayments] = useState<PayrollPaymentRow[]>([]);
-
-  const [employeeSignedFormUrl, setEmployeeSignedFormUrl] = useState<string | null>(null);
-  const [adminSignedFormUrl, setAdminSignedFormUrl] = useState<string | null>(null);
-
   const [currentUserId, setCurrentUserId] = useState<string | null>(null);
-  const [reviewNotes, setReviewNotes] = useState("");
-  const [adminForm, setAdminForm] = useState<AdminSignedFormState>({
-    file: null,
-    externalUrl: "",
-    notes: "",
-  });
+
   const [paymentForm, setPaymentForm] = useState<PaymentFormState>({
     paycheckAmount: "",
     paycheckCurrencyCode: "",
-    paymentAmount: "",
-    paymentCurrencyCode: "",
+    fundDeductionAmount: "",
+    fundingCurrencyCode: "",
     paymentDate: todayDate(),
     conversionRate: "",
     conversionDate: todayDate(),
@@ -666,7 +597,7 @@ export default function PayrollPaycheckDetailPage() {
   const [actionError, setActionError] = useState<string | null>(null);
   const [actionMessage, setActionMessage] = useState<string | null>(null);
 
-  const fundingCurrency = run?.funding_currency_code || "USD";
+  const fundingCurrency = run?.funding_currency_code || paymentForm.fundingCurrencyCode || "USD";
   const paycheckCurrency =
     request?.requested_currency_code || paymentForm.paycheckCurrencyCode || fundingCurrency;
   const paycheckTargetAmount = toNumber(request?.requested_net_amount || paycheck?.net_pay);
@@ -693,6 +624,8 @@ export default function PayrollPaycheckDetailPage() {
   }, [fundingCurrency, runPayments]);
 
   const remainingFundsInBasket = allocatedFunds - usedFundsInBasket;
+  const fundDeductionAmount = toNumber(paymentForm.fundDeductionAmount);
+  const remainingFundsAfterPayment = remainingFundsInBasket - fundDeductionAmount;
 
   const activeCurrencyCodes = useMemo(() => {
     const codes = currencies
@@ -703,16 +636,14 @@ export default function PayrollPaycheckDetailPage() {
   }, [currencies, fundingCurrency, paycheckCurrency]);
 
   const latestPayment = payments[0] || null;
-
-  const canReview = isReviewableRequest(request);
-  const approveReady = canApproveRequest(request);
-  const canRecordPayment = Boolean(request && paycheck && remainingOnThisPaycheck > 0);
-  const selectedPaymentAmount = toNumber(paymentForm.paymentAmount);
-  const selectedPaycheckAmount = toNumber(paymentForm.paycheckAmount);
-  const remainingBasketAfterPayment =
-    paymentForm.paymentCurrencyCode === fundingCurrency
-      ? remainingFundsInBasket - selectedPaymentAmount
-      : remainingFundsInBasket;
+  const paymentIsAllowed = canPayRequest(request);
+  const canRecordPayment =
+    Boolean(request && paycheck && currentUserId) &&
+    paymentIsAllowed &&
+    remainingOnThisPaycheck > 0 &&
+    fundDeductionAmount > 0 &&
+    fundDeductionAmount <= remainingFundsInBasket &&
+    !isWorking;
 
   const loadPaycheck = useCallback(async () => {
     if (!id) return;
@@ -797,7 +728,6 @@ export default function PayrollPaycheckDetailPage() {
               "documentation_status",
               "signed_form_status",
               "recipient_confirmation_status",
-              "signed_form_file_upload_id",
               "signed_form_storage_bucket",
               "signed_form_storage_path",
               "signed_form_external_url",
@@ -808,8 +738,6 @@ export default function PayrollPaycheckDetailPage() {
               "admin_signed_form_storage_path",
               "admin_signed_form_external_url",
               "admin_signed_form_uploaded_at",
-              "admin_signed_form_uploaded_by",
-              "admin_signed_form_notes",
               "submitted_at",
               "reviewed_at",
               "reviewed_by",
@@ -936,16 +864,10 @@ export default function PayrollPaycheckDetailPage() {
       setPayments(loadedPayments);
       setBankAccounts(loadedBanks);
       setCurrencies(loadedCurrencies);
-      setReviewNotes(loadedRequest?.review_notes || "");
-      setAdminForm({
-        file: null,
-        externalUrl: loadedRequest?.admin_signed_form_external_url || "",
-        notes: loadedRequest?.admin_signed_form_notes || "",
-      });
 
-      const defaultPaymentCurrency = loadedRun?.funding_currency_code || "USD";
+      const defaultFundingCurrency = loadedRun?.funding_currency_code || "USD";
       const defaultPaycheckCurrency =
-        loadedRequest?.requested_currency_code || defaultPaymentCurrency;
+        loadedRequest?.requested_currency_code || defaultFundingCurrency;
       const defaultAmount = toNumber(loadedRequest?.requested_net_amount || loadedPaycheck.net_pay);
       const paidAmount = loadedPayments.reduce((sum, payment) => {
         if (payment.status !== "confirmed") return sum;
@@ -956,21 +878,21 @@ export default function PayrollPaycheckDetailPage() {
       setPaymentForm({
         paycheckAmount: String(remainingAmount || defaultAmount || ""),
         paycheckCurrencyCode: defaultPaycheckCurrency,
-        paymentAmount:
-          defaultPaycheckCurrency === defaultPaymentCurrency
+        fundDeductionAmount:
+          defaultPaycheckCurrency === defaultFundingCurrency
             ? String(remainingAmount || defaultAmount || "")
             : "",
-        paymentCurrencyCode: defaultPaymentCurrency,
+        fundingCurrencyCode: defaultFundingCurrency,
         paymentDate: todayDate(),
-        conversionRate: defaultPaycheckCurrency === defaultPaymentCurrency ? "1" : "",
+        conversionRate: defaultPaycheckCurrency === defaultFundingCurrency ? "1" : "",
         conversionDate: todayDate(),
         conversionSource:
-          defaultPaycheckCurrency === defaultPaymentCurrency
+          defaultPaycheckCurrency === defaultFundingCurrency
             ? "same_currency"
             : "frankfurter",
         bankAccountId:
           loadedRun?.funding_bank_account_id ||
-          loadedBanks.find((bank) => bank.currency_code === defaultPaymentCurrency)?.id ||
+          loadedBanks.find((bank) => bank.currency_code === defaultFundingCurrency)?.id ||
           loadedBanks[0]?.id ||
           "",
         referenceNumber: "",
@@ -994,7 +916,7 @@ export default function PayrollPaycheckDetailPage() {
         const payProfileResult = await supabase
           .from("finance_pay_profiles")
           .select(
-            "id, profile_number, user_id, pay_type, payment_frequency, base_salary, hourly_rate, default_hours, currency_code, active, status"
+            "id, profile_number, user_id, pay_type, payment_frequency, currency_code, status"
           )
           .eq("id", loadedRequest.pay_profile_id)
           .maybeSingle();
@@ -1059,36 +981,10 @@ export default function PayrollPaycheckDetailPage() {
       } else {
         setRunPayments([]);
       }
-
-      if (loadedRequest?.signed_form_storage_path) {
-        const bucket = loadedRequest.signed_form_storage_bucket || BUCKET_NAME;
-        const signedResult = await supabase.storage
-          .from(bucket)
-          .createSignedUrl(loadedRequest.signed_form_storage_path, 3600);
-
-        setEmployeeSignedFormUrl(
-          signedResult.error ? null : signedResult.data.signedUrl
-        );
-      } else {
-        setEmployeeSignedFormUrl(null);
-      }
-
-      if (loadedRequest?.admin_signed_form_storage_path) {
-        const bucket = loadedRequest.admin_signed_form_storage_bucket || BUCKET_NAME;
-        const signedResult = await supabase.storage
-          .from(bucket)
-          .createSignedUrl(loadedRequest.admin_signed_form_storage_path, 3600);
-
-        setAdminSignedFormUrl(
-          signedResult.error ? null : signedResult.data.signedUrl
-        );
-      } else {
-        setAdminSignedFormUrl(null);
-      }
     } catch (error) {
-      console.error("Failed to load paycheck detail:", error);
+      console.error("Failed to load paycheck payment page:", error);
       setActionError(
-        error instanceof Error ? error.message : "Failed to load paycheck detail."
+        error instanceof Error ? error.message : "Failed to load paycheck payment page."
       );
       setPaycheck(null);
     } finally {
@@ -1104,10 +1000,15 @@ export default function PayrollPaycheckDetailPage() {
     if (!id) return;
 
     const channel = supabase
-      .channel(`finance-paycheck-detail-${id}`)
+      .channel(`finance-paycheck-payment-${id}`)
       .on(
         "postgres_changes",
-        { event: "*", schema: "public", table: "finance_paychecks", filter: `id=eq.${id}` },
+        {
+          event: "*",
+          schema: "public",
+          table: "finance_paychecks",
+          filter: `id=eq.${id}`,
+        },
         () => void loadPaycheck()
       )
       .on(
@@ -1132,138 +1033,6 @@ export default function PayrollPaycheckDetailPage() {
     };
   }, [id, loadPaycheck]);
 
-  const uploadAdminSignedFormIfNeeded = useCallback(async () => {
-    if (!request) throw new Error("Linked paycheck request is missing.");
-
-    if (!adminForm.file) {
-      return {
-        bucket: request.admin_signed_form_storage_bucket,
-        path: request.admin_signed_form_storage_path,
-        externalUrl: adminForm.externalUrl.trim() || request.admin_signed_form_external_url,
-        notes: adminForm.notes.trim() || request.admin_signed_form_notes,
-      };
-    }
-
-    const extension = adminForm.file.name.split(".").pop() || "file";
-    const safeCode = sanitizePathPart(employeeRef?.code || "employee");
-    const safeName = sanitizePathPart(adminForm.file.name.replace(/\.[^.]+$/, ""));
-    const path = `${safeCode}/${request.id}/admin-${Date.now()}-${safeName}.${extension}`;
-
-    const uploadResult = await supabase.storage
-      .from(BUCKET_NAME)
-      .upload(path, adminForm.file, {
-        cacheControl: "3600",
-        upsert: false,
-      });
-
-    if (uploadResult.error) throw uploadResult.error;
-
-    return {
-      bucket: BUCKET_NAME,
-      path,
-      externalUrl: adminForm.externalUrl.trim() || null,
-      notes: adminForm.notes.trim() || null,
-    };
-  }, [adminForm, employeeRef?.code, request]);
-
-  const handleUploadAdminSignedForm = useCallback(async () => {
-    if (isWorking) return;
-    if (!request || !currentUserId) return;
-
-    setIsWorking(true);
-    setActionError(null);
-    setActionMessage(null);
-
-    try {
-      if (!adminForm.file && !adminForm.externalUrl.trim()) {
-        throw new Error("Upload an admin signed file or paste an admin signed form link.");
-      }
-
-      const uploadInfo = await uploadAdminSignedFormIfNeeded();
-
-      const result = await supabase.rpc(
-        "finance_upload_paycheck_request_admin_signed_form",
-        {
-          p_request_id: request.id,
-          p_actor_user_id: currentUserId,
-          p_storage_bucket: uploadInfo.bucket,
-          p_storage_path: uploadInfo.path,
-          p_external_url: uploadInfo.externalUrl,
-          p_notes: uploadInfo.notes,
-        }
-      );
-
-      if (result.error) throw result.error;
-
-      setActionMessage("Admin signed form saved.");
-      setAdminForm({ file: null, externalUrl: "", notes: "" });
-      await loadPaycheck();
-    } catch (error) {
-      console.error("Failed to upload admin signed form:", error);
-      setActionError(
-        error instanceof Error ? error.message : "Failed to upload admin signed form."
-      );
-    } finally {
-      setIsWorking(false);
-    }
-  }, [
-    adminForm.externalUrl,
-    adminForm.file,
-    currentUserId,
-    isWorking,
-    loadPaycheck,
-    request,
-    uploadAdminSignedFormIfNeeded,
-  ]);
-
-  const handleReview = useCallback(
-    async (decision: ReviewDecision) => {
-      if (isWorking) return;
-      if (!request || !currentUserId) return;
-
-      setIsWorking(true);
-      setActionError(null);
-      setActionMessage(null);
-
-      try {
-        if (!isReviewableRequest(request)) {
-          throw new Error("This request is not reviewable anymore.");
-        }
-
-        if (decision === "approve" && !canApproveRequest(request)) {
-          throw new Error("Approval requires employee signed form and admin signed form.");
-        }
-
-        const result = await supabase.rpc("finance_review_paycheck_request", {
-          p_request_id: request.id,
-          p_actor_user_id: currentUserId,
-          p_decision: decision,
-          p_review_notes: reviewNotes.trim() || null,
-        });
-
-        if (result.error) throw result.error;
-
-        setActionMessage(
-          decision === "approve"
-            ? "Paycheck request approved."
-            : decision === "reject"
-              ? "Paycheck request rejected."
-              : "Correction requested from employee."
-        );
-
-        await loadPaycheck();
-      } catch (error) {
-        console.error("Failed to review paycheck:", error);
-        setActionError(
-          error instanceof Error ? error.message : "Failed to review paycheck."
-        );
-      } finally {
-        setIsWorking(false);
-      }
-    },
-    [currentUserId, isWorking, loadPaycheck, request, reviewNotes]
-  );
-
   const handleConvert = useCallback(async () => {
     if (isWorking) return;
 
@@ -1273,15 +1042,16 @@ export default function PayrollPaycheckDetailPage() {
 
     try {
       const amount = toNumber(paymentForm.paycheckAmount);
+
       const result = await convertCurrencyLive(
         amount,
         paymentForm.paycheckCurrencyCode,
-        paymentForm.paymentCurrencyCode
+        paymentForm.fundingCurrencyCode
       );
 
       setPaymentForm((current) => ({
         ...current,
-        paymentAmount: String(result.convertedAmount),
+        fundDeductionAmount: String(result.convertedAmount),
         conversionRate: String(result.rate),
         conversionDate: result.date,
         conversionSource: result.source,
@@ -1300,7 +1070,7 @@ export default function PayrollPaycheckDetailPage() {
     isWorking,
     paymentForm.paycheckAmount,
     paymentForm.paycheckCurrencyCode,
-    paymentForm.paymentCurrencyCode,
+    paymentForm.fundingCurrencyCode,
   ]);
 
   const handleRecordPayment = useCallback(async () => {
@@ -1313,21 +1083,22 @@ export default function PayrollPaycheckDetailPage() {
 
     try {
       const paycheckAmount = toNumber(paymentForm.paycheckAmount);
-      const paymentAmount = toNumber(paymentForm.paymentAmount);
+      const fundDeduction = toNumber(paymentForm.fundDeductionAmount);
+
+      if (!paymentIsAllowed) {
+        throw new Error("This paycheck is not approved for payment yet.");
+      }
 
       if (paycheckAmount <= 0) {
         throw new Error("Paycheck amount must be greater than 0.");
       }
 
-      if (paymentAmount <= 0) {
-        throw new Error("Payment amount must be greater than 0.");
+      if (fundDeduction <= 0) {
+        throw new Error("Fund deduction amount must be greater than 0.");
       }
 
-      if (
-        paymentForm.paymentCurrencyCode === fundingCurrency &&
-        paymentAmount > remainingFundsInBasket
-      ) {
-        throw new Error("Payment amount is greater than remaining allocated funds.");
+      if (fundDeduction > remainingFundsInBasket) {
+        throw new Error("Fund deduction is greater than remaining allocated funds.");
       }
 
       const result = await supabase.rpc("finance_record_payroll_payment_from_request", {
@@ -1335,8 +1106,8 @@ export default function PayrollPaycheckDetailPage() {
         p_actor_user_id: currentUserId,
         p_paycheck_amount: paycheckAmount,
         p_paycheck_currency_code: normalizeCurrencyCode(paymentForm.paycheckCurrencyCode),
-        p_payment_amount: paymentAmount,
-        p_payment_currency_code: normalizeCurrencyCode(paymentForm.paymentCurrencyCode),
+        p_payment_amount: fundDeduction,
+        p_payment_currency_code: normalizeCurrencyCode(paymentForm.fundingCurrencyCode),
         p_payment_date: paymentForm.paymentDate,
         p_conversion_rate: paymentForm.conversionRate
           ? toNumber(paymentForm.conversionRate)
@@ -1348,19 +1119,20 @@ export default function PayrollPaycheckDetailPage() {
         p_reference_number: paymentForm.referenceNumber.trim() || null,
         p_notes: paymentForm.notes.trim() || null,
         p_conversion_metadata: {
-          source: "single_paycheck_id_page",
+          source: "payroll_single_paycheck_payment_page",
           paycheck_id: paycheck.id,
           payroll_run_id: run?.id || null,
           funding_currency_code: fundingCurrency,
           allocated_funding_amount: allocatedFunds,
           used_funds_before_payment: usedFundsInBasket,
           remaining_funds_before_payment: remainingFundsInBasket,
+          remaining_funds_after_payment: remainingFundsAfterPayment,
         },
       });
 
       if (result.error) throw result.error;
 
-      setActionMessage("Payment recorded. Employee can now confirm receipt.");
+      setActionMessage("Payment recorded and deducted from allocated payroll funds.");
       await loadPaycheck();
     } catch (error) {
       console.error("Failed to record payment:", error);
@@ -1377,7 +1149,9 @@ export default function PayrollPaycheckDetailPage() {
     isWorking,
     loadPaycheck,
     paymentForm,
+    paymentIsAllowed,
     paycheck,
+    remainingFundsAfterPayment,
     remainingFundsInBasket,
     request,
     run?.id,
@@ -1389,7 +1163,7 @@ export default function PayrollPaycheckDetailPage() {
       <div className="min-h-screen bg-[#05070d] px-4 py-4 text-white md:px-6 md:py-6">
         <div className="mx-auto flex w-full max-w-[1600px] flex-col gap-6">
           <div className="rounded-[34px] border border-white/10 bg-white/[0.045] p-6 text-sm text-slate-400">
-            Loading paycheck...
+            Loading paycheck payment page...
           </div>
         </div>
       </div>
@@ -1419,10 +1193,8 @@ export default function PayrollPaycheckDetailPage() {
     );
   }
 
-  const employeeName = getEmployeeName(profile, request);
+  const employeeName = getEmployeeName(profile);
   const employeeSubLabel = getEmployeeSubLabel(employeeRef, payProfile);
-  const adminFormExists = hasAdminSignedForm(request);
-  const employeeFormExists = hasEmployeeSignedForm(request);
 
   return (
     <div className="min-h-screen bg-[#05070d] px-4 py-4 text-white md:px-6 md:py-6">
@@ -1442,9 +1214,9 @@ export default function PayrollPaycheckDetailPage() {
 
             <div className="grid gap-6 xl:grid-cols-[minmax(0,1fr)_430px]">
               <div>
-                <div className="inline-flex w-fit items-center gap-2 rounded-full border border-cyan-400/20 bg-cyan-500/10 px-3 py-1 text-[11px] font-semibold uppercase tracking-[0.22em] text-cyan-200">
-                  <ReceiptText className="h-3.5 w-3.5" />
-                  One Paycheck
+                <div className="inline-flex w-fit items-center gap-2 rounded-full border border-emerald-400/20 bg-emerald-500/10 px-3 py-1 text-[11px] font-semibold uppercase tracking-[0.22em] text-emerald-200">
+                  <CreditCard className="h-3.5 w-3.5" />
+                  Pay This Paycheck
                 </div>
 
                 <div className="mt-4 text-sm font-semibold uppercase tracking-[0.18em] text-slate-500">
@@ -1456,31 +1228,31 @@ export default function PayrollPaycheckDetailPage() {
                 </h1>
 
                 <p className="mt-3 max-w-4xl text-sm leading-6 text-slate-400 md:text-base md:leading-7">
-                  {employeeSubLabel || "Single employee paycheck execution page."}
+                  {employeeSubLabel || "Single paycheck payment execution."}
                 </p>
 
                 <div className="mt-5 flex flex-wrap gap-2">
                   <StatusBadge value={paycheck.payment_status} />
                   <StatusBadge value={request?.status} />
                   <StatusBadge value={request?.review_status} />
-                  <StatusBadge value={request?.recipient_confirmation_status} />
+                  <StatusBadge value={run?.allocation_status || "allocated"} />
                 </div>
               </div>
 
               <div className="grid gap-3">
                 <AmountBlock
-                  label="Paycheck Net"
-                  value={paycheckTargetAmount}
-                  currency={paycheckCurrency}
-                  detail="Amount owed to this employee."
-                  tone="cyan"
-                />
-                <AmountBlock
-                  label="Remaining To Pay"
+                  label="Paycheck Balance"
                   value={remainingOnThisPaycheck}
                   currency={paycheckCurrency}
-                  detail="Paycheck balance after confirmed payments."
+                  detail="Amount still owed to this employee."
                   tone={remainingOnThisPaycheck <= 0 ? "emerald" : "amber"}
+                />
+                <AmountBlock
+                  label="Available Fund Balance"
+                  value={remainingFundsInBasket}
+                  currency={fundingCurrency}
+                  detail="Remaining allocated payroll funds before this payment."
+                  tone={remainingFundsInBasket < 0 ? "rose" : "emerald"}
                 />
               </div>
             </div>
@@ -1501,313 +1273,78 @@ export default function PayrollPaycheckDetailPage() {
 
         <section className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
           <AmountBlock
-            label="Allocated Basket"
+            label="Allocated Funds"
             value={allocatedFunds}
             currency={fundingCurrency}
-            detail={run?.run_number || "Connected payroll fund basket."}
+            detail={run?.run_number || "Payroll fund basket."}
             tone="violet"
           />
           <AmountBlock
-            label="Basket Used"
+            label="Already Deducted"
             value={usedFundsInBasket}
             currency={fundingCurrency}
-            detail="Confirmed payments deducted from this fund basket."
+            detail="Confirmed payments already deducted from this allocated fund."
             tone="cyan"
           />
           <AmountBlock
-            label="Basket Remaining"
+            label="Remaining Fund"
             value={remainingFundsInBasket}
             currency={fundingCurrency}
-            detail="Remaining funds before this paycheck payment."
+            detail="Available before this payment."
             tone={remainingFundsInBasket < 0 ? "rose" : "emerald"}
           />
           <AmountBlock
-            label="This Paycheck Paid"
-            value={paidOnThisPaycheck}
+            label="Paycheck Remaining"
+            value={remainingOnThisPaycheck}
             currency={paycheckCurrency}
-            detail="Confirmed payments for this paycheck only."
-            tone="emerald"
+            detail="Balance of this paycheck only."
+            tone={remainingOnThisPaycheck <= 0 ? "emerald" : "amber"}
           />
         </section>
 
         <section className="grid items-start gap-6 xl:grid-cols-[minmax(0,1fr)_430px]">
           <div className="grid gap-6">
             <SectionCard
-              title="Simple Process"
-              description="Do these steps in order for this one paycheck."
-              icon={ShieldCheck}
-            >
-              <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
-                <StepBox
-                  number="1"
-                  title="Employee Form"
-                  text="Employee signed form must exist."
-                  done={employeeFormExists}
-                />
-                <StepBox
-                  number="2"
-                  title="Admin Form"
-                  text="Admin signs and uploads the reviewed form."
-                  done={adminFormExists}
-                />
-                <StepBox
-                  number="3"
-                  title="Approve"
-                  text="Approve only after both signed forms exist."
-                  done={request?.review_status === "approved"}
-                />
-                <StepBox
-                  number="4"
-                  title="Pay"
-                  text="Convert currency if needed and record payment once."
-                  done={remainingOnThisPaycheck <= 0}
-                />
-              </div>
-            </SectionCard>
-
-            <SectionCard
-              title="Linked Request"
-              description="The paycheck request connected to this one paycheck."
-              icon={FileSignature}
-            >
-              <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">
-                <ValueBlock
-                  label="Request"
-                  value={request?.request_number || request?.reference_number || "—"}
-                  detail={request ? `Created ${formatDate(request.created_at)}` : "No request linked."}
-                />
-                <ValueBlock
-                  label="Period"
-                  value={
-                    request
-                      ? `${formatDate(request.period_start)} → ${formatDate(request.period_end)}`
-                      : "—"
-                  }
-                  detail={`Requested pay date: ${formatDate(request?.requested_pay_date)}`}
-                />
-                <ValueBlock
-                  label="Status"
-                  value={<StatusBadge value={request?.status} />}
-                  detail={`Review: ${formatLabel(request?.review_status)}`}
-                />
-                <ValueBlock
-                  label="Employee Signed Form"
-                  value={<StatusBadge value={request?.signed_form_status} />}
-                  detail={`Uploaded: ${formatDateTime(request?.signed_form_uploaded_at)}`}
-                />
-                <ValueBlock
-                  label="Admin Signed Form"
-                  value={<StatusBadge value={request?.admin_signed_form_status || "not_uploaded"} />}
-                  detail={`Uploaded: ${formatDateTime(request?.admin_signed_form_uploaded_at)}`}
-                />
-                <ValueBlock
-                  label="Employee Confirmation"
-                  value={<StatusBadge value={request?.recipient_confirmation_status} />}
-                  detail={request?.confirmation_notes || "Employee confirms after payment."}
-                />
-              </div>
-
-              <div className="mt-5 flex flex-wrap gap-2">
-                {employeeSignedFormUrl ? (
-                  <a
-                    href={employeeSignedFormUrl}
-                    target="_blank"
-                    rel="noreferrer"
-                    className="inline-flex h-10 items-center gap-2 rounded-2xl border border-cyan-400/20 bg-cyan-500/10 px-4 text-sm font-semibold text-cyan-100 transition hover:bg-cyan-500/15"
-                  >
-                    <Download className="h-4 w-4" />
-                    Employee Form File
-                  </a>
-                ) : null}
-
-                {request?.signed_form_external_url ? (
-                  <a
-                    href={request.signed_form_external_url}
-                    target="_blank"
-                    rel="noreferrer"
-                    className="inline-flex h-10 items-center gap-2 rounded-2xl border border-emerald-400/20 bg-emerald-500/10 px-4 text-sm font-semibold text-emerald-100 transition hover:bg-emerald-500/15"
-                  >
-                    <ExternalLink className="h-4 w-4" />
-                    Employee Form Link
-                  </a>
-                ) : null}
-
-                {adminSignedFormUrl ? (
-                  <a
-                    href={adminSignedFormUrl}
-                    target="_blank"
-                    rel="noreferrer"
-                    className="inline-flex h-10 items-center gap-2 rounded-2xl border border-violet-400/20 bg-violet-500/10 px-4 text-sm font-semibold text-violet-100 transition hover:bg-violet-500/15"
-                  >
-                    <Download className="h-4 w-4" />
-                    Admin Form File
-                  </a>
-                ) : null}
-
-                {request?.admin_signed_form_external_url ? (
-                  <a
-                    href={request.admin_signed_form_external_url}
-                    target="_blank"
-                    rel="noreferrer"
-                    className="inline-flex h-10 items-center gap-2 rounded-2xl border border-violet-400/20 bg-violet-500/10 px-4 text-sm font-semibold text-violet-100 transition hover:bg-violet-500/15"
-                  >
-                    <ExternalLink className="h-4 w-4" />
-                    Admin Form Link
-                  </a>
-                ) : null}
-
-                {request ? (
-                  <button
-                    type="button"
-                    onClick={() =>
-                      navigate(`/finance/transactions/paycheck-requests/${request.id}`)
-                    }
-                    className="inline-flex h-10 items-center gap-2 rounded-2xl border border-white/10 bg-white/[0.04] px-4 text-sm font-semibold text-slate-200 transition hover:bg-white/[0.08]"
-                  >
-                    <LinkIcon className="h-4 w-4" />
-                    Open Request Page
-                  </button>
-                ) : null}
-              </div>
-            </SectionCard>
-
-            <SectionCard
-              title="Admin Signature & Review"
-              description="Upload admin signed form, then approve/reject/request correction for this paycheck only."
-              icon={UploadCloud}
-            >
-              <div className="grid gap-5 lg:grid-cols-[minmax(0,1fr)_320px]">
-                <div className="grid gap-4">
-                  <label className="grid gap-2">
-                    <span className={labelClass()}>Admin Signed Form File</span>
-                    <input
-                      type="file"
-                      accept=".pdf,.png,.jpg,.jpeg,.webp,.doc,.docx"
-                      disabled={isWorking || !request}
-                      onChange={(event) =>
-                        setAdminForm((current) => ({
-                          ...current,
-                          file: event.target.files?.[0] || null,
-                        }))
-                      }
-                      className="block w-full rounded-2xl border border-white/10 bg-black/20 px-4 py-3 text-sm text-slate-300 file:mr-4 file:rounded-xl file:border-0 file:bg-violet-500/10 file:px-4 file:py-2 file:text-sm file:font-semibold file:text-violet-100 hover:file:bg-violet-500/15 disabled:cursor-not-allowed disabled:opacity-50"
-                    />
-                  </label>
-
-                  <label className="grid gap-2">
-                    <span className={labelClass()}>Admin Signed Form Link</span>
-                    <input
-                      value={adminForm.externalUrl}
-                      disabled={isWorking || !request}
-                      onChange={(event) =>
-                        setAdminForm((current) => ({
-                          ...current,
-                          externalUrl: event.target.value,
-                        }))
-                      }
-                      placeholder="Paste signed form link"
-                      className={inputClass()}
-                    />
-                  </label>
-
-                  <label className="grid gap-2">
-                    <span className={labelClass()}>Admin Form Notes</span>
-                    <textarea
-                      value={adminForm.notes}
-                      disabled={isWorking || !request}
-                      onChange={(event) =>
-                        setAdminForm((current) => ({
-                          ...current,
-                          notes: event.target.value,
-                        }))
-                      }
-                      placeholder="Optional notes about the signed form"
-                      className={textareaClass()}
-                    />
-                  </label>
-
-                  <button
-                    type="button"
-                    onClick={() => void handleUploadAdminSignedForm()}
-                    disabled={isWorking || !request || (!adminForm.file && !adminForm.externalUrl.trim())}
-                    className="inline-flex h-11 w-fit items-center justify-center gap-2 rounded-2xl border border-violet-400/20 bg-violet-500/10 px-4 text-sm font-semibold text-violet-100 transition hover:bg-violet-500/15 disabled:cursor-not-allowed disabled:opacity-50"
-                  >
-                    <UploadCloud className="h-4 w-4" />
-                    Save Admin Signed Form
-                  </button>
-                </div>
-
-                <div className="grid gap-4">
-                  <ValueBlock
-                    label="Approval Lock"
-                    value={approveReady ? "Ready To Approve" : "Not Ready"}
-                    detail={
-                      approveReady
-                        ? "Both employee and admin signed forms exist."
-                        : "Approval requires employee signed form and admin signed form."
-                    }
-                  />
-
-                  <label className="grid gap-2">
-                    <span className={labelClass()}>Review Notes</span>
-                    <textarea
-                      value={reviewNotes}
-                      disabled={isWorking || !request || !canReview}
-                      onChange={(event) => setReviewNotes(event.target.value)}
-                      placeholder="Correction instructions, rejection reason, or approval note"
-                      className={textareaClass()}
-                    />
-                  </label>
-
-                  <button
-                    type="button"
-                    onClick={() => void handleReview("approve")}
-                    disabled={isWorking || !approveReady}
-                    className="inline-flex h-10 items-center justify-center gap-2 rounded-2xl border border-emerald-400/20 bg-emerald-500/10 px-4 text-sm font-semibold text-emerald-100 transition hover:bg-emerald-500/15 disabled:cursor-not-allowed disabled:opacity-50"
-                  >
-                    <BadgeCheck className="h-4 w-4" />
-                    Approve
-                  </button>
-
-                  <button
-                    type="button"
-                    onClick={() => void handleReview("needs_correction")}
-                    disabled={isWorking || !canReview}
-                    className="inline-flex h-10 items-center justify-center gap-2 rounded-2xl border border-amber-400/20 bg-amber-500/10 px-4 text-sm font-semibold text-amber-100 transition hover:bg-amber-500/15 disabled:cursor-not-allowed disabled:opacity-50"
-                  >
-                    <RotateCcw className="h-4 w-4" />
-                    Request Correction
-                  </button>
-
-                  <button
-                    type="button"
-                    onClick={() => void handleReview("reject")}
-                    disabled={isWorking || !canReview}
-                    className="inline-flex h-10 items-center justify-center gap-2 rounded-2xl border border-rose-400/20 bg-rose-500/10 px-4 text-sm font-semibold text-rose-100 transition hover:bg-rose-500/15 disabled:cursor-not-allowed disabled:opacity-50"
-                  >
-                    <XCircle className="h-4 w-4" />
-                    Reject
-                  </button>
-                </div>
-              </div>
-            </SectionCard>
-
-            <SectionCard
-              title="Payment For This Paycheck"
-              description="Convert currency if needed, then record one payment for this paycheck."
+              title="Payment Execution"
+              description="This is the main action area. Convert currency if needed, then record the payment once."
               icon={CreditCard}
             >
-              <div className="grid gap-5 lg:grid-cols-[minmax(0,1fr)_340px]">
+              <div className="mb-5 grid gap-4 md:grid-cols-3">
+                <InstructionBox
+                  title="1. Confirm balance"
+                  text="Check the remaining paycheck amount and the remaining allocated fund amount before paying."
+                  tone="cyan"
+                />
+                <InstructionBox
+                  title="2. Convert currency"
+                  text="If the paycheck currency is different from the fund currency, use Convert Currency first."
+                  tone="violet"
+                />
+                <InstructionBox
+                  title="3. Record payment"
+                  text="Recording payment deducts the fund amount from allocated payroll funds and sends the request to employee confirmation."
+                  tone="emerald"
+                />
+              </div>
+
+              {!paymentIsAllowed ? (
+                <div className="mb-5 rounded-[24px] border border-amber-400/20 bg-amber-500/10 p-4 text-sm leading-6 text-amber-100">
+                  This paycheck is not ready for payment yet. The linked request must
+                  be approved before Finance can pay it.
+                </div>
+              ) : null}
+
+              <div className="grid gap-5 lg:grid-cols-[minmax(0,1fr)_360px]">
                 <div className="grid gap-4">
                   <div className="grid gap-4 md:grid-cols-2">
                     <label className="grid gap-2">
-                      <span className={labelClass()}>Paycheck Amount</span>
+                      <span className={labelClass()}>Paycheck Amount To Pay</span>
                       <input
                         type="number"
                         min="0"
                         step="0.01"
                         value={paymentForm.paycheckAmount}
-                        disabled={isWorking || !request || !paycheck}
+                        disabled={isWorking || !paymentIsAllowed}
                         onChange={(event) =>
                           setPaymentForm((current) => ({
                             ...current,
@@ -1822,11 +1359,19 @@ export default function PayrollPaycheckDetailPage() {
                       <span className={labelClass()}>Paycheck Currency</span>
                       <select
                         value={paymentForm.paycheckCurrencyCode}
-                        disabled={isWorking}
+                        disabled={isWorking || !paymentIsAllowed}
                         onChange={(event) =>
                           setPaymentForm((current) => ({
                             ...current,
                             paycheckCurrencyCode: event.target.value,
+                            conversionRate:
+                              event.target.value === current.fundingCurrencyCode
+                                ? "1"
+                                : "",
+                            conversionSource:
+                              event.target.value === current.fundingCurrencyCode
+                                ? "same_currency"
+                                : "frankfurter",
                           }))
                         }
                         className={inputClass()}
@@ -1840,17 +1385,17 @@ export default function PayrollPaycheckDetailPage() {
                     </label>
 
                     <label className="grid gap-2">
-                      <span className={labelClass()}>Payment Amount</span>
+                      <span className={labelClass()}>Deduct From Allocated Fund</span>
                       <input
                         type="number"
                         min="0"
                         step="0.01"
-                        value={paymentForm.paymentAmount}
-                        disabled={isWorking || !request || !paycheck}
+                        value={paymentForm.fundDeductionAmount}
+                        disabled={isWorking || !paymentIsAllowed}
                         onChange={(event) =>
                           setPaymentForm((current) => ({
                             ...current,
-                            paymentAmount: event.target.value,
+                            fundDeductionAmount: event.target.value,
                           }))
                         }
                         className={inputClass()}
@@ -1858,16 +1403,18 @@ export default function PayrollPaycheckDetailPage() {
                     </label>
 
                     <label className="grid gap-2">
-                      <span className={labelClass()}>Payment Currency</span>
+                      <span className={labelClass()}>Fund Currency</span>
                       <select
-                        value={paymentForm.paymentCurrencyCode}
-                        disabled={isWorking}
+                        value={paymentForm.fundingCurrencyCode}
+                        disabled={isWorking || !paymentIsAllowed}
                         onChange={(event) =>
                           setPaymentForm((current) => ({
                             ...current,
-                            paymentCurrencyCode: event.target.value,
+                            fundingCurrencyCode: event.target.value,
                             conversionRate:
-                              event.target.value === current.paycheckCurrencyCode ? "1" : "",
+                              event.target.value === current.paycheckCurrencyCode
+                                ? "1"
+                                : "",
                             conversionSource:
                               event.target.value === current.paycheckCurrencyCode
                                 ? "same_currency"
@@ -1891,7 +1438,7 @@ export default function PayrollPaycheckDetailPage() {
                         min="0"
                         step="0.00000001"
                         value={paymentForm.conversionRate}
-                        disabled={isWorking}
+                        disabled={isWorking || !paymentIsAllowed}
                         onChange={(event) =>
                           setPaymentForm((current) => ({
                             ...current,
@@ -1903,11 +1450,27 @@ export default function PayrollPaycheckDetailPage() {
                     </label>
 
                     <label className="grid gap-2">
+                      <span className={labelClass()}>Conversion Date</span>
+                      <input
+                        type="date"
+                        value={paymentForm.conversionDate}
+                        disabled={isWorking || !paymentIsAllowed}
+                        onChange={(event) =>
+                          setPaymentForm((current) => ({
+                            ...current,
+                            conversionDate: event.target.value,
+                          }))
+                        }
+                        className={inputClass()}
+                      />
+                    </label>
+
+                    <label className="grid gap-2">
                       <span className={labelClass()}>Payment Date</span>
                       <input
                         type="date"
                         value={paymentForm.paymentDate}
-                        disabled={isWorking}
+                        disabled={isWorking || !paymentIsAllowed}
                         onChange={(event) =>
                           setPaymentForm((current) => ({
                             ...current,
@@ -1917,35 +1480,35 @@ export default function PayrollPaycheckDetailPage() {
                         className={inputClass()}
                       />
                     </label>
-                  </div>
 
-                  <label className="grid gap-2">
-                    <span className={labelClass()}>Funding Bank Account</span>
-                    <select
-                      value={paymentForm.bankAccountId}
-                      disabled={isWorking}
-                      onChange={(event) =>
-                        setPaymentForm((current) => ({
-                          ...current,
-                          bankAccountId: event.target.value,
-                        }))
-                      }
-                      className={inputClass()}
-                    >
-                      <option value="">Select funding bank account</option>
-                      {bankAccounts.map((bank) => (
-                        <option key={bank.id} value={bank.id}>
-                          {getBankAccountLabel(bank)}
-                        </option>
-                      ))}
-                    </select>
-                  </label>
+                    <label className="grid gap-2">
+                      <span className={labelClass()}>Funding Bank</span>
+                      <select
+                        value={paymentForm.bankAccountId}
+                        disabled={isWorking || !paymentIsAllowed}
+                        onChange={(event) =>
+                          setPaymentForm((current) => ({
+                            ...current,
+                            bankAccountId: event.target.value,
+                          }))
+                        }
+                        className={inputClass()}
+                      >
+                        <option value="">Select funding bank account</option>
+                        {bankAccounts.map((bank) => (
+                          <option key={bank.id} value={bank.id}>
+                            {getBankAccountLabel(bank)}
+                          </option>
+                        ))}
+                      </select>
+                    </label>
+                  </div>
 
                   <label className="grid gap-2">
                     <span className={labelClass()}>Payment Reference</span>
                     <input
                       value={paymentForm.referenceNumber}
-                      disabled={isWorking}
+                      disabled={isWorking || !paymentIsAllowed}
                       onChange={(event) =>
                         setPaymentForm((current) => ({
                           ...current,
@@ -1961,7 +1524,7 @@ export default function PayrollPaycheckDetailPage() {
                     <span className={labelClass()}>Payment Notes</span>
                     <textarea
                       value={paymentForm.notes}
-                      disabled={isWorking}
+                      disabled={isWorking || !paymentIsAllowed}
                       onChange={(event) =>
                         setPaymentForm((current) => ({
                           ...current,
@@ -1976,15 +1539,33 @@ export default function PayrollPaycheckDetailPage() {
 
                 <div className="grid gap-4">
                   <ValueBlock
-                    label="Conversion Preview"
-                    value={`${paymentForm.paycheckCurrencyCode || "—"} ${formatMoney(selectedPaycheckAmount)} → ${paymentForm.paymentCurrencyCode || "—"} ${formatMoney(toNumber(paymentForm.paymentAmount))}`}
-                    detail={`Rate: ${paymentForm.conversionRate || "—"} • Source: ${paymentForm.conversionSource || "—"}`}
+                    label="Paycheck To Employee"
+                    value={`${paymentForm.paycheckCurrencyCode || paycheckCurrency} ${formatMoney(
+                      paymentForm.paycheckAmount
+                    )}`}
+                    detail="Amount this employee should receive for this paycheck."
                   />
 
                   <ValueBlock
-                    label="Basket After Payment"
-                    value={`${fundingCurrency} ${formatMoney(remainingBasketAfterPayment)}`}
-                    detail="Projected remaining allocated funds after this payment."
+                    label="Fund Deduction"
+                    value={`${paymentForm.fundingCurrencyCode || fundingCurrency} ${formatMoney(
+                      paymentForm.fundDeductionAmount
+                    )}`}
+                    detail="Amount that will be deducted from allocated payroll funds."
+                  />
+
+                  <ValueBlock
+                    label="Remaining Fund After Payment"
+                    value={`${fundingCurrency} ${formatMoney(remainingFundsAfterPayment)}`}
+                    detail="Projected remaining fund balance after recording this payment."
+                  />
+
+                  <ValueBlock
+                    label="Conversion"
+                    value={paymentForm.conversionRate || "—"}
+                    detail={`${paymentForm.conversionSource || "—"} • ${formatDate(
+                      paymentForm.conversionDate
+                    )}`}
                   />
 
                   <ValueBlock
@@ -1998,9 +1579,10 @@ export default function PayrollPaycheckDetailPage() {
                     onClick={() => void handleConvert()}
                     disabled={
                       isWorking ||
+                      !paymentIsAllowed ||
                       !paymentForm.paycheckAmount ||
                       !paymentForm.paycheckCurrencyCode ||
-                      !paymentForm.paymentCurrencyCode
+                      !paymentForm.fundingCurrencyCode
                     }
                     className="inline-flex h-11 items-center justify-center gap-2 rounded-2xl border border-violet-400/20 bg-violet-500/10 px-4 text-sm font-semibold text-violet-100 transition hover:bg-violet-500/15 disabled:cursor-not-allowed disabled:opacity-50"
                   >
@@ -2011,14 +1593,68 @@ export default function PayrollPaycheckDetailPage() {
                   <button
                     type="button"
                     onClick={() => void handleRecordPayment()}
-                    disabled={isWorking || !canRecordPayment}
+                    disabled={!canRecordPayment}
                     className="inline-flex h-11 items-center justify-center gap-2 rounded-2xl border border-emerald-400/20 bg-emerald-500/10 px-4 text-sm font-semibold text-emerald-100 transition hover:bg-emerald-500/15 disabled:cursor-not-allowed disabled:opacity-50"
                   >
                     <Save className="h-4 w-4" />
-                    Record Payment
+                    Record Payment & Deduct Funds
                   </button>
                 </div>
               </div>
+            </SectionCard>
+
+            <SectionCard
+              title="Linked Paycheck Request"
+              description="This is the request that created this paycheck. Employee confirmation happens on that request page."
+              icon={FileSignature}
+            >
+              <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">
+                <ValueBlock
+                  label="Request"
+                  value={request?.request_number || request?.reference_number || "—"}
+                  detail={request ? `Created ${formatDate(request.created_at)}` : "No request linked."}
+                />
+                <ValueBlock
+                  label="Review Status"
+                  value={<StatusBadge value={request?.review_status} />}
+                  detail={request?.review_notes || request?.correction_notes || "No review notes."}
+                />
+                <ValueBlock
+                  label="Request Status"
+                  value={<StatusBadge value={request?.status} />}
+                  detail={`Updated ${formatDateTime(request?.updated_at)}`}
+                />
+                <ValueBlock
+                  label="Employee Signed Form"
+                  value={<StatusBadge value={request?.signed_form_status} />}
+                  detail={`Uploaded ${formatDateTime(request?.signed_form_uploaded_at)}`}
+                />
+                <ValueBlock
+                  label="Admin Signed Form"
+                  value={<StatusBadge value={request?.admin_signed_form_status || "not_uploaded"} />}
+                  detail={`Uploaded ${formatDateTime(request?.admin_signed_form_uploaded_at)}`}
+                />
+                <ValueBlock
+                  label="Employee Confirmation"
+                  value={<StatusBadge value={request?.recipient_confirmation_status} />}
+                  detail="Employee confirms received / not received / disputed on the request page."
+                />
+              </div>
+
+              {request ? (
+                <div className="mt-5">
+                  <button
+                    type="button"
+                    onClick={() =>
+                      navigate(`/finance/transactions/paycheck-requests/${request.id}`)
+                    }
+                    className="inline-flex h-10 items-center gap-2 rounded-2xl border border-white/10 bg-white/[0.04] px-4 text-sm font-semibold text-slate-200 transition hover:bg-white/[0.08]"
+                  >
+                    <LinkIcon className="h-4 w-4" />
+                    Open Paycheck Request
+                  </button>
+                </div>
+              ) : null}
             </SectionCard>
 
             <SectionCard
@@ -2052,11 +1688,15 @@ export default function PayrollPaycheckDetailPage() {
                       <div className="mt-4 grid gap-3 md:grid-cols-3">
                         <ValueBlock
                           label="Paycheck Amount"
-                          value={`${payment.paycheck_currency_code || paycheckCurrency} ${formatMoney(payment.paycheck_amount || payment.amount)}`}
+                          value={`${payment.paycheck_currency_code || paycheckCurrency} ${formatMoney(
+                            payment.paycheck_amount || payment.amount
+                          )}`}
                         />
                         <ValueBlock
-                          label="Payment Amount"
-                          value={`${payment.payment_currency_code || fundingCurrency} ${formatMoney(payment.payment_amount || payment.amount)}`}
+                          label="Fund Deduction"
+                          value={`${payment.payment_currency_code || fundingCurrency} ${formatMoney(
+                            payment.payment_amount || payment.amount
+                          )}`}
                         />
                         <ValueBlock
                           label="Conversion"
@@ -2075,30 +1715,32 @@ export default function PayrollPaycheckDetailPage() {
             <section className="overflow-hidden rounded-[30px] border border-white/10 bg-white/[0.045] backdrop-blur-xl">
               <div className="border-b border-white/10 px-5 py-4">
                 <div className="text-sm font-semibold uppercase tracking-[0.18em] text-slate-400">
-                  Quick Status
+                  Paycheck Status
                 </div>
               </div>
 
               <div className="grid gap-4 p-5">
+                <ValueBlock
+                  label="Employee"
+                  value={employeeName}
+                  detail={employeeSubLabel || "Employee profile"}
+                />
                 <ValueBlock
                   label="Paycheck"
                   value={<StatusBadge value={paycheck.payment_status} />}
                   detail={paycheck.paycheck_number || "No paycheck number"}
                 />
                 <ValueBlock
-                  label="Request"
-                  value={<StatusBadge value={request?.status} />}
-                  detail={request?.request_number || "No linked request"}
-                />
-                <ValueBlock
-                  label="Review"
+                  label="Approval"
                   value={<StatusBadge value={request?.review_status} />}
-                  detail={request?.review_notes || request?.correction_notes || "No review notes"}
+                  detail={paymentIsAllowed ? "Ready for payment." : "Not ready for payment."}
                 />
-                <ValueBlock
-                  label="Confirmation"
-                  value={<StatusBadge value={request?.recipient_confirmation_status} />}
-                  detail={request?.confirmation_notes || "Waiting for employee after payment"}
+                <AmountBlock
+                  label="Remaining To Pay"
+                  value={remainingOnThisPaycheck}
+                  currency={paycheckCurrency}
+                  detail="This paycheck only."
+                  tone={remainingOnThisPaycheck <= 0 ? "emerald" : "amber"}
                 />
               </div>
             </section>
@@ -2106,7 +1748,7 @@ export default function PayrollPaycheckDetailPage() {
             <section className="overflow-hidden rounded-[30px] border border-white/10 bg-white/[0.045] backdrop-blur-xl">
               <div className="border-b border-white/10 px-5 py-4">
                 <div className="text-sm font-semibold uppercase tracking-[0.18em] text-slate-400">
-                  Fund Source
+                  Allocated Fund Source
                 </div>
               </div>
 
@@ -2116,6 +1758,11 @@ export default function PayrollPaycheckDetailPage() {
                   value={run?.run_number || run?.reference_number || "—"}
                   detail={getPeriodLabel(period)}
                 />
+                <ValueBlock
+                  label="Allocation Reference"
+                  value={run?.allocation_reference || "—"}
+                  detail={run?.allocation_notes || "No allocation notes."}
+                />
                 <AmountBlock
                   label="Allocated"
                   value={allocatedFunds}
@@ -2124,7 +1771,7 @@ export default function PayrollPaycheckDetailPage() {
                   tone="violet"
                 />
                 <AmountBlock
-                  label="Used"
+                  label="Already Used"
                   value={usedFundsInBasket}
                   currency={fundingCurrency}
                   detail="Used by confirmed payments in this basket."
@@ -2138,7 +1785,7 @@ export default function PayrollPaycheckDetailPage() {
                   tone={remainingFundsInBasket < 0 ? "rose" : "emerald"}
                 />
                 <ValueBlock
-                  label="Bank"
+                  label="Funding Bank"
                   value={getBankAccountLabel(fundingBank)}
                   detail={getBankIdentifier(fundingBank)}
                 />
@@ -2165,9 +1812,13 @@ export default function PayrollPaycheckDetailPage() {
                       value={<StatusBadge value={latestPayment.status} />}
                     />
                     <ValueBlock
-                      label="Amount"
-                      value={`${latestPayment.payment_currency_code || fundingCurrency} ${formatMoney(latestPayment.payment_amount || latestPayment.amount)}`}
-                      detail={`Paycheck ${latestPayment.paycheck_currency_code || paycheckCurrency} ${formatMoney(latestPayment.paycheck_amount || latestPayment.amount)}`}
+                      label="Fund Deduction"
+                      value={`${latestPayment.payment_currency_code || fundingCurrency} ${formatMoney(
+                        latestPayment.payment_amount || latestPayment.amount
+                      )}`}
+                      detail={`Paycheck ${latestPayment.paycheck_currency_code || paycheckCurrency} ${formatMoney(
+                        latestPayment.paycheck_amount || latestPayment.amount
+                      )}`}
                     />
                   </div>
                 ) : (

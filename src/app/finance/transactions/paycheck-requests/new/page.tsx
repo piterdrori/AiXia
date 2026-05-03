@@ -355,6 +355,7 @@ export default function NewPaycheckRequestPage() {
 
   const [isLoading, setIsLoading] = useState(true);
   const [isSaving, setIsSaving] = useState(false);
+  const [employeePickerOpen, setEmployeePickerOpen] = useState(false);
   const [actionError, setActionError] = useState<string | null>(null);
   const [actionMessage, setActionMessage] = useState<string | null>(null);
 
@@ -1075,21 +1076,76 @@ export default function NewPaycheckRequestPage() {
                   ))}
                 </SelectShell>
 
-                <SelectShell
-                  label="Employee Reference"
-                  value={form.employeeRefId}
-                  onChange={(value) => {
-                    updateField("employeeRefId", value);
-                    updateField("payProfileId", "");
-                  }}
-                >
-                  <option value="">Select employee</option>
-                  {employeeRefs.map((row) => (
-                    <option key={row.id} value={row.id}>
-                      {buildEmployeeLabel(row)} — {buildEmployeeSubLabel(row)}
-                    </option>
-                  ))}
-                </SelectShell>
+                <div className="grid gap-2">
+                  <span className={labelClass()}>Employee Reference</span>
+
+                  <button
+                    type="button"
+                    onClick={() => setEmployeePickerOpen((current) => !current)}
+                    className="flex h-11 w-full items-center justify-between gap-3 rounded-2xl border border-white/10 bg-black/20 px-4 text-left text-sm text-white outline-none transition hover:border-cyan-400/20 hover:bg-black/30 focus:border-cyan-400/30"
+                  >
+                    <span className="min-w-0 truncate">
+                      {selectedEmployee
+                        ? `${buildEmployeeLabel(selectedEmployee)} — ${buildEmployeeSubLabel(selectedEmployee)}`
+                        : "Select employee"}
+                    </span>
+                    <span className="shrink-0 text-xs text-slate-500">
+                      {employeePickerOpen ? "Close" : "Open"}
+                    </span>
+                  </button>
+
+                  {employeePickerOpen ? (
+                    <div className="max-h-[320px] overflow-y-auto rounded-2xl border border-white/10 bg-[#080b12] p-2 shadow-2xl shadow-black/40">
+                      <button
+                        type="button"
+                        onClick={() => {
+                          updateField("employeeRefId", "");
+                          updateField("payProfileId", "");
+                          setEmployeePickerOpen(false);
+                        }}
+                        className="flex w-full items-center justify-between gap-3 rounded-xl px-3 py-2.5 text-left text-sm text-slate-400 transition hover:bg-white/[0.06] hover:text-white"
+                      >
+                        <span>Select employee</span>
+                      </button>
+
+                      {employeeRefs.map((row) => {
+                        const isSelected = row.id === form.employeeRefId;
+
+                        return (
+                          <button
+                            key={row.id}
+                            type="button"
+                            onClick={() => {
+                              updateField("employeeRefId", row.id);
+                              updateField("payProfileId", "");
+                              setEmployeePickerOpen(false);
+                            }}
+                            className={`flex w-full items-center justify-between gap-3 rounded-xl px-3 py-2.5 text-left text-sm transition ${
+                              isSelected
+                                ? "bg-cyan-500/10 text-cyan-100"
+                                : "text-slate-300 hover:bg-white/[0.06] hover:text-white"
+                            }`}
+                          >
+                            <span className="min-w-0">
+                              <span className="block truncate font-semibold">
+                                {buildEmployeeLabel(row)}
+                              </span>
+                              <span className="mt-0.5 block truncate text-xs text-slate-500">
+                                {buildEmployeeSubLabel(row)}
+                              </span>
+                            </span>
+
+                            {isSelected ? (
+                              <span className="shrink-0 rounded-full border border-cyan-400/20 bg-cyan-500/10 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-[0.16em] text-cyan-200">
+                                Selected
+                              </span>
+                            ) : null}
+                          </button>
+                        );
+                      })}
+                    </div>
+                  ) : null}
+                </div>
               </div>
 
               <div className="mt-4 grid gap-4 md:grid-cols-2">

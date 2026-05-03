@@ -34,7 +34,6 @@ type TransactionModuleKey =
   | "bills"
   | "proforma-invoices"
   | "expenses"
-  | "reimbursements"
   | "payments-made"
   | "payments-received"
   | "approvals"
@@ -112,15 +111,6 @@ type FinanceExpenseRow = {
   created_at: string;
 };
 
-type FinanceReimbursementRow = {
-  id: string;
-  reimbursement_number: string | null;
-  status: string;
-  amount: number | string | null;
-  payment_date: string | null;
-  created_at: string;
-};
-
 type FinanceApprovalRow = {
   id: string;
   status: string;
@@ -165,7 +155,6 @@ type TransactionsPageData = {
     bills: number;
     proformaInvoices: number;
     expenses: number;
-    reimbursements: number;
     paymentsMade: number;
     paymentsReceived: number;
     approvals: number;
@@ -182,7 +171,6 @@ type TransactionsPageData = {
     overdueInvoices: number;
     overdueBills: number;
     pendingExpenses: number;
-    pendingReimbursements: number;
     pendingApprovals: number;
   };
   recentActivity: RecentTransactionItem[];
@@ -198,7 +186,6 @@ const EMPTY_TRANSACTIONS_DATA: TransactionsPageData = {
     bills: 0,
     proformaInvoices: 0,
     expenses: 0,
-    reimbursements: 0,
     paymentsMade: 0,
     paymentsReceived: 0,
     approvals: 0,
@@ -215,7 +202,6 @@ const EMPTY_TRANSACTIONS_DATA: TransactionsPageData = {
     overdueInvoices: 0,
     overdueBills: 0,
     pendingExpenses: 0,
-    pendingReimbursements: 0,
     pendingApprovals: 0,
   },
   recentActivity: [],
@@ -535,48 +521,6 @@ function TransactionFlowSection({
 }) {
   const tone = getSectionToneClasses(section.tone);
 
-  if (section.key === "internal-flows") {
-    const leftModules = section.modules.slice(0, 2);
-    const rightModules = section.modules.slice(2);
-
-    return (
-      <section
-        className={`overflow-hidden rounded-[30px] border ${tone.border} ${tone.panel} backdrop-blur-xl`}
-      >
-        <div className="flex items-start justify-between gap-4 border-b border-white/10 px-5 py-4">
-          <div>
-            <div
-              className={`inline-flex w-fit rounded-full border px-3 py-1 text-[11px] font-semibold uppercase tracking-[0.22em] ${tone.badge}`}
-            >
-              {section.title}
-            </div>
-            <p className="mt-2 max-w-4xl text-sm leading-6 text-slate-400">
-              {section.subtitle}
-            </p>
-          </div>
-        </div>
-
-        <div className="grid gap-6 p-5 xl:grid-cols-2">
-          <div className="min-w-0">
-            <div className="mb-4 text-[11px] font-semibold uppercase tracking-[0.22em] text-slate-500">
-              {section.splitLabelLeft ?? "A. Reimbursements"}
-            </div>
-
-            <FlowRow items={leftModules} onOpen={onOpen} />
-          </div>
-
-          <div className="min-w-0 border-t border-white/10 pt-6 xl:border-l xl:border-t-0 xl:pl-6 xl:pt-0">
-            <div className="mb-4 text-[11px] font-semibold uppercase tracking-[0.22em] text-slate-500">
-              {section.splitLabelRight ?? "B. Payroll"}
-            </div>
-
-            <FlowRow items={rightModules} onOpen={onOpen} />
-          </div>
-        </div>
-      </section>
-    );
-  }
-
   return (
     <section
       className={`overflow-hidden rounded-[30px] border ${tone.border} ${tone.panel} backdrop-blur-xl`}
@@ -712,7 +656,6 @@ export default function FinanceTransactionsPage() {
         invoicesResult,
         billsResult,
         expensesResult,
-        reimbursementsResult,
         approvalsResult,
         paymentsMadeResult,
         paymentsReceivedResult,
@@ -740,14 +683,6 @@ export default function FinanceTransactionsPage() {
           .from("finance_expenses")
           .select(
             "id, expense_number, title, amount, status, approval_status, payment_status, created_at"
-          )
-          .order("created_at", { ascending: false })
-          .limit(50),
-
-        supabase
-          .from("finance_reimbursements")
-          .select(
-            "id, reimbursement_number, status, amount, payment_date, created_at"
           )
           .order("created_at", { ascending: false })
           .limit(50),
@@ -784,8 +719,6 @@ export default function FinanceTransactionsPage() {
       const invoices = (invoicesResult.data || []) as FinanceInvoiceRow[];
       const bills = (billsResult.data || []) as FinanceBillRow[];
       const expenses = (expensesResult.data || []) as FinanceExpenseRow[];
-      const reimbursements = (reimbursementsResult.data ||
-        []) as FinanceReimbursementRow[];
       const approvals = (approvalsResult.data || []) as FinanceApprovalRow[];
       const paymentsMade = (paymentsMadeResult.data ||
         []) as FinancePaymentMadeRow[];
@@ -827,10 +760,6 @@ export default function FinanceTransactionsPage() {
           row.approval_status === "pending" ||
           row.status === "pending" ||
           row.payment_status === "pending"
-      ).length;
-
-      const pendingReimbursements = reimbursements.filter(
-        (row) => row.status === "pending"
       ).length;
 
       const pendingApprovals = approvals.filter(
@@ -897,8 +826,7 @@ export default function FinanceTransactionsPage() {
           bills: bills.length,
           proformaInvoices: getCount(proformaInvoicesResult),
           expenses: expenses.length,
-          reimbursements: reimbursements.length,
-          paymentsMade: paymentsMade.length,
+          paymentsMade: paymentsMade.length,         
           paymentsReceived: paymentsReceived.length,
           approvals: approvals.length,
           purchaseOrders: getCount(purchaseOrdersResult),
@@ -914,8 +842,7 @@ export default function FinanceTransactionsPage() {
           overdueInvoices,
           overdueBills,
           pendingExpenses,
-          pendingReimbursements,
-          pendingApprovals,
+          pendingApprovals,          
         },
         recentActivity,
       });
@@ -947,11 +874,6 @@ export default function FinanceTransactionsPage() {
       .on(
         "postgres_changes",
         { event: "*", schema: "public", table: "finance_expenses" },
-        () => void loadTransactionsData()
-      )
-      .on(
-        "postgres_changes",
-        { event: "*", schema: "public", table: "finance_reimbursements" },
         () => void loadTransactionsData()
       )
       .on(
@@ -1103,23 +1025,12 @@ export default function FinanceTransactionsPage() {
       },
       expenses: {
         key: "expenses",
-        title: "Expenses",
+        title: "Expenses & Reimbursements",
         description:
-          "Direct company operating expenses with approval and payment state.",
+          "Planned expense approvals and reimbursement requests handled in one workflow.",
         route: "/finance/transactions/expenses",
         icon: Receipt,
         count: data.counts.expenses,
-        statusLabel: "Live",
-        lastUpdatedLabel: "Live",
-      },
-      reimbursements: {
-        key: "reimbursements",
-        title: "Reimbursements",
-        description:
-          "Internal repayments owed back to employees or internal parties.",
-        route: "/finance/transactions/reimbursements",
-        icon: Wallet,
-        count: data.counts.reimbursements,
         statusLabel: "Live",
         lastUpdatedLabel: "Live",
       },
@@ -1127,7 +1038,7 @@ export default function FinanceTransactionsPage() {
         key: "payments-made",
         title: "Payments Made",
         description:
-          "Outgoing cash settlements for vendor invoices, expenses, payroll, and reimbursements.",
+          "Outgoing cash settlements for vendor invoices, expenses, reimbursements, and payroll.",
         route: "/finance/transactions/expenses-payments-made",
         icon: CreditCard,
         count: data.counts.paymentsMade,
@@ -1221,22 +1132,24 @@ export default function FinanceTransactionsPage() {
       },
       {
         key: "operating-expenses",
-        title: "Operating Expenses Flow",
+        title: "Expenses & Reimbursements Flow",
         subtitle:
-          "Direct company operating expenses and their outgoing payment settlement.",
+          "Planned expense requests and reimbursement requests handled together through proof review, funding pool allocation, payment distribution, and recipient confirmation.",
         tone: "expense",
         modules: [
           {
             module: allModuleCards.expenses,
             sequenceLabel: "01",
-            titleOverride: "Expense",
-            descriptionOverride: "Company expense recorded.",
+            titleOverride: "Expense / Reimbursement Request",
+            descriptionOverride:
+              "Planned expenses request approval before spending. Reimbursements are submitted after personal payment with proof.",
           },
           {
             module: allModuleCards["payments-made"],
             sequenceLabel: "02",
-            titleOverride: "Payment Made",
-            descriptionOverride: "Payment made for expense.",
+            titleOverride: "Funding Pool / Payment Distribution",
+            descriptionOverride:
+              "Finance allocates monthly funds and distributes payments across verified expenses and reimbursements.",
           },
         ],
       },
@@ -1244,21 +1157,9 @@ export default function FinanceTransactionsPage() {
         key: "internal-flows",
         title: "Internal Finance Flows",
         subtitle:
-          "Internal obligations, reimbursements, payroll runs, and employee-related payments.",
+          "Internal obligations focused on payroll runs, salary obligations, approvals, and employee-related payment execution.",
         tone: "internal",
-        splitLabelLeft: "A. Reimbursements",
-        splitLabelRight: "B. Payroll",
         modules: [
-          {
-            module: allModuleCards.reimbursements,
-            sequenceLabel: "01",
-            titleOverride: "Reimbursement",
-          },
-          {
-            module: allModuleCards["payments-made"],
-            sequenceLabel: "02",
-            titleOverride: "Payment Made",
-          },
           {
             module: allModuleCards.payroll,
             sequenceLabel: "01",
@@ -1267,7 +1168,9 @@ export default function FinanceTransactionsPage() {
           {
             module: allModuleCards["payments-made"],
             sequenceLabel: "02",
-            titleOverride: "Payment Made",
+            titleOverride: "Payroll Payment Execution",
+            descriptionOverride:
+              "Outgoing payroll payment execution after payroll approval and control.",
           },
         ],
       },
@@ -1348,8 +1251,8 @@ export default function FinanceTransactionsPage() {
 
                 <p className="mt-3 max-w-4xl text-sm leading-6 text-slate-400 md:text-base md:leading-7">
                   A structured operations layer for incoming money, supplier
-                  procurement, operating expenses, reimbursements, payroll,
-                  payments, approvals, and transaction control.
+                  procurement, expenses and reimbursements, payroll, payments,
+                  approvals, and transaction control.
                 </p>
               </div>
 

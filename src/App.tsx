@@ -129,11 +129,6 @@ import FinanceReimbursementsPage from "@/app/finance/reimbursements/page";
 import FinanceReimbursementDetailPage from "@/app/finance/reimbursements/[id]/page";
 
 import FinanceApprovalsPage from "@/app/finance/approvals/page";
-import FinancePayrollPage from "@/app/finance/payroll/page";
-import FinancePayrollProfilesPage from "@/app/finance/payroll/profiles/page";
-import FinancePayrollPeriodsPage from "@/app/finance/payroll/periods/page";
-import FinancePayrollRunsPage from "@/app/finance/payroll/runs/page";
-import FinancePayrollRunDetailPage from "@/app/finance/payroll/runs/[id]/page";
 import FinanceLedgerPage from "@/app/finance/ledger/page";
 import FinanceLedgerAccountsPage from "@/app/finance/ledger/accounts/page";
 import FinanceLedgerAccountDetailPage from "@/app/finance/ledger/accounts/[id]/page";

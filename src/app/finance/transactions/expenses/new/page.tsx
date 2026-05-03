@@ -399,7 +399,7 @@ const CARD_BRANDS: SelectOption[] = [
   { value: "other", label: "Other" },
 ];
 
-const OPTIONS_CACHE_KEY = "aixia.finance.expenses.new.options.v3";
+const OPTIONS_CACHE_KEY = "aixia.finance.expenses.new.options.v4";
 const OPTIONS_CACHE_TTL_MS = 1000 * 60 * 5;
 
 const initialSubscriptionCard = (): CreditCardDraft => ({
@@ -1003,6 +1003,7 @@ export default function FinanceNewExpensePage() {
   const [currencies, setCurrencies] = useState<CurrencyRow[]>([]);
   const [form, setForm] = useState<FormState>(initialFormState);
   const [documentationFile, setDocumentationFile] = useState<File | null>(null);
+  const [employeePickerOpen, setEmployeePickerOpen] = useState(false);
   const [isLoadingOptions, setIsLoadingOptions] = useState(true);
   const [isRefreshingOptions, setIsRefreshingOptions] = useState(false);
   const [isSaving, setIsSaving] = useState(false);
@@ -1202,7 +1203,6 @@ export default function FinanceNewExpensePage() {
             supabase
               .from("finance_employee_refs")
               .select("id, user_id, code, status, mark, metadata")
-              .eq("status", "active")
               .order("code"),
             supabase
               .from("profiles")
@@ -3044,22 +3044,78 @@ export default function FinanceNewExpensePage() {
                 </label>
 
                 {form.expenseMadeByType === "employee" ? (
-                  <label className="grid gap-2">
+                  <div className="grid gap-2">
                     <span className={labelClass()}>Employee</span>
-                    <select
-                      value={form.employeeRefId}
-                      onChange={(event) => updateField("employeeRefId", event.target.value)}
-                      className={inputClass()}
+
+                    <button
+                      type="button"
+                      onClick={() => setEmployeePickerOpen((current) => !current)}
                       disabled={isLoadingOptions && !hasUsableOptions}
+                      className="flex h-11 w-full items-center justify-between gap-3 rounded-2xl border border-white/10 bg-black/20 px-4 text-left text-sm text-white outline-none transition hover:border-cyan-400/20 hover:bg-black/30 focus:border-cyan-400/30 disabled:cursor-not-allowed disabled:opacity-50"
                     >
-                      <option value="">Select employee</option>
-                      {employees.map((employee) => (
-                        <option key={employee.id} value={employee.id}>
-                          {formatEmployeeLabel(employee, profileMap)}
-                        </option>
-                      ))}
-                    </select>
-                  </label>
+                      <span className="min-w-0 truncate">
+                        {selectedEmployee
+                          ? formatEmployeeLabel(selectedEmployee, profileMap)
+                          : "Select employee"}
+                      </span>
+                      <span className="shrink-0 text-xs text-slate-500">
+                        {employeePickerOpen ? "Close" : "Open"}
+                      </span>
+                    </button>
+
+                    {employeePickerOpen ? (
+                      <div className="max-h-[320px] overflow-y-auto rounded-2xl border border-white/10 bg-[#080b12] p-2 shadow-2xl shadow-black/40">
+                        <button
+                          type="button"
+                          onClick={() => {
+                            updateField("employeeRefId", "");
+                            setEmployeePickerOpen(false);
+                          }}
+                          className="flex w-full items-center justify-between gap-3 rounded-xl px-3 py-2.5 text-left text-sm text-slate-400 transition hover:bg-white/[0.06] hover:text-white"
+                        >
+                          <span>Select employee</span>
+                        </button>
+
+                        {employees.map((employee) => {
+                          const isSelected = employee.id === form.employeeRefId;
+                          const statusLabel = employee.status
+                            ? employee.status.replaceAll("_", " ")
+                            : "unknown";
+
+                          return (
+                            <button
+                              key={employee.id}
+                              type="button"
+                              onClick={() => {
+                                updateField("employeeRefId", employee.id);
+                                setEmployeePickerOpen(false);
+                              }}
+                              className={`flex w-full items-center justify-between gap-3 rounded-xl px-3 py-2.5 text-left text-sm transition ${
+                                isSelected
+                                  ? "bg-cyan-500/10 text-cyan-100"
+                                  : "text-slate-300 hover:bg-white/[0.06] hover:text-white"
+                              }`}
+                            >
+                              <span className="min-w-0">
+                                <span className="block truncate font-semibold">
+                                  {formatEmployeeLabel(employee, profileMap)}
+                                </span>
+                                <span className="mt-0.5 block truncate text-xs text-slate-500">
+                                  {employee.code || "No code"} • {statusLabel}
+                                </span>
+                              </span>
+
+                              {isSelected ? (
+                                <span className="shrink-0 rounded-full border border-cyan-400/20 bg-cyan-500/10 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-[0.16em] text-cyan-200">
+                                  Selected
+                                </span>
+                              ) : null}
+                            </button>
+                          );
+                        })}
+                      </div>
+                    ) : null}
+                  </div>
                 ) : null}
 
                 {form.expenseMadeByType === "owner_management" ? (

@@ -4,7 +4,6 @@ import {
   ArrowLeft,
   BadgeDollarSign,
   Briefcase,
-  CalendarDays,
   ExternalLink,
   Plus,
   RefreshCw,

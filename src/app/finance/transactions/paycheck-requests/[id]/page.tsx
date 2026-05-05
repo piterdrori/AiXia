@@ -5,9 +5,6 @@ import {
   AlertTriangle,
   ArrowRight,
   BadgeCheck,
-  Building2,
-  CalendarClock,
-  CheckCircle2,
   Download,
   ExternalLink,
   FileCheck2,
@@ -1435,7 +1432,7 @@ export default function PaycheckRequestDetailPage() {
             .in("id", batchIds);
 
           if (fundingBatchesResult.error) throw fundingBatchesResult.error;
-          setFundingBatches((fundingBatchesResult.data || []) as FundingBatchRow[]);
+          setFundingBatches((fundingBatchesResult.data || []) as unknown as FundingBatchRow[]);
         } else {
           setFundingBatches([]);
         }

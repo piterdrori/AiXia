@@ -6,8 +6,10 @@ import {
   ArrowRight,
   CheckCircle2,
   Clock3,
-  CreditCard,
+  Eye,
+  FileText,
   Loader2,
+  Receipt,
   RotateCcw,
   Search,
   ShieldCheck,
@@ -20,8 +22,19 @@ import type { LucideIcon } from "lucide-react";
 
 import { supabase } from "@/lib/supabase";
 
-type ArchiveScope = "requests" | "funds";
+type WorkbenchTab =
+  | "paycheck_requests"
+  | "payroll_documents"
+  | "payroll_review"
+  | "ready_for_payment"
+  | "employee_confirmation"
+  | "funding_batches"
+  | "payment_distributions";
+
+type ArchiveScope = "workflow" | "execution";
 type ArchiveTab = "archived" | "deleted";
+
+type Tone = "cyan" | "emerald" | "amber" | "rose" | "violet" | "slate";
 
 type PaycheckRequestRow = {
   id: string;
@@ -45,16 +58,7 @@ type PaycheckRequestRow = {
   documentation_status: string;
   signed_form_status: string;
   recipient_confirmation_status: string;
-  signed_form_storage_bucket: string | null;
-  signed_form_storage_path: string | null;
-  signed_form_external_url: string | null;
-  signed_form_uploaded_at: string | null;
-  signed_form_submitted_at: string | null;
   admin_signed_form_status: string | null;
-  admin_signed_form_storage_bucket: string | null;
-  admin_signed_form_storage_path: string | null;
-  admin_signed_form_external_url: string | null;
-  admin_signed_form_uploaded_at: string | null;
   submitted_at: string | null;
   reviewed_at: string | null;
   review_notes: string | null;
@@ -64,10 +68,15 @@ type PaycheckRequestRow = {
   linked_payroll_run_id: string | null;
   linked_paycheck_id: string | null;
   linked_payment_id: string | null;
+  linked_payment_distribution_id: string | null;
   payment_sent_at: string | null;
   payment_confirmed_at: string | null;
   payment_disputed_at: string | null;
   confirmation_notes: string | null;
+  funding_status: string | null;
+  payment_status: string | null;
+  paid_amount: number | string | null;
+  remaining_amount: number | string | null;
   notes: string | null;
   metadata: Record<string, unknown> | null;
   reference_number: string | null;
@@ -121,57 +130,6 @@ type CompanyRow = {
   legal_name: string | null;
 };
 
-type PayrollPeriodRow = {
-  id: string;
-  period_number: string | null;
-  period_name: string;
-  period_start: string;
-  period_end: string;
-  pay_date: string;
-  status: string;
-};
-
-type PayrollRunRow = {
-  id: string;
-  run_number: string | null;
-  payroll_period_id: string;
-  status: string;
-  total_gross: number | string | null;
-  total_deductions: number | string | null;
-  total_bonus: number | string | null;
-  total_reimbursements: number | string | null;
-  total_net: number | string | null;
-  submitted_at: string | null;
-  approved_at: string | null;
-  completed_at: string | null;
-  approved_by: string | null;
-  notes: string | null;
-  metadata: Record<string, unknown> | null;
-  project_id: string | null;
-  task_id: string | null;
-  reference_number: string | null;
-  posted_to_ledger: boolean | null;
-  created_at: string;
-  updated_at: string;
-  created_by: string | null;
-  updated_by: string | null;
-  ledger_posted_at: string | null;
-  ledger_entry_id: string | null;
-  archived_at: string | null;
-  archived_by: string | null;
-  deleted_at: string | null;
-  deleted_by: string | null;
-  funding_company_id: string | null;
-  funding_bank_account_id: string | null;
-  funding_currency_code: string | null;
-  allocated_funding_amount: number | string | null;
-  allocated_funding_date: string | null;
-  allocation_reference: string | null;
-  allocation_notes: string | null;
-  allocation_status: string;
-  allocation_metadata: Record<string, unknown> | null;
-};
-
 type BankAccountRow = {
   id: string;
   code: string | null;
@@ -188,53 +146,83 @@ type BankAccountRow = {
   company_id: string | null;
 };
 
-type PaycheckRow = {
+type FundingBatchRow = {
   id: string;
-  paycheck_number: string | null;
-  payroll_run_id: string;
-  user_id: string;
-  gross_pay: number | string | null;
-  deduction_total: number | string | null;
-  bonus_total: number | string | null;
-  reimbursement_total: number | string | null;
-  net_pay: number | string | null;
-  payment_status: string;
-  paid_at: string | null;
-  payment_method_id: string | null;
-  bank_account_id: string | null;
-  reference_number: string | null;
+  batch_number: string;
+  funding_company_id: string;
+  funding_bank_account_id: string | null;
+  allocation_date: string;
+  period_start: string | null;
+  period_end: string | null;
+  currency_code: string;
+  allocated_amount: number | string | null;
+  status: string;
+  documentation_status: string | null;
   notes: string | null;
-  metadata: Record<string, unknown> | null;
-  project_id: string | null;
-  task_id: string | null;
-  posted_to_ledger: boolean | null;
+  metadata: {
+    used_amount?: number | string | null;
+    remaining_amount?: number | string | null;
+    [key: string]: unknown;
+  } | null;
   created_at: string;
   updated_at: string;
-  created_by: string | null;
-  updated_by: string | null;
 };
 
-type PayrollPaymentRow = {
+type PaymentDistributionRow = {
   id: string;
-  payment_number: string | null;
-  paycheck_id: string;
-  user_id: string;
-  amount: number | string | null;
+  distribution_number: string;
+  funding_batch_id: string;
   payment_date: string;
-  payment_method_id: string | null;
-  bank_account_id: string | null;
   status: string;
+  paid_from_company_id: string | null;
+  paid_from_bank_account_id: string | null;
+  amount: number | string | null;
+  payment_currency_code: string;
+  funding_currency_code: string | null;
+  funding_currency_amount: number | string | null;
+  exchange_rate: number | string | null;
+  exchange_rate_source: string | null;
+  exchange_rate_date: string | null;
   reference_number: string | null;
+  recipient_employee_ref_id: string | null;
+  recipient_person_name: string | null;
+  recipient_confirmation_status: string | null;
+  payment_proof_status: string | null;
   notes: string | null;
-  metadata: Record<string, unknown> | null;
-  paycheck_currency_code: string | null;
+  metadata: {
+    allocation_count?: number | string | null;
+    payment_currency_amount?: number | string | null;
+    paycheck_currency_coverage_total?: number | string | null;
+    funding_currency_amount_used_for_payment?: number | string | null;
+    [key: string]: unknown;
+  } | null;
+  created_at: string;
+  updated_at: string;
+};
+
+type PaymentAllocationRow = {
+  id: string;
+  distribution_id: string;
+  paycheck_request_id: string;
+  funding_batch_id: string | null;
+  paycheck_id: string | null;
+  payroll_payment_id: string | null;
+  employee_ref_id: string | null;
+  employee_user_id: string | null;
+  company_id: string | null;
+  funding_company_id: string | null;
+  paid_from_bank_account_id: string | null;
+  recipient_person_name: string | null;
+  allocated_amount: number | string | null;
+  currency_code: string | null;
   payment_currency_code: string | null;
-  paycheck_amount: number | string | null;
-  payment_amount: number | string | null;
-  conversion_rate: number | string | null;
-  conversion_date: string | null;
+  converted_amount: number | string | null;
+  funding_currency_code: string | null;
+  funding_currency_amount: number | string | null;
+  exchange_rate: number | string | null;
   conversion_source: string | null;
-  conversion_metadata: Record<string, unknown> | null;
+  conversion_date: string | null;
+  recipient_confirmation_status: string | null;
   created_at: string;
   updated_at: string;
 };
@@ -246,27 +234,37 @@ type EnrichedRequestRow = PaycheckRequestRow & {
   payProfileLabel: string;
   periodLabel: string;
   targetAmount: number;
-  hasLinkedPaycheck: boolean;
-  paidAmount: number;
-  remainingAmount: number;
+  paidAmountCalculated: number;
+  remainingAmountCalculated: number;
+  linkedAllocationCount: number;
   nextStepLabel: string;
   nextStepTone: Tone;
 };
 
-type EnrichedFundRow = PayrollRunRow & {
-  periodLabel: string;
+type EnrichedFundingBatch = FundingBatchRow & {
+  recordType: "funding_batch";
   companyName: string;
   bankLabel: string;
-  fundingCurrency: string;
   allocatedAmount: number;
   usedAmount: number;
   remainingAmount: number;
-  paycheckCount: number;
-  paymentCount: number;
-  confirmedPaymentCount: number;
+  distributionCount: number;
+  confirmedDistributionCount: number;
+  allocationCount: number;
 };
 
-type Tone = "cyan" | "emerald" | "amber" | "rose" | "violet" | "slate";
+type EnrichedDistribution = PaymentDistributionRow & {
+  recordType: "payment_distribution";
+  fundingBatchNumber: string;
+  companyName: string;
+  bankLabel: string;
+  allocationCount: number;
+  allocatedRequestAmount: number;
+  paymentCurrencyAmount: number;
+  fundingCurrencyAmountCalculated: number;
+};
+
+type ExecutionRecord = EnrichedFundingBatch | EnrichedDistribution;
 
 const statusToneMap: Record<string, Tone> = {
   draft: "slate",
@@ -279,6 +277,7 @@ const statusToneMap: Record<string, Tone> = {
   linked_to_payroll: "violet",
   payment_sent: "cyan",
   pending_confirmation: "amber",
+  partially_confirmed: "amber",
   received_confirmed: "emerald",
   not_received: "rose",
   disputed: "rose",
@@ -288,6 +287,8 @@ const statusToneMap: Record<string, Tone> = {
   uploaded: "cyan",
   linked: "cyan",
   files_and_links: "cyan",
+  verified: "emerald",
+  issue_found: "rose",
   pending: "amber",
   scheduled: "cyan",
   confirmed: "emerald",
@@ -298,12 +299,75 @@ const statusToneMap: Record<string, Tone> = {
   pending_approval: "amber",
   archived: "amber",
   deleted: "rose",
+  cancelled: "rose",
   allocated: "emerald",
+  not_allocated: "slate",
+  partially_allocated: "amber",
+  over_allocated: "rose",
   partially_used: "amber",
   fully_used: "emerald",
-  over_allocated: "rose",
-  cancelled: "rose",
+  unpaid: "slate",
+  partially_paid: "amber",
+  not_required: "slate",
 };
+
+const mainWorkflowTabs: Array<{
+  key: WorkbenchTab;
+  label: string;
+  description: string;
+}> = [
+  {
+    key: "paycheck_requests",
+    label: "Paycheck Requests",
+    description:
+      "Finance/Admin monitors submitted paycheck requests and employee-created payroll reimbursement requests.",
+  },
+  {
+    key: "payroll_documents",
+    label: "Payroll Documents",
+    description:
+      "Tracks missing payroll documents, employee forms, admin signed forms, uploaded proof, and document issues.",
+  },
+  {
+    key: "payroll_review",
+    label: "Payroll Review",
+    description:
+      "Finance/Admin reviews paycheck requests, approves them for payroll, asks for correction, or rejects them.",
+  },
+  {
+    key: "ready_for_payment",
+    label: "Ready for Paycheck Payment",
+    description:
+      "Approved paycheck requests ready to be covered by a payroll funding pool and paid through a distribution.",
+  },
+  {
+    key: "employee_confirmation",
+    label: "Employee Confirmation",
+    description:
+      "Final tracking step: employee confirms payment received, reports not received, or disputes the payment.",
+  },
+];
+
+const executionTabs: Array<{
+  key: WorkbenchTab;
+  label: string;
+  description: string;
+}> = [
+  {
+    key: "funding_batches",
+    label: "Payroll Funding Allocation",
+    description:
+      "Reserve payroll money in a confirmed funding pool before distributing payments across paycheck requests.",
+  },
+  {
+    key: "payment_distributions",
+    label: "Paycheck Payment Distributions",
+    description:
+      "Distribute confirmed payroll funding across approved paycheck requests and track employee confirmation.",
+  },
+];
+
+const allTabs = [...mainWorkflowTabs, ...executionTabs];
 
 function toNumber(value: number | string | null | undefined) {
   const parsed = Number(value ?? 0);
@@ -459,9 +523,7 @@ function getEmployeeName(
   profileMap: Map<string, ProfileRow>
 ) {
   const profile = profileMap.get(request.employee_user_id);
-  const employee = request.employee_ref_id
-    ? employeeMap.get(request.employee_ref_id)
-    : null;
+  const employee = request.employee_ref_id ? employeeMap.get(request.employee_ref_id) : null;
 
   return (
     profile?.full_name?.trim() ||
@@ -477,9 +539,7 @@ function getEmployeeLabel(
   employeeMap: Map<string, EmployeeRefRow>,
   profileMap: Map<string, ProfileRow>
 ) {
-  const employee = request.employee_ref_id
-    ? employeeMap.get(request.employee_ref_id)
-    : null;
+  const employee = request.employee_ref_id ? employeeMap.get(request.employee_ref_id) : null;
   const profile = profileMap.get(request.employee_user_id);
 
   const role =
@@ -489,10 +549,7 @@ function getEmployeeLabel(
     employee?.mark?.trim() ||
     null;
 
-  const company =
-    profile?.company?.trim() ||
-    employee?.metadata?.company?.trim() ||
-    null;
+  const company = profile?.company?.trim() || employee?.metadata?.company?.trim() || null;
 
   return [employee?.code, role ? formatLabel(role) : null, company]
     .filter(Boolean)
@@ -517,17 +574,6 @@ function getPayProfileLabel(payProfile: PayProfileRow | null | undefined) {
     .join(" • ");
 }
 
-function getPeriodLabel(period: PayrollPeriodRow | null | undefined) {
-  if (!period) return "No payroll period";
-  return `${period.period_name} • ${formatDate(period.period_start)} → ${formatDate(
-    period.period_end
-  )}`;
-}
-
-function getRequestPeriodLabel(request: PaycheckRequestRow) {
-  return `${formatDate(request.period_start)} → ${formatDate(request.period_end)}`;
-}
-
 function getBankLabel(bank: BankAccountRow | null | undefined) {
   if (!bank) return "No bank selected";
 
@@ -538,6 +584,16 @@ function getBankLabel(bank: BankAccountRow | null | undefined) {
   ]
     .filter(Boolean)
     .join(" • ");
+}
+
+function getRequestPeriodLabel(request: PaycheckRequestRow) {
+  return `${formatDate(request.period_start)} → ${formatDate(request.period_end)}`;
+}
+
+function getFundingPeriodLabel(batch: FundingBatchRow) {
+  if (!batch.period_start && !batch.period_end) return "No payroll period selected";
+
+  return `${formatDate(batch.period_start)} → ${formatDate(batch.period_end)}`;
 }
 
 function getRequestTargetAmount(request: PaycheckRequestRow) {
@@ -556,6 +612,13 @@ function getRequestNextStep(request: PaycheckRequestRow): {
   label: string;
   tone: Tone;
 } {
+  if (request.status === "draft") {
+    return {
+      label: "Draft request not submitted",
+      tone: "slate",
+    };
+  }
+
   if (request.status === "submitted" || request.review_status === "pending_review") {
     return {
       label: "Finance review needed",
@@ -563,31 +626,31 @@ function getRequestNextStep(request: PaycheckRequestRow): {
     };
   }
 
-  if (request.status === "needs_correction") {
+  if (request.status === "needs_correction" || request.review_status === "needs_correction") {
     return {
       label: "Waiting for employee correction",
       tone: "amber",
     };
   }
 
-  if (request.status === "approved_for_payroll" && !request.linked_paycheck_id) {
+  if (request.status === "approved_for_payroll" && request.payment_status !== "paid") {
     return {
-      label: "Ready for payroll execution",
+      label: "Ready for paycheck payment distribution",
       tone: "emerald",
     };
   }
 
-  if (request.linked_paycheck_id || request.status === "linked_to_payroll") {
+  if (request.payment_status === "partially_paid") {
     return {
-      label: "Payroll execution in progress",
-      tone: "violet",
+      label: "Partially paid; remaining balance open",
+      tone: "amber",
     };
   }
 
-  if (request.status === "payment_sent") {
+  if (request.status === "payment_sent" || request.payment_status === "paid") {
     return {
       label: "Waiting for employee confirmation",
-      tone: "amber",
+      tone: "violet",
     };
   }
 
@@ -618,45 +681,45 @@ function getRequestNextStep(request: PaycheckRequestRow): {
   };
 }
 
-function isRequestArchived(request: PaycheckRequestRow) {
+function isWorkflowArchived(request: PaycheckRequestRow) {
   return request.status === "archived";
 }
 
-function isRequestDeleted(request: PaycheckRequestRow) {
+function isWorkflowDeleted(request: PaycheckRequestRow) {
   return request.status === "deleted";
 }
 
-function isRequestActive(request: PaycheckRequestRow) {
-  return !isRequestArchived(request) && !isRequestDeleted(request);
+function isWorkflowActive(request: PaycheckRequestRow) {
+  return !isWorkflowArchived(request) && !isWorkflowDeleted(request);
 }
 
-function isFundArchived(fund: PayrollRunRow) {
-  return fund.status === "archived";
+function isExecutionArchived(record: FundingBatchRow | PaymentDistributionRow) {
+  return record.status === "archived";
 }
 
-function isFundDeleted(fund: PayrollRunRow) {
-  return fund.status === "deleted";
+function isExecutionDeleted(record: FundingBatchRow | PaymentDistributionRow) {
+  return record.status === "deleted";
 }
 
-function isFundActive(fund: PayrollRunRow) {
-  return !isFundArchived(fund) && !isFundDeleted(fund);
+function isExecutionActive(record: FundingBatchRow | PaymentDistributionRow) {
+  return !isExecutionArchived(record) && !isExecutionDeleted(record);
 }
 
 export default function FinancePayrollControlPage() {
   const navigate = useNavigate();
 
+  const [activeTab, setActiveTab] = useState<WorkbenchTab>("paycheck_requests");
   const [requests, setRequests] = useState<PaycheckRequestRow[]>([]);
   const [employees, setEmployees] = useState<EmployeeRefRow[]>([]);
   const [profiles, setProfiles] = useState<ProfileRow[]>([]);
   const [payProfiles, setPayProfiles] = useState<PayProfileRow[]>([]);
   const [companies, setCompanies] = useState<CompanyRow[]>([]);
-  const [periods, setPeriods] = useState<PayrollPeriodRow[]>([]);
-  const [funds, setFunds] = useState<PayrollRunRow[]>([]);
   const [bankAccounts, setBankAccounts] = useState<BankAccountRow[]>([]);
-  const [paychecks, setPaychecks] = useState<PaycheckRow[]>([]);
-  const [payments, setPayments] = useState<PayrollPaymentRow[]>([]);
+  const [fundingBatches, setFundingBatches] = useState<FundingBatchRow[]>([]);
+  const [paymentDistributions, setPaymentDistributions] = useState<PaymentDistributionRow[]>([]);
+  const [paymentAllocations, setPaymentAllocations] = useState<PaymentAllocationRow[]>([]);
   const [searchQuery, setSearchQuery] = useState("");
-  const [archiveScope, setArchiveScope] = useState<ArchiveScope>("requests");
+  const [archiveScope, setArchiveScope] = useState<ArchiveScope>("workflow");
   const [archiveTab, setArchiveTab] = useState<ArchiveTab>("archived");
   const [archiveModalOpen, setArchiveModalOpen] = useState(false);
   const [isLoading, setIsLoading] = useState(true);
@@ -682,70 +745,102 @@ export default function FinancePayrollControlPage() {
     return new Map(companies.map((company) => [company.id, company]));
   }, [companies]);
 
-  const periodMap = useMemo(() => {
-    return new Map(periods.map((period) => [period.id, period]));
-  }, [periods]);
-
   const bankAccountMap = useMemo(() => {
     return new Map(bankAccounts.map((bank) => [bank.id, bank]));
   }, [bankAccounts]);
 
-  const paycheckMap = useMemo(() => {
-    return new Map(paychecks.map((paycheck) => [paycheck.id, paycheck]));
-  }, [paychecks]);
+  const fundingBatchMap = useMemo(() => {
+    return new Map(fundingBatches.map((batch) => [batch.id, batch]));
+  }, [fundingBatches]);
 
-  const paymentsByPaycheckId = useMemo(() => {
-    const map = new Map<string, PayrollPaymentRow[]>();
+  const confirmedDistributionIdSet = useMemo(() => {
+    return new Set(
+      paymentDistributions
+        .filter((distribution) => distribution.status === "confirmed")
+        .map((distribution) => distribution.id)
+    );
+  }, [paymentDistributions]);
 
-    payments.forEach((payment) => {
-      const current = map.get(payment.paycheck_id) || [];
-      current.push(payment);
-      map.set(payment.paycheck_id, current);
+  const confirmedPaymentAllocations = useMemo(() => {
+    return paymentAllocations.filter((allocation) =>
+      confirmedDistributionIdSet.has(allocation.distribution_id)
+    );
+  }, [confirmedDistributionIdSet, paymentAllocations]);
+
+  const allocationsByRequestId = useMemo(() => {
+    const map = new Map<string, PaymentAllocationRow[]>();
+
+    paymentAllocations.forEach((allocation) => {
+      const current = map.get(allocation.paycheck_request_id) || [];
+      current.push(allocation);
+      map.set(allocation.paycheck_request_id, current);
     });
 
     return map;
-  }, [payments]);
+  }, [paymentAllocations]);
 
-  const paymentsByFundId = useMemo(() => {
-    const map = new Map<string, PayrollPaymentRow[]>();
+  const allocationsByFundingBatchId = useMemo(() => {
+    const map = new Map<string, PaymentAllocationRow[]>();
 
-    payments.forEach((payment) => {
-      const paycheck = paycheckMap.get(payment.paycheck_id);
-      if (!paycheck) return;
+    paymentAllocations.forEach((allocation) => {
+      if (!allocation.funding_batch_id) return;
 
-      const current = map.get(paycheck.payroll_run_id) || [];
-      current.push(payment);
-      map.set(paycheck.payroll_run_id, current);
+      const current = map.get(allocation.funding_batch_id) || [];
+      current.push(allocation);
+      map.set(allocation.funding_batch_id, current);
     });
 
     return map;
-  }, [paycheckMap, payments]);
+  }, [paymentAllocations]);
 
-  const paychecksByFundId = useMemo(() => {
-    const map = new Map<string, PaycheckRow[]>();
+  const allocationsByDistributionId = useMemo(() => {
+    const map = new Map<string, PaymentAllocationRow[]>();
 
-    paychecks.forEach((paycheck) => {
-      const current = map.get(paycheck.payroll_run_id) || [];
-      current.push(paycheck);
-      map.set(paycheck.payroll_run_id, current);
+    paymentAllocations.forEach((allocation) => {
+      const current = map.get(allocation.distribution_id) || [];
+      current.push(allocation);
+      map.set(allocation.distribution_id, current);
     });
 
     return map;
-  }, [paychecks]);
+  }, [paymentAllocations]);
+
+  const distributionsByFundingBatchId = useMemo(() => {
+    const map = new Map<string, PaymentDistributionRow[]>();
+
+    paymentDistributions.forEach((distribution) => {
+      const current = map.get(distribution.funding_batch_id) || [];
+      current.push(distribution);
+      map.set(distribution.funding_batch_id, current);
+    });
+
+    return map;
+  }, [paymentDistributions]);
 
   const enrichedRequests = useMemo<EnrichedRequestRow[]>(() => {
     return requests.map((request) => {
-      const paycheck = request.linked_paycheck_id
-        ? paycheckMap.get(request.linked_paycheck_id)
-        : null;
-      const requestPayments = request.linked_paycheck_id
-        ? paymentsByPaycheckId.get(request.linked_paycheck_id) || []
-        : [];
-      const paidAmount = requestPayments
-        .filter((payment) => payment.status === "confirmed")
-        .reduce((sum, payment) => sum + toNumber(payment.paycheck_amount || payment.amount), 0);
       const targetAmount = getRequestTargetAmount(request);
-      const nextStep = getRequestNextStep(request);
+      const confirmedAllocationsForRequest = confirmedPaymentAllocations.filter(
+        (allocation) => allocation.paycheck_request_id === request.id
+      );
+      const allAllocationsForRequest = allocationsByRequestId.get(request.id) || [];
+      const paidAmountCalculated =
+        toNumber(request.paid_amount) ||
+        confirmedAllocationsForRequest.reduce(
+          (sum, allocation) => sum + toNumber(allocation.allocated_amount),
+          0
+        );
+
+      const remainingAmountCalculated =
+        request.remaining_amount !== null && request.remaining_amount !== undefined
+          ? toNumber(request.remaining_amount)
+          : Math.max(targetAmount - paidAmountCalculated, 0);
+
+      const nextStep = getRequestNextStep({
+        ...request,
+        paid_amount: paidAmountCalculated,
+        remaining_amount: remainingAmountCalculated,
+      });
 
       return {
         ...request,
@@ -759,53 +854,134 @@ export default function FinancePayrollControlPage() {
           : "No pay profile",
         periodLabel: getRequestPeriodLabel(request),
         targetAmount,
-        hasLinkedPaycheck: Boolean(paycheck),
-        paidAmount,
-        remainingAmount: Math.max(targetAmount - paidAmount, 0),
+        paidAmountCalculated,
+        remainingAmountCalculated,
+        linkedAllocationCount: allAllocationsForRequest.length,
         nextStepLabel: nextStep.label,
         nextStepTone: nextStep.tone,
       };
     });
   }, [
+    allocationsByRequestId,
     companyMap,
+    confirmedPaymentAllocations,
     employeeMap,
-    paycheckMap,
     payProfileMap,
-    paymentsByPaycheckId,
     profileMap,
     requests,
   ]);
 
-  const enrichedFunds = useMemo<EnrichedFundRow[]>(() => {
-    return funds.map((fund) => {
-      const fundPaychecks = paychecksByFundId.get(fund.id) || [];
-      const fundPayments = paymentsByFundId.get(fund.id) || [];
-      const fundingCurrency = fund.funding_currency_code || "USD";
-      const allocatedAmount = toNumber(fund.allocated_funding_amount);
-      const confirmedPayments = fundPayments.filter((payment) => payment.status === "confirmed");
-      const usedAmount = confirmedPayments
-        .filter((payment) => (payment.payment_currency_code || fundingCurrency) === fundingCurrency)
-        .reduce((sum, payment) => sum + toNumber(payment.payment_amount || payment.amount), 0);
+  const enrichedFundingBatches = useMemo<EnrichedFundingBatch[]>(() => {
+    return fundingBatches.map((batch) => {
+      const batchDistributions = distributionsByFundingBatchId.get(batch.id) || [];
+      const batchAllocations = allocationsByFundingBatchId.get(batch.id) || [];
+      const confirmedBatchDistributions = batchDistributions.filter(
+        (distribution) => distribution.status === "confirmed"
+      );
+      const allocatedAmount = toNumber(batch.allocated_amount);
+      const usedAmount =
+        toNumber(batch.metadata?.used_amount) ||
+        confirmedPaymentAllocations
+          .filter((allocation) => allocation.funding_batch_id === batch.id)
+          .reduce(
+            (sum, allocation) =>
+              sum +
+              toNumber(
+                allocation.funding_currency_amount ||
+                  allocation.converted_amount ||
+                  allocation.allocated_amount
+              ),
+            0
+          );
 
       return {
-        ...fund,
-        periodLabel: getPeriodLabel(periodMap.get(fund.payroll_period_id)),
-        companyName: fund.funding_company_id
-          ? getCompanyName(companyMap.get(fund.funding_company_id))
-          : "No funding company",
-        bankLabel: fund.funding_bank_account_id
-          ? getBankLabel(bankAccountMap.get(fund.funding_bank_account_id))
+        ...batch,
+        recordType: "funding_batch",
+        companyName: companyMap.get(batch.funding_company_id)?.legal_name
+          ? getCompanyName(companyMap.get(batch.funding_company_id))
+          : companyMap.get(batch.funding_company_id)?.name || "Unknown company",
+        bankLabel: batch.funding_bank_account_id
+          ? getBankLabel(bankAccountMap.get(batch.funding_bank_account_id))
           : "No funding bank",
-        fundingCurrency,
         allocatedAmount,
         usedAmount,
-        remainingAmount: allocatedAmount - usedAmount,
-        paycheckCount: fundPaychecks.length,
-        paymentCount: fundPayments.length,
-        confirmedPaymentCount: confirmedPayments.length,
+        remainingAmount:
+          batch.metadata?.remaining_amount !== null && batch.metadata?.remaining_amount !== undefined
+            ? toNumber(batch.metadata.remaining_amount)
+            : Math.max(allocatedAmount - usedAmount, 0),
+        distributionCount: batchDistributions.length,
+        confirmedDistributionCount: confirmedBatchDistributions.length,
+        allocationCount: batchAllocations.length,
       };
     });
-  }, [bankAccountMap, companyMap, funds, paychecksByFundId, paymentsByFundId, periodMap]);
+  }, [
+    allocationsByFundingBatchId,
+    bankAccountMap,
+    companyMap,
+    confirmedPaymentAllocations,
+    distributionsByFundingBatchId,
+    fundingBatches,
+  ]);
+
+  const enrichedDistributions = useMemo<EnrichedDistribution[]>(() => {
+    return paymentDistributions.map((distribution) => {
+      const distributionAllocations = allocationsByDistributionId.get(distribution.id) || [];
+      const fundingBatch = fundingBatchMap.get(distribution.funding_batch_id);
+
+      const allocatedRequestAmount = distributionAllocations.reduce(
+        (sum, allocation) => sum + toNumber(allocation.allocated_amount),
+        0
+      );
+
+      const paymentCurrencyAmount =
+        toNumber(distribution.metadata?.payment_currency_amount) ||
+        distributionAllocations.reduce(
+          (sum, allocation) => sum + toNumber(allocation.converted_amount),
+          0
+        );
+
+      const fundingCurrencyAmountCalculated =
+        toNumber(distribution.funding_currency_amount) ||
+        toNumber(distribution.metadata?.funding_currency_amount_used_for_payment) ||
+        distributionAllocations.reduce(
+          (sum, allocation) =>
+            sum +
+            toNumber(
+              allocation.funding_currency_amount ||
+                allocation.converted_amount ||
+                allocation.allocated_amount
+            ),
+          0
+        );
+
+      return {
+        ...distribution,
+        recordType: "payment_distribution",
+        fundingBatchNumber: fundingBatch?.batch_number || "Funding Pool",
+        companyName: distribution.paid_from_company_id
+          ? getCompanyName(companyMap.get(distribution.paid_from_company_id))
+          : fundingBatch?.funding_company_id
+            ? getCompanyName(companyMap.get(fundingBatch.funding_company_id))
+            : "No company",
+        bankLabel: distribution.paid_from_bank_account_id
+          ? getBankLabel(bankAccountMap.get(distribution.paid_from_bank_account_id))
+          : fundingBatch?.funding_bank_account_id
+            ? getBankLabel(bankAccountMap.get(fundingBatch.funding_bank_account_id))
+            : "No bank selected",
+        allocationCount:
+          Number(distribution.metadata?.allocation_count ?? distributionAllocations.length) || 0,
+        allocatedRequestAmount,
+        paymentCurrencyAmount,
+        fundingCurrencyAmountCalculated,
+      };
+    });
+  }, [allocationsByDistributionId, bankAccountMap, companyMap, fundingBatchMap, paymentDistributions]);
+
+  const enrichedExecutionRecords = useMemo<ExecutionRecord[]>(() => {
+    return [...enrichedFundingBatches, ...enrichedDistributions].sort((a, b) =>
+      String(b.updated_at || "").localeCompare(String(a.updated_at || ""))
+    );
+  }, [enrichedFundingBatches, enrichedDistributions]);
 
   const normalizedSearch = searchQuery.trim().toLowerCase();
 
@@ -827,6 +1003,8 @@ export default function FinancePayrollControlPage() {
         request.documentation_status,
         request.signed_form_status,
         request.admin_signed_form_status,
+        request.funding_status,
+        request.payment_status,
         request.recipient_confirmation_status,
         request.nextStepLabel,
       ]
@@ -838,22 +1016,19 @@ export default function FinancePayrollControlPage() {
     });
   }, [enrichedRequests, normalizedSearch]);
 
-  const filteredFunds = useMemo(() => {
-    if (!normalizedSearch) return enrichedFunds;
+  const filteredFundingBatches = useMemo(() => {
+    if (!normalizedSearch) return enrichedFundingBatches;
 
-    return enrichedFunds.filter((fund) => {
+    return enrichedFundingBatches.filter((batch) => {
       const content = [
-        fund.run_number,
-        fund.reference_number,
-        fund.periodLabel,
-        fund.companyName,
-        fund.bankLabel,
-        fund.fundingCurrency,
-        fund.status,
-        fund.allocation_status,
-        fund.allocation_reference,
-        fund.allocation_notes,
-        fund.notes,
+        batch.batch_number,
+        batch.companyName,
+        batch.bankLabel,
+        batch.currency_code,
+        batch.status,
+        batch.documentation_status,
+        batch.notes,
+        getFundingPeriodLabel(batch),
       ]
         .filter(Boolean)
         .join(" ")
@@ -861,66 +1036,181 @@ export default function FinancePayrollControlPage() {
 
       return content.includes(normalizedSearch);
     });
-  }, [enrichedFunds, normalizedSearch]);
+  }, [enrichedFundingBatches, normalizedSearch]);
 
-  const activeRequestRows = filteredRequests.filter(isRequestActive);
-  const archivedRequestRows = filteredRequests.filter(isRequestArchived);
-  const deletedRequestRows = filteredRequests.filter(isRequestDeleted);
+  const filteredDistributions = useMemo(() => {
+    if (!normalizedSearch) return enrichedDistributions;
 
-  const activeFundRows = filteredFunds.filter(isFundActive);
-  const archivedFundRows = filteredFunds.filter(isFundArchived);
-  const deletedFundRows = filteredFunds.filter(isFundDeleted);
+    return enrichedDistributions.filter((distribution) => {
+      const content = [
+        distribution.distribution_number,
+        distribution.reference_number,
+        distribution.fundingBatchNumber,
+        distribution.companyName,
+        distribution.bankLabel,
+        distribution.payment_currency_code,
+        distribution.funding_currency_code,
+        distribution.status,
+        distribution.recipient_confirmation_status,
+        distribution.payment_proof_status,
+        distribution.notes,
+      ]
+        .filter(Boolean)
+        .join(" ")
+        .toLowerCase();
+
+      return content.includes(normalizedSearch);
+    });
+  }, [enrichedDistributions, normalizedSearch]);
+
+  const activeRequestRows = useMemo(() => {
+    return filteredRequests.filter(isWorkflowActive);
+  }, [filteredRequests]);
+
+  const archivedRequestRows = useMemo(() => {
+    return filteredRequests.filter(isWorkflowArchived);
+  }, [filteredRequests]);
+
+  const deletedRequestRows = useMemo(() => {
+    return filteredRequests.filter(isWorkflowDeleted);
+  }, [filteredRequests]);
+
+  const activeFundingBatchRows = useMemo(() => {
+    return filteredFundingBatches.filter(isExecutionActive);
+  }, [filteredFundingBatches]);
+
+  const archivedFundingBatchRows = useMemo(() => {
+    return filteredFundingBatches.filter(isExecutionArchived);
+  }, [filteredFundingBatches]);
+
+  const deletedFundingBatchRows = useMemo(() => {
+    return filteredFundingBatches.filter(isExecutionDeleted);
+  }, [filteredFundingBatches]);
+
+  const activeDistributionRows = useMemo(() => {
+    return filteredDistributions.filter(isExecutionActive);
+  }, [filteredDistributions]);
+
+  const archivedDistributionRows = useMemo(() => {
+    return filteredDistributions.filter(isExecutionArchived);
+  }, [filteredDistributions]);
+
+  const deletedDistributionRows = useMemo(() => {
+    return filteredDistributions.filter(isExecutionDeleted);
+  }, [filteredDistributions]);
+
+  const archivedExecutionRows = useMemo<ExecutionRecord[]>(() => {
+    return [...archivedFundingBatchRows, ...archivedDistributionRows].sort((a, b) =>
+      String(b.updated_at || "").localeCompare(String(a.updated_at || ""))
+    );
+  }, [archivedFundingBatchRows, archivedDistributionRows]);
+
+  const deletedExecutionRows = useMemo<ExecutionRecord[]>(() => {
+    return [...deletedFundingBatchRows, ...deletedDistributionRows].sort((a, b) =>
+      String(b.updated_at || "").localeCompare(String(a.updated_at || ""))
+    );
+  }, [deletedFundingBatchRows, deletedDistributionRows]);
+
+  const paycheckRequestRows = useMemo(() => {
+    return activeRequestRows.filter((request) =>
+      ["draft", "submitted", "needs_correction"].includes(request.status)
+    );
+  }, [activeRequestRows]);
+
+  const payrollDocumentRows = useMemo(() => {
+    return activeRequestRows.filter(
+      (request) =>
+        ["missing", "not_uploaded", "uploaded", "linked", "files_and_links", "needs_correction"].includes(
+          request.documentation_status || request.signed_form_status || ""
+        ) ||
+        ["not_uploaded", "uploaded", "linked", "files_and_links"].includes(
+          request.admin_signed_form_status || ""
+        )
+    );
+  }, [activeRequestRows]);
+
+  const payrollReviewRows = useMemo(() => {
+    return activeRequestRows.filter((request) =>
+      ["submitted", "pending_review", "needs_correction", "approved_for_payroll", "rejected"].includes(
+        request.status
+      ) || ["pending_review", "needs_correction", "approved", "rejected"].includes(request.review_status)
+    );
+  }, [activeRequestRows]);
+
+  const readyForPaymentRows = useMemo(() => {
+    return activeRequestRows.filter(
+      (request) =>
+        request.status === "approved_for_payroll" ||
+        request.review_status === "approved" ||
+        request.payment_status === "partially_paid"
+    );
+  }, [activeRequestRows]);
+
+  const employeeConfirmationRows = useMemo(() => {
+    return activeRequestRows.filter(
+      (request) =>
+        ["payment_sent", "received_confirmed", "disputed"].includes(request.status) ||
+        ["payment_sent", "received_confirmed", "not_received", "disputed"].includes(
+          request.recipient_confirmation_status || ""
+        ) ||
+        ["paid", "partially_paid"].includes(request.payment_status || "")
+    );
+  }, [activeRequestRows]);
 
   const metrics = useMemo(() => {
-    const submittedRequests = activeRequestRows.filter((request) =>
-      ["submitted", "needs_correction"].includes(request.status)
+    const pendingReview = activeRequestRows.filter(
+      (request) => request.status === "submitted" || request.review_status === "pending_review"
     ).length;
 
-    const approvedRequests = activeRequestRows.filter(
-      (request) => request.status === "approved_for_payroll"
-    ).length;
-
-    const paymentSentRequests = activeRequestRows.filter((request) =>
-      ["payment_sent", "pending_confirmation"].includes(
-        request.recipient_confirmation_status || request.status
-      )
-    ).length;
-
-    const confirmedRequests = activeRequestRows.filter(
+    const documentIssues = activeRequestRows.filter(
       (request) =>
-        request.status === "received_confirmed" ||
-        request.recipient_confirmation_status === "received_confirmed"
+        request.documentation_status === "missing" ||
+        request.signed_form_status === "needs_correction" ||
+        request.admin_signed_form_status === "not_uploaded"
     ).length;
 
-    const allocatedAmount = activeFundRows.reduce(
-      (sum, fund) => sum + fund.allocatedAmount,
+    const readyForPayment = readyForPaymentRows.length;
+
+    const confirmationPending = activeRequestRows.filter(
+      (request) =>
+        request.recipient_confirmation_status === "payment_sent" ||
+        request.recipient_confirmation_status === "pending_confirmation"
+    ).length;
+
+    const allocatedAmount = activeFundingBatchRows.reduce(
+      (sum, batch) => sum + batch.allocatedAmount,
       0
     );
 
-    const usedAmount = activeFundRows.reduce((sum, fund) => sum + fund.usedAmount, 0);
+    const usedAmount = activeFundingBatchRows.reduce((sum, batch) => sum + batch.usedAmount, 0);
 
     return {
-      submittedRequests,
-      approvedRequests,
-      paymentSentRequests,
-      confirmedRequests,
-      activeFunds: activeFundRows.length,
+      pendingReview,
+      documentIssues,
+      readyForPayment,
+      confirmationPending,
+      activeFundingBatches: activeFundingBatchRows.length,
+      activeDistributions: activeDistributionRows.length,
       allocatedAmount,
       usedAmount,
       remainingAmount: allocatedAmount - usedAmount,
-      archivedRequests: archivedRequestRows.length,
-      deletedRequests: deletedRequestRows.length,
-      archivedFunds: archivedFundRows.length,
-      deletedFunds: deletedFundRows.length,
+      workflowArchived: archivedRequestRows.length,
+      workflowDeleted: deletedRequestRows.length,
+      executionArchived: archivedExecutionRows.length,
+      executionDeleted: deletedExecutionRows.length,
     };
   }, [
-    activeFundRows,
+    activeDistributionRows.length,
+    activeFundingBatchRows,
     activeRequestRows,
-    archivedFundRows.length,
+    archivedExecutionRows.length,
     archivedRequestRows.length,
-    deletedFundRows.length,
+    deletedExecutionRows.length,
     deletedRequestRows.length,
+    readyForPaymentRows.length,
   ]);
+
+  const activeTabMeta = allTabs.find((tab) => tab.key === activeTab) || allTabs[0];
 
   const loadPayrollControl = useCallback(
     async (mode: "initial" | "silent" = "initial") => {
@@ -939,11 +1229,10 @@ export default function FinancePayrollControlPage() {
           profilesResult,
           payProfilesResult,
           companiesResult,
-          periodsResult,
-          fundsResult,
           bankAccountsResult,
-          paychecksResult,
-          paymentsResult,
+          fundingBatchesResult,
+          paymentDistributionsResult,
+          paymentAllocationsResult,
         ] = await Promise.all([
           supabase
             .from("finance_paycheck_requests")
@@ -970,16 +1259,7 @@ export default function FinancePayrollControlPage() {
                 "documentation_status",
                 "signed_form_status",
                 "recipient_confirmation_status",
-                "signed_form_storage_bucket",
-                "signed_form_storage_path",
-                "signed_form_external_url",
-                "signed_form_uploaded_at",
-                "signed_form_submitted_at",
                 "admin_signed_form_status",
-                "admin_signed_form_storage_bucket",
-                "admin_signed_form_storage_path",
-                "admin_signed_form_external_url",
-                "admin_signed_form_uploaded_at",
                 "submitted_at",
                 "reviewed_at",
                 "review_notes",
@@ -989,10 +1269,15 @@ export default function FinancePayrollControlPage() {
                 "linked_payroll_run_id",
                 "linked_paycheck_id",
                 "linked_payment_id",
+                "linked_payment_distribution_id",
                 "payment_sent_at",
                 "payment_confirmed_at",
                 "payment_disputed_at",
                 "confirmation_notes",
+                "funding_status",
+                "payment_status",
+                "paid_amount",
+                "remaining_amount",
                 "notes",
                 "metadata",
                 "reference_number",
@@ -1026,58 +1311,6 @@ export default function FinancePayrollControlPage() {
             .order("name", { ascending: true }),
 
           supabase
-            .from("finance_payroll_periods")
-            .select("id, period_number, period_name, period_start, period_end, pay_date, status")
-            .order("period_start", { ascending: false }),
-
-          supabase
-            .from("finance_payroll_runs")
-            .select(
-              [
-                "id",
-                "run_number",
-                "payroll_period_id",
-                "status",
-                "total_gross",
-                "total_deductions",
-                "total_bonus",
-                "total_reimbursements",
-                "total_net",
-                "submitted_at",
-                "approved_at",
-                "completed_at",
-                "approved_by",
-                "notes",
-                "metadata",
-                "project_id",
-                "task_id",
-                "reference_number",
-                "posted_to_ledger",
-                "created_at",
-                "updated_at",
-                "created_by",
-                "updated_by",
-                "ledger_posted_at",
-                "ledger_entry_id",
-                "archived_at",
-                "archived_by",
-                "deleted_at",
-                "deleted_by",
-                "funding_company_id",
-                "funding_bank_account_id",
-                "funding_currency_code",
-                "allocated_funding_amount",
-                "allocated_funding_date",
-                "allocation_reference",
-                "allocation_notes",
-                "allocation_status",
-                "allocation_metadata",
-              ].join(", ")
-            )
-            .order("updated_at", { ascending: false })
-            .limit(300),
-
-          supabase
             .from("finance_bank_accounts")
             .select(
               "id, code, name, account_type, institution_name, masked_account_number, status, beneficiary_name, currency_code, swift_code, iban, bank_name, company_id"
@@ -1085,67 +1318,92 @@ export default function FinancePayrollControlPage() {
             .order("name", { ascending: true }),
 
           supabase
-            .from("finance_paychecks")
+            .from("finance_paycheck_funding_batches")
             .select(
               [
                 "id",
-                "paycheck_number",
-                "payroll_run_id",
-                "user_id",
-                "gross_pay",
-                "deduction_total",
-                "bonus_total",
-                "reimbursement_total",
-                "net_pay",
-                "payment_status",
-                "paid_at",
-                "payment_method_id",
-                "bank_account_id",
-                "reference_number",
+                "batch_number",
+                "funding_company_id",
+                "funding_bank_account_id",
+                "allocation_date",
+                "period_start",
+                "period_end",
+                "currency_code",
+                "allocated_amount",
+                "status",
+                "documentation_status",
                 "notes",
                 "metadata",
-                "project_id",
-                "task_id",
-                "posted_to_ledger",
                 "created_at",
                 "updated_at",
-                "created_by",
-                "updated_by",
               ].join(", ")
             )
             .order("updated_at", { ascending: false })
-            .limit(500),
+            .limit(300),
 
           supabase
-            .from("finance_payroll_payments")
+            .from("finance_paycheck_payment_distributions")
             .select(
               [
                 "id",
-                "payment_number",
-                "paycheck_id",
-                "user_id",
-                "amount",
+                "distribution_number",
+                "funding_batch_id",
                 "payment_date",
-                "payment_method_id",
-                "bank_account_id",
                 "status",
+                "paid_from_company_id",
+                "paid_from_bank_account_id",
+                "amount",
+                "payment_currency_code",
+                "funding_currency_code",
+                "funding_currency_amount",
+                "exchange_rate",
+                "exchange_rate_source",
+                "exchange_rate_date",
                 "reference_number",
+                "recipient_employee_ref_id",
+                "recipient_person_name",
+                "recipient_confirmation_status",
+                "payment_proof_status",
                 "notes",
                 "metadata",
-                "paycheck_currency_code",
-                "payment_currency_code",
-                "paycheck_amount",
-                "payment_amount",
-                "conversion_rate",
-                "conversion_date",
-                "conversion_source",
-                "conversion_metadata",
                 "created_at",
                 "updated_at",
               ].join(", ")
             )
             .order("updated_at", { ascending: false })
-            .limit(500),
+            .limit(300),
+
+          supabase
+            .from("finance_paycheck_payment_allocations")
+            .select(
+              [
+                "id",
+                "distribution_id",
+                "paycheck_request_id",
+                "funding_batch_id",
+                "paycheck_id",
+                "payroll_payment_id",
+                "employee_ref_id",
+                "employee_user_id",
+                "company_id",
+                "funding_company_id",
+                "paid_from_bank_account_id",
+                "recipient_person_name",
+                "allocated_amount",
+                "currency_code",
+                "payment_currency_code",
+                "converted_amount",
+                "funding_currency_code",
+                "funding_currency_amount",
+                "exchange_rate",
+                "conversion_source",
+                "conversion_date",
+                "recipient_confirmation_status",
+                "created_at",
+                "updated_at",
+              ].join(", ")
+            )
+            .limit(1000),
         ]);
 
         if (requestsResult.error) throw requestsResult.error;
@@ -1153,22 +1411,24 @@ export default function FinancePayrollControlPage() {
         if (profilesResult.error) throw profilesResult.error;
         if (payProfilesResult.error) throw payProfilesResult.error;
         if (companiesResult.error) throw companiesResult.error;
-        if (periodsResult.error) throw periodsResult.error;
-        if (fundsResult.error) throw fundsResult.error;
         if (bankAccountsResult.error) throw bankAccountsResult.error;
-        if (paychecksResult.error) throw paychecksResult.error;
-        if (paymentsResult.error) throw paymentsResult.error;
+        if (fundingBatchesResult.error) throw fundingBatchesResult.error;
+        if (paymentDistributionsResult.error) throw paymentDistributionsResult.error;
+        if (paymentAllocationsResult.error) throw paymentAllocationsResult.error;
 
         setRequests((requestsResult.data || []) as unknown as PaycheckRequestRow[]);
         setEmployees((employeesResult.data || []) as EmployeeRefRow[]);
         setProfiles((profilesResult.data || []) as ProfileRow[]);
         setPayProfiles((payProfilesResult.data || []) as unknown as PayProfileRow[]);
         setCompanies((companiesResult.data || []) as CompanyRow[]);
-        setPeriods((periodsResult.data || []) as PayrollPeriodRow[]);
-        setFunds((fundsResult.data || []) as unknown as PayrollRunRow[]);
         setBankAccounts((bankAccountsResult.data || []) as BankAccountRow[]);
-        setPaychecks((paychecksResult.data || []) as unknown as PaycheckRow[]);
-        setPayments((paymentsResult.data || []) as unknown as PayrollPaymentRow[]);
+        setFundingBatches((fundingBatchesResult.data || []) as unknown as FundingBatchRow[]);
+        setPaymentDistributions(
+          (paymentDistributionsResult.data || []) as unknown as PaymentDistributionRow[]
+        );
+        setPaymentAllocations(
+          (paymentAllocationsResult.data || []) as unknown as PaymentAllocationRow[]
+        );
         setHasLoadedOnce(true);
       } catch (error) {
         console.error("Failed to load payroll control:", error);
@@ -1189,7 +1449,7 @@ export default function FinancePayrollControlPage() {
 
   useEffect(() => {
     const channel = supabase
-      .channel("finance-payroll-two-section-control")
+      .channel("finance-payroll-control-workbench")
       .on(
         "postgres_changes",
         { event: "*", schema: "public", table: "finance_paycheck_requests" },
@@ -1197,17 +1457,25 @@ export default function FinancePayrollControlPage() {
       )
       .on(
         "postgres_changes",
-        { event: "*", schema: "public", table: "finance_payroll_runs" },
+        { event: "*", schema: "public", table: "finance_paycheck_funding_batches" },
         () => void loadPayrollControl("silent")
       )
       .on(
         "postgres_changes",
-        { event: "*", schema: "public", table: "finance_paychecks" },
+        {
+          event: "*",
+          schema: "public",
+          table: "finance_paycheck_payment_distributions",
+        },
         () => void loadPayrollControl("silent")
       )
       .on(
         "postgres_changes",
-        { event: "*", schema: "public", table: "finance_payroll_payments" },
+        {
+          event: "*",
+          schema: "public",
+          table: "finance_paycheck_payment_allocations",
+        },
         () => void loadPayrollControl("silent")
       )
       .subscribe();
@@ -1262,7 +1530,7 @@ export default function FinancePayrollControlPage() {
     [isRunningAction, loadPayrollControl]
   );
 
-  const runRequestArchiveAction = useCallback(
+  const runWorkflowAction = useCallback(
     async (
       action: "archive" | "delete" | "restore" | "hard_delete",
       requestId: string
@@ -1275,8 +1543,8 @@ export default function FinancePayrollControlPage() {
       };
 
       const messageMap = {
-        archive: "Paycheck request moved to Request Archive.",
-        delete: "Paycheck request moved to Deleted Request records.",
+        archive: "Paycheck request moved to Workflow Archive.",
+        delete: "Paycheck request moved to Deleted Workflow records.",
         restore: "Paycheck request restored.",
         hard_delete: "Paycheck request permanently deleted.",
       };
@@ -1290,30 +1558,48 @@ export default function FinancePayrollControlPage() {
     [runRpcAction]
   );
 
-  const runFundArchiveAction = useCallback(
+  const runExecutionAction = useCallback(
     async (
       action: "archive" | "delete" | "restore" | "hard_delete",
-      fundId: string
+      record: ExecutionRecord
     ) => {
+      const isBatch = record.recordType === "funding_batch";
+
       const rpcMap = {
-        archive: "finance_archive_payroll_run",
-        delete: "finance_delete_payroll_run",
-        restore: "finance_restore_payroll_run",
-        hard_delete: "finance_hard_delete_payroll_run",
+        archive: isBatch
+          ? "finance_archive_paycheck_funding_batch"
+          : "finance_archive_paycheck_payment_distribution",
+        delete: isBatch
+          ? "finance_delete_paycheck_funding_batch"
+          : "finance_delete_paycheck_payment_distribution",
+        restore: isBatch
+          ? "finance_restore_paycheck_funding_batch"
+          : "finance_restore_paycheck_payment_distribution",
+        hard_delete: isBatch
+          ? "finance_hard_delete_paycheck_funding_batch"
+          : "finance_hard_delete_paycheck_payment_distribution",
       };
+
+      const args: Record<string, string> = isBatch
+        ? { p_batch_id: record.id }
+        : { p_distribution_id: record.id };
 
       const messageMap = {
-        archive: "Allocated funds moved to Funds Archive.",
-        delete: "Allocated funds moved to Deleted Funds records.",
-        restore: "Allocated funds restored.",
-        hard_delete: "Allocated funds permanently deleted.",
+        archive: isBatch
+          ? "Payroll funding allocation moved to Payment Execution Archive."
+          : "Paycheck payment distribution moved to Payment Execution Archive.",
+        delete: isBatch
+          ? "Payroll funding allocation moved to Deleted Payment Execution records."
+          : "Paycheck payment distribution moved to Deleted Payment Execution records.",
+        restore: isBatch
+          ? "Payroll funding allocation restored."
+          : "Paycheck payment distribution restored.",
+        hard_delete: isBatch
+          ? "Payroll funding allocation permanently deleted."
+          : "Paycheck payment distribution permanently deleted.",
       };
 
-      await runRpcAction(
-        rpcMap[action],
-        { p_payroll_run_id: fundId },
-        messageMap[action]
-      );
+      await runRpcAction(rpcMap[action], args, messageMap[action]);
     },
     [runRpcAction]
   );
@@ -1323,13 +1609,6 @@ export default function FinancePayrollControlPage() {
     setArchiveTab("archived");
     setArchiveModalOpen(true);
   }, []);
-
-  const openPayrollExecution = useCallback(
-    (requestId: string) => {
-      navigate(`/finance/transactions/payroll/${requestId}`);
-    },
-    [navigate]
-  );
 
   const renderRequestRows = useCallback(
     (rows: EnrichedRequestRow[], mode: "active" | "archive") => {
@@ -1341,151 +1620,149 @@ export default function FinancePayrollControlPage() {
                 No paycheck request records found
               </div>
               <div className="mt-2 text-sm text-slate-500">
-                Matching request status records will appear here.
+                Matching paycheck workflow records will appear here.
               </div>
             </td>
           </tr>
         );
       }
 
-      return rows.map((request) => (
-        <tr
-          key={request.id}
-          className="border-b border-white/5 text-sm text-slate-300 transition hover:bg-white/[0.035]"
-        >
-          <td className="min-w-[250px] px-5 py-4">
-            {mode === "active" ? (
+      return rows.map((request) => {
+        const reviewRoute = `/finance/transactions/payroll/review/${request.id}`;
+
+        return (
+          <tr
+            key={request.id}
+            className="border-b border-white/5 text-sm text-slate-300 transition hover:bg-white/[0.035]"
+          >
+            <td className="min-w-[260px] px-5 py-4">
               <button
                 type="button"
-                onClick={() => openPayrollExecution(request.id)}
+                onClick={() => navigate(reviewRoute)}
                 className="text-left font-semibold text-cyan-200 transition hover:text-cyan-100"
               >
                 {request.request_number || request.reference_number || "Paycheck Request"}
               </button>
-            ) : (
-              <div className="font-semibold text-slate-200">
-                {request.request_number || request.reference_number || "Paycheck Request"}
+              <div className="mt-1 line-clamp-1 text-xs text-white">
+                {request.employeeName}
               </div>
-            )}
-            <div className="mt-1 line-clamp-1 text-xs text-white">
-              {request.employeeName}
-            </div>
-            <div className="mt-1 text-xs text-slate-500">{request.periodLabel}</div>
-          </td>
+              <div className="mt-1 text-xs text-slate-500">{request.periodLabel}</div>
+            </td>
 
-          <td className="min-w-[240px] px-5 py-4">
-            <div className="line-clamp-1 font-medium text-slate-200">
-              {request.employeeLabel || "Employee"}
-            </div>
-            <div className="mt-1 text-xs text-slate-500">{request.companyName}</div>
-          </td>
+            <td className="min-w-[240px] px-5 py-4">
+              <div className="line-clamp-1 font-medium text-slate-200">
+                {request.employeeLabel || "Employee"}
+              </div>
+              <div className="mt-1 text-xs text-slate-500">{request.companyName}</div>
+            </td>
 
-          <td className="min-w-[220px] px-5 py-4">
-            <div className="font-medium text-slate-200">{request.payProfileLabel}</div>
-            <div className="mt-1 text-xs text-slate-500">
-              Pay date {formatDate(request.requested_pay_date)}
-            </div>
-          </td>
+            <td className="min-w-[220px] px-5 py-4">
+              <div className="font-medium text-slate-200">{request.payProfileLabel}</div>
+              <div className="mt-1 text-xs text-slate-500">
+                Pay date {formatDate(request.requested_pay_date)}
+              </div>
+            </td>
 
-          <td className="whitespace-nowrap px-5 py-4 text-right font-semibold text-white">
-            {request.requested_currency_code || "USD"} {formatMoney(request.targetAmount)}
-            <div className="mt-1 text-xs text-slate-500">
-              Paid {request.requested_currency_code || "USD"} {formatMoney(request.paidAmount)}
-            </div>
-          </td>
+            <td className="whitespace-nowrap px-5 py-4 text-right font-semibold text-white">
+              {request.requested_currency_code || "USD"} {formatMoney(request.targetAmount)}
+              <div className="mt-1 text-xs text-slate-500">
+                Paid {request.requested_currency_code || "USD"}{" "}
+                {formatMoney(request.paidAmountCalculated)}
+              </div>
+            </td>
 
-          <td className="whitespace-nowrap px-5 py-4 text-right font-semibold text-amber-100">
-            {request.requested_currency_code || "USD"} {formatMoney(request.remainingAmount)}
-          </td>
+            <td className="whitespace-nowrap px-5 py-4 text-right font-semibold text-amber-100">
+              {request.requested_currency_code || "USD"}{" "}
+              {formatMoney(request.remainingAmountCalculated)}
+              <div className="mt-1 text-xs text-slate-500">
+                {request.linkedAllocationCount} allocation lines
+              </div>
+            </td>
 
-          <td className="whitespace-nowrap px-5 py-4">
-            <StatusBadge value={request.status} />
-          </td>
+            <td className="whitespace-nowrap px-5 py-4">
+              <StatusBadge value={request.status} />
+            </td>
 
-          <td className="whitespace-nowrap px-5 py-4">
-            <StatusBadge value={request.review_status} />
-          </td>
+            <td className="whitespace-nowrap px-5 py-4">
+              <StatusBadge value={request.review_status} />
+            </td>
 
-          <td className="whitespace-nowrap px-5 py-4">
-            <StatusBadge value={request.signed_form_status} />
-          </td>
+            <td className="whitespace-nowrap px-5 py-4">
+              <StatusBadge value={request.documentation_status || request.signed_form_status} />
+            </td>
 
-          <td className="whitespace-nowrap px-5 py-4">
-            <StatusBadge value={request.admin_signed_form_status || "not_uploaded"} />
-          </td>
+            <td className="whitespace-nowrap px-5 py-4">
+              <StatusBadge value={request.funding_status || "not_allocated"} />
+            </td>
 
-          <td className="min-w-[300px] px-5 py-4">
-            <SoftBadge value={request.nextStepLabel} tone={request.nextStepTone} />
-            <div className="mt-2 text-xs text-slate-500">
-              {request.hasLinkedPaycheck ? "Paycheck record exists" : "No paycheck record yet"}
-            </div>
-          </td>
+            <td className="min-w-[300px] px-5 py-4">
+              <SoftBadge value={request.nextStepLabel} tone={request.nextStepTone} />
+              <div className="mt-2 text-xs text-slate-500">
+                Payment {formatLabel(request.payment_status || "unpaid")} • Employee{" "}
+                {formatLabel(request.recipient_confirmation_status)}
+              </div>
+            </td>
 
-          <td className="sticky right-0 bg-[#05070d]/95 px-4 py-4 shadow-[-18px_0_24px_rgba(0,0,0,0.35)] backdrop-blur-xl">
-            <div className="flex items-center justify-end gap-2">
-              {mode === "active" ? (
-                <>
-                  <IconButton
-                    label="Open payroll admin execution"
-                    icon={CreditCard}
-                    tone="emerald"
-                    disabled={isRunningAction}
-                    onClick={() => openPayrollExecution(request.id)}
-                  />
-
-                  <IconButton
-                    label="Archive paycheck request"
-                    icon={Archive}
-                    tone="amber"
-                    disabled={isRunningAction}
-                    onClick={() => void runRequestArchiveAction("archive", request.id)}
-                  />
-
-                  <IconButton
-                    label="Delete paycheck request"
-                    icon={Trash2}
-                    tone="rose"
-                    disabled={isRunningAction}
-                    onClick={() => void runRequestArchiveAction("delete", request.id)}
-                  />
-                </>
-              ) : archiveTab === "archived" ? (
+            <td className="sticky right-0 bg-[#05070d]/95 px-4 py-4 shadow-[-18px_0_24px_rgba(0,0,0,0.35)] backdrop-blur-xl">
+              <div className="flex items-center justify-end gap-2">
                 <IconButton
-                  label="Restore paycheck request"
-                  icon={RotateCcw}
-                  tone="emerald"
+                  label="Open paycheck review"
+                  icon={Eye}
+                  tone="cyan"
                   disabled={isRunningAction}
-                  onClick={() => void runRequestArchiveAction("restore", request.id)}
+                  onClick={() => navigate(reviewRoute)}
                 />
-              ) : (
-                <>
+
+                {mode === "active" ? (
+                  <>
+                    <IconButton
+                      label="Archive paycheck request"
+                      icon={Archive}
+                      tone="amber"
+                      disabled={isRunningAction}
+                      onClick={() => void runWorkflowAction("archive", request.id)}
+                    />
+                    <IconButton
+                      label="Delete paycheck request"
+                      icon={Trash2}
+                      tone="rose"
+                      disabled={isRunningAction}
+                      onClick={() => void runWorkflowAction("delete", request.id)}
+                    />
+                  </>
+                ) : archiveTab === "archived" ? (
                   <IconButton
                     label="Restore paycheck request"
                     icon={RotateCcw}
                     tone="emerald"
                     disabled={isRunningAction}
-                    onClick={() => void runRequestArchiveAction("restore", request.id)}
+                    onClick={() => void runWorkflowAction("restore", request.id)}
                   />
-                  <IconButton
-                    label="Hard delete paycheck request"
-                    icon={Trash2}
-                    tone="rose"
-                    disabled={isRunningAction}
-                    onClick={() => void runRequestArchiveAction("hard_delete", request.id)}
-                  />
-                </>
-              )}
-            </div>
-          </td>
-        </tr>
-      ));
+                ) : (
+                  <>
+                    <IconButton
+                      label="Restore paycheck request"
+                      icon={RotateCcw}
+                      tone="emerald"
+                      disabled={isRunningAction}
+                      onClick={() => void runWorkflowAction("restore", request.id)}
+                    />
+                    <IconButton
+                      label="Hard delete paycheck request"
+                      icon={Trash2}
+                      tone="rose"
+                      disabled={isRunningAction}
+                      onClick={() => void runWorkflowAction("hard_delete", request.id)}
+                    />
+                  </>
+                )}
+              </div>
+            </td>
+          </tr>
+        );
+      });
     },
-    [
-      archiveTab,
-      isRunningAction,
-      openPayrollExecution,
-      runRequestArchiveAction,
-    ]
+    [archiveTab, isRunningAction, navigate, runWorkflowAction]
   );
 
   const renderRequestTable = useCallback(
@@ -1518,10 +1795,10 @@ export default function FinancePayrollControlPage() {
                     Review
                   </th>
                   <th className="px-5 py-4 text-left text-[11px] font-semibold uppercase tracking-[0.18em] text-slate-500">
-                    Employee Form
+                    Docs
                   </th>
                   <th className="px-5 py-4 text-left text-[11px] font-semibold uppercase tracking-[0.18em] text-slate-500">
-                    Admin Form
+                    Funding
                   </th>
                   <th className="px-5 py-4 text-left text-[11px] font-semibold uppercase tracking-[0.18em] text-slate-500">
                     Next Step
@@ -1541,170 +1818,219 @@ export default function FinancePayrollControlPage() {
     [renderRequestRows]
   );
 
-  const renderFundRows = useCallback(
-    (rows: EnrichedFundRow[], mode: "active" | "archive") => {
+  const renderExecutionRows = useCallback(
+    (rows: ExecutionRecord[], mode: "active" | "archive") => {
       if (rows.length === 0) {
         return (
           <tr>
             <td colSpan={9} className="px-5 py-12 text-center">
               <div className="text-sm font-medium text-white">
-                No allocated payroll fund records found
+                No payroll payment execution records found
               </div>
               <div className="mt-2 text-sm text-slate-500">
-                Allocated payroll fund baskets will appear here.
+                Funding pools and paycheck payment distributions will appear here.
               </div>
             </td>
           </tr>
         );
       }
 
-      return rows.map((fund) => (
-        <tr
-          key={fund.id}
-          className="border-b border-white/5 text-sm text-slate-300 transition hover:bg-white/[0.035]"
-        >
-          <td className="min-w-[250px] px-5 py-4">
-            <div className="font-semibold text-violet-200">
-              {fund.run_number || fund.reference_number || "Payroll Fund Basket"}
-            </div>
-            <div className="mt-1 text-xs text-slate-500">{fund.periodLabel}</div>
-            <div className="mt-1 text-xs text-slate-600">
-              Created {formatDate(fund.created_at)}
-            </div>
-          </td>
+      return rows.map((record) => {
+        const isBatch = record.recordType === "funding_batch";
+        const title = isBatch ? record.batch_number : record.distribution_number;
+        const route = isBatch
+          ? `/finance/transactions/payroll/funding-batches/${record.id}`
+          : `/finance/transactions/payroll/${record.id}`;
+        const amount = isBatch ? record.allocatedAmount : record.fundingCurrencyAmountCalculated;
+        const currency = isBatch
+          ? record.currency_code || "USD"
+          : record.funding_currency_code || record.payment_currency_code || "USD";
 
-          <td className="min-w-[250px] px-5 py-4">
-            <div className="line-clamp-1 font-medium text-slate-200">
-              {fund.companyName}
-            </div>
-            <div className="mt-1 line-clamp-1 text-xs text-slate-500">
-              {fund.bankLabel}
-            </div>
-          </td>
+        return (
+          <tr
+            key={`${record.recordType}-${record.id}`}
+            className="border-b border-white/5 text-sm text-slate-300 transition hover:bg-white/[0.035]"
+          >
+            <td className="min-w-[250px] px-5 py-4">
+              <button
+                type="button"
+                onClick={() => navigate(route)}
+                className="text-left font-semibold text-cyan-200 transition hover:text-cyan-100"
+              >
+                {title}
+              </button>
+              <div className="mt-1 text-xs text-slate-500">
+                {isBatch
+                  ? getFundingPeriodLabel(record)
+                  : `${formatDate(record.payment_date)} • ${record.fundingBatchNumber}`}
+              </div>
+            </td>
 
-          <td className="whitespace-nowrap px-5 py-4 text-right font-semibold text-white">
-            {fund.fundingCurrency} {formatMoney(fund.allocatedAmount)}
-            <div className="mt-1 text-xs text-slate-500">
-              Date {formatDate(fund.allocated_funding_date)}
-            </div>
-          </td>
+            <td className="px-5 py-4">
+              {isBatch ? (
+                <SoftBadge value="Payroll Funding Pool" tone="violet" />
+              ) : (
+                <SoftBadge value="Paycheck Payment Distribution" tone="cyan" />
+              )}
+            </td>
 
-          <td className="whitespace-nowrap px-5 py-4 text-right font-semibold text-cyan-100">
-            {fund.fundingCurrency} {formatMoney(fund.usedAmount)}
-            <div className="mt-1 text-xs text-slate-500">
-              {fund.confirmedPaymentCount} confirmed payments
-            </div>
-          </td>
+            <td className="min-w-[240px] px-5 py-4">
+              <div className="font-medium text-slate-200">{record.companyName}</div>
+              <div className="mt-1 line-clamp-1 text-xs text-slate-500">
+                {record.bankLabel}
+              </div>
+            </td>
 
-          <td className="whitespace-nowrap px-5 py-4 text-right font-semibold text-emerald-100">
-            {fund.fundingCurrency} {formatMoney(fund.remainingAmount)}
-          </td>
+            <td className="px-5 py-4 text-right font-semibold text-white">
+              {currency} {formatMoney(amount)}
+              {isBatch ? (
+                <div className="mt-1 text-xs text-slate-500">
+                  Used {record.currency_code || "USD"} {formatMoney(record.usedAmount)}
+                </div>
+              ) : (
+                <div className="mt-1 text-xs text-slate-500">
+                  Payment {record.payment_currency_code || "USD"}{" "}
+                  {formatMoney(record.paymentCurrencyAmount)}
+                </div>
+              )}
+            </td>
 
-          <td className="whitespace-nowrap px-5 py-4">
-            <StatusBadge value={fund.status} />
-          </td>
-
-          <td className="whitespace-nowrap px-5 py-4">
-            <StatusBadge value={fund.allocation_status} />
-          </td>
-
-          <td className="min-w-[260px] px-5 py-4">
-            <div className="font-medium text-slate-200">
-              {fund.allocation_reference || "No reference"}
-            </div>
-            <div className="mt-1 line-clamp-2 text-xs leading-5 text-slate-500">
-              {fund.allocation_notes || fund.notes || "No notes"}
-            </div>
-            <div className="mt-1 text-xs text-slate-600">
-              {fund.paycheckCount} paychecks • {fund.paymentCount} payment records
-            </div>
-          </td>
-
-          <td className="sticky right-0 bg-[#05070d]/95 px-4 py-4 shadow-[-18px_0_24px_rgba(0,0,0,0.35)] backdrop-blur-xl">
-            <div className="flex items-center justify-end gap-2">
-              {mode === "active" ? (
+            <td className="px-5 py-4 text-right font-semibold text-emerald-100">
+              {isBatch ? (
                 <>
-                  <IconButton
-                    label="Archive allocated funds"
-                    icon={Archive}
-                    tone="amber"
-                    disabled={isRunningAction}
-                    onClick={() => void runFundArchiveAction("archive", fund.id)}
-                  />
-
-                  <IconButton
-                    label="Delete allocated funds"
-                    icon={Trash2}
-                    tone="rose"
-                    disabled={isRunningAction}
-                    onClick={() => void runFundArchiveAction("delete", fund.id)}
-                  />
+                  {record.currency_code || "USD"} {formatMoney(record.remainingAmount)}
+                  <div className="mt-1 text-xs text-slate-500">Remaining</div>
                 </>
-              ) : archiveTab === "archived" ? (
-                <IconButton
-                  label="Restore allocated funds"
-                  icon={RotateCcw}
-                  tone="emerald"
-                  disabled={isRunningAction}
-                  onClick={() => void runFundArchiveAction("restore", fund.id)}
-                />
               ) : (
                 <>
+                  {record.payment_currency_code || "USD"}{" "}
+                  {formatMoney(record.allocatedRequestAmount)}
+                  <div className="mt-1 text-xs text-slate-500">Request coverage</div>
+                </>
+              )}
+            </td>
+
+            <td className="px-5 py-4">
+              {isBatch ? (
+                <div>
+                  <div className="font-medium text-white">{record.distributionCount}</div>
+                  <div className="mt-1 text-xs text-slate-500">
+                    {record.confirmedDistributionCount} confirmed distributions
+                  </div>
+                </div>
+              ) : (
+                <div>
+                  <div className="font-medium text-white">{record.allocationCount}</div>
+                  <div className="mt-1 text-xs text-slate-500">Paycheck lines</div>
+                </div>
+              )}
+            </td>
+
+            <td className="px-5 py-4">
+              <StatusBadge value={record.status} />
+            </td>
+
+            <td className="px-5 py-4">
+              {isBatch ? (
+                <StatusBadge value={record.documentation_status} />
+              ) : (
+                <StatusBadge value={record.recipient_confirmation_status} />
+              )}
+            </td>
+
+            <td className="sticky right-0 bg-[#05070d]/95 px-4 py-4 shadow-[-18px_0_24px_rgba(0,0,0,0.35)] backdrop-blur-xl">
+              <div className="flex items-center justify-end gap-2">
+                <IconButton
+                  label="Open record"
+                  icon={Eye}
+                  tone="cyan"
+                  disabled={isRunningAction}
+                  onClick={() => navigate(route)}
+                />
+
+                {mode === "active" ? (
+                  <>
+                    <IconButton
+                      label="Archive record"
+                      icon={Archive}
+                      tone="amber"
+                      disabled={isRunningAction}
+                      onClick={() => void runExecutionAction("archive", record)}
+                    />
+                    <IconButton
+                      label="Delete record"
+                      icon={Trash2}
+                      tone="rose"
+                      disabled={isRunningAction}
+                      onClick={() => void runExecutionAction("delete", record)}
+                    />
+                  </>
+                ) : archiveTab === "archived" ? (
                   <IconButton
-                    label="Restore allocated funds"
+                    label="Restore record"
                     icon={RotateCcw}
                     tone="emerald"
                     disabled={isRunningAction}
-                    onClick={() => void runFundArchiveAction("restore", fund.id)}
+                    onClick={() => void runExecutionAction("restore", record)}
                   />
-                  <IconButton
-                    label="Hard delete allocated funds"
-                    icon={Trash2}
-                    tone="rose"
-                    disabled={isRunningAction}
-                    onClick={() => void runFundArchiveAction("hard_delete", fund.id)}
-                  />
-                </>
-              )}
-            </div>
-          </td>
-        </tr>
-      ));
+                ) : (
+                  <>
+                    <IconButton
+                      label="Restore record"
+                      icon={RotateCcw}
+                      tone="emerald"
+                      disabled={isRunningAction}
+                      onClick={() => void runExecutionAction("restore", record)}
+                    />
+                    <IconButton
+                      label="Hard delete record"
+                      icon={Trash2}
+                      tone="rose"
+                      disabled={isRunningAction}
+                      onClick={() => void runExecutionAction("hard_delete", record)}
+                    />
+                  </>
+                )}
+              </div>
+            </td>
+          </tr>
+        );
+      });
     },
-    [archiveTab, isRunningAction, runFundArchiveAction]
+    [archiveTab, isRunningAction, navigate, runExecutionAction]
   );
 
-  const renderFundTable = useCallback(
-    (rows: EnrichedFundRow[], mode: "active" | "archive" = "active") => {
+  const renderExecutionTable = useCallback(
+    (rows: ExecutionRecord[], mode: "active" | "archive" = "active") => {
       return (
         <div className="overflow-x-auto rounded-[24px] border border-white/10 bg-black/20">
           <div className="max-h-[720px] overflow-y-auto">
-            <table className="w-full min-w-[1320px] border-collapse">
+            <table className="w-full min-w-[1420px] border-collapse">
               <thead className="sticky top-0 z-20 border-b border-white/10 bg-black/70 backdrop-blur-xl">
                 <tr>
                   <th className="px-5 py-4 text-left text-[11px] font-semibold uppercase tracking-[0.18em] text-slate-500">
-                    Fund Basket
+                    Record
+                  </th>
+                  <th className="px-5 py-4 text-left text-[11px] font-semibold uppercase tracking-[0.18em] text-slate-500">
+                    Type
                   </th>
                   <th className="px-5 py-4 text-left text-[11px] font-semibold uppercase tracking-[0.18em] text-slate-500">
                     Company / Bank
                   </th>
                   <th className="px-5 py-4 text-right text-[11px] font-semibold uppercase tracking-[0.18em] text-slate-500">
-                    Allocated
+                    Amount
                   </th>
                   <th className="px-5 py-4 text-right text-[11px] font-semibold uppercase tracking-[0.18em] text-slate-500">
-                    Used
+                    Balance / Coverage
                   </th>
-                  <th className="px-5 py-4 text-right text-[11px] font-semibold uppercase tracking-[0.18em] text-slate-500">
-                    Remaining
+                  <th className="px-5 py-4 text-left text-[11px] font-semibold uppercase tracking-[0.18em] text-slate-500">
+                    Lines
                   </th>
                   <th className="px-5 py-4 text-left text-[11px] font-semibold uppercase tracking-[0.18em] text-slate-500">
                     Status
                   </th>
                   <th className="px-5 py-4 text-left text-[11px] font-semibold uppercase tracking-[0.18em] text-slate-500">
-                    Allocation
-                  </th>
-                  <th className="px-5 py-4 text-left text-[11px] font-semibold uppercase tracking-[0.18em] text-slate-500">
-                    Reference / Notes
+                    Docs / Employee
                   </th>
                   <th className="sticky right-0 bg-black/70 px-4 py-4 text-right text-[11px] font-semibold uppercase tracking-[0.18em] text-slate-500 shadow-[-18px_0_24px_rgba(0,0,0,0.35)] backdrop-blur-xl">
                     Actions
@@ -1712,18 +2038,18 @@ export default function FinancePayrollControlPage() {
                 </tr>
               </thead>
 
-              <tbody>{renderFundRows(rows, mode)}</tbody>
+              <tbody>{renderExecutionRows(rows, mode)}</tbody>
             </table>
           </div>
         </div>
       );
     },
-    [renderFundRows]
+    [renderExecutionRows]
   );
 
-  const requestArchiveRows =
-    archiveTab === "archived" ? archivedRequestRows : deletedRequestRows;
-  const fundArchiveRows = archiveTab === "archived" ? archivedFundRows : deletedFundRows;
+  const workflowArchiveRows = archiveTab === "archived" ? archivedRequestRows : deletedRequestRows;
+  const executionArchiveRows =
+    archiveTab === "archived" ? archivedExecutionRows : deletedExecutionRows;
 
   return (
     <div className="min-h-screen bg-[#05070d] px-4 py-4 text-white md:px-6 md:py-6">
@@ -1749,21 +2075,21 @@ export default function FinancePayrollControlPage() {
                 </div>
 
                 <h1 className="mt-4 text-3xl font-semibold tracking-[-0.035em] text-white md:text-5xl">
-                  Payroll Requests & Allocated Funds
+                  Paycheck Workflow & Payment Execution
                 </h1>
 
                 <p className="mt-3 max-w-4xl text-sm leading-6 text-slate-400 md:text-base md:leading-7">
-                  Two separated areas in one page: request status for Finance/Admin
-                  operations, and allocated payroll funds as the background money pool.
-                  Request rows open the administrative payroll execution page.
+                  The payroll equivalent of the operating expense workbench. Track paycheck
+                  requests, payroll documents, Finance review, payment readiness, funding pools,
+                  payment distributions, and employee confirmation in one control page.
                 </p>
 
                 <div className="mt-5 flex flex-wrap gap-2">
                   <div className="rounded-full border border-cyan-400/20 bg-cyan-500/10 px-3 py-1 text-[11px] font-semibold uppercase tracking-[0.16em] text-cyan-200">
-                    Request Status
+                    Main Workflow
                   </div>
                   <div className="rounded-full border border-violet-400/20 bg-violet-500/10 px-3 py-1 text-[11px] font-semibold uppercase tracking-[0.16em] text-violet-200">
-                    Allocated Funds
+                    Payment Execution Tools
                   </div>
                   {isRefreshing ? (
                     <div className="rounded-full border border-white/10 bg-white/[0.05] px-3 py-1 text-[11px] font-semibold uppercase tracking-[0.16em] text-slate-400">
@@ -1778,16 +2104,16 @@ export default function FinancePayrollControlPage() {
                   <div className="flex items-start justify-between gap-3">
                     <div>
                       <div className="text-[11px] font-semibold uppercase tracking-[0.2em] text-slate-500">
-                        Approved Requests
+                        Ready to Pay
                       </div>
                       <div className="mt-2 text-3xl font-semibold text-emerald-100">
-                        {isLoading ? "—" : metrics.approvedRequests}
+                        {isLoading ? "—" : metrics.readyForPayment}
                       </div>
                     </div>
                     <CheckCircle2 className="h-5 w-5 text-emerald-200" />
                   </div>
                   <div className="mt-3 text-xs leading-5 text-slate-500">
-                    Requests ready for payroll execution or already in payroll process.
+                    Approved paycheck requests waiting for payroll payment distribution.
                   </div>
                 </div>
 
@@ -1804,7 +2130,7 @@ export default function FinancePayrollControlPage() {
                     <WalletCards className="h-5 w-5 text-cyan-200" />
                   </div>
                   <div className="mt-3 text-xs leading-5 text-slate-500">
-                    Total allocated payroll funds minus confirmed payroll payments.
+                    Active payroll funding pools minus confirmed paycheck distributions.
                   </div>
                 </div>
               </div>
@@ -1814,27 +2140,27 @@ export default function FinancePayrollControlPage() {
 
         <section className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
           <SummaryCard
-            title="Submitted Requests"
-            value={isLoading ? "—" : metrics.submittedRequests}
-            detail="Requests waiting for Finance review or employee correction."
+            title="Pending Review"
+            value={isLoading ? "—" : metrics.pendingReview}
+            detail="Submitted paycheck requests waiting for Finance/Admin decision."
             icon={Clock3}
           />
           <SummaryCard
-            title="Payment Sent"
-            value={isLoading ? "—" : metrics.paymentSentRequests}
-            detail="Requests where payroll payment was sent and confirmation is pending."
-            icon={CreditCard}
+            title="Payroll Docs"
+            value={isLoading ? "—" : metrics.documentIssues}
+            detail="Missing, incomplete, or pending payroll documentation records."
+            icon={FileText}
           />
           <SummaryCard
-            title="Allocated Funds"
-            value={isLoading ? "—" : formatMoney(metrics.allocatedAmount)}
-            detail="Total payroll fund amount allocated in active baskets."
+            title="Funding Pools"
+            value={isLoading ? "—" : metrics.activeFundingBatches}
+            detail="Active payroll funding pools available for payment distribution."
             icon={Archive}
           />
           <SummaryCard
-            title="Used Funds"
-            value={isLoading ? "—" : formatMoney(metrics.usedAmount)}
-            detail="Confirmed payroll payments deducted from allocated funds."
+            title="Employee Pending"
+            value={isLoading ? "—" : metrics.confirmationPending}
+            detail="Employees waiting to confirm payment received or report a problem."
             icon={ShieldCheck}
           />
         </section>
@@ -1855,33 +2181,105 @@ export default function FinancePayrollControlPage() {
           <div className="flex flex-col gap-4 border-b border-white/10 px-5 py-4 xl:flex-row xl:items-center xl:justify-between">
             <div>
               <div className="text-sm font-semibold uppercase tracking-[0.18em] text-slate-400">
-                Paycheck Request Status
+                {activeTabMeta.label}
               </div>
               <p className="mt-1 text-xs leading-5 text-slate-500">
-                Finance/Admin view of request state. Opening a row goes to the payroll
-                administrative execution page, not the employee request page.
+                {activeTabMeta.description}
               </p>
             </div>
 
-            <div className="flex flex-col gap-3 sm:flex-row sm:items-center">
-              <div className="relative">
-                <Search className="pointer-events-none absolute left-4 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-500" />
-                <input
-                  value={searchQuery}
-                  onChange={(event) => setSearchQuery(event.target.value)}
-                  placeholder="Search requests or allocated funds..."
-                  className="h-11 w-full rounded-2xl border border-white/10 bg-black/20 pl-11 pr-4 text-sm text-white outline-none transition placeholder:text-slate-600 focus:border-cyan-400/30 focus:bg-black/30 sm:w-[360px]"
-                />
+            <div className="flex flex-col gap-3 xl:items-end">
+              <div className="flex flex-col gap-3 sm:flex-row sm:items-center">
+                <div className="relative">
+                  <Search className="pointer-events-none absolute left-4 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-500" />
+                  <input
+                    value={searchQuery}
+                    onChange={(event) => setSearchQuery(event.target.value)}
+                    placeholder="Search workflow or payment execution..."
+                    className="h-11 w-full rounded-2xl border border-white/10 bg-black/20 pl-11 pr-4 text-sm text-white outline-none transition placeholder:text-slate-600 focus:border-cyan-400/30 focus:bg-black/30 sm:w-[360px]"
+                  />
+                </div>
+
+                <button
+                  type="button"
+                  onClick={() => openArchiveModal("workflow")}
+                  className="inline-flex h-11 items-center justify-center gap-2 rounded-2xl border border-white/10 bg-white/[0.05] px-4 text-sm font-semibold text-slate-300 transition hover:border-white/20 hover:bg-white/[0.08] hover:text-white"
+                >
+                  <Archive className="h-4 w-4" />
+                  Workflow Archive
+                </button>
+
+                <button
+                  type="button"
+                  onClick={() => openArchiveModal("execution")}
+                  className="inline-flex h-11 items-center justify-center gap-2 rounded-2xl border border-violet-400/20 bg-violet-500/10 px-4 text-sm font-semibold text-violet-100 transition hover:bg-violet-500/15"
+                >
+                  <WalletCards className="h-4 w-4" />
+                  Execution Archive
+                </button>
               </div>
 
-              <button
-                type="button"
-                onClick={() => openArchiveModal("requests")}
-                className="inline-flex h-11 items-center justify-center gap-2 rounded-2xl border border-white/10 bg-white/[0.05] px-4 text-sm font-semibold text-slate-300 transition hover:border-white/20 hover:bg-white/[0.08] hover:text-white"
-              >
-                <Archive className="h-4 w-4" />
-                Request Archive
-              </button>
+              <div className="flex flex-col gap-3 sm:flex-row sm:items-center">
+                <button
+                  type="button"
+                  onClick={() => navigate("/finance/transactions/payroll/funding-batches/new")}
+                  className="inline-flex h-11 items-center justify-center gap-2 rounded-2xl border border-violet-400/20 bg-violet-500/10 px-4 text-sm font-semibold text-violet-100 transition hover:bg-violet-500/15"
+                >
+                  <Archive className="h-4 w-4" />
+                  Allocate Payroll Funds
+                </button>
+
+                <button
+                  type="button"
+                  onClick={() => navigate("/finance/transactions/payroll/new")}
+                  className="inline-flex h-11 items-center justify-center gap-2 rounded-2xl border border-emerald-400/20 bg-emerald-500/10 px-4 text-sm font-semibold text-emerald-100 transition hover:bg-emerald-500/15"
+                >
+                  <WalletCards className="h-4 w-4" />
+                  Distribute Paycheck Payments
+                </button>
+              </div>
+            </div>
+          </div>
+
+                    <div className="border-b border-white/10 px-5 py-4">
+            <div className="mb-3 text-[11px] font-semibold uppercase tracking-[0.2em] text-slate-500">
+              Main Paycheck Workflow
+            </div>
+            <div className="flex gap-2 overflow-x-auto [scrollbar-width:thin]">
+              {mainWorkflowTabs.map((tab) => (
+                <button
+                  key={tab.key}
+                  type="button"
+                  onClick={() => setActiveTab(tab.key)}
+                  className={`shrink-0 rounded-full border px-4 py-2 text-xs font-semibold uppercase tracking-[0.16em] transition ${
+                    activeTab === tab.key
+                      ? "border-cyan-400/20 bg-cyan-500/10 text-cyan-200"
+                      : "border-white/10 bg-white/[0.04] text-slate-400 hover:bg-white/[0.07] hover:text-white"
+                  }`}
+                >
+                  {tab.label}
+                </button>
+              ))}
+            </div>
+
+            <div className="mt-5 mb-3 text-[11px] font-semibold uppercase tracking-[0.2em] text-slate-500">
+              Payment Execution Tools
+            </div>
+            <div className="flex gap-2 overflow-x-auto [scrollbar-width:thin]">
+              {executionTabs.map((tab) => (
+                <button
+                  key={tab.key}
+                  type="button"
+                  onClick={() => setActiveTab(tab.key)}
+                  className={`shrink-0 rounded-full border px-4 py-2 text-xs font-semibold uppercase tracking-[0.16em] transition ${
+                    activeTab === tab.key
+                      ? "border-violet-400/20 bg-violet-500/10 text-violet-200"
+                      : "border-white/10 bg-white/[0.04] text-slate-400 hover:bg-white/[0.07] hover:text-white"
+                  }`}
+                >
+                  {tab.label}
+                </button>
+              ))}
             </div>
           </div>
 
@@ -1890,59 +2288,38 @@ export default function FinancePayrollControlPage() {
               <div className="rounded-[24px] border border-white/10 bg-black/20 px-6 py-12 text-center">
                 <Loader2 className="mx-auto h-8 w-8 animate-spin text-cyan-200" />
                 <div className="mt-4 text-sm text-slate-400">
-                  Loading payroll requests...
+                  Loading payroll control...
                 </div>
               </div>
-            ) : (
-              renderRequestTable(activeRequestRows)
-            )}
-          </div>
-        </section>
+            ) : null}
 
-        <section className="overflow-hidden rounded-[30px] border border-white/10 bg-white/[0.045] backdrop-blur-xl">
-          <div className="flex flex-col gap-4 border-b border-white/10 px-5 py-4 xl:flex-row xl:items-center xl:justify-between">
-            <div>
-              <div className="text-sm font-semibold uppercase tracking-[0.18em] text-slate-400">
-                Allocated Payroll Funds
-              </div>
-              <p className="mt-1 text-xs leading-5 text-slate-500">
-                Background payroll money pool used for payment calculation only. It is
-                checked when Finance records payment for one paycheck.
-              </p>
-            </div>
+            {!isLoading && activeTab === "paycheck_requests"
+              ? renderRequestTable(paycheckRequestRows)
+              : null}
 
-            <div className="flex flex-col gap-3 sm:flex-row sm:items-center">
-              <button
-                type="button"
-                onClick={() => openArchiveModal("funds")}
-                className="inline-flex h-11 items-center justify-center gap-2 rounded-2xl border border-white/10 bg-white/[0.05] px-4 text-sm font-semibold text-slate-300 transition hover:border-white/20 hover:bg-white/[0.08] hover:text-white"
-              >
-                <Archive className="h-4 w-4" />
-                Funds Archive
-              </button>
+            {!isLoading && activeTab === "payroll_documents"
+              ? renderRequestTable(payrollDocumentRows)
+              : null}
 
-              <button
-                type="button"
-                onClick={() => navigate("/finance/transactions/payroll/new")}
-                className="inline-flex h-11 items-center justify-center gap-2 rounded-2xl border border-violet-400/20 bg-violet-500/10 px-4 text-sm font-semibold text-violet-100 transition hover:bg-violet-500/15"
-              >
-                <WalletCards className="h-4 w-4" />
-                Allocate Payroll Funds
-              </button>
-            </div>
-          </div>
+            {!isLoading && activeTab === "payroll_review"
+              ? renderRequestTable(payrollReviewRows)
+              : null}
 
-          <div className="p-5">
-            {isLoading ? (
-              <div className="rounded-[24px] border border-white/10 bg-black/20 px-6 py-12 text-center">
-                <Loader2 className="mx-auto h-8 w-8 animate-spin text-cyan-200" />
-                <div className="mt-4 text-sm text-slate-400">
-                  Loading allocated funds...
-                </div>
-              </div>
-            ) : (
-              renderFundTable(activeFundRows)
-            )}
+            {!isLoading && activeTab === "ready_for_payment"
+              ? renderRequestTable(readyForPaymentRows)
+              : null}
+
+            {!isLoading && activeTab === "employee_confirmation"
+              ? renderRequestTable(employeeConfirmationRows)
+              : null}
+
+            {!isLoading && activeTab === "funding_batches"
+              ? renderExecutionTable(activeFundingBatchRows)
+              : null}
+
+            {!isLoading && activeTab === "payment_distributions"
+              ? renderExecutionTable(activeDistributionRows)
+              : null}
           </div>
         </section>
       </div>
@@ -1954,19 +2331,19 @@ export default function FinancePayrollControlPage() {
               <div>
                 <div className="inline-flex w-fit items-center gap-2 rounded-full border border-amber-400/20 bg-amber-500/10 px-3 py-1 text-[11px] font-semibold uppercase tracking-[0.22em] text-amber-200">
                   <Archive className="h-3.5 w-3.5" />
-                  {archiveScope === "requests"
-                    ? "Paycheck Request Archive"
-                    : "Allocated Funds Archive"}
+                  {archiveScope === "workflow"
+                    ? "Paycheck Workflow Archive"
+                    : "Payment Execution Archive"}
                 </div>
                 <h2 className="mt-3 text-2xl font-semibold text-white">
-                  {archiveScope === "requests"
-                    ? "Archived & Deleted Paycheck Requests"
-                    : "Archived & Deleted Allocated Payroll Funds"}
+                  {archiveScope === "workflow"
+                    ? "Archived & Deleted Paycheck Workflow Records"
+                    : "Archived & Deleted Payment Execution Records"}
                 </h2>
                 <p className="mt-2 text-sm leading-6 text-slate-400">
-                  {archiveScope === "requests"
-                    ? "Request archive is separate from allocated fund archive."
-                    : "Fund archive is separate from paycheck request archive."}
+                  {archiveScope === "workflow"
+                    ? "Workflow archive contains paycheck request records only."
+                    : "Payment execution archive contains payroll funding pools and paycheck payment distributions only."}
                 </p>
               </div>
 
@@ -1990,11 +2367,12 @@ export default function FinancePayrollControlPage() {
                 }`}
               >
                 Archived (
-                {archiveScope === "requests"
-                  ? metrics.archivedRequests
-                  : metrics.archivedFunds}
+                {archiveScope === "workflow"
+                  ? metrics.workflowArchived
+                  : metrics.executionArchived}
                 )
               </button>
+
               <button
                 type="button"
                 onClick={() => setArchiveTab("deleted")}
@@ -2005,17 +2383,19 @@ export default function FinancePayrollControlPage() {
                 }`}
               >
                 Deleted (
-                {archiveScope === "requests"
-                  ? metrics.deletedRequests
-                  : metrics.deletedFunds}
+                {archiveScope === "workflow"
+                  ? metrics.workflowDeleted
+                  : metrics.executionDeleted}
                 )
               </button>
             </div>
 
-            <div className="overflow-x-auto p-5">
-              {archiveScope === "requests"
-                ? renderRequestTable(requestArchiveRows, "archive")
-                : renderFundTable(fundArchiveRows, "archive")}
+            <div className="overflow-x-auto">
+              <div className="max-h-[620px] overflow-y-auto p-5">
+                {archiveScope === "workflow"
+                  ? renderRequestTable(workflowArchiveRows, "archive")
+                  : renderExecutionTable(executionArchiveRows, "archive")}
+              </div>
             </div>
           </div>
         </div>

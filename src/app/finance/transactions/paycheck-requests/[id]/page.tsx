@@ -1,12 +1,19 @@
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useMemo, useState, type ReactNode } from "react";
 import { useNavigate, useParams } from "react-router-dom";
+import type { LucideIcon } from "lucide-react";
 import {
+  AlertTriangle,
   ArrowRight,
   BadgeCheck,
+  Building2,
+  CalendarClock,
+  CheckCircle2,
   Download,
   ExternalLink,
+  FileCheck2,
   FileSignature,
   LinkIcon,
+  Loader2,
   Send,
   UploadCloud,
   UserRound,
@@ -31,6 +38,7 @@ type ProfileRow = {
   user_id: string;
   full_name: string | null;
   display_name: string | null;
+  email: string | null;
 };
 
 type PayProfileRow = {
@@ -49,6 +57,22 @@ type PayProfileRow = {
   effective_to: string | null;
   notes: string | null;
   metadata: Record<string, unknown> | null;
+};
+
+type CompanyRow = {
+  id: string;
+  name: string | null;
+  legal_name: string | null;
+  email: string | null;
+  phone: string | null;
+  currency_code: string | null;
+  country: string | null;
+  city: string | null;
+  state_province: string | null;
+  postal_code: string | null;
+  address_line_1: string | null;
+  address_line_2: string | null;
+  status: string | null;
 };
 
 type PayrollRunRow = {
@@ -133,10 +157,15 @@ type PaycheckRequestRow = {
   linked_payroll_run_id: string | null;
   linked_paycheck_id: string | null;
   linked_payment_id: string | null;
+  linked_payment_distribution_id?: string | null;
   payment_sent_at: string | null;
   payment_confirmed_at: string | null;
   payment_disputed_at: string | null;
   confirmation_notes: string | null;
+  funding_status?: string | null;
+  payment_status?: string | null;
+  paid_amount?: number | string | null;
+  remaining_amount?: number | string | null;
   archived_at: string | null;
   archived_by: string | null;
   deleted_at: string | null;
@@ -151,46 +180,205 @@ type PaycheckRequestRow = {
   employee_ref?: EmployeeRefRow | null;
   profile?: ProfileRow | null;
   pay_profile?: PayProfileRow | null;
+  company?: CompanyRow | null;
   payroll_run?: PayrollRunRow | null;
   paycheck?: PaycheckRow | null;
   payment?: PayrollPaymentRow | null;
 };
 
+type AllocationRow = {
+  id: string;
+  distribution_id: string;
+  paycheck_request_id: string;
+  funding_batch_id: string | null;
+  paycheck_id: string | null;
+  payroll_payment_id: string | null;
+  employee_ref_id: string | null;
+  employee_user_id: string | null;
+  company_id: string | null;
+  funding_company_id: string | null;
+  paid_from_bank_account_id: string | null;
+  recipient_person_name: string | null;
+  allocated_amount: number | string | null;
+  currency_code: string | null;
+  payment_currency_code: string | null;
+  converted_amount: number | string | null;
+  funding_currency_code: string | null;
+  funding_currency_amount: number | string | null;
+  exchange_rate: number | string | null;
+  conversion_source: string | null;
+  conversion_date: string | null;
+  recipient_confirmation_status: string | null;
+  recipient_confirmed_at: string | null;
+  recipient_confirmed_by: string | null;
+  recipient_confirmation_notes: string | null;
+  recipient_dispute_reason: string | null;
+  metadata: Record<string, unknown> | null;
+  created_at: string;
+  updated_at: string;
+};
+
+type DistributionRow = {
+  id: string;
+  distribution_number: string;
+  funding_batch_id: string;
+  payment_date: string;
+  status: string;
+  paid_from_company_id: string | null;
+  paid_from_bank_account_id: string | null;
+  amount: number | string | null;
+  payment_currency_code: string;
+  funding_currency_code: string | null;
+  funding_currency_amount: number | string | null;
+  exchange_rate: number | string | null;
+  exchange_rate_source: string | null;
+  exchange_rate_date: string | null;
+  reference_number: string | null;
+  recipient_confirmation_status: string | null;
+  payment_proof_status: string | null;
+  notes: string | null;
+  metadata: Record<string, unknown> | null;
+  created_at: string;
+  updated_at: string;
+};
+
+type FundingBatchRow = {
+  id: string;
+  batch_number: string;
+  funding_company_id: string;
+  funding_bank_account_id: string | null;
+  allocation_date: string;
+  period_start: string | null;
+  period_end: string | null;
+  currency_code: string | null;
+  allocated_amount: number | string | null;
+  status: string;
+  documentation_status: string | null;
+  notes: string | null;
+  metadata: Record<string, unknown> | null;
+};
+
+type AttachmentRow = {
+  id: string;
+  entity_type: string;
+  entity_id: string;
+  file_upload_id: string;
+  uploaded_by: string | null;
+  notes: string | null;
+  metadata: {
+    bucket?: string | null;
+    uploaded_from?: string | null;
+    resolved_mime_type?: string | null;
+    document_role?: string | null;
+    [key: string]: unknown;
+  } | null;
+  created_at: string;
+};
+
+type FileUploadRow = {
+  id: string;
+  file_name: string;
+  file_path: string;
+  file_size: number | null;
+  mime_type: string | null;
+  entity_type: string;
+  created_at: string;
+};
+
+type AttachmentWithFile = AttachmentRow & {
+  fileUpload: FileUploadRow | null;
+  signedUrl: string | null;
+};
+
+type PaymentPreference = {
+  method: string;
+  method_label: string;
+  instructions: string | null;
+  contact: string | null;
+  submitted_by_employee?: boolean;
+  reviewed_by_finance?: boolean;
+  note?: string | null;
+};
+
+type TimelineItem = {
+  label: string;
+  value: string;
+  detail: string;
+  raw: string | null | undefined;
+};
+
+type DetailItem = {
+  label: string;
+  value: ReactNode;
+  detail?: ReactNode;
+};
+
+type EnrichedAllocation = AllocationRow & {
+  distribution: DistributionRow | null;
+  fundingBatch: FundingBatchRow | null;
+  paymentCurrencyAmount: number;
+  paycheckCurrencyAmount: number;
+  paycheckCurrencyCode: string;
+  paymentCurrencyCode: string;
+  fundingCurrencyUsed: number;
+  fundingCurrencyCodeValue: string;
+};
+
 const BUCKET_NAME = "finance-paycheck-forms";
 
-const statusToneMap: Record<string, string> = {
-  draft: "border-slate-400/20 bg-slate-500/10 text-slate-300",
-  submitted: "border-cyan-400/20 bg-cyan-500/10 text-cyan-200",
-  pending_review: "border-cyan-400/20 bg-cyan-500/10 text-cyan-200",
-  needs_correction: "border-amber-400/20 bg-amber-500/10 text-amber-200",
-  approved_for_payroll: "border-emerald-400/20 bg-emerald-500/10 text-emerald-200",
-  approved: "border-emerald-400/20 bg-emerald-500/10 text-emerald-200",
-  rejected: "border-rose-400/20 bg-rose-500/10 text-rose-200",
-  linked_to_payroll: "border-violet-400/20 bg-violet-500/10 text-violet-200",
-  payment_sent: "border-blue-400/20 bg-blue-500/10 text-blue-200",
-  received_confirmed: "border-emerald-400/20 bg-emerald-500/10 text-emerald-200",
-  disputed: "border-rose-400/20 bg-rose-500/10 text-rose-200",
-  closed: "border-slate-400/20 bg-slate-500/10 text-slate-300",
-  archived: "border-slate-400/20 bg-slate-500/10 text-slate-300",
-  deleted: "border-rose-400/20 bg-rose-500/10 text-rose-200",
-  missing: "border-rose-400/20 bg-rose-500/10 text-rose-200",
-  uploaded: "border-emerald-400/20 bg-emerald-500/10 text-emerald-200",
-  linked: "border-cyan-400/20 bg-cyan-500/10 text-cyan-200",
-  files_and_links: "border-violet-400/20 bg-violet-500/10 text-violet-200",
-  not_uploaded: "border-slate-400/20 bg-slate-500/10 text-slate-300",
-  not_submitted: "border-slate-400/20 bg-slate-500/10 text-slate-300",
-  not_paid_yet: "border-slate-400/20 bg-slate-500/10 text-slate-300",
-  not_received: "border-rose-400/20 bg-rose-500/10 text-rose-200",
-  confirmed: "border-emerald-400/20 bg-emerald-500/10 text-emerald-200",
-  pending: "border-amber-400/20 bg-amber-500/10 text-amber-200",
-  scheduled: "border-blue-400/20 bg-blue-500/10 text-blue-200",
-  paid: "border-emerald-400/20 bg-emerald-500/10 text-emerald-200",
-  failed: "border-rose-400/20 bg-rose-500/10 text-rose-200",
+const statusToneMap: Record<
+  string,
+  "cyan" | "emerald" | "amber" | "rose" | "violet" | "slate"
+> = {
+  draft: "slate",
+  submitted: "cyan",
+  pending_review: "amber",
+  needs_correction: "amber",
+  correction_requested: "amber",
+  approved_for_payroll: "emerald",
+  approved: "emerald",
+  rejected: "rose",
+  linked_to_payroll: "violet",
+  payment_sent: "cyan",
+  received_confirmed: "emerald",
+  not_received: "rose",
+  disputed: "rose",
+  closed: "violet",
+  archived: "amber",
+  deleted: "rose",
+  missing: "rose",
+  uploaded: "cyan",
+  linked: "cyan",
+  files_and_links: "cyan",
+  verified: "emerald",
+  issue_found: "rose",
+  not_uploaded: "slate",
+  not_submitted: "slate",
+  not_paid_yet: "slate",
+  pending_confirmation: "amber",
+  confirmed: "emerald",
+  pending: "amber",
+  scheduled: "cyan",
+  paid: "emerald",
+  unpaid: "slate",
+  partially_paid: "amber",
+  failed: "rose",
+  not_allocated: "slate",
+  partially_allocated: "amber",
+  allocated: "emerald",
+  over_allocated: "rose",
+  partially_used: "amber",
+  fully_used: "emerald",
+  cancelled: "rose",
 };
 
 function toNumber(value: number | string | null | undefined) {
   const parsed = Number(value ?? 0);
   return Number.isFinite(parsed) ? parsed : 0;
+}
+
+function roundMoney(value: number) {
+  return Math.round((value + Number.EPSILON) * 100) / 100;
 }
 
 function formatMoney(value: number | string | null | undefined) {
@@ -232,39 +420,215 @@ function formatLabel(value: string | null | undefined) {
   if (!value) return "—";
 
   return value
-    .replaceAll("_", " ")
-    .replace(/\b\w/g, (character) => character.toUpperCase());
+    .split("_")
+    .filter(Boolean)
+    .map((part) => part.charAt(0).toUpperCase() + part.slice(1))
+    .join(" ");
 }
 
-function labelClass() {
-  return "text-sm font-medium text-slate-300";
+function normalizeCurrencyCode(value: string | null | undefined) {
+  return (value || "").trim().toUpperCase();
 }
 
-function inputClass() {
-  return "h-11 w-full rounded-2xl border border-white/10 bg-black/20 px-4 text-sm text-white outline-none transition placeholder:text-slate-600 focus:border-cyan-400/30 focus:bg-black/30";
+function getMetadataRecord(
+  metadata: Record<string, unknown> | null | undefined,
+  key: string
+) {
+  const value = metadata?.[key];
+
+  if (value && typeof value === "object" && !Array.isArray(value)) {
+    return value as Record<string, unknown>;
+  }
+
+  return {};
 }
 
-function textareaClass() {
-  return "min-h-[132px] w-full resize-none rounded-2xl border border-white/10 bg-black/20 px-4 py-3 text-sm text-white outline-none transition placeholder:text-slate-600 focus:border-cyan-400/30 focus:bg-black/30";
+function getMetadataString(
+  metadata: Record<string, unknown> | null | undefined,
+  key: string
+) {
+  const value = metadata?.[key];
+  return typeof value === "string" ? value : "";
+}
+
+function getNestedMetadataString(
+  metadata: Record<string, unknown> | null | undefined,
+  parentKey: string,
+  childKey: string
+) {
+  const parent = getMetadataRecord(metadata, parentKey);
+  const value = parent[childKey];
+  return typeof value === "string" ? value : "";
+}
+
+function getMetadataNumber(
+  metadata: Record<string, unknown> | null | undefined,
+  key: string
+) {
+  const value = metadata?.[key];
+
+  if (typeof value === "number" && Number.isFinite(value)) {
+    return value;
+  }
+
+  if (typeof value === "string") {
+    const parsed = Number(value);
+    return Number.isFinite(parsed) ? parsed : null;
+  }
+
+  return null;
+}
+
+function resolvePaymentPreference(
+  metadata: Record<string, unknown> | null | undefined
+): PaymentPreference {
+  const preference = getMetadataRecord(metadata, "employee_payment_preference");
+
+  const method =
+    getMetadataString(metadata, "payment_transfer_method") ||
+    (typeof preference.method === "string" ? preference.method : "") ||
+    "company_method";
+
+  const methodLabel =
+    (typeof preference.method_label === "string" ? preference.method_label : "") ||
+    formatLabel(method);
+
+  const instructions =
+    typeof preference.instructions === "string" && preference.instructions.trim()
+      ? preference.instructions
+      : null;
+
+  const contact =
+    typeof preference.contact === "string" && preference.contact.trim()
+      ? preference.contact
+      : null;
+
+  return {
+    method,
+    method_label: methodLabel,
+    instructions,
+    contact,
+    submitted_by_employee:
+      typeof preference.submitted_by_employee === "boolean"
+        ? preference.submitted_by_employee
+        : true,
+    reviewed_by_finance:
+      typeof preference.reviewed_by_finance === "boolean"
+        ? preference.reviewed_by_finance
+        : false,
+    note:
+      typeof preference.note === "string" && preference.note.trim()
+        ? preference.note
+        : "Employee-provided payment preference only. This is not a company bank account selection.",
+  };
 }
 
 function sanitizePathPart(value: string) {
   return value.replace(/[^a-zA-Z0-9-_]/g, "-").slice(0, 80);
 }
 
+function resolveMimeType(file: File) {
+  if (file.type && file.type !== "application/octet-stream") {
+    return file.type;
+  }
+
+  const extension = file.name.split(".").pop()?.toLowerCase();
+
+  switch (extension) {
+    case "pdf":
+      return "application/pdf";
+    case "png":
+      return "image/png";
+    case "jpg":
+    case "jpeg":
+      return "image/jpeg";
+    case "webp":
+      return "image/webp";
+    case "doc":
+      return "application/msword";
+    case "docx":
+      return "application/vnd.openxmlformats-officedocument.wordprocessingml.document";
+    case "xls":
+      return "application/vnd.ms-excel";
+    case "xlsx":
+      return "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet";
+    default:
+      return file.type || "application/octet-stream";
+  }
+}
+
+function getStatusToneClasses(value: string | null | undefined) {
+  const tone = statusToneMap[value ?? ""] ?? "slate";
+
+  switch (tone) {
+    case "emerald":
+      return "border-emerald-400/20 bg-emerald-500/10 text-emerald-200";
+    case "amber":
+      return "border-amber-400/20 bg-amber-500/10 text-amber-200";
+    case "rose":
+      return "border-rose-400/20 bg-rose-500/10 text-rose-200";
+    case "violet":
+      return "border-violet-400/20 bg-violet-500/10 text-violet-200";
+    case "cyan":
+      return "border-cyan-400/20 bg-cyan-500/10 text-cyan-200";
+    case "slate":
+    default:
+      return "border-white/10 bg-white/[0.06] text-slate-300";
+  }
+}
+
+function StatusBadge({ value }: { value: string | null | undefined }) {
+  return (
+    <span
+      className={`inline-flex max-w-full items-center rounded-full border px-3 py-1 text-[11px] font-semibold uppercase tracking-[0.14em] ${getStatusToneClasses(
+        value
+      )}`}
+    >
+      <span className="truncate">{formatLabel(value)}</span>
+    </span>
+  );
+}
+
+function inputClass() {
+  return "h-11 w-full rounded-2xl border border-white/10 bg-black/20 px-4 text-sm text-white outline-none transition placeholder:text-slate-600 focus:border-cyan-400/30 focus:bg-black/30 disabled:cursor-not-allowed disabled:opacity-50";
+}
+
+function textareaClass() {
+  return "min-h-[132px] w-full resize-none rounded-2xl border border-white/10 bg-black/20 px-4 py-3 text-sm text-white outline-none transition placeholder:text-slate-600 focus:border-cyan-400/30 focus:bg-black/30 disabled:cursor-not-allowed disabled:opacity-50";
+}
+
+function labelClass() {
+  return "text-sm font-medium text-slate-300";
+}
+
 function getEmployeeLabel(request: PaycheckRequestRow | null) {
   if (!request) return "Employee";
 
   const profileName =
-    request.profile?.full_name?.trim() || request.profile?.display_name?.trim();
+    request.profile?.full_name?.trim() ||
+    request.profile?.display_name?.trim() ||
+    request.profile?.email?.trim();
 
   if (profileName) return profileName;
   if (request.employee_ref?.code) return `Employee ${request.employee_ref.code}`;
+
+  const metadataName =
+    getNestedMetadataString(request.metadata, "employee_snapshot", "employee_label") ||
+    getMetadataString(request.metadata, "employee_label");
+
+  if (metadataName) return metadataName;
+
   return "Employee";
 }
 
 function getEmployeeSubLabel(request: PaycheckRequestRow | null) {
   if (!request) return "Employee registry";
+
+  const metadataSubLabel =
+    getNestedMetadataString(request.metadata, "employee_snapshot", "employee_sub_label") ||
+    getMetadataString(request.metadata, "employee_sub_label");
+
+  if (metadataSubLabel) return metadataSubLabel;
 
   return [
     request.employee_ref?.code ? `Code ${request.employee_ref.code}` : null,
@@ -276,6 +640,16 @@ function getEmployeeSubLabel(request: PaycheckRequestRow | null) {
   ]
     .filter(Boolean)
     .join(" • ");
+}
+
+function getCompanyLabel(request: PaycheckRequestRow | null) {
+  if (!request) return "—";
+
+  const metadataCompany =
+    getNestedMetadataString(request.metadata, "company_snapshot", "legal_name") ||
+    getNestedMetadataString(request.metadata, "company_snapshot", "company_name");
+
+  return request.company?.legal_name || request.company?.name || metadataCompany || "—";
 }
 
 function getRequestPeriodLabel(request: PaycheckRequestRow | null) {
@@ -293,48 +667,17 @@ function hasAdminSignedForm(request: PaycheckRequestRow) {
   );
 }
 
-function StatusBadge({ value }: { value: string | null | undefined }) {
-  const status = value || "—";
-  const tone =
-    statusToneMap[status] ?? "border-white/10 bg-white/[0.06] text-slate-300";
+function getPaycheckTargetAmount(request: PaycheckRequestRow | null) {
+  if (!request) return 0;
+
+  const explicitNet = toNumber(request.requested_net_amount);
+  if (explicitNet > 0) return explicitNet;
 
   return (
-    <span
-      className={`inline-flex items-center rounded-full border px-2.5 py-1 text-[11px] font-semibold uppercase tracking-[0.12em] ${tone}`}
-    >
-      {formatLabel(status)}
-    </span>
-  );
-}
-
-function SectionCard({
-  title,
-  description,
-  icon: Icon,
-  children,
-}: {
-  title: string;
-  description: string;
-  icon: typeof FileSignature;
-  children: React.ReactNode;
-}) {
-  return (
-    <section className="overflow-hidden rounded-[30px] border border-white/10 bg-white/[0.045] backdrop-blur-xl">
-      <div className="flex items-start justify-between gap-4 border-b border-white/10 px-5 py-4">
-        <div className="min-w-0">
-          <div className="text-sm font-semibold uppercase tracking-[0.18em] text-slate-400">
-            {title}
-          </div>
-          <p className="mt-1 text-xs leading-5 text-slate-500">{description}</p>
-        </div>
-
-        <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-2xl border border-cyan-400/20 bg-cyan-500/10 text-cyan-200">
-          <Icon className="h-5 w-5" />
-        </div>
-      </div>
-
-      <div className="p-5">{children}</div>
-    </section>
+    toNumber(request.requested_gross_amount) +
+    toNumber(request.requested_bonus_amount) +
+    toNumber(request.requested_reimbursement_amount) -
+    toNumber(request.requested_deduction_amount)
   );
 }
 
@@ -344,15 +687,15 @@ function ValueBlock({
   detail,
 }: {
   label: string;
-  value: React.ReactNode;
-  detail?: React.ReactNode;
+  value: ReactNode;
+  detail?: ReactNode;
 }) {
   return (
     <div className="rounded-[24px] border border-white/10 bg-black/20 p-4">
       <div className="text-[11px] font-semibold uppercase tracking-[0.2em] text-slate-500">
         {label}
       </div>
-      <div className="mt-2 text-sm font-semibold text-white">{value}</div>
+      <div className="mt-2 text-sm font-semibold leading-6 text-white">{value || "—"}</div>
       {detail ? <div className="mt-2 text-xs leading-5 text-slate-500">{detail}</div> : null}
     </div>
   );
@@ -377,14 +720,43 @@ function AmountCard({
   }[tone];
 
   return (
-    <div className={`rounded-[24px] border p-4 ${toneClasses}`}>
+    <div className={`min-h-[148px] rounded-[24px] border p-4 ${toneClasses}`}>
       <div className="text-[11px] font-semibold uppercase tracking-[0.2em] opacity-80">
         {label}
       </div>
-      <div className="mt-2 text-2xl font-semibold text-white">
+      <div className="mt-3 text-2xl font-semibold text-white">
         {currency} {formatMoney(value)}
       </div>
     </div>
+  );
+}
+
+function SectionCard({
+  title,
+  description,
+  icon: Icon,
+  children,
+}: {
+  title: string;
+  description: string;
+  icon: LucideIcon;
+  children: ReactNode;
+}) {
+  return (
+    <section className="overflow-hidden rounded-[30px] border border-white/10 bg-white/[0.045] backdrop-blur-xl">
+      <div className="flex items-start gap-4 border-b border-white/10 px-5 py-4">
+        <div className="rounded-2xl border border-cyan-400/15 bg-cyan-500/10 p-3 text-cyan-200">
+          <Icon className="h-4 w-4" />
+        </div>
+        <div>
+          <div className="text-sm font-semibold uppercase tracking-[0.18em] text-slate-400">
+            {title}
+          </div>
+          <p className="mt-1 text-xs leading-5 text-slate-500">{description}</p>
+        </div>
+      </div>
+      <div className="p-5">{children}</div>
+    </section>
   );
 }
 
@@ -396,7 +768,7 @@ function StageGuide({
 }: {
   stage: string;
   title: string;
-  children: React.ReactNode;
+  children: ReactNode;
   tone?: "cyan" | "emerald" | "amber" | "violet" | "rose";
 }) {
   const toneClass = {
@@ -418,6 +790,30 @@ function StageGuide({
   );
 }
 
+function DetailGrid({ items }: { items: DetailItem[] }) {
+  const visibleItems = items.filter((item) => {
+    if (item.value === null || item.value === undefined) return false;
+    if (typeof item.value === "string" && !item.value.trim()) return false;
+    return true;
+  });
+
+  if (visibleItems.length === 0) {
+    return (
+      <div className="rounded-[24px] border border-dashed border-white/10 bg-black/20 px-6 py-10 text-center text-sm text-slate-500">
+        No details available.
+      </div>
+    );
+  }
+
+  return (
+    <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">
+      {visibleItems.map((item) => (
+        <ValueBlock key={item.label} label={item.label} value={item.value} detail={item.detail} />
+      ))}
+    </div>
+  );
+}
+
 export default function PaycheckRequestDetailPage() {
   const navigate = useNavigate();
   const { id } = useParams<{ id: string }>();
@@ -426,12 +822,16 @@ export default function PaycheckRequestDetailPage() {
   const [currentUserId, setCurrentUserId] = useState<string | null>(null);
   const [signedFormUrl, setSignedFormUrl] = useState<string | null>(null);
   const [adminSignedFormUrl, setAdminSignedFormUrl] = useState<string | null>(null);
-
   const [replacementFile, setReplacementFile] = useState<File | null>(null);
   const [replacementLink, setReplacementLink] = useState("");
   const [confirmationNotes, setConfirmationNotes] = useState("");
-
+  const [allocations, setAllocations] = useState<AllocationRow[]>([]);
+  const [distributions, setDistributions] = useState<DistributionRow[]>([]);
+  const [fundingBatches, setFundingBatches] = useState<FundingBatchRow[]>([]);
+  const [attachments, setAttachments] = useState<AttachmentWithFile[]>([]);
   const [isLoading, setIsLoading] = useState(true);
+  const [isRefreshing, setIsRefreshing] = useState(false);
+  const [hasLoadedOnce, setHasLoadedOnce] = useState(false);
   const [isWorking, setIsWorking] = useState(false);
   const [actionError, setActionError] = useState<string | null>(null);
   const [actionMessage, setActionMessage] = useState<string | null>(null);
@@ -439,6 +839,113 @@ export default function PaycheckRequestDetailPage() {
   const isEmployeeOwner = Boolean(
     currentUserId && request?.employee_user_id === currentUserId
   );
+
+  const requestCurrency = normalizeCurrencyCode(request?.requested_currency_code || "USD");
+  const targetAmount = getPaycheckTargetAmount(request);
+  const paidAmount = request?.payment_status === "paid" ? targetAmount : toNumber(request?.paid_amount);
+  const remainingAmount =
+    request?.payment_status === "paid"
+      ? 0
+      : Math.max(roundMoney(toNumber(request?.remaining_amount)), 0);
+
+  const paymentPreference = useMemo(() => {
+    return resolvePaymentPreference(request?.metadata);
+  }, [request?.metadata]);
+
+  const distributionMap = useMemo(() => {
+    return new Map(distributions.map((item) => [item.id, item]));
+  }, [distributions]);
+
+  const fundingBatchMap = useMemo(() => {
+    return new Map(fundingBatches.map((item) => [item.id, item]));
+  }, [fundingBatches]);
+
+  const confirmedDistributionIdSet = useMemo(() => {
+    return new Set(
+      distributions
+        .filter((distribution) => distribution.status === "confirmed")
+        .map((distribution) => distribution.id)
+    );
+  }, [distributions]);
+
+  const confirmedAllocations = useMemo(() => {
+    return allocations.filter((allocation) =>
+      confirmedDistributionIdSet.has(allocation.distribution_id)
+    );
+  }, [allocations, confirmedDistributionIdSet]);
+
+  const coveredAmount = useMemo(() => {
+    return roundMoney(
+      confirmedAllocations.reduce(
+        (sum, allocation) => sum + toNumber(allocation.allocated_amount),
+        0
+      )
+    );
+  }, [confirmedAllocations]);
+
+  const calculatedRemainingAmount = useMemo(() => {
+    if (request?.payment_status === "paid") return 0;
+    if (request?.remaining_amount !== null && request?.remaining_amount !== undefined) {
+      return Math.max(roundMoney(toNumber(request.remaining_amount)), 0);
+    }
+
+    return Math.max(roundMoney(targetAmount - coveredAmount), 0);
+  }, [coveredAmount, request?.payment_status, request?.remaining_amount, targetAmount]);
+
+  const enrichedAllocations = useMemo<EnrichedAllocation[]>(() => {
+    return allocations.map((allocation) => {
+      const distribution = distributionMap.get(allocation.distribution_id) || null;
+      const fundingBatch = allocation.funding_batch_id
+        ? fundingBatchMap.get(allocation.funding_batch_id) || null
+        : null;
+
+      const paymentCurrencyCode = normalizeCurrencyCode(
+        getMetadataString(allocation.metadata, "payment_currency_code") ||
+          allocation.payment_currency_code ||
+          distribution?.payment_currency_code ||
+          requestCurrency
+      );
+
+      const paycheckCurrencyCode = normalizeCurrencyCode(
+        getMetadataString(allocation.metadata, "paycheck_currency_code") ||
+          allocation.currency_code ||
+          requestCurrency
+      );
+
+      const fundingCurrencyCode = normalizeCurrencyCode(
+        getMetadataString(allocation.metadata, "funding_currency_code") ||
+          allocation.funding_currency_code ||
+          fundingBatch?.currency_code ||
+          distribution?.funding_currency_code ||
+          requestCurrency
+      );
+
+      return {
+        ...allocation,
+        distribution,
+        fundingBatch,
+        paymentCurrencyAmount: toNumber(
+          getMetadataNumber(allocation.metadata, "payment_currency_amount") ??
+            allocation.converted_amount ??
+            allocation.allocated_amount
+        ),
+        paycheckCurrencyAmount: toNumber(
+          getMetadataNumber(allocation.metadata, "paycheck_currency_amount") ??
+            allocation.allocated_amount
+        ),
+        paycheckCurrencyCode,
+        paymentCurrencyCode,
+        fundingCurrencyUsed: toNumber(
+          getMetadataNumber(allocation.metadata, "funding_currency_amount_used_for_line") ??
+            allocation.funding_currency_amount
+        ),
+        fundingCurrencyCodeValue: fundingCurrencyCode,
+      };
+    });
+  }, [allocations, distributionMap, fundingBatchMap, requestCurrency]);
+
+  const employeeSignedFormExists = Boolean(request && hasEmployeeSignedForm(request));
+  const adminSignedFormExists = Boolean(request && hasAdminSignedForm(request));
 
   const canEmployeeSubmit = Boolean(
     request &&
@@ -451,150 +958,560 @@ export default function PaycheckRequestDetailPage() {
     request &&
       isEmployeeOwner &&
       !isWorking &&
-      (request.status === "payment_sent" || request.status === "disputed") &&
+      (request.status === "payment_sent" ||
+        request.status === "disputed" ||
+        request.payment_status === "paid" ||
+        request.recipient_confirmation_status === "pending_confirmation") &&
       request.recipient_confirmation_status !== "received_confirmed"
   );
 
-  const requestCurrency = request?.requested_currency_code || "USD";
+  const timelineItems = useMemo<TimelineItem[]>(() => {
+    if (!request) return [];
 
-  const loadRequest = useCallback(async () => {
-    if (!id) return;
+    return [
+      {
+        label: "Request",
+        value: formatLabel(request.status),
+        detail: `Created ${formatDateTime(request.created_at)}`,
+        raw: request.status,
+      },
+      {
+        label: "Employee Doc",
+        value: formatLabel(request.signed_form_status || request.documentation_status),
+        detail: request.signed_form_submitted_at
+          ? `Submitted ${formatDateTime(request.signed_form_submitted_at)}`
+          : "Employee signed form required before Finance review.",
+        raw: request.signed_form_status || request.documentation_status,
+      },
+      {
+        label: "Finance Review",
+        value: formatLabel(request.review_status),
+        detail: request.approved_at
+          ? `Approved ${formatDateTime(request.approved_at)}`
+          : request.correction_notes || request.review_notes || "Waiting for Finance/Admin.",
+        raw: request.review_status,
+      },
+      {
+        label: "Payment",
+        value: formatLabel(request.payment_status || request.paycheck?.payment_status || "unpaid"),
+        detail: `${requestCurrency} ${formatMoney(paidAmount)} paid`,
+        raw: request.payment_status || request.paycheck?.payment_status || "unpaid",
+      },
+      {
+        label: "Confirmation",
+        value: formatLabel(request.recipient_confirmation_status),
+        detail: request.payment_confirmed_at
+          ? `Confirmed ${formatDateTime(request.payment_confirmed_at)}`
+          : "Employee confirms after payment is sent.",
+        raw: request.recipient_confirmation_status,
+      },
+    ];
+  }, [paidAmount, request, requestCurrency]);
 
-    setIsLoading(true);
-    setActionError(null);
+  const overviewItems = useMemo<DetailItem[]>(() => {
+    if (!request) return [];
 
-    try {
-      const {
-        data: { user },
-      } = await supabase.auth.getUser();
+    return [
+      {
+        label: "Employee",
+        value: getEmployeeLabel(request),
+        detail: getEmployeeSubLabel(request),
+      },
+      {
+        label: "Company",
+        value: getCompanyLabel(request),
+      },
+      {
+        label: "Payroll Period",
+        value: getRequestPeriodLabel(request),
+      },
+      {
+        label: "Requested Pay Date",
+        value: formatDate(request.requested_pay_date),
+      },
+      {
+        label: "Pay Profile",
+        value: request.pay_profile
+          ? `${formatLabel(request.pay_profile.pay_type)} • ${formatLabel(
+              request.pay_profile.payment_frequency
+            )}`
+          : "—",
+        detail: request.pay_profile?.profile_number || "No pay profile linked",
+      },
+      {
+        label: "Request Reference",
+        value: request.request_number || request.reference_number || "—",
+      },
+      {
+        label: "Notes",
+        value: request.notes || "—",
+      },
+    ];
+  }, [request]);
 
-      setCurrentUserId(user?.id || null);
+  const paymentPreferenceItems = useMemo<DetailItem[]>(() => {
+    return [
+      {
+        label: "Preferred Method",
+        value: paymentPreference.method_label || formatLabel(paymentPreference.method),
+        detail: paymentPreference.note || undefined,
+      },
+      {
+        label: "Transfer Instructions",
+        value: paymentPreference.instructions || "—",
+        detail:
+          paymentPreference.method === "company_method"
+            ? "Finance/Admin will use the company default payroll method."
+            : "Employee-provided receiving instructions for Finance/Admin review.",
+      },
+      {
+        label: "Contact / Confirmation",
+        value: paymentPreference.contact || "—",
+        detail: "Optional employee-provided contact or confirmation channel.",
+      },
+      {
+        label: "Finance Reviewed",
+        value: paymentPreference.reviewed_by_finance ? "Yes" : "No",
+        detail: "This is metadata for Finance/Admin review only.",
+      },
+    ];
+  }, [paymentPreference]);
 
-      const result = await supabase
-        .from("finance_paycheck_requests")
-        .select(
-          [
-            "id",
-            "request_number",
-            "employee_ref_id",
-            "employee_user_id",
-            "pay_profile_id",
-            "company_id",
-            "requested_bank_account_id",
-            "period_start",
-            "period_end",
-            "requested_pay_date",
-            "requested_currency_code",
-            "requested_gross_amount",
-            "requested_bonus_amount",
-            "requested_deduction_amount",
-            "requested_reimbursement_amount",
-            "requested_net_amount",
-            "status",
-            "review_status",
-            "documentation_status",
-            "signed_form_status",
-            "recipient_confirmation_status",
-            "signed_form_file_upload_id",
-            "signed_form_storage_bucket",
-            "signed_form_storage_path",
-            "signed_form_external_url",
-            "signed_form_uploaded_at",
-            "signed_form_submitted_at",
-            "admin_signed_form_status",
-            "admin_signed_form_storage_bucket",
-            "admin_signed_form_storage_path",
-            "admin_signed_form_external_url",
-            "admin_signed_form_uploaded_at",
-            "admin_signed_form_uploaded_by",
-            "admin_signed_form_notes",
-            "submitted_at",
-            "reviewed_at",
-            "reviewed_by",
-            "review_notes",
-            "correction_notes",
-            "rejected_reason",
-            "approved_at",
-            "approved_by",
-            "linked_payroll_run_id",
-            "linked_paycheck_id",
-            "linked_payment_id",
-            "payment_sent_at",
-            "payment_confirmed_at",
-            "payment_disputed_at",
-            "confirmation_notes",
-            "archived_at",
-            "archived_by",
-            "deleted_at",
-            "deleted_by",
-            "notes",
-            "metadata",
-            "reference_number",
-            "created_at",
-            "updated_at",
-            "created_by",
-            "updated_by",
-            "employee_ref:finance_employee_refs!finance_paycheck_requests_employee_ref_id_fkey(id, user_id, code, status, mark, metadata)",
-            "profile:profiles!finance_paycheck_requests_employee_user_id_fkey(user_id, full_name, display_name)",
-            "pay_profile:finance_pay_profiles!finance_paycheck_requests_pay_profile_id_fkey(id, profile_number, user_id, pay_type, payment_frequency, base_salary, hourly_rate, default_hours, currency_code, active, status, effective_from, effective_to, notes, metadata)",
-            "payroll_run:finance_payroll_runs!finance_paycheck_requests_linked_payroll_run_id_fkey(id, run_number, status, total_net)",
-            "paycheck:finance_paychecks!finance_paycheck_requests_linked_paycheck_id_fkey(id, paycheck_number, payment_status, gross_pay, bonus_total, deduction_total, reimbursement_total, net_pay, paid_at)",
-            "payment:finance_payroll_payments!finance_paycheck_requests_linked_payment_id_fkey(id, payment_number, status, amount, payment_date, reference_number, notes, paycheck_currency_code, payment_currency_code, paycheck_amount, payment_amount, conversion_rate, conversion_date, conversion_source)",
-          ].join(", ")
-        )
-        .eq("id", id)
-        .single();
+  const financeReviewItems = useMemo<DetailItem[]>(() => {
+    if (!request) return [];
 
-      if (result.error) throw result.error;
+    return [
+      {
+        label: "Current Review",
+        value: <StatusBadge value={request.review_status} />,
+        detail: `Reviewed: ${formatDateTime(request.reviewed_at)}`,
+      },
+      {
+        label: "Approved",
+        value: formatDateTime(request.approved_at),
+        detail: request.approved_by ? "Approved by Finance/Admin." : "Not approved yet.",
+      },
+      {
+        label: "Admin Signed Form",
+        value: <StatusBadge value={request.admin_signed_form_status} />,
+        detail: adminSignedFormExists
+          ? `Uploaded: ${formatDateTime(request.admin_signed_form_uploaded_at)}`
+          : "Required before Finance approval.",
+      },
+      {
+        label: "Review Notes",
+        value: request.review_notes || "—",
+      },
+      {
+        label: "Correction Instructions",
+        value: request.correction_notes || "—",
+      },
+      {
+        label: "Rejected Reason",
+        value: request.rejected_reason || "—",
+      },
+    ];
+  }, [adminSignedFormExists, request]);
 
-      const loadedRequest = result.data as unknown as PaycheckRequestRow;
-      setRequest(loadedRequest);
-      setReplacementLink(loadedRequest.signed_form_external_url || "");
-      setConfirmationNotes(loadedRequest.confirmation_notes || "");
+  const payrollLinkItems = useMemo<DetailItem[]>(() => {
+    if (!request) return [];
 
-      if (loadedRequest.signed_form_storage_path) {
-        const employeeBucket = loadedRequest.signed_form_storage_bucket || BUCKET_NAME;
-        const signedResult = await supabase.storage
-          .from(employeeBucket)
-          .createSignedUrl(loadedRequest.signed_form_storage_path, 3600);
+    const paymentCurrency =
+      request.payment?.payment_currency_code ||
+      request.payment?.paycheck_currency_code ||
+      requestCurrency;
 
-        setSignedFormUrl(signedResult.error ? null : signedResult.data.signedUrl);
-      } else {
-        setSignedFormUrl(null);
+    return [
+      {
+        label: "Payroll Run",
+        value: request.payroll_run?.run_number || "Not linked",
+        detail: request.payroll_run
+          ? `Status: ${formatLabel(request.payroll_run.status)}`
+          : "Finance links approved requests to a payroll run.",
+      },
+      {
+        label: "Paycheck",
+        value: request.paycheck?.paycheck_number || "Not created",
+        detail: request.paycheck
+          ? `Payment status: ${formatLabel(request.paycheck.payment_status)}`
+          : "Paycheck is created when linked to payroll.",
+      },
+      {
+        label: "Payment",
+        value: request.payment?.payment_number || "Not sent",
+        detail: request.payment
+          ? `Status: ${formatLabel(request.payment.status)} • Date: ${formatDate(
+              request.payment.payment_date
+            )}`
+          : "Payment appears after Finance sends the paycheck.",
+      },
+      {
+        label: "Paycheck Amount",
+        value: `${request.payment?.paycheck_currency_code || requestCurrency} ${formatMoney(
+          request.payment?.paycheck_amount || request.requested_net_amount
+        )}`,
+        detail: "Amount counted against the paycheck balance.",
+      },
+      {
+        label: "Payment Amount",
+        value: `${paymentCurrency} ${formatMoney(
+          request.payment?.payment_amount || request.payment?.amount || paidAmount
+        )}`,
+        detail: request.payment?.conversion_rate
+          ? `Rate ${request.payment.conversion_rate} on ${formatDate(
+              request.payment.conversion_date
+            )} via ${request.payment.conversion_source || "conversion API"}`
+          : "Conversion details appear when payment currency differs.",
+      },
+      {
+        label: "Recipient Confirmation",
+        value: <StatusBadge value={request.recipient_confirmation_status} />,
+        detail: request.confirmation_notes || "Employee confirms after payment is sent.",
+      },
+    ];
+  }, [paidAmount, request, requestCurrency]);
+
+  const loadRequest = useCallback(
+    async (mode: "initial" | "silent" = "initial") => {
+      if (!id) {
+        setActionError("Missing paycheck request ID.");
+        setIsLoading(false);
+        return;
       }
 
-      if (loadedRequest.admin_signed_form_storage_path) {
-        const adminBucket =
-          loadedRequest.admin_signed_form_storage_bucket || BUCKET_NAME;
-        const adminSignedResult = await supabase.storage
-          .from(adminBucket)
-          .createSignedUrl(loadedRequest.admin_signed_form_storage_path, 3600);
+      if (mode === "initial" && !hasLoadedOnce) {
+        setIsLoading(true);
+      } else {
+        setIsRefreshing(true);
+      }
 
-        setAdminSignedFormUrl(
-          adminSignedResult.error ? null : adminSignedResult.data.signedUrl
+      setActionError(null);
+
+      try {
+        const {
+          data: { user },
+        } = await supabase.auth.getUser();
+
+        setCurrentUserId(user?.id || null);
+
+        const result = await supabase
+          .from("finance_paycheck_requests")
+          .select(
+            [
+              "id",
+              "request_number",
+              "employee_ref_id",
+              "employee_user_id",
+              "pay_profile_id",
+              "company_id",
+              "requested_bank_account_id",
+              "period_start",
+              "period_end",
+              "requested_pay_date",
+              "requested_currency_code",
+              "requested_gross_amount",
+              "requested_bonus_amount",
+              "requested_deduction_amount",
+              "requested_reimbursement_amount",
+              "requested_net_amount",
+              "status",
+              "review_status",
+              "documentation_status",
+              "signed_form_status",
+              "recipient_confirmation_status",
+              "signed_form_file_upload_id",
+              "signed_form_storage_bucket",
+              "signed_form_storage_path",
+              "signed_form_external_url",
+              "signed_form_uploaded_at",
+              "signed_form_submitted_at",
+              "admin_signed_form_status",
+              "admin_signed_form_storage_bucket",
+              "admin_signed_form_storage_path",
+              "admin_signed_form_external_url",
+              "admin_signed_form_uploaded_at",
+              "admin_signed_form_uploaded_by",
+              "admin_signed_form_notes",
+              "submitted_at",
+              "reviewed_at",
+              "reviewed_by",
+              "review_notes",
+              "correction_notes",
+              "rejected_reason",
+              "approved_at",
+              "approved_by",
+              "linked_payroll_run_id",
+              "linked_paycheck_id",
+              "linked_payment_id",
+              "linked_payment_distribution_id",
+              "payment_sent_at",
+              "payment_confirmed_at",
+              "payment_disputed_at",
+              "confirmation_notes",
+              "funding_status",
+              "payment_status",
+              "paid_amount",
+              "remaining_amount",
+              "archived_at",
+              "archived_by",
+              "deleted_at",
+              "deleted_by",
+              "notes",
+              "metadata",
+              "reference_number",
+              "created_at",
+              "updated_at",
+              "created_by",
+              "updated_by",
+              "employee_ref:finance_employee_refs!finance_paycheck_requests_employee_ref_id_fkey(id, user_id, code, status, mark, metadata)",
+              "profile:profiles!finance_paycheck_requests_employee_user_id_fkey(user_id, full_name, display_name, email)",
+              "pay_profile:finance_pay_profiles!finance_paycheck_requests_pay_profile_id_fkey(id, profile_number, user_id, pay_type, payment_frequency, base_salary, hourly_rate, default_hours, currency_code, active, status, effective_from, effective_to, notes, metadata)",
+              "company:finance_companies!finance_paycheck_requests_company_id_fkey(id, name, legal_name, email, phone, currency_code, country, city, state_province, postal_code, address_line_1, address_line_2, status)",
+              "payroll_run:finance_payroll_runs!finance_paycheck_requests_linked_payroll_run_id_fkey(id, run_number, status, total_net)",
+              "paycheck:finance_paychecks!finance_paycheck_requests_linked_paycheck_id_fkey(id, paycheck_number, payment_status, gross_pay, bonus_total, deduction_total, reimbursement_total, net_pay, paid_at)",
+              "payment:finance_payroll_payments!finance_paycheck_requests_linked_payment_id_fkey(id, payment_number, status, amount, payment_date, reference_number, notes, paycheck_currency_code, payment_currency_code, paycheck_amount, payment_amount, conversion_rate, conversion_date, conversion_source)",
+            ].join(", ")
+          )
+          .eq("id", id)
+          .single();
+
+        if (result.error) throw result.error;
+
+        const loadedRequest = result.data as unknown as PaycheckRequestRow;
+        setRequest(loadedRequest);
+        setReplacementLink(loadedRequest.signed_form_external_url || "");
+        setConfirmationNotes(loadedRequest.confirmation_notes || "");
+
+        if (loadedRequest.signed_form_storage_path) {
+          const employeeBucket = loadedRequest.signed_form_storage_bucket || BUCKET_NAME;
+          const signedResult = await supabase.storage
+            .from(employeeBucket)
+            .createSignedUrl(loadedRequest.signed_form_storage_path, 3600);
+
+          setSignedFormUrl(signedResult.error ? null : signedResult.data.signedUrl);
+        } else {
+          setSignedFormUrl(null);
+        }
+
+        if (loadedRequest.admin_signed_form_storage_path) {
+          const adminBucket =
+            loadedRequest.admin_signed_form_storage_bucket || "finance-paycheck-documents";
+          const adminSignedResult = await supabase.storage
+            .from(adminBucket)
+            .createSignedUrl(loadedRequest.admin_signed_form_storage_path, 3600);
+
+          setAdminSignedFormUrl(
+            adminSignedResult.error ? null : adminSignedResult.data.signedUrl
+          );
+        } else {
+          setAdminSignedFormUrl(null);
+        }
+
+        const [allocationsResult, attachmentsResult] = await Promise.all([
+          supabase
+            .from("finance_paycheck_payment_allocations")
+            .select(
+              [
+                "id",
+                "distribution_id",
+                "paycheck_request_id",
+                "funding_batch_id",
+                "paycheck_id",
+                "payroll_payment_id",
+                "employee_ref_id",
+                "employee_user_id",
+                "company_id",
+                "funding_company_id",
+                "paid_from_bank_account_id",
+                "recipient_person_name",
+                "allocated_amount",
+                "currency_code",
+                "payment_currency_code",
+                "converted_amount",
+                "funding_currency_code",
+                "funding_currency_amount",
+                "exchange_rate",
+                "conversion_source",
+                "conversion_date",
+                "recipient_confirmation_status",
+                "recipient_confirmed_at",
+                "recipient_confirmed_by",
+                "recipient_confirmation_notes",
+                "recipient_dispute_reason",
+                "metadata",
+                "created_at",
+                "updated_at",
+              ].join(", ")
+            )
+            .eq("paycheck_request_id", loadedRequest.id)
+            .order("created_at", { ascending: false }),
+
+          supabase
+            .from("finance_record_attachments")
+            .select(
+              "id, entity_type, entity_id, file_upload_id, uploaded_by, notes, metadata, created_at"
+            )
+            .in("entity_type", ["finance_paycheck_request", "finance_paycheck_document"])
+            .eq("entity_id", loadedRequest.id)
+            .order("created_at", { ascending: false }),
+        ]);
+
+        if (allocationsResult.error) throw allocationsResult.error;
+        if (attachmentsResult.error) throw attachmentsResult.error;
+
+        const loadedAllocations = (allocationsResult.data || []) as unknown as AllocationRow[];
+        setAllocations(loadedAllocations);
+
+        const distributionIds = Array.from(
+          new Set(loadedAllocations.map((item) => item.distribution_id))
         );
-      } else {
-        setAdminSignedFormUrl(null);
+        const batchIds = Array.from(
+          new Set(
+            loadedAllocations
+              .map((item) => item.funding_batch_id)
+              .filter((value): value is string => Boolean(value))
+          )
+        );
+        const fileUploadIds = ((attachmentsResult.data || []) as AttachmentRow[]).map(
+          (item) => item.file_upload_id
+        );
+
+        if (distributionIds.length > 0) {
+          const distributionsResult = await supabase
+            .from("finance_paycheck_payment_distributions")
+            .select(
+              [
+                "id",
+                "distribution_number",
+                "funding_batch_id",
+                "payment_date",
+                "status",
+                "paid_from_company_id",
+                "paid_from_bank_account_id",
+                "amount",
+                "payment_currency_code",
+                "funding_currency_code",
+                "funding_currency_amount",
+                "exchange_rate",
+                "exchange_rate_source",
+                "exchange_rate_date",
+                "reference_number",
+                "recipient_confirmation_status",
+                "payment_proof_status",
+                "notes",
+                "metadata",
+                "created_at",
+                "updated_at",
+              ].join(", ")
+            )
+            .in("id", distributionIds);
+
+          if (distributionsResult.error) throw distributionsResult.error;
+          setDistributions((distributionsResult.data || []) as unknown as DistributionRow[]);
+        } else {
+          setDistributions([]);
+        }
+
+        if (batchIds.length > 0) {
+          const fundingBatchesResult = await supabase
+            .from("finance_paycheck_funding_batches")
+            .select(
+              [
+                "id",
+                "batch_number",
+                "funding_company_id",
+                "funding_bank_account_id",
+                "allocation_date",
+                "period_start",
+                "period_end",
+                "currency_code",
+                "allocated_amount",
+                "status",
+                "documentation_status",
+                "notes",
+                "metadata",
+              ].join(", ")
+            )
+            .in("id", batchIds);
+
+          if (fundingBatchesResult.error) throw fundingBatchesResult.error;
+          setFundingBatches((fundingBatchesResult.data || []) as FundingBatchRow[]);
+        } else {
+          setFundingBatches([]);
+        }
+
+              if (fileUploadIds.length > 0) {
+          const fileUploadsResult = await supabase
+            .from("file_uploads")
+            .select("id, file_name, file_path, file_size, mime_type, entity_type, created_at")
+            .in("id", fileUploadIds);
+
+          if (fileUploadsResult.error) throw fileUploadsResult.error;
+
+          const fileMap = new Map(
+            ((fileUploadsResult.data || []) as FileUploadRow[]).map((item) => [item.id, item])
+          );
+
+          const signedAttachments = await Promise.all(
+            ((attachmentsResult.data || []) as AttachmentRow[]).map(async (attachment) => {
+              const fileUpload = fileMap.get(attachment.file_upload_id) || null;
+              const bucket = attachment.metadata?.bucket || "finance-paycheck-documents";
+
+              let signedUrl: string | null = null;
+
+              if (fileUpload?.file_path && bucket) {
+                const signedResult = await supabase.storage
+                  .from(bucket)
+                  .createSignedUrl(fileUpload.file_path, 3600);
+
+                if (!signedResult.error) {
+                  signedUrl = signedResult.data.signedUrl;
+                }
+              }
+
+              return {
+                ...attachment,
+                fileUpload,
+                signedUrl,
+              };
+            })
+          );
+
+          setAttachments(signedAttachments);
+        } else {
+          setAttachments([]);
+        }
+
+        setHasLoadedOnce(true);
+      } catch (error) {
+        console.error("Failed to load paycheck request:", error);
+        setActionError(
+          error instanceof Error ? error.message : "Failed to load paycheck request."
+        );
+
+        if (!hasLoadedOnce) {
+          setRequest(null);
+          setSignedFormUrl(null);
+          setAdminSignedFormUrl(null);
+          setAllocations([]);
+          setDistributions([]);
+          setFundingBatches([]);
+          setAttachments([]);
+        }
+      } finally {
+        setIsLoading(false);
+        setIsRefreshing(false);
       }
-    } catch (error) {
-      console.error("Failed to load paycheck request:", error);
-      setActionError(
-        error instanceof Error ? error.message : "Failed to load paycheck request."
-      );
-      setRequest(null);
-      setSignedFormUrl(null);
-      setAdminSignedFormUrl(null);
-    } finally {
-      setIsLoading(false);
-    }
-  }, [id]);
+    },
+    [hasLoadedOnce, id]
+  );
 
   useEffect(() => {
-    void loadRequest();
+    void loadRequest("initial");
   }, [loadRequest]);
 
   useEffect(() => {
-    if (!id) return;
+    if (!id) return undefined;
 
     const channel = supabase
       .channel(`finance-paycheck-request-${id}`)
@@ -606,22 +1523,32 @@ export default function PaycheckRequestDetailPage() {
           table: "finance_paycheck_requests",
           filter: `id=eq.${id}`,
         },
-        () => void loadRequest()
+        () => void loadRequest("silent")
       )
       .on(
         "postgres_changes",
-        { event: "*", schema: "public", table: "finance_payroll_payments" },
-        () => void loadRequest()
+        {
+          event: "*",
+          schema: "public",
+          table: "finance_paycheck_payment_allocations",
+          filter: `paycheck_request_id=eq.${id}`,
+        },
+        () => void loadRequest("silent")
       )
       .on(
         "postgres_changes",
-        { event: "*", schema: "public", table: "finance_paychecks" },
-        () => void loadRequest()
+        {
+          event: "*",
+          schema: "public",
+          table: "finance_record_attachments",
+          filter: `entity_id=eq.${id}`,
+        },
+        () => void loadRequest("silent")
       )
       .subscribe();
 
     const intervalId = window.setInterval(() => {
-      void loadRequest();
+      void loadRequest("silent");
     }, 60000);
 
     return () => {
@@ -638,9 +1565,11 @@ export default function PaycheckRequestDetailPage() {
         bucket: request.signed_form_storage_bucket,
         path: request.signed_form_storage_path,
         uploadedAt: request.signed_form_uploaded_at,
+        fileUploadId: request.signed_form_file_upload_id,
       };
     }
 
+    const resolvedMimeType = resolveMimeType(replacementFile);
     const extension = replacementFile.name.split(".").pop() || "file";
     const safeCode = sanitizePathPart(request.employee_ref?.code || "employee");
     const safeName = sanitizePathPart(replacementFile.name.replace(/\.[^.]+$/, ""));
@@ -650,17 +1579,50 @@ export default function PaycheckRequestDetailPage() {
       .from(BUCKET_NAME)
       .upload(path, replacementFile, {
         cacheControl: "3600",
+        contentType: resolvedMimeType,
         upsert: false,
       });
 
     if (uploadResult.error) throw uploadResult.error;
 
+    const fileUploadResult = await supabase
+      .from("file_uploads")
+      .insert({
+        user_id: currentUserId,
+        file_name: replacementFile.name,
+        file_path: uploadResult.data.path,
+        file_size: replacementFile.size,
+        mime_type: resolvedMimeType,
+        entity_type: "finance_paycheck_document",
+      })
+      .select("id")
+      .single();
+
+    if (fileUploadResult.error) throw fileUploadResult.error;
+
+    const attachmentResult = await supabase.from("finance_record_attachments").insert({
+      entity_type: "finance_paycheck_request",
+      entity_id: request.id,
+      file_upload_id: fileUploadResult.data.id,
+      uploaded_by: currentUserId,
+      notes: "Employee corrected signed paycheck request form",
+      metadata: {
+        bucket: BUCKET_NAME,
+        uploaded_from: "paycheck_request_detail_page",
+        resolved_mime_type: resolvedMimeType,
+        document_role: "employee_signed_paycheck_document",
+      },
+    });
+
+    if (attachmentResult.error) throw attachmentResult.error;
+
     return {
       bucket: BUCKET_NAME,
-      path,
+      path: uploadResult.data.path,
       uploadedAt: new Date().toISOString(),
+      fileUploadId: fileUploadResult.data.id as string,
     };
-  }, [replacementFile, request]);
+  }, [currentUserId, replacementFile, request]);
 
   const updateSignedFormAndMaybeSubmit = useCallback(async () => {
     if (!request || !currentUserId) {
@@ -692,6 +1654,7 @@ export default function PaycheckRequestDetailPage() {
       .update({
         documentation_status: documentationStatus,
         signed_form_status: "uploaded",
+        signed_form_file_upload_id: uploadInfo.fileUploadId,
         signed_form_storage_bucket: uploadInfo.bucket,
         signed_form_storage_path: uploadInfo.path,
         signed_form_external_url: replacementLink.trim() || null,
@@ -727,7 +1690,7 @@ export default function PaycheckRequestDetailPage() {
       await updateSignedFormAndMaybeSubmit();
       setActionMessage("Paycheck request submitted to Finance review.");
       setReplacementFile(null);
-      await loadRequest();
+      await loadRequest("silent");
     } catch (error) {
       console.error("Failed to submit paycheck request:", error);
       setActionError(
@@ -752,26 +1715,15 @@ export default function PaycheckRequestDetailPage() {
           throw new Error("Only the employee owner can confirm paycheck receipt.");
         }
 
-        if (!["payment_sent", "disputed"].includes(request.status)) {
+        if (!canEmployeeConfirmPayment) {
           throw new Error("Payment must be sent before employee confirmation.");
         }
 
-        if (
-          decision === "received_confirmed" &&
-          request.recipient_confirmation_status === "received_confirmed"
-        ) {
-          throw new Error("Payment receipt was already confirmed.");
-        }
-
-        const result = await supabase.rpc(
-          "finance_confirm_paycheck_request_payment",
-          {
-            p_request_id: request.id,
-            p_actor_user_id: currentUserId,
-            p_confirmation_status: decision,
-            p_confirmation_notes: confirmationNotes.trim() || null,
-          }
-        );
+        const result = await supabase.rpc("finance_confirm_paycheck_allocation_received", {
+          p_paycheck_request_id: request.id,
+          p_confirmation_status: decision,
+          p_notes: confirmationNotes.trim() || null,
+        });
 
         if (result.error) throw result.error;
 
@@ -781,7 +1733,7 @@ export default function PaycheckRequestDetailPage() {
             : "Payment confirmation issue reported."
         );
 
-        await loadRequest();
+        await loadRequest("silent");
       } catch (error) {
         console.error("Failed to confirm paycheck payment:", error);
         setActionError(
@@ -794,6 +1746,7 @@ export default function PaycheckRequestDetailPage() {
       }
     },
     [
+      canEmployeeConfirmPayment,
       confirmationNotes,
       currentUserId,
       isEmployeeOwner,
@@ -807,8 +1760,9 @@ export default function PaycheckRequestDetailPage() {
     return (
       <div className="min-h-screen bg-[#05070d] px-4 py-4 text-white md:px-6 md:py-6">
         <div className="mx-auto flex w-full max-w-[1600px] flex-col gap-6">
-          <div className="rounded-[34px] border border-white/10 bg-white/[0.045] p-6">
-            <div className="text-sm text-slate-400">Loading paycheck request...</div>
+          <div className="rounded-[34px] border border-white/10 bg-white/[0.045] p-12 text-center backdrop-blur-xl">
+            <Loader2 className="mx-auto h-8 w-8 animate-spin text-cyan-200" />
+            <div className="mt-4 text-sm text-slate-400">Loading paycheck request...</div>
           </div>
         </div>
       </div>
@@ -819,38 +1773,33 @@ export default function PaycheckRequestDetailPage() {
     return (
       <div className="min-h-screen bg-[#05070d] px-4 py-4 text-white md:px-6 md:py-6">
         <div className="mx-auto flex w-full max-w-[1600px] flex-col gap-6">
-          <div className="rounded-[34px] border border-white/10 bg-white/[0.045] p-6">
+          <div className="rounded-[34px] border border-rose-400/20 bg-rose-500/10 p-12 text-center">
+            <AlertTriangle className="mx-auto h-8 w-8 text-rose-200" />
+            <div className="mt-4 text-lg font-semibold text-white">
+              Paycheck request not found
+            </div>
+            <div className="mt-2 text-sm text-rose-100">
+              {actionError || "The requested paycheck request could not be loaded."}
+            </div>
             <button
               type="button"
               onClick={() => navigate("/finance/transactions/paycheck-requests")}
-              className="mb-5 inline-flex items-center justify-center gap-2 rounded-full border border-white/10 bg-white/[0.05] px-5 py-2 text-[11px] font-semibold uppercase tracking-[0.22em] text-slate-300 transition hover:border-white/20 hover:bg-white/[0.08] hover:text-white"
+              className="mt-6 inline-flex h-11 items-center justify-center gap-2 rounded-2xl border border-white/10 bg-white/[0.05] px-5 text-sm font-semibold text-white transition hover:bg-white/[0.08]"
             >
-              <ArrowRight className="h-3.5 w-3.5 rotate-180" />
+              <ArrowRight className="h-4 w-4 rotate-180" />
               Paycheck Requests
             </button>
-
-            <div className="text-sm text-rose-200">
-              {actionError || "Paycheck request not found."}
-            </div>
           </div>
         </div>
       </div>
     );
   }
 
-  const paymentCurrency =
-    request.payment?.payment_currency_code ||
-    request.payment?.paycheck_currency_code ||
-    requestCurrency;
-
-  const employeeSignedFormExists = hasEmployeeSignedForm(request);
-  const adminSignedFormExists = hasAdminSignedForm(request);
-
   return (
     <div className="min-h-screen bg-[#05070d] px-4 py-4 text-white md:px-6 md:py-6">
       <div className="mx-auto flex w-full max-w-[1600px] flex-col gap-6">
         <header className="relative overflow-hidden rounded-[34px] border border-white/10 bg-white/[0.045] p-6 shadow-2xl shadow-black/30 backdrop-blur-xl">
-          <div className="pointer-events-none absolute inset-0 bg-[radial-gradient(circle_at_top_left,rgba(6,182,212,0.16),transparent_38%),radial-gradient(circle_at_top_right,rgba(139,92,246,0.12),transparent_34%)]" />
+          <div className="pointer-events-none absolute inset-0 bg-[radial-gradient(circle_at_top_left,rgba(6,182,212,0.16),transparent_38%),radial-gradient(circle_at_top_right,rgba(139,92,246,0.12),transparent_34%),radial-gradient(circle_at_bottom_right,rgba(16,185,129,0.10),transparent_30%)]" />
 
           <div className="relative">
             <button
@@ -862,14 +1811,14 @@ export default function PaycheckRequestDetailPage() {
               Paycheck Requests
             </button>
 
-            <div className="grid gap-6 xl:grid-cols-[minmax(0,1fr)_430px] xl:items-stretch">
-              <div className="min-w-0">
+            <div className="grid gap-6 xl:grid-cols-[minmax(0,1fr)_520px] xl:items-end">
+              <div>
                 <div className="inline-flex w-fit items-center gap-2 rounded-full border border-cyan-400/20 bg-cyan-500/10 px-3 py-1 text-[11px] font-semibold uppercase tracking-[0.22em] text-cyan-200">
                   <FileSignature className="h-3.5 w-3.5" />
                   Paycheck Request Detail
                 </div>
 
-                <div className="mt-4 text-sm font-semibold uppercase tracking-[0.18em] text-slate-500">
+                <div className="mt-4 text-[11px] font-semibold uppercase tracking-[0.22em] text-slate-500">
                   {request.request_number || request.reference_number || "Draft Request"}
                 </div>
 
@@ -886,22 +1835,31 @@ export default function PaycheckRequestDetailPage() {
                   <StatusBadge value={request.review_status} />
                   <StatusBadge value={request.signed_form_status} />
                   <StatusBadge value={request.admin_signed_form_status} />
+                  <StatusBadge value={request.payment_status || request.paycheck?.payment_status || "unpaid"} />
                   <StatusBadge value={request.recipient_confirmation_status} />
+                  {isRefreshing ? (
+                    <span className="inline-flex rounded-full border border-white/10 bg-white/[0.06] px-3 py-1 text-[11px] font-semibold uppercase tracking-[0.14em] text-slate-300">
+                      Silent Refresh
+                    </span>
+                  ) : null}
                 </div>
               </div>
 
-              <div className="grid gap-3">
+              <div className="grid gap-3 sm:grid-cols-3">
                 <ValueBlock
                   label="Requested Net"
-                  value={`${requestCurrency} ${formatMoney(request.requested_net_amount)}`}
+                  value={`${requestCurrency} ${formatMoney(targetAmount)}`}
                   detail="Employee paycheck amount requested."
                 />
                 <ValueBlock
-                  label="Payment Status"
-                  value={
-                    <StatusBadge value={request.paycheck?.payment_status || request.status} />
-                  }
-                  detail={`Payment sent: ${formatDateTime(request.payment_sent_at)}`}
+                  label="Paid"
+                  value={`${requestCurrency} ${formatMoney(paidAmount || coveredAmount)}`}
+                  detail="Confirmed paycheck payment coverage."
+                />
+                <ValueBlock
+                  label="Remaining"
+                  value={`${requestCurrency} ${formatMoney(calculatedRemainingAmount || remainingAmount)}`}
+                  detail="Open amount after confirmed payments."
                 />
               </div>
             </div>
@@ -909,22 +1867,41 @@ export default function PaycheckRequestDetailPage() {
         </header>
 
         {actionError ? (
-          <div className="rounded-[24px] border border-rose-400/20 bg-rose-500/10 px-5 py-4 text-sm text-rose-100">
+          <div className="rounded-[24px] border border-rose-400/20 bg-rose-500/10 p-4 text-sm leading-6 text-rose-100">
             {actionError}
           </div>
         ) : null}
 
         {actionMessage ? (
-          <div className="rounded-[24px] border border-emerald-400/20 bg-emerald-500/10 px-5 py-4 text-sm text-emerald-100">
+          <div className="rounded-[24px] border border-emerald-400/20 bg-emerald-500/10 p-4 text-sm leading-6 text-emerald-100">
             {actionMessage}
           </div>
         ) : null}
 
-        <section className="grid items-start gap-6 xl:grid-cols-[minmax(0,1fr)_430px]">
+        <section className="grid gap-4 md:grid-cols-2 xl:grid-cols-5">
+          {timelineItems.map((item) => (
+            <div
+              key={item.label}
+              className="min-h-[156px] rounded-[28px] border border-white/10 bg-white/[0.045] p-5 backdrop-blur-xl"
+            >
+              <div
+                className={`inline-flex rounded-full border px-3 py-1 text-[11px] font-semibold uppercase tracking-[0.16em] ${getStatusToneClasses(
+                  item.raw
+                )}`}
+              >
+                {item.label}
+              </div>
+              <div className="mt-4 text-lg font-semibold text-white">{item.value}</div>
+              <div className="mt-2 text-xs leading-5 text-slate-500">{item.detail}</div>
+            </div>
+          ))}
+        </section>
+
+        <div className="grid items-start gap-6 xl:grid-cols-[minmax(0,1fr)_430px]">
           <div className="grid gap-6">
             <SectionCard
               title="Request Overview"
-              description="Employee, pay profile, period, and current workflow state."
+              description="Employee, company, pay profile, payroll period, and requester-side notes."
               icon={UserRound}
             >
               <div className="mb-5 grid gap-4 md:grid-cols-2">
@@ -933,61 +1910,45 @@ export default function PaycheckRequestDetailPage() {
                   title="Request created by employee"
                   tone="cyan"
                 >
-                  The employee creates the paycheck request, checks the period and
-                  amount, generates the PRC Pay Slip form, signs the employee side,
-                  uploads the signed document, and submits it to Finance.
+                  The employee creates the paycheck request, checks the payroll period and amount,
+                  generates the PRC Pay Slip form, signs the employee side, uploads the signed
+                  document, and submits it to Finance/Admin review.
                 </StageGuide>
 
                 <StageGuide
-                  stage="Stage 2 — Employee Submission"
-                  title="Waiting for Finance review after submission"
+                  stage="Stage 2 — Employee Monitoring"
+                  title="Requester-side status page"
                   tone="violet"
                 >
-                  After submission, the employee cannot approve the request. The
-                  employee can only monitor status, view Finance notes, and upload a
-                  corrected signed form if Finance requests correction.
+                  After submission, the employee monitors review, documents, funding, payment, and
+                  confirmation status. Approval and payment actions are handled by Finance/Admin.
                 </StageGuide>
               </div>
 
-              <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">
-                <ValueBlock
-                  label="Employee"
-                  value={getEmployeeLabel(request)}
-                  detail={getEmployeeSubLabel(request)}
-                />
-                <ValueBlock
-                  label="Period"
-                  value={getRequestPeriodLabel(request)}
-                  detail={`Requested pay date: ${formatDate(request.requested_pay_date)}`}
-                />
-                <ValueBlock
-                  label="Pay Profile"
-                  value={
-                    request.pay_profile
-                      ? `${formatLabel(request.pay_profile.pay_type)} • ${formatLabel(
-                          request.pay_profile.payment_frequency
-                        )}`
-                      : "—"
-                  }
-                  detail={request.pay_profile?.profile_number || "No pay profile linked"}
-                />
-                <ValueBlock label="Request Status" value={<StatusBadge value={request.status} />} />
-                <ValueBlock
-                  label="Review Status"
-                  value={<StatusBadge value={request.review_status} />}
-                  detail={request.review_notes || request.correction_notes || request.rejected_reason}
-                />
-                <ValueBlock
-                  label="Submitted"
-                  value={formatDateTime(request.submitted_at)}
-                  detail={`Created: ${formatDateTime(request.created_at)}`}
-                />
+              <DetailGrid items={overviewItems} />
+            </SectionCard>
+
+            <SectionCard
+              title="Employee Payment Preference"
+              description="Employee-provided receiving preference. This is not connected to company bank accounts."
+              icon={WalletCards}
+            >
+              <div className="mb-5 rounded-[24px] border border-amber-400/20 bg-amber-500/10 p-4">
+                <div className="text-sm font-semibold text-amber-100">
+                  Payment preference only
+                </div>
+                <p className="mt-2 text-xs leading-5 text-amber-100/75">
+                  This section shows how the employee wants to receive the paycheck. It does not
+                  expose internal company bank-account master data and does not execute payment.
+                </p>
               </div>
+
+              <DetailGrid items={paymentPreferenceItems} />
             </SectionCard>
 
             <SectionCard
               title="Paycheck Amounts"
-              description="Requested salary, bonus, reimbursement, deduction, and calculated net amount."
+              description="Requested salary, bonus, reimbursement, deduction, net, paid, and remaining amount."
               icon={WalletCards}
             >
               <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-5">
@@ -1017,37 +1978,53 @@ export default function PaycheckRequestDetailPage() {
                 />
                 <AmountCard
                   label="Net"
-                  value={request.requested_net_amount}
+                  value={targetAmount}
                   currency={requestCurrency}
                   tone="cyan"
+                />
+              </div>
+
+              <div className="mt-4 grid gap-4 md:grid-cols-3">
+                <ValueBlock
+                  label="Paid Amount"
+                  value={`${requestCurrency} ${formatMoney(paidAmount || coveredAmount)}`}
+                  detail="Confirmed amount from payment rollup/distributions."
+                />
+                <ValueBlock
+                  label="Remaining Amount"
+                  value={`${requestCurrency} ${formatMoney(calculatedRemainingAmount || remainingAmount)}`}
+                  detail="Remaining amount after confirmed payments."
+                />
+                <ValueBlock
+                  label="Payment Status"
+                  value={<StatusBadge value={request.payment_status || request.paycheck?.payment_status || "unpaid"} />}
+                  detail="Payment status is updated by Finance/Admin payment distribution."
                 />
               </div>
             </SectionCard>
 
             <SectionCard
               title="Signed Forms"
-              description="Employee-signed form and Finance/Admin-signed form status."
+              description="Employee-signed form and Finance/Admin two-way signed form status."
               icon={UploadCloud}
             >
               <div className="mb-5 grid gap-4 md:grid-cols-2">
                 <StageGuide
-                  stage="Stage 3 — Finance Review"
-                  title="Finance reviews the uploaded employee form"
-                  tone="amber"
+                  stage="Stage 3 — Employee Signed Form"
+                  title="Employee form is required before review"
+                  tone={employeeSignedFormExists ? "emerald" : "amber"}
                 >
-                  Finance opens the employee-signed form from the payroll run page,
-                  verifies the details, signs the manager/admin side, and uploads the
-                  admin-signed form before approval.
+                  The employee uploads or links the signed paycheck form. If Finance requests a
+                  correction, the employee can upload a corrected version from this page.
                 </StageGuide>
 
                 <StageGuide
                   stage="Stage 4 — Admin Signed Form"
-                  title="Two-sided signature required"
+                  title="Finance uploads the two-way signed form"
                   tone={adminSignedFormExists ? "emerald" : "amber"}
                 >
-                  Approval is locked until the admin/manager signed form is uploaded
-                  or linked by Finance. The employee can see the admin signed-form
-                  status here, but cannot upload it.
+                  Finance/Admin downloads the employee signed form, signs the manager side, uploads
+                  the two-way signed document, and then approves the request for payroll.
                 </StageGuide>
               </div>
 
@@ -1059,52 +2036,49 @@ export default function PaycheckRequestDetailPage() {
                         Employee Signed Form
                       </div>
                       <p className="mt-1 text-xs leading-5 text-slate-500">
-                        This is the form uploaded by the employee after signing the
-                        employee signature side.
+                        Uploaded or linked by the employee/requester.
                       </p>
                     </div>
                     <StatusBadge value={request.signed_form_status} />
                   </div>
 
-                  <div className="grid gap-3">
-                    <ValueBlock
-                      label="Employee Form Status"
-                      value={employeeSignedFormExists ? "Attached" : "Missing"}
-                      detail={`Uploaded: ${formatDateTime(request.signed_form_uploaded_at)}`}
-                    />
+                  <ValueBlock
+                    label="Employee Form Status"
+                    value={employeeSignedFormExists ? "Attached" : "Missing"}
+                    detail={`Uploaded: ${formatDateTime(request.signed_form_uploaded_at)}`}
+                  />
 
-                    <div className="flex flex-wrap gap-2">
-                      {signedFormUrl ? (
-                        <a
-                          href={signedFormUrl}
-                          target="_blank"
-                          rel="noreferrer"
-                          className="inline-flex h-10 items-center gap-2 rounded-2xl border border-cyan-400/20 bg-cyan-500/10 px-4 text-sm font-semibold text-cyan-100 transition hover:bg-cyan-500/15"
-                        >
-                          <Download className="h-4 w-4" />
-                          Open Employee File
-                        </a>
-                      ) : null}
+                  <div className="flex flex-wrap gap-2">
+                    {signedFormUrl ? (
+                      <a
+                        href={signedFormUrl}
+                        target="_blank"
+                        rel="noreferrer"
+                        className="inline-flex h-10 items-center gap-2 rounded-2xl border border-cyan-400/20 bg-cyan-500/10 px-4 text-sm font-semibold text-cyan-100 transition hover:bg-cyan-500/15"
+                      >
+                        <Download className="h-4 w-4" />
+                        Open Employee File
+                      </a>
+                    ) : null}
 
-                      {request.signed_form_external_url ? (
-                        <a
-                          href={request.signed_form_external_url}
-                          target="_blank"
-                          rel="noreferrer"
-                          className="inline-flex h-10 items-center gap-2 rounded-2xl border border-emerald-400/20 bg-emerald-500/10 px-4 text-sm font-semibold text-emerald-100 transition hover:bg-emerald-500/15"
-                        >
-                          <ExternalLink className="h-4 w-4" />
-                          Open Employee Link
-                        </a>
-                      ) : null}
-                    </div>
-
-                    {!employeeSignedFormExists ? (
-                      <div className="rounded-2xl border border-rose-400/20 bg-rose-500/10 p-3 text-xs leading-5 text-rose-100">
-                        No employee signed form is attached yet.
-                      </div>
+                    {request.signed_form_external_url ? (
+                      <a
+                        href={request.signed_form_external_url}
+                        target="_blank"
+                        rel="noreferrer"
+                        className="inline-flex h-10 items-center gap-2 rounded-2xl border border-emerald-400/20 bg-emerald-500/10 px-4 text-sm font-semibold text-emerald-100 transition hover:bg-emerald-500/15"
+                      >
+                        <ExternalLink className="h-4 w-4" />
+                        Open Employee Link
+                      </a>
                     ) : null}
                   </div>
+
+                  {!employeeSignedFormExists ? (
+                    <div className="rounded-2xl border border-rose-400/20 bg-rose-500/10 p-3 text-xs leading-5 text-rose-100">
+                      No employee signed form is attached yet.
+                    </div>
+                  ) : null}
                 </div>
 
                 <div className="grid gap-4 rounded-[24px] border border-white/10 bg-black/20 p-4">
@@ -1114,66 +2088,62 @@ export default function PaycheckRequestDetailPage() {
                         Admin / Manager Signed Form
                       </div>
                       <p className="mt-1 text-xs leading-5 text-slate-500">
-                        Finance/Admin uploads this after reviewing and signing the
-                        manager/admin side.
+                        Uploaded by Finance/Admin after manager-side signature.
                       </p>
                     </div>
                     <StatusBadge value={request.admin_signed_form_status} />
                   </div>
 
-                  <div className="grid gap-3">
-                    <ValueBlock
-                      label="Admin Form Status"
-                      value={adminSignedFormExists ? "Attached" : "Missing"}
-                      detail={`Uploaded: ${formatDateTime(request.admin_signed_form_uploaded_at)}`}
-                    />
+                  <ValueBlock
+                    label="Admin Form Status"
+                    value={adminSignedFormExists ? "Attached" : "Missing"}
+                    detail={`Uploaded: ${formatDateTime(request.admin_signed_form_uploaded_at)}`}
+                  />
 
-                    <div className="flex flex-wrap gap-2">
-                      {adminSignedFormUrl ? (
-                        <a
-                          href={adminSignedFormUrl}
-                          target="_blank"
-                          rel="noreferrer"
-                          className="inline-flex h-10 items-center gap-2 rounded-2xl border border-violet-400/20 bg-violet-500/10 px-4 text-sm font-semibold text-violet-100 transition hover:bg-violet-500/15"
-                        >
-                          <Download className="h-4 w-4" />
-                          Open Admin File
-                        </a>
-                      ) : null}
-
-                      {request.admin_signed_form_external_url ? (
-                        <a
-                          href={request.admin_signed_form_external_url}
-                          target="_blank"
-                          rel="noreferrer"
-                          className="inline-flex h-10 items-center gap-2 rounded-2xl border border-emerald-400/20 bg-emerald-500/10 px-4 text-sm font-semibold text-emerald-100 transition hover:bg-emerald-500/15"
-                        >
-                          <ExternalLink className="h-4 w-4" />
-                          Open Admin Link
-                        </a>
-                      ) : null}
-                    </div>
-
-                    {request.admin_signed_form_notes ? (
-                      <div className="rounded-2xl border border-white/10 bg-white/[0.04] p-3 text-xs leading-5 text-slate-300">
-                        {request.admin_signed_form_notes}
-                      </div>
+                  <div className="flex flex-wrap gap-2">
+                    {adminSignedFormUrl ? (
+                      <a
+                        href={adminSignedFormUrl}
+                        target="_blank"
+                        rel="noreferrer"
+                        className="inline-flex h-10 items-center gap-2 rounded-2xl border border-violet-400/20 bg-violet-500/10 px-4 text-sm font-semibold text-violet-100 transition hover:bg-violet-500/15"
+                      >
+                        <Download className="h-4 w-4" />
+                        Open Admin File
+                      </a>
                     ) : null}
 
-                    {!adminSignedFormExists ? (
-                      <div className="rounded-2xl border border-amber-400/20 bg-amber-500/10 p-3 text-xs leading-5 text-amber-100">
-                        Waiting for Finance/Admin to upload the reviewed and signed
-                        admin-side form.
-                      </div>
+                    {request.admin_signed_form_external_url ? (
+                      <a
+                        href={request.admin_signed_form_external_url}
+                        target="_blank"
+                        rel="noreferrer"
+                        className="inline-flex h-10 items-center gap-2 rounded-2xl border border-emerald-400/20 bg-emerald-500/10 px-4 text-sm font-semibold text-emerald-100 transition hover:bg-emerald-500/15"
+                      >
+                        <ExternalLink className="h-4 w-4" />
+                        Open Admin Link
+                      </a>
                     ) : null}
                   </div>
+
+                  {request.admin_signed_form_notes ? (
+                    <div className="rounded-2xl border border-white/10 bg-white/[0.04] p-3 text-xs leading-5 text-slate-300">
+                      {request.admin_signed_form_notes}
+                    </div>
+                  ) : null}
+
+                  {!adminSignedFormExists ? (
+                    <div className="rounded-2xl border border-amber-400/20 bg-amber-500/10 p-3 text-xs leading-5 text-amber-100">
+                      Waiting for Finance/Admin to upload the two-way signed form.
+                    </div>
+                  ) : null}
                 </div>
               </div>
 
               {canEmployeeSubmit ? (
                 <div className="mt-5 grid gap-4 rounded-[24px] border border-cyan-400/20 bg-cyan-500/10 p-4">
                   <StageGuide
-                    stage="Stage 6 — Correction Loop"
+                    stage="Correction / Submission"
                     title={
                       request.status === "needs_correction"
                         ? "Correction requested by Finance"
@@ -1182,8 +2152,8 @@ export default function PaycheckRequestDetailPage() {
                     tone={request.status === "needs_correction" ? "amber" : "cyan"}
                   >
                     {request.status === "needs_correction"
-                      ? "Read the Finance correction instructions, upload the corrected signed form, and resubmit it to Finance review."
-                      : "Upload the employee-signed form or provide a secure signed-form link, then submit the request to Finance review."}
+                      ? "Read Finance correction instructions, upload the corrected signed form, and resubmit to Finance review."
+                      : "Upload the employee-signed form or provide a secure signed-form link, then submit to Finance review."}
                   </StageGuide>
 
                   {request.correction_notes ? (
@@ -1219,7 +2189,7 @@ export default function PaycheckRequestDetailPage() {
                         onChange={(event) => setReplacementLink(event.target.value)}
                         placeholder="Paste signed form link if stored externally"
                         disabled={isWorking}
-                        className={`${inputClass()} pl-11 disabled:cursor-not-allowed disabled:opacity-50`}
+                        className={`${inputClass()} pl-11`}
                       />
                     </div>
                   </label>
@@ -1230,7 +2200,11 @@ export default function PaycheckRequestDetailPage() {
                     disabled={!canEmployeeSubmit}
                     className="inline-flex h-11 w-fit items-center justify-center gap-2 rounded-2xl border border-cyan-400/20 bg-cyan-500/10 px-4 text-sm font-semibold text-cyan-100 transition hover:bg-cyan-500/15 disabled:cursor-not-allowed disabled:opacity-50"
                   >
-                    <Send className="h-4 w-4" />
+                    {isWorking ? (
+                      <Loader2 className="h-4 w-4 animate-spin" />
+                    ) : (
+                      <Send className="h-4 w-4" />
+                    )}
                     {request.status === "needs_correction"
                       ? "Resubmit Corrected Form"
                       : "Submit To Finance Review"}
@@ -1239,15 +2213,15 @@ export default function PaycheckRequestDetailPage() {
               ) : null}
             </SectionCard>
 
-            <SectionCard
+                        <SectionCard
               title="Finance Review Status"
-              description="Finance review result is shown here. Approval actions happen only inside the payroll run page."
-              icon={FileSignature}
+              description="Finance/Admin review result is shown here. Approval actions happen only inside the payroll review page."
+              icon={FileCheck2}
             >
               <div className="mb-5">
                 <StageGuide
-                  stage="Stage 5 — Approval / Correction / Rejection"
-                  title="Finance decision is status-only on this page"
+                  stage="Finance Decision"
+                  title="Review result is read-only on this page"
                   tone={
                     request.review_status === "approved"
                       ? "emerald"
@@ -1258,48 +2232,13 @@ export default function PaycheckRequestDetailPage() {
                           : "cyan"
                   }
                 >
-                  Finance/Admin reviews this request from the payroll run page. The
-                  employee cannot approve, reject, or request correction from this
-                  page. This section only shows the current review result and notes.
+                  Finance/Admin reviews this request from the payroll review page. The employee
+                  cannot approve, reject, upload the admin signed form, allocate funds, or distribute
+                  payment from this page.
                 </StageGuide>
               </div>
 
-              <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">
-                <ValueBlock
-                  label="Current Review"
-                  value={<StatusBadge value={request.review_status} />}
-                  detail={`Reviewed: ${formatDateTime(request.reviewed_at)}`}
-                />
-                <ValueBlock
-                  label="Approved"
-                  value={formatDateTime(request.approved_at)}
-                  detail={request.approved_by ? "Approved by Finance/Admin." : "Not approved yet."}
-                />
-                <ValueBlock
-                  label="Admin Signed Form"
-                  value={<StatusBadge value={request.admin_signed_form_status} />}
-                  detail={
-                    adminSignedFormExists
-                      ? `Uploaded: ${formatDateTime(request.admin_signed_form_uploaded_at)}`
-                      : "Required before Finance approval."
-                  }
-                />
-                <ValueBlock
-                  label="Review Notes"
-                  value={request.review_notes || "—"}
-                  detail="General Finance review notes."
-                />
-                <ValueBlock
-                  label="Correction Instructions"
-                  value={request.correction_notes || "—"}
-                  detail="Shown when Finance requests correction."
-                />
-                <ValueBlock
-                  label="Rejected Reason"
-                  value={request.rejected_reason || "—"}
-                  detail="Shown only if the request is rejected."
-                />
-              </div>
+              <DetailGrid items={financeReviewItems} />
             </SectionCard>
 
             <SectionCard
@@ -1309,77 +2248,129 @@ export default function PaycheckRequestDetailPage() {
             >
               <div className="mb-5">
                 <StageGuide
-                  stage="Stage 7 — Link To Payroll Run"
+                  stage="Payroll Processing"
                   title="Finance links approved requests"
                   tone="violet"
                 >
-                  Only Finance/Admin can link an approved request into a payroll
-                  basket/run. Linking creates or connects the paycheck line for later
-                  payment execution.
+                  Only Finance/Admin can link an approved request into a payroll basket/run.
+                  Linking creates or connects the paycheck line for later funding and payment
+                  distribution.
                 </StageGuide>
               </div>
 
-              <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">
-                <ValueBlock
-                  label="Payroll Run"
-                  value={request.payroll_run?.run_number || "Not linked"}
-                  detail={
-                    request.payroll_run
-                      ? `Status: ${formatLabel(request.payroll_run.status)}`
-                      : "Finance links approved requests to a payroll run."
-                  }
-                />
+              <DetailGrid items={payrollLinkItems} />
+            </SectionCard>
 
-                <ValueBlock
-                  label="Paycheck"
-                  value={request.paycheck?.paycheck_number || "Not created"}
-                  detail={
-                    request.paycheck
-                      ? `Payment status: ${formatLabel(request.paycheck.payment_status)}`
-                      : "Paycheck is created when linked to payroll."
-                  }
-                />
+            <SectionCard
+              title="Funding & Payment Distribution"
+              description="Shows Payroll Funding Pool usage and Paycheck Payment Distribution records covering this paycheck request."
+              icon={WalletCards}
+            >
+              {enrichedAllocations.length === 0 ? (
+                <div className="rounded-[24px] border border-dashed border-white/10 bg-black/20 px-6 py-12 text-center">
+                  <WalletCards className="mx-auto h-8 w-8 text-slate-500" />
+                  <div className="mt-4 text-sm font-semibold text-white">
+                    No payment allocations yet
+                  </div>
+                  <p className="mt-2 text-sm leading-6 text-slate-500">
+                    After Finance/Admin approves the request, it can be included in a Payroll
+                    Funding Pool and payment distribution. The employee can monitor those results
+                    here.
+                  </p>
+                </div>
+              ) : (
+                <div className="overflow-x-auto rounded-[24px] border border-white/10 bg-black/20">
+                  <div className="max-h-[520px] overflow-y-auto">
+                    <table className="w-full min-w-[1280px] border-collapse">
+                      <thead className="sticky top-0 z-20 border-b border-white/10 bg-black/70 backdrop-blur-xl">
+                        <tr>
+                          <th className="px-5 py-4 text-left text-[11px] font-semibold uppercase tracking-[0.18em] text-slate-500">
+                            Distribution
+                          </th>
+                          <th className="px-5 py-4 text-left text-[11px] font-semibold uppercase tracking-[0.18em] text-slate-500">
+                            Funding Pool
+                          </th>
+                          <th className="px-5 py-4 text-right text-[11px] font-semibold uppercase tracking-[0.18em] text-slate-500">
+                            Payment Amount
+                          </th>
+                          <th className="px-5 py-4 text-right text-[11px] font-semibold uppercase tracking-[0.18em] text-slate-500">
+                            Paycheck Coverage
+                          </th>
+                          <th className="px-5 py-4 text-right text-[11px] font-semibold uppercase tracking-[0.18em] text-slate-500">
+                            Funding Used
+                          </th>
+                          <th className="px-5 py-4 text-left text-[11px] font-semibold uppercase tracking-[0.18em] text-slate-500">
+                            Employee Confirmation
+                          </th>
+                        </tr>
+                      </thead>
 
-                <ValueBlock
-                  label="Payment"
-                  value={request.payment?.payment_number || "Not sent"}
-                  detail={
-                    request.payment
-                      ? `Status: ${formatLabel(request.payment.status)} • Date: ${formatDate(
-                          request.payment.payment_date
-                        )}`
-                      : "Payment appears after Finance sends the paycheck."
-                  }
-                />
+                      <tbody>
+                        {enrichedAllocations.map((allocation) => (
+                          <tr
+                            key={allocation.id}
+                            className="border-b border-white/5 text-sm text-slate-300 transition hover:bg-white/[0.035]"
+                          >
+                            <td className="min-w-[240px] px-5 py-4">
+                              <div className="font-semibold text-cyan-200">
+                                {allocation.distribution?.reference_number ||
+                                  allocation.distribution?.distribution_number ||
+                                  "Paycheck Payment Distribution"}
+                              </div>
+                              <div className="mt-1 flex flex-wrap items-center gap-2 text-xs text-slate-500">
+                                <span>
+                                  {allocation.distribution
+                                    ? formatDate(allocation.distribution.payment_date)
+                                    : "—"}
+                                </span>
+                                <StatusBadge value={allocation.distribution?.status} />
+                              </div>
+                            </td>
 
-                <ValueBlock
-                  label="Paycheck Amount"
-                  value={`${request.payment?.paycheck_currency_code || requestCurrency} ${formatMoney(
-                    request.payment?.paycheck_amount || request.requested_net_amount
-                  )}`}
-                  detail="Amount counted against the paycheck balance."
-                />
+                            <td className="min-w-[220px] px-5 py-4">
+                              {allocation.fundingBatch?.batch_number || "—"}
+                              {allocation.fundingBatch ? (
+                                <div className="mt-1 text-xs text-slate-500">
+                                  {formatDate(allocation.fundingBatch.allocation_date)}
+                                </div>
+                              ) : null}
+                            </td>
 
-                <ValueBlock
-                  label="Payment Amount"
-                  value={`${paymentCurrency} ${formatMoney(
-                    request.payment?.payment_amount || request.payment?.amount
-                  )}`}
-                  detail={
-                    request.payment?.conversion_rate
-                      ? `Rate ${request.payment.conversion_rate} on ${formatDate(
-                          request.payment.conversion_date
-                        )} via ${request.payment.conversion_source || "conversion API"}`
-                      : "Conversion details appear when payment currency differs."
-                  }
-                />
+                            <td className="whitespace-nowrap px-5 py-4 text-right font-semibold text-white">
+                              {allocation.paymentCurrencyCode}{" "}
+                              {formatMoney(allocation.paymentCurrencyAmount)}
+                            </td>
 
-                <ValueBlock
-                  label="Recipient Confirmation"
-                  value={<StatusBadge value={request.recipient_confirmation_status} />}
-                  detail={request.confirmation_notes || "Employee confirms after payment is sent."}
-                />
-              </div>
+                            <td className="whitespace-nowrap px-5 py-4 text-right font-semibold text-emerald-100">
+                              {allocation.paycheckCurrencyCode}{" "}
+                              {formatMoney(allocation.paycheckCurrencyAmount)}
+                            </td>
+
+                            <td className="whitespace-nowrap px-5 py-4 text-right font-semibold text-violet-100">
+                              {allocation.fundingCurrencyCodeValue}{" "}
+                              {formatMoney(allocation.fundingCurrencyUsed)}
+                            </td>
+
+                            <td className="px-5 py-4">
+                              <StatusBadge value={allocation.recipient_confirmation_status} />
+                              {allocation.recipient_confirmation_notes ? (
+                                <div className="mt-2 max-w-[260px] text-xs leading-5 text-slate-500">
+                                  {allocation.recipient_confirmation_notes}
+                                </div>
+                              ) : null}
+                              {allocation.recipient_dispute_reason ? (
+                                <div className="mt-2 max-w-[260px] text-xs leading-5 text-rose-200">
+                                  {allocation.recipient_dispute_reason}
+                                </div>
+                              ) : null}
+                            </td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </div>
+                </div>
+              )}
             </SectionCard>
 
             <SectionCard
@@ -1389,13 +2380,12 @@ export default function PaycheckRequestDetailPage() {
             >
               <div className="mb-5">
                 <StageGuide
-                  stage="Stage 9 — Employee Payment Confirmation"
+                  stage="Employee Confirmation"
                   title="Confirm only after money arrives"
                   tone="emerald"
                 >
-                  After Finance records payment, the employee confirms received,
-                  not received, or disputed. This action is one-click protected and
-                  becomes disabled after the confirmation status changes.
+                  After Finance/Admin records payment, the employee confirms received, not received,
+                  or disputed. This action becomes disabled after the confirmation status changes.
                 </StageGuide>
               </div>
 
@@ -1407,7 +2397,7 @@ export default function PaycheckRequestDetailPage() {
                     onChange={(event) => setConfirmationNotes(event.target.value)}
                     placeholder="Optional note: received, not received, payment issue, or dispute details"
                     disabled={isWorking || !canEmployeeConfirmPayment}
-                    className={`${textareaClass()} disabled:cursor-not-allowed disabled:opacity-50`}
+                    className={textareaClass()}
                   />
                 </label>
 
@@ -1459,8 +2449,8 @@ export default function PaycheckRequestDetailPage() {
                   Workflow Status
                 </div>
                 <p className="mt-1 text-xs leading-5 text-slate-500">
-                  Request, employee form, admin form, review, payroll, payment, and
-                  confirmation state.
+                  Request, employee form, admin form, review, payroll, payment, and confirmation
+                  state.
                 </p>
               </div>
 
@@ -1508,12 +2498,9 @@ export default function PaycheckRequestDetailPage() {
                 />
 
                 <ValueBlock
-                  label="Payroll Link"
-                  value={request.linked_payroll_run_id ? "Linked" : "Not Linked"}
-                  detail={
-                    request.payroll_run?.run_number ||
-                    "Waiting for Finance/Admin payroll run"
-                  }
+                  label="Funding"
+                  value={<StatusBadge value={request.funding_status || "not_allocated"} />}
+                  detail="Funding Pool status is controlled by Finance/Admin."
                 />
 
                 <ValueBlock
@@ -1521,9 +2508,10 @@ export default function PaycheckRequestDetailPage() {
                   value={
                     <StatusBadge
                       value={
+                        request.payment_status ||
                         request.payment?.status ||
                         request.paycheck?.payment_status ||
-                        "pending"
+                        "unpaid"
                       }
                     />
                   }
@@ -1577,17 +2565,115 @@ export default function PaycheckRequestDetailPage() {
                 <ValueBlock
                   label="Payment Sent"
                   value={formatDateTime(request.payment_sent_at)}
-                  detail="Finance sent paycheck payment."
+                  detail={request.payment?.payment_number || "No payment number yet."}
                 />
                 <ValueBlock
-                  label="Confirmed"
+                  label="Payment Confirmed"
                   value={formatDateTime(request.payment_confirmed_at)}
-                  detail="Employee confirmed payment received."
+                  detail={request.confirmation_notes || "No confirmation notes yet."}
                 />
               </div>
             </section>
+
+            <section className="overflow-hidden rounded-[30px] border border-white/10 bg-white/[0.045] backdrop-blur-xl">
+              <div className="border-b border-white/10 px-5 py-4">
+                <div className="text-sm font-semibold uppercase tracking-[0.18em] text-slate-400">
+                  Attached Documents
+                </div>
+                <p className="mt-1 text-xs leading-5 text-slate-500">
+                  Paycheck request files linked through Finance attachments.
+                </p>
+              </div>
+
+              {attachments.length === 0 ? (
+                <div className="p-5 text-sm text-slate-500">No attachments found.</div>
+              ) : (
+                <div className="max-h-[430px] overflow-y-auto p-5">
+                  <div className="grid gap-3">
+                    {attachments.map((attachment) => (
+                      <div
+                        key={attachment.id}
+                        className="rounded-[24px] border border-white/10 bg-black/20 p-4"
+                      >
+                        <div className="min-w-0">
+                          <div className="truncate text-sm font-semibold text-white">
+                            {attachment.fileUpload?.file_name || "File"}
+                          </div>
+                          <div className="mt-1 text-xs text-slate-500">
+                            {attachment.fileUpload?.mime_type || "Unknown type"} •{" "}
+                            {formatDateTime(attachment.created_at)}
+                          </div>
+                          {attachment.metadata?.document_role ? (
+                            <div className="mt-1 text-xs text-cyan-200">
+                              {formatLabel(attachment.metadata.document_role)}
+                            </div>
+                          ) : null}
+                        </div>
+
+                        {attachment.signedUrl ? (
+                          <a
+                            href={attachment.signedUrl}
+                            target="_blank"
+                            rel="noreferrer"
+                            className="mt-3 inline-flex h-9 items-center justify-center gap-2 rounded-full border border-cyan-400/20 bg-cyan-500/10 px-4 text-xs font-semibold uppercase tracking-[0.14em] text-cyan-100 transition hover:bg-cyan-500/15"
+                          >
+                            <Download className="h-3.5 w-3.5" />
+                            Open
+                          </a>
+                        ) : null}
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
+            </section>
+
+            <section className="overflow-hidden rounded-[30px] border border-white/10 bg-white/[0.045] backdrop-blur-xl">
+              <div className="border-b border-white/10 px-5 py-4">
+                <div className="text-sm font-semibold uppercase tracking-[0.18em] text-slate-400">
+                  Quick Links
+                </div>
+              </div>
+
+              <div className="grid gap-3 p-5">
+                <button
+                  type="button"
+                  onClick={() => navigate("/finance/transactions/paycheck-requests")}
+                  className="inline-flex h-11 items-center justify-center gap-2 rounded-2xl border border-white/10 bg-white/[0.05] px-4 text-sm font-semibold text-slate-300 transition hover:bg-white/[0.08] hover:text-white"
+                >
+                  <ArrowRight className="h-4 w-4 rotate-180" />
+                  Paycheck Requests
+                </button>
+
+                {request.linked_payment_distribution_id ? (
+                  <button
+                    type="button"
+                    onClick={() =>
+                      navigate(
+                        `/finance/transactions/payroll/${request.linked_payment_distribution_id}`
+                      )
+                    }
+                    className="inline-flex h-11 items-center justify-center gap-2 rounded-2xl border border-emerald-400/20 bg-emerald-500/10 px-4 text-sm font-semibold text-emerald-100 transition hover:bg-emerald-500/15"
+                  >
+                    <WalletCards className="h-4 w-4" />
+                    Linked Distribution
+                  </button>
+                ) : null}
+
+                {isEmployeeOwner ? (
+                  <div className="rounded-[24px] border border-cyan-400/20 bg-cyan-500/10 p-4 text-xs leading-5 text-cyan-100">
+                    You are the requester/employee owner for this paycheck request.
+                  </div>
+                ) : (
+                  <div className="rounded-[24px] border border-amber-400/20 bg-amber-500/10 p-4 text-xs leading-5 text-amber-100">
+                    This page is requester-focused. Employee actions are disabled because you are
+                    not the requester owner.
+                  </div>
+                )}
+              </div>
+            </section>
           </aside>
-        </section>
+        </div>
       </div>
     </div>
   );

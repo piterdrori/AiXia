@@ -9,7 +9,6 @@ import {
   Eye,
   FileText,
   Loader2,
-  Receipt,
   RotateCcw,
   Search,
   ShieldCheck,
@@ -976,12 +975,6 @@ export default function FinancePayrollControlPage() {
       };
     });
   }, [allocationsByDistributionId, bankAccountMap, companyMap, fundingBatchMap, paymentDistributions]);
-
-  const enrichedExecutionRecords = useMemo<ExecutionRecord[]>(() => {
-    return [...enrichedFundingBatches, ...enrichedDistributions].sort((a, b) =>
-      String(b.updated_at || "").localeCompare(String(a.updated_at || ""))
-    );
-  }, [enrichedFundingBatches, enrichedDistributions]);
 
   const normalizedSearch = searchQuery.trim().toLowerCase();
 

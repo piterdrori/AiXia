@@ -259,6 +259,7 @@ type EnrichedDistribution = PaymentDistributionRow & {
   bankLabel: string;
   allocationCount: number;
   allocatedRequestAmount: number;
+  requestCoverageCurrencyCode: string;
   paymentCurrencyAmount: number;
   fundingCurrencyAmountCalculated: number;
 };
@@ -401,6 +402,10 @@ function formatLabel(value: string | null | undefined) {
     .filter(Boolean)
     .map((part) => part.charAt(0).toUpperCase() + part.slice(1))
     .join(" ");
+}
+
+function normalizeCurrencyCode(value: string | null | undefined) {
+  return (value || "").trim().toUpperCase();
 }
 
 function getToneClasses(tone: Tone) {
@@ -932,6 +937,23 @@ export default function FinancePayrollControlPage() {
         0
       );
 
+      const requestCoverageCurrencyCodes = Array.from(
+        new Set(
+          distributionAllocations
+            .map((allocation) => normalizeCurrencyCode(allocation.currency_code))
+            .filter(Boolean)
+        )
+      );
+
+      const requestCoverageCurrencyCode =
+        requestCoverageCurrencyCodes.length === 1
+          ? requestCoverageCurrencyCodes[0]
+          : requestCoverageCurrencyCodes.length > 1
+            ? "MIXED"
+            : normalizeCurrencyCode(distribution.metadata?.paycheck_currency_code as string | null) ||
+              normalizeCurrencyCode(distribution.payment_currency_code) ||
+              "USD";
+
       const paymentCurrencyAmount =
         toNumber(distribution.metadata?.payment_currency_amount) ||
         distributionAllocations.reduce(
@@ -970,6 +992,7 @@ export default function FinancePayrollControlPage() {
         allocationCount:
           Number(distribution.metadata?.allocation_count ?? distributionAllocations.length) || 0,
         allocatedRequestAmount,
+        requestCoverageCurrencyCode,
         paymentCurrencyAmount,
         fundingCurrencyAmountCalculated,
       };
@@ -1896,7 +1919,7 @@ export default function FinancePayrollControlPage() {
                 </>
               ) : (
                 <>
-                  {record.payment_currency_code || "USD"}{" "}
+                  {record.requestCoverageCurrencyCode}{" "}
                   {formatMoney(record.allocatedRequestAmount)}
                   <div className="mt-1 text-xs text-slate-500">Request coverage</div>
                 </>

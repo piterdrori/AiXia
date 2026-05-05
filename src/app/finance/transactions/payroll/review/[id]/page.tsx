@@ -863,9 +863,9 @@ export default function FinancePayrollReviewDetailPage() {
   const hasAdminSignedDocument =
     Boolean(request?.admin_signed_form_storage_bucket && request.admin_signed_form_storage_path) ||
     Boolean(request?.admin_signed_form_external_url) ||
-    adminDocumentStatus === "admin_signed" ||
-    adminDocumentStatus === "two_way_signed" ||
-    adminDocumentStatus === "verified";
+    adminDocumentStatus === "uploaded" ||
+    adminDocumentStatus === "linked" ||
+    adminDocumentStatus === "files_and_links";
   const isApprovedForPayroll =
     requestStatus === "approved_for_payroll" || reviewStatus === "approved";
   const hasPaymentCoverage = paidAmount > 0 || coveredAmount > 0;
@@ -1551,7 +1551,7 @@ export default function FinancePayrollReviewDetailPage() {
             review_status: "approved",
             documentation_status: "verified",
             signed_form_status: request.signed_form_status || "uploaded",
-            admin_signed_form_status: request.admin_signed_form_status || "admin_signed",
+            admin_signed_form_status: request.admin_signed_form_status || "uploaded",
             reviewed_at: new Date().toISOString(),
             reviewed_by: currentUserId,
             approved_at: new Date().toISOString(),
@@ -1633,7 +1633,7 @@ export default function FinancePayrollReviewDetailPage() {
         const updateResult = await supabase
           .from("finance_paycheck_requests")
           .update({
-            admin_signed_form_status: "admin_signed",
+            admin_signed_form_status: "uploaded",
             admin_signed_form_storage_bucket: "finance-paycheck-documents",
             admin_signed_form_storage_path: uploadResult.data.path,
             admin_signed_form_uploaded_at: new Date().toISOString(),

@@ -80,22 +80,6 @@ type CompanyRow = {
   status: string;
 };
 
-type BankAccountRow = {
-  id: string;
-  name: string | null;
-  bank_name: string | null;
-  institution_name: string | null;
-  masked_account_number: string | null;
-  currency_code: string | null;
-  company_id: string | null;
-  beneficiary_name: string | null;
-  iban: string | null;
-  swift_code: string | null;
-  account_identifier_type: string | null;
-  account_identifier_value: string | null;
-  is_default: boolean | null;
-};
-
 type PrintCompanyRow = {
   id: string;
   company_name: string | null;
@@ -116,11 +100,17 @@ type PrintCompanyRow = {
 
 type SocialInsuranceContributionType = "by_employee" | "by_employer";
 
+type PaymentTransferMethod =
+  | "bank_transfer"
+  | "cash"
+  | "digital_wallet"
+  | "company_method"
+  | "other";
+
 type FormState = {
   companyId: string;
   employeeRefId: string;
   payProfileId: string;
-  requestedBankAccountId: string;
   joinDate: string;
   periodStart: string;
   periodEnd: string;
@@ -130,6 +120,9 @@ type FormState = {
   bonusAmount: string;
   deductionAmount: string;
   reimbursementAmount: string;
+  paymentTransferMethod: PaymentTransferMethod;
+  paymentTransferInstructions: string;
+  paymentTransferContact: string;
   socialInsuranceContributionType: SocialInsuranceContributionType;
   socialInsuranceContributionDetails: string;
   signedFormExternalUrl: string;
@@ -144,6 +137,38 @@ type UploadedSignedFormInfo = {
 };
 
 const BUCKET_NAME = "finance-paycheck-forms";
+
+const PAYMENT_TRANSFER_METHODS: Array<{
+  value: PaymentTransferMethod;
+  label: string;
+  helper: string;
+}> = [
+  {
+    value: "bank_transfer",
+    label: "Bank Transfer",
+    helper: "Employee provides bank / account / beneficiary details for Finance to use later.",
+  },
+  {
+    value: "digital_wallet",
+    label: "Digital Wallet",
+    helper: "Employee provides wallet type, account ID, phone, email, or payment handle.",
+  },
+  {
+    value: "cash",
+    label: "Cash",
+    helper: "Employee requests cash payment where this is allowed by company policy.",
+  },
+  {
+    value: "company_method",
+    label: "Company Default Method",
+    helper: "Finance/Admin will use the company’s existing payroll payment method.",
+  },
+  {
+    value: "other",
+    label: "Other",
+    helper: "Employee writes a custom payment preference for Finance/Admin review.",
+  },
+];
 
 function todayDate() {
   return new Date().toISOString().slice(0, 10);
@@ -280,33 +305,18 @@ function buildCompanyAddress(row: CompanyRow | null | undefined) {
     .join("\n");
 }
 
-function buildBankLabel(row: BankAccountRow | null | undefined) {
-  if (!row) return "Select requested bank account";
-
-  return [
-    row.name || row.bank_name || row.institution_name || "Bank account",
-    row.currency_code,
-    row.masked_account_number,
-  ]
-    .filter(Boolean)
-    .join(" • ");
+function getTransferMethodLabel(value: PaymentTransferMethod | string | null | undefined) {
+  return (
+    PAYMENT_TRANSFER_METHODS.find((method) => method.value === value)?.label ||
+    formatLabel(value)
+  );
 }
 
-function buildBankIdentifier(row: BankAccountRow | null | undefined) {
-  if (!row) return "Employee payment destination";
-
-  if (row.iban) return `IBAN ${row.iban}`;
-  if (row.swift_code) return `SWIFT ${row.swift_code}`;
-
-  if (row.account_identifier_type === "swift" && row.account_identifier_value) {
-    return `SWIFT ${row.account_identifier_value}`;
-  }
-
-  if (row.account_identifier_value) {
-    return `Identifier ${row.account_identifier_value}`;
-  }
-
-  return row.beneficiary_name || "Bank details available from master data";
+function getTransferMethodHelper(value: PaymentTransferMethod | string | null | undefined) {
+  return (
+    PAYMENT_TRANSFER_METHODS.find((method) => method.value === value)?.helper ||
+    "Finance/Admin will review this payment preference."
+  );
 }
 
 function sanitizePathPart(value: string) {
@@ -368,16 +378,15 @@ function SectionCard({
 }) {
   return (
     <section className="overflow-hidden rounded-[30px] border border-white/10 bg-white/[0.045] backdrop-blur-xl">
-      <div className="flex items-start justify-between gap-4 border-b border-white/10 px-5 py-4">
-        <div className="min-w-0">
+      <div className="flex items-start gap-4 border-b border-white/10 px-5 py-4">
+        <div className="rounded-2xl border border-cyan-400/15 bg-cyan-500/10 p-3 text-cyan-200">
+          <Icon className="h-4 w-4" />
+        </div>
+        <div>
           <div className="text-sm font-semibold uppercase tracking-[0.18em] text-slate-400">
             {title}
           </div>
           <p className="mt-1 text-xs leading-5 text-slate-500">{description}</p>
-        </div>
-
-        <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-2xl border border-cyan-400/20 bg-cyan-500/10 text-cyan-200">
-          <Icon className="h-5 w-5" />
         </div>
       </div>
 
@@ -387,21 +396,38 @@ function SectionCard({
 }
 
 function SummaryBlock({
-  label,
+  title,
   value,
-  detail,
+  subtitle,
 }: {
-  label: string;
+  title: string;
   value: string;
-  detail: string;
+  subtitle: string;
 }) {
   return (
-    <div className="rounded-[24px] border border-white/10 bg-black/20 p-4">
+    <div className="min-h-[148px] rounded-[24px] border border-white/10 bg-black/20 p-4">
       <div className="text-[11px] font-semibold uppercase tracking-[0.2em] text-slate-500">
-        {label}
+        {title}
       </div>
-      <div className="mt-2 text-2xl font-semibold text-white">{value}</div>
-      <div className="mt-2 text-sm leading-6 text-slate-400">{detail}</div>
+      <div className="mt-2 break-words text-2xl font-semibold text-white">{value}</div>
+      <div className="mt-2 text-sm leading-6 text-slate-400">{subtitle}</div>
+    </div>
+  );
+}
+
+function SmallInfoPill({
+  title,
+  value,
+}: {
+  title: string;
+  value: string;
+}) {
+  return (
+    <div className="rounded-2xl border border-white/10 bg-black/20 px-4 py-3">
+      <div className="text-[10px] font-semibold uppercase tracking-[0.18em] text-slate-500">
+        {title}
+      </div>
+      <div className="mt-1 text-sm font-semibold text-slate-200">{value}</div>
     </div>
   );
 }
@@ -441,14 +467,12 @@ export default function NewPaycheckRequestPage() {
   const [payProfiles, setPayProfiles] = useState<PayProfileRow[]>([]);
   const [currencies, setCurrencies] = useState<CurrencyRow[]>([]);
   const [companies, setCompanies] = useState<CompanyRow[]>([]);
-  const [bankAccounts, setBankAccounts] = useState<BankAccountRow[]>([]);
   const [currentUserId, setCurrentUserId] = useState<string | null>(null);
 
   const [form, setForm] = useState<FormState>({
     companyId: "",
     employeeRefId: "",
     payProfileId: "",
-    requestedBankAccountId: "",
     joinDate: "",
     periodStart: defaultPeriodStart(),
     periodEnd: defaultPeriodEnd(),
@@ -458,6 +482,9 @@ export default function NewPaycheckRequestPage() {
     bonusAmount: "0",
     deductionAmount: "0",
     reimbursementAmount: "0",
+    paymentTransferMethod: "bank_transfer",
+    paymentTransferInstructions: "",
+    paymentTransferContact: "",
     socialInsuranceContributionType: "by_employee",
     socialInsuranceContributionDetails: "",
     signedFormExternalUrl: "",
@@ -488,13 +515,8 @@ export default function NewPaycheckRequestPage() {
     return companies.find((row) => row.id === form.companyId) || null;
   }, [companies, form.companyId]);
 
-  const selectedBankAccount = useMemo(() => {
-    return bankAccounts.find((row) => row.id === form.requestedBankAccountId) || null;
-  }, [bankAccounts, form.requestedBankAccountId]);
-
   const printCompany = useMemo<PrintCompanyRow | null>(() => {
-
-      if (!selectedCompany) return null;
+    if (!selectedCompany) return null;
 
     return {
       id: selectedCompany.id,
@@ -519,15 +541,6 @@ export default function NewPaycheckRequestPage() {
     if (!selectedEmployee) return [];
     return payProfiles.filter((row) => row.user_id === selectedEmployee.user_id);
   }, [payProfiles, selectedEmployee]);
-
-  const filteredBankAccounts = useMemo(() => {
-    if (!selectedCompany) return bankAccounts;
-
-    return bankAccounts.filter((row) => {
-      if (!row.company_id) return true;
-      return row.company_id === selectedCompany.id;
-    });
-  }, [bankAccounts, selectedCompany]);
 
   const grossAmount = toNumber(form.grossAmount);
   const bonusAmount = toNumber(form.bonusAmount);
@@ -570,83 +583,69 @@ export default function NewPaycheckRequestPage() {
 
       setCurrentUserId(user.id);
 
-      const [
-        employeeRefsResult,
-        payProfilesResult,
-        currenciesResult,
-        companiesResult,
-        bankAccountsResult,
-      ] = await Promise.all([
-        supabase
-          .from("finance_employee_refs")
-          .select(
-            [
-              "id",
-              "user_id",
-              "code",
-              "status",
-              "mark",
-              "metadata",
-              "profile:profiles!finance_employee_refs_user_id_fkey(user_id, full_name, display_name, email)",
-            ].join(", ")
-          )
-          .order("created_at", { ascending: false }),
+      const [employeeRefsResult, payProfilesResult, currenciesResult, companiesResult] =
+        await Promise.all([
+          supabase
+            .from("finance_employee_refs")
+            .select(
+              [
+                "id",
+                "user_id",
+                "code",
+                "status",
+                "mark",
+                "metadata",
+                "profile:profiles!finance_employee_refs_user_id_fkey(user_id, full_name, display_name, email)",
+              ].join(", ")
+            )
+            .order("created_at", { ascending: false }),
 
-        supabase
-          .from("finance_pay_profiles")
-          .select(
-            [
-              "id",
-              "profile_number",
-              "user_id",
-              "pay_type",
-              "payment_frequency",
-              "base_salary",
-              "hourly_rate",
-              "default_hours",
-              "currency_code",
-              "active",
-              "status",
-              "effective_from",
-              "effective_to",
-              "notes",
-              "metadata",
-            ].join(", ")
-          )
-          .eq("active", true)
-          .eq("status", "active")
-          .order("effective_from", { ascending: false }),
+          supabase
+            .from("finance_pay_profiles")
+            .select(
+              [
+                "id",
+                "profile_number",
+                "user_id",
+                "pay_type",
+                "payment_frequency",
+                "base_salary",
+                "hourly_rate",
+                "default_hours",
+                "currency_code",
+                "active",
+                "status",
+                "effective_from",
+                "effective_to",
+                "notes",
+                "metadata",
+              ].join(", ")
+            )
+            .eq("active", true)
+            .eq("status", "active")
+            .order("effective_from", { ascending: false }),
 
-        supabase
-          .from("finance_currencies")
-          .select(
-            "id, currency_code, currency_name, currency_symbol, decimal_places, is_base_currency, status"
-          )
-          .eq("status", "active")
-          .order("currency_code", { ascending: true }),
+          supabase
+            .from("finance_currencies")
+            .select(
+              "id, currency_code, currency_name, currency_symbol, decimal_places, is_base_currency, status"
+            )
+            .eq("status", "active")
+            .order("currency_code", { ascending: true }),
 
-        supabase
-          .from("finance_companies")
-          .select(
-            "id, name, legal_name, email, phone, currency_code, country, city, state_province, postal_code, address_line_1, address_line_2, status"
-          )
-          .eq("status", "active")
-          .order("name", { ascending: true }),
-
-        supabase
-          .from("finance_bank_accounts")
-          .select(
-            "id, name, bank_name, institution_name, masked_account_number, currency_code, company_id, beneficiary_name, iban, swift_code, account_identifier_type, account_identifier_value, is_default"
-          )
-          .order("is_default", { ascending: false })
-          .order("name", { ascending: true }),
-      ]);
+          supabase
+            .from("finance_companies")
+            .select(
+              "id, name, legal_name, email, phone, currency_code, country, city, state_province, postal_code, address_line_1, address_line_2, status"
+            )
+            .eq("status", "active")
+            .order("name", { ascending: true }),
+        ]);
 
       if (employeeRefsResult.error) throw employeeRefsResult.error;
       if (payProfilesResult.error) throw payProfilesResult.error;
       if (currenciesResult.error) throw currenciesResult.error;
       if (companiesResult.error) throw companiesResult.error;
-      if (bankAccountsResult.error) throw bankAccountsResult.error;
 
       const loadedEmployeeRefs = (employeeRefsResult.data ||
         []) as unknown as EmployeeRefRow[];
@@ -654,13 +653,11 @@ export default function NewPaycheckRequestPage() {
         []) as unknown as PayProfileRow[];
       const loadedCurrencies = (currenciesResult.data || []) as CurrencyRow[];
       const loadedCompanies = (companiesResult.data || []) as CompanyRow[];
-      const loadedBankAccounts = (bankAccountsResult.data || []) as BankAccountRow[];
 
       setEmployeeRefs(loadedEmployeeRefs);
       setPayProfiles(loadedPayProfiles);
       setCurrencies(loadedCurrencies);
       setCompanies(loadedCompanies);
-      setBankAccounts(loadedBankAccounts);
 
       const ownEmployee =
         loadedEmployeeRefs.find((row) => row.user_id === user.id) ||
@@ -676,15 +673,6 @@ export default function NewPaycheckRequestPage() {
         loadedCompanies[0] ||
         null;
 
-      const defaultBank =
-        loadedBankAccounts.find(
-          (row) => row.is_default && row.company_id === defaultCompany?.id
-        ) ||
-        loadedBankAccounts.find((row) => row.company_id === defaultCompany?.id) ||
-        loadedBankAccounts.find((row) => row.is_default) ||
-        loadedBankAccounts[0] ||
-        null;
-
       const defaultCurrency =
         ownPayProfile?.currency_code ||
         defaultCompany?.currency_code ||
@@ -697,7 +685,6 @@ export default function NewPaycheckRequestPage() {
         companyId: defaultCompany?.id || current.companyId,
         employeeRefId: ownEmployee?.id || current.employeeRefId,
         payProfileId: ownPayProfile?.id || current.payProfileId,
-        requestedBankAccountId: defaultBank?.id || current.requestedBankAccountId,
         requestedCurrencyCode: defaultCurrency,
         grossAmount:
           ownPayProfile?.pay_type === "hourly"
@@ -776,26 +763,6 @@ export default function NewPaycheckRequestPage() {
     }));
   }, [selectedPayProfile]);
 
-  useEffect(() => {
-    if (!selectedCompany) return;
-
-    const currentBankStillValid = filteredBankAccounts.some(
-      (row) => row.id === form.requestedBankAccountId
-    );
-
-    if (currentBankStillValid) return;
-
-    const defaultBank =
-      filteredBankAccounts.find((row) => row.is_default) || filteredBankAccounts[0] || null;
-
-    if (!defaultBank) return;
-
-    setForm((current) => ({
-      ...current,
-      requestedBankAccountId: defaultBank.id,
-    }));
-  }, [filteredBankAccounts, form.requestedBankAccountId, selectedCompany]);
-
   const validateForm = useCallback(
     (submitMode: "draft" | "submit") => {
       if (!currentUserId) return "You must be signed in.";
@@ -810,10 +777,6 @@ export default function NewPaycheckRequestPage() {
 
       if (!selectedEmployee) {
         return "Selected employee reference is invalid.";
-      }
-
-      if (!form.requestedBankAccountId) {
-        return "Select the requested employee bank account.";
       }
 
       if (!form.joinDate) {
@@ -849,6 +812,13 @@ export default function NewPaycheckRequestPage() {
       }
 
       if (
+        form.paymentTransferMethod !== "company_method" &&
+        !form.paymentTransferInstructions.trim()
+      ) {
+        return "Write how you would like the paycheck money transferred.";
+      }
+
+      if (
         form.socialInsuranceContributionType === "by_employer" &&
         !form.socialInsuranceContributionDetails.trim()
       ) {
@@ -872,9 +842,10 @@ export default function NewPaycheckRequestPage() {
       form.companyId,
       form.employeeRefId,
       form.joinDate,
+      form.paymentTransferInstructions,
+      form.paymentTransferMethod,
       form.periodEnd,
       form.periodStart,
-      form.requestedBankAccountId,
       form.requestedCurrencyCode,
       form.requestedPayDate,
       form.signedFormExternalUrl,
@@ -1037,23 +1008,19 @@ export default function NewPaycheckRequestPage() {
             }
           : null;
 
-        const requestedBankSnapshot = selectedBankAccount
-          ? {
-              bank_account_id: selectedBankAccount.id,
-              name: selectedBankAccount.name,
-              bank_name: selectedBankAccount.bank_name,
-              institution_name: selectedBankAccount.institution_name,
-              beneficiary_name: selectedBankAccount.beneficiary_name,
-              masked_account_number: selectedBankAccount.masked_account_number,
-              currency_code: selectedBankAccount.currency_code,
-              iban: selectedBankAccount.iban,
-              swift_code: selectedBankAccount.swift_code,
-              account_identifier_type: selectedBankAccount.account_identifier_type,
-              account_identifier_value: selectedBankAccount.account_identifier_value,
-              display_label: buildBankLabel(selectedBankAccount),
-              identifier_label: buildBankIdentifier(selectedBankAccount),
-            }
-          : null;
+        const paymentPreferenceSnapshot = {
+          method: form.paymentTransferMethod,
+          method_label: getTransferMethodLabel(form.paymentTransferMethod),
+          instructions:
+            form.paymentTransferMethod === "company_method"
+              ? null
+              : form.paymentTransferInstructions.trim(),
+          contact: form.paymentTransferContact.trim() || null,
+          submitted_by_employee: true,
+          reviewed_by_finance: false,
+          note:
+            "Employee-provided payment preference only. This is not a company bank account selection.",
+        };
 
         const insertResult = await supabase
           .from("finance_paycheck_requests")
@@ -1062,7 +1029,6 @@ export default function NewPaycheckRequestPage() {
             employee_user_id: selectedEmployee.user_id,
             pay_profile_id: form.payProfileId || null,
             company_id: form.companyId,
-            requested_bank_account_id: form.requestedBankAccountId || null,
             period_start: form.periodStart,
             period_end: form.periodEnd,
             requested_pay_date: form.requestedPayDate || null,
@@ -1086,7 +1052,7 @@ export default function NewPaycheckRequestPage() {
             metadata: {
               source_area: "paycheck_request_new_page",
               company_snapshot: companySnapshot,
-              requested_bank_snapshot: requestedBankSnapshot,
+              employee_payment_preference: paymentPreferenceSnapshot,
               employee_snapshot: {
                 employee_ref_id: selectedEmployee.id,
                 employee_user_id: selectedEmployee.user_id,
@@ -1179,7 +1145,7 @@ export default function NewPaycheckRequestPage() {
             metadata: {
               source_area: "paycheck_request_new_page",
               company_snapshot: companySnapshot,
-              requested_bank_snapshot: requestedBankSnapshot,
+              employee_payment_preference: paymentPreferenceSnapshot,
               employee_snapshot: {
                 employee_ref_id: selectedEmployee.id,
                 employee_user_id: selectedEmployee.user_id,
@@ -1276,9 +1242,11 @@ export default function NewPaycheckRequestPage() {
       form.joinDate,
       form.notes,
       form.payProfileId,
+      form.paymentTransferContact,
+      form.paymentTransferInstructions,
+      form.paymentTransferMethod,
       form.periodEnd,
       form.periodStart,
-      form.requestedBankAccountId,
       form.requestedCurrencyCode,
       form.requestedPayDate,
       form.signedFormExternalUrl,
@@ -1289,7 +1257,6 @@ export default function NewPaycheckRequestPage() {
       navigate,
       netAmount,
       reimbursementAmount,
-      selectedBankAccount,
       selectedCompany,
       selectedEmployee,
       selectedPayProfile,
@@ -1302,7 +1269,7 @@ export default function NewPaycheckRequestPage() {
     <div className="min-h-screen bg-[#05070d] px-4 py-4 text-white md:px-6 md:py-6">
       <div className="mx-auto flex w-full max-w-[1600px] flex-col gap-6">
         <header className="relative overflow-hidden rounded-[34px] border border-white/10 bg-white/[0.045] p-6 shadow-2xl shadow-black/30 backdrop-blur-xl">
-          <div className="pointer-events-none absolute inset-0 bg-[radial-gradient(circle_at_top_left,rgba(6,182,212,0.16),transparent_38%),radial-gradient(circle_at_top_right,rgba(139,92,246,0.12),transparent_34%)]" />
+          <div className="pointer-events-none absolute inset-0 bg-[radial-gradient(circle_at_top_left,rgba(6,182,212,0.16),transparent_38%),radial-gradient(circle_at_top_right,rgba(139,92,246,0.12),transparent_34%),radial-gradient(circle_at_bottom_right,rgba(16,185,129,0.10),transparent_30%)]" />
 
           <div className="relative">
             <button
@@ -1314,8 +1281,8 @@ export default function NewPaycheckRequestPage() {
               Paycheck Requests
             </button>
 
-            <div className="grid gap-6 xl:grid-cols-[minmax(0,1fr)_430px] xl:items-stretch">
-              <div className="min-w-0">
+            <div className="grid gap-6 xl:grid-cols-[minmax(0,1fr)_430px] xl:items-end">
+              <div>
                 <div className="inline-flex w-fit items-center gap-2 rounded-full border border-cyan-400/20 bg-cyan-500/10 px-3 py-1 text-[11px] font-semibold uppercase tracking-[0.22em] text-cyan-200">
                   <FileSignature className="h-3.5 w-3.5" />
                   New Paycheck Request
@@ -1331,32 +1298,23 @@ export default function NewPaycheckRequestPage() {
                   Finance/Admin review.
                 </p>
 
-                <div className="mt-5 flex flex-wrap gap-2">
-                  <div className="rounded-full border border-cyan-400/20 bg-cyan-500/10 px-3 py-1 text-[11px] font-semibold uppercase tracking-[0.16em] text-cyan-200">
-                    Employee Request
-                  </div>
-                  <div className="rounded-full border border-emerald-400/20 bg-emerald-500/10 px-3 py-1 text-[11px] font-semibold uppercase tracking-[0.16em] text-emerald-200">
-                    Pay Profile Defaults
-                  </div>
-                  <div className="rounded-full border border-violet-400/20 bg-violet-500/10 px-3 py-1 text-[11px] font-semibold uppercase tracking-[0.16em] text-violet-200">
-                    Filled Payslip Form
-                  </div>
-                  <div className="rounded-full border border-amber-400/20 bg-amber-500/10 px-3 py-1 text-[11px] font-semibold uppercase tracking-[0.16em] text-amber-200">
-                    Employee Signature Required
-                  </div>
+                <div className="mt-5 grid gap-3 md:grid-cols-3">
+                  <SmallInfoPill title="Page Mode" value="Employee Request" />
+                  <SmallInfoPill title="Payment Preference" value="Employee Provided" />
+                  <SmallInfoPill title="Next Step" value="Finance Review" />
                 </div>
               </div>
 
-              <div className="grid gap-3">
+              <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-1">
                 <SummaryBlock
-                  label="Net Requested"
+                  title="Net Requested"
                   value={`${form.requestedCurrencyCode || "USD"} ${formatMoney(netAmount)}`}
-                  detail="Gross + bonus + reimbursement − deduction."
+                  subtitle="Gross + bonus + reimbursement − deduction."
                 />
                 <SummaryBlock
-                  label="Selected Employee"
+                  title="Selected Employee"
                   value={buildEmployeeLabel(selectedEmployee)}
-                  detail={buildEmployeeSubLabel(selectedEmployee)}
+                  subtitle={buildEmployeeSubLabel(selectedEmployee)}
                 />
               </div>
             </div>
@@ -1385,10 +1343,9 @@ export default function NewPaycheckRequestPage() {
         ) : (
           <section className="grid items-start gap-6 xl:grid-cols-[minmax(0,1fr)_430px]">
             <div className="grid gap-6">
-
-                            <SectionCard
+              <SectionCard
                 title="Company & Employee"
-                description="Select the company, employee reference, and requested payment destination for this paycheck request."
+                description="Select the company and employee reference for this paycheck request."
                 icon={Building2}
               >
                 <div className="grid gap-4 md:grid-cols-2">
@@ -1482,38 +1439,93 @@ export default function NewPaycheckRequestPage() {
                 </div>
 
                 <div className="mt-4 grid gap-4 md:grid-cols-2">
-                  <SelectShell
-                    label="Requested Payment Bank"
-                    value={form.requestedBankAccountId}
-                    onChange={(value) => updateField("requestedBankAccountId", value)}
-                    disabled={Boolean(isSaving)}
-                  >
-                    <option value="">Select requested bank account</option>
-                    {filteredBankAccounts.map((row) => (
-                      <option key={row.id} value={row.id}>
-                        {buildBankLabel(row)} — {buildBankIdentifier(row)}
-                      </option>
-                    ))}
-                  </SelectShell>
-
                   <SummaryBlock
-                    label="Requested Bank"
-                    value={buildBankLabel(selectedBankAccount)}
-                    detail={buildBankIdentifier(selectedBankAccount)}
+                    title="Selected Company"
+                    value={buildCompanyLabel(selectedCompany)}
+                    subtitle={buildCompanySubLabel(selectedCompany)}
+                  />
+                  <SummaryBlock
+                    title="Employee"
+                    value={buildEmployeeLabel(selectedEmployee)}
+                    subtitle={buildEmployeeSubLabel(selectedEmployee)}
                   />
                 </div>
+              </SectionCard>
 
-                <div className="mt-4 grid gap-4 md:grid-cols-2">
-                  <SummaryBlock
-                    label="Selected Company"
-                    value={buildCompanyLabel(selectedCompany)}
-                    detail={buildCompanySubLabel(selectedCompany)}
-                  />
-                  <SummaryBlock
-                    label="Employee"
-                    value={buildEmployeeLabel(selectedEmployee)}
-                    detail={buildEmployeeSubLabel(selectedEmployee)}
-                  />
+                            <SectionCard
+                title="Employee Payment Preference"
+                description="The employee writes how they would like the paycheck money transferred. This does not expose company bank accounts."
+                icon={WalletCards}
+              >
+                <div className="grid gap-4">
+                  <div className="grid gap-4 md:grid-cols-2">
+                    <SelectShell
+                      label="Preferred Transfer Method"
+                      value={form.paymentTransferMethod}
+                      onChange={(value) =>
+                        updateField("paymentTransferMethod", value as PaymentTransferMethod)
+                      }
+                      disabled={Boolean(isSaving)}
+                    >
+                      {PAYMENT_TRANSFER_METHODS.map((method) => (
+                        <option key={method.value} value={method.value}>
+                          {method.label}
+                        </option>
+                      ))}
+                    </SelectShell>
+
+                    <SummaryBlock
+                      title="Finance Visibility"
+                      value={getTransferMethodLabel(form.paymentTransferMethod)}
+                      subtitle={getTransferMethodHelper(form.paymentTransferMethod)}
+                    />
+                  </div>
+
+                  {form.paymentTransferMethod !== "company_method" ? (
+                    <div className="grid gap-4 md:grid-cols-2">
+                      <label className="grid gap-2">
+                        <span className={labelClass()}>Transfer Instructions</span>
+                        <textarea
+                          value={form.paymentTransferInstructions}
+                          disabled={Boolean(isSaving)}
+                          onChange={(event) =>
+                            updateField("paymentTransferInstructions", event.target.value)
+                          }
+                          className={textareaClass()}
+                          placeholder="Example: Bank name, beneficiary name, account/IBAN/SWIFT, wallet ID, phone, email, or other transfer details."
+                        />
+                      </label>
+
+                      <label className="grid gap-2">
+                        <span className={labelClass()}>Transfer Contact / Confirmation</span>
+                        <textarea
+                          value={form.paymentTransferContact}
+                          disabled={Boolean(isSaving)}
+                          onChange={(event) =>
+                            updateField("paymentTransferContact", event.target.value)
+                          }
+                          className={textareaClass()}
+                          placeholder="Optional: phone, email, WeChat, WhatsApp, or confirmation notes for Finance/Admin."
+                        />
+                      </label>
+                    </div>
+                  ) : (
+                    <div className="rounded-[24px] border border-cyan-400/20 bg-cyan-500/10 p-4 text-sm leading-6 text-cyan-100">
+                      Finance/Admin will use the company’s existing payroll payment method. No bank
+                      account details are selected or exposed on this requester page.
+                    </div>
+                  )}
+
+                  <div className="rounded-[24px] border border-amber-400/20 bg-amber-500/10 p-4">
+                    <div className="text-sm font-semibold text-amber-100">
+                      Payment preference only
+                    </div>
+                    <p className="mt-2 text-xs leading-5 text-amber-100/75">
+                      This section captures the employee’s preferred receiving method for Finance
+                      review. It is not connected to internal company bank-account master data and
+                      does not execute payment.
+                    </p>
+                  </div>
                 </div>
               </SectionCard>
 
@@ -1564,19 +1576,19 @@ export default function NewPaycheckRequestPage() {
 
                 <div className="mt-4 grid gap-4 md:grid-cols-3">
                   <SummaryBlock
-                    label="Pay Type"
+                    title="Pay Type"
                     value={formatLabel(selectedPayProfile?.pay_type)}
-                    detail="Pulled from employee pay profile."
+                    subtitle="Pulled from employee pay profile."
                   />
                   <SummaryBlock
-                    label="Frequency"
+                    title="Frequency"
                     value={formatLabel(selectedPayProfile?.payment_frequency)}
-                    detail="Pulled from employee pay profile."
+                    subtitle="Pulled from employee pay profile."
                   />
                   <SummaryBlock
-                    label="Profile Currency"
+                    title="Profile Currency"
                     value={selectedPayProfile?.currency_code || "—"}
-                    detail="Used as the default request currency."
+                    subtitle="Used as the default request currency."
                   />
                 </div>
               </SectionCard>
@@ -1853,45 +1865,50 @@ export default function NewPaycheckRequestPage() {
                   </p>
                 </div>
 
-                <div className="grid gap-4 p-5">
+                <div className="grid gap-3 p-5">
                   <SummaryBlock
-                    label="Company"
+                    title="Company"
                     value={buildCompanyLabel(selectedCompany)}
-                    detail={buildCompanySubLabel(selectedCompany)}
+                    subtitle={buildCompanySubLabel(selectedCompany)}
                   />
 
                   <SummaryBlock
-                    label="Employee"
+                    title="Employee"
                     value={buildEmployeeLabel(selectedEmployee)}
-                    detail={buildEmployeeSubLabel(selectedEmployee)}
+                    subtitle={buildEmployeeSubLabel(selectedEmployee)}
                   />
 
                   <SummaryBlock
-                    label="Requested Bank"
-                    value={buildBankLabel(selectedBankAccount)}
-                    detail={buildBankIdentifier(selectedBankAccount)}
+                    title="Payment Preference"
+                    value={getTransferMethodLabel(form.paymentTransferMethod)}
+                    subtitle={
+                      form.paymentTransferMethod === "company_method"
+                        ? "Finance/Admin will use the company default payroll method."
+                        : form.paymentTransferInstructions.trim() ||
+                          getTransferMethodHelper(form.paymentTransferMethod)
+                    }
                   />
 
                   <SummaryBlock
-                    label="Period"
+                    title="Period"
                     value={`${formatDate(form.periodStart)} → ${formatDate(form.periodEnd)}`}
-                    detail={`Requested pay date: ${formatDate(form.requestedPayDate)}`}
+                    subtitle={`Requested pay date: ${formatDate(form.requestedPayDate)}`}
                   />
 
                   <SummaryBlock
-                    label="Net Paycheck Request"
+                    title="Net Paycheck Request"
                     value={`${form.requestedCurrencyCode || "USD"} ${formatMoney(netAmount)}`}
-                    detail="Calculated from the amount fields."
+                    subtitle="Calculated from the amount fields."
                   />
 
                   <SummaryBlock
-                    label="Social Insurance"
+                    title="Social Insurance"
                     value={
                       form.socialInsuranceContributionType === "by_employer"
                         ? "By Employer"
                         : "By Employee"
                     }
-                    detail={
+                    subtitle={
                       form.socialInsuranceContributionType === "by_employer"
                         ? form.socialInsuranceContributionDetails || "Details required."
                         : "Employee-paid contribution option."
@@ -1899,13 +1916,13 @@ export default function NewPaycheckRequestPage() {
                   />
 
                   <SummaryBlock
-                    label="Employee Signed Form"
+                    title="Employee Signed Form"
                     value={
                       signedFormFile || uploadedPath || form.signedFormExternalUrl.trim()
                         ? "Ready"
                         : "Missing"
                     }
-                    detail="Required before submitting to Finance/Admin review."
+                    subtitle="Required before submitting to Finance/Admin review."
                   />
 
                   <div className="grid gap-3 pt-2">
@@ -1938,6 +1955,11 @@ export default function NewPaycheckRequestPage() {
                       )}
                       {isSaving === "draft" ? "Saving..." : "Save Draft"}
                     </button>
+                  </div>
+
+                  <div className="rounded-[24px] border border-white/10 bg-black/20 p-4 text-xs leading-5 text-slate-500">
+                    Finance/Admin review, manager signature, funding allocation, payment
+                    distribution, and employee confirmation happen after this requester page.
                   </div>
                 </div>
               </section>

@@ -616,23 +616,52 @@ function getRequestNextStep(request: PaycheckRequestRow): {
   label: string;
   tone: Tone;
 } {
-  if (request.status === "draft") {
+  if (request.status === "rejected" || request.review_status === "rejected") {
     return {
-      label: "Draft request not submitted",
-      tone: "slate",
+      label: "Request rejected",
+      tone: "rose",
     };
   }
 
-  if (request.status === "submitted" || request.review_status === "pending_review") {
+  if (request.status === "disputed" || request.recipient_confirmation_status === "disputed") {
     return {
-      label: "Finance review needed",
-      tone: "cyan",
+      label: "Payment disputed",
+      tone: "rose",
     };
   }
 
-  if (request.status === "needs_correction" || request.review_status === "needs_correction") {
+  if (
+    request.status === "received_confirmed" ||
+    request.recipient_confirmation_status === "received_confirmed"
+  ) {
     return {
-      label: "Waiting for employee correction",
+      label: "Employee confirmed receipt",
+      tone: "emerald",
+    };
+  }
+
+  if (request.recipient_confirmation_status === "not_received") {
+    return {
+      label: "Employee reported payment not received",
+      tone: "rose",
+    };
+  }
+
+  if (
+    request.status === "payment_sent" ||
+    request.payment_status === "paid" ||
+    request.recipient_confirmation_status === "payment_sent" ||
+    request.recipient_confirmation_status === "pending_confirmation"
+  ) {
+    return {
+      label: "Waiting for employee confirmation",
+      tone: "violet",
+    };
+  }
+
+  if (request.payment_status === "partially_paid") {
+    return {
+      label: "Partially paid; remaining balance open",
       tone: "amber",
     };
   }
@@ -644,38 +673,24 @@ function getRequestNextStep(request: PaycheckRequestRow): {
     };
   }
 
-  if (request.payment_status === "partially_paid") {
+  if (request.status === "needs_correction" || request.review_status === "needs_correction") {
     return {
-      label: "Partially paid; remaining balance open",
+      label: "Waiting for employee correction",
       tone: "amber",
     };
   }
 
-  if (request.status === "payment_sent" || request.payment_status === "paid") {
+  if (request.status === "submitted" || request.review_status === "pending_review") {
     return {
-      label: "Waiting for employee confirmation",
-      tone: "violet",
+      label: "Finance review needed",
+      tone: "cyan",
     };
   }
 
-  if (request.status === "received_confirmed") {
+  if (request.status === "draft") {
     return {
-      label: "Employee confirmed receipt",
-      tone: "emerald",
-    };
-  }
-
-  if (request.status === "disputed" || request.recipient_confirmation_status === "disputed") {
-    return {
-      label: "Payment disputed",
-      tone: "rose",
-    };
-  }
-
-  if (request.status === "rejected" || request.review_status === "rejected") {
-    return {
-      label: "Request rejected",
-      tone: "rose",
+      label: "Draft request not submitted",
+      tone: "slate",
     };
   }
 

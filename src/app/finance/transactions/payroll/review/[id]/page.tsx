@@ -1549,7 +1549,7 @@ export default function FinancePayrollReviewDetailPage() {
           .update({
             status: "approved_for_payroll",
             review_status: "approved",
-            documentation_status: "verified",
+            documentation_status: request.documentation_status || "uploaded",
             signed_form_status: request.signed_form_status || "uploaded",
             admin_signed_form_status: request.admin_signed_form_status || "uploaded",
             reviewed_at: new Date().toISOString(),

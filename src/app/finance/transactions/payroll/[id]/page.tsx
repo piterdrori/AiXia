@@ -853,10 +853,15 @@ export default function FinancePayrollPaymentDistributionDetailPage() {
           allocation.metadata,
           "paycheck_remaining_before_payment"
         ),
-        paycheckRemainingAfterPayment: getMetadataNumber(
-          allocation.metadata,
-          "paycheck_remaining_after_payment"
-        ),
+        paycheckRemainingAfterPayment:
+          request && request.payment_status === "paid"
+            ? 0
+            : request && request.remaining_amount !== null && request.remaining_amount !== undefined
+              ? toNumber(request.remaining_amount)
+              : getMetadataNumber(
+                  allocation.metadata,
+                  "paycheck_remaining_after_payment"
+                ),
       };
     });
   }, [

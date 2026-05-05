@@ -120,6 +120,7 @@ import FinancePaycheckRequestDetailPage from "@/app/finance/transactions/paychec
 import FinanceTransactionPayrollPage from "@/app/finance/transactions/payroll/page";
 import FinanceNewTransactionPayrollPage from "@/app/finance/transactions/payroll/new/page";
 import FinanceTransactionPayrollDetailPage from "@/app/finance/transactions/payroll/[id]/page";
+import FinancePayrollReviewDetailPage from "@/app/finance/transactions/payroll/review/[id]/page";
 import FinancePayrollFundingBatchNewPage from "@/app/finance/transactions/payroll/funding-batches/new/page";
 import FinancePayrollFundingBatchDetailPage from "@/app/finance/transactions/payroll/funding-batches/[id]/page";
 
@@ -1620,6 +1621,17 @@ function AppRoutes() {
     <ProtectedRoute>
       <DashboardLayout>
         <FinanceNewTransactionPayrollPage />
+      </DashboardLayout>
+    </ProtectedRoute>
+  }
+/>
+
+<Route
+  path="/finance/transactions/payroll/review/:id"
+  element={
+    <ProtectedRoute>
+      <DashboardLayout>
+        <FinancePayrollReviewDetailPage />
       </DashboardLayout>
     </ProtectedRoute>
   }

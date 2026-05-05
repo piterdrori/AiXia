@@ -731,8 +731,9 @@ export default function FinancePayrollPaymentDistributionDetailPage() {
   );
 
   const fundingCurrencyRemainingAfterPayment = toNumber(
-    distribution?.metadata?.funding_currency_remaining_after_payment ||
-      fundingPool?.metadata?.remaining_amount
+    distribution?.metadata?.funding_currency_remaining_after_payment ??
+      getMetadataNumber(fundingPool?.metadata, "remaining_amount") ??
+      0
   );
 
   const fundingPoolTotal = toNumber(

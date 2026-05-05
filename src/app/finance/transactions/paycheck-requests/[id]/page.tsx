@@ -1263,7 +1263,6 @@ export default function PaycheckRequestDetailPage() {
               "employee_ref:finance_employee_refs!finance_paycheck_requests_employee_ref_id_fkey(id, user_id, code, status, mark, metadata)",
               "profile:profiles!finance_paycheck_requests_employee_user_id_fkey(user_id, full_name, display_name, email)",
               "pay_profile:finance_pay_profiles!finance_paycheck_requests_pay_profile_id_fkey(id, profile_number, user_id, pay_type, payment_frequency, base_salary, hourly_rate, default_hours, currency_code, active, status, effective_from, effective_to, notes, metadata)",
-              "company:finance_companies!finance_paycheck_requests_company_id_fkey(id, name, legal_name, email, phone, currency_code, country, city, state_province, postal_code, address_line_1, address_line_2, status)",
               "payroll_run:finance_payroll_runs!finance_paycheck_requests_linked_payroll_run_id_fkey(id, run_number, status, total_net)",
               "paycheck:finance_paychecks!finance_paycheck_requests_linked_paycheck_id_fkey(id, paycheck_number, payment_status, gross_pay, bonus_total, deduction_total, reimbursement_total, net_pay, paid_at)",
               "payment:finance_payroll_payments!finance_paycheck_requests_linked_payment_id_fkey(id, payment_number, status, amount, payment_date, reference_number, notes, paycheck_currency_code, payment_currency_code, paycheck_amount, payment_amount, conversion_rate, conversion_date, conversion_source)",
@@ -1274,7 +1273,29 @@ export default function PaycheckRequestDetailPage() {
 
         if (result.error) throw result.error;
 
-        const loadedRequest = result.data as unknown as PaycheckRequestRow;
+        const loadedRequestBase = result.data as unknown as PaycheckRequestRow;
+
+        let loadedCompany: CompanyRow | null = null;
+
+        if (loadedRequestBase.company_id) {
+          const companyResult = await supabase
+            .from("finance_companies")
+            .select(
+              "id, name, legal_name, email, phone, currency_code, country, city, state_province, postal_code, address_line_1, address_line_2, status"
+            )
+            .eq("id", loadedRequestBase.company_id)
+            .maybeSingle();
+
+          if (companyResult.error) throw companyResult.error;
+
+          loadedCompany = (companyResult.data || null) as CompanyRow | null;
+        }
+
+        const loadedRequest: PaycheckRequestRow = {
+          ...loadedRequestBase,
+          company: loadedCompany,
+        };
+
         setRequest(loadedRequest);
         setReplacementLink(loadedRequest.signed_form_external_url || "");
         setConfirmationNotes(loadedRequest.confirmation_notes || "");

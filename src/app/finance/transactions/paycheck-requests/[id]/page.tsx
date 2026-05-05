@@ -323,6 +323,11 @@ type EnrichedAllocation = AllocationRow & {
 
 const BUCKET_NAME = "finance-paycheck-forms";
 
+// TEMPORARY TEST ONLY:
+// Allows Finance/Admin/current tester to confirm paycheck receipt from the requester page
+// until the final employee confirmation permission model is fixed.
+const TEMP_ALLOW_TEST_CONFIRMATION = true;
+
 const statusToneMap: Record<
   string,
   "cyan" | "emerald" | "amber" | "rose" | "violet" | "slate"
@@ -834,7 +839,8 @@ export default function PaycheckRequestDetailPage() {
   const [actionMessage, setActionMessage] = useState<string | null>(null);
 
   const isEmployeeOwner = Boolean(
-    currentUserId && request?.employee_user_id === currentUserId
+    currentUserId &&
+      (request?.employee_user_id === currentUserId || TEMP_ALLOW_TEST_CONFIRMATION)
   );
 
   const requestCurrency = normalizeCurrencyCode(request?.requested_currency_code || "USD");

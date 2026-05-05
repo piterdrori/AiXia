@@ -4,7 +4,6 @@ import type { LucideIcon } from "lucide-react";
 import {
   AlertTriangle,
   ArrowRight,
-  Banknote,
   Building2,
   CheckCircle2,
   Download,
@@ -857,9 +856,7 @@ export default function FinancePayrollReviewDetailPage() {
   const confirmationStatus = request?.recipient_confirmation_status || "not_paid_yet";
 
   const isArchivedOrDeleted = ["archived", "deleted", "cancelled"].includes(requestStatus);
-  const isInitialReviewStage = ["submitted", "pending_review", "needs_correction"].includes(
-    requestStatus
-  );
+
   const hasEmployeeSignedDocument =
     Boolean(request?.signed_form_storage_bucket && request.signed_form_storage_path) ||
     Boolean(request?.signed_form_external_url);

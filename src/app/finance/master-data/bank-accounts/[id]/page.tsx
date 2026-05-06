@@ -1,25 +1,32 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
+import type {
+  InputHTMLAttributes,
+  ReactNode,
+  SelectHTMLAttributes,
+  TextareaHTMLAttributes,
+} from "react";
 import { useNavigate, useParams } from "react-router-dom";
+import type { LucideIcon } from "lucide-react";
 import {
-  ArrowLeft,
+  AlertTriangle,
+  Archive,
+  ArrowRight,
+  Banknote,
+  Building2,
+  CheckCircle2,
   CreditCard,
+  FileText,
+  Landmark,
+  Loader2,
+  LockKeyhole,
   Pencil,
-  RefreshCw,
+  RotateCcw,
   Save,
   ShieldCheck,
+  Sparkles,
+  WalletCards,
   X,
 } from "lucide-react";
-
-import { Button } from "@/components/ui/button";
-import { Badge } from "@/components/ui/badge";
-import {
-  Card,
-  CardContent,
-  CardDescription,
-  CardHeader,
-  CardTitle,
-} from "@/components/ui/card";
-import { Input } from "@/components/ui/input";
 
 import {
   archiveBankAccount,
@@ -27,20 +34,35 @@ import {
   getCompanyOptions,
   restoreBankAccount,
   updateBankAccount,
-  type FinanceBankAccount,
   type CompanyOption,
+  type FinanceBankAccount,
+  type FinanceBankAccountStatus,
+  type FinanceBankIdentifierType,
 } from "@/lib/finance/bankAccounts";
+import {
+  getEffectivePermissions,
+  type Permission,
+  type Role,
+} from "@/lib/permissions";
+import { supabase } from "@/lib/supabase";
 
-type EditSection = null | "basic" | "address" | "control" | "notes";
+type ProfilePermissionRow = {
+  user_id: string;
+  full_name: string | null;
+  role: Role | null;
+  permissions: Partial<Record<Permission, boolean>> | null;
+};
 
-type BasicForm = {
+type EditSection = null | "overview" | "address" | "control" | "notes";
+
+type OverviewDraft = {
   company_id: string;
   beneficiary_name: string;
   bank_name: string;
   account_number: string;
 };
 
-type AddressForm = {
+type AddressDraft = {
   country: string;
   city: string;
   postal_code: string;
@@ -48,15 +70,127 @@ type AddressForm = {
   address_line_2: string;
 };
 
-type ControlForm = {
-  account_identifier_type: string;
+type ControlDraft = {
+  account_identifier_type: FinanceBankIdentifierType | "";
   account_identifier_value: string;
   currency_code: string;
   is_default: boolean;
-  status: "active" | "inactive" | "archived";
+  status: FinanceBankAccountStatus;
 };
 
-function formatDateTimeLabel(value: string | null) {
+type PermissionState = {
+  canRead: boolean;
+  canUpdate: boolean;
+  canDeleteArchive: boolean;
+  isAdmin: boolean;
+};
+
+type HeaderStatusCardData = {
+  label: string;
+  value: string;
+  detail: string;
+  icon: LucideIcon;
+  tone: "emerald" | "cyan" | "amber" | "rose";
+};
+
+type SummaryCardData = {
+  label: string;
+  value: string;
+  detail: string;
+  icon: LucideIcon;
+  tone: "cyan" | "emerald" | "amber" | "violet" | "rose";
+};
+
+const EMPTY_PERMISSION_STATE: PermissionState = {
+  canRead: false,
+  canUpdate: false,
+  canDeleteArchive: false,
+  isAdmin: false,
+};
+
+const EMPTY_OVERVIEW_DRAFT: OverviewDraft = {
+  company_id: "",
+  beneficiary_name: "",
+  bank_name: "",
+  account_number: "",
+};
+
+const EMPTY_ADDRESS_DRAFT: AddressDraft = {
+  country: "",
+  city: "",
+  postal_code: "",
+  address_line_1: "",
+  address_line_2: "",
+};
+
+const EMPTY_CONTROL_DRAFT: ControlDraft = {
+  account_identifier_type: "swift",
+  account_identifier_value: "",
+  currency_code: "",
+  is_default: false,
+  status: "active",
+};
+
+function hasPermission(
+  permissions: Record<Permission, boolean> | null,
+  permission: Permission
+) {
+  return Boolean(permissions?.[permission]);
+}
+
+function buildPermissionState(
+  profile: ProfilePermissionRow | null,
+  permissions: Record<Permission, boolean> | null
+): PermissionState {
+  if (!profile?.role || !permissions) {
+    return EMPTY_PERMISSION_STATE;
+  }
+
+  const isAdmin = String(profile.role || "").toLowerCase() === "admin";
+  const canManageMasterData = hasPermission(permissions, "manageFinanceMasterData");
+
+  return {
+    isAdmin,
+    canRead:
+      canManageMasterData ||
+      hasPermission(permissions, "viewBankAccounts"),
+    canUpdate:
+      canManageMasterData ||
+      hasPermission(permissions, "editFinanceRecords"),
+    canDeleteArchive:
+      canManageMasterData ||
+      hasPermission(permissions, "archiveFinanceRecords"),
+  };
+}
+
+async function loadBackendEffectivePermissions(
+  userId: string
+): Promise<Partial<Record<Permission, boolean>> | null> {
+  try {
+    const result = await supabase.rpc("finance_get_effective_permissions", {
+      target_user_id: userId,
+    });
+
+    if (result.error) {
+      console.warn(
+        "Bank Account ID permission RPC fallback:",
+        result.error.message
+      );
+      return null;
+    }
+
+    if (!result.data || typeof result.data !== "object") {
+      return null;
+    }
+
+    return result.data as Partial<Record<Permission, boolean>>;
+  } catch (error) {
+    console.warn("Bank Account ID permission RPC failed:", error);
+    return null;
+  }
+}
+
+function formatDateTimeLabel(value: string | null | undefined) {
   if (!value) return "—";
 
   const parsed = new Date(value);
@@ -66,22 +200,112 @@ function formatDateTimeLabel(value: string | null) {
     year: "numeric",
     month: "short",
     day: "numeric",
-    hour: "numeric",
+    hour: "2-digit",
     minute: "2-digit",
   });
 }
 
-function getStatusTone(status: string) {
+function formatStatus(value: string | null | undefined) {
+  if (!value) return "Unknown";
+
+  return value
+    .split("_")
+    .filter(Boolean)
+    .map((part) => part.charAt(0).toUpperCase() + part.slice(1))
+    .join(" ");
+}
+
+function getStatusTone(status: string | null | undefined) {
   switch (status) {
     case "active":
-      return "border-emerald-400/15 bg-emerald-500/10 text-emerald-200";
+      return "border-emerald-400/20 bg-emerald-500/10 text-emerald-200";
     case "inactive":
-      return "border-amber-400/15 bg-amber-500/10 text-amber-200";
+      return "border-amber-400/20 bg-amber-500/10 text-amber-200";
     case "archived":
-      return "border-rose-400/15 bg-rose-500/10 text-rose-200";
+      return "border-rose-400/20 bg-rose-500/10 text-rose-200";
     default:
-      return "border-white/10 bg-white/8 text-white/70";
+      return "border-white/10 bg-white/[0.06] text-slate-300";
   }
+}
+
+function getToneClasses(tone: SummaryCardData["tone"]) {
+  switch (tone) {
+    case "emerald":
+      return {
+        card: "border-emerald-400/20 bg-emerald-500/10",
+        icon: "border-emerald-400/20 bg-emerald-500/10 text-emerald-200",
+        value: "text-emerald-100",
+      };
+    case "amber":
+      return {
+        card: "border-amber-400/20 bg-amber-500/10",
+        icon: "border-amber-400/20 bg-amber-500/10 text-amber-200",
+        value: "text-amber-100",
+      };
+    case "violet":
+      return {
+        card: "border-violet-400/20 bg-violet-500/10",
+        icon: "border-violet-400/20 bg-violet-500/10 text-violet-200",
+        value: "text-violet-100",
+      };
+    case "rose":
+      return {
+        card: "border-rose-400/20 bg-rose-500/10",
+        icon: "border-rose-400/20 bg-rose-500/10 text-rose-200",
+        value: "text-rose-100",
+      };
+    case "cyan":
+    default:
+      return {
+        card: "border-cyan-400/20 bg-cyan-500/10",
+        icon: "border-cyan-400/20 bg-cyan-500/10 text-cyan-200",
+        value: "text-cyan-100",
+      };
+  }
+}
+
+function normalizeIdentifierType(value: string): FinanceBankIdentifierType | null {
+  const normalized = value.trim().toLowerCase();
+
+  if (normalized === "swift" || normalized === "iban") {
+    return normalized;
+  }
+
+  return null;
+}
+
+function normalizeStatus(value: string): FinanceBankAccountStatus {
+  if (value === "inactive" || value === "archived") return value;
+  return "active";
+}
+
+function getCompanyDisplayName(
+  record: FinanceBankAccount | null,
+  company: CompanyOption | null
+) {
+  if (company) {
+    return company.legal_name?.trim() || company.name || "Unnamed company";
+  }
+
+  return record?.beneficiary_name || "—";
+}
+
+function getCompanyCodeLabel(record: FinanceBankAccount | null, company: CompanyOption | null) {
+  return company?.code || record?.company_code || "—";
+}
+
+function getIdentifierLabel(record: FinanceBankAccount | null) {
+  if (!record?.account_identifier_type) return "Identifier";
+  return record.account_identifier_type === "iban" ? "IBAN" : "SWIFT";
+}
+
+function getIdentifierValue(record: FinanceBankAccount | null) {
+  return record?.account_identifier_value || "—";
+}
+
+function getLocationLabel(record: FinanceBankAccount | null) {
+  const parts = [record?.city, record?.country].filter(Boolean);
+  return parts.length > 0 ? parts.join(", ") : "—";
 }
 
 function FieldLabel({
@@ -92,161 +316,300 @@ function FieldLabel({
   required?: boolean;
 }) {
   return (
-    <label className="mb-2 block text-sm font-medium text-white/75">
+    <label className="mb-2 block text-sm font-medium text-slate-300">
       {label}
       {required ? <span className="ml-1 text-rose-300">*</span> : null}
     </label>
   );
 }
 
-function InputField(props: React.InputHTMLAttributes<HTMLInputElement>) {
+function InputField({
+  className,
+  ...props
+}: InputHTMLAttributes<HTMLInputElement>) {
   return (
-    <Input
+    <input
       {...props}
-      className={`h-11 rounded-2xl border-white/10 bg-white/5 text-white placeholder:text-white/30 ${
-        props.className ?? ""
+      className={`h-11 w-full rounded-2xl border border-white/10 bg-black/20 px-4 text-sm text-white outline-none transition placeholder:text-slate-600 focus:border-cyan-400/30 focus:bg-black/30 disabled:cursor-not-allowed disabled:opacity-60 ${
+        className || ""
       }`}
     />
   );
 }
 
-function TextareaField(
-  props: React.TextareaHTMLAttributes<HTMLTextAreaElement>
-) {
+function SelectField({
+  className,
+  children,
+  ...props
+}: SelectHTMLAttributes<HTMLSelectElement> & {
+  children: ReactNode;
+}) {
+  return (
+    <select
+      {...props}
+      className={`h-11 w-full rounded-2xl border border-white/10 bg-black/20 px-4 text-sm text-white outline-none transition focus:border-cyan-400/30 focus:bg-black/30 disabled:cursor-not-allowed disabled:opacity-60 ${
+        className || ""
+      }`}
+    >
+      {children}
+    </select>
+  );
+}
+
+function TextareaField({
+  className,
+  ...props
+}: TextareaHTMLAttributes<HTMLTextAreaElement>) {
   return (
     <textarea
       {...props}
-      className={`min-h-[110px] w-full rounded-2xl border border-white/10 bg-white/5 px-4 py-3 text-sm text-white outline-none placeholder:text-white/30 ${
-        props.className ?? ""
+      className={`min-h-[132px] w-full rounded-2xl border border-white/10 bg-black/20 px-4 py-3 text-sm text-white outline-none transition placeholder:text-slate-600 focus:border-cyan-400/30 focus:bg-black/30 disabled:cursor-not-allowed disabled:opacity-60 ${
+        className || ""
       }`}
     />
   );
 }
 
-function DisplayRow({
+function DisplayBlock({
   label,
   value,
+  detail,
 }: {
   label: string;
-  value: string;
+  value: ReactNode;
+  detail?: ReactNode;
 }) {
   return (
-    <div className="rounded-[18px] border border-white/8 bg-black/15 px-4 py-3">
-      <div className="text-xs uppercase tracking-[0.18em] text-white/35">
+    <div className="rounded-[20px] border border-white/10 bg-black/20 px-4 py-3">
+      <div className="text-[11px] font-semibold uppercase tracking-[0.18em] text-slate-500">
         {label}
       </div>
-      <div className="mt-2 break-words text-sm font-medium text-white">
+      <div className="mt-2 break-words text-sm font-semibold leading-6 text-white">
         {value || "—"}
       </div>
+      {detail ? (
+        <div className="mt-1 text-xs leading-5 text-slate-500">{detail}</div>
+      ) : null}
     </div>
   );
 }
 
-function SectionCard({
-  title,
-  description,
-  onEdit,
-  children,
-  fullWidth = false,
-}: {
-  title: string;
-  description: string;
-  onEdit?: () => void;
-  children: React.ReactNode;
-  fullWidth?: boolean;
-}) {
+function StatusBadge({ status }: { status: string | null | undefined }) {
   return (
-    <Card
-      className={`flex flex-col overflow-hidden rounded-[28px] border border-white/10 bg-white/[0.045] backdrop-blur-xl ${
-        fullWidth ? "xl:col-span-2" : ""
-      }`}
+    <span
+      className={`inline-flex max-w-full items-center rounded-full border px-3 py-1 text-[11px] font-semibold uppercase tracking-[0.14em] ${getStatusTone(
+        status
+      )}`}
     >
-      <CardHeader className="border-b border-white/8 pb-4">
-        <div className="flex items-start justify-between gap-4">
-          <div>
-            <CardTitle className="text-white">{title}</CardTitle>
-            <CardDescription className="mt-1 text-white/45">
-              {description}
-            </CardDescription>
-          </div>
-
-          {onEdit ? (
-            <Button
-              variant="outline"
-              onClick={onEdit}
-              className="h-11 rounded-2xl border-white/10 bg-white/5 px-4 text-white"
-            >
-              <Pencil className="mr-2 h-4 w-4" />
-              Edit
-            </Button>
-          ) : null}
-        </div>
-      </CardHeader>
-
-      <CardContent className="p-5">{children}</CardContent>
-    </Card>
+      <span className="truncate">{formatStatus(status)}</span>
+    </span>
   );
 }
 
-function ModalShell({
+function DefaultBadge({ isDefault }: { isDefault: boolean }) {
+  if (!isDefault) {
+    return (
+      <span className="inline-flex rounded-full border border-white/10 bg-white/[0.04] px-3 py-1 text-[11px] font-semibold uppercase tracking-[0.14em] text-slate-500">
+        Standard
+      </span>
+    );
+  }
+
+  return (
+    <span className="inline-flex rounded-full border border-emerald-400/20 bg-emerald-500/10 px-3 py-1 text-[11px] font-semibold uppercase tracking-[0.14em] text-emerald-200">
+      Default
+    </span>
+  );
+}
+
+function HeaderStatusCard({ item }: { item: HeaderStatusCardData }) {
+  const Icon = item.icon;
+
+  const toneClasses = {
+    emerald: "border-emerald-400/20 bg-emerald-500/10 text-emerald-200",
+    cyan: "border-cyan-400/20 bg-cyan-500/10 text-cyan-200",
+    amber: "border-amber-400/20 bg-amber-500/10 text-amber-200",
+    rose: "border-rose-400/20 bg-rose-500/10 text-rose-200",
+  }[item.tone];
+
+  return (
+    <div className="min-h-[148px] rounded-[24px] border border-white/10 bg-black/20 p-4">
+      <div className="flex items-start justify-between gap-3">
+        <div className="min-w-0">
+          <div className="text-[11px] font-semibold uppercase tracking-[0.2em] text-slate-500">
+            {item.label}
+          </div>
+          <div className="mt-2 text-xl font-semibold leading-tight tracking-[-0.035em] text-white">
+            {item.value}
+          </div>
+        </div>
+
+        <div
+          className={`flex h-10 w-10 shrink-0 items-center justify-center rounded-2xl border ${toneClasses}`}
+        >
+          <Icon className="h-4 w-4" />
+        </div>
+      </div>
+
+      <div className="mt-3 text-xs leading-5 text-slate-500">{item.detail}</div>
+    </div>
+  );
+}
+
+function SummaryCard({ item }: { item: SummaryCardData }) {
+  const Icon = item.icon;
+  const tone = getToneClasses(item.tone);
+
+  return (
+    <div className={`rounded-[24px] border bg-black/20 p-4 ${tone.card}`}>
+      <div className="flex items-start justify-between gap-3">
+        <div className="min-w-0">
+          <div className="text-[11px] font-semibold uppercase tracking-[0.2em] text-slate-500">
+            {item.label}
+          </div>
+          <div className={`mt-2 text-lg font-semibold leading-6 ${tone.value}`}>
+            {item.value}
+          </div>
+        </div>
+
+        <div
+          className={`flex h-10 w-10 shrink-0 items-center justify-center rounded-2xl border ${tone.icon}`}
+        >
+          <Icon className="h-4 w-4" />
+        </div>
+      </div>
+
+      <div className="mt-3 text-xs leading-5 text-slate-500">{item.detail}</div>
+    </div>
+  );
+}
+
+function DetailSection({
   title,
   description,
-  onClose,
+  icon: Icon,
+  isEditing,
+  canEdit,
+  onEdit,
+  onCancel,
   onSave,
   isSaving,
   children,
 }: {
   title: string;
   description: string;
-  onClose: () => void;
-  onSave: () => void;
-  isSaving: boolean;
-  children: React.ReactNode;
+  icon: LucideIcon;
+  isEditing: boolean;
+  canEdit: boolean;
+  onEdit?: () => void;
+  onCancel?: () => void;
+  onSave?: () => void;
+  isSaving?: boolean;
+  children: ReactNode;
 }) {
   return (
-    <div className="fixed inset-0 z-[120] flex items-center justify-center bg-black/70 p-4 backdrop-blur-sm">
-      <div className="flex max-h-[90vh] w-full max-w-5xl flex-col overflow-hidden rounded-[32px] border border-white/10 bg-[linear-gradient(135deg,rgba(15,23,42,0.96),rgba(17,24,39,0.94))] shadow-[0_30px_120px_rgba(0,0,0,0.50)]">
-        <div className="flex items-start justify-between gap-4 border-b border-white/10 px-6 py-5">
-          <div>
-            <div className="text-xl font-semibold text-white">{title}</div>
-            <div className="mt-1 text-sm text-white/50">{description}</div>
+    <section className="overflow-hidden rounded-[30px] border border-white/10 bg-white/[0.045] backdrop-blur-xl">
+      <div className="flex flex-col gap-4 border-b border-white/10 px-5 py-4 lg:flex-row lg:items-start lg:justify-between">
+        <div className="flex min-w-0 items-start gap-3">
+          <div className="rounded-2xl border border-cyan-400/15 bg-cyan-500/10 p-3 text-cyan-200">
+            <Icon className="h-4 w-4" />
           </div>
 
-          <Button
-            variant="outline"
-            onClick={onClose}
-            className="h-11 rounded-2xl border-white/10 bg-white/5 px-4 text-white"
-          >
-            <X className="mr-2 h-4 w-4" />
-            Close
-          </Button>
+          <div className="min-w-0">
+            <h2 className="text-sm font-semibold uppercase tracking-[0.18em] text-slate-400">
+              {title}
+            </h2>
+            <p className="mt-1 text-xs leading-5 text-slate-500">{description}</p>
+          </div>
         </div>
 
-        <div className="min-h-0 flex-1 overflow-y-auto px-6 py-5">
-          {children}
-        </div>
+        {canEdit ? (
+          <div className="flex shrink-0 flex-wrap gap-2">
+            {isEditing ? (
+              <>
+                <button
+                  type="button"
+                  onClick={onCancel}
+                  disabled={isSaving}
+                  className="inline-flex h-10 items-center justify-center gap-2 rounded-2xl border border-white/10 bg-white/[0.05] px-4 text-xs font-semibold uppercase tracking-[0.14em] text-slate-300 transition hover:bg-white/[0.08] disabled:cursor-not-allowed disabled:opacity-60"
+                >
+                  <X className="h-3.5 w-3.5" />
+                  Cancel
+                </button>
 
-        <div className="flex items-center justify-end gap-3 border-t border-white/10 px-6 py-5">
-          <Button
-            variant="outline"
-            onClick={onClose}
-            className="h-11 rounded-2xl border-white/10 bg-white/5 px-4 text-white"
-          >
-            Cancel
-          </Button>
+                <button
+                  type="button"
+                  onClick={onSave}
+                  disabled={isSaving}
+                  className="inline-flex h-10 items-center justify-center gap-2 rounded-2xl border border-cyan-400/20 bg-cyan-500/10 px-4 text-xs font-semibold uppercase tracking-[0.14em] text-cyan-100 transition hover:bg-cyan-500/15 disabled:cursor-not-allowed disabled:opacity-60"
+                >
+                  {isSaving ? (
+                    <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                  ) : (
+                    <Save className="h-3.5 w-3.5" />
+                  )}
+                  Save
+                </button>
+              </>
+            ) : (
+              <button
+                type="button"
+                onClick={onEdit}
+                className="inline-flex h-10 items-center justify-center gap-2 rounded-2xl border border-white/10 bg-white/[0.05] px-4 text-xs font-semibold uppercase tracking-[0.14em] text-slate-300 transition hover:bg-white/[0.08] hover:text-white"
+              >
+                <Pencil className="h-3.5 w-3.5" />
+                Edit
+              </button>
+            )}
+          </div>
+        ) : null}
+      </div>
 
-          <Button
-            variant="outline"
-            onClick={onSave}
-            disabled={isSaving}
-            className="h-11 rounded-2xl border-white/10 bg-white/5 px-4 text-white"
-          >
-            <Save className="mr-2 h-4 w-4" />
-            {isSaving ? "Saving..." : "Save Section"}
-          </Button>
-        </div>
+      <div className="p-5">{children}</div>
+    </section>
+  );
+}
+
+function LoadingState() {
+  return (
+    <div className="min-h-screen bg-[#05070d] px-4 py-4 text-white md:px-6 md:py-6">
+      <div className="mx-auto flex w-full max-w-[1600px] flex-col gap-6">
+        <section className="rounded-[34px] border border-white/10 bg-white/[0.045] p-12 text-center backdrop-blur-xl">
+          <Loader2 className="mx-auto h-8 w-8 animate-spin text-cyan-200" />
+          <div className="mt-4 text-sm font-semibold text-white">
+            Loading bank account
+          </div>
+          <p className="mt-2 text-sm leading-6 text-slate-500">
+            Bank account record and permission state are being checked.
+          </p>
+        </section>
       </div>
     </div>
+  );
+}
+
+function EmptyState({
+  icon: Icon,
+  title,
+  description,
+  action,
+}: {
+  icon: LucideIcon;
+  title: string;
+  description: string;
+  action?: ReactNode;
+}) {
+  return (
+    <section className="rounded-[30px] border border-white/10 bg-white/[0.045] p-10 text-center backdrop-blur-xl">
+      <div className="mx-auto flex h-14 w-14 items-center justify-center rounded-2xl border border-white/10 bg-black/20 text-slate-500">
+        <Icon className="h-6 w-6" />
+      </div>
+      <div className="mt-4 text-lg font-semibold text-white">{title}</div>
+      <p className="mx-auto mt-2 max-w-2xl text-sm leading-6 text-slate-500">
+        {description}
+      </p>
+      {action ? <div className="mt-6">{action}</div> : null}
+    </section>
   );
 }
 
@@ -254,54 +617,80 @@ export default function FinanceMasterDataBankAccountDetailPage() {
   const navigate = useNavigate();
   const { id } = useParams<{ id: string }>();
 
+  const [profile, setProfile] = useState<ProfilePermissionRow | null>(null);
+  const [effectivePermissions, setEffectivePermissions] =
+    useState<Record<Permission, boolean> | null>(null);
   const [record, setRecord] = useState<FinanceBankAccount | null>(null);
   const [companies, setCompanies] = useState<CompanyOption[]>([]);
-
-  const [isLoading, setIsLoading] = useState(true);
-  const [isMutating, setIsMutating] = useState(false);
+  const [isLoadingProfile, setIsLoadingProfile] = useState(true);
+  const [isLoadingRecord, setIsLoadingRecord] = useState(true);
+  const [isSaving, setIsSaving] = useState(false);
+  const [isLifecycleRunning, setIsLifecycleRunning] = useState(false);
   const [editingSection, setEditingSection] = useState<EditSection>(null);
-  const [modalError, setModalError] = useState<string | null>(null);
+  const [pageError, setPageError] = useState<string | null>(null);
+  const [pageMessage, setPageMessage] = useState<string | null>(null);
 
-  const [basicForm, setBasicForm] = useState<BasicForm>({
-    company_id: "",
-    beneficiary_name: "",
-    bank_name: "",
-    account_number: "",
-  });
+  const [overviewDraft, setOverviewDraft] =
+    useState<OverviewDraft>(EMPTY_OVERVIEW_DRAFT);
+  const [addressDraft, setAddressDraft] =
+    useState<AddressDraft>(EMPTY_ADDRESS_DRAFT);
+  const [controlDraft, setControlDraft] =
+    useState<ControlDraft>(EMPTY_CONTROL_DRAFT);
+  const [notesDraft, setNotesDraft] = useState("");
 
-  const [addressForm, setAddressForm] = useState<AddressForm>({
-    country: "",
-    city: "",
-    postal_code: "",
-    address_line_1: "",
-    address_line_2: "",
-  });
+  const loadCurrentProfile = useCallback(async () => {
+    setIsLoadingProfile(true);
 
-  const [controlForm, setControlForm] = useState<ControlForm>({
-    account_identifier_type: "swift",
-    account_identifier_value: "",
-    currency_code: "",
-    is_default: false,
-    status: "active",
-  });
+    try {
+      const authResult = await supabase.auth.getUser();
+      if (authResult.error) throw authResult.error;
 
-  const [notesForm, setNotesForm] = useState("");
+      const authUserId = authResult.data.user?.id;
 
-  const selectedCompany = useMemo(() => {
-    return companies.find((company) => company.id === basicForm.company_id) ?? null;
-  }, [companies, basicForm.company_id]);
+      if (!authUserId) {
+        setProfile(null);
+        setEffectivePermissions(null);
+        return;
+      }
 
-  const identifierLabel = useMemo(() => {
-    if (controlForm.account_identifier_type.trim().toLowerCase() === "iban") {
-      return "IBAN Value";
+      const profileResult = await supabase
+        .from("profiles")
+        .select("user_id, full_name, role, permissions")
+        .eq("user_id", authUserId)
+        .maybeSingle();
+
+      if (profileResult.error) throw profileResult.error;
+
+      const loadedProfile = (profileResult.data || null) as ProfilePermissionRow | null;
+      const backendPermissions = await loadBackendEffectivePermissions(authUserId);
+
+      setProfile(loadedProfile);
+
+      if (!loadedProfile?.role) {
+        setEffectivePermissions(null);
+        return;
+      }
+
+      const resolvedPermissions = getEffectivePermissions(
+        loadedProfile.role,
+        backendPermissions || loadedProfile.permissions || null
+      );
+
+      setEffectivePermissions(resolvedPermissions);
+    } catch (error) {
+      console.error("Failed to load bank account ID permissions:", error);
+      setProfile(null);
+      setEffectivePermissions(null);
+    } finally {
+      setIsLoadingProfile(false);
     }
-    return "SWIFT Value";
-  }, [controlForm.account_identifier_type]);
+  }, []);
 
   const loadRecord = useCallback(async () => {
     if (!id) return;
 
-    setIsLoading(true);
+    setIsLoadingRecord(true);
+    setPageError(null);
 
     try {
       const [detail, companyRows] = await Promise.all([
@@ -315,33 +704,155 @@ export default function FinanceMasterDataBankAccountDetailPage() {
       console.error("Failed to load bank account details:", error);
       setRecord(null);
       setCompanies([]);
+      setPageError(
+        error instanceof Error ? error.message : "Failed to load bank account details."
+      );
     } finally {
-      setIsLoading(false);
+      setIsLoadingRecord(false);
     }
   }, [id]);
 
   useEffect(() => {
-    void loadRecord();
-  }, [loadRecord]);
+    void Promise.all([loadCurrentProfile(), loadRecord()]);
+  }, [loadCurrentProfile, loadRecord]);
 
-  function openBasicEditor() {
-    if (!record) return;
+  useEffect(() => {
+    const channel = supabase
+      .channel("finance-master-data-bank-account-id-page")
+      .on(
+        "postgres_changes",
+        { event: "*", schema: "public", table: "profiles" },
+        () => void loadCurrentProfile()
+      )
+      .on(
+        "postgres_changes",
+        { event: "*", schema: "public", table: "finance_permission_templates" },
+        () => void loadCurrentProfile()
+      )
+      .on(
+        "postgres_changes",
+        { event: "*", schema: "public", table: "finance_user_permission_templates" },
+        () => void loadCurrentProfile()
+      )
+      .on(
+        "postgres_changes",
+        { event: "*", schema: "public", table: "finance_companies" },
+        () => void loadRecord()
+      )
+      .on(
+        "postgres_changes",
+        { event: "*", schema: "public", table: "finance_bank_accounts" },
+        () => void loadRecord()
+      )
+      .subscribe();
 
-    setModalError(null);
-    setBasicForm({
+    const intervalId = window.setInterval(() => {
+      void Promise.all([loadCurrentProfile(), loadRecord()]);
+    }, 60000);
+
+    return () => {
+      window.clearInterval(intervalId);
+      supabase.removeChannel(channel);
+    };
+  }, [loadCurrentProfile, loadRecord]);
+
+  const permissionState = useMemo(() => {
+    return buildPermissionState(profile, effectivePermissions);
+  }, [effectivePermissions, profile]);
+
+  const selectedCompany = useMemo(() => {
+    if (!record?.company_id) return null;
+    return companies.find((company) => company.id === record.company_id) ?? null;
+  }, [companies, record?.company_id]);
+
+  const draftSelectedCompany = useMemo(() => {
+    if (!overviewDraft.company_id) return null;
+    return companies.find((company) => company.id === overviewDraft.company_id) ?? null;
+  }, [companies, overviewDraft.company_id]);
+
+  const isPageLoading = isLoadingProfile || isLoadingRecord;
+
+  const headerStatusCards = useMemo<HeaderStatusCardData[]>(() => {
+    return [
+      {
+        label: "Read Access",
+        value: isLoadingProfile
+          ? "Checking"
+          : permissionState.canRead
+            ? "Enabled"
+            : "Locked",
+        detail: "Viewing this record requires Bank Account read access.",
+        icon: permissionState.canRead ? ShieldCheck : LockKeyhole,
+        tone: permissionState.canRead ? "emerald" : "rose",
+      },
+      {
+        label: "Edit Access",
+        value: permissionState.canUpdate ? "Enabled" : "Read Only",
+        detail: "Section edits require Update access or Master Data admin access.",
+        icon: permissionState.canUpdate ? Pencil : LockKeyhole,
+        tone: permissionState.canUpdate ? "cyan" : "amber",
+      },
+    ];
+  }, [isLoadingProfile, permissionState.canRead, permissionState.canUpdate]);
+
+  const summaryCards = useMemo<SummaryCardData[]>(() => {
+    return [
+      {
+        label: "Company",
+        value: getCompanyDisplayName(record, selectedCompany),
+        detail: getCompanyCodeLabel(record, selectedCompany),
+        icon: Building2,
+        tone: "cyan",
+      },
+      {
+        label: "Bank",
+        value: record?.bank_name || "—",
+        detail: record?.beneficiary_name || "No beneficiary",
+        icon: Landmark,
+        tone: "emerald",
+      },
+      {
+        label: getIdentifierLabel(record),
+        value: getIdentifierValue(record),
+        detail: record?.currency_code || "No currency",
+        icon: CreditCard,
+        tone: "violet",
+      },
+      {
+        label: "Lifecycle",
+        value: formatStatus(record?.status),
+        detail: record?.is_default ? "Default account" : "Standard account",
+        icon: record?.status === "archived" ? Archive : ShieldCheck,
+        tone: record?.status === "archived" ? "rose" : "amber",
+      },
+    ];
+  }, [record, selectedCompany]);
+
+  function cancelEditing() {
+    setEditingSection(null);
+    setPageError(null);
+  }
+
+  function openOverviewEditor() {
+    if (!record || !permissionState.canUpdate) return;
+
+    setPageError(null);
+    setPageMessage(null);
+    setOverviewDraft({
       company_id: record.company_id || "",
       beneficiary_name: record.beneficiary_name || "",
       bank_name: record.bank_name || "",
       account_number: record.account_number || "",
     });
-    setEditingSection("basic");
+    setEditingSection("overview");
   }
 
   function openAddressEditor() {
-    if (!record) return;
+    if (!record || !permissionState.canUpdate) return;
 
-    setModalError(null);
-    setAddressForm({
+    setPageError(null);
+    setPageMessage(null);
+    setAddressDraft({
       country: record.country || "",
       city: record.city || "",
       postal_code: record.postal_code || "",
@@ -352,10 +863,11 @@ export default function FinanceMasterDataBankAccountDetailPage() {
   }
 
   function openControlEditor() {
-    if (!record) return;
+    if (!record || !permissionState.canUpdate) return;
 
-    setModalError(null);
-    setControlForm({
+    setPageError(null);
+    setPageMessage(null);
+    setControlDraft({
       account_identifier_type: record.account_identifier_type || "swift",
       account_identifier_value: record.account_identifier_value || "",
       currency_code: record.currency_code || "",
@@ -366,691 +878,862 @@ export default function FinanceMasterDataBankAccountDetailPage() {
   }
 
   function openNotesEditor() {
-    if (!record) return;
+    if (!record || !permissionState.canUpdate) return;
 
-    setModalError(null);
-    setNotesForm(record.notes || "");
+    setPageError(null);
+    setPageMessage(null);
+    setNotesDraft(record.notes || "");
     setEditingSection("notes");
   }
 
-  function handleBasicCompanyChange(companyId: string) {
+  function updateOverviewDraft<K extends keyof OverviewDraft>(
+    key: K,
+    value: OverviewDraft[K]
+  ) {
+    setOverviewDraft((previousDraft) => ({
+      ...previousDraft,
+      [key]: value,
+    }));
+  }
+
+  function updateAddressDraft<K extends keyof AddressDraft>(
+    key: K,
+    value: AddressDraft[K]
+  ) {
+    setAddressDraft((previousDraft) => ({
+      ...previousDraft,
+      [key]: value,
+    }));
+  }
+
+  function updateControlDraft<K extends keyof ControlDraft>(
+    key: K,
+    value: ControlDraft[K]
+  ) {
+    setControlDraft((previousDraft) => ({
+      ...previousDraft,
+      [key]: value,
+    }));
+  }
+
+  function handleOverviewCompanyChange(companyId: string) {
     const company = companies.find((item) => item.id === companyId) ?? null;
 
-    setBasicForm((prev) => ({
-      ...prev,
+    setOverviewDraft((previousDraft) => ({
+      ...previousDraft,
       company_id: companyId,
-      beneficiary_name: company?.legal_name?.trim() || company?.name || "",
+      beneficiary_name:
+        company?.legal_name?.trim() || company?.name || previousDraft.beneficiary_name,
     }));
 
     if (company?.currency_code) {
-      setControlForm((prev) => ({
-        ...prev,
-        currency_code: prev.currency_code || company.currency_code || "",
+      setControlDraft((previousDraft) => ({
+        ...previousDraft,
+        currency_code: previousDraft.currency_code || company.currency_code || "",
       }));
     }
   }
 
-  async function saveBasicSection() {
-    if (!record) return;
+  async function saveOverviewSection() {
+    if (!record || !permissionState.canUpdate) return;
 
-    if (!basicForm.company_id) {
-      setModalError("Company is required.");
+    if (!overviewDraft.company_id) {
+      setPageError("Company is required.");
       return;
     }
 
-    if (!basicForm.bank_name.trim()) {
-      setModalError("Bank name is required.");
+    if (!overviewDraft.beneficiary_name.trim()) {
+      setPageError("Beneficiary name is required.");
+      return;
+    }
+
+    if (!overviewDraft.bank_name.trim()) {
+      setPageError("Bank name is required.");
       return;
     }
 
     try {
-      setIsMutating(true);
-      setModalError(null);
+      setIsSaving(true);
+      setPageError(null);
+      setPageMessage(null);
 
       await updateBankAccount(record.id, {
-        company_id: basicForm.company_id,
-        beneficiary_name: basicForm.beneficiary_name.trim() || null,
-        bank_name: basicForm.bank_name.trim() || null,
-        account_number: basicForm.account_number.trim() || null,
+        company_id: overviewDraft.company_id,
+        beneficiary_name: overviewDraft.beneficiary_name.trim() || null,
+        bank_name: overviewDraft.bank_name.trim() || null,
+        account_number: overviewDraft.account_number.trim() || null,
       });
 
       setEditingSection(null);
+      setPageMessage("Bank overview updated.");
       await loadRecord();
     } catch (error) {
-      console.error("Failed to save basic section:", error);
-      setModalError(error instanceof Error ? error.message : "Failed to save.");
+      console.error("Failed to save bank overview:", error);
+      setPageError(
+        error instanceof Error ? error.message : "Failed to save bank overview."
+      );
     } finally {
-      setIsMutating(false);
+      setIsSaving(false);
     }
   }
 
   async function saveAddressSection() {
-    if (!record) return;
+    if (!record || !permissionState.canUpdate) return;
 
     try {
-      setIsMutating(true);
-      setModalError(null);
+      setIsSaving(true);
+      setPageError(null);
+      setPageMessage(null);
 
       await updateBankAccount(record.id, {
-        country: addressForm.country.trim() || null,
-        city: addressForm.city.trim() || null,
-        postal_code: addressForm.postal_code.trim() || null,
-        address_line_1: addressForm.address_line_1.trim() || null,
-        address_line_2: addressForm.address_line_2.trim() || null,
+        country: addressDraft.country.trim() || null,
+        city: addressDraft.city.trim() || null,
+        postal_code: addressDraft.postal_code.trim() || null,
+        address_line_1: addressDraft.address_line_1.trim() || null,
+        address_line_2: addressDraft.address_line_2.trim() || null,
       });
 
       setEditingSection(null);
+      setPageMessage("Bank address updated.");
       await loadRecord();
     } catch (error) {
-      console.error("Failed to save address section:", error);
-      setModalError(error instanceof Error ? error.message : "Failed to save.");
+      console.error("Failed to save bank address:", error);
+      setPageError(
+        error instanceof Error ? error.message : "Failed to save bank address."
+      );
     } finally {
-      setIsMutating(false);
+      setIsSaving(false);
     }
   }
 
   async function saveControlSection() {
-    if (!record) return;
+    if (!record || !permissionState.canUpdate) return;
+
+    const normalizedIdentifierType = normalizeIdentifierType(
+      controlDraft.account_identifier_type
+    );
+    const normalizedStatus = normalizeStatus(controlDraft.status);
+
+    if (
+      normalizedStatus === "archived" &&
+      record.status !== "archived" &&
+      !permissionState.canDeleteArchive
+    ) {
+      setPageError("Delete/Archive access is required to archive this record.");
+      return;
+    }
+
+    if (
+      record.status === "archived" &&
+      normalizedStatus !== "archived" &&
+      !permissionState.canDeleteArchive
+    ) {
+      setPageError("Delete/Archive access is required to restore this record.");
+      return;
+    }
 
     try {
-      setIsMutating(true);
-      setModalError(null);
-
-      const normalizedIdentifierType = (() => {
-        const value = controlForm.account_identifier_type.trim().toLowerCase();
-
-        if (value === "swift" || value === "iban") {
-          return value;
-        }
-
-        return null;
-      })();
+      setIsSaving(true);
+      setPageError(null);
+      setPageMessage(null);
 
       await updateBankAccount(record.id, {
         account_identifier_type: normalizedIdentifierType,
         account_identifier_value:
-          controlForm.account_identifier_value.trim() || null,
-        currency_code: controlForm.currency_code.trim() || null,
-        is_default: controlForm.is_default,
-        status: controlForm.status,
+          controlDraft.account_identifier_value.trim() || null,
+        currency_code: controlDraft.currency_code.trim() || null,
+        is_default: controlDraft.is_default,
+        status: normalizedStatus,
       });
 
       setEditingSection(null);
+      setPageMessage("Identifier, currency, and control settings updated.");
       await loadRecord();
     } catch (error) {
-      console.error("Failed to save control section:", error);
-      setModalError(error instanceof Error ? error.message : "Failed to save.");
+      console.error("Failed to save bank control settings:", error);
+      setPageError(
+        error instanceof Error ? error.message : "Failed to save bank control settings."
+      );
     } finally {
-      setIsMutating(false);
+      setIsSaving(false);
     }
   }
 
   async function saveNotesSection() {
-    if (!record) return;
+    if (!record || !permissionState.canUpdate) return;
 
     try {
-      setIsMutating(true);
-      setModalError(null);
+      setIsSaving(true);
+      setPageError(null);
+      setPageMessage(null);
 
       await updateBankAccount(record.id, {
-        notes: notesForm.trim() || null,
+        notes: notesDraft.trim() || null,
       });
 
       setEditingSection(null);
+      setPageMessage("Notes updated.");
       await loadRecord();
     } catch (error) {
-      console.error("Failed to save notes section:", error);
-      setModalError(error instanceof Error ? error.message : "Failed to save.");
+      console.error("Failed to save bank account notes:", error);
+      setPageError(
+        error instanceof Error ? error.message : "Failed to save notes."
+      );
     } finally {
-      setIsMutating(false);
+      setIsSaving(false);
     }
   }
 
   async function handleArchiveToggle() {
-    if (!record) return;
+    if (!record || !permissionState.canDeleteArchive || isLifecycleRunning) return;
 
     try {
-      setIsMutating(true);
+      setIsLifecycleRunning(true);
+      setPageError(null);
+      setPageMessage(null);
 
       if (record.status === "archived") {
         await restoreBankAccount(record.id);
+        setPageMessage("Bank account restored.");
       } else {
         await archiveBankAccount(record.id);
+        setPageMessage("Bank account archived.");
       }
 
       await loadRecord();
     } catch (error) {
-      console.error("Failed to update bank account status:", error);
+      console.error("Failed to update bank account lifecycle:", error);
+      setPageError(
+        error instanceof Error
+          ? error.message
+          : "Failed to update bank account lifecycle."
+      );
     } finally {
-      setIsMutating(false);
+      setIsLifecycleRunning(false);
     }
   }
 
-  if (isLoading) {
-    return (
-      <div className="flex h-full min-h-0 flex-col overflow-hidden">
-        <div className="mx-auto flex h-full w-full max-w-[1920px] min-h-0 flex-col gap-6 px-4 pb-4 pt-2 sm:px-6 xl:px-8">
-          <div className="flex min-h-0 flex-1 items-center justify-center">
-            <div className="text-sm text-white/50">
-              Loading bank account...
-            </div>
-          </div>
-        </div>
-      </div>
-    );
+  if (isPageLoading) {
+    return <LoadingState />;
   }
 
   if (!record) {
     return (
-      <div className="flex h-full min-h-0 flex-col overflow-hidden">
-        <div className="mx-auto flex h-full w-full max-w-[1920px] min-h-0 flex-col gap-6 px-4 pb-4 pt-2 sm:px-6 xl:px-8">
-          <div className="flex min-h-0 flex-1 items-center justify-center">
-            <Card className="w-full max-w-xl overflow-hidden rounded-[28px] border border-white/10 bg-white/[0.045] backdrop-blur-xl">
-              <CardContent className="p-8 text-center">
-                <div className="mx-auto flex h-14 w-14 items-center justify-center rounded-2xl border border-white/10 bg-black/20 text-white/70">
-                  <CreditCard className="h-6 w-6" />
-                </div>
-                <div className="mt-4 text-lg font-semibold text-white">
-                  Bank account not found
-                </div>
-                <div className="mt-2 text-sm text-white/50">
-                  The bank account record could not be loaded.
-                </div>
-                <div className="mt-6">
-                  <Button
-                    variant="outline"
-                    onClick={() =>
-                      navigate("/finance/master-data/bank-accounts")
-                    }
-                    className="h-11 rounded-2xl border-white/10 bg-white/5 px-4 text-white"
-                  >
-                    <ArrowLeft className="mr-2 h-4 w-4" />
-                    Back to Company Bank Accounts
-                  </Button>
-                </div>
-              </CardContent>
-            </Card>
-          </div>
+      <div className="min-h-screen bg-[#05070d] px-4 py-4 text-white md:px-6 md:py-6">
+        <div className="mx-auto flex w-full max-w-[1600px] flex-col gap-6">
+          <EmptyState
+            icon={CreditCard}
+            title="Bank account not found"
+            description="The bank account record could not be loaded or no longer exists."
+            action={
+              <button
+                type="button"
+                onClick={() => navigate("/finance/master-data/bank-accounts")}
+                className="inline-flex h-11 items-center justify-center gap-2 rounded-2xl border border-cyan-400/20 bg-cyan-500/10 px-5 text-sm font-semibold text-cyan-100 transition hover:bg-cyan-500/15"
+              >
+                <ArrowRight className="h-4 w-4 rotate-180" />
+                Bank Accounts
+              </button>
+            }
+          />
         </div>
       </div>
     );
   }
 
-  const companyDisplayName =
-    selectedCompany?.legal_name?.trim() ||
-    selectedCompany?.name ||
-    record.beneficiary_name ||
-    "—";
+  if (!permissionState.canRead) {
+    return (
+      <div className="min-h-screen bg-[#05070d] px-4 py-4 text-white md:px-6 md:py-6">
+        <div className="mx-auto flex w-full max-w-[1600px] flex-col gap-6">
+          <header className="relative overflow-hidden rounded-[34px] border border-white/10 bg-white/[0.045] p-6 shadow-2xl shadow-black/30 backdrop-blur-xl">
+            <div className="pointer-events-none absolute inset-0 bg-[radial-gradient(circle_at_top_left,rgba(6,182,212,0.16),transparent_38%),radial-gradient(circle_at_top_right,rgba(139,92,246,0.12),transparent_34%)]" />
+
+            <div className="relative">
+              <button
+                type="button"
+                onClick={() => navigate("/finance/master-data/bank-accounts")}
+                className="mb-5 inline-flex items-center justify-center gap-2 rounded-full border border-white/10 bg-white/[0.05] px-5 py-2 text-[11px] font-semibold uppercase tracking-[0.22em] text-slate-300 transition hover:border-white/20 hover:bg-white/[0.08] hover:text-white"
+              >
+                <ArrowRight className="h-3.5 w-3.5 rotate-180" />
+                Bank Accounts
+              </button>
+
+              <div className="inline-flex w-fit items-center gap-2 rounded-full border border-rose-400/20 bg-rose-500/10 px-3 py-1 text-[11px] font-semibold uppercase tracking-[0.22em] text-rose-200">
+                <LockKeyhole className="h-3.5 w-3.5" />
+                Access Locked
+              </div>
+
+              <h1 className="mt-4 text-3xl font-semibold tracking-[-0.035em] text-white md:text-5xl">
+                Bank Account Access Locked
+              </h1>
+
+              <p className="mt-3 max-w-4xl text-sm leading-6 text-slate-400 md:text-base md:leading-7">
+                This page requires Bank Account read access or Master Data admin access.
+              </p>
+            </div>
+          </header>
+
+          <EmptyState
+            icon={LockKeyhole}
+            title="No bank account read access"
+            description="Ask an Admin to assign a Finance role template or user-specific exception with Bank Account read access."
+          />
+        </div>
+      </div>
+    );
+  }
 
   return (
-    <>
-      <div className="flex h-full min-h-0 flex-col overflow-hidden">
-        <div className="mx-auto flex h-full w-full max-w-[1920px] min-h-0 flex-col gap-6 px-4 pb-4 pt-2 sm:px-6 xl:px-8">
-          <section className="relative z-10 flex-shrink-0 overflow-hidden rounded-[30px] border border-white/10 bg-[linear-gradient(135deg,rgba(34,211,238,0.08),rgba(139,92,246,0.08),rgba(255,255,255,0.03))] backdrop-blur-xl">
-            <div className="pointer-events-none absolute inset-0 bg-[radial-gradient(circle_at_top_left,rgba(34,211,238,0.18),transparent_28%),radial-gradient(circle_at_top_right,rgba(139,92,246,0.14),transparent_26%),radial-gradient(circle_at_bottom_left,rgba(16,185,129,0.14),transparent_24%)]" />
+    <div className="min-h-screen bg-[#05070d] px-4 py-4 text-white md:px-6 md:py-6">
+      <div className="mx-auto flex w-full max-w-[1600px] flex-col gap-6">
+        <header className="relative overflow-hidden rounded-[34px] border border-white/10 bg-white/[0.045] p-6 shadow-2xl shadow-black/30 backdrop-blur-xl">
+          <div className="pointer-events-none absolute inset-0 bg-[radial-gradient(circle_at_top_left,rgba(6,182,212,0.16),transparent_38%),radial-gradient(circle_at_top_right,rgba(139,92,246,0.12),transparent_34%)]" />
 
-            <div className="relative flex items-center justify-between gap-4 px-5 py-5 sm:px-6 xl:px-7">
-              <div className="min-w-0">
-                <div className="flex flex-wrap items-center gap-2">
-                  <Badge className="rounded-full border border-cyan-400/20 bg-cyan-500/10 px-3 py-1 text-[11px] uppercase tracking-[0.22em] text-cyan-200 shadow-none">
-                    Master Data
-                  </Badge>
-                  <Badge className="rounded-full border border-white/10 bg-white/8 px-3 py-1 text-[11px] text-white/70 shadow-none">
-                    {record.bank_id || "No bank ID"}
-                  </Badge>
-                  {record.company_code ? (
-                    <Badge className="rounded-full border border-white/10 bg-white/8 px-3 py-1 text-[11px] text-white/70 shadow-none">
-                      {record.company_code}
-                    </Badge>
-                  ) : null}
-                  {record.is_default ? (
-                    <Badge className="rounded-full border border-emerald-400/15 bg-emerald-500/10 px-3 py-1 text-[11px] text-emerald-200 shadow-none">
-                      Default
-                    </Badge>
-                  ) : null}
-                  <Badge
-                    className={`rounded-full px-3 py-1 text-[11px] shadow-none ${getStatusTone(
-                      record.status
-                    )}`}
-                  >
-                    {record.status}
-                  </Badge>
-                </div>
+          <div className="relative grid gap-6 xl:grid-cols-[minmax(0,1fr)_520px] xl:items-end">
+            <div>
+              <button
+                type="button"
+                onClick={() => navigate("/finance/master-data/bank-accounts")}
+                className="mb-5 inline-flex items-center justify-center gap-2 rounded-full border border-white/10 bg-white/[0.05] px-5 py-2 text-[11px] font-semibold uppercase tracking-[0.22em] text-slate-300 transition hover:border-white/20 hover:bg-white/[0.08] hover:text-white"
+              >
+                <ArrowRight className="h-3.5 w-3.5 rotate-180" />
+                Bank Accounts
+              </button>
 
-                <h1 className="mt-3 text-2xl font-semibold tracking-tight text-white sm:text-3xl">
-                  {record.bank_name || "Company Bank Account"}
-                </h1>
-
-                <div className="mt-2 text-sm text-white/50">
-                  Company bank account record with structured section editing.
-                </div>
+              <div className="inline-flex w-fit items-center gap-2 rounded-full border border-cyan-400/20 bg-cyan-500/10 px-3 py-1 text-[11px] font-semibold uppercase tracking-[0.22em] text-cyan-200">
+                <Sparkles className="h-3.5 w-3.5" />
+                Bank Account Detail
               </div>
 
-              <div className="flex shrink-0 flex-wrap items-center gap-3">
-                <Button
-                  variant="outline"
-                  onClick={() =>
-                    navigate("/finance/master-data/bank-accounts")
-                  }
-                  className="h-11 rounded-2xl border-white/10 bg-white/5 px-4 text-white"
-                >
-                  <ArrowLeft className="mr-2 h-4 w-4" />
-                  Back
-                </Button>
+              <h1 className="mt-4 text-3xl font-semibold tracking-[-0.035em] text-white md:text-5xl">
+                {record.bank_name || "Company Bank Account"}
+              </h1>
 
-                <Button
-                  variant="outline"
-                  onClick={() => void handleArchiveToggle()}
-                  disabled={isMutating}
-                  className="h-11 rounded-2xl border-white/10 bg-white/5 px-4 text-white"
-                >
-                  <ShieldCheck className="mr-2 h-4 w-4" />
-                  {isMutating
-                    ? "Updating..."
-                    : record.status === "archived"
-                    ? "Activate"
-                    : "Archive"}
-                </Button>
+              <p className="mt-3 max-w-4xl text-sm leading-6 text-slate-400 md:text-base md:leading-7">
+                Company-linked bank account record with same-place section editing,
+                lifecycle control, and permission-protected actions.
+              </p>
 
-                <Button
-                  variant="outline"
-                  onClick={() => void loadRecord()}
-                  className="h-11 rounded-2xl border-white/10 bg-white/5 px-4 text-white"
-                >
-                  <RefreshCw className="mr-2 h-4 w-4" />
-                  Refresh
-                </Button>
+              <div className="mt-5 flex flex-wrap gap-2">
+                <span className="rounded-full border border-white/10 bg-white/[0.05] px-3 py-1 text-[11px] font-semibold uppercase tracking-[0.16em] text-slate-300">
+                  {record.bank_id || "No Bank ID"}
+                </span>
+
+                <span className="rounded-full border border-white/10 bg-white/[0.05] px-3 py-1 text-[11px] font-semibold uppercase tracking-[0.16em] text-slate-300">
+                  {getCompanyCodeLabel(record, selectedCompany)}
+                </span>
+
+                <StatusBadge status={record.status} />
+
+                {record.is_default ? <DefaultBadge isDefault /> : null}
               </div>
             </div>
-          </section>
 
-          <div className="flex min-h-0 flex-1 flex-col gap-6 overflow-y-auto overflow-x-hidden pr-1 pb-2">
-            <div className="grid grid-cols-1 gap-6 xl:grid-cols-2">
-              <SectionCard
-                title="Section 1 — Basic"
-                description="Company linkage, beneficiary, bank name, and account number."
-                onEdit={openBasicEditor}
-              >
-                <div className="grid grid-cols-1 gap-3 md:grid-cols-2">
-                  <DisplayRow label="Company" value={companyDisplayName} />
-                  <DisplayRow label="Company Code" value={record.company_code || "—"} />
-                  <DisplayRow
+            <div className="grid gap-3 sm:grid-cols-2">
+              {headerStatusCards.map((item) => (
+                <HeaderStatusCard key={item.label} item={item} />
+              ))}
+            </div>
+          </div>
+        </header>
+
+        {pageError ? (
+          <div className="rounded-[24px] border border-rose-400/20 bg-rose-500/10 p-4 text-sm leading-6 text-rose-100">
+            <div className="flex items-start gap-3">
+              <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0" />
+              <div>{pageError}</div>
+            </div>
+          </div>
+        ) : null}
+
+        {pageMessage ? (
+          <div className="rounded-[24px] border border-emerald-400/20 bg-emerald-500/10 p-4 text-sm leading-6 text-emerald-100">
+            <div className="flex items-start gap-3">
+              <CheckCircle2 className="mt-0.5 h-4 w-4 shrink-0" />
+              <div>{pageMessage}</div>
+            </div>
+          </div>
+        ) : null}
+
+        <section className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
+          {summaryCards.map((item) => (
+            <SummaryCard key={item.label} item={item} />
+          ))}
+        </section>
+
+        <section className="grid items-start gap-6 xl:grid-cols-[minmax(0,1fr)_420px]">
+          <div className="grid gap-6">
+            <DetailSection
+              title="Bank Overview"
+              description="Company linkage, beneficiary, bank name, and account number."
+              icon={Building2}
+              isEditing={editingSection === "overview"}
+              canEdit={permissionState.canUpdate}
+              onEdit={openOverviewEditor}
+              onCancel={cancelEditing}
+              onSave={() => void saveOverviewSection()}
+              isSaving={isSaving}
+            >
+              {editingSection === "overview" ? (
+                <div className="grid gap-4 md:grid-cols-2">
+                  <div className="md:col-span-2">
+                    <FieldLabel label="Company" required />
+                    <SelectField
+                      value={overviewDraft.company_id}
+                      disabled={isSaving}
+                      onChange={(event) => handleOverviewCompanyChange(event.target.value)}
+                    >
+                      <option value="" className="bg-[#05070d]">
+                        Select company
+                      </option>
+                      {companies.map((company) => (
+                        <option
+                          key={company.id}
+                          value={company.id}
+                          className="bg-[#05070d]"
+                        >
+                          {(company.legal_name?.trim() || company.name) +
+                            (company.code ? ` • ${company.code}` : "")}
+                        </option>
+                      ))}
+                    </SelectField>
+                  </div>
+
+                  <DisplayBlock
+                    label="Draft Company Code"
+                    value={draftSelectedCompany?.code || "—"}
+                    detail="Pulled from the selected company."
+                  />
+
+                  <DisplayBlock
+                    label="Draft Currency"
+                    value={draftSelectedCompany?.currency_code || "—"}
+                    detail="Company currency reference."
+                  />
+
+                  <div className="md:col-span-2">
+                    <FieldLabel label="Beneficiary Name" required />
+                    <InputField
+                      value={overviewDraft.beneficiary_name}
+                      disabled={isSaving}
+                      onChange={(event) =>
+                        updateOverviewDraft("beneficiary_name", event.target.value)
+                      }
+                      placeholder="Beneficiary name"
+                    />
+                  </div>
+
+                  <div>
+                    <FieldLabel label="Bank Name" required />
+                    <InputField
+                      value={overviewDraft.bank_name}
+                      disabled={isSaving}
+                      onChange={(event) =>
+                        updateOverviewDraft("bank_name", event.target.value)
+                      }
+                      placeholder="Bank name"
+                    />
+                  </div>
+
+                  <div>
+                    <FieldLabel label="Account Number" />
+                    <InputField
+                      value={overviewDraft.account_number}
+                      disabled={isSaving}
+                      onChange={(event) =>
+                        updateOverviewDraft("account_number", event.target.value)
+                      }
+                      placeholder="Account number"
+                    />
+                  </div>
+                </div>
+              ) : (
+                <div className="grid gap-3 md:grid-cols-2">
+                  <DisplayBlock
+                    label="Company"
+                    value={getCompanyDisplayName(record, selectedCompany)}
+                    detail={getCompanyCodeLabel(record, selectedCompany)}
+                  />
+                  <DisplayBlock
                     label="Beneficiary Name"
                     value={record.beneficiary_name || "—"}
                   />
-                  <DisplayRow label="Bank Name" value={record.bank_name || "—"} />
-                  <DisplayRow
+                  <DisplayBlock label="Bank Name" value={record.bank_name || "—"} />
+                  <DisplayBlock
                     label="Account Number"
                     value={record.account_number || "—"}
                   />
                 </div>
-              </SectionCard>
+              )}
+            </DetailSection>
 
-              <SectionCard
-                title="System Fields"
-                description="Read-only audit and system fields."
-              >
-                <div className="grid grid-cols-1 gap-3 md:grid-cols-2">
-                  <DisplayRow label="Bank ID" value={record.bank_id || "—"} />
-                  <DisplayRow
-                    label="Created At"
-                    value={formatDateTimeLabel(record.created_at)}
-                  />
-                  <DisplayRow
-                    label="Updated At"
-                    value={formatDateTimeLabel(record.updated_at)}
-                  />
-                  <DisplayRow
-                    label="Is Default"
-                    value={record.is_default ? "Yes" : "No"}
-                  />
+            <DetailSection
+              title="Bank Address"
+              description="Country, city, postal code, and address lines."
+              icon={WalletCards}
+              isEditing={editingSection === "address"}
+              canEdit={permissionState.canUpdate}
+              onEdit={openAddressEditor}
+              onCancel={cancelEditing}
+              onSave={() => void saveAddressSection()}
+              isSaving={isSaving}
+            >
+              {editingSection === "address" ? (
+                <div className="grid gap-4 md:grid-cols-2">
+                  <div>
+                    <FieldLabel label="Country" />
+                    <InputField
+                      value={addressDraft.country}
+                      disabled={isSaving}
+                      onChange={(event) =>
+                        updateAddressDraft("country", event.target.value)
+                      }
+                      placeholder="Country"
+                    />
+                  </div>
+
+                  <div>
+                    <FieldLabel label="City" />
+                    <InputField
+                      value={addressDraft.city}
+                      disabled={isSaving}
+                      onChange={(event) =>
+                        updateAddressDraft("city", event.target.value)
+                      }
+                      placeholder="City"
+                    />
+                  </div>
+
+                  <div>
+                    <FieldLabel label="ZIP / Postal Code" />
+                    <InputField
+                      value={addressDraft.postal_code}
+                      disabled={isSaving}
+                      onChange={(event) =>
+                        updateAddressDraft("postal_code", event.target.value)
+                      }
+                      placeholder="Postal code"
+                    />
+                  </div>
+
+                  <div className="md:col-span-2">
+                    <FieldLabel label="Address Line 1" />
+                    <InputField
+                      value={addressDraft.address_line_1}
+                      disabled={isSaving}
+                      onChange={(event) =>
+                        updateAddressDraft("address_line_1", event.target.value)
+                      }
+                      placeholder="Address line 1"
+                    />
+                  </div>
+
+                  <div className="md:col-span-2">
+                    <FieldLabel label="Address Line 2" />
+                    <InputField
+                      value={addressDraft.address_line_2}
+                      disabled={isSaving}
+                      onChange={(event) =>
+                        updateAddressDraft("address_line_2", event.target.value)
+                      }
+                      placeholder="Address line 2"
+                    />
+                  </div>
                 </div>
-              </SectionCard>
-
-              <SectionCard
-                title="Section 2 — Bank Address"
-                description="Country, city, postal code, and address lines."
-                onEdit={openAddressEditor}
-              >
-                <div className="grid grid-cols-1 gap-3 md:grid-cols-2">
-                  <DisplayRow label="Country" value={record.country || "—"} />
-                  <DisplayRow label="City" value={record.city || "—"} />
-                  <DisplayRow
+              ) : (
+                <div className="grid gap-3 md:grid-cols-2">
+                  <DisplayBlock label="Location" value={getLocationLabel(record)} />
+                  <DisplayBlock label="Country" value={record.country || "—"} />
+                  <DisplayBlock label="City" value={record.city || "—"} />
+                  <DisplayBlock
                     label="ZIP / Postal Code"
                     value={record.postal_code || "—"}
                   />
-                  <DisplayRow
+                  <DisplayBlock
                     label="Address Line 1"
                     value={record.address_line_1 || "—"}
                   />
-                  <DisplayRow
+                  <DisplayBlock
                     label="Address Line 2"
                     value={record.address_line_2 || "—"}
                   />
                 </div>
-              </SectionCard>
+              )}
+            </DetailSection>
 
-              <SectionCard
-                title="Section 3 — Identifier / Currency / Control"
-                description="Identifier type, identifier value, currency, default, and status."
-                onEdit={openControlEditor}
-              >
-                <div className="grid grid-cols-1 gap-3 md:grid-cols-2">
-                  <DisplayRow
+            <DetailSection
+              title="Identifier / Currency / Control"
+              description="Identifier type, identifier value, currency, default flag, and lifecycle status."
+              icon={CreditCard}
+              isEditing={editingSection === "control"}
+              canEdit={permissionState.canUpdate}
+              onEdit={openControlEditor}
+              onCancel={cancelEditing}
+              onSave={() => void saveControlSection()}
+              isSaving={isSaving}
+            >
+              {editingSection === "control" ? (
+                <div className="grid gap-4 md:grid-cols-2">
+                  <div>
+                    <FieldLabel label="Identifier Type" />
+                    <SelectField
+                      value={controlDraft.account_identifier_type || ""}
+                      disabled={isSaving}
+                      onChange={(event) =>
+                        updateControlDraft(
+                          "account_identifier_type",
+                          normalizeIdentifierType(event.target.value) || ""
+                        )
+                      }
+                    >
+                      <option value="" className="bg-[#05070d]">
+                        None
+                      </option>
+                      <option value="swift" className="bg-[#05070d]">
+                        SWIFT
+                      </option>
+                      <option value="iban" className="bg-[#05070d]">
+                        IBAN
+                      </option>
+                    </SelectField>
+                  </div>
+
+                  <div>
+                    <FieldLabel label="Identifier Value" />
+                    <InputField
+                      value={controlDraft.account_identifier_value}
+                      disabled={isSaving}
+                      onChange={(event) =>
+                        updateControlDraft(
+                          "account_identifier_value",
+                          event.target.value
+                        )
+                      }
+                      placeholder="Identifier value"
+                    />
+                  </div>
+
+                  <div>
+                    <FieldLabel label="Currency Code" />
+                    <InputField
+                      value={controlDraft.currency_code}
+                      disabled={isSaving}
+                      onChange={(event) =>
+                        updateControlDraft(
+                          "currency_code",
+                          event.target.value.toUpperCase()
+                        )
+                      }
+                      placeholder="USD / EUR / CNY / ILS"
+                    />
+                  </div>
+
+                  <div>
+                    <FieldLabel label="Status" />
+                    <SelectField
+                      value={controlDraft.status}
+                      disabled={isSaving}
+                      onChange={(event) =>
+                        updateControlDraft("status", normalizeStatus(event.target.value))
+                      }
+                    >
+                      <option value="active" className="bg-[#05070d]">
+                        Active
+                      </option>
+                      <option value="inactive" className="bg-[#05070d]">
+                        Inactive
+                      </option>
+                      <option value="archived" className="bg-[#05070d]">
+                        Archived
+                      </option>
+                    </SelectField>
+                  </div>
+
+                  <label className="md:col-span-2 flex items-start gap-3 rounded-2xl border border-white/10 bg-black/20 px-4 py-3 text-sm text-slate-300">
+                    <input
+                      type="checkbox"
+                      checked={controlDraft.is_default}
+                      disabled={isSaving}
+                      onChange={(event) =>
+                        updateControlDraft("is_default", event.target.checked)
+                      }
+                      className="mt-1"
+                    />
+                    <span>
+                      <span className="block font-semibold text-white">
+                        Set as default bank account for this company
+                      </span>
+                      <span className="mt-1 block text-xs leading-5 text-slate-500">
+                        Default handling is controlled by the bank account helper logic.
+                      </span>
+                    </span>
+                  </label>
+                </div>
+              ) : (
+                <div className="grid gap-3 md:grid-cols-2">
+                  <DisplayBlock
                     label="Identifier Type"
-                    value={record.account_identifier_type || "—"}
+                    value={record.account_identifier_type?.toUpperCase() || "—"}
                   />
-                  <DisplayRow
+                  <DisplayBlock
                     label="Identifier Value"
                     value={record.account_identifier_value || "—"}
                   />
-                  <DisplayRow
+                  <DisplayBlock
                     label="Currency Code"
                     value={record.currency_code || "—"}
                   />
-                  <DisplayRow
-                    label="Is Default"
-                    value={record.is_default ? "Yes" : "No"}
+                  <DisplayBlock
+                    label="Default Status"
+                    value={<DefaultBadge isDefault={record.is_default} />}
                   />
-                  <DisplayRow label="Status" value={record.status || "—"} />
+                  <DisplayBlock
+                    label="Lifecycle Status"
+                    value={<StatusBadge status={record.status} />}
+                  />
                 </div>
-              </SectionCard>
+              )}
+            </DetailSection>
 
-              <SectionCard
-                title="Section 4 — Notes"
-                description="Internal notes for this company bank account."
-                onEdit={openNotesEditor}
-                fullWidth
-              >
-                <div className="rounded-[20px] border border-white/8 bg-black/15 px-4 py-4 text-sm leading-7 text-white/70">
+            <DetailSection
+              title="Notes"
+              description="Internal notes for finance operators."
+              icon={FileText}
+              isEditing={editingSection === "notes"}
+              canEdit={permissionState.canUpdate}
+              onEdit={openNotesEditor}
+              onCancel={cancelEditing}
+              onSave={() => void saveNotesSection()}
+              isSaving={isSaving}
+            >
+              {editingSection === "notes" ? (
+                <div>
+                  <FieldLabel label="Notes" />
+                  <TextareaField
+                    value={notesDraft}
+                    disabled={isSaving}
+                    onChange={(event) => setNotesDraft(event.target.value)}
+                    placeholder="Internal notes..."
+                  />
+                </div>
+              ) : (
+                <div className="rounded-[20px] border border-white/10 bg-black/20 px-4 py-4 text-sm leading-7 text-slate-300">
                   {record.notes || "No notes added yet."}
                 </div>
-              </SectionCard>
-            </div>
+              )}
+            </DetailSection>
           </div>
-        </div>
-      </div>
 
-            {editingSection === "basic" && (
-        <ModalShell
-          title="Edit Section 1 — Basic"
-          description="Update company linkage, beneficiary, bank name, and account number."
-          onClose={() => setEditingSection(null)}
-          onSave={() => void saveBasicSection()}
-          isSaving={isMutating}
-        >
-          <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
-            <div className="md:col-span-2">
-              <FieldLabel label="Company" required />
-              <select
-                value={basicForm.company_id}
-                onChange={(e) => handleBasicCompanyChange(e.target.value)}
-                className="h-11 w-full rounded-2xl border border-white/10 bg-white/5 px-4 text-sm text-white outline-none"
-              >
-                <option value="">Select company</option>
-                {companies.map((company) => (
-                  <option key={company.id} value={company.id}>
-                    {(company.legal_name?.trim() || company.name) +
-                      (company.code ? ` • ${company.code}` : "")}
-                  </option>
+          <aside className="grid gap-6">
+            <section className="overflow-hidden rounded-[30px] border border-white/10 bg-white/[0.045] backdrop-blur-xl">
+              <div className="border-b border-white/10 px-5 py-4">
+                <div className="text-sm font-semibold uppercase tracking-[0.18em] text-slate-400">
+                  Record Summary
+                </div>
+                <p className="mt-1 text-xs leading-5 text-slate-500">
+                  Key account details and current lifecycle.
+                </p>
+              </div>
+
+              <div className="grid gap-4 p-5">
+                {summaryCards.map((item) => (
+                  <SummaryCard key={item.label} item={item} />
                 ))}
-              </select>
-            </div>
+              </div>
+            </section>
 
-            <div className="md:col-span-2">
-              <FieldLabel label="Beneficiary Name" required />
-              <InputField
-                value={basicForm.beneficiary_name}
-                onChange={(e) =>
-                  setBasicForm((prev) => ({
-                    ...prev,
-                    beneficiary_name: e.target.value,
-                  }))
-                }
-              />
-            </div>
+            <section className="overflow-hidden rounded-[30px] border border-white/10 bg-white/[0.045] backdrop-blur-xl">
+              <div className="border-b border-white/10 px-5 py-4">
+                <div className="text-sm font-semibold uppercase tracking-[0.18em] text-slate-400">
+                  Lifecycle Actions
+                </div>
+                <p className="mt-1 text-xs leading-5 text-slate-500">
+                  Archive or restore this account. Permanent delete is only available
+                  from the registry archive modal.
+                </p>
+              </div>
 
-            <div>
-              <FieldLabel label="Bank Name" required />
-              <InputField
-                value={basicForm.bank_name}
-                onChange={(e) =>
-                  setBasicForm((prev) => ({
-                    ...prev,
-                    bank_name: e.target.value,
-                  }))
-                }
-              />
-            </div>
+              <div className="grid gap-3 p-5">
+                {permissionState.canDeleteArchive ? (
+                  <button
+                    type="button"
+                    onClick={() => void handleArchiveToggle()}
+                    disabled={isLifecycleRunning}
+                    className={`inline-flex h-12 items-center justify-center gap-2 rounded-2xl border px-5 text-sm font-semibold transition disabled:cursor-not-allowed disabled:opacity-60 ${
+                      record.status === "archived"
+                        ? "border-emerald-400/20 bg-emerald-500/10 text-emerald-100 hover:bg-emerald-500/15"
+                        : "border-rose-400/20 bg-rose-500/10 text-rose-100 hover:bg-rose-500/15"
+                    }`}
+                  >
+                    {isLifecycleRunning ? (
+                      <Loader2 className="h-4 w-4 animate-spin" />
+                    ) : record.status === "archived" ? (
+                      <RotateCcw className="h-4 w-4" />
+                    ) : (
+                      <Archive className="h-4 w-4" />
+                    )}
+                    {record.status === "archived" ? "Restore Account" : "Archive Account"}
+                  </button>
+                ) : (
+                  <div className="rounded-[20px] border border-amber-400/20 bg-amber-500/10 p-4 text-sm leading-6 text-amber-100">
+                    Delete/Archive access is not enabled for this user.
+                  </div>
+                )}
 
-            <div>
-              <FieldLabel label="Account Number" />
-              <InputField
-                value={basicForm.account_number}
-                onChange={(e) =>
-                  setBasicForm((prev) => ({
-                    ...prev,
-                    account_number: e.target.value,
-                  }))
-                }
-              />
-            </div>
-          </div>
+                <button
+                  type="button"
+                  onClick={() => navigate("/finance/master-data/bank-accounts")}
+                  className="inline-flex h-12 items-center justify-center gap-2 rounded-2xl border border-white/10 bg-white/[0.05] px-5 text-sm font-semibold text-slate-300 transition hover:bg-white/[0.08]"
+                >
+                  <ArrowRight className="h-4 w-4 rotate-180" />
+                  Bank Accounts
+                </button>
+              </div>
+            </section>
 
-          {modalError ? (
-            <div className="mt-4 text-sm text-rose-300">{modalError}</div>
-          ) : null}
-        </ModalShell>
-      )}
+            <section className="overflow-hidden rounded-[30px] border border-white/10 bg-white/[0.045] backdrop-blur-xl">
+              <div className="border-b border-white/10 px-5 py-4">
+                <div className="text-sm font-semibold uppercase tracking-[0.18em] text-slate-400">
+                  System Fields
+                </div>
+                <p className="mt-1 text-xs leading-5 text-slate-500">
+                  Read-only audit and system metadata.
+                </p>
+              </div>
 
-      {editingSection === "address" && (
-        <ModalShell
-          title="Edit Section 2 — Bank Address"
-          description="Update country, city, postal code, and address lines."
-          onClose={() => setEditingSection(null)}
-          onSave={() => void saveAddressSection()}
-          isSaving={isMutating}
-        >
-          <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
-            <div>
-              <FieldLabel label="Country" />
-              <InputField
-                value={addressForm.country}
-                onChange={(e) =>
-                  setAddressForm((prev) => ({
-                    ...prev,
-                    country: e.target.value,
-                  }))
-                }
-              />
-            </div>
-
-            <div>
-              <FieldLabel label="City" />
-              <InputField
-                value={addressForm.city}
-                onChange={(e) =>
-                  setAddressForm((prev) => ({
-                    ...prev,
-                    city: e.target.value,
-                  }))
-                }
-              />
-            </div>
-
-            <div>
-              <FieldLabel label="ZIP / Postal Code" />
-              <InputField
-                value={addressForm.postal_code}
-                onChange={(e) =>
-                  setAddressForm((prev) => ({
-                    ...prev,
-                    postal_code: e.target.value,
-                  }))
-                }
-              />
-            </div>
-
-            <div className="md:col-span-2">
-              <FieldLabel label="Address Line 1" />
-              <InputField
-                value={addressForm.address_line_1}
-                onChange={(e) =>
-                  setAddressForm((prev) => ({
-                    ...prev,
-                    address_line_1: e.target.value,
-                  }))
-                }
-              />
-            </div>
-
-            <div className="md:col-span-2">
-              <FieldLabel label="Address Line 2" />
-              <InputField
-                value={addressForm.address_line_2}
-                onChange={(e) =>
-                  setAddressForm((prev) => ({
-                    ...prev,
-                    address_line_2: e.target.value,
-                  }))
-                }
-              />
-            </div>
-          </div>
-
-          {modalError ? (
-            <div className="mt-4 text-sm text-rose-300">{modalError}</div>
-          ) : null}
-        </ModalShell>
-      )}
-
-      {editingSection === "control" && (
-        <ModalShell
-          title="Edit Section 3 — Identifier / Currency / Control"
-          description="Update identifier, currency, default flag, and status."
-          onClose={() => setEditingSection(null)}
-          onSave={() => void saveControlSection()}
-          isSaving={isMutating}
-        >
-          <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
-            <div>
-              <FieldLabel label="Identifier Type" />
-              <InputField
-                list="edit-identifier-type-options"
-                value={controlForm.account_identifier_type}
-                onChange={(e) =>
-                  setControlForm((prev) => ({
-                    ...prev,
-                    account_identifier_type: e.target.value,
-                  }))
-                }
-                placeholder="swift or iban"
-              />
-              <datalist id="edit-identifier-type-options">
-                <option value="swift" />
-                <option value="iban" />
-              </datalist>
-            </div>
-
-            <div>
-              <FieldLabel label={identifierLabel} />
-              <InputField
-                value={controlForm.account_identifier_value}
-                onChange={(e) =>
-                  setControlForm((prev) => ({
-                    ...prev,
-                    account_identifier_value: e.target.value,
-                  }))
-                }
-              />
-            </div>
-
-            <div>
-              <FieldLabel label="Currency Code" />
-              <InputField
-                list="edit-currency-code-options"
-                value={controlForm.currency_code}
-                onChange={(e) =>
-                  setControlForm((prev) => ({
-                    ...prev,
-                    currency_code: e.target.value.toUpperCase(),
-                  }))
-                }
-                placeholder="USD / EUR / CNY / ILS"
-              />
-              <datalist id="edit-currency-code-options">
-                <option value="USD" />
-                <option value="EUR" />
-                <option value="CNY" />
-                <option value="ILS" />
-              </datalist>
-            </div>
-
-            <div>
-              <FieldLabel label="Status" />
-              <InputField
-                list="edit-status-options"
-                value={controlForm.status}
-                onChange={(e) =>
-                  setControlForm((prev) => ({
-                    ...prev,
-                    status: e.target.value as ControlForm["status"],
-                  }))
-                }
-                placeholder="active / inactive / archived"
-              />
-              <datalist id="edit-status-options">
-                <option value="active" />
-                <option value="inactive" />
-                <option value="archived" />
-              </datalist>
-            </div>
-
-            <div className="md:col-span-2">
-              <label className="flex items-center gap-3 text-sm text-white/75">
-                <input
-                  type="checkbox"
-                  checked={controlForm.is_default}
-                  onChange={(e) =>
-                    setControlForm((prev) => ({
-                      ...prev,
-                      is_default: e.target.checked,
-                    }))
-                  }
+              <div className="grid gap-3 p-5">
+                <DisplayBlock label="Bank ID" value={record.bank_id || "—"} />
+                <DisplayBlock label="Record ID" value={record.id} />
+                <DisplayBlock
+                  label="Created"
+                  value={formatDateTimeLabel(record.created_at)}
                 />
-                Set as default bank account for this company
-              </label>
-            </div>
-          </div>
+                <DisplayBlock
+                  label="Updated"
+                  value={formatDateTimeLabel(record.updated_at)}
+                />
+                <DisplayBlock
+                  label="Created By"
+                  value={record.created_by || "—"}
+                />
+                <DisplayBlock
+                  label="Updated By"
+                  value={record.updated_by || "—"}
+                />
+              </div>
+            </section>
 
-          {modalError ? (
-            <div className="mt-4 text-sm text-rose-300">{modalError}</div>
-          ) : null}
-        </ModalShell>
-      )}
-
-      {editingSection === "notes" && (
-        <ModalShell
-          title="Edit Section 4 — Notes"
-          description="Update internal notes."
-          onClose={() => setEditingSection(null)}
-          onSave={() => void saveNotesSection()}
-          isSaving={isMutating}
-        >
-          <div>
-            <FieldLabel label="Notes" />
-            <TextareaField
-              value={notesForm}
-              onChange={(e) => setNotesForm(e.target.value)}
-              placeholder="Add internal notes"
-            />
-          </div>
-
-          {modalError ? (
-            <div className="mt-4 text-sm text-rose-300">{modalError}</div>
-          ) : null}
-        </ModalShell>
-      )}
-    </>
+            <section className="rounded-[24px] border border-cyan-400/20 bg-cyan-500/10 p-4 text-sm leading-6 text-cyan-100">
+              <div className="font-semibold text-white">Locked detail rule</div>
+              <div className="mt-1">
+                This page requires Bank Account Read access. Section edits require
+                Update access. Archive and Restore require Delete/Archive access. Permanent
+                delete is intentionally not available on the ID page.
+              </div>
+            </section>
+          </aside>
+        </section>
+      </div>
+    </div>
   );
 }

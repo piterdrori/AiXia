@@ -115,10 +115,11 @@ const effectiveAccessToneMap: Record<
   "cyan" | "emerald" | "amber" | "rose" | "violet" | "slate"
 > = {
   "No Company Access": "slate",
-  "Can Open Section": "cyan",
-  "Can Monitor Company Records": "violet",
-  "Can Change Company Records": "amber",
-  "Can Operate Final Actions": "emerald",
+  "Can Read Section": "cyan",
+  "Can Create Records": "violet",
+  "Can Update Records": "amber",
+  "Can Delete / Archive": "rose",
+  "Can Approve / Execute": "emerald",
   "Admin Only": "rose",
 };
 
@@ -348,10 +349,11 @@ function getHighestAccessLabel(
   );
 
   if (labels.includes("Admin Only")) return "Admin Only";
-  if (labels.includes("Can Operate Final Actions")) return "Can Operate Final Actions";
-  if (labels.includes("Can Change Company Records")) return "Can Change Company Records";
-  if (labels.includes("Can Monitor Company Records")) return "Can Monitor Company Records";
-  if (labels.includes("Can Open Section")) return "Can Open Section";
+  if (labels.includes("Can Approve / Execute")) return "Can Approve / Execute";
+  if (labels.includes("Can Delete / Archive")) return "Can Delete / Archive";
+  if (labels.includes("Can Update Records")) return "Can Update Records";
+  if (labels.includes("Can Create Records")) return "Can Create Records";
+  if (labels.includes("Can Read Section")) return "Can Read Section";
 
   return "No Company Access";
 }

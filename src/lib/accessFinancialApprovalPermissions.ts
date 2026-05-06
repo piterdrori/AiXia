@@ -1,10 +1,19 @@
 import type { Permission } from "@/lib/permissions";
 
+export type AccessApprovalGroupKey =
+  | "masterData"
+  | "transactions"
+  | "reports"
+  | "settings";
+
 export type AccessApprovalSectionKey =
+  | "masterData"
   | "incomingMoneyFlow"
   | "supplierProcurementFlow"
   | "expensesFundingPayment"
   | "payrollFundBasket"
+  | "reports"
+  | "financeSettings"
   | "accessApprovals";
 
 export type AccessApprovalLevel = "see" | "monitor" | "change" | "operate";
@@ -28,6 +37,7 @@ export type PermissionExplanation = {
 
 export type AccessApprovalSection = {
   key: AccessApprovalSectionKey;
+  groupKey: AccessApprovalGroupKey;
   title: string;
   shortTitle: string;
   scope: string;
@@ -41,6 +51,14 @@ export type AccessApprovalSection = {
     doesNotPermit: string[];
   };
   levels: Record<AccessApprovalLevel, Permission[]>;
+};
+
+export type AccessApprovalGroup = {
+  key: AccessApprovalGroupKey;
+  title: string;
+  shortTitle: string;
+  description: string;
+  sections: AccessApprovalSectionKey[];
 };
 
 export type ToggleSectionLevelInput = {
@@ -64,15 +82,15 @@ export const ACCESS_APPROVAL_LEVEL_EXPLANATIONS: Record<
 > = {
   see: {
     title: "See",
-    shortLabel: "Open the area",
+    shortLabel: "Open and view",
     permits: [
       "Open the section or page group.",
       "View records allowed by the user’s scope.",
       "For personal employee flows, normal users still only see their own records.",
     ],
     doesNotPermit: [
-      "Seeing all company records.",
-      "Editing records.",
+      "Seeing all company records unless Monitor is enabled.",
+      "Editing company-side records.",
       "Creating company-side records.",
       "Approving, paying, deleting, archiving, restoring, or finalizing workflow actions.",
     ],
@@ -81,7 +99,7 @@ export const ACCESS_APPROVAL_LEVEL_EXPLANATIONS: Record<
     title: "Monitor",
     shortLabel: "View company status",
     permits: [
-      "See all records in this section.",
+      "See company-level records in the approved section.",
       "View dashboards, activity, status, summaries, and history.",
       "Track workflow state across users and companies.",
     ],
@@ -123,11 +141,58 @@ export const ACCESS_APPROVAL_LEVEL_EXPLANATIONS: Record<
       "Pay, process, or finalize workflow actions.",
     ],
     doesNotPermit: [
-      "Managing Access Approvals unless the Access Approvals section is granted and the user is Admin.",
+      "Managing Finance Access Approvals unless the Access Approvals section is granted and the user is Admin.",
       "Bypassing ownership or security rules outside the granted section scope.",
     ],
   },
 };
+
+const masterDataSee: Permission[] = [
+  "accessFinance",
+  "viewFinance",
+  "manageFinanceMasterData",
+  "viewClients",
+  "viewVendors",
+  "viewBankAccounts",
+  "viewPaymentMethods",
+  "viewPaymentTerms",
+  "viewShippingTerms",
+  "viewUnitsOfMeasure",
+  "viewTaxCodes",
+  "viewExpenseCategories",
+  "viewRevenueCategories",
+  "viewItems",
+];
+
+const masterDataMonitor: Permission[] = [
+  "viewReports",
+  "viewClients",
+  "viewVendors",
+  "viewBankAccounts",
+  "viewPaymentMethods",
+  "viewPaymentTerms",
+  "viewShippingTerms",
+  "viewUnitsOfMeasure",
+  "viewTaxCodes",
+  "viewExpenseCategories",
+  "viewRevenueCategories",
+  "viewItems",
+];
+
+const masterDataChange: Permission[] = [
+  "createFinanceRecords",
+  "editFinanceRecords",
+  "manageClients",
+  "manageVendors",
+  "addFinanceComments",
+  "viewFinanceComments",
+  "addFinanceAttachments",
+];
+
+const masterDataOperate: Permission[] = [
+  "archiveFinanceRecords",
+  "removeFinanceAttachments",
+];
 
 const incomingMoneyFlowSee: Permission[] = [
   "accessFinance",
@@ -281,6 +346,53 @@ const payrollFundBasketOperate: Permission[] = [
   "removeFinanceAttachments",
 ];
 
+const reportsSee: Permission[] = [
+  "accessFinance",
+  "viewFinance",
+  "viewReports",
+];
+
+const reportsMonitor: Permission[] = [
+  "viewReports",
+  "exportFinanceReports",
+];
+
+const reportsChange: Permission[] = [
+  "viewReports",
+  "exportFinanceReports",
+];
+
+const reportsOperate: Permission[] = [
+  "exportFinanceReports",
+  "exportReceivables",
+  "exportPayables",
+  "exportExpenseReports",
+  "exportReimbursementReports",
+];
+
+const financeSettingsSee: Permission[] = [
+  "accessFinance",
+  "viewFinance",
+  "manageFinanceMasterData",
+];
+
+const financeSettingsMonitor: Permission[] = [
+  "viewReports",
+  "manageFinanceMasterData",
+];
+
+const financeSettingsChange: Permission[] = [
+  "manageFinanceMasterData",
+  "createFinanceRecords",
+  "editFinanceRecords",
+];
+
+const financeSettingsOperate: Permission[] = [
+  "manageFinanceMasterData",
+  "archiveFinanceRecords",
+  "approveFinanceRecords",
+];
+
 const accessApprovalsSee: Permission[] = [
   "accessApprovals",
   "viewApprovalQueue",
@@ -302,7 +414,50 @@ const accessApprovalsOperate: Permission[] = [
 
 export const ACCESS_APPROVAL_SECTIONS: AccessApprovalSection[] = [
   {
+    key: "masterData",
+    groupKey: "masterData",
+    title: "Master Data",
+    shortTitle: "Master Data",
+    scope: "Finance reference data and connected company records",
+    controls: [
+      "Companies",
+      "Clients",
+      "Vendors",
+      "Bank Accounts",
+      "Payment Terms",
+      "Shipping Terms",
+      "Tax Codes",
+      "Items",
+      "Currencies",
+      "Employees",
+      "Categories",
+    ],
+    tooltip: {
+      title: "Master Data",
+      description:
+        "Controls finance reference data used by every transaction flow, including companies, clients, vendors, bank accounts, terms, tax codes, items, currencies, employees, and categories.",
+      permits: [
+        "Open and view master-data pages according to the enabled level.",
+        "Monitor master-data completeness, missing fields, and usage status when Monitor is enabled.",
+        "Create or edit master data when Change is enabled.",
+        "Archive, delete, restore, or finalize master-data control actions when Operate is enabled.",
+      ],
+      doesNotPermit: [
+        "Transaction workflow execution.",
+        "Expense or payroll payment execution.",
+        "Access approval management.",
+      ],
+    },
+    levels: {
+      see: masterDataSee,
+      monitor: masterDataMonitor,
+      change: masterDataChange,
+      operate: masterDataOperate,
+    },
+  },
+  {
     key: "incomingMoneyFlow",
+    groupKey: "transactions",
     title: "Incoming Money Flow",
     shortTitle: "Incoming Money",
     scope: "Company receivables workflow",
@@ -339,6 +494,7 @@ export const ACCESS_APPROVAL_SECTIONS: AccessApprovalSection[] = [
   },
   {
     key: "supplierProcurementFlow",
+    groupKey: "transactions",
     title: "Supplier Procurement Flow",
     shortTitle: "Supplier Procurement",
     scope: "Company supplier and payable workflow",
@@ -374,10 +530,12 @@ export const ACCESS_APPROVAL_SECTIONS: AccessApprovalSection[] = [
   },
   {
     key: "expensesFundingPayment",
-    title: "Expenses Funding & Payment Distribution",
+    groupKey: "transactions",
+    title: "Expenses & Reimbursements",
     shortTitle: "Expense Funding",
-    scope: "Finance/Admin expense payment execution",
+    scope: "Finance/Admin expense approval, funding, and payment execution",
     controls: [
+      "Expense Requests",
       "Expense Funding Pool",
       "Expense Payment Distribution",
       "Payment Proof Review",
@@ -386,9 +544,9 @@ export const ACCESS_APPROVAL_SECTIONS: AccessApprovalSection[] = [
     defaultRule:
       "Normal users can see, create, edit, submit, upload, and confirm their own expenses and reimbursements by default.",
     tooltip: {
-      title: "Expenses Funding & Payment Distribution",
+      title: "Expenses & Reimbursements",
       description:
-        "Controls only the Finance/Admin side of expense funding pools and payment distribution. It does not control normal users’ own expense/reimbursement actions.",
+        "Controls the company-side Finance/Admin layer of expenses and reimbursements. It does not remove normal users’ own expense/reimbursement rights.",
       permits: [
         "Open the Finance/Admin expense payment execution area according to the enabled level.",
         "Monitor all expense funding/payment records when Monitor is enabled.",
@@ -411,10 +569,12 @@ export const ACCESS_APPROVAL_SECTIONS: AccessApprovalSection[] = [
   },
   {
     key: "payrollFundBasket",
-    title: "Payroll Fund Basket",
+    groupKey: "transactions",
+    title: "Payroll & Paycheck Requests",
     shortTitle: "Payroll Basket",
     scope: "Finance/Admin payroll funding and payment execution",
     controls: [
+      "Paycheck Requests",
       "Payroll Funding Pool",
       "Paycheck Payment Distribution",
       "Payroll Proof Review",
@@ -423,9 +583,9 @@ export const ACCESS_APPROVAL_SECTIONS: AccessApprovalSection[] = [
     defaultRule:
       "Normal users can see, create, edit, submit, upload, and confirm their own paycheck requests by default.",
     tooltip: {
-      title: "Payroll Fund Basket",
+      title: "Payroll & Paycheck Requests",
       description:
-        "Controls only the Finance/Admin side of payroll funding pools and paycheck payment distributions. It does not control normal users’ own paycheck request actions.",
+        "Controls the company-side Finance/Admin layer of payroll funding pools and paycheck payment distributions. It does not remove normal users’ own paycheck request rights.",
       permits: [
         "Open payroll funding/payment execution pages according to the enabled level.",
         "Monitor all payroll funding/payment records when Monitor is enabled.",
@@ -447,22 +607,96 @@ export const ACCESS_APPROVAL_SECTIONS: AccessApprovalSection[] = [
     },
   },
   {
+    key: "reports",
+    groupKey: "reports",
+    title: "Reports",
+    shortTitle: "Reports",
+    scope: "Finance reports, analytics, and exports",
+    controls: [
+      "Finance Reports",
+      "Receivables Reports",
+      "Payables Reports",
+      "Expense Reports",
+      "Reimbursement Reports",
+      "Report Exports",
+    ],
+    tooltip: {
+      title: "Reports",
+      description:
+        "Controls finance reporting, analytics, summaries, saved report views if added later, and official report exports.",
+      permits: [
+        "Open the Finance Reports page according to the enabled level.",
+        "View company-level report dashboards and summaries when Monitor is enabled.",
+        "Configure report views or report settings if supported when Change is enabled.",
+        "Export/download/share official finance reports when Operate is enabled.",
+      ],
+      doesNotPermit: [
+        "Editing source transaction records.",
+        "Executing payments.",
+        "Changing master data.",
+        "Managing access approvals.",
+      ],
+    },
+    levels: {
+      see: reportsSee,
+      monitor: reportsMonitor,
+      change: reportsChange,
+      operate: reportsOperate,
+    },
+  },
+  {
+    key: "financeSettings",
+    groupKey: "settings",
+    title: "Settings",
+    shortTitle: "Settings",
+    scope: "Finance configuration and workflow setup",
+    controls: [
+      "Finance Settings",
+      "Workflow Settings",
+      "Numbering Settings",
+      "System Configuration",
+    ],
+    tooltip: {
+      title: "Settings",
+      description:
+        "Controls finance configuration, workflow settings, numbering/settings, and permission-sensitive finance setup.",
+      permits: [
+        "Open Finance Settings according to the enabled level.",
+        "Review finance configuration and status when Monitor is enabled.",
+        "Edit finance configuration when Change is enabled.",
+        "Apply dangerous or final configuration actions when Operate is enabled.",
+      ],
+      doesNotPermit: [
+        "Managing user access approvals.",
+        "Executing transaction payments.",
+        "Approving transaction workflow records unless the relevant transaction section is also enabled.",
+      ],
+    },
+    levels: {
+      see: financeSettingsSee,
+      monitor: financeSettingsMonitor,
+      change: financeSettingsChange,
+      operate: financeSettingsOperate,
+    },
+  },
+  {
     key: "accessApprovals",
-    title: "Access Approvals",
+    groupKey: "settings",
+    title: "Finance Access Approvals",
     shortTitle: "Access Control",
     scope: "Admin-only user access management",
     controls: [
       "User Access Approval",
-      "Company-Level Permission Matrix",
+      "Finance-Level Permission Matrix",
       "See / Monitor / Change / Operate Controls",
     ],
     adminOnly: true,
     tooltip: {
-      title: "Access Approvals",
+      title: "Finance Access Approvals",
       description:
-        "Admin-only control for managing what users can see, monitor, change, and operate across AiXia company workflows.",
+        "Admin-only control for managing what users can see, monitor, change, and operate across the full AiXia Finance module.",
       permits: [
-        "Open the Access Approvals page only if the current user is Admin.",
+        "Open the Finance Access Approvals page only if the current user is Admin.",
         "View user access states only if Admin.",
         "Change user permissions only if Admin.",
         "Operate final access-control actions only if Admin.",
@@ -482,6 +716,46 @@ export const ACCESS_APPROVAL_SECTIONS: AccessApprovalSection[] = [
   },
 ];
 
+export const ACCESS_APPROVAL_GROUPS: AccessApprovalGroup[] = [
+  {
+    key: "masterData",
+    title: "Master Data",
+    shortTitle: "Master Data",
+    description:
+      "Finance reference data used by companies, clients, vendors, bank accounts, terms, items, currencies, and categories.",
+    sections: ["masterData"],
+  },
+  {
+    key: "transactions",
+    title: "Transactions",
+    shortTitle: "Transactions",
+    description:
+      "Company transaction workflows: incoming money, supplier procurement, expenses/reimbursements, and payroll/paychecks.",
+    sections: [
+      "incomingMoneyFlow",
+      "supplierProcurementFlow",
+      "expensesFundingPayment",
+      "payrollFundBasket",
+    ],
+  },
+  {
+    key: "reports",
+    title: "Reports",
+    shortTitle: "Reports",
+    description:
+      "Finance dashboards, analytics, summaries, and official report exports.",
+    sections: ["reports"],
+  },
+  {
+    key: "settings",
+    title: "Settings",
+    shortTitle: "Settings",
+    description:
+      "Finance configuration, settings, and Admin-only Finance Access Approvals.",
+    sections: ["financeSettings", "accessApprovals"],
+  },
+];
+
 export const ACCESS_APPROVAL_SECTION_BY_KEY = ACCESS_APPROVAL_SECTIONS.reduce(
   (map, section) => {
     map[section.key] = section;
@@ -489,6 +763,22 @@ export const ACCESS_APPROVAL_SECTION_BY_KEY = ACCESS_APPROVAL_SECTIONS.reduce(
   },
   {} as Record<AccessApprovalSectionKey, AccessApprovalSection>
 );
+
+export const ACCESS_APPROVAL_GROUP_BY_KEY = ACCESS_APPROVAL_GROUPS.reduce(
+  (map, group) => {
+    map[group.key] = group;
+    return map;
+  },
+  {} as Record<AccessApprovalGroupKey, AccessApprovalGroup>
+);
+
+export function getSectionsForGroup(groupKey: AccessApprovalGroupKey) {
+  const group = ACCESS_APPROVAL_GROUP_BY_KEY[groupKey];
+
+  if (!group) return [];
+
+  return group.sections.map((sectionKey) => ACCESS_APPROVAL_SECTION_BY_KEY[sectionKey]);
+}
 
 export function getSectionPermissionSet(section: AccessApprovalSection) {
   return new Set<Permission>([
@@ -656,6 +946,40 @@ export function countOperatorSections(
   states: Record<AccessApprovalSectionKey, AccessLevelState>
 ) {
   return ACCESS_APPROVAL_SECTIONS.filter((section) => states[section.key]?.operate).length;
+}
+
+export function countEnabledSectionsForGroup(
+  groupKey: AccessApprovalGroupKey,
+  states: Record<AccessApprovalSectionKey, AccessLevelState>
+) {
+  return getSectionsForGroup(groupKey).filter((section) => states[section.key]?.see).length;
+}
+
+export function countOperatorSectionsForGroup(
+  groupKey: AccessApprovalGroupKey,
+  states: Record<AccessApprovalSectionKey, AccessLevelState>
+) {
+  return getSectionsForGroup(groupKey).filter((section) => states[section.key]?.operate).length;
+}
+
+export function countAvailableLevelsForGroup(
+  groupKey: AccessApprovalGroupKey,
+  states: Record<AccessApprovalSectionKey, AccessLevelState>
+) {
+  return getSectionsForGroup(groupKey).reduce((total, section) => {
+    const state = states[section.key];
+
+    if (!state) return total;
+
+    return (
+      total +
+      ACCESS_APPROVAL_LEVEL_ORDER.filter((level) => Boolean(state[level])).length
+    );
+  }, 0);
+}
+
+export function countTotalLevelsForGroup(groupKey: AccessApprovalGroupKey) {
+  return getSectionsForGroup(groupKey).length * ACCESS_APPROVAL_LEVEL_ORDER.length;
 }
 
 export function createEmptyAccessStateMap(): Record<

@@ -1,22 +1,51 @@
-import { useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
+import type {
+  FormEvent,
+  InputHTMLAttributes,
+  ReactNode,
+  TextareaHTMLAttributes,
+} from "react";
 import { useNavigate, useSearchParams } from "react-router-dom";
-import { ArrowLeft, RefreshCw, Save } from "lucide-react";
-
-import { Button } from "@/components/ui/button";
+import type { LucideIcon } from "lucide-react";
 import {
-  Card,
-  CardContent,
-  CardDescription,
-  CardHeader,
-  CardTitle,
-} from "@/components/ui/card";
-import { Input } from "@/components/ui/input";
+  AlertTriangle,
+  ArrowRight,
+  Banknote,
+  Building2,
+  CheckCircle2,
+  CreditCard,
+  FileText,
+  Landmark,
+  Loader2,
+  LockKeyhole,
+  RotateCcw,
+  Save,
+  ShieldCheck,
+  Sparkles,
+  WalletCards,
+} from "lucide-react";
 
 import {
   createBankAccount,
   getCompanyOptions,
   type CompanyOption,
 } from "@/lib/finance/bankAccounts";
+import {
+  getEffectivePermissions,
+  type Permission,
+  type Role,
+} from "@/lib/permissions";
+import { supabase } from "@/lib/supabase";
+
+type ProfilePermissionRow = {
+  user_id: string;
+  full_name: string | null;
+  role: Role | null;
+  permissions: Partial<Record<Permission, boolean>> | null;
+};
+
+type BankIdentifierType = "swift" | "iban";
+type BankAccountCreateStatus = "active" | "inactive";
 
 type FormState = {
   company_id: string;
@@ -29,12 +58,34 @@ type FormState = {
   address_line_1: string;
   address_line_2: string;
   account_number: string;
-  account_identifier_type: string;
+  account_identifier_type: BankIdentifierType;
   account_identifier_value: string;
   currency_code: string;
   is_default: boolean;
-  status: "active" | "inactive" | "archived";
+  status: BankAccountCreateStatus;
   notes: string;
+};
+
+type PermissionState = {
+  canRead: boolean;
+  canCreate: boolean;
+  isAdmin: boolean;
+};
+
+type HeaderStatusCardData = {
+  label: string;
+  value: string;
+  detail: string;
+  icon: LucideIcon;
+  tone: "emerald" | "cyan" | "amber" | "rose";
+};
+
+type SummaryItem = {
+  label: string;
+  value: string;
+  detail: string;
+  icon: LucideIcon;
+  tone: "cyan" | "emerald" | "amber" | "violet" | "rose";
 };
 
 const EMPTY_FORM: FormState = {
@@ -56,6 +107,166 @@ const EMPTY_FORM: FormState = {
   notes: "",
 };
 
+const EMPTY_PERMISSION_STATE: PermissionState = {
+  canRead: false,
+  canCreate: false,
+  isAdmin: false,
+};
+
+function hasPermission(
+  permissions: Record<Permission, boolean> | null,
+  permission: Permission
+) {
+  return Boolean(permissions?.[permission]);
+}
+
+function buildPermissionState(
+  profile: ProfilePermissionRow | null,
+  permissions: Record<Permission, boolean> | null
+): PermissionState {
+  if (!profile?.role || !permissions) {
+    return EMPTY_PERMISSION_STATE;
+  }
+
+  const isAdmin = String(profile.role || "").toLowerCase() === "admin";
+  const canManageMasterData = hasPermission(permissions, "manageFinanceMasterData");
+
+  return {
+    isAdmin,
+    canRead:
+      canManageMasterData ||
+      hasPermission(permissions, "viewBankAccounts"),
+    canCreate:
+      canManageMasterData ||
+      hasPermission(permissions, "createFinanceRecords"),
+  };
+}
+
+async function loadBackendEffectivePermissions(
+  userId: string
+): Promise<Partial<Record<Permission, boolean>> | null> {
+  try {
+    const result = await supabase.rpc("finance_get_effective_permissions", {
+      target_user_id: userId,
+    });
+
+    if (result.error) {
+      console.warn(
+        "Create Bank Account permission RPC fallback:",
+        result.error.message
+      );
+      return null;
+    }
+
+    if (!result.data || typeof result.data !== "object") {
+      return null;
+    }
+
+    return result.data as Partial<Record<Permission, boolean>>;
+  } catch (error) {
+    console.warn("Create Bank Account permission RPC failed:", error);
+    return null;
+  }
+}
+
+function getToneClasses(tone: SummaryItem["tone"]) {
+  switch (tone) {
+    case "emerald":
+      return {
+        card: "border-emerald-400/20 bg-emerald-500/10",
+        icon: "border-emerald-400/20 bg-emerald-500/10 text-emerald-200",
+        value: "text-emerald-100",
+      };
+    case "amber":
+      return {
+        card: "border-amber-400/20 bg-amber-500/10",
+        icon: "border-amber-400/20 bg-amber-500/10 text-amber-200",
+        value: "text-amber-100",
+      };
+    case "violet":
+      return {
+        card: "border-violet-400/20 bg-violet-500/10",
+        icon: "border-violet-400/20 bg-violet-500/10 text-violet-200",
+        value: "text-violet-100",
+      };
+    case "rose":
+      return {
+        card: "border-rose-400/20 bg-rose-500/10",
+        icon: "border-rose-400/20 bg-rose-500/10 text-rose-200",
+        value: "text-rose-100",
+      };
+    case "cyan":
+    default:
+      return {
+        card: "border-cyan-400/20 bg-cyan-500/10",
+        icon: "border-cyan-400/20 bg-cyan-500/10 text-cyan-200",
+        value: "text-cyan-100",
+      };
+  }
+}
+
+function HeaderStatusCard({ item }: { item: HeaderStatusCardData }) {
+  const Icon = item.icon;
+
+  const toneClasses = {
+    emerald: "border-emerald-400/20 bg-emerald-500/10 text-emerald-200",
+    cyan: "border-cyan-400/20 bg-cyan-500/10 text-cyan-200",
+    amber: "border-amber-400/20 bg-amber-500/10 text-amber-200",
+    rose: "border-rose-400/20 bg-rose-500/10 text-rose-200",
+  }[item.tone];
+
+  return (
+    <div className="min-h-[148px] rounded-[24px] border border-white/10 bg-black/20 p-4">
+      <div className="flex items-start justify-between gap-3">
+        <div className="min-w-0">
+          <div className="text-[11px] font-semibold uppercase tracking-[0.2em] text-slate-500">
+            {item.label}
+          </div>
+          <div className="mt-2 text-xl font-semibold leading-tight tracking-[-0.035em] text-white">
+            {item.value}
+          </div>
+        </div>
+
+        <div
+          className={`flex h-10 w-10 shrink-0 items-center justify-center rounded-2xl border ${toneClasses}`}
+        >
+          <Icon className="h-4 w-4" />
+        </div>
+      </div>
+
+      <div className="mt-3 text-xs leading-5 text-slate-500">{item.detail}</div>
+    </div>
+  );
+}
+
+function SummaryCard({ item }: { item: SummaryItem }) {
+  const Icon = item.icon;
+  const tone = getToneClasses(item.tone);
+
+  return (
+    <div className={`rounded-[24px] border bg-black/20 p-4 ${tone.card}`}>
+      <div className="flex items-start justify-between gap-3">
+        <div className="min-w-0">
+          <div className="text-[11px] font-semibold uppercase tracking-[0.2em] text-slate-500">
+            {item.label}
+          </div>
+          <div className={`mt-2 text-lg font-semibold leading-6 ${tone.value}`}>
+            {item.value}
+          </div>
+        </div>
+
+        <div
+          className={`flex h-10 w-10 shrink-0 items-center justify-center rounded-2xl border ${tone.icon}`}
+        >
+          <Icon className="h-4 w-4" />
+        </div>
+      </div>
+
+      <div className="mt-3 text-xs leading-5 text-slate-500">{item.detail}</div>
+    </div>
+  );
+}
+
 function FieldLabel({
   label,
   required = false,
@@ -64,32 +275,59 @@ function FieldLabel({
   required?: boolean;
 }) {
   return (
-    <label className="mb-2 block text-sm font-medium text-white/75">
+    <label className="mb-2 block text-sm font-medium text-slate-300">
       {label}
       {required ? <span className="ml-1 text-rose-300">*</span> : null}
     </label>
   );
 }
 
-function InputField(props: React.InputHTMLAttributes<HTMLInputElement>) {
+function InputField({
+  className,
+  ...props
+}: InputHTMLAttributes<HTMLInputElement>) {
   return (
-    <Input
+    <input
       {...props}
-      className={`h-11 rounded-2xl border-white/10 bg-white/5 text-white placeholder:text-white/30 ${
-        props.className ?? ""
+      className={`h-11 w-full rounded-2xl border border-white/10 bg-black/20 px-4 text-sm text-white outline-none transition placeholder:text-slate-600 focus:border-cyan-400/30 focus:bg-black/30 disabled:cursor-not-allowed disabled:opacity-60 ${
+        className || ""
       }`}
     />
   );
 }
 
-function TextareaField(
-  props: React.TextareaHTMLAttributes<HTMLTextAreaElement>
-) {
+function SelectField({
+  value,
+  onChange,
+  children,
+  disabled = false,
+}: {
+  value: string;
+  onChange: (value: string) => void;
+  children: ReactNode;
+  disabled?: boolean;
+}) {
+  return (
+    <select
+      value={value}
+      disabled={disabled}
+      onChange={(event) => onChange(event.target.value)}
+      className="h-11 w-full rounded-2xl border border-white/10 bg-black/20 px-4 text-sm text-white outline-none transition focus:border-cyan-400/30 focus:bg-black/30 disabled:cursor-not-allowed disabled:opacity-60"
+    >
+      {children}
+    </select>
+  );
+}
+
+function TextareaField({
+  className,
+  ...props
+}: TextareaHTMLAttributes<HTMLTextAreaElement>) {
   return (
     <textarea
       {...props}
-      className={`min-h-[110px] w-full rounded-2xl border border-white/10 bg-white/5 px-4 py-3 text-sm text-white outline-none placeholder:text-white/30 ${
-        props.className ?? ""
+      className={`min-h-[132px] w-full rounded-2xl border border-white/10 bg-black/20 px-4 py-3 text-sm text-white outline-none transition placeholder:text-slate-600 focus:border-cyan-400/30 focus:bg-black/30 disabled:cursor-not-allowed disabled:opacity-60 ${
+        className || ""
       }`}
     />
   );
@@ -98,32 +336,95 @@ function TextareaField(
 function FormSection({
   title,
   description,
+  icon: Icon,
   children,
-  fullWidth = false,
 }: {
   title: string;
   description: string;
-  children: React.ReactNode;
-  fullWidth?: boolean;
+  icon: LucideIcon;
+  children: ReactNode;
 }) {
   return (
-    <Card
-      className={`overflow-hidden rounded-[24px] border border-white/10 bg-[linear-gradient(135deg,rgba(255,255,255,0.06),rgba(255,255,255,0.03))] backdrop-blur-xl shadow-[0_20px_60px_rgba(0,0,0,0.24)] ${
-        fullWidth ? "lg:col-span-2" : ""
-      }`}
-    >
-      <CardHeader className="border-b border-white/8 px-5 py-4">
-        <div>
-          <CardTitle className="text-white">{title}</CardTitle>
-          <CardDescription className="mt-1 text-white/45">
-            {description}
-          </CardDescription>
+    <section className="overflow-hidden rounded-[30px] border border-white/10 bg-white/[0.045] backdrop-blur-xl">
+      <div className="flex items-start gap-4 border-b border-white/10 px-5 py-4">
+        <div className="rounded-2xl border border-cyan-400/15 bg-cyan-500/10 p-3 text-cyan-200">
+          <Icon className="h-4 w-4" />
         </div>
-      </CardHeader>
 
-      <CardContent className="p-4">{children}</CardContent>
-    </Card>
+        <div className="min-w-0">
+          <h2 className="text-sm font-semibold uppercase tracking-[0.18em] text-slate-400">
+            {title}
+          </h2>
+          <p className="mt-1 text-xs leading-5 text-slate-500">{description}</p>
+        </div>
+      </div>
+
+      <div className="p-5">{children}</div>
+    </section>
   );
+}
+
+function ReadOnlyBlock({
+  label,
+  value,
+  detail,
+}: {
+  label: string;
+  value: string;
+  detail?: string;
+}) {
+  return (
+    <div className="rounded-2xl border border-white/10 bg-black/20 px-4 py-3">
+      <div className="text-[11px] font-semibold uppercase tracking-[0.18em] text-slate-500">
+        {label}
+      </div>
+      <div className="mt-2 text-sm font-semibold text-white">{value}</div>
+      {detail ? <div className="mt-1 text-xs leading-5 text-slate-500">{detail}</div> : null}
+    </div>
+  );
+}
+
+function EmptyLockedState() {
+  return (
+    <section className="overflow-hidden rounded-[30px] border border-rose-400/20 bg-rose-500/10 backdrop-blur-xl">
+      <div className="p-8 text-center">
+        <div className="mx-auto flex h-14 w-14 items-center justify-center rounded-2xl border border-rose-400/20 bg-rose-500/10 text-rose-200">
+          <LockKeyhole className="h-6 w-6" />
+        </div>
+
+        <div className="mt-4 text-lg font-semibold text-white">
+          Create access is not enabled
+        </div>
+
+        <p className="mx-auto mt-2 max-w-2xl text-sm leading-6 text-rose-100">
+          This page requires Bank Account create access or Master Data admin access.
+          Ask an Admin to update this user’s Finance role template or user-specific
+          exception before creating company bank accounts.
+        </p>
+      </div>
+    </section>
+  );
+}
+
+function normalizeIdentifierType(value: string): BankIdentifierType {
+  return value === "iban" ? "iban" : "swift";
+}
+
+function normalizeStatus(value: string): BankAccountCreateStatus {
+  return value === "inactive" ? "inactive" : "active";
+}
+
+function getCompanyDisplayName(company: CompanyOption | null) {
+  if (!company) return "No company selected";
+  return company.legal_name?.trim() || company.name || "Unnamed company";
+}
+
+function getCompanyCodeLabel(company: CompanyOption | null, fallback: string) {
+  return company?.code || fallback || "Auto from company";
+}
+
+function getCurrencyLabel(company: CompanyOption | null, fallback: string) {
+  return fallback || company?.currency_code || "—";
 }
 
 export default function FinanceMasterDataBankAccountCreatePage() {
@@ -132,88 +433,251 @@ export default function FinanceMasterDataBankAccountCreatePage() {
 
   const [form, setForm] = useState<FormState>(EMPTY_FORM);
   const [companies, setCompanies] = useState<CompanyOption[]>([]);
+  const [profile, setProfile] = useState<ProfilePermissionRow | null>(null);
+  const [effectivePermissions, setEffectivePermissions] =
+    useState<Record<Permission, boolean> | null>(null);
+  const [isLoadingProfile, setIsLoadingProfile] = useState(true);
   const [isLoadingCompanies, setIsLoadingCompanies] = useState(true);
   const [isSaving, setIsSaving] = useState(false);
   const [formError, setFormError] = useState<string | null>(null);
+  const [formMessage, setFormMessage] = useState<string | null>(null);
 
-  useEffect(() => {
-    async function loadCompanies() {
-      try {
-        setIsLoadingCompanies(true);
-        const rows = await getCompanyOptions();
-        setCompanies(rows);
+  const loadCurrentProfile = useCallback(async () => {
+    setIsLoadingProfile(true);
 
-        const companyIdFromUrl = searchParams.get("company_id");
-        if (!companyIdFromUrl) return;
+    try {
+      const authResult = await supabase.auth.getUser();
+      if (authResult.error) throw authResult.error;
 
-        const company =
-          rows.find((item) => item.id === companyIdFromUrl) ?? null;
+      const authUserId = authResult.data.user?.id;
 
-        if (!company) return;
-
-        setForm((prev) => ({
-          ...prev,
-          company_id: companyIdFromUrl,
-          company_code: company.code ?? "",
-          beneficiary_name:
-            company.legal_name?.trim() || company.name || "",
-          currency_code: prev.currency_code || company.currency_code || "",
-        }));
-      } catch (error) {
-        console.error("Failed to load companies:", error);
-        setCompanies([]);
-      } finally {
-        setIsLoadingCompanies(false);
+      if (!authUserId) {
+        setProfile(null);
+        setEffectivePermissions(null);
+        return;
       }
-    }
 
-    void loadCompanies();
+      const profileResult = await supabase
+        .from("profiles")
+        .select("user_id, full_name, role, permissions")
+        .eq("user_id", authUserId)
+        .maybeSingle();
+
+      if (profileResult.error) throw profileResult.error;
+
+      const loadedProfile = (profileResult.data || null) as ProfilePermissionRow | null;
+      const backendPermissions = await loadBackendEffectivePermissions(authUserId);
+
+      setProfile(loadedProfile);
+
+      if (!loadedProfile?.role) {
+        setEffectivePermissions(null);
+        return;
+      }
+
+      const resolvedPermissions = getEffectivePermissions(
+        loadedProfile.role,
+        backendPermissions || loadedProfile.permissions || null
+      );
+
+      setEffectivePermissions(resolvedPermissions);
+    } catch (error) {
+      console.error("Failed to load create bank account permissions:", error);
+      setProfile(null);
+      setEffectivePermissions(null);
+    } finally {
+      setIsLoadingProfile(false);
+    }
+  }, []);
+
+  const loadCompanies = useCallback(async () => {
+    setIsLoadingCompanies(true);
+
+    try {
+      const rows = await getCompanyOptions();
+      setCompanies(rows);
+
+      const companyIdFromUrl = searchParams.get("company_id");
+      if (!companyIdFromUrl) return;
+
+      const company = rows.find((item) => item.id === companyIdFromUrl) ?? null;
+      if (!company) return;
+
+      setForm((previousForm) => ({
+        ...previousForm,
+        company_id: companyIdFromUrl,
+        company_code: company.code ?? "",
+        beneficiary_name:
+          previousForm.beneficiary_name ||
+          company.legal_name?.trim() ||
+          company.name ||
+          "",
+        currency_code:
+          previousForm.currency_code || company.currency_code || "",
+      }));
+    } catch (error) {
+      console.error("Failed to load companies for bank account create page:", error);
+      setCompanies([]);
+      setFormError(
+        error instanceof Error ? error.message : "Failed to load company options."
+      );
+    } finally {
+      setIsLoadingCompanies(false);
+    }
   }, [searchParams]);
 
+  useEffect(() => {
+    void Promise.all([loadCurrentProfile(), loadCompanies()]);
+  }, [loadCompanies, loadCurrentProfile]);
+
+  useEffect(() => {
+    const channel = supabase
+      .channel("finance-master-data-bank-account-create-page")
+      .on(
+        "postgres_changes",
+        { event: "*", schema: "public", table: "profiles" },
+        () => void loadCurrentProfile()
+      )
+      .on(
+        "postgres_changes",
+        { event: "*", schema: "public", table: "finance_permission_templates" },
+        () => void loadCurrentProfile()
+      )
+      .on(
+        "postgres_changes",
+        { event: "*", schema: "public", table: "finance_user_permission_templates" },
+        () => void loadCurrentProfile()
+      )
+      .on(
+        "postgres_changes",
+        { event: "*", schema: "public", table: "finance_companies" },
+        () => void loadCompanies()
+      )
+      .subscribe();
+
+    const intervalId = window.setInterval(() => {
+      void Promise.all([loadCurrentProfile(), loadCompanies()]);
+    }, 60000);
+
+    return () => {
+      window.clearInterval(intervalId);
+      supabase.removeChannel(channel);
+    };
+  }, [loadCompanies, loadCurrentProfile]);
+
+  const permissionState = useMemo(() => {
+    return buildPermissionState(profile, effectivePermissions);
+  }, [effectivePermissions, profile]);
+
   const selectedCompany = useMemo(() => {
-    return companies.find((c) => c.id === form.company_id) ?? null;
+    return companies.find((company) => company.id === form.company_id) ?? null;
   }, [companies, form.company_id]);
 
   const identifierLabel = useMemo(() => {
-    return form.account_identifier_type.toLowerCase() === "iban"
-      ? "IBAN Value"
-      : "SWIFT Value";
+    return form.account_identifier_type === "iban" ? "IBAN Value" : "SWIFT Value";
   }, [form.account_identifier_type]);
 
+  const isPageLoading = isLoadingProfile || isLoadingCompanies;
 
-  function updateForm<K extends keyof FormState>(
-    key: K,
-    value: FormState[K]
-  ) {
-    setForm((prev) => ({
-      ...prev,
+  const headerStatusCards = useMemo<HeaderStatusCardData[]>(() => {
+    return [
+      {
+        label: "Create Access",
+        value: isLoadingProfile
+          ? "Checking"
+          : permissionState.canCreate
+            ? "Enabled"
+            : "Locked",
+        detail:
+          "Bank Account create access follows the Finance role template and user-specific exceptions.",
+        icon: permissionState.canCreate ? ShieldCheck : LockKeyhole,
+        tone: permissionState.canCreate ? "emerald" : "rose",
+      },
+      {
+        label: "Company Source",
+        value: isLoadingCompanies ? "Loading" : `${companies.length} Options`,
+        detail:
+          "Company options are pulled from Finance Companies and used to prefill beneficiary and currency.",
+        icon: Building2,
+        tone: "cyan",
+      },
+    ];
+  }, [companies.length, isLoadingCompanies, isLoadingProfile, permissionState.canCreate]);
+
+  const summaryItems = useMemo<SummaryItem[]>(() => {
+    return [
+      {
+        label: "Company",
+        value: getCompanyDisplayName(selectedCompany),
+        detail: getCompanyCodeLabel(selectedCompany, form.company_code),
+        icon: Building2,
+        tone: "cyan",
+      },
+      {
+        label: "Bank",
+        value: form.bank_name.trim() || "Bank name required",
+        detail: form.beneficiary_name.trim() || "Beneficiary name required",
+        icon: Landmark,
+        tone: form.bank_name.trim() ? "emerald" : "amber",
+      },
+      {
+        label: "Identifier",
+        value: form.account_identifier_type.toUpperCase(),
+        detail: form.account_identifier_value.trim() || "No identifier value yet",
+        icon: CreditCard,
+        tone: "violet",
+      },
+      {
+        label: "Currency",
+        value: getCurrencyLabel(selectedCompany, form.currency_code),
+        detail: form.is_default ? "Default account enabled" : "Standard account",
+        icon: Banknote,
+        tone: "rose",
+      },
+    ];
+  }, [form, selectedCompany]);
+
+  function updateForm<K extends keyof FormState>(key: K, value: FormState[K]) {
+    setForm((previousForm) => ({
+      ...previousForm,
       [key]: value,
     }));
   }
 
   function handleCompanyChange(companyId: string) {
-    const company = companies.find((c) => c.id === companyId) ?? null;
+    const company = companies.find((item) => item.id === companyId) ?? null;
 
-    setForm((prev) => ({
-      ...prev,
+    setForm((previousForm) => ({
+      ...previousForm,
       company_id: companyId,
       company_code: company?.code ?? "",
       beneficiary_name:
-        company?.legal_name?.trim() || company?.name || "",
-      currency_code: prev.currency_code || company?.currency_code || "",
+        company?.legal_name?.trim() || company?.name || previousForm.beneficiary_name,
+      currency_code: previousForm.currency_code || company?.currency_code || "",
     }));
   }
 
   function handleReset() {
     setForm(EMPTY_FORM);
     setFormError(null);
+    setFormMessage(null);
   }
 
-  async function handleSubmit(event: React.FormEvent<HTMLFormElement>) {
+  async function handleSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
+
+    if (!permissionState.canCreate) {
+      setFormError("Create access is not enabled for this user.");
+      return;
+    }
 
     if (!form.company_id) {
       setFormError("Company is required.");
+      return;
+    }
+
+    if (!form.beneficiary_name.trim()) {
+      setFormError("Beneficiary name is required.");
       return;
     }
 
@@ -225,6 +689,7 @@ export default function FinanceMasterDataBankAccountCreatePage() {
     try {
       setIsSaving(true);
       setFormError(null);
+      setFormMessage(null);
 
       const created = await createBankAccount({
         company_id: form.company_id,
@@ -236,28 +701,20 @@ export default function FinanceMasterDataBankAccountCreatePage() {
         address_line_1: form.address_line_1.trim() || null,
         address_line_2: form.address_line_2.trim() || null,
         account_number: form.account_number.trim() || null,
-        account_identifier_type:
-          form.account_identifier_type.trim() || null,
-        account_identifier_value:
-          form.account_identifier_value.trim() || null,
-        currency_code: form.currency_code.trim() || null,
+        account_identifier_type: form.account_identifier_type,
+        account_identifier_value: form.account_identifier_value.trim() || null,
+        currency_code: form.currency_code.trim() || selectedCompany?.currency_code || null,
         is_default: form.is_default,
         status: form.status,
         notes: form.notes.trim() || null,
       });
 
-      navigate(`/finance/master-data/companies/${form.company_id}`, {
-  state: {
-    refreshCompanyBankAccounts: true,
-    createdBankAccountId: created.id,
-  },
-});
+      setFormMessage("Bank account created. Opening the new bank account record.");
+      navigate(`/finance/master-data/bank-accounts/${created.id}`);
     } catch (error) {
       console.error("Failed to create bank account:", error);
       setFormError(
-        error instanceof Error
-          ? error.message
-          : "Failed to create bank account."
+        error instanceof Error ? error.message : "Failed to create bank account."
       );
     } finally {
       setIsSaving(false);
@@ -265,138 +722,162 @@ export default function FinanceMasterDataBankAccountCreatePage() {
   }
 
   return (
-    <div className="flex h-full min-h-0 flex-col overflow-hidden">
-      <div className="mx-auto flex h-full w-full max-w-[1920px] min-h-0 flex-col gap-6 px-4 pb-4 pt-2 sm:px-6 xl:px-8">
+    <div className="min-h-screen bg-[#05070d] px-4 py-4 text-white md:px-6 md:py-6">
+      <div className="mx-auto flex w-full max-w-[1600px] flex-col gap-6">
+        <header className="relative overflow-hidden rounded-[34px] border border-white/10 bg-white/[0.045] p-6 shadow-2xl shadow-black/30 backdrop-blur-xl">
+          <div className="pointer-events-none absolute inset-0 bg-[radial-gradient(circle_at_top_left,rgba(6,182,212,0.16),transparent_38%),radial-gradient(circle_at_top_right,rgba(139,92,246,0.12),transparent_34%)]" />
 
-        {/* HEADER */}
-        <section className="relative z-10 flex-shrink-0 overflow-hidden rounded-[30px] border border-white/10 bg-[linear-gradient(135deg,rgba(34,211,238,0.10),rgba(139,92,246,0.08),rgba(255,255,255,0.03))] backdrop-blur-xl">
-          <div className="pointer-events-none absolute inset-0 bg-[radial-gradient(circle_at_top_left,rgba(34,211,238,0.18),transparent_28%),radial-gradient(circle_at_top_right,rgba(139,92,246,0.16),transparent_26%),radial-gradient(circle_at_bottom_left,rgba(16,185,129,0.14),transparent_24%),radial-gradient(circle_at_bottom_right,rgba(244,63,94,0.10),transparent_24%)]" />
+          <div className="relative grid gap-6 xl:grid-cols-[minmax(0,1fr)_520px] xl:items-end">
+            <div>
+              <button
+                type="button"
+                onClick={() => navigate("/finance/master-data/bank-accounts")}
+                className="mb-5 inline-flex items-center justify-center gap-2 rounded-full border border-white/10 bg-white/[0.05] px-5 py-2 text-[11px] font-semibold uppercase tracking-[0.22em] text-slate-300 transition hover:border-white/20 hover:bg-white/[0.08] hover:text-white"
+              >
+                <ArrowRight className="h-3.5 w-3.5 rotate-180" />
+                Bank Accounts
+              </button>
 
-          <div className="relative flex items-center justify-between gap-4 px-5 py-5 sm:px-6 xl:px-7">
-            <div className="min-w-0">
-              <div className="inline-flex items-center rounded-full border border-cyan-400/20 bg-cyan-500/10 px-3 py-1 text-[11px] uppercase tracking-[0.22em] text-cyan-200">
-                Master Data
+              <div className="inline-flex w-fit items-center gap-2 rounded-full border border-cyan-400/20 bg-cyan-500/10 px-3 py-1 text-[11px] font-semibold uppercase tracking-[0.22em] text-cyan-200">
+                <Sparkles className="h-3.5 w-3.5" />
+                New Company Bank Account
               </div>
 
-              <h1 className="mt-3 text-2xl font-semibold tracking-tight text-white sm:text-3xl">
-                Create Company Bank Account
+              <h1 className="mt-4 text-3xl font-semibold tracking-[-0.035em] text-white md:text-5xl">
+                Create Bank Account
               </h1>
 
-              <div className="mt-2 text-sm text-white/50">
-                Company selection, bank details, identifier, currency, control,
-                and notes.
+              <p className="mt-3 max-w-4xl text-sm leading-6 text-slate-400 md:text-base md:leading-7">
+                Create a company-linked bank account for treasury, payment instructions,
+                and future finance document snapshots. After saving, the new bank account
+                record opens directly.
+              </p>
+
+              <div className="mt-5 flex flex-wrap gap-2">
+                <span className="rounded-full border border-emerald-400/20 bg-emerald-500/10 px-3 py-1 text-[11px] font-semibold uppercase tracking-[0.16em] text-emerald-200">
+                  Company linked
+                </span>
+                <span className="rounded-full border border-cyan-400/20 bg-cyan-500/10 px-3 py-1 text-[11px] font-semibold uppercase tracking-[0.16em] text-cyan-200">
+                  Permission protected
+                </span>
+                <span className="rounded-full border border-slate-400/20 bg-slate-500/10 px-3 py-1 text-[11px] font-semibold uppercase tracking-[0.16em] text-slate-300">
+                  Opens ID page after create
+                </span>
               </div>
             </div>
 
-            <div className="flex shrink-0 items-center gap-3">
-              <Button
-                variant="outline"
-                onClick={() => navigate("/finance/master-data/bank-accounts")}
-                className="h-11 rounded-2xl border-white/10 bg-white/5 px-4 text-white hover:bg-white/10"
-              >
-                <ArrowLeft className="mr-2 h-4 w-4" />
-                Back
-              </Button>
-
-              <Button
-                type="button"
-                variant="outline"
-                onClick={handleReset}
-                className="h-11 rounded-2xl border-white/10 bg-white/5 px-4 text-white hover:bg-white/10"
-              >
-                <RefreshCw className="mr-2 h-4 w-4" />
-                Reset
-              </Button>
-
-              <Button
-                type="submit"
-                form="bank-account-create-form"
-                variant="outline"
-                disabled={isSaving}
-                className="h-11 rounded-2xl border-white/10 bg-white/5 px-4 text-white hover:bg-white/10"
-              >
-                <Save className="mr-2 h-4 w-4" />
-                {isSaving ? "Saving..." : "Create Bank Account"}
-              </Button>
+            <div className="grid gap-3 sm:grid-cols-2">
+              {headerStatusCards.map((item) => (
+                <HeaderStatusCard key={item.label} item={item} />
+              ))}
             </div>
           </div>
-        </section>
+        </header>
 
-                <div className="flex min-h-0 flex-1 flex-col gap-6 overflow-y-auto overflow-x-hidden pr-1 pb-2">
+        {formError ? (
+          <div className="rounded-[24px] border border-rose-400/20 bg-rose-500/10 p-4 text-sm leading-6 text-rose-100">
+            <div className="flex items-start gap-3">
+              <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0" />
+              <div>{formError}</div>
+            </div>
+          </div>
+        ) : null}
+
+        {formMessage ? (
+          <div className="rounded-[24px] border border-emerald-400/20 bg-emerald-500/10 p-4 text-sm leading-6 text-emerald-100">
+            <div className="flex items-start gap-3">
+              <CheckCircle2 className="mt-0.5 h-4 w-4 shrink-0" />
+              <div>{formMessage}</div>
+            </div>
+          </div>
+        ) : null}
+
+        {isPageLoading ? (
+          <section className="rounded-[30px] border border-white/10 bg-white/[0.045] p-10 text-center backdrop-blur-xl">
+            <Loader2 className="mx-auto h-8 w-8 animate-spin text-cyan-200" />
+            <div className="mt-4 text-sm font-semibold text-white">
+              Loading create page
+            </div>
+            <p className="mt-2 text-sm leading-6 text-slate-500">
+              Company options and permission state are being checked.
+            </p>
+          </section>
+        ) : !permissionState.canCreate ? (
+          <EmptyLockedState />
+        ) : (
           <form
             id="bank-account-create-form"
-            className="flex min-h-0 flex-col gap-6"
             onSubmit={handleSubmit}
+            className="grid items-start gap-6 xl:grid-cols-[minmax(0,1fr)_420px]"
           >
-            <div className="grid grid-cols-1 gap-6 lg:grid-cols-2">
-
-              {/* COMPANY */}
+            <div className="grid gap-6">
               <FormSection
-                title="Section 1 — Company Link"
+                title="Company Link"
                 description="Select the company and pull linked finance identity."
+                icon={Building2}
               >
-                <div className="grid grid-cols-1 gap-3 md:grid-cols-2">
+                <div className="grid gap-4 md:grid-cols-2">
                   <div className="md:col-span-2">
                     <FieldLabel label="Company" required />
-                    <select
+                    <SelectField
                       value={form.company_id}
-                      onChange={(e) => handleCompanyChange(e.target.value)}
-                      className="h-11 w-full rounded-2xl border border-white/10 bg-white/5 px-4 text-sm text-white outline-none"
+                      onChange={handleCompanyChange}
+                      disabled={isSaving}
                     >
-                      <option value="">
-                        {isLoadingCompanies
-                          ? "Loading companies..."
-                          : "Select company"}
+                      <option value="" className="bg-[#05070d]">
+                        Select company
                       </option>
-                      {companies.map((c) => (
-                        <option key={c.id} value={c.id}>
-                          {(c.legal_name?.trim() || c.name) +
-                            (c.code ? ` • ${c.code}` : "")}
+                      {companies.map((company) => (
+                        <option
+                          key={company.id}
+                          value={company.id}
+                          className="bg-[#05070d]"
+                        >
+                          {(company.legal_name?.trim() || company.name) +
+                            (company.code ? ` • ${company.code}` : "")}
                         </option>
                       ))}
-                    </select>
+                    </SelectField>
                   </div>
 
-                  <div>
-                    <FieldLabel label="Company Code" />
-                    <div className="flex h-11 items-center rounded-2xl border border-white/10 bg-white/5 px-4 text-sm text-white/70">
-                      {form.company_code || "Auto from company"}
-                    </div>
-                  </div>
+                  <ReadOnlyBlock
+                    label="Company Code"
+                    value={getCompanyCodeLabel(selectedCompany, form.company_code)}
+                    detail="Pulled from the selected company."
+                  />
 
-                  <div>
+                  <ReadOnlyBlock
+                    label="Company Currency"
+                    value={selectedCompany?.currency_code || "—"}
+                    detail="Used as a suggested bank account currency."
+                  />
+
+                  <div className="md:col-span-2">
                     <FieldLabel label="Beneficiary Name" required />
                     <InputField
                       value={form.beneficiary_name}
-                      onChange={(e) =>
-                        updateForm("beneficiary_name", e.target.value)
+                      disabled={isSaving}
+                      onChange={(event) =>
+                        updateForm("beneficiary_name", event.target.value)
                       }
-                      placeholder="Auto from company, can edit"
+                      placeholder="Legal beneficiary name"
                     />
-                  </div>
-
-                  <div>
-                    <FieldLabel label="Company Currency" />
-                    <div className="flex h-11 items-center rounded-2xl border border-white/10 bg-white/5 px-4 text-sm text-white/70">
-                      {selectedCompany?.currency_code || "—"}
-                    </div>
                   </div>
                 </div>
               </FormSection>
 
-              {/* BANK */}
               <FormSection
-                title="Section 2 — Bank Identity"
+                title="Bank Identity"
                 description="Bank name and main account number."
+                icon={Landmark}
               >
-                <div className="grid grid-cols-1 gap-3 md:grid-cols-2">
+                <div className="grid gap-4 md:grid-cols-2">
                   <div className="md:col-span-2">
                     <FieldLabel label="Bank Name" required />
                     <InputField
                       value={form.bank_name}
-                      onChange={(e) =>
-                        updateForm("bank_name", e.target.value)
-                      }
+                      disabled={isSaving}
+                      onChange={(event) => updateForm("bank_name", event.target.value)}
                       placeholder="Bank name"
                     />
                   </div>
@@ -405,28 +886,28 @@ export default function FinanceMasterDataBankAccountCreatePage() {
                     <FieldLabel label="Account Number" />
                     <InputField
                       value={form.account_number}
-                      onChange={(e) =>
-                        updateForm("account_number", e.target.value)
+                      disabled={isSaving}
+                      onChange={(event) =>
+                        updateForm("account_number", event.target.value)
                       }
-                      placeholder="Account number"
+                      placeholder="Account number or masked account number"
                     />
                   </div>
                 </div>
               </FormSection>
 
-              {/* ADDRESS */}
               <FormSection
-                title="Section 3 — Bank Address"
-                description="Address details for this bank account."
+                title="Bank Address"
+                description="Bank address details used for records and payment instructions."
+                icon={WalletCards}
               >
-                <div className="grid grid-cols-1 gap-3 md:grid-cols-2">
+                <div className="grid gap-4 md:grid-cols-2">
                   <div>
                     <FieldLabel label="Country" />
                     <InputField
                       value={form.country}
-                      onChange={(e) =>
-                        updateForm("country", e.target.value)
-                      }
+                      disabled={isSaving}
+                      onChange={(event) => updateForm("country", event.target.value)}
                       placeholder="Country"
                     />
                   </div>
@@ -435,9 +916,8 @@ export default function FinanceMasterDataBankAccountCreatePage() {
                     <FieldLabel label="City" />
                     <InputField
                       value={form.city}
-                      onChange={(e) =>
-                        updateForm("city", e.target.value)
-                      }
+                      disabled={isSaving}
+                      onChange={(event) => updateForm("city", event.target.value)}
                       placeholder="City"
                     />
                   </div>
@@ -446,8 +926,9 @@ export default function FinanceMasterDataBankAccountCreatePage() {
                     <FieldLabel label="ZIP / Postal Code" />
                     <InputField
                       value={form.postal_code}
-                      onChange={(e) =>
-                        updateForm("postal_code", e.target.value)
+                      disabled={isSaving}
+                      onChange={(event) =>
+                        updateForm("postal_code", event.target.value)
                       }
                       placeholder="Postal code"
                     />
@@ -457,8 +938,9 @@ export default function FinanceMasterDataBankAccountCreatePage() {
                     <FieldLabel label="Address Line 1" />
                     <InputField
                       value={form.address_line_1}
-                      onChange={(e) =>
-                        updateForm("address_line_1", e.target.value)
+                      disabled={isSaving}
+                      onChange={(event) =>
+                        updateForm("address_line_1", event.target.value)
                       }
                       placeholder="Address line 1"
                     />
@@ -468,8 +950,9 @@ export default function FinanceMasterDataBankAccountCreatePage() {
                     <FieldLabel label="Address Line 2" />
                     <InputField
                       value={form.address_line_2}
-                      onChange={(e) =>
-                        updateForm("address_line_2", e.target.value)
+                      disabled={isSaving}
+                      onChange={(event) =>
+                        updateForm("address_line_2", event.target.value)
                       }
                       placeholder="Address line 2"
                     />
@@ -477,40 +960,37 @@ export default function FinanceMasterDataBankAccountCreatePage() {
                 </div>
               </FormSection>
 
-              {/* CONTROL */}
               <FormSection
-                title="Section 4 — Identifier / Currency / Control"
+                title="Identifier / Currency / Control"
                 description="Identifier type, currency, default flag, and lifecycle."
+                icon={CreditCard}
               >
-                <div className="grid grid-cols-1 gap-3 md:grid-cols-2">
+                <div className="grid gap-4 md:grid-cols-2">
                   <div>
                     <FieldLabel label="Identifier Type" />
-                    <InputField
-                      list="identifier-type-options"
+                    <SelectField
                       value={form.account_identifier_type}
-                      onChange={(e) =>
-                        updateForm(
-                          "account_identifier_type",
-                          e.target.value
-                        )
+                      disabled={isSaving}
+                      onChange={(value) =>
+                        updateForm("account_identifier_type", normalizeIdentifierType(value))
                       }
-                      placeholder="swift or iban"
-                    />
-                    <datalist id="identifier-type-options">
-                      <option value="swift" />
-                      <option value="iban" />
-                    </datalist>
+                    >
+                      <option value="swift" className="bg-[#05070d]">
+                        SWIFT
+                      </option>
+                      <option value="iban" className="bg-[#05070d]">
+                        IBAN
+                      </option>
+                    </SelectField>
                   </div>
 
                   <div>
                     <FieldLabel label={identifierLabel} />
                     <InputField
                       value={form.account_identifier_value}
-                      onChange={(e) =>
-                        updateForm(
-                          "account_identifier_value",
-                          e.target.value
-                        )
+                      disabled={isSaving}
+                      onChange={(event) =>
+                        updateForm("account_identifier_value", event.target.value)
                       }
                       placeholder="Identifier value"
                     />
@@ -519,82 +999,135 @@ export default function FinanceMasterDataBankAccountCreatePage() {
                   <div>
                     <FieldLabel label="Currency Code" />
                     <InputField
-                      list="currency-code-options"
                       value={form.currency_code}
-                      onChange={(e) =>
-                        updateForm(
-                          "currency_code",
-                          e.target.value.toUpperCase()
-                        )
+                      disabled={isSaving}
+                      onChange={(event) =>
+                        updateForm("currency_code", event.target.value.toUpperCase())
                       }
                       placeholder="USD / EUR / CNY / ILS"
                     />
-                    <datalist id="currency-code-options">
-                      <option value="USD" />
-                      <option value="EUR" />
-                      <option value="CNY" />
-                      <option value="ILS" />
-                    </datalist>
                   </div>
 
                   <div>
                     <FieldLabel label="Status" />
-                    <InputField
-                      list="status-options"
+                    <SelectField
                       value={form.status}
-                      onChange={(e) =>
-                        updateForm(
-                          "status",
-                          e.target.value as FormState["status"]
-                        )
-                      }
-                      placeholder="active / inactive / archived"
-                    />
-                    <datalist id="status-options">
-                      <option value="active" />
-                      <option value="inactive" />
-                      <option value="archived" />
-                    </datalist>
+                      disabled={isSaving}
+                      onChange={(value) => updateForm("status", normalizeStatus(value))}
+                    >
+                      <option value="active" className="bg-[#05070d]">
+                        Active
+                      </option>
+                      <option value="inactive" className="bg-[#05070d]">
+                        Inactive
+                      </option>
+                    </SelectField>
                   </div>
 
                   <div className="md:col-span-2">
-                    <label className="flex items-center gap-3 text-sm text-white/75">
+                    <label className="flex items-start gap-3 rounded-2xl border border-white/10 bg-black/20 px-4 py-3 text-sm text-slate-300">
                       <input
                         type="checkbox"
                         checked={form.is_default}
-                        onChange={(e) =>
-                          updateForm("is_default", e.target.checked)
+                        disabled={isSaving}
+                        onChange={(event) =>
+                          updateForm("is_default", event.target.checked)
                         }
+                        className="mt-1"
                       />
-                      Set as default bank account for this company
+                      <span>
+                        <span className="block font-semibold text-white">
+                          Set as default bank account for this company
+                        </span>
+                        <span className="mt-1 block text-xs leading-5 text-slate-500">
+                          The helper logic will reset other default accounts for the same
+                          company during update flows.
+                        </span>
+                      </span>
                     </label>
                   </div>
                 </div>
               </FormSection>
 
-              {/* NOTES */}
               <FormSection
-                title="Section 5 — Notes"
-                description="Internal notes."
-                fullWidth
+                title="Notes"
+                description="Internal notes for finance operators."
+                icon={FileText}
               >
                 <TextareaField
                   value={form.notes}
-                  onChange={(e) =>
-                    updateForm("notes", e.target.value)
-                  }
+                  disabled={isSaving}
+                  onChange={(event) => updateForm("notes", event.target.value)}
                   placeholder="Notes..."
                 />
               </FormSection>
             </div>
 
-            {formError ? (
-              <div className="rounded-2xl border border-rose-400/20 bg-rose-500/10 px-4 py-3 text-sm text-rose-100">
-                {formError}
-              </div>
-            ) : null}
+            <aside className="grid gap-6">
+              <section className="overflow-hidden rounded-[30px] border border-white/10 bg-white/[0.045] backdrop-blur-xl">
+                <div className="border-b border-white/10 px-5 py-4">
+                  <div className="text-sm font-semibold uppercase tracking-[0.18em] text-slate-400">
+                    Create Summary
+                  </div>
+                  <p className="mt-1 text-xs leading-5 text-slate-500">
+                    Review the bank account before creating it.
+                  </p>
+                </div>
+
+                <div className="grid gap-4 p-5">
+                  {summaryItems.map((item) => (
+                    <SummaryCard key={item.label} item={item} />
+                  ))}
+                </div>
+              </section>
+
+              <section className="overflow-hidden rounded-[30px] border border-white/10 bg-white/[0.045] backdrop-blur-xl">
+                <div className="border-b border-white/10 px-5 py-4">
+                  <div className="text-sm font-semibold uppercase tracking-[0.18em] text-slate-400">
+                    Actions
+                  </div>
+                  <p className="mt-1 text-xs leading-5 text-slate-500">
+                    Create opens the new bank account ID page directly.
+                  </p>
+                </div>
+
+                <div className="grid gap-3 p-5">
+                  <button
+                    type="submit"
+                    disabled={isSaving}
+                    className="inline-flex h-12 items-center justify-center gap-2 rounded-2xl border border-cyan-400/20 bg-cyan-500 px-5 text-sm font-semibold text-slate-950 transition hover:bg-cyan-400 disabled:cursor-not-allowed disabled:opacity-60"
+                  >
+                    {isSaving ? (
+                      <Loader2 className="h-4 w-4 animate-spin" />
+                    ) : (
+                      <Save className="h-4 w-4" />
+                    )}
+                    {isSaving ? "Creating..." : "Create Bank Account"}
+                  </button>
+
+                  <button
+                    type="button"
+                    disabled={isSaving}
+                    onClick={handleReset}
+                    className="inline-flex h-12 items-center justify-center gap-2 rounded-2xl border border-white/10 bg-white/[0.05] px-5 text-sm font-semibold text-slate-300 transition hover:bg-white/[0.08] disabled:cursor-not-allowed disabled:opacity-60"
+                  >
+                    <RotateCcw className="h-4 w-4" />
+                    Reset Form
+                  </button>
+                </div>
+              </section>
+
+              <section className="rounded-[24px] border border-cyan-400/20 bg-cyan-500/10 p-4 text-sm leading-6 text-cyan-100">
+                <div className="font-semibold text-white">Locked create rule</div>
+                <div className="mt-1">
+                  This page requires Bank Account create access. New records can be
+                  created as Active or Inactive only. Archived records are managed from
+                  the Bank Accounts archive modal.
+                </div>
+              </section>
+            </aside>
           </form>
-        </div>
+        )}
       </div>
     </div>
   );

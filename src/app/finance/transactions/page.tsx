@@ -11,8 +11,6 @@ import {
   Receipt,
   ShieldCheck,
   Sparkles,
-  TrendingDown,
-  TrendingUp,
   UserRound,
   Wallet,
 } from "lucide-react";

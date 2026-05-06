@@ -464,7 +464,10 @@ export default function FinanceAccessApprovalUserDetailPage() {
           currentProfile.permissions || null
         );
 
-        if (!currentEffectivePermissions.manageUsers) {
+        const isCurrentUserAdmin =
+          String(currentProfile.role || "").toLowerCase() === "admin";
+
+        if (!isCurrentUserAdmin || !currentEffectivePermissions.manageUsers) {
           setPageError("Admin access is required to manage Access Approvals.");
           setCurrentUser(currentProfile);
           setTargetUser(null);
@@ -578,11 +581,16 @@ export default function FinanceAccessApprovalUserDetailPage() {
 
   const hasAdminAccess = useMemo(() => {
     if (!currentUser) return false;
+
+    const isCurrentUserAdmin =
+      String(currentUser.role || "").toLowerCase() === "admin";
+
     const currentEffectivePermissions = getEffectivePermissions(
       currentUser.role,
       currentUser.permissions || null
     );
-    return Boolean(currentEffectivePermissions.manageUsers);
+
+    return Boolean(isCurrentUserAdmin && currentEffectivePermissions.manageUsers);
   }, [currentUser]);
 
   const userSummaryItems = useMemo<DetailItem[]>(() => {

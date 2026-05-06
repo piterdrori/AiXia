@@ -285,7 +285,7 @@ function AccessDot({
 }) {
   return (
     <div
-      className={`inline-flex h-8 min-w-[72px] items-center justify-center rounded-full border px-3 text-[10px] font-semibold uppercase tracking-[0.14em] ${
+      className={`inline-flex h-7 w-full items-center justify-center rounded-full border px-2 text-[9px] font-semibold uppercase tracking-[0.12em] ${
         enabled
           ? "border-emerald-400/20 bg-emerald-500/10 text-emerald-200"
           : "border-white/10 bg-white/[0.04] text-slate-600"
@@ -840,13 +840,25 @@ export default function FinanceAccessApprovalsPage() {
                           key={user.user_id}
                           className="border-b border-white/5 text-sm text-slate-300 transition hover:bg-white/[0.035]"
                         >
-                          <td className="min-w-[250px] px-5 py-4">
-                            <div className="font-semibold text-white">
-                              {user.full_name || "Unnamed user"}
-                            </div>
-                            <div className="mt-1 max-w-[230px] truncate text-xs text-slate-500">
-                              {user.user_id}
-                            </div>
+                          <td className="min-w-[280px] px-5 py-4">
+                            <button
+                              type="button"
+                              onClick={() =>
+                                navigate(`/finance/transactions/approvals/${user.user_id}`)
+                              }
+                              className="group text-left"
+                            >
+                              <div className="font-semibold text-white transition group-hover:text-cyan-200">
+                                {user.full_name || "Unnamed user"}
+                              </div>
+                              <div className="mt-1 max-w-[250px] truncate text-xs text-slate-500">
+                                {user.user_id}
+                              </div>
+                              <div className="mt-3 inline-flex h-8 items-center justify-center gap-2 rounded-full border border-cyan-400/20 bg-cyan-500/10 px-3 text-[10px] font-semibold uppercase tracking-[0.14em] text-cyan-100 transition group-hover:bg-cyan-500/15">
+                                Open Access Page
+                                <ArrowRight className="h-3 w-3" />
+                              </div>
+                            </button>
                           </td>
 
                           <td className="min-w-[170px] px-5 py-4">
@@ -872,25 +884,40 @@ export default function FinanceAccessApprovalsPage() {
                             </div>
                           </td>
 
-                          <td className="min-w-[520px] px-5 py-4">
-                            <div className="grid gap-2">
+                          <td className="min-w-[920px] px-5 py-4">
+                            <div className="flex min-w-max items-stretch gap-3">
                               {ACCESS_APPROVAL_SECTIONS.map((section) => {
                                 const sectionState = user.accessStates[section.key];
+                                const enabledCount = ACCESS_APPROVAL_LEVEL_ORDER.filter(
+                                  (level) => sectionState[level]
+                                ).length;
 
                                 return (
                                   <div
                                     key={section.key}
-                                    className="flex items-center justify-between gap-3 rounded-2xl border border-white/10 bg-white/[0.025] px-3 py-2"
+                                    className="w-[172px] min-w-[172px] rounded-2xl border border-white/10 bg-white/[0.025] p-3"
                                   >
-                                    <div className="min-w-[160px] text-xs font-semibold text-slate-300">
-                                      {section.shortTitle}
+                                    <div className="mb-3 flex items-start justify-between gap-2">
+                                      <div className="text-xs font-semibold leading-5 text-slate-200">
+                                        {section.shortTitle}
+                                      </div>
+                                      <span
+                                        className={`rounded-full border px-2 py-0.5 text-[9px] font-semibold uppercase tracking-[0.12em] ${
+                                          enabledCount > 0
+                                            ? "border-emerald-400/20 bg-emerald-500/10 text-emerald-200"
+                                            : "border-white/10 bg-white/[0.04] text-slate-600"
+                                        }`}
+                                      >
+                                        {enabledCount}/4
+                                      </span>
                                     </div>
-                                    <div className="flex flex-wrap gap-1.5">
+
+                                    <div className="grid grid-cols-2 gap-1.5">
                                       {ACCESS_APPROVAL_LEVEL_ORDER.map((level) => (
                                         <AccessDot
                                           key={level}
                                           enabled={sectionState[level]}
-                                          label={level}
+                                          label={level.slice(0, 3)}
                                         />
                                       ))}
                                     </div>

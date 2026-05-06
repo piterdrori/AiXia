@@ -1,19 +1,49 @@
-import { useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
+import type {
+  FormEvent,
+  InputHTMLAttributes,
+  ReactNode,
+  SelectHTMLAttributes,
+  TextareaHTMLAttributes,
+} from "react";
 import { useNavigate } from "react-router-dom";
-import { ArrowLeft, Plus, RefreshCw, Save, Trash2 } from "lucide-react";
-
-import { supabase } from "@/lib/supabase";
-import { createVendor } from "@/lib/finance/vendors";
-
-import { Button } from "@/components/ui/button";
+import type { LucideIcon } from "lucide-react";
 import {
-  Card,
-  CardContent,
-  CardDescription,
-  CardHeader,
-  CardTitle,
-} from "@/components/ui/card";
-import { Input } from "@/components/ui/input";
+  AlertTriangle,
+  ArrowRight,
+  Building2,
+  CheckCircle2,
+  FileText,
+  Landmark,
+  Loader2,
+  LockKeyhole,
+  MapPin,
+  Plus,
+  RotateCcw,
+  Save,
+  ShieldCheck,
+  Sparkles,
+  Trash2,
+  Truck,
+  Users,
+} from "lucide-react";
+
+import { createVendor } from "@/lib/finance/vendors";
+import {
+  getEffectivePermissions,
+  type Permission,
+  type Role,
+} from "@/lib/permissions";
+import { supabase } from "@/lib/supabase";
+
+type ProfilePermissionRow = {
+  user_id: string;
+  full_name: string | null;
+  role: Role | null;
+  permissions: Partial<Record<Permission, boolean>> | null;
+};
+
+type VendorCreateStatus = "active" | "inactive";
 
 type PersonnelRow = {
   id: string;
@@ -47,14 +77,43 @@ type ShippingRow = {
 
 type FormState = {
   legal_name: string;
+  display_name: string;
   contact_person: string;
   company_email: string;
   company_phone: string;
-  status: "active" | "inactive" | "archived";
+  status: VendorCreateStatus;
   personnel: PersonnelRow[];
   addresses: AddressRow[];
   shipping_addresses: ShippingRow[];
   notes: string;
+};
+
+type PermissionState = {
+  canRead: boolean;
+  canCreate: boolean;
+  isAdmin: boolean;
+};
+
+type HeaderStatusCardData = {
+  label: string;
+  value: string;
+  detail: string;
+  icon: LucideIcon;
+  tone: "emerald" | "cyan" | "amber" | "rose";
+};
+
+type SummaryItem = {
+  label: string;
+  value: string;
+  detail: string;
+  icon: LucideIcon;
+  tone: "cyan" | "emerald" | "amber" | "violet" | "rose";
+};
+
+const EMPTY_PERMISSION_STATE: PermissionState = {
+  canRead: false,
+  canCreate: false,
+  isAdmin: false,
 };
 
 function makeId() {
@@ -97,17 +156,225 @@ function createEmptyShippingRow(): ShippingRow {
   };
 }
 
-const EMPTY_FORM: FormState = {
-  legal_name: "",
-  contact_person: "",
-  company_email: "",
-  company_phone: "",
-  status: "active",
-  personnel: [createEmptyPersonnelRow()],
-  addresses: [createEmptyAddressRow()],
-  shipping_addresses: [createEmptyShippingRow()],
-  notes: "",
-};
+function createEmptyForm(): FormState {
+  return {
+    legal_name: "",
+    display_name: "",
+    contact_person: "",
+    company_email: "",
+    company_phone: "",
+    status: "active",
+    personnel: [createEmptyPersonnelRow()],
+    addresses: [createEmptyAddressRow()],
+    shipping_addresses: [createEmptyShippingRow()],
+    notes: "",
+  };
+}
+
+function hasPermission(
+  permissions: Record<Permission, boolean> | null,
+  permission: Permission
+) {
+  return Boolean(permissions?.[permission]);
+}
+
+function buildPermissionState(
+  profile: ProfilePermissionRow | null,
+  permissions: Record<Permission, boolean> | null
+): PermissionState {
+  if (!profile?.role || !permissions) {
+    return EMPTY_PERMISSION_STATE;
+  }
+
+  const isAdmin = String(profile.role || "").toLowerCase() === "admin";
+  const canManageMasterData = hasPermission(permissions, "manageFinanceMasterData");
+  const canViewVendors = hasPermission(permissions, "viewVendors");
+  const canManageVendors = hasPermission(permissions, "manageVendors");
+  const canAccessPayables =
+    hasPermission(permissions, "accessPayables") ||
+    hasPermission(permissions, "viewPayables");
+  const canAccessFinance =
+    hasPermission(permissions, "accessFinance") ||
+    hasPermission(permissions, "viewFinance");
+
+  return {
+    isAdmin,
+    canRead:
+      canManageMasterData ||
+      canViewVendors ||
+      canManageVendors ||
+      canAccessPayables ||
+      canAccessFinance,
+    canCreate:
+      canManageMasterData ||
+      canManageVendors ||
+      hasPermission(permissions, "createFinanceRecords"),
+  };
+}
+
+async function loadBackendEffectivePermissions(
+  userId: string
+): Promise<Partial<Record<Permission, boolean>> | null> {
+  try {
+    const result = await supabase.rpc("finance_get_effective_permissions", {
+      target_user_id: userId,
+    });
+
+    if (result.error) {
+      console.warn(
+        "Create Vendor permission RPC fallback:",
+        result.error.message
+      );
+      return null;
+    }
+
+    if (!result.data || typeof result.data !== "object") {
+      return null;
+    }
+
+    return result.data as Partial<Record<Permission, boolean>>;
+  } catch (error) {
+    console.warn("Create Vendor permission RPC failed:", error);
+    return null;
+  }
+}
+
+function normalizeStatus(value: string): VendorCreateStatus {
+  return value === "inactive" ? "inactive" : "active";
+}
+
+function countFilledPersonnel(rows: PersonnelRow[]) {
+  return rows.filter(
+    (row) =>
+      row.name.trim() ||
+      row.position.trim() ||
+      row.phone.trim() ||
+      row.email.trim()
+  ).length;
+}
+
+function countFilledAddresses(rows: AddressRow[]) {
+  return rows.filter(
+    (row) =>
+      row.country.trim() ||
+      row.city.trim() ||
+      row.state_province.trim() ||
+      row.postal_code.trim() ||
+      row.address_line_1.trim() ||
+      row.address_line_2.trim()
+  ).length;
+}
+
+function countFilledShippingRows(rows: ShippingRow[]) {
+  return rows.filter(
+    (row) =>
+      row.same_as_primary ||
+      row.country.trim() ||
+      row.city.trim() ||
+      row.state_province.trim() ||
+      row.postal_code.trim() ||
+      row.address_line_1.trim() ||
+      row.address_line_2.trim()
+  ).length;
+}
+
+function getToneClasses(tone: SummaryItem["tone"]) {
+  switch (tone) {
+    case "emerald":
+      return {
+        card: "border-emerald-400/20 bg-emerald-500/10",
+        icon: "border-emerald-400/20 bg-emerald-500/10 text-emerald-200",
+        value: "text-emerald-100",
+      };
+    case "amber":
+      return {
+        card: "border-amber-400/20 bg-amber-500/10",
+        icon: "border-amber-400/20 bg-amber-500/10 text-amber-200",
+        value: "text-amber-100",
+      };
+    case "violet":
+      return {
+        card: "border-violet-400/20 bg-violet-500/10",
+        icon: "border-violet-400/20 bg-violet-500/10 text-violet-200",
+        value: "text-violet-100",
+      };
+    case "rose":
+      return {
+        card: "border-rose-400/20 bg-rose-500/10",
+        icon: "border-rose-400/20 bg-rose-500/10 text-rose-200",
+        value: "text-rose-100",
+      };
+    case "cyan":
+    default:
+      return {
+        card: "border-cyan-400/20 bg-cyan-500/10",
+        icon: "border-cyan-400/20 bg-cyan-500/10 text-cyan-200",
+        value: "text-cyan-100",
+      };
+  }
+}
+
+function HeaderStatusCard({ item }: { item: HeaderStatusCardData }) {
+  const Icon = item.icon;
+
+  const toneClasses = {
+    emerald: "border-emerald-400/20 bg-emerald-500/10 text-emerald-200",
+    cyan: "border-cyan-400/20 bg-cyan-500/10 text-cyan-200",
+    amber: "border-amber-400/20 bg-amber-500/10 text-amber-200",
+    rose: "border-rose-400/20 bg-rose-500/10 text-rose-200",
+  }[item.tone];
+
+  return (
+    <div className="min-h-[148px] rounded-[24px] border border-white/10 bg-black/20 p-4">
+      <div className="flex items-start justify-between gap-3">
+        <div className="min-w-0">
+          <div className="text-[11px] font-semibold uppercase tracking-[0.2em] text-slate-500">
+            {item.label}
+          </div>
+          <div className="mt-2 text-xl font-semibold leading-tight tracking-[-0.035em] text-white">
+            {item.value}
+          </div>
+        </div>
+
+        <div
+          className={`flex h-10 w-10 shrink-0 items-center justify-center rounded-2xl border ${toneClasses}`}
+        >
+          <Icon className="h-4 w-4" />
+        </div>
+      </div>
+
+      <div className="mt-3 text-xs leading-5 text-slate-500">{item.detail}</div>
+    </div>
+  );
+}
+
+function SummaryCard({ item }: { item: SummaryItem }) {
+  const Icon = item.icon;
+  const tone = getToneClasses(item.tone);
+
+  return (
+    <div className={`rounded-[24px] border bg-black/20 p-4 ${tone.card}`}>
+      <div className="flex items-start justify-between gap-3">
+        <div className="min-w-0">
+          <div className="text-[11px] font-semibold uppercase tracking-[0.2em] text-slate-500">
+            {item.label}
+          </div>
+          <div className={`mt-2 text-lg font-semibold leading-6 ${tone.value}`}>
+            {item.value}
+          </div>
+        </div>
+
+        <div
+          className={`flex h-10 w-10 shrink-0 items-center justify-center rounded-2xl border ${tone.icon}`}
+        >
+          <Icon className="h-4 w-4" />
+        </div>
+      </div>
+
+      <div className="mt-3 text-xs leading-5 text-slate-500">{item.detail}</div>
+    </div>
+  );
+}
 
 function FieldLabel({
   label,
@@ -117,44 +384,56 @@ function FieldLabel({
   required?: boolean;
 }) {
   return (
-    <label className="mb-2 block text-sm font-medium text-white/75">
+    <label className="mb-2 block text-sm font-medium text-slate-300">
       {label}
       {required ? <span className="ml-1 text-rose-300">*</span> : null}
     </label>
   );
 }
 
-function InputField(props: React.InputHTMLAttributes<HTMLInputElement>) {
+function InputField({
+  className,
+  ...props
+}: InputHTMLAttributes<HTMLInputElement>) {
   return (
-    <Input
+    <input
       {...props}
-      className={`h-11 rounded-2xl border-white/10 bg-white/5 text-white placeholder:text-white/30 ${props.className ?? ""}`}
+      className={`h-11 w-full rounded-2xl border border-white/10 bg-black/20 px-4 text-sm text-white outline-none transition placeholder:text-slate-600 focus:border-cyan-400/30 focus:bg-black/30 disabled:cursor-not-allowed disabled:opacity-60 ${
+        className || ""
+      }`}
     />
   );
 }
 
-function SelectField(
-  props: React.SelectHTMLAttributes<HTMLSelectElement> & {
-    children: React.ReactNode;
-  }
-) {
+function SelectField({
+  className,
+  children,
+  ...props
+}: SelectHTMLAttributes<HTMLSelectElement> & {
+  children: ReactNode;
+}) {
   return (
     <select
       {...props}
-      className={`h-11 w-full rounded-2xl border border-white/10 bg-white/5 px-4 text-sm text-white outline-none ${props.className ?? ""}`}
+      className={`h-11 w-full rounded-2xl border border-white/10 bg-black/20 px-4 text-sm text-white outline-none transition focus:border-cyan-400/30 focus:bg-black/30 disabled:cursor-not-allowed disabled:opacity-60 ${
+        className || ""
+      }`}
     >
-      {props.children}
+      {children}
     </select>
   );
 }
 
-function TextareaField(
-  props: React.TextareaHTMLAttributes<HTMLTextAreaElement>
-) {
+function TextareaField({
+  className,
+  ...props
+}: TextareaHTMLAttributes<HTMLTextAreaElement>) {
   return (
     <textarea
       {...props}
-      className={`min-h-[110px] w-full rounded-2xl border border-white/10 bg-white/5 px-4 py-3 text-sm text-white outline-none placeholder:text-white/30 ${props.className ?? ""}`}
+      className={`min-h-[132px] w-full rounded-2xl border border-white/10 bg-black/20 px-4 py-3 text-sm text-white outline-none transition placeholder:text-slate-600 focus:border-cyan-400/30 focus:bg-black/30 disabled:cursor-not-allowed disabled:opacity-60 ${
+        className || ""
+      }`}
     />
   );
 }
@@ -162,67 +441,75 @@ function TextareaField(
 function FormSection({
   title,
   description,
+  icon: Icon,
   actions,
   children,
-  fullWidth = false,
 }: {
   title: string;
   description: string;
-  actions?: React.ReactNode;
-  children: React.ReactNode;
-  fullWidth?: boolean;
+  icon: LucideIcon;
+  actions?: ReactNode;
+  children: ReactNode;
 }) {
   return (
-    <Card
-      className={`overflow-hidden rounded-[24px] border border-white/10 bg-[linear-gradient(135deg,rgba(255,255,255,0.06),rgba(255,255,255,0.03))] backdrop-blur-xl shadow-[0_20px_60px_rgba(0,0,0,0.24)] ${
-        fullWidth ? "lg:col-span-2" : ""
-      }`}
-    >
-      <CardHeader className="border-b border-white/8 px-5 py-4">
-        <div className="flex items-start justify-between gap-4">
-          <div>
-            <CardTitle className="text-white">{title}</CardTitle>
-            <CardDescription className="mt-1 text-white/45">
-              {description}
-            </CardDescription>
+    <section className="overflow-hidden rounded-[30px] border border-white/10 bg-white/[0.045] backdrop-blur-xl">
+      <div className="flex flex-col gap-4 border-b border-white/10 px-5 py-4 lg:flex-row lg:items-start lg:justify-between">
+        <div className="flex min-w-0 items-start gap-3">
+          <div className="rounded-2xl border border-cyan-400/15 bg-cyan-500/10 p-3 text-cyan-200">
+            <Icon className="h-4 w-4" />
           </div>
 
-          {actions ? <div className="shrink-0">{actions}</div> : null}
+          <div className="min-w-0">
+            <h2 className="text-sm font-semibold uppercase tracking-[0.18em] text-slate-400">
+              {title}
+            </h2>
+            <p className="mt-1 text-xs leading-5 text-slate-500">{description}</p>
+          </div>
         </div>
-      </CardHeader>
 
-      <CardContent className="p-4">{children}</CardContent>
-    </Card>
+        {actions ? <div className="shrink-0">{actions}</div> : null}
+      </div>
+
+      <div className="p-5">{children}</div>
+    </section>
   );
 }
 
 function RowCard({
   title,
+  description,
   onRemove,
   removeDisabled = false,
   children,
 }: {
   title: string;
+  description?: string;
   onRemove?: () => void;
   removeDisabled?: boolean;
-  children: React.ReactNode;
+  children: ReactNode;
 }) {
   return (
-    <div className="rounded-[20px] border border-white/10 bg-black/15 p-4">
-      <div className="mb-4 flex items-center justify-between gap-3">
-        <div className="text-sm font-medium text-white/80">{title}</div>
+    <div className="rounded-[24px] border border-white/10 bg-black/20 p-4">
+      <div className="mb-4 flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+        <div className="min-w-0">
+          <div className="text-sm font-semibold text-white">{title}</div>
+          {description ? (
+            <div className="mt-1 text-xs leading-5 text-slate-500">
+              {description}
+            </div>
+          ) : null}
+        </div>
 
         {onRemove ? (
-          <Button
+          <button
             type="button"
-            variant="outline"
             onClick={onRemove}
             disabled={removeDisabled}
-            className="h-10 rounded-2xl border-white/10 bg-white/5 px-3 text-white hover:bg-white/10"
+            className="inline-flex h-10 shrink-0 items-center justify-center gap-2 rounded-2xl border border-rose-400/20 bg-rose-500/10 px-3 text-xs font-semibold uppercase tracking-[0.14em] text-rose-100 transition hover:bg-rose-500/15 disabled:cursor-not-allowed disabled:opacity-50"
           >
-            <Trash2 className="mr-2 h-4 w-4" />
+            <Trash2 className="h-3.5 w-3.5" />
             Remove
-          </Button>
+          </button>
         ) : null}
       </div>
 
@@ -231,12 +518,179 @@ function RowCard({
   );
 }
 
+function AddRowButton({
+  label,
+  onClick,
+  disabled,
+}: {
+  label: string;
+  onClick: () => void;
+  disabled?: boolean;
+}) {
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      disabled={disabled}
+      className="inline-flex h-10 items-center justify-center gap-2 rounded-2xl border border-cyan-400/20 bg-cyan-500/10 px-4 text-xs font-semibold uppercase tracking-[0.14em] text-cyan-100 transition hover:bg-cyan-500/15 disabled:cursor-not-allowed disabled:opacity-60"
+    >
+      <Plus className="h-3.5 w-3.5" />
+      {label}
+    </button>
+  );
+}
+
+function EmptyLockedState() {
+  return (
+    <section className="overflow-hidden rounded-[30px] border border-rose-400/20 bg-rose-500/10 backdrop-blur-xl">
+      <div className="p-8 text-center">
+        <div className="mx-auto flex h-14 w-14 items-center justify-center rounded-2xl border border-rose-400/20 bg-rose-500/10 text-rose-200">
+          <LockKeyhole className="h-6 w-6" />
+        </div>
+
+        <div className="mt-4 text-lg font-semibold text-white">
+          Create access is not enabled
+        </div>
+
+        <p className="mx-auto mt-2 max-w-2xl text-sm leading-6 text-rose-100">
+          This page requires Vendor create access or Master Data admin access.
+          Ask an Admin to update this user’s Finance role template or user-specific
+          exception before creating vendor master-data records.
+        </p>
+      </div>
+    </section>
+  );
+}
+
+function ReadOnlyBlock({
+  label,
+  value,
+  detail,
+}: {
+  label: string;
+  value: string;
+  detail?: string;
+}) {
+  return (
+    <div className="rounded-2xl border border-white/10 bg-black/20 px-4 py-3">
+      <div className="text-[11px] font-semibold uppercase tracking-[0.18em] text-slate-500">
+        {label}
+      </div>
+      <div className="mt-2 text-sm font-semibold text-white">{value}</div>
+      {detail ? (
+        <div className="mt-1 text-xs leading-5 text-slate-500">{detail}</div>
+      ) : null}
+    </div>
+  );
+}
+
 export default function FinanceMasterDataVendorCreatePage() {
   const navigate = useNavigate();
 
-  const [form, setForm] = useState<FormState>(EMPTY_FORM);
+  const [form, setForm] = useState<FormState>(() => createEmptyForm());
+  const [profile, setProfile] = useState<ProfilePermissionRow | null>(null);
+  const [effectivePermissions, setEffectivePermissions] =
+    useState<Record<Permission, boolean> | null>(null);
+  const [isLoadingProfile, setIsLoadingProfile] = useState(true);
   const [isSaving, setIsSaving] = useState(false);
   const [formError, setFormError] = useState<string | null>(null);
+  const [formMessage, setFormMessage] = useState<string | null>(null);
+
+  const loadCurrentProfile = useCallback(
+    async (mode: "initial" | "silent" = "initial") => {
+      if (mode === "initial") {
+        setIsLoadingProfile(true);
+      }
+
+      try {
+        const authResult = await supabase.auth.getUser();
+        if (authResult.error) throw authResult.error;
+
+        const authUserId = authResult.data.user?.id;
+
+        if (!authUserId) {
+          setProfile(null);
+          setEffectivePermissions(null);
+          return;
+        }
+
+        const profileResult = await supabase
+          .from("profiles")
+          .select("user_id, full_name, role, permissions")
+          .eq("user_id", authUserId)
+          .maybeSingle();
+
+        if (profileResult.error) throw profileResult.error;
+
+        const loadedProfile = (profileResult.data || null) as ProfilePermissionRow | null;
+        const backendPermissions = await loadBackendEffectivePermissions(authUserId);
+
+        setProfile(loadedProfile);
+
+        if (!loadedProfile?.role) {
+          setEffectivePermissions(null);
+          return;
+        }
+
+        const resolvedPermissions = getEffectivePermissions(
+          loadedProfile.role,
+          backendPermissions || loadedProfile.permissions || null
+        );
+
+        setEffectivePermissions(resolvedPermissions);
+      } catch (error) {
+        console.error("Failed to load create vendor permissions:", error);
+
+        if (mode === "initial") {
+          setProfile(null);
+          setEffectivePermissions(null);
+        }
+      } finally {
+        if (mode === "initial") {
+          setIsLoadingProfile(false);
+        }
+      }
+    },
+    []
+  );
+
+  useEffect(() => {
+    void loadCurrentProfile("initial");
+  }, [loadCurrentProfile]);
+
+  useEffect(() => {
+    const channel = supabase
+      .channel("finance-master-data-vendor-create-page")
+      .on(
+        "postgres_changes",
+        { event: "*", schema: "public", table: "profiles" },
+        () => void loadCurrentProfile("silent")
+      )
+      .on(
+        "postgres_changes",
+        { event: "*", schema: "public", table: "finance_permission_templates" },
+        () => void loadCurrentProfile("silent")
+      )
+      .on(
+        "postgres_changes",
+        { event: "*", schema: "public", table: "finance_user_permission_templates" },
+        () => void loadCurrentProfile("silent")
+      )
+      .subscribe();
+
+    const intervalId = window.setInterval(() => {
+      void loadCurrentProfile("silent");
+    }, 60000);
+
+    return () => {
+      window.clearInterval(intervalId);
+      supabase.removeChannel(channel);
+    };
+  }, [loadCurrentProfile]);
+
+  const permissionState = useMemo(() => {
+    return buildPermissionState(profile, effectivePermissions);
+  }, [effectivePermissions, profile]);
 
   const addressOptions = useMemo(() => {
     return form.addresses.map((address, index) => ({
@@ -250,9 +704,71 @@ export default function FinanceMasterDataVendorCreatePage() {
     }));
   }, [form.addresses]);
 
+  const headerStatusCards = useMemo<HeaderStatusCardData[]>(() => {
+    return [
+      {
+        label: "Create Access",
+        value: isLoadingProfile
+          ? "Checking"
+          : permissionState.canCreate
+            ? "Enabled"
+            : "Locked",
+        detail:
+          "Vendor create access follows the Finance role template and user-specific exceptions.",
+        icon: permissionState.canCreate ? ShieldCheck : LockKeyhole,
+        tone: permissionState.canCreate ? "emerald" : "rose",
+      },
+      {
+        label: "Save Result",
+        value: "ID Page",
+        detail:
+          "After successful creation, the new vendor detail page opens directly.",
+        icon: Landmark,
+        tone: "cyan",
+      },
+    ];
+  }, [isLoadingProfile, permissionState.canCreate]);
+
+  const summaryItems = useMemo<SummaryItem[]>(() => {
+    const filledPersonnel = countFilledPersonnel(form.personnel);
+    const filledAddresses = countFilledAddresses(form.addresses);
+    const filledShipping = countFilledShippingRows(form.shipping_addresses);
+
+    return [
+      {
+        label: "Legal Name",
+        value: form.legal_name.trim() || "Required",
+        detail: form.display_name.trim() || "No display name yet",
+        icon: Building2,
+        tone: form.legal_name.trim() ? "emerald" : "amber",
+      },
+      {
+        label: "Primary Contact",
+        value: form.contact_person.trim() || "—",
+        detail: form.company_email.trim() || "No vendor email yet",
+        icon: Landmark,
+        tone: form.contact_person.trim() || form.company_email.trim() ? "cyan" : "amber",
+      },
+      {
+        label: "Personnel",
+        value: `${filledPersonnel} Filled`,
+        detail: `${form.personnel.length} row${form.personnel.length === 1 ? "" : "s"} available`,
+        icon: Users,
+        tone: filledPersonnel > 0 ? "violet" : "amber",
+      },
+      {
+        label: "Addresses",
+        value: `${filledAddresses} Filled`,
+        detail: `${filledShipping} shipping row${filledShipping === 1 ? "" : "s"} ready`,
+        icon: MapPin,
+        tone: filledAddresses > 0 ? "emerald" : "rose",
+      },
+    ];
+  }, [form]);
+
   function updateForm<K extends keyof FormState>(key: K, value: FormState[K]) {
-    setForm((prev) => ({
-      ...prev,
+    setForm((previousForm) => ({
+      ...previousForm,
       [key]: value,
     }));
   }
@@ -262,28 +778,28 @@ export default function FinanceMasterDataVendorCreatePage() {
     key: keyof PersonnelRow,
     value: string
   ) {
-    setForm((prev) => ({
-      ...prev,
-      personnel: prev.personnel.map((row) =>
+    setForm((previousForm) => ({
+      ...previousForm,
+      personnel: previousForm.personnel.map((row) =>
         row.id === rowId ? { ...row, [key]: value } : row
       ),
     }));
   }
 
   function addPersonnelRow() {
-    setForm((prev) => ({
-      ...prev,
-      personnel: [...prev.personnel, createEmptyPersonnelRow()],
+    setForm((previousForm) => ({
+      ...previousForm,
+      personnel: [...previousForm.personnel, createEmptyPersonnelRow()],
     }));
   }
 
   function removePersonnelRow(rowId: string) {
-    setForm((prev) => ({
-      ...prev,
+    setForm((previousForm) => ({
+      ...previousForm,
       personnel:
-        prev.personnel.length > 1
-          ? prev.personnel.filter((row) => row.id !== rowId)
-          : prev.personnel,
+        previousForm.personnel.length > 1
+          ? previousForm.personnel.filter((row) => row.id !== rowId)
+          : previousForm.personnel,
     }));
   }
 
@@ -292,12 +808,12 @@ export default function FinanceMasterDataVendorCreatePage() {
     key: keyof AddressRow,
     value: string
   ) {
-    setForm((prev) => {
-      const nextAddresses = prev.addresses.map((row) =>
+    setForm((previousForm) => {
+      const nextAddresses = previousForm.addresses.map((row) =>
         row.id === rowId ? { ...row, [key]: value } : row
       );
 
-      const nextShipping = prev.shipping_addresses.map((shipping) => {
+      const nextShipping = previousForm.shipping_addresses.map((shipping) => {
         if (!shipping.same_as_primary || shipping.source_address_id !== rowId) {
           return shipping;
         }
@@ -317,7 +833,7 @@ export default function FinanceMasterDataVendorCreatePage() {
       });
 
       return {
-        ...prev,
+        ...previousForm,
         addresses: nextAddresses,
         shipping_addresses: nextShipping,
       };
@@ -325,19 +841,19 @@ export default function FinanceMasterDataVendorCreatePage() {
   }
 
   function addAddressRow() {
-    setForm((prev) => ({
-      ...prev,
-      addresses: [...prev.addresses, createEmptyAddressRow()],
+    setForm((previousForm) => ({
+      ...previousForm,
+      addresses: [...previousForm.addresses, createEmptyAddressRow()],
     }));
   }
 
   function removeAddressRow(rowId: string) {
-    setForm((prev) => {
-      if (prev.addresses.length <= 1) return prev;
+    setForm((previousForm) => {
+      if (previousForm.addresses.length <= 1) return previousForm;
 
-      const nextAddresses = prev.addresses.filter((row) => row.id !== rowId);
+      const nextAddresses = previousForm.addresses.filter((row) => row.id !== rowId);
 
-      const nextShipping = prev.shipping_addresses.map((shipping) => {
+      const nextShipping = previousForm.shipping_addresses.map((shipping) => {
         if (shipping.source_address_id !== rowId) return shipping;
 
         return {
@@ -354,7 +870,7 @@ export default function FinanceMasterDataVendorCreatePage() {
       });
 
       return {
-        ...prev,
+        ...previousForm,
         addresses: nextAddresses,
         shipping_addresses: nextShipping,
       };
@@ -366,8 +882,8 @@ export default function FinanceMasterDataVendorCreatePage() {
     key: keyof ShippingRow,
     value: string | boolean
   ) {
-    setForm((prev) => {
-      const nextShipping = prev.shipping_addresses.map((row) => {
+    setForm((previousForm) => {
+      const nextShipping = previousForm.shipping_addresses.map((row) => {
         if (row.id !== rowId) return row;
 
         if (key === "same_as_primary") {
@@ -387,7 +903,7 @@ export default function FinanceMasterDataVendorCreatePage() {
             };
           }
 
-          const source = prev.addresses.find(
+          const source = previousForm.addresses.find(
             (address) => address.id === row.source_address_id
           );
 
@@ -405,7 +921,7 @@ export default function FinanceMasterDataVendorCreatePage() {
 
         if (key === "source_address_id") {
           const sourceAddressId = String(value);
-          const source = prev.addresses.find(
+          const source = previousForm.addresses.find(
             (address) => address.id === sourceAddressId
           );
 
@@ -429,43 +945,48 @@ export default function FinanceMasterDataVendorCreatePage() {
       });
 
       return {
-        ...prev,
+        ...previousForm,
         shipping_addresses: nextShipping,
       };
     });
   }
 
   function addShippingRow() {
-    setForm((prev) => ({
-      ...prev,
-      shipping_addresses: [...prev.shipping_addresses, createEmptyShippingRow()],
+    setForm((previousForm) => ({
+      ...previousForm,
+      shipping_addresses: [
+        ...previousForm.shipping_addresses,
+        createEmptyShippingRow(),
+      ],
     }));
   }
 
   function removeShippingRow(rowId: string) {
-    setForm((prev) => ({
-      ...prev,
+    setForm((previousForm) => ({
+      ...previousForm,
       shipping_addresses:
-        prev.shipping_addresses.length > 1
-          ? prev.shipping_addresses.filter((row) => row.id !== rowId)
-          : prev.shipping_addresses,
+        previousForm.shipping_addresses.length > 1
+          ? previousForm.shipping_addresses.filter((row) => row.id !== rowId)
+          : previousForm.shipping_addresses,
     }));
   }
 
   function handleReset() {
-    setForm({
-      ...EMPTY_FORM,
-      personnel: [createEmptyPersonnelRow()],
-      addresses: [createEmptyAddressRow()],
-      shipping_addresses: [createEmptyShippingRow()],
-    });
+    setForm(createEmptyForm());
     setFormError(null);
+    setFormMessage(null);
   }
 
-  async function handleSubmit(event: React.FormEvent<HTMLFormElement>) {
+  async function handleSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
 
+    if (!permissionState.canCreate) {
+      setFormError("Create access is not enabled for this user.");
+      return;
+    }
+
     const trimmedLegalName = form.legal_name.trim();
+
     if (!trimmedLegalName) {
       setFormError("Legal name is required.");
       return;
@@ -474,10 +995,12 @@ export default function FinanceMasterDataVendorCreatePage() {
     try {
       setIsSaving(true);
       setFormError(null);
+      setFormMessage(null);
 
       const created = await createVendor({
         legal_name: trimmedLegalName,
         contact_name: form.contact_person.trim() || null,
+        company_related_personnel: form.contact_person.trim() || null,
         status: form.status,
         company_email: form.company_email.trim() || null,
         company_phone: form.company_phone.trim() || null,
@@ -486,6 +1009,7 @@ export default function FinanceMasterDataVendorCreatePage() {
         address_line_2: form.addresses[0]?.address_line_2.trim() || null,
         notes: form.notes.trim() || null,
         metadata: {
+          display_name: form.display_name.trim() || null,
           personnel: form.personnel.map((row, index) => ({
             full_name: row.name.trim() || null,
             position: row.position.trim() || null,
@@ -586,7 +1110,9 @@ export default function FinanceMasterDataVendorCreatePage() {
           state_province: row.same_as_primary
             ? null
             : row.state_province.trim() || null,
-          postal_code: row.same_as_primary ? null : row.postal_code.trim() || null,
+          postal_code: row.same_as_primary
+            ? null
+            : row.postal_code.trim() || null,
           address_line_1: row.same_as_primary
             ? null
             : row.address_line_1.trim() || null,
@@ -617,6 +1143,7 @@ export default function FinanceMasterDataVendorCreatePage() {
         if (error) throw error;
       }
 
+      setFormMessage("Vendor created. Opening the new vendor record.");
       navigate(`/finance/master-data/vendors/${created.id}`);
     } catch (error) {
       console.error("Failed to create finance vendor:", error);
@@ -628,84 +1155,125 @@ export default function FinanceMasterDataVendorCreatePage() {
     }
   }
 
-  return (
-    <div className="flex h-full min-h-0 flex-col overflow-hidden">
-      <div className="mx-auto flex h-full w-full max-w-[1920px] min-h-0 flex-col gap-6 px-4 pb-4 pt-2 sm:px-6 xl:px-8">
-        <section className="relative z-10 flex-shrink-0 overflow-hidden rounded-[30px] border border-white/10 bg-[linear-gradient(135deg,rgba(34,211,238,0.10),rgba(139,92,246,0.08),rgba(255,255,255,0.03))] backdrop-blur-xl">
-          <div className="pointer-events-none absolute inset-0 bg-[radial-gradient(circle_at_top_left,rgba(34,211,238,0.18),transparent_28%),radial-gradient(circle_at_top_right,rgba(139,92,246,0.16),transparent_26%),radial-gradient(circle_at_bottom_left,rgba(16,185,129,0.14),transparent_24%),radial-gradient(circle_at_bottom_right,rgba(244,63,94,0.10),transparent_24%)]" />
+  const isPageLoading = isLoadingProfile;
 
-          <div className="relative flex items-center justify-between gap-4 px-5 py-5 sm:px-6 xl:px-7">
-            <div className="min-w-0">
-              <div className="inline-flex items-center rounded-full border border-cyan-400/20 bg-cyan-500/10 px-3 py-1 text-[11px] uppercase tracking-[0.22em] text-cyan-200">
-                Master Data
+  return (
+    <div className="min-h-screen bg-[#05070d] px-4 py-4 text-white md:px-6 md:py-6">
+      <div className="mx-auto flex w-full max-w-[1600px] flex-col gap-6">
+        <header className="relative overflow-hidden rounded-[34px] border border-white/10 bg-white/[0.045] p-6 shadow-2xl shadow-black/30 backdrop-blur-xl">
+          <div className="pointer-events-none absolute inset-0 bg-[radial-gradient(circle_at_top_left,rgba(6,182,212,0.16),transparent_38%),radial-gradient(circle_at_top_right,rgba(139,92,246,0.12),transparent_34%)]" />
+
+          <div className="relative grid gap-6 xl:grid-cols-[minmax(0,1fr)_520px] xl:items-end">
+            <div>
+              <button
+                type="button"
+                onClick={() => navigate("/finance/master-data/vendors")}
+                className="mb-5 inline-flex items-center justify-center gap-2 rounded-full border border-white/10 bg-white/[0.05] px-5 py-2 text-[11px] font-semibold uppercase tracking-[0.22em] text-slate-300 transition hover:border-white/20 hover:bg-white/[0.08] hover:text-white"
+              >
+                <ArrowRight className="h-3.5 w-3.5 rotate-180" />
+                Vendors
+              </button>
+
+              <div className="inline-flex w-fit items-center gap-2 rounded-full border border-cyan-400/20 bg-cyan-500/10 px-3 py-1 text-[11px] font-semibold uppercase tracking-[0.22em] text-cyan-200">
+                <Sparkles className="h-3.5 w-3.5" />
+                New Vendor Master Record
               </div>
 
-              <h1 className="mt-3 text-2xl font-semibold tracking-tight text-white sm:text-3xl">
+              <h1 className="mt-4 text-3xl font-semibold tracking-[-0.035em] text-white md:text-5xl">
                 Create Vendor
               </h1>
 
-              <div className="mt-2 text-sm text-white/50">
-                Legal entity, personnel, address, shipping, and notes.
+              <p className="mt-3 max-w-4xl text-sm leading-6 text-slate-400 md:text-base md:leading-7">
+                Create an external vendor master-data record with legal identity,
+                contact details, personnel, primary addresses, shipping addresses,
+                and internal notes for procurement and payables workflows.
+              </p>
+
+              <div className="mt-5 flex flex-wrap gap-2">
+                <span className="rounded-full border border-emerald-400/20 bg-emerald-500/10 px-3 py-1 text-[11px] font-semibold uppercase tracking-[0.16em] text-emerald-200">
+                  Vendor controlled by us
+                </span>
+                <span className="rounded-full border border-cyan-400/20 bg-cyan-500/10 px-3 py-1 text-[11px] font-semibold uppercase tracking-[0.16em] text-cyan-200">
+                  Permission protected
+                </span>
+                <span className="rounded-full border border-slate-400/20 bg-slate-500/10 px-3 py-1 text-[11px] font-semibold uppercase tracking-[0.16em] text-slate-300">
+                  Opens ID page after create
+                </span>
               </div>
             </div>
 
-            <div className="flex shrink-0 items-center gap-3">
-              <Button
-                variant="outline"
-                onClick={() => navigate("/finance/master-data/vendors")}
-                className="h-11 rounded-2xl border-white/10 bg-white/5 px-4 text-white hover:bg-white/10"
-              >
-                <ArrowLeft className="mr-2 h-4 w-4" />
-                Back
-              </Button>
-
-              <Button
-                type="button"
-                variant="outline"
-                onClick={handleReset}
-                className="h-11 rounded-2xl border-white/10 bg-white/5 px-4 text-white hover:bg-white/10"
-              >
-                <RefreshCw className="mr-2 h-4 w-4" />
-                Reset
-              </Button>
-
-              <Button
-                type="submit"
-                form="vendor-create-form"
-                variant="outline"
-                disabled={isSaving}
-                className="h-11 rounded-2xl border-white/10 bg-white/5 px-4 text-white hover:bg-white/10"
-              >
-                <Save className="mr-2 h-4 w-4" />
-                {isSaving ? "Saving..." : "Create Vendor"}
-              </Button>
+            <div className="grid gap-3 sm:grid-cols-2">
+              {headerStatusCards.map((item) => (
+                <HeaderStatusCard key={item.label} item={item} />
+              ))}
             </div>
           </div>
-        </section>
+        </header>
 
-                <div className="flex min-h-0 flex-1 flex-col gap-6 overflow-y-auto overflow-x-hidden pr-1 pb-2">
+        {formError ? (
+          <div className="rounded-[24px] border border-rose-400/20 bg-rose-500/10 p-4 text-sm leading-6 text-rose-100">
+            <div className="flex items-start gap-3">
+              <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0" />
+              <div>{formError}</div>
+            </div>
+          </div>
+        ) : null}
+
+        {formMessage ? (
+          <div className="rounded-[24px] border border-emerald-400/20 bg-emerald-500/10 p-4 text-sm leading-6 text-emerald-100">
+            <div className="flex items-start gap-3">
+              <CheckCircle2 className="mt-0.5 h-4 w-4 shrink-0" />
+              <div>{formMessage}</div>
+            </div>
+          </div>
+        ) : null}
+
+        {isPageLoading ? (
+          <section className="rounded-[30px] border border-white/10 bg-white/[0.045] p-10 text-center backdrop-blur-xl">
+            <Loader2 className="mx-auto h-8 w-8 animate-spin text-cyan-200" />
+            <div className="mt-4 text-sm font-semibold text-white">
+              Loading create page
+            </div>
+            <p className="mt-2 text-sm leading-6 text-slate-500">
+              Permission state is being checked.
+            </p>
+          </section>
+        ) : !permissionState.canCreate ? (
+          <EmptyLockedState />
+        ) : (
           <form
             id="vendor-create-form"
-            className="flex min-h-0 flex-col gap-6"
             onSubmit={handleSubmit}
+            className="grid items-start gap-6 xl:grid-cols-[minmax(0,1fr)_420px]"
           >
-            <div className="grid grid-cols-1 gap-6 lg:grid-cols-2">
-              {/* =========================
-                  SECTION 1 — BASIC
-              ========================= */}
+            <div className="grid gap-6">
               <FormSection
-                title="Section 1 — Basic"
-                description="Legal identity and primary contact."
+                title="Basic Vendor Identity"
+                description="Legal name, display name, primary contact, communication, and lifecycle."
+                icon={Building2}
               >
-                <div className="grid grid-cols-1 gap-3 md:grid-cols-2">
+                <div className="grid gap-4 md:grid-cols-2">
                   <div className="md:col-span-2">
                     <FieldLabel label="Legal Name" required />
                     <InputField
                       value={form.legal_name}
-                      onChange={(e) =>
-                        updateForm("legal_name", e.target.value)
+                      disabled={isSaving}
+                      onChange={(event) =>
+                        updateForm("legal_name", event.target.value)
                       }
-                      placeholder="Legal company name"
+                      placeholder="Legal vendor name"
+                    />
+                  </div>
+
+                  <div className="md:col-span-2">
+                    <FieldLabel label="Display Name" />
+                    <InputField
+                      value={form.display_name}
+                      disabled={isSaving}
+                      onChange={(event) =>
+                        updateForm("display_name", event.target.value)
+                      }
+                      placeholder="Optional short display name"
                     />
                   </div>
 
@@ -713,21 +1281,24 @@ export default function FinanceMasterDataVendorCreatePage() {
                     <FieldLabel label="Contact Person" />
                     <InputField
                       value={form.contact_person}
-                      onChange={(e) =>
-                        updateForm("contact_person", e.target.value)
+                      disabled={isSaving}
+                      onChange={(event) =>
+                        updateForm("contact_person", event.target.value)
                       }
-                      placeholder="Primary contact"
+                      placeholder="Primary vendor contact"
                     />
                   </div>
 
                   <div>
                     <FieldLabel label="Email" />
                     <InputField
+                      type="email"
                       value={form.company_email}
-                      onChange={(e) =>
-                        updateForm("company_email", e.target.value)
+                      disabled={isSaving}
+                      onChange={(event) =>
+                        updateForm("company_email", event.target.value)
                       }
-                      placeholder="company@email.com"
+                      placeholder="vendor@email.com"
                     />
                   </div>
 
@@ -735,10 +1306,11 @@ export default function FinanceMasterDataVendorCreatePage() {
                     <FieldLabel label="Phone" />
                     <InputField
                       value={form.company_phone}
-                      onChange={(e) =>
-                        updateForm("company_phone", e.target.value)
+                      disabled={isSaving}
+                      onChange={(event) =>
+                        updateForm("company_phone", event.target.value)
                       }
-                      placeholder="Company phone"
+                      placeholder="Vendor phone"
                     />
                   </div>
 
@@ -746,58 +1318,53 @@ export default function FinanceMasterDataVendorCreatePage() {
                     <FieldLabel label="Status" />
                     <SelectField
                       value={form.status}
-                      onChange={(e) =>
-                        updateForm(
-                          "status",
-                          e.target.value as FormState["status"]
-                        )
+                      disabled={isSaving}
+                      onChange={(event) =>
+                        updateForm("status", normalizeStatus(event.target.value))
                       }
                     >
-                      <option value="active">Active</option>
-                      <option value="inactive">Inactive</option>
-                      <option value="archived">Archived</option>
+                      <option value="active" className="bg-[#05070d]">
+                        Active
+                      </option>
+                      <option value="inactive" className="bg-[#05070d]">
+                        Inactive
+                      </option>
                     </SelectField>
                   </div>
                 </div>
               </FormSection>
 
-              {/* =========================
-                  SECTION 2 — PERSONNEL
-              ========================= */}
               <FormSection
-                title="Section 2 — Personnel"
-                description="People related to this vendor."
+                title="Personnel"
+                description="People related to this vendor. Rows with empty values are ignored during save."
+                icon={Users}
                 actions={
-                  <Button
-                    type="button"
+                  <AddRowButton
+                    label="Add Person"
                     onClick={addPersonnelRow}
-                    className="h-10 rounded-2xl border-white/10 bg-white/5 px-3 text-white"
-                  >
-                    <Plus className="mr-2 h-4 w-4" />
-                    Add
-                  </Button>
+                    disabled={isSaving}
+                  />
                 }
               >
-                <div className="flex flex-col gap-4">
+                <div className="max-h-[720px] space-y-4 overflow-y-auto pr-1">
                   {form.personnel.map((row, index) => (
                     <RowCard
                       key={row.id}
                       title={`Person ${index + 1}`}
+                      description={index === 0 ? "Primary personnel row." : undefined}
                       onRemove={() => removePersonnelRow(row.id)}
-                      removeDisabled={form.personnel.length === 1}
+                      removeDisabled={isSaving || form.personnel.length === 1}
                     >
-                      <div className="grid grid-cols-1 gap-3 md:grid-cols-2">
+                      <div className="grid gap-4 md:grid-cols-2">
                         <div>
                           <FieldLabel label="Name" />
                           <InputField
                             value={row.name}
-                            onChange={(e) =>
-                              updatePersonnelRow(
-                                row.id,
-                                "name",
-                                e.target.value
-                              )
+                            disabled={isSaving}
+                            onChange={(event) =>
+                              updatePersonnelRow(row.id, "name", event.target.value)
                             }
+                            placeholder="Person name"
                           />
                         </div>
 
@@ -805,13 +1372,15 @@ export default function FinanceMasterDataVendorCreatePage() {
                           <FieldLabel label="Position" />
                           <InputField
                             value={row.position}
-                            onChange={(e) =>
+                            disabled={isSaving}
+                            onChange={(event) =>
                               updatePersonnelRow(
                                 row.id,
                                 "position",
-                                e.target.value
+                                event.target.value
                               )
                             }
+                            placeholder="Position"
                           />
                         </div>
 
@@ -819,27 +1388,24 @@ export default function FinanceMasterDataVendorCreatePage() {
                           <FieldLabel label="Phone" />
                           <InputField
                             value={row.phone}
-                            onChange={(e) =>
-                              updatePersonnelRow(
-                                row.id,
-                                "phone",
-                                e.target.value
-                              )
+                            disabled={isSaving}
+                            onChange={(event) =>
+                              updatePersonnelRow(row.id, "phone", event.target.value)
                             }
+                            placeholder="Phone"
                           />
                         </div>
 
                         <div>
                           <FieldLabel label="Email" />
                           <InputField
+                            type="email"
                             value={row.email}
-                            onChange={(e) =>
-                              updatePersonnelRow(
-                                row.id,
-                                "email",
-                                e.target.value
-                              )
+                            disabled={isSaving}
+                            onChange={(event) =>
+                              updatePersonnelRow(row.id, "email", event.target.value)
                             }
+                            placeholder="Email"
                           />
                         </div>
                       </div>
@@ -848,43 +1414,37 @@ export default function FinanceMasterDataVendorCreatePage() {
                 </div>
               </FormSection>
 
-              {/* =========================
-                  SECTION 3 — ADDRESS
-              ========================= */}
               <FormSection
-                title="Section 3 — Address"
-                description="Primary addresses."
+                title="Primary Addresses"
+                description="Primary vendor addresses. Rows with empty values are ignored during save."
+                icon={MapPin}
                 actions={
-                  <Button
-                    type="button"
+                  <AddRowButton
+                    label="Add Address"
                     onClick={addAddressRow}
-                    className="h-10 rounded-2xl border-white/10 bg-white/5 px-3 text-white"
-                  >
-                    <Plus className="mr-2 h-4 w-4" />
-                    Add
-                  </Button>
+                    disabled={isSaving}
+                  />
                 }
               >
-                <div className="flex flex-col gap-4">
+                <div className="max-h-[720px] space-y-4 overflow-y-auto pr-1">
                   {form.addresses.map((row, index) => (
                     <RowCard
                       key={row.id}
                       title={`Address ${index + 1}`}
+                      description={index === 0 ? "Primary address row." : undefined}
                       onRemove={() => removeAddressRow(row.id)}
-                      removeDisabled={form.addresses.length === 1}
+                      removeDisabled={isSaving || form.addresses.length === 1}
                     >
-                      <div className="grid grid-cols-1 gap-3 md:grid-cols-2">
+                      <div className="grid gap-4 md:grid-cols-2">
                         <div>
                           <FieldLabel label="Country" />
                           <InputField
                             value={row.country}
-                            onChange={(e) =>
-                              updateAddressRow(
-                                row.id,
-                                "country",
-                                e.target.value
-                              )
+                            disabled={isSaving}
+                            onChange={(event) =>
+                              updateAddressRow(row.id, "country", event.target.value)
                             }
+                            placeholder="Country"
                           />
                         </div>
 
@@ -892,13 +1452,11 @@ export default function FinanceMasterDataVendorCreatePage() {
                           <FieldLabel label="City" />
                           <InputField
                             value={row.city}
-                            onChange={(e) =>
-                              updateAddressRow(
-                                row.id,
-                                "city",
-                                e.target.value
-                              )
+                            disabled={isSaving}
+                            onChange={(event) =>
+                              updateAddressRow(row.id, "city", event.target.value)
                             }
+                            placeholder="City"
                           />
                         </div>
 
@@ -906,13 +1464,15 @@ export default function FinanceMasterDataVendorCreatePage() {
                           <FieldLabel label="State / Province" />
                           <InputField
                             value={row.state_province}
-                            onChange={(e) =>
+                            disabled={isSaving}
+                            onChange={(event) =>
                               updateAddressRow(
                                 row.id,
                                 "state_province",
-                                e.target.value
+                                event.target.value
                               )
                             }
+                            placeholder="State / Province"
                           />
                         </div>
 
@@ -920,13 +1480,15 @@ export default function FinanceMasterDataVendorCreatePage() {
                           <FieldLabel label="ZIP / Postal Code" />
                           <InputField
                             value={row.postal_code}
-                            onChange={(e) =>
+                            disabled={isSaving}
+                            onChange={(event) =>
                               updateAddressRow(
                                 row.id,
                                 "postal_code",
-                                e.target.value
+                                event.target.value
                               )
                             }
+                            placeholder="Postal code"
                           />
                         </div>
 
@@ -934,13 +1496,15 @@ export default function FinanceMasterDataVendorCreatePage() {
                           <FieldLabel label="Address Line 1" />
                           <InputField
                             value={row.address_line_1}
-                            onChange={(e) =>
+                            disabled={isSaving}
+                            onChange={(event) =>
                               updateAddressRow(
                                 row.id,
                                 "address_line_1",
-                                e.target.value
+                                event.target.value
                               )
                             }
+                            placeholder="Address line 1"
                           />
                         </div>
 
@@ -948,13 +1512,15 @@ export default function FinanceMasterDataVendorCreatePage() {
                           <FieldLabel label="Address Line 2" />
                           <InputField
                             value={row.address_line_2}
-                            onChange={(e) =>
+                            disabled={isSaving}
+                            onChange={(event) =>
                               updateAddressRow(
                                 row.id,
                                 "address_line_2",
-                                e.target.value
+                                event.target.value
                               )
                             }
+                            placeholder="Address line 2"
                           />
                         </div>
                       </div>
@@ -963,80 +1529,100 @@ export default function FinanceMasterDataVendorCreatePage() {
                 </div>
               </FormSection>
 
-              {/* =========================
-                  SECTION 4 — SHIPPING
-              ========================= */}
-              <FormSection
-                title="Section 4 — Shipping"
-                description="Shipping addresses."
+                            <FormSection
+                title="Shipping Addresses"
+                description="Shipping addresses can be standalone or copied from primary vendor addresses."
+                icon={Truck}
                 actions={
-                  <Button
-                    type="button"
+                  <AddRowButton
+                    label="Add Shipping"
                     onClick={addShippingRow}
-                    className="h-10 rounded-2xl border-white/10 bg-white/5 px-3 text-white"
-                  >
-                    <Plus className="mr-2 h-4 w-4" />
-                    Add
-                  </Button>
+                    disabled={isSaving}
+                  />
                 }
               >
-                <div className="flex flex-col gap-4">
+                <div className="max-h-[720px] space-y-4 overflow-y-auto pr-1">
                   {form.shipping_addresses.map((row, index) => (
                     <RowCard
                       key={row.id}
                       title={`Shipping ${index + 1}`}
+                      description={
+                        row.same_as_primary
+                          ? "Linked to a primary address."
+                          : "Standalone shipping address."
+                      }
                       onRemove={() => removeShippingRow(row.id)}
-                      removeDisabled={form.shipping_addresses.length === 1}
+                      removeDisabled={isSaving || form.shipping_addresses.length === 1}
                     >
-                      <div className="flex flex-col gap-3">
-                        <label className="flex items-center gap-2 text-sm text-white/70">
+                      <div className="space-y-4">
+                        <label className="flex items-start gap-3 rounded-2xl border border-white/10 bg-black/20 px-4 py-3 text-sm text-slate-300">
                           <input
                             type="checkbox"
                             checked={row.same_as_primary}
-                            onChange={(e) =>
+                            disabled={isSaving}
+                            onChange={(event) =>
                               updateShippingRow(
                                 row.id,
                                 "same_as_primary",
-                                e.target.checked
+                                event.target.checked
                               )
                             }
+                            className="mt-1"
                           />
-                          Same as primary address
+                          <span>
+                            <span className="block font-semibold text-white">
+                              Same as primary address
+                            </span>
+                            <span className="mt-1 block text-xs leading-5 text-slate-500">
+                              Select one primary address and copy its values into this
+                              shipping row.
+                            </span>
+                          </span>
                         </label>
 
-                        {row.same_as_primary && (
-                          <SelectField
-                            value={row.source_address_id}
-                            onChange={(e) =>
-                              updateShippingRow(
-                                row.id,
-                                "source_address_id",
-                                e.target.value
-                              )
-                            }
-                          >
-                            <option value="">Select address</option>
-                            {addressOptions.map((opt) => (
-                              <option key={opt.id} value={opt.id}>
-                                {opt.label}
+                        {row.same_as_primary ? (
+                          <div>
+                            <FieldLabel label="Source Primary Address" />
+                            <SelectField
+                              value={row.source_address_id}
+                              disabled={isSaving}
+                              onChange={(event) =>
+                                updateShippingRow(
+                                  row.id,
+                                  "source_address_id",
+                                  event.target.value
+                                )
+                              }
+                            >
+                              <option value="" className="bg-[#05070d]">
+                                Select address
                               </option>
-                            ))}
-                          </SelectField>
-                        )}
-
-                        {!row.same_as_primary && (
-                          <div className="grid grid-cols-1 gap-3 md:grid-cols-2">
+                              {addressOptions.map((option) => (
+                                <option
+                                  key={option.id}
+                                  value={option.id}
+                                  className="bg-[#05070d]"
+                                >
+                                  {option.label}
+                                </option>
+                              ))}
+                            </SelectField>
+                          </div>
+                        ) : (
+                          <div className="grid gap-4 md:grid-cols-2">
                             <div>
                               <FieldLabel label="Country" />
                               <InputField
                                 value={row.country}
-                                onChange={(e) =>
+                                disabled={isSaving}
+                                onChange={(event) =>
                                   updateShippingRow(
                                     row.id,
                                     "country",
-                                    e.target.value
+                                    event.target.value
                                   )
                                 }
+                                placeholder="Country"
                               />
                             </div>
 
@@ -1044,13 +1630,15 @@ export default function FinanceMasterDataVendorCreatePage() {
                               <FieldLabel label="City" />
                               <InputField
                                 value={row.city}
-                                onChange={(e) =>
+                                disabled={isSaving}
+                                onChange={(event) =>
                                   updateShippingRow(
                                     row.id,
                                     "city",
-                                    e.target.value
+                                    event.target.value
                                   )
                                 }
+                                placeholder="City"
                               />
                             </div>
 
@@ -1058,27 +1646,31 @@ export default function FinanceMasterDataVendorCreatePage() {
                               <FieldLabel label="State / Province" />
                               <InputField
                                 value={row.state_province}
-                                onChange={(e) =>
+                                disabled={isSaving}
+                                onChange={(event) =>
                                   updateShippingRow(
                                     row.id,
                                     "state_province",
-                                    e.target.value
+                                    event.target.value
                                   )
                                 }
+                                placeholder="State / Province"
                               />
                             </div>
 
                             <div>
-                              <FieldLabel label="ZIP" />
+                              <FieldLabel label="ZIP / Postal Code" />
                               <InputField
                                 value={row.postal_code}
-                                onChange={(e) =>
+                                disabled={isSaving}
+                                onChange={(event) =>
                                   updateShippingRow(
                                     row.id,
                                     "postal_code",
-                                    e.target.value
+                                    event.target.value
                                   )
                                 }
+                                placeholder="Postal code"
                               />
                             </div>
 
@@ -1086,13 +1678,15 @@ export default function FinanceMasterDataVendorCreatePage() {
                               <FieldLabel label="Address Line 1" />
                               <InputField
                                 value={row.address_line_1}
-                                onChange={(e) =>
+                                disabled={isSaving}
+                                onChange={(event) =>
                                   updateShippingRow(
                                     row.id,
                                     "address_line_1",
-                                    e.target.value
+                                    event.target.value
                                   )
                                 }
+                                placeholder="Address line 1"
                               />
                             </div>
 
@@ -1100,13 +1694,15 @@ export default function FinanceMasterDataVendorCreatePage() {
                               <FieldLabel label="Address Line 2" />
                               <InputField
                                 value={row.address_line_2}
-                                onChange={(e) =>
+                                disabled={isSaving}
+                                onChange={(event) =>
                                   updateShippingRow(
                                     row.id,
                                     "address_line_2",
-                                    e.target.value
+                                    event.target.value
                                   )
                                 }
+                                placeholder="Address line 2"
                               />
                             </div>
                           </div>
@@ -1117,29 +1713,120 @@ export default function FinanceMasterDataVendorCreatePage() {
                 </div>
               </FormSection>
 
-              {/* =========================
-                  SECTION 5 — NOTES
-              ========================= */}
               <FormSection
-                title="Section 5 — Notes"
-                description="Internal notes."
-                fullWidth
+                title="Notes"
+                description="Internal finance notes for this vendor."
+                icon={FileText}
               >
                 <TextareaField
                   value={form.notes}
-                  onChange={(e) => updateForm("notes", e.target.value)}
+                  disabled={isSaving}
+                  onChange={(event) => updateForm("notes", event.target.value)}
                   placeholder="Notes..."
                 />
               </FormSection>
             </div>
 
-            {formError && (
-              <div className="rounded-2xl border border-rose-400/20 bg-rose-500/10 px-4 py-3 text-sm text-rose-100">
-                {formError}
-              </div>
-            )}
+            <aside className="grid gap-6">
+              <section className="overflow-hidden rounded-[30px] border border-white/10 bg-white/[0.045] backdrop-blur-xl">
+                <div className="border-b border-white/10 px-5 py-4">
+                  <div className="text-sm font-semibold uppercase tracking-[0.18em] text-slate-400">
+                    Create Summary
+                  </div>
+                  <p className="mt-1 text-xs leading-5 text-slate-500">
+                    Review the vendor before creating it.
+                  </p>
+                </div>
+
+                <div className="grid gap-4 p-5">
+                  {summaryItems.map((item) => (
+                    <SummaryCard key={item.label} item={item} />
+                  ))}
+                </div>
+              </section>
+
+              <section className="overflow-hidden rounded-[30px] border border-white/10 bg-white/[0.045] backdrop-blur-xl">
+                <div className="border-b border-white/10 px-5 py-4">
+                  <div className="text-sm font-semibold uppercase tracking-[0.18em] text-slate-400">
+                    Actions
+                  </div>
+                  <p className="mt-1 text-xs leading-5 text-slate-500">
+                    Create opens the new vendor ID page directly.
+                  </p>
+                </div>
+
+                <div className="grid gap-3 p-5">
+                  <button
+                    type="submit"
+                    disabled={isSaving}
+                    className="inline-flex h-12 items-center justify-center gap-2 rounded-2xl border border-cyan-400/20 bg-cyan-500 px-5 text-sm font-semibold text-slate-950 transition hover:bg-cyan-400 disabled:cursor-not-allowed disabled:opacity-60"
+                  >
+                    {isSaving ? (
+                      <Loader2 className="h-4 w-4 animate-spin" />
+                    ) : (
+                      <Save className="h-4 w-4" />
+                    )}
+                    {isSaving ? "Creating..." : "Create Vendor"}
+                  </button>
+
+                  <button
+                    type="button"
+                    disabled={isSaving}
+                    onClick={handleReset}
+                    className="inline-flex h-12 items-center justify-center gap-2 rounded-2xl border border-white/10 bg-white/[0.05] px-5 text-sm font-semibold text-slate-300 transition hover:bg-white/[0.08] disabled:cursor-not-allowed disabled:opacity-60"
+                  >
+                    <RotateCcw className="h-4 w-4" />
+                    Reset Form
+                  </button>
+                </div>
+              </section>
+
+              <section className="overflow-hidden rounded-[30px] border border-white/10 bg-white/[0.045] backdrop-blur-xl">
+                <div className="border-b border-white/10 px-5 py-4">
+                  <div className="text-sm font-semibold uppercase tracking-[0.18em] text-slate-400">
+                    Primary Preview
+                  </div>
+                  <p className="mt-1 text-xs leading-5 text-slate-500">
+                    First row values used for main vendor fields.
+                  </p>
+                </div>
+
+                <div className="grid gap-3 p-5">
+                  <ReadOnlyBlock
+                    label="Main Country"
+                    value={form.addresses[0]?.country || "—"}
+                    detail="Saved to the vendor main country field."
+                  />
+                  <ReadOnlyBlock
+                    label="Main City"
+                    value={form.addresses[0]?.city || "—"}
+                    detail="Saved inside vendor address master data."
+                  />
+                  <ReadOnlyBlock
+                    label="Main Address Line 1"
+                    value={form.addresses[0]?.address_line_1 || "—"}
+                    detail="Saved to the vendor main address field."
+                  />
+                  <ReadOnlyBlock
+                    label="Primary Contact"
+                    value={form.contact_person || "—"}
+                    detail="Stored as the vendor primary contact."
+                  />
+                </div>
+              </section>
+
+              <section className="rounded-[24px] border border-cyan-400/20 bg-cyan-500/10 p-4 text-sm leading-6 text-cyan-100">
+                <div className="font-semibold text-white">Locked create rule</div>
+                <div className="mt-1">
+                  This page requires Vendor create access. New records can be
+                  created as Active or Inactive only. Archived vendors are managed
+                  from the Vendor registry archive modal. Permission refresh is silent
+                  and must not disturb the form.
+                </div>
+              </section>
+            </aside>
           </form>
-        </div>
+        )}
       </div>
     </div>
   );

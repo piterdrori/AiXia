@@ -7,7 +7,6 @@ import {
   ArrowRight,
   Building2,
   CheckCircle2,
-  FileText,
   Loader2,
   LockKeyhole,
   Mail,

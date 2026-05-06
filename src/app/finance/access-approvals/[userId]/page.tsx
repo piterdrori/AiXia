@@ -195,126 +195,143 @@ function StatusBadge({
   );
 }
 
-function TooltipContent({
-  title,
-  children,
-}: {
+type HelpPanelData = {
+  key: string;
   title: string;
-  children: ReactNode;
+  meaningTitle: string;
+  meaningText: string;
+  chips?: string[];
+  permits: string[];
+  doesNotPermit: string[];
+};
+
+function HelpButton({
+  label,
+  helpKey,
+  activeHelpKey,
+  onToggle,
+}: {
+  label: string;
+  helpKey: string;
+  activeHelpKey: string | null;
+  onToggle: (helpKey: string) => void;
+}) {
+  const isActive = activeHelpKey === helpKey;
+
+  return (
+    <button
+      type="button"
+      onClick={() => onToggle(helpKey)}
+      className={`inline-flex items-center gap-1.5 rounded-full border px-2.5 py-1 text-[10px] font-semibold uppercase tracking-[0.14em] transition ${
+        isActive
+          ? "border-cyan-400/30 bg-cyan-500/15 text-cyan-100"
+          : "border-white/10 bg-white/[0.04] text-slate-400 hover:border-cyan-400/20 hover:bg-cyan-500/10 hover:text-cyan-100"
+      }`}
+    >
+      {label}
+      <Info className="h-3 w-3" />
+    </button>
+  );
+}
+
+function HelpPanel({
+  help,
+  onClose,
+}: {
+  help: HelpPanelData;
+  onClose: () => void;
 }) {
   return (
-    <div className="pointer-events-none absolute left-0 top-full z-50 mt-3 w-[820px] max-w-[calc(100vw-360px)] rounded-[22px] border border-white/10 bg-[#08111f]/95 p-4 text-left opacity-0 shadow-2xl shadow-black/40 backdrop-blur-xl transition group-hover:opacity-100">
-      <div className="text-xs font-semibold uppercase tracking-[0.18em] text-cyan-100">
-        {title}
+    <div className="rounded-[24px] border border-cyan-400/20 bg-cyan-500/10 p-4">
+      <div className="flex items-start justify-between gap-4">
+        <div>
+          <div className="text-[11px] font-semibold uppercase tracking-[0.18em] text-cyan-200">
+            Permission explanation
+          </div>
+          <div className="mt-1 text-sm font-semibold text-white">{help.title}</div>
+        </div>
+
+        <button
+          type="button"
+          onClick={onClose}
+          className="inline-flex h-8 w-8 shrink-0 items-center justify-center rounded-full border border-white/10 bg-black/20 text-slate-400 transition hover:bg-white/[0.06] hover:text-white"
+        >
+          <X className="h-4 w-4" />
+        </button>
       </div>
-      <div className="mt-3 text-xs leading-5 text-slate-300">{children}</div>
+
+      <div className="mt-4 grid gap-4 xl:grid-cols-[240px_minmax(0,1fr)_minmax(0,1fr)]">
+        <div className="rounded-2xl border border-cyan-400/15 bg-black/20 p-3">
+          <div className="text-[11px] font-semibold uppercase tracking-[0.14em] text-cyan-200">
+            {help.meaningTitle}
+          </div>
+          <div className="mt-2 text-xs leading-5 text-slate-300">
+            {help.meaningText}
+          </div>
+
+          {help.chips?.length ? (
+            <div className="mt-3 flex flex-wrap gap-1.5">
+              {help.chips.map((chip) => (
+                <span
+                  key={chip}
+                  className="rounded-full border border-white/10 bg-white/[0.06] px-2 py-1 text-[10px] text-slate-300"
+                >
+                  {chip}
+                </span>
+              ))}
+            </div>
+          ) : null}
+        </div>
+
+        <div className="rounded-2xl border border-emerald-400/15 bg-emerald-500/10 p-3">
+          <div className="text-[11px] font-semibold uppercase tracking-[0.14em] text-emerald-200">
+            Permits
+          </div>
+          <ul className="mt-2 list-disc space-y-1 pl-4 text-xs leading-5 text-slate-300">
+            {help.permits.map((item) => (
+              <li key={item}>{item}</li>
+            ))}
+          </ul>
+        </div>
+
+        <div className="rounded-2xl border border-rose-400/15 bg-rose-500/10 p-3">
+          <div className="text-[11px] font-semibold uppercase tracking-[0.14em] text-rose-200">
+            Does not permit
+          </div>
+          <ul className="mt-2 list-disc space-y-1 pl-4 text-xs leading-5 text-slate-300">
+            {help.doesNotPermit.map((item) => (
+              <li key={item}>{item}</li>
+            ))}
+          </ul>
+        </div>
+      </div>
     </div>
   );
 }
 
-function InfoTooltip({
-  title,
-  children,
-}: {
-  title: string;
-  children: ReactNode;
-}) {
-  return (
-    <span className="group relative inline-flex items-center">
-      <Info className="ml-2 h-3.5 w-3.5 text-slate-500 transition group-hover:text-cyan-200" />
-      <TooltipContent title={title}>{children}</TooltipContent>
-    </span>
-  );
-}
-
-function PermissionLevelTooltip({ level }: { level: AccessApprovalLevel }) {
+function buildLevelHelp(level: AccessApprovalLevel): HelpPanelData {
   const explanation = ACCESS_APPROVAL_LEVEL_EXPLANATIONS[level];
 
-  return (
-    <InfoTooltip title={explanation.title}>
-      <div className="grid gap-4 md:grid-cols-[180px_minmax(0,1fr)_minmax(0,1fr)]">
-        <div className="rounded-2xl border border-cyan-400/15 bg-cyan-500/10 p-3">
-          <div className="text-[11px] font-semibold uppercase tracking-[0.14em] text-cyan-200">
-            Meaning
-          </div>
-          <div className="mt-2 font-semibold leading-5 text-white">
-            {explanation.shortLabel}
-          </div>
-        </div>
-
-        <div className="rounded-2xl border border-emerald-400/15 bg-emerald-500/10 p-3">
-          <div className="text-[11px] font-semibold uppercase tracking-[0.14em] text-emerald-200">
-            Permits
-          </div>
-          <ul className="mt-2 list-disc space-y-1 pl-4">
-            {explanation.permits.map((item) => (
-              <li key={item}>{item}</li>
-            ))}
-          </ul>
-        </div>
-
-        <div className="rounded-2xl border border-rose-400/15 bg-rose-500/10 p-3">
-          <div className="text-[11px] font-semibold uppercase tracking-[0.14em] text-rose-200">
-            Does not permit
-          </div>
-          <ul className="mt-2 list-disc space-y-1 pl-4">
-            {explanation.doesNotPermit.map((item) => (
-              <li key={item}>{item}</li>
-            ))}
-          </ul>
-        </div>
-      </div>
-    </InfoTooltip>
-  );
+  return {
+    key: `level-${level}`,
+    title: explanation.title,
+    meaningTitle: "Meaning",
+    meaningText: explanation.shortLabel,
+    permits: explanation.permits,
+    doesNotPermit: explanation.doesNotPermit,
+  };
 }
 
-function SectionTooltip({ section }: { section: AccessApprovalSection }) {
-  return (
-    <InfoTooltip title={section.tooltip.title}>
-      <div className="grid gap-4 md:grid-cols-[220px_minmax(0,1fr)_minmax(0,1fr)]">
-        <div className="rounded-2xl border border-cyan-400/15 bg-cyan-500/10 p-3">
-          <div className="text-[11px] font-semibold uppercase tracking-[0.14em] text-cyan-200">
-            Controls
-          </div>
-          <div className="mt-2 text-xs leading-5 text-slate-300">
-            {section.tooltip.description}
-          </div>
-          <div className="mt-3 flex flex-wrap gap-1.5">
-            {section.controls.map((item) => (
-              <span
-                key={item}
-                className="rounded-full border border-white/10 bg-white/[0.06] px-2 py-1 text-[10px] text-slate-300"
-              >
-                {item}
-              </span>
-            ))}
-          </div>
-        </div>
-
-        <div className="rounded-2xl border border-emerald-400/15 bg-emerald-500/10 p-3">
-          <div className="text-[11px] font-semibold uppercase tracking-[0.14em] text-emerald-200">
-            Permits
-          </div>
-          <ul className="mt-2 list-disc space-y-1 pl-4">
-            {section.tooltip.permits.map((item) => (
-              <li key={item}>{item}</li>
-            ))}
-          </ul>
-        </div>
-
-        <div className="rounded-2xl border border-rose-400/15 bg-rose-500/10 p-3">
-          <div className="text-[11px] font-semibold uppercase tracking-[0.14em] text-rose-200">
-            Does not permit
-          </div>
-          <ul className="mt-2 list-disc space-y-1 pl-4">
-            {section.tooltip.doesNotPermit.map((item) => (
-              <li key={item}>{item}</li>
-            ))}
-          </ul>
-        </div>
-      </div>
-    </InfoTooltip>
-  );
+function buildSectionHelp(section: AccessApprovalSection): HelpPanelData {
+  return {
+    key: `section-${section.key}`,
+    title: section.tooltip.title,
+    meaningTitle: "Controls",
+    meaningText: section.tooltip.description,
+    chips: section.controls,
+    permits: section.tooltip.permits,
+    doesNotPermit: section.tooltip.doesNotPermit,
+  };
 }
 
 function SectionCard({

@@ -888,21 +888,6 @@ function ActionButton({
   );
 }
 
-function getCurrencyPairLabel(
-  currencies: FinanceCurrencyRow[],
-  fromCurrencyCode: string,
-  toCurrencyCode: string
-) {
-  const from = currencies.find((row) => row.currency_code === fromCurrencyCode);
-  const to = currencies.find((row) => row.currency_code === toCurrencyCode);
-
-  if (!from || !to) {
-    return `${fromCurrencyCode || "From"} → ${toCurrencyCode || "To"}`;
-  }
-
-  return `${from.currency_code} → ${to.currency_code}`;
-}
-
 export default function FinanceMasterDataCurrenciesPage() {
   const navigate = useNavigate();
 
@@ -1431,11 +1416,14 @@ export default function FinanceMasterDataCurrenciesPage() {
     });
     setAutoRate({
       amount: 1,
-      from: row.from_currency_code,
-      to: row.to_currency_code,
+      base: row.from_currency_code,
+      date: row.effective_date,
+      rates: {
+        [row.to_currency_code]: Number(row.exchange_rate),
+      },
       convertedAmount: Number(row.exchange_rate),
       rate: Number(row.exchange_rate),
-      date: row.effective_date,
+      targetCurrency: row.to_currency_code,
     });
     setAutoRateError("");
     setRateError("");

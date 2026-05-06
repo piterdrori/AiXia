@@ -105,6 +105,7 @@ type FileUploadRow = {
 
 type AttachmentWithFile = AttachmentRow & {
   fileUpload: FileUploadRow | null;
+  signedUrl: string | null;
 };
 
 type PaymentDistributionRow = {
@@ -814,12 +815,33 @@ export default function FinancePayrollFundingBatchDetailPage() {
             ])
           );
 
-          setAttachments(
-            attachmentRows.map((attachment) => ({
-              ...attachment,
-              fileUpload: fileMap.get(attachment.file_upload_id) || null,
-            }))
+          const signedAttachments = await Promise.all(
+            attachmentRows.map(async (attachment) => {
+              const fileUpload = fileMap.get(attachment.file_upload_id) || null;
+              const bucket =
+                attachment.metadata?.bucket || "finance-paycheck-funding-batch-documents";
+
+              let signedUrl: string | null = null;
+
+              if (fileUpload?.file_path && bucket) {
+                const signedResult = await supabase.storage
+                  .from(bucket)
+                  .createSignedUrl(fileUpload.file_path, 3600);
+
+                if (!signedResult.error) {
+                  signedUrl = signedResult.data.signedUrl;
+                }
+              }
+
+              return {
+                ...attachment,
+                fileUpload,
+                signedUrl,
+              };
+            })
           );
+
+          setAttachments(signedAttachments);
         } else {
           setAttachments([]);
         }
@@ -1598,7 +1620,7 @@ export default function FinancePayrollFundingBatchDetailPage() {
                   {attachments.map((attachment) => (
                     <div
                       key={attachment.id}
-                      className="flex items-center justify-between gap-4 px-4 py-3"
+                      className="flex flex-col gap-3 px-4 py-3 md:flex-row md:items-center md:justify-between"
                     >
                       <div className="min-w-0">
                         <div className="truncate text-sm font-medium text-white">
@@ -1609,7 +1631,20 @@ export default function FinancePayrollFundingBatchDetailPage() {
                           {formatDateTime(attachment.created_at)}
                         </div>
                       </div>
-                      <FileText className="h-4 w-4 shrink-0 text-violet-200" />
+
+                      {attachment.signedUrl ? (
+                        <a
+                          href={attachment.signedUrl}
+                          target="_blank"
+                          rel="noreferrer"
+                          className="inline-flex h-9 items-center justify-center gap-2 rounded-full border border-violet-400/20 bg-violet-500/10 px-4 text-xs font-semibold uppercase tracking-[0.14em] text-violet-100 transition hover:bg-violet-500/15"
+                        >
+                          <FileText className="h-3.5 w-3.5" />
+                          Open
+                        </a>
+                      ) : (
+                        <FileText className="h-4 w-4 shrink-0 text-violet-200" />
+                      )}
                     </div>
                   ))}
                 </div>

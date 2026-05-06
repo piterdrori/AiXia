@@ -1160,7 +1160,6 @@ export default function FinancePayrollReviewDetailPage() {
           companyResult,
           employeeResult,
           profilesResult,
-          bankAccountResult,
           allocationsResult,
           attachmentsResult,
           companiesResult,
@@ -1186,8 +1185,6 @@ export default function FinancePayrollReviewDetailPage() {
             .from("profiles")
             .select("user_id, full_name, display_name, email, company, job_title, member_type")
             .order("full_name"),
-
-                    Promise.resolve({ data: null, error: null }),
 
           supabase
             .from("finance_paycheck_payment_allocations")

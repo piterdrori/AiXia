@@ -1271,13 +1271,13 @@ export default function FinancePage() {
       tabs.push({
         key: "access-approvals",
         label: "Finance Access Approvals",
-        eyebrow: "Admin Only",
+        eyebrow: "Admin Only Access Control",
         description:
-          "Approve what users can see, monitor, change, and operate across the Finance module.",
+          "Manage active users through base system roles, Finance role templates, and user-specific Read, Create, Update, Delete/Archive, and Approve/Execute exceptions.",
         icon: ShieldCheck,
         route: "/finance/access-approvals",
         tone: "rose",
-        statusLabel: "Admin",
+        statusLabel: "Admin Only",
         summary: `${formatCount(dashboardData.alerts.pendingAccessReviews)} waiting review`,
       });
     }

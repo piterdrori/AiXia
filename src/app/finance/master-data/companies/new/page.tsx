@@ -18,7 +18,6 @@ import {
   Landmark,
   Loader2,
   LockKeyhole,
-  Mail,
   MapPin,
   Plus,
   RotateCcw,
@@ -27,7 +26,6 @@ import {
   Sparkles,
   Trash2,
   Truck,
-  UserRound,
   Users,
 } from "lucide-react";
 

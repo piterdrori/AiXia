@@ -114,6 +114,15 @@ type BankAccountRow = {
   updated_at: string | null;
 };
 
+type CurrencyOption = {
+  id: string;
+  currency_code: string;
+  currency_name: string;
+  currency_symbol: string | null;
+  is_base_currency: boolean;
+  status: string;
+};
+
 type EditSection =
   | null
   | "overview"
@@ -214,8 +223,6 @@ const EMPTY_IDENTITY_DRAFT: IdentityDraft = {
   tax_number: "",
   website: "",
 };
-
-const CURRENCY_OPTIONS = ["USD", "EUR", "GBP", "CNY", "ILS", "JPY", "CAD", "AUD"];
 
 function makeId() {
   return `${Date.now()}-${Math.random().toString(36).slice(2, 10)}`;
@@ -847,6 +854,7 @@ export default function FinanceMasterDataCompanyDetailPage() {
   const [addresses, setAddresses] = useState<AddressRow[]>([]);
   const [shippingAddresses, setShippingAddresses] = useState<AddressRow[]>([]);
   const [bankAccounts, setBankAccounts] = useState<BankAccountRow[]>([]);
+  const [currencyOptions, setCurrencyOptions] = useState<CurrencyOption[]>([]);
   const [isLoadingProfile, setIsLoadingProfile] = useState(true);
   const [isLoadingCompany, setIsLoadingCompany] = useState(true);
   const [isSaving, setIsSaving] = useState(false);
@@ -1067,12 +1075,40 @@ export default function FinanceMasterDataCompanyDetailPage() {
     [id]
   );
 
+  const loadCurrencyOptions = useCallback(async () => {
+    try {
+      const { data, error } = await supabase
+        .from("finance_currencies")
+        .select(
+          `
+            id,
+            currency_code,
+            currency_name,
+            currency_symbol,
+            is_base_currency,
+            status
+          `
+        )
+        .eq("status", "active")
+        .order("is_base_currency", { ascending: false })
+        .order("currency_code", { ascending: true });
+
+      if (error) throw error;
+
+      setCurrencyOptions((data ?? []) as CurrencyOption[]);
+    } catch (error) {
+      console.error("Failed to load currency master data:", error);
+      setCurrencyOptions([]);
+    }
+  }, []);
+
   useEffect(() => {
     void Promise.all([
       loadCurrentProfile("initial"),
       loadCompany("initial"),
+      loadCurrencyOptions(),
     ]);
-  }, [loadCompany, loadCurrentProfile]);
+  }, [loadCompany, loadCurrencyOptions, loadCurrentProfile]);
 
   useEffect(() => {
     const channel = supabase
@@ -1117,12 +1153,18 @@ export default function FinanceMasterDataCompanyDetailPage() {
         },
         () => void loadCompany("silent")
       )
+      .on(
+        "postgres_changes",
+        { event: "*", schema: "public", table: "finance_currencies" },
+        () => void loadCurrencyOptions()
+      )
       .subscribe();
 
     const intervalId = window.setInterval(() => {
       void Promise.all([
         loadCurrentProfile("silent"),
         loadCompany("silent"),
+        loadCurrencyOptions(),
       ]);
     }, 60000);
 
@@ -1130,7 +1172,7 @@ export default function FinanceMasterDataCompanyDetailPage() {
       window.clearInterval(intervalId);
       supabase.removeChannel(channel);
     };
-  }, [id, loadCompany, loadCurrentProfile]);
+  }, [id, loadCompany, loadCurrencyOptions, loadCurrentProfile]);
 
   const permissionState = useMemo(() => {
     return buildPermissionState(profile, effectivePermissions);
@@ -1147,6 +1189,29 @@ export default function FinanceMasterDataCompanyDetailPage() {
       value: address,
     }));
   }, [addressDraft]);
+
+  const currencySelectOptions = useMemo(() => {
+    const currentCurrencyCode = identityDraft.currency_code || company?.currency_code || "";
+    const hasCurrentCurrency = currencyOptions.some(
+      (currency) => currency.currency_code === currentCurrencyCode
+    );
+
+    if (!currentCurrencyCode || hasCurrentCurrency) {
+      return currencyOptions;
+    }
+
+    return [
+      {
+        id: `current-${currentCurrencyCode}`,
+        currency_code: currentCurrencyCode,
+        currency_name: currentCurrencyCode,
+        currency_symbol: null,
+        is_base_currency: false,
+        status: "current",
+      },
+      ...currencyOptions,
+    ];
+  }, [company?.currency_code, currencyOptions, identityDraft.currency_code]);
 
   const headerStatusCards = useMemo<HeaderStatusCardData[]>(() => {
     return [
@@ -2201,14 +2266,17 @@ export default function FinanceMasterDataCompanyDetailPage() {
                         updateIdentityDraft("currency_code", event.target.value)
                       }
                     >
-                      {CURRENCY_OPTIONS.map((currency) => (
+                      {currencySelectOptions.map((currency) => (
                         <option
-                          key={currency}
-                          value={currency}
+                          key={currency.id}
+                          value={currency.currency_code}
                           className="bg-[#05070d]"
                         >
-                          {currency}
+                          {currency.currency_code} — {currency.currency_name}
+                          {currency.currency_symbol ? ` (${currency.currency_symbol})` : ""}
+                          {currency.is_base_currency ? " • Base" : ""}
                         </option>
+                      ))}
                       ))}
                     </SelectField>
                   </div>

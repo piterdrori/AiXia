@@ -1,30 +1,57 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
+import type {
+  InputHTMLAttributes,
+  ReactNode,
+  SelectHTMLAttributes,
+  TextareaHTMLAttributes,
+} from "react";
 import { useNavigate, useParams } from "react-router-dom";
+import type { LucideIcon } from "lucide-react";
 import {
-  ArrowLeft,
+  AlertTriangle,
+  Archive,
+  ArrowRight,
+  Banknote,
   Building2,
+  CheckCircle2,
+  CreditCard,
+  FileText,
+  Globe,
+  Landmark,
+  Loader2,
+  LockKeyhole,
+  Mail,
+  MapPin,
   Pencil,
+  Phone,
   Plus,
-  RefreshCw,
+  RotateCcw,
   Save,
   ShieldCheck,
+  Sparkles,
   Trash2,
+  Truck,
+  UserRound,
+  Users,
   X,
 } from "lucide-react";
 
-import { supabase } from "@/lib/supabase";
 import { archiveCompany, updateCompany } from "@/lib/finance/companies";
-
-import { Button } from "@/components/ui/button";
-import { Badge } from "@/components/ui/badge";
 import {
-  Card,
-  CardContent,
-  CardDescription,
-  CardHeader,
-  CardTitle,
-} from "@/components/ui/card";
-import { Input } from "@/components/ui/input";
+  getEffectivePermissions,
+  type Permission,
+  type Role,
+} from "@/lib/permissions";
+import { supabase } from "@/lib/supabase";
+
+type ProfilePermissionRow = {
+  user_id: string;
+  full_name: string | null;
+  role: Role | null;
+  permissions: Partial<Record<Permission, boolean>> | null;
+};
+
+type CompanyStatus = "active" | "inactive" | "archived";
 
 type CompanyDetailRecord = {
   id: string;
@@ -32,7 +59,7 @@ type CompanyDetailRecord = {
   name: string;
   legal_name: string | null;
   contact_person: string | null;
-  status: "active" | "inactive" | "archived";
+  status: CompanyStatus;
   email: string | null;
   phone: string | null;
   company_code: string | null;
@@ -71,32 +98,49 @@ type AddressRow = {
   status: string;
 };
 
+type BankAccountRow = {
+  id: string;
+  bank_id: string | null;
+  bank_name: string | null;
+  beneficiary_name: string | null;
+  account_number: string | null;
+  account_identifier_type: string | null;
+  account_identifier_value: string | null;
+  currency_code: string | null;
+  country: string | null;
+  city: string | null;
+  status: string | null;
+  is_default: boolean | null;
+  created_at: string | null;
+  updated_at: string | null;
+};
+
 type EditSection =
   | null
-  | "basic"
+  | "overview"
   | "identity"
   | "personnel"
-  | "address"
-  | "shipping"
+  | "primary-addresses"
+  | "shipping-addresses"
   | "notes";
 
-type BasicForm = {
+type OverviewDraft = {
   legal_name: string;
   display_name: string;
   contact_person: string;
   email: string;
   phone: string;
-  status: "active" | "inactive" | "archived";
+  status: CompanyStatus;
 };
 
-type IdentityForm = {
+type IdentityDraft = {
   currency_code: string;
   registration_number: string;
   tax_number: string;
   website: string;
 };
 
-type PersonnelFormRow = {
+type PersonnelDraftRow = {
   id: string;
   full_name: string;
   position: string;
@@ -104,7 +148,7 @@ type PersonnelFormRow = {
   email: string;
 };
 
-type AddressFormRow = {
+type AddressDraftRow = {
   id: string;
   country: string;
   city: string;
@@ -114,7 +158,7 @@ type AddressFormRow = {
   address_line_2: string;
 };
 
-type ShippingFormRow = {
+type ShippingDraftRow = {
   id: string;
   same_as_primary: boolean;
   source_address_id: string;
@@ -126,11 +170,59 @@ type ShippingFormRow = {
   address_line_2: string;
 };
 
+type PermissionState = {
+  canRead: boolean;
+  canUpdate: boolean;
+  canDeleteArchive: boolean;
+  isAdmin: boolean;
+};
+
+type HeaderStatusCardData = {
+  label: string;
+  value: string;
+  detail: string;
+  icon: LucideIcon;
+  tone: "emerald" | "cyan" | "amber" | "rose";
+};
+
+type SummaryCardData = {
+  label: string;
+  value: string;
+  detail: string;
+  icon: LucideIcon;
+  tone: "cyan" | "emerald" | "amber" | "violet" | "rose";
+};
+
+const EMPTY_PERMISSION_STATE: PermissionState = {
+  canRead: false,
+  canUpdate: false,
+  canDeleteArchive: false,
+  isAdmin: false,
+};
+
+const EMPTY_OVERVIEW_DRAFT: OverviewDraft = {
+  legal_name: "",
+  display_name: "",
+  contact_person: "",
+  email: "",
+  phone: "",
+  status: "active",
+};
+
+const EMPTY_IDENTITY_DRAFT: IdentityDraft = {
+  currency_code: "USD",
+  registration_number: "",
+  tax_number: "",
+  website: "",
+};
+
+const CURRENCY_OPTIONS = ["USD", "EUR", "GBP", "CNY", "ILS", "JPY", "CAD", "AUD"];
+
 function makeId() {
   return `${Date.now()}-${Math.random().toString(36).slice(2, 10)}`;
 }
 
-function createEmptyPersonnelFormRow(): PersonnelFormRow {
+function createEmptyPersonnelDraftRow(): PersonnelDraftRow {
   return {
     id: makeId(),
     full_name: "",
@@ -140,7 +232,7 @@ function createEmptyPersonnelFormRow(): PersonnelFormRow {
   };
 }
 
-function createEmptyAddressFormRow(): AddressFormRow {
+function createEmptyAddressDraftRow(): AddressDraftRow {
   return {
     id: makeId(),
     country: "",
@@ -152,7 +244,7 @@ function createEmptyAddressFormRow(): AddressFormRow {
   };
 }
 
-function createEmptyShippingFormRow(): ShippingFormRow {
+function createEmptyShippingDraftRow(): ShippingDraftRow {
   return {
     id: makeId(),
     same_as_primary: false,
@@ -166,7 +258,71 @@ function createEmptyShippingFormRow(): ShippingFormRow {
   };
 }
 
-function formatDateTimeLabel(value: string | null) {
+function hasPermission(
+  permissions: Record<Permission, boolean> | null,
+  permission: Permission
+) {
+  return Boolean(permissions?.[permission]);
+}
+
+function buildPermissionState(
+  profile: ProfilePermissionRow | null,
+  permissions: Record<Permission, boolean> | null
+): PermissionState {
+  if (!profile?.role || !permissions) {
+    return EMPTY_PERMISSION_STATE;
+  }
+
+  const isAdmin = String(profile.role || "").toLowerCase() === "admin";
+  const canManageMasterData = hasPermission(permissions, "manageFinanceMasterData");
+  const canAccessFinance = hasPermission(permissions, "accessFinance");
+  const canViewFinance = hasPermission(permissions, "viewFinance");
+
+  return {
+    isAdmin,
+    canRead: canManageMasterData || canAccessFinance || canViewFinance,
+    canUpdate:
+      canManageMasterData ||
+      hasPermission(permissions, "editFinanceRecords"),
+    canDeleteArchive:
+      canManageMasterData ||
+      hasPermission(permissions, "archiveFinanceRecords"),
+  };
+}
+
+async function loadBackendEffectivePermissions(
+  userId: string
+): Promise<Partial<Record<Permission, boolean>> | null> {
+  try {
+    const result = await supabase.rpc("finance_get_effective_permissions", {
+      target_user_id: userId,
+    });
+
+    if (result.error) {
+      console.warn("Company ID permission RPC fallback:", result.error.message);
+      return null;
+    }
+
+    if (!result.data || typeof result.data !== "object") {
+      return null;
+    }
+
+    return result.data as Partial<Record<Permission, boolean>>;
+  } catch (error) {
+    console.warn("Company ID permission RPC failed:", error);
+    return null;
+  }
+}
+
+function normalizeStatus(value: string): CompanyStatus {
+  if (value === "inactive" || value === "archived") {
+    return value;
+  }
+
+  return "active";
+}
+
+function formatDateTimeLabel(value: string | null | undefined) {
   if (!value) return "—";
 
   const parsed = new Date(value);
@@ -176,22 +332,143 @@ function formatDateTimeLabel(value: string | null) {
     year: "numeric",
     month: "short",
     day: "numeric",
-    hour: "numeric",
+    hour: "2-digit",
     minute: "2-digit",
   });
 }
 
-function getStatusTone(status: string) {
+function formatStatus(value: string | null | undefined) {
+  if (!value) return "Unknown";
+
+  return value
+    .split("_")
+    .filter(Boolean)
+    .map((part) => part.charAt(0).toUpperCase() + part.slice(1))
+    .join(" ");
+}
+
+function getStatusTone(status: string | null | undefined) {
   switch (status) {
     case "active":
-      return "border-emerald-400/15 bg-emerald-500/10 text-emerald-200";
+      return "border-emerald-400/20 bg-emerald-500/10 text-emerald-200";
     case "inactive":
-      return "border-amber-400/15 bg-amber-500/10 text-amber-200";
+      return "border-amber-400/20 bg-amber-500/10 text-amber-200";
     case "archived":
-      return "border-rose-400/15 bg-rose-500/10 text-rose-200";
+      return "border-rose-400/20 bg-rose-500/10 text-rose-200";
     default:
-      return "border-white/10 bg-white/8 text-white/70";
+      return "border-white/10 bg-white/[0.06] text-slate-300";
   }
+}
+
+function getToneClasses(tone: SummaryCardData["tone"]) {
+  switch (tone) {
+    case "emerald":
+      return {
+        card: "border-emerald-400/20 bg-emerald-500/10",
+        icon: "border-emerald-400/20 bg-emerald-500/10 text-emerald-200",
+        value: "text-emerald-100",
+      };
+    case "amber":
+      return {
+        card: "border-amber-400/20 bg-amber-500/10",
+        icon: "border-amber-400/20 bg-amber-500/10 text-amber-200",
+        value: "text-amber-100",
+      };
+    case "violet":
+      return {
+        card: "border-violet-400/20 bg-violet-500/10",
+        icon: "border-violet-400/20 bg-violet-500/10 text-violet-200",
+        value: "text-violet-100",
+      };
+    case "rose":
+      return {
+        card: "border-rose-400/20 bg-rose-500/10",
+        icon: "border-rose-400/20 bg-rose-500/10 text-rose-200",
+        value: "text-rose-100",
+      };
+    case "cyan":
+    default:
+      return {
+        card: "border-cyan-400/20 bg-cyan-500/10",
+        icon: "border-cyan-400/20 bg-cyan-500/10 text-cyan-200",
+        value: "text-cyan-100",
+      };
+  }
+}
+
+function getCompanyDisplayName(company: CompanyDetailRecord | null) {
+  if (!company) return "Company";
+  return company.legal_name || company.name || "Company";
+}
+
+function getCompanyContactLabel(company: CompanyDetailRecord | null) {
+  return company?.contact_person || "No primary contact";
+}
+
+function getCompanyEmailLabel(company: CompanyDetailRecord | null) {
+  return company?.email || "No email";
+}
+
+function getCompanyPhoneLabel(company: CompanyDetailRecord | null) {
+  return company?.phone || "No phone";
+}
+
+function getPrimaryAddressSummary(addresses: AddressRow[]) {
+  const primary = addresses[0];
+
+  if (!primary) {
+    return "No primary address";
+  }
+
+  const parts = [
+    primary.address_line_1,
+    primary.city,
+    primary.state_province,
+    primary.country,
+  ].filter(Boolean);
+
+  return parts.length > 0 ? parts.join(", ") : "Primary address incomplete";
+}
+
+function getShippingSummary(shippingAddresses: AddressRow[]) {
+  if (shippingAddresses.length === 0) {
+    return "No shipping address";
+  }
+
+  const sameAsPrimaryCount = shippingAddresses.filter(
+    (row) => row.is_same_as_primary
+  ).length;
+
+  if (sameAsPrimaryCount > 0) {
+    return `${shippingAddresses.length} shipping row${
+      shippingAddresses.length === 1 ? "" : "s"
+    }, ${sameAsPrimaryCount} same as primary`;
+  }
+
+  return `${shippingAddresses.length} shipping row${
+    shippingAddresses.length === 1 ? "" : "s"
+  }`;
+}
+
+function getPersonnelSummary(personnel: PersonnelRow[]) {
+  if (personnel.length === 0) {
+    return "No personnel";
+  }
+
+  const first = personnel[0];
+  return first.full_name || first.email || `${personnel.length} personnel rows`;
+}
+
+function getBankIdentifierLabel(account: BankAccountRow) {
+  if (account.account_identifier_type === "iban") return "IBAN";
+  if (account.account_identifier_type === "swift") return "SWIFT";
+  return "Identifier";
+}
+
+function getBankIdentifierValue(account: BankAccountRow) {
+  if (account.account_identifier_value) return account.account_identifier_value;
+  if (account.account_number) return account.account_number;
+  return "—";
 }
 
 function FieldLabel({
@@ -202,148 +479,299 @@ function FieldLabel({
   required?: boolean;
 }) {
   return (
-    <label className="mb-2 block text-sm font-medium text-white/75">
+    <label className="mb-2 block text-sm font-medium text-slate-300">
       {label}
       {required ? <span className="ml-1 text-rose-300">*</span> : null}
     </label>
   );
 }
 
-function InputField(props: React.InputHTMLAttributes<HTMLInputElement>) {
+function InputField({
+  className,
+  ...props
+}: InputHTMLAttributes<HTMLInputElement>) {
   return (
-    <Input
+    <input
       {...props}
-      className={`h-11 rounded-2xl border-white/10 bg-white/5 text-white placeholder:text-white/30 ${props.className ?? ""}`}
+      className={`h-11 w-full rounded-2xl border border-white/10 bg-black/20 px-4 text-sm text-white outline-none transition placeholder:text-slate-600 focus:border-cyan-400/30 focus:bg-black/30 disabled:cursor-not-allowed disabled:opacity-60 ${
+        className || ""
+      }`}
     />
   );
 }
 
-function SelectField(
-  props: React.SelectHTMLAttributes<HTMLSelectElement> & {
-    children: React.ReactNode;
-  }
-) {
+function SelectField({
+  className,
+  children,
+  ...props
+}: SelectHTMLAttributes<HTMLSelectElement> & {
+  children: ReactNode;
+}) {
   return (
     <select
       {...props}
-      className={`h-11 w-full rounded-2xl border border-white/10 bg-white/5 px-4 text-sm text-white outline-none focus:bg-white/10 ${props.className ?? ""}`}
-      style={{
-        colorScheme: "dark",
-      }}
+      className={`h-11 w-full rounded-2xl border border-white/10 bg-black/20 px-4 text-sm text-white outline-none transition focus:border-cyan-400/30 focus:bg-black/30 disabled:cursor-not-allowed disabled:opacity-60 ${
+        className || ""
+      }`}
     >
-      {props.children}
+      {children}
     </select>
   );
 }
 
-function TextareaField(
-  props: React.TextareaHTMLAttributes<HTMLTextAreaElement>
-) {
+function TextareaField({
+  className,
+  ...props
+}: TextareaHTMLAttributes<HTMLTextAreaElement>) {
   return (
     <textarea
       {...props}
-      className={`min-h-[110px] w-full rounded-2xl border border-white/10 bg-white/5 px-4 py-3 text-sm text-white outline-none placeholder:text-white/30 ${props.className ?? ""}`}
+      className={`min-h-[132px] w-full rounded-2xl border border-white/10 bg-black/20 px-4 py-3 text-sm text-white outline-none transition placeholder:text-slate-600 focus:border-cyan-400/30 focus:bg-black/30 disabled:cursor-not-allowed disabled:opacity-60 ${
+        className || ""
+      }`}
     />
   );
 }
 
-function DisplayRow({
+function DisplayBlock({
   label,
   value,
+  detail,
 }: {
   label: string;
-  value: string;
+  value: ReactNode;
+  detail?: ReactNode;
 }) {
   return (
-    <div className="rounded-[18px] border border-white/8 bg-black/15 px-4 py-3">
-      <div className="text-xs uppercase tracking-[0.18em] text-white/35">
+    <div className="rounded-[20px] border border-white/10 bg-black/20 px-4 py-3">
+      <div className="text-[11px] font-semibold uppercase tracking-[0.18em] text-slate-500">
         {label}
       </div>
-      <div className="mt-2 break-words text-sm font-medium text-white">
+      <div className="mt-2 break-words text-sm font-semibold leading-6 text-white">
         {value || "—"}
       </div>
+      {detail ? (
+        <div className="mt-1 text-xs leading-5 text-slate-500">{detail}</div>
+      ) : null}
     </div>
   );
 }
 
-function SectionCard({
+function StatusBadge({ status }: { status: string | null | undefined }) {
+  return (
+    <span
+      className={`inline-flex max-w-full items-center rounded-full border px-3 py-1 text-[11px] font-semibold uppercase tracking-[0.14em] ${getStatusTone(
+        status
+      )}`}
+    >
+      <span className="truncate">{formatStatus(status)}</span>
+    </span>
+  );
+}
+
+function DefaultBadge({ isDefault }: { isDefault: boolean | null | undefined }) {
+  if (!isDefault) {
+    return (
+      <span className="inline-flex rounded-full border border-white/10 bg-white/[0.04] px-3 py-1 text-[11px] font-semibold uppercase tracking-[0.14em] text-slate-500">
+        Standard
+      </span>
+    );
+  }
+
+  return (
+    <span className="inline-flex rounded-full border border-emerald-400/20 bg-emerald-500/10 px-3 py-1 text-[11px] font-semibold uppercase tracking-[0.14em] text-emerald-200">
+      Default
+    </span>
+  );
+}
+
+function HeaderStatusCard({ item }: { item: HeaderStatusCardData }) {
+  const Icon = item.icon;
+
+  const toneClasses = {
+    emerald: "border-emerald-400/20 bg-emerald-500/10 text-emerald-200",
+    cyan: "border-cyan-400/20 bg-cyan-500/10 text-cyan-200",
+    amber: "border-amber-400/20 bg-amber-500/10 text-amber-200",
+    rose: "border-rose-400/20 bg-rose-500/10 text-rose-200",
+  }[item.tone];
+
+  return (
+    <div className="min-h-[148px] rounded-[24px] border border-white/10 bg-black/20 p-4">
+      <div className="flex items-start justify-between gap-3">
+        <div className="min-w-0">
+          <div className="text-[11px] font-semibold uppercase tracking-[0.2em] text-slate-500">
+            {item.label}
+          </div>
+          <div className="mt-2 text-xl font-semibold leading-tight tracking-[-0.035em] text-white">
+            {item.value}
+          </div>
+        </div>
+
+        <div
+          className={`flex h-10 w-10 shrink-0 items-center justify-center rounded-2xl border ${toneClasses}`}
+        >
+          <Icon className="h-4 w-4" />
+        </div>
+      </div>
+
+      <div className="mt-3 text-xs leading-5 text-slate-500">{item.detail}</div>
+    </div>
+  );
+}
+
+function SummaryCard({ item }: { item: SummaryCardData }) {
+  const Icon = item.icon;
+  const tone = getToneClasses(item.tone);
+
+  return (
+    <div className={`rounded-[24px] border bg-black/20 p-4 ${tone.card}`}>
+      <div className="flex items-start justify-between gap-3">
+        <div className="min-w-0">
+          <div className="text-[11px] font-semibold uppercase tracking-[0.2em] text-slate-500">
+            {item.label}
+          </div>
+          <div className={`mt-2 text-lg font-semibold leading-6 ${tone.value}`}>
+            {item.value}
+          </div>
+        </div>
+
+        <div
+          className={`flex h-10 w-10 shrink-0 items-center justify-center rounded-2xl border ${tone.icon}`}
+        >
+          <Icon className="h-4 w-4" />
+        </div>
+      </div>
+
+      <div className="mt-3 text-xs leading-5 text-slate-500">{item.detail}</div>
+    </div>
+  );
+}
+
+function DetailSection({
   title,
   description,
+  icon: Icon,
+  isEditing,
+  canEdit,
   onEdit,
+  onCancel,
+  onSave,
+  isSaving,
   actions,
   children,
-  fullWidth = false,
 }: {
   title: string;
   description: string;
+  icon: LucideIcon;
+  isEditing: boolean;
+  canEdit: boolean;
   onEdit?: () => void;
-  actions?: React.ReactNode;
-  children: React.ReactNode;
-  fullWidth?: boolean;
+  onCancel?: () => void;
+  onSave?: () => void;
+  isSaving?: boolean;
+  actions?: ReactNode;
+  children: ReactNode;
 }) {
   return (
-    <Card
-      className={`flex flex-col overflow-hidden rounded-[28px] border border-white/10 bg-white/[0.045] backdrop-blur-xl ${
-        fullWidth ? "xl:col-span-2" : ""
-      }`}
-    >
-      <CardHeader className="border-b border-white/8 pb-4">
-        <div className="flex items-start justify-between gap-4">
-          <div>
-            <CardTitle className="text-white">{title}</CardTitle>
-            <CardDescription className="mt-1 text-white/45">
-              {description}
-            </CardDescription>
+    <section className="overflow-hidden rounded-[30px] border border-white/10 bg-white/[0.045] backdrop-blur-xl">
+      <div className="flex flex-col gap-4 border-b border-white/10 px-5 py-4 lg:flex-row lg:items-start lg:justify-between">
+        <div className="flex min-w-0 items-start gap-3">
+          <div className="rounded-2xl border border-cyan-400/15 bg-cyan-500/10 p-3 text-cyan-200">
+            <Icon className="h-4 w-4" />
           </div>
 
-          <div className="flex items-center gap-3">
-            {actions}
-            {onEdit ? (
-              <Button
-                variant="outline"
-                onClick={onEdit}
-                className="h-11 rounded-2xl border-white/10 bg-white/5 px-4 text-white hover:bg-white/10"
-              >
-                <Pencil className="mr-2 h-4 w-4" />
-                Edit
-              </Button>
-            ) : null}
+          <div className="min-w-0">
+            <h2 className="text-sm font-semibold uppercase tracking-[0.18em] text-slate-400">
+              {title}
+            </h2>
+            <p className="mt-1 text-xs leading-5 text-slate-500">{description}</p>
           </div>
         </div>
-      </CardHeader>
 
-      <CardContent className="p-5">{children}</CardContent>
-    </Card>
+        <div className="flex shrink-0 flex-wrap gap-2">
+          {actions}
+
+          {canEdit ? (
+            isEditing ? (
+              <>
+                <button
+                  type="button"
+                  onClick={onCancel}
+                  disabled={isSaving}
+                  className="inline-flex h-10 items-center justify-center gap-2 rounded-2xl border border-white/10 bg-white/[0.05] px-4 text-xs font-semibold uppercase tracking-[0.14em] text-slate-300 transition hover:bg-white/[0.08] disabled:cursor-not-allowed disabled:opacity-60"
+                >
+                  <X className="h-3.5 w-3.5" />
+                  Cancel
+                </button>
+
+                <button
+                  type="button"
+                  onClick={onSave}
+                  disabled={isSaving}
+                  className="inline-flex h-10 items-center justify-center gap-2 rounded-2xl border border-cyan-400/20 bg-cyan-500/10 px-4 text-xs font-semibold uppercase tracking-[0.14em] text-cyan-100 transition hover:bg-cyan-500/15 disabled:cursor-not-allowed disabled:opacity-60"
+                >
+                  {isSaving ? (
+                    <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                  ) : (
+                    <Save className="h-3.5 w-3.5" />
+                  )}
+                  Save
+                </button>
+              </>
+            ) : (
+              <button
+                type="button"
+                onClick={onEdit}
+                className="inline-flex h-10 items-center justify-center gap-2 rounded-2xl border border-white/10 bg-white/[0.05] px-4 text-xs font-semibold uppercase tracking-[0.14em] text-slate-300 transition hover:bg-white/[0.08] hover:text-white"
+              >
+                <Pencil className="h-3.5 w-3.5" />
+                Edit
+              </button>
+            )
+          ) : null}
+        </div>
+      </div>
+
+      <div className="p-5">{children}</div>
+    </section>
   );
 }
 
 function RowCard({
   title,
+  description,
   onRemove,
   removeDisabled = false,
   children,
 }: {
   title: string;
+  description?: string;
   onRemove?: () => void;
   removeDisabled?: boolean;
-  children: React.ReactNode;
+  children: ReactNode;
 }) {
   return (
-    <div className="rounded-[20px] border border-white/10 bg-black/15 p-4">
-      <div className="mb-4 flex items-center justify-between gap-3">
-        <div className="text-sm font-medium text-white/80">{title}</div>
+    <div className="rounded-[24px] border border-white/10 bg-black/20 p-4">
+      <div className="mb-4 flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+        <div className="min-w-0">
+          <div className="text-sm font-semibold text-white">{title}</div>
+          {description ? (
+            <div className="mt-1 text-xs leading-5 text-slate-500">
+              {description}
+            </div>
+          ) : null}
+        </div>
 
         {onRemove ? (
-          <Button
+          <button
             type="button"
-            variant="outline"
             onClick={onRemove}
             disabled={removeDisabled}
-            className="h-10 rounded-2xl border-white/10 bg-white/5 px-3 text-white hover:bg-white/10"
+            className="inline-flex h-10 shrink-0 items-center justify-center gap-2 rounded-2xl border border-rose-400/20 bg-rose-500/10 px-3 text-xs font-semibold uppercase tracking-[0.14em] text-rose-100 transition hover:bg-rose-500/15 disabled:cursor-not-allowed disabled:opacity-50"
           >
-            <Trash2 className="mr-2 h-4 w-4" />
+            <Trash2 className="h-3.5 w-3.5" />
             Remove
-          </Button>
+          </button>
         ) : null}
       </div>
 
@@ -352,65 +780,68 @@ function RowCard({
   );
 }
 
-function ModalShell({
-  title,
-  description,
-  onClose,
-  onSave,
-  isSaving,
-  children,
+function AddRowButton({
+  label,
+  onClick,
+  disabled,
 }: {
-  title: string;
-  description: string;
-  onClose: () => void;
-  onSave: () => void;
-  isSaving: boolean;
-  children: React.ReactNode;
+  label: string;
+  onClick: () => void;
+  disabled?: boolean;
 }) {
   return (
-    <div className="fixed inset-0 z-[120] flex items-center justify-center bg-black/70 p-4 backdrop-blur-sm">
-      <div className="flex max-h-[90vh] w-full max-w-5xl flex-col overflow-hidden rounded-[32px] border border-white/10 bg-[linear-gradient(135deg,rgba(15,23,42,0.96),rgba(17,24,39,0.94))] shadow-[0_30px_120px_rgba(0,0,0,0.50)]">
-        <div className="flex items-start justify-between gap-4 border-b border-white/10 px-6 py-5">
-          <div>
-            <div className="text-xl font-semibold text-white">{title}</div>
-            <div className="mt-1 text-sm text-white/50">{description}</div>
+    <button
+      type="button"
+      onClick={onClick}
+      disabled={disabled}
+      className="inline-flex h-10 items-center justify-center gap-2 rounded-2xl border border-cyan-400/20 bg-cyan-500/10 px-4 text-xs font-semibold uppercase tracking-[0.14em] text-cyan-100 transition hover:bg-cyan-500/15 disabled:cursor-not-allowed disabled:opacity-60"
+    >
+      <Plus className="h-3.5 w-3.5" />
+      {label}
+    </button>
+  );
+}
+
+function LoadingState() {
+  return (
+    <div className="min-h-screen bg-[#05070d] px-4 py-4 text-white md:px-6 md:py-6">
+      <div className="mx-auto flex w-full max-w-[1600px] flex-col gap-6">
+        <section className="rounded-[34px] border border-white/10 bg-white/[0.045] p-12 text-center backdrop-blur-xl">
+          <Loader2 className="mx-auto h-8 w-8 animate-spin text-cyan-200" />
+          <div className="mt-4 text-sm font-semibold text-white">
+            Loading company detail
           </div>
-
-          <Button
-            variant="outline"
-            onClick={onClose}
-            className="h-11 rounded-2xl border-white/10 bg-white/5 px-4 text-white hover:bg-white/10"
-          >
-            <X className="mr-2 h-4 w-4" />
-            Close
-          </Button>
-        </div>
-
-        <div className="min-h-0 flex-1 overflow-y-auto px-6 py-5">
-          {children}
-        </div>
-
-        <div className="flex items-center justify-end gap-3 border-t border-white/10 px-6 py-5">
-          <Button
-            variant="outline"
-            onClick={onClose}
-            className="h-11 rounded-2xl border-white/10 bg-white/5 px-4 text-white hover:bg-white/10"
-          >
-            Cancel
-          </Button>
-
-          <Button
-            variant="outline"
-            onClick={onSave}
-            disabled={isSaving}
-            className="h-11 rounded-2xl border-white/10 bg-white/5 px-4 text-white hover:bg-white/10"
-          >
-            <Save className="mr-2 h-4 w-4" />
-            {isSaving ? "Saving..." : "Save Section"}
-          </Button>
-        </div>
+          <p className="mt-2 text-sm leading-6 text-slate-500">
+            Company record and permission state are being checked.
+          </p>
+        </section>
       </div>
     </div>
+  );
+}
+
+function EmptyState({
+  icon: Icon,
+  title,
+  description,
+  action,
+}: {
+  icon: LucideIcon;
+  title: string;
+  description: string;
+  action?: ReactNode;
+}) {
+  return (
+    <section className="rounded-[30px] border border-white/10 bg-white/[0.045] p-10 text-center backdrop-blur-xl">
+      <div className="mx-auto flex h-14 w-14 items-center justify-center rounded-2xl border border-white/10 bg-black/20 text-slate-500">
+        <Icon className="h-6 w-6" />
+      </div>
+      <div className="mt-4 text-lg font-semibold text-white">{title}</div>
+      <p className="mx-auto mt-2 max-w-2xl text-sm leading-6 text-slate-500">
+        {description}
+      </p>
+      {action ? <div className="mt-6">{action}</div> : null}
+    </section>
   );
 }
 
@@ -418,49 +849,305 @@ export default function FinanceMasterDataCompanyDetailPage() {
   const navigate = useNavigate();
   const { id } = useParams<{ id: string }>();
 
+  const [profile, setProfile] = useState<ProfilePermissionRow | null>(null);
+  const [effectivePermissions, setEffectivePermissions] =
+    useState<Record<Permission, boolean> | null>(null);
   const [company, setCompany] = useState<CompanyDetailRecord | null>(null);
   const [personnel, setPersonnel] = useState<PersonnelRow[]>([]);
   const [addresses, setAddresses] = useState<AddressRow[]>([]);
   const [shippingAddresses, setShippingAddresses] = useState<AddressRow[]>([]);
-  const [bankAccounts, setBankAccounts] = useState<any[]>([]);
-
-  const [isLoading, setIsLoading] = useState(true);
-  const [isMutating, setIsMutating] = useState(false);
+  const [bankAccounts, setBankAccounts] = useState<BankAccountRow[]>([]);
+  const [isLoadingProfile, setIsLoadingProfile] = useState(true);
+  const [isLoadingCompany, setIsLoadingCompany] = useState(true);
+  const [isSaving, setIsSaving] = useState(false);
+  const [isLifecycleRunning, setIsLifecycleRunning] = useState(false);
+  const [activeBankActionId, setActiveBankActionId] = useState<string | null>(null);
   const [editingSection, setEditingSection] = useState<EditSection>(null);
+  const [pageError, setPageError] = useState<string | null>(null);
+  const [pageMessage, setPageMessage] = useState<string | null>(null);
 
-  const [basicForm, setBasicForm] = useState<BasicForm>({
-    legal_name: "",
-    display_name: "",
-    contact_person: "",
-    email: "",
-    phone: "",
-    status: "active",
-  });
-
-    const [identityForm, setIdentityForm] = useState<IdentityForm>({
-    currency_code: "USD",
-    registration_number: "",
-    tax_number: "",
-    website: "",
-  });
-
-  const [personnelForm, setPersonnelForm] = useState<PersonnelFormRow[]>([
-    createEmptyPersonnelFormRow(),
+  const [overviewDraft, setOverviewDraft] =
+    useState<OverviewDraft>(EMPTY_OVERVIEW_DRAFT);
+  const [identityDraft, setIdentityDraft] =
+    useState<IdentityDraft>(EMPTY_IDENTITY_DRAFT);
+  const [personnelDraft, setPersonnelDraft] = useState<PersonnelDraftRow[]>([
+    createEmptyPersonnelDraftRow(),
   ]);
-
-  const [addressForm, setAddressForm] = useState<AddressFormRow[]>([
-    createEmptyAddressFormRow(),
+  const [addressDraft, setAddressDraft] = useState<AddressDraftRow[]>([
+    createEmptyAddressDraftRow(),
   ]);
-
-  const [shippingForm, setShippingForm] = useState<ShippingFormRow[]>([
-    createEmptyShippingFormRow(),
+  const [shippingDraft, setShippingDraft] = useState<ShippingDraftRow[]>([
+    createEmptyShippingDraftRow(),
   ]);
+  const [notesDraft, setNotesDraft] = useState("");
 
-  const [notesForm, setNotesForm] = useState("");
-  const [modalError, setModalError] = useState<string | null>(null);
+  const loadCurrentProfile = useCallback(
+    async (mode: "initial" | "silent" = "initial") => {
+      if (mode === "initial") {
+        setIsLoadingProfile(true);
+      }
+
+      try {
+        const authResult = await supabase.auth.getUser();
+        if (authResult.error) throw authResult.error;
+
+        const authUserId = authResult.data.user?.id;
+
+        if (!authUserId) {
+          setProfile(null);
+          setEffectivePermissions(null);
+          return;
+        }
+
+        const profileResult = await supabase
+          .from("profiles")
+          .select("user_id, full_name, role, permissions")
+          .eq("user_id", authUserId)
+          .maybeSingle();
+
+        if (profileResult.error) throw profileResult.error;
+
+        const loadedProfile = (profileResult.data || null) as ProfilePermissionRow | null;
+        const backendPermissions = await loadBackendEffectivePermissions(authUserId);
+
+        setProfile(loadedProfile);
+
+        if (!loadedProfile?.role) {
+          setEffectivePermissions(null);
+          return;
+        }
+
+        const resolvedPermissions = getEffectivePermissions(
+          loadedProfile.role,
+          backendPermissions || loadedProfile.permissions || null
+        );
+
+        setEffectivePermissions(resolvedPermissions);
+      } catch (error) {
+        console.error("Failed to load company ID permissions:", error);
+
+        if (mode === "initial") {
+          setProfile(null);
+          setEffectivePermissions(null);
+        }
+      } finally {
+        if (mode === "initial") {
+          setIsLoadingProfile(false);
+        }
+      }
+    },
+    []
+  );
+
+  const loadCompany = useCallback(
+    async (mode: "initial" | "silent" = "initial") => {
+      if (!id) return;
+
+      if (mode === "initial") {
+        setIsLoadingCompany(true);
+      }
+
+      try {
+        const [companyResult, personnelResult, addressResult, bankResult] =
+          await Promise.all([
+            supabase
+              .from("finance_companies")
+              .select(
+                `
+                  id,
+                  code,
+                  name,
+                  legal_name,
+                  contact_person,
+                  status,
+                  email,
+                  phone,
+                  company_code,
+                  currency_code,
+                  registration_number,
+                  tax_number,
+                  website,
+                  notes,
+                  created_at,
+                  updated_at
+                `
+              )
+              .eq("id", id)
+              .single(),
+            supabase
+              .from("finance_company_personnel")
+              .select(
+                `
+                  id,
+                  full_name,
+                  position,
+                  phone,
+                  email,
+                  sort_order,
+                  is_primary,
+                  status
+                `
+              )
+              .eq("company_id", id)
+              .order("sort_order", { ascending: true }),
+            supabase
+              .from("finance_company_addresses")
+              .select(
+                `
+                  id,
+                  address_type,
+                  country,
+                  city,
+                  state_province,
+                  postal_code,
+                  address_line_1,
+                  address_line_2,
+                  sort_order,
+                  is_primary,
+                  is_same_as_primary,
+                  status
+                `
+              )
+              .eq("company_id", id)
+              .order("address_type", { ascending: true })
+              .order("sort_order", { ascending: true }),
+            supabase
+              .from("finance_bank_accounts")
+              .select(
+                `
+                  id,
+                  bank_id,
+                  bank_name,
+                  beneficiary_name,
+                  account_number,
+                  account_identifier_type,
+                  account_identifier_value,
+                  currency_code,
+                  country,
+                  city,
+                  status,
+                  is_default,
+                  created_at,
+                  updated_at
+                `
+              )
+              .eq("company_id", id)
+              .order("is_default", { ascending: false })
+              .order("created_at", { ascending: false }),
+          ]);
+
+        if (companyResult.error) throw companyResult.error;
+        if (personnelResult.error) throw personnelResult.error;
+        if (addressResult.error) throw addressResult.error;
+        if (bankResult.error) throw bankResult.error;
+
+        const companyData = companyResult.data as CompanyDetailRecord;
+        const personnelData = (personnelResult.data ?? []) as PersonnelRow[];
+        const addressData = (addressResult.data ?? []) as AddressRow[];
+        const bankData = (bankResult.data ?? []) as BankAccountRow[];
+
+        setCompany(companyData);
+        setPersonnel(personnelData);
+        setAddresses(addressData.filter((row) => row.address_type === "primary"));
+        setShippingAddresses(
+          addressData.filter((row) => row.address_type === "shipping")
+        );
+        setBankAccounts(bankData);
+      } catch (error) {
+        console.error("Failed to load finance company details:", error);
+
+        if (mode === "initial") {
+          setCompany(null);
+          setPersonnel([]);
+          setAddresses([]);
+          setShippingAddresses([]);
+          setBankAccounts([]);
+          setPageError(
+            error instanceof Error
+              ? error.message
+              : "Failed to load finance company details."
+          );
+        }
+      } finally {
+        if (mode === "initial") {
+          setIsLoadingCompany(false);
+        }
+      }
+    },
+    [id]
+  );
+
+  useEffect(() => {
+    void Promise.all([
+      loadCurrentProfile("initial"),
+      loadCompany("initial"),
+    ]);
+  }, [loadCompany, loadCurrentProfile]);
+
+  useEffect(() => {
+    const channel = supabase
+      .channel("finance-master-data-company-id-page")
+      .on(
+        "postgres_changes",
+        { event: "*", schema: "public", table: "profiles" },
+        () => void loadCurrentProfile("silent")
+      )
+      .on(
+        "postgres_changes",
+        { event: "*", schema: "public", table: "finance_permission_templates" },
+        () => void loadCurrentProfile("silent")
+      )
+      .on(
+        "postgres_changes",
+        { event: "*", schema: "public", table: "finance_user_permission_templates" },
+        () => void loadCurrentProfile("silent")
+      )
+      .on(
+        "postgres_changes",
+        { event: "*", schema: "public", table: "finance_companies" },
+        () => void loadCompany("silent")
+      )
+      .on(
+        "postgres_changes",
+        { event: "*", schema: "public", table: "finance_company_personnel" },
+        () => void loadCompany("silent")
+      )
+      .on(
+        "postgres_changes",
+        { event: "*", schema: "public", table: "finance_company_addresses" },
+        () => void loadCompany("silent")
+      )
+      .on(
+        "postgres_changes",
+        {
+          event: "*",
+          schema: "public",
+          table: "finance_bank_accounts",
+          filter: id ? `company_id=eq.${id}` : undefined,
+        },
+        () => void loadCompany("silent")
+      )
+      .subscribe();
+
+    const intervalId = window.setInterval(() => {
+      void Promise.all([
+        loadCurrentProfile("silent"),
+        loadCompany("silent"),
+      ]);
+    }, 60000);
+
+    return () => {
+      window.clearInterval(intervalId);
+      supabase.removeChannel(channel);
+    };
+  }, [id, loadCompany, loadCurrentProfile]);
+
+  const permissionState = useMemo(() => {
+    return buildPermissionState(profile, effectivePermissions);
+  }, [effectivePermissions, profile]);
 
   const primaryAddressOptions = useMemo(() => {
-    return addressForm.map((address, index) => ({
+    return addressDraft.map((address, index) => ({
       id: address.id,
       label:
         address.address_line_1.trim() ||
@@ -469,145 +1156,79 @@ export default function FinanceMasterDataCompanyDetailPage() {
         `Address ${index + 1}`,
       value: address,
     }));
-  }, [addressForm]);
+  }, [addressDraft]);
 
-  const loadCompany = useCallback(async () => {
-    if (!id) return;
-
-    setIsLoading(true);
-
-    try {
-      const [companyResult, personnelResult, addressResult] = await Promise.all([
-        supabase
-          .from("finance_companies")
-          .select(
-            `
-              id,
-              code,
-              name,
-              legal_name,
-              contact_person,
-              status,
-              email,
-              phone,
-              company_code,
-              currency_code,
-              registration_number,
-              tax_number,
-              website,
-              notes,
-              created_at,
-              updated_at
-            `
-          )
-          .eq("id", id)
-          .single(),
-        supabase
-          .from("finance_company_personnel")
-          .select(
-            `
-              id,
-              full_name,
-              position,
-              phone,
-              email,
-              sort_order,
-              is_primary,
-              status
-            `
-          )
-          .eq("company_id", id)
-          .order("sort_order", { ascending: true }),
-        supabase
-          .from("finance_company_addresses")
-          .select(
-            `
-              id,
-              address_type,
-              country,
-              city,
-              state_province,
-              postal_code,
-              address_line_1,
-              address_line_2,
-              sort_order,
-              is_primary,
-              is_same_as_primary,
-              status
-            `
-          )
-          .eq("company_id", id)
-          .order("address_type", { ascending: true })
-          .order("sort_order", { ascending: true }),
-      ]);
-
-      if (companyResult.error) throw companyResult.error;
-      if (personnelResult.error) throw personnelResult.error;
-      if (addressResult.error) throw addressResult.error;
-
-      const companyData = companyResult.data as CompanyDetailRecord;
-      const personnelData = (personnelResult.data ?? []) as PersonnelRow[];
-      const addressData = (addressResult.data ?? []) as AddressRow[];
-
-      setCompany(companyData);
-      setPersonnel(personnelData);
-      setAddresses(addressData.filter((row) => row.address_type === "primary"));
-      setShippingAddresses(
-        addressData.filter((row) => row.address_type === "shipping")
-      );
-
-const { data: companyAccounts, error: bankError } = await supabase
-  .from("finance_bank_accounts")
-  .select("*")
-  .eq("company_id", id)
-  .order("created_at", { ascending: false });
-
-if (bankError) throw bankError;
-
-setBankAccounts(companyAccounts || []);
-      
-    } catch (error) {
-      console.error("Failed to load finance company details:", error);
-      setCompany(null);
-      setPersonnel([]);
-      setAddresses([]);
-      setShippingAddresses([]);
-    } finally {
-      setIsLoading(false);
-    }
-  }, [id, supabase]);
-
-  useEffect(() => {
-  void loadCompany();
-
-  if (!id) return;
-
-  const channel = supabase
-    .channel(`finance_bank_accounts_company_${id}`)
-    .on(
-      "postgres_changes",
+  const headerStatusCards = useMemo<HeaderStatusCardData[]>(() => {
+    return [
       {
-        event: "*",
-        schema: "public",
-        table: "finance_bank_accounts",
-        filter: `company_id=eq.${id}`,
+        label: "Read Access",
+        value: isLoadingProfile
+          ? "Checking"
+          : permissionState.canRead
+            ? "Enabled"
+            : "Locked",
+        detail: "Viewing this record requires Finance read access.",
+        icon: permissionState.canRead ? ShieldCheck : LockKeyhole,
+        tone: permissionState.canRead ? "emerald" : "rose",
       },
-      () => {
-        loadCompany();
-      }
-    )
-    .subscribe();
+      {
+        label: "Edit Access",
+        value: permissionState.canUpdate ? "Enabled" : "Read Only",
+        detail: "Section edits require Update access or Master Data admin access.",
+        icon: permissionState.canUpdate ? Pencil : LockKeyhole,
+        tone: permissionState.canUpdate ? "cyan" : "amber",
+      },
+    ];
+  }, [isLoadingProfile, permissionState.canRead, permissionState.canUpdate]);
 
-  return () => {
-    supabase.removeChannel(channel);
-  };
-}, [id]);
+  const summaryCards = useMemo<SummaryCardData[]>(() => {
+    return [
+      {
+        label: "Company",
+        value: getCompanyDisplayName(company),
+        detail: company?.company_code || company?.code || "No company code",
+        icon: Building2,
+        tone: "cyan",
+      },
+      {
+        label: "Contact",
+        value: getCompanyContactLabel(company),
+        detail: `${getCompanyEmailLabel(company)} • ${getCompanyPhoneLabel(company)}`,
+        icon: UserRound,
+        tone: "emerald",
+      },
+      {
+        label: "Currency",
+        value: company?.currency_code || "—",
+        detail: `${personnel.length} personnel row${
+          personnel.length === 1 ? "" : "s"
+        }`,
+        icon: Globe,
+        tone: "violet",
+      },
+      {
+        label: "Bank Accounts",
+        value: `${bankAccounts.length}`,
+        detail:
+          bankAccounts.find((account) => account.is_default)?.bank_name ||
+          "No default bank account",
+        icon: Banknote,
+        tone: "amber",
+      },
+    ];
+  }, [bankAccounts, company, personnel.length]);
 
-  function openBasicEditor() {
-    if (!company) return;
+  function cancelEditing() {
+    setEditingSection(null);
+    setPageError(null);
+  }
 
-    setModalError(null);
-    setBasicForm({
+  function openOverviewEditor() {
+    if (!company || !permissionState.canUpdate) return;
+
+    setPageError(null);
+    setPageMessage(null);
+    setOverviewDraft({
       legal_name: company.legal_name || company.name || "",
       display_name: company.name || "",
       contact_person: company.contact_person || "",
@@ -615,14 +1236,15 @@ setBankAccounts(companyAccounts || []);
       phone: company.phone || "",
       status: company.status,
     });
-    setEditingSection("basic");
+    setEditingSection("overview");
   }
 
   function openIdentityEditor() {
-    if (!company) return;
+    if (!company || !permissionState.canUpdate) return;
 
-    setModalError(null);
-    setIdentityForm({
+    setPageError(null);
+    setPageMessage(null);
+    setIdentityDraft({
       currency_code: company.currency_code || "USD",
       registration_number: company.registration_number || "",
       tax_number: company.tax_number || "",
@@ -632,8 +1254,11 @@ setBankAccounts(companyAccounts || []);
   }
 
   function openPersonnelEditor() {
-    setModalError(null);
-    setPersonnelForm(
+    if (!permissionState.canUpdate) return;
+
+    setPageError(null);
+    setPageMessage(null);
+    setPersonnelDraft(
       personnel.length > 0
         ? personnel.map((row) => ({
             id: row.id,
@@ -642,14 +1267,17 @@ setBankAccounts(companyAccounts || []);
             phone: row.phone || "",
             email: row.email || "",
           }))
-        : [createEmptyPersonnelFormRow()]
+        : [createEmptyPersonnelDraftRow()]
     );
     setEditingSection("personnel");
   }
 
-  function openAddressEditor() {
-    setModalError(null);
-    setAddressForm(
+  function openPrimaryAddressEditor() {
+    if (!permissionState.canUpdate) return;
+
+    setPageError(null);
+    setPageMessage(null);
+    setAddressDraft(
       addresses.length > 0
         ? addresses.map((row) => ({
             id: row.id,
@@ -660,14 +1288,30 @@ setBankAccounts(companyAccounts || []);
             address_line_1: row.address_line_1 || "",
             address_line_2: row.address_line_2 || "",
           }))
-        : [createEmptyAddressFormRow()]
+        : [createEmptyAddressDraftRow()]
     );
-    setEditingSection("address");
+    setEditingSection("primary-addresses");
   }
 
-  function openShippingEditor() {
-    setModalError(null);
-    setShippingForm(
+  function openShippingAddressEditor() {
+    if (!permissionState.canUpdate) return;
+
+    setPageError(null);
+    setPageMessage(null);
+    setAddressDraft(
+      addresses.length > 0
+        ? addresses.map((row) => ({
+            id: row.id,
+            country: row.country || "",
+            city: row.city || "",
+            state_province: row.state_province || "",
+            postal_code: row.postal_code || "",
+            address_line_1: row.address_line_1 || "",
+            address_line_2: row.address_line_2 || "",
+          }))
+        : [createEmptyAddressDraftRow()]
+    );
+    setShippingDraft(
       shippingAddresses.length > 0
         ? shippingAddresses.map((row) => ({
             id: row.id,
@@ -680,51 +1324,79 @@ setBankAccounts(companyAccounts || []);
             address_line_1: row.address_line_1 || "",
             address_line_2: row.address_line_2 || "",
           }))
-        : [createEmptyShippingFormRow()]
+        : [createEmptyShippingDraftRow()]
     );
-    setEditingSection("shipping");
+    setEditingSection("shipping-addresses");
   }
 
   function openNotesEditor() {
-    if (!company) return;
+    if (!company || !permissionState.canUpdate) return;
 
-    setModalError(null);
-    setNotesForm(company.notes || "");
+    setPageError(null);
+    setPageMessage(null);
+    setNotesDraft(company.notes || "");
     setEditingSection("notes");
   }
 
-  function updatePersonnelFormRow(
+  function updateOverviewDraft<K extends keyof OverviewDraft>(
+    key: K,
+    value: OverviewDraft[K]
+  ) {
+    setOverviewDraft((previousDraft) => ({
+      ...previousDraft,
+      [key]: value,
+    }));
+  }
+
+  function updateIdentityDraft<K extends keyof IdentityDraft>(
+    key: K,
+    value: IdentityDraft[K]
+  ) {
+    setIdentityDraft((previousDraft) => ({
+      ...previousDraft,
+      [key]: value,
+    }));
+  }
+
+  function updatePersonnelDraftRow(
     rowId: string,
-    key: keyof PersonnelFormRow,
+    key: keyof PersonnelDraftRow,
     value: string
   ) {
-    setPersonnelForm((prev) =>
-      prev.map((row) => (row.id === rowId ? { ...row, [key]: value } : row))
+    setPersonnelDraft((previousDraft) =>
+      previousDraft.map((row) =>
+        row.id === rowId ? { ...row, [key]: value } : row
+      )
     );
   }
 
-  function addPersonnelFormRow() {
-    setPersonnelForm((prev) => [...prev, createEmptyPersonnelFormRow()]);
+  function addPersonnelDraftRow() {
+    setPersonnelDraft((previousDraft) => [
+      ...previousDraft,
+      createEmptyPersonnelDraftRow(),
+    ]);
   }
 
-  function removePersonnelFormRow(rowId: string) {
-    setPersonnelForm((prev) =>
-      prev.length > 1 ? prev.filter((row) => row.id !== rowId) : prev
+  function removePersonnelDraftRow(rowId: string) {
+    setPersonnelDraft((previousDraft) =>
+      previousDraft.length > 1
+        ? previousDraft.filter((row) => row.id !== rowId)
+        : previousDraft
     );
   }
 
-  function updateAddressFormRow(
+  function updateAddressDraftRow(
     rowId: string,
-    key: keyof AddressFormRow,
+    key: keyof AddressDraftRow,
     value: string
   ) {
-    setAddressForm((prevAddresses) => {
-      const nextAddresses = prevAddresses.map((row) =>
+    setAddressDraft((previousAddressDraft) => {
+      const nextAddresses = previousAddressDraft.map((row) =>
         row.id === rowId ? { ...row, [key]: value } : row
       );
 
-      setShippingForm((prevShipping) =>
-        prevShipping.map((shipping) => {
+      setShippingDraft((previousShippingDraft) =>
+        previousShippingDraft.map((shipping) => {
           if (!shipping.same_as_primary || shipping.source_address_id !== rowId) {
             return shipping;
           }
@@ -748,17 +1420,22 @@ setBankAccounts(companyAccounts || []);
     });
   }
 
-  function addAddressFormRow() {
-    setAddressForm((prev) => [...prev, createEmptyAddressFormRow()]);
+  function addAddressDraftRow() {
+    setAddressDraft((previousDraft) => [
+      ...previousDraft,
+      createEmptyAddressDraftRow(),
+    ]);
   }
 
-  function removeAddressFormRow(rowId: string) {
-    setAddressForm((prev) =>
-      prev.length > 1 ? prev.filter((row) => row.id !== rowId) : prev
+  function removeAddressDraftRow(rowId: string) {
+    setAddressDraft((previousDraft) =>
+      previousDraft.length > 1
+        ? previousDraft.filter((row) => row.id !== rowId)
+        : previousDraft
     );
 
-    setShippingForm((prev) =>
-      prev.map((shipping) =>
+    setShippingDraft((previousDraft) =>
+      previousDraft.map((shipping) =>
         shipping.source_address_id === rowId
           ? {
               ...shipping,
@@ -776,13 +1453,13 @@ setBankAccounts(companyAccounts || []);
     );
   }
 
-  function updateShippingFormRow(
+  function updateShippingDraftRow(
     rowId: string,
-    key: keyof ShippingFormRow,
+    key: keyof ShippingDraftRow,
     value: string | boolean
   ) {
-    setShippingForm((prev) =>
-      prev.map((row) => {
+    setShippingDraft((previousDraft) =>
+      previousDraft.map((row) => {
         if (row.id !== rowId) return row;
 
         if (key === "same_as_primary") {
@@ -802,7 +1479,7 @@ setBankAccounts(companyAccounts || []);
             };
           }
 
-          const source = addressForm.find(
+          const source = addressDraft.find(
             (address) => address.id === row.source_address_id
           );
 
@@ -820,7 +1497,7 @@ setBankAccounts(companyAccounts || []);
 
         if (key === "source_address_id") {
           const sourceAddressId = String(value);
-          const source = addressForm.find(
+          const source = addressDraft.find(
             (address) => address.id === sourceAddressId
           );
 
@@ -837,83 +1514,121 @@ setBankAccounts(companyAccounts || []);
           };
         }
 
-        return { ...row, [key]: value };
+        return {
+          ...row,
+          [key]: value,
+        };
       })
     );
   }
 
-  function addShippingFormRow() {
-    setShippingForm((prev) => [...prev, createEmptyShippingFormRow()]);
+  function addShippingDraftRow() {
+    setShippingDraft((previousDraft) => [
+      ...previousDraft,
+      createEmptyShippingDraftRow(),
+    ]);
   }
 
-  function removeShippingFormRow(rowId: string) {
-    setShippingForm((prev) =>
-      prev.length > 1 ? prev.filter((row) => row.id !== rowId) : prev
+  function removeShippingDraftRow(rowId: string) {
+    setShippingDraft((previousDraft) =>
+      previousDraft.length > 1
+        ? previousDraft.filter((row) => row.id !== rowId)
+        : previousDraft
     );
   }
 
-  async function saveBasicSection() {
-    if (!company) return;
+  async function saveOverviewSection() {
+    if (!company || !permissionState.canUpdate) return;
 
-    const legalName = basicForm.legal_name.trim();
+    const legalName = overviewDraft.legal_name.trim();
+
     if (!legalName) {
-      setModalError("Legal name is required.");
+      setPageError("Legal name is required.");
+      return;
+    }
+
+    const normalizedStatus = normalizeStatus(overviewDraft.status);
+
+    if (
+      normalizedStatus === "archived" &&
+      company.status !== "archived" &&
+      !permissionState.canDeleteArchive
+    ) {
+      setPageError("Delete/Archive access is required to archive this company.");
+      return;
+    }
+
+    if (
+      company.status === "archived" &&
+      normalizedStatus !== "archived" &&
+      !permissionState.canDeleteArchive
+    ) {
+      setPageError("Delete/Archive access is required to restore this company.");
       return;
     }
 
     try {
-      setIsMutating(true);
-      setModalError(null);
+      setIsSaving(true);
+      setPageError(null);
+      setPageMessage(null);
 
       await updateCompany(company.id, {
         legal_name: legalName,
-        name: basicForm.display_name.trim() || legalName,
-        contact_person: basicForm.contact_person.trim() || null,
-        email: basicForm.email.trim() || null,
-        phone: basicForm.phone.trim() || null,
-        status: basicForm.status,
+        name: overviewDraft.display_name.trim() || legalName,
+        contact_person: overviewDraft.contact_person.trim() || null,
+        email: overviewDraft.email.trim() || null,
+        phone: overviewDraft.phone.trim() || null,
+        status: normalizedStatus,
       });
 
       setEditingSection(null);
-      await loadCompany();
+      setPageMessage("Company overview updated.");
+      await loadCompany("silent");
     } catch (error) {
-      console.error("Failed to save basic section:", error);
-      setModalError(error instanceof Error ? error.message : "Failed to save.");
+      console.error("Failed to save company overview:", error);
+      setPageError(
+        error instanceof Error ? error.message : "Failed to save company overview."
+      );
     } finally {
-      setIsMutating(false);
+      setIsSaving(false);
     }
   }
 
   async function saveIdentitySection() {
-    if (!company) return;
+    if (!company || !permissionState.canUpdate) return;
 
     try {
-      setIsMutating(true);
-      setModalError(null);
+      setIsSaving(true);
+      setPageError(null);
+      setPageMessage(null);
 
-    await updateCompany(company.id, {
-        currency_code: identityForm.currency_code || null,
-        registration_number: identityForm.registration_number.trim() || null,
-        tax_number: identityForm.tax_number.trim() || null,
-        website: identityForm.website.trim() || null,
+      await updateCompany(company.id, {
+        currency_code: identityDraft.currency_code || null,
+        registration_number: identityDraft.registration_number.trim() || null,
+        tax_number: identityDraft.tax_number.trim() || null,
+        website: identityDraft.website.trim() || null,
       });
 
       setEditingSection(null);
-      await loadCompany();
+      setPageMessage("Company identity updated.");
+      await loadCompany("silent");
     } catch (error) {
-      console.error("Failed to save identity section:", error);
-      setModalError(error instanceof Error ? error.message : "Failed to save.");
+      console.error("Failed to save company identity:", error);
+      setPageError(
+        error instanceof Error ? error.message : "Failed to save company identity."
+      );
     } finally {
-      setIsMutating(false);
+      setIsSaving(false);
     }
   }
 
   async function savePersonnelSection() {
-    if (!company) return;
+    if (!company || !permissionState.canUpdate) return;
 
     try {
-      setIsMutating(true);
-      setModalError(null);
+      setIsSaving(true);
+      setPageError(null);
+      setPageMessage(null);
 
       const { error: deleteError } = await supabase
         .from("finance_company_personnel")
@@ -922,7 +1637,7 @@ setBankAccounts(companyAccounts || []);
 
       if (deleteError) throw deleteError;
 
-      const payload = personnelForm
+      const payload = personnelDraft
         .map((row, index) => ({
           company_id: company.id,
           full_name: row.full_name.trim() || null,
@@ -946,21 +1661,25 @@ setBankAccounts(companyAccounts || []);
       }
 
       setEditingSection(null);
-      await loadCompany();
+      setPageMessage("Company personnel updated.");
+      await loadCompany("silent");
     } catch (error) {
-      console.error("Failed to save personnel section:", error);
-      setModalError(error instanceof Error ? error.message : "Failed to save.");
+      console.error("Failed to save company personnel:", error);
+      setPageError(
+        error instanceof Error ? error.message : "Failed to save company personnel."
+      );
     } finally {
-      setIsMutating(false);
+      setIsSaving(false);
     }
   }
 
-  async function saveAddressSection() {
-    if (!company) return;
+  async function savePrimaryAddressSection() {
+    if (!company || !permissionState.canUpdate) return;
 
     try {
-      setIsMutating(true);
-      setModalError(null);
+      setIsSaving(true);
+      setPageError(null);
+      setPageMessage(null);
 
       const { error: deleteError } = await supabase
         .from("finance_company_addresses")
@@ -970,7 +1689,7 @@ setBankAccounts(companyAccounts || []);
 
       if (deleteError) throw deleteError;
 
-      const payload = addressForm
+      const payload = addressDraft
         .map((row, index) => ({
           company_id: company.id,
           address_type: "primary" as const,
@@ -1004,30 +1723,34 @@ setBankAccounts(companyAccounts || []);
       }
 
       await updateCompany(company.id, {
-        country: addressForm[0]?.country.trim() || null,
-        city: addressForm[0]?.city.trim() || null,
-        state_province: addressForm[0]?.state_province.trim() || null,
-        postal_code: addressForm[0]?.postal_code.trim() || null,
-        address_line_1: addressForm[0]?.address_line_1.trim() || null,
-        address_line_2: addressForm[0]?.address_line_2.trim() || null,
+        country: addressDraft[0]?.country.trim() || null,
+        city: addressDraft[0]?.city.trim() || null,
+        state_province: addressDraft[0]?.state_province.trim() || null,
+        postal_code: addressDraft[0]?.postal_code.trim() || null,
+        address_line_1: addressDraft[0]?.address_line_1.trim() || null,
+        address_line_2: addressDraft[0]?.address_line_2.trim() || null,
       });
 
       setEditingSection(null);
-      await loadCompany();
+      setPageMessage("Primary addresses updated.");
+      await loadCompany("silent");
     } catch (error) {
-      console.error("Failed to save address section:", error);
-      setModalError(error instanceof Error ? error.message : "Failed to save.");
+      console.error("Failed to save primary addresses:", error);
+      setPageError(
+        error instanceof Error ? error.message : "Failed to save primary addresses."
+      );
     } finally {
-      setIsMutating(false);
+      setIsSaving(false);
     }
   }
 
-  async function saveShippingSection() {
-    if (!company) return;
+  async function saveShippingAddressSection() {
+    if (!company || !permissionState.canUpdate) return;
 
     try {
-      setIsMutating(true);
-      setModalError(null);
+      setIsSaving(true);
+      setPageError(null);
+      setPageMessage(null);
 
       const { error: deleteError } = await supabase
         .from("finance_company_addresses")
@@ -1037,7 +1760,7 @@ setBankAccounts(companyAccounts || []);
 
       if (deleteError) throw deleteError;
 
-      const payload = shippingForm
+      const payload = shippingDraft
         .map((row, index) => ({
           company_id: company.id,
           address_type: "shipping" as const,
@@ -1046,9 +1769,7 @@ setBankAccounts(companyAccounts || []);
           state_province: row.same_as_primary
             ? null
             : row.state_province.trim() || null,
-          postal_code: row.same_as_primary
-            ? null
-            : row.postal_code.trim() || null,
+          postal_code: row.same_as_primary ? null : row.postal_code.trim() || null,
           address_line_1: row.same_as_primary
             ? null
             : row.address_line_1.trim() || null,
@@ -1080,1043 +1801,1321 @@ setBankAccounts(companyAccounts || []);
       }
 
       setEditingSection(null);
-      await loadCompany();
+      setPageMessage("Shipping addresses updated.");
+      await loadCompany("silent");
     } catch (error) {
-      console.error("Failed to save shipping section:", error);
-      setModalError(error instanceof Error ? error.message : "Failed to save.");
+      console.error("Failed to save shipping addresses:", error);
+      setPageError(
+        error instanceof Error ? error.message : "Failed to save shipping addresses."
+      );
     } finally {
-      setIsMutating(false);
+      setIsSaving(false);
     }
   }
 
   async function saveNotesSection() {
-    if (!company) return;
+    if (!company || !permissionState.canUpdate) return;
 
     try {
-      setIsMutating(true);
-      setModalError(null);
+      setIsSaving(true);
+      setPageError(null);
+      setPageMessage(null);
 
       await updateCompany(company.id, {
-        notes: notesForm.trim() || null,
+        notes: notesDraft.trim() || null,
       });
 
       setEditingSection(null);
-      await loadCompany();
+      setPageMessage("Company notes updated.");
+      await loadCompany("silent");
     } catch (error) {
-      console.error("Failed to save notes section:", error);
-      setModalError(error instanceof Error ? error.message : "Failed to save.");
+      console.error("Failed to save company notes:", error);
+      setPageError(
+        error instanceof Error ? error.message : "Failed to save company notes."
+      );
     } finally {
-      setIsMutating(false);
+      setIsSaving(false);
     }
   }
 
   async function handleArchiveToggle() {
-    if (!company) return;
+    if (!company || !permissionState.canDeleteArchive || isLifecycleRunning) return;
 
     try {
-      setIsMutating(true);
+      setIsLifecycleRunning(true);
+      setPageError(null);
+      setPageMessage(null);
 
       if (company.status === "archived") {
         await updateCompany(company.id, { status: "active" });
+        setPageMessage("Company restored.");
       } else {
         await archiveCompany(company.id);
+        setPageMessage("Company archived.");
       }
 
-      await loadCompany();
+      await loadCompany("silent");
     } catch (error) {
-      console.error("Failed to update company status:", error);
+      console.error("Failed to update company lifecycle:", error);
+      setPageError(
+        error instanceof Error
+          ? error.message
+          : "Failed to update company lifecycle."
+      );
     } finally {
-      setIsMutating(false);
+      setIsLifecycleRunning(false);
     }
   }
 
-  if (isLoading) {
-    return (
-      <div className="flex h-full min-h-0 flex-col overflow-hidden">
-        <div className="mx-auto flex h-full w-full max-w-[1920px] min-h-0 flex-col gap-6 px-4 pb-4 pt-2 sm:px-6 xl:px-8">
-          <div className="flex min-h-0 flex-1 items-center justify-center">
-            <div className="text-sm text-white/50">Loading company details...</div>
-          </div>
-        </div>
-      </div>
-    );
+  async function handleSetDefaultBankAccount(accountId: string) {
+    if (!permissionState.canUpdate || activeBankActionId) return;
+
+    try {
+      setActiveBankActionId(accountId);
+      setPageError(null);
+      setPageMessage(null);
+
+      const { error } = await supabase
+        .from("finance_bank_accounts")
+        .update({ is_default: true })
+        .eq("id", accountId);
+
+      if (error) throw error;
+
+      setPageMessage("Default bank account updated.");
+      await loadCompany("silent");
+    } catch (error) {
+      console.error("Failed to set default bank account:", error);
+      setPageError(
+        error instanceof Error
+          ? error.message
+          : "Failed to set default bank account."
+      );
+    } finally {
+      setActiveBankActionId(null);
+    }
+  }
+
+  const isPageLoading = isLoadingProfile || isLoadingCompany;
+
+  if (isPageLoading) {
+    return <LoadingState />;
   }
 
   if (!company) {
     return (
-      <div className="flex h-full min-h-0 flex-col overflow-hidden">
-        <div className="mx-auto flex h-full w-full max-w-[1920px] min-h-0 flex-col gap-6 px-4 pb-4 pt-2 sm:px-6 xl:px-8">
-          <div className="flex min-h-0 flex-1 items-center justify-center">
-            <Card className="w-full max-w-xl overflow-hidden rounded-[28px] border border-white/10 bg-white/[0.045] backdrop-blur-xl">
-              <CardContent className="p-8 text-center">
-                <div className="mx-auto flex h-14 w-14 items-center justify-center rounded-2xl border border-white/10 bg-black/20 text-white/70">
-                  <Building2 className="h-6 w-6" />
-                </div>
-                <div className="mt-4 text-lg font-semibold text-white">
-                  Company not found
-                </div>
-                <div className="mt-2 text-sm text-white/50">
-                  The company record could not be loaded.
-                </div>
-                <div className="mt-6">
-                  <Button
-                    variant="outline"
-                    onClick={() => navigate("/finance/master-data/companies")}
-                    className="h-11 rounded-2xl border-white/10 bg-white/5 px-4 text-white hover:bg-white/10"
-                  >
-                    <ArrowLeft className="mr-2 h-4 w-4" />
-                    Back to Companies
-                  </Button>
-                </div>
-              </CardContent>
-            </Card>
-          </div>
+      <div className="min-h-screen bg-[#05070d] px-4 py-4 text-white md:px-6 md:py-6">
+        <div className="mx-auto flex w-full max-w-[1600px] flex-col gap-6">
+          <EmptyState
+            icon={Building2}
+            title="Company not found"
+            description="The company record could not be loaded or no longer exists."
+            action={
+              <button
+                type="button"
+                onClick={() => navigate("/finance/master-data/companies")}
+                className="inline-flex h-11 items-center justify-center gap-2 rounded-2xl border border-cyan-400/20 bg-cyan-500/10 px-5 text-sm font-semibold text-cyan-100 transition hover:bg-cyan-500/15"
+              >
+                <ArrowRight className="h-4 w-4 rotate-180" />
+                Companies
+              </button>
+            }
+          />
         </div>
       </div>
     );
   }
 
-  const displayName = company.legal_name || company.name;
+  if (!permissionState.canRead) {
+    return (
+      <div className="min-h-screen bg-[#05070d] px-4 py-4 text-white md:px-6 md:py-6">
+        <div className="mx-auto flex w-full max-w-[1600px] flex-col gap-6">
+          <header className="relative overflow-hidden rounded-[34px] border border-white/10 bg-white/[0.045] p-6 shadow-2xl shadow-black/30 backdrop-blur-xl">
+            <div className="pointer-events-none absolute inset-0 bg-[radial-gradient(circle_at_top_left,rgba(6,182,212,0.16),transparent_38%),radial-gradient(circle_at_top_right,rgba(139,92,246,0.12),transparent_34%)]" />
 
-  return (
-    <>
-      <div className="flex h-full min-h-0 flex-col overflow-hidden">
-        <div className="mx-auto flex h-full w-full max-w-[1920px] min-h-0 flex-col gap-6 px-4 pb-4 pt-2 sm:px-6 xl:px-8">
-          <section className="relative z-10 flex-shrink-0 overflow-hidden rounded-[30px] border border-white/10 bg-[linear-gradient(135deg,rgba(34,211,238,0.08),rgba(139,92,246,0.08),rgba(255,255,255,0.03))] backdrop-blur-xl">
-            <div className="pointer-events-none absolute inset-0 bg-[radial-gradient(circle_at_top_left,rgba(34,211,238,0.18),transparent_28%),radial-gradient(circle_at_top_right,rgba(139,92,246,0.14),transparent_26%),radial-gradient(circle_at_bottom_left,rgba(16,185,129,0.14),transparent_24%)]" />
+            <div className="relative">
+              <button
+                type="button"
+                onClick={() => navigate("/finance/master-data/companies")}
+                className="mb-5 inline-flex items-center justify-center gap-2 rounded-full border border-white/10 bg-white/[0.05] px-5 py-2 text-[11px] font-semibold uppercase tracking-[0.22em] text-slate-300 transition hover:border-white/20 hover:bg-white/[0.08] hover:text-white"
+              >
+                <ArrowRight className="h-3.5 w-3.5 rotate-180" />
+                Companies
+              </button>
 
-            <div className="relative flex items-center justify-between gap-4 px-5 py-5 sm:px-6 xl:px-7">
-              <div className="min-w-0">
-                <div className="flex flex-wrap items-center gap-2">
-                  <Badge className="rounded-full border border-cyan-400/20 bg-cyan-500/10 px-3 py-1 text-[11px] uppercase tracking-[0.22em] text-cyan-200 shadow-none">
-                    Master Data
-                  </Badge>
-                    <Badge className="rounded-full border border-white/10 bg-white/8 px-3 py-1 text-[11px] text-white/70 shadow-none">
-                    {company.code || "No code"}
-                  </Badge>
-                  <Badge
-                    className={`rounded-full px-3 py-1 text-[11px] shadow-none ${getStatusTone(
-                      company.status
-                    )}`}
-                  >
-                    {company.status}
-                  </Badge>
-                </div>
-
-                <h1 className="mt-3 text-2xl font-semibold tracking-tight text-white sm:text-3xl">
-                  {displayName}
-                </h1>
-
-                <div className="mt-2 text-sm text-white/50">
-                  Company record with structured section editing.
-                </div>
+              <div className="inline-flex w-fit items-center gap-2 rounded-full border border-rose-400/20 bg-rose-500/10 px-3 py-1 text-[11px] font-semibold uppercase tracking-[0.22em] text-rose-200">
+                <LockKeyhole className="h-3.5 w-3.5" />
+                Access Locked
               </div>
 
-              <div className="flex shrink-0 flex-wrap items-center gap-3">
-                <Button
-                  variant="outline"
-                  onClick={() => navigate("/finance/master-data/companies")}
-                  className="h-11 rounded-2xl border-white/10 bg-white/5 px-4 text-white hover:bg-white/10"
-                >
-                  <ArrowLeft className="mr-2 h-4 w-4" />
-                  Back
-                </Button>
+              <h1 className="mt-4 text-3xl font-semibold tracking-[-0.035em] text-white md:text-5xl">
+                Company Access Locked
+              </h1>
 
-                <Button
-                  variant="outline"
-                  onClick={() => void handleArchiveToggle()}
-                  disabled={isMutating}
-                  className="h-11 rounded-2xl border-white/10 bg-white/5 px-4 text-white hover:bg-white/10"
-                >
-                  <ShieldCheck className="mr-2 h-4 w-4" />
-                  {isMutating
-                    ? "Updating..."
-                    : company.status === "archived"
-                    ? "Activate"
-                    : "Archive"}
-                </Button>
-
-                <Button
-                  variant="outline"
-                  onClick={() => void loadCompany()}
-                  className="h-11 rounded-2xl border-white/10 bg-white/5 px-4 text-white hover:bg-white/10"
-                >
-                  <RefreshCw className="mr-2 h-4 w-4" />
-                  Refresh
-                </Button>
-              </div>
+              <p className="mt-3 max-w-4xl text-sm leading-6 text-slate-400 md:text-base md:leading-7">
+                This page requires Finance read access or Master Data admin access.
+              </p>
             </div>
-          </section>
+          </header>
 
-          <div className="flex min-h-0 flex-1 flex-col gap-6 overflow-y-auto overflow-x-hidden pr-1 pb-2">
-            <div className="grid grid-cols-1 gap-6 xl:grid-cols-2">
-              <SectionCard
-                title="Section 1 — Basic"
-                description="Legal identity and primary contact."
-                onEdit={openBasicEditor}
-              >
-                <div className="grid grid-cols-1 gap-3 md:grid-cols-2">
-                  <DisplayRow label="Legal Name" value={displayName} />
-                  <DisplayRow label="Display Name" value={company.name || "—"} />
-                  <DisplayRow
-                    label="Contact Person"
-                    value={company.contact_person || "—"}
-                  />
-                  <DisplayRow label="Email" value={company.email || "—"} />
-                  <DisplayRow label="Phone" value={company.phone || "—"} />
-                  <DisplayRow label="Status" value={company.status || "—"} />
-                </div>
-              </SectionCard>
-
-              <SectionCard
-                title="Section 2 — Company Identity"
-                description="Internal legal and finance identity fields."
-                onEdit={openIdentityEditor}
-              >
-                <div className="grid grid-cols-1 gap-3 md:grid-cols-2">
-                  <DisplayRow
-                    label="Company Code"
-                    value={company.company_code || "—"}
-                  />
-                  <DisplayRow
-                    label="Currency Code"
-                    value={company.currency_code || "—"}
-                  />
-                  <DisplayRow
-                    label="Registration Number"
-                    value={company.registration_number || "—"}
-                  />
-                  <DisplayRow
-                    label="Tax Number"
-                    value={company.tax_number || "—"}
-                  />
-                  <DisplayRow
-                    label="Website"
-                    value={company.website || "—"}
-                  />
-                  <DisplayRow
-                    label="Created At"
-                    value={formatDateTimeLabel(company.created_at)}
-                  />
-                </div>
-              </SectionCard>
-
-              <SectionCard
-                title="Section 3 — Personnel"
-                description="Related people for this company."
-                onEdit={openPersonnelEditor}
-              >
-                <div className="flex flex-col gap-3">
-                  {personnel.length === 0 ? (
-                    <div className="rounded-[18px] border border-white/8 bg-black/15 px-4 py-3 text-sm text-white/60">
-                      No personnel added yet.
-                    </div>
-                  ) : (
-                    personnel.map((row, index) => (
-                      <div
-                        key={row.id}
-                        className="rounded-[18px] border border-white/8 bg-black/15 p-4"
-                      >
-                        <div className="mb-3 text-sm font-medium text-white/80">
-                          Person {index + 1}
-                        </div>
-
-                        <div className="grid grid-cols-1 gap-3 md:grid-cols-2">
-                          <DisplayRow label="Name" value={row.full_name || "—"} />
-                          <DisplayRow
-                            label="Position"
-                            value={row.position || "—"}
-                          />
-                          <DisplayRow label="Phone" value={row.phone || "—"} />
-                          <DisplayRow label="Email" value={row.email || "—"} />
-                        </div>
-                      </div>
-                    ))
-                  )}
-                </div>
-              </SectionCard>
-
-              <SectionCard
-                title="Section 4 — Address"
-                description="Primary addresses."
-                onEdit={openAddressEditor}
-              >
-                <div className="flex flex-col gap-3">
-                  {addresses.length === 0 ? (
-                    <div className="rounded-[18px] border border-white/8 bg-black/15 px-4 py-3 text-sm text-white/60">
-                      No primary addresses added yet.
-                    </div>
-                  ) : (
-                    addresses.map((row, index) => (
-  <div
-    key={row.id}
-    className="rounded-[18px] border border-white/8 bg-black/15 p-4"
-  >
-                        <div className="mb-3 text-sm font-medium text-white/80">
-                          Address {index + 1}
-                        </div>
-
-                        <div className="grid grid-cols-1 gap-3 md:grid-cols-2">
-                          <DisplayRow label="Country" value={row.country || "—"} />
-                          <DisplayRow label="City" value={row.city || "—"} />
-                          <DisplayRow
-                            label="State / Province"
-                            value={row.state_province || "—"}
-                          />
-                          <DisplayRow
-                            label="ZIP / Postal Code"
-                            value={row.postal_code || "—"}
-                          />
-                          <DisplayRow
-                            label="Address Line 1"
-                            value={row.address_line_1 || "—"}
-                          />
-                          <DisplayRow
-                            label="Address Line 2"
-                            value={row.address_line_2 || "—"}
-                          />
-                        </div>
-                      </div>
-                    ))
-                  )}
-                </div>
-              </SectionCard>
-
-              <SectionCard
-                title="Section 5 — Shipping"
-                description="Shipping addresses."
-                onEdit={openShippingEditor}
-              >
-                <div className="flex flex-col gap-3">
-                  {shippingAddresses.length === 0 ? (
-                    <div className="rounded-[18px] border border-white/8 bg-black/15 px-4 py-3 text-sm text-white/60">
-                      No shipping addresses added yet.
-                    </div>
-                  ) : (
-                    shippingAddresses.map((row, index) => (
-                      <div
-                        key={row.id}
-                        className="rounded-[18px] border border-white/8 bg-black/15 p-4"
-                      >
-                        <div className="mb-3 text-sm font-medium text-white/80">
-                          Shipping {index + 1}
-                        </div>
-
-                        {row.is_same_as_primary ? (
-                          <div className="rounded-[16px] border border-white/8 bg-white/5 px-4 py-3 text-sm text-white/70">
-                            Same as primary address
-                          </div>
-                        ) : (
-                          <div className="grid grid-cols-1 gap-3 md:grid-cols-2">
-                            <DisplayRow label="Country" value={row.country || "—"} />
-                            <DisplayRow label="City" value={row.city || "—"} />
-                            <DisplayRow
-                              label="State / Province"
-                              value={row.state_province || "—"}
-                            />
-                            <DisplayRow
-                              label="ZIP / Postal Code"
-                              value={row.postal_code || "—"}
-                            />
-                            <DisplayRow
-                              label="Address Line 1"
-                              value={row.address_line_1 || "—"}
-                            />
-                            <DisplayRow
-                              label="Address Line 2"
-                              value={row.address_line_2 || "—"}
-                            />
-                          </div>
-                        )}
-                      </div>
-                    ))
-                  )}
-                </div>
-              </SectionCard>
-
-              <SectionCard
-                title="Section 6 — Notes"
-                description="Internal notes for this company record."
-                onEdit={openNotesEditor}
-                fullWidth
-              >
-                
-                <div className="rounded-[20px] border border-white/8 bg-black/15 px-4 py-4 text-sm leading-7 text-white/70">
-                  {company.notes || "No notes added yet."}
-                </div>
-             </SectionCard>
-
-<SectionCard
-  title="Section 7 — Bank Accounts"
-  description="Company bank accounts"
-  fullWidth
-  actions={
-    <Button
-      variant="outline"
-      onClick={() =>
-        navigate(`/finance/master-data/bank-accounts/new?company_id=${id}`)
-      }
-      className="h-10 rounded-2xl border-white/10 bg-white/5 px-3 text-white hover:bg-white/10"
-    >
-      <Plus className="mr-2 h-4 w-4" />
-      Add Bank Account
-    </Button>
-  }
->
-  <div className="flex flex-col gap-3">
-    {bankAccounts.length === 0 ? (
-      <div className="rounded-[18px] border border-white/8 bg-black/15 px-4 py-3 text-sm text-white/60">
-        No bank accounts yet.
-      </div>
-    ) : (
-      [...bankAccounts]
-        .sort((a, b) => Number(b.is_default) - Number(a.is_default))
-        .map((acc, index) => (
-          <div
-            key={acc.id}
-            className={`rounded-[18px] border p-4 ${
-              acc.is_default
-                ? "border-emerald-400/30 bg-emerald-500/5"
-                : "border-white/8 bg-black/15"
-            }`}
-          >
-            <div className="mb-2 text-sm font-medium text-white/80">
-              Account {index + 1}
-            </div>
-
-            <div className="flex items-center justify-between gap-4">
-              <div>
-                <div className="text-white">{acc.bank_name || "—"}</div>
-
-                <div className="text-white/50 text-sm">
-                  {acc.currency_code || "—"} • {acc.city || "—"} • {acc.country || "—"}
-                </div>
-
-                <div className="mt-2 flex gap-2">
-                  <Badge>{acc.bank_id}</Badge>
-
-                  {acc.is_default ? (
-                    <Badge className="bg-emerald-500/20 text-emerald-200">
-                      Default
-                    </Badge>
-                  ) : null}
-                </div>
-              </div>
-
-              <div className="flex gap-2">
-                {!acc.is_default ? (
-                  <Button
-                    variant="outline"
-                    onClick={async () => {
-                      const { error } = await supabase
-                        .from("finance_bank_accounts")
-                        .update({ is_default: true })
-                        .eq("id", acc.id);
-
-                      if (error) {
-                        console.error("Failed to set default bank account:", error);
-                        return;
-                      }
-
-                      await loadCompany();
-                    }}
-                    className="h-10 rounded-2xl border-emerald-400/20 bg-emerald-500/10 px-3 text-emerald-200 hover:bg-emerald-500/20"
-                  >
-                    Set Default
-                  </Button>
-                ) : null}
-
-                <Button
-                  variant="outline"
-                  onClick={() =>
-                    navigate(`/finance/master-data/bank-accounts/${acc.id}`)
-                  }
-                  className="h-10 rounded-2xl border-white/10 bg-white/5 px-3 text-white hover:bg-white/10"
-                >
-                  Open
-                </Button>
-              </div>
-            </div>
-          </div>
-        ))
-    )}
-  </div>
-</SectionCard>
-            </div>
-          </div>
+          <EmptyState
+            icon={LockKeyhole}
+            title="No company read access"
+            description="Ask an Admin to assign a Finance role template or user-specific exception with Finance read access."
+          />
         </div>
       </div>
+    );
+  }
 
-      {editingSection === "basic" && (
-        <ModalShell
-          title="Edit Section 1 — Basic"
-          description="Update legal identity and primary contact."
-          onClose={() => setEditingSection(null)}
-          onSave={() => void saveBasicSection()}
-          isSaving={isMutating}
-        >
-          <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
-            <div className="md:col-span-2">
-              <FieldLabel label="Legal Name" required />
-              <InputField
-                value={basicForm.legal_name}
-                onChange={(e) =>
-                  setBasicForm((prev) => ({
-                    ...prev,
-                    legal_name: e.target.value,
-                  }))
-                }
-              />
-            </div>
+  return (
+    <div className="min-h-screen bg-[#05070d] px-4 py-4 text-white md:px-6 md:py-6">
+      <div className="mx-auto flex w-full max-w-[1600px] flex-col gap-6">
+        <header className="relative overflow-hidden rounded-[34px] border border-white/10 bg-white/[0.045] p-6 shadow-2xl shadow-black/30 backdrop-blur-xl">
+          <div className="pointer-events-none absolute inset-0 bg-[radial-gradient(circle_at_top_left,rgba(6,182,212,0.16),transparent_38%),radial-gradient(circle_at_top_right,rgba(139,92,246,0.12),transparent_34%)]" />
 
-            <div className="md:col-span-2">
-              <FieldLabel label="Display Name" />
-              <InputField
-                value={basicForm.display_name}
-                onChange={(e) =>
-                  setBasicForm((prev) => ({
-                    ...prev,
-                    display_name: e.target.value,
-                  }))
-                }
-              />
-            </div>
-
+          <div className="relative grid gap-6 xl:grid-cols-[minmax(0,1fr)_520px] xl:items-end">
             <div>
-              <FieldLabel label="Contact Person" />
-              <InputField
-                value={basicForm.contact_person}
-                onChange={(e) =>
-                  setBasicForm((prev) => ({
-                    ...prev,
-                    contact_person: e.target.value,
-                  }))
-                }
-              />
-            </div>
-
-            <div>
-              <FieldLabel label="Email" />
-              <InputField
-                value={basicForm.email}
-                onChange={(e) =>
-                  setBasicForm((prev) => ({
-                    ...prev,
-                    email: e.target.value,
-                  }))
-                }
-              />
-            </div>
-
-            <div>
-              <FieldLabel label="Phone" />
-              <InputField
-                value={basicForm.phone}
-                onChange={(e) =>
-                  setBasicForm((prev) => ({
-                    ...prev,
-                    phone: e.target.value,
-                  }))
-                }
-              />
-            </div>
-
-            <div>
-              <FieldLabel label="Status" />
-              <SelectField
-                value={basicForm.status}
-                onChange={(e) =>
-                  setBasicForm((prev) => ({
-                    ...prev,
-                    status: e.target.value as BasicForm["status"],
-                  }))
-                }
+              <button
+                type="button"
+                onClick={() => navigate("/finance/master-data/companies")}
+                className="mb-5 inline-flex items-center justify-center gap-2 rounded-full border border-white/10 bg-white/[0.05] px-5 py-2 text-[11px] font-semibold uppercase tracking-[0.22em] text-slate-300 transition hover:border-white/20 hover:bg-white/[0.08] hover:text-white"
               >
-                <option value="active">Active</option>
-                <option value="inactive">Inactive</option>
-                <option value="archived">Archived</option>
-              </SelectField>
-            </div>
-          </div>
+                <ArrowRight className="h-3.5 w-3.5 rotate-180" />
+                Companies
+              </button>
 
-          {modalError && (
-            <div className="mt-4 text-sm text-rose-300">{modalError}</div>
-          )}
-        </ModalShell>
-      )}
+              <div className="inline-flex w-fit items-center gap-2 rounded-full border border-cyan-400/20 bg-cyan-500/10 px-3 py-1 text-[11px] font-semibold uppercase tracking-[0.22em] text-cyan-200">
+                <Sparkles className="h-3.5 w-3.5" />
+                Company Detail
+              </div>
 
-            {editingSection === "identity" && (
-        <ModalShell
-          title="Edit Section 2 — Company Identity"
-          description="Update internal legal and finance identity fields."
-          onClose={() => setEditingSection(null)}
-          onSave={() => void saveIdentitySection()}
-          isSaving={isMutating}
-        >
-          <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
-            <div>
-              <FieldLabel label="Company Code" />
-              <div className="flex h-11 items-center rounded-2xl border border-white/10 bg-white/5 px-4 text-sm text-white/55">
-                {company.company_code || "Auto-generated by system"}
+              <h1 className="mt-4 text-3xl font-semibold tracking-[-0.035em] text-white md:text-5xl">
+                {getCompanyDisplayName(company)}
+              </h1>
+
+              <p className="mt-3 max-w-4xl text-sm leading-6 text-slate-400 md:text-base md:leading-7">
+                Internal company record with same-place section editing, company
+                identity, personnel, primary addresses, shipping addresses, bank
+                accounts, notes, and lifecycle control.
+              </p>
+
+              <div className="mt-5 flex flex-wrap gap-2">
+                <span className="rounded-full border border-white/10 bg-white/[0.05] px-3 py-1 text-[11px] font-semibold uppercase tracking-[0.16em] text-slate-300">
+                  {company.company_code || company.code || "No Company Code"}
+                </span>
+
+                <span className="rounded-full border border-white/10 bg-white/[0.05] px-3 py-1 text-[11px] font-semibold uppercase tracking-[0.16em] text-slate-300">
+                  {company.currency_code || "No Currency"}
+                </span>
+
+                <StatusBadge status={company.status} />
               </div>
             </div>
 
-            <div>
-              <FieldLabel label="Currency Code" />
-              <SelectField
-                value={identityForm.currency_code}
-                onChange={(e) =>
-                  setIdentityForm((prev) => ({
-                    ...prev,
-                    currency_code: e.target.value,
-                  }))
-                }
-              >
-                <option value="USD">USD</option>
-                <option value="EUR">EUR</option>
-                <option value="GBP">GBP</option>
-                <option value="CNY">CNY</option>
-                <option value="ILS">ILS</option>
-                <option value="JPY">JPY</option>
-                <option value="CAD">CAD</option>
-                <option value="AUD">AUD</option>
-              </SelectField>
-            </div>
-
-            <div>
-              <FieldLabel label="Registration Number" />
-              <InputField
-                value={identityForm.registration_number}
-                onChange={(e) =>
-                  setIdentityForm((prev) => ({
-                    ...prev,
-                    registration_number: e.target.value,
-                  }))
-                }
-              />
-            </div>
-
-            <div>
-              <FieldLabel label="Tax Number" />
-              <InputField
-                value={identityForm.tax_number}
-                onChange={(e) =>
-                  setIdentityForm((prev) => ({
-                    ...prev,
-                    tax_number: e.target.value,
-                  }))
-                }
-              />
-            </div>
-
-            <div className="md:col-span-2">
-              <FieldLabel label="Website" />
-              <InputField
-                value={identityForm.website}
-                onChange={(e) =>
-                  setIdentityForm((prev) => ({
-                    ...prev,
-                    website: e.target.value,
-                  }))
-                }
-              />
+            <div className="grid gap-3 sm:grid-cols-2">
+              {headerStatusCards.map((item) => (
+                <HeaderStatusCard key={item.label} item={item} />
+              ))}
             </div>
           </div>
+        </header>
 
-          {modalError && (
-            <div className="mt-4 text-sm text-rose-300">{modalError}</div>
-          )}
-        </ModalShell>
-      )}
-
-      {editingSection === "personnel" && (
-        <ModalShell
-          title="Edit Section 3 — Personnel"
-          description="Manage related people for this company."
-          onClose={() => setEditingSection(null)}
-          onSave={() => void savePersonnelSection()}
-          isSaving={isMutating}
-        >
-          <div className="flex flex-col gap-4">
-            <div className="flex justify-end">
-              <Button
-                type="button"
-                variant="outline"
-                onClick={addPersonnelFormRow}
-                className="h-10 rounded-2xl border-white/10 bg-white/5 px-3 text-white hover:bg-white/10"
-              >
-                <Plus className="mr-2 h-4 w-4" />
-                Add Person
-              </Button>
+        {pageError ? (
+          <div className="rounded-[24px] border border-rose-400/20 bg-rose-500/10 p-4 text-sm leading-6 text-rose-100">
+            <div className="flex items-start gap-3">
+              <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0" />
+              <div>{pageError}</div>
             </div>
+          </div>
+        ) : null}
 
-            {personnelForm.map((row, index) => (
-              <RowCard
-                key={row.id}
-                title={`Person ${index + 1}`}
-                onRemove={() => removePersonnelFormRow(row.id)}
-                removeDisabled={personnelForm.length === 1}
-              >
-                <div className="grid grid-cols-1 gap-3 md:grid-cols-2">
-                  <div>
-                    <FieldLabel label="Name" />
+        {pageMessage ? (
+          <div className="rounded-[24px] border border-emerald-400/20 bg-emerald-500/10 p-4 text-sm leading-6 text-emerald-100">
+            <div className="flex items-start gap-3">
+              <CheckCircle2 className="mt-0.5 h-4 w-4 shrink-0" />
+              <div>{pageMessage}</div>
+            </div>
+          </div>
+        ) : null}
+
+        <section className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
+          {summaryCards.map((item) => (
+            <SummaryCard key={item.label} item={item} />
+          ))}
+        </section>
+
+        <section className="grid items-start gap-6 xl:grid-cols-[minmax(0,1fr)_420px]">
+          <div className="grid gap-6">
+            <DetailSection
+              title="Company Overview"
+              description="Legal identity, display name, primary contact, communication, and lifecycle status."
+              icon={Building2}
+              isEditing={editingSection === "overview"}
+              canEdit={permissionState.canUpdate}
+              onEdit={openOverviewEditor}
+              onCancel={cancelEditing}
+              onSave={() => void saveOverviewSection()}
+              isSaving={isSaving}
+            >
+              {editingSection === "overview" ? (
+                <div className="grid gap-4 md:grid-cols-2">
+                  <div className="md:col-span-2">
+                    <FieldLabel label="Legal Name" required />
                     <InputField
-                      value={row.full_name}
-                      onChange={(e) =>
-                        updatePersonnelFormRow(
-                          row.id,
-                          "full_name",
-                          e.target.value
-                        )
+                      value={overviewDraft.legal_name}
+                      disabled={isSaving}
+                      onChange={(event) =>
+                        updateOverviewDraft("legal_name", event.target.value)
                       }
+                      placeholder="Legal company name"
+                    />
+                  </div>
+
+                  <div className="md:col-span-2">
+                    <FieldLabel label="Display Name" />
+                    <InputField
+                      value={overviewDraft.display_name}
+                      disabled={isSaving}
+                      onChange={(event) =>
+                        updateOverviewDraft("display_name", event.target.value)
+                      }
+                      placeholder="Display name"
                     />
                   </div>
 
                   <div>
-                    <FieldLabel label="Position" />
+                    <FieldLabel label="Primary Contact" />
                     <InputField
-                      value={row.position}
-                      onChange={(e) =>
-                        updatePersonnelFormRow(
-                          row.id,
-                          "position",
-                          e.target.value
-                        )
+                      value={overviewDraft.contact_person}
+                      disabled={isSaving}
+                      onChange={(event) =>
+                        updateOverviewDraft("contact_person", event.target.value)
                       }
-                    />
-                  </div>
-
-                  <div>
-                    <FieldLabel label="Phone" />
-                    <InputField
-                      value={row.phone}
-                      onChange={(e) =>
-                        updatePersonnelFormRow(row.id, "phone", e.target.value)
-                      }
+                      placeholder="Primary contact"
                     />
                   </div>
 
                   <div>
                     <FieldLabel label="Email" />
                     <InputField
-                      value={row.email}
-                      onChange={(e) =>
-                        updatePersonnelFormRow(row.id, "email", e.target.value)
+                      type="email"
+                      value={overviewDraft.email}
+                      disabled={isSaving}
+                      onChange={(event) =>
+                        updateOverviewDraft("email", event.target.value)
                       }
-                    />
-                  </div>
-                </div>
-              </RowCard>
-            ))}
-
-            {modalError && (
-              <div className="text-sm text-rose-300">{modalError}</div>
-            )}
-          </div>
-        </ModalShell>
-      )}
-
-      {editingSection === "address" && (
-        <ModalShell
-          title="Edit Section 4 — Address"
-          description="Manage primary addresses."
-          onClose={() => setEditingSection(null)}
-          onSave={() => void saveAddressSection()}
-          isSaving={isMutating}
-        >
-          <div className="flex flex-col gap-4">
-            <div className="flex justify-end">
-              <Button
-                type="button"
-                variant="outline"
-                onClick={addAddressFormRow}
-                className="h-10 rounded-2xl border-white/10 bg-white/5 px-3 text-white hover:bg-white/10"
-              >
-                <Plus className="mr-2 h-4 w-4" />
-                Add Address
-              </Button>
-            </div>
-
-            {addressForm.map((row, index) => (
-              <RowCard
-                key={row.id}
-                title={`Address ${index + 1}`}
-                onRemove={() => removeAddressFormRow(row.id)}
-                removeDisabled={addressForm.length === 1}
-              >
-                <div className="grid grid-cols-1 gap-3 md:grid-cols-2">
-                  <div>
-                    <FieldLabel label="Country" />
-                    <InputField
-                      value={row.country}
-                      onChange={(e) =>
-                        updateAddressFormRow(row.id, "country", e.target.value)
-                      }
+                      placeholder="company@email.com"
                     />
                   </div>
 
                   <div>
-                    <FieldLabel label="City" />
+                    <FieldLabel label="Phone" />
                     <InputField
-                      value={row.city}
-                      onChange={(e) =>
-                        updateAddressFormRow(row.id, "city", e.target.value)
+                      value={overviewDraft.phone}
+                      disabled={isSaving}
+                      onChange={(event) =>
+                        updateOverviewDraft("phone", event.target.value)
                       }
+                      placeholder="Company phone"
                     />
                   </div>
 
                   <div>
-                    <FieldLabel label="State / Province" />
-                    <InputField
-                      value={row.state_province}
-                      onChange={(e) =>
-                        updateAddressFormRow(
-                          row.id,
-                          "state_province",
-                          e.target.value
-                        )
-                      }
-                    />
-                  </div>
-
-                  <div>
-                    <FieldLabel label="ZIP / Postal Code" />
-                    <InputField
-                      value={row.postal_code}
-                      onChange={(e) =>
-                        updateAddressFormRow(
-                          row.id,
-                          "postal_code",
-                          e.target.value
-                        )
-                      }
-                    />
-                  </div>
-
-                  <div className="md:col-span-2">
-                    <FieldLabel label="Address Line 1" />
-                    <InputField
-                      value={row.address_line_1}
-                      onChange={(e) =>
-                        updateAddressFormRow(
-                          row.id,
-                          "address_line_1",
-                          e.target.value
-                        )
-                      }
-                    />
-                  </div>
-
-                  <div className="md:col-span-2">
-                    <FieldLabel label="Address Line 2" />
-                    <InputField
-                      value={row.address_line_2}
-                      onChange={(e) =>
-                        updateAddressFormRow(
-                          row.id,
-                          "address_line_2",
-                          e.target.value
-                        )
-                      }
-                    />
-                  </div>
-                </div>
-              </RowCard>
-            ))}
-
-            {modalError && (
-              <div className="text-sm text-rose-300">{modalError}</div>
-            )}
-          </div>
-        </ModalShell>
-      )}
-
-      {editingSection === "shipping" && (
-        <ModalShell
-          title="Edit Section 5 — Shipping"
-          description="Manage shipping addresses."
-          onClose={() => setEditingSection(null)}
-          onSave={() => void saveShippingSection()}
-          isSaving={isMutating}
-        >
-          <div className="flex flex-col gap-4">
-            <div className="flex justify-end">
-              <Button
-                type="button"
-                variant="outline"
-                onClick={addShippingFormRow}
-                className="h-10 rounded-2xl border-white/10 bg-white/5 px-3 text-white hover:bg-white/10"
-              >
-                <Plus className="mr-2 h-4 w-4" />
-                Add Shipping
-              </Button>
-            </div>
-
-            {shippingForm.map((row, index) => (
-              <RowCard
-                key={row.id}
-                title={`Shipping ${index + 1}`}
-                onRemove={() => removeShippingFormRow(row.id)}
-                removeDisabled={shippingForm.length === 1}
-              >
-                <div className="flex flex-col gap-3">
-                  <label className="flex items-center gap-2 text-sm text-white/70">
-                    <input
-                      type="checkbox"
-                      checked={row.same_as_primary}
-                      onChange={(e) =>
-                        updateShippingFormRow(
-                          row.id,
-                          "same_as_primary",
-                          e.target.checked
-                        )
-                      }
-                    />
-                    Same as primary address
-                  </label>
-
-                  {row.same_as_primary && (
+                    <FieldLabel label="Status" />
                     <SelectField
-                      value={row.source_address_id}
-                      onChange={(e) =>
-                        updateShippingFormRow(
-                          row.id,
-                          "source_address_id",
-                          e.target.value
-                        )
+                      value={overviewDraft.status}
+                      disabled={isSaving}
+                      onChange={(event) =>
+                        updateOverviewDraft("status", normalizeStatus(event.target.value))
                       }
                     >
-                      <option value="">Select address</option>
-                      {primaryAddressOptions.map((opt) => (
-                        <option key={opt.id} value={opt.id}>
-                          {opt.label}
+                      <option value="active" className="bg-[#05070d]">
+                        Active
+                      </option>
+                      <option value="inactive" className="bg-[#05070d]">
+                        Inactive
+                      </option>
+                      <option value="archived" className="bg-[#05070d]">
+                        Archived
+                      </option>
+                    </SelectField>
+                  </div>
+                </div>
+              ) : (
+                <div className="grid gap-3 md:grid-cols-2">
+                  <DisplayBlock label="Legal Name" value={getCompanyDisplayName(company)} />
+                  <DisplayBlock label="Display Name" value={company.name || "—"} />
+                  <DisplayBlock
+                    label="Primary Contact"
+                    value={company.contact_person || "—"}
+                  />
+                  <DisplayBlock
+                    label="Email"
+                    value={company.email || "—"}
+                    detail={
+                      company.email ? (
+                        <span className="inline-flex items-center gap-1">
+                          <Mail className="h-3.5 w-3.5" />
+                          Communication email
+                        </span>
+                      ) : null
+                    }
+                  />
+                  <DisplayBlock
+                    label="Phone"
+                    value={company.phone || "—"}
+                    detail={
+                      company.phone ? (
+                        <span className="inline-flex items-center gap-1">
+                          <Phone className="h-3.5 w-3.5" />
+                          Communication phone
+                        </span>
+                      ) : null
+                    }
+                  />
+                  <DisplayBlock
+                    label="Lifecycle Status"
+                    value={<StatusBadge status={company.status} />}
+                  />
+                </div>
+              )}
+            </DetailSection>
+
+                        <DetailSection
+              title="Company Identity"
+              description="Internal legal and finance identity fields."
+              icon={Landmark}
+              isEditing={editingSection === "identity"}
+              canEdit={permissionState.canUpdate}
+              onEdit={openIdentityEditor}
+              onCancel={cancelEditing}
+              onSave={() => void saveIdentitySection()}
+              isSaving={isSaving}
+            >
+              {editingSection === "identity" ? (
+                <div className="grid gap-4 md:grid-cols-2">
+                  <div>
+                    <FieldLabel label="Company Code" />
+                    <div className="flex h-11 items-center rounded-2xl border border-white/10 bg-black/20 px-4 text-sm text-slate-400">
+                      {company.company_code || company.code || "Auto-generated by system"}
+                    </div>
+                  </div>
+
+                  <div>
+                    <FieldLabel label="Currency Code" />
+                    <SelectField
+                      value={identityDraft.currency_code}
+                      disabled={isSaving}
+                      onChange={(event) =>
+                        updateIdentityDraft("currency_code", event.target.value)
+                      }
+                    >
+                      {CURRENCY_OPTIONS.map((currency) => (
+                        <option
+                          key={currency}
+                          value={currency}
+                          className="bg-[#05070d]"
+                        >
+                          {currency}
                         </option>
                       ))}
                     </SelectField>
-                  )}
+                  </div>
 
-                  {!row.same_as_primary && (
-                    <div className="grid grid-cols-1 gap-3 md:grid-cols-2">
-                      <div>
-                        <FieldLabel label="Country" />
-                        <InputField
-                          value={row.country}
-                          onChange={(e) =>
-                            updateShippingFormRow(
-                              row.id,
-                              "country",
-                              e.target.value
-                            )
-                          }
-                        />
+                  <div>
+                    <FieldLabel label="Registration Number" />
+                    <InputField
+                      value={identityDraft.registration_number}
+                      disabled={isSaving}
+                      onChange={(event) =>
+                        updateIdentityDraft("registration_number", event.target.value)
+                      }
+                      placeholder="Registration number"
+                    />
+                  </div>
+
+                  <div>
+                    <FieldLabel label="Tax Number" />
+                    <InputField
+                      value={identityDraft.tax_number}
+                      disabled={isSaving}
+                      onChange={(event) =>
+                        updateIdentityDraft("tax_number", event.target.value)
+                      }
+                      placeholder="Tax number"
+                    />
+                  </div>
+
+                  <div className="md:col-span-2">
+                    <FieldLabel label="Website" />
+                    <InputField
+                      value={identityDraft.website}
+                      disabled={isSaving}
+                      onChange={(event) =>
+                        updateIdentityDraft("website", event.target.value)
+                      }
+                      placeholder="https://example.com"
+                    />
+                  </div>
+                </div>
+              ) : (
+                <div className="grid gap-3 md:grid-cols-2">
+                  <DisplayBlock
+                    label="Company Code"
+                    value={company.company_code || company.code || "—"}
+                  />
+                  <DisplayBlock
+                    label="Currency Code"
+                    value={company.currency_code || "—"}
+                  />
+                  <DisplayBlock
+                    label="Registration Number"
+                    value={company.registration_number || "—"}
+                  />
+                  <DisplayBlock label="Tax Number" value={company.tax_number || "—"} />
+                  <DisplayBlock label="Website" value={company.website || "—"} />
+                  <DisplayBlock
+                    label="Created"
+                    value={formatDateTimeLabel(company.created_at)}
+                  />
+                </div>
+              )}
+            </DetailSection>
+
+            <DetailSection
+              title="Personnel"
+              description="People connected to this internal company."
+              icon={Users}
+              isEditing={editingSection === "personnel"}
+              canEdit={permissionState.canUpdate}
+              onEdit={openPersonnelEditor}
+              onCancel={cancelEditing}
+              onSave={() => void savePersonnelSection()}
+              isSaving={isSaving}
+            >
+              {editingSection === "personnel" ? (
+                <div className="space-y-4">
+                  <div className="flex justify-end">
+                    <AddRowButton
+                      label="Add Person"
+                      onClick={addPersonnelDraftRow}
+                      disabled={isSaving}
+                    />
+                  </div>
+
+                  <div className="max-h-[720px] space-y-4 overflow-y-auto pr-1">
+                    {personnelDraft.map((row, index) => (
+                      <RowCard
+                        key={row.id}
+                        title={`Person ${index + 1}`}
+                        description={index === 0 ? "Primary personnel row." : undefined}
+                        onRemove={() => removePersonnelDraftRow(row.id)}
+                        removeDisabled={isSaving || personnelDraft.length === 1}
+                      >
+                        <div className="grid gap-4 md:grid-cols-2">
+                          <div>
+                            <FieldLabel label="Name" />
+                            <InputField
+                              value={row.full_name}
+                              disabled={isSaving}
+                              onChange={(event) =>
+                                updatePersonnelDraftRow(
+                                  row.id,
+                                  "full_name",
+                                  event.target.value
+                                )
+                              }
+                              placeholder="Person name"
+                            />
+                          </div>
+
+                          <div>
+                            <FieldLabel label="Position" />
+                            <InputField
+                              value={row.position}
+                              disabled={isSaving}
+                              onChange={(event) =>
+                                updatePersonnelDraftRow(
+                                  row.id,
+                                  "position",
+                                  event.target.value
+                                )
+                              }
+                              placeholder="Position"
+                            />
+                          </div>
+
+                          <div>
+                            <FieldLabel label="Phone" />
+                            <InputField
+                              value={row.phone}
+                              disabled={isSaving}
+                              onChange={(event) =>
+                                updatePersonnelDraftRow(
+                                  row.id,
+                                  "phone",
+                                  event.target.value
+                                )
+                              }
+                              placeholder="Phone"
+                            />
+                          </div>
+
+                          <div>
+                            <FieldLabel label="Email" />
+                            <InputField
+                              type="email"
+                              value={row.email}
+                              disabled={isSaving}
+                              onChange={(event) =>
+                                updatePersonnelDraftRow(
+                                  row.id,
+                                  "email",
+                                  event.target.value
+                                )
+                              }
+                              placeholder="Email"
+                            />
+                          </div>
+                        </div>
+                      </RowCard>
+                    ))}
+                  </div>
+                </div>
+              ) : personnel.length === 0 ? (
+                <div className="rounded-[20px] border border-dashed border-white/10 bg-black/20 px-4 py-8 text-center text-sm text-slate-500">
+                  No personnel added yet.
+                </div>
+              ) : (
+                <div className="max-h-[720px] space-y-3 overflow-y-auto pr-1">
+                  {personnel.map((row, index) => (
+                    <div
+                      key={row.id}
+                      className="rounded-[24px] border border-white/10 bg-black/20 p-4"
+                    >
+                      <div className="mb-3 flex items-center justify-between gap-3">
+                        <div className="text-sm font-semibold text-white">
+                          Person {index + 1}
+                        </div>
+                        {row.is_primary ? (
+                          <span className="rounded-full border border-cyan-400/20 bg-cyan-500/10 px-3 py-1 text-[11px] font-semibold uppercase tracking-[0.14em] text-cyan-100">
+                            Primary
+                          </span>
+                        ) : null}
                       </div>
 
-                      <div>
-                        <FieldLabel label="City" />
-                        <InputField
-                          value={row.city}
-                          onChange={(e) =>
-                            updateShippingFormRow(
-                              row.id,
-                              "city",
-                              e.target.value
-                            )
-                          }
-                        />
+                      <div className="grid gap-3 md:grid-cols-2">
+                        <DisplayBlock label="Name" value={row.full_name || "—"} />
+                        <DisplayBlock label="Position" value={row.position || "—"} />
+                        <DisplayBlock label="Phone" value={row.phone || "—"} />
+                        <DisplayBlock label="Email" value={row.email || "—"} />
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </DetailSection>
+
+            <DetailSection
+              title="Primary Addresses"
+              description="Primary legal and billing addresses."
+              icon={MapPin}
+              isEditing={editingSection === "primary-addresses"}
+              canEdit={permissionState.canUpdate}
+              onEdit={openPrimaryAddressEditor}
+              onCancel={cancelEditing}
+              onSave={() => void savePrimaryAddressSection()}
+              isSaving={isSaving}
+            >
+              {editingSection === "primary-addresses" ? (
+                <div className="space-y-4">
+                  <div className="flex justify-end">
+                    <AddRowButton
+                      label="Add Address"
+                      onClick={addAddressDraftRow}
+                      disabled={isSaving}
+                    />
+                  </div>
+
+                  <div className="max-h-[720px] space-y-4 overflow-y-auto pr-1">
+                    {addressDraft.map((row, index) => (
+                      <RowCard
+                        key={row.id}
+                        title={`Address ${index + 1}`}
+                        description={index === 0 ? "Primary address row." : undefined}
+                        onRemove={() => removeAddressDraftRow(row.id)}
+                        removeDisabled={isSaving || addressDraft.length === 1}
+                      >
+                        <div className="grid gap-4 md:grid-cols-2">
+                          <div>
+                            <FieldLabel label="Country" />
+                            <InputField
+                              value={row.country}
+                              disabled={isSaving}
+                              onChange={(event) =>
+                                updateAddressDraftRow(
+                                  row.id,
+                                  "country",
+                                  event.target.value
+                                )
+                              }
+                              placeholder="Country"
+                            />
+                          </div>
+
+                          <div>
+                            <FieldLabel label="City" />
+                            <InputField
+                              value={row.city}
+                              disabled={isSaving}
+                              onChange={(event) =>
+                                updateAddressDraftRow(
+                                  row.id,
+                                  "city",
+                                  event.target.value
+                                )
+                              }
+                              placeholder="City"
+                            />
+                          </div>
+
+                          <div>
+                            <FieldLabel label="State / Province" />
+                            <InputField
+                              value={row.state_province}
+                              disabled={isSaving}
+                              onChange={(event) =>
+                                updateAddressDraftRow(
+                                  row.id,
+                                  "state_province",
+                                  event.target.value
+                                )
+                              }
+                              placeholder="State / Province"
+                            />
+                          </div>
+
+                          <div>
+                            <FieldLabel label="ZIP / Postal Code" />
+                            <InputField
+                              value={row.postal_code}
+                              disabled={isSaving}
+                              onChange={(event) =>
+                                updateAddressDraftRow(
+                                  row.id,
+                                  "postal_code",
+                                  event.target.value
+                                )
+                              }
+                              placeholder="Postal code"
+                            />
+                          </div>
+
+                          <div className="md:col-span-2">
+                            <FieldLabel label="Address Line 1" />
+                            <InputField
+                              value={row.address_line_1}
+                              disabled={isSaving}
+                              onChange={(event) =>
+                                updateAddressDraftRow(
+                                  row.id,
+                                  "address_line_1",
+                                  event.target.value
+                                )
+                              }
+                              placeholder="Address line 1"
+                            />
+                          </div>
+
+                          <div className="md:col-span-2">
+                            <FieldLabel label="Address Line 2" />
+                            <InputField
+                              value={row.address_line_2}
+                              disabled={isSaving}
+                              onChange={(event) =>
+                                updateAddressDraftRow(
+                                  row.id,
+                                  "address_line_2",
+                                  event.target.value
+                                )
+                              }
+                              placeholder="Address line 2"
+                            />
+                          </div>
+                        </div>
+                      </RowCard>
+                    ))}
+                  </div>
+                </div>
+              ) : addresses.length === 0 ? (
+                <div className="rounded-[20px] border border-dashed border-white/10 bg-black/20 px-4 py-8 text-center text-sm text-slate-500">
+                  No primary addresses added yet.
+                </div>
+              ) : (
+                <div className="max-h-[720px] space-y-3 overflow-y-auto pr-1">
+                  {addresses.map((row, index) => (
+                    <div
+                      key={row.id}
+                      className="rounded-[24px] border border-white/10 bg-black/20 p-4"
+                    >
+                      <div className="mb-3 flex items-center justify-between gap-3">
+                        <div className="text-sm font-semibold text-white">
+                          Address {index + 1}
+                        </div>
+                        {row.is_primary ? (
+                          <span className="rounded-full border border-cyan-400/20 bg-cyan-500/10 px-3 py-1 text-[11px] font-semibold uppercase tracking-[0.14em] text-cyan-100">
+                            Primary
+                          </span>
+                        ) : null}
                       </div>
 
-                      <div>
-                        <FieldLabel label="State / Province" />
-                        <InputField
-                          value={row.state_province}
-                          onChange={(e) =>
-                            updateShippingFormRow(
-                              row.id,
-                              "state_province",
-                              e.target.value
-                            )
-                          }
+                      <div className="grid gap-3 md:grid-cols-2">
+                        <DisplayBlock label="Country" value={row.country || "—"} />
+                        <DisplayBlock label="City" value={row.city || "—"} />
+                        <DisplayBlock
+                          label="State / Province"
+                          value={row.state_province || "—"}
                         />
-                      </div>
-
-                      <div>
-                        <FieldLabel label="ZIP" />
-                        <InputField
-                          value={row.postal_code}
-                          onChange={(e) =>
-                            updateShippingFormRow(
-                              row.id,
-                              "postal_code",
-                              e.target.value
-                            )
-                          }
+                        <DisplayBlock
+                          label="ZIP / Postal Code"
+                          value={row.postal_code || "—"}
                         />
-                      </div>
-
-                      <div className="md:col-span-2">
-                        <FieldLabel label="Address Line 1" />
-                        <InputField
-                          value={row.address_line_1}
-                          onChange={(e) =>
-                            updateShippingFormRow(
-                              row.id,
-                              "address_line_1",
-                              e.target.value
-                            )
-                          }
+                        <DisplayBlock
+                          label="Address Line 1"
+                          value={row.address_line_1 || "—"}
                         />
-                      </div>
-
-                      <div className="md:col-span-2">
-                        <FieldLabel label="Address Line 2" />
-                        <InputField
-                          value={row.address_line_2}
-                          onChange={(e) =>
-                            updateShippingFormRow(
-                              row.id,
-                              "address_line_2",
-                              e.target.value
-                            )
-                          }
+                        <DisplayBlock
+                          label="Address Line 2"
+                          value={row.address_line_2 || "—"}
                         />
                       </div>
                     </div>
-                  )}
+                  ))}
                 </div>
-              </RowCard>
-            ))}
+              )}
+            </DetailSection>
 
-            {modalError && (
-              <div className="text-sm text-rose-300">{modalError}</div>
-            )}
+                        <DetailSection
+              title="Shipping Addresses"
+              description="Shipping destinations for this internal company."
+              icon={Truck}
+              isEditing={editingSection === "shipping-addresses"}
+              canEdit={permissionState.canUpdate}
+              onEdit={openShippingAddressEditor}
+              onCancel={cancelEditing}
+              onSave={() => void saveShippingAddressSection()}
+              isSaving={isSaving}
+            >
+              {editingSection === "shipping-addresses" ? (
+                <div className="space-y-4">
+                  <div className="flex justify-end">
+                    <AddRowButton
+                      label="Add Shipping"
+                      onClick={addShippingDraftRow}
+                      disabled={isSaving}
+                    />
+                  </div>
+
+                  <div className="max-h-[720px] space-y-4 overflow-y-auto pr-1">
+                    {shippingDraft.map((row, index) => (
+                      <RowCard
+                        key={row.id}
+                        title={`Shipping ${index + 1}`}
+                        description={
+                          row.same_as_primary
+                            ? "Linked to a primary address."
+                            : "Standalone shipping address."
+                        }
+                        onRemove={() => removeShippingDraftRow(row.id)}
+                        removeDisabled={isSaving || shippingDraft.length === 1}
+                      >
+                        <div className="space-y-4">
+                          <label className="flex items-start gap-3 rounded-2xl border border-white/10 bg-black/20 px-4 py-3 text-sm text-slate-300">
+                            <input
+                              type="checkbox"
+                              checked={row.same_as_primary}
+                              disabled={isSaving}
+                              onChange={(event) =>
+                                updateShippingDraftRow(
+                                  row.id,
+                                  "same_as_primary",
+                                  event.target.checked
+                                )
+                              }
+                              className="mt-1"
+                            />
+                            <span>
+                              <span className="block font-semibold text-white">
+                                Same as primary address
+                              </span>
+                              <span className="mt-1 block text-xs leading-5 text-slate-500">
+                                Select one primary address and copy its values into this
+                                shipping row.
+                              </span>
+                            </span>
+                          </label>
+
+                          {row.same_as_primary ? (
+                            <div>
+                              <FieldLabel label="Source Primary Address" />
+                              <SelectField
+                                value={row.source_address_id}
+                                disabled={isSaving}
+                                onChange={(event) =>
+                                  updateShippingDraftRow(
+                                    row.id,
+                                    "source_address_id",
+                                    event.target.value
+                                  )
+                                }
+                              >
+                                <option value="" className="bg-[#05070d]">
+                                  Select address
+                                </option>
+                                {primaryAddressOptions.map((option) => (
+                                  <option
+                                    key={option.id}
+                                    value={option.id}
+                                    className="bg-[#05070d]"
+                                  >
+                                    {option.label}
+                                  </option>
+                                ))}
+                              </SelectField>
+                            </div>
+                          ) : (
+                            <div className="grid gap-4 md:grid-cols-2">
+                              <div>
+                                <FieldLabel label="Country" />
+                                <InputField
+                                  value={row.country}
+                                  disabled={isSaving}
+                                  onChange={(event) =>
+                                    updateShippingDraftRow(
+                                      row.id,
+                                      "country",
+                                      event.target.value
+                                    )
+                                  }
+                                  placeholder="Country"
+                                />
+                              </div>
+
+                              <div>
+                                <FieldLabel label="City" />
+                                <InputField
+                                  value={row.city}
+                                  disabled={isSaving}
+                                  onChange={(event) =>
+                                    updateShippingDraftRow(
+                                      row.id,
+                                      "city",
+                                      event.target.value
+                                    )
+                                  }
+                                  placeholder="City"
+                                />
+                              </div>
+
+                              <div>
+                                <FieldLabel label="State / Province" />
+                                <InputField
+                                  value={row.state_province}
+                                  disabled={isSaving}
+                                  onChange={(event) =>
+                                    updateShippingDraftRow(
+                                      row.id,
+                                      "state_province",
+                                      event.target.value
+                                    )
+                                  }
+                                  placeholder="State / Province"
+                                />
+                              </div>
+
+                              <div>
+                                <FieldLabel label="ZIP / Postal Code" />
+                                <InputField
+                                  value={row.postal_code}
+                                  disabled={isSaving}
+                                  onChange={(event) =>
+                                    updateShippingDraftRow(
+                                      row.id,
+                                      "postal_code",
+                                      event.target.value
+                                    )
+                                  }
+                                  placeholder="Postal code"
+                                />
+                              </div>
+
+                              <div className="md:col-span-2">
+                                <FieldLabel label="Address Line 1" />
+                                <InputField
+                                  value={row.address_line_1}
+                                  disabled={isSaving}
+                                  onChange={(event) =>
+                                    updateShippingDraftRow(
+                                      row.id,
+                                      "address_line_1",
+                                      event.target.value
+                                    )
+                                  }
+                                  placeholder="Address line 1"
+                                />
+                              </div>
+
+                              <div className="md:col-span-2">
+                                <FieldLabel label="Address Line 2" />
+                                <InputField
+                                  value={row.address_line_2}
+                                  disabled={isSaving}
+                                  onChange={(event) =>
+                                    updateShippingDraftRow(
+                                      row.id,
+                                      "address_line_2",
+                                      event.target.value
+                                    )
+                                  }
+                                  placeholder="Address line 2"
+                                />
+                              </div>
+                            </div>
+                          )}
+                        </div>
+                      </RowCard>
+                    ))}
+                  </div>
+                </div>
+              ) : shippingAddresses.length === 0 ? (
+                <div className="rounded-[20px] border border-dashed border-white/10 bg-black/20 px-4 py-8 text-center text-sm text-slate-500">
+                  No shipping addresses added yet.
+                </div>
+              ) : (
+                <div className="max-h-[720px] space-y-3 overflow-y-auto pr-1">
+                  {shippingAddresses.map((row, index) => (
+                    <div
+                      key={row.id}
+                      className="rounded-[24px] border border-white/10 bg-black/20 p-4"
+                    >
+                      <div className="mb-3 flex items-center justify-between gap-3">
+                        <div className="text-sm font-semibold text-white">
+                          Shipping {index + 1}
+                        </div>
+                        {row.is_same_as_primary ? (
+                          <span className="rounded-full border border-emerald-400/20 bg-emerald-500/10 px-3 py-1 text-[11px] font-semibold uppercase tracking-[0.14em] text-emerald-100">
+                            Same as primary
+                          </span>
+                        ) : null}
+                      </div>
+
+                      {row.is_same_as_primary ? (
+                        <div className="rounded-[20px] border border-white/10 bg-white/[0.035] px-4 py-3 text-sm text-slate-300">
+                          Same as primary address.
+                        </div>
+                      ) : (
+                        <div className="grid gap-3 md:grid-cols-2">
+                          <DisplayBlock label="Country" value={row.country || "—"} />
+                          <DisplayBlock label="City" value={row.city || "—"} />
+                          <DisplayBlock
+                            label="State / Province"
+                            value={row.state_province || "—"}
+                          />
+                          <DisplayBlock
+                            label="ZIP / Postal Code"
+                            value={row.postal_code || "—"}
+                          />
+                          <DisplayBlock
+                            label="Address Line 1"
+                            value={row.address_line_1 || "—"}
+                          />
+                          <DisplayBlock
+                            label="Address Line 2"
+                            value={row.address_line_2 || "—"}
+                          />
+                        </div>
+                      )}
+                    </div>
+                  ))}
+                </div>
+              )}
+            </DetailSection>
+
+            <DetailSection
+              title="Notes"
+              description="Internal finance notes for this company."
+              icon={FileText}
+              isEditing={editingSection === "notes"}
+              canEdit={permissionState.canUpdate}
+              onEdit={openNotesEditor}
+              onCancel={cancelEditing}
+              onSave={() => void saveNotesSection()}
+              isSaving={isSaving}
+            >
+              {editingSection === "notes" ? (
+                <div>
+                  <FieldLabel label="Notes" />
+                  <TextareaField
+                    value={notesDraft}
+                    disabled={isSaving}
+                    onChange={(event) => setNotesDraft(event.target.value)}
+                    placeholder="Internal notes..."
+                  />
+                </div>
+              ) : (
+                <div className="rounded-[20px] border border-white/10 bg-black/20 px-4 py-4 text-sm leading-7 text-slate-300">
+                  {company.notes || "No notes added yet."}
+                </div>
+              )}
+            </DetailSection>
+
+            <DetailSection
+              title="Bank Accounts"
+              description="Company bank accounts linked to this internal entity."
+              icon={Banknote}
+              isEditing={false}
+              canEdit={false}
+              actions={
+                permissionState.canUpdate ? (
+                  <button
+                    type="button"
+                    onClick={() =>
+                      navigate(`/finance/master-data/bank-accounts/new?company_id=${id}`)
+                    }
+                    className="inline-flex h-10 items-center justify-center gap-2 rounded-2xl border border-cyan-400/20 bg-cyan-500/10 px-4 text-xs font-semibold uppercase tracking-[0.14em] text-cyan-100 transition hover:bg-cyan-500/15"
+                  >
+                    <Plus className="h-3.5 w-3.5" />
+                    Add Bank Account
+                  </button>
+                ) : null
+              }
+            >
+              {bankAccounts.length === 0 ? (
+                <div className="rounded-[20px] border border-dashed border-white/10 bg-black/20 px-4 py-8 text-center text-sm text-slate-500">
+                  No bank accounts added yet.
+                </div>
+              ) : (
+                <div className="max-h-[720px] space-y-3 overflow-y-auto pr-1">
+                  {bankAccounts.map((account, index) => {
+                    const isBankActionRunning = activeBankActionId === account.id;
+
+                    return (
+                      <div
+                        key={account.id}
+                        className={`rounded-[24px] border p-4 ${
+                          account.is_default
+                            ? "border-emerald-400/20 bg-emerald-500/10"
+                            : "border-white/10 bg-black/20"
+                        }`}
+                      >
+                        <div className="mb-4 flex flex-col gap-3 lg:flex-row lg:items-start lg:justify-between">
+                          <div className="min-w-0">
+                            <div className="flex flex-wrap items-center gap-2">
+                              <div className="text-sm font-semibold text-white">
+                                Account {index + 1}
+                              </div>
+                              <DefaultBadge isDefault={account.is_default} />
+                              <StatusBadge status={account.status} />
+                            </div>
+                            <div className="mt-1 text-xs leading-5 text-slate-500">
+                              {account.bank_id || "No bank ID"}
+                            </div>
+                          </div>
+
+                          <div className="flex shrink-0 flex-wrap gap-2">
+                            {!account.is_default && permissionState.canUpdate ? (
+                              <button
+                                type="button"
+                                onClick={() =>
+                                  void handleSetDefaultBankAccount(account.id)
+                                }
+                                disabled={Boolean(activeBankActionId)}
+                                className="inline-flex h-10 items-center justify-center gap-2 rounded-2xl border border-emerald-400/20 bg-emerald-500/10 px-4 text-xs font-semibold uppercase tracking-[0.14em] text-emerald-100 transition hover:bg-emerald-500/15 disabled:cursor-not-allowed disabled:opacity-60"
+                              >
+                                {isBankActionRunning ? (
+                                  <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                                ) : (
+                                  <ShieldCheck className="h-3.5 w-3.5" />
+                                )}
+                                Set Default
+                              </button>
+                            ) : null}
+
+                            <button
+                              type="button"
+                              onClick={() =>
+                                navigate(`/finance/master-data/bank-accounts/${account.id}`)
+                              }
+                              className="inline-flex h-10 items-center justify-center gap-2 rounded-2xl border border-cyan-400/20 bg-cyan-500/10 px-4 text-xs font-semibold uppercase tracking-[0.14em] text-cyan-100 transition hover:bg-cyan-500/15"
+                            >
+                              Open
+                              <ArrowRight className="h-3.5 w-3.5" />
+                            </button>
+                          </div>
+                        </div>
+
+                        <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-3">
+                          <DisplayBlock
+                            label="Bank Name"
+                            value={account.bank_name || "—"}
+                          />
+                          <DisplayBlock
+                            label="Beneficiary"
+                            value={account.beneficiary_name || "—"}
+                          />
+                          <DisplayBlock
+                            label={getBankIdentifierLabel(account)}
+                            value={getBankIdentifierValue(account)}
+                          />
+                          <DisplayBlock
+                            label="Currency"
+                            value={account.currency_code || "—"}
+                          />
+                          <DisplayBlock
+                            label="Location"
+                            value={
+                              [account.city, account.country].filter(Boolean).join(", ") ||
+                              "—"
+                            }
+                          />
+                          <DisplayBlock
+                            label="Updated"
+                            value={formatDateTimeLabel(
+                              account.updated_at || account.created_at
+                            )}
+                          />
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+              )}
+            </DetailSection>
           </div>
-        </ModalShell>
-      )}
 
-      {editingSection === "notes" && (
-        <ModalShell
-          title="Edit Section 6 — Notes"
-          description="Update internal notes."
-          onClose={() => setEditingSection(null)}
-          onSave={() => void saveNotesSection()}
-          isSaving={isMutating}
-        >
-          <div>
-            <FieldLabel label="Notes" />
-            <TextareaField
-              value={notesForm}
-              onChange={(e) => setNotesForm(e.target.value)}
-              placeholder="Add internal notes"
-            />
-          </div>
+          <aside className="grid gap-6">
+            <section className="overflow-hidden rounded-[30px] border border-white/10 bg-white/[0.045] backdrop-blur-xl">
+              <div className="border-b border-white/10 px-5 py-4">
+                <div className="text-sm font-semibold uppercase tracking-[0.18em] text-slate-400">
+                  Record Summary
+                </div>
+                <p className="mt-1 text-xs leading-5 text-slate-500">
+                  Key company details and linked finance records.
+                </p>
+              </div>
 
-          {modalError && (
-            <div className="mt-4 text-sm text-rose-300">{modalError}</div>
-          )}
-        </ModalShell>
-      )}
-    </>
+              <div className="grid gap-4 p-5">
+                {summaryCards.map((item) => (
+                  <SummaryCard key={item.label} item={item} />
+                ))}
+              </div>
+            </section>
+
+                        <section className="overflow-hidden rounded-[30px] border border-white/10 bg-white/[0.045] backdrop-blur-xl">
+              <div className="border-b border-white/10 px-5 py-4">
+                <div className="text-sm font-semibold uppercase tracking-[0.18em] text-slate-400">
+                  Lifecycle Actions
+                </div>
+                <p className="mt-1 text-xs leading-5 text-slate-500">
+                  Archive or restore this company. Permanent delete is only available
+                  from the registry archive modal.
+                </p>
+              </div>
+
+              <div className="grid gap-3 p-5">
+                {permissionState.canDeleteArchive ? (
+                  <button
+                    type="button"
+                    onClick={() => void handleArchiveToggle()}
+                    disabled={isLifecycleRunning}
+                    className={`inline-flex h-12 items-center justify-center gap-2 rounded-2xl border px-5 text-sm font-semibold transition disabled:cursor-not-allowed disabled:opacity-60 ${
+                      company.status === "archived"
+                        ? "border-emerald-400/20 bg-emerald-500/10 text-emerald-100 hover:bg-emerald-500/15"
+                        : "border-rose-400/20 bg-rose-500/10 text-rose-100 hover:bg-rose-500/15"
+                    }`}
+                  >
+                    {isLifecycleRunning ? (
+                      <Loader2 className="h-4 w-4 animate-spin" />
+                    ) : company.status === "archived" ? (
+                      <RotateCcw className="h-4 w-4" />
+                    ) : (
+                      <Archive className="h-4 w-4" />
+                    )}
+                    {company.status === "archived"
+                      ? "Restore Company"
+                      : "Archive Company"}
+                  </button>
+                ) : (
+                  <div className="rounded-[20px] border border-amber-400/20 bg-amber-500/10 p-4 text-sm leading-6 text-amber-100">
+                    Delete/Archive access is not enabled for this user.
+                  </div>
+                )}
+
+                <button
+                  type="button"
+                  onClick={() => navigate("/finance/master-data/companies")}
+                  className="inline-flex h-12 items-center justify-center gap-2 rounded-2xl border border-white/10 bg-white/[0.05] px-5 text-sm font-semibold text-slate-300 transition hover:bg-white/[0.08]"
+                >
+                  <ArrowRight className="h-4 w-4 rotate-180" />
+                  Companies
+                </button>
+              </div>
+            </section>
+
+            <section className="overflow-hidden rounded-[30px] border border-white/10 bg-white/[0.045] backdrop-blur-xl">
+              <div className="border-b border-white/10 px-5 py-4">
+                <div className="text-sm font-semibold uppercase tracking-[0.18em] text-slate-400">
+                  System Fields
+                </div>
+                <p className="mt-1 text-xs leading-5 text-slate-500">
+                  Read-only audit and system metadata.
+                </p>
+              </div>
+
+              <div className="grid gap-3 p-5">
+                <DisplayBlock
+                  label="Company Code"
+                  value={company.company_code || company.code || "—"}
+                />
+                <DisplayBlock label="Record ID" value={company.id} />
+                <DisplayBlock
+                  label="Created"
+                  value={formatDateTimeLabel(company.created_at)}
+                />
+                <DisplayBlock
+                  label="Updated"
+                  value={formatDateTimeLabel(company.updated_at)}
+                />
+                <DisplayBlock
+                  label="Primary Address"
+                  value={getPrimaryAddressSummary(addresses)}
+                />
+                <DisplayBlock
+                  label="Shipping"
+                  value={getShippingSummary(shippingAddresses)}
+                />
+                <DisplayBlock
+                  label="Default Bank"
+                  value={
+                    bankAccounts.find((account) => account.is_default)?.bank_name ||
+                    "—"
+                  }
+                />
+              </div>
+            </section>
+
+            <section className="rounded-[24px] border border-cyan-400/20 bg-cyan-500/10 p-4 text-sm leading-6 text-cyan-100">
+              <div className="font-semibold text-white">Locked detail rule</div>
+              <div className="mt-1">
+                This page requires Finance Read access. Section edits require Update
+                access. Archive and Restore require Delete/Archive access. Bank account
+                default updates are silent and must not jump the page or reset the UI.
+              </div>
+            </section>
+          </aside>
+        </section>
+      </div>
+    </div>
   );
 }
-
-    

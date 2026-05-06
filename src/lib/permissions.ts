@@ -745,6 +745,9 @@ const ROUTE_PERMISSIONS: Record<string, RoutePermission> = {
 
     "/finance/approvals": { permission: "viewApprovalQueue" },
 
+    "/finance/transactions/approvals": { permission: "manageUsers" },
+    "/finance/transactions/approvals/:userId": { permission: "manageUsers" },
+
     "/finance/payroll": { permission: "viewPayroll" },
   "/finance/payroll/profiles": { permission: "managePayProfiles" },
   "/finance/payroll/periods": { permission: "createPayrollRuns" },

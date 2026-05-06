@@ -776,6 +776,13 @@ export function getEffectivePermissions(
     effective[key] = overrideValue;
   });
 
+  if (role !== "admin") {
+    effective.manageUsers = false;
+    effective.accessApprovals = false;
+    effective.viewApprovalQueue = false;
+    effective.actOnFinanceApprovals = false;
+  }
+
   if (effective.manageUsers) {
     effective.viewEmployeeDirectory = true;
     effective.viewEmployeeDetail = true;

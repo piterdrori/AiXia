@@ -620,58 +620,70 @@ export default function FinanceMasterDataPage() {
   const [isLoadingProfile, setIsLoadingProfile] = useState(true);
   const [isLoadingData, setIsLoadingData] = useState(true);
 
-  const loadCurrentProfile = useCallback(async () => {
-    setIsLoadingProfile(true);
-
-    try {
-      const authResult = await supabase.auth.getUser();
-      if (authResult.error) throw authResult.error;
-
-      const authUserId = authResult.data.user?.id;
-
-      if (!authUserId) {
-        setCurrentProfile(null);
-        setEffectivePermissions(null);
-        return;
+  const loadCurrentProfile = useCallback(
+    async (mode: "initial" | "silent" = "initial") => {
+      if (mode === "initial") {
+        setIsLoadingProfile(true);
       }
 
-      const profileResult = await supabase
-        .from("profiles")
-        .select("user_id, full_name, role, permissions")
-        .eq("user_id", authUserId)
-        .maybeSingle();
+      try {
+        const authResult = await supabase.auth.getUser();
+        if (authResult.error) throw authResult.error;
 
-      if (profileResult.error) throw profileResult.error;
+        const authUserId = authResult.data.user?.id;
 
-      const profile = (profileResult.data || null) as CurrentUserProfile | null;
-      const backendPermissions = authUserId
-        ? await loadBackendEffectivePermissions(authUserId)
-        : null;
+        if (!authUserId) {
+          setCurrentProfile(null);
+          setEffectivePermissions(null);
+          return;
+        }
 
-      setCurrentProfile(profile);
+        const profileResult = await supabase
+          .from("profiles")
+          .select("user_id, full_name, role, permissions")
+          .eq("user_id", authUserId)
+          .maybeSingle();
 
-      if (!profile?.role) {
-        setEffectivePermissions(null);
-        return;
+        if (profileResult.error) throw profileResult.error;
+
+        const profile = (profileResult.data || null) as CurrentUserProfile | null;
+        const backendPermissions = authUserId
+          ? await loadBackendEffectivePermissions(authUserId)
+          : null;
+
+        setCurrentProfile(profile);
+
+        if (!profile?.role) {
+          setEffectivePermissions(null);
+          return;
+        }
+
+        const resolvedPermissions = getEffectivePermissions(
+          profile.role,
+          backendPermissions || profile.permissions || null
+        );
+
+        setEffectivePermissions(resolvedPermissions);
+      } catch (error) {
+        console.error("Failed to load master-data profile permissions:", error);
+
+        if (mode === "initial") {
+          setCurrentProfile(null);
+          setEffectivePermissions(null);
+        }
+      } finally {
+        if (mode === "initial") {
+          setIsLoadingProfile(false);
+        }
       }
+    },
+    []
+  );
 
-      const resolvedPermissions = getEffectivePermissions(
-        profile.role,
-        backendPermissions || profile.permissions || null
-      );
-
-      setEffectivePermissions(resolvedPermissions);
-    } catch (error) {
-      console.error("Failed to load master-data profile permissions:", error);
-      setCurrentProfile(null);
-      setEffectivePermissions(null);
-    } finally {
-      setIsLoadingProfile(false);
+  const loadMasterData = useCallback(async (mode: "initial" | "silent" = "initial") => {
+    if (mode === "initial") {
+      setIsLoadingData(true);
     }
-  }, []);
-
-  const loadMasterData = useCallback(async () => {
-    setIsLoadingData(true);
 
     try {
       const [
@@ -816,12 +828,17 @@ export default function FinanceMasterDataPage() {
       console.error("Failed to load master data:", error);
       setData(EMPTY_MASTER_DATA);
     } finally {
-      setIsLoadingData(false);
+      if (mode === "initial") {
+        setIsLoadingData(false);
+      }
     }
   }, []);
 
   useEffect(() => {
-    void Promise.all([loadCurrentProfile(), loadMasterData()]);
+    void Promise.all([
+      loadCurrentProfile("initial"),
+      loadMasterData("initial"),
+    ]);
   }, [loadCurrentProfile, loadMasterData]);
 
   useEffect(() => {
@@ -830,22 +847,25 @@ export default function FinanceMasterDataPage() {
       .on(
         "postgres_changes",
         { event: "*", schema: "public", table: "profiles" },
-        () => void loadCurrentProfile()
+        () => void loadCurrentProfile("silent")
       )
       .on(
         "postgres_changes",
         { event: "*", schema: "public", table: "finance_permission_templates" },
-        () => void loadCurrentProfile()
+        () => void loadCurrentProfile("silent")
       )
       .on(
         "postgres_changes",
         { event: "*", schema: "public", table: "finance_user_permission_templates" },
-        () => void loadCurrentProfile()
+        () => void loadCurrentProfile("silent")
       )
       .subscribe();
 
     const intervalId = window.setInterval(() => {
-      void Promise.all([loadCurrentProfile(), loadMasterData()]);
+      void Promise.all([
+        loadCurrentProfile("silent"),
+        loadMasterData("silent"),
+      ]);
     }, 60000);
 
     return () => {

@@ -637,8 +637,10 @@ export default function FinanceMasterDataBankAccountDetailPage() {
     useState<ControlDraft>(EMPTY_CONTROL_DRAFT);
   const [notesDraft, setNotesDraft] = useState("");
 
-  const loadCurrentProfile = useCallback(async () => {
-    setIsLoadingProfile(true);
+  const loadCurrentProfile = useCallback(async (mode: "initial" | "silent" = "initial") => {
+    if (mode === "initial") {
+      setIsLoadingProfile(true);
+    }
 
     try {
       const authResult = await supabase.auth.getUser();
@@ -681,14 +683,18 @@ export default function FinanceMasterDataBankAccountDetailPage() {
       setProfile(null);
       setEffectivePermissions(null);
     } finally {
-      setIsLoadingProfile(false);
+      if (mode === "initial") {
+        setIsLoadingProfile(false);
+      }
     }
   }, []);
 
-  const loadRecord = useCallback(async () => {
+  const loadRecord = useCallback(async (mode: "initial" | "silent" = "initial") => {
     if (!id) return;
 
-    setIsLoadingRecord(true);
+    if (mode === "initial") {
+      setIsLoadingRecord(true);
+    }
     setPageError(null);
 
     try {
@@ -707,12 +713,17 @@ export default function FinanceMasterDataBankAccountDetailPage() {
         error instanceof Error ? error.message : "Failed to load bank account details."
       );
     } finally {
-      setIsLoadingRecord(false);
+      if (mode === "initial") {
+        setIsLoadingRecord(false);
+      }
     }
   }, [id]);
 
   useEffect(() => {
-    void Promise.all([loadCurrentProfile(), loadRecord()]);
+    void Promise.all([
+      loadCurrentProfile("initial"),
+      loadRecord("initial"),
+    ]);
   }, [loadCurrentProfile, loadRecord]);
 
   useEffect(() => {
@@ -721,32 +732,35 @@ export default function FinanceMasterDataBankAccountDetailPage() {
       .on(
         "postgres_changes",
         { event: "*", schema: "public", table: "profiles" },
-        () => void loadCurrentProfile()
+        () => void loadCurrentProfile("silent")
       )
       .on(
         "postgres_changes",
         { event: "*", schema: "public", table: "finance_permission_templates" },
-        () => void loadCurrentProfile()
+        () => void loadCurrentProfile("silent")
       )
       .on(
         "postgres_changes",
         { event: "*", schema: "public", table: "finance_user_permission_templates" },
-        () => void loadCurrentProfile()
+        () => void loadCurrentProfile("silent")
       )
       .on(
         "postgres_changes",
         { event: "*", schema: "public", table: "finance_companies" },
-        () => void loadRecord()
+        () => void loadRecord("silent")
       )
       .on(
         "postgres_changes",
         { event: "*", schema: "public", table: "finance_bank_accounts" },
-        () => void loadRecord()
+        () => void loadRecord("silent")
       )
       .subscribe();
 
     const intervalId = window.setInterval(() => {
-      void Promise.all([loadCurrentProfile(), loadRecord()]);
+      void Promise.all([
+        loadCurrentProfile("silent"),
+        loadRecord("silent"),
+      ]);
     }, 60000);
 
     return () => {
@@ -965,7 +979,7 @@ export default function FinanceMasterDataBankAccountDetailPage() {
 
       setEditingSection(null);
       setPageMessage("Bank overview updated.");
-      await loadRecord();
+      await loadRecord("silent");
     } catch (error) {
       console.error("Failed to save bank overview:", error);
       setPageError(
@@ -994,7 +1008,7 @@ export default function FinanceMasterDataBankAccountDetailPage() {
 
       setEditingSection(null);
       setPageMessage("Bank address updated.");
-      await loadRecord();
+      await loadRecord("silent");
     } catch (error) {
       console.error("Failed to save bank address:", error);
       setPageError(
@@ -1047,7 +1061,7 @@ export default function FinanceMasterDataBankAccountDetailPage() {
 
       setEditingSection(null);
       setPageMessage("Identifier, currency, and control settings updated.");
-      await loadRecord();
+      await loadRecord("silent");
     } catch (error) {
       console.error("Failed to save bank control settings:", error);
       setPageError(
@@ -1072,7 +1086,7 @@ export default function FinanceMasterDataBankAccountDetailPage() {
 
       setEditingSection(null);
       setPageMessage("Notes updated.");
-      await loadRecord();
+      await loadRecord("silent");
     } catch (error) {
       console.error("Failed to save bank account notes:", error);
       setPageError(
@@ -1099,7 +1113,7 @@ export default function FinanceMasterDataBankAccountDetailPage() {
         setPageMessage("Bank account archived.");
       }
 
-      await loadRecord();
+      await loadRecord("silent");
     } catch (error) {
       console.error("Failed to update bank account lifecycle:", error);
       setPageError(

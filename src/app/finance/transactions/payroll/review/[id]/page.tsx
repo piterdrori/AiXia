@@ -672,21 +672,6 @@ function getBankLabel(bank: BankAccountRow | null | undefined) {
     .join(" • ");
 }
 
-function getBankIdentifier(bank: BankAccountRow | null | undefined) {
-  if (!bank) return "";
-
-  if (bank.iban) return `IBAN ${bank.iban}`;
-  if (bank.swift_code) return `SWIFT ${bank.swift_code}`;
-
-  if (bank.account_identifier_type === "swift" && bank.account_identifier_value) {
-    return `SWIFT ${bank.account_identifier_value}`;
-  }
-
-  if (bank.account_identifier_value) return `Identifier ${bank.account_identifier_value}`;
-
-  return "";
-}
-
 function getPaycheckTargetAmount(request: PaycheckRequestRow | null) {
   if (!request) return 0;
 
@@ -764,7 +749,6 @@ export default function FinancePayrollReviewDetailPage() {
   const [company, setCompany] = useState<CompanyRow | null>(null);
   const [employee, setEmployee] = useState<EmployeeRefRow | null>(null);
   const [profiles, setProfiles] = useState<ProfileRow[]>([]);
-  const [bankAccount, setBankAccount] = useState<BankAccountRow | null>(null);
   const [allocations, setAllocations] = useState<AllocationRow[]>([]);
   const [distributions, setDistributions] = useState<DistributionRow[]>([]);
   const [fundingBatches, setFundingBatches] = useState<FundingBatchRow[]>([]);
@@ -1203,15 +1187,7 @@ export default function FinancePayrollReviewDetailPage() {
             .select("user_id, full_name, display_name, email, company, job_title, member_type")
             .order("full_name"),
 
-          loadedRequest.requested_bank_account_id
-            ? supabase
-                .from("finance_bank_accounts")
-                .select(
-                  "id, name, bank_name, institution_name, masked_account_number, currency_code, company_id, beneficiary_name, iban, swift_code, account_identifier_type, account_identifier_value"
-                )
-                .eq("id", loadedRequest.requested_bank_account_id)
-                .maybeSingle()
-            : Promise.resolve({ data: null, error: null }),
+                    Promise.resolve({ data: null, error: null }),
 
           supabase
             .from("finance_paycheck_payment_allocations")
@@ -1273,7 +1249,6 @@ export default function FinancePayrollReviewDetailPage() {
         if (companyResult.error) throw companyResult.error;
         if (employeeResult.error) throw employeeResult.error;
         if (profilesResult.error) throw profilesResult.error;
-        if (bankAccountResult.error) throw bankAccountResult.error;
         if (allocationsResult.error) throw allocationsResult.error;
         if (attachmentsResult.error) throw attachmentsResult.error;
         if (companiesResult.error) throw companiesResult.error;
@@ -1284,7 +1259,6 @@ export default function FinancePayrollReviewDetailPage() {
         setCompany((companyResult.data || null) as CompanyRow | null);
         setEmployee((employeeResult.data || null) as EmployeeRefRow | null);
         setProfiles((profilesResult.data || []) as ProfileRow[]);
-        setBankAccount((bankAccountResult.data || null) as BankAccountRow | null);
         setAllocations(loadedAllocations);
         setCompanies((companiesResult.data || []) as CompanyRow[]);
         setBankAccounts((bankAccountsResult.data || []) as BankAccountRow[]);

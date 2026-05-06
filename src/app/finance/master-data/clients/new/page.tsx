@@ -16,9 +16,7 @@ import {
   FileText,
   Loader2,
   LockKeyhole,
-  Mail,
   MapPin,
-  Phone,
   Plus,
   RotateCcw,
   Save,
@@ -26,7 +24,6 @@ import {
   Sparkles,
   Trash2,
   Truck,
-  UserRound,
   Users,
 } from "lucide-react";
 

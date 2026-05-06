@@ -5,7 +5,6 @@ import {
   AlertTriangle,
   ArrowRight,
   Archive,
-  Building2,
   CheckCircle2,
   CreditCard,
   Landmark,

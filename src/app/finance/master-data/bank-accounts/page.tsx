@@ -497,8 +497,10 @@ export default function FinanceMasterDataBankAccountsPage() {
   const [sortKey, setSortKey] = useState<SortKey>("updated");
   const [sortDirection, setSortDirection] = useState<SortDirection>("desc");
 
-  const loadCurrentProfile = useCallback(async () => {
-    setIsLoadingProfile(true);
+  const loadCurrentProfile = useCallback(async (mode: "initial" | "silent" = "initial") => {
+    if (mode === "initial") {
+      setIsLoadingProfile(true);
+    }
 
     try {
       const authResult = await supabase.auth.getUser();
@@ -541,7 +543,9 @@ export default function FinanceMasterDataBankAccountsPage() {
       setProfile(null);
       setEffectivePermissions(null);
     } finally {
-      setIsLoadingProfile(false);
+      if (mode === "initial") {
+        setIsLoadingProfile(false);
+      }
     }
   }, []);
 
@@ -549,8 +553,10 @@ export default function FinanceMasterDataBankAccountsPage() {
     return buildPermissionState(profile, effectivePermissions);
   }, [effectivePermissions, profile]);
 
-  const loadRows = useCallback(async () => {
-    setIsLoadingRows(true);
+  const loadRows = useCallback(async (mode: "initial" | "silent" = "initial") => {
+    if (mode === "initial") {
+      setIsLoadingRows(true);
+    }
     setPageError(null);
 
     try {
@@ -563,12 +569,16 @@ export default function FinanceMasterDataBankAccountsPage() {
         error instanceof Error ? error.message : "Failed to load bank accounts."
       );
     } finally {
-      setIsLoadingRows(false);
+      if (mode === "initial") {
+        setIsLoadingRows(false);
+      }
     }
   }, []);
 
-  const loadArchivedRows = useCallback(async () => {
-    setIsLoadingArchive(true);
+  const loadArchivedRows = useCallback(async (mode: "initial" | "silent" = "initial") => {
+    if (mode === "initial") {
+      setIsLoadingArchive(true);
+    }
     setPageError(null);
 
     try {
@@ -581,12 +591,17 @@ export default function FinanceMasterDataBankAccountsPage() {
         error instanceof Error ? error.message : "Failed to load archived bank accounts."
       );
     } finally {
-      setIsLoadingArchive(false);
+      if (mode === "initial") {
+        setIsLoadingArchive(false);
+      }
     }
   }, []);
 
   useEffect(() => {
-    void Promise.all([loadCurrentProfile(), loadRows()]);
+    void Promise.all([
+      loadCurrentProfile("initial"),
+      loadRows("initial"),
+    ]);
   }, [loadCurrentProfile, loadRows]);
 
   useEffect(() => {
@@ -595,33 +610,33 @@ export default function FinanceMasterDataBankAccountsPage() {
       .on(
         "postgres_changes",
         { event: "*", schema: "public", table: "profiles" },
-        () => void loadCurrentProfile()
+        () => void loadCurrentProfile("silent")
       )
       .on(
         "postgres_changes",
         { event: "*", schema: "public", table: "finance_permission_templates" },
-        () => void loadCurrentProfile()
+        () => void loadCurrentProfile("silent")
       )
       .on(
         "postgres_changes",
         { event: "*", schema: "public", table: "finance_user_permission_templates" },
-        () => void loadCurrentProfile()
+        () => void loadCurrentProfile("silent")
       )
       .on(
         "postgres_changes",
         { event: "*", schema: "public", table: "finance_bank_accounts" },
         () => {
-          void loadRows();
-          if (showArchive) void loadArchivedRows();
+          void loadRows("silent");
+          if (showArchive) void loadArchivedRows("silent");
         }
       )
       .subscribe();
 
     const intervalId = window.setInterval(() => {
       void Promise.all([
-        loadCurrentProfile(),
-        loadRows(),
-        showArchive ? loadArchivedRows() : Promise.resolve(),
+        loadCurrentProfile("silent"),
+        loadRows("silent"),
+        showArchive ? loadArchivedRows("silent") : Promise.resolve(),
       ]);
     }, 60000);
 
@@ -791,7 +806,7 @@ export default function FinanceMasterDataBankAccountsPage() {
 
     setShowArchive(true);
     setRunningAction("archive-modal");
-    await loadArchivedRows();
+    await loadArchivedRows("initial");
     setRunningAction(null);
   }, [loadArchivedRows, permissionState.canDeleteArchive]);
 
@@ -811,7 +826,10 @@ export default function FinanceMasterDataBankAccountsPage() {
 
       try {
         await archiveBankAccount(id);
-        await Promise.all([loadRows(), showArchive ? loadArchivedRows() : Promise.resolve()]);
+        await Promise.all([
+          loadRows("silent"),
+          showArchive ? loadArchivedRows("silent") : Promise.resolve(),
+        ]);
         setPageMessage("Bank account archived.");
       } catch (error) {
         console.error("Failed to archive bank account:", error);
@@ -843,7 +861,7 @@ export default function FinanceMasterDataBankAccountsPage() {
 
       try {
         await restoreBankAccount(id);
-        await Promise.all([loadRows(), loadArchivedRows()]);
+        await Promise.all([loadRows("silent"), loadArchivedRows("silent")]);
         setPageMessage("Bank account restored.");
       } catch (error) {
         console.error("Failed to restore bank account:", error);
@@ -875,7 +893,7 @@ export default function FinanceMasterDataBankAccountsPage() {
 
       try {
         await permanentlyDeleteBankAccount(id);
-        await Promise.all([loadRows(), loadArchivedRows()]);
+        await Promise.all([loadRows("silent"), loadArchivedRows("silent")]);
         setPageMessage("Archived bank account permanently deleted.");
       } catch (error) {
         console.error("Failed to permanently delete bank account:", error);

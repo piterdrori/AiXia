@@ -6,7 +6,6 @@ import {
   AlertTriangle,
   ArrowRight,
   BarChart3,
-  CheckCircle2,
   Clock3,
   Database,
   Filter,
@@ -715,10 +714,6 @@ export default function FinanceAccessApprovalsPage() {
 
   const pendingReviewCount = useMemo(() => {
     return userRows.filter((user) => STATUS_REVIEW_VALUES.has(user.status || "")).length;
-  }, [userRows]);
-
-  const activeUserCount = useMemo(() => {
-    return userRows.filter((user) => user.status === "active").length;
   }, [userRows]);
 
   const financeTemplateAssignedCount = useMemo(() => {

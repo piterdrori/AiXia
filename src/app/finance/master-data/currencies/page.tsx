@@ -5,13 +5,11 @@ import {
   AlertTriangle,
   Archive,
   ArrowRight,
-  Banknote,
   Calculator,
   CheckCircle2,
   ChevronDown,
   Coins,
   Database,
-  FileText,
   Globe2,
   Landmark,
   Loader2,
@@ -27,7 +25,6 @@ import {
   X,
 } from "lucide-react";
 
-import { Button } from "@/components/ui/button";
 import {
   type LiveConversionResult,
   convertCurrencyLive,

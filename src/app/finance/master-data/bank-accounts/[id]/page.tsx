@@ -11,7 +11,6 @@ import {
   AlertTriangle,
   Archive,
   ArrowRight,
-  Banknote,
   Building2,
   CheckCircle2,
   CreditCard,

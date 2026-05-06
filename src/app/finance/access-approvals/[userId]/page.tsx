@@ -5,28 +5,38 @@ import type { LucideIcon } from "lucide-react";
 import {
   AlertTriangle,
   ArrowRight,
+  BarChart3,
   CheckCircle2,
+  Database,
   Eye,
   Info,
   KeyRound,
   Loader2,
   RefreshCw,
   Search,
+  Settings as SettingsIcon,
   ShieldCheck,
   Sparkles,
   UserRound,
   X,
+  ReceiptText,
 } from "lucide-react";
 
 import {
+  ACCESS_APPROVAL_GROUPS,
   ACCESS_APPROVAL_LEVEL_EXPLANATIONS,
   ACCESS_APPROVAL_LEVEL_ORDER,
   ACCESS_APPROVAL_SECTIONS,
   buildSectionToggleOverrides,
+  countAvailableLevelsForGroup,
+  countTotalLevelsForGroup,
   getEffectiveAccessDescription,
   getEffectiveAccessLabel,
   getSectionLevelState,
+  getSectionsForGroup,
   type AccessApprovalEffectiveLabel,
+  type AccessApprovalGroup,
+  type AccessApprovalGroupKey,
   type AccessApprovalLevel,
   type AccessApprovalSection,
   type AccessApprovalSectionKey,
@@ -71,6 +81,14 @@ type DetailItem = {
 
 type RunningAction = "toggle" | "refresh" | "reset";
 
+type GroupSummary = {
+  groupKey: AccessApprovalGroupKey;
+  title: string;
+  enabledLevels: number;
+  totalLevels: number;
+  highestAccessLabel: AccessApprovalEffectiveLabel;
+};
+
 const statusToneMap: Record<
   string,
   "cyan" | "emerald" | "amber" | "rose" | "violet" | "slate"
@@ -99,6 +117,13 @@ const levelIconMap: Record<AccessApprovalLevel, LucideIcon> = {
   monitor: Search,
   change: KeyRound,
   operate: ShieldCheck,
+};
+
+const groupIconMap: Record<AccessApprovalGroupKey, LucideIcon> = {
+  masterData: Database,
+  transactions: ReceiptText,
+  reports: BarChart3,
+  settings: SettingsIcon,
 };
 
 function formatLabel(value: string | null | undefined) {
@@ -130,7 +155,9 @@ function formatDateTime(value: string | null | undefined) {
   });
 }
 
-function getToneClasses(tone: "cyan" | "emerald" | "amber" | "rose" | "violet" | "slate") {
+function getToneClasses(
+  tone: "cyan" | "emerald" | "amber" | "rose" | "violet" | "slate"
+) {
   switch (tone) {
     case "emerald":
       return "border-emerald-400/20 bg-emerald-500/10 text-emerald-200";
@@ -370,9 +397,12 @@ function MatrixToggle({
 }
 
 function getHighestAccessLabel(
-  states: Record<AccessApprovalSectionKey, AccessLevelState>
+  states: Record<AccessApprovalSectionKey, AccessLevelState>,
+  groupKey?: AccessApprovalGroupKey
 ): AccessApprovalEffectiveLabel {
-  const labels = ACCESS_APPROVAL_SECTIONS.map((section) =>
+  const sections = groupKey ? getSectionsForGroup(groupKey) : ACCESS_APPROVAL_SECTIONS;
+
+  const labels = sections.map((section) =>
     getEffectiveAccessLabel(section, states[section.key])
   );
 
@@ -387,6 +417,180 @@ function getHighestAccessLabel(
 
 function isAdminRole(role: Role | string | null | undefined) {
   return String(role || "").toLowerCase() === "admin";
+}
+
+function GroupSummaryCard({
+  summary,
+}: {
+  summary: GroupSummary;
+}) {
+  const Icon = groupIconMap[summary.groupKey];
+  const tone = effectiveAccessToneMap[summary.highestAccessLabel];
+  const percent =
+    summary.totalLevels > 0 ? (summary.enabledLevels / summary.totalLevels) * 100 : 0;
+
+  return (
+    <div className="rounded-[24px] border border-white/10 bg-black/20 p-4">
+      <div className="flex items-start justify-between gap-3">
+        <div className="flex min-w-0 items-center gap-3">
+          <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-2xl border border-cyan-400/15 bg-cyan-500/10 text-cyan-200">
+            <Icon className="h-5 w-5" />
+          </div>
+          <div className="min-w-0">
+            <div className="text-sm font-semibold text-white">{summary.title}</div>
+            <div className="mt-1 text-xs text-slate-500">
+              {summary.enabledLevels} of {summary.totalLevels} permissions enabled
+            </div>
+          </div>
+        </div>
+
+        <StatusBadge value={summary.highestAccessLabel} tone={tone} />
+      </div>
+
+      <div className="mt-4 h-2 overflow-hidden rounded-full border border-white/10 bg-black/30">
+        <div
+          className="h-full rounded-full bg-cyan-400/60"
+          style={{ width: `${Math.max(0, Math.min(100, percent))}%` }}
+        />
+      </div>
+    </div>
+  );
+}
+
+function GroupPermissionCard({
+  group,
+  accessStates,
+  actionLocked,
+  hasAdminAccess,
+  isTargetAdmin,
+  onToggle,
+}: {
+  group: AccessApprovalGroup;
+  accessStates: Record<AccessApprovalSectionKey, AccessLevelState>;
+  actionLocked: boolean;
+  hasAdminAccess: boolean;
+  isTargetAdmin: boolean;
+  onToggle: (section: AccessApprovalSection, level: AccessApprovalLevel) => void;
+}) {
+  const Icon = groupIconMap[group.key];
+  const sections = getSectionsForGroup(group.key);
+
+  return (
+    <section className="overflow-hidden rounded-[30px] border border-white/10 bg-white/[0.045] backdrop-blur-xl">
+      <div className="border-b border-white/10 bg-black/10 px-5 py-4">
+        <div className="flex flex-col gap-4 xl:flex-row xl:items-start xl:justify-between">
+          <div className="flex min-w-0 items-start gap-4">
+            <div className="rounded-2xl border border-cyan-400/15 bg-cyan-500/10 p-3 text-cyan-200">
+              <Icon className="h-5 w-5" />
+            </div>
+            <div>
+              <div className="text-sm font-semibold uppercase tracking-[0.18em] text-slate-400">
+                {group.title}
+              </div>
+              <p className="mt-1 max-w-4xl text-xs leading-5 text-slate-500">
+                {group.description}
+              </p>
+            </div>
+          </div>
+
+          <div className="flex flex-wrap gap-2">
+            {ACCESS_APPROVAL_LEVEL_ORDER.map((level) => (
+              <div
+                key={`${group.key}-${level}-label`}
+                className="inline-flex items-center rounded-full border border-white/10 bg-white/[0.04] px-3 py-1 text-[10px] font-semibold uppercase tracking-[0.14em] text-slate-400"
+              >
+                {formatLabel(level)}
+                <PermissionLevelTooltip level={level} />
+              </div>
+            ))}
+          </div>
+        </div>
+      </div>
+
+      <div className="grid gap-4 p-5">
+        {sections.map((section) => {
+          const sectionState = accessStates[section.key];
+          const effectiveLabel = getEffectiveAccessLabel(section, sectionState);
+          const effectiveDescription = getEffectiveAccessDescription(section, sectionState);
+          const effectiveTone = effectiveAccessToneMap[effectiveLabel];
+          const sectionDisabled =
+            actionLocked ||
+            !hasAdminAccess ||
+            (section.adminOnly && !isTargetAdmin);
+
+          return (
+            <div
+              key={section.key}
+              className="rounded-[24px] border border-white/10 bg-black/20 p-4"
+            >
+              <div className="grid gap-4 xl:grid-cols-[minmax(280px,1fr)_minmax(420px,auto)_260px] xl:items-center">
+                <div className="min-w-0">
+                  <div className="flex items-center">
+                    <div className="font-semibold text-white">{section.title}</div>
+                    <SectionTooltip section={section} />
+                  </div>
+                  <div className="mt-1 text-xs leading-5 text-slate-500">
+                    {section.scope}
+                  </div>
+
+                  <div className="mt-3 flex flex-wrap gap-1.5">
+                    {section.controls.slice(0, 6).map((item) => (
+                      <span
+                        key={item}
+                        className="rounded-full border border-white/10 bg-white/[0.04] px-2.5 py-1 text-[10px] text-slate-400"
+                      >
+                        {item}
+                      </span>
+                    ))}
+                    {section.controls.length > 6 ? (
+                      <span className="rounded-full border border-white/10 bg-white/[0.04] px-2.5 py-1 text-[10px] text-slate-500">
+                        +{section.controls.length - 6} more
+                      </span>
+                    ) : null}
+                  </div>
+
+                  {section.defaultRule ? (
+                    <div className="mt-3 rounded-2xl border border-emerald-400/15 bg-emerald-500/10 px-3 py-2 text-xs leading-5 text-emerald-100">
+                      {section.defaultRule}
+                    </div>
+                  ) : null}
+
+                  {section.adminOnly && !isTargetAdmin ? (
+                    <div className="mt-3 rounded-2xl border border-amber-400/15 bg-amber-500/10 px-3 py-2 text-xs leading-5 text-amber-100">
+                      Admin-only section. This user must have Admin role before this access can be enabled.
+                    </div>
+                  ) : null}
+                </div>
+
+                <div className="grid gap-2 sm:grid-cols-2 xl:grid-cols-4">
+                  {ACCESS_APPROVAL_LEVEL_ORDER.map((level) => (
+                    <div key={`${section.key}-${level}`} className="grid gap-1.5">
+                      <div className="text-center text-[10px] font-semibold uppercase tracking-[0.14em] text-slate-500">
+                        {formatLabel(level)}
+                      </div>
+                      <MatrixToggle
+                        checked={sectionState[level]}
+                        disabled={sectionDisabled}
+                        level={level}
+                        onClick={() => onToggle(section, level)}
+                      />
+                    </div>
+                  ))}
+                </div>
+
+                <div className="rounded-2xl border border-white/10 bg-white/[0.025] p-3">
+                  <StatusBadge value={effectiveLabel} tone={effectiveTone} />
+                  <div className="mt-2 text-xs leading-5 text-slate-500">
+                    {effectiveDescription}
+                  </div>
+                </div>
+              </div>
+            </div>
+          );
+        })}
+      </div>
+    </section>
+  );
 }
 
 export default function FinanceAccessApprovalUserDetailPage() {
@@ -426,7 +630,7 @@ export default function FinanceAccessApprovalUserDetailPage() {
         const authUserId = authResult.data.user?.id;
 
         if (!authUserId) {
-          setPageError("You must be logged in to manage Access Approvals.");
+          setPageError("You must be logged in to manage Finance Access Approvals.");
           setTargetUser(null);
           return;
         }
@@ -468,7 +672,7 @@ export default function FinanceAccessApprovalUserDetailPage() {
           String(currentProfile.role || "").toLowerCase() === "admin";
 
         if (!isCurrentUserAdmin || !currentEffectivePermissions.manageUsers) {
-          setPageError("Admin access is required to manage Access Approvals.");
+          setPageError("Admin access is required to manage Finance Access Approvals.");
           setCurrentUser(currentProfile);
           setTargetUser(null);
           return;
@@ -484,9 +688,9 @@ export default function FinanceAccessApprovalUserDetailPage() {
         setTargetUser(loadedTargetUser);
         setPermissions(loadedTargetUser.permissions || {});
       } catch (error) {
-        console.error("Failed to load user access approval:", error);
+        console.error("Failed to load user finance access approval:", error);
         setPageError(
-          error instanceof Error ? error.message : "Failed to load user access approval."
+          error instanceof Error ? error.message : "Failed to load user finance access approval."
         );
         setTargetUser(null);
       } finally {
@@ -567,9 +771,23 @@ export default function FinanceAccessApprovalUserDetailPage() {
     return getHighestAccessLabel(accessStates);
   }, [accessStates]);
 
-  const enabledSectionCount = useMemo(() => {
-    return ACCESS_APPROVAL_SECTIONS.filter((section) => accessStates[section.key]?.see).length;
+  const groupSummaries = useMemo<GroupSummary[]>(() => {
+    return ACCESS_APPROVAL_GROUPS.map((group) => ({
+      groupKey: group.key,
+      title: group.title,
+      enabledLevels: countAvailableLevelsForGroup(group.key, accessStates),
+      totalLevels: countTotalLevelsForGroup(group.key),
+      highestAccessLabel: getHighestAccessLabel(accessStates, group.key),
+    }));
   }, [accessStates]);
+
+  const enabledLevelCount = useMemo(() => {
+    return groupSummaries.reduce((total, summary) => total + summary.enabledLevels, 0);
+  }, [groupSummaries]);
+
+  const totalLevelCount = useMemo(() => {
+    return groupSummaries.reduce((total, summary) => total + summary.totalLevels, 0);
+  }, [groupSummaries]);
 
   const operatorSectionCount = useMemo(() => {
     return ACCESS_APPROVAL_SECTIONS.filter((section) => accessStates[section.key]?.operate).length;
@@ -623,14 +841,12 @@ export default function FinanceAccessApprovalUserDetailPage() {
             tone={effectiveAccessToneMap[highestAccessLabel]}
           />
         ),
-        detail: "Highest company-level access currently enabled.",
+        detail: "Highest finance-level access currently enabled.",
       },
       {
-        label: "Company Sections",
-        value: `${formatCount(enabledSectionCount)} / ${formatCount(
-          ACCESS_APPROVAL_SECTIONS.length
-        )}`,
-        detail: "Sections where this user can open company-level area.",
+        label: "Enabled Permissions",
+        value: `${formatCount(enabledLevelCount)} / ${formatCount(totalLevelCount)}`,
+        detail: "Finance permission levels enabled across all groups.",
       },
       {
         label: "Operator Sections",
@@ -649,11 +865,12 @@ export default function FinanceAccessApprovalUserDetailPage() {
       },
     ];
   }, [
-    enabledSectionCount,
+    enabledLevelCount,
     highestAccessLabel,
     operatorSectionCount,
     overriddenPermissionCount,
     targetUser,
+    totalLevelCount,
   ]);
 
   const updatePermissions = useCallback(
@@ -678,9 +895,9 @@ export default function FinanceAccessApprovalUserDetailPage() {
         setPermissions(nextPermissions);
         setPageMessage(successMessage);
       } catch (error) {
-        console.error("Failed to update access approval:", error);
+        console.error("Failed to update finance access approval:", error);
         setPageError(
-          error instanceof Error ? error.message : "Failed to update access approval."
+          error instanceof Error ? error.message : "Failed to update finance access approval."
         );
         await loadUser("silent");
       } finally {
@@ -695,7 +912,9 @@ export default function FinanceAccessApprovalUserDetailPage() {
       if (!targetUser || !roleDefaultPermissions || !effectivePermissions) return;
 
       if (section.adminOnly && !isAdminRole(targetUser.role)) {
-        setPageError("Access Approvals is admin-only. Change the user role to Admin before enabling this section.");
+        setPageError(
+          "Finance Access Approvals is admin-only. Change the user role to Admin before enabling this section."
+        );
         return;
       }
 
@@ -737,11 +956,11 @@ export default function FinanceAccessApprovalUserDetailPage() {
       if (updateResult.error) throw updateResult.error;
 
       setPermissions({});
-      setPageMessage("All custom access overrides were reset to role defaults.");
+      setPageMessage("All custom finance access overrides were reset to role defaults.");
     } catch (error) {
-      console.error("Failed to reset access overrides:", error);
+      console.error("Failed to reset finance access overrides:", error);
       setPageError(
-        error instanceof Error ? error.message : "Failed to reset access overrides."
+        error instanceof Error ? error.message : "Failed to reset finance access overrides."
       );
       await loadUser("silent");
     } finally {
@@ -762,7 +981,7 @@ export default function FinanceAccessApprovalUserDetailPage() {
           <div className="rounded-[34px] border border-white/10 bg-white/[0.045] p-12 text-center backdrop-blur-xl">
             <Loader2 className="mx-auto h-8 w-8 animate-spin text-cyan-200" />
             <div className="mt-4 text-sm text-slate-400">
-              Loading user access approval...
+              Loading user Finance Access Approval...
             </div>
           </div>
         </div>
@@ -777,18 +996,18 @@ export default function FinanceAccessApprovalUserDetailPage() {
           <div className="rounded-[34px] border border-rose-400/20 bg-rose-500/10 p-12 text-center">
             <AlertTriangle className="mx-auto h-8 w-8 text-rose-200" />
             <div className="mt-4 text-lg font-semibold text-white">
-              Access approval profile not available
+              Finance access approval profile not available
             </div>
             <div className="mt-2 text-sm text-rose-100">
               {pageError || "The selected user profile could not be loaded."}
             </div>
             <button
               type="button"
-              onClick={() => navigate("/finance/transactions/approvals")}
+              onClick={() => navigate("/finance/access-approvals")}
               className="mt-6 inline-flex h-11 items-center justify-center gap-2 rounded-2xl border border-white/10 bg-white/[0.05] px-5 text-sm font-semibold text-white transition hover:bg-white/[0.08]"
             >
               <ArrowRight className="h-4 w-4 rotate-180" />
-              Access Approvals
+              Finance Access Approvals
             </button>
           </div>
         </div>
@@ -809,16 +1028,16 @@ export default function FinanceAccessApprovalUserDetailPage() {
             <div>
               <button
                 type="button"
-                onClick={() => navigate("/finance/transactions/approvals")}
+                onClick={() => navigate("/finance/access-approvals")}
                 className="mb-5 inline-flex items-center justify-center gap-2 rounded-full border border-white/10 bg-white/[0.05] px-5 py-2 text-[11px] font-semibold uppercase tracking-[0.22em] text-slate-300 transition hover:border-white/20 hover:bg-white/[0.08] hover:text-white"
               >
                 <ArrowRight className="h-3.5 w-3.5 rotate-180" />
-                Access Approvals
+                Finance Access Approvals
               </button>
 
               <div className="inline-flex w-fit items-center gap-2 rounded-full border border-cyan-400/20 bg-cyan-500/10 px-3 py-1 text-[11px] font-semibold uppercase tracking-[0.22em] text-cyan-200">
                 <Sparkles className="h-3.5 w-3.5" />
-                User Access Approval
+                User Finance Access Approval
               </div>
 
               <h1 className="mt-4 text-3xl font-semibold tracking-[-0.035em] text-white md:text-5xl">
@@ -826,8 +1045,8 @@ export default function FinanceAccessApprovalUserDetailPage() {
               </h1>
 
               <p className="mt-3 max-w-4xl text-sm leading-6 text-slate-400 md:text-base md:leading-7">
-                Approve what this user can see, monitor, change, and operate across AiXia company
-                workflows. Hover over section titles or permission titles for exact meaning.
+                Approve what this user can see, monitor, change, and operate across Finance:
+                Master Data, Transactions, Reports, and Settings.
               </p>
 
               <div className="mt-5 flex flex-wrap gap-2">
@@ -877,14 +1096,13 @@ export default function FinanceAccessApprovalUserDetailPage() {
                   </div>
                 </div>
                 <div className="mt-3 text-xs leading-5 text-slate-500">
-                  This is the highest company-level access currently enabled for this user.
+                  This is the highest finance-level access currently enabled for this user.
                 </div>
               </div>
             </div>
           </div>
         </header>
-
-        {pageError ? (
+                {pageError ? (
           <div className="rounded-[24px] border border-rose-400/20 bg-rose-500/10 p-4 text-sm leading-6 text-rose-100">
             <div className="flex items-start gap-3">
               <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0" />
@@ -919,19 +1137,25 @@ export default function FinanceAccessApprovalUserDetailPage() {
           ))}
         </section>
 
+        <section className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
+          {groupSummaries.map((summary) => (
+            <GroupSummaryCard key={summary.groupKey} summary={summary} />
+          ))}
+        </section>
+
         <SectionCard
-          title="Company-Level Access Permissions"
-          description="Toggle only the five approved company-level sections. Normal personal expense/paycheck use is still default enabled."
+          title="Finance Access Permission Editor"
+          description="Edit the real permission matrix by Finance group. The list page only shows summaries; this page controls the actual toggles."
           icon={KeyRound}
         >
           <div className="mb-5 flex flex-col gap-3 rounded-[24px] border border-white/10 bg-black/20 p-4 lg:flex-row lg:items-center lg:justify-between">
             <div>
               <div className="text-sm font-semibold text-white">
-                Access Matrix
+                See / Monitor / Change / Operate Matrix
               </div>
               <div className="mt-1 text-xs leading-5 text-slate-500">
                 Higher levels include lower levels. Turning off a lower level also turns off higher
-                levels in that section.
+                levels inside the same Finance section.
               </div>
             </div>
 
@@ -966,99 +1190,18 @@ export default function FinanceAccessApprovalUserDetailPage() {
             </div>
           </div>
 
-          <div className="overflow-x-auto rounded-[24px] border border-white/10 bg-black/20">
-            <table className="w-full min-w-[1280px] border-collapse">
-              <thead className="border-b border-white/10 bg-black/40">
-                <tr>
-                  <th className="px-5 py-4 text-left text-[11px] font-semibold uppercase tracking-[0.18em] text-slate-500">
-                    Section
-                  </th>
-                  <th className="px-5 py-4 text-left text-[11px] font-semibold uppercase tracking-[0.18em] text-slate-500">
-                    Scope
-                  </th>
-                  {ACCESS_APPROVAL_LEVEL_ORDER.map((level) => (
-                    <th
-                      key={level}
-                      className="px-5 py-4 text-center text-[11px] font-semibold uppercase tracking-[0.18em] text-slate-500"
-                    >
-                      <span className="inline-flex items-center justify-center">
-                        {formatLabel(level)}
-                        <PermissionLevelTooltip level={level} />
-                      </span>
-                    </th>
-                  ))}
-                  <th className="px-5 py-4 text-left text-[11px] font-semibold uppercase tracking-[0.18em] text-slate-500">
-                    Effective Access
-                  </th>
-                </tr>
-              </thead>
-
-              <tbody>
-                {ACCESS_APPROVAL_SECTIONS.map((section) => {
-                  const sectionState = accessStates[section.key];
-                  const effectiveLabel = getEffectiveAccessLabel(section, sectionState);
-                  const effectiveDescription = getEffectiveAccessDescription(section, sectionState);
-                  const effectiveTone = effectiveAccessToneMap[effectiveLabel];
-                  const sectionDisabled =
-                    actionLocked ||
-                    !hasAdminAccess ||
-                    (section.adminOnly && !isTargetAdmin);
-
-                  return (
-                    <tr
-                      key={section.key}
-                      className="border-b border-white/5 text-sm text-slate-300 transition hover:bg-white/[0.035]"
-                    >
-                      <td className="min-w-[270px] px-5 py-4">
-                        <div className="flex items-center">
-                          <div className="font-semibold text-white">{section.title}</div>
-                          <SectionTooltip section={section} />
-                        </div>
-                        <div className="mt-1 text-xs leading-5 text-slate-500">
-                          Controls {section.controls.join(", ")}
-                        </div>
-                        {section.defaultRule ? (
-                          <div className="mt-2 rounded-2xl border border-emerald-400/15 bg-emerald-500/10 px-3 py-2 text-xs leading-5 text-emerald-100">
-                            {section.defaultRule}
-                          </div>
-                        ) : null}
-                        {section.adminOnly && !isTargetAdmin ? (
-                          <div className="mt-2 rounded-2xl border border-amber-400/15 bg-amber-500/10 px-3 py-2 text-xs leading-5 text-amber-100">
-                            Admin-only section. This user must have Admin role before this access can
-                            be enabled.
-                          </div>
-                        ) : null}
-                      </td>
-
-                      <td className="min-w-[230px] px-5 py-4">
-                        <div className="font-medium text-white">{section.scope}</div>
-                        <div className="mt-1 text-xs leading-5 text-slate-500">
-                          Company-level permission group.
-                        </div>
-                      </td>
-
-                      {ACCESS_APPROVAL_LEVEL_ORDER.map((level) => (
-                        <td key={level} className="px-5 py-4 text-center">
-                          <MatrixToggle
-                            checked={sectionState[level]}
-                            disabled={sectionDisabled}
-                            level={level}
-                            onClick={() => void handleToggle(section, level)}
-                          />
-                        </td>
-                      ))}
-
-                      <td className="min-w-[260px] px-5 py-4">
-                        <StatusBadge value={effectiveLabel} tone={effectiveTone} />
-                        <div className="mt-2 text-xs leading-5 text-slate-500">
-                          {effectiveDescription}
-                        </div>
-                      </td>
-                    </tr>
-                  );
-                })}
-              </tbody>
-            </table>
+          <div className="grid gap-5">
+            {ACCESS_APPROVAL_GROUPS.map((group) => (
+              <GroupPermissionCard
+                key={group.key}
+                group={group}
+                accessStates={accessStates}
+                actionLocked={actionLocked}
+                hasAdminAccess={hasAdminAccess}
+                isTargetAdmin={isTargetAdmin}
+                onToggle={(section, level) => void handleToggle(section, level)}
+              />
+            ))}
           </div>
         </SectionCard>
 
@@ -1089,8 +1232,9 @@ export default function FinanceAccessApprovalUserDetailPage() {
         <div className="rounded-[24px] border border-cyan-400/20 bg-cyan-500/10 p-4 text-sm leading-6 text-cyan-100">
           <div className="font-semibold text-white">Locked default rule</div>
           <div className="mt-1">
-            Normal users can SEE, create, edit, submit, upload, and confirm their own records by
-            default. This page only grants or removes extra company-level power.
+            Normal users can see, create, edit, submit, upload, and confirm their own expenses and
+            paycheck requests by default. This page only grants or removes additional company-level
+            Finance access.
           </div>
         </div>
       </div>

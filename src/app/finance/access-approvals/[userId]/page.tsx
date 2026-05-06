@@ -489,8 +489,32 @@ function GroupPermissionCard({
   isTargetAdmin: boolean;
   onToggle: (section: AccessApprovalSection, level: AccessApprovalLevel) => void;
 }) {
+  const [activeHelpKey, setActiveHelpKey] = useState<string | null>(null);
+
   const Icon = groupIconMap[group.key];
   const sections = getSectionsForGroup(group.key);
+
+  const helpItems = useMemo(() => {
+    const items = new Map<string, HelpPanelData>();
+
+    ACCESS_APPROVAL_LEVEL_ORDER.forEach((level) => {
+      const help = buildLevelHelp(level);
+      items.set(help.key, help);
+    });
+
+    sections.forEach((section) => {
+      const help = buildSectionHelp(section);
+      items.set(help.key, help);
+    });
+
+    return items;
+  }, [sections]);
+
+  const activeHelp = activeHelpKey ? helpItems.get(activeHelpKey) || null : null;
+
+  const toggleHelp = useCallback((helpKey: string) => {
+    setActiveHelpKey((currentKey) => (currentKey === helpKey ? null : helpKey));
+  }, []);
 
   return (
     <section className="overflow-hidden rounded-[30px] border border-white/10 bg-white/[0.045] backdrop-blur-xl">
@@ -512,16 +536,22 @@ function GroupPermissionCard({
 
           <div className="flex flex-wrap gap-2">
             {ACCESS_APPROVAL_LEVEL_ORDER.map((level) => (
-              <div
+              <HelpButton
                 key={`${group.key}-${level}-label`}
-                className="inline-flex items-center rounded-full border border-white/10 bg-white/[0.04] px-3 py-1 text-[10px] font-semibold uppercase tracking-[0.14em] text-slate-400"
-              >
-                {formatLabel(level)}
-                <PermissionLevelTooltip level={level} />
-              </div>
+                label={formatLabel(level)}
+                helpKey={`level-${level}`}
+                activeHelpKey={activeHelpKey}
+                onToggle={toggleHelp}
+              />
             ))}
           </div>
         </div>
+
+        {activeHelp ? (
+          <div className="mt-4">
+            <HelpPanel help={activeHelp} onClose={() => setActiveHelpKey(null)} />
+          </div>
+        ) : null}
       </div>
 
       <div className="grid gap-4 p-5">
@@ -542,9 +572,14 @@ function GroupPermissionCard({
             >
               <div className="grid gap-4 xl:grid-cols-[minmax(280px,1fr)_minmax(420px,auto)_260px] xl:items-center">
                 <div className="min-w-0">
-                  <div className="flex items-center">
+                  <div className="flex flex-wrap items-center gap-2">
                     <div className="font-semibold text-white">{section.title}</div>
-                    <SectionTooltip section={section} />
+                    <HelpButton
+                      label="Info"
+                      helpKey={`section-${section.key}`}
+                      activeHelpKey={activeHelpKey}
+                      onToggle={toggleHelp}
+                    />
                   </div>
                   <div className="mt-1 text-xs leading-5 text-slate-500">
                     {section.scope}

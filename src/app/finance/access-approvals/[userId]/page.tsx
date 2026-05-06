@@ -464,28 +464,37 @@ function GroupSummaryCard({
     summary.totalLevels > 0 ? (summary.enabledLevels / summary.totalLevels) * 100 : 0;
 
   return (
-    <div className="rounded-[24px] border border-white/10 bg-black/20 p-4">
-      <div className="flex items-start justify-between gap-3">
-        <div className="flex min-w-0 items-center gap-3">
+    <div className="min-h-[156px] rounded-[24px] border border-white/10 bg-black/20 p-4">
+      <div className="flex h-full flex-col justify-between gap-4">
+        <div className="flex items-start gap-3">
           <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-2xl border border-cyan-400/15 bg-cyan-500/10 text-cyan-200">
             <Icon className="h-5 w-5" />
           </div>
-          <div className="min-w-0">
-            <div className="text-sm font-semibold text-white">{summary.title}</div>
-            <div className="mt-1 text-xs text-slate-500">
-              {summary.enabledLevels} of {summary.totalLevels} permissions enabled
+
+          <div className="min-w-0 flex-1">
+            <div className="flex flex-col gap-2 2xl:flex-row 2xl:items-start 2xl:justify-between">
+              <div className="min-w-0 pr-2">
+                <div className="break-words text-sm font-semibold leading-5 text-white">
+                  {summary.title}
+                </div>
+                <div className="mt-1 text-xs leading-5 text-slate-500">
+                  {summary.enabledLevels} of {summary.totalLevels} permissions enabled
+                </div>
+              </div>
+
+              <div className="shrink-0">
+                <StatusBadge value={summary.highestAccessLabel} tone={tone} />
+              </div>
             </div>
           </div>
         </div>
 
-        <StatusBadge value={summary.highestAccessLabel} tone={tone} />
-      </div>
-
-      <div className="mt-4 h-2 overflow-hidden rounded-full border border-white/10 bg-black/30">
-        <div
-          className="h-full rounded-full bg-cyan-400/60"
-          style={{ width: `${Math.max(0, Math.min(100, percent))}%` }}
-        />
+        <div className="h-2 overflow-hidden rounded-full border border-white/10 bg-black/30">
+          <div
+            className="h-full rounded-full bg-cyan-400/60"
+            style={{ width: `${Math.max(0, Math.min(100, percent))}%` }}
+          />
+        </div>
       </div>
     </div>
   );

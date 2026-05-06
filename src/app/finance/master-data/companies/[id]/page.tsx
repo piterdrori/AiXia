@@ -1657,16 +1657,28 @@ export default function FinanceMasterDataCompanyDetailPage() {
       setPageError(null);
       setPageMessage(null);
 
+      const nextCurrencyCode = identityDraft.currency_code || null;
+
       await updateCompany(company.id, {
-        currency_code: identityDraft.currency_code || null,
+        currency_code: nextCurrencyCode,
         registration_number: identityDraft.registration_number.trim() || null,
         tax_number: identityDraft.tax_number.trim() || null,
         website: identityDraft.website.trim() || null,
       });
 
+      if (nextCurrencyCode) {
+        const { error: bankCurrencyError } = await supabase
+          .from("finance_bank_accounts")
+          .update({ currency_code: nextCurrencyCode })
+          .eq("company_id", company.id);
+
+        if (bankCurrencyError) throw bankCurrencyError;
+      }
+
       setEditingSection(null);
-      setPageMessage("Company identity updated.");
+      setPageMessage("Company identity updated. Linked bank account currencies synchronized.");
       await loadCompany("silent");
+      
     } catch (error) {
       console.error("Failed to save company identity:", error);
       setPageError(
@@ -3027,7 +3039,8 @@ export default function FinanceMasterDataCompanyDetailPage() {
                           />
                           <DisplayBlock
                             label="Currency"
-                            value={account.currency_code || "—"}
+                            value={company.currency_code || account.currency_code || "—"}
+                            detail="Pulled from the company currency. Bank account currency follows the company."
                           />
                           <DisplayBlock
                             label="Location"

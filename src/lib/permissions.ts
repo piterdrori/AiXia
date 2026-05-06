@@ -748,16 +748,12 @@ const ROUTE_PERMISSIONS: Record<string, RoutePermission> = {
 
 };
 
-export function getEffectivePermissions(
+function applyBooleanPermissionOverrides(
+  effective: PermissionMap,
   role: Role,
   overrides?: Partial<PermissionMap> | null
-): PermissionMap {
-    const basePermissions = ROLE_PERMISSIONS[role];
+) {
   const overridePermissions = overrides ?? {};
-
-    const effective: PermissionMap = {
-    ...basePermissions,
-  };
 
   (Object.keys(overridePermissions) as Permission[]).forEach((key) => {
     const overrideValue = overridePermissions[key];
@@ -770,19 +766,26 @@ export function getEffectivePermissions(
       if (overrideValue === true) {
         effective[key] = true;
       }
+
       return;
     }
 
     effective[key] = overrideValue;
   });
+}
 
-  if (role !== "admin") {
-    effective.manageUsers = false;
-    effective.accessApprovals = false;
-    effective.viewApprovalQueue = false;
-    effective.actOnFinanceApprovals = false;
+function lockAdminOnlyFinancePermissions(effective: PermissionMap, role: Role) {
+  if (role === "admin") {
+    return;
   }
 
+  effective.manageUsers = false;
+  effective.accessApprovals = false;
+  effective.viewApprovalQueue = false;
+  effective.actOnFinanceApprovals = false;
+}
+
+function applyPermissionCascades(effective: PermissionMap) {
   if (effective.manageUsers) {
     effective.viewEmployeeDirectory = true;
     effective.viewEmployeeDetail = true;
@@ -809,7 +812,6 @@ export function getEffectivePermissions(
   }
 
   if (effective.createFinanceRecords) {
-    // compatibility bridge for existing generic finance create flows
     effective.createInvoices = true;
     effective.recordPaymentsReceived = true;
     effective.createBills = true;
@@ -817,7 +819,6 @@ export function getEffectivePermissions(
   }
 
   if (effective.editFinanceRecords) {
-    // compatibility bridge for existing generic finance edit flows
     effective.editDraftInvoices = true;
     effective.sendInvoices = true;
     effective.editDraftBills = true;
@@ -825,7 +826,6 @@ export function getEffectivePermissions(
   }
 
   if (effective.archiveFinanceRecords) {
-    // compatibility bridge for existing generic finance archive flows
     effective.voidInvoices = true;
     effective.voidBills = true;
   }
@@ -896,7 +896,6 @@ export function getEffectivePermissions(
     effective.viewVendors = true;
   }
 
-    // ===== EXPENSES AUTO CASCADE =====
   if (
     effective.viewOwnExpenses ||
     effective.createExpenses ||
@@ -933,24 +932,12 @@ export function getEffectivePermissions(
     effective.viewPaymentsMade = true;
   }
 
-  if (effective.approveExpenses) {
-    effective.accessApprovals = true;
-    effective.viewApprovalQueue = true;
-  }
-
   if (effective.issueReimbursements || effective.recordReimbursementPayments) {
     effective.viewReimbursements = true;
     effective.viewPaymentsMade = true;
     effective.accessFinance = true;
     effective.viewFinance = true;
   }
-
-  if (effective.accessApprovals || effective.viewApprovalQueue) {
-    effective.accessFinance = true;
-    effective.viewFinance = true;
-  }
-
-  // ===== PAYROLL CASCADE =====
 
   if (effective.viewOwnPaychecks) {
     effective.accessPayroll = true;
@@ -973,6 +960,11 @@ export function getEffectivePermissions(
     effective.accessPayroll = true;
     effective.viewPayroll = true;
     effective.viewAllPaychecks = true;
+    effective.accessFinance = true;
+    effective.viewFinance = true;
+  }
+
+  if (effective.accessApprovals || effective.viewApprovalQueue) {
     effective.accessFinance = true;
     effective.viewFinance = true;
   }
@@ -1016,6 +1008,21 @@ export function getEffectivePermissions(
     effective.accessFinance = true;
     effective.viewFinance = true;
   }
+}
+
+export function getEffectivePermissions(
+  role: Role,
+  overrides?: Partial<PermissionMap> | null
+): PermissionMap {
+  const basePermissions = ROLE_PERMISSIONS[role];
+  const effective: PermissionMap = {
+    ...basePermissions,
+  };
+
+  applyBooleanPermissionOverrides(effective, role, overrides);
+  lockAdminOnlyFinancePermissions(effective, role);
+  applyPermissionCascades(effective);
+  lockAdminOnlyFinancePermissions(effective, role);
 
   return effective;
 }

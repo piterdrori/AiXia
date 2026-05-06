@@ -6,7 +6,6 @@ import {
   AlertTriangle,
   ArrowRight,
   BarChart3,
-  Clock3,
   Database,
   Filter,
   KeyRound,

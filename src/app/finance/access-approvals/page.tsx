@@ -121,30 +121,11 @@ type SortKey =
   | "name"
   | "role"
   | "template"
-  | "status"
   | "effective"
-  | "enabled"
   | "overrides"
   | "updated";
 
 type SortDirection = "asc" | "desc";
-
-const STATUS_REVIEW_VALUES = new Set([
-  "pending_verification",
-  "pending_profile",
-  "pending_approval",
-]);
-
-const statusToneMap: Record<
-  string,
-  "cyan" | "emerald" | "amber" | "rose" | "violet" | "slate"
-> = {
-  active: "emerald",
-  pending_verification: "amber",
-  pending_profile: "amber",
-  pending_approval: "amber",
-  rejected: "rose",
-};
 
 const effectiveAccessToneMap: Record<
   AccessApprovalEffectiveLabel,
@@ -242,12 +223,10 @@ function StatusBadge({
   value: string | null | undefined;
   tone?: "cyan" | "emerald" | "amber" | "rose" | "violet" | "slate";
 }) {
-  const resolvedTone = tone || statusToneMap[value || ""] || "slate";
-
   return (
     <span
       className={`inline-flex max-w-full items-center rounded-full border px-3 py-1 text-[11px] font-semibold uppercase tracking-[0.14em] ${getToneClasses(
-        resolvedTone
+        tone || "slate"
       )}`}
     >
       <span className="truncate">{formatLabel(value)}</span>
@@ -512,7 +491,6 @@ export default function FinanceAccessApprovalsPage() {
   const [isRefreshing, setIsRefreshing] = useState(false);
   const [pageError, setPageError] = useState<string | null>(null);
   const [searchValue, setSearchValue] = useState("");
-  const [statusFilter, setStatusFilter] = useState("all");
   const [templateFilter, setTemplateFilter] = useState("all");
   const [sortKey, setSortKey] = useState<SortKey>("updated");
   const [sortDirection, setSortDirection] = useState<SortDirection>("desc");
@@ -577,6 +555,7 @@ export default function FinanceAccessApprovalsPage() {
             .select(
               "user_id, full_name, role, status, requested_role, permissions, created_at, updated_at"
             )
+            .eq("status", "active")
             .order("updated_at", { ascending: false }),
 
           supabase
@@ -712,10 +691,6 @@ export default function FinanceAccessApprovalsPage() {
     return Boolean(isAdminUser && currentPermissions.manageUsers && !pageError);
   }, [currentUser, pageError]);
 
-  const pendingReviewCount = useMemo(() => {
-    return userRows.filter((user) => STATUS_REVIEW_VALUES.has(user.status || "")).length;
-  }, [userRows]);
-
   const financeTemplateAssignedCount = useMemo(() => {
     return userRows.filter((user) => user.financeTemplate?.template_key !== "custom").length;
   }, [userRows]);
@@ -728,11 +703,6 @@ export default function FinanceAccessApprovalsPage() {
     return userRows.filter((user) => user.userOverrideCount > 0).length;
   }, [userRows]);
 
-  const statusOptions = useMemo(() => {
-    const statuses = Array.from(new Set(userRows.map((user) => user.status).filter(Boolean)));
-    return ["all", ...statuses] as string[];
-  }, [userRows]);
-
   const templateOptions = useMemo(() => {
     return ["all", ...financeTemplates.map((template) => template.id)];
   }, [financeTemplates]);
@@ -742,10 +712,6 @@ export default function FinanceAccessApprovalsPage() {
 
     return userRows
       .filter((user) => {
-        if (statusFilter !== "all" && user.status !== statusFilter) {
-          return false;
-        }
-
         if (templateFilter !== "all" && user.financeTemplate?.id !== templateFilter) {
           return false;
         }
@@ -755,8 +721,6 @@ export default function FinanceAccessApprovalsPage() {
         return [
           user.full_name,
           user.role,
-          user.status,
-          user.requested_role,
           user.user_id,
           user.financeTemplate?.template_name,
           user.highestAccessLabel,
@@ -782,16 +746,8 @@ export default function FinanceAccessApprovalsPage() {
           );
         }
 
-        if (sortKey === "status") {
-          comparison = compareStrings(first.status, second.status);
-        }
-
         if (sortKey === "effective") {
           comparison = compareStrings(first.highestAccessLabel, second.highestAccessLabel);
-        }
-
-        if (sortKey === "enabled") {
-          comparison = first.enabledLevelCount - second.enabledLevelCount;
         }
 
         if (sortKey === "overrides") {
@@ -807,15 +763,15 @@ export default function FinanceAccessApprovalsPage() {
 
         return sortDirection === "asc" ? comparison : -comparison;
       });
-  }, [searchValue, sortDirection, sortKey, statusFilter, templateFilter, userRows]);
+  }, [searchValue, sortDirection, sortKey, templateFilter, userRows]);
 
   const metricCards = useMemo<MetricCardData[]>(() => {
     return [
       {
-        key: "users",
-        title: "Users",
+        key: "activeUsers",
+        title: "Active Users",
         value: isLoading ? "—" : formatCount(userRows.length),
-        subtitle: "Profiles available for finance access review.",
+        subtitle: "Only active profiles are shown in this registry.",
         icon: UsersRound,
         tone: "cyan",
       },
@@ -826,14 +782,6 @@ export default function FinanceAccessApprovalsPage() {
         subtitle: "Users assigned to non-Custom Finance templates.",
         icon: ShieldCheck,
         tone: "violet",
-      },
-      {
-        key: "pending",
-        title: "Waiting Review",
-        value: isLoading ? "—" : formatCount(pendingReviewCount),
-        subtitle: "Pending profile, verification, or approval.",
-        icon: Clock3,
-        tone: "amber",
       },
       {
         key: "approve",
@@ -857,7 +805,6 @@ export default function FinanceAccessApprovalsPage() {
     financeTemplateAssignedCount,
     isLoading,
     overrideUserCount,
-    pendingReviewCount,
     userRows.length,
   ]);
 
@@ -877,7 +824,7 @@ export default function FinanceAccessApprovalsPage() {
       {
         label: "Visible Rows",
         value: formatCount(filteredRows.length),
-        detail: "Rows after current search and filter settings.",
+        detail: "Only active profiles after current search and filter settings.",
       },
       {
         label: "Auto Refresh",
@@ -943,14 +890,13 @@ export default function FinanceAccessApprovalsPage() {
               </h1>
 
               <p className="mt-3 max-w-4xl text-sm leading-6 text-slate-400 md:text-base md:leading-7">
-                Review users through a clean base role plus Finance role template model.
-                Open a user to adjust the selected template and user-specific permission
-                exceptions.
+                Review active users through a clean base role plus Finance role template model.
+                Open a user to adjust the selected template and user-specific permission exceptions.
               </p>
 
               <div className="mt-5 flex flex-wrap gap-2">
                 <div className="rounded-full border border-cyan-400/20 bg-cyan-500/10 px-3 py-1 text-[11px] font-semibold uppercase tracking-[0.16em] text-cyan-200">
-                  Base role separated
+                  Active profiles only
                 </div>
                 <div className="rounded-full border border-violet-400/20 bg-violet-500/10 px-3 py-1 text-[11px] font-semibold uppercase tracking-[0.16em] text-violet-200">
                   Finance templates enabled
@@ -971,10 +917,10 @@ export default function FinanceAccessApprovalsPage() {
                 <div className="flex items-start justify-between gap-3">
                   <div>
                     <div className="text-[11px] font-semibold uppercase tracking-[0.2em] text-slate-500">
-                      Base System Role
+                      Registry Scope
                     </div>
                     <div className="mt-2 text-xl font-semibold leading-tight tracking-[-0.035em] text-white">
-                      4 Roles
+                      Active Users
                     </div>
                   </div>
                   <div className="rounded-2xl border border-cyan-400/20 bg-cyan-500/10 p-3 text-cyan-200">
@@ -982,8 +928,7 @@ export default function FinanceAccessApprovalsPage() {
                   </div>
                 </div>
                 <div className="mt-3 text-xs leading-5 text-slate-500">
-                  Admin, manager, employee, and guest remain the base application roles.
-                  Finance access is controlled separately by templates.
+                  Pending, rejected, and inactive profiles are excluded from this Finance access registry.
                 </div>
               </div>
 
@@ -1002,15 +947,14 @@ export default function FinanceAccessApprovalsPage() {
                   </div>
                 </div>
                 <div className="mt-3 text-xs leading-5 text-slate-500">
-                  Templates define the baseline Finance access. User overrides are treated
-                  as exceptions only.
+                  Templates define the baseline Finance access. User overrides are exceptions only.
                 </div>
               </div>
             </div>
           </div>
         </header>
 
-        {pageError ? (
+                {pageError ? (
           <div className="rounded-[24px] border border-rose-400/20 bg-rose-500/10 p-4 text-sm leading-6 text-rose-100">
             <div className="flex items-start gap-3">
               <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0" />
@@ -1028,7 +972,7 @@ export default function FinanceAccessApprovalsPage() {
           </div>
         ) : null}
 
-        <section className="grid gap-4 md:grid-cols-2 xl:grid-cols-5">
+        <section className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
           {metricCards.map((metric) => (
             <MetricCard key={metric.key} metric={metric} />
           ))}
@@ -1047,37 +991,22 @@ export default function FinanceAccessApprovalsPage() {
 
         <SectionCard
           title="Finance Access Approval Registry"
-          description="Clean registry view for user access. Open a user to change the Finance template or edit user-specific permission exceptions."
+          description="Compact active-user registry. Open a user to change the Finance template or inspect detailed permissions."
           icon={KeyRound}
         >
-          <div className="mb-5 grid gap-3 xl:grid-cols-[minmax(0,1fr)_240px_260px_180px]">
+          <div className="mb-5 grid gap-3 xl:grid-cols-[minmax(0,1fr)_260px_180px]">
             <label className="relative">
               <SearchIcon className="pointer-events-none absolute left-4 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-500" />
               <input
                 value={searchValue}
                 onChange={(event) => setSearchValue(event.target.value)}
-                placeholder="Search users by name, role, template, access, status, or user ID"
+                placeholder="Search active users by name, role, template, access, or user ID"
                 className={`${inputClass()} pl-11`}
               />
             </label>
 
             <label className="relative">
               <Filter className="pointer-events-none absolute left-4 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-500" />
-              <select
-                value={statusFilter}
-                onChange={(event) => setStatusFilter(event.target.value)}
-                className={`${inputClass()} pl-11`}
-              >
-                {statusOptions.map((status) => (
-                  <option key={status} value={status} className="bg-[#05070d]">
-                    {status === "all" ? "All statuses" : formatLabel(status)}
-                  </option>
-                ))}
-              </select>
-            </label>
-
-            <label className="relative">
-              <ShieldCheck className="pointer-events-none absolute left-4 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-500" />
               <select
                 value={templateFilter}
                 onChange={(event) => setTemplateFilter(event.target.value)}
@@ -1116,17 +1045,16 @@ export default function FinanceAccessApprovalsPage() {
             <div className="rounded-[24px] border border-dashed border-white/10 bg-black/20 px-6 py-12 text-center">
               <UsersRound className="mx-auto h-8 w-8 text-slate-500" />
               <div className="mt-4 text-sm font-semibold text-white">
-                No users found
+                No active users found
               </div>
               <p className="mt-2 text-sm leading-6 text-slate-500">
-                Adjust the search, status filter, or template filter to find the user you
-                want to review.
+                Adjust the search or template filter to find the active user you want to review.
               </p>
             </div>
           ) : (
             <div className="overflow-x-auto rounded-[24px] border border-white/10 bg-black/20">
               <div className="max-h-[720px] overflow-y-auto">
-                <table className="w-full min-w-[1480px] border-collapse">
+                <table className="w-full min-w-[1180px] border-collapse">
                   <thead className="sticky top-0 z-20 border-b border-white/10 bg-black/70 backdrop-blur-xl">
                     <tr>
                       <th className="px-5 py-4 text-left text-[11px] font-semibold uppercase tracking-[0.18em]">
@@ -1167,26 +1095,8 @@ export default function FinanceAccessApprovalsPage() {
                       </th>
                       <th className="px-5 py-4 text-left text-[11px] font-semibold uppercase tracking-[0.18em]">
                         <SortButton
-                          label="Levels"
-                          sortKey="enabled"
-                          activeSortKey={sortKey}
-                          direction={sortDirection}
-                          onClick={toggleSort}
-                        />
-                      </th>
-                      <th className="px-5 py-4 text-left text-[11px] font-semibold uppercase tracking-[0.18em]">
-                        <SortButton
                           label="Overrides"
                           sortKey="overrides"
-                          activeSortKey={sortKey}
-                          direction={sortDirection}
-                          onClick={toggleSort}
-                        />
-                      </th>
-                      <th className="px-5 py-4 text-left text-[11px] font-semibold uppercase tracking-[0.18em]">
-                        <SortButton
-                          label="Status"
-                          sortKey="status"
                           activeSortKey={sortKey}
                           direction={sortDirection}
                           onClick={toggleSort}
@@ -1207,7 +1117,7 @@ export default function FinanceAccessApprovalsPage() {
                     </tr>
                   </thead>
 
-                                    <tbody>
+                  <tbody>
                     {filteredRows.map((user) => {
                       const highestTone = effectiveAccessToneMap[user.highestAccessLabel];
                       const updatedAt = user.updated_at || user.created_at;
@@ -1217,7 +1127,7 @@ export default function FinanceAccessApprovalsPage() {
                           key={user.user_id}
                           className="border-b border-white/5 text-sm text-slate-300 transition hover:bg-white/[0.035]"
                         >
-                          <td className="min-w-[300px] px-5 py-4">
+                          <td className="min-w-[260px] px-5 py-3.5">
                             <button
                               type="button"
                               onClick={() =>
@@ -1228,102 +1138,48 @@ export default function FinanceAccessApprovalsPage() {
                               <div className="font-semibold text-white transition group-hover:text-cyan-200">
                                 {user.full_name || "Unnamed user"}
                               </div>
-                              <div className="mt-1 max-w-[270px] truncate text-xs text-slate-500">
+                              <div className="mt-1 max-w-[240px] truncate text-xs text-slate-500">
                                 {user.user_id}
                               </div>
                             </button>
                           </td>
 
-                          <td className="min-w-[180px] px-5 py-4">
+                          <td className="min-w-[150px] px-5 py-3.5">
                             <StatusBadge value={user.role} tone="cyan" />
-                            {user.requested_role && user.requested_role !== user.role ? (
-                              <div className="mt-2 text-xs text-amber-200">
-                                Requested {formatLabel(user.requested_role)}
-                              </div>
-                            ) : null}
                           </td>
 
-                          <td className="min-w-[260px] px-5 py-4">
+                          <td className="min-w-[210px] px-5 py-3.5">
                             <StatusBadge
                               value={user.financeTemplate?.template_name || "Custom"}
                               tone="violet"
                             />
-                            <div className="mt-2 text-xs leading-5 text-slate-500">
-                              {user.financeTemplate?.description ||
-                                "No fixed template baseline."}
-                            </div>
                           </td>
 
-                          <td className="min-w-[220px] px-5 py-4">
+                          <td className="min-w-[210px] px-5 py-3.5">
                             <StatusBadge value={user.highestAccessLabel} tone={highestTone} />
-                            <div className="mt-2 text-xs leading-5 text-slate-500">
+                            <div className="mt-1 text-xs leading-5 text-slate-500">
                               {user.approveExecuteSectionCount > 0
-                                ? `${formatCount(
-                                    user.approveExecuteSectionCount
-                                  )} approve / execute section${
-                                    user.approveExecuteSectionCount === 1 ? "" : "s"
-                                  }`
+                                ? `${formatCount(user.approveExecuteSectionCount)} approve / execute`
                                 : "No final-action access"}
                             </div>
                           </td>
 
-                          <td className="min-w-[190px] px-5 py-4">
-                            <div className="font-semibold text-white">
-                              {formatCount(user.enabledLevelCount)} /{" "}
-                              {formatCount(user.totalLevelCount)}
+                          <td className="min-w-[150px] px-5 py-3.5">
+                            <div className="text-sm font-semibold text-white">
+                              {formatCount(user.userOverrideCount)}
                             </div>
-                            <div className="mt-2 h-2 overflow-hidden rounded-full border border-white/10 bg-black/30">
-                              <div
-                                className="h-full rounded-full bg-cyan-400/60"
-                                style={{
-                                  width: `${
-                                    user.totalLevelCount > 0
-                                      ? Math.max(
-                                          0,
-                                          Math.min(
-                                            100,
-                                            (user.enabledLevelCount / user.totalLevelCount) * 100
-                                          )
-                                        )
-                                      : 0
-                                  }%`,
-                                }}
-                              />
+                            <div className="mt-1 text-xs text-slate-500">
+                              Template {formatCount(user.templatePermissionCount)}
                             </div>
                           </td>
 
-                          <td className="min-w-[210px] px-5 py-4">
-                            <div className="grid gap-2">
-                              <div className="rounded-2xl border border-white/10 bg-white/[0.035] px-3 py-2">
-                                <div className="text-[10px] font-semibold uppercase tracking-[0.14em] text-slate-500">
-                                  Template
-                                </div>
-                                <div className="mt-1 text-sm font-semibold text-white">
-                                  {formatCount(user.templatePermissionCount)}
-                                </div>
-                              </div>
-                              <div className="rounded-2xl border border-white/10 bg-white/[0.035] px-3 py-2">
-                                <div className="text-[10px] font-semibold uppercase tracking-[0.14em] text-slate-500">
-                                  User
-                                </div>
-                                <div className="mt-1 text-sm font-semibold text-white">
-                                  {formatCount(user.userOverrideCount)}
-                                </div>
-                              </div>
-                            </div>
-                          </td>
-
-                          <td className="min-w-[180px] px-5 py-4">
-                            <StatusBadge value={user.status} />
-                          </td>
-
-                          <td className="min-w-[190px] px-5 py-4">
+                          <td className="min-w-[170px] px-5 py-3.5">
                             <div className="text-sm text-slate-300">
                               {formatDateTime(updatedAt)}
                             </div>
                           </td>
 
-                          <td className="px-5 py-4 text-right">
+                          <td className="px-5 py-3.5 text-right">
                             <button
                               type="button"
                               onClick={() =>
@@ -1369,9 +1225,10 @@ export default function FinanceAccessApprovalsPage() {
         <div className="rounded-[24px] border border-cyan-400/20 bg-cyan-500/10 p-4 text-sm leading-6 text-cyan-100">
           <div className="font-semibold text-white">Locked access model</div>
           <div className="mt-1">
-            Base system role remains admin, manager, employee, or guest. Finance
-            role template controls the company-level Finance baseline. User overrides
-            should only be used for exceptions.
+            Base system role remains admin, manager, employee, or guest. Finance role template
+            controls the company-level Finance baseline. User overrides should only be used for
+            exceptions. This registry only shows active profiles; detailed analysis belongs in the
+            user ID page.
           </div>
         </div>
       </div>

@@ -131,7 +131,8 @@ import FinanceExpenseDetailPage from "@/app/finance/transactions/expenses/[id]/p
 import FinanceReimbursementsPage from "@/app/finance/reimbursements/page";
 import FinanceReimbursementDetailPage from "@/app/finance/reimbursements/[id]/page";
 
-import FinanceApprovalsPage from "@/app/finance/approvals/page";
+import FinanceAccessApprovalsPage from "@/app/finance/transactions/approvals/page";
+import FinanceAccessApprovalUserDetailPage from "@/app/finance/transactions/approvals/[userId]/page";
 import FinanceLedgerPage from "@/app/finance/ledger/page";
 import FinanceLedgerAccountsPage from "@/app/finance/ledger/accounts/page";
 import FinanceLedgerAccountDetailPage from "@/app/finance/ledger/accounts/[id]/page";
@@ -1565,7 +1566,18 @@ function AppRoutes() {
   element={
     <ProtectedRoute>
       <DashboardLayout>
-        <FinanceApprovalsPage />
+        <FinanceAccessApprovalsPage />
+      </DashboardLayout>
+    </ProtectedRoute>
+  }
+/>
+
+<Route
+  path="/finance/transactions/approvals/:userId"
+  element={
+    <ProtectedRoute>
+      <DashboardLayout>
+        <FinanceAccessApprovalUserDetailPage />
       </DashboardLayout>
     </ProtectedRoute>
   }

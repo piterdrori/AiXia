@@ -41,7 +41,6 @@ type TransactionModuleKey =
   | "expenses"
   | "payments-made"
   | "payments-received"
-  | "approvals"
   | "purchase-orders"
   | "paycheck-requests"
   | "payroll";
@@ -69,16 +68,15 @@ type TransactionSectionTone =
   | "incoming"
   | "procurement"
   | "expense"
-  | "internal"
-  | "control";
+  | "internal";
 
 type TransactionSection = {
   key:
     | "incoming"
     | "procurement"
     | "operating-expenses"
-    | "internal-flows"
-    | "control";
+    | "internal-flows";
+  
   title: string;
   subtitle: string;
   tone: TransactionSectionTone;
@@ -114,15 +112,6 @@ type FinanceExpenseRow = {
   approval_status: string | null;
   payment_status: string | null;
   created_at: string;
-};
-
-type AccessApprovalUserRow = {
-  user_id: string;
-  full_name: string | null;
-  role: string | null;
-  status: string | null;
-  created_at: string;
-  updated_at: string | null;
 };
 
 type FinancePaymentMadeRow = {
@@ -171,7 +160,6 @@ type TransactionsPageData = {
     expenses: number;
     paymentsMade: number;
     paymentsReceived: number;
-    approvals: number;
     purchaseOrders: number;
     paycheckRequests: number;
     payrollRuns: number;
@@ -186,7 +174,6 @@ type TransactionsPageData = {
     overdueInvoices: number;
     overdueBills: number;
     pendingExpenses: number;
-    pendingApprovals: number;
   };
   recentActivity: RecentTransactionItem[];
 };
@@ -208,7 +195,6 @@ type AccessFlags = {
   canSeePayrollBasket: boolean;
   canMonitorPayrollBasket: boolean;
 
-  canSeeAccessApprovals: boolean;
   canMonitorAnyCompanyFinance: boolean;
 };
 
@@ -224,7 +210,6 @@ const EMPTY_TRANSACTIONS_DATA: TransactionsPageData = {
     expenses: 0,
     paymentsMade: 0,
     paymentsReceived: 0,
-    approvals: 0,
     purchaseOrders: 0,
     paycheckRequests: 0,
     payrollRuns: 0,
@@ -239,7 +224,6 @@ const EMPTY_TRANSACTIONS_DATA: TransactionsPageData = {
     overdueInvoices: 0,
     overdueBills: 0,
     pendingExpenses: 0,
-    pendingApprovals: 0,
   },
   recentActivity: [],
 };
@@ -261,7 +245,6 @@ const EMPTY_ACCESS_FLAGS: AccessFlags = {
   canSeePayrollBasket: false,
   canMonitorPayrollBasket: false,
 
-  canSeeAccessApprovals: false,
   canMonitorAnyCompanyFinance: false,
 };
 
@@ -379,17 +362,11 @@ function buildAccessFlags(
       hasPermission(permissions, "viewAllPaychecks") ||
       hasPermission(permissions, "viewPayroll"));
 
-  const isAdminUser = String(currentProfile.role || "").toLowerCase() === "admin";
-
-  const canSeeAccessApprovals =
-    isAdminUser && hasPermission(permissions, "manageUsers");
-
   const canMonitorAnyCompanyFinance =
     canMonitorIncomingMoney ||
     canMonitorSupplierProcurement ||
     canMonitorExpenseFunding ||
-    canMonitorPayrollBasket ||
-    canSeeAccessApprovals;
+    canMonitorPayrollBasket;
 
   const hasAnyFinanceEntry =
     canSeeIncomingMoney ||
@@ -397,8 +374,7 @@ function buildAccessFlags(
     canSeeOwnExpenses ||
     canSeeExpenseFunding ||
     canSeeOwnPaychecks ||
-    canSeePayrollBasket ||
-    canSeeAccessApprovals;
+    canSeePayrollBasket;
 
   return {
     hasAnyFinanceEntry,
@@ -417,7 +393,6 @@ function buildAccessFlags(
     canSeePayrollBasket,
     canMonitorPayrollBasket,
 
-    canSeeAccessApprovals,
     canMonitorAnyCompanyFinance,
   };
 }
@@ -505,13 +480,12 @@ function getSectionToneClasses(tone: TransactionSectionTone) {
         panel:
           "bg-[radial-gradient(circle_at_top_left,rgba(139,92,246,0.13),rgba(255,255,255,0.045)_48%)]",
       };
-    case "control":
     default:
       return {
-        border: "border-rose-400/25",
-        badge: "border-rose-400/20 bg-rose-500/10 text-rose-200",
+        border: "border-cyan-400/25",
+        badge: "border-cyan-400/20 bg-cyan-500/10 text-cyan-200",
         panel:
-          "bg-[radial-gradient(circle_at_top_left,rgba(244,63,94,0.13),rgba(255,255,255,0.045)_48%)]",
+          "bg-[radial-gradient(circle_at_top_left,rgba(6,182,212,0.13),rgba(255,255,255,0.045)_48%)]",
       };
   }
 }
@@ -886,7 +860,6 @@ export default function FinanceTransactionsPage() {
         invoicesResult,
         billsResult,
         expensesResult,
-        accessApprovalUsersResult,
         paymentsMadeResult,
         paymentsReceivedResult,
         payrollRunsResult,
@@ -919,12 +892,6 @@ export default function FinanceTransactionsPage() {
           .limit(50),
 
         supabase
-          .from("profiles")
-          .select("user_id, full_name, role, status, created_at, updated_at")
-          .order("updated_at", { ascending: false })
-          .limit(50),
-
-        supabase
           .from("finance_payments_made")
           .select("id, amount, payment_date, created_at")
           .order("payment_date", { ascending: false })
@@ -952,8 +919,7 @@ export default function FinanceTransactionsPage() {
       const invoices = (invoicesResult.data || []) as FinanceInvoiceRow[];
       const bills = (billsResult.data || []) as FinanceBillRow[];
       const expenses = (expensesResult.data || []) as FinanceExpenseRow[];
-      const accessApprovalUsers = (accessApprovalUsersResult.data ||
-        []) as AccessApprovalUserRow[];
+
       const paymentsMade = (paymentsMadeResult.data ||
         []) as FinancePaymentMadeRow[];
       const paymentsReceived = (paymentsReceivedResult.data ||
@@ -996,13 +962,6 @@ export default function FinanceTransactionsPage() {
           row.payment_status === "pending"
       ).length;
 
-      const pendingAccessReviews = accessApprovalUsers.filter(
-        (row) =>
-          row.status === "pending_approval" ||
-          row.status === "pending_profile" ||
-          row.status === "pending_verification"
-      ).length;
-
       const recentActivity: RecentTransactionItem[] = [
         ...invoices.slice(0, 4).map((row) => ({
           id: `invoice-${row.id}`,
@@ -1032,14 +991,6 @@ export default function FinanceTransactionsPage() {
           createdAt: row.created_at,
           route: `/finance/transactions/expenses/${row.id}`,
         })),
-        ...accessApprovalUsers.slice(0, 4).map((row) => ({
-          id: `access-approval-${row.user_id}`,
-          type: "Access Approval",
-          title: row.full_name || "Unnamed user",
-          subtitle: `${row.role || "No role"} • ${row.status || "No status"}`,
-          createdAt: row.updated_at || row.created_at,
-          route: `/finance/transactions/approvals/${row.user_id}`,
-        })),
         ...payrollRuns.slice(0, 3).map((row) => ({
           id: `payroll-${row.id}`,
           type: "Payroll",
@@ -1065,7 +1016,6 @@ export default function FinanceTransactionsPage() {
           expenses: expenses.length,
           paymentsMade: paymentsMade.length,
           paymentsReceived: paymentsReceived.length,
-          approvals: accessApprovalUsers.length,
           purchaseOrders: getCount(purchaseOrdersResult),
           paycheckRequests: getCount(paycheckRequestsResult),
           payrollRuns: payrollRuns.length,
@@ -1080,7 +1030,6 @@ export default function FinanceTransactionsPage() {
           overdueInvoices,
           overdueBills,
           pendingExpenses,
-          pendingApprovals: pendingAccessReviews,
         },
         recentActivity,
       });
@@ -1202,17 +1151,6 @@ export default function FinanceTransactionsPage() {
       });
     }
 
-    if (accessFlags.canSeeAccessApprovals) {
-      cards.push({
-        key: "approvals",
-        title: "Access Approvals",
-        value: isLoading ? "—" : formatCount(data.alerts.pendingApprovals),
-        subtitle: "Users waiting for access review",
-        icon: ShieldCheck,
-        tone: "violet",
-      });
-    }
-
     return cards;
   }, [accessFlags, data, isLoading]);
 
@@ -1319,17 +1257,6 @@ export default function FinanceTransactionsPage() {
         count: data.counts.paymentsReceived,
         statusLabel: "Live",
         lastUpdatedLabel: "Company",
-      },
-      approvals: {
-        key: "approvals",
-        title: "Access Approvals",
-        description:
-          "Admin-only control center for user access: See, Monitor, Change, and Operate permissions.",
-        route: "/finance/transactions/approvals",
-        icon: ShieldCheck,
-        count: data.counts.approvals,
-        statusLabel: "Admin",
-        lastUpdatedLabel: "Admin",
       },
       "purchase-orders": {
         key: "purchase-orders",
@@ -1483,17 +1410,6 @@ export default function FinanceTransactionsPage() {
       });
     }
 
-    if (accessFlags.canSeeAccessApprovals) {
-      sections.push({
-        key: "control",
-        title: "Control & Other",
-        subtitle:
-          "Admin-only access approval and company-level permission control.",
-        tone: "control",
-        modules: [{ module: allModuleCards.approvals, sequenceLabel: "01" }],
-      });
-    }
-
     return sections;
   }, [accessFlags, allModuleCards]);
 
@@ -1504,7 +1420,6 @@ export default function FinanceTransactionsPage() {
         if (item.type === "Bill") return accessFlags.canMonitorSupplierProcurement;
         if (item.type === "Expense") return accessFlags.canMonitorExpenseFunding;
         if (item.type === "Payroll") return accessFlags.canMonitorPayrollBasket;
-        if (item.type === "Access Approval") return accessFlags.canSeeAccessApprovals;
         return false;
       });
     }
@@ -1577,7 +1492,7 @@ export default function FinanceTransactionsPage() {
                 <p className="mt-3 max-w-4xl text-sm leading-6 text-slate-400 md:text-base md:leading-7">
                   This page only shows transaction areas available to the logged-in user.
                   Personal expense and paycheck request access is enabled by default.
-                  Company-level workflows appear only when Access Approvals permits them.
+                  Company-level workflows appear only when Finance Access Approvals permits them.
                 </p>
               </div>
 
@@ -1662,14 +1577,6 @@ export default function FinanceTransactionsPage() {
                       title="Open Payables"
                       value={`$${formatMoney(data.totals.payables)}`}
                       subtitle={`${formatCount(data.counts.bills)} bill records`}
-                    />
-                  ) : null}
-
-                  {accessFlags.canSeeAccessApprovals ? (
-                    <SummaryBlock
-                      title="Access Reviews"
-                      value={formatCount(data.alerts.pendingApprovals)}
-                      subtitle="Users waiting for access approval review"
                     />
                   ) : null}
                 </div>
@@ -1769,39 +1676,7 @@ export default function FinanceTransactionsPage() {
               </TransactionsSectionCard>
             ) : null}
 
-            {accessFlags.canSeeAccessApprovals ? (
-              <TransactionsSectionCard
-                title="Access Approvals"
-                description="Admin-only user access and company-level permission control."
-                icon={ShieldCheck}
-              >
-                <button
-                  type="button"
-                  onClick={() => navigate("/finance/transactions/approvals")}
-                  className="group flex w-full items-center justify-between gap-4 rounded-[24px] border border-white/10 bg-black/20 p-4 text-left transition hover:border-cyan-400/25 hover:bg-white/[0.055]"
-                >
-                  <div className="flex min-w-0 items-center gap-4">
-                    <div className="rounded-2xl border border-cyan-400/15 bg-cyan-500/10 p-3 text-cyan-200">
-                      <ShieldCheck className="h-5 w-5" />
-                    </div>
-
-                    <div className="min-w-0">
-                      <div className="text-sm font-semibold text-white">
-                        Access Approvals
-                      </div>
-                      <div className="mt-1 text-xs leading-5 text-slate-400">
-                        {formatCount(data.alerts.pendingApprovals)} users waiting for access review
-                      </div>
-                    </div>
-                  </div>
-
-                  <ArrowRight className="h-4 w-4 shrink-0 text-slate-500 transition group-hover:translate-x-1 group-hover:text-cyan-200" />
-                </button>
-              </TransactionsSectionCard>
-            ) : null}
-
-            {!accessFlags.canMonitorAnyCompanyFinance &&
-            !accessFlags.canSeeAccessApprovals ? (
+            {!accessFlags.canMonitorAnyCompanyFinance ? (
               <TransactionsSectionCard
                 title="Personal Access"
                 description="Default employee finance access."

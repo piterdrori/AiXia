@@ -343,20 +343,20 @@ const ROLE_PERMISSIONS: Record<Role, PermissionMap> = {
     exportReceivables: false,
     exportPayables: false,
 
-           accessExpenses: false,
-    viewExpenses: false,
-    viewOwnExpenses: false,
+            accessExpenses: true,
+    viewExpenses: true,
+    viewOwnExpenses: true,
     viewTeamExpenses: false,
-    createExpenses: false,
-    editOwnDraftExpenses: false,
+    createExpenses: true,
+    editOwnDraftExpenses: true,
     editAllDraftExpenses: false,
-    submitExpenses: false,
+    submitExpenses: true,
     approveExpenses: false,
     rejectExpenses: false,
     cancelExpenses: false,
 
-    createReimbursements: false,
-    viewReimbursements: false,
+    createReimbursements: true,
+    viewReimbursements: true,
     issueReimbursements: false,
     recordReimbursementPayments: false,
 
@@ -463,20 +463,20 @@ const ROLE_PERMISSIONS: Record<Role, PermissionMap> = {
     exportReceivables: false,
     exportPayables: false,
 
-            accessExpenses: false,
-    viewExpenses: false,
-    viewOwnExpenses: false,
+           accessExpenses: true,
+    viewExpenses: true,
+    viewOwnExpenses: true,
     viewTeamExpenses: false,
-    createExpenses: false,
-    editOwnDraftExpenses: false,
+    createExpenses: true,
+    editOwnDraftExpenses: true,
     editAllDraftExpenses: false,
-    submitExpenses: false,
+    submitExpenses: true,
     approveExpenses: false,
     rejectExpenses: false,
     cancelExpenses: false,
 
-    createReimbursements: false,
-    viewReimbursements: false,
+    createReimbursements: true,
+    viewReimbursements: true,
     issueReimbursements: false,
     recordReimbursementPayments: false,
 
@@ -490,7 +490,7 @@ const ROLE_PERMISSIONS: Record<Role, PermissionMap> = {
     removeFinanceAttachments: false,
 
          accessPayroll: true,
-    viewPayroll: true,
+    viewPayroll: false,
     viewOwnPaychecks: true,
     viewAllPaychecks: false,
     createPayrollRuns: false,
@@ -677,7 +677,10 @@ const ROUTE_PERMISSIONS: Record<string, RoutePermission> = {
   "/employees/:id": { permission: "viewEmployeeDetail" },
   "/employees/:id/permissions": { permission: "manageUsers" },
 
-  "/finance": { permission: "viewFinance" },
+  "/finance": { permission: "accessFinance" },
+  "/finance/transactions": { permission: "accessFinance" },
+  "/finance/master-data": { permission: "manageFinanceMasterData" },
+  "/finance/reports": { permission: "exportFinanceReports" },
   "/finance/clients": { permission: "viewClients" },
   "/finance/vendors": { permission: "viewVendors" },
   "/finance/master-data/clients": { permission: "viewClients" },
@@ -725,28 +728,28 @@ const ROUTE_PERMISSIONS: Record<string, RoutePermission> = {
   "/finance/transactions/expenses/new": { permission: "createExpenses" },
   "/finance/transactions/expenses/:id": { permission: "viewExpenses" },
 
-  "/finance/transactions/expenses-payments-made": { permission: "viewFinance" },
-  "/finance/transactions/expenses-payments-made/new": { permission: "recordPaymentsMade" },
-  "/finance/transactions/expenses-payments-made/review/:id": { permission: "viewFinance" },
-  "/finance/transactions/expenses-payments-made/funding-batches/new": { permission: "recordPaymentsMade" },
-  "/finance/transactions/expenses-payments-made/funding-batches/:id": { permission: "viewFinance" },
-  "/finance/transactions/expenses-payments-made/:id": { permission: "viewFinance" },
+  "/finance/transactions/expenses-payments-made": { permission: "recordReimbursementPayments" },
+  "/finance/transactions/expenses-payments-made/new": { permission: "recordReimbursementPayments" },
+  "/finance/transactions/expenses-payments-made/review/:id": { permission: "recordReimbursementPayments" },
+  "/finance/transactions/expenses-payments-made/funding-batches/new": { permission: "recordReimbursementPayments" },
+  "/finance/transactions/expenses-payments-made/funding-batches/:id": { permission: "recordReimbursementPayments" },
+  "/finance/transactions/expenses-payments-made/:id": { permission: "recordReimbursementPayments" },
 
   "/finance/transactions/paycheck-requests": { permission: "viewOwnPaychecks" },
   "/finance/transactions/paycheck-requests/new": { permission: "viewOwnPaychecks" },
   "/finance/transactions/paycheck-requests/:id": { permission: "viewOwnPaychecks" },
 
-  "/finance/transactions/payroll": { permission: "viewPayroll" },
+  "/finance/transactions/payroll": { permission: "viewAllPaychecks" },
   "/finance/transactions/payroll/new": { permission: "createPayrollRuns" },
-  "/finance/transactions/payroll/:id": { permission: "viewPayroll" },
+  "/finance/transactions/payroll/:id": { permission: "viewAllPaychecks" },
 
   "/finance/reimbursements": { permission: "viewReimbursements" },
   "/finance/reimbursements/:id": { permission: "viewReimbursements" },
 
     "/finance/approvals": { permission: "viewApprovalQueue" },
 
-    "/finance/transactions/approvals": { permission: "manageUsers" },
-    "/finance/transactions/approvals/:userId": { permission: "manageUsers" },
+    "/finance/transactions/approvals": { roles: ["admin"], permission: "manageUsers" },
+    "/finance/transactions/approvals/:userId": { roles: ["admin"], permission: "manageUsers" },
 
     "/finance/payroll": { permission: "viewPayroll" },
   "/finance/payroll/profiles": { permission: "managePayProfiles" },
@@ -799,23 +802,20 @@ export function getEffectivePermissions(
     effective.viewFinance = true;
   }
 
-   if (effective.viewFinance) {
+  if (effective.manageFinanceMasterData) {
+    effective.accessFinance = true;
+    effective.viewFinance = true;
     effective.viewClients = true;
     effective.viewVendors = true;
     effective.viewBankAccounts = true;
     effective.viewPaymentMethods = true;
     effective.viewPaymentTerms = true;
-        effective.viewShippingTerms = true;
+    effective.viewShippingTerms = true;
     effective.viewUnitsOfMeasure = true;
     effective.viewTaxCodes = true;
     effective.viewExpenseCategories = true;
     effective.viewRevenueCategories = true;
-
-    // compatibility bridge for existing finance users
-    effective.viewInvoices = true;
-    effective.viewReceivedPayments = true;
-    effective.viewBills = true;
-    effective.viewPaymentsMade = true;
+    effective.viewItems = true;
   }
 
   if (effective.createFinanceRecords) {
@@ -907,18 +907,40 @@ export function getEffectivePermissions(
   }
 
     // ===== EXPENSES AUTO CASCADE =====
-  if (effective.accessExpenses) {
-    effective.viewExpenses = true;
-  }
-
-  if (effective.viewExpenses) {
-  effective.accessFinance = true;
-  effective.viewFinance = true;
-}
-
-  if (effective.createExpenses) {
+  if (
+    effective.viewOwnExpenses ||
+    effective.createExpenses ||
+    effective.editOwnDraftExpenses ||
+    effective.submitExpenses ||
+    effective.createReimbursements
+  ) {
     effective.accessExpenses = true;
     effective.viewExpenses = true;
+    effective.viewOwnExpenses = true;
+    effective.accessFinance = true;
+    effective.viewFinance = true;
+    effective.viewReimbursements = true;
+    effective.addFinanceAttachments = true;
+    effective.viewFinanceComments = true;
+    effective.addFinanceComments = true;
+  }
+
+  if (
+    effective.viewTeamExpenses ||
+    effective.editAllDraftExpenses ||
+    effective.approveExpenses ||
+    effective.rejectExpenses ||
+    effective.cancelExpenses ||
+    effective.issueReimbursements ||
+    effective.recordReimbursementPayments
+  ) {
+    effective.accessExpenses = true;
+    effective.viewExpenses = true;
+    effective.viewTeamExpenses = true;
+    effective.accessFinance = true;
+    effective.viewFinance = true;
+    effective.viewReimbursements = true;
+    effective.viewPaymentsMade = true;
   }
 
   if (effective.approveExpenses) {
@@ -926,45 +948,32 @@ export function getEffectivePermissions(
     effective.viewApprovalQueue = true;
   }
 
-    if (effective.recordReimbursementPayments) {
+  if (effective.issueReimbursements || effective.recordReimbursementPayments) {
     effective.viewReimbursements = true;
-  }
-
-  if (effective.viewReimbursements) {
-  effective.accessFinance = true;
-  effective.viewFinance = true;
-}
-
-   if (effective.accessApprovals || effective.viewApprovalQueue) {
+    effective.viewPaymentsMade = true;
     effective.accessFinance = true;
     effective.viewFinance = true;
   }
 
-  if (effective.createReimbursements || effective.issueReimbursements) {
-    effective.viewReimbursements = true;
+  if (effective.accessApprovals || effective.viewApprovalQueue) {
     effective.accessFinance = true;
     effective.viewFinance = true;
   }
 
   // ===== PAYROLL CASCADE =====
 
-  if (effective.accessPayroll) {
-    effective.viewPayroll = true;
-  }
-
-  if (effective.viewPayroll) {
-    effective.accessFinance = true;
-    effective.viewFinance = true;
-  }
-
-  if (effective.viewOwnPaychecks || effective.viewAllPaychecks) {
+  if (effective.viewOwnPaychecks) {
     effective.accessPayroll = true;
-    effective.viewPayroll = true;
     effective.accessFinance = true;
     effective.viewFinance = true;
+    effective.addFinanceAttachments = true;
+    effective.viewFinanceComments = true;
+    effective.addFinanceComments = true;
   }
 
-   if (
+  if (
+    effective.viewAllPaychecks ||
+    effective.viewPayroll ||
     effective.createPayrollRuns ||
     effective.editPayrollRuns ||
     effective.approvePayroll ||
@@ -1058,8 +1067,8 @@ export function canAccessRoute(
 
   const [, config] = entry;
 
-  if (config.roles) {
-    return config.roles.includes(role);
+  if (config.roles && !config.roles.includes(role)) {
+    return false;
   }
 
   if (config.permission) {

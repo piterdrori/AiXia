@@ -115,13 +115,20 @@ type SummaryItem = {
   tone: "cyan" | "emerald" | "amber" | "violet" | "rose";
 };
 
+type CurrencyOption = {
+  id: string;
+  currency_code: string;
+  currency_name: string;
+  currency_symbol: string | null;
+  is_base_currency: boolean;
+  status: string;
+};
+
 const EMPTY_PERMISSION_STATE: PermissionState = {
   canRead: false,
   canCreate: false,
   isAdmin: false,
 };
-
-const CURRENCY_OPTIONS = ["USD", "EUR", "GBP", "CNY", "ILS", "JPY", "CAD", "AUD"];
 
 function makeId() {
   return `${Date.now()}-${Math.random().toString(36).slice(2, 10)}`;
@@ -174,7 +181,7 @@ function createEmptyForm(): FormState {
     registration_number: "",
     tax_number: "",
     website: "",
-    currency_code: "USD",
+    currency_code: "",
     personnel: [createEmptyPersonnelRow()],
     addresses: [createEmptyAddressRow()],
     shipping_addresses: [createEmptyShippingRow()],
@@ -588,6 +595,7 @@ export default function FinanceMasterDataCompanyCreatePage() {
   const [profile, setProfile] = useState<ProfilePermissionRow | null>(null);
   const [effectivePermissions, setEffectivePermissions] =
     useState<Record<Permission, boolean> | null>(null);
+  const [currencyOptions, setCurrencyOptions] = useState<CurrencyOption[]>([]);
   const [isLoadingProfile, setIsLoadingProfile] = useState(true);
   const [isSaving, setIsSaving] = useState(false);
   const [formError, setFormError] = useState<string | null>(null);
@@ -651,9 +659,55 @@ export default function FinanceMasterDataCompanyCreatePage() {
     []
   );
 
+  const loadCurrencyOptions = useCallback(async () => {
+    try {
+      const { data, error } = await supabase
+        .from("finance_currencies")
+        .select(
+          `
+            id,
+            currency_code,
+            currency_name,
+            currency_symbol,
+            is_base_currency,
+            status
+          `
+        )
+        .eq("status", "active")
+        .order("is_base_currency", { ascending: false })
+        .order("currency_code", { ascending: true });
+
+      if (error) throw error;
+
+      const loadedCurrencies = (data ?? []) as CurrencyOption[];
+      setCurrencyOptions(loadedCurrencies);
+
+      setForm((previousForm) => {
+        if (previousForm.currency_code) return previousForm;
+
+        const baseCurrency =
+          loadedCurrencies.find((currency) => currency.is_base_currency) ||
+          loadedCurrencies[0];
+
+        if (!baseCurrency) return previousForm;
+
+        return {
+          ...previousForm,
+          currency_code: baseCurrency.currency_code,
+        };
+      });
+    } catch (error) {
+      console.error("Failed to load currency master data:", error);
+      setCurrencyOptions([]);
+    }
+  }, []);
+
   useEffect(() => {
-    void loadCurrentProfile("initial");
-  }, [loadCurrentProfile]);
+    void Promise.all([
+      loadCurrentProfile("initial"),
+      loadCurrencyOptions(),
+    ]);
+  }, [loadCurrencyOptions, loadCurrentProfile]);
 
   useEffect(() => {
     const channel = supabase
@@ -673,17 +727,25 @@ export default function FinanceMasterDataCompanyCreatePage() {
         { event: "*", schema: "public", table: "finance_user_permission_templates" },
         () => void loadCurrentProfile("silent")
       )
+      .on(
+        "postgres_changes",
+        { event: "*", schema: "public", table: "finance_currencies" },
+        () => void loadCurrencyOptions()
+      )
       .subscribe();
 
     const intervalId = window.setInterval(() => {
-      void loadCurrentProfile("silent");
+      void Promise.all([
+        loadCurrentProfile("silent"),
+        loadCurrencyOptions(),
+      ]);
     }, 60000);
 
     return () => {
       window.clearInterval(intervalId);
       supabase.removeChannel(channel);
     };
-  }, [loadCurrentProfile]);
+  }, [loadCurrencyOptions, loadCurrentProfile]);
 
   const permissionState = useMemo(() => {
     return buildPermissionState(profile, effectivePermissions);
@@ -700,6 +762,10 @@ export default function FinanceMasterDataCompanyCreatePage() {
       value: address,
     }));
   }, [form.addresses]);
+
+  const currencySelectOptions = useMemo(() => {
+    return currencyOptions;
+  }, [currencyOptions]);
 
   const headerStatusCards = useMemo<HeaderStatusCardData[]>(() => {
     return [
@@ -1357,15 +1423,23 @@ export default function FinanceMasterDataCompanyCreatePage() {
                         updateForm("currency_code", event.target.value)
                       }
                     >
-                      {CURRENCY_OPTIONS.map((currency) => (
-                        <option
-                          key={currency}
-                          value={currency}
-                          className="bg-[#05070d]"
-                        >
-                          {currency}
+                      {currencySelectOptions.length === 0 ? (
+                        <option value="" className="bg-[#05070d]">
+                          No active currencies available
                         </option>
-                      ))}
+                      ) : (
+                        currencySelectOptions.map((currency) => (
+                          <option
+                            key={currency.id}
+                            value={currency.currency_code}
+                            className="bg-[#05070d]"
+                          >
+                            {currency.currency_code} — {currency.currency_name}
+                            {currency.currency_symbol ? ` (${currency.currency_symbol})` : ""}
+                            {currency.is_base_currency ? " • Base" : ""}
+                          </option>
+                        ))
+                      )}
                     </SelectField>
                   </div>
 

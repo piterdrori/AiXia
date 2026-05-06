@@ -413,46 +413,50 @@ function MasterDataModuleButton({
     <button
       type="button"
       onClick={() => onOpen(module.route)}
-      className="group relative min-h-[188px] overflow-hidden rounded-[28px] border border-white/10 bg-[radial-gradient(circle_at_top_left,rgba(6,182,212,0.12),rgba(255,255,255,0.035)_42%,rgba(0,0,0,0.18))] p-5 text-left shadow-lg shadow-black/20 transition hover:-translate-y-0.5 hover:border-cyan-400/25 hover:bg-white/[0.055]"
+      className="group relative min-h-[248px] overflow-hidden rounded-[30px] border border-white/10 bg-[radial-gradient(circle_at_top_left,rgba(6,182,212,0.16),rgba(255,255,255,0.045)_44%,rgba(255,255,255,0.025)_100%)] p-6 text-left shadow-2xl shadow-black/20 backdrop-blur-xl transition hover:-translate-y-0.5 hover:border-cyan-400/25 hover:bg-white/[0.055]"
     >
-      <div className="pointer-events-none absolute inset-x-5 top-0 h-px bg-white/10" />
-      <div className="pointer-events-none absolute -right-14 -top-14 h-32 w-32 rounded-full bg-cyan-400/10 blur-3xl transition group-hover:bg-cyan-400/15" />
+      <div className="pointer-events-none absolute inset-x-6 top-0 h-px bg-white/10" />
+      <div className="pointer-events-none absolute -right-16 -top-16 h-40 w-40 rounded-full bg-cyan-400/10 blur-3xl transition group-hover:bg-cyan-400/20" />
+      <div className="pointer-events-none absolute -bottom-20 left-10 h-36 w-36 rounded-full bg-violet-400/5 blur-3xl" />
 
-      <div className="relative flex h-full flex-col justify-between gap-5">
+      <div className="relative flex h-full flex-col justify-between gap-6">
         <div className="flex items-start justify-between gap-4">
-          <div className="flex items-center gap-3">
-            <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-2xl border border-cyan-400/15 bg-cyan-500/10 text-cyan-200">
-              <Icon className="h-5 w-5" />
-            </div>
-
-            <div className="min-w-0">
-              <div className="text-base font-semibold text-white">
-                {module.title}
-              </div>
-              <div className="mt-1 text-[11px] font-semibold uppercase tracking-[0.18em] text-slate-600">
-                {module.requiredAccessLabel}
-              </div>
-            </div>
+          <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-2xl border border-cyan-400/15 bg-cyan-500/10 text-cyan-200 shadow-lg shadow-cyan-500/5">
+            <Icon className="h-5 w-5" />
           </div>
 
           <div className="flex shrink-0 items-center gap-2">
-            <span className="rounded-full border border-slate-400/20 bg-slate-500/10 px-3 py-1 text-[11px] font-semibold uppercase tracking-[0.16em] text-slate-300">
+            <span className="rounded-full border border-white/10 bg-white/[0.07] px-3 py-1 text-[11px] font-semibold uppercase tracking-[0.16em] text-slate-300">
               {module.statusLabel}
             </span>
             <ArrowRight className="h-4 w-4 text-slate-500 transition group-hover:translate-x-1 group-hover:text-cyan-200" />
           </div>
         </div>
 
-        <div className="min-h-[52px] text-sm leading-6 text-slate-400">
-          {module.description}
+        <div>
+          <div className="text-[11px] font-semibold uppercase tracking-[0.22em] text-slate-500">
+            {module.requiredAccessLabel}
+          </div>
+          <div className="mt-3 text-xl font-semibold tracking-[-0.025em] text-white">
+            {module.title}
+          </div>
+          <div className="mt-3 min-h-[58px] text-sm leading-6 text-slate-400">
+            {module.description}
+          </div>
         </div>
 
-        <div className="flex flex-wrap items-center gap-2 border-t border-white/10 pt-4">
-          <span className="inline-flex items-center rounded-full border border-white/10 bg-black/20 px-3 py-1 text-xs font-semibold text-white">
-            {formatCount(module.count)} records
-          </span>
-          <span className="inline-flex items-center rounded-full border border-white/10 bg-black/20 px-3 py-1 text-xs font-semibold text-slate-300">
-            Updated {module.lastUpdatedLabel}
+        <div className="flex items-end justify-between gap-4 border-t border-white/10 pt-4">
+          <div className="min-w-0">
+            <div className="text-[11px] font-semibold uppercase tracking-[0.18em] text-slate-600">
+              Records
+            </div>
+            <div className="mt-1 text-sm font-semibold text-white">
+              {formatCount(module.count)} configured
+            </div>
+          </div>
+
+          <span className="inline-flex h-10 shrink-0 items-center justify-center rounded-full border border-cyan-400/20 bg-cyan-500/10 px-5 text-xs font-semibold uppercase tracking-[0.16em] text-cyan-100 transition group-hover:bg-cyan-500/15">
+            Open
           </span>
         </div>
       </div>

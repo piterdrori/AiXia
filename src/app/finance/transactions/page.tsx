@@ -112,11 +112,13 @@ type FinanceExpenseRow = {
   created_at: string;
 };
 
-type FinanceApprovalRow = {
-  id: string;
-  status: string;
-  reference_number: string | null;
+type AccessApprovalUserRow = {
+  user_id: string;
+  full_name: string | null;
+  role: string | null;
+  status: string | null;
   created_at: string;
+  updated_at: string | null;
 };
 
 type FinancePaymentMadeRow = {
@@ -659,7 +661,7 @@ export default function FinanceTransactionsPage() {
         invoicesResult,
         billsResult,
         expensesResult,
-        approvalsResult,
+        accessApprovalUsersResult,
         paymentsMadeResult,
         paymentsReceivedResult,
         payrollRunsResult,
@@ -692,9 +694,9 @@ export default function FinanceTransactionsPage() {
           .limit(50),
 
         supabase
-          .from("finance_approval_records")
-          .select("id, status, reference_number, created_at")
-          .order("created_at", { ascending: false })
+          .from("profiles")
+          .select("user_id, full_name, role, status, created_at, updated_at")
+          .order("updated_at", { ascending: false })
           .limit(50),
 
         supabase
@@ -725,7 +727,8 @@ export default function FinanceTransactionsPage() {
       const invoices = (invoicesResult.data || []) as FinanceInvoiceRow[];
       const bills = (billsResult.data || []) as FinanceBillRow[];
       const expenses = (expensesResult.data || []) as FinanceExpenseRow[];
-      const approvals = (approvalsResult.data || []) as FinanceApprovalRow[];
+      const accessApprovalUsers = (accessApprovalUsersResult.data ||
+        []) as AccessApprovalUserRow[];
       const paymentsMade = (paymentsMadeResult.data ||
         []) as FinancePaymentMadeRow[];
       const paymentsReceived = (paymentsReceivedResult.data ||
@@ -768,8 +771,11 @@ export default function FinanceTransactionsPage() {
           row.payment_status === "pending"
       ).length;
 
-      const pendingApprovals = approvals.filter(
-        (row) => row.status === "pending"
+      const pendingAccessReviews = accessApprovalUsers.filter(
+        (row) =>
+          row.status === "pending_approval" ||
+          row.status === "pending_profile" ||
+          row.status === "pending_verification"
       ).length;
 
       const recentActivity: RecentTransactionItem[] = [
@@ -801,13 +807,13 @@ export default function FinanceTransactionsPage() {
           createdAt: row.created_at,
           route: `/finance/transactions/expenses/${row.id}`,
         })),
-        ...approvals.slice(0, 4).map((row) => ({
-          id: `approval-${row.id}`,
-          type: "Approval",
-          title: row.reference_number || "Approval",
-          subtitle: row.status,
-          createdAt: row.created_at,
-          route: "/finance/transactions/approvals",
+        ...accessApprovalUsers.slice(0, 4).map((row) => ({
+          id: `access-approval-${row.user_id}`,
+          type: "Access Approval",
+          title: row.full_name || "Unnamed user",
+          subtitle: `${row.role || "No role"} • ${row.status || "No status"}`,
+          createdAt: row.updated_at || row.created_at,
+          route: `/finance/transactions/approvals/${row.user_id}`,
         })),
         ...payrollRuns.slice(0, 3).map((row) => ({
           id: `payroll-${row.id}`,
@@ -832,9 +838,9 @@ export default function FinanceTransactionsPage() {
           bills: bills.length,
           proformaInvoices: getCount(proformaInvoicesResult),
           expenses: expenses.length,
-          paymentsMade: paymentsMade.length,         
+          paymentsMade: paymentsMade.length,
           paymentsReceived: paymentsReceived.length,
-          approvals: approvals.length,
+          approvals: accessApprovalUsers.length,
           purchaseOrders: getCount(purchaseOrdersResult),
           paycheckRequests: getCount(paycheckRequestsResult),
           payrollRuns: payrollRuns.length,
@@ -849,7 +855,7 @@ export default function FinanceTransactionsPage() {
           overdueInvoices,
           overdueBills,
           pendingExpenses,
-          pendingApprovals,          
+          pendingApprovals: pendingAccessReviews,
         },
         recentActivity,
       });
@@ -895,7 +901,7 @@ export default function FinanceTransactionsPage() {
       )
       .on(
         "postgres_changes",
-        { event: "*", schema: "public", table: "finance_approval_records" },
+        { event: "*", schema: "public", table: "profiles" },
         () => void loadTransactionsData()
       )
       .on(
@@ -956,9 +962,9 @@ export default function FinanceTransactionsPage() {
       },
       {
         key: "approvals",
-        title: "Approvals",
+        title: "Access Approvals",
         value: isLoading ? "—" : formatCount(data.alerts.pendingApprovals),
-        subtitle: "Cross-object approvals waiting",
+        subtitle: "Users waiting for access review",
         icon: ShieldCheck,
         tone: "violet",
       },
@@ -1070,13 +1076,13 @@ export default function FinanceTransactionsPage() {
       },
       approvals: {
         key: "approvals",
-        title: "Approvals",
+        title: "Access Approvals",
         description:
-          "Cross-object decision layer for release, control, and workflow gating.",
+          "Admin-only control center for user access: See, Monitor, Change, and Operate permissions.",
         route: "/finance/transactions/approvals",
         icon: ShieldCheck,
         count: data.counts.approvals,
-        statusLabel: "Live",
+        statusLabel: "Admin",
         lastUpdatedLabel: "Live",
       },
       "purchase-orders": {
@@ -1203,7 +1209,7 @@ export default function FinanceTransactionsPage() {
         key: "control",
         title: "Control & Other",
         subtitle:
-          "Workflow control, approvals, and cross-process transaction management.",
+          "Admin-only access approval and company-level permission control.",
         tone: "control",
         modules: [{ module: allModuleCards.approvals, sequenceLabel: "01" }],
       },
@@ -1277,7 +1283,7 @@ export default function FinanceTransactionsPage() {
                 <p className="mt-3 max-w-4xl text-sm leading-6 text-slate-400 md:text-base md:leading-7">
                   A structured operations layer for incoming money, supplier
                   procurement, expenses and reimbursements, payroll, payments,
-                  approvals, and transaction control.
+                  access approvals, and transaction control.
                 </p>
               </div>
 
@@ -1332,8 +1338,8 @@ export default function FinanceTransactionsPage() {
                     Transaction Readiness
                   </div>
                   <p className="mt-1 text-xs leading-5 text-slate-400">
-                    Monitor receivables, payables, payment movement, and pending
-                    approval pressure across the transaction layer.
+                    Monitor receivables, payables, payment movement, and access
+                    review pressure across the transaction layer.
                   </p>
                 </div>
 
@@ -1354,9 +1360,9 @@ export default function FinanceTransactionsPage() {
                   subtitle={`${formatCount(data.counts.bills)} bill records`}
                 />
                 <SummaryBlock
-                  title="Pending Approvals"
+                  title="Access Reviews"
                   value={formatCount(data.alerts.pendingApprovals)}
-                  subtitle="Cross-object approvals waiting"
+                  subtitle="Users waiting for access approval review"
                 />
               </div>
             </div>
@@ -1398,8 +1404,8 @@ export default function FinanceTransactionsPage() {
                     No transaction activity found
                   </div>
                   <p className="mt-2 text-sm leading-6 text-slate-500">
-                    New invoices, bills, expenses, approvals, and payroll records
-                    will appear here.
+                    New invoices, bills, expenses, access approvals, and payroll
+                    records will appear here.
                   </p>
                 </div>
               ) : (
@@ -1444,8 +1450,8 @@ export default function FinanceTransactionsPage() {
             </TransactionsSectionCard>
 
             <TransactionsSectionCard
-              title="Approvals"
-              description="Cross-object transaction approvals waiting for action."
+              title="Access Approvals"
+              description="Admin-only user access and company-level permission control."
               icon={ShieldCheck}
             >
               <button
@@ -1460,10 +1466,10 @@ export default function FinanceTransactionsPage() {
 
                   <div className="min-w-0">
                     <div className="text-sm font-semibold text-white">
-                      Approvals
+                      Access Approvals
                     </div>
                     <div className="mt-1 text-xs leading-5 text-slate-400">
-                      {formatCount(data.alerts.pendingApprovals)} pending approvals
+                      {formatCount(data.alerts.pendingApprovals)} users waiting for access review
                     </div>
                   </div>
                 </div>

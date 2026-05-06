@@ -743,26 +743,9 @@ const ROUTE_PERMISSIONS: Record<string, RoutePermission> = {
   "/finance/transactions/payroll/new": { permission: "createPayrollRuns" },
   "/finance/transactions/payroll/:id": { permission: "viewAllPaychecks" },
 
-  "/finance/reimbursements": { permission: "viewReimbursements" },
-  "/finance/reimbursements/:id": { permission: "viewReimbursements" },
+    "/finance/access-approvals": { roles: ["admin"], permission: "manageUsers" },
+    "/finance/access-approvals/:userId": { roles: ["admin"], permission: "manageUsers" },
 
-    "/finance/approvals": { permission: "viewApprovalQueue" },
-
-    "/finance/transactions/approvals": { roles: ["admin"], permission: "manageUsers" },
-    "/finance/transactions/approvals/:userId": { roles: ["admin"], permission: "manageUsers" },
-
-    "/finance/payroll": { permission: "viewPayroll" },
-  "/finance/payroll/profiles": { permission: "managePayProfiles" },
-  "/finance/payroll/periods": { permission: "createPayrollRuns" },
-  "/finance/payroll/runs": { permission: "viewPayroll" },
-  "/finance/payroll/runs/:id": { permission: "viewPayroll" },
-
-  "/finance/ledger": { permission: "viewLedger" },
-  "/finance/ledger/accounts": { permission: "viewChartOfAccounts" },
-  "/finance/ledger/accounts/:id": { permission: "viewJournalDrilldown" },
-  "/finance/ledger/periods": { permission: "viewAccountingPeriods" },
-  "/finance/ledger/journals": { permission: "viewJournalEntries" },
-  "/finance/ledger/journals/:id": { permission: "viewJournalDrilldown" },
 };
 
 export function getEffectivePermissions(

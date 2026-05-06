@@ -16,16 +16,22 @@ export type AccessApprovalSectionKey =
   | "financeSettings"
   | "accessApprovals";
 
-export type AccessApprovalLevel = "see" | "monitor" | "change" | "operate";
+export type AccessApprovalLevel =
+  | "read"
+  | "create"
+  | "update"
+  | "deleteArchive"
+  | "approveExecute";
 
 export type AccessLevelState = Record<AccessApprovalLevel, boolean>;
 
 export type AccessApprovalEffectiveLabel =
   | "No Company Access"
-  | "Can Open Section"
-  | "Can Monitor Company Records"
-  | "Can Change Company Records"
-  | "Can Operate Final Actions"
+  | "Can Read Section"
+  | "Can Create Records"
+  | "Can Update Records"
+  | "Can Delete / Archive"
+  | "Can Approve / Execute"
   | "Admin Only";
 
 export type PermissionExplanation = {
@@ -70,84 +76,100 @@ export type ToggleSectionLevelInput = {
 };
 
 export const ACCESS_APPROVAL_LEVEL_ORDER: AccessApprovalLevel[] = [
-  "see",
-  "monitor",
-  "change",
-  "operate",
+  "read",
+  "create",
+  "update",
+  "deleteArchive",
+  "approveExecute",
 ];
 
 export const ACCESS_APPROVAL_LEVEL_EXPLANATIONS: Record<
   AccessApprovalLevel,
   PermissionExplanation
 > = {
-  see: {
-    title: "See",
+  read: {
+    title: "Read",
     shortLabel: "Open and view",
     permits: [
       "Open the section or page group.",
-      "View records allowed by the user’s scope.",
-      "For personal employee flows, normal users still only see their own records.",
+      "View records allowed by the user’s approved scope.",
+      "For personal employee flows, normal users still only see their own records by default.",
     ],
     doesNotPermit: [
-      "Seeing all company records unless Monitor is enabled.",
-      "Editing company-side records.",
       "Creating company-side records.",
+      "Editing or updating company-side records.",
+      "Uploading documents to company-side records.",
       "Approving, paying, deleting, archiving, restoring, or finalizing workflow actions.",
     ],
   },
-  monitor: {
-    title: "Monitor",
-    shortLabel: "View company status",
+  create: {
+    title: "Create",
+    shortLabel: "Create records",
     permits: [
-      "See company-level records in the approved section.",
-      "View dashboards, activity, status, summaries, and history.",
-      "Track workflow state across users and companies.",
+      "Create new records in the approved section.",
+      "Start new drafts or new workflow requests where the section supports creation.",
+      "Use section creation forms only inside the user’s approved scope.",
     ],
     doesNotPermit: [
-      "Editing records.",
-      "Creating new company-side records.",
-      "Approving, paying, deleting, archiving, restoring, or finalizing actions.",
+      "Editing records after creation unless Update is enabled.",
+      "Uploading company-side documents unless Update is enabled.",
+      "Deleting, archiving, restoring, approving, paying, issuing, voiding, or finalizing workflow actions.",
     ],
   },
-  change: {
-    title: "Change",
-    shortLabel: "Create and edit",
+  update: {
+    title: "Update",
+    shortLabel: "Edit and upload",
     permits: [
-      "Create company-side records.",
-      "Edit or update records.",
+      "Edit or update existing editable records.",
       "Upload documents and proof files.",
-      "Add comments or internal notes.",
+      "Add comments, notes, and internal review details.",
       "Modify drafts or editable workflow data.",
+    ],
+    doesNotPermit: [
+      "Deleting, archiving, or restoring records.",
+      "Final approvals.",
+      "Issuing or voiding official documents.",
+      "Confirming funding or payment.",
+      "Paying, processing, verifying proof, or finalizing workflow actions.",
+    ],
+  },
+  deleteArchive: {
+    title: "Delete / Archive",
+    shortLabel: "Archive and restore",
+    permits: [
+      "Archive records where the workflow allows it.",
+      "Soft-delete records where the workflow allows it.",
+      "Restore archived or deleted records where allowed.",
+      "Remove attachments where allowed.",
+      "Manage removed records inside the approved section scope.",
     ],
     doesNotPermit: [
       "Final approvals.",
       "Issuing or voiding official documents.",
       "Confirming funding or payment.",
-      "Paying or distributing money.",
-      "Archiving, deleting, or restoring records.",
-      "Final workflow execution.",
+      "Paying, processing, verifying proof, or finalizing workflow actions.",
+      "Managing Finance Access Approvals unless the user is Admin and explicitly approved.",
     ],
   },
-  operate: {
-    title: "Operate",
-    shortLabel: "Final workflow actions",
+  approveExecute: {
+    title: "Approve / Execute",
+    shortLabel: "Final actions",
     permits: [
       "Approve, reject, or request correction.",
-      "Issue or void documents.",
-      "Archive, delete, or restore records.",
+      "Issue or void official documents.",
       "Confirm funding pools.",
       "Create or confirm payment distributions.",
       "Verify proof.",
-      "Pay, process, or finalize workflow actions.",
+      "Pay, process, export, or finalize workflow actions.",
     ],
     doesNotPermit: [
       "Managing Finance Access Approvals unless the Access Approvals section is granted and the user is Admin.",
-      "Bypassing ownership or security rules outside the granted section scope.",
+      "Bypassing ownership, backend permissions, RLS, or security rules outside the granted section scope.",
     ],
   },
 };
 
-const masterDataSee: Permission[] = [
+const masterDataRead: Permission[] = [
   "accessFinance",
   "viewFinance",
   "manageFinanceMasterData",
@@ -164,23 +186,13 @@ const masterDataSee: Permission[] = [
   "viewItems",
 ];
 
-const masterDataMonitor: Permission[] = [
-  "viewReports",
-  "viewClients",
-  "viewVendors",
-  "viewBankAccounts",
-  "viewPaymentMethods",
-  "viewPaymentTerms",
-  "viewShippingTerms",
-  "viewUnitsOfMeasure",
-  "viewTaxCodes",
-  "viewExpenseCategories",
-  "viewRevenueCategories",
-  "viewItems",
+const masterDataCreate: Permission[] = [
+  "createFinanceRecords",
+  "manageClients",
+  "manageVendors",
 ];
 
-const masterDataChange: Permission[] = [
-  "createFinanceRecords",
+const masterDataUpdate: Permission[] = [
   "editFinanceRecords",
   "manageClients",
   "manageVendors",
@@ -189,12 +201,16 @@ const masterDataChange: Permission[] = [
   "addFinanceAttachments",
 ];
 
-const masterDataOperate: Permission[] = [
+const masterDataDeleteArchive: Permission[] = [
   "archiveFinanceRecords",
   "removeFinanceAttachments",
 ];
 
-const incomingMoneyFlowSee: Permission[] = [
+const masterDataApproveExecute: Permission[] = [
+  "approveFinanceRecords",
+];
+
+const incomingMoneyFlowRead: Permission[] = [
   "accessFinance",
   "viewFinance",
   "accessReceivables",
@@ -203,35 +219,34 @@ const incomingMoneyFlowSee: Permission[] = [
   "viewReceivedPayments",
 ];
 
-const incomingMoneyFlowMonitor: Permission[] = [
-  "viewReports",
-  "viewReceivables",
-  "viewInvoices",
-  "viewReceivedPayments",
+const incomingMoneyFlowCreate: Permission[] = [
+  "createFinanceRecords",
+  "createInvoices",
+  "recordPaymentsReceived",
 ];
 
-const incomingMoneyFlowChange: Permission[] = [
-  "createFinanceRecords",
+const incomingMoneyFlowUpdate: Permission[] = [
   "editFinanceRecords",
-  "createInvoices",
   "editDraftInvoices",
-  "recordPaymentsReceived",
   "addFinanceComments",
   "viewFinanceComments",
   "addFinanceAttachments",
 ];
 
-const incomingMoneyFlowOperate: Permission[] = [
-  "approveFinanceRecords",
+const incomingMoneyFlowDeleteArchive: Permission[] = [
   "archiveFinanceRecords",
+  "removeFinanceAttachments",
+];
+
+const incomingMoneyFlowApproveExecute: Permission[] = [
+  "approveFinanceRecords",
   "sendInvoices",
   "voidInvoices",
   "recordPaymentsReceived",
   "exportReceivables",
-  "removeFinanceAttachments",
 ];
 
-const supplierProcurementSee: Permission[] = [
+const supplierProcurementRead: Permission[] = [
   "accessFinance",
   "viewFinance",
   "accessPayables",
@@ -241,37 +256,35 @@ const supplierProcurementSee: Permission[] = [
   "viewVendors",
 ];
 
-const supplierProcurementMonitor: Permission[] = [
-  "viewReports",
-  "viewPayables",
-  "viewBills",
-  "viewPaymentsMade",
-  "viewVendors",
+const supplierProcurementCreate: Permission[] = [
+  "createFinanceRecords",
+  "createBills",
+  "recordPaymentsMade",
 ];
 
-const supplierProcurementChange: Permission[] = [
-  "createFinanceRecords",
+const supplierProcurementUpdate: Permission[] = [
   "editFinanceRecords",
-  "createBills",
   "editDraftBills",
-  "recordPaymentsMade",
   "manageVendors",
   "addFinanceComments",
   "viewFinanceComments",
   "addFinanceAttachments",
 ];
 
-const supplierProcurementOperate: Permission[] = [
-  "approveFinanceRecords",
+const supplierProcurementDeleteArchive: Permission[] = [
   "archiveFinanceRecords",
+  "removeFinanceAttachments",
+];
+
+const supplierProcurementApproveExecute: Permission[] = [
+  "approveFinanceRecords",
   "openBills",
   "voidBills",
   "recordPaymentsMade",
   "exportPayables",
-  "removeFinanceAttachments",
 ];
 
-const expensesFundingPaymentSee: Permission[] = [
+const expensesFundingPaymentRead: Permission[] = [
   "accessFinance",
   "viewFinance",
   "accessExpenses",
@@ -280,41 +293,39 @@ const expensesFundingPaymentSee: Permission[] = [
   "viewPaymentsMade",
 ];
 
-const expensesFundingPaymentMonitor: Permission[] = [
-  "viewReports",
-  "viewExpenses",
-  "viewTeamExpenses",
-  "viewReimbursements",
-  "viewPaymentsMade",
-  "viewFinanceComments",
-];
-
-const expensesFundingPaymentChange: Permission[] = [
+const expensesFundingPaymentCreate: Permission[] = [
   "createFinanceRecords",
-  "editFinanceRecords",
-  "editAllDraftExpenses",
   "issueReimbursements",
   "recordReimbursementPayments",
   "recordPaymentsMade",
+];
+
+const expensesFundingPaymentUpdate: Permission[] = [
+  "editFinanceRecords",
+  "editAllDraftExpenses",
   "addFinanceComments",
+  "viewFinanceComments",
   "addFinanceAttachments",
 ];
 
-const expensesFundingPaymentOperate: Permission[] = [
-  "approveFinanceRecords",
+const expensesFundingPaymentDeleteArchive: Permission[] = [
   "archiveFinanceRecords",
+  "cancelExpenses",
+  "removeFinanceAttachments",
+];
+
+const expensesFundingPaymentApproveExecute: Permission[] = [
+  "approveFinanceRecords",
   "approveExpenses",
   "rejectExpenses",
-  "cancelExpenses",
   "issueReimbursements",
   "recordReimbursementPayments",
   "recordPaymentsMade",
   "exportExpenseReports",
   "exportReimbursementReports",
-  "removeFinanceAttachments",
 ];
 
-const payrollFundBasketSee: Permission[] = [
+const payrollFundBasketRead: Permission[] = [
   "accessFinance",
   "viewFinance",
   "accessPayroll",
@@ -322,47 +333,50 @@ const payrollFundBasketSee: Permission[] = [
   "viewOwnPaychecks",
 ];
 
-const payrollFundBasketMonitor: Permission[] = [
-  "viewReports",
-  "viewPayroll",
-  "viewAllPaychecks",
+const payrollFundBasketCreate: Permission[] = [
+  "createFinanceRecords",
+  "createPayrollRuns",
 ];
 
-const payrollFundBasketChange: Permission[] = [
-  "createFinanceRecords",
+const payrollFundBasketUpdate: Permission[] = [
   "editFinanceRecords",
-  "createPayrollRuns",
   "editPayrollRuns",
   "managePayProfiles",
   "addFinanceComments",
   "addFinanceAttachments",
 ];
 
-const payrollFundBasketOperate: Permission[] = [
-  "approveFinanceRecords",
+const payrollFundBasketDeleteArchive: Permission[] = [
   "archiveFinanceRecords",
-  "approvePayroll",
-  "processPayrollPayments",
   "removeFinanceAttachments",
 ];
 
-const reportsSee: Permission[] = [
+const payrollFundBasketApproveExecute: Permission[] = [
+  "approveFinanceRecords",
+  "approvePayroll",
+  "processPayrollPayments",
+];
+
+const reportsRead: Permission[] = [
   "accessFinance",
   "viewFinance",
   "viewReports",
 ];
 
-const reportsMonitor: Permission[] = [
+const reportsCreate: Permission[] = [
+  "viewReports",
+];
+
+const reportsUpdate: Permission[] = [
   "viewReports",
   "exportFinanceReports",
 ];
 
-const reportsChange: Permission[] = [
-  "viewReports",
+const reportsDeleteArchive: Permission[] = [
   "exportFinanceReports",
 ];
 
-const reportsOperate: Permission[] = [
+const reportsApproveExecute: Permission[] = [
   "exportFinanceReports",
   "exportReceivables",
   "exportPayables",
@@ -370,44 +384,50 @@ const reportsOperate: Permission[] = [
   "exportReimbursementReports",
 ];
 
-const financeSettingsSee: Permission[] = [
+const financeSettingsRead: Permission[] = [
   "accessFinance",
   "viewFinance",
   "manageFinanceMasterData",
 ];
 
-const financeSettingsMonitor: Permission[] = [
-  "viewReports",
-  "manageFinanceMasterData",
-];
-
-const financeSettingsChange: Permission[] = [
+const financeSettingsCreate: Permission[] = [
   "manageFinanceMasterData",
   "createFinanceRecords",
+];
+
+const financeSettingsUpdate: Permission[] = [
+  "manageFinanceMasterData",
   "editFinanceRecords",
 ];
 
-const financeSettingsOperate: Permission[] = [
+const financeSettingsDeleteArchive: Permission[] = [
   "manageFinanceMasterData",
   "archiveFinanceRecords",
+];
+
+const financeSettingsApproveExecute: Permission[] = [
+  "manageFinanceMasterData",
   "approveFinanceRecords",
 ];
 
-const accessApprovalsSee: Permission[] = [
+const accessApprovalsRead: Permission[] = [
   "accessApprovals",
   "viewApprovalQueue",
 ];
 
-const accessApprovalsMonitor: Permission[] = [
-  "viewApprovalQueue",
+const accessApprovalsCreate: Permission[] = [
   "manageUsers",
 ];
 
-const accessApprovalsChange: Permission[] = [
+const accessApprovalsUpdate: Permission[] = [
   "manageUsers",
 ];
 
-const accessApprovalsOperate: Permission[] = [
+const accessApprovalsDeleteArchive: Permission[] = [
+  "manageUsers",
+];
+
+const accessApprovalsApproveExecute: Permission[] = [
   "actOnFinanceApprovals",
   "manageUsers",
 ];
@@ -437,10 +457,11 @@ export const ACCESS_APPROVAL_SECTIONS: AccessApprovalSection[] = [
       description:
         "Controls finance reference data used by every transaction flow, including companies, clients, vendors, bank accounts, terms, tax codes, items, currencies, employees, and categories.",
       permits: [
-        "Open and view master-data pages according to the enabled level.",
-        "Monitor master-data completeness, missing fields, and usage status when Monitor is enabled.",
-        "Create or edit master data when Change is enabled.",
-        "Archive, delete, restore, or finalize master-data control actions when Operate is enabled.",
+        "Read master-data pages according to the enabled level.",
+        "Create new master-data records when Create is enabled.",
+        "Edit master-data records, upload files, and add notes when Update is enabled.",
+        "Archive, delete, restore, or remove records/files when Delete / Archive is enabled.",
+        "Run final master-data control actions when Approve / Execute is enabled.",
       ],
       doesNotPermit: [
         "Transaction workflow execution.",
@@ -449,10 +470,11 @@ export const ACCESS_APPROVAL_SECTIONS: AccessApprovalSection[] = [
       ],
     },
     levels: {
-      see: masterDataSee,
-      monitor: masterDataMonitor,
-      change: masterDataChange,
-      operate: masterDataOperate,
+      read: masterDataRead,
+      create: masterDataCreate,
+      update: masterDataUpdate,
+      deleteArchive: masterDataDeleteArchive,
+      approveExecute: masterDataApproveExecute,
     },
   },
   {
@@ -473,10 +495,11 @@ export const ACCESS_APPROVAL_SECTIONS: AccessApprovalSection[] = [
       description:
         "Controls the full customer-side receivable flow from quotation and customer commitment through proforma, final invoice, and payment collection.",
       permits: [
-        "Open and work with quotations, customer POs, proforma invoices, invoices, and payments received according to the enabled level.",
-        "Monitor customer money-in records when Monitor is enabled.",
-        "Create or edit incoming money records when Change is enabled.",
-        "Run final incoming-money actions when Operate is enabled.",
+        "Read quotations, customer POs, proforma invoices, invoices, and payments received when Read is enabled.",
+        "Create incoming-money records when Create is enabled.",
+        "Edit drafts, upload documents, and add notes when Update is enabled.",
+        "Archive, delete, restore, or remove files when Delete / Archive is enabled.",
+        "Issue, void, approve, export, or execute final incoming-money actions when Approve / Execute is enabled.",
       ],
       doesNotPermit: [
         "Supplier procurement actions.",
@@ -486,10 +509,11 @@ export const ACCESS_APPROVAL_SECTIONS: AccessApprovalSection[] = [
       ],
     },
     levels: {
-      see: incomingMoneyFlowSee,
-      monitor: incomingMoneyFlowMonitor,
-      change: incomingMoneyFlowChange,
-      operate: incomingMoneyFlowOperate,
+      read: incomingMoneyFlowRead,
+      create: incomingMoneyFlowCreate,
+      update: incomingMoneyFlowUpdate,
+      deleteArchive: incomingMoneyFlowDeleteArchive,
+      approveExecute: incomingMoneyFlowApproveExecute,
     },
   },
   {
@@ -509,10 +533,11 @@ export const ACCESS_APPROVAL_SECTIONS: AccessApprovalSection[] = [
       description:
         "Controls the supplier-side procurement and payable flow from vendor quotation through purchase order, vendor PI/invoice, and outgoing payment.",
       permits: [
-        "Open and work with supplier procurement records according to the enabled level.",
-        "Monitor supplier, PO, bill, and payment-made records when Monitor is enabled.",
-        "Create or edit procurement records when Change is enabled.",
-        "Run final procurement and payable actions when Operate is enabled.",
+        "Read supplier procurement records when Read is enabled.",
+        "Create procurement and payable records when Create is enabled.",
+        "Edit drafts, upload documents, and add notes when Update is enabled.",
+        "Archive, delete, restore, or remove files when Delete / Archive is enabled.",
+        "Open, void, approve, export, or execute final procurement/payable actions when Approve / Execute is enabled.",
       ],
       doesNotPermit: [
         "Incoming customer receivable actions.",
@@ -522,10 +547,11 @@ export const ACCESS_APPROVAL_SECTIONS: AccessApprovalSection[] = [
       ],
     },
     levels: {
-      see: supplierProcurementSee,
-      monitor: supplierProcurementMonitor,
-      change: supplierProcurementChange,
-      operate: supplierProcurementOperate,
+      read: supplierProcurementRead,
+      create: supplierProcurementCreate,
+      update: supplierProcurementUpdate,
+      deleteArchive: supplierProcurementDeleteArchive,
+      approveExecute: supplierProcurementApproveExecute,
     },
   },
   {
@@ -548,10 +574,11 @@ export const ACCESS_APPROVAL_SECTIONS: AccessApprovalSection[] = [
       description:
         "Controls the company-side Finance/Admin layer of expenses and reimbursements. It does not remove normal users’ own expense/reimbursement rights.",
       permits: [
-        "Open the Finance/Admin expense payment execution area according to the enabled level.",
-        "Monitor all expense funding/payment records when Monitor is enabled.",
-        "Create or edit funding/payment execution records when Change is enabled.",
-        "Approve, allocate funds, distribute payments, verify proof, archive, delete, restore, or finalize actions when Operate is enabled.",
+        "Read the Finance/Admin expense payment execution area when Read is enabled.",
+        "Create funding/payment execution records when Create is enabled.",
+        "Update funding/payment records, upload documents, and add notes when Update is enabled.",
+        "Archive, delete, restore, cancel, or remove files when Delete / Archive is enabled.",
+        "Approve, allocate funds, distribute payments, verify proof, export, or finalize actions when Approve / Execute is enabled.",
       ],
       doesNotPermit: [
         "Blocking normal users from seeing, creating, editing, submitting, uploading, or confirming their own expense/reimbursement records.",
@@ -561,10 +588,11 @@ export const ACCESS_APPROVAL_SECTIONS: AccessApprovalSection[] = [
       ],
     },
     levels: {
-      see: expensesFundingPaymentSee,
-      monitor: expensesFundingPaymentMonitor,
-      change: expensesFundingPaymentChange,
-      operate: expensesFundingPaymentOperate,
+      read: expensesFundingPaymentRead,
+      create: expensesFundingPaymentCreate,
+      update: expensesFundingPaymentUpdate,
+      deleteArchive: expensesFundingPaymentDeleteArchive,
+      approveExecute: expensesFundingPaymentApproveExecute,
     },
   },
   {
@@ -587,10 +615,11 @@ export const ACCESS_APPROVAL_SECTIONS: AccessApprovalSection[] = [
       description:
         "Controls the company-side Finance/Admin layer of payroll funding pools and paycheck payment distributions. It does not remove normal users’ own paycheck request rights.",
       permits: [
-        "Open payroll funding/payment execution pages according to the enabled level.",
-        "Monitor all payroll funding/payment records when Monitor is enabled.",
-        "Create or edit payroll funding/payment execution records when Change is enabled.",
-        "Approve, allocate funding, distribute paycheck payments, verify proof, archive, delete, restore, or finalize payroll actions when Operate is enabled.",
+        "Read payroll funding/payment execution pages when Read is enabled.",
+        "Create payroll funding/payment records when Create is enabled.",
+        "Update payroll records, upload documents, and add notes when Update is enabled.",
+        "Archive, delete, restore, or remove files when Delete / Archive is enabled.",
+        "Approve, allocate funding, distribute paycheck payments, verify proof, or finalize payroll actions when Approve / Execute is enabled.",
       ],
       doesNotPermit: [
         "Blocking normal users from seeing, creating, editing, submitting, uploading, or confirming their own paycheck requests.",
@@ -600,10 +629,11 @@ export const ACCESS_APPROVAL_SECTIONS: AccessApprovalSection[] = [
       ],
     },
     levels: {
-      see: payrollFundBasketSee,
-      monitor: payrollFundBasketMonitor,
-      change: payrollFundBasketChange,
-      operate: payrollFundBasketOperate,
+      read: payrollFundBasketRead,
+      create: payrollFundBasketCreate,
+      update: payrollFundBasketUpdate,
+      deleteArchive: payrollFundBasketDeleteArchive,
+      approveExecute: payrollFundBasketApproveExecute,
     },
   },
   {
@@ -625,10 +655,11 @@ export const ACCESS_APPROVAL_SECTIONS: AccessApprovalSection[] = [
       description:
         "Controls finance reporting, analytics, summaries, saved report views if added later, and official report exports.",
       permits: [
-        "Open the Finance Reports page according to the enabled level.",
-        "View company-level report dashboards and summaries when Monitor is enabled.",
-        "Configure report views or report settings if supported when Change is enabled.",
-        "Export/download/share official finance reports when Operate is enabled.",
+        "Read the Finance Reports page when Read is enabled.",
+        "Create or prepare report views where supported when Create is enabled.",
+        "Update report views or report settings where supported when Update is enabled.",
+        "Manage removed/superseded report views where supported when Delete / Archive is enabled.",
+        "Export, download, or share official finance reports when Approve / Execute is enabled.",
       ],
       doesNotPermit: [
         "Editing source transaction records.",
@@ -638,10 +669,11 @@ export const ACCESS_APPROVAL_SECTIONS: AccessApprovalSection[] = [
       ],
     },
     levels: {
-      see: reportsSee,
-      monitor: reportsMonitor,
-      change: reportsChange,
-      operate: reportsOperate,
+      read: reportsRead,
+      create: reportsCreate,
+      update: reportsUpdate,
+      deleteArchive: reportsDeleteArchive,
+      approveExecute: reportsApproveExecute,
     },
   },
   {
@@ -661,10 +693,11 @@ export const ACCESS_APPROVAL_SECTIONS: AccessApprovalSection[] = [
       description:
         "Controls finance configuration, workflow settings, numbering/settings, and permission-sensitive finance setup.",
       permits: [
-        "Open Finance Settings according to the enabled level.",
-        "Review finance configuration and status when Monitor is enabled.",
-        "Edit finance configuration when Change is enabled.",
-        "Apply dangerous or final configuration actions when Operate is enabled.",
+        "Read Finance Settings when Read is enabled.",
+        "Create finance configuration records where supported when Create is enabled.",
+        "Update finance configuration when Update is enabled.",
+        "Archive, delete, or restore configurable records when Delete / Archive is enabled.",
+        "Apply dangerous or final configuration actions when Approve / Execute is enabled.",
       ],
       doesNotPermit: [
         "Managing user access approvals.",
@@ -673,10 +706,11 @@ export const ACCESS_APPROVAL_SECTIONS: AccessApprovalSection[] = [
       ],
     },
     levels: {
-      see: financeSettingsSee,
-      monitor: financeSettingsMonitor,
-      change: financeSettingsChange,
-      operate: financeSettingsOperate,
+      read: financeSettingsRead,
+      create: financeSettingsCreate,
+      update: financeSettingsUpdate,
+      deleteArchive: financeSettingsDeleteArchive,
+      approveExecute: financeSettingsApproveExecute,
     },
   },
   {
@@ -688,17 +722,18 @@ export const ACCESS_APPROVAL_SECTIONS: AccessApprovalSection[] = [
     controls: [
       "User Access Approval",
       "Finance-Level Permission Matrix",
-      "See / Monitor / Change / Operate Controls",
+      "Read / Create / Update / Delete-Archive / Approve-Execute Controls",
     ],
     adminOnly: true,
     tooltip: {
       title: "Finance Access Approvals",
       description:
-        "Admin-only control for managing what users can see, monitor, change, and operate across the full AiXia Finance module.",
+        "Admin-only control for managing what users can read, create, update, delete/archive, and approve/execute across the full AiXia Finance module.",
       permits: [
-        "Open the Finance Access Approvals page only if the current user is Admin.",
-        "View user access states only if Admin.",
-        "Change user permissions only if Admin.",
+        "Read the Finance Access Approvals page only if the current user is Admin.",
+        "Create user-access assignments only if Admin.",
+        "Update user permissions only if Admin.",
+        "Archive, remove, or restore access-control records only if Admin.",
         "Operate final access-control actions only if Admin.",
       ],
       doesNotPermit: [
@@ -708,10 +743,11 @@ export const ACCESS_APPROVAL_SECTIONS: AccessApprovalSection[] = [
       ],
     },
     levels: {
-      see: accessApprovalsSee,
-      monitor: accessApprovalsMonitor,
-      change: accessApprovalsChange,
-      operate: accessApprovalsOperate,
+      read: accessApprovalsRead,
+      create: accessApprovalsCreate,
+      update: accessApprovalsUpdate,
+      deleteArchive: accessApprovalsDeleteArchive,
+      approveExecute: accessApprovalsApproveExecute,
     },
   },
 ];
@@ -782,10 +818,11 @@ export function getSectionsForGroup(groupKey: AccessApprovalGroupKey) {
 
 export function getSectionPermissionSet(section: AccessApprovalSection) {
   return new Set<Permission>([
-    ...section.levels.see,
-    ...section.levels.monitor,
-    ...section.levels.change,
-    ...section.levels.operate,
+    ...section.levels.read,
+    ...section.levels.create,
+    ...section.levels.update,
+    ...section.levels.deleteArchive,
+    ...section.levels.approveExecute,
   ]);
 }
 
@@ -826,10 +863,17 @@ export function getSectionLevelState(
   effectivePermissions: Record<Permission, boolean>
 ): AccessLevelState {
   return {
-    see: isPermissionSetEnabled(effectivePermissions, section.levels.see),
-    monitor: isPermissionSetEnabled(effectivePermissions, section.levels.monitor),
-    change: isPermissionSetEnabled(effectivePermissions, section.levels.change),
-    operate: isPermissionSetEnabled(effectivePermissions, section.levels.operate),
+    read: isPermissionSetEnabled(effectivePermissions, section.levels.read),
+    create: isPermissionSetEnabled(effectivePermissions, section.levels.create),
+    update: isPermissionSetEnabled(effectivePermissions, section.levels.update),
+    deleteArchive: isPermissionSetEnabled(
+      effectivePermissions,
+      section.levels.deleteArchive
+    ),
+    approveExecute: isPermissionSetEnabled(
+      effectivePermissions,
+      section.levels.approveExecute
+    ),
   };
 }
 
@@ -837,11 +881,12 @@ export function getEffectiveAccessLabel(
   section: AccessApprovalSection,
   state: AccessLevelState
 ): AccessApprovalEffectiveLabel {
-  if (section.adminOnly && state.operate) return "Admin Only";
-  if (state.operate) return "Can Operate Final Actions";
-  if (state.change) return "Can Change Company Records";
-  if (state.monitor) return "Can Monitor Company Records";
-  if (state.see) return "Can Open Section";
+  if (section.adminOnly && state.approveExecute) return "Admin Only";
+  if (state.approveExecute) return "Can Approve / Execute";
+  if (state.deleteArchive) return "Can Delete / Archive";
+  if (state.update) return "Can Update Records";
+  if (state.create) return "Can Create Records";
+  if (state.read) return "Can Read Section";
   return "No Company Access";
 }
 
@@ -849,24 +894,28 @@ export function getEffectiveAccessDescription(
   section: AccessApprovalSection,
   state: AccessLevelState
 ) {
-  if (section.adminOnly && state.operate) {
+  if (section.adminOnly && state.approveExecute) {
     return "Admin-level access control is enabled for this user.";
   }
 
-  if (state.operate) {
-    return "This user can perform final workflow actions in this section.";
+  if (state.approveExecute) {
+    return "This user can perform final approval and execution actions in this section.";
   }
 
-  if (state.change) {
-    return "This user can create and edit company-side records in this section.";
+  if (state.deleteArchive) {
+    return "This user can archive, delete, restore, and manage removed records in this section.";
   }
 
-  if (state.monitor) {
-    return "This user can see company-level records, status, activity, and summaries in this section.";
+  if (state.update) {
+    return "This user can edit records, upload documents, and add notes in this section.";
   }
 
-  if (state.see) {
-    return "This user can open this section.";
+  if (state.create) {
+    return "This user can create company-side records in this section.";
+  }
+
+  if (state.read) {
+    return "This user can open and read this section.";
   }
 
   if (section.defaultRule) {
@@ -939,27 +988,32 @@ export function buildSectionToggleOverrides({
 export function countEnabledSections(
   states: Record<AccessApprovalSectionKey, AccessLevelState>
 ) {
-  return ACCESS_APPROVAL_SECTIONS.filter((section) => states[section.key]?.see).length;
+  return ACCESS_APPROVAL_SECTIONS.filter((section) => states[section.key]?.read).length;
 }
 
 export function countOperatorSections(
   states: Record<AccessApprovalSectionKey, AccessLevelState>
 ) {
-  return ACCESS_APPROVAL_SECTIONS.filter((section) => states[section.key]?.operate).length;
+  return ACCESS_APPROVAL_SECTIONS.filter(
+    (section) => states[section.key]?.approveExecute
+  ).length;
 }
 
 export function countEnabledSectionsForGroup(
   groupKey: AccessApprovalGroupKey,
   states: Record<AccessApprovalSectionKey, AccessLevelState>
 ) {
-  return getSectionsForGroup(groupKey).filter((section) => states[section.key]?.see).length;
+  return getSectionsForGroup(groupKey).filter((section) => states[section.key]?.read)
+    .length;
 }
 
 export function countOperatorSectionsForGroup(
   groupKey: AccessApprovalGroupKey,
   states: Record<AccessApprovalSectionKey, AccessLevelState>
 ) {
-  return getSectionsForGroup(groupKey).filter((section) => states[section.key]?.operate).length;
+  return getSectionsForGroup(groupKey).filter(
+    (section) => states[section.key]?.approveExecute
+  ).length;
 }
 
 export function countAvailableLevelsForGroup(
@@ -989,10 +1043,11 @@ export function createEmptyAccessStateMap(): Record<
   return ACCESS_APPROVAL_SECTIONS.reduce(
     (map, section) => {
       map[section.key] = {
-        see: false,
-        monitor: false,
-        change: false,
-        operate: false,
+        read: false,
+        create: false,
+        update: false,
+        deleteArchive: false,
+        approveExecute: false,
       };
       return map;
     },

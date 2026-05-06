@@ -489,8 +489,10 @@ export default function FinanceMasterDataClientsPage() {
   const [sortKey, setSortKey] = useState<SortKey>("updated");
   const [sortDirection, setSortDirection] = useState<SortDirection>("desc");
 
-  const loadCurrentProfile = useCallback(async () => {
-    setIsLoadingProfile(true);
+  const loadCurrentProfile = useCallback(async (mode: "initial" | "silent" = "initial") => {
+    if (mode === "initial") {
+      setIsLoadingProfile(true);
+    }
 
     try {
       const authResult = await supabase.auth.getUser();
@@ -533,7 +535,9 @@ export default function FinanceMasterDataClientsPage() {
       setProfile(null);
       setEffectivePermissions(null);
     } finally {
-      setIsLoadingProfile(false);
+      if (mode === "initial") {
+        setIsLoadingProfile(false);
+      }
     }
   }, []);
 
@@ -541,8 +545,10 @@ export default function FinanceMasterDataClientsPage() {
     return buildPermissionState(profile, effectivePermissions);
   }, [effectivePermissions, profile]);
 
-  const loadClients = useCallback(async () => {
-    setIsLoadingClients(true);
+  const loadClients = useCallback(async (mode: "initial" | "silent" = "initial") => {
+    if (mode === "initial") {
+      setIsLoadingClients(true);
+    }
     setPageError(null);
 
     try {
@@ -555,12 +561,16 @@ export default function FinanceMasterDataClientsPage() {
         error instanceof Error ? error.message : "Failed to load finance clients."
       );
     } finally {
-      setIsLoadingClients(false);
+      if (mode === "initial") {
+        setIsLoadingClients(false);
+      }
     }
   }, []);
 
-  const loadArchivedClients = useCallback(async () => {
-    setIsLoadingArchive(true);
+  const loadArchivedClients = useCallback(async (mode: "initial" | "silent" = "initial") => {
+    if (mode === "initial") {
+      setIsLoadingArchive(true);
+    }
     setPageError(null);
 
     try {
@@ -573,12 +583,17 @@ export default function FinanceMasterDataClientsPage() {
         error instanceof Error ? error.message : "Failed to load archived clients."
       );
     } finally {
-      setIsLoadingArchive(false);
+      if (mode === "initial") {
+        setIsLoadingArchive(false);
+      }
     }
   }, []);
 
   useEffect(() => {
-    void Promise.all([loadCurrentProfile(), loadClients()]);
+    void Promise.all([
+      loadCurrentProfile("initial"),
+      loadClients("initial"),
+    ]);
   }, [loadClients, loadCurrentProfile]);
 
   useEffect(() => {
@@ -587,33 +602,33 @@ export default function FinanceMasterDataClientsPage() {
       .on(
         "postgres_changes",
         { event: "*", schema: "public", table: "profiles" },
-        () => void loadCurrentProfile()
+        () => void loadCurrentProfile("silent")
       )
       .on(
         "postgres_changes",
         { event: "*", schema: "public", table: "finance_permission_templates" },
-        () => void loadCurrentProfile()
+        () => void loadCurrentProfile("silent")
       )
       .on(
         "postgres_changes",
         { event: "*", schema: "public", table: "finance_user_permission_templates" },
-        () => void loadCurrentProfile()
+        () => void loadCurrentProfile("silent")
       )
       .on(
         "postgres_changes",
         { event: "*", schema: "public", table: "finance_clients" },
         () => {
-          void loadClients();
-          if (showArchive) void loadArchivedClients();
+          void loadClients("silent");
+          if (showArchive) void loadArchivedClients("silent");
         }
       )
       .subscribe();
 
     const intervalId = window.setInterval(() => {
       void Promise.all([
-        loadCurrentProfile(),
-        loadClients(),
-        showArchive ? loadArchivedClients() : Promise.resolve(),
+        loadCurrentProfile("silent"),
+        loadClients("silent"),
+        showArchive ? loadArchivedClients("silent") : Promise.resolve(),
       ]);
     }, 60000);
 
@@ -791,7 +806,7 @@ export default function FinanceMasterDataClientsPage() {
 
     setShowArchive(true);
     setRunningAction("archive-modal");
-    await loadArchivedClients();
+    await loadArchivedClients("initial");
     setRunningAction(null);
   }, [loadArchivedClients, permissionState.canDeleteArchive]);
 
@@ -812,8 +827,8 @@ export default function FinanceMasterDataClientsPage() {
       try {
         await archiveClient(clientId);
         await Promise.all([
-          loadClients(),
-          showArchive ? loadArchivedClients() : Promise.resolve(),
+          loadClients("silent"),
+          showArchive ? loadArchivedClients("silent") : Promise.resolve(),
         ]);
         setPageMessage("Client archived.");
       } catch (error) {
@@ -846,7 +861,7 @@ export default function FinanceMasterDataClientsPage() {
 
       try {
         await restoreClient(clientId);
-        await Promise.all([loadClients(), loadArchivedClients()]);
+        await Promise.all([loadClients("silent"), loadArchivedClients("silent")]);
         setPageMessage("Client restored.");
       } catch (error) {
         console.error("Failed to restore finance client:", error);
@@ -878,7 +893,7 @@ export default function FinanceMasterDataClientsPage() {
 
       try {
         await permanentlyDeleteClient(clientId);
-        await Promise.all([loadClients(), loadArchivedClients()]);
+        await Promise.all([loadClients("silent"), loadArchivedClients("silent")]);
         setPageMessage("Archived client permanently deleted.");
       } catch (error) {
         console.error("Failed to permanently delete finance client:", error);

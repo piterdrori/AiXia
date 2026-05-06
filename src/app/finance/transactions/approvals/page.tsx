@@ -397,7 +397,9 @@ export default function FinanceAccessApprovalsPage() {
           currentProfile.permissions || null
         );
 
-        if (!currentUserPermissions.manageUsers) {
+        const isAdminUser = String(currentProfile.role || "").toLowerCase() === "admin";
+
+        if (!isAdminUser || !currentUserPermissions.manageUsers) {
           setPageError("Admin access is required to open Access Approvals.");
           setUsers([]);
           return;
@@ -619,6 +621,7 @@ export default function FinanceAccessApprovalsPage() {
 
   const hasAdminAccess = Boolean(
     currentUserRole &&
+      String(currentUserRole || "").toLowerCase() === "admin" &&
       getEffectivePermissions(currentUserRole, null).manageUsers &&
       !pageError
   );

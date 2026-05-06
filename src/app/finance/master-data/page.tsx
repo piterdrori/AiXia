@@ -413,45 +413,47 @@ function MasterDataModuleButton({
     <button
       type="button"
       onClick={() => onOpen(module.route)}
-      className="group flex min-h-[178px] flex-col justify-between rounded-[26px] border border-white/10 bg-black/20 p-5 text-left transition hover:border-cyan-400/25 hover:bg-white/[0.055]"
+      className="group relative min-h-[188px] overflow-hidden rounded-[28px] border border-white/10 bg-[radial-gradient(circle_at_top_left,rgba(6,182,212,0.12),rgba(255,255,255,0.035)_42%,rgba(0,0,0,0.18))] p-5 text-left shadow-lg shadow-black/20 transition hover:-translate-y-0.5 hover:border-cyan-400/25 hover:bg-white/[0.055]"
     >
-      <div className="flex items-start justify-between gap-4">
-        <div className="rounded-2xl border border-cyan-400/15 bg-cyan-500/10 p-3 text-cyan-200">
-          <Icon className="h-5 w-5" />
+      <div className="pointer-events-none absolute inset-x-5 top-0 h-px bg-white/10" />
+      <div className="pointer-events-none absolute -right-14 -top-14 h-32 w-32 rounded-full bg-cyan-400/10 blur-3xl transition group-hover:bg-cyan-400/15" />
+
+      <div className="relative flex h-full flex-col justify-between gap-5">
+        <div className="flex items-start justify-between gap-4">
+          <div className="flex items-center gap-3">
+            <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-2xl border border-cyan-400/15 bg-cyan-500/10 text-cyan-200">
+              <Icon className="h-5 w-5" />
+            </div>
+
+            <div className="min-w-0">
+              <div className="text-base font-semibold text-white">
+                {module.title}
+              </div>
+              <div className="mt-1 text-[11px] font-semibold uppercase tracking-[0.18em] text-slate-600">
+                {module.requiredAccessLabel}
+              </div>
+            </div>
+          </div>
+
+          <div className="flex shrink-0 items-center gap-2">
+            <span className="rounded-full border border-slate-400/20 bg-slate-500/10 px-3 py-1 text-[11px] font-semibold uppercase tracking-[0.16em] text-slate-300">
+              {module.statusLabel}
+            </span>
+            <ArrowRight className="h-4 w-4 text-slate-500 transition group-hover:translate-x-1 group-hover:text-cyan-200" />
+          </div>
         </div>
 
-        <div className="flex items-center gap-2">
-          <span className="rounded-full border border-slate-400/20 bg-slate-500/10 px-3 py-1 text-[11px] font-semibold uppercase tracking-[0.16em] text-slate-300">
-            {module.statusLabel}
-          </span>
-          <ArrowRight className="h-4 w-4 text-slate-500 transition group-hover:translate-x-1 group-hover:text-cyan-200" />
-        </div>
-      </div>
-
-      <div className="mt-5 space-y-2">
-        <div className="text-base font-semibold text-white">{module.title}</div>
-        <div className="line-clamp-2 text-sm leading-6 text-slate-400">
+        <div className="min-h-[52px] text-sm leading-6 text-slate-400">
           {module.description}
         </div>
-      </div>
 
-      <div className="mt-5 grid grid-cols-2 gap-3">
-        <div className="rounded-[18px] border border-white/10 bg-white/[0.035] px-3 py-2">
-          <div className="text-[10px] uppercase tracking-[0.18em] text-slate-600">
-            Records
-          </div>
-          <div className="mt-1 text-sm font-semibold text-white">
-            {formatCount(module.count)}
-          </div>
-        </div>
-
-        <div className="rounded-[18px] border border-white/10 bg-white/[0.035] px-3 py-2">
-          <div className="text-[10px] uppercase tracking-[0.18em] text-slate-600">
-            Access
-          </div>
-          <div className="mt-1 truncate text-sm font-semibold text-white">
-            {module.requiredAccessLabel}
-          </div>
+        <div className="flex flex-wrap items-center gap-2 border-t border-white/10 pt-4">
+          <span className="inline-flex items-center rounded-full border border-white/10 bg-black/20 px-3 py-1 text-xs font-semibold text-white">
+            {formatCount(module.count)} records
+          </span>
+          <span className="inline-flex items-center rounded-full border border-white/10 bg-black/20 px-3 py-1 text-xs font-semibold text-slate-300">
+            Updated {module.lastUpdatedLabel}
+          </span>
         </div>
       </div>
     </button>
@@ -791,8 +793,8 @@ export default function FinanceMasterDataPage() {
       if (getCount(bankAccounts) > 0) {
         recentChanges.push({
           id: "bank-accounts",
-          type: "Bank Accounts",
-          title: "Bank accounts active",
+          type: "Company Bank Accounts",
+          title: "Company bank accounts active",
           subtitle: `${getCount(bankAccounts)} company bank accounts`,
           createdAt: now,
           route: "/finance/master-data/bank-accounts",
@@ -931,8 +933,8 @@ export default function FinanceMasterDataPage() {
       },
       {
         key: "bank-accounts",
-        title: "Bank Accounts",
-        description: "Control company bank accounts and finance banking setup.",
+        title: "Company Bank Accounts",
+        description: "Control internal company bank accounts and finance banking setup.",
         route: "/finance/master-data/bank-accounts",
         icon: Landmark,
         count: data.counts.bankAccounts,
@@ -1106,10 +1108,10 @@ export default function FinanceMasterDataPage() {
       },
       {
         key: "bank-accounts",
-        title: "Bank Accounts",
+        title: "Company Bank Accounts",
         value: isLoadingData ? "—" : formatCount(visibleBankAccounts),
         subtitle: accessMap["bank-accounts"]
-          ? "Visible banking setup"
+          ? "Visible company banking setup"
           : "Hidden by access",
         icon: Landmark,
         tone: "emerald",
@@ -1236,7 +1238,7 @@ export default function FinanceMasterDataPage() {
           </div>
         </header>
 
-                <section className="grid gap-4 md:grid-cols-2 xl:grid-cols-5">
+        <section className="grid gap-4 md:grid-cols-2 xl:grid-cols-5">
           {overviewCards.map((metric) => (
             <MasterDataOverviewMetric key={metric.key} metric={metric} />
           ))}
@@ -1277,16 +1279,14 @@ export default function FinanceMasterDataPage() {
                   </p>
                 </div>
               ) : (
-                <div className="max-h-[620px] overflow-y-auto overscroll-contain pr-1">
-                  <div className="grid gap-4 md:grid-cols-2">
-                    {moduleCards.map((module) => (
-                      <MasterDataModuleButton
-                        key={module.key}
-                        module={module}
-                        onOpen={openRoute}
-                      />
-                    ))}
-                  </div>
+                <div className="grid gap-4 md:grid-cols-2">
+                  {moduleCards.map((module) => (
+                    <MasterDataModuleButton
+                      key={module.key}
+                      module={module}
+                      onOpen={openRoute}
+                    />
+                  ))}
                 </div>
               )}
             </MasterDataSectionCard>

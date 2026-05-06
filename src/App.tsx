@@ -128,17 +128,9 @@ import FinanceExpensesPage from "@/app/finance/transactions/expenses/page";
 import FinanceNewExpensePage from "@/app/finance/transactions/expenses/new/page";
 import FinanceExpenseDetailPage from "@/app/finance/transactions/expenses/[id]/page";
 
-import FinanceReimbursementsPage from "@/app/finance/reimbursements/page";
-import FinanceReimbursementDetailPage from "@/app/finance/reimbursements/[id]/page";
+import FinanceAccessApprovalsPage from "@/app/finance/access-approvals/page";
+import FinanceAccessApprovalUserDetailPage from "@/app/finance/access-approvals/[userId]/page";
 
-import FinanceAccessApprovalsPage from "@/app/finance/transactions/approvals/page";
-import FinanceAccessApprovalUserDetailPage from "@/app/finance/transactions/approvals/[userId]/page";
-import FinanceLedgerPage from "@/app/finance/ledger/page";
-import FinanceLedgerAccountsPage from "@/app/finance/ledger/accounts/page";
-import FinanceLedgerAccountDetailPage from "@/app/finance/ledger/accounts/[id]/page";
-import FinanceLedgerPeriodsPage from "@/app/finance/ledger/periods/page";
-import FinanceLedgerJournalsPage from "@/app/finance/ledger/journals/page";
-import FinanceLedgerJournalDetailPage from "@/app/finance/ledger/journals/[id]/page";
 import AIManagementPage from "@/app/ai-management/page";
 import AICacheReviewPage from "@/app/ai-management/cache-review/page";
 import AIApprovedAnswersPage from "@/app/ai-management/approved-answers/page";
@@ -1540,29 +1532,7 @@ function AppRoutes() {
 />
 
 <Route
-  path="/finance/transactions/reimbursements"
-  element={
-    <ProtectedRoute>
-      <DashboardLayout>
-        <FinanceReimbursementsPage />
-      </DashboardLayout>
-    </ProtectedRoute>
-  }
-/>
-
-<Route
-  path="/finance/transactions/reimbursements/:id"
-  element={
-    <ProtectedRoute>
-      <DashboardLayout>
-        <FinanceReimbursementDetailPage />
-      </DashboardLayout>
-    </ProtectedRoute>
-  }
-/>
-
-<Route
-  path="/finance/transactions/approvals"
+  path="/finance/access-approvals"
   element={
     <ProtectedRoute>
       <DashboardLayout>
@@ -1573,7 +1543,7 @@ function AppRoutes() {
 />
 
 <Route
-  path="/finance/transactions/approvals/:userId"
+  path="/finance/access-approvals/:userId"
   element={
     <ProtectedRoute>
       <DashboardLayout>
@@ -1682,71 +1652,6 @@ function AppRoutes() {
   }
 />
 
-<Route
-  path="/finance/ledger"
-  element={
-    <ProtectedRoute>
-      <DashboardLayout>
-        <FinanceLedgerPage />
-      </DashboardLayout>
-    </ProtectedRoute>
-  }
-/>
-
-<Route
-  path="/finance/ledger/accounts"
-  element={
-    <ProtectedRoute>
-      <DashboardLayout>
-        <FinanceLedgerAccountsPage />
-      </DashboardLayout>
-    </ProtectedRoute>
-  }
-/>
-
-<Route
-  path="/finance/ledger/accounts/:id"
-  element={
-    <ProtectedRoute>
-      <DashboardLayout>
-        <FinanceLedgerAccountDetailPage />
-      </DashboardLayout>
-    </ProtectedRoute>
-  }
-/>
-
-<Route
-  path="/finance/ledger/periods"
-  element={
-    <ProtectedRoute>
-      <DashboardLayout>
-        <FinanceLedgerPeriodsPage />
-      </DashboardLayout>
-    </ProtectedRoute>
-  }
-/>
-
-<Route
-  path="/finance/ledger/journals"
-  element={
-    <ProtectedRoute>
-      <DashboardLayout>
-        <FinanceLedgerJournalsPage />
-      </DashboardLayout>
-    </ProtectedRoute>
-  }
-/>
-
-<Route
-  path="/finance/ledger/journals/:id"
-  element={
-    <ProtectedRoute>
-      <DashboardLayout>
-        <FinanceLedgerJournalDetailPage />
-      </DashboardLayout>
-    </ProtectedRoute>
-  }
-/>
       <Route
   path="/finance/master-data/vendor-bank-accounts"
   element={

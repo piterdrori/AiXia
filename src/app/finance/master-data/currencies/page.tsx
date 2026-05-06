@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
+import type { ReactNode } from "react";
 import { useNavigate } from "react-router-dom";
 import type { LucideIcon } from "lucide-react";
 import {
@@ -14,7 +15,7 @@ import {
   Landmark,
   Loader2,
   LockKeyhole,
-  MoreHorizontal,
+  Pencil,
   Plus,
   RefreshCcw,
   Save,
@@ -75,7 +76,6 @@ type CurrencyFormState = {
 type ExchangeRateFormState = {
   from_currency_code: string;
   to_currency_code: string;
-  exchange_rate: string;
   effective_date: string;
   status: FinanceRecordStatus;
   notes: string;
@@ -124,53 +124,292 @@ const EMPTY_CURRENCY_FORM: CurrencyFormState = {
 const EMPTY_RATE_FORM: ExchangeRateFormState = {
   from_currency_code: "",
   to_currency_code: "",
-  exchange_rate: "",
   effective_date: new Date().toISOString().slice(0, 10),
   status: "active",
   notes: "",
 };
 
 const MAJOR_CURRENCY_PRESETS: CurrencyPreset[] = [
-  { code: "USD", name: "US Dollar", symbol: "$", decimal_places: "2", region: "North America" },
-  { code: "EUR", name: "Euro", symbol: "€", decimal_places: "2", region: "Europe" },
-  { code: "CNY", name: "Chinese Yuan", symbol: "¥", decimal_places: "2", region: "Asia" },
-  { code: "GBP", name: "British Pound Sterling", symbol: "£", decimal_places: "2", region: "Europe" },
-  { code: "JPY", name: "Japanese Yen", symbol: "¥", decimal_places: "0", region: "Asia" },
-  { code: "ILS", name: "Israeli New Shekel", symbol: "₪", decimal_places: "2", region: "Middle East" },
-  { code: "HKD", name: "Hong Kong Dollar", symbol: "HK$", decimal_places: "2", region: "Asia" },
-  { code: "SGD", name: "Singapore Dollar", symbol: "S$", decimal_places: "2", region: "Asia" },
-  { code: "AUD", name: "Australian Dollar", symbol: "A$", decimal_places: "2", region: "Oceania" },
-  { code: "CAD", name: "Canadian Dollar", symbol: "C$", decimal_places: "2", region: "North America" },
-  { code: "CHF", name: "Swiss Franc", symbol: "CHF", decimal_places: "2", region: "Europe" },
-  { code: "SEK", name: "Swedish Krona", symbol: "kr", decimal_places: "2", region: "Europe" },
-  { code: "NOK", name: "Norwegian Krone", symbol: "kr", decimal_places: "2", region: "Europe" },
-  { code: "DKK", name: "Danish Krone", symbol: "kr", decimal_places: "2", region: "Europe" },
-  { code: "NZD", name: "New Zealand Dollar", symbol: "NZ$", decimal_places: "2", region: "Oceania" },
-  { code: "KRW", name: "South Korean Won", symbol: "₩", decimal_places: "0", region: "Asia" },
-  { code: "INR", name: "Indian Rupee", symbol: "₹", decimal_places: "2", region: "Asia" },
-  { code: "THB", name: "Thai Baht", symbol: "฿", decimal_places: "2", region: "Asia" },
-  { code: "MYR", name: "Malaysian Ringgit", symbol: "RM", decimal_places: "2", region: "Asia" },
-  { code: "IDR", name: "Indonesian Rupiah", symbol: "Rp", decimal_places: "2", region: "Asia" },
-  { code: "PHP", name: "Philippine Peso", symbol: "₱", decimal_places: "2", region: "Asia" },
-  { code: "VND", name: "Vietnamese Dong", symbol: "₫", decimal_places: "0", region: "Asia" },
-  { code: "TWD", name: "New Taiwan Dollar", symbol: "NT$", decimal_places: "2", region: "Asia" },
-  { code: "AED", name: "UAE Dirham", symbol: "د.إ", decimal_places: "2", region: "Middle East" },
-  { code: "SAR", name: "Saudi Riyal", symbol: "﷼", decimal_places: "2", region: "Middle East" },
-  { code: "QAR", name: "Qatari Riyal", symbol: "ر.ق", decimal_places: "2", region: "Middle East" },
-  { code: "TRY", name: "Turkish Lira", symbol: "₺", decimal_places: "2", region: "Middle East / Europe" },
-  { code: "ZAR", name: "South African Rand", symbol: "R", decimal_places: "2", region: "Africa" },
-  { code: "EGP", name: "Egyptian Pound", symbol: "E£", decimal_places: "2", region: "Africa" },
-  { code: "MAD", name: "Moroccan Dirham", symbol: "د.م.", decimal_places: "2", region: "Africa" },
-  { code: "MXN", name: "Mexican Peso", symbol: "Mex$", decimal_places: "2", region: "North America" },
-  { code: "BRL", name: "Brazilian Real", symbol: "R$", decimal_places: "2", region: "South America" },
-  { code: "ARS", name: "Argentine Peso", symbol: "$", decimal_places: "2", region: "South America" },
-  { code: "CLP", name: "Chilean Peso", symbol: "CLP$", decimal_places: "0", region: "South America" },
-  { code: "COP", name: "Colombian Peso", symbol: "COL$", decimal_places: "2", region: "South America" },
-  { code: "PLN", name: "Polish Zloty", symbol: "zł", decimal_places: "2", region: "Europe" },
-  { code: "CZK", name: "Czech Koruna", symbol: "Kč", decimal_places: "2", region: "Europe" },
-  { code: "HUF", name: "Hungarian Forint", symbol: "Ft", decimal_places: "2", region: "Europe" },
-  { code: "RON", name: "Romanian Leu", symbol: "lei", decimal_places: "2", region: "Europe" },
-  { code: "RUB", name: "Russian Ruble", symbol: "₽", decimal_places: "2", region: "Europe / Asia" },
+  {
+    code: "USD",
+    name: "US Dollar",
+    symbol: "$",
+    decimal_places: "2",
+    region: "North America",
+  },
+  {
+    code: "EUR",
+    name: "Euro",
+    symbol: "€",
+    decimal_places: "2",
+    region: "Europe",
+  },
+  {
+    code: "CNY",
+    name: "Chinese Yuan",
+    symbol: "¥",
+    decimal_places: "2",
+    region: "Asia",
+  },
+  {
+    code: "GBP",
+    name: "British Pound Sterling",
+    symbol: "£",
+    decimal_places: "2",
+    region: "Europe",
+  },
+  {
+    code: "JPY",
+    name: "Japanese Yen",
+    symbol: "¥",
+    decimal_places: "0",
+    region: "Asia",
+  },
+  {
+    code: "ILS",
+    name: "Israeli New Shekel",
+    symbol: "₪",
+    decimal_places: "2",
+    region: "Middle East",
+  },
+  {
+    code: "HKD",
+    name: "Hong Kong Dollar",
+    symbol: "HK$",
+    decimal_places: "2",
+    region: "Asia",
+  },
+  {
+    code: "SGD",
+    name: "Singapore Dollar",
+    symbol: "S$",
+    decimal_places: "2",
+    region: "Asia",
+  },
+  {
+    code: "AUD",
+    name: "Australian Dollar",
+    symbol: "A$",
+    decimal_places: "2",
+    region: "Oceania",
+  },
+  {
+    code: "CAD",
+    name: "Canadian Dollar",
+    symbol: "C$",
+    decimal_places: "2",
+    region: "North America",
+  },
+  {
+    code: "CHF",
+    name: "Swiss Franc",
+    symbol: "CHF",
+    decimal_places: "2",
+    region: "Europe",
+  },
+  {
+    code: "SEK",
+    name: "Swedish Krona",
+    symbol: "kr",
+    decimal_places: "2",
+    region: "Europe",
+  },
+  {
+    code: "NOK",
+    name: "Norwegian Krone",
+    symbol: "kr",
+    decimal_places: "2",
+    region: "Europe",
+  },
+  {
+    code: "DKK",
+    name: "Danish Krone",
+    symbol: "kr",
+    decimal_places: "2",
+    region: "Europe",
+  },
+  {
+    code: "NZD",
+    name: "New Zealand Dollar",
+    symbol: "NZ$",
+    decimal_places: "2",
+    region: "Oceania",
+  },
+  {
+    code: "KRW",
+    name: "South Korean Won",
+    symbol: "₩",
+    decimal_places: "0",
+    region: "Asia",
+  },
+  {
+    code: "INR",
+    name: "Indian Rupee",
+    symbol: "₹",
+    decimal_places: "2",
+    region: "Asia",
+  },
+  {
+    code: "THB",
+    name: "Thai Baht",
+    symbol: "฿",
+    decimal_places: "2",
+    region: "Asia",
+  },
+  {
+    code: "MYR",
+    name: "Malaysian Ringgit",
+    symbol: "RM",
+    decimal_places: "2",
+    region: "Asia",
+  },
+  {
+    code: "IDR",
+    name: "Indonesian Rupiah",
+    symbol: "Rp",
+    decimal_places: "2",
+    region: "Asia",
+  },
+  {
+    code: "PHP",
+    name: "Philippine Peso",
+    symbol: "₱",
+    decimal_places: "2",
+    region: "Asia",
+  },
+  {
+    code: "VND",
+    name: "Vietnamese Dong",
+    symbol: "₫",
+    decimal_places: "0",
+    region: "Asia",
+  },
+  {
+    code: "TWD",
+    name: "New Taiwan Dollar",
+    symbol: "NT$",
+    decimal_places: "2",
+    region: "Asia",
+  },
+  {
+    code: "AED",
+    name: "UAE Dirham",
+    symbol: "د.إ",
+    decimal_places: "2",
+    region: "Middle East",
+  },
+  {
+    code: "SAR",
+    name: "Saudi Riyal",
+    symbol: "﷼",
+    decimal_places: "2",
+    region: "Middle East",
+  },
+  {
+    code: "QAR",
+    name: "Qatari Riyal",
+    symbol: "ر.ق",
+    decimal_places: "2",
+    region: "Middle East",
+  },
+  {
+    code: "TRY",
+    name: "Turkish Lira",
+    symbol: "₺",
+    decimal_places: "2",
+    region: "Middle East / Europe",
+  },
+  {
+    code: "ZAR",
+    name: "South African Rand",
+    symbol: "R",
+    decimal_places: "2",
+    region: "Africa",
+  },
+  {
+    code: "EGP",
+    name: "Egyptian Pound",
+    symbol: "E£",
+    decimal_places: "2",
+    region: "Africa",
+  },
+  {
+    code: "MAD",
+    name: "Moroccan Dirham",
+    symbol: "د.م.",
+    decimal_places: "2",
+    region: "Africa",
+  },
+  {
+    code: "MXN",
+    name: "Mexican Peso",
+    symbol: "Mex$",
+    decimal_places: "2",
+    region: "North America",
+  },
+  {
+    code: "BRL",
+    name: "Brazilian Real",
+    symbol: "R$",
+    decimal_places: "2",
+    region: "South America",
+  },
+  {
+    code: "ARS",
+    name: "Argentine Peso",
+    symbol: "$",
+    decimal_places: "2",
+    region: "South America",
+  },
+  {
+    code: "CLP",
+    name: "Chilean Peso",
+    symbol: "CLP$",
+    decimal_places: "0",
+    region: "South America",
+  },
+  {
+    code: "COP",
+    name: "Colombian Peso",
+    symbol: "COL$",
+    decimal_places: "2",
+    region: "South America",
+  },
+  {
+    code: "PLN",
+    name: "Polish Zloty",
+    symbol: "zł",
+    decimal_places: "2",
+    region: "Europe",
+  },
+  {
+    code: "CZK",
+    name: "Czech Koruna",
+    symbol: "Kč",
+    decimal_places: "2",
+    region: "Europe",
+  },
+  {
+    code: "HUF",
+    name: "Hungarian Forint",
+    symbol: "Ft",
+    decimal_places: "2",
+    region: "Europe",
+  },
+  {
+    code: "RON",
+    name: "Romanian Leu",
+    symbol: "lei",
+    decimal_places: "2",
+    region: "Europe",
+  },
+  {
+    code: "RUB",
+    name: "Russian Ruble",
+    symbol: "₽",
+    decimal_places: "2",
+    region: "Europe / Asia",
+  },
 ];
 
 function formatDateLabel(value: string | null | undefined) {
@@ -226,11 +465,17 @@ function normalizeCurrencySymbol(value: string) {
   return value.trim().slice(0, 8);
 }
 
-function compareStrings(first: string | null | undefined, second: string | null | undefined) {
+function compareStrings(
+  first: string | null | undefined,
+  second: string | null | undefined
+) {
   return (first || "").localeCompare(second || "");
 }
 
-function compareDates(first: string | null | undefined, second: string | null | undefined) {
+function compareDates(
+  first: string | null | undefined,
+  second: string | null | undefined
+) {
   return new Date(first || 0).getTime() - new Date(second || 0).getTime();
 }
 
@@ -289,7 +534,9 @@ function MetricCardBlock({ metric }: { metric: MetricCard }) {
 
   return (
     <div className="group relative min-h-[156px] overflow-hidden rounded-[28px] border border-white/10 bg-white/[0.045] p-5 backdrop-blur-xl transition hover:border-white/20 hover:bg-white/[0.055]">
-      <div className={`pointer-events-none absolute inset-0 bg-gradient-to-br ${tone.glow}`} />
+      <div
+        className={`pointer-events-none absolute inset-0 bg-gradient-to-br ${tone.glow}`}
+      />
 
       <div className="relative flex h-full flex-col justify-between gap-5">
         <div className="flex items-start justify-between gap-4">
@@ -297,12 +544,16 @@ function MetricCardBlock({ metric }: { metric: MetricCard }) {
             <div className="text-[11px] font-semibold uppercase tracking-[0.2em] text-slate-500">
               {metric.title}
             </div>
-            <div className={`mt-2 truncate text-3xl font-semibold tracking-[-0.035em] ${tone.value}`}>
+            <div
+              className={`mt-2 truncate text-3xl font-semibold tracking-[-0.035em] ${tone.value}`}
+            >
               {metric.value}
             </div>
           </div>
 
-          <div className={`flex h-12 w-12 shrink-0 items-center justify-center rounded-2xl border ${tone.icon}`}>
+          <div
+            className={`flex h-12 w-12 shrink-0 items-center justify-center rounded-2xl border ${tone.icon}`}
+          >
             <Icon className="h-5 w-5" />
           </div>
         </div>
@@ -321,7 +572,9 @@ function MetricCardBlock({ metric }: { metric: MetricCard }) {
 function StatusBadge({ value }: { value: string | null | undefined }) {
   return (
     <span
-      className={`inline-flex max-w-full items-center rounded-full border px-3 py-1 text-[11px] font-semibold uppercase tracking-[0.14em] ${getStatusClass(value)}`}
+      className={`inline-flex max-w-full items-center rounded-full border px-3 py-1 text-[11px] font-semibold uppercase tracking-[0.14em] ${getStatusClass(
+        value
+      )}`}
     >
       <span className="truncate">{getStatusLabel(value)}</span>
     </span>
@@ -352,8 +605,8 @@ function SectionCard({
   badge: string;
   description: string;
   icon: LucideIcon;
-  right?: React.ReactNode;
-  children: React.ReactNode;
+  right?: ReactNode;
+  children: ReactNode;
 }) {
   return (
     <section className="overflow-hidden rounded-[30px] border border-white/10 bg-white/[0.045] backdrop-blur-xl">
@@ -370,7 +623,9 @@ function SectionCard({
             <h2 className="text-xl font-semibold tracking-[-0.025em] text-white">
               {title}
             </h2>
-            <p className="mt-1 text-sm leading-6 text-slate-500">{description}</p>
+            <p className="mt-1 text-sm leading-6 text-slate-500">
+              {description}
+            </p>
           </div>
         </div>
 
@@ -388,22 +643,27 @@ function TextInput({
   placeholder,
   type = "text",
   readOnly = false,
+  disabled = false,
 }: {
   value: string;
   onChange: (value: string) => void;
   placeholder: string;
   type?: string;
   readOnly?: boolean;
+  disabled?: boolean;
 }) {
   return (
     <input
       type={type}
       value={value}
       readOnly={readOnly}
+      disabled={disabled}
       onChange={(event) => onChange(event.target.value)}
       placeholder={placeholder}
-      className={`h-11 w-full rounded-2xl border border-white/10 px-4 text-sm text-white outline-none transition placeholder:text-slate-600 focus:border-cyan-400/30 ${
-        readOnly ? "bg-black/30 text-slate-400" : "bg-black/20 focus:bg-black/30"
+      className={`h-11 w-full rounded-2xl border border-white/10 px-4 text-sm text-white outline-none transition placeholder:text-slate-600 focus:border-cyan-400/30 disabled:cursor-not-allowed disabled:opacity-60 ${
+        readOnly
+          ? "bg-black/30 text-slate-400"
+          : "bg-black/20 focus:bg-black/30"
       }`}
     />
   );
@@ -413,17 +673,20 @@ function SelectField({
   value,
   onChange,
   children,
+  disabled = false,
 }: {
   value: string;
   onChange: (value: string) => void;
-  children: React.ReactNode;
+  children: ReactNode;
+  disabled?: boolean;
 }) {
   return (
     <div className="relative">
       <select
         value={value}
+        disabled={disabled}
         onChange={(event) => onChange(event.target.value)}
-        className="h-11 w-full appearance-none rounded-2xl border border-white/10 bg-black/20 px-4 pr-10 text-sm text-white outline-none transition focus:border-cyan-400/30 focus:bg-black/30"
+        className="h-11 w-full appearance-none rounded-2xl border border-white/10 bg-black/20 px-4 pr-10 text-sm text-white outline-none transition focus:border-cyan-400/30 focus:bg-black/30 disabled:cursor-not-allowed disabled:opacity-60"
       >
         {children}
       </select>
@@ -498,54 +761,6 @@ function SortButton({
   );
 }
 
-function ActionMenu({
-  children,
-}: {
-  children: React.ReactNode;
-}) {
-  return (
-    <div className="group relative inline-flex">
-      <button
-        type="button"
-        className="inline-flex h-9 w-9 items-center justify-center rounded-full border border-white/10 bg-black/20 text-slate-400 transition hover:bg-white/[0.06] hover:text-white"
-      >
-        <MoreHorizontal className="h-4 w-4" />
-      </button>
-
-      <div className="invisible absolute right-0 top-10 z-50 min-w-[190px] translate-y-1 rounded-2xl border border-white/10 bg-[#101522] p-2 opacity-0 shadow-2xl shadow-black/50 transition group-hover:visible group-hover:translate-y-0 group-hover:opacity-100">
-        {children}
-      </div>
-    </div>
-  );
-}
-
-function ActionMenuButton({
-  children,
-  onClick,
-  tone = "default",
-}: {
-  children: React.ReactNode;
-  onClick: () => void;
-  tone?: "default" | "danger" | "success";
-}) {
-  const toneClass =
-    tone === "danger"
-      ? "text-rose-200 hover:bg-rose-500/10"
-      : tone === "success"
-        ? "text-emerald-200 hover:bg-emerald-500/10"
-        : "text-slate-200 hover:bg-white/[0.06]";
-
-  return (
-    <button
-      type="button"
-      onClick={onClick}
-      className={`flex w-full items-center gap-2 rounded-xl px-3 py-2 text-left text-sm transition ${toneClass}`}
-    >
-      {children}
-    </button>
-  );
-}
-
 function EmptyState({
   icon: Icon,
   title,
@@ -586,13 +801,13 @@ function ModalShell({
 }: {
   title: string;
   description: string;
-  children: React.ReactNode;
-  footer: React.ReactNode;
+  children: ReactNode;
+  footer: ReactNode;
   onClose: () => void;
 }) {
   return (
     <div className="fixed inset-0 z-[120] flex items-center justify-center bg-black/70 p-4 backdrop-blur-sm">
-      <div className="flex max-h-[90vh] w-full max-w-3xl flex-col overflow-hidden rounded-[30px] border border-white/10 bg-[#0f1726] shadow-2xl shadow-black/70">
+      <div className="flex max-h-[90vh] w-full max-w-4xl flex-col overflow-hidden rounded-[30px] border border-white/10 bg-[#0f1726] shadow-2xl shadow-black/70">
         <div className="flex items-start justify-between gap-4 border-b border-white/10 px-6 py-5">
           <div>
             <div className="text-xl font-semibold tracking-[-0.025em] text-white">
@@ -641,12 +856,63 @@ function LockedState() {
   );
 }
 
+function ActionButton({
+  children,
+  onClick,
+  disabled = false,
+  tone = "cyan",
+}: {
+  children: ReactNode;
+  onClick: () => void;
+  disabled?: boolean;
+  tone?: "cyan" | "rose" | "emerald" | "neutral";
+}) {
+  const toneClass =
+    tone === "rose"
+      ? "border-rose-400/20 bg-rose-500/10 text-rose-100 hover:bg-rose-500/15"
+      : tone === "emerald"
+        ? "border-emerald-400/20 bg-emerald-500/10 text-emerald-100 hover:bg-emerald-500/15"
+        : tone === "neutral"
+          ? "border-white/10 bg-white/[0.05] text-slate-300 hover:bg-white/[0.08]"
+          : "border-cyan-400/20 bg-cyan-500/10 text-cyan-100 hover:bg-cyan-500/15";
+
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      disabled={disabled}
+      className={`inline-flex h-9 items-center justify-center gap-2 rounded-full border px-4 text-xs font-semibold uppercase tracking-[0.14em] transition disabled:cursor-not-allowed disabled:opacity-50 ${toneClass}`}
+    >
+      {children}
+    </button>
+  );
+}
+
+function getCurrencyPairLabel(
+  currencies: FinanceCurrencyRow[],
+  fromCurrencyCode: string,
+  toCurrencyCode: string
+) {
+  const from = currencies.find((row) => row.currency_code === fromCurrencyCode);
+  const to = currencies.find((row) => row.currency_code === toCurrencyCode);
+
+  if (!from || !to) {
+    return `${fromCurrencyCode || "From"} → ${toCurrencyCode || "To"}`;
+  }
+
+  return `${from.currency_code} → ${to.currency_code}`;
+}
+
 export default function FinanceMasterDataCurrenciesPage() {
   const navigate = useNavigate();
 
   const [currencies, setCurrencies] = useState<FinanceCurrencyRow[]>([]);
-  const [exchangeRates, setExchangeRates] = useState<FinanceExchangeRateRow[]>([]);
-  const [archivedCurrencies, setArchivedCurrencies] = useState<FinanceCurrencyRow[]>([]);
+  const [exchangeRates, setExchangeRates] = useState<FinanceExchangeRateRow[]>(
+    []
+  );
+  const [archivedCurrencies, setArchivedCurrencies] = useState<
+    FinanceCurrencyRow[]
+  >([]);
   const [loading, setLoading] = useState(true);
   const [archiveLoading, setArchiveLoading] = useState(false);
 
@@ -674,6 +940,9 @@ export default function FinanceMasterDataCurrenciesPage() {
 
   const [currencyError, setCurrencyError] = useState("");
   const [rateError, setRateError] = useState("");
+  const [autoRate, setAutoRate] = useState<LiveConversionResult | null>(null);
+  const [autoRateLoading, setAutoRateLoading] = useState(false);
+  const [autoRateError, setAutoRateError] = useState("");
   const [pageError, setPageError] = useState("");
   const [pageMessage, setPageMessage] = useState("");
   const [archiveSearch, setArchiveSearch] = useState("");
@@ -731,7 +1000,7 @@ export default function FinanceMasterDataCurrenciesPage() {
           activeRows.find((row) => row.is_base_currency) ?? activeRows[0];
         const secondRow =
           activeRows.find(
-            (row) => row.currency_code !== baseRow?.currency_code,
+            (row) => row.currency_code !== baseRow?.currency_code
           ) ??
           activeRows[1] ??
           activeRows[0];
@@ -752,7 +1021,7 @@ export default function FinanceMasterDataCurrenciesPage() {
           setPageError(
             error instanceof Error
               ? error.message
-              : "Failed to load currencies page.",
+              : "Failed to load currencies page."
           );
         }
       } finally {
@@ -761,7 +1030,7 @@ export default function FinanceMasterDataCurrenciesPage() {
         }
       }
     },
-    [],
+    []
   );
 
   const loadArchived = useCallback(
@@ -781,7 +1050,7 @@ export default function FinanceMasterDataCurrenciesPage() {
           setPageError(
             error instanceof Error
               ? error.message
-              : "Failed to load archived currencies.",
+              : "Failed to load archived currencies."
           );
         }
       } finally {
@@ -790,7 +1059,7 @@ export default function FinanceMasterDataCurrenciesPage() {
         }
       }
     },
-    [],
+    []
   );
 
   useEffect(() => {
@@ -803,7 +1072,7 @@ export default function FinanceMasterDataCurrenciesPage() {
       .on(
         "postgres_changes",
         { event: "*", schema: "public", table: "profiles" },
-        () => void loadPage("silent"),
+        () => void loadPage("silent")
       )
       .on(
         "postgres_changes",
@@ -811,12 +1080,12 @@ export default function FinanceMasterDataCurrenciesPage() {
         () => {
           void loadPage("silent");
           if (archiveDialogOpen) void loadArchived("silent");
-        },
+        }
       )
       .on(
         "postgres_changes",
         { event: "*", schema: "public", table: "finance_exchange_rates" },
-        () => void loadPage("silent"),
+        () => void loadPage("silent")
       )
       .subscribe();
 
@@ -849,27 +1118,27 @@ export default function FinanceMasterDataCurrenciesPage() {
 
   const activeCurrencies = useMemo(
     () => currencies.filter((row) => row.status === "active"),
-    [currencies],
+    [currencies]
   );
 
   const visibleCurrencies = useMemo(
     () => currencies.filter((row) => row.status !== "archived"),
-    [currencies],
+    [currencies]
   );
 
   const visibleExchangeRates = useMemo(
     () => exchangeRates.filter((row) => row.status !== "archived"),
-    [exchangeRates],
+    [exchangeRates]
   );
 
   const baseCurrency = useMemo(
     () => currencies.find((row) => row.is_base_currency) ?? null,
-    [currencies],
+    [currencies]
   );
 
   const latestStoredRate = useMemo(
     () => exchangeRates.find((row) => row.status === "active") ?? null,
-    [exchangeRates],
+    [exchangeRates]
   );
 
   const filteredCurrencies = useMemo(() => {
@@ -901,7 +1170,10 @@ export default function FinanceMasterDataCurrenciesPage() {
         }
 
         if (currencySortKey === "symbol") {
-          comparison = compareStrings(first.currency_symbol, second.currency_symbol);
+          comparison = compareStrings(
+            first.currency_symbol,
+            second.currency_symbol
+          );
         }
 
         if (currencySortKey === "decimals") {
@@ -982,9 +1254,9 @@ export default function FinanceMasterDataCurrenciesPage() {
         title: "Stored Rates",
         value: loading ? "—" : visibleExchangeRates.length.toLocaleString(),
         subtitle: latestStoredRate
-          ? `${latestStoredRate.from_currency_code}/${latestStoredRate.to_currency_code} • ${formatDateLabel(
-              latestStoredRate.effective_date,
-            )}`
+          ? `${latestStoredRate.from_currency_code}/${
+              latestStoredRate.to_currency_code
+            } • ${formatDateLabel(latestStoredRate.effective_date)}`
           : "No stored rate found.",
         icon: Database,
         tone: "violet",
@@ -997,8 +1269,19 @@ export default function FinanceMasterDataCurrenciesPage() {
       latestStoredRate,
       loading,
       visibleExchangeRates.length,
-    ],
+    ]
   );
+
+  const canUseConverter =
+    activeCurrencies.length >= 2 &&
+    Boolean(convertFrom) &&
+    Boolean(convertTo) &&
+    convertFrom !== convertTo;
+
+  const canAutoCalculateRate =
+    Boolean(rateForm.from_currency_code) &&
+    Boolean(rateForm.to_currency_code) &&
+    rateForm.from_currency_code !== rateForm.to_currency_code;
 
   function toggleCurrencySort(nextKey: SortKey) {
     setCurrencySortKey((currentKey) => {
@@ -1008,7 +1291,7 @@ export default function FinanceMasterDataCurrenciesPage() {
       }
 
       setCurrencySortDirection((currentDirection) =>
-        currentDirection === "asc" ? "desc" : "asc",
+        currentDirection === "asc" ? "desc" : "asc"
       );
       return currentKey;
     });
@@ -1087,11 +1370,39 @@ export default function FinanceMasterDataCurrenciesPage() {
     }));
   }
 
+  async function calculateRateForForm(
+    fromCurrencyCode: string,
+    toCurrencyCode: string
+  ) {
+    if (!fromCurrencyCode || !toCurrencyCode || fromCurrencyCode === toCurrencyCode) {
+      setAutoRate(null);
+      setAutoRateError("");
+      return;
+    }
+
+    try {
+      setAutoRateLoading(true);
+      setAutoRateError("");
+      const result = await convertCurrencyLive(1, fromCurrencyCode, toCurrencyCode);
+      setAutoRate(result);
+    } catch (error) {
+      console.error("Failed to calculate exchange rate:", error);
+      setAutoRate(null);
+      setAutoRateError(
+        error instanceof Error
+          ? error.message
+          : "Failed to calculate live exchange rate."
+      );
+    } finally {
+      setAutoRateLoading(false);
+    }
+  }
+
   function openCreateRateDialog() {
     const defaultFrom = activeCurrencies[0]?.currency_code ?? "";
     const defaultTo =
       activeCurrencies.find((row) => row.currency_code !== defaultFrom)
-        ?.currency_code ?? defaultFrom;
+        ?.currency_code ?? "";
 
     setEditingRate(null);
     setRateForm({
@@ -1099,8 +1410,14 @@ export default function FinanceMasterDataCurrenciesPage() {
       from_currency_code: defaultFrom,
       to_currency_code: defaultTo,
     });
+    setAutoRate(null);
+    setAutoRateError("");
     setRateError("");
     setRateDialogOpen(true);
+
+    if (defaultFrom && defaultTo && defaultFrom !== defaultTo) {
+      void calculateRateForForm(defaultFrom, defaultTo);
+    }
   }
 
   function openEditRateDialog(row: FinanceExchangeRateRow) {
@@ -1108,13 +1425,37 @@ export default function FinanceMasterDataCurrenciesPage() {
     setRateForm({
       from_currency_code: row.from_currency_code,
       to_currency_code: row.to_currency_code,
-      exchange_rate: row.exchange_rate,
       effective_date: row.effective_date,
       status: row.status,
       notes: row.notes ?? "",
     });
+    setAutoRate({
+      amount: 1,
+      from: row.from_currency_code,
+      to: row.to_currency_code,
+      convertedAmount: Number(row.exchange_rate),
+      rate: Number(row.exchange_rate),
+      date: row.effective_date,
+    });
+    setAutoRateError("");
     setRateError("");
     setRateDialogOpen(true);
+  }
+
+  function handleRateFromChange(value: string) {
+    setRateForm((previous) => ({
+      ...previous,
+      from_currency_code: value,
+    }));
+    void calculateRateForForm(value, rateForm.to_currency_code);
+  }
+
+  function handleRateToChange(value: string) {
+    setRateForm((previous) => ({
+      ...previous,
+      to_currency_code: value,
+    }));
+    void calculateRateForForm(rateForm.from_currency_code, value);
   }
 
   async function handleSaveCurrency() {
@@ -1126,7 +1467,9 @@ export default function FinanceMasterDataCurrenciesPage() {
     const decimalPlaces = Number(currencyForm.decimal_places);
 
     if (!currencyCode || !currencyName) {
-      setCurrencyError("Currency is required. Select a preset or enter a manual currency.");
+      setCurrencyError(
+        "Currency is required. Select a preset or enter a manual currency."
+      );
       return;
     }
 
@@ -1171,7 +1514,7 @@ export default function FinanceMasterDataCurrenciesPage() {
     } catch (error) {
       console.error("Failed to save currency:", error);
       setCurrencyError(
-        error instanceof Error ? error.message : "Failed to save currency.",
+        error instanceof Error ? error.message : "Failed to save currency."
       );
     } finally {
       setSavingCurrency(false);
@@ -1184,10 +1527,9 @@ export default function FinanceMasterDataCurrenciesPage() {
     if (
       !rateForm.from_currency_code.trim() ||
       !rateForm.to_currency_code.trim() ||
-      !rateForm.exchange_rate.trim() ||
       !rateForm.effective_date.trim()
     ) {
-      setRateError("From, to, rate, and effective date are required.");
+      setRateError("From currency, To currency, and Effective date are required.");
       return;
     }
 
@@ -1196,10 +1538,8 @@ export default function FinanceMasterDataCurrenciesPage() {
       return;
     }
 
-    const numericRate = Number(rateForm.exchange_rate);
-
-    if (!Number.isFinite(numericRate) || numericRate <= 0) {
-      setRateError("Exchange rate must be greater than 0.");
+    if (!autoRate || !Number.isFinite(autoRate.rate) || autoRate.rate <= 0) {
+      setRateError("Automatic exchange rate is required before saving.");
       return;
     }
 
@@ -1212,7 +1552,7 @@ export default function FinanceMasterDataCurrenciesPage() {
       const payload: ExchangeRateUpsertInput = {
         from_currency_code: rateForm.from_currency_code,
         to_currency_code: rateForm.to_currency_code,
-        exchange_rate: rateForm.exchange_rate,
+        exchange_rate: String(autoRate.rate),
         effective_date: rateForm.effective_date,
         status: rateForm.status,
         notes: rateForm.notes || null,
@@ -1220,20 +1560,22 @@ export default function FinanceMasterDataCurrenciesPage() {
 
       if (editingRate) {
         await updateExchangeRate(editingRate.id, payload);
-        setPageMessage("Exchange rate updated.");
+        setPageMessage("Exchange rate updated from automatic live rate.");
       } else {
         await createExchangeRate(payload);
-        setPageMessage("Exchange rate created.");
+        setPageMessage("Exchange rate created from automatic live rate.");
       }
 
       setRateDialogOpen(false);
       setRateForm(EMPTY_RATE_FORM);
       setEditingRate(null);
+      setAutoRate(null);
+      setAutoRateError("");
       await loadPage("silent");
     } catch (error) {
       console.error("Failed to save exchange rate:", error);
       setRateError(
-        error instanceof Error ? error.message : "Failed to save exchange rate.",
+        error instanceof Error ? error.message : "Failed to save exchange rate."
       );
     } finally {
       setSavingRate(false);
@@ -1254,7 +1596,7 @@ export default function FinanceMasterDataCurrenciesPage() {
     } catch (error) {
       console.error("Failed to archive currency:", error);
       setPageError(
-        error instanceof Error ? error.message : "Failed to archive currency.",
+        error instanceof Error ? error.message : "Failed to archive currency."
       );
     } finally {
       setRunningActionId(null);
@@ -1275,7 +1617,7 @@ export default function FinanceMasterDataCurrenciesPage() {
     } catch (error) {
       console.error("Failed to restore currency:", error);
       setPageError(
-        error instanceof Error ? error.message : "Failed to restore currency.",
+        error instanceof Error ? error.message : "Failed to restore currency."
       );
     } finally {
       setRunningActionId(null);
@@ -1286,7 +1628,7 @@ export default function FinanceMasterDataCurrenciesPage() {
     if (!canArchive || runningActionId) return;
 
     const confirmed = window.confirm(
-      "Permanently delete this archived currency? This cannot be undone.",
+      "Permanently delete this archived currency? This cannot be undone."
     );
 
     if (!confirmed) return;
@@ -1304,7 +1646,7 @@ export default function FinanceMasterDataCurrenciesPage() {
       setPageError(
         error instanceof Error
           ? error.message
-          : "Failed to permanently delete currency.",
+          : "Failed to permanently delete currency."
       );
     } finally {
       setRunningActionId(null);
@@ -1327,7 +1669,7 @@ export default function FinanceMasterDataCurrenciesPage() {
       setPageError(
         error instanceof Error
           ? error.message
-          : "Failed to archive exchange rate.",
+          : "Failed to archive exchange rate."
       );
     } finally {
       setRunningActionId(null);
@@ -1350,7 +1692,7 @@ export default function FinanceMasterDataCurrenciesPage() {
       setPageError(
         error instanceof Error
           ? error.message
-          : "Failed to restore exchange rate.",
+          : "Failed to restore exchange rate."
       );
     } finally {
       setRunningActionId(null);
@@ -1361,7 +1703,7 @@ export default function FinanceMasterDataCurrenciesPage() {
     if (!canArchive || runningActionId) return;
 
     const confirmed = window.confirm(
-      "Permanently delete this exchange rate? This cannot be undone.",
+      "Permanently delete this exchange rate? This cannot be undone."
     );
 
     if (!confirmed) return;
@@ -1379,7 +1721,7 @@ export default function FinanceMasterDataCurrenciesPage() {
       setPageError(
         error instanceof Error
           ? error.message
-          : "Failed to permanently delete exchange rate.",
+          : "Failed to permanently delete exchange rate."
       );
     } finally {
       setRunningActionId(null);
@@ -1399,7 +1741,7 @@ export default function FinanceMasterDataCurrenciesPage() {
     } catch (error) {
       setConversionResult(null);
       setConversionError(
-        error instanceof Error ? error.message : "Failed to fetch live rate.",
+        error instanceof Error ? error.message : "Failed to fetch live rate."
       );
     } finally {
       setConversionLoading(false);
@@ -1412,12 +1754,6 @@ export default function FinanceMasterDataCurrenciesPage() {
     setArchiveDialogOpen(true);
     await loadArchived("initial");
   }
-
-  const canUseConverter =
-    activeCurrencies.length >= 2 &&
-    Boolean(convertFrom) &&
-    Boolean(convertTo) &&
-    convertFrom !== convertTo;
 
   return (
     <>
@@ -1447,10 +1783,8 @@ export default function FinanceMasterDataCurrenciesPage() {
                 </h1>
 
                 <p className="mt-3 max-w-4xl text-sm leading-6 text-slate-400 md:text-base md:leading-7">
-                  Manage allowed currencies, maintain stored exchange rates, and use a
-                  clear live converter for quick operational reference. Currency code
-                  and symbol can be filled automatically from major presets, or entered
-                  manually.
+                  Manage general currency master data, automatic exchange-rate snapshots,
+                  and a prominent live currency converter for daily finance operations.
                 </p>
 
                 <div className="mt-5 flex flex-wrap gap-2">
@@ -1458,10 +1792,10 @@ export default function FinanceMasterDataCurrenciesPage() {
                     General master data
                   </span>
                   <span className="rounded-full border border-cyan-400/20 bg-cyan-500/10 px-3 py-1 text-[11px] font-semibold uppercase tracking-[0.16em] text-cyan-200">
-                    Live converter
+                    Prominent live converter
                   </span>
-                  <span className="rounded-full border border-slate-400/20 bg-slate-500/10 px-3 py-1 text-[11px] font-semibold uppercase tracking-[0.16em] text-slate-300">
-                    Silent refresh
+                  <span className="rounded-full border border-violet-400/20 bg-violet-500/10 px-3 py-1 text-[11px] font-semibold uppercase tracking-[0.16em] text-violet-200">
+                    Automatic rates
                   </span>
                 </div>
               </div>
@@ -1477,6 +1811,7 @@ export default function FinanceMasterDataCurrenciesPage() {
                         {loading ? "Checking" : canView ? "Enabled" : "Locked"}
                       </div>
                     </div>
+
                     <div className="flex h-10 w-10 items-center justify-center rounded-2xl border border-emerald-400/20 bg-emerald-500/10 text-emerald-200">
                       {canView ? (
                         <ShieldCheck className="h-4 w-4" />
@@ -1485,8 +1820,9 @@ export default function FinanceMasterDataCurrenciesPage() {
                       )}
                     </div>
                   </div>
+
                   <div className="mt-3 text-xs leading-5 text-slate-500">
-                    Requires Finance view and master-data access.
+                    Requires Finance view and Master Data access.
                   </div>
                 </div>
 
@@ -1500,10 +1836,12 @@ export default function FinanceMasterDataCurrenciesPage() {
                         {MAJOR_CURRENCY_PRESETS.length} Major
                       </div>
                     </div>
+
                     <div className="flex h-10 w-10 items-center justify-center rounded-2xl border border-cyan-400/20 bg-cyan-500/10 text-cyan-200">
                       <Globe2 className="h-4 w-4" />
                     </div>
                   </div>
+
                   <div className="mt-3 text-xs leading-5 text-slate-500">
                     Presets auto-fill code, name, symbol, and decimal places.
                   </div>
@@ -1512,7 +1850,7 @@ export default function FinanceMasterDataCurrenciesPage() {
             </div>
           </header>
 
-          {pageError ? (
+                    {pageError ? (
             <div className="rounded-[24px] border border-rose-400/20 bg-rose-500/10 p-4 text-sm leading-6 text-rose-100">
               <div className="flex items-start gap-3">
                 <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0" />
@@ -1540,116 +1878,166 @@ export default function FinanceMasterDataCurrenciesPage() {
                 ))}
               </section>
 
-              <SectionCard
-                title="Live Currency Converter"
-                badge="Live Converter"
-                description="Use live rates for quick conversion. This does not replace stored exchange-rate history."
-                icon={Calculator}
-              >
-                <div className="p-5">
-                  <div className="rounded-[28px] border border-cyan-400/15 bg-[radial-gradient(circle_at_top_left,rgba(6,182,212,0.12),transparent_40%),rgba(0,0,0,0.2)] p-5">
-                    <div className="grid gap-4 xl:grid-cols-[1fr_1fr_1fr_auto] xl:items-end">
-                      <div>
-                        <FieldLabel label="Amount" />
-                        <TextInput
-                          type="number"
-                          value={convertAmount}
-                          onChange={setConvertAmount}
-                          placeholder="Amount"
-                        />
-                      </div>
+              <section className="relative overflow-hidden rounded-[34px] border border-cyan-400/20 bg-white/[0.045] p-6 shadow-2xl shadow-cyan-950/20 backdrop-blur-xl">
+                <div className="pointer-events-none absolute inset-0 bg-[radial-gradient(circle_at_top_left,rgba(6,182,212,0.22),transparent_34%),radial-gradient(circle_at_bottom_right,rgba(16,185,129,0.18),transparent_32%),radial-gradient(circle_at_center,rgba(139,92,246,0.12),transparent_42%)]" />
+                <div className="pointer-events-none absolute inset-x-6 top-0 h-px bg-gradient-to-r from-transparent via-cyan-300/40 to-transparent" />
 
-                      <div>
-                        <FieldLabel label="From" />
-                        <SelectField value={convertFrom} onChange={setConvertFrom}>
-                          {activeCurrencies.map((row) => (
-                            <option
-                              key={`from-${row.id}`}
-                              value={row.currency_code}
-                              className="bg-[#05070d]"
-                            >
-                              {getCurrencyOptionLabel(row)}
-                            </option>
-                          ))}
-                        </SelectField>
-                      </div>
-
-                      <div>
-                        <FieldLabel label="To" />
-                        <SelectField value={convertTo} onChange={setConvertTo}>
-                          {activeCurrencies.map((row) => (
-                            <option
-                              key={`to-${row.id}`}
-                              value={row.currency_code}
-                              className="bg-[#05070d]"
-                            >
-                              {getCurrencyOptionLabel(row)}
-                            </option>
-                          ))}
-                        </SelectField>
-                      </div>
-
-                      <button
-                        type="button"
-                        onClick={() => void handleConvertLive()}
-                        disabled={conversionLoading || !canUseConverter}
-                        className="inline-flex h-11 min-w-[180px] items-center justify-center gap-2 rounded-2xl border border-cyan-400/20 bg-cyan-500/15 px-5 text-sm font-semibold text-cyan-100 transition hover:bg-cyan-500/25 disabled:cursor-not-allowed disabled:opacity-50"
-                      >
-                        {conversionLoading ? (
-                          <Loader2 className="h-4 w-4 animate-spin" />
-                        ) : (
-                          <Calculator className="h-4 w-4" />
-                        )}
-                        {conversionLoading ? "Converting..." : "Convert"}
-                      </button>
+                <div className="relative grid gap-6 xl:grid-cols-[minmax(0,1fr)_360px]">
+                  <div>
+                    <div className="inline-flex w-fit items-center gap-2 rounded-full border border-cyan-400/20 bg-cyan-500/10 px-3 py-1 text-[11px] font-semibold uppercase tracking-[0.22em] text-cyan-100">
+                      <Calculator className="h-3.5 w-3.5" />
+                      Signature Live Tool
                     </div>
 
-                    {conversionError ? (
-                      <div className="mt-4 rounded-2xl border border-rose-500/20 bg-rose-500/10 px-4 py-3 text-sm text-rose-100">
-                        {conversionError}
+                    <div className="mt-4 flex flex-col gap-3 lg:flex-row lg:items-end lg:justify-between">
+                      <div className="min-w-0">
+                        <h2 className="text-3xl font-semibold tracking-[-0.04em] text-white md:text-4xl">
+                          Live Currency Converter
+                        </h2>
+                        <p className="mt-2 max-w-3xl text-sm leading-6 text-slate-300">
+                          Convert active master-data currencies using live rates. This
+                          is the quick operational calculator; stored exchange-rate
+                          records are managed separately below.
+                        </p>
                       </div>
-                    ) : null}
 
-                    {conversionResult ? (
-                      <div className="mt-5 grid gap-4 rounded-[24px] border border-emerald-400/20 bg-emerald-500/10 p-5 lg:grid-cols-[minmax(0,1fr)_260px]">
+                      <div className="rounded-[24px] border border-white/10 bg-black/25 p-4">
+                        <div className="text-[11px] font-semibold uppercase tracking-[0.2em] text-slate-500">
+                          Current Pair
+                        </div>
+                        <div className="mt-2 text-2xl font-semibold tracking-[-0.035em] text-white">
+                          {convertFrom || "—"} → {convertTo || "—"}
+                        </div>
+                      </div>
+                    </div>
+
+                    <div className="mt-6 rounded-[28px] border border-white/10 bg-black/25 p-5">
+                      <div className="grid gap-4 xl:grid-cols-[minmax(150px,0.7fr)_minmax(180px,1fr)_minmax(180px,1fr)_auto] xl:items-end">
                         <div>
-                          <div className="text-[11px] font-semibold uppercase tracking-[0.2em] text-emerald-200/70">
-                            Live Result
-                          </div>
-                          <div className="mt-2 text-2xl font-semibold tracking-[-0.035em] text-white">
-                            {formatNumberLabel(convertAmount, 6)} {convertFrom} ={" "}
-                            {formatNumberLabel(conversionResult.convertedAmount, 6)}{" "}
-                            {convertTo}
-                          </div>
-                          <div className="mt-2 text-sm leading-6 text-emerald-100/85">
-                            Rate: 1 {convertFrom} ={" "}
-                            {formatNumberLabel(conversionResult.rate, 6)} {convertTo}
-                          </div>
+                          <FieldLabel label="Amount" />
+                          <TextInput
+                            type="number"
+                            value={convertAmount}
+                            onChange={setConvertAmount}
+                            placeholder="Amount"
+                          />
                         </div>
 
-                        <div className="rounded-2xl border border-white/10 bg-black/20 p-4">
-                          <div className="text-[11px] font-semibold uppercase tracking-[0.18em] text-emerald-200/70">
-                            Source
-                          </div>
-                          <div className="mt-2 text-sm font-semibold text-white">
-                            Frankfurter
-                          </div>
-                          <div className="mt-1 text-xs text-emerald-100/70">
-                            Date: {conversionResult.date}
-                          </div>
+                        <div>
+                          <FieldLabel label="From Currency" />
+                          <SelectField
+                            value={convertFrom}
+                            onChange={setConvertFrom}
+                          >
+                            {activeCurrencies.map((row) => (
+                              <option
+                                key={`from-${row.id}`}
+                                value={row.currency_code}
+                                className="bg-[#05070d]"
+                              >
+                                {getCurrencyOptionLabel(row)}
+                              </option>
+                            ))}
+                          </SelectField>
                         </div>
+
+                        <div>
+                          <FieldLabel label="To Currency" />
+                          <SelectField value={convertTo} onChange={setConvertTo}>
+                            {activeCurrencies.map((row) => (
+                              <option
+                                key={`to-${row.id}`}
+                                value={row.currency_code}
+                                className="bg-[#05070d]"
+                              >
+                                {getCurrencyOptionLabel(row)}
+                              </option>
+                            ))}
+                          </SelectField>
+                        </div>
+
+                        <button
+                          type="button"
+                          onClick={() => void handleConvertLive()}
+                          disabled={conversionLoading || !canUseConverter}
+                          className="inline-flex h-11 min-w-[180px] items-center justify-center gap-2 rounded-2xl border border-cyan-300/30 bg-cyan-400 px-5 text-sm font-semibold text-slate-950 shadow-lg shadow-cyan-950/30 transition hover:bg-cyan-300 disabled:cursor-not-allowed disabled:opacity-50"
+                        >
+                          {conversionLoading ? (
+                            <Loader2 className="h-4 w-4 animate-spin" />
+                          ) : (
+                            <Calculator className="h-4 w-4" />
+                          )}
+                          {conversionLoading ? "Converting..." : "Convert Live"}
+                        </button>
                       </div>
-                    ) : (
-                      <div className="mt-4 rounded-2xl border border-white/10 bg-black/20 px-4 py-3 text-sm text-slate-500">
-                        Select two active currencies and press Convert to show the
-                        live result here.
+
+                      {conversionError ? (
+                        <div className="mt-4 rounded-2xl border border-rose-500/20 bg-rose-500/10 px-4 py-3 text-sm text-rose-100">
+                          {conversionError}
+                        </div>
+                      ) : null}
+                    </div>
+                  </div>
+
+                  <div className="rounded-[30px] border border-emerald-400/20 bg-emerald-500/10 p-5">
+                    <div className="flex h-full flex-col justify-between gap-5">
+                      <div>
+                        <div className="inline-flex rounded-full border border-emerald-300/20 bg-black/20 px-3 py-1 text-[11px] font-semibold uppercase tracking-[0.2em] text-emerald-100">
+                          Result
+                        </div>
+
+                        {conversionResult ? (
+                          <>
+                            <div className="mt-5 text-sm font-semibold uppercase tracking-[0.18em] text-emerald-100/70">
+                              Converted Amount
+                            </div>
+                            <div className="mt-2 text-4xl font-semibold tracking-[-0.055em] text-white">
+                              {formatNumberLabel(
+                                conversionResult.convertedAmount,
+                                6
+                              )}
+                            </div>
+                            <div className="mt-1 text-lg font-semibold text-emerald-100">
+                              {convertTo}
+                            </div>
+
+                            <div className="mt-5 rounded-[22px] border border-white/10 bg-black/20 p-4">
+                              <div className="text-[11px] font-semibold uppercase tracking-[0.18em] text-emerald-100/70">
+                                Live Rate
+                              </div>
+                              <div className="mt-2 text-sm leading-6 text-white">
+                                1 {convertFrom} ={" "}
+                                {formatNumberLabel(conversionResult.rate, 8)}{" "}
+                                {convertTo}
+                              </div>
+                              <div className="mt-1 text-xs text-emerald-100/70">
+                                Source: Frankfurter • Date: {conversionResult.date}
+                              </div>
+                            </div>
+                          </>
+                        ) : (
+                          <div className="mt-5 rounded-[24px] border border-white/10 bg-black/20 p-5">
+                            <div className="text-2xl font-semibold tracking-[-0.035em] text-white">
+                              Ready to convert
+                            </div>
+                            <div className="mt-2 text-sm leading-6 text-emerald-100/75">
+                              Select two active currencies and press Convert Live to
+                              show the result here.
+                            </div>
+                          </div>
+                        )}
                       </div>
-                    )}
+
+                      <div className="text-xs leading-5 text-emerald-100/65">
+                        Live converter does not save exchange-rate history. Use
+                        Stored Exchange Rates to create automatic auditable snapshots.
+                      </div>
+                    </div>
                   </div>
                 </div>
-              </SectionCard>
+              </section>
 
-                            <SectionCard
+              <SectionCard
                 title="Currency Master Data"
                 badge="Currency Registry"
                 description="Allowed currencies for the finance engine. Create from major presets or add a manual currency."
@@ -1675,7 +2063,7 @@ export default function FinanceMasterDataCurrenciesPage() {
                       <button
                         type="button"
                         onClick={openCreateCurrencyDialog}
-                        className="inline-flex h-11 items-center justify-center gap-2 rounded-2xl border border-cyan-400/20 bg-cyan-500/15 px-5 text-sm font-semibold text-cyan-100 transition hover:bg-cyan-500/25"
+                        className="inline-flex h-11 items-center justify-center gap-2 rounded-2xl border border-cyan-400/20 bg-cyan-500/10 px-5 text-sm font-semibold text-cyan-100 transition hover:bg-cyan-500/15"
                       >
                         <Plus className="h-4 w-4" />
                         New Currency
@@ -1766,10 +2154,13 @@ export default function FinanceMasterDataCurrenciesPage() {
                         </tr>
                       </thead>
 
-                      <tbody>
+                                            <tbody>
                         {loading ? (
                           <tr>
-                            <td colSpan={8} className="px-5 py-10 text-sm text-slate-500">
+                            <td
+                              colSpan={8}
+                              className="px-5 py-10 text-sm text-slate-500"
+                            >
                               Loading currencies...
                             </td>
                           </tr>
@@ -1825,29 +2216,32 @@ export default function FinanceMasterDataCurrenciesPage() {
                               </td>
 
                               <td className="px-5 py-4 text-right">
-                                <ActionMenu>
+                                <div className="flex justify-end gap-2">
                                   {canEdit ? (
-                                    <ActionMenuButton
+                                    <ActionButton
                                       onClick={() => openEditCurrencyDialog(row)}
+                                      tone="cyan"
                                     >
-                                      Edit Currency
-                                    </ActionMenuButton>
+                                      <Pencil className="h-3.5 w-3.5" />
+                                      Edit
+                                    </ActionButton>
                                   ) : null}
 
                                   {canArchive && row.status !== "archived" ? (
-                                    <ActionMenuButton
-                                      tone="danger"
+                                    <ActionButton
                                       onClick={() => void handleArchiveCurrency(row)}
+                                      disabled={Boolean(runningActionId)}
+                                      tone="rose"
                                     >
                                       {runningActionId === row.id ? (
-                                        <Loader2 className="h-4 w-4 animate-spin" />
+                                        <Loader2 className="h-3.5 w-3.5 animate-spin" />
                                       ) : (
-                                        <Archive className="h-4 w-4" />
+                                        <Archive className="h-3.5 w-3.5" />
                                       )}
                                       Archive
-                                    </ActionMenuButton>
+                                    </ActionButton>
                                   ) : null}
-                                </ActionMenu>
+                                </div>
                               </td>
                             </tr>
                           ))
@@ -1860,8 +2254,8 @@ export default function FinanceMasterDataCurrenciesPage() {
 
               <SectionCard
                 title="Stored Exchange Rates"
-                badge="Rate Snapshots"
-                description="Database exchange-rate snapshots for history, audit, and finance workflows."
+                badge="Automatic Rate Snapshots"
+                description="Create auditable exchange-rate records from automatic live conversion. Manual rate typing is not the normal workflow."
                 icon={Database}
                 right={
                   <div className="flex flex-wrap gap-3">
@@ -1873,10 +2267,10 @@ export default function FinanceMasterDataCurrenciesPage() {
                       <button
                         type="button"
                         onClick={openCreateRateDialog}
-                        className="inline-flex h-11 items-center justify-center gap-2 rounded-2xl border border-cyan-400/20 bg-cyan-500/15 px-5 text-sm font-semibold text-cyan-100 transition hover:bg-cyan-500/25"
+                        className="inline-flex h-11 items-center justify-center gap-2 rounded-2xl border border-cyan-400/20 bg-cyan-500/10 px-5 text-sm font-semibold text-cyan-100 transition hover:bg-cyan-500/15"
                       >
                         <Plus className="h-4 w-4" />
-                        New Exchange Rate
+                        New Automatic Rate
                       </button>
                     ) : null}
                   </div>
@@ -1899,94 +2293,129 @@ export default function FinanceMasterDataCurrenciesPage() {
                     <EmptyState
                       icon={Database}
                       title="No stored exchange rates found"
-                      description="Create a stored exchange-rate snapshot when you need audit history."
+                      description="Create an automatic exchange-rate snapshot when you need audit history."
                     />
                   ) : (
-                    <div className="max-h-[720px] space-y-3 overflow-y-auto pr-1">
-                      {filteredExchangeRates.map((row) => (
-                        <div
-                          key={row.id}
-                          className="rounded-[24px] border border-white/10 bg-black/20 p-4 transition hover:bg-white/[0.035]"
-                        >
-                          <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
-                            <div className="min-w-0">
-                              <div className="flex flex-wrap items-center gap-2">
-                                <span className="rounded-full border border-cyan-400/20 bg-cyan-500/10 px-3 py-1 text-xs font-semibold text-cyan-100">
-                                  {row.from_currency_code} → {row.to_currency_code}
-                                </span>
-                                <StatusBadge value={row.status} />
-                              </div>
+                    <div className="overflow-x-auto rounded-[24px] border border-white/10 bg-black/20">
+                      <div className="max-h-[720px] overflow-y-auto">
+                        <table className="w-full min-w-[1100px] border-collapse">
+                          <thead className="sticky top-0 z-20 border-b border-white/10 bg-black/70 backdrop-blur-xl">
+                            <tr>
+                              <th className="px-5 py-4 text-left text-[11px] font-semibold uppercase tracking-[0.18em] text-slate-500">
+                                Pair
+                              </th>
+                              <th className="px-5 py-4 text-left text-[11px] font-semibold uppercase tracking-[0.18em] text-slate-500">
+                                Rate
+                              </th>
+                              <th className="px-5 py-4 text-left text-[11px] font-semibold uppercase tracking-[0.18em] text-slate-500">
+                                Effective Date
+                              </th>
+                              <th className="px-5 py-4 text-left text-[11px] font-semibold uppercase tracking-[0.18em] text-slate-500">
+                                Status
+                              </th>
+                              <th className="px-5 py-4 text-left text-[11px] font-semibold uppercase tracking-[0.18em] text-slate-500">
+                                Updated
+                              </th>
+                              <th className="px-5 py-4 text-right text-[11px] font-semibold uppercase tracking-[0.18em] text-slate-500">
+                                Actions
+                              </th>
+                            </tr>
+                          </thead>
 
-                              <div className="mt-3 text-2xl font-semibold tracking-[-0.035em] text-white">
-                                {formatNumberLabel(row.exchange_rate, 8)}
-                              </div>
+                          <tbody>
+                            {filteredExchangeRates.map((row) => (
+                              <tr
+                                key={row.id}
+                                className="border-b border-white/5 text-sm text-slate-300 transition hover:bg-white/[0.035]"
+                              >
+                                <td className="min-w-[220px] px-5 py-4">
+                                  <div className="inline-flex rounded-full border border-violet-400/20 bg-violet-500/10 px-3 py-1 text-xs font-semibold text-violet-100">
+                                    {row.from_currency_code} →{" "}
+                                    {row.to_currency_code}
+                                  </div>
+                                  <div className="mt-1 text-xs text-slate-500">
+                                    Automatic snapshot
+                                  </div>
+                                </td>
 
-                              <div className="mt-2 grid gap-2 text-sm text-slate-400 md:grid-cols-2">
-                                <div>
-                                  Effective Date:{" "}
-                                  <span className="text-white">
-                                    {formatDateLabel(row.effective_date)}
-                                  </span>
-                                </div>
-                                <div>
-                                  Updated:{" "}
-                                  <span className="text-white">
-                                    {formatDateLabel(row.updated_at)}
-                                  </span>
-                                </div>
-                              </div>
+                                <td className="min-w-[180px] px-5 py-4">
+                                  <div className="font-semibold text-white">
+                                    {formatNumberLabel(row.exchange_rate, 8)}
+                                  </div>
+                                  <div className="mt-1 text-xs text-slate-500">
+                                    1 {row.from_currency_code}
+                                  </div>
+                                </td>
 
-                              <div className="mt-2 text-sm leading-6 text-slate-500">
-                                {row.notes || "No notes added."}
-                              </div>
-                            </div>
+                                <td className="px-5 py-4">
+                                  {formatDateLabel(row.effective_date)}
+                                </td>
 
-                            <ActionMenu>
-                              {canEdit ? (
-                                <ActionMenuButton
-                                  onClick={() => openEditRateDialog(row)}
-                                >
-                                  Edit Rate
-                                </ActionMenuButton>
-                              ) : null}
+                                <td className="px-5 py-4">
+                                  <StatusBadge value={row.status} />
+                                </td>
 
-                              {canArchive && row.status !== "archived" ? (
-                                <ActionMenuButton
-                                  tone="danger"
-                                  onClick={() => void handleArchiveRate(row)}
-                                >
-                                  {runningActionId === row.id ? (
-                                    <Loader2 className="h-4 w-4 animate-spin" />
-                                  ) : (
-                                    <Archive className="h-4 w-4" />
-                                  )}
-                                  Archive
-                                </ActionMenuButton>
-                              ) : null}
+                                <td className="px-5 py-4">
+                                  {formatDateLabel(row.updated_at)}
+                                </td>
 
-                              {canArchive && row.status === "archived" ? (
-                                <>
-                                  <ActionMenuButton
-                                    tone="success"
-                                    onClick={() => void handleRestoreRate(row)}
-                                  >
-                                    <RefreshCcw className="h-4 w-4" />
-                                    Restore
-                                  </ActionMenuButton>
+                                <td className="px-5 py-4 text-right">
+                                  <div className="flex justify-end gap-2">
+                                    {canEdit ? (
+                                      <ActionButton
+                                        onClick={() => openEditRateDialog(row)}
+                                        tone="cyan"
+                                      >
+                                        <Pencil className="h-3.5 w-3.5" />
+                                        Edit
+                                      </ActionButton>
+                                    ) : null}
 
-                                  <ActionMenuButton
-                                    tone="danger"
-                                    onClick={() => void handleHardDeleteRate(row)}
-                                  >
-                                    <Trash2 className="h-4 w-4" />
-                                    Hard Delete
-                                  </ActionMenuButton>
-                                </>
-                              ) : null}
-                            </ActionMenu>
-                          </div>
-                        </div>
-                      ))}
+                                    {canArchive && row.status !== "archived" ? (
+                                      <ActionButton
+                                        onClick={() => void handleArchiveRate(row)}
+                                        disabled={Boolean(runningActionId)}
+                                        tone="rose"
+                                      >
+                                        {runningActionId === row.id ? (
+                                          <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                                        ) : (
+                                          <Archive className="h-3.5 w-3.5" />
+                                        )}
+                                        Archive
+                                      </ActionButton>
+                                    ) : null}
+
+                                    {canArchive && row.status === "archived" ? (
+                                      <>
+                                        <ActionButton
+                                          onClick={() => void handleRestoreRate(row)}
+                                          disabled={Boolean(runningActionId)}
+                                          tone="emerald"
+                                        >
+                                          <RefreshCcw className="h-3.5 w-3.5" />
+                                          Restore
+                                        </ActionButton>
+
+                                        <ActionButton
+                                          onClick={() =>
+                                            void handleHardDeleteRate(row)
+                                          }
+                                          disabled={Boolean(runningActionId)}
+                                          tone="rose"
+                                        >
+                                          <Trash2 className="h-3.5 w-3.5" />
+                                          Delete
+                                        </ActionButton>
+                                      </>
+                                    ) : null}
+                                  </div>
+                                </td>
+                              </tr>
+                            ))}
+                          </tbody>
+                        </table>
+                      </div>
                     </div>
                   )}
                 </div>
@@ -1996,17 +2425,17 @@ export default function FinanceMasterDataCurrenciesPage() {
         </div>
       </div>
 
-      {currencyDialogOpen ? (
+            {currencyDialogOpen ? (
         <ModalShell
           title={editingCurrency ? "Edit Currency" : "Create Currency"}
-          description="Choose from 40 major currencies or add a manual custom currency. Presets auto-fill code, symbol, and decimals."
+          description="Choose from 40 major currencies or add a manual custom currency. Presets auto-fill code, name, symbol, and decimals."
           onClose={() => setCurrencyDialogOpen(false)}
           footer={
             <>
               <button
                 type="button"
                 onClick={() => setCurrencyDialogOpen(false)}
-                className="inline-flex h-11 items-center justify-center rounded-2xl border border-white/10 bg-black/20 px-5 text-sm font-semibold text-slate-300 transition hover:bg-white/[0.08]"
+                className="inline-flex h-11 items-center justify-center rounded-2xl border border-white/10 bg-white/[0.05] px-5 text-sm font-semibold text-slate-300 transition hover:bg-white/[0.08]"
               >
                 Cancel
               </button>
@@ -2015,7 +2444,7 @@ export default function FinanceMasterDataCurrenciesPage() {
                 type="button"
                 onClick={() => void handleSaveCurrency()}
                 disabled={savingCurrency || !(editingCurrency ? canEdit : canCreate)}
-                className="inline-flex h-11 items-center justify-center gap-2 rounded-2xl border border-cyan-400/20 bg-cyan-500 px-5 text-sm font-semibold text-slate-950 transition hover:bg-cyan-400 disabled:cursor-not-allowed disabled:opacity-60"
+                className="inline-flex h-11 items-center justify-center gap-2 rounded-2xl border border-cyan-400/20 bg-cyan-500/10 px-5 text-sm font-semibold text-cyan-100 transition hover:bg-cyan-500/15 disabled:cursor-not-allowed disabled:opacity-60"
               >
                 {savingCurrency ? (
                   <Loader2 className="h-4 w-4 animate-spin" />
@@ -2061,9 +2490,9 @@ export default function FinanceMasterDataCurrenciesPage() {
                 Automatic preset fields
               </div>
               <div className="mt-1 text-xs leading-5 text-cyan-100/80">
-                When you select a preset, code, symbol, and decimal places are filled
-                automatically. Choose “Manual custom currency” only when the currency
-                is not in the preset list.
+                When a preset is selected, Currency Code, Currency Name, Symbol,
+                and Decimal Places are filled automatically and locked. Choose
+                Manual custom currency only when the currency is not in the preset list.
               </div>
             </div>
 
@@ -2083,7 +2512,7 @@ export default function FinanceMasterDataCurrenciesPage() {
                 <TextInput
                   value={currencyForm.currency_name}
                   onChange={handleCustomCurrencyNameChange}
-                  placeholder="Currency name"
+                  placeholder="Automatic from preset"
                   readOnly={currencyForm.preset_key !== CUSTOM_CURRENCY_KEY}
                 />
               </div>
@@ -2107,19 +2536,16 @@ export default function FinanceMasterDataCurrenciesPage() {
                     setCurrencyForm((previous) => ({
                       ...previous,
                       decimal_places: value,
-                      preset_key:
-                        previous.preset_key === CUSTOM_CURRENCY_KEY
-                          ? CUSTOM_CURRENCY_KEY
-                          : previous.preset_key,
+                      preset_key: CUSTOM_CURRENCY_KEY,
                     }))
                   }
-                  placeholder="2"
+                  placeholder="Automatic from preset"
                   readOnly={currencyForm.preset_key !== CUSTOM_CURRENCY_KEY}
                 />
               </div>
             </div>
 
-                        <div className="grid gap-4 sm:grid-cols-2">
+            <div className="grid gap-4 sm:grid-cols-2">
               <label className="flex items-start gap-3 rounded-2xl border border-white/10 bg-black/20 px-4 py-3 text-sm text-slate-300">
                 <input
                   id="currency-base"
@@ -2188,15 +2614,15 @@ export default function FinanceMasterDataCurrenciesPage() {
 
       {rateDialogOpen ? (
         <ModalShell
-          title={editingRate ? "Edit Exchange Rate" : "Create Exchange Rate"}
-          description="Store exchange-rate snapshots for audit and finance workflows."
+          title={editingRate ? "Edit Automatic Exchange Rate" : "Create Automatic Exchange Rate"}
+          description="Select a currency pair and the system will calculate the live rate automatically. Manual rate typing is not used here."
           onClose={() => setRateDialogOpen(false)}
           footer={
             <>
               <button
                 type="button"
                 onClick={() => setRateDialogOpen(false)}
-                className="inline-flex h-11 items-center justify-center rounded-2xl border border-white/10 bg-black/20 px-5 text-sm font-semibold text-slate-300 transition hover:bg-white/[0.08]"
+                className="inline-flex h-11 items-center justify-center rounded-2xl border border-white/10 bg-white/[0.05] px-5 text-sm font-semibold text-slate-300 transition hover:bg-white/[0.08]"
               >
                 Cancel
               </button>
@@ -2204,8 +2630,13 @@ export default function FinanceMasterDataCurrenciesPage() {
               <button
                 type="button"
                 onClick={() => void handleSaveRate()}
-                disabled={savingRate || !(editingRate ? canEdit : canCreate)}
-                className="inline-flex h-11 items-center justify-center gap-2 rounded-2xl border border-cyan-400/20 bg-cyan-500 px-5 text-sm font-semibold text-slate-950 transition hover:bg-cyan-400 disabled:cursor-not-allowed disabled:opacity-60"
+                disabled={
+                  savingRate ||
+                  autoRateLoading ||
+                  !autoRate ||
+                  !(editingRate ? canEdit : canCreate)
+                }
+                className="inline-flex h-11 items-center justify-center gap-2 rounded-2xl border border-cyan-400/20 bg-cyan-500/10 px-5 text-sm font-semibold text-cyan-100 transition hover:bg-cyan-500/15 disabled:cursor-not-allowed disabled:opacity-60"
               >
                 {savingRate ? (
                   <Loader2 className="h-4 w-4 animate-spin" />
@@ -2215,8 +2646,8 @@ export default function FinanceMasterDataCurrenciesPage() {
                 {savingRate
                   ? "Saving..."
                   : editingRate
-                    ? "Save Changes"
-                    : "Create Exchange Rate"}
+                    ? "Save Automatic Rate"
+                    : "Create Automatic Rate"}
               </button>
             </>
           }
@@ -2227,19 +2658,15 @@ export default function FinanceMasterDataCurrenciesPage() {
                 <FieldLabel label="From Currency" required />
                 <SelectField
                   value={rateForm.from_currency_code}
-                  onChange={(value) =>
-                    setRateForm((previous) => ({
-                      ...previous,
-                      from_currency_code: value,
-                    }))
-                  }
+                  onChange={handleRateFromChange}
+                  disabled={autoRateLoading || savingRate}
                 >
                   <option value="" className="bg-[#05070d]">
                     From currency
                   </option>
                   {activeCurrencies.map((row) => (
                     <option
-                      key={`from-${row.id}`}
+                      key={`rate-from-${row.id}`}
                       value={row.currency_code}
                       className="bg-[#05070d]"
                     >
@@ -2253,19 +2680,15 @@ export default function FinanceMasterDataCurrenciesPage() {
                 <FieldLabel label="To Currency" required />
                 <SelectField
                   value={rateForm.to_currency_code}
-                  onChange={(value) =>
-                    setRateForm((previous) => ({
-                      ...previous,
-                      to_currency_code: value,
-                    }))
-                  }
+                  onChange={handleRateToChange}
+                  disabled={autoRateLoading || savingRate}
                 >
                   <option value="" className="bg-[#05070d]">
                     To currency
                   </option>
                   {activeCurrencies.map((row) => (
                     <option
-                      key={`to-${row.id}`}
+                      key={`rate-to-${row.id}`}
                       value={row.currency_code}
                       className="bg-[#05070d]"
                     >
@@ -2278,20 +2701,6 @@ export default function FinanceMasterDataCurrenciesPage() {
 
             <div className="grid gap-4 sm:grid-cols-2">
               <div>
-                <FieldLabel label="Exchange Rate" required />
-                <TextInput
-                  value={rateForm.exchange_rate}
-                  onChange={(value) =>
-                    setRateForm((previous) => ({
-                      ...previous,
-                      exchange_rate: value,
-                    }))
-                  }
-                  placeholder="Exchange rate"
-                />
-              </div>
-
-              <div>
                 <FieldLabel label="Effective Date" required />
                 <TextInput
                   type="date"
@@ -2303,31 +2712,93 @@ export default function FinanceMasterDataCurrenciesPage() {
                     }))
                   }
                   placeholder="Effective date"
+                  disabled={savingRate}
                 />
+              </div>
+
+              <div>
+                <FieldLabel label="Status" />
+                <SelectField
+                  value={rateForm.status}
+                  onChange={(value) =>
+                    setRateForm((previous) => ({
+                      ...previous,
+                      status: value as FinanceRecordStatus,
+                    }))
+                  }
+                  disabled={savingRate}
+                >
+                  <option value="active" className="bg-[#05070d]">
+                    Active
+                  </option>
+                  <option value="inactive" className="bg-[#05070d]">
+                    Inactive
+                  </option>
+                  <option value="archived" className="bg-[#05070d]">
+                    Archived
+                  </option>
+                </SelectField>
               </div>
             </div>
 
-            <div>
-              <FieldLabel label="Status" />
-              <SelectField
-                value={rateForm.status}
-                onChange={(value) =>
-                  setRateForm((previous) => ({
-                    ...previous,
-                    status: value as FinanceRecordStatus,
-                  }))
-                }
-              >
-                <option value="active" className="bg-[#05070d]">
-                  Active
-                </option>
-                <option value="inactive" className="bg-[#05070d]">
-                  Inactive
-                </option>
-                <option value="archived" className="bg-[#05070d]">
-                  Archived
-                </option>
-              </SelectField>
+            <div className="rounded-[28px] border border-emerald-400/20 bg-emerald-500/10 p-5">
+              <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
+                <div>
+                  <div className="text-[11px] font-semibold uppercase tracking-[0.2em] text-emerald-100/70">
+                    Automatic Rate
+                  </div>
+
+                  {autoRateLoading ? (
+                    <div className="mt-3 flex items-center gap-2 text-sm text-emerald-100">
+                      <Loader2 className="h-4 w-4 animate-spin" />
+                      Calculating live exchange rate...
+                    </div>
+                  ) : autoRate ? (
+                    <>
+                      <div className="mt-3 text-3xl font-semibold tracking-[-0.045em] text-white">
+                        {formatNumberLabel(autoRate.rate, 8)}
+                      </div>
+                      <div className="mt-1 text-sm leading-6 text-emerald-100/80">
+                        1 {rateForm.from_currency_code} ={" "}
+                        {formatNumberLabel(autoRate.rate, 8)}{" "}
+                        {rateForm.to_currency_code}
+                      </div>
+                      <div className="mt-1 text-xs text-emerald-100/65">
+                        Source: Frankfurter • Date: {autoRate.date}
+                      </div>
+                    </>
+                  ) : (
+                    <div className="mt-3 text-sm leading-6 text-emerald-100/75">
+                      Select two different currencies to calculate the live rate.
+                    </div>
+                  )}
+                </div>
+
+                <button
+                  type="button"
+                  onClick={() =>
+                    void calculateRateForForm(
+                      rateForm.from_currency_code,
+                      rateForm.to_currency_code
+                    )
+                  }
+                  disabled={autoRateLoading || !canAutoCalculateRate}
+                  className="inline-flex h-11 shrink-0 items-center justify-center gap-2 rounded-2xl border border-emerald-400/20 bg-emerald-500/10 px-5 text-sm font-semibold text-emerald-100 transition hover:bg-emerald-500/15 disabled:cursor-not-allowed disabled:opacity-50"
+                >
+                  {autoRateLoading ? (
+                    <Loader2 className="h-4 w-4 animate-spin" />
+                  ) : (
+                    <RefreshCcw className="h-4 w-4" />
+                  )}
+                  Recalculate
+                </button>
+              </div>
+
+              {autoRateError ? (
+                <div className="mt-4 rounded-2xl border border-rose-400/20 bg-rose-500/10 px-4 py-3 text-sm leading-6 text-rose-100">
+                  {autoRateError}
+                </div>
+              ) : null}
             </div>
 
             <div>
@@ -2341,6 +2812,7 @@ export default function FinanceMasterDataCurrenciesPage() {
                   }))
                 }
                 placeholder="Optional notes"
+                disabled={savingRate}
               />
             </div>
 
@@ -2349,7 +2821,7 @@ export default function FinanceMasterDataCurrenciesPage() {
         </ModalShell>
       ) : null}
 
-      {archiveDialogOpen ? (
+            {archiveDialogOpen ? (
         <div className="fixed inset-0 z-[120] flex items-center justify-center bg-black/70 p-4 backdrop-blur-sm">
           <div className="flex max-h-[90vh] w-full max-w-6xl flex-col overflow-hidden rounded-[30px] border border-white/10 bg-[#05070d] shadow-2xl shadow-black/60">
             <div className="flex items-start justify-between gap-4 border-b border-white/10 px-6 py-5">
@@ -2451,20 +2923,19 @@ export default function FinanceMasterDataCurrenciesPage() {
                           <td className="px-5 py-4 text-right">
                             <div className="flex justify-end gap-2">
                               {canEdit ? (
-                                <button
-                                  type="button"
+                                <ActionButton
                                   onClick={() => openEditCurrencyDialog(row)}
-                                  className="inline-flex h-9 items-center justify-center rounded-full border border-cyan-400/20 bg-cyan-500/10 px-4 text-xs font-semibold uppercase tracking-[0.14em] text-cyan-100 transition hover:bg-cyan-500/15"
+                                  tone="cyan"
                                 >
+                                  <Pencil className="h-3.5 w-3.5" />
                                   Open
-                                </button>
+                                </ActionButton>
                               ) : null}
 
-                              <button
-                                type="button"
+                              <ActionButton
                                 onClick={() => void handleRestoreCurrency(row.id)}
                                 disabled={Boolean(runningActionId)}
-                                className="inline-flex h-9 items-center justify-center gap-2 rounded-full border border-emerald-400/20 bg-emerald-500/10 px-4 text-xs font-semibold uppercase tracking-[0.14em] text-emerald-100 transition hover:bg-emerald-500/15 disabled:cursor-not-allowed disabled:opacity-50"
+                                tone="emerald"
                               >
                                 {runningActionId === row.id ? (
                                   <Loader2 className="h-3.5 w-3.5 animate-spin" />
@@ -2472,13 +2943,14 @@ export default function FinanceMasterDataCurrenciesPage() {
                                   <RefreshCcw className="h-3.5 w-3.5" />
                                 )}
                                 Restore
-                              </button>
+                              </ActionButton>
 
-                              <button
-                                type="button"
-                                onClick={() => void handleHardDeleteCurrency(row.id)}
+                              <ActionButton
+                                onClick={() =>
+                                  void handleHardDeleteCurrency(row.id)
+                                }
                                 disabled={Boolean(runningActionId)}
-                                className="inline-flex h-9 items-center justify-center gap-2 rounded-full border border-rose-400/20 bg-rose-500/10 px-4 text-xs font-semibold uppercase tracking-[0.14em] text-rose-100 transition hover:bg-rose-500/15 disabled:cursor-not-allowed disabled:opacity-50"
+                                tone="rose"
                               >
                                 {runningActionId === row.id ? (
                                   <Loader2 className="h-3.5 w-3.5 animate-spin" />
@@ -2486,7 +2958,7 @@ export default function FinanceMasterDataCurrenciesPage() {
                                   <Trash2 className="h-3.5 w-3.5" />
                                 )}
                                 Delete
-                              </button>
+                              </ActionButton>
                             </div>
                           </td>
                         </tr>

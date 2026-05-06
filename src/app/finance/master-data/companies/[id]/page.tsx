@@ -14,7 +14,6 @@ import {
   Banknote,
   Building2,
   CheckCircle2,
-  CreditCard,
   FileText,
   Globe,
   Landmark,
@@ -448,15 +447,6 @@ function getShippingSummary(shippingAddresses: AddressRow[]) {
   return `${shippingAddresses.length} shipping row${
     shippingAddresses.length === 1 ? "" : "s"
   }`;
-}
-
-function getPersonnelSummary(personnel: PersonnelRow[]) {
-  if (personnel.length === 0) {
-    return "No personnel";
-  }
-
-  const first = personnel[0];
-  return first.full_name || first.email || `${personnel.length} personnel rows`;
 }
 
 function getBankIdentifierLabel(account: BankAccountRow) {

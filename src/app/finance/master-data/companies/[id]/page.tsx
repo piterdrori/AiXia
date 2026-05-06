@@ -2277,7 +2277,6 @@ export default function FinanceMasterDataCompanyDetailPage() {
                           {currency.is_base_currency ? " • Base" : ""}
                         </option>
                       ))}
-                      ))}
                     </SelectField>
                   </div>
 

@@ -883,7 +883,7 @@ export default function FinanceMasterDataBankAccountDetailPage() {
     setControlDraft({
       account_identifier_type: record.account_identifier_type || "swift",
       account_identifier_value: record.account_identifier_value || "",
-      currency_code: record.currency_code || "",
+      currency_code: selectedCompany?.currency_code || record.currency_code || "",
       is_default: record.is_default,
       status: record.status,
     });
@@ -939,12 +939,10 @@ export default function FinanceMasterDataBankAccountDetailPage() {
         company?.legal_name?.trim() || company?.name || previousDraft.beneficiary_name,
     }));
 
-    if (company?.currency_code) {
-      setControlDraft((previousDraft) => ({
-        ...previousDraft,
-        currency_code: previousDraft.currency_code || company.currency_code || "",
-      }));
-    }
+    setControlDraft((previousDraft) => ({
+      ...previousDraft,
+      currency_code: company?.currency_code || "",
+    }));
   }
 
   async function saveOverviewSection() {
@@ -970,11 +968,15 @@ export default function FinanceMasterDataBankAccountDetailPage() {
       setPageError(null);
       setPageMessage(null);
 
+      const selectedCompanyForSave =
+        companies.find((company) => company.id === overviewDraft.company_id) ?? null;
+
       await updateBankAccount(record.id, {
         company_id: overviewDraft.company_id,
         beneficiary_name: overviewDraft.beneficiary_name.trim() || null,
         bank_name: overviewDraft.bank_name.trim() || null,
         account_number: overviewDraft.account_number.trim() || null,
+        currency_code: selectedCompanyForSave?.currency_code || null,
       });
 
       setEditingSection(null);
@@ -1054,7 +1056,7 @@ export default function FinanceMasterDataBankAccountDetailPage() {
         account_identifier_type: normalizedIdentifierType,
         account_identifier_value:
           controlDraft.account_identifier_value.trim() || null,
-        currency_code: controlDraft.currency_code.trim() || null,
+        currency_code: selectedCompany?.currency_code || record.currency_code || null,
         is_default: controlDraft.is_default,
         status: normalizedStatus,
       });
@@ -1526,20 +1528,11 @@ export default function FinanceMasterDataBankAccountDetailPage() {
                     />
                   </div>
 
-                  <div>
-                    <FieldLabel label="Currency Code" />
-                    <InputField
-                      value={controlDraft.currency_code}
-                      disabled={isSaving}
-                      onChange={(event) =>
-                        updateControlDraft(
-                          "currency_code",
-                          event.target.value.toUpperCase()
-                        )
-                      }
-                      placeholder="USD / EUR / CNY / ILS"
-                    />
-                  </div>
+                  <DisplayBlock
+                    label="Currency Code"
+                    value={selectedCompany?.currency_code || controlDraft.currency_code || "—"}
+                    detail="Pulled from the selected company. Currency is not manually edited on the bank account."
+                  />
 
                   <div>
                     <FieldLabel label="Status" />
@@ -1594,7 +1587,7 @@ export default function FinanceMasterDataBankAccountDetailPage() {
                   />
                   <DisplayBlock
                     label="Currency Code"
-                    value={record.currency_code || "—"}
+                    value={selectedCompany?.currency_code || record.currency_code || "—"}
                   />
                   <DisplayBlock
                     label="Default Status"

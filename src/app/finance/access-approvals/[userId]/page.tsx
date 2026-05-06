@@ -73,13 +73,28 @@ type CurrentProfileRow = {
   permissions: Partial<Record<Permission, boolean>> | null;
 };
 
+type FinancePermissionTemplateRow = {
+  id: string;
+  template_key: string;
+  template_name: string;
+  description: string | null;
+  permissions: Partial<Record<Permission, boolean>> | null;
+  is_system: boolean;
+  is_active: boolean;
+};
+
+type FinanceUserPermissionTemplateRow = {
+  user_id: string;
+  template_id: string;
+};
+
 type DetailItem = {
   label: string;
   value: ReactNode;
   detail?: ReactNode;
 };
 
-type RunningAction = "toggle" | "refresh" | "reset";
+type RunningAction = "toggle" | "refresh" | "reset" | "template";
 
 type GroupSummary = {
   groupKey: AccessApprovalGroupKey;
@@ -132,7 +147,11 @@ function formatLabel(value: string | null | undefined) {
   if (!value) return "—";
 
   return value
+    .replace(/([a-z])([A-Z])/g, "$1 $2")
+    .replace(/[-/]/g, " ")
     .split("_")
+    .join(" ")
+    .split(" ")
     .filter(Boolean)
     .map((part) => part.charAt(0).toUpperCase() + part.slice(1))
     .join(" ");
@@ -155,6 +174,16 @@ function formatDateTime(value: string | null | undefined) {
     hour: "2-digit",
     minute: "2-digit",
   });
+}
+
+function coercePermissionMap(
+  value: Partial<Record<Permission, boolean>> | null | undefined
+): Partial<Record<Permission, boolean>> {
+  if (!value || typeof value !== "object") {
+    return {};
+  }
+
+  return value;
 }
 
 function getToneClasses(
@@ -573,7 +602,7 @@ function GroupPermissionCard({
               key={section.key}
               className="rounded-[24px] border border-white/10 bg-black/20 p-4"
             >
-              <div className="grid gap-4 xl:grid-cols-[minmax(280px,1fr)_minmax(420px,auto)_260px] xl:items-center">
+              <div className="grid gap-4 xl:grid-cols-[minmax(280px,1fr)_minmax(560px,auto)_260px] xl:items-center">
                 <div className="min-w-0">
                   <div className="flex flex-wrap items-center gap-2">
                     <div className="font-semibold text-white">{section.title}</div>
@@ -617,7 +646,7 @@ function GroupPermissionCard({
                   ) : null}
                 </div>
 
-                <div className="grid gap-2 sm:grid-cols-2 xl:grid-cols-4">
+                <div className="grid gap-2 sm:grid-cols-2 xl:grid-cols-5">
                   {ACCESS_APPROVAL_LEVEL_ORDER.map((level) => (
                     <div key={`${section.key}-${level}`} className="grid gap-1.5">
                       <div className="text-center text-[10px] font-semibold uppercase tracking-[0.14em] text-slate-500">
@@ -656,6 +685,10 @@ export default function FinanceAccessApprovalUserDetailPage() {
   const [targetUser, setTargetUser] = useState<ProfileRow | null>(null);
   const [currentUser, setCurrentUser] = useState<CurrentProfileRow | null>(null);
   const [permissions, setPermissions] = useState<Partial<Record<Permission, boolean>>>({});
+  const [financeTemplates, setFinanceTemplates] = useState<FinancePermissionTemplateRow[]>([]);
+  const [selectedFinanceTemplateId, setSelectedFinanceTemplateId] = useState<string>("");
+  const [targetFinanceTemplate, setTargetFinanceTemplate] =
+    useState<FinancePermissionTemplateRow | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [isRefreshing, setIsRefreshing] = useState(false);
   const [runningAction, setRunningAction] = useState<RunningAction | null>(null);
@@ -690,7 +723,12 @@ export default function FinanceAccessApprovalUserDetailPage() {
           return;
         }
 
-        const [currentUserResult, targetUserResult] = await Promise.all([
+        const [
+          currentUserResult,
+          targetUserResult,
+          templatesResult,
+          targetTemplateResult,
+        ] = await Promise.all([
           supabase
             .from("profiles")
             .select("role, permissions")
@@ -704,13 +742,33 @@ export default function FinanceAccessApprovalUserDetailPage() {
             )
             .eq("user_id", userId)
             .maybeSingle(),
+
+          supabase
+            .from("finance_permission_templates")
+            .select(
+              "id, template_key, template_name, description, permissions, is_system, is_active"
+            )
+            .eq("is_active", true)
+            .order("template_name", { ascending: true }),
+
+          supabase
+            .from("finance_user_permission_templates")
+            .select("user_id, template_id")
+            .eq("user_id", userId)
+            .maybeSingle(),
         ]);
 
         if (currentUserResult.error) throw currentUserResult.error;
         if (targetUserResult.error) throw targetUserResult.error;
+        if (templatesResult.error) throw templatesResult.error;
+        if (targetTemplateResult.error) throw targetTemplateResult.error;
 
         const currentProfile = currentUserResult.data as CurrentProfileRow | null;
         const loadedTargetUser = targetUserResult.data as ProfileRow | null;
+        const loadedTemplates =
+          (templatesResult.data || []) as FinancePermissionTemplateRow[];
+        const loadedTemplateAssignment =
+          targetTemplateResult.data as FinanceUserPermissionTemplateRow | null;
 
         if (!currentProfile) {
           setPageError("Current user profile was not found.");
@@ -739,9 +797,19 @@ export default function FinanceAccessApprovalUserDetailPage() {
           return;
         }
 
+        const resolvedTemplate =
+          loadedTemplates.find(
+            (template) => template.id === loadedTemplateAssignment?.template_id
+          ) ||
+          loadedTemplates.find((template) => template.template_key === "custom") ||
+          null;
+
         setCurrentUser(currentProfile);
         setTargetUser(loadedTargetUser);
         setPermissions(loadedTargetUser.permissions || {});
+        setFinanceTemplates(loadedTemplates);
+        setSelectedFinanceTemplateId(resolvedTemplate?.id || "");
+        setTargetFinanceTemplate(resolvedTemplate);
       } catch (error) {
         console.error("Failed to load user finance access approval:", error);
         setPageError(
@@ -763,8 +831,8 @@ export default function FinanceAccessApprovalUserDetailPage() {
   useEffect(() => {
     if (!userId) return undefined;
 
-    const channel = supabase
-      .channel(`finance-access-approval-user-${userId}`)
+    const profilesChannel = supabase
+      .channel(`finance-access-approval-user-profile-${userId}`)
       .on(
         "postgres_changes",
         {
@@ -777,25 +845,48 @@ export default function FinanceAccessApprovalUserDetailPage() {
       )
       .subscribe();
 
+    const templateChannel = supabase
+      .channel(`finance-access-approval-user-template-${userId}`)
+      .on(
+        "postgres_changes",
+        {
+          event: "*",
+          schema: "public",
+          table: "finance_user_permission_templates",
+          filter: `user_id=eq.${userId}`,
+        },
+        () => void loadUser("silent")
+      )
+      .subscribe();
+
     const intervalId = window.setInterval(() => {
       void loadUser("silent");
     }, 60000);
 
     return () => {
       window.clearInterval(intervalId);
-      supabase.removeChannel(channel);
+      supabase.removeChannel(profilesChannel);
+      supabase.removeChannel(templateChannel);
     };
   }, [loadUser, userId]);
 
+  const templatePermissionOverrides = useMemo(() => {
+    return coercePermissionMap(targetFinanceTemplate?.permissions || null);
+  }, [targetFinanceTemplate]);
+
   const roleDefaultPermissions = useMemo(() => {
     if (!targetUser) return null;
-    return getEffectivePermissions(targetUser.role, null);
-  }, [targetUser]);
+    return getEffectivePermissions(targetUser.role, templatePermissionOverrides);
+  }, [targetUser, templatePermissionOverrides]);
 
   const effectivePermissions = useMemo(() => {
     if (!targetUser) return null;
-    return getEffectivePermissions(targetUser.role, permissions || null);
-  }, [permissions, targetUser]);
+
+    return getEffectivePermissions(targetUser.role, {
+      ...templatePermissionOverrides,
+      ...(permissions || {}),
+    });
+  }, [permissions, targetUser, templatePermissionOverrides]);
 
   const accessStates = useMemo(() => {
     if (!effectivePermissions) {
@@ -855,6 +946,10 @@ export default function FinanceAccessApprovalUserDetailPage() {
     return Object.keys(permissions || {}).length;
   }, [permissions]);
 
+  const templatePermissionCount = useMemo(() => {
+    return Object.values(templatePermissionOverrides).filter(Boolean).length;
+  }, [templatePermissionOverrides]);
+
   const hasAdminAccess = useMemo(() => {
     if (!currentUser) return false;
 
@@ -879,12 +974,23 @@ export default function FinanceAccessApprovalUserDetailPage() {
         detail: targetUser.user_id,
       },
       {
-        label: "Role",
+        label: "Base System Role",
         value: <StatusBadge value={targetUser.role} tone="cyan" />,
         detail:
           targetUser.requested_role && targetUser.requested_role !== targetUser.role
             ? `Requested role: ${formatLabel(targetUser.requested_role)}`
-            : "Current active role.",
+            : "Base app role: admin, manager, employee, or guest.",
+      },
+      {
+        label: "Finance Template",
+        value: targetFinanceTemplate ? (
+          <StatusBadge value={targetFinanceTemplate.template_name} tone="violet" />
+        ) : (
+          "—"
+        ),
+        detail:
+          targetFinanceTemplate?.description ||
+          "Finance role template assigned to this user.",
       },
       {
         label: "Status",
@@ -907,27 +1013,23 @@ export default function FinanceAccessApprovalUserDetailPage() {
         detail: "Finance permission levels enabled across all groups.",
       },
       {
-        label: "Operator Sections",
-        value: formatCount(operatorSectionCount),
-        detail: "Sections where final workflow action access is enabled.",
+        label: "Template Permissions",
+        value: formatCount(templatePermissionCount),
+        detail: "Enabled permissions coming from the selected Finance role template.",
       },
       {
-        label: "Overrides",
+        label: "User Overrides",
         value: formatCount(overriddenPermissionCount),
-        detail: "Low-level permission overrides stored on this profile.",
-      },
-      {
-        label: "Updated",
-        value: formatDateTime(targetUser.updated_at || targetUser.created_at),
-        detail: "Latest profile permission update timestamp.",
+        detail: "Low-level exceptions stored on this profile.",
       },
     ];
   }, [
     enabledLevelCount,
     highestAccessLabel,
-    operatorSectionCount,
     overriddenPermissionCount,
+    targetFinanceTemplate,
     targetUser,
+    templatePermissionCount,
     totalLevelCount,
   ]);
 
@@ -995,6 +1097,54 @@ export default function FinanceAccessApprovalUserDetailPage() {
     [effectivePermissions, permissions, roleDefaultPermissions, targetUser, updatePermissions]
   );
 
+  const updateFinanceTemplate = useCallback(
+    async (nextTemplateId: string) => {
+      if (!targetUser || runningAction) return;
+
+      const nextTemplate = financeTemplates.find(
+        (template) => template.id === nextTemplateId
+      );
+
+      if (!nextTemplate) {
+        setPageError("Selected finance template was not found.");
+        return;
+      }
+
+      setRunningAction("template");
+      setPageError(null);
+      setPageMessage(null);
+
+      try {
+        const updateResult = await supabase
+          .from("finance_user_permission_templates")
+          .upsert(
+            {
+              user_id: targetUser.user_id,
+              template_id: nextTemplate.id,
+              updated_at: new Date().toISOString(),
+            },
+            { onConflict: "user_id" }
+          );
+
+        if (updateResult.error) throw updateResult.error;
+
+        setSelectedFinanceTemplateId(nextTemplate.id);
+        setTargetFinanceTemplate(nextTemplate);
+        setPageMessage(`Finance role template changed to ${nextTemplate.template_name}.`);
+        await loadUser("silent");
+      } catch (error) {
+        console.error("Failed to update finance role template:", error);
+        setPageError(
+          error instanceof Error ? error.message : "Failed to update finance role template."
+        );
+        await loadUser("silent");
+      } finally {
+        setRunningAction(null);
+      }
+    },
+    [financeTemplates, loadUser, runningAction, targetUser]
+  );
+
   const resetOverrides = useCallback(async () => {
     if (!targetUser || runningAction) return;
 
@@ -1014,7 +1164,9 @@ export default function FinanceAccessApprovalUserDetailPage() {
       if (updateResult.error) throw updateResult.error;
 
       setPermissions({});
-      setPageMessage("All custom finance access overrides were reset to role defaults.");
+      setPageMessage(
+        "All custom finance access overrides were reset to the selected finance template baseline."
+      );
     } catch (error) {
       console.error("Failed to reset finance access overrides:", error);
       setPageError(
@@ -1103,12 +1255,16 @@ export default function FinanceAccessApprovalUserDetailPage() {
               </h1>
 
               <p className="mt-3 max-w-4xl text-sm leading-6 text-slate-400 md:text-base md:leading-7">
-                Approve what this user can see, monitor, change, and operate across Finance:
-                Master Data, Transactions, Reports, and Settings.
+                Assign a base system role and a Finance role template, then use the
+                permission matrix only for user-specific exceptions.
               </p>
 
               <div className="mt-5 flex flex-wrap gap-2">
                 <StatusBadge value={targetUser.role} tone="cyan" />
+                <StatusBadge
+                  value={targetFinanceTemplate?.template_name || "No Finance Template"}
+                  tone="violet"
+                />
                 <StatusBadge value={targetUser.status} />
                 {isRefreshing ? (
                   <span className="rounded-full border border-white/10 bg-white/[0.06] px-3 py-1 text-[11px] font-semibold uppercase tracking-[0.14em] text-slate-300">
@@ -1118,24 +1274,24 @@ export default function FinanceAccessApprovalUserDetailPage() {
               </div>
             </div>
 
-            <div className="grid gap-3 sm:grid-cols-2">
+                        <div className="grid gap-3 sm:grid-cols-2">
               <div className="min-h-[148px] rounded-[24px] border border-white/10 bg-black/20 p-4">
                 <div className="flex items-start justify-between gap-3">
                   <div>
                     <div className="text-[11px] font-semibold uppercase tracking-[0.2em] text-slate-500">
-                      Default Rule
+                      Base System Role
                     </div>
                     <div className="mt-2 text-xl font-semibold leading-tight tracking-[-0.035em] text-white">
-                      Own Records
+                      {formatLabel(targetUser.role)}
                     </div>
                   </div>
-                  <div className="rounded-2xl border border-emerald-400/20 bg-emerald-500/10 p-3 text-emerald-200">
+                  <div className="rounded-2xl border border-cyan-400/20 bg-cyan-500/10 p-3 text-cyan-200">
                     <UserRound className="h-4 w-4" />
                   </div>
                 </div>
                 <div className="mt-3 text-xs leading-5 text-slate-500">
-                  Normal users can see, create, edit, submit, upload, and confirm their own expenses
-                  and paycheck requests by default.
+                  Base app role remains admin, manager, employee, or guest. Admin-only
+                  Finance controls still require the base role to be Admin.
                 </div>
               </div>
 
@@ -1149,18 +1305,20 @@ export default function FinanceAccessApprovalUserDetailPage() {
                       {highestAccessLabel}
                     </div>
                   </div>
-                  <div className="rounded-2xl border border-cyan-400/20 bg-cyan-500/10 p-3 text-cyan-200">
+                  <div className="rounded-2xl border border-emerald-400/20 bg-emerald-500/10 p-3 text-emerald-200">
                     <ShieldCheck className="h-4 w-4" />
                   </div>
                 </div>
                 <div className="mt-3 text-xs leading-5 text-slate-500">
-                  This is the highest finance-level access currently enabled for this user.
+                  Highest effective Finance access after base role, selected template,
+                  and user-specific overrides are combined.
                 </div>
               </div>
             </div>
           </div>
         </header>
-                {pageError ? (
+
+        {pageError ? (
           <div className="rounded-[24px] border border-rose-400/20 bg-rose-500/10 p-4 text-sm leading-6 text-rose-100">
             <div className="flex items-start gap-3">
               <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0" />
@@ -1202,18 +1360,102 @@ export default function FinanceAccessApprovalUserDetailPage() {
         </section>
 
         <SectionCard
+          title="Base Role + Finance Role Template"
+          description="The base system role controls the general app identity. The Finance role template controls company-level Finance access. User overrides should only be exceptions."
+          icon={ShieldCheck}
+        >
+          <div className="grid gap-4 xl:grid-cols-[minmax(0,1fr)_minmax(360px,520px)] xl:items-start">
+            <div className="grid gap-4 md:grid-cols-2">
+              <ValueBlock
+                label="Base System Role"
+                value={<StatusBadge value={targetUser.role} tone="cyan" />}
+                detail="System role: admin, manager, employee, or guest."
+              />
+
+              <ValueBlock
+                label="Current Finance Template"
+                value={
+                  targetFinanceTemplate ? (
+                    <StatusBadge value={targetFinanceTemplate.template_name} tone="violet" />
+                  ) : (
+                    "—"
+                  )
+                }
+                detail={
+                  targetFinanceTemplate?.description ||
+                  "Finance role template assigned to this user."
+                }
+              />
+
+              <ValueBlock
+                label="Template Baseline"
+                value={formatCount(templatePermissionCount)}
+                detail="Enabled permissions coming from the selected Finance role template."
+              />
+
+              <ValueBlock
+                label="User Exceptions"
+                value={formatCount(overriddenPermissionCount)}
+                detail="Overrides stored directly on this user profile."
+              />
+            </div>
+
+            <div className="rounded-[24px] border border-white/10 bg-black/20 p-4">
+              <label className="text-[11px] font-semibold uppercase tracking-[0.2em] text-slate-500">
+                Finance Role Template
+              </label>
+
+              <select
+                value={selectedFinanceTemplateId}
+                disabled={actionLocked || !hasAdminAccess}
+                onChange={(event) => void updateFinanceTemplate(event.target.value)}
+                className="mt-3 h-12 w-full rounded-2xl border border-white/10 bg-black/30 px-4 text-sm font-semibold text-white outline-none transition focus:border-cyan-400/30 disabled:cursor-not-allowed disabled:opacity-50"
+              >
+                {financeTemplates.map((template) => (
+                  <option key={template.id} value={template.id} className="bg-[#05070d]">
+                    {template.template_name}
+                  </option>
+                ))}
+              </select>
+
+              <div className="mt-3 text-xs leading-5 text-slate-500">
+                Templates available: Finance Admin, Finance Manager, Finance Viewer,
+                Procurement Operator, Expense Approver, Payroll Operator, Reports Viewer,
+                and Custom. The matrix below stores only user-specific exceptions from
+                this selected template.
+              </div>
+
+              {targetFinanceTemplate?.template_key === "finance_admin" && !isTargetAdmin ? (
+                <div className="mt-3 rounded-2xl border border-amber-400/15 bg-amber-500/10 px-3 py-2 text-xs leading-5 text-amber-100">
+                  Finance Admin template is selected, but Admin-only access controls
+                  still require the base system role to be Admin.
+                </div>
+              ) : null}
+
+              {runningAction === "template" ? (
+                <div className="mt-3 inline-flex items-center gap-2 rounded-full border border-cyan-400/20 bg-cyan-500/10 px-3 py-1 text-[11px] font-semibold uppercase tracking-[0.14em] text-cyan-100">
+                  <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                  Updating Template
+                </div>
+              ) : null}
+            </div>
+          </div>
+        </SectionCard>
+
+        <SectionCard
           title="Finance Access Permission Editor"
-          description="Edit the real permission matrix by Finance group. The list page only shows summaries; this page controls the actual toggles."
+          description="Edit user-specific exceptions from the selected finance role template. The list page only shows summaries; this page controls the actual toggles."
           icon={KeyRound}
         >
           <div className="mb-5 flex flex-col gap-3 rounded-[24px] border border-white/10 bg-black/20 p-4 lg:flex-row lg:items-center lg:justify-between">
             <div>
               <div className="text-sm font-semibold text-white">
-                See / Monitor / Change / Operate Matrix
+                Read / Create / Update / Delete-Archive / Approve-Execute Matrix
               </div>
               <div className="mt-1 text-xs leading-5 text-slate-500">
                 Higher levels include lower levels. Turning off a lower level also turns off higher
-                levels inside the same Finance section.
+                levels inside the same Finance section. These toggles save user-specific overrides
+                against the selected finance template.
               </div>
             </div>
 
@@ -1263,7 +1505,7 @@ export default function FinanceAccessApprovalUserDetailPage() {
           </div>
         </SectionCard>
 
-        <section className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
+        <section className="grid gap-4 md:grid-cols-2 xl:grid-cols-5">
           {ACCESS_APPROVAL_LEVEL_ORDER.map((level) => {
             const explanation = ACCESS_APPROVAL_LEVEL_EXPLANATIONS[level];
             const Icon = levelIconMap[level];
@@ -1292,7 +1534,7 @@ export default function FinanceAccessApprovalUserDetailPage() {
           <div className="mt-1">
             Normal users can see, create, edit, submit, upload, and confirm their own expenses and
             paycheck requests by default. This page only grants or removes additional company-level
-            Finance access.
+            Finance access through templates and user-specific exceptions.
           </div>
         </div>
       </div>

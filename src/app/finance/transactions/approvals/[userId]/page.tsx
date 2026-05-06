@@ -176,7 +176,7 @@ function TooltipContent({
   children: ReactNode;
 }) {
   return (
-    <div className="pointer-events-none absolute left-1/2 top-full z-50 mt-3 w-[320px] -translate-x-1/2 rounded-[22px] border border-white/10 bg-[#08111f]/95 p-4 text-left opacity-0 shadow-2xl shadow-black/40 backdrop-blur-xl transition group-hover:opacity-100">
+    <div className="pointer-events-none absolute left-0 top-full z-50 mt-3 w-[820px] max-w-[calc(100vw-360px)] rounded-[22px] border border-white/10 bg-[#08111f]/95 p-4 text-left opacity-0 shadow-2xl shadow-black/40 backdrop-blur-xl transition group-hover:opacity-100">
       <div className="text-xs font-semibold uppercase tracking-[0.18em] text-cyan-100">
         {title}
       </div>
@@ -205,23 +205,38 @@ function PermissionLevelTooltip({ level }: { level: AccessApprovalLevel }) {
 
   return (
     <InfoTooltip title={explanation.title}>
-      <div className="font-semibold text-white">{explanation.shortLabel}</div>
-      <div className="mt-3 text-[11px] font-semibold uppercase tracking-[0.14em] text-emerald-200">
-        Permits
+      <div className="grid gap-4 md:grid-cols-[180px_minmax(0,1fr)_minmax(0,1fr)]">
+        <div className="rounded-2xl border border-cyan-400/15 bg-cyan-500/10 p-3">
+          <div className="text-[11px] font-semibold uppercase tracking-[0.14em] text-cyan-200">
+            Meaning
+          </div>
+          <div className="mt-2 font-semibold leading-5 text-white">
+            {explanation.shortLabel}
+          </div>
+        </div>
+
+        <div className="rounded-2xl border border-emerald-400/15 bg-emerald-500/10 p-3">
+          <div className="text-[11px] font-semibold uppercase tracking-[0.14em] text-emerald-200">
+            Permits
+          </div>
+          <ul className="mt-2 list-disc space-y-1 pl-4">
+            {explanation.permits.map((item) => (
+              <li key={item}>{item}</li>
+            ))}
+          </ul>
+        </div>
+
+        <div className="rounded-2xl border border-rose-400/15 bg-rose-500/10 p-3">
+          <div className="text-[11px] font-semibold uppercase tracking-[0.14em] text-rose-200">
+            Does not permit
+          </div>
+          <ul className="mt-2 list-disc space-y-1 pl-4">
+            {explanation.doesNotPermit.map((item) => (
+              <li key={item}>{item}</li>
+            ))}
+          </ul>
+        </div>
       </div>
-      <ul className="mt-1 list-disc space-y-1 pl-4">
-        {explanation.permits.map((item) => (
-          <li key={item}>{item}</li>
-        ))}
-      </ul>
-      <div className="mt-3 text-[11px] font-semibold uppercase tracking-[0.14em] text-rose-200">
-        Does not permit
-      </div>
-      <ul className="mt-1 list-disc space-y-1 pl-4">
-        {explanation.doesNotPermit.map((item) => (
-          <li key={item}>{item}</li>
-        ))}
-      </ul>
     </InfoTooltip>
   );
 }
@@ -229,36 +244,48 @@ function PermissionLevelTooltip({ level }: { level: AccessApprovalLevel }) {
 function SectionTooltip({ section }: { section: AccessApprovalSection }) {
   return (
     <InfoTooltip title={section.tooltip.title}>
-      <div>{section.tooltip.description}</div>
-      <div className="mt-3 text-[11px] font-semibold uppercase tracking-[0.14em] text-cyan-200">
-        Controls
+      <div className="grid gap-4 md:grid-cols-[220px_minmax(0,1fr)_minmax(0,1fr)]">
+        <div className="rounded-2xl border border-cyan-400/15 bg-cyan-500/10 p-3">
+          <div className="text-[11px] font-semibold uppercase tracking-[0.14em] text-cyan-200">
+            Controls
+          </div>
+          <div className="mt-2 text-xs leading-5 text-slate-300">
+            {section.tooltip.description}
+          </div>
+          <div className="mt-3 flex flex-wrap gap-1.5">
+            {section.controls.map((item) => (
+              <span
+                key={item}
+                className="rounded-full border border-white/10 bg-white/[0.06] px-2 py-1 text-[10px] text-slate-300"
+              >
+                {item}
+              </span>
+            ))}
+          </div>
+        </div>
+
+        <div className="rounded-2xl border border-emerald-400/15 bg-emerald-500/10 p-3">
+          <div className="text-[11px] font-semibold uppercase tracking-[0.14em] text-emerald-200">
+            Permits
+          </div>
+          <ul className="mt-2 list-disc space-y-1 pl-4">
+            {section.tooltip.permits.map((item) => (
+              <li key={item}>{item}</li>
+            ))}
+          </ul>
+        </div>
+
+        <div className="rounded-2xl border border-rose-400/15 bg-rose-500/10 p-3">
+          <div className="text-[11px] font-semibold uppercase tracking-[0.14em] text-rose-200">
+            Does not permit
+          </div>
+          <ul className="mt-2 list-disc space-y-1 pl-4">
+            {section.tooltip.doesNotPermit.map((item) => (
+              <li key={item}>{item}</li>
+            ))}
+          </ul>
+        </div>
       </div>
-      <div className="mt-1 flex flex-wrap gap-1.5">
-        {section.controls.map((item) => (
-          <span
-            key={item}
-            className="rounded-full border border-white/10 bg-white/[0.06] px-2 py-1 text-[10px] text-slate-300"
-          >
-            {item}
-          </span>
-        ))}
-      </div>
-      <div className="mt-3 text-[11px] font-semibold uppercase tracking-[0.14em] text-emerald-200">
-        Permits
-      </div>
-      <ul className="mt-1 list-disc space-y-1 pl-4">
-        {section.tooltip.permits.map((item) => (
-          <li key={item}>{item}</li>
-        ))}
-      </ul>
-      <div className="mt-3 text-[11px] font-semibold uppercase tracking-[0.14em] text-rose-200">
-        Does not permit
-      </div>
-      <ul className="mt-1 list-disc space-y-1 pl-4">
-        {section.tooltip.doesNotPermit.map((item) => (
-          <li key={item}>{item}</li>
-        ))}
-      </ul>
     </InfoTooltip>
   );
 }

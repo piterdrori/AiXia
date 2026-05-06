@@ -263,6 +263,14 @@ type DetailItem = {
   detail?: ReactNode;
 };
 
+type PaymentPreference = {
+  method: string;
+  method_label: string;
+  instructions: string | null;
+  contact: string | null;
+  note: string | null;
+};
+
 const statusToneMap: Record<
   string,
   "cyan" | "emerald" | "amber" | "rose" | "violet" | "slate"
@@ -386,6 +394,51 @@ function getMetadataString(
   return typeof value === "string" ? value : "";
 }
 
+function getMetadataRecord(
+  metadata: Record<string, unknown> | null | undefined,
+  key: string
+) {
+  const value = metadata?.[key];
+
+  if (value && typeof value === "object" && !Array.isArray(value)) {
+    return value as Record<string, unknown>;
+  }
+
+  return {};
+}
+
+function resolvePaymentPreference(
+  metadata: Record<string, unknown> | null | undefined
+): PaymentPreference {
+  const preference = getMetadataRecord(metadata, "employee_payment_preference");
+
+  const method =
+    typeof preference.method === "string" && preference.method.trim()
+      ? preference.method
+      : "company_method";
+
+  const methodLabel =
+    typeof preference.method_label === "string" && preference.method_label.trim()
+      ? preference.method_label
+      : formatLabel(method);
+
+  return {
+    method,
+    method_label: methodLabel,
+    instructions:
+      typeof preference.instructions === "string" && preference.instructions.trim()
+        ? preference.instructions
+        : null,
+    contact:
+      typeof preference.contact === "string" && preference.contact.trim()
+        ? preference.contact
+        : null,
+    note:
+      typeof preference.note === "string" && preference.note.trim()
+        ? preference.note
+        : "Employee-provided payment preference only. This is not a company bank account selection.",
+  };
+}
 function getStatusToneClasses(value: string | null | undefined) {
   const tone = statusToneMap[value ?? ""] ?? "slate";
 
@@ -764,6 +817,10 @@ export default function FinancePayrollReviewDetailPage() {
     return getEmployeeLabel(employee, profileMap);
   }, [employee, profileMap]);
 
+  const paymentPreference = useMemo(() => {
+    return resolvePaymentPreference(request?.metadata);
+  }, [request?.metadata]);
+
   const confirmedDistributionIdSet = useMemo(() => {
     return new Set(
       distributions
@@ -954,9 +1011,19 @@ export default function FinancePayrollReviewDetailPage() {
         value: formatDate(request.requested_pay_date),
       },
       {
-        label: "Employee Bank",
-        value: getBankLabel(bankAccount),
-        detail: getBankIdentifier(bankAccount) || undefined,
+        label: "Payment Preference",
+        value: paymentPreference.method_label,
+        detail: paymentPreference.note || undefined,
+      },
+      {
+        label: "Transfer Instructions",
+        value: paymentPreference.instructions || "—",
+        detail: "Employee-provided receiving instructions for Finance/Admin review.",
+      },
+      {
+        label: "Transfer Contact",
+        value: paymentPreference.contact || "—",
+        detail: "Optional employee-provided contact or confirmation channel.",
       },
       {
         label: "Request Reference",
@@ -967,7 +1034,7 @@ export default function FinancePayrollReviewDetailPage() {
         value: request.notes || "—",
       },
     ];
-  }, [bankAccount, company, employeeLabel, employeeName, request]);
+  }, [company, employeeLabel, employeeName, paymentPreference, request]);
 
   const amountDetails = useMemo<DetailItem[]>(() => {
     if (!request) return [];
@@ -1916,7 +1983,7 @@ export default function FinancePayrollReviewDetailPage() {
           <div className="grid gap-6">
             <SectionCard
               title="Paycheck Request Overview"
-              description="Employee identity, payroll period, request reference, and bank destination."
+              description="Employee identity, payroll period, request reference, and employee payment preference."
               icon={Building2}
             >
               <DetailGrid items={requestDetails} />
@@ -2289,16 +2356,16 @@ export default function FinancePayrollReviewDetailPage() {
 
             <SectionCard
               title="Employee Context"
-              description="Requester identity and bank destination."
+              description="Requester identity and employee-provided payment preference."
               icon={UserRound}
             >
               <div className="grid gap-3">
                 <ValueBlock label="Employee" value={employeeName} detail={employeeLabel} />
                 <ValueBlock label="Company" value={getCompanyName(company)} />
                 <ValueBlock
-                  label="Requested Bank"
-                  value={getBankLabel(bankAccount)}
-                  detail={getBankIdentifier(bankAccount) || undefined}
+                  label="Payment Preference"
+                  value={paymentPreference.method_label}
+                  detail={paymentPreference.instructions || paymentPreference.note || undefined}
                 />
                 <ValueBlock
                   label="Requested Pay Date"

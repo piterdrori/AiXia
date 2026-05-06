@@ -5,7 +5,6 @@ import type { LucideIcon } from "lucide-react";
 import {
   ArrowRight,
   BadgeAlert,
-  BarChart3,
   BriefcaseBusiness,
   CheckCircle2,
   CircleDollarSign,
@@ -22,7 +21,6 @@ import {
   TrendingDown,
   TrendingUp,
   UserRound,
-  Users,
   Wallet,
 } from "lucide-react";
 

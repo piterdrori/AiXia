@@ -78,6 +78,13 @@ type PermissionState = {
   isAdmin: boolean;
 };
 
+type CompanyCurrencyReference = {
+  id: string;
+  code: string | null;
+  company_code: string | null;
+  currency_code: string | null;
+};
+
 const EMPTY_PERMISSION_STATE: PermissionState = {
   canRead: false,
   canCreate: false,
@@ -119,6 +126,16 @@ function getIdentifierLabel(row: FinanceBankAccountListRow) {
 function getLocationLabel(row: FinanceBankAccountListRow) {
   const parts = [row.city, row.country].filter(Boolean);
   return parts.length > 0 ? parts.join(", ") : "—";
+}
+
+function getCorrelatedCurrencyLabel(
+  row: FinanceBankAccountListRow,
+  companyCurrencyByCode: Map<string, string>
+) {
+  const companyCode = row.company_code || "";
+  const companyCurrency = companyCurrencyByCode.get(companyCode);
+
+  return companyCurrency || row.currency_code || "—";
 }
 
 function getStatusTone(status: string | null | undefined) {
@@ -484,6 +501,9 @@ export default function FinanceMasterDataBankAccountsPage() {
     useState<Record<Permission, boolean> | null>(null);
   const [rows, setRows] = useState<FinanceBankAccountListRow[]>([]);
   const [archivedRows, setArchivedRows] = useState<FinanceBankAccountListRow[]>([]);
+  const [companyCurrencyReferences, setCompanyCurrencyReferences] = useState<
+    CompanyCurrencyReference[]
+  >([]);
   const [search, setSearch] = useState("");
   const [archiveSearch, setArchiveSearch] = useState("");
   const [showArchive, setShowArchive] = useState(false);
@@ -575,6 +595,21 @@ export default function FinanceMasterDataBankAccountsPage() {
     }
   }, []);
 
+  const loadCompanyCurrencyReferences = useCallback(async () => {
+    try {
+      const { data, error } = await supabase
+        .from("finance_companies")
+        .select("id, code, company_code, currency_code");
+
+      if (error) throw error;
+
+      setCompanyCurrencyReferences((data ?? []) as CompanyCurrencyReference[]);
+    } catch (error) {
+      console.error("Failed to load company currency references:", error);
+      setCompanyCurrencyReferences([]);
+    }
+  }, []);
+
   const loadArchivedRows = useCallback(async (mode: "initial" | "silent" = "initial") => {
     if (mode === "initial") {
       setIsLoadingArchive(true);
@@ -601,8 +636,9 @@ export default function FinanceMasterDataBankAccountsPage() {
     void Promise.all([
       loadCurrentProfile("initial"),
       loadRows("initial"),
+      loadCompanyCurrencyReferences(),
     ]);
-  }, [loadCurrentProfile, loadRows]);
+  }, [loadCompanyCurrencyReferences, loadCurrentProfile, loadRows]);
 
   useEffect(() => {
     const channel = supabase
@@ -630,12 +666,22 @@ export default function FinanceMasterDataBankAccountsPage() {
           if (showArchive) void loadArchivedRows("silent");
         }
       )
+      .on(
+        "postgres_changes",
+        { event: "*", schema: "public", table: "finance_companies" },
+        () => {
+          void loadCompanyCurrencyReferences();
+          void loadRows("silent");
+          if (showArchive) void loadArchivedRows("silent");
+        }
+      )
       .subscribe();
 
     const intervalId = window.setInterval(() => {
       void Promise.all([
         loadCurrentProfile("silent"),
         loadRows("silent"),
+        loadCompanyCurrencyReferences(),
         showArchive ? loadArchivedRows("silent") : Promise.resolve(),
       ]);
     }, 60000);
@@ -644,7 +690,7 @@ export default function FinanceMasterDataBankAccountsPage() {
       window.clearInterval(intervalId);
       supabase.removeChannel(channel);
     };
-  }, [loadArchivedRows, loadCurrentProfile, loadRows, showArchive]);
+  }, [loadArchivedRows, loadCompanyCurrencyReferences, loadCurrentProfile, loadRows, showArchive]);
 
   const visibleRows = useMemo(() => {
     return rows.filter((row) => row.status !== "archived");
@@ -659,6 +705,24 @@ export default function FinanceMasterDataBankAccountsPage() {
       defaultAccounts: visibleRows.filter((row) => row.is_default).length,
     };
   }, [rows, visibleRows]);
+
+  const companyCurrencyByCode = useMemo(() => {
+    const map = new Map<string, string>();
+
+    companyCurrencyReferences.forEach((company) => {
+      if (!company.currency_code) return;
+
+      if (company.code) {
+        map.set(company.code, company.currency_code);
+      }
+
+      if (company.company_code) {
+        map.set(company.company_code, company.currency_code);
+      }
+    });
+
+    return map;
+  }, [companyCurrencyReferences]);
 
   const filteredRows = useMemo(() => {
     const normalizedSearch = search.trim().toLowerCase();
@@ -676,7 +740,7 @@ export default function FinanceMasterDataBankAccountsPage() {
           row.bank_name,
           row.city,
           row.country,
-          row.currency_code,
+          getCorrelatedCurrencyLabel(row, companyCurrencyByCode),
           row.status,
         ]
           .filter(Boolean)
@@ -698,7 +762,10 @@ export default function FinanceMasterDataBankAccountsPage() {
         }
 
         if (sortKey === "currency") {
-          comparison = compareStrings(first.currency_code, second.currency_code);
+          comparison = compareStrings(
+            getCorrelatedCurrencyLabel(first, companyCurrencyByCode),
+            getCorrelatedCurrencyLabel(second, companyCurrencyByCode)
+          );
         }
 
         if (sortKey === "status") {
@@ -718,7 +785,7 @@ export default function FinanceMasterDataBankAccountsPage() {
 
         return sortDirection === "asc" ? comparison : -comparison;
       });
-  }, [search, sortDirection, sortKey, visibleRows]);
+  }, [companyCurrencyByCode, search, sortDirection, sortKey, visibleRows]);
 
   const filteredArchivedRows = useMemo(() => {
     const normalizedSearch = archiveSearch.trim().toLowerCase();
@@ -736,7 +803,7 @@ export default function FinanceMasterDataBankAccountsPage() {
           row.bank_name,
           row.city,
           row.country,
-          row.currency_code,
+          getCorrelatedCurrencyLabel(row, companyCurrencyByCode),
           row.status,
         ]
           .filter(Boolean)
@@ -748,7 +815,7 @@ export default function FinanceMasterDataBankAccountsPage() {
           second.updated_at || second.created_at
         )
       );
-  }, [archiveSearch, archivedRows]);
+  }, [archiveSearch, archivedRows, companyCurrencyByCode]);
 
   const metricCards = useMemo<MetricCard[]>(() => {
     return [
@@ -1192,7 +1259,7 @@ export default function FinanceMasterDataBankAccountsPage() {
 
                             <td className="min-w-[130px] px-5 py-4">
                               <span className="inline-flex rounded-full border border-white/10 bg-white/[0.04] px-3 py-1 text-xs font-semibold text-white">
-                                {row.currency_code || "—"}
+                                {getCorrelatedCurrencyLabel(row, companyCurrencyByCode)}
                               </span>
                             </td>
 
@@ -1362,7 +1429,7 @@ export default function FinanceMasterDataBankAccountsPage() {
 
                             <td className="min-w-[120px] px-5 py-4">
                               <span className="inline-flex rounded-full border border-white/10 bg-white/[0.04] px-3 py-1 text-xs font-semibold text-white">
-                                {row.currency_code || "—"}
+                                {getCorrelatedCurrencyLabel(row, companyCurrencyByCode)}
                               </span>
                             </td>
 

@@ -442,8 +442,10 @@ export default function FinanceMasterDataBankAccountCreatePage() {
   const [formError, setFormError] = useState<string | null>(null);
   const [formMessage, setFormMessage] = useState<string | null>(null);
 
-  const loadCurrentProfile = useCallback(async () => {
-    setIsLoadingProfile(true);
+  const loadCurrentProfile = useCallback(async (mode: "initial" | "silent" = "initial") => {
+    if (mode === "initial") {
+      setIsLoadingProfile(true);
+    }
 
     try {
       const authResult = await supabase.auth.getUser();
@@ -486,12 +488,16 @@ export default function FinanceMasterDataBankAccountCreatePage() {
       setProfile(null);
       setEffectivePermissions(null);
     } finally {
-      setIsLoadingProfile(false);
+      if (mode === "initial") {
+        setIsLoadingProfile(false);
+      }
     }
   }, []);
 
-  const loadCompanies = useCallback(async () => {
-    setIsLoadingCompanies(true);
+  const loadCompanies = useCallback(async (mode: "initial" | "silent" = "initial") => {
+    if (mode === "initial") {
+      setIsLoadingCompanies(true);
+    }
 
     try {
       const rows = await getCompanyOptions();
@@ -522,12 +528,17 @@ export default function FinanceMasterDataBankAccountCreatePage() {
         error instanceof Error ? error.message : "Failed to load company options."
       );
     } finally {
-      setIsLoadingCompanies(false);
+      if (mode === "initial") {
+        setIsLoadingCompanies(false);
+      }
     }
   }, [searchParams]);
 
   useEffect(() => {
-    void Promise.all([loadCurrentProfile(), loadCompanies()]);
+    void Promise.all([
+      loadCurrentProfile("initial"),
+      loadCompanies("initial"),
+    ]);
   }, [loadCompanies, loadCurrentProfile]);
 
   useEffect(() => {
@@ -536,27 +547,30 @@ export default function FinanceMasterDataBankAccountCreatePage() {
       .on(
         "postgres_changes",
         { event: "*", schema: "public", table: "profiles" },
-        () => void loadCurrentProfile()
+        () => void loadCurrentProfile("silent")
       )
       .on(
         "postgres_changes",
         { event: "*", schema: "public", table: "finance_permission_templates" },
-        () => void loadCurrentProfile()
+        () => void loadCurrentProfile("silent")
       )
       .on(
         "postgres_changes",
         { event: "*", schema: "public", table: "finance_user_permission_templates" },
-        () => void loadCurrentProfile()
+        () => void loadCurrentProfile("silent")
       )
       .on(
         "postgres_changes",
         { event: "*", schema: "public", table: "finance_companies" },
-        () => void loadCompanies()
+        () => void loadCompanies("silent")
       )
       .subscribe();
 
     const intervalId = window.setInterval(() => {
-      void Promise.all([loadCurrentProfile(), loadCompanies()]);
+      void Promise.all([
+        loadCurrentProfile("silent"),
+        loadCompanies("silent"),
+      ]);
     }, 60000);
 
     return () => {

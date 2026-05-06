@@ -7,15 +7,22 @@ import {
   BriefcaseBusiness,
   CreditCard,
   FileText,
+  LockKeyhole,
   Receipt,
   ShieldCheck,
   Sparkles,
   TrendingDown,
   TrendingUp,
+  UserRound,
   Wallet,
 } from "lucide-react";
 
 import { supabase } from "@/lib/supabase";
+import {
+  getEffectivePermissions,
+  type Permission,
+  type Role,
+} from "@/lib/permissions";
 
 type TransactionMetricCard = {
   key: string;
@@ -50,6 +57,7 @@ type TransactionModuleCard = {
   count: number;
   statusLabel: string;
   lastUpdatedLabel: string;
+  isPersonalDefault?: boolean;
 };
 
 type TransactionFlowItem = {
@@ -77,8 +85,6 @@ type TransactionSection = {
   subtitle: string;
   tone: TransactionSectionTone;
   modules: TransactionFlowItem[];
-  splitLabelLeft?: string;
-  splitLabelRight?: string;
 };
 
 type FinanceInvoiceRow = {
@@ -143,6 +149,13 @@ type FinancePayrollRunRow = {
   created_at: string;
 };
 
+type CurrentUserProfile = {
+  user_id: string;
+  full_name: string | null;
+  role: Role | null;
+  permissions: Partial<Record<Permission, boolean>> | null;
+};
+
 type RecentTransactionItem = {
   id: string;
   type: string;
@@ -180,6 +193,27 @@ type TransactionsPageData = {
   recentActivity: RecentTransactionItem[];
 };
 
+type AccessFlags = {
+  hasAnyFinanceEntry: boolean;
+
+  canSeeIncomingMoney: boolean;
+  canMonitorIncomingMoney: boolean;
+
+  canSeeSupplierProcurement: boolean;
+  canMonitorSupplierProcurement: boolean;
+
+  canSeeOwnExpenses: boolean;
+  canSeeExpenseFunding: boolean;
+  canMonitorExpenseFunding: boolean;
+
+  canSeeOwnPaychecks: boolean;
+  canSeePayrollBasket: boolean;
+  canMonitorPayrollBasket: boolean;
+
+  canSeeAccessApprovals: boolean;
+  canMonitorAnyCompanyFinance: boolean;
+};
+
 type CountResult = {
   count?: number | null;
 };
@@ -210,6 +244,27 @@ const EMPTY_TRANSACTIONS_DATA: TransactionsPageData = {
     pendingApprovals: 0,
   },
   recentActivity: [],
+};
+
+const EMPTY_ACCESS_FLAGS: AccessFlags = {
+  hasAnyFinanceEntry: false,
+
+  canSeeIncomingMoney: false,
+  canMonitorIncomingMoney: false,
+
+  canSeeSupplierProcurement: false,
+  canMonitorSupplierProcurement: false,
+
+  canSeeOwnExpenses: true,
+  canSeeExpenseFunding: false,
+  canMonitorExpenseFunding: false,
+
+  canSeeOwnPaychecks: true,
+  canSeePayrollBasket: false,
+  canMonitorPayrollBasket: false,
+
+  canSeeAccessApprovals: false,
+  canMonitorAnyCompanyFinance: false,
 };
 
 function toNumber(value: number | string | null | undefined) {
@@ -254,6 +309,116 @@ function isOverdue(dueDate: string | null, balanceDue: number) {
 
 function getCount(result: CountResult) {
   return result.count ?? 0;
+}
+
+function hasPermission(
+  permissions: Record<Permission, boolean> | null,
+  permission: Permission
+) {
+  return Boolean(permissions?.[permission]);
+}
+
+function buildAccessFlags(
+  currentProfile: CurrentUserProfile | null
+): AccessFlags {
+  if (!currentProfile?.role) {
+    return EMPTY_ACCESS_FLAGS;
+  }
+
+  const permissions = getEffectivePermissions(
+    currentProfile.role,
+    currentProfile.permissions || null
+  );
+
+  const canSeeIncomingMoney =
+    hasPermission(permissions, "accessReceivables") &&
+    hasPermission(permissions, "viewReceivables");
+
+  const canMonitorIncomingMoney =
+    canSeeIncomingMoney &&
+    (hasPermission(permissions, "viewReports") ||
+      hasPermission(permissions, "viewInvoices") ||
+      hasPermission(permissions, "viewReceivedPayments"));
+
+  const canSeeSupplierProcurement =
+    hasPermission(permissions, "accessPayables") &&
+    hasPermission(permissions, "viewPayables");
+
+  const canMonitorSupplierProcurement =
+    canSeeSupplierProcurement &&
+    (hasPermission(permissions, "viewReports") ||
+      hasPermission(permissions, "viewBills") ||
+      hasPermission(permissions, "viewPaymentsMade") ||
+      hasPermission(permissions, "viewVendors"));
+
+  const canSeeOwnExpenses = true;
+
+  const canSeeExpenseFunding =
+    hasPermission(permissions, "viewTeamExpenses") ||
+    hasPermission(permissions, "approveExpenses") ||
+    hasPermission(permissions, "issueReimbursements") ||
+    hasPermission(permissions, "recordReimbursementPayments");
+
+  const canMonitorExpenseFunding =
+    canSeeExpenseFunding &&
+    (hasPermission(permissions, "viewReports") ||
+      hasPermission(permissions, "viewTeamExpenses") ||
+      hasPermission(permissions, "viewPaymentsMade"));
+
+  const canSeeOwnPaychecks = true;
+
+  const canSeePayrollBasket =
+    hasPermission(permissions, "viewAllPaychecks") ||
+    hasPermission(permissions, "viewPayroll") ||
+    hasPermission(permissions, "createPayrollRuns") ||
+    hasPermission(permissions, "editPayrollRuns") ||
+    hasPermission(permissions, "approvePayroll") ||
+    hasPermission(permissions, "processPayrollPayments");
+
+  const canMonitorPayrollBasket =
+    canSeePayrollBasket &&
+    (hasPermission(permissions, "viewReports") ||
+      hasPermission(permissions, "viewAllPaychecks") ||
+      hasPermission(permissions, "viewPayroll"));
+
+  const canSeeAccessApprovals = hasPermission(permissions, "manageUsers");
+
+  const canMonitorAnyCompanyFinance =
+    canMonitorIncomingMoney ||
+    canMonitorSupplierProcurement ||
+    canMonitorExpenseFunding ||
+    canMonitorPayrollBasket ||
+    canSeeAccessApprovals;
+
+  const hasAnyFinanceEntry =
+    canSeeIncomingMoney ||
+    canSeeSupplierProcurement ||
+    canSeeOwnExpenses ||
+    canSeeExpenseFunding ||
+    canSeeOwnPaychecks ||
+    canSeePayrollBasket ||
+    canSeeAccessApprovals;
+
+  return {
+    hasAnyFinanceEntry,
+
+    canSeeIncomingMoney,
+    canMonitorIncomingMoney,
+
+    canSeeSupplierProcurement,
+    canMonitorSupplierProcurement,
+
+    canSeeOwnExpenses,
+    canSeeExpenseFunding,
+    canMonitorExpenseFunding,
+
+    canSeeOwnPaychecks,
+    canSeePayrollBasket,
+    canMonitorPayrollBasket,
+
+    canSeeAccessApprovals,
+    canMonitorAnyCompanyFinance,
+  };
 }
 
 async function safeCount(tableName: string): Promise<CountResult> {
@@ -444,7 +609,13 @@ function TransactionFlowModule({
           </div>
 
           <div className="flex items-center gap-3">
-            <span className="rounded-full border border-white/10 bg-white/[0.08] px-2.5 py-1 text-[10px] text-white/70">
+            <span
+              className={`rounded-full border px-2.5 py-1 text-[10px] ${
+                item.module.isPersonalDefault
+                  ? "border-cyan-400/20 bg-cyan-500/10 text-cyan-200"
+                  : "border-white/10 bg-white/[0.08] text-white/70"
+              }`}
+            >
               {item.module.statusLabel}
             </span>
             <ArrowRight
@@ -478,7 +649,7 @@ function TransactionFlowModule({
 
           <div className="text-right">
             <div className="text-[10px] uppercase tracking-[0.18em] text-white/32">
-              Updated
+              Access
             </div>
             <div className="mt-1 text-[12px] text-white/58">
               {item.module.lastUpdatedLabel}
@@ -646,17 +817,70 @@ function HeaderStatusCard({
   );
 }
 
+function AccessBlockedPanel() {
+  return (
+    <div className="rounded-[30px] border border-amber-400/20 bg-[radial-gradient(circle_at_top_left,rgba(245,158,11,0.14),rgba(255,255,255,0.045)_48%)] p-6 backdrop-blur-xl">
+      <div className="flex flex-col gap-4 md:flex-row md:items-center">
+        <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-2xl border border-amber-400/20 bg-amber-500/10 text-amber-200">
+          <LockKeyhole className="h-5 w-5" />
+        </div>
+
+        <div>
+          <div className="text-lg font-semibold text-white">
+            No company transaction modules are enabled
+          </div>
+          <div className="mt-2 max-w-3xl text-sm leading-6 text-slate-400">
+            You can still use your own allowed personal flows, such as your own
+            expenses/reimbursements and paycheck requests. Company-level finance modules
+            appear here only after an Admin enables the related Access Approval section.
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+}
+
 export default function FinanceTransactionsPage() {
   const navigate = useNavigate();
   const [data, setData] = useState<TransactionsPageData>(
     EMPTY_TRANSACTIONS_DATA
   );
+  const [currentProfile, setCurrentProfile] = useState<CurrentUserProfile | null>(
+    null
+  );
   const [isLoading, setIsLoading] = useState(true);
+
+  const accessFlags = useMemo(() => {
+    return buildAccessFlags(currentProfile);
+  }, [currentProfile]);
+
+  const loadCurrentProfile = useCallback(async () => {
+    const authResult = await supabase.auth.getUser();
+    if (authResult.error) throw authResult.error;
+
+    const authUserId = authResult.data.user?.id;
+    if (!authUserId) {
+      setCurrentProfile(null);
+      return;
+    }
+
+    const profileResult = await supabase
+      .from("profiles")
+      .select("user_id, full_name, role, permissions")
+      .eq("user_id", authUserId)
+      .maybeSingle();
+
+    if (profileResult.error) throw profileResult.error;
+
+    setCurrentProfile((profileResult.data || null) as CurrentUserProfile | null);
+  }, []);
 
   const loadTransactionsData = useCallback(async () => {
     setIsLoading(true);
 
     try {
+      await loadCurrentProfile();
+
       const [
         invoicesResult,
         billsResult,
@@ -865,7 +1089,7 @@ export default function FinanceTransactionsPage() {
     } finally {
       setIsLoading(false);
     }
-  }, []);
+  }, [loadCurrentProfile]);
 
   useEffect(() => {
     void loadTransactionsData();
@@ -927,49 +1151,69 @@ export default function FinanceTransactionsPage() {
   }, [loadTransactionsData]);
 
   const metricCards = useMemo<TransactionMetricCard[]>(() => {
-    return [
-      {
+    const cards: TransactionMetricCard[] = [];
+
+    if (accessFlags.canMonitorIncomingMoney) {
+      cards.push({
         key: "receivables",
         title: "Receivables",
         value: isLoading ? "—" : `$${formatMoney(data.totals.receivables)}`,
         subtitle: `${formatCount(data.counts.invoices)} invoice records`,
         icon: Wallet,
         tone: "emerald",
-      },
-      {
+      });
+    }
+
+    if (accessFlags.canMonitorSupplierProcurement) {
+      cards.push({
         key: "payables",
         title: "Payables",
         value: isLoading ? "—" : `$${formatMoney(data.totals.payables)}`,
         subtitle: `${formatCount(data.counts.bills)} bill records`,
         icon: Receipt,
         tone: "amber",
-      },
-      {
+      });
+    }
+
+    if (accessFlags.canMonitorIncomingMoney) {
+      cards.push({
         key: "payments-in",
         title: "Payments In",
         value: isLoading ? "—" : `$${formatMoney(data.totals.paymentsIn)}`,
         subtitle: `${formatCount(data.counts.paymentsReceived)} incoming payments`,
         icon: CreditCard,
         tone: "cyan",
-      },
-      {
+      });
+    }
+
+    if (
+      accessFlags.canMonitorSupplierProcurement ||
+      accessFlags.canMonitorExpenseFunding ||
+      accessFlags.canMonitorPayrollBasket
+    ) {
+      cards.push({
         key: "payments-out",
         title: "Payments Out",
         value: isLoading ? "—" : `$${formatMoney(data.totals.paymentsOut)}`,
         subtitle: `${formatCount(data.counts.paymentsMade)} outgoing payments`,
         icon: CreditCard,
         tone: "rose",
-      },
-      {
+      });
+    }
+
+    if (accessFlags.canSeeAccessApprovals) {
+      cards.push({
         key: "approvals",
         title: "Access Approvals",
         value: isLoading ? "—" : formatCount(data.alerts.pendingApprovals),
         subtitle: "Users waiting for access review",
         icon: ShieldCheck,
         tone: "violet",
-      },
-    ];
-  }, [data, isLoading]);
+      });
+    }
+
+    return cards;
+  }, [accessFlags, data, isLoading]);
 
   const allModuleCards = useMemo<
     Record<TransactionModuleKey, TransactionModuleCard>
@@ -984,7 +1228,7 @@ export default function FinanceTransactionsPage() {
         icon: FileText,
         count: 0,
         statusLabel: "Live",
-        lastUpdatedLabel: "Ready",
+        lastUpdatedLabel: "Company",
       },
       "customer-pos": {
         key: "customer-pos",
@@ -995,7 +1239,7 @@ export default function FinanceTransactionsPage() {
         icon: FileText,
         count: 0,
         statusLabel: "Live",
-        lastUpdatedLabel: "Live",
+        lastUpdatedLabel: "Company",
       },
       "vendor-quotations": {
         key: "vendor-quotations",
@@ -1006,7 +1250,7 @@ export default function FinanceTransactionsPage() {
         icon: FileText,
         count: 0,
         statusLabel: "Route ready",
-        lastUpdatedLabel: "Ready",
+        lastUpdatedLabel: "Company",
       },
       invoices: {
         key: "invoices",
@@ -1017,7 +1261,7 @@ export default function FinanceTransactionsPage() {
         icon: FileText,
         count: data.counts.invoices,
         statusLabel: "Live",
-        lastUpdatedLabel: "Live",
+        lastUpdatedLabel: "Company",
       },
       bills: {
         key: "bills",
@@ -1028,7 +1272,7 @@ export default function FinanceTransactionsPage() {
         icon: Receipt,
         count: data.counts.bills,
         statusLabel: "Live",
-        lastUpdatedLabel: "Live",
+        lastUpdatedLabel: "Company",
       },
       "proforma-invoices": {
         key: "proforma-invoices",
@@ -1039,18 +1283,19 @@ export default function FinanceTransactionsPage() {
         icon: FileText,
         count: data.counts.proformaInvoices,
         statusLabel: data.counts.proformaInvoices > 0 ? "Live" : "Later",
-        lastUpdatedLabel: data.counts.proformaInvoices > 0 ? "Live" : "Pending",
+        lastUpdatedLabel: "Company",
       },
       expenses: {
         key: "expenses",
         title: "Expenses & Reimbursements",
         description:
-          "Planned expense approvals and reimbursement requests handled in one workflow.",
+          "Create, edit, submit, upload, and confirm your own expenses and reimbursement requests.",
         route: "/finance/transactions/expenses",
         icon: Receipt,
         count: data.counts.expenses,
-        statusLabel: "Live",
-        lastUpdatedLabel: "Live",
+        statusLabel: "Own access",
+        lastUpdatedLabel: "Personal",
+        isPersonalDefault: true,
       },
       "payments-made": {
         key: "payments-made",
@@ -1060,8 +1305,8 @@ export default function FinanceTransactionsPage() {
         route: "/finance/transactions/expenses-payments-made",
         icon: CreditCard,
         count: data.counts.paymentsMade,
-        statusLabel: "Live",
-        lastUpdatedLabel: "Live",
+        statusLabel: "Company",
+        lastUpdatedLabel: "Company",
       },
       "payments-received": {
         key: "payments-received",
@@ -1072,7 +1317,7 @@ export default function FinanceTransactionsPage() {
         icon: CreditCard,
         count: data.counts.paymentsReceived,
         statusLabel: "Live",
-        lastUpdatedLabel: "Live",
+        lastUpdatedLabel: "Company",
       },
       approvals: {
         key: "approvals",
@@ -1083,7 +1328,7 @@ export default function FinanceTransactionsPage() {
         icon: ShieldCheck,
         count: data.counts.approvals,
         statusLabel: "Admin",
-        lastUpdatedLabel: "Live",
+        lastUpdatedLabel: "Admin",
       },
       "purchase-orders": {
         key: "purchase-orders",
@@ -1094,18 +1339,19 @@ export default function FinanceTransactionsPage() {
         icon: FileText,
         count: data.counts.purchaseOrders,
         statusLabel: data.counts.purchaseOrders > 0 ? "Live" : "Route ready",
-        lastUpdatedLabel: data.counts.purchaseOrders > 0 ? "Live" : "Ready",
+        lastUpdatedLabel: "Company",
       },
       "paycheck-requests": {
         key: "paycheck-requests",
         title: "Paycheck Requests",
         description:
-          "Employee paycheck request intake, signed form review, approval, and employee confirmation.",
+          "Create, edit, submit, upload, and confirm your own paycheck requests.",
         route: "/finance/transactions/paycheck-requests",
         icon: FileText,
         count: data.counts.paycheckRequests,
-        statusLabel: "Live",
-        lastUpdatedLabel: "Live",
+        statusLabel: "Own access",
+        lastUpdatedLabel: "Personal",
+        isPersonalDefault: true,
       },
       payroll: {
         key: "payroll",
@@ -1115,16 +1361,18 @@ export default function FinanceTransactionsPage() {
         route: "/finance/transactions/payroll",
         icon: BriefcaseBusiness,
         count: data.counts.payrollRuns,
-        statusLabel: "Live",
-        lastUpdatedLabel: "Live",
+        statusLabel: "Company",
+        lastUpdatedLabel: "Company",
       },
     }),
     [data]
   );
 
   const transactionSections = useMemo<TransactionSection[]>(() => {
-    return [
-      {
+    const sections: TransactionSection[] = [];
+
+    if (accessFlags.canSeeIncomingMoney) {
+      sections.push({
         key: "incoming",
         title: "Incoming Money Flow",
         subtitle:
@@ -1137,8 +1385,11 @@ export default function FinanceTransactionsPage() {
           { module: allModuleCards.invoices, sequenceLabel: "04" },
           { module: allModuleCards["payments-received"], sequenceLabel: "05" },
         ],
-      },
-      {
+      });
+    }
+
+    if (accessFlags.canSeeSupplierProcurement) {
+      sections.push({
         key: "procurement",
         title: "Supplier Procurement Flow",
         subtitle:
@@ -1158,67 +1409,107 @@ export default function FinanceTransactionsPage() {
             titleOverride: "Payment Made",
           },
         ],
-      },
-      {
+      });
+    }
+
+    const expenseModules: TransactionFlowItem[] = [];
+
+    if (accessFlags.canSeeOwnExpenses) {
+      expenseModules.push({
+        module: allModuleCards.expenses,
+        sequenceLabel: "01",
+        titleOverride: "My Expense / Reimbursement Requests",
+        descriptionOverride:
+          "Default own access: create, edit, submit, upload, and confirm your own expense and reimbursement records.",
+      });
+    }
+
+    if (accessFlags.canSeeExpenseFunding) {
+      expenseModules.push({
+        module: allModuleCards["payments-made"],
+        sequenceLabel: "02",
+        titleOverride: "Funding Pool / Payment Distribution",
+        descriptionOverride:
+          "Finance/Admin execution area for expense funding pools, payment distribution, proof review, and recipient confirmation monitoring.",
+      });
+    }
+
+    if (expenseModules.length > 0) {
+      sections.push({
         key: "operating-expenses",
         title: "Expenses & Reimbursements Flow",
         subtitle:
-          "Planned expense requests and reimbursement requests handled together through proof review, funding pool allocation, payment distribution, and recipient confirmation.",
+          accessFlags.canSeeExpenseFunding
+            ? "Personal expense/reimbursement access plus Finance/Admin funding and payment execution if enabled."
+            : "Personal expense and reimbursement requests. Company funding/payment execution is hidden until Admin enables it.",
         tone: "expense",
-        modules: [
-          {
-            module: allModuleCards.expenses,
-            sequenceLabel: "01",
-            titleOverride: "Expense / Reimbursement Request",
-            descriptionOverride:
-              "Planned expenses request approval before spending. Reimbursements are submitted after personal payment with proof.",
-          },
-          {
-            module: allModuleCards["payments-made"],
-            sequenceLabel: "02",
-            titleOverride: "Funding Pool / Payment Distribution",
-            descriptionOverride:
-              "Finance allocates monthly funds and distributes payments across verified expenses and reimbursements.",
-          },
-        ],
-      },
-      {
+        modules: expenseModules,
+      });
+    }
+
+    const payrollModules: TransactionFlowItem[] = [];
+
+    if (accessFlags.canSeeOwnPaychecks) {
+      payrollModules.push({
+        module: allModuleCards["paycheck-requests"],
+        sequenceLabel: "01",
+        titleOverride: "My Paycheck Requests",
+        descriptionOverride:
+          "Default own access: create, edit, submit, upload, and confirm your own paycheck request records.",
+      });
+    }
+
+    if (accessFlags.canSeePayrollBasket) {
+      payrollModules.push({
+        module: allModuleCards.payroll,
+        sequenceLabel: "02",
+        titleOverride: "Payroll Fund Basket",
+        descriptionOverride:
+          "Finance/Admin payroll funding pool, linked approved paycheck requests, payment distribution, and employee confirmation monitoring.",
+      });
+    }
+
+    if (payrollModules.length > 0) {
+      sections.push({
         key: "internal-flows",
         title: "Internal Finance Flows",
         subtitle:
-          "Employee paycheck requests, signed form review, payroll fund basket allocation, per-paycheck payment execution, and employee confirmation.",
+          accessFlags.canSeePayrollBasket
+            ? "Personal paycheck requests plus Finance/Admin payroll fund basket execution if enabled."
+            : "Personal paycheck requests. Payroll fund basket execution is hidden until Admin enables it.",
         tone: "internal",
-        modules: [
-          {
-            module: allModuleCards["paycheck-requests"],
-            sequenceLabel: "01",
-            titleOverride: "Paycheck Requests",
-            descriptionOverride:
-              "Employees submit paycheck requests with signed forms. Finance reviews, approves, rejects, or requests correction.",
-          },
-          {
-            module: allModuleCards.payroll,
-            sequenceLabel: "02",
-            titleOverride: "Payroll Fund Basket",
-            descriptionOverride:
-              "Finance allocates a payroll funding basket, links approved paycheck requests, and records per-paycheck payments.",
-          },
-        ],
-      },
-      {
+        modules: payrollModules,
+      });
+    }
+
+    if (accessFlags.canSeeAccessApprovals) {
+      sections.push({
         key: "control",
         title: "Control & Other",
         subtitle:
           "Admin-only access approval and company-level permission control.",
         tone: "control",
         modules: [{ module: allModuleCards.approvals, sequenceLabel: "01" }],
-      },
-    ];
-  }, [allModuleCards]);
+      });
+    }
+
+    return sections;
+  }, [accessFlags, allModuleCards]);
 
   const recentActivity = useMemo(() => {
-    return [...data.recentActivity];
-  }, [data.recentActivity]);
+    if (accessFlags.canMonitorAnyCompanyFinance) {
+      return [...data.recentActivity].filter((item) => {
+        if (item.type === "Invoice") return accessFlags.canMonitorIncomingMoney;
+        if (item.type === "Bill") return accessFlags.canMonitorSupplierProcurement;
+        if (item.type === "Expense") return accessFlags.canMonitorExpenseFunding;
+        if (item.type === "Payroll") return accessFlags.canMonitorPayrollBasket;
+        if (item.type === "Access Approval") return accessFlags.canSeeAccessApprovals;
+        return false;
+      });
+    }
+
+    return [];
+  }, [accessFlags, data.recentActivity]);
 
   const headerStatusCards = useMemo(() => {
     return [
@@ -1230,21 +1521,23 @@ export default function FinanceTransactionsPage() {
         tone: "emerald" as const,
       },
       {
-        label: "Money In",
-        value: `$${formatMoney(data.totals.paymentsIn)}`,
-        detail: `${formatCount(data.counts.paymentsReceived)} incoming payments`,
-        icon: TrendingUp,
+        label: "Personal Access",
+        value: "Enabled",
+        detail: "Own expenses and paycheck requests are available by default.",
+        icon: UserRound,
         tone: "cyan" as const,
       },
       {
-        label: "Money Out",
-        value: `$${formatMoney(data.totals.paymentsOut)}`,
-        detail: `${formatCount(data.counts.paymentsMade)} outgoing payments`,
-        icon: TrendingDown,
+        label: "Company Modules",
+        value: `${formatCount(
+          transactionSections.filter((section) => section.modules.some((item) => !item.module.isPersonalDefault)).length
+        )}`,
+        detail: "Company-level sections enabled for this user.",
+        icon: LockKeyhole,
         tone: "amber" as const,
       },
     ];
-  }, [data, isLoading]);
+  }, [isLoading, transactionSections]);
 
   const openRoute = useCallback(
     (route: string) => {
@@ -1273,7 +1566,7 @@ export default function FinanceTransactionsPage() {
 
                 <div className="inline-flex w-fit items-center gap-2 rounded-full border border-cyan-400/20 bg-cyan-500/10 px-3 py-1 text-[11px] font-semibold uppercase tracking-[0.22em] text-cyan-200">
                   <Sparkles className="h-3.5 w-3.5" />
-                  Transactions Control Center
+                  Permission-Aware Transactions
                 </div>
 
                 <h1 className="mt-4 text-3xl font-semibold tracking-[-0.035em] text-white md:text-5xl">
@@ -1281,18 +1574,18 @@ export default function FinanceTransactionsPage() {
                 </h1>
 
                 <p className="mt-3 max-w-4xl text-sm leading-6 text-slate-400 md:text-base md:leading-7">
-                  A structured operations layer for incoming money, supplier
-                  procurement, expenses and reimbursements, payroll, payments,
-                  access approvals, and transaction control.
+                  This page only shows transaction areas available to the logged-in user.
+                  Personal expense and paycheck request access is enabled by default.
+                  Company-level workflows appear only when Access Approvals permits them.
                 </p>
               </div>
 
               <div className="mt-5 flex flex-wrap gap-2">
                 <div className="rounded-full border border-emerald-400/20 bg-emerald-500/10 px-3 py-1 text-[11px] font-semibold uppercase tracking-[0.16em] text-emerald-200">
-                  Live backend
+                  Own records enabled
                 </div>
                 <div className="rounded-full border border-cyan-400/20 bg-cyan-500/10 px-3 py-1 text-[11px] font-semibold uppercase tracking-[0.16em] text-cyan-200">
-                  Original flow sizing
+                  Company access filtered
                 </div>
                 <div className="rounded-full border border-slate-400/20 bg-slate-500/10 px-3 py-1 text-[11px] font-semibold uppercase tracking-[0.16em] text-slate-300">
                   Auto refresh
@@ -1315,168 +1608,218 @@ export default function FinanceTransactionsPage() {
           </div>
         </header>
 
-        <section className="grid gap-4 md:grid-cols-2 xl:grid-cols-5">
-          {metricCards.map((metric) => (
-            <TransactionMetric key={metric.key} metric={metric} />
-          ))}
-        </section>
+        {metricCards.length > 0 ? (
+          <section className="grid gap-4 md:grid-cols-2 xl:grid-cols-5">
+            {metricCards.map((metric) => (
+              <TransactionMetric key={metric.key} metric={metric} />
+            ))}
+          </section>
+        ) : null}
 
         <section className="grid items-start gap-6 xl:grid-cols-[minmax(0,1fr)_430px]">
           <div className="grid min-h-0 gap-6">
-            {transactionSections.map((section) => (
-              <TransactionFlowSection
-                key={section.key}
-                section={section}
-                onOpen={openRoute}
-              />
-            ))}
+            {transactionSections.length > 0 ? (
+              transactionSections.map((section) => (
+                <TransactionFlowSection
+                  key={section.key}
+                  section={section}
+                  onOpen={openRoute}
+                />
+              ))
+            ) : (
+              <AccessBlockedPanel />
+            )}
 
-            <div className="overflow-hidden rounded-[30px] border border-cyan-400/15 bg-[radial-gradient(circle_at_top,rgba(6,182,212,0.18),rgba(3,7,18,0.94)_58%)]">
-              <div className="flex items-start justify-between gap-4 border-b border-white/10 px-5 py-4">
-                <div>
-                  <div className="text-sm font-semibold uppercase tracking-[0.18em] text-cyan-200">
-                    Transaction Readiness
+            {accessFlags.canMonitorAnyCompanyFinance ? (
+              <div className="overflow-hidden rounded-[30px] border border-cyan-400/15 bg-[radial-gradient(circle_at_top,rgba(6,182,212,0.18),rgba(3,7,18,0.94)_58%)]">
+                <div className="flex items-start justify-between gap-4 border-b border-white/10 px-5 py-4">
+                  <div>
+                    <div className="text-sm font-semibold uppercase tracking-[0.18em] text-cyan-200">
+                      Transaction Readiness
+                    </div>
+                    <p className="mt-1 text-xs leading-5 text-slate-400">
+                      Company-level monitoring appears only for enabled Access Approval sections.
+                    </p>
                   </div>
-                  <p className="mt-1 text-xs leading-5 text-slate-400">
-                    Monitor receivables, payables, payment movement, and access
-                    review pressure across the transaction layer.
-                  </p>
+
+                  <div className="rounded-2xl border border-cyan-400/20 bg-cyan-500/10 p-3 text-cyan-200">
+                    <Receipt className="h-5 w-5" />
+                  </div>
                 </div>
 
-                <div className="rounded-2xl border border-cyan-400/20 bg-cyan-500/10 p-3 text-cyan-200">
-                  <Receipt className="h-5 w-5" />
+                <div className="grid gap-4 p-5 md:grid-cols-3">
+                  {accessFlags.canMonitorIncomingMoney ? (
+                    <SummaryBlock
+                      title="Open Receivables"
+                      value={`$${formatMoney(data.totals.receivables)}`}
+                      subtitle={`${formatCount(data.counts.invoices)} invoice records`}
+                    />
+                  ) : null}
+
+                  {accessFlags.canMonitorSupplierProcurement ? (
+                    <SummaryBlock
+                      title="Open Payables"
+                      value={`$${formatMoney(data.totals.payables)}`}
+                      subtitle={`${formatCount(data.counts.bills)} bill records`}
+                    />
+                  ) : null}
+
+                  {accessFlags.canSeeAccessApprovals ? (
+                    <SummaryBlock
+                      title="Access Reviews"
+                      value={formatCount(data.alerts.pendingApprovals)}
+                      subtitle="Users waiting for access approval review"
+                    />
+                  ) : null}
                 </div>
               </div>
-
-              <div className="grid gap-4 p-5 md:grid-cols-3">
-                <SummaryBlock
-                  title="Open Receivables"
-                  value={`$${formatMoney(data.totals.receivables)}`}
-                  subtitle={`${formatCount(data.counts.invoices)} invoice records`}
-                />
-                <SummaryBlock
-                  title="Open Payables"
-                  value={`$${formatMoney(data.totals.payables)}`}
-                  subtitle={`${formatCount(data.counts.bills)} bill records`}
-                />
-                <SummaryBlock
-                  title="Access Reviews"
-                  value={formatCount(data.alerts.pendingApprovals)}
-                  subtitle="Users waiting for access approval review"
-                />
-              </div>
-            </div>
+            ) : null}
           </div>
 
           <div className="sticky top-6 grid min-h-0 gap-6 self-start">
-            <TransactionsSectionCard
-              title="Control Signals"
-              description="Live transaction risks and operating blockers."
-              icon={BadgeAlert}
-            >
-              <div className="space-y-3">
-                <SummaryBlock
-                  title="Overdue Invoices"
-                  value={isLoading ? "—" : formatCount(data.alerts.overdueInvoices)}
-                  subtitle="Receivables requiring collection attention"
-                />
-                <SummaryBlock
-                  title="Overdue Bills"
-                  value={isLoading ? "—" : formatCount(data.alerts.overdueBills)}
-                  subtitle="Payables requiring payment attention"
-                />
-                <SummaryBlock
-                  title="Pending Expenses"
-                  value={isLoading ? "—" : formatCount(data.alerts.pendingExpenses)}
-                  subtitle="Expense items waiting for action"
-                />
-              </div>
-            </TransactionsSectionCard>
-
-            <TransactionsSectionCard
-              title="Recent Activity"
-              description="Latest movement across transaction objects."
-              icon={Receipt}
-            >
-              {recentActivity.length === 0 ? (
-                <div className="rounded-[28px] border border-dashed border-white/10 bg-black/20 px-6 py-12 text-center">
-                  <div className="text-sm font-medium text-white">
-                    No transaction activity found
-                  </div>
-                  <p className="mt-2 text-sm leading-6 text-slate-500">
-                    New invoices, bills, expenses, access approvals, and payroll
-                    records will appear here.
-                  </p>
-                </div>
-              ) : (
-                <div className="h-[430px] overflow-y-auto overscroll-contain rounded-[26px] border border-white/10 bg-black/20">
-                  <div className="divide-y divide-white/5">
-                    {recentActivity.map((item) => (
-                      <button
-                        key={item.id}
-                        type="button"
-                        onClick={() => {
-                          if (!item.route) return;
-                          navigate(item.route);
-                        }}
-                        className="group flex w-full items-center justify-between gap-4 px-5 py-4 text-left transition hover:bg-white/[0.045]"
-                      >
-                        <div className="min-w-0">
-                          <div className="flex min-w-0 flex-wrap items-center gap-2">
-                            <span className="rounded-full border border-cyan-400/20 bg-cyan-500/10 px-3 py-1 text-[11px] font-semibold uppercase tracking-[0.16em] text-cyan-200">
-                              {item.type}
-                            </span>
-                            <span className="truncate text-sm font-semibold text-white">
-                              {item.title}
-                            </span>
-                          </div>
-
-                          <div className="mt-2 line-clamp-1 text-sm text-slate-400">
-                            {item.subtitle}
-                          </div>
-                        </div>
-
-                        <div className="flex shrink-0 items-center gap-3">
-                          <div className="text-xs text-slate-600">
-                            {formatDateLabel(item.createdAt)}
-                          </div>
-                          <ArrowRight className="h-4 w-4 text-slate-500 transition group-hover:translate-x-1 group-hover:text-cyan-200" />
-                        </div>
-                      </button>
-                    ))}
-                  </div>
-                </div>
-              )}
-            </TransactionsSectionCard>
-
-            <TransactionsSectionCard
-              title="Access Approvals"
-              description="Admin-only user access and company-level permission control."
-              icon={ShieldCheck}
-            >
-              <button
-                type="button"
-                onClick={() => navigate("/finance/transactions/approvals")}
-                className="group flex w-full items-center justify-between gap-4 rounded-[24px] border border-white/10 bg-black/20 p-4 text-left transition hover:border-cyan-400/25 hover:bg-white/[0.055]"
+            {accessFlags.canMonitorAnyCompanyFinance ? (
+              <TransactionsSectionCard
+                title="Control Signals"
+                description="Visible only for company-level monitoring permissions."
+                icon={BadgeAlert}
               >
-                <div className="flex min-w-0 items-center gap-4">
-                  <div className="rounded-2xl border border-cyan-400/15 bg-cyan-500/10 p-3 text-cyan-200">
-                    <ShieldCheck className="h-5 w-5" />
-                  </div>
+                <div className="space-y-3">
+                  {accessFlags.canMonitorIncomingMoney ? (
+                    <SummaryBlock
+                      title="Overdue Invoices"
+                      value={isLoading ? "—" : formatCount(data.alerts.overdueInvoices)}
+                      subtitle="Receivables requiring collection attention"
+                    />
+                  ) : null}
 
-                  <div className="min-w-0">
-                    <div className="text-sm font-semibold text-white">
-                      Access Approvals
-                    </div>
-                    <div className="mt-1 text-xs leading-5 text-slate-400">
-                      {formatCount(data.alerts.pendingApprovals)} users waiting for access review
-                    </div>
-                  </div>
+                  {accessFlags.canMonitorSupplierProcurement ? (
+                    <SummaryBlock
+                      title="Overdue Bills"
+                      value={isLoading ? "—" : formatCount(data.alerts.overdueBills)}
+                      subtitle="Payables requiring payment attention"
+                    />
+                  ) : null}
+
+                  {accessFlags.canMonitorExpenseFunding ? (
+                    <SummaryBlock
+                      title="Pending Expenses"
+                      value={isLoading ? "—" : formatCount(data.alerts.pendingExpenses)}
+                      subtitle="Expense items waiting for Finance/Admin action"
+                    />
+                  ) : null}
                 </div>
+              </TransactionsSectionCard>
+            ) : null}
 
-                <ArrowRight className="h-4 w-4 shrink-0 text-slate-500 transition group-hover:translate-x-1 group-hover:text-cyan-200" />
-              </button>
-            </TransactionsSectionCard>
+            {accessFlags.canMonitorAnyCompanyFinance ? (
+              <TransactionsSectionCard
+                title="Recent Activity"
+                description="Latest movement across permitted company transaction objects."
+                icon={Receipt}
+              >
+                {recentActivity.length === 0 ? (
+                  <div className="rounded-[28px] border border-dashed border-white/10 bg-black/20 px-6 py-12 text-center">
+                    <div className="text-sm font-medium text-white">
+                      No permitted company activity found
+                    </div>
+                    <p className="mt-2 text-sm leading-6 text-slate-500">
+                      Activity appears here only for company-level sections this user can monitor.
+                    </p>
+                  </div>
+                ) : (
+                  <div className="h-[430px] overflow-y-auto overscroll-contain rounded-[26px] border border-white/10 bg-black/20">
+                    <div className="divide-y divide-white/5">
+                      {recentActivity.map((item) => (
+                        <button
+                          key={item.id}
+                          type="button"
+                          onClick={() => {
+                            if (!item.route) return;
+                            navigate(item.route);
+                          }}
+                          className="group flex w-full items-center justify-between gap-4 px-5 py-4 text-left transition hover:bg-white/[0.045]"
+                        >
+                          <div className="min-w-0">
+                            <div className="flex min-w-0 flex-wrap items-center gap-2">
+                              <span className="rounded-full border border-cyan-400/20 bg-cyan-500/10 px-3 py-1 text-[11px] font-semibold uppercase tracking-[0.16em] text-cyan-200">
+                                {item.type}
+                              </span>
+                              <span className="truncate text-sm font-semibold text-white">
+                                {item.title}
+                              </span>
+                            </div>
+
+                            <div className="mt-2 line-clamp-1 text-sm text-slate-400">
+                              {item.subtitle}
+                            </div>
+                          </div>
+
+                          <div className="flex shrink-0 items-center gap-3">
+                            <div className="text-xs text-slate-600">
+                              {formatDateLabel(item.createdAt)}
+                            </div>
+                            <ArrowRight className="h-4 w-4 text-slate-500 transition group-hover:translate-x-1 group-hover:text-cyan-200" />
+                          </div>
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+                )}
+              </TransactionsSectionCard>
+            ) : null}
+
+            {accessFlags.canSeeAccessApprovals ? (
+              <TransactionsSectionCard
+                title="Access Approvals"
+                description="Admin-only user access and company-level permission control."
+                icon={ShieldCheck}
+              >
+                <button
+                  type="button"
+                  onClick={() => navigate("/finance/transactions/approvals")}
+                  className="group flex w-full items-center justify-between gap-4 rounded-[24px] border border-white/10 bg-black/20 p-4 text-left transition hover:border-cyan-400/25 hover:bg-white/[0.055]"
+                >
+                  <div className="flex min-w-0 items-center gap-4">
+                    <div className="rounded-2xl border border-cyan-400/15 bg-cyan-500/10 p-3 text-cyan-200">
+                      <ShieldCheck className="h-5 w-5" />
+                    </div>
+
+                    <div className="min-w-0">
+                      <div className="text-sm font-semibold text-white">
+                        Access Approvals
+                      </div>
+                      <div className="mt-1 text-xs leading-5 text-slate-400">
+                        {formatCount(data.alerts.pendingApprovals)} users waiting for access review
+                      </div>
+                    </div>
+                  </div>
+
+                  <ArrowRight className="h-4 w-4 shrink-0 text-slate-500 transition group-hover:translate-x-1 group-hover:text-cyan-200" />
+                </button>
+              </TransactionsSectionCard>
+            ) : null}
+
+            {!accessFlags.canMonitorAnyCompanyFinance &&
+            !accessFlags.canSeeAccessApprovals ? (
+              <TransactionsSectionCard
+                title="Personal Access"
+                description="Default employee finance access."
+                icon={UserRound}
+              >
+                <div className="space-y-3">
+                  <SummaryBlock
+                    title="Own Expenses"
+                    value="Enabled"
+                    subtitle="Create, edit, submit, upload, and confirm your own expense/reimbursement records."
+                  />
+                  <SummaryBlock
+                    title="Own Paychecks"
+                    value="Enabled"
+                    subtitle="Create, edit, submit, upload, and confirm your own paycheck request records."
+                  />
+                </div>
+              </TransactionsSectionCard>
+            ) : null}
           </div>
         </section>
       </div>

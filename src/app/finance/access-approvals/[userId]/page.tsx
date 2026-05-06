@@ -105,18 +105,20 @@ const effectiveAccessToneMap: Record<
   "cyan" | "emerald" | "amber" | "rose" | "violet" | "slate"
 > = {
   "No Company Access": "slate",
-  "Can Open Section": "cyan",
-  "Can Monitor Company Records": "violet",
-  "Can Change Company Records": "amber",
-  "Can Operate Final Actions": "emerald",
+  "Can Read Section": "cyan",
+  "Can Create Records": "violet",
+  "Can Update Records": "amber",
+  "Can Delete / Archive": "rose",
+  "Can Approve / Execute": "emerald",
   "Admin Only": "rose",
 };
 
 const levelIconMap: Record<AccessApprovalLevel, LucideIcon> = {
-  see: Eye,
-  monitor: Search,
-  change: KeyRound,
-  operate: ShieldCheck,
+  read: Eye,
+  create: Search,
+  update: KeyRound,
+  deleteArchive: Archive,
+  approveExecute: ShieldCheck,
 };
 
 const groupIconMap: Record<AccessApprovalGroupKey, LucideIcon> = {
@@ -424,10 +426,11 @@ function getHighestAccessLabel(
   );
 
   if (labels.includes("Admin Only")) return "Admin Only";
-  if (labels.includes("Can Operate Final Actions")) return "Can Operate Final Actions";
-  if (labels.includes("Can Change Company Records")) return "Can Change Company Records";
-  if (labels.includes("Can Monitor Company Records")) return "Can Monitor Company Records";
-  if (labels.includes("Can Open Section")) return "Can Open Section";
+  if (labels.includes("Can Approve / Execute")) return "Can Approve / Execute";
+  if (labels.includes("Can Delete / Archive")) return "Can Delete / Archive";
+  if (labels.includes("Can Update Records")) return "Can Update Records";
+  if (labels.includes("Can Create Records")) return "Can Create Records";
+  if (labels.includes("Can Read Section")) return "Can Read Section";
 
   return "No Company Access";
 }
@@ -799,10 +802,11 @@ export default function FinanceAccessApprovalUserDetailPage() {
       return ACCESS_APPROVAL_SECTIONS.reduce(
         (map, section) => {
           map[section.key] = {
-            see: false,
-            monitor: false,
-            change: false,
-            operate: false,
+            read: false,
+            create: false,
+            update: false,
+            deleteArchive: false,
+            approveExecute: false,
           };
           return map;
         },
@@ -842,7 +846,9 @@ export default function FinanceAccessApprovalUserDetailPage() {
   }, [groupSummaries]);
 
   const operatorSectionCount = useMemo(() => {
-    return ACCESS_APPROVAL_SECTIONS.filter((section) => accessStates[section.key]?.operate).length;
+    return ACCESS_APPROVAL_SECTIONS.filter(
+      (section) => accessStates[section.key]?.approveExecute
+    ).length;
   }, [accessStates]);
 
   const overriddenPermissionCount = useMemo(() => {

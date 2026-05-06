@@ -379,7 +379,10 @@ function buildAccessFlags(
       hasPermission(permissions, "viewAllPaychecks") ||
       hasPermission(permissions, "viewPayroll"));
 
-  const canSeeAccessApprovals = hasPermission(permissions, "manageUsers");
+  const isAdminUser = String(currentProfile.role || "").toLowerCase() === "admin";
+
+  const canSeeAccessApprovals =
+    isAdminUser && hasPermission(permissions, "manageUsers");
 
   const canMonitorAnyCompanyFinance =
     canMonitorIncomingMoney ||

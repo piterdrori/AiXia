@@ -466,24 +466,6 @@ function getNestedMetadataString(
   return typeof value === "string" ? value : "";
 }
 
-function getMetadataNumber(
-  metadata: Record<string, unknown> | null | undefined,
-  key: string
-) {
-  const value = metadata?.[key];
-
-  if (typeof value === "number" && Number.isFinite(value)) {
-    return value;
-  }
-
-  if (typeof value === "string") {
-    const parsed = Number(value);
-    return Number.isFinite(parsed) ? parsed : null;
-  }
-
-  return null;
-}
-
 function resolvePaymentPreference(
   metadata: Record<string, unknown> | null | undefined
 ): PaymentPreference {

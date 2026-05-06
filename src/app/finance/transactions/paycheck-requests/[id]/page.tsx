@@ -239,20 +239,34 @@ type DistributionRow = {
   updated_at: string;
 };
 
-type FundingBatchRow = {
+type PaycheckHistoryRow = {
   id: string;
-  batch_number: string;
-  funding_company_id: string;
-  funding_bank_account_id: string | null;
-  allocation_date: string;
-  period_start: string | null;
-  period_end: string | null;
-  currency_code: string | null;
-  allocated_amount: number | string | null;
+  request_number: string | null;
+  reference_number: string | null;
+  employee_user_id: string;
+  employee_ref_id: string | null;
+  period_start: string;
+  period_end: string;
+  requested_pay_date: string | null;
+  requested_currency_code: string;
+  requested_gross_amount: number | string | null;
+  requested_bonus_amount: number | string | null;
+  requested_deduction_amount: number | string | null;
+  requested_reimbursement_amount: number | string | null;
+  requested_net_amount: number | string | null;
   status: string;
-  documentation_status: string | null;
-  notes: string | null;
-  metadata: Record<string, unknown> | null;
+  review_status: string;
+  documentation_status: string;
+  signed_form_status: string;
+  admin_signed_form_status: string | null;
+  payment_status: string | null;
+  paid_amount: number | string | null;
+  remaining_amount: number | string | null;
+  recipient_confirmation_status: string;
+  payment_sent_at: string | null;
+  payment_confirmed_at: string | null;
+  created_at: string;
+  updated_at: string;
 };
 
 type AttachmentRow = {
@@ -308,17 +322,6 @@ type DetailItem = {
   label: string;
   value: ReactNode;
   detail?: ReactNode;
-};
-
-type EnrichedAllocation = AllocationRow & {
-  distribution: DistributionRow | null;
-  fundingBatch: FundingBatchRow | null;
-  paymentCurrencyAmount: number;
-  paycheckCurrencyAmount: number;
-  paycheckCurrencyCode: string;
-  paymentCurrencyCode: string;
-  fundingCurrencyUsed: number;
-  fundingCurrencyCodeValue: string;
 };
 
 const BUCKET_NAME = "finance-paycheck-forms";
@@ -683,6 +686,20 @@ function getPaycheckTargetAmount(request: PaycheckRequestRow | null) {
   );
 }
 
+function getPaycheckHistoryTargetAmount(request: PaycheckHistoryRow | null) {
+  if (!request) return 0;
+
+  const explicitNet = toNumber(request.requested_net_amount);
+  if (explicitNet > 0) return explicitNet;
+
+  return (
+    toNumber(request.requested_gross_amount) +
+    toNumber(request.requested_bonus_amount) +
+    toNumber(request.requested_reimbursement_amount) -
+    toNumber(request.requested_deduction_amount)
+  );
+}
+
 function ValueBlock({
   label,
   value,
@@ -829,7 +846,7 @@ export default function PaycheckRequestDetailPage() {
   const [confirmationNotes, setConfirmationNotes] = useState("");
   const [allocations, setAllocations] = useState<AllocationRow[]>([]);
   const [distributions, setDistributions] = useState<DistributionRow[]>([]);
-  const [fundingBatches, setFundingBatches] = useState<FundingBatchRow[]>([]);
+  const [paycheckHistory, setPaycheckHistory] = useState<PaycheckHistoryRow[]>([]);
   const [attachments, setAttachments] = useState<AttachmentWithFile[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [isRefreshing, setIsRefreshing] = useState(false);
@@ -854,14 +871,6 @@ export default function PaycheckRequestDetailPage() {
   const paymentPreference = useMemo(() => {
     return resolvePaymentPreference(request?.metadata);
   }, [request?.metadata]);
-
-  const distributionMap = useMemo(() => {
-    return new Map(distributions.map((item) => [item.id, item]));
-  }, [distributions]);
-
-  const fundingBatchMap = useMemo(() => {
-    return new Map(fundingBatches.map((item) => [item.id, item]));
-  }, [fundingBatches]);
 
   const confirmedDistributionIdSet = useMemo(() => {
     return new Set(
@@ -894,58 +903,6 @@ export default function PaycheckRequestDetailPage() {
 
     return Math.max(roundMoney(targetAmount - coveredAmount), 0);
   }, [coveredAmount, request?.payment_status, request?.remaining_amount, targetAmount]);
-
-  const enrichedAllocations = useMemo<EnrichedAllocation[]>(() => {
-    return allocations.map((allocation) => {
-      const distribution = distributionMap.get(allocation.distribution_id) || null;
-      const fundingBatch = allocation.funding_batch_id
-        ? fundingBatchMap.get(allocation.funding_batch_id) || null
-        : null;
-
-      const paymentCurrencyCode = normalizeCurrencyCode(
-        getMetadataString(allocation.metadata, "payment_currency_code") ||
-          allocation.payment_currency_code ||
-          distribution?.payment_currency_code ||
-          requestCurrency
-      );
-
-      const paycheckCurrencyCode = normalizeCurrencyCode(
-        getMetadataString(allocation.metadata, "paycheck_currency_code") ||
-          allocation.currency_code ||
-          requestCurrency
-      );
-
-      const fundingCurrencyCode = normalizeCurrencyCode(
-        getMetadataString(allocation.metadata, "funding_currency_code") ||
-          allocation.funding_currency_code ||
-          fundingBatch?.currency_code ||
-          distribution?.funding_currency_code ||
-          requestCurrency
-      );
-
-      return {
-        ...allocation,
-        distribution,
-        fundingBatch,
-        paymentCurrencyAmount: toNumber(
-          getMetadataNumber(allocation.metadata, "payment_currency_amount") ??
-            allocation.converted_amount ??
-            allocation.allocated_amount
-        ),
-        paycheckCurrencyAmount: toNumber(
-          getMetadataNumber(allocation.metadata, "paycheck_currency_amount") ??
-            allocation.allocated_amount
-        ),
-        paycheckCurrencyCode,
-        paymentCurrencyCode,
-        fundingCurrencyUsed: toNumber(
-          getMetadataNumber(allocation.metadata, "funding_currency_amount_used_for_line") ??
-            allocation.funding_currency_amount
-        ),
-        fundingCurrencyCodeValue: fundingCurrencyCode,
-      };
-    });
-  }, [allocations, distributionMap, fundingBatchMap, requestCurrency]);
 
   const employeeSignedFormExists = Boolean(request && hasEmployeeSignedForm(request));
   const adminSignedFormExists = Boolean(request && hasAdminSignedForm(request));
@@ -1079,6 +1036,24 @@ export default function PaycheckRequestDetailPage() {
       },
     ];
   }, [paymentPreference]);
+
+  const paycheckHistoryRows = useMemo<PaycheckHistoryRow[]>(() => {
+    const seen = new Set<string>();
+
+    return paycheckHistory
+      .filter((historyRow) => !["archived", "deleted", "cancelled"].includes(historyRow.status))
+      .filter((historyRow) => {
+        if (seen.has(historyRow.id)) return false;
+        seen.add(historyRow.id);
+        return true;
+      })
+      .sort((first, second) => {
+        const firstDate = new Date(first.period_end || first.updated_at || first.created_at);
+        const secondDate = new Date(second.period_end || second.updated_at || second.created_at);
+
+        return secondDate.getTime() - firstDate.getTime();
+      });
+  }, [paycheckHistory]);
 
   const financeReviewItems = useMemo<DetailItem[]>(() => {
     if (!request) return [];
@@ -1331,7 +1306,7 @@ export default function PaycheckRequestDetailPage() {
           setAdminSignedFormUrl(null);
         }
 
-        const [allocationsResult, attachmentsResult] = await Promise.all([
+        const [allocationsResult, attachmentsResult, historyResult] = await Promise.all([
           supabase
             .from("finance_paycheck_payment_allocations")
             .select(
@@ -1378,24 +1353,57 @@ export default function PaycheckRequestDetailPage() {
             .in("entity_type", ["finance_paycheck_request", "finance_paycheck_document"])
             .eq("entity_id", loadedRequest.id)
             .order("created_at", { ascending: false }),
+
+          supabase
+            .from("finance_paycheck_requests")
+            .select(
+              [
+                "id",
+                "request_number",
+                "reference_number",
+                "employee_user_id",
+                "employee_ref_id",
+                "period_start",
+                "period_end",
+                "requested_pay_date",
+                "requested_currency_code",
+                "requested_gross_amount",
+                "requested_bonus_amount",
+                "requested_deduction_amount",
+                "requested_reimbursement_amount",
+                "requested_net_amount",
+                "status",
+                "review_status",
+                "documentation_status",
+                "signed_form_status",
+                "admin_signed_form_status",
+                "payment_status",
+                "paid_amount",
+                "remaining_amount",
+                "recipient_confirmation_status",
+                "payment_sent_at",
+                "payment_confirmed_at",
+                "created_at",
+                "updated_at",
+              ].join(", ")
+            )
+            .eq("employee_user_id", loadedRequest.employee_user_id)
+            .order("period_end", { ascending: false })
+            .limit(50),
         ]);
 
         if (allocationsResult.error) throw allocationsResult.error;
         if (attachmentsResult.error) throw attachmentsResult.error;
+        if (historyResult.error) throw historyResult.error;
 
         const loadedAllocations = (allocationsResult.data || []) as unknown as AllocationRow[];
         setAllocations(loadedAllocations);
+        setPaycheckHistory((historyResult.data || []) as unknown as PaycheckHistoryRow[]);
 
         const distributionIds = Array.from(
           new Set(loadedAllocations.map((item) => item.distribution_id))
         );
-        const batchIds = Array.from(
-          new Set(
-            loadedAllocations
-              .map((item) => item.funding_batch_id)
-              .filter((value): value is string => Boolean(value))
-          )
-        );
+
         const fileUploadIds = ((attachmentsResult.data || []) as AttachmentRow[]).map(
           (item) => item.file_upload_id
         );
@@ -1436,35 +1444,7 @@ export default function PaycheckRequestDetailPage() {
           setDistributions([]);
         }
 
-        if (batchIds.length > 0) {
-          const fundingBatchesResult = await supabase
-            .from("finance_paycheck_funding_batches")
-            .select(
-              [
-                "id",
-                "batch_number",
-                "funding_company_id",
-                "funding_bank_account_id",
-                "allocation_date",
-                "period_start",
-                "period_end",
-                "currency_code",
-                "allocated_amount",
-                "status",
-                "documentation_status",
-                "notes",
-                "metadata",
-              ].join(", ")
-            )
-            .in("id", batchIds);
-
-          if (fundingBatchesResult.error) throw fundingBatchesResult.error;
-          setFundingBatches((fundingBatchesResult.data || []) as unknown as FundingBatchRow[]);
-        } else {
-          setFundingBatches([]);
-        }
-
-              if (fileUploadIds.length > 0) {
+        if (fileUploadIds.length > 0) {
           const fileUploadsResult = await supabase
             .from("file_uploads")
             .select("id, file_name, file_path, file_size, mime_type, entity_type, created_at")
@@ -1519,7 +1499,7 @@ export default function PaycheckRequestDetailPage() {
           setAdminSignedFormUrl(null);
           setAllocations([]);
           setDistributions([]);
-          setFundingBatches([]);
+          setPaycheckHistory([]);
           setAttachments([]);
         }
       } finally {
@@ -2286,110 +2266,146 @@ export default function PaycheckRequestDetailPage() {
             </SectionCard>
 
             <SectionCard
-              title="Funding & Payment Distribution"
-              description="Shows Payroll Funding Pool usage and Paycheck Payment Distribution records covering this paycheck request."
+              title="Employee Paycheck Request History"
+              description="Shows paycheck requests for this same employee only. Internal funding drafts and company execution rows are hidden from this requester page."
               icon={WalletCards}
             >
-              {enrichedAllocations.length === 0 ? (
+              {paycheckHistoryRows.length === 0 ? (
                 <div className="rounded-[24px] border border-dashed border-white/10 bg-black/20 px-6 py-12 text-center">
                   <WalletCards className="mx-auto h-8 w-8 text-slate-500" />
                   <div className="mt-4 text-sm font-semibold text-white">
-                    No payment allocations yet
+                    No paycheck history found
                   </div>
                   <p className="mt-2 text-sm leading-6 text-slate-500">
-                    After Finance/Admin approves the request, it can be included in a Payroll
-                    Funding Pool and payment distribution. The employee can monitor those results
-                    here.
+                    This section will show the employee&apos;s paycheck request history after more
+                    requests are created for the same employee.
                   </p>
                 </div>
               ) : (
                 <div className="overflow-x-auto rounded-[24px] border border-white/10 bg-black/20">
-                  <div className="max-h-[520px] overflow-y-auto">
-                    <table className="w-full min-w-[1280px] border-collapse">
+                  <div className="max-h-[720px] overflow-y-auto">
+                    <table className="w-full min-w-[1320px] border-collapse">
                       <thead className="sticky top-0 z-20 border-b border-white/10 bg-black/70 backdrop-blur-xl">
                         <tr>
                           <th className="px-5 py-4 text-left text-[11px] font-semibold uppercase tracking-[0.18em] text-slate-500">
-                            Distribution
+                            Period
                           </th>
                           <th className="px-5 py-4 text-left text-[11px] font-semibold uppercase tracking-[0.18em] text-slate-500">
-                            Funding Pool
+                            Request
                           </th>
                           <th className="px-5 py-4 text-right text-[11px] font-semibold uppercase tracking-[0.18em] text-slate-500">
-                            Payment Amount
+                            Requested Net
                           </th>
                           <th className="px-5 py-4 text-right text-[11px] font-semibold uppercase tracking-[0.18em] text-slate-500">
-                            Paycheck Coverage
+                            Paid
                           </th>
                           <th className="px-5 py-4 text-right text-[11px] font-semibold uppercase tracking-[0.18em] text-slate-500">
-                            Funding Used
+                            Remaining
                           </th>
                           <th className="px-5 py-4 text-left text-[11px] font-semibold uppercase tracking-[0.18em] text-slate-500">
-                            Employee Confirmation
+                            Status
+                          </th>
+                          <th className="px-5 py-4 text-left text-[11px] font-semibold uppercase tracking-[0.18em] text-slate-500">
+                            Confirmation
+                          </th>
+                          <th className="px-5 py-4 text-right text-[11px] font-semibold uppercase tracking-[0.18em] text-slate-500">
+                            Action
                           </th>
                         </tr>
                       </thead>
 
                       <tbody>
-                        {enrichedAllocations.map((allocation) => (
-                          <tr
-                            key={allocation.id}
-                            className="border-b border-white/5 text-sm text-slate-300 transition hover:bg-white/[0.035]"
-                          >
-                            <td className="min-w-[240px] px-5 py-4">
-                              <div className="font-semibold text-cyan-200">
-                                {allocation.distribution?.reference_number ||
-                                  allocation.distribution?.distribution_number ||
-                                  "Paycheck Payment Distribution"}
-                              </div>
-                              <div className="mt-1 flex flex-wrap items-center gap-2 text-xs text-slate-500">
-                                <span>
-                                  {allocation.distribution
-                                    ? formatDate(allocation.distribution.payment_date)
-                                    : "—"}
-                                </span>
-                                <StatusBadge value={allocation.distribution?.status} />
-                              </div>
-                            </td>
+                        {paycheckHistoryRows.map((historyRow) => {
+                          const historyCurrency = normalizeCurrencyCode(
+                            historyRow.requested_currency_code || requestCurrency
+                          );
+                          const historyTargetAmount = getPaycheckHistoryTargetAmount(historyRow);
+                          const historyPaidAmount =
+                            historyRow.payment_status === "paid"
+                              ? historyTargetAmount
+                              : toNumber(historyRow.paid_amount);
+                          const historyRemainingAmount =
+                            historyRow.payment_status === "paid"
+                              ? 0
+                              : Math.max(roundMoney(toNumber(historyRow.remaining_amount)), 0);
+                          const isCurrentRequest = historyRow.id === request.id;
 
-                            <td className="min-w-[220px] px-5 py-4">
-                              {allocation.fundingBatch?.batch_number || "—"}
-                              {allocation.fundingBatch ? (
+                          return (
+                            <tr
+                              key={historyRow.id}
+                              className={`border-b border-white/5 text-sm text-slate-300 transition hover:bg-white/[0.035] ${
+                                isCurrentRequest ? "bg-cyan-500/[0.055]" : ""
+                              }`}
+                            >
+                              <td className="min-w-[210px] px-5 py-4">
+                                <div className="font-semibold text-white">
+                                  {formatDate(historyRow.period_start)} →{" "}
+                                  {formatDate(historyRow.period_end)}
+                                </div>
                                 <div className="mt-1 text-xs text-slate-500">
-                                  {formatDate(allocation.fundingBatch.allocation_date)}
+                                  Pay date {formatDate(historyRow.requested_pay_date)}
                                 </div>
-                              ) : null}
-                            </td>
+                              </td>
 
-                            <td className="whitespace-nowrap px-5 py-4 text-right font-semibold text-white">
-                              {allocation.paymentCurrencyCode}{" "}
-                              {formatMoney(allocation.paymentCurrencyAmount)}
-                            </td>
-
-                            <td className="whitespace-nowrap px-5 py-4 text-right font-semibold text-emerald-100">
-                              {allocation.paycheckCurrencyCode}{" "}
-                              {formatMoney(allocation.paycheckCurrencyAmount)}
-                            </td>
-
-                            <td className="whitespace-nowrap px-5 py-4 text-right font-semibold text-violet-100">
-                              {allocation.fundingCurrencyCodeValue}{" "}
-                              {formatMoney(allocation.fundingCurrencyUsed)}
-                            </td>
-
-                            <td className="px-5 py-4">
-                              <StatusBadge value={allocation.recipient_confirmation_status} />
-                              {allocation.recipient_confirmation_notes ? (
-                                <div className="mt-2 max-w-[260px] text-xs leading-5 text-slate-500">
-                                  {allocation.recipient_confirmation_notes}
+                              <td className="min-w-[190px] px-5 py-4">
+                                <div className="font-semibold text-cyan-200">
+                                  {historyRow.request_number ||
+                                    historyRow.reference_number ||
+                                    "Paycheck Request"}
                                 </div>
-                              ) : null}
-                              {allocation.recipient_dispute_reason ? (
-                                <div className="mt-2 max-w-[260px] text-xs leading-5 text-rose-200">
-                                  {allocation.recipient_dispute_reason}
+                                <div className="mt-1 text-xs text-slate-500">
+                                  Updated {formatDate(historyRow.updated_at)}
                                 </div>
-                              ) : null}
-                            </td>
-                          </tr>
-                        ))}
+                                {isCurrentRequest ? (
+                                  <div className="mt-2 inline-flex rounded-full border border-cyan-400/20 bg-cyan-500/10 px-2.5 py-1 text-[10px] font-semibold uppercase tracking-[0.14em] text-cyan-100">
+                                    Current Request
+                                  </div>
+                                ) : null}
+                              </td>
+
+                              <td className="whitespace-nowrap px-5 py-4 text-right font-semibold text-white">
+                                {historyCurrency} {formatMoney(historyTargetAmount)}
+                              </td>
+
+                              <td className="whitespace-nowrap px-5 py-4 text-right font-semibold text-emerald-100">
+                                {historyCurrency} {formatMoney(historyPaidAmount)}
+                              </td>
+
+                              <td className="whitespace-nowrap px-5 py-4 text-right font-semibold text-amber-100">
+                                {historyCurrency} {formatMoney(historyRemainingAmount)}
+                              </td>
+
+                              <td className="min-w-[260px] px-5 py-4">
+                                <div className="flex flex-wrap gap-2">
+                                  <StatusBadge value={historyRow.status} />
+                                  <StatusBadge value={historyRow.review_status} />
+                                  <StatusBadge value={historyRow.payment_status || "unpaid"} />
+                                </div>
+                              </td>
+
+                              <td className="min-w-[220px] px-5 py-4">
+                                <StatusBadge value={historyRow.recipient_confirmation_status} />
+                                <div className="mt-1 text-xs text-slate-500">
+                                  Confirmed {formatDateTime(historyRow.payment_confirmed_at)}
+                                </div>
+                              </td>
+
+                              <td className="px-5 py-4 text-right">
+                                <button
+                                  type="button"
+                                  onClick={() =>
+                                    navigate(
+                                      `/finance/transactions/paycheck-requests/${historyRow.id}`
+                                    )
+                                  }
+                                  className="inline-flex h-9 items-center justify-center gap-2 rounded-full border border-cyan-400/20 bg-cyan-500/10 px-4 text-xs font-semibold uppercase tracking-[0.14em] text-cyan-100 transition hover:bg-cyan-500/15"
+                                >
+                                  Open
+                                </button>
+                              </td>
+                            </tr>
+                          );
+                        })}
                       </tbody>
                     </table>
                   </div>

@@ -1,49 +1,95 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { useNavigate } from "react-router-dom";
+import type { LucideIcon } from "lucide-react";
 import {
-  ArrowLeft,
+  AlertTriangle,
+  Archive,
+  ArrowRight,
+  CheckCircle2,
   CreditCard,
+  Landmark,
+  Loader2,
+  LockKeyhole,
   Plus,
-  RefreshCw,
+  RotateCcw,
   Search,
-  ChevronDown,
-  ChevronRight,
+  ShieldCheck,
+  Sparkles,
+  Trash2,
+  WalletCards,
+  X,
 } from "lucide-react";
 
-import { Button } from "@/components/ui/button";
-import { Badge } from "@/components/ui/badge";
 import {
-  Card,
-  CardContent,
-  CardDescription,
-  CardHeader,
-  CardTitle,
-} from "@/components/ui/card";
-import { Input } from "@/components/ui/input";
-
-import {
-  getVendorBankAccounts,
-  getArchivedVendorBankAccounts,
   archiveVendorBankAccount,
-  restoreVendorBankAccount,
+  getArchivedVendorBankAccounts,
+  getVendorBankAccounts,
   permanentlyDeleteVendorBankAccount,
+  restoreVendorBankAccount,
   type FinanceVendorBankAccountListRow,
 } from "@/lib/finance/vendor-bank-accounts";
-
 import {
   getEffectivePermissions,
   type Permission,
   type Role,
 } from "@/lib/permissions";
-
 import { supabase } from "@/lib/supabase";
 
 type ProfilePermissionRow = {
-  role: Role;
-  permissions?: Partial<Record<Permission, boolean>> | null;
+  user_id: string;
+  full_name: string | null;
+  role: Role | null;
+  permissions: Partial<Record<Permission, boolean>> | null;
 };
 
-function formatDateLabel(value: string | null) {
+type PageAction =
+  | "archive"
+  | "archive-modal"
+  | "restore"
+  | "hard-delete"
+  | null;
+
+type SortKey =
+  | "vendor"
+  | "bank"
+  | "identifier"
+  | "currency"
+  | "status"
+  | "default"
+  | "updated";
+
+type SortDirection = "asc" | "desc";
+
+type MetricCard = {
+  key: string;
+  title: string;
+  value: string;
+  subtitle: string;
+  icon: LucideIcon;
+  tone: "cyan" | "emerald" | "amber" | "violet" | "rose";
+};
+
+type PermissionState = {
+  canRead: boolean;
+  canCreate: boolean;
+  canUpdate: boolean;
+  canDeleteArchive: boolean;
+  isAdmin: boolean;
+};
+
+const EMPTY_PERMISSION_STATE: PermissionState = {
+  canRead: false,
+  canCreate: false,
+  canUpdate: false,
+  canDeleteArchive: false,
+  isAdmin: false,
+};
+
+function formatCount(value: number) {
+  return value.toLocaleString();
+}
+
+function formatDateLabel(value: string | null | undefined) {
   if (!value) return "—";
 
   const parsed = new Date(value);
@@ -56,631 +102,1418 @@ function formatDateLabel(value: string | null) {
   });
 }
 
-function getStatusTone(status: string) {
+function formatStatus(status: string | null | undefined) {
+  if (!status) return "Unknown";
+
+  return status
+    .split("_")
+    .filter(Boolean)
+    .map((part) => part.charAt(0).toUpperCase() + part.slice(1))
+    .join(" ");
+}
+
+function getVendorName(row: FinanceVendorBankAccountListRow) {
+  return row.vendor_legal_name || row.vendor_name || row.vendor_code || "Unassigned";
+}
+
+function getBankName(row: FinanceVendorBankAccountListRow) {
+  return row.bank_name || "Vendor Bank Account";
+}
+
+function getIdentifierLabel(row: FinanceVendorBankAccountListRow) {
+  if (row.bank_id) return row.bank_id;
+  return "—";
+}
+
+function getLocationLabel(row: FinanceVendorBankAccountListRow) {
+  const parts = [row.city, row.country].filter(Boolean);
+  return parts.length > 0 ? parts.join(", ") : "—";
+}
+
+function getCurrencyLabel(row: FinanceVendorBankAccountListRow) {
+  return row.currency_code || "—";
+}
+
+function getStatusTone(status: string | null | undefined) {
   switch (status) {
     case "active":
-      return "border-emerald-400/15 bg-emerald-500/10 text-emerald-200";
+      return "border-emerald-400/20 bg-emerald-500/10 text-emerald-200";
     case "inactive":
-      return "border-amber-400/15 bg-amber-500/10 text-amber-200";
+      return "border-amber-400/20 bg-amber-500/10 text-amber-200";
     case "archived":
-      return "border-rose-400/15 bg-rose-500/10 text-rose-200";
+      return "border-rose-400/20 bg-rose-500/10 text-rose-200";
     default:
-      return "border-white/10 bg-white/8 text-white/70";
+      return "border-white/10 bg-white/[0.06] text-slate-300";
   }
+}
+
+function hasPermission(
+  permissions: Record<Permission, boolean> | null,
+  permission: Permission
+) {
+  return Boolean(permissions?.[permission]);
+}
+
+function buildPermissionState(
+  profile: ProfilePermissionRow | null,
+  permissions: Record<Permission, boolean> | null
+): PermissionState {
+  if (!profile?.role || !permissions) {
+    return EMPTY_PERMISSION_STATE;
+  }
+
+  const isAdmin = String(profile.role || "").toLowerCase() === "admin";
+  const canManageMasterData = hasPermission(permissions, "manageFinanceMasterData");
+  const canViewBankAccounts = hasPermission(permissions, "viewBankAccounts");
+  const canViewVendors = hasPermission(permissions, "viewVendors");
+  const canManageVendors = hasPermission(permissions, "manageVendors");
+  const canAccessPayables =
+    hasPermission(permissions, "accessPayables") ||
+    hasPermission(permissions, "viewPayables");
+  const canAccessFinance =
+    hasPermission(permissions, "accessFinance") ||
+    hasPermission(permissions, "viewFinance");
+
+  return {
+    isAdmin,
+    canRead:
+      canManageMasterData ||
+      canViewBankAccounts ||
+      canViewVendors ||
+      canManageVendors ||
+      canAccessPayables ||
+      canAccessFinance,
+    canCreate:
+      canManageMasterData ||
+      canManageVendors ||
+      hasPermission(permissions, "createFinanceRecords"),
+    canUpdate:
+      canManageMasterData ||
+      canManageVendors ||
+      hasPermission(permissions, "editFinanceRecords"),
+    canDeleteArchive:
+      canManageMasterData ||
+      canManageVendors ||
+      hasPermission(permissions, "archiveFinanceRecords"),
+  };
+}
+
+async function loadBackendEffectivePermissions(
+  userId: string
+): Promise<Partial<Record<Permission, boolean>> | null> {
+  try {
+    const result = await supabase.rpc("finance_get_effective_permissions", {
+      target_user_id: userId,
+    });
+
+    if (result.error) {
+      console.warn(
+        "Vendor Bank Accounts permission RPC fallback:",
+        result.error.message
+      );
+      return null;
+    }
+
+    if (!result.data || typeof result.data !== "object") {
+      return null;
+    }
+
+    return result.data as Partial<Record<Permission, boolean>>;
+  } catch (error) {
+    console.warn("Vendor Bank Accounts permission RPC failed:", error);
+    return null;
+  }
+}
+
+function compareStrings(
+  first: string | null | undefined,
+  second: string | null | undefined
+) {
+  return (first || "").localeCompare(second || "");
+}
+
+function compareDates(
+  first: string | null | undefined,
+  second: string | null | undefined
+) {
+  return new Date(first || 0).getTime() - new Date(second || 0).getTime();
+}
+
+function getToneClasses(tone: MetricCard["tone"]) {
+  switch (tone) {
+    case "emerald":
+      return {
+        glow: "from-emerald-500/20 via-emerald-400/10 to-transparent",
+        iconWrap: "border-emerald-400/20 bg-emerald-500/10 text-emerald-200",
+        value: "text-emerald-100",
+        accent: "bg-emerald-400",
+      };
+    case "amber":
+      return {
+        glow: "from-amber-500/20 via-amber-400/10 to-transparent",
+        iconWrap: "border-amber-400/20 bg-amber-500/10 text-amber-200",
+        value: "text-amber-100",
+        accent: "bg-amber-400",
+      };
+    case "violet":
+      return {
+        glow: "from-violet-500/20 via-violet-400/10 to-transparent",
+        iconWrap: "border-violet-400/20 bg-violet-500/10 text-violet-200",
+        value: "text-violet-100",
+        accent: "bg-violet-400",
+      };
+    case "rose":
+      return {
+        glow: "from-rose-500/20 via-rose-400/10 to-transparent",
+        iconWrap: "border-rose-400/20 bg-rose-500/10 text-rose-200",
+        value: "text-rose-100",
+        accent: "bg-rose-400",
+      };
+    case "cyan":
+    default:
+      return {
+        glow: "from-cyan-500/20 via-cyan-400/10 to-transparent",
+        iconWrap: "border-cyan-400/20 bg-cyan-500/10 text-cyan-200",
+        value: "text-cyan-100",
+        accent: "bg-cyan-400",
+      };
+  }
+}
+
+function MetricCardBlock({ metric }: { metric: MetricCard }) {
+  const Icon = metric.icon;
+  const tone = getToneClasses(metric.tone);
+
+  return (
+    <div className="group relative min-h-[156px] overflow-hidden rounded-[28px] border border-white/10 bg-white/[0.045] p-5 backdrop-blur-xl transition hover:border-white/20 hover:bg-white/[0.055]">
+      <div className={`pointer-events-none absolute inset-0 bg-gradient-to-br ${tone.glow}`} />
+      <div className="pointer-events-none absolute inset-x-5 top-0 h-px bg-white/10" />
+
+      <div className="relative flex h-full flex-col justify-between gap-5">
+        <div className="flex items-start justify-between gap-4">
+          <div className="min-w-0">
+            <div className="text-[11px] font-semibold uppercase tracking-[0.2em] text-slate-500">
+              {metric.title}
+            </div>
+            <div
+              className={`mt-2 truncate text-3xl font-semibold tracking-[-0.035em] ${tone.value}`}
+            >
+              {metric.value}
+            </div>
+          </div>
+
+          <div
+            className={`flex h-12 w-12 shrink-0 items-center justify-center rounded-2xl border ${tone.iconWrap}`}
+          >
+            <Icon className="h-5 w-5" />
+          </div>
+        </div>
+
+        <div className="flex items-center justify-between gap-3">
+          <div className="min-w-0 truncate text-sm leading-6 text-slate-400">
+            {metric.subtitle}
+          </div>
+          <div className={`h-2 w-2 shrink-0 rounded-full ${tone.accent}`} />
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function StatusBadge({
+  value,
+  className,
+}: {
+  value: string | null | undefined;
+  className?: string;
+}) {
+  return (
+    <span
+      className={`inline-flex max-w-full items-center rounded-full border px-3 py-1 text-[11px] font-semibold uppercase tracking-[0.14em] ${getStatusTone(
+        value
+      )} ${className || ""}`}
+    >
+      <span className="truncate">{formatStatus(value)}</span>
+    </span>
+  );
+}
+
+function DefaultBadge({ isDefault }: { isDefault: boolean }) {
+  if (!isDefault) {
+    return (
+      <span className="inline-flex items-center rounded-full border border-white/10 bg-white/[0.04] px-3 py-1 text-[11px] font-semibold uppercase tracking-[0.14em] text-slate-500">
+        Standard
+      </span>
+    );
+  }
+
+  return (
+    <span className="inline-flex items-center rounded-full border border-emerald-400/20 bg-emerald-500/10 px-3 py-1 text-[11px] font-semibold uppercase tracking-[0.14em] text-emerald-200">
+      Default
+    </span>
+  );
+}
+
+function SectionCard({
+  title,
+  description,
+  icon: Icon,
+  children,
+}: {
+  title: string;
+  description: string;
+  icon: LucideIcon;
+  children: React.ReactNode;
+}) {
+  return (
+    <section className="overflow-hidden rounded-[30px] border border-white/10 bg-white/[0.045] backdrop-blur-xl">
+      <div className="flex items-start justify-between gap-4 border-b border-white/10 px-5 py-4">
+        <div className="flex min-w-0 items-start gap-3">
+          <div className="rounded-2xl border border-cyan-400/15 bg-cyan-500/10 p-3 text-cyan-200">
+            <Icon className="h-4 w-4" />
+          </div>
+
+          <div className="min-w-0">
+            <h2 className="text-sm font-semibold uppercase tracking-[0.18em] text-slate-400">
+              {title}
+            </h2>
+            <p className="mt-1 text-xs leading-5 text-slate-500">{description}</p>
+          </div>
+        </div>
+      </div>
+
+      <div className="p-5">{children}</div>
+    </section>
+  );
+}
+
+function HeaderStatusCard({
+  label,
+  value,
+  detail,
+  icon: Icon,
+  tone,
+}: {
+  label: string;
+  value: string;
+  detail: string;
+  icon: LucideIcon;
+  tone: "emerald" | "cyan" | "amber" | "rose";
+}) {
+  const toneClasses = {
+    emerald: "border-emerald-400/20 bg-emerald-500/10 text-emerald-200",
+    cyan: "border-cyan-400/20 bg-cyan-500/10 text-cyan-200",
+    amber: "border-amber-400/20 bg-amber-500/10 text-amber-200",
+    rose: "border-rose-400/20 bg-rose-500/10 text-rose-200",
+  }[tone];
+
+  return (
+    <div className="min-h-[148px] rounded-[24px] border border-white/10 bg-black/20 p-4">
+      <div className="flex items-start justify-between gap-3">
+        <div className="min-w-0">
+          <div className="text-[11px] font-semibold uppercase tracking-[0.2em] text-slate-500">
+            {label}
+          </div>
+          <div className="mt-2 text-xl font-semibold leading-tight tracking-[-0.035em] text-white">
+            {value}
+          </div>
+        </div>
+
+        <div
+          className={`flex h-10 w-10 shrink-0 items-center justify-center rounded-2xl border ${toneClasses}`}
+        >
+          <Icon className="h-4 w-4" />
+        </div>
+      </div>
+
+      <div className="mt-3 text-xs leading-5 text-slate-500">{detail}</div>
+    </div>
+  );
+}
+
+function SortButton({
+  label,
+  sortKey,
+  activeSortKey,
+  direction,
+  onClick,
+}: {
+  label: string;
+  sortKey: SortKey;
+  activeSortKey: SortKey;
+  direction: SortDirection;
+  onClick: (sortKey: SortKey) => void;
+}) {
+  const isActive = activeSortKey === sortKey;
+
+  return (
+    <button
+      type="button"
+      onClick={() => onClick(sortKey)}
+      className={`inline-flex items-center gap-1 transition hover:text-cyan-200 ${
+        isActive ? "text-cyan-200" : "text-slate-500"
+      }`}
+    >
+      {label}
+      {isActive ? <span>{direction === "asc" ? "↑" : "↓"}</span> : null}
+    </button>
+  );
+}
+
+function TextInput({
+  value,
+  onChange,
+  placeholder,
+}: {
+  value: string;
+  onChange: (value: string) => void;
+  placeholder: string;
+}) {
+  return (
+    <label className="relative block">
+      <Search className="pointer-events-none absolute left-4 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-500" />
+      <input
+        value={value}
+        onChange={(event) => onChange(event.target.value)}
+        placeholder={placeholder}
+        className="h-11 w-full rounded-2xl border border-white/10 bg-black/20 px-4 pl-11 text-sm text-white outline-none transition placeholder:text-slate-600 focus:border-cyan-400/30 focus:bg-black/30"
+      />
+    </label>
+  );
+}
+
+function EmptyState({
+  icon: Icon,
+  title,
+  description,
+}: {
+  icon: LucideIcon;
+  title: string;
+  description: string;
+}) {
+  return (
+    <div className="rounded-[28px] border border-dashed border-white/10 bg-black/20 px-6 py-12 text-center">
+      <div className="mx-auto flex h-14 w-14 items-center justify-center rounded-2xl border border-white/10 bg-white/[0.04] text-slate-500">
+        <Icon className="h-6 w-6" />
+      </div>
+      <div className="mt-4 text-sm font-semibold text-white">{title}</div>
+      <p className="mx-auto mt-2 max-w-xl text-sm leading-6 text-slate-500">
+        {description}
+      </p>
+    </div>
+  );
 }
 
 export default function FinanceMasterDataVendorBankAccountsPage() {
   const navigate = useNavigate();
 
+  const [profile, setProfile] = useState<ProfilePermissionRow | null>(null);
+  const [effectivePermissions, setEffectivePermissions] =
+    useState<Record<Permission, boolean> | null>(null);
   const [rows, setRows] = useState<FinanceVendorBankAccountListRow[]>([]);
-  const [search, setSearch] = useState("");
-  const [isLoading, setIsLoading] = useState(true);
-
-  const [archivingId, setArchivingId] = useState<string | null>(null);
-
-  const [showArchive, setShowArchive] = useState(false);
   const [archivedRows, setArchivedRows] = useState<
     FinanceVendorBankAccountListRow[]
   >([]);
-  const [archiveLoading, setArchiveLoading] = useState(false);
+  const [search, setSearch] = useState("");
   const [archiveSearch, setArchiveSearch] = useState("");
+  const [showArchive, setShowArchive] = useState(false);
+  const [isLoadingProfile, setIsLoadingProfile] = useState(true);
+  const [isLoadingRows, setIsLoadingRows] = useState(true);
+  const [isLoadingArchive, setIsLoadingArchive] = useState(false);
+  const [pageError, setPageError] = useState<string | null>(null);
+  const [pageMessage, setPageMessage] = useState<string | null>(null);
+  const [runningAction, setRunningAction] = useState<PageAction>(null);
+  const [activeActionId, setActiveActionId] = useState<string | null>(null);
+  const [sortKey, setSortKey] = useState<SortKey>("updated");
+  const [sortDirection, setSortDirection] = useState<SortDirection>("desc");
 
- const [role, setRole] = useState<Role | null>(null);
-const [permissionOverrides, setPermissionOverrides] = useState<
-  Partial<Record<Permission, boolean>> | null
->(null);
-const [expandedVendors, setExpandedVendors] = useState<Record<string, boolean>>(
-  {}
-);
-
-  const loadRows = useCallback(async () => {
-    setIsLoading(true);
-
-    try {
-      const {
-        data: { user },
-      } = await supabase.auth.getUser();
-
-      if (user?.id) {
-        const { data: profile } = await supabase
-          .from("profiles")
-          .select("role, permissions")
-          .eq("user_id", user.id)
-          .maybeSingle();
-
-        if (profile) {
-          const typed = profile as ProfilePermissionRow;
-          setRole(typed.role);
-          setPermissionOverrides(typed.permissions || null);
-        }
+  const loadCurrentProfile = useCallback(
+    async (mode: "initial" | "silent" = "initial") => {
+      if (mode === "initial") {
+        setIsLoadingProfile(true);
       }
 
-      const data = await getVendorBankAccounts();
-      setRows(data);
-    } catch (e) {
-      console.error("Failed to load vendor bank accounts:", e);
-      setRows([]);
-    } finally {
-      setIsLoading(false);
-    }
-  }, []);
+      try {
+        const authResult = await supabase.auth.getUser();
+        if (authResult.error) throw authResult.error;
+
+        const authUserId = authResult.data.user?.id;
+
+        if (!authUserId) {
+          setProfile(null);
+          setEffectivePermissions(null);
+          return;
+        }
+
+        const profileResult = await supabase
+          .from("profiles")
+          .select("user_id, full_name, role, permissions")
+          .eq("user_id", authUserId)
+          .maybeSingle();
+
+        if (profileResult.error) throw profileResult.error;
+
+        const loadedProfile = (profileResult.data || null) as ProfilePermissionRow | null;
+        const backendPermissions = await loadBackendEffectivePermissions(authUserId);
+
+        setProfile(loadedProfile);
+
+        if (!loadedProfile?.role) {
+          setEffectivePermissions(null);
+          return;
+        }
+
+        const resolvedPermissions = getEffectivePermissions(
+          loadedProfile.role,
+          backendPermissions || loadedProfile.permissions || null
+        );
+
+        setEffectivePermissions(resolvedPermissions);
+      } catch (error) {
+        console.error("Failed to load vendor bank account profile permissions:", error);
+
+        if (mode === "initial") {
+          setProfile(null);
+          setEffectivePermissions(null);
+        }
+      } finally {
+        if (mode === "initial") {
+          setIsLoadingProfile(false);
+        }
+      }
+    },
+    []
+  );
+
+  const permissionState = useMemo(() => {
+    return buildPermissionState(profile, effectivePermissions);
+  }, [effectivePermissions, profile]);
+
+  const loadRows = useCallback(
+    async (mode: "initial" | "silent" = "initial") => {
+      if (mode === "initial") {
+        setIsLoadingRows(true);
+      }
+
+      if (mode === "initial") {
+        setPageError(null);
+      }
+
+      try {
+        const data = await getVendorBankAccounts();
+        setRows(data);
+      } catch (error) {
+        console.error("Failed to load vendor bank accounts:", error);
+
+        if (mode === "initial") {
+          setRows([]);
+          setPageError(
+            error instanceof Error
+              ? error.message
+              : "Failed to load vendor bank accounts."
+          );
+        }
+      } finally {
+        if (mode === "initial") {
+          setIsLoadingRows(false);
+        }
+      }
+    },
+    []
+  );
+
+  const loadArchivedRows = useCallback(
+    async (mode: "initial" | "silent" = "initial") => {
+      if (mode === "initial") {
+        setIsLoadingArchive(true);
+      }
+
+      if (mode === "initial") {
+        setPageError(null);
+      }
+
+      try {
+        const data = await getArchivedVendorBankAccounts();
+        setArchivedRows(data);
+      } catch (error) {
+        console.error("Failed to load archived vendor bank accounts:", error);
+
+        if (mode === "initial") {
+          setArchivedRows([]);
+          setPageError(
+            error instanceof Error
+              ? error.message
+              : "Failed to load archived vendor bank accounts."
+          );
+        }
+      } finally {
+        if (mode === "initial") {
+          setIsLoadingArchive(false);
+        }
+      }
+    },
+    []
+  );
 
   useEffect(() => {
-    void loadRows();
-  }, [loadRows]);
+    void Promise.all([
+      loadCurrentProfile("initial"),
+      loadRows("initial"),
+    ]);
+  }, [loadCurrentProfile, loadRows]);
 
-  const effectivePermissions = useMemo(() => {
-    if (!role) return null;
-    return getEffectivePermissions(role, permissionOverrides);
-  }, [role, permissionOverrides]);
+  useEffect(() => {
+    const channel = supabase
+      .channel("finance-master-data-vendor-bank-accounts-page")
+      .on(
+        "postgres_changes",
+        { event: "*", schema: "public", table: "profiles" },
+        () => void loadCurrentProfile("silent")
+      )
+      .on(
+        "postgres_changes",
+        { event: "*", schema: "public", table: "finance_permission_templates" },
+        () => void loadCurrentProfile("silent")
+      )
+      .on(
+        "postgres_changes",
+        { event: "*", schema: "public", table: "finance_user_permission_templates" },
+        () => void loadCurrentProfile("silent")
+      )
+      .on(
+        "postgres_changes",
+        { event: "*", schema: "public", table: "finance_vendor_bank_accounts" },
+        () => {
+          void loadRows("silent");
+          if (showArchive) void loadArchivedRows("silent");
+        }
+      )
+      .on(
+        "postgres_changes",
+        { event: "*", schema: "public", table: "finance_vendors" },
+        () => {
+          void loadRows("silent");
+          if (showArchive) void loadArchivedRows("silent");
+        }
+      )
+      .subscribe();
 
-  const canCreate = !!effectivePermissions?.createFinanceRecords;
-  const canArchive = !!effectivePermissions?.archiveFinanceRecords;
+    const intervalId = window.setInterval(() => {
+      void Promise.all([
+        loadCurrentProfile("silent"),
+        loadRows("silent"),
+        showArchive ? loadArchivedRows("silent") : Promise.resolve(),
+      ]);
+    }, 60000);
 
-    const filtered = useMemo(() => {
-    const q = search.trim().toLowerCase();
+    return () => {
+      window.clearInterval(intervalId);
+      supabase.removeChannel(channel);
+    };
+  }, [loadArchivedRows, loadCurrentProfile, loadRows, showArchive]);
 
-    return rows.filter((r) => {
-      if (r.status === "archived") return false;
-      if (!q) return true;
-
-      const haystack = [
-        r.bank_id,
-        r.vendor_code,
-        r.vendor_name,
-        r.vendor_legal_name,
-        r.bank_name,
-        r.city,
-        r.country,
-        r.currency_code,
-      ]
-        .filter(Boolean)
-        .join(" ")
-        .toLowerCase();
-
-      return haystack.includes(q);
-    });
-  }, [rows, search]);
-
-  const grouped = useMemo(() => {
-  const map = new Map<string, FinanceVendorBankAccountListRow[]>();
-
-  filtered.forEach((row) => {
-    const key = row.vendor_id || "unknown";
-
-    if (!map.has(key)) {
-      map.set(key, []);
-    }
-
-    map.get(key)!.push(row);
-  });
-
-  return Array.from(map.entries());
-}, [filtered]);
-
-function toggleVendor(vendorId: string) {
-  setExpandedVendors((prev) => ({
-    ...prev,
-    [vendorId]: !prev[vendorId],
-  }));
-}
+  const visibleRows = useMemo(() => {
+    return rows.filter((row) => row.status !== "archived");
+  }, [rows]);
 
   const counts = useMemo(() => {
     return {
-      total: rows.length,
-      active: rows.filter((r) => r.status === "active").length,
-      archived: rows.filter((r) => r.status === "archived").length,
+      totalVisible: visibleRows.length,
+      active: rows.filter((row) => row.status === "active").length,
+      inactive: rows.filter((row) => row.status === "inactive").length,
+      archived: rows.filter((row) => row.status === "archived").length,
+      defaultAccounts: visibleRows.filter((row) => row.is_default).length,
     };
-  }, [rows]);
+  }, [rows, visibleRows]);
 
-  useEffect(() => {
-  const next: Record<string, boolean> = {};
+  const filteredRows = useMemo(() => {
+    const normalizedSearch = search.trim().toLowerCase();
 
-  grouped.forEach(([vendorId]) => {
-    next[vendorId] = true; // default expanded
-  });
+    return visibleRows
+      .filter((row) => {
+        if (!normalizedSearch) return true;
 
-  setExpandedVendors(next);
-}, [grouped]);
+        return [
+          row.bank_id,
+          row.vendor_code,
+          row.vendor_name,
+          row.vendor_legal_name,
+          row.bank_name,
+          row.city,
+          row.country,
+          getCurrencyLabel(row),
+          row.status,
+        ]
+          .filter(Boolean)
+          .some((value) => String(value).toLowerCase().includes(normalizedSearch));
+      })
+      .sort((first, second) => {
+        let comparison = 0;
 
-  const filteredArchived = useMemo(() => {
-    const q = archiveSearch.trim().toLowerCase();
+        if (sortKey === "vendor") {
+          comparison = compareStrings(getVendorName(first), getVendorName(second));
+        }
 
-    return archivedRows.filter((r) => {
-      if (!q) return true;
+        if (sortKey === "bank") {
+          comparison = compareStrings(getBankName(first), getBankName(second));
+        }
 
-      return (
-        r.bank_id?.toLowerCase().includes(q) ||
-        r.vendor_code?.toLowerCase().includes(q) ||
-        r.vendor_name?.toLowerCase().includes(q) ||
-        r.vendor_legal_name?.toLowerCase().includes(q) ||
-        r.bank_name?.toLowerCase().includes(q)
-      );
-    });
-  }, [archivedRows, archiveSearch]);
+        if (sortKey === "identifier") {
+          comparison = compareStrings(
+            getIdentifierLabel(first),
+            getIdentifierLabel(second)
+          );
+        }
 
-  async function loadArchived() {
-    try {
-      setArchiveLoading(true);
-      const data = await getArchivedVendorBankAccounts();
-      setArchivedRows(data);
-    } catch (e) {
-      console.error("Failed to load archived vendor bank accounts:", e);
-      setArchivedRows([]);
-    } finally {
-      setArchiveLoading(false);
-    }
-  }
+        if (sortKey === "currency") {
+          comparison = compareStrings(getCurrencyLabel(first), getCurrencyLabel(second));
+        }
 
-  async function handleRestore(id: string) {
-    try {
-      await restoreVendorBankAccount(id);
-      await loadArchived();
-      await loadRows();
-    } catch (e) {
-      console.error("Failed to restore vendor bank account:", e);
-    }
-  }
+        if (sortKey === "status") {
+          comparison = compareStrings(first.status, second.status);
+        }
 
-  async function handleDelete(id: string) {
-    if (!confirm("Permanently delete this vendor bank account?")) return;
+        if (sortKey === "default") {
+          comparison = Number(first.is_default) - Number(second.is_default);
+        }
 
-    try {
-      await permanentlyDeleteVendorBankAccount(id);
-      await loadArchived();
-      await loadRows();
-    } catch (e) {
-      console.error("Failed to permanently delete vendor bank account:", e);
-    }
-  }
+        if (sortKey === "updated") {
+          comparison = compareDates(
+            first.updated_at || first.created_at,
+            second.updated_at || second.created_at
+          );
+        }
 
-  async function handleArchive(id: string) {
-    if (!canArchive) return;
+        return sortDirection === "asc" ? comparison : -comparison;
+      });
+  }, [search, sortDirection, sortKey, visibleRows]);
 
-    try {
-      setArchivingId(id);
-      const archived = await archiveVendorBankAccount(id);
+  const filteredArchivedRows = useMemo(() => {
+    const normalizedSearch = archiveSearch.trim().toLowerCase();
 
-      setRows((prev) =>
-        prev.map((row) =>
-          row.id === id
-            ? {
-                ...row,
-                status: archived.status,
-                updated_at: archived.updated_at,
-              }
-            : row
+    return archivedRows
+      .filter((row) => {
+        if (!normalizedSearch) return true;
+
+        return [
+          row.bank_id,
+          row.vendor_code,
+          row.vendor_name,
+          row.vendor_legal_name,
+          row.bank_name,
+          row.city,
+          row.country,
+          getCurrencyLabel(row),
+          row.status,
+        ]
+          .filter(Boolean)
+          .some((value) => String(value).toLowerCase().includes(normalizedSearch));
+      })
+      .sort((first, second) =>
+        -compareDates(
+          first.updated_at || first.created_at,
+          second.updated_at || second.created_at
         )
       );
-    } catch (e) {
-      console.error("Failed to archive vendor bank account:", e);
-    } finally {
-      setArchivingId(null);
-    }
-  }
+  }, [archiveSearch, archivedRows]);
+
+  const metricCards = useMemo<MetricCard[]>(() => {
+    return [
+      {
+        key: "visible",
+        title: "Visible Accounts",
+        value: isLoadingRows ? "—" : formatCount(counts.totalVisible),
+        subtitle: "Active and inactive vendor bank accounts.",
+        icon: WalletCards,
+        tone: "cyan",
+      },
+      {
+        key: "active",
+        title: "Active",
+        value: isLoadingRows ? "—" : formatCount(counts.active),
+        subtitle: "Available for vendor payout and AP payment flows.",
+        icon: CheckCircle2,
+        tone: "emerald",
+      },
+      {
+        key: "default",
+        title: "Default Accounts",
+        value: isLoadingRows ? "—" : formatCount(counts.defaultAccounts),
+        subtitle: "Default payout accounts across vendors.",
+        icon: Landmark,
+        tone: "violet",
+      },
+      {
+        key: "Archived",
+        title: "Archived",
+        value: isLoadingRows ? "—" : formatCount(counts.archived),
+        subtitle: "Hidden from active operational use.",
+        icon: Archive,
+        tone: "rose",
+      },
+    ];
+  }, [counts, isLoadingRows]);
+
+  const toggleSort = useCallback((nextKey: SortKey) => {
+    setSortKey((currentKey) => {
+      if (currentKey !== nextKey) {
+        setSortDirection("asc");
+        return nextKey;
+      }
+
+      setSortDirection((currentDirection) =>
+        currentDirection === "asc" ? "desc" : "asc"
+      );
+      return currentKey;
+    });
+  }, []);
+
+  const openArchiveModal = useCallback(async () => {
+    if (!permissionState.canDeleteArchive) return;
+
+    setShowArchive(true);
+    setRunningAction("archive-modal");
+    await loadArchivedRows("initial");
+    setRunningAction(null);
+  }, [loadArchivedRows, permissionState.canDeleteArchive]);
+
+  const closeArchiveModal = useCallback(() => {
+    setShowArchive(false);
+    setArchiveSearch("");
+  }, []);
+
+  const handleArchive = useCallback(
+    async (id: string) => {
+      if (!permissionState.canDeleteArchive || runningAction) return;
+
+      setRunningAction("archive");
+      setActiveActionId(id);
+      setPageError(null);
+      setPageMessage(null);
+
+      try {
+        await archiveVendorBankAccount(id);
+        await Promise.all([
+          loadRows("silent"),
+          showArchive ? loadArchivedRows("silent") : Promise.resolve(),
+        ]);
+        setPageMessage("Vendor bank account archived.");
+      } catch (error) {
+        console.error("Failed to archive vendor bank account:", error);
+        setPageError(
+          error instanceof Error
+            ? error.message
+            : "Failed to archive vendor bank account."
+        );
+      } finally {
+        setRunningAction(null);
+        setActiveActionId(null);
+      }
+    },
+    [
+      loadArchivedRows,
+      loadRows,
+      permissionState.canDeleteArchive,
+      runningAction,
+      showArchive,
+    ]
+  );
+
+  const handleRestore = useCallback(
+    async (id: string) => {
+      if (!permissionState.canDeleteArchive || runningAction) return;
+
+      setRunningAction("restore");
+      setActiveActionId(id);
+      setPageError(null);
+      setPageMessage(null);
+
+      try {
+        await restoreVendorBankAccount(id);
+        await Promise.all([loadRows("silent"), loadArchivedRows("silent")]);
+        setPageMessage("Vendor bank account restored.");
+      } catch (error) {
+        console.error("Failed to restore vendor bank account:", error);
+        setPageError(
+          error instanceof Error
+            ? error.message
+            : "Failed to restore vendor bank account."
+        );
+      } finally {
+        setRunningAction(null);
+        setActiveActionId(null);
+      }
+    },
+    [loadArchivedRows, loadRows, permissionState.canDeleteArchive, runningAction]
+  );
+
+  const handlePermanentDelete = useCallback(
+    async (id: string) => {
+      if (!permissionState.canDeleteArchive || runningAction) return;
+
+      const confirmed = window.confirm(
+        "Permanently delete this archived vendor bank account? This cannot be undone."
+      );
+
+      if (!confirmed) return;
+
+      setRunningAction("hard-delete");
+      setActiveActionId(id);
+      setPageError(null);
+      setPageMessage(null);
+
+      try {
+        await permanentlyDeleteVendorBankAccount(id);
+        await Promise.all([loadRows("silent"), loadArchivedRows("silent")]);
+        setPageMessage("Archived vendor bank account permanently deleted.");
+      } catch (error) {
+        console.error("Failed to permanently delete vendor bank account:", error);
+        setPageError(
+          error instanceof Error
+            ? error.message
+            : "Failed to permanently delete vendor bank account."
+        );
+      } finally {
+        setRunningAction(null);
+        setActiveActionId(null);
+      }
+    },
+    [loadArchivedRows, loadRows, permissionState.canDeleteArchive, runningAction]
+  );
+
+  const isPageLoading = isLoadingProfile || isLoadingRows;
+  const isActionRunning = Boolean(runningAction);
 
   return (
-    <>
-      <div className="flex h-[calc(100vh-140px)] min-h-0 flex-col overflow-hidden">
-        <div className="mx-auto flex h-full w-full max-w-[1920px] min-h-0 flex-col gap-6 px-4 pb-4 pt-2 sm:px-6 xl:px-8">
-          <section className="relative z-10 flex-shrink-0 rounded-[30px] border border-white/10 bg-[linear-gradient(135deg,rgba(255,255,255,0.08),rgba(255,255,255,0.03))] backdrop-blur-xl">
-            <div className="pointer-events-none absolute inset-0 bg-[radial-gradient(circle_at_top_left,rgba(255,255,255,0.10),transparent_32%),radial-gradient(circle_at_top_right,rgba(59,130,246,0.12),transparent_26%),radial-gradient(circle_at_bottom_left,rgba(16,185,129,0.10),transparent_24%)]" />
+    <div className="min-h-screen bg-[#05070d] px-4 py-4 text-white md:px-6 md:py-6">
+      <div className="mx-auto flex w-full max-w-[1600px] flex-col gap-6">
+        <header className="relative overflow-hidden rounded-[34px] border border-white/10 bg-white/[0.045] p-6 shadow-2xl shadow-black/30 backdrop-blur-xl">
+          <div className="pointer-events-none absolute inset-0 bg-[radial-gradient(circle_at_top_left,rgba(6,182,212,0.16),transparent_38%),radial-gradient(circle_at_top_right,rgba(139,92,246,0.12),transparent_34%)]" />
 
-            <div className="relative flex items-center justify-between gap-4 px-5 py-5 sm:px-6 xl:px-7">
-              <div className="min-w-0">
-                <div className="inline-flex items-center rounded-full border border-cyan-400/15 bg-cyan-500/10 px-3 py-1 text-[11px] uppercase tracking-[0.22em] text-cyan-200">
-                  Master Data
-                </div>
+          <div className="relative grid gap-6 xl:grid-cols-[minmax(0,1fr)_520px] xl:items-end">
+            <div>
+              <button
+                type="button"
+                onClick={() => navigate("/finance/master-data")}
+                className="mb-5 inline-flex items-center justify-center gap-2 rounded-full border border-white/10 bg-white/[0.05] px-5 py-2 text-[11px] font-semibold uppercase tracking-[0.22em] text-slate-300 transition hover:border-white/20 hover:bg-white/[0.08] hover:text-white"
+              >
+                <ArrowRight className="h-3.5 w-3.5 rotate-180" />
+                Master Data
+              </button>
 
-                <h1 className="mt-3 text-2xl font-semibold tracking-tight text-white sm:text-3xl">
-                  Vendor Bank Accounts
-                </h1>
-
-                <div className="mt-2 text-sm text-white/45">
-                  Manage vendor-linked bank accounts for AP payment operations.
-                </div>
+              <div className="inline-flex w-fit items-center gap-2 rounded-full border border-cyan-400/20 bg-cyan-500/10 px-3 py-1 text-[11px] font-semibold uppercase tracking-[0.22em] text-cyan-200">
+                <Sparkles className="h-3.5 w-3.5" />
+                Vendor Banking Master Data
               </div>
 
-              <div className="flex shrink-0 items-center gap-3">
-                <Button
-                  variant="outline"
-                  onClick={() => navigate("/finance/master-data")}
-                  className="h-11 rounded-2xl border-white/10 bg-white/5 px-4 text-white hover:bg-white/10"
-                >
-                  <ArrowLeft className="mr-2 h-4 w-4" />
-                  Back
-                </Button>
+              <h1 className="mt-4 text-3xl font-semibold tracking-[-0.035em] text-white md:text-5xl">
+                Vendor Bank Accounts
+              </h1>
 
-                {canCreate ? (
-                  <Button
-                    variant="outline"
-                    onClick={() =>
-                      navigate("/finance/master-data/vendor-bank-accounts/new")
-                    }
-                    className="h-11 rounded-2xl border-white/10 bg-white/5 px-4 text-white hover:bg-white/10"
-                  >
-                    <Plus className="mr-2 h-4 w-4" />
-                    Create Vendor Bank Account
-                  </Button>
-                ) : null}
+              <p className="mt-3 max-w-4xl text-sm leading-6 text-slate-400 md:text-base md:leading-7">
+                Permission-filtered registry for vendor payout bank accounts used
+                by procurement, accounts payable, payment execution, and vendor
+                payment snapshots.
+              </p>
 
-                {canArchive ? (
-                  <Button
-                    variant="outline"
-                    onClick={async () => {
-                      setShowArchive(true);
-                      await loadArchived();
-                    }}
-                    className="h-11 rounded-2xl border-white/10 bg-white/5 px-4 text-white hover:bg-white/10"
-                  >
-                    Archive
-                  </Button>
-                ) : null}
-
-                <Button
-                  variant="outline"
-                  onClick={() => void loadRows()}
-                  className="h-11 rounded-2xl border-white/10 bg-white/5 px-4 text-white hover:bg-white/10"
-                >
-                  <RefreshCw className="mr-2 h-4 w-4" />
-                  Refresh
-                </Button>
+              <div className="mt-5 flex flex-wrap gap-2">
+                <span className="rounded-full border border-emerald-400/20 bg-emerald-500/10 px-3 py-1 text-[11px] font-semibold uppercase tracking-[0.16em] text-emerald-200">
+                  Live backend
+                </span>
+                <span className="rounded-full border border-cyan-400/20 bg-cyan-500/10 px-3 py-1 text-[11px] font-semibold uppercase tracking-[0.16em] text-cyan-200">
+                  Permission filtered
+                </span>
+                <span className="rounded-full border border-slate-400/20 bg-slate-500/10 px-3 py-1 text-[11px] font-semibold uppercase tracking-[0.16em] text-slate-300">
+                  Realtime + 60s fallback
+                </span>
               </div>
             </div>
-          </section>
 
-          <div className="flex min-h-0 flex-1 flex-col gap-6 overflow-y-auto overflow-x-hidden pr-1 pb-2">
-            <section>
-              <div className="grid grid-cols-1 gap-4 md:grid-cols-3">
-                <Card className="overflow-hidden rounded-[26px] border border-white/10 bg-white/[0.045] backdrop-blur-xl">
-                  <CardContent className="p-5">
-                    <div className="text-xs uppercase tracking-[0.18em] text-white/35">
-                      Total Accounts
-                    </div>
-                    <div className="mt-2 text-3xl font-semibold text-white">
-                      {counts.total.toLocaleString()}
-                    </div>
-                    <div className="mt-2 text-sm text-white/50">
-                      Full vendor bank account registry
-                    </div>
-                  </CardContent>
-                </Card>
+            <div className="grid gap-3 sm:grid-cols-2">
+              <HeaderStatusCard
+                label="Read Access"
+                value={
+                  isLoadingProfile
+                    ? "Checking"
+                    : permissionState.canRead
+                      ? "Enabled"
+                      : "Locked"
+                }
+                detail="This page requires Vendor, Bank Account, Payables, Finance, or Master Data read access."
+                icon={permissionState.canRead ? ShieldCheck : LockKeyhole}
+                tone={permissionState.canRead ? "emerald" : "rose"}
+              />
 
-                <Card className="overflow-hidden rounded-[26px] border border-white/10 bg-white/[0.045] backdrop-blur-xl">
-                  <CardContent className="p-5">
-                    <div className="text-xs uppercase tracking-[0.18em] text-white/35">
-                      Active
-                    </div>
-                    <div className="mt-2 text-3xl font-semibold text-white">
-                      {counts.active.toLocaleString()}
-                    </div>
-                    <div className="mt-2 text-sm text-white/50">
-                      Available for finance operations
-                    </div>
-                  </CardContent>
-                </Card>
+              <HeaderStatusCard
+                label="Lifecycle Access"
+                value={
+                  permissionState.canDeleteArchive
+                    ? "Archive Enabled"
+                    : permissionState.canCreate
+                      ? "Create Enabled"
+                      : "Read Only"
+                }
+                detail="Create and Delete/Archive actions follow the selected Finance template."
+                icon={permissionState.canDeleteArchive ? Archive : CreditCard}
+                tone={permissionState.canDeleteArchive ? "amber" : "cyan"}
+              />
+            </div>
+          </div>
+        </header>
 
-                <Card className="overflow-hidden rounded-[26px] border border-white/10 bg-white/[0.045] backdrop-blur-xl">
-                  <CardContent className="p-5">
-                    <div className="text-xs uppercase tracking-[0.18em] text-white/35">
-                      Archived
-                    </div>
-                    <div className="mt-2 text-3xl font-semibold text-white">
-                      {counts.archived.toLocaleString()}
-                    </div>
-                    <div className="mt-2 text-sm text-white/50">
-                      Hidden from new operational use
-                    </div>
-                  </CardContent>
-                </Card>
-              </div>
-            </section>
+                {pageError ? (
+          <div className="rounded-[24px] border border-rose-400/20 bg-rose-500/10 p-4 text-sm leading-6 text-rose-100">
+            <div className="flex items-start gap-3">
+              <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0" />
+              <div>{pageError}</div>
+            </div>
+          </div>
+        ) : null}
 
-            <section className="min-h-0 flex-1 h-full">
-              <Card className="flex h-full min-h-[860px] flex-col overflow-hidden rounded-[30px] border border-white/10 bg-white/[0.045] backdrop-blur-xl">
-                <CardHeader className="flex-shrink-0 border-b border-white/8 pb-4">
-                  <div className="flex flex-col gap-4 xl:flex-row xl:items-end xl:justify-between">
-                    <div className="space-y-2">
-                      <Badge className="w-fit rounded-full border border-white/10 bg-white/8 px-3 py-1 text-[11px] uppercase tracking-[0.22em] text-white/65 shadow-none">
-                        Vendor Bank Account Registry
-                      </Badge>
-                      <CardTitle className="text-white">
-                        Finance Vendor Bank Account Records
-                      </CardTitle>
-                      <CardDescription className="text-white/45">
-                        Vendor linkage, banking details, currency, and lifecycle
-                        status.
-                      </CardDescription>
-                    </div>
+        {pageMessage ? (
+          <div className="rounded-[24px] border border-emerald-400/20 bg-emerald-500/10 p-4 text-sm leading-6 text-emerald-100">
+            <div className="flex items-start gap-3">
+              <CheckCircle2 className="mt-0.5 h-4 w-4 shrink-0" />
+              <div>{pageMessage}</div>
+            </div>
+          </div>
+        ) : null}
 
-                    <div className="flex flex-col gap-3 sm:flex-row">
-                      <div className="relative min-w-[260px]">
-                        <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-white/35" />
-                        <Input
-                          value={search}
-                          onChange={(event) => setSearch(event.target.value)}
-                          placeholder="Search active vendor bank accounts"
-                          className="h-11 rounded-2xl border-white/10 bg-white/5 pl-10 text-white placeholder:text-white/30"
-                        />
-                      </div>
-                    </div>
-                  </div>
-                </CardHeader>
+        <section className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
+          {metricCards.map((metric) => (
+            <MetricCardBlock key={metric.key} metric={metric} />
+          ))}
+        </section>
 
-                <CardContent className="flex min-h-0 flex-1 flex-col p-0">
-                  {isLoading ? (
-                    <div className="p-6 text-sm text-white/50">
-                      Loading vendor bank accounts...
-                    </div>
-                  ) : filtered.length === 0 ? (
-                    <div className="flex min-h-0 flex-1 items-center justify-center p-6">
-                      <div className="max-w-md text-center">
-                        <div className="mx-auto flex h-14 w-14 items-center justify-center rounded-2xl border border-white/10 bg-black/20 text-white/70">
-                          <CreditCard className="h-6 w-6" />
-                        </div>
-                        <div className="mt-4 text-lg font-semibold text-white">
-                          No vendor bank accounts found
-                        </div>
-                        <div className="mt-2 text-sm leading-6 text-white/50">
-                          Create your first vendor bank account to start building
-                          the payment account registry.
-                        </div>
-                      </div>
-                    </div>
+        {!permissionState.canRead && !isPageLoading ? (
+          <SectionCard
+            title="Vendor Bank Account Access Locked"
+            description="The logged-in user does not have vendor bank-account read access."
+            icon={LockKeyhole}
+          >
+            <EmptyState
+              icon={LockKeyhole}
+              title="No vendor bank-account access is enabled"
+              description="Ask an Admin to assign a Finance role template or user-specific exception with Vendor, Payables, Finance, Bank Account, or Master Data read access."
+            />
+          </SectionCard>
+        ) : (
+          <SectionCard
+            title="Vendor Bank Account Registry"
+            description="Active and inactive vendor bank accounts. Archived records are managed only through the archive modal."
+            icon={Landmark}
+          >
+            <div className="mb-5 grid gap-3 xl:grid-cols-[minmax(0,1fr)_auto_auto]">
+              <TextInput
+                value={search}
+                onChange={setSearch}
+                placeholder="Search by vendor, bank, identifier, currency, location, or status"
+              />
+
+              {permissionState.canCreate ? (
+                <button
+                  type="button"
+                  onClick={() =>
+                    navigate("/finance/master-data/vendor-bank-accounts/new")
+                  }
+                  className="inline-flex h-11 items-center justify-center gap-2 rounded-2xl border border-cyan-400/20 bg-cyan-500/10 px-5 text-sm font-semibold text-cyan-100 transition hover:bg-cyan-500/15"
+                >
+                  <Plus className="h-4 w-4" />
+                  Create Vendor Bank Account
+                </button>
+              ) : null}
+
+              {permissionState.canDeleteArchive ? (
+                <button
+                  type="button"
+                  onClick={() => void openArchiveModal()}
+                  disabled={isActionRunning}
+                  className="inline-flex h-11 items-center justify-center gap-2 rounded-2xl border border-rose-400/20 bg-rose-500/10 px-5 text-sm font-semibold text-rose-100 transition hover:bg-rose-500/15 disabled:cursor-not-allowed disabled:opacity-50"
+                >
+                  {runningAction === "archive-modal" ? (
+                    <Loader2 className="h-4 w-4 animate-spin" />
                   ) : (
-                    <div className="flex-1 overflow-y-auto px-4 py-4 sm:px-5 min-h-[700px]">
-                      <div className="space-y-3">
+                    <Archive className="h-4 w-4" />
+                  )}
+                  Archive
+                </button>
+              ) : null}
+            </div>
 
-             {grouped.map(([vendorId, vendorAccounts]) => {
-  const first = vendorAccounts[0];
+            {isPageLoading ? (
+              <div className="rounded-[28px] border border-dashed border-white/10 bg-black/20 px-6 py-12 text-center">
+                <Loader2 className="mx-auto h-8 w-8 animate-spin text-cyan-200" />
+                <div className="mt-4 text-sm font-semibold text-white">
+                  Loading vendor bank accounts
+                </div>
+                <p className="mt-2 text-sm leading-6 text-slate-500">
+                  Vendor bank-account records and permission state are being checked.
+                </p>
+              </div>
+            ) : filteredRows.length === 0 ? (
+              <EmptyState
+                icon={CreditCard}
+                title="No visible vendor bank accounts found"
+                description="Create a vendor bank account or adjust the search filter to find a vendor payout banking record."
+              />
+            ) : (
+              <div className="overflow-x-auto rounded-[24px] border border-white/10 bg-black/20">
+                <div className="max-h-[720px] overflow-y-auto">
+                  <table className="w-full min-w-[1240px] border-collapse">
+                    <thead className="sticky top-0 z-20 border-b border-white/10 bg-black/70 backdrop-blur-xl">
+                      <tr>
+                        <th className="px-5 py-4 text-left text-[11px] font-semibold uppercase tracking-[0.18em]">
+                          <SortButton
+                            label="Vendor"
+                            sortKey="vendor"
+                            activeSortKey={sortKey}
+                            direction={sortDirection}
+                            onClick={toggleSort}
+                          />
+                        </th>
 
-  const vendorDisplayName =
-    first.vendor_legal_name || first.vendor_name || "—";
+                        <th className="px-5 py-4 text-left text-[11px] font-semibold uppercase tracking-[0.18em]">
+                          <SortButton
+                            label="Bank"
+                            sortKey="bank"
+                            activeSortKey={sortKey}
+                            direction={sortDirection}
+                            onClick={toggleSort}
+                          />
+                        </th>
 
-  return (
-    <div key={vendorId} className="space-y-3">
-      
-      {/* 🔹 Vendor Header */}
-      <div
-  className="flex items-center justify-between px-2 cursor-pointer"
-  onClick={() => toggleVendor(vendorId)}
->
-        <div className="flex items-center gap-2 text-sm font-semibold text-white">
-  {expandedVendors[vendorId] ? (
-    <ChevronDown className="h-4 w-4 text-white/40" />
-  ) : (
-    <ChevronRight className="h-4 w-4 text-white/40" />
-  )}
-  {vendorDisplayName}
-</div>
+                        <th className="px-5 py-4 text-left text-[11px] font-semibold uppercase tracking-[0.18em]">
+                          <SortButton
+                            label="Identifier"
+                            sortKey="identifier"
+                            activeSortKey={sortKey}
+                            direction={sortDirection}
+                            onClick={toggleSort}
+                          />
+                        </th>
 
-        <Badge className="border-white/10 bg-white/5 text-white">
-          {vendorAccounts.length} Account
-          {vendorAccounts.length === 1 ? "" : "s"}
-        </Badge>
+                        <th className="px-5 py-4 text-left text-[11px] font-semibold uppercase tracking-[0.18em]">
+                          <SortButton
+                            label="Currency"
+                            sortKey="currency"
+                            activeSortKey={sortKey}
+                            direction={sortDirection}
+                            onClick={toggleSort}
+                          />
+                        </th>
+
+                        <th className="px-5 py-4 text-left text-[11px] font-semibold uppercase tracking-[0.18em]">
+                          <SortButton
+                            label="Default"
+                            sortKey="default"
+                            activeSortKey={sortKey}
+                            direction={sortDirection}
+                            onClick={toggleSort}
+                          />
+                        </th>
+
+                        <th className="px-5 py-4 text-left text-[11px] font-semibold uppercase tracking-[0.18em]">
+                          <SortButton
+                            label="Status"
+                            sortKey="status"
+                            activeSortKey={sortKey}
+                            direction={sortDirection}
+                            onClick={toggleSort}
+                          />
+                        </th>
+
+                        <th className="px-5 py-4 text-left text-[11px] font-semibold uppercase tracking-[0.18em]">
+                          <SortButton
+                            label="Updated"
+                            sortKey="updated"
+                            activeSortKey={sortKey}
+                            direction={sortDirection}
+                            onClick={toggleSort}
+                          />
+                        </th>
+
+                        <th className="px-5 py-4 text-right text-[11px] font-semibold uppercase tracking-[0.18em] text-slate-500">
+                          Actions
+                        </th>
+                      </tr>
+                    </thead>
+
+                    <tbody>
+                      {filteredRows.map((row) => {
+                        const updatedAt = row.updated_at || row.created_at;
+                        const isRowActionRunning = activeActionId === row.id;
+
+                        return (
+                          <tr
+                            key={row.id}
+                            className="border-b border-white/5 text-sm text-slate-300 transition hover:bg-white/[0.035]"
+                          >
+                            <td className="min-w-[260px] px-5 py-4">
+                              <div className="font-semibold text-white">
+                                {getVendorName(row)}
+                              </div>
+                              <div className="mt-1 text-xs text-slate-500">
+                                {row.vendor_code || "No vendor code"}
+                              </div>
+                            </td>
+
+                            <td className="min-w-[230px] px-5 py-4">
+                              <div className="font-semibold text-white">
+                                {getBankName(row)}
+                              </div>
+                              <div className="mt-1 text-xs text-slate-500">
+                                {getLocationLabel(row)}
+                              </div>
+                            </td>
+
+                            <td className="min-w-[180px] px-5 py-4">
+                              <div className="font-semibold text-white">
+                                {getIdentifierLabel(row)}
+                              </div>
+                              <div className="mt-1 text-xs text-slate-500">
+                                Vendor payout account
+                              </div>
+                            </td>
+
+                            <td className="min-w-[130px] px-5 py-4">
+                              <span className="inline-flex rounded-full border border-white/10 bg-white/[0.04] px-3 py-1 text-xs font-semibold text-white">
+                                {getCurrencyLabel(row)}
+                              </span>
+                            </td>
+
+                            <td className="min-w-[130px] px-5 py-4">
+                              <DefaultBadge isDefault={Boolean(row.is_default)} />
+                            </td>
+
+                            <td className="min-w-[140px] px-5 py-4">
+                              <StatusBadge value={row.status} />
+                            </td>
+
+                            <td className="min-w-[150px] px-5 py-4">
+                              <div className="text-sm text-slate-300">
+                                {formatDateLabel(updatedAt)}
+                              </div>
+                            </td>
+
+                            <td className="px-5 py-4 text-right">
+                              <div className="flex justify-end gap-2">
+                                <button
+                                  type="button"
+                                  onClick={() =>
+                                    navigate(
+                                      `/finance/master-data/vendor-bank-accounts/${row.id}`
+                                    )
+                                  }
+                                  className="inline-flex h-9 items-center justify-center gap-2 rounded-full border border-cyan-400/20 bg-cyan-500/10 px-4 text-xs font-semibold uppercase tracking-[0.14em] text-cyan-100 transition hover:bg-cyan-500/15"
+                                >
+                                  Open
+                                  <ArrowRight className="h-3.5 w-3.5" />
+                                </button>
+
+                                {permissionState.canDeleteArchive ? (
+                                  <button
+                                    type="button"
+                                    onClick={() => void handleArchive(row.id)}
+                                    disabled={isActionRunning}
+                                    className="inline-flex h-9 items-center justify-center gap-2 rounded-full border border-rose-400/20 bg-rose-500/10 px-4 text-xs font-semibold uppercase tracking-[0.14em] text-rose-100 transition hover:bg-rose-500/15 disabled:cursor-not-allowed disabled:opacity-50"
+                                  >
+                                    {isRowActionRunning && runningAction === "archive" ? (
+                                      <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                                    ) : (
+                                      <Archive className="h-3.5 w-3.5" />
+                                    )}
+                                    Archive
+                                  </button>
+                                ) : null}
+                              </div>
+                            </td>
+                          </tr>
+                        );
+                      })}
+                    </tbody>
+                  </table>
+                </div>
+              </div>
+            )}
+          </SectionCard>
+        )}
+
+        <div className="rounded-[24px] border border-cyan-400/20 bg-cyan-500/10 p-4 text-sm leading-6 text-cyan-100">
+          <div className="font-semibold text-white">Locked access rule</div>
+          <div className="mt-1">
+            This registry requires Vendor / Payables / Finance / Bank Account /
+            Master Data read access. Create is controlled by Create access.
+            Archive, Restore, and Permanent Delete are controlled by Delete/Archive
+            access. Update/Edit is handled inside the vendor bank-account ID page.
+            Currency is displayed from the vendor bank-account record itself and is
+            selected from the general currency master data when the account is created
+            or edited.
+          </div>
+        </div>
       </div>
 
-      {/* 🔹 Accounts */}
-      {expandedVendors[vendorId] &&
-  vendorAccounts.map((row) => (
-        <div
-          key={row.id}
-          className="rounded-[24px] border border-white/8 bg-[linear-gradient(135deg,rgba(255,255,255,0.06),rgba(255,255,255,0.025))] p-5"
-        >
-          <div className="flex flex-col gap-4 xl:flex-row xl:items-start xl:justify-between">
-            
-            <div className="min-w-0 flex-1">
-              
-              {/* badges */}
-              <div className="flex flex-wrap items-center gap-2">
-                <Badge className="rounded-full border border-white/10 bg-white/8 px-2.5 py-1 text-[11px] text-white/70">
-                  {row.bank_id || "No bank ID"}
-                </Badge>
-
-                <Badge className="rounded-full border border-white/10 bg-white/8 px-2.5 py-1 text-[11px] text-white/70">
-                  {row.vendor_code || "No vendor code"}
-                </Badge>
-
-                {row.is_default && (
-                  <Badge className="rounded-full border border-emerald-400/15 bg-emerald-500/10 px-2.5 py-1 text-[11px] text-emerald-200">
-                    Default
-                  </Badge>
-                )}
-
-                <Badge
-                  className={`rounded-full px-2.5 py-1 text-[11px] ${getStatusTone(
-                    row.status
-                  )}`}
-                >
-                  {row.status}
-                </Badge>
-              </div>
-
-              {/* content */}
-              <div className="mt-3 flex flex-wrap gap-x-6 gap-y-3">
-                <div className="min-w-[220px] text-sm text-white/55">
-                  <div className="text-white/35">Bank</div>
-                  <div className="mt-1">{row.bank_name || "—"}</div>
-                </div>
-
-                <div className="min-w-[160px] text-sm text-white/55">
-                  <div className="text-white/35">Currency</div>
-                  <div className="mt-1">{row.currency_code || "—"}</div>
-                </div>
-              </div>
-
-              <div className="mt-4 grid grid-cols-1 gap-3 sm:grid-cols-2 xl:grid-cols-3">
-                <div className="rounded-[18px] border border-white/8 bg-black/15 px-4 py-3">
-                  <div className="text-xs text-white/35">Country</div>
-                  <div className="mt-2 text-sm text-white">
-                    {row.country || "—"}
-                  </div>
-                </div>
-
-                <div className="rounded-[18px] border border-white/8 bg-black/15 px-4 py-3">
-                  <div className="text-xs text-white/35">City</div>
-                  <div className="mt-2 text-sm text-white">
-                    {row.city || "—"}
-                  </div>
-                </div>
-
-                <div className="rounded-[18px] border border-white/8 bg-black/15 px-4 py-3">
-                  <div className="text-xs text-white/35">Created</div>
-                  <div className="mt-2 text-sm text-white">
-                    {formatDateLabel(row.created_at)}
-                  </div>
-                </div>
-              </div>
-            </div>
-
-            {/* actions */}
-            <div className="flex shrink-0 gap-3">
-              <Button
-                variant="outline"
-                onClick={() =>
-                  navigate(
-                    `/finance/master-data/vendor-bank-accounts/${row.id}`
-                  )
-                }
-                className="h-11 rounded-2xl border-white/10 bg-white/5 text-white"
-              >
-                Open / Edit
-              </Button>
-
-              {canArchive && (
-                <Button
-                  variant="outline"
-                  onClick={() => void handleArchive(row.id)}
-                  disabled={archivingId === row.id}
-                  className="h-11 rounded-2xl border-white/10 bg-white/5 text-white"
-                >
-                  {archivingId === row.id
-                    ? "Archiving..."
-                    : "Remove / Delete"}
-                </Button>
-              )}
-            </div>
-          </div>
-        </div>
-      ))}
-    </div>
-  );
-})}
-                      </div>
-                    </div>
-                  )}
-                </CardContent>
-              </Card>
-            </section>
-          </div>
-        </div>
-      </div>                        
-
-      {showArchive && (
+      {showArchive ? (
         <div className="fixed inset-0 z-[120] flex items-center justify-center bg-black/70 p-4 backdrop-blur-sm">
-          <div className="flex max-h-[90vh] w-full max-w-5xl flex-col overflow-hidden rounded-[30px] border border-white/10 bg-black/90">
-            <div className="flex items-center justify-between border-b border-white/10 px-6 py-4">
-              <div className="text-lg font-semibold text-white">
-                Archived Vendor Bank Accounts
+          <div className="flex max-h-[90vh] w-full max-w-6xl flex-col overflow-hidden rounded-[30px] border border-white/10 bg-[#05070d] shadow-2xl shadow-black/60">
+            <div className="flex items-start justify-between gap-4 border-b border-white/10 px-6 py-5">
+              <div>
+                <div className="text-lg font-semibold text-white">
+                  Archived Vendor Bank Accounts
+                </div>
+                <div className="mt-1 text-sm leading-6 text-slate-500">
+                  Archived records can be opened, restored, or permanently deleted.
+                  There is no Deleted tab because this backend uses only active,
+                  inactive, and archived lifecycle states.
+                </div>
               </div>
 
-              <Button
-                variant="outline"
-                onClick={() => setShowArchive(false)}
-                className="h-11 rounded-2xl border-white/10 bg-white/5 px-4 text-white"
+              <button
+                type="button"
+                onClick={closeArchiveModal}
+                className="inline-flex h-10 w-10 shrink-0 items-center justify-center rounded-full border border-white/10 bg-white/[0.05] text-slate-400 transition hover:bg-white/[0.08] hover:text-white"
               >
-                Close
-              </Button>
+                <X className="h-4 w-4" />
+              </button>
             </div>
 
             <div className="border-b border-white/10 p-4">
-              <Input
+              <TextInput
                 value={archiveSearch}
-                onChange={(e) => setArchiveSearch(e.target.value)}
-                placeholder="Search archived..."
-                className="h-11 rounded-2xl border-white/10 bg-white/5 text-white"
+                onChange={setArchiveSearch}
+                placeholder="Search archived vendor bank accounts"
               />
             </div>
 
-            <div className="flex-1 space-y-3 overflow-y-auto p-4">
-              {archiveLoading ? (
-                <div className="text-sm text-white/50">Loading...</div>
-              ) : filteredArchived.length === 0 ? (
-                <div className="text-sm text-white/50">
-                  No archived vendor bank accounts
-                </div>
-              ) : (
-                filteredArchived.map((row) => (
-                  <div
-                    key={row.id}
-                    className="flex items-center justify-between rounded-[20px] border border-white/10 p-4"
-                  >
-                    <div>
-                      <div className="font-medium text-white">
-                        {row.bank_name || row.bank_id}
-                      </div>
-                      <div className="text-sm text-white/40">
-                        {(row.vendor_legal_name || row.vendor_name || "—") +
-                          (row.vendor_code ? ` • ${row.vendor_code}` : "")}
-                      </div>
-                    </div>
-
-                    <div className="flex gap-2">
-                      <Button
-                        variant="outline"
-                        onClick={() =>
-                          navigate(
-                            `/finance/master-data/vendor-bank-accounts/${row.id}`
-                          )
-                        }
-                        className="h-11 rounded-2xl border-white/10 bg-white/5 px-4 text-white"
-                      >
-                        Open
-                      </Button>
-
-                      <Button
-                        variant="outline"
-                        onClick={() => void handleRestore(row.id)}
-                        className="h-11 rounded-2xl border-emerald-400/20 bg-emerald-500/10 px-4 text-emerald-100"
-                      >
-                        Restore
-                      </Button>
-
-                      <Button
-                        variant="outline"
-                        onClick={() => void handleDelete(row.id)}
-                        className="h-11 rounded-2xl border-rose-400/20 bg-rose-500/10 px-4 text-rose-100"
-                      >
-                        Delete
-                      </Button>
-                    </div>
+            <div className="min-h-0 flex-1 overflow-y-auto p-4">
+              {isLoadingArchive ? (
+                <div className="rounded-[28px] border border-dashed border-white/10 bg-black/20 px-6 py-12 text-center">
+                  <Loader2 className="mx-auto h-8 w-8 animate-spin text-cyan-200" />
+                  <div className="mt-4 text-sm font-semibold text-white">
+                    Loading archived vendor bank accounts
                   </div>
-                ))
+                </div>
+              ) : filteredArchivedRows.length === 0 ? (
+                <EmptyState
+                  icon={Archive}
+                  title="No archived vendor bank accounts"
+                  description="Archived vendor bank accounts will appear here after they are removed from active operational use."
+                />
+              ) : (
+                <div className="overflow-x-auto rounded-[24px] border border-white/10 bg-black/20">
+                  <table className="w-full min-w-[980px] border-collapse">
+                    <thead className="sticky top-0 z-20 border-b border-white/10 bg-black/70 backdrop-blur-xl">
+                      <tr>
+                        <th className="px-5 py-4 text-left text-[11px] font-semibold uppercase tracking-[0.18em] text-slate-500">
+                          Vendor
+                        </th>
+                        <th className="px-5 py-4 text-left text-[11px] font-semibold uppercase tracking-[0.18em] text-slate-500">
+                          Bank
+                        </th>
+                        <th className="px-5 py-4 text-left text-[11px] font-semibold uppercase tracking-[0.18em] text-slate-500">
+                          Currency
+                        </th>
+                        <th className="px-5 py-4 text-left text-[11px] font-semibold uppercase tracking-[0.18em] text-slate-500">
+                          Updated
+                        </th>
+                        <th className="px-5 py-4 text-right text-[11px] font-semibold uppercase tracking-[0.18em] text-slate-500">
+                          Actions
+                        </th>
+                      </tr>
+                    </thead>
+
+                    <tbody>
+                      {filteredArchivedRows.map((row) => {
+                        const isRowActionRunning = activeActionId === row.id;
+                        const updatedAt = row.updated_at || row.created_at;
+
+                        return (
+                          <tr
+                            key={row.id}
+                            className="border-b border-white/5 text-sm text-slate-300 transition hover:bg-white/[0.035]"
+                          >
+                            <td className="min-w-[260px] px-5 py-4">
+                              <div className="font-semibold text-white">
+                                {getVendorName(row)}
+                              </div>
+                              <div className="mt-1 text-xs text-slate-500">
+                                {row.vendor_code || "No vendor code"}
+                              </div>
+                            </td>
+
+                            <td className="min-w-[240px] px-5 py-4">
+                              <div className="font-semibold text-white">
+                                {getBankName(row)}
+                              </div>
+                              <div className="mt-1 text-xs text-slate-500">
+                                {getIdentifierLabel(row)}
+                              </div>
+                            </td>
+
+                            <td className="min-w-[120px] px-5 py-4">
+                              <span className="inline-flex rounded-full border border-white/10 bg-white/[0.04] px-3 py-1 text-xs font-semibold text-white">
+                                {getCurrencyLabel(row)}
+                              </span>
+                            </td>
+
+                            <td className="min-w-[150px] px-5 py-4">
+                              {formatDateLabel(updatedAt)}
+                            </td>
+
+                            <td className="px-5 py-4 text-right">
+                              <div className="flex justify-end gap-2">
+                                <button
+                                  type="button"
+                                  onClick={() =>
+                                    navigate(
+                                      `/finance/master-data/vendor-bank-accounts/${row.id}`
+                                    )
+                                  }
+                                  className="inline-flex h-9 items-center justify-center gap-2 rounded-full border border-cyan-400/20 bg-cyan-500/10 px-4 text-xs font-semibold uppercase tracking-[0.14em] text-cyan-100 transition hover:bg-cyan-500/15"
+                                >
+                                  Open
+                                </button>
+
+                                <button
+                                  type="button"
+                                  onClick={() => void handleRestore(row.id)}
+                                  disabled={isActionRunning}
+                                  className="inline-flex h-9 items-center justify-center gap-2 rounded-full border border-emerald-400/20 bg-emerald-500/10 px-4 text-xs font-semibold uppercase tracking-[0.14em] text-emerald-100 transition hover:bg-emerald-500/15 disabled:cursor-not-allowed disabled:opacity-50"
+                                >
+                                  {isRowActionRunning && runningAction === "restore" ? (
+                                    <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                                  ) : (
+                                    <RotateCcw className="h-3.5 w-3.5" />
+                                  )}
+                                  Restore
+                                </button>
+
+                                <button
+                                  type="button"
+                                  onClick={() => void handlePermanentDelete(row.id)}
+                                  disabled={isActionRunning}
+                                  className="inline-flex h-9 items-center justify-center gap-2 rounded-full border border-rose-400/20 bg-rose-500/10 px-4 text-xs font-semibold uppercase tracking-[0.14em] text-rose-100 transition hover:bg-rose-500/15 disabled:cursor-not-allowed disabled:opacity-50"
+                                >
+                                  {isRowActionRunning &&
+                                  runningAction === "hard-delete" ? (
+                                    <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                                  ) : (
+                                    <Trash2 className="h-3.5 w-3.5" />
+                                  )}
+                                  Delete
+                                </button>
+                              </div>
+                            </td>
+                          </tr>
+                        );
+                      })}
+                    </tbody>
+                  </table>
+                </div>
               )}
             </div>
           </div>
         </div>
-      )}
-    </>
+      ) : null}
+    </div>
   );
 }

@@ -161,21 +161,6 @@ function formatCount(value: number) {
   return value.toLocaleString();
 }
 
-function formatDateTime(value: string | null | undefined) {
-  if (!value) return "—";
-
-  const parsed = new Date(value);
-  if (Number.isNaN(parsed.getTime())) return value;
-
-  return parsed.toLocaleString(undefined, {
-    year: "numeric",
-    month: "short",
-    day: "numeric",
-    hour: "2-digit",
-    minute: "2-digit",
-  });
-}
-
 function coercePermissionMap(
   value: Partial<Record<Permission, boolean>> | null | undefined
 ): Partial<Record<Permission, boolean>> {
@@ -935,12 +920,6 @@ export default function FinanceAccessApprovalUserDetailPage() {
   const totalLevelCount = useMemo(() => {
     return groupSummaries.reduce((total, summary) => total + summary.totalLevels, 0);
   }, [groupSummaries]);
-
-  const operatorSectionCount = useMemo(() => {
-    return ACCESS_APPROVAL_SECTIONS.filter(
-      (section) => accessStates[section.key]?.approveExecute
-    ).length;
-  }, [accessStates]);
 
   const overriddenPermissionCount = useMemo(() => {
     return Object.keys(permissions || {}).length;

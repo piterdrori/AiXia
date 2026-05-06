@@ -117,7 +117,7 @@ const levelIconMap: Record<AccessApprovalLevel, LucideIcon> = {
   read: Eye,
   create: Search,
   update: KeyRound,
-  deleteArchive: Archive,
+  deleteArchive: KeyRound,
   approveExecute: ShieldCheck,
 };
 

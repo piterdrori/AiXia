@@ -1,7 +1,9 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
+import type { ReactNode } from "react";
 import { useNavigate } from "react-router-dom";
 import type { LucideIcon } from "lucide-react";
 import {
+  AlertTriangle,
   ArrowRight,
   Banknote,
   BriefcaseBusiness,
@@ -10,15 +12,23 @@ import {
   Database,
   FolderKanban,
   Landmark,
+  Loader2,
+  LockKeyhole,
   Package2,
   Receipt,
   ShieldCheck,
   Sparkles,
+  UserRound,
   Users,
   WalletCards,
 } from "lucide-react";
 
 import { supabase } from "@/lib/supabase";
+import {
+  getEffectivePermissions,
+  type Permission,
+  type Role,
+} from "@/lib/permissions";
 
 type MasterDataOverviewCard = {
   key: string;
@@ -56,6 +66,7 @@ type MasterDataModuleCard = {
   count: number;
   statusLabel: string;
   lastUpdatedLabel: string;
+  requiredAccessLabel: string;
 };
 
 type RecentMasterDataChange = {
@@ -97,6 +108,15 @@ type CountResult = {
   count?: number | null;
 };
 
+type CurrentUserProfile = {
+  user_id: string;
+  full_name: string | null;
+  role: Role | null;
+  permissions: Partial<Record<Permission, boolean>> | null;
+};
+
+type MasterDataAccessMap = Record<MasterDataModuleKey, boolean>;
+
 const EMPTY_MASTER_DATA: MasterDataPageData = {
   counts: {
     clients: 0,
@@ -123,6 +143,25 @@ const EMPTY_MASTER_DATA: MasterDataPageData = {
   recentChanges: [],
 };
 
+const EMPTY_MASTER_DATA_ACCESS: MasterDataAccessMap = {
+  clients: false,
+  vendors: false,
+  companies: false,
+  "vendor-bank-accounts": false,
+  "bank-accounts": false,
+  "payment-methods": false,
+  "payment-terms": false,
+  "shipping-terms": false,
+  "tax-codes": false,
+  "expense-categories": false,
+  "revenue-categories": false,
+  "units-of-measure": false,
+  items: false,
+  projects: false,
+  employees: false,
+  rates: false,
+};
+
 function formatCount(value: number) {
   return value.toLocaleString();
 }
@@ -144,6 +183,99 @@ function getCount(result: CountResult) {
   return result.count ?? 0;
 }
 
+function hasPermission(
+  permissions: Record<Permission, boolean> | null,
+  permission: Permission
+) {
+  return Boolean(permissions?.[permission]);
+}
+
+function getMasterDataAccessMap(
+  permissions: Record<Permission, boolean> | null
+): MasterDataAccessMap {
+  if (!permissions) {
+    return EMPTY_MASTER_DATA_ACCESS;
+  }
+
+  const canManageMasterData = hasPermission(permissions, "manageFinanceMasterData");
+  const canViewFinance = hasPermission(permissions, "viewFinance");
+  const canAccessFinance = hasPermission(permissions, "accessFinance");
+
+  const canUseFinance = canViewFinance || canAccessFinance || canManageMasterData;
+
+  const canUsePayroll =
+    hasPermission(permissions, "accessPayroll") ||
+    hasPermission(permissions, "viewPayroll") ||
+    hasPermission(permissions, "viewAllPaychecks") ||
+    hasPermission(permissions, "managePayProfiles");
+
+  const canUseExpenses =
+    hasPermission(permissions, "accessExpenses") ||
+    hasPermission(permissions, "viewExpenses") ||
+    hasPermission(permissions, "viewOwnExpenses") ||
+    hasPermission(permissions, "viewTeamExpenses") ||
+    hasPermission(permissions, "approveExpenses");
+
+  return {
+    clients:
+      canManageMasterData ||
+      hasPermission(permissions, "viewClients") ||
+      hasPermission(permissions, "manageClients"),
+
+    vendors:
+      canManageMasterData ||
+      hasPermission(permissions, "viewVendors") ||
+      hasPermission(permissions, "manageVendors"),
+
+    companies: canManageMasterData,
+
+    "vendor-bank-accounts":
+      canManageMasterData ||
+      hasPermission(permissions, "viewVendors") ||
+      hasPermission(permissions, "manageVendors") ||
+      hasPermission(permissions, "accessPayables") ||
+      hasPermission(permissions, "viewPayables"),
+
+    "bank-accounts":
+      canManageMasterData || hasPermission(permissions, "viewBankAccounts"),
+
+    "payment-methods":
+      canManageMasterData || hasPermission(permissions, "viewPaymentMethods"),
+
+    "payment-terms":
+      canManageMasterData || hasPermission(permissions, "viewPaymentTerms"),
+
+    "shipping-terms":
+      canManageMasterData || hasPermission(permissions, "viewShippingTerms"),
+
+    "tax-codes":
+      canManageMasterData || hasPermission(permissions, "viewTaxCodes"),
+
+    "expense-categories":
+      canManageMasterData ||
+      hasPermission(permissions, "viewExpenseCategories") ||
+      canUseExpenses,
+
+    "revenue-categories":
+      canManageMasterData || hasPermission(permissions, "viewRevenueCategories"),
+
+    "units-of-measure":
+      canManageMasterData || hasPermission(permissions, "viewUnitsOfMeasure"),
+
+    items: canManageMasterData || hasPermission(permissions, "viewItems"),
+
+    projects: canUseFinance,
+
+    employees: canManageMasterData || canUsePayroll || canUseExpenses,
+
+    rates: canManageMasterData || canViewFinance || canAccessFinance,
+  };
+}
+
+function canOpenAnyMasterData(accessMap: MasterDataAccessMap) {
+  return Object.values(accessMap).some(Boolean);
+}
+
 async function safeCount(tableName: string): Promise<CountResult> {
   try {
     const result = await supabase
@@ -153,6 +285,33 @@ async function safeCount(tableName: string): Promise<CountResult> {
     return { count: result.count ?? 0 };
   } catch {
     return { count: 0 };
+  }
+}
+
+async function loadBackendEffectivePermissions(
+  userId: string
+): Promise<Partial<Record<Permission, boolean>> | null> {
+  try {
+    const result = await supabase.rpc("finance_get_effective_permissions", {
+      target_user_id: userId,
+    });
+
+    if (result.error) {
+      console.warn(
+        "Master Data permission RPC fallback:",
+        result.error.message
+      );
+      return null;
+    }
+
+    if (!result.data || typeof result.data !== "object") {
+      return null;
+    }
+
+    return result.data as Partial<Record<Permission, boolean>>;
+  } catch (error) {
+    console.warn("Master Data permission RPC failed:", error);
+    return null;
   }
 }
 
@@ -290,10 +449,10 @@ function MasterDataModuleButton({
 
         <div className="rounded-[18px] border border-white/10 bg-white/[0.035] px-3 py-2">
           <div className="text-[10px] uppercase tracking-[0.18em] text-slate-600">
-            Updated
+            Access
           </div>
           <div className="mt-1 truncate text-sm font-semibold text-white">
-            {module.lastUpdatedLabel}
+            {module.requiredAccessLabel}
           </div>
         </div>
       </div>
@@ -377,15 +536,144 @@ function HeaderStatusCard({
   );
 }
 
+function AccessSummaryPanel({
+  visibleCount,
+  totalCount,
+  hasAccess,
+}: {
+  visibleCount: number;
+  totalCount: number;
+  hasAccess: boolean;
+}) {
+  if (!hasAccess) {
+    return (
+      <div className="rounded-[30px] border border-rose-400/20 bg-rose-500/10 p-6">
+        <div className="flex items-start gap-4">
+          <div className="rounded-2xl border border-rose-400/20 bg-rose-500/10 p-3 text-rose-200">
+            <LockKeyhole className="h-5 w-5" />
+          </div>
+
+          <div>
+            <div className="text-lg font-semibold text-white">
+              No master-data access is enabled
+            </div>
+            <div className="mt-2 text-sm leading-6 text-rose-100">
+              This user can open Finance only if another permitted Finance area is available.
+              Master Data cards are hidden until a Finance template or user-specific exception
+              grants the required read access.
+            </div>
+          </div>
+        </div>
+      </div>
+    );
+  }
+
+  return (
+    <div className="rounded-[30px] border border-cyan-400/20 bg-[radial-gradient(circle_at_top_left,rgba(6,182,212,0.14),rgba(255,255,255,0.045)_48%)] p-6 backdrop-blur-xl">
+      <div className="flex flex-col gap-4 md:flex-row md:items-center">
+        <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-2xl border border-cyan-400/20 bg-cyan-500/10 text-cyan-200">
+          <ShieldCheck className="h-5 w-5" />
+        </div>
+
+        <div>
+          <div className="text-lg font-semibold text-white">
+            Master-data access is permission filtered
+          </div>
+          <div className="mt-2 max-w-3xl text-sm leading-6 text-slate-400">
+            Showing {formatCount(visibleCount)} of {formatCount(totalCount)} master-data
+            domains for this user. Hidden domains require the correct Finance template
+            baseline or user-specific exception.
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function ReadinessBlock({
+  label,
+  value,
+  detail,
+}: {
+  label: string;
+  value: string;
+  detail?: string;
+}) {
+  return (
+    <div className="rounded-[24px] border border-white/10 bg-black/20 p-4">
+      <div className="text-[11px] uppercase tracking-[0.2em] text-slate-500">
+        {label}
+      </div>
+      <div className="mt-2 text-2xl font-semibold text-white">{value}</div>
+      {detail ? (
+        <div className="mt-2 text-sm leading-6 text-slate-400">{detail}</div>
+      ) : null}
+    </div>
+  );
+}
+
 export default function FinanceMasterDataPage() {
   const navigate = useNavigate();
 
-  const [data, setData] =
-    useState<MasterDataPageData>(EMPTY_MASTER_DATA);
-  const [isLoading, setIsLoading] = useState(true);
+  const [data, setData] = useState<MasterDataPageData>(EMPTY_MASTER_DATA);
+  const [currentProfile, setCurrentProfile] = useState<CurrentUserProfile | null>(null);
+  const [effectivePermissions, setEffectivePermissions] =
+    useState<Record<Permission, boolean> | null>(null);
+  const [isLoadingProfile, setIsLoadingProfile] = useState(true);
+  const [isLoadingData, setIsLoadingData] = useState(true);
+
+  const loadCurrentProfile = useCallback(async () => {
+    setIsLoadingProfile(true);
+
+    try {
+      const authResult = await supabase.auth.getUser();
+      if (authResult.error) throw authResult.error;
+
+      const authUserId = authResult.data.user?.id;
+
+      if (!authUserId) {
+        setCurrentProfile(null);
+        setEffectivePermissions(null);
+        return;
+      }
+
+      const profileResult = await supabase
+        .from("profiles")
+        .select("user_id, full_name, role, permissions")
+        .eq("user_id", authUserId)
+        .maybeSingle();
+
+      if (profileResult.error) throw profileResult.error;
+
+      const profile = (profileResult.data || null) as CurrentUserProfile | null;
+      const backendPermissions = authUserId
+        ? await loadBackendEffectivePermissions(authUserId)
+        : null;
+
+      setCurrentProfile(profile);
+
+      if (!profile?.role) {
+        setEffectivePermissions(null);
+        return;
+      }
+
+      const resolvedPermissions = getEffectivePermissions(
+        profile.role,
+        backendPermissions || profile.permissions || null
+      );
+
+      setEffectivePermissions(resolvedPermissions);
+    } catch (error) {
+      console.error("Failed to load master-data profile permissions:", error);
+      setCurrentProfile(null);
+      setEffectivePermissions(null);
+    } finally {
+      setIsLoadingProfile(false);
+    }
+  }, []);
 
   const loadMasterData = useCallback(async () => {
-    setIsLoading(true);
+    setIsLoadingData(true);
 
     try {
       const [
@@ -454,8 +742,7 @@ export default function FinanceMasterDataPage() {
           .select("user_id", { count: "exact", head: true }),
       ]);
 
-          const recentChanges: RecentMasterDataChange[] = [];
-
+      const recentChanges: RecentMasterDataChange[] = [];
       const now = new Date().toISOString();
 
       if (getCount(clients) > 0) {
@@ -522,8 +809,8 @@ export default function FinanceMasterDataPage() {
           currencies: 1,
         },
         rates: {
-          sourceLabel: "Live placeholder",
-          updatedAtLabel: "Not connected yet",
+          sourceLabel: "Currency Master",
+          updatedAtLabel: "Live reference",
         },
         recentChanges,
       });
@@ -531,71 +818,54 @@ export default function FinanceMasterDataPage() {
       console.error("Failed to load master data:", error);
       setData(EMPTY_MASTER_DATA);
     } finally {
-      setIsLoading(false);
+      setIsLoadingData(false);
     }
   }, []);
 
   useEffect(() => {
-    void loadMasterData();
-  }, [loadMasterData]);
+    void Promise.all([loadCurrentProfile(), loadMasterData()]);
+  }, [loadCurrentProfile, loadMasterData]);
 
   useEffect(() => {
+    const channel = supabase
+      .channel("finance-master-data-page")
+      .on(
+        "postgres_changes",
+        { event: "*", schema: "public", table: "profiles" },
+        () => void loadCurrentProfile()
+      )
+      .on(
+        "postgres_changes",
+        { event: "*", schema: "public", table: "finance_permission_templates" },
+        () => void loadCurrentProfile()
+      )
+      .on(
+        "postgres_changes",
+        { event: "*", schema: "public", table: "finance_user_permission_templates" },
+        () => void loadCurrentProfile()
+      )
+      .subscribe();
+
     const intervalId = window.setInterval(() => {
-      void loadMasterData();
+      void Promise.all([loadCurrentProfile(), loadMasterData()]);
     }, 60000);
 
     return () => {
       window.clearInterval(intervalId);
+      supabase.removeChannel(channel);
     };
-  }, [loadMasterData]);
+  }, [loadCurrentProfile, loadMasterData]);
 
-  const overviewCards = useMemo<MasterDataOverviewCard[]>(() => {
-    return [
-      {
-        key: "clients",
-        title: "Clients",
-        value: isLoading ? "—" : formatCount(data.counts.clients),
-        subtitle: "Finance client records",
-        icon: Users,
-        tone: "cyan",
-      },
-      {
-        key: "vendors",
-        title: "Vendors",
-        value: isLoading ? "—" : formatCount(data.counts.vendors),
-        subtitle: "Supplier records",
-        icon: Building2,
-        tone: "amber",
-      },
-      {
-        key: "companies",
-        title: "Companies",
-        value: isLoading ? "—" : formatCount(data.counts.companies),
-        subtitle: "Internal legal entities",
-        icon: Building2,
-        tone: "violet",
-      },
-      {
-        key: "bank-accounts",
-        title: "Bank Accounts",
-        value: isLoading ? "—" : formatCount(data.counts.bankAccounts),
-        subtitle: "Company banking setup",
-        icon: Landmark,
-        tone: "emerald",
-      },
-      {
-        key: "items",
-        title: "Items",
-        value: isLoading ? "—" : formatCount(data.counts.items),
-        subtitle: "Reusable finance items",
-        icon: Package2,
-        tone: "rose",
-      },
-    ];
-  }, [data, isLoading]);
+  const accessMap = useMemo(() => {
+    return getMasterDataAccessMap(effectivePermissions);
+  }, [effectivePermissions]);
+
+  const hasMasterDataAccess = useMemo(() => {
+    return canOpenAnyMasterData(accessMap);
+  }, [accessMap]);
 
   const moduleCards = useMemo<MasterDataModuleCard[]>(() => {
-    return [
+    const allModules: MasterDataModuleCard[] = [
       {
         key: "clients",
         title: "Clients",
@@ -605,6 +875,7 @@ export default function FinanceMasterDataPage() {
         count: data.counts.clients,
         statusLabel: "Active",
         lastUpdatedLabel: "Live",
+        requiredAccessLabel: "Client Read",
       },
       {
         key: "vendors",
@@ -615,6 +886,7 @@ export default function FinanceMasterDataPage() {
         count: data.counts.vendors,
         statusLabel: "Active",
         lastUpdatedLabel: "Live",
+        requiredAccessLabel: "Vendor Read",
       },
       {
         key: "companies",
@@ -626,6 +898,7 @@ export default function FinanceMasterDataPage() {
         count: data.counts.companies,
         statusLabel: data.counts.companies > 0 ? "Configured" : "New",
         lastUpdatedLabel: "Live",
+        requiredAccessLabel: "Master Admin",
       },
       {
         key: "vendor-bank-accounts",
@@ -635,7 +908,8 @@ export default function FinanceMasterDataPage() {
         icon: Landmark,
         count: data.counts.vendorBankAccounts,
         statusLabel: data.counts.vendorBankAccounts > 0 ? "Configured" : "New",
-        lastUpdatedLabel: "Pending",
+        lastUpdatedLabel: "Live",
+        requiredAccessLabel: "Vendor / Payables",
       },
       {
         key: "bank-accounts",
@@ -646,6 +920,7 @@ export default function FinanceMasterDataPage() {
         count: data.counts.bankAccounts,
         statusLabel: "Active",
         lastUpdatedLabel: "Live",
+        requiredAccessLabel: "Bank Read",
       },
       {
         key: "payment-methods",
@@ -656,6 +931,7 @@ export default function FinanceMasterDataPage() {
         count: data.counts.paymentMethods,
         statusLabel: "Active",
         lastUpdatedLabel: "Live",
+        requiredAccessLabel: "Payment Method Read",
       },
       {
         key: "payment-terms",
@@ -666,6 +942,7 @@ export default function FinanceMasterDataPage() {
         count: data.counts.paymentTerms,
         statusLabel: data.counts.paymentTerms > 0 ? "Configured" : "New",
         lastUpdatedLabel: "Live",
+        requiredAccessLabel: "Payment Terms Read",
       },
       {
         key: "shipping-terms",
@@ -676,6 +953,7 @@ export default function FinanceMasterDataPage() {
         count: data.counts.shippingTerms,
         statusLabel: data.counts.shippingTerms > 0 ? "Configured" : "New",
         lastUpdatedLabel: "Live",
+        requiredAccessLabel: "Shipping Terms Read",
       },
       {
         key: "tax-codes",
@@ -686,6 +964,7 @@ export default function FinanceMasterDataPage() {
         count: data.counts.taxCodes,
         statusLabel: data.counts.taxCodes > 0 ? "Configured" : "New",
         lastUpdatedLabel: "Live",
+        requiredAccessLabel: "Tax Code Read",
       },
       {
         key: "expense-categories",
@@ -697,6 +976,7 @@ export default function FinanceMasterDataPage() {
         statusLabel:
           data.counts.expenseCategories > 0 ? "Configured" : "New",
         lastUpdatedLabel: "Live",
+        requiredAccessLabel: "Expense Category Read",
       },
       {
         key: "revenue-categories",
@@ -707,6 +987,7 @@ export default function FinanceMasterDataPage() {
         count: data.counts.revenueCategories,
         statusLabel: "Active",
         lastUpdatedLabel: "Live",
+        requiredAccessLabel: "Revenue Category Read",
       },
       {
         key: "units-of-measure",
@@ -717,6 +998,7 @@ export default function FinanceMasterDataPage() {
         count: data.counts.unitsOfMeasure,
         statusLabel: data.counts.unitsOfMeasure > 0 ? "Configured" : "New",
         lastUpdatedLabel: "Live",
+        requiredAccessLabel: "Unit Read",
       },
       {
         key: "items",
@@ -727,7 +1009,8 @@ export default function FinanceMasterDataPage() {
         icon: Package2,
         count: data.counts.items,
         statusLabel: data.counts.items > 0 ? "Configured" : "New",
-        lastUpdatedLabel: "Pending",
+        lastUpdatedLabel: "Live",
+        requiredAccessLabel: "Item Read",
       },
       {
         key: "projects",
@@ -739,6 +1022,7 @@ export default function FinanceMasterDataPage() {
         count: data.counts.projects,
         statusLabel: "Linked",
         lastUpdatedLabel: "Live",
+        requiredAccessLabel: "Finance Read",
       },
       {
         key: "employees",
@@ -750,52 +1034,116 @@ export default function FinanceMasterDataPage() {
         count: data.counts.employees,
         statusLabel: "Linked",
         lastUpdatedLabel: "Live",
+        requiredAccessLabel: "Payroll / Expense",
       },
       {
         key: "rates",
         title: "Rates / Currency",
-        description: "Live currency reference, exchange source, and rate controls.",
+        description: "Currency reference, exchange source, and rate controls.",
         route: "/finance/master-data/currencies",
         icon: Banknote,
         count: data.counts.currencies,
         statusLabel: "Source",
         lastUpdatedLabel: data.rates.updatedAtLabel,
+        requiredAccessLabel: "Finance Read",
       },
     ];
-  }, [data]);
+
+    return allModules.filter((module) => accessMap[module.key]);
+  }, [accessMap, data]);
+
+  const overviewCards = useMemo<MasterDataOverviewCard[]>(() => {
+    const visibleClients = accessMap.clients ? data.counts.clients : 0;
+    const visibleVendors = accessMap.vendors ? data.counts.vendors : 0;
+    const visibleCompanies = accessMap.companies ? data.counts.companies : 0;
+    const visibleBankAccounts = accessMap["bank-accounts"]
+      ? data.counts.bankAccounts
+      : 0;
+    const visibleItems = accessMap.items ? data.counts.items : 0;
+
+    return [
+      {
+        key: "clients",
+        title: "Clients",
+        value: isLoadingData ? "—" : formatCount(visibleClients),
+        subtitle: accessMap.clients ? "Visible client records" : "Hidden by access",
+        icon: Users,
+        tone: "cyan",
+      },
+      {
+        key: "vendors",
+        title: "Vendors",
+        value: isLoadingData ? "—" : formatCount(visibleVendors),
+        subtitle: accessMap.vendors ? "Visible supplier records" : "Hidden by access",
+        icon: Building2,
+        tone: "amber",
+      },
+      {
+        key: "companies",
+        title: "Companies",
+        value: isLoadingData ? "—" : formatCount(visibleCompanies),
+        subtitle: accessMap.companies ? "Visible legal entities" : "Hidden by access",
+        icon: Building2,
+        tone: "violet",
+      },
+      {
+        key: "bank-accounts",
+        title: "Bank Accounts",
+        value: isLoadingData ? "—" : formatCount(visibleBankAccounts),
+        subtitle: accessMap["bank-accounts"]
+          ? "Visible banking setup"
+          : "Hidden by access",
+        icon: Landmark,
+        tone: "emerald",
+      },
+      {
+        key: "items",
+        title: "Items",
+        value: isLoadingData ? "—" : formatCount(visibleItems),
+        subtitle: accessMap.items ? "Visible finance items" : "Hidden by access",
+        icon: Package2,
+        tone: "rose",
+      },
+    ];
+  }, [accessMap, data, isLoadingData]);
 
   const recentChanges = useMemo(() => {
-    return [...data.recentChanges].sort(
-      (a, b) =>
-        new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime()
-    );
-  }, [data.recentChanges]);
+    const visibleRoutes = new Set(moduleCards.map((module) => module.route));
+
+    return [...data.recentChanges]
+      .filter((change) => !change.route || visibleRoutes.has(change.route))
+      .sort(
+        (a, b) =>
+          new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime()
+      );
+  }, [data.recentChanges, moduleCards]);
 
   const headerStatusCards = useMemo(() => {
     return [
       {
         label: "System Status",
-        value: isLoading ? "Loading" : "Live",
+        value: isLoadingData || isLoadingProfile ? "Loading" : "Live",
         detail: "Master data counts refresh automatically every 60 seconds.",
         icon: ShieldCheck,
         tone: "emerald" as const,
       },
       {
-        label: "Domains",
+        label: "Visible Domains",
         value: formatCount(moduleCards.length),
-        detail: "Finance master-data domains connected to this hub.",
+        detail: "Master-data domains visible to this user after permissions.",
         icon: Database,
         tone: "cyan" as const,
       },
       {
-        label: "Rates",
-        value: data.rates.sourceLabel,
-        detail: data.rates.updatedAtLabel,
-        icon: Banknote,
+        label: "Access Model",
+        value: hasMasterDataAccess ? "Filtered" : "Locked",
+        detail:
+          "Visibility follows Finance templates and user-specific exceptions.",
+        icon: hasMasterDataAccess ? UserRound : LockKeyhole,
         tone: "amber" as const,
       },
     ];
-  }, [data.rates, isLoading, moduleCards.length]);
+  }, [hasMasterDataAccess, isLoadingData, isLoadingProfile, moduleCards.length]);
 
   const totalConfiguredDomains = useMemo(() => {
     return moduleCards.filter((module) => module.count > 0).length;
@@ -836,9 +1184,9 @@ export default function FinanceMasterDataPage() {
                 </h1>
 
                 <p className="mt-3 max-w-4xl text-sm leading-6 text-slate-400 md:text-base md:leading-7">
-                  A structured finance reference layer for clients, vendors,
-                  companies, banking, terms, tax codes, categories, items,
-                  projects, employees, and currency controls.
+                  Permission-filtered finance reference layer for clients, vendors,
+                  companies, banking, terms, tax codes, categories, items, projects,
+                  employees, and currency controls.
                 </p>
               </div>
 
@@ -847,7 +1195,7 @@ export default function FinanceMasterDataPage() {
                   Live backend
                 </div>
                 <div className="rounded-full border border-cyan-400/20 bg-cyan-500/10 px-3 py-1 text-[11px] font-semibold uppercase tracking-[0.16em] text-cyan-200">
-                  Finance structure
+                  Permission filtered
                 </div>
                 <div className="rounded-full border border-slate-400/20 bg-slate-500/10 px-3 py-1 text-[11px] font-semibold uppercase tracking-[0.16em] text-slate-300">
                   Auto refresh
@@ -870,7 +1218,7 @@ export default function FinanceMasterDataPage() {
           </div>
         </header>
 
-        <section className="grid gap-4 md:grid-cols-2 xl:grid-cols-5">
+                <section className="grid gap-4 md:grid-cols-2 xl:grid-cols-5">
           {overviewCards.map((metric) => (
             <MasterDataOverviewMetric key={metric.key} metric={metric} />
           ))}
@@ -878,22 +1226,51 @@ export default function FinanceMasterDataPage() {
 
         <section className="grid items-start gap-6 xl:grid-cols-[minmax(0,1fr)_430px]">
           <div className="grid min-h-0 gap-6">
+            <AccessSummaryPanel
+              visibleCount={moduleCards.length}
+              totalCount={Object.keys(EMPTY_MASTER_DATA_ACCESS).length}
+              hasAccess={hasMasterDataAccess}
+            />
+
             <MasterDataSectionCard
               title="Master Data Navigation"
-              description="Open each dedicated finance master-data domain."
+              description="Open each dedicated finance master-data domain available to this user."
               icon={Database}
             >
-              <div className="max-h-[620px] overflow-y-auto overscroll-contain pr-1">
-                <div className="grid gap-4 md:grid-cols-2">
-                  {moduleCards.map((module) => (
-                    <MasterDataModuleButton
-                      key={module.key}
-                      module={module}
-                      onOpen={openRoute}
-                    />
-                  ))}
+              {isLoadingProfile || isLoadingData ? (
+                <div className="rounded-[28px] border border-dashed border-white/10 bg-black/20 px-6 py-12 text-center">
+                  <Loader2 className="mx-auto h-8 w-8 animate-spin text-cyan-200" />
+                  <div className="mt-4 text-sm font-medium text-white">
+                    Loading master-data access
+                  </div>
+                  <p className="mt-2 text-sm leading-6 text-slate-500">
+                    Finance templates and master-data permissions are being checked.
+                  </p>
                 </div>
-              </div>
+              ) : moduleCards.length === 0 ? (
+                <div className="rounded-[28px] border border-dashed border-white/10 bg-black/20 px-6 py-12 text-center">
+                  <LockKeyhole className="mx-auto h-8 w-8 text-slate-500" />
+                  <div className="mt-4 text-sm font-medium text-white">
+                    No master-data domains available
+                  </div>
+                  <p className="mt-2 text-sm leading-6 text-slate-500">
+                    Ask an Admin to assign a Finance role template or user-specific
+                    exception with Master Data read access.
+                  </p>
+                </div>
+              ) : (
+                <div className="max-h-[620px] overflow-y-auto overscroll-contain pr-1">
+                  <div className="grid gap-4 md:grid-cols-2">
+                    {moduleCards.map((module) => (
+                      <MasterDataModuleButton
+                        key={module.key}
+                        module={module}
+                        onOpen={openRoute}
+                      />
+                    ))}
+                  </div>
+                </div>
+              )}
             </MasterDataSectionCard>
 
             <div className="overflow-hidden rounded-[30px] border border-cyan-400/15 bg-[radial-gradient(circle_at_top,rgba(6,182,212,0.18),rgba(3,7,18,0.94)_58%)]">
@@ -903,8 +1280,7 @@ export default function FinanceMasterDataPage() {
                     Master Data Readiness
                   </div>
                   <p className="mt-1 text-xs leading-5 text-slate-400">
-                    Monitor whether the finance foundation has enough configured
-                    reference data to support document and reporting workflows.
+                    Visible readiness signals are based only on domains this user can access.
                   </p>
                 </div>
 
@@ -914,32 +1290,23 @@ export default function FinanceMasterDataPage() {
               </div>
 
               <div className="grid gap-4 p-5 md:grid-cols-3">
-                <div className="rounded-[24px] border border-white/10 bg-black/20 p-4">
-                  <div className="text-[11px] uppercase tracking-[0.2em] text-slate-500">
-                    Configured Domains
-                  </div>
-                  <div className="mt-2 text-2xl font-semibold text-white">
-                    {formatCount(totalConfiguredDomains)}
-                  </div>
-                </div>
+                <ReadinessBlock
+                  label="Visible Domains"
+                  value={formatCount(moduleCards.length)}
+                  detail="Domains available after permission filtering."
+                />
 
-                <div className="rounded-[24px] border border-white/10 bg-black/20 p-4">
-                  <div className="text-[11px] uppercase tracking-[0.2em] text-slate-500">
-                    Total Domains
-                  </div>
-                  <div className="mt-2 text-2xl font-semibold text-white">
-                    {formatCount(moduleCards.length)}
-                  </div>
-                </div>
+                <ReadinessBlock
+                  label="Configured Domains"
+                  value={formatCount(totalConfiguredDomains)}
+                  detail="Visible domains with at least one record."
+                />
 
-                <div className="rounded-[24px] border border-white/10 bg-black/20 p-4">
-                  <div className="text-[11px] uppercase tracking-[0.2em] text-slate-500">
-                    Currency Source
-                  </div>
-                  <div className="mt-2 truncate text-2xl font-semibold text-white">
-                    {data.rates.sourceLabel}
-                  </div>
-                </div>
+                <ReadinessBlock
+                  label="Currency Source"
+                  value={accessMap.rates ? data.rates.sourceLabel : "Hidden"}
+                  detail={accessMap.rates ? data.rates.updatedAtLabel : "Requires Finance read access."}
+                />
               </div>
             </div>
           </div>
@@ -947,17 +1314,16 @@ export default function FinanceMasterDataPage() {
           <div className="grid min-h-0 gap-6">
             <MasterDataSectionCard
               title="Recent Changes"
-              description="Recent movement across your master data structure."
+              description="Recent movement across visible master-data domains."
               icon={Receipt}
             >
               {recentChanges.length === 0 ? (
                 <div className="rounded-[28px] border border-dashed border-white/10 bg-black/20 px-6 py-12 text-center">
                   <div className="text-sm font-medium text-white">
-                    No recent master-data changes found
+                    No visible recent master-data changes
                   </div>
                   <p className="mt-2 text-sm leading-6 text-slate-500">
-                    Client, vendor, company, and bank account changes will
-                    appear here when available.
+                    Changes appear here only for master-data domains this user can read.
                   </p>
                 </div>
               ) : (
@@ -1005,47 +1371,38 @@ export default function FinanceMasterDataPage() {
               <div className="flex items-center justify-between border-b border-white/10 px-5 py-4">
                 <div className="flex min-w-0 items-center gap-3">
                   <div className="rounded-2xl border border-cyan-400/15 bg-cyan-500/10 p-3 text-cyan-200">
-                    <Banknote className="h-4 w-4" />
+                    <ShieldCheck className="h-4 w-4" />
                   </div>
 
                   <div className="min-w-0">
                     <h2 className="text-sm font-semibold uppercase tracking-[0.18em] text-slate-400">
-                      Rates / Currency
+                      Access Rule
                     </h2>
                     <p className="mt-1 text-xs text-slate-500">
-                      Currency source and rate-control entry point.
+                      Finance template baseline plus user-specific exceptions.
                     </p>
                   </div>
                 </div>
               </div>
 
               <div className="space-y-4 p-5">
-                <div className="rounded-[24px] border border-white/10 bg-black/20 p-4">
-                  <div className="text-[11px] uppercase tracking-[0.2em] text-slate-500">
-                    Rate Source
-                  </div>
-                  <div className="mt-2 text-2xl font-semibold text-white">
-                    {data.rates.sourceLabel}
-                  </div>
-                </div>
+                <ReadinessBlock
+                  label="Current User"
+                  value={currentProfile?.full_name || "Unknown"}
+                  detail="The visible modules are calculated for the logged-in user."
+                />
 
-                <div className="rounded-[24px] border border-white/10 bg-black/20 p-4">
-                  <div className="text-[11px] uppercase tracking-[0.2em] text-slate-500">
-                    Last Update
-                  </div>
-                  <div className="mt-2 text-2xl font-semibold text-white">
-                    {data.rates.updatedAtLabel}
-                  </div>
-                </div>
+                <ReadinessBlock
+                  label="Permission Model"
+                  value="Read Access"
+                  detail="This page only opens master-data domains where the user has read-level finance access."
+                />
 
-                <button
-                  type="button"
-                  onClick={() => navigate("/finance/master-data/currencies")}
-                  className="inline-flex w-full items-center justify-center gap-2 rounded-xl border border-cyan-400/20 bg-cyan-500 px-4 py-2 text-sm font-semibold text-slate-950 transition hover:bg-cyan-400"
-                >
-                  Open Rates / Currency
-                  <ArrowRight className="h-4 w-4" />
-                </button>
+                <ReadinessBlock
+                  label="Edit Rights"
+                  value="Handled inside modules"
+                  detail="Create, Update, Delete/Archive, and Approve/Execute actions must be enforced inside each child page."
+                />
               </div>
             </div>
           </div>

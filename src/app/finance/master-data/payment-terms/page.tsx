@@ -852,7 +852,8 @@ export default function FinancePaymentTermsPage() {
   const navigate = useNavigate();
 
   const [rows, setRows] = useState<FinancePaymentTermRow[]>([]);
-  const [loading, setLoading] = useState(true);
+  const [initialLoading, setInitialLoading] = useState(true);
+  const [backgroundRefreshing, setBackgroundRefreshing] = useState(false);
   const [saving, setSaving] = useState(false);
 
   const [search, setSearch] = useState("");
@@ -872,8 +873,14 @@ export default function FinancePaymentTermsPage() {
 
   const generatedTerm = useMemo(() => buildGeneratedTerm(form), [form]);
 
-  const loadPage = useCallback(async () => {
-    setLoading(true);
+  const loadPage = useCallback(async (options?: { silent?: boolean }) => {
+    const silent = options?.silent === true;
+
+    if (silent) {
+      setBackgroundRefreshing(true);
+    } else {
+      setInitialLoading(true);
+    }
 
     try {
       const {
@@ -897,14 +904,22 @@ export default function FinancePaymentTermsPage() {
       setRows(await getPaymentTerms());
     } catch (loadError) {
       console.error("Failed to load payment terms:", loadError);
-      setRows([]);
+
+      if (!silent) {
+        setRows([]);
+      }
+
       setError(
         loadError instanceof Error
           ? loadError.message
           : "Failed to load payment terms."
       );
     } finally {
-      setLoading(false);
+      if (silent) {
+        setBackgroundRefreshing(false);
+      } else {
+        setInitialLoading(false);
+      }
     }
   }, []);
 
@@ -923,13 +938,13 @@ export default function FinancePaymentTermsPage() {
           table: "finance_payment_terms",
         },
         () => {
-          void loadPage();
+          void loadPage({ silent: true });
         }
       )
       .subscribe();
 
     const intervalId = window.setInterval(() => {
-      void loadPage();
+      void loadPage({ silent: true });
     }, 60000);
 
     return () => {
@@ -1174,7 +1189,7 @@ export default function FinancePaymentTermsPage() {
       setDialogOpen(false);
       setForm(EMPTY_FORM);
       setEditingRow(null);
-      await loadPage();
+      await loadPage({ silent: true });
     } catch (saveError) {
       console.error("Failed to save payment term:", saveError);
       setError(
@@ -1200,7 +1215,7 @@ export default function FinancePaymentTermsPage() {
       setPageMessage("");
       await archivePaymentTerm(row.id);
       setPageMessage("Payment term archived successfully.");
-      await loadPage();
+      await loadPage({ silent: true });
     } catch (actionError) {
       console.error("Failed to archive payment term:", actionError);
       setError(
@@ -1222,7 +1237,7 @@ export default function FinancePaymentTermsPage() {
       setPageMessage("");
       await restorePaymentTerm(row.id);
       setPageMessage("Payment term restored successfully.");
-      await loadPage();
+      await loadPage({ silent: true });
     } catch (actionError) {
       console.error("Failed to restore payment term:", actionError);
       setError(
@@ -1250,7 +1265,7 @@ export default function FinancePaymentTermsPage() {
       setPageMessage("");
       await permanentlyDeletePaymentTerm(row.id);
       setPageMessage("Payment term permanently deleted.");
-      await loadPage();
+      await loadPage({ silent: true });
     } catch (actionError) {
       console.error("Failed to permanently delete payment term:", actionError);
       setError(
@@ -1363,42 +1378,42 @@ export default function FinancePaymentTermsPage() {
           <div className="grid grid-cols-1 gap-4 md:grid-cols-2 xl:grid-cols-6">
             <SummaryTile
               label="Total Terms"
-              value={loading ? "—" : stats.total}
+              value={initialLoading ? "—" : stats.total}
               icon={WalletCards}
               tone="cyan"
               description="All configured terms"
             />
             <SummaryTile
               label="Active"
-              value={loading ? "—" : stats.active}
+              value={initialLoading ? "—" : stats.active}
               icon={CheckCircle2}
               tone="emerald"
               description="Available for documents"
             />
             <SummaryTile
               label="Deposit"
-              value={loading ? "—" : stats.deposit}
+              value={initialLoading ? "—" : stats.deposit}
               icon={Percent}
               tone="amber"
               description="Deposit/balance terms"
             />
             <SummaryTile
               label="Partial"
-              value={loading ? "—" : stats.partial}
+              value={initialLoading ? "—" : stats.partial}
               icon={CreditCard}
               tone="violet"
               description="Partial payment allowed"
             />
             <SummaryTile
               label="Archived"
-              value={loading ? "—" : stats.archived}
+              value={initialLoading ? "—" : stats.archived}
               icon={Archive}
               tone="rose"
               description="Hidden from active use"
             />
             <SummaryTile
               label="Active Deposit"
-              value={loading ? "—" : depositRows.length}
+              value={initialLoading ? "—" : depositRows.length}
               icon={Clock3}
               tone="amber"
               description="Active deposit terms"
@@ -1417,6 +1432,7 @@ export default function FinancePaymentTermsPage() {
                 <CardDescription className="text-slate-500">
                   Search, sort, create, edit, archive, restore, and delete reusable commercial terms.
                   Active terms: {activeRows.length}.
+                  {backgroundRefreshing ? " Syncing silently..." : ""}
                 </CardDescription>
               </div>
 
@@ -1494,7 +1510,7 @@ export default function FinancePaymentTermsPage() {
                   </thead>
 
                   <tbody>
-                    {loading ? (
+                    {initialLoading ? (
                       <tr>
                         <td colSpan={7} className="px-5 py-12 text-sm text-slate-400">
                           Loading payment terms...

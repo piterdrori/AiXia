@@ -18,15 +18,18 @@ import {
 } from "lucide-react";
 
 import {
-  AixiaBadge,
   AixiaButton,
+  AixiaDefaultBadge,
   AixiaHero,
+  AixiaInfoBlock,
   AixiaMetricCard,
   AixiaModal,
   AixiaPage,
   AixiaSearchField,
   AixiaSection,
   AixiaSortableHeader,
+  AixiaStatusBadge,
+  AixiaStatusCard,
   AixiaTableShell,
 } from "@/components/aixia";
 
@@ -148,29 +151,6 @@ function getCorrelatedCurrencyLabel(
   return companyCurrency || row.currency_code || "—";
 }
 
-function getStatusBadgeTone(status: string | null | undefined) {
-  switch (status) {
-    case "active":
-      return "emerald";
-    case "inactive":
-      return "gold";
-    case "archived":
-      return "rose";
-    default:
-      return "neutral";
-  }
-}
-
-function formatStatus(status: string | null | undefined) {
-  if (!status) return "Unknown";
-
-  return status
-    .split("_")
-    .filter(Boolean)
-    .map((part) => part.charAt(0).toUpperCase() + part.slice(1))
-    .join(" ");
-}
-
 function hasPermission(
   permissions: Record<Permission, boolean> | null,
   permission: Permission
@@ -253,56 +233,6 @@ function MetricCardBlock({ metric }: { metric: MetricCard }) {
       description={metric.subtitle}
       icon={metric.icon}
       tone={getMetricTone(metric.tone)}
-    />
-  );
-}
-
-function StatusBadge({
-  value,
-  className,
-}: {
-  value: string | null | undefined;
-  className?: string;
-}) {
-  return (
-    <AixiaBadge tone={getStatusBadgeTone(value)} className={className}>
-      {formatStatus(value)}
-    </AixiaBadge>
-  );
-}
-
-function DefaultBadge({ isDefault }: { isDefault: boolean }) {
-  return (
-    <AixiaBadge tone={isDefault ? "emerald" : "neutral"}>
-      {isDefault ? "Default" : "Standard"}
-    </AixiaBadge>
-  );
-}
-
-function HeaderStatusCard({
-  label,
-  value,
-  detail,
-  icon,
-  tone,
-}: {
-  label: string;
-  value: string;
-  detail: string;
-  icon: LucideIcon;
-  tone: "emerald" | "cyan" | "amber" | "rose";
-}) {
-  const metricTone =
-    tone === "cyan" ? "indigo" : tone === "amber" ? "gold" : tone;
-
-  return (
-    <AixiaMetricCard
-      label={label}
-      value={value}
-      description={detail}
-      icon={icon}
-      tone={metricTone}
-      className="min-h-[148px]"
     />
   );
 }
@@ -873,19 +803,20 @@ export default function FinanceMasterDataBankAccountsPage() {
         title="Accounts"
         subtitle="Treasury Reference Registry"
         description="Permission-filtered registry for company-linked bank accounts used by treasury, payment instructions, and finance document snapshots."
+      
         rightContent={
-          <div className="aixia-adaptive-grid" data-card-size="small">
-            <HeaderStatusCard
+          <>
+            <AixiaStatusCard
               label="Read Access"
               value={
                 isLoadingProfile ? "Checking" : permissionState.canRead ? "Enabled" : "Locked"
               }
-              detail="This page requires Bank Account read access or Master Data admin access."
+              description="This page requires Bank Account read access or Master Data admin access."
               icon={permissionState.canRead ? ShieldCheck : LockKeyhole}
               tone={permissionState.canRead ? "emerald" : "rose"}
             />
 
-            <HeaderStatusCard
+            <AixiaStatusCard
               label="Lifecycle Access"
               value={
                 permissionState.canDeleteArchive
@@ -894,19 +825,13 @@ export default function FinanceMasterDataBankAccountsPage() {
                     ? "Create Enabled"
                     : "Read Only"
               }
-              detail="Create and Delete/Archive actions follow the selected Finance template."
+              description="Create and Delete/Archive actions follow the selected Finance template."
               icon={permissionState.canDeleteArchive ? Archive : CreditCard}
-              tone={permissionState.canDeleteArchive ? "amber" : "cyan"}
+              tone={permissionState.canDeleteArchive ? "gold" : "indigo"}
             />
-          </div>
+          </>
         }
-      >
-        <div className="aixia-action-system" data-align="start" data-density="compact">
-          <AixiaBadge tone="emerald">Live backend</AixiaBadge>
-          <AixiaBadge tone="indigo">Permission filtered</AixiaBadge>
-          <AixiaBadge tone="gold">Soft refresh</AixiaBadge>
-        </div>
-      </AixiaHero>
+      />
 
       {pageError ? (
         <div className="rounded-[24px] border border-rose-400/20 bg-rose-500/10 p-4 text-sm leading-6 text-rose-100">
@@ -1118,11 +1043,11 @@ export default function FinanceMasterDataBankAccountsPage() {
                           </td>
 
                           <td className="min-w-[130px] px-5 py-4">
-                            <DefaultBadge isDefault={Boolean(row.is_default)} />
+                            <AixiaDefaultBadge isDefault={Boolean(row.is_default)} />
                           </td>
 
                           <td className="min-w-[140px] px-5 py-4">
-                            <StatusBadge value={row.status} />
+                            <AixiaStatusBadge value={row.status} />
                           </td>
 
                           <td className="min-w-[150px] px-5 py-4">
@@ -1177,9 +1102,9 @@ export default function FinanceMasterDataBankAccountsPage() {
         description="This registry requires Bank Account Read access. Create is controlled by Create access. Archive, Restore, and Permanent Delete are controlled by Delete/Archive access. Update/Edit is handled inside the bank account ID page."
         icon={ShieldCheck}
       >
-        <div className="rounded-[24px] border border-cyan-400/20 bg-cyan-500/10 p-4 text-sm leading-6 text-cyan-100">
+        <AixiaInfoBlock tone="cyan" icon={ShieldCheck}>
           Finance permissions remain enforced by the existing permission state and backend access model.
-        </div>
+        </AixiaInfoBlock>
       </AixiaSection>
 
       <AixiaModal

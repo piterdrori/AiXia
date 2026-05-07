@@ -277,7 +277,65 @@ export async function restoreVendor(id: string): Promise<FinanceVendor> {
   return data as FinanceVendor;
 }
 
+async function countVendorDependencies(
+  tableName: string,
+  columnName: string,
+  vendorId: string
+): Promise<number> {
+  const { count, error } = await supabase
+    .from(tableName)
+    .select("*", { count: "exact", head: true })
+    .eq(columnName, vendorId);
+
+  if (error) throw error;
+
+  return count ?? 0;
+}
+
 export async function permanentlyDeleteVendor(id: string): Promise<void> {
+  const dependencyChecks = await Promise.all([
+    countVendorDependencies("finance_bills_received", "vendor_id", id),
+    countVendorDependencies("finance_expenses", "vendor_id", id),
+    countVendorDependencies("finance_items", "preferred_vendor_id", id),
+    countVendorDependencies("finance_payments_made", "vendor_id", id),
+    countVendorDependencies("finance_purchase_orders", "vendor_id", id),
+    countVendorDependencies("finance_vendor_quotations", "vendor_id", id),
+  ]);
+
+  const [
+    billsCount,
+    expensesCount,
+    preferredItemsCount,
+    paymentsMadeCount,
+    purchaseOrdersCount,
+    vendorQuotationsCount,
+  ] = dependencyChecks;
+
+  const dependencyMessages = [
+    billsCount > 0 ? `${billsCount} bill${billsCount === 1 ? "" : "s"} received` : null,
+    expensesCount > 0 ? `${expensesCount} expense${expensesCount === 1 ? "" : "s"}` : null,
+    preferredItemsCount > 0
+      ? `${preferredItemsCount} preferred item${preferredItemsCount === 1 ? "" : "s"}`
+      : null,
+    paymentsMadeCount > 0
+      ? `${paymentsMadeCount} payment${paymentsMadeCount === 1 ? "" : "s"} made`
+      : null,
+    purchaseOrdersCount > 0
+      ? `${purchaseOrdersCount} purchase order${purchaseOrdersCount === 1 ? "" : "s"}`
+      : null,
+    vendorQuotationsCount > 0
+      ? `${vendorQuotationsCount} vendor quotation${vendorQuotationsCount === 1 ? "" : "s"}`
+      : null,
+  ].filter(Boolean);
+
+  if (dependencyMessages.length > 0) {
+    throw new Error(
+      `This vendor is already used in finance records and cannot be permanently deleted. Linked records: ${dependencyMessages.join(
+        ", "
+      )}. Archive the vendor instead.`
+    );
+  }
+
   const { error } = await supabase.from(TABLE).delete().eq("id", id);
 
   if (error) throw error;

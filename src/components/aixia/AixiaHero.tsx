@@ -87,7 +87,11 @@ export function AixiaHero({
           </div>
         </div>
 
-        {actions ? <div className="aixia-hero-actions">{actions}</div> : null}
+        {actions ? (
+          <div className="aixia-action-system" data-align="end" data-density="normal">
+            {actions}
+          </div>
+        ) : null}
       </div>
     </section>
   );

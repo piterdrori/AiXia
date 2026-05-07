@@ -1,37 +1,80 @@
 .aixia-page {
-  @apply relative min-h-screen overflow-x-hidden bg-[#0F172A] px-4 py-6 text-white md:px-8 md:py-8;
+  @apply relative min-h-screen overflow-x-hidden bg-[#05070d] px-4 py-4 text-white md:px-6 md:py-6;
 }
 
 .aixia-shell {
-  @apply relative z-10 mx-auto flex w-full max-w-[1600px] flex-col gap-8;
+  @apply relative z-10 mx-auto flex w-full max-w-[1600px] flex-col gap-6;
 }
 
 .aixia-glass {
-  @apply relative overflow-hidden rounded-[32px] border border-white/10 bg-white/[0.08] shadow-[0_24px_80px_rgba(0,0,0,0.35)] backdrop-blur-xl;
+  @apply relative overflow-hidden rounded-[32px] border border-white/10 bg-white/[0.045] shadow-[0_24px_80px_rgba(0,0,0,0.35)] backdrop-blur-xl;
 }
 
 .aixia-glass-hover {
-  @apply transition-all duration-500 hover:border-white/20 hover:bg-white/[0.11] hover:shadow-[0_28px_100px_rgba(99,102,241,0.18)];
+  @apply transition-all duration-300 hover:border-white/15 hover:bg-white/[0.055];
 }
 
 .aixia-hero {
-  @apply relative overflow-hidden rounded-[32px] border border-white/10 bg-white/[0.08] p-8 shadow-[0_24px_80px_rgba(0,0,0,0.35)] backdrop-blur-xl;
+  min-height: clamp(360px, 34vw, 520px);
+  @apply relative overflow-hidden rounded-[34px] border border-white/10 bg-white/[0.045] p-6 shadow-2xl shadow-black/30 backdrop-blur-xl md:p-8;
 }
 
 .aixia-hero-glow {
-  @apply pointer-events-none absolute inset-0 rounded-[32px] bg-[radial-gradient(circle_at_20%_50%,rgba(99,102,241,0.14),transparent_46%),radial-gradient(circle_at_80%_50%,rgba(168,85,247,0.12),transparent_46%),radial-gradient(circle_at_50%_0%,rgba(251,191,36,0.08),transparent_40%)];
+  @apply pointer-events-none absolute inset-0 rounded-[34px] bg-[radial-gradient(circle_at_top_left,rgba(99,102,241,0.18),transparent_38%),radial-gradient(circle_at_top_right,rgba(168,85,247,0.14),transparent_34%),radial-gradient(circle_at_80%_80%,rgba(251,191,36,0.08),transparent_42%)];
+}
+
+.aixia-hero-content {
+  @apply relative flex min-h-full flex-col justify-between gap-8;
+}
+
+.aixia-hero-main {
+  @apply grid min-w-0 gap-8 xl:grid-cols-[minmax(0,1fr)_minmax(320px,520px)] xl:items-end xl:justify-between;
+}
+
+.aixia-hero-text {
+  @apply min-w-0 max-w-[920px];
+}
+
+.aixia-hero-side {
+  @apply min-w-0 w-full xl:justify-self-end;
+}
+
+.aixia-hero-side > * {
+  min-width: 0 !important;
+  max-width: 100% !important;
+}
+
+.aixia-hero-actions {
+  @apply flex flex-wrap justify-start gap-3 xl:justify-end;
 }
 
 .aixia-section {
-  @apply relative overflow-hidden rounded-[32px] border border-white/10 bg-white/[0.08] shadow-[0_24px_80px_rgba(0,0,0,0.35)] backdrop-blur-xl;
+  @apply relative overflow-hidden rounded-[30px] border border-white/10 bg-white/[0.045] shadow-[0_24px_80px_rgba(0,0,0,0.28)] backdrop-blur-xl;
 }
 
 .aixia-section-header {
-  @apply border-b border-white/10 px-6 py-5;
+  @apply border-b border-white/10 px-5 py-4 md:px-6 md:py-5;
+}
+
+.aixia-section-header-layout {
+  @apply grid min-w-0 gap-5 xl:grid-cols-[minmax(0,1fr)_auto] xl:items-center xl:justify-between;
+}
+
+.aixia-section-title-wrap {
+  @apply flex min-w-0 items-center gap-4;
+}
+
+.aixia-section-actions {
+  @apply flex min-w-0 flex-wrap gap-3 xl:justify-end;
+}
+
+.aixia-section-actions > * {
+  min-width: 0 !important;
+  max-width: 100% !important;
 }
 
 .aixia-title-xl {
-  @apply text-[clamp(2.8rem,6vw,5.6rem)] font-black leading-none tracking-tight;
+  @apply max-w-[980px] text-[clamp(3rem,5.2vw,5.6rem)] font-black leading-[0.95] tracking-[-0.055em];
 }
 
 .aixia-gradient-text {
@@ -39,19 +82,19 @@
 }
 
 .aixia-subtitle {
-  @apply mt-3 text-[clamp(1.2rem,2.8vw,2.2rem)] font-bold uppercase tracking-[0.06em] text-white/90;
+  @apply mt-4 max-w-[980px] text-[clamp(1.35rem,2.6vw,2.4rem)] font-black uppercase leading-tight tracking-[0.08em] text-white/90;
 }
 
 .aixia-body {
-  @apply text-sm leading-7 text-white/55 md:text-base;
+  @apply max-w-[760px] text-sm leading-7 text-white/55 md:text-base md:leading-7;
 }
 
 .aixia-label {
-  @apply text-xs font-bold uppercase tracking-[0.22em] text-white/60;
+  @apply text-[11px] font-bold uppercase tracking-[0.22em] text-white/55;
 }
 
 .aixia-caption {
-  @apply text-xs text-white/35;
+  @apply text-xs leading-5 text-white/35;
 }
 
 .aixia-badge {
@@ -95,7 +138,7 @@
 }
 
 .aixia-parent-pill {
-  @apply mb-6 inline-flex items-center gap-2 rounded-full border border-white/10 bg-white/[0.08] px-5 py-2.5 text-[11px] font-bold uppercase tracking-[0.2em] text-white/65 transition hover:border-white/20 hover:bg-white/[0.12] hover:text-white;
+  @apply mb-6 inline-flex w-fit items-center gap-2 rounded-full border border-white/10 bg-white/[0.08] px-5 py-2.5 text-[11px] font-bold uppercase tracking-[0.2em] text-white/65 transition hover:border-white/20 hover:bg-white/[0.12] hover:text-white;
 }
 
 .aixia-input {
@@ -111,7 +154,7 @@
 }
 
 .aixia-summary-card {
-  @apply min-h-[166px] rounded-[32px] border border-white/10 bg-white/[0.08] p-6 shadow-[0_24px_80px_rgba(0,0,0,0.35)] backdrop-blur-xl transition-all duration-500 hover:-translate-y-1 hover:border-white/20 hover:bg-white/[0.11];
+  @apply min-h-[156px] rounded-[28px] border border-white/10 bg-white/[0.045] p-5 shadow-[0_24px_80px_rgba(0,0,0,0.28)] backdrop-blur-xl transition-all duration-300 hover:border-white/15 hover:bg-white/[0.055];
 }
 
 .aixia-summary-label {

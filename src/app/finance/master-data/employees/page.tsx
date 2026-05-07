@@ -1,10 +1,10 @@
 import { useEffect, useMemo, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import {
-  Archive,
   ArrowLeft,
   BadgeDollarSign,
   Briefcase,
+  CalendarDays,
   Clock3,
   Edit3,
   ExternalLink,
@@ -12,6 +12,7 @@ import {
   Save,
   Search,
   Shield,
+  Trash2,
   User2,
   Users,
   WalletCards,

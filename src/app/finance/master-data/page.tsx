@@ -1199,7 +1199,7 @@ export default function FinanceMasterDataPage() {
         subtitle="Finance Reference Layer"
         description="Permission-filtered finance reference layer for clients, vendors, companies, banking, commercial terms, tax codes, categories, units, items, projects, employees, and currency controls."
         rightContent={
-          <div className="grid gap-3 md:grid-cols-3 xl:min-w-[620px]">
+          <div className="aixia-adaptive-grid" data-card-size="small">
             {headerStatusCards.map((card) => (
               <HeaderStatusCard
                 key={card.label}
@@ -1213,14 +1213,14 @@ export default function FinanceMasterDataPage() {
           </div>
         }
       >
-        <div className="flex flex-wrap gap-2">
+        <div className="aixia-action-system" data-align="start" data-density="compact">
           <AixiaBadge tone="emerald">Permission filtered</AixiaBadge>
           <AixiaBadge tone="indigo">Supabase realtime</AixiaBadge>
           <AixiaBadge tone="gold">60-second fallback</AixiaBadge>
         </div>
       </AixiaHero>
 
-      <section className="grid gap-4 md:grid-cols-2 xl:grid-cols-5">
+      <section className="aixia-adaptive-grid" data-card-size="small">
         {overviewCards.map((metric) => (
           <AixiaMetricCard
             key={metric.key}
@@ -1233,8 +1233,8 @@ export default function FinanceMasterDataPage() {
         ))}
       </section>
 
-      <section className="grid items-start gap-6 xl:grid-cols-[minmax(0,1fr)_430px]">
-        <div className="grid min-h-0 gap-6">
+      <section className="aixia-smart-layout" data-sidebar="wide" data-balance="main">
+        <div className="aixia-smart-main">
           <AccessSummaryPanel
             visibleCount={moduleCards.length}
             totalCount={Object.keys(EMPTY_MASTER_DATA_ACCESS).length}
@@ -1246,14 +1246,16 @@ export default function FinanceMasterDataPage() {
             description="Open each dedicated finance master-data domain available to this user."
             icon={Database}
             actions={
-              <div className="relative w-full min-w-[280px] md:w-[360px]">
-                <Search className="pointer-events-none absolute left-4 top-1/2 h-4 w-4 -translate-y-1/2 text-white/30" />
-                <input
-                  value={moduleSearch}
-                  onChange={(event) => setModuleSearch(event.target.value)}
-                  placeholder="Search domains..."
-                  className="aixia-input pl-11"
-                />
+              <div className="aixia-control-cluster">
+                <div className="aixia-control-field-wide">
+                  <Search className="pointer-events-none absolute left-4 top-1/2 h-4 w-4 -translate-y-1/2 text-white/30" />
+                  <input
+                    value={moduleSearch}
+                    onChange={(event) => setModuleSearch(event.target.value)}
+                    placeholder="Search domains..."
+                    className="aixia-input pl-11"
+                  />
+                </div>
               </div>
             }
           >
@@ -1289,7 +1291,7 @@ export default function FinanceMasterDataPage() {
                 </p>
               </div>
             ) : (
-              <div className="grid gap-4 md:grid-cols-2">
+              <div className="aixia-adaptive-grid" data-card-size="large">
                 {filteredModuleCards.map((module) => (
                   <MasterDataModuleButton
                     key={module.key}
@@ -1297,6 +1299,61 @@ export default function FinanceMasterDataPage() {
                     onOpen={openRoute}
                   />
                 ))}
+              </div>
+            )}
+          </AixiaSection>
+        </div>
+
+        <div className="aixia-smart-side">
+          <AixiaSection
+            title="Recent Changes"
+            description="Recent movement across visible master-data domains."
+            icon={Receipt}
+          >
+            {recentChanges.length === 0 ? (
+              <div className="rounded-[28px] border border-dashed border-white/10 bg-black/20 px-6 py-12 text-center">
+                <div className="text-sm font-medium text-white">
+                  No visible recent master-data changes
+                </div>
+                <p className="mt-2 text-sm leading-6 text-white/45">
+                  Changes appear here only for master-data domains this user can read.
+                </p>
+              </div>
+            ) : (
+              <div className="aixia-side-card-list">
+                <div className="divide-y divide-white/5">
+                  {recentChanges.map((item) => (
+                    <button
+                      key={item.id}
+                      type="button"
+                      onClick={() => {
+                        if (!item.route) return;
+                        navigate(item.route);
+                      }}
+                      className="aixia-side-list-row"
+                    >
+                      <div className="min-w-0">
+                        <div className="flex min-w-0 flex-wrap items-center gap-2">
+                          <AixiaBadge tone="indigo">{item.type}</AixiaBadge>
+                          <span className="min-w-0 truncate text-sm font-semibold text-white">
+                            {item.title}
+                          </span>
+                        </div>
+
+                        <div className="mt-2 line-clamp-1 text-sm text-white/45">
+                          {item.subtitle}
+                        </div>
+                      </div>
+
+                      <div className="flex shrink-0 items-center gap-3">
+                        <div className="whitespace-nowrap text-xs text-white/25">
+                          {formatDateLabel(item.createdAt)}
+                        </div>
+                        <ArrowRight className="h-4 w-4 text-white/30 transition group-hover:translate-x-1 group-hover:text-[#FBBF24]" />
+                      </div>
+                    </button>
+                  ))}
+                </div>
               </div>
             )}
           </AixiaSection>
@@ -1315,7 +1372,7 @@ export default function FinanceMasterDataPage() {
               </div>
             </div>
 
-            <div className="grid gap-4 p-6 md:grid-cols-3">
+            <div className="grid gap-4 p-6">
               <ReadinessBlock
                 label="Visible Domains"
                 value={formatCount(moduleCards.length)}
@@ -1339,61 +1396,6 @@ export default function FinanceMasterDataPage() {
               />
             </div>
           </div>
-        </div>
-
-        <div className="grid min-h-0 gap-6">
-          <AixiaSection
-            title="Recent Changes"
-            description="Recent movement across visible master-data domains."
-            icon={Receipt}
-          >
-            {recentChanges.length === 0 ? (
-              <div className="rounded-[28px] border border-dashed border-white/10 bg-black/20 px-6 py-12 text-center">
-                <div className="text-sm font-medium text-white">
-                  No visible recent master-data changes
-                </div>
-                <p className="mt-2 text-sm leading-6 text-white/45">
-                  Changes appear here only for master-data domains this user can read.
-                </p>
-              </div>
-            ) : (
-              <div className="aixia-scrollbar h-[430px] overflow-y-auto overscroll-contain rounded-[26px] border border-white/10 bg-black/20">
-                <div className="divide-y divide-white/5">
-                  {recentChanges.map((item) => (
-                    <button
-                      key={item.id}
-                      type="button"
-                      onClick={() => {
-                        if (!item.route) return;
-                        navigate(item.route);
-                      }}
-                      className="group flex w-full items-center justify-between gap-4 px-5 py-4 text-left transition hover:bg-white/[0.045]"
-                    >
-                      <div className="min-w-0">
-                        <div className="flex min-w-0 flex-wrap items-center gap-2">
-                          <AixiaBadge tone="indigo">{item.type}</AixiaBadge>
-                          <span className="truncate text-sm font-semibold text-white">
-                            {item.title}
-                          </span>
-                        </div>
-
-                        <div className="mt-2 line-clamp-1 text-sm text-white/45">
-                          {item.subtitle}
-                        </div>
-                      </div>
-
-                      <div className="flex shrink-0 items-center gap-3">
-                        <div className="text-xs text-white/25">
-                          {formatDateLabel(item.createdAt)}
-                        </div>
-                        <ArrowRight className="h-4 w-4 text-white/30 transition group-hover:translate-x-1 group-hover:text-[#FBBF24]" />
-                      </div>
-                    </button>
-                  ))}
-                </div>
-              </div>
-            )}
-          </AixiaSection>
 
           <AixiaSection
             title="Access Rule"

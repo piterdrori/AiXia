@@ -43,7 +43,7 @@ export function AixiaHero({
       <div className="aixia-hero-glow" />
 
       <div className="aixia-hero-content">
-        <div>
+        <div className="aixia-hero-top">
           {parentLabel && parentPath ? (
             <button
               type="button"
@@ -55,52 +55,50 @@ export function AixiaHero({
             </button>
           ) : null}
 
-          <div
-            className="aixia-hero-main"
-            data-has-side={rightContent ? "true" : "false"}
-          >
-            <div className="aixia-hero-text">
-              {badges.length > 0 ? (
-                <div
-                  className="aixia-action-system"
-                  data-align="start"
-                  data-density="compact"
-                >
-                  {badges.map((badge, index) => (
-                    <AixiaBadge key={index} tone={badge.tone}>
-                      {badge.label}
-                    </AixiaBadge>
-                  ))}
-                </div>
-              ) : null}
+          {badges.length > 0 ? (
+            <div
+              className="aixia-action-system aixia-hero-badges"
+              data-align="start"
+              data-density="compact"
+            >
+              {badges.map((badge, index) => (
+                <AixiaBadge key={index} tone={badge.tone}>
+                  {badge.label}
+                </AixiaBadge>
+              ))}
+            </div>
+          ) : null}
+        </div>
 
-              <div className="mt-6">
-                <h1 className="aixia-title-xl">
-                  <span className="aixia-gradient-text">{gradientTitle}</span>
-                  <span className="text-white"> {title}</span>
-                </h1>
+        <div
+          className="aixia-hero-main"
+          data-has-side={rightContent ? "true" : "false"}
+        >
+          <div className="aixia-hero-text">
+            <div className="aixia-hero-title-wrap">
+              <h1 className="aixia-title-xl">
+                <span className="aixia-gradient-text">{gradientTitle}</span>
+                <span className="text-white"> {title}</span>
+              </h1>
 
-                {subtitle ? <h2 className="aixia-subtitle">{subtitle}</h2> : null}
-              </div>
-
-              {description ? <p className="aixia-body mt-5">{description}</p> : null}
-
-              {children ? <div className="mt-6 max-w-[980px]">{children}</div> : null}
+              {subtitle ? <h2 className="aixia-subtitle">{subtitle}</h2> : null}
             </div>
 
-            {rightContent ? (
-              <div className="aixia-hero-side">
-                <div className="aixia-smart-grid" data-mode="hero-stats">
-                  {rightContent}
-                </div>
-              </div>
-            ) : null}
+            {description ? <p className="aixia-body">{description}</p> : null}
+
+            {children ? <div className="aixia-hero-children">{children}</div> : null}
           </div>
+
+          {rightContent ? (
+            <div className="aixia-hero-side">
+              <div className="aixia-hero-status-grid">{rightContent}</div>
+            </div>
+          ) : null}
         </div>
 
         {actions ? (
           <div
-            className="aixia-action-system"
+            className="aixia-action-system aixia-hero-actions"
             data-align="end"
             data-density="normal"
           >

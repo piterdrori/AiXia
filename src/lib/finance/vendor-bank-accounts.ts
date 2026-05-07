@@ -284,6 +284,18 @@ export async function createVendorBankAccount(input: {
     updated_by: userId,
   };
 
+  if (payload.is_default) {
+    const { error: resetDefaultError } = await supabase
+      .from(TABLE)
+      .update({
+        is_default: false,
+        updated_by: userId,
+      })
+      .eq("vendor_id", payload.vendor_id);
+
+    if (resetDefaultError) throw resetDefaultError;
+  }
+
   const { data, error } = await supabase
     .from(TABLE)
     .insert(payload)

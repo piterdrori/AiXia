@@ -12,19 +12,22 @@ import {
   LockKeyhole,
   Plus,
   RotateCcw,
-  Search,
   ShieldCheck,
   Trash2,
   WalletCards,
-  X,
 } from "lucide-react";
 
 import {
   AixiaBadge,
+  AixiaButton,
   AixiaHero,
   AixiaMetricCard,
+  AixiaModal,
   AixiaPage,
+  AixiaSearchField,
   AixiaSection,
+  AixiaSortableHeader,
+  AixiaTableShell,
 } from "@/components/aixia";
 
 import {
@@ -345,19 +348,14 @@ function SortButton({
   direction: SortDirection;
   onClick: (sortKey: SortKey) => void;
 }) {
-  const isActive = activeSortKey === sortKey;
-
   return (
-    <button
-      type="button"
-      onClick={() => onClick(sortKey)}
-      className={`inline-flex items-center gap-1 transition hover:text-cyan-200 ${
-        isActive ? "text-cyan-200" : "text-slate-500"
-      }`}
-    >
-      {label}
-      {isActive ? <span>{direction === "asc" ? "↑" : "↓"}</span> : null}
-    </button>
+    <AixiaSortableHeader
+      label={label}
+      sortKey={sortKey}
+      activeSortKey={activeSortKey}
+      sortDirection={direction}
+      onSort={onClick}
+    />
   );
 }
 
@@ -371,15 +369,12 @@ function TextInput({
   placeholder: string;
 }) {
   return (
-    <label className="relative block">
-      <Search className="pointer-events-none absolute left-4 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-500" />
-      <input
-        value={value}
-        onChange={(event) => onChange(event.target.value)}
-        placeholder={placeholder}
-        className="h-11 w-full rounded-2xl border border-white/10 bg-black/20 px-4 pl-11 text-sm text-white outline-none transition placeholder:text-slate-600 focus:border-cyan-400/30 focus:bg-black/30"
-      />
-    </label>
+    <AixiaSearchField
+      value={value}
+      onChange={(event) => onChange(event.target.value)}
+      placeholder={placeholder}
+      width="full"
+    />
   );
 }
 
@@ -993,22 +988,22 @@ export default function FinanceMasterDataBankAccountsPage() {
               </div>
 
               {permissionState.canCreate ? (
-                <button
+                <AixiaButton
                   type="button"
+                  variant="primary"
                   onClick={() => navigate("/finance/master-data/bank-accounts/new")}
-                  className="inline-flex h-11 items-center justify-center gap-2 rounded-2xl border border-cyan-400/20 bg-cyan-500/10 px-5 text-sm font-semibold text-cyan-100 transition hover:bg-cyan-500/15"
                 >
                   <Plus className="h-4 w-4" />
                   Create Bank Account
-                </button>
+                </AixiaButton>
               ) : null}
 
               {permissionState.canDeleteArchive ? (
-                <button
+                <AixiaButton
                   type="button"
+                  variant="danger"
                   onClick={() => void openArchiveModal()}
                   disabled={isActionRunning}
-                  className="inline-flex h-11 items-center justify-center gap-2 rounded-2xl border border-rose-400/20 bg-rose-500/10 px-5 text-sm font-semibold text-rose-100 transition hover:bg-rose-500/15 disabled:cursor-not-allowed disabled:opacity-50"
                 >
                   {runningAction === "archive-modal" ? (
                     <Loader2 className="h-4 w-4 animate-spin" />
@@ -1016,7 +1011,7 @@ export default function FinanceMasterDataBankAccountsPage() {
                     <Archive className="h-4 w-4" />
                   )}
                   Archive
-                </button>
+                </AixiaButton>
               ) : null}
             </div>
           }
@@ -1038,10 +1033,8 @@ export default function FinanceMasterDataBankAccountsPage() {
               description="Create a bank account or adjust the search filter to find a company banking record."
             />
           ) : (
-            <div className="overflow-x-auto rounded-[24px] border border-white/10 bg-black/20">
-              <div className="max-h-[720px] overflow-y-auto">
-                <table className="w-full min-w-[1240px] border-collapse">
-                  <thead className="sticky top-0 z-20 border-b border-white/10 bg-black/70 backdrop-blur-xl">
+            <AixiaTableShell>
+                  <thead className="aixia-table-head">
                     <tr>
                       <th className="px-5 py-4 text-left text-[11px] font-semibold uppercase tracking-[0.18em]">
                         <SortButton
@@ -1118,10 +1111,7 @@ export default function FinanceMasterDataBankAccountsPage() {
                       const isRowActionRunning = activeActionId === row.id;
 
                       return (
-                        <tr
-                          key={row.id}
-                          className="border-b border-white/5 text-sm text-slate-300 transition hover:bg-white/[0.035]"
-                        >
+                        <tr key={row.id} className="aixia-table-row">
                           <td className="min-w-[260px] px-5 py-4">
                             <div className="font-semibold text-white">
                               {getCompanyName(row)}
@@ -1171,23 +1161,25 @@ export default function FinanceMasterDataBankAccountsPage() {
 
                           <td className="px-5 py-4 text-right">
                             <div className="flex justify-end gap-2">
-                              <button
+                              <AixiaButton
                                 type="button"
+                                variant="secondary"
                                 onClick={() =>
                                   navigate(`/finance/master-data/bank-accounts/${row.id}`)
                                 }
-                                className="inline-flex h-9 items-center justify-center gap-2 rounded-full border border-cyan-400/20 bg-cyan-500/10 px-4 text-xs font-semibold uppercase tracking-[0.14em] text-cyan-100 transition hover:bg-cyan-500/15"
+                                className="h-9 min-h-9 px-4 text-xs uppercase tracking-[0.14em]"
                               >
                                 Open
                                 <ArrowRight className="h-3.5 w-3.5" />
-                              </button>
+                              </AixiaButton>
 
                               {permissionState.canDeleteArchive ? (
-                                <button
+                                <AixiaButton
                                   type="button"
+                                  variant="danger"
                                   onClick={() => void handleArchive(row.id)}
                                   disabled={isActionRunning}
-                                  className="inline-flex h-9 items-center justify-center gap-2 rounded-full border border-rose-400/20 bg-rose-500/10 px-4 text-xs font-semibold uppercase tracking-[0.14em] text-rose-100 transition hover:bg-rose-500/15 disabled:cursor-not-allowed disabled:opacity-50"
+                                  className="h-9 min-h-9 px-4 text-xs uppercase tracking-[0.14em]"
                                 >
                                   {isRowActionRunning && runningAction === "archive" ? (
                                     <Loader2 className="h-3.5 w-3.5 animate-spin" />
@@ -1195,17 +1187,15 @@ export default function FinanceMasterDataBankAccountsPage() {
                                     <Archive className="h-3.5 w-3.5" />
                                   )}
                                   Archive
-                                </button>
+                                </AixiaButton>
                               ) : null}
                             </div>
                           </td>
                         </tr>
                       );
                     })}
-                  </tbody>
-                </table>
-              </div>
-            </div>
+                    </tbody>
+                </AixiaTableShell>
           )}
         </AixiaSection>
       )}
@@ -1219,39 +1209,19 @@ export default function FinanceMasterDataBankAccountsPage() {
         </div>
       </div>
 
-      {showArchive ? (
-        <div className="fixed inset-0 z-[120] flex items-center justify-center bg-black/70 p-4 backdrop-blur-sm">
-          <div className="flex max-h-[90vh] w-full max-w-6xl flex-col overflow-hidden rounded-[30px] border border-white/10 bg-[#05070d] shadow-2xl shadow-black/60">
-            <div className="flex items-start justify-between gap-4 border-b border-white/10 px-6 py-5">
-              <div>
-                <div className="text-lg font-semibold text-white">
-                  Archived Company Bank Accounts
-                </div>
-                <div className="mt-1 text-sm leading-6 text-slate-500">
-                  Archived records can be opened, restored, or permanently deleted.
-                  There is no Deleted tab because this backend uses only active, inactive,
-                  and archived lifecycle states.
-                </div>
-              </div>
-
-              <button
-                type="button"
-                onClick={closeArchiveModal}
-                className="inline-flex h-10 w-10 shrink-0 items-center justify-center rounded-full border border-white/10 bg-white/[0.05] text-slate-400 transition hover:bg-white/[0.08] hover:text-white"
-              >
-                <X className="h-4 w-4" />
-              </button>
-            </div>
-
-            <div className="border-b border-white/10 p-4">
-              <TextInput
-                value={archiveSearch}
-                onChange={setArchiveSearch}
-                placeholder="Search archived bank accounts"
-              />
-            </div>
-
-            <div className="min-h-0 flex-1 overflow-y-auto p-4">
+      <AixiaModal
+        open={showArchive}
+        title="Archived Company Bank Accounts"
+        description="Archived records can be opened, restored, or permanently deleted. There is no Deleted tab because this backend uses only active, inactive, and archived lifecycle states."
+        onClose={closeArchiveModal}
+        maxWidthClassName="max-w-6xl"
+      >
+        <div className="space-y-4">
+          <TextInput
+            value={archiveSearch}
+            onChange={setArchiveSearch}
+            placeholder="Search archived bank accounts"
+          />
               {isLoadingArchive ? (
                 <div className="rounded-[28px] border border-dashed border-white/10 bg-black/20 px-6 py-12 text-center">
                   <Loader2 className="mx-auto h-8 w-8 animate-spin text-cyan-200" />
@@ -1266,9 +1236,8 @@ export default function FinanceMasterDataBankAccountsPage() {
                   description="Archived company bank accounts will appear here after they are removed from active operational use."
                 />
               ) : (
-                <div className="overflow-x-auto rounded-[24px] border border-white/10 bg-black/20">
-                  <table className="w-full min-w-[980px] border-collapse">
-                    <thead className="sticky top-0 z-20 border-b border-white/10 bg-black/70 backdrop-blur-xl">
+                <AixiaTableShell minWidthClassName="min-w-[980px]" maxHeightClassName="max-h-[620px]">
+                    <thead className="aixia-table-head">
                       <tr>
                         <th className="px-5 py-4 text-left text-[11px] font-semibold uppercase tracking-[0.18em] text-slate-500">
                           Company
@@ -1294,10 +1263,7 @@ export default function FinanceMasterDataBankAccountsPage() {
                         const updatedAt = row.updated_at || row.created_at;
 
                         return (
-                          <tr
-                            key={row.id}
-                            className="border-b border-white/5 text-sm text-slate-300 transition hover:bg-white/[0.035]"
-                          >
+                          <tr key={row.id} className="aixia-table-row">
                             <td className="min-w-[260px] px-5 py-4">
                               <div className="font-semibold text-white">
                                 {getCompanyName(row)}
@@ -1328,21 +1294,23 @@ export default function FinanceMasterDataBankAccountsPage() {
 
                             <td className="px-5 py-4 text-right">
                               <div className="flex justify-end gap-2">
-                                <button
+                                <AixiaButton
                                   type="button"
+                                  variant="secondary"
                                   onClick={() =>
                                     navigate(`/finance/master-data/bank-accounts/${row.id}`)
                                   }
-                                  className="inline-flex h-9 items-center justify-center gap-2 rounded-full border border-cyan-400/20 bg-cyan-500/10 px-4 text-xs font-semibold uppercase tracking-[0.14em] text-cyan-100 transition hover:bg-cyan-500/15"
+                                  className="h-9 min-h-9 px-4 text-xs uppercase tracking-[0.14em]"
                                 >
                                   Open
-                                </button>
+                                </AixiaButton>
 
-                                <button
+                                <AixiaButton
                                   type="button"
+                                  variant="secondary"
                                   onClick={() => void handleRestore(row.id)}
                                   disabled={isActionRunning}
-                                  className="inline-flex h-9 items-center justify-center gap-2 rounded-full border border-emerald-400/20 bg-emerald-500/10 px-4 text-xs font-semibold uppercase tracking-[0.14em] text-emerald-100 transition hover:bg-emerald-500/15 disabled:cursor-not-allowed disabled:opacity-50"
+                                  className="h-9 min-h-9 px-4 text-xs uppercase tracking-[0.14em]"
                                 >
                                   {isRowActionRunning && runningAction === "restore" ? (
                                     <Loader2 className="h-3.5 w-3.5 animate-spin" />
@@ -1350,13 +1318,14 @@ export default function FinanceMasterDataBankAccountsPage() {
                                     <RotateCcw className="h-3.5 w-3.5" />
                                   )}
                                   Restore
-                                </button>
+                                </AixiaButton>
 
-                                <button
+                                <AixiaButton
                                   type="button"
+                                  variant="danger"
                                   onClick={() => void handlePermanentDelete(row.id)}
                                   disabled={isActionRunning}
-                                  className="inline-flex h-9 items-center justify-center gap-2 rounded-full border border-rose-400/20 bg-rose-500/10 px-4 text-xs font-semibold uppercase tracking-[0.14em] text-rose-100 transition hover:bg-rose-500/15 disabled:cursor-not-allowed disabled:opacity-50"
+                                  className="h-9 min-h-9 px-4 text-xs uppercase tracking-[0.14em]"
                                 >
                                   {isRowActionRunning && runningAction === "hard-delete" ? (
                                     <Loader2 className="h-3.5 w-3.5 animate-spin" />
@@ -1364,20 +1333,17 @@ export default function FinanceMasterDataBankAccountsPage() {
                                     <Trash2 className="h-3.5 w-3.5" />
                                   )}
                                   Delete
-                                </button>
+                                </AixiaButton>
                               </div>
                             </td>
                           </tr>
                         );
                       })}
                     </tbody>
-                  </table>
-                </div>
+                </AixiaTableShell>
               )}
-            </div>
-          </div>
         </div>
-      ) : null}
+      </AixiaModal>
     </AixiaPage>
   );
 }

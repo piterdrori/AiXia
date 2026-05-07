@@ -9,4 +9,5 @@ export { AixiaSearchField } from "./AixiaSearchField";
 export { AixiaSection } from "./AixiaSection";
 export { AixiaSmartGrid } from "./AixiaSmartGrid";
 export { AixiaSmartLayout } from "./AixiaSmartLayout";
+export { AixiaStatusCard } from "./AixiaStatusCard";
 export { AixiaSortableHeader, AixiaTableShell } from "./AixiaTable";

@@ -8,7 +8,6 @@ import {
   Edit3,
   Factory,
   Landmark,
-  Layers3,
   Package,
   Plus,
   Search,

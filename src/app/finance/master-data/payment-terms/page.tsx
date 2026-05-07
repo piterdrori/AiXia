@@ -61,6 +61,8 @@ type SortKey =
 
 type SortDirection = "asc" | "desc";
 
+type ArchiveTab = "archived";
+
 type FormState = {
   term_type: FinancePaymentTermType;
   net_days: string;
@@ -89,7 +91,7 @@ type GeneratedTerm = {
 };
 
 const DEFAULT_APPLIES_TO: FinancePaymentTermAppliesTo[] = ["all"];
-const DEFAULT_DUE_BASIS: FinancePaymentTermDueBasis = "invoice_date";
+const DEFAULT_DUE_BASIS = "invoice_date" as FinancePaymentTermDueBasis;
 
 const EMPTY_FORM: FormState = {
   term_type: "net",
@@ -141,44 +143,20 @@ const DEPOSIT_DUE_BASIS_OPTIONS: Array<{
   value: FinancePaymentTermDepositDueBasis;
   label: string;
 }> = [
-  {
-    value: "immediate",
-    label: "Immediately",
-  },
-  {
-    value: "before_production",
-    label: "Before Production",
-  },
-  {
-    value: "before_shipment",
-    label: "Before Shipment",
-  },
-  {
-    value: "before_delivery",
-    label: "Before Delivery",
-  },
+  { value: "immediate", label: "Immediately" },
+  { value: "before_production", label: "Before Production" },
+  { value: "before_shipment", label: "Before Shipment" },
+  { value: "before_delivery", label: "Before Delivery" },
 ];
 
 const BALANCE_DUE_BASIS_OPTIONS: Array<{
   value: FinancePaymentTermBalanceDueBasis;
   label: string;
 }> = [
-  {
-    value: "before_shipment",
-    label: "Before Shipment",
-  },
-  {
-    value: "delivery_date",
-    label: "On Delivery",
-  },
-  {
-    value: "shipment_date",
-    label: "On Shipment",
-  },
-  {
-    value: "invoice_date",
-    label: "On Invoice Date",
-  },
+  { value: "before_shipment", label: "Before Shipment" },
+  { value: "delivery_date", label: "On Delivery" },
+  { value: "shipment_date", label: "On Shipment" },
+  { value: "invoice_date", label: "On Invoice Date" },
 ];
 
 function formatDateLabel(value: string | null | undefined) {
@@ -306,58 +284,60 @@ function buildGeneratedTerm(form: FormState): GeneratedTerm {
   };
 }
 
-/* ─── Visual System ─── */
+/* ─── Visual Tokens ─── */
 
-const ambientOrb = (color: string, top: string, left: string, size: string, delay: number) => ({
-  position: "absolute" as const,
-  top,
-  left,
-  width: size,
-  height: size,
-  borderRadius: "50%",
-  background: `radial-gradient(circle, ${color} 0%, transparent 70%)`,
-  filter: "blur(80px)",
-  opacity: 0.35,
-  animation: `floatOrb ${8 + delay}s ease-in-out infinite alternate`,
-});
+const glassSurface =
+  "relative overflow-hidden rounded-[32px] border border-white/[0.08] bg-white/[0.03] backdrop-blur-[40px] shadow-[0_8px_32px_rgba(0,0,0,0.4),inset_0_1px_0_rgba(255,255,255,0.06)]";
 
-const glassSurface = "relative overflow-hidden rounded-[32px] border border-white/[0.08] bg-white/[0.03] backdrop-blur-[40px] shadow-[0_8px_32px_rgba(0,0,0,0.4),inset_0_1px_0_rgba(255,255,255,0.06)]";
+const glassSurfaceHover =
+  "hover:border-white/[0.14] hover:bg-white/[0.05] hover:shadow-[0_12px_48px_rgba(0,0,0,0.5),inset_0_1px_0_rgba(255,255,255,0.1)] transition-all duration-500";
 
-const glassSurfaceHover = "hover:border-white/[0.14] hover:bg-white/[0.05] hover:shadow-[0_12px_48px_rgba(0,0,0,0.5),inset_0_1px_0_rgba(255,255,255,0.1)] transition-all duration-500";
+const cinematicButton =
+  "relative overflow-hidden rounded-2xl font-medium tracking-wide transition-all duration-300 before:absolute before:inset-0 before:-translate-x-full before:bg-gradient-to-r before:from-transparent before:via-white/20 before:to-transparent before:transition-transform before:duration-700 hover:before:translate-x-full";
 
-const cinematicButton = "relative overflow-hidden rounded-2xl font-medium tracking-wide transition-all duration-300 before:absolute before:inset-0 before:-translate-x-full before:bg-gradient-to-r before:from-transparent before:via-white/20 before:to-transparent before:transition-transform before:duration-700 hover:before:translate-x-full";
+const inputGlass =
+  "h-12 w-full rounded-2xl border border-white/[0.08] bg-black/30 px-4 text-sm text-white outline-none transition-all duration-300 placeholder:text-slate-600 focus:border-white/20 focus:bg-black/40 focus:shadow-[0_0_20px_rgba(6,182,212,0.15)] focus:ring-1 focus:ring-cyan-400/30 disabled:cursor-not-allowed disabled:opacity-50";
 
-const inputGlass = "h-12 w-full rounded-2xl border border-white/[0.08] bg-black/30 px-4 text-sm text-white outline-none transition-all duration-300 placeholder:text-slate-600 focus:border-white/20 focus:bg-black/40 focus:shadow-[0_0_20px_rgba(6,182,212,0.15)] focus:ring-1 focus:ring-cyan-400/30 disabled:cursor-not-allowed disabled:opacity-50";
+const selectGlass =
+  "h-12 w-full rounded-2xl border border-white/[0.08] bg-black/30 px-4 text-sm text-white outline-none transition-all duration-300 focus:border-white/20 focus:bg-black/40 focus:shadow-[0_0_20px_rgba(6,182,212,0.15)] focus:ring-1 focus:ring-cyan-400/30 disabled:cursor-not-allowed disabled:opacity-50";
 
-const selectGlass = "h-12 w-full rounded-2xl border border-white/[0.08] bg-black/30 px-4 text-sm text-white outline-none transition-all duration-300 focus:border-white/20 focus:bg-black/40 focus:shadow-[0_0_20px_rgba(6,182,212,0.15)] focus:ring-1 focus:ring-cyan-400/30 disabled:cursor-not-allowed disabled:opacity-50";
-
-const textareaGlass = "min-h-[120px] w-full resize-none rounded-2xl border border-white/[0.08] bg-black/30 px-4 py-3 text-sm text-white outline-none transition-all duration-300 placeholder:text-slate-600 focus:border-white/20 focus:bg-black/40 focus:shadow-[0_0_20px_rgba(6,182,212,0.15)] focus:ring-1 focus:ring-cyan-400/30 disabled:cursor-not-allowed disabled:opacity-50";
+const textareaGlass =
+  "min-h-[120px] w-full resize-none rounded-2xl border border-white/[0.08] bg-black/30 px-4 py-3 text-sm text-white outline-none transition-all duration-300 placeholder:text-slate-600 focus:border-white/20 focus:bg-black/40 focus:shadow-[0_0_20px_rgba(6,182,212,0.15)] focus:ring-1 focus:ring-cyan-400/30 disabled:cursor-not-allowed disabled:opacity-50";
 
 const labelGlass = "text-xs font-semibold uppercase tracking-[0.2em] text-slate-400";
 
-const badgeBase = "rounded-full border px-4 py-1.5 text-[10px] font-bold uppercase tracking-[0.2em] shadow-none backdrop-blur-md";
+const badgeBase =
+  "rounded-full border px-4 py-1.5 text-[10px] font-bold uppercase tracking-[0.2em] shadow-none backdrop-blur-md";
 
 function statusBadgeClass(status: FinancePaymentTermStatus) {
-  if (status === "archived") return `${badgeBase} border-rose-500/30 bg-rose-500/10 text-rose-200`;
-  if (status === "inactive") return `${badgeBase} border-amber-500/30 bg-amber-500/10 text-amber-200`;
+  if (status === "archived")
+    return `${badgeBase} border-rose-500/30 bg-rose-500/10 text-rose-200`;
+  if (status === "inactive")
+    return `${badgeBase} border-amber-500/30 bg-amber-500/10 text-amber-200`;
   return `${badgeBase} border-emerald-500/30 bg-emerald-500/10 text-emerald-200`;
 }
 
 function termTypeBadgeClass(type: FinancePaymentTermType) {
-  if (type === "immediate") return `${badgeBase} border-emerald-500/30 bg-emerald-500/10 text-emerald-200`;
-  if (type === "deposit_balance") return `${badgeBase} border-amber-500/30 bg-amber-500/10 text-amber-200`;
-  if (type === "custom") return `${badgeBase} border-violet-500/30 bg-violet-500/10 text-violet-200`;
+  if (type === "immediate")
+    return `${badgeBase} border-emerald-500/30 bg-emerald-500/10 text-emerald-200`;
+  if (type === "deposit_balance")
+    return `${badgeBase} border-amber-500/30 bg-amber-500/10 text-amber-200`;
+  if (type === "custom")
+    return `${badgeBase} border-violet-500/30 bg-violet-500/10 text-violet-200`;
   return `${badgeBase} border-cyan-500/30 bg-cyan-500/10 text-cyan-200`;
 }
 
 const toneGradients = {
   cyan: "from-cyan-400/20 to-cyan-600/5 border-cyan-400/30 text-cyan-100 shadow-[0_0_30px_rgba(6,182,212,0.15)]",
-  emerald: "from-emerald-400/20 to-emerald-600/5 border-emerald-400/30 text-emerald-100 shadow-[0_0_30px_rgba(16,185,129,0.15)]",
+  emerald:
+    "from-emerald-400/20 to-emerald-600/5 border-emerald-400/30 text-emerald-100 shadow-[0_0_30px_rgba(16,185,129,0.15)]",
   amber: "from-amber-400/20 to-amber-600/5 border-amber-400/30 text-amber-100 shadow-[0_0_30px_rgba(245,158,11,0.15)]",
-  violet: "from-violet-400/20 to-violet-600/5 border-violet-400/30 text-violet-100 shadow-[0_0_30px_rgba(139,92,246,0.15)]",
+  violet:
+    "from-violet-400/20 to-violet-600/5 border-violet-400/30 text-violet-100 shadow-[0_0_30px_rgba(139,92,246,0.15)]",
 };
 
-const toneGradientsInactive = "from-white/[0.02] to-transparent border-white/[0.08] text-slate-500 hover:border-white/[0.14] hover:from-white/[0.04] hover:text-slate-300 hover:shadow-none";
+const toneGradientsInactive =
+  "from-white/[0.02] to-transparent border-white/[0.08] text-slate-500 hover:border-white/[0.14] hover:from-white/[0.04] hover:text-slate-300 hover:shadow-none";
 
 function optionToneClass(tone: "cyan" | "emerald" | "amber" | "violet", active: boolean) {
   return active
@@ -365,7 +345,7 @@ function optionToneClass(tone: "cyan" | "emerald" | "amber" | "violet", active: 
     : `bg-gradient-to-br ${toneGradientsInactive}`;
 }
 
-/* ─── 3D Card Component ─── */
+/* ─── 3D Card ─── */
 
 function Card3D({
   children,
@@ -407,9 +387,12 @@ function MagneticButton({
   className?: string;
 }) {
   const variants = {
-    primary: "border-cyan-400/30 bg-cyan-500/15 text-cyan-100 hover:bg-cyan-500/25 hover:border-cyan-400/50 hover:shadow-[0_0_30px_rgba(6,182,212,0.2)]",
-    secondary: "border-white/10 bg-white/[0.06] text-white hover:bg-white/[0.12] hover:border-white/20 hover:shadow-[0_0_20px_rgba(255,255,255,0.05)]",
-    danger: "border-rose-400/30 bg-rose-500/15 text-rose-100 hover:bg-rose-500/25 hover:border-rose-400/50 hover:shadow-[0_0_30px_rgba(244,63,94,0.2)]",
+    primary:
+      "border-cyan-400/30 bg-cyan-500/15 text-cyan-100 hover:bg-cyan-500/25 hover:border-cyan-400/50 hover:shadow-[0_0_30px_rgba(6,182,212,0.2)]",
+    secondary:
+      "border-white/10 bg-white/[0.06] text-white hover:bg-white/[0.12] hover:border-white/20 hover:shadow-[0_0_20px_rgba(255,255,255,0.05)]",
+    danger:
+      "border-rose-400/30 bg-rose-500/15 text-rose-100 hover:bg-rose-500/25 hover:border-rose-400/50 hover:shadow-[0_0_30px_rgba(244,63,94,0.2)]",
     ghost: "border-transparent bg-transparent text-slate-400 hover:text-white hover:bg-white/[0.04]",
   };
 
@@ -524,9 +507,11 @@ function SummaryCard({
 }) {
   const toneMap = {
     cyan: "border-cyan-400/20 bg-cyan-500/10 text-cyan-300 shadow-[0_0_20px_rgba(6,182,212,0.15)]",
-    emerald: "border-emerald-400/20 bg-emerald-500/10 text-emerald-300 shadow-[0_0_20px_rgba(16,185,129,0.15)]",
+    emerald:
+      "border-emerald-400/20 bg-emerald-500/10 text-emerald-300 shadow-[0_0_20px_rgba(16,185,129,0.15)]",
     amber: "border-amber-400/20 bg-amber-500/10 text-amber-300 shadow-[0_0_20px_rgba(245,158,11,0.15)]",
-    violet: "border-violet-400/20 bg-violet-500/10 text-violet-300 shadow-[0_0_20px_rgba(139,92,246,0.15)]",
+    violet:
+      "border-violet-400/20 bg-violet-500/10 text-violet-300 shadow-[0_0_20px_rgba(139,92,246,0.15)]",
   };
 
   return (
@@ -611,10 +596,14 @@ function PaymentTermFormModal({
               <div className="relative flex items-start justify-between gap-4">
                 <div>
                   <div className="flex flex-wrap items-center gap-3">
-                    <Badge className={`${badgeBase} border-cyan-400/20 bg-cyan-500/10 text-cyan-200`}>
+                    <Badge
+                      className={`${badgeBase} border-cyan-400/20 bg-cyan-500/10 text-cyan-200`}
+                    >
                       Payment Term
                     </Badge>
-                    <Badge className={`${badgeBase} border-emerald-400/20 bg-emerald-500/10 text-emerald-200`}>
+                    <Badge
+                      className={`${badgeBase} border-emerald-400/20 bg-emerald-500/10 text-emerald-200`}
+                    >
                       {editingRow ? "Edit Mode" : "Create Mode"}
                     </Badge>
                   </div>
@@ -622,7 +611,9 @@ function PaymentTermFormModal({
                     {editingRow ? "Edit Payment Term" : "Create Payment Term"}
                   </div>
                   <p className="mt-3 max-w-3xl text-sm leading-6 text-slate-500">
-                    Create reusable commercial payment terms for quotations, proforma invoices, invoices, vendor quotations, purchase orders, and vendor records.
+                    Create reusable commercial payment terms for quotations, proforma
+                    invoices, invoices, vendor quotations, purchase orders, and vendor
+                    records.
                   </p>
                 </div>
                 <motion.button
@@ -677,7 +668,9 @@ function PaymentTermFormModal({
                         )}`}
                       >
                         <div className="text-base font-bold">{option.label}</div>
-                        <div className="mt-2 text-xs leading-5 opacity-70">{option.description}</div>
+                        <div className="mt-2 text-xs leading-5 opacity-70">
+                          {option.description}
+                        </div>
                       </motion.button>
                     ))}
                   </div>
@@ -721,7 +714,9 @@ function PaymentTermFormModal({
                               max="99"
                               step="0.01"
                               value={form.deposit_percentage}
-                              onChange={(event) => onChange("deposit_percentage", event.target.value)}
+                              onChange={(event) =>
+                                onChange("deposit_percentage", event.target.value)
+                              }
                               placeholder="Example: 30"
                               className={inputGlass}
                             />
@@ -775,7 +770,9 @@ function PaymentTermFormModal({
                           <span className={labelGlass}>Custom Document Wording</span>
                           <textarea
                             value={form.custom_terms_text}
-                            onChange={(event) => onChange("custom_terms_text", event.target.value)}
+                            onChange={(event) =>
+                              onChange("custom_terms_text", event.target.value)
+                            }
                             placeholder="Example: 30% deposit, 40% before shipment, 30% after installation."
                             className={textareaGlass}
                           />
@@ -803,23 +800,45 @@ function PaymentTermFormModal({
                         Auto Preview
                       </div>
                       <p className="mt-1 text-xs text-slate-600">
-                        Code, name, and document wording generated from the selected structure.
+                        Code, name, and document wording generated from the selected
+                        structure.
                       </p>
                     </div>
                   </div>
                 </div>
                 <div className="grid gap-5 p-6 md:grid-cols-2">
-                  <motion.div layout className="rounded-[20px] border border-cyan-400/15 bg-cyan-500/[0.07] p-5 shadow-[0_0_20px_rgba(6,182,212,0.08)]">
-                    <div className="text-[11px] font-bold uppercase tracking-[0.2em] text-cyan-300/70">Generated Code</div>
-                    <div className="mt-3 break-words text-base font-bold text-cyan-100">{generatedTerm.code}</div>
+                  <motion.div
+                    layout
+                    className="rounded-[20px] border border-cyan-400/15 bg-cyan-500/[0.07] p-5 shadow-[0_0_20px_rgba(6,182,212,0.08)]"
+                  >
+                    <div className="text-[11px] font-bold uppercase tracking-[0.2em] text-cyan-300/70">
+                      Generated Code
+                    </div>
+                    <div className="mt-3 break-words text-base font-bold text-cyan-100">
+                      {generatedTerm.code}
+                    </div>
                   </motion.div>
-                  <motion.div layout className="rounded-[20px] border border-emerald-400/15 bg-emerald-500/[0.07] p-5 shadow-[0_0_20px_rgba(16,185,129,0.08)]">
-                    <div className="text-[11px] font-bold uppercase tracking-[0.2em] text-emerald-300/70">Generated Name</div>
-                    <div className="mt-3 break-words text-base font-bold text-white">{generatedTerm.name}</div>
+                  <motion.div
+                    layout
+                    className="rounded-[20px] border border-emerald-400/15 bg-emerald-500/[0.07] p-5 shadow-[0_0_20px_rgba(16,185,129,0.08)]"
+                  >
+                    <div className="text-[11px] font-bold uppercase tracking-[0.2em] text-emerald-300/70">
+                      Generated Name
+                    </div>
+                    <div className="mt-3 break-words text-base font-bold text-white">
+                      {generatedTerm.name}
+                    </div>
                   </motion.div>
-                  <motion.div layout className="rounded-[20px] border border-violet-400/15 bg-violet-500/[0.07] p-5 shadow-[0_0_20px_rgba(139,92,246,0.08)] md:col-span-2">
-                    <div className="text-[11px] font-bold uppercase tracking-[0.2em] text-violet-300/70">Document Wording</div>
-                    <p className="mt-3 text-sm leading-6 text-violet-200/70">{generatedTerm.documentTermsText}</p>
+                  <motion.div
+                    layout
+                    className="rounded-[20px] border border-violet-400/15 bg-violet-500/[0.07] p-5 shadow-[0_0_20px_rgba(139,92,246,0.08)] md:col-span-2"
+                  >
+                    <div className="text-[11px] font-bold uppercase tracking-[0.2em] text-violet-300/70">
+                      Document Wording
+                    </div>
+                    <p className="mt-3 text-sm leading-6 text-violet-200/70">
+                      {generatedTerm.documentTermsText}
+                    </p>
                   </motion.div>
                 </div>
               </motion.section>
@@ -896,7 +915,7 @@ function PaymentTermFormModal({
                     initial={{ opacity: 0, y: 8 }}
                     animate={{ opacity: 1, y: 0 }}
                     exit={{ opacity: 0, y: -8 }}
-                    className="rounded-[20px] border border-rose-400/20 bg-rose-500/10 px-5 py-4 text-sm text-rose-200 shadow-[0_0_20px_rgba(244,63,94,0.1)]"
+                    className={`${glassSurface} border-rose-400/20 bg-rose-500/10 px-5 py-4 text-sm text-rose-200 shadow-[0_0_20px_rgba(244,63,94,0.1)]`}
                   >
                     {error}
                   </motion.div>
@@ -947,6 +966,7 @@ export default function FinancePaymentTermsPage() {
 
   const [dialogOpen, setDialogOpen] = useState(false);
   const [archiveOpen, setArchiveOpen] = useState(false);
+  const [archiveTab] = useState<ArchiveTab>("archived");
   const [editingRow, setEditingRow] = useState<FinancePaymentTermRow | null>(null);
   const [form, setForm] = useState<FormState>(EMPTY_FORM);
   const [error, setError] = useState("");
@@ -1288,22 +1308,23 @@ export default function FinancePaymentTermsPage() {
     <div className="relative min-h-screen overflow-x-hidden bg-[#03050a] px-4 py-6 text-white md:px-8 md:py-8">
       {/* Ambient Background */}
       <div className="pointer-events-none fixed inset-0 z-0 overflow-hidden">
-        <div style={ambientOrb("rgba(6,182,212,0.4)", "10%", "15%", "500px", 0)} />
-        <div style={ambientOrb("rgba(139,92,246,0.35)", "60%", "70%", "600px", 2)} />
-        <div style={ambientOrb("rgba(16,185,129,0.25)", "30%", "80%", "400px", 4)} />
+        <motion.div
+          animate={{ x: [0, 30, 0], y: [0, -30, 0], scale: [1, 1.1, 1] }}
+          transition={{ duration: 12, repeat: Infinity, repeatType: "reverse", ease: "easeInOut" }}
+          className="absolute left-[15%] top-[10%] h-[500px] w-[500px] rounded-full bg-cyan-500/20 blur-[100px]"
+        />
+        <motion.div
+          animate={{ x: [0, -20, 0], y: [0, 20, 0], scale: [1, 1.15, 1] }}
+          transition={{ duration: 15, repeat: Infinity, repeatType: "reverse", ease: "easeInOut" }}
+          className="absolute left-[70%] top-[60%] h-[600px] w-[600px] rounded-full bg-violet-500/15 blur-[100px]"
+        />
+        <motion.div
+          animate={{ x: [0, 25, 0], y: [0, 15, 0], scale: [1, 1.08, 1] }}
+          transition={{ duration: 10, repeat: Infinity, repeatType: "reverse", ease: "easeInOut" }}
+          className="absolute left-[40%] top-[40%] h-[400px] w-[400px] rounded-full bg-emerald-500/10 blur-[100px]"
+        />
         <div className="absolute inset-0 bg-[url('data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHdpZHRoPSIzMDAiIGhlaWdodD0iMzAwIj48ZmlsdGVyIGlkPSJhIiB4PSIwIiB5PSIwIj48ZmVUdXJidWxlbmNlIHR5cGU9ImZyYWN0YWxOb2lzZSIgYmFzZUZyZXF1ZW5jeT0iLjc1IiBzdGl0Y2hUaWxlcz0ic3RpdGNoIi8+PGZlQ29sb3JNYXRyaXggdHlwZT0ic2F0dXJhdGUiIHZhbHVlcz0iMCIvPjwvZmlsdGVyPjxyZWN0IHdpZHRoPSIxMDAlIiBoZWlnaHQ9IjEwMCUiIGZpbHRlcj0idXJsKCNhKSIgb3BhY2l0eT0iMC4wNCIvPjwvc3ZnPg==')] opacity-50" />
       </div>
-
-      <style>{`
-        @keyframes floatOrb {
-          0% { transform: translate(0, 0) scale(1); }
-          100% { transform: translate(30px, -30px) scale(1.1); }
-        }
-        .custom-scrollbar::-webkit-scrollbar { width: 6px; height: 6px; }
-        .custom-scrollbar::-webkit-scrollbar-track { background: transparent; }
-        .custom-scrollbar::-webkit-scrollbar-thumb { background: rgba(255,255,255,0.1); border-radius: 10px; }
-        .custom-scrollbar::-webkit-scrollbar-thumb:hover { background: rgba(255,255,255,0.2); }
-      `}</style>
 
       <motion.div
         initial={{ opacity: 0 }}
@@ -1335,10 +1356,14 @@ export default function FinancePaymentTermsPage() {
             <div className="flex flex-col gap-6 lg:flex-row lg:items-end lg:justify-between">
               <div>
                 <div className="flex flex-wrap items-center gap-3">
-                  <Badge className={`${badgeBase} border-cyan-400/20 bg-cyan-500/10 text-cyan-200`}>
+                  <Badge
+                    className={`${badgeBase} border-cyan-400/20 bg-cyan-500/10 text-cyan-200`}
+                  >
                     Finance Master Data
                   </Badge>
-                  <Badge className={`${badgeBase} border-violet-400/20 bg-violet-500/10 text-violet-200`}>
+                  <Badge
+                    className={`${badgeBase} border-violet-400/20 bg-violet-500/10 text-violet-200`}
+                  >
                     Payment Terms
                   </Badge>
                   <AnimatePresence>
@@ -1349,7 +1374,9 @@ export default function FinancePaymentTermsPage() {
                         animate={{ opacity: 1, scale: 1 }}
                         exit={{ opacity: 0, scale: 0.9 }}
                       >
-                        <Badge className={`${badgeBase} border-emerald-400/20 bg-emerald-500/10 text-emerald-200`}>
+                        <Badge
+                          className={`${badgeBase} border-emerald-400/20 bg-emerald-500/10 text-emerald-200`}
+                        >
                           <span className="mr-2 inline-block h-1.5 w-1.5 animate-pulse rounded-full bg-emerald-400" />
                           Updating
                         </Badge>
@@ -1362,8 +1389,9 @@ export default function FinancePaymentTermsPage() {
                   Payment Terms
                 </h1>
                 <p className="mt-4 max-w-2xl text-sm leading-7 text-slate-500">
-                  Manage reusable payment terms used across customer and vendor finance documents. 
-                  Terms control document wording, due logic, deposit rules, default selection, and partial payment behavior.
+                  Manage reusable payment terms used across customer and vendor finance
+                  documents. Terms control document wording, due logic, deposit rules,
+                  default selection, and partial payment behavior.
                 </p>
               </div>
 
@@ -1475,45 +1503,82 @@ export default function FinancePaymentTermsPage() {
                   onChange={(event) => setStatusFilter(event.target.value as StatusFilter)}
                   className={selectGlass}
                 >
-                  <option value="all" className="bg-[#0a0e1a]">All Statuses</option>
-                  <option value="active" className="bg-[#0a0e1a]">Active</option>
-                  <option value="inactive" className="bg-[#0a0e1a]">Inactive</option>
+                  <option value="all" className="bg-[#0a0e1a]">
+                    All Statuses
+                  </option>
+                  <option value="active" className="bg-[#0a0e1a]">
+                    Active
+                  </option>
+                  <option value="inactive" className="bg-[#0a0e1a]">
+                    Inactive
+                  </option>
                 </select>
               </div>
             </div>
           </div>
 
-          <div className="overflow-x-auto custom-scrollbar">
-            <div className="max-h-[720px] overflow-y-auto custom-scrollbar">
+          <div className="overflow-x-auto">
+            <div className="max-h-[720px] overflow-y-auto">
               <table className="w-full min-w-[1240px] border-collapse">
                 <thead className="sticky top-0 z-10 border-b border-white/[0.08] bg-[#03050a]/80 text-left text-[10px] font-bold uppercase tracking-[0.2em] text-slate-500 backdrop-blur-xl">
                   <tr>
-                    {[
-                      { key: "code" as SortKey, label: "Code" },
-                      { key: "name" as SortKey, label: "Name" },
-                      { key: "term_type" as SortKey, label: "Type" },
-                      { key: "due_days" as SortKey, label: "Due Days" },
-                      { key: null, label: "Deposit" },
-                      { key: null, label: "Document Wording" },
-                      { key: "status" as SortKey, label: "Status" },
-                      { key: "updated_at" as SortKey, label: "Updated" },
-                      { key: null, label: "Actions" },
-                    ].map((col) => (
-                      <th key={col.label} className="px-5 py-4">
-                        {col.key ? (
-                          <button
-                            type="button"
-                            onClick={() => updateSort(col.key!)}
-                            className="flex items-center gap-1.5 transition hover:text-white"
-                          >
-                            {col.label}
-                            <span className="text-cyan-400/60">{sortLabel(col.key)}</span>
-                          </button>
-                        ) : (
-                          col.label
-                        )}
-                      </th>
-                    ))}
+                    <th className="px-5 py-4">
+                      <button
+                        type="button"
+                        onClick={() => updateSort("code")}
+                        className="flex items-center gap-1.5 transition hover:text-white"
+                      >
+                        Code<span className="text-cyan-400/60">{sortLabel("code")}</span>
+                      </button>
+                    </th>
+                    <th className="px-5 py-4">
+                      <button
+                        type="button"
+                        onClick={() => updateSort("name")}
+                        className="flex items-center gap-1.5 transition hover:text-white"
+                      >
+                        Name<span className="text-cyan-400/60">{sortLabel("name")}</span>
+                      </button>
+                    </th>
+                    <th className="px-5 py-4">
+                      <button
+                        type="button"
+                        onClick={() => updateSort("term_type")}
+                        className="flex items-center gap-1.5 transition hover:text-white"
+                      >
+                        Type<span className="text-cyan-400/60">{sortLabel("term_type")}</span>
+                      </button>
+                    </th>
+                    <th className="px-5 py-4">
+                      <button
+                        type="button"
+                        onClick={() => updateSort("due_days")}
+                        className="flex items-center gap-1.5 transition hover:text-white"
+                      >
+                        Due Days<span className="text-cyan-400/60">{sortLabel("due_days")}</span>
+                      </button>
+                    </th>
+                    <th className="px-5 py-4">Deposit</th>
+                    <th className="px-5 py-4">Document Wording</th>
+                    <th className="px-5 py-4">
+                      <button
+                        type="button"
+                        onClick={() => updateSort("status")}
+                        className="flex items-center gap-1.5 transition hover:text-white"
+                      >
+                        Status<span className="text-cyan-400/60">{sortLabel("status")}</span>
+                      </button>
+                    </th>
+                    <th className="px-5 py-4">
+                      <button
+                        type="button"
+                        onClick={() => updateSort("updated_at")}
+                        className="flex items-center gap-1.5 transition hover:text-white"
+                      >
+                        Updated<span className="text-cyan-400/60">{sortLabel("updated_at")}</span>
+                      </button>
+                    </th>
+                    <th className="px-5 py-4 text-right">Actions</th>
                   </tr>
                 </thead>
 
@@ -1661,7 +1726,9 @@ export default function FinancePaymentTermsPage() {
                 </div>
                 <div className="relative flex items-start justify-between gap-4">
                   <div>
-                    <Badge className={`${badgeBase} border-violet-400/20 bg-violet-500/10 text-violet-200`}>
+                    <Badge
+                      className={`${badgeBase} border-violet-400/20 bg-violet-500/10 text-violet-200`}
+                    >
                       Archive
                     </Badge>
                     <h2 className="mt-5 text-3xl font-bold tracking-tight text-white">
@@ -1684,13 +1751,15 @@ export default function FinancePaymentTermsPage() {
               </div>
 
               <div className="border-b border-white/[0.06] px-8 py-4">
-                <Badge className={`${badgeBase} border-violet-400/20 bg-violet-500/10 text-violet-200`}>
+                <Badge
+                  className={`${badgeBase} border-violet-400/20 bg-violet-500/10 text-violet-200`}
+                >
                   {archivedRows.length} Records
                 </Badge>
               </div>
 
-              <div className="overflow-x-auto custom-scrollbar">
-                <div className="max-h-[620px] overflow-y-auto custom-scrollbar">
+              <div className="overflow-x-auto">
+                <div className="max-h-[620px] overflow-y-auto">
                   <table className="w-full min-w-[980px] border-collapse">
                     <thead className="sticky top-0 z-10 border-b border-white/[0.08] bg-[#03050a]/80 text-left text-[10px] font-bold uppercase tracking-[0.2em] text-slate-500 backdrop-blur-xl">
                       <tr>
@@ -1704,7 +1773,10 @@ export default function FinancePaymentTermsPage() {
                     <tbody>
                       {archivedRows.length === 0 ? (
                         <tr>
-                          <td colSpan={5} className="px-5 py-16 text-center text-sm text-slate-600">
+                          <td
+                            colSpan={5}
+                            className="px-5 py-16 text-center text-sm text-slate-600"
+                          >
                             No archived payment terms.
                           </td>
                         </tr>

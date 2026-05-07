@@ -1,43 +1,25 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { useNavigate } from "react-router-dom";
+import type { LucideIcon } from "lucide-react";
 import {
-  AlertTriangle,
-  Archive,
   ArrowRight,
-  CheckCircle2,
-  ChevronDown,
-  ChevronUp,
+  Banknote,
+  BriefcaseBusiness,
+  Building2,
   CreditCard,
+  Database,
+  FolderKanban,
+  Landmark,
   Loader2,
-  MoreHorizontal,
-  Pencil,
-  Plus,
-  RotateCcw,
-  Search,
+  LockKeyhole,
+  Package2,
+  Receipt,
   ShieldCheck,
   Sparkles,
-  Trash2,
+  UserRound,
+  Users,
   WalletCards,
-  X,
 } from "lucide-react";
-
-import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
-import { Badge } from "@/components/ui/badge";
-import {
-  Dialog,
-  DialogContent,
-  DialogDescription,
-  DialogFooter,
-  DialogHeader,
-  DialogTitle,
-} from "@/components/ui/dialog";
-import {
-  DropdownMenu,
-  DropdownMenuContent,
-  DropdownMenuItem,
-  DropdownMenuTrigger,
-} from "@/components/ui/dropdown-menu";
 
 import { supabase } from "@/lib/supabase";
 import {
@@ -45,147 +27,148 @@ import {
   type Permission,
   type Role,
 } from "@/lib/permissions";
-import {
-  archivePaymentTerm,
-  createPaymentTerm,
-  getPaymentTerms,
-  permanentlyDeletePaymentTerm,
-  restorePaymentTerm,
-  updatePaymentTerm,
-  type FinancePaymentTermAppliesTo,
-  type FinancePaymentTermBalanceDueBasis,
-  type FinancePaymentTermDepositDueBasis,
-  type FinancePaymentTermDepositType,
-  type FinancePaymentTermRow,
-  type FinancePaymentTermStatus,
-  type FinancePaymentTermType,
-  type PaymentTermUpsertInput,
-} from "@/lib/finance/paymentTerms";
 
-type ProfilePermissionRow = {
-  role: Role;
-  permissions?: Partial<Record<Permission, boolean>> | null;
+type MasterDataOverviewCard = {
+  key: string;
+  title: string;
+  value: string;
+  subtitle: string;
+  icon: LucideIcon;
+  tone: "emerald" | "cyan" | "amber" | "violet" | "rose";
 };
 
-type StatusFilter = "all" | "active" | "inactive";
+type MasterDataModuleKey =
+  | "clients"
+  | "vendors"
+  | "companies"
+  | "vendor-bank-accounts"
+  | "bank-accounts"
+  | "payment-methods"
+  | "payment-terms"
+  | "shipping-terms"
+  | "tax-codes"
+  | "expense-categories"
+  | "revenue-categories"
+  | "units-of-measure"
+  | "items"
+  | "projects"
+  | "employees"
+  | "rates";
 
-type ArchiveTab = "archived";
-
-type SortKey =
-  | "code"
-  | "name"
-  | "term_type"
-  | "due_days"
-  | "deposit_percentage"
-  | "status"
-  | "updated_at";
-
-type SortDirection = "asc" | "desc";
-
-type FormState = {
-  term_type: FinancePaymentTermType;
-  net_days: string;
-  deposit_percentage: string;
-  deposit_due_basis: FinancePaymentTermDepositDueBasis;
-  balance_due_basis: FinancePaymentTermBalanceDueBasis;
-  custom_label: string;
-  custom_terms_text: string;
-  allow_partial_payments: boolean;
-  is_default: boolean;
-  status: FinancePaymentTermStatus;
-  notes: string;
-};
-
-type GeneratedTerm = {
-  code: string;
-  name: string;
-  dueDays: number;
-  requiresDeposit: boolean;
-  depositType: FinancePaymentTermDepositType | null;
-  depositPercentage: number | null;
-  depositDueBasis: FinancePaymentTermDepositDueBasis | null;
-  balanceDueBasis: FinancePaymentTermBalanceDueBasis | null;
-  balanceDueDays: number | null;
-  documentLabel: string;
-  documentTermsText: string;
-};
-
-const EMPTY_FORM: FormState = {
-  term_type: "net",
-  net_days: "30",
-  deposit_percentage: "30",
-  deposit_due_basis: "before_production",
-  balance_due_basis: "before_shipment",
-  custom_label: "",
-  custom_terms_text: "",
-  allow_partial_payments: true,
-  is_default: false,
-  status: "active",
-  notes: "",
-};
-
-const TERM_TYPE_OPTIONS: Array<{
-  value: FinancePaymentTermType;
-  label: string;
+type MasterDataModuleCard = {
+  key: MasterDataModuleKey;
+  title: string;
   description: string;
-}> = [
-  {
-    value: "immediate",
-    label: "Immediate",
-    description: "Payment is due immediately.",
-  },
-  {
-    value: "net",
-    label: "Net Terms",
-    description: "Full payment is due after a fixed number of days.",
-  },
-  {
-    value: "deposit_balance",
-    label: "Deposit + Balance",
-    description: "Deposit first, remaining balance later.",
-  },
-  {
-    value: "custom",
-    label: "Custom",
-    description: "Write your own payment term wording.",
-  },
-];
+  route: string;
+  icon: LucideIcon;
+  count: number;
+  statusLabel: string;
+  lastUpdatedLabel: string;
+  requiredAccessLabel: string;
+};
 
-const DEPOSIT_DUE_BASIS_OPTIONS: Array<{
-  value: FinancePaymentTermDepositDueBasis;
-  label: string;
-}> = [
-  { value: "immediate", label: "Immediately" },
-  { value: "before_production", label: "Before Production" },
-  { value: "before_shipment", label: "Before Shipment" },
-  { value: "before_delivery", label: "Before Delivery" },
-];
+type RecentMasterDataChange = {
+  id: string;
+  type: string;
+  title: string;
+  subtitle: string;
+  createdAt: string;
+  route?: string;
+};
 
-const BALANCE_DUE_BASIS_OPTIONS: Array<{
-  value: FinancePaymentTermBalanceDueBasis;
-  label: string;
-}> = [
-  { value: "before_shipment", label: "Before Shipment" },
-  { value: "delivery_date", label: "On Delivery" },
-  { value: "shipment_date", label: "On Shipment" },
-  { value: "invoice_date", label: "On Invoice Date" },
-];
+type MasterDataPageData = {
+  counts: {
+    clients: number;
+    vendors: number;
+    companies: number;
+    vendorBankAccounts: number;
+    bankAccounts: number;
+    paymentMethods: number;
+    paymentTerms: number;
+    shippingTerms: number;
+    taxCodes: number;
+    expenseCategories: number;
+    revenueCategories: number;
+    unitsOfMeasure: number;
+    items: number;
+    projects: number;
+    employees: number;
+    currencies: number;
+  };
+  rates: {
+    sourceLabel: string;
+    updatedAtLabel: string;
+  };
+  recentChanges: RecentMasterDataChange[];
+};
 
-const STATUS_FILTERS: Array<{ value: StatusFilter; label: string }> = [
-  { value: "all", label: "All Active" },
-  { value: "active", label: "Active" },
-  { value: "inactive", label: "Inactive" },
-];
+type CountResult = {
+  count?: number | null;
+};
+
+type CurrentUserProfile = {
+  user_id: string;
+  full_name: string | null;
+  role: Role | null;
+  permissions: Partial<Record<Permission, boolean>> | null;
+};
+
+type MasterDataAccessMap = Record<MasterDataModuleKey, boolean>;
+
+const EMPTY_MASTER_DATA: MasterDataPageData = {
+  counts: {
+    clients: 0,
+    vendors: 0,
+    companies: 0,
+    vendorBankAccounts: 0,
+    bankAccounts: 0,
+    paymentMethods: 0,
+    paymentTerms: 0,
+    shippingTerms: 0,
+    taxCodes: 0,
+    expenseCategories: 0,
+    revenueCategories: 0,
+    unitsOfMeasure: 0,
+    items: 0,
+    projects: 0,
+    employees: 0,
+    currencies: 0,
+  },
+  rates: {
+    sourceLabel: "Not connected",
+    updatedAtLabel: "No live rate source",
+  },
+  recentChanges: [],
+};
+
+const EMPTY_MASTER_DATA_ACCESS: MasterDataAccessMap = {
+  clients: false,
+  vendors: false,
+  companies: false,
+  "vendor-bank-accounts": false,
+  "bank-accounts": false,
+  "payment-methods": false,
+  "payment-terms": false,
+  "shipping-terms": false,
+  "tax-codes": false,
+  "expense-categories": false,
+  "revenue-categories": false,
+  "units-of-measure": false,
+  items: false,
+  projects: false,
+  employees: false,
+  rates: false,
+};
 
 function formatCount(value: number) {
   return value.toLocaleString();
 }
 
-function formatDateLabel(value: string | null | undefined) {
+function formatDateLabel(value: string | null) {
   if (!value) return "—";
 
   const parsed = new Date(value);
-  if (Number.isNaN(parsed.getTime())) return "—";
+  if (Number.isNaN(parsed.getTime())) return value;
 
   return parsed.toLocaleDateString(undefined, {
     year: "numeric",
@@ -194,141 +177,113 @@ function formatDateLabel(value: string | null | undefined) {
   });
 }
 
-function formatTermType(value: FinancePaymentTermType) {
-  return TERM_TYPE_OPTIONS.find((option) => option.value === value)?.label ?? value;
+function getCount(result: CountResult) {
+  return result.count ?? 0;
 }
 
-function formatBasisLabel(value: string | null | undefined) {
-  if (!value) return "—";
-
-  if (value === "delivery_date") return "On Delivery";
-  if (value === "shipment_date") return "On Shipment";
-  if (value === "invoice_date") return "On Invoice Date";
-
-  return value
-    .split("_")
-    .map((part) => part.charAt(0).toUpperCase() + part.slice(1))
-    .join(" ");
+function hasPermission(
+  permissions: Record<Permission, boolean> | null,
+  permission: Permission
+) {
+  return Boolean(permissions?.[permission]);
 }
 
-function normalizeGeneratedCode(value: string) {
-  return value
-    .trim()
-    .toUpperCase()
-    .replace(/%/g, "")
-    .replace(/[^A-Z0-9]+/g, "_")
-    .replace(/^_+|_+$/g, "");
-}
-
-function parseWholeNumber(value: string) {
-  const parsed = Number(value);
-  if (!Number.isInteger(parsed) || parsed < 0) return null;
-  return parsed;
-}
-
-function parsePercentage(value: string) {
-  const parsed = Number(value);
-  if (!Number.isFinite(parsed) || parsed <= 0 || parsed >= 100) return null;
-  return parsed;
-}
-
-function buildGeneratedTerm(form: FormState): GeneratedTerm {
-  if (form.term_type === "immediate") {
-    return {
-      code: "DUE_IMMEDIATELY",
-      name: "Due Immediately",
-      dueDays: 0,
-      requiresDeposit: false,
-      depositType: null,
-      depositPercentage: null,
-      depositDueBasis: null,
-      balanceDueBasis: "invoice_date",
-      balanceDueDays: 0,
-      documentLabel: "Due Immediately",
-      documentTermsText: "Payment is due immediately.",
-    };
+function getMasterDataAccessMap(
+  permissions: Record<Permission, boolean> | null
+): MasterDataAccessMap {
+  if (!permissions) {
+    return EMPTY_MASTER_DATA_ACCESS;
   }
 
-  if (form.term_type === "net") {
-    const days = parseWholeNumber(form.net_days) ?? 0;
+  const canManageMasterData = hasPermission(permissions, "manageFinanceMasterData");
+  const canViewFinance = hasPermission(permissions, "viewFinance");
+  const canAccessFinance = hasPermission(permissions, "accessFinance");
 
-    return {
-      code: `NET_${days}`,
-      name: `Net ${days}`,
-      dueDays: days,
-      requiresDeposit: false,
-      depositType: null,
-      depositPercentage: null,
-      depositDueBasis: null,
-      balanceDueBasis: "invoice_date",
-      balanceDueDays: days,
-      documentLabel: `Net ${days}`,
-      documentTermsText:
-        days === 0
-          ? "Payment is due immediately."
-          : `Payment is due within ${days} days from invoice date.`,
-    };
-  }
+  const canUseFinance = canViewFinance || canAccessFinance || canManageMasterData;
 
-  if (form.term_type === "deposit_balance") {
-    const depositPercentage = parsePercentage(form.deposit_percentage) ?? 0;
-    const balancePercentage = Math.max(0, 100 - depositPercentage);
-    const depositTiming = formatBasisLabel(form.deposit_due_basis).toLowerCase();
-    const balanceTiming = formatBasisLabel(form.balance_due_basis).toLowerCase();
-    const label = `${depositPercentage}% Deposit / ${balancePercentage}% ${formatBasisLabel(
-      form.balance_due_basis
-    )}`;
+  const canUsePayroll =
+    hasPermission(permissions, "accessPayroll") ||
+    hasPermission(permissions, "viewPayroll") ||
+    hasPermission(permissions, "viewAllPaychecks") ||
+    hasPermission(permissions, "managePayProfiles");
 
-    return {
-      code: normalizeGeneratedCode(label),
-      name: label,
-      dueDays: 0,
-      requiresDeposit: true,
-      depositType: "percentage",
-      depositPercentage,
-      depositDueBasis: form.deposit_due_basis,
-      balanceDueBasis: form.balance_due_basis,
-      balanceDueDays: 0,
-      documentLabel: label,
-      documentTermsText: `${depositPercentage}% deposit is required ${depositTiming}. The remaining ${balancePercentage}% balance is due ${balanceTiming}.`,
-    };
-  }
-
-  const customLabel = form.custom_label.trim() || "Custom Payment Terms";
-  const customTermsText =
-    form.custom_terms_text.trim() || "Payment terms are defined by the commercial agreement.";
+  const canUseExpenses =
+    hasPermission(permissions, "accessExpenses") ||
+    hasPermission(permissions, "viewExpenses") ||
+    hasPermission(permissions, "viewOwnExpenses") ||
+    hasPermission(permissions, "viewTeamExpenses") ||
+    hasPermission(permissions, "approveExpenses");
 
   return {
-    code: normalizeGeneratedCode(customLabel),
-    name: customLabel,
-    dueDays: 0,
-    requiresDeposit: false,
-    depositType: null,
-    depositPercentage: null,
-    depositDueBasis: null,
-    balanceDueBasis: "invoice_date",
-    balanceDueDays: 0,
-    documentLabel: customLabel,
-    documentTermsText: customTermsText,
+    clients:
+      canManageMasterData ||
+      hasPermission(permissions, "viewClients") ||
+      hasPermission(permissions, "manageClients"),
+
+    vendors:
+      canManageMasterData ||
+      hasPermission(permissions, "viewVendors") ||
+      hasPermission(permissions, "manageVendors"),
+
+    companies: canManageMasterData,
+
+    "vendor-bank-accounts":
+      canManageMasterData ||
+      hasPermission(permissions, "viewVendors") ||
+      hasPermission(permissions, "manageVendors") ||
+      hasPermission(permissions, "accessPayables") ||
+      hasPermission(permissions, "viewPayables"),
+
+    "bank-accounts":
+      canManageMasterData || hasPermission(permissions, "viewBankAccounts"),
+
+    "payment-methods":
+      canManageMasterData || hasPermission(permissions, "viewPaymentMethods"),
+
+    "payment-terms":
+      canManageMasterData || hasPermission(permissions, "viewPaymentTerms"),
+
+    "shipping-terms":
+      canManageMasterData || hasPermission(permissions, "viewShippingTerms"),
+
+    "tax-codes":
+      canManageMasterData || hasPermission(permissions, "viewTaxCodes"),
+
+    "expense-categories":
+      canManageMasterData ||
+      hasPermission(permissions, "viewExpenseCategories") ||
+      canUseExpenses,
+
+    "revenue-categories":
+      canManageMasterData || hasPermission(permissions, "viewRevenueCategories"),
+
+    "units-of-measure":
+      canManageMasterData || hasPermission(permissions, "viewUnitsOfMeasure"),
+
+    items: canManageMasterData || hasPermission(permissions, "viewItems"),
+
+    projects: canUseFinance,
+
+    employees: canManageMasterData || canUsePayroll || canUseExpenses,
+
+    rates: canManageMasterData || canViewFinance || canAccessFinance,
   };
 }
 
-function getStatusBadgeClass(status: FinancePaymentTermStatus) {
-  if (status === "archived") {
-    return "border-amber-400/20 bg-amber-500/10 text-amber-200";
-  }
-
-  if (status === "inactive") {
-    return "border-white/10 bg-white/[0.06] text-slate-300";
-  }
-
-  return "border-emerald-400/20 bg-emerald-500/10 text-emerald-200";
+function canOpenAnyMasterData(accessMap: MasterDataAccessMap) {
+  return Object.values(accessMap).some(Boolean);
 }
 
-function getSortValue(row: FinancePaymentTermRow, key: SortKey) {
-  if (key === "deposit_percentage") return row.deposit_percentage ?? 0;
-  if (key === "updated_at") return new Date(row.updated_at).getTime();
-  return row[key] ?? "";
+async function safeCount(tableName: string): Promise<CountResult> {
+  try {
+    const result = await supabase
+      .from(tableName)
+      .select("id", { count: "exact", head: true });
+
+    return { count: result.count ?? 0 };
+  } catch {
+    return { count: 0 };
+  }
 }
 
 async function loadBackendEffectivePermissions(
@@ -340,7 +295,10 @@ async function loadBackendEffectivePermissions(
     });
 
     if (result.error) {
-      console.warn("Payment Terms permission RPC fallback:", result.error.message);
+      console.warn(
+        "Master Data permission RPC fallback:",
+        result.error.message
+      );
       return null;
     }
 
@@ -350,613 +308,877 @@ async function loadBackendEffectivePermissions(
 
     return result.data as Partial<Record<Permission, boolean>>;
   } catch (error) {
-    console.warn("Payment Terms permission RPC failed:", error);
+    console.warn("Master Data permission RPC failed:", error);
     return null;
   }
 }
 
-function SelectField<TValue extends string>({
-  value,
-  onChange,
-  options,
-}: {
-  value: TValue;
-  onChange: (value: TValue) => void;
-  options: Array<{ value: TValue; label: string }>;
-}) {
-  return (
-    <select
-      value={value}
-      onChange={(event) => onChange(event.target.value as TValue)}
-      className="h-11 w-full rounded-2xl border border-white/10 bg-black/20 px-3 text-sm text-white outline-none transition focus:border-cyan-400/40"
-    >
-      {options.map((option) => (
-        <option key={option.value} value={option.value} className="bg-[#101522] text-white">
-          {option.label}
-        </option>
-      ))}
-    </select>
-  );
+function getToneClasses(tone: MasterDataOverviewCard["tone"]) {
+  switch (tone) {
+    case "emerald":
+      return {
+        glow: "from-emerald-500/20 via-emerald-400/10 to-transparent",
+        iconWrap: "border-emerald-400/20 bg-emerald-500/10 text-emerald-200",
+        accent: "bg-emerald-400",
+        value: "text-emerald-100",
+      };
+    case "amber":
+      return {
+        glow: "from-amber-500/20 via-amber-400/10 to-transparent",
+        iconWrap: "border-amber-400/20 bg-amber-500/10 text-amber-200",
+        accent: "bg-amber-400",
+        value: "text-amber-100",
+      };
+    case "violet":
+      return {
+        glow: "from-violet-500/20 via-violet-400/10 to-transparent",
+        iconWrap: "border-violet-400/20 bg-violet-500/10 text-violet-200",
+        accent: "bg-violet-400",
+        value: "text-violet-100",
+      };
+    case "rose":
+      return {
+        glow: "from-rose-500/20 via-rose-400/10 to-transparent",
+        iconWrap: "border-rose-400/20 bg-rose-500/10 text-rose-200",
+        accent: "bg-rose-400",
+        value: "text-rose-100",
+      };
+    case "cyan":
+    default:
+      return {
+        glow: "from-cyan-500/20 via-cyan-400/10 to-transparent",
+        iconWrap: "border-cyan-400/20 bg-cyan-500/10 text-cyan-200",
+        accent: "bg-cyan-400",
+        value: "text-cyan-100",
+      };
+  }
 }
 
-function ToggleCard({
-  checked,
-  title,
-  description,
-  onChange,
+function MasterDataOverviewMetric({
+  metric,
 }: {
-  checked: boolean;
-  title: string;
-  description: string;
-  onChange: (checked: boolean) => void;
+  metric: MasterDataOverviewCard;
 }) {
-  return (
-    <button
-      type="button"
-      onClick={() => onChange(!checked)}
-      className={`rounded-[22px] border p-4 text-left transition ${
-        checked
-          ? "border-cyan-400/25 bg-cyan-500/10"
-          : "border-white/10 bg-black/20 hover:border-white/20 hover:bg-white/[0.04]"
-      }`}
-    >
-      <div className="flex items-start gap-3">
-        <span
-          className={`mt-1 h-4 w-4 rounded-full border ${
-            checked ? "border-cyan-300 bg-cyan-400" : "border-white/20 bg-white/5"
-          }`}
-        />
-        <span>
-          <span className="block text-sm font-semibold text-white">{title}</span>
-          <span className="mt-1 block text-xs leading-5 text-slate-500">{description}</span>
-        </span>
-      </div>
-    </button>
-  );
-}
-
-function MetricCard({
-  label,
-  value,
-  detail,
-  tone,
-}: {
-  label: string;
-  value: string;
-  detail: string;
-  tone: "cyan" | "emerald" | "amber" | "violet";
-}) {
-  const toneClasses = {
-    cyan: {
-      glow: "from-cyan-500/20 via-cyan-400/10 to-transparent",
-      icon: "border-cyan-400/20 bg-cyan-500/10 text-cyan-200",
-      value: "text-cyan-100",
-    },
-    emerald: {
-      glow: "from-emerald-500/20 via-emerald-400/10 to-transparent",
-      icon: "border-emerald-400/20 bg-emerald-500/10 text-emerald-200",
-      value: "text-emerald-100",
-    },
-    amber: {
-      glow: "from-amber-500/20 via-amber-400/10 to-transparent",
-      icon: "border-amber-400/20 bg-amber-500/10 text-amber-200",
-      value: "text-amber-100",
-    },
-    violet: {
-      glow: "from-violet-500/20 via-violet-400/10 to-transparent",
-      icon: "border-violet-400/20 bg-violet-500/10 text-violet-200",
-      value: "text-violet-100",
-    },
-  }[tone];
+  const Icon = metric.icon;
+  const tone = getToneClasses(metric.tone);
 
   return (
-    <div className="relative min-h-[156px] overflow-hidden rounded-[28px] border border-white/10 bg-white/[0.045] p-5 backdrop-blur-xl transition hover:border-white/20 hover:bg-white/[0.055]">
-      <div className={`pointer-events-none absolute inset-0 bg-gradient-to-br ${toneClasses.glow}`} />
+    <div className="group relative min-h-[156px] overflow-hidden rounded-[28px] border border-white/10 bg-white/[0.045] p-5 backdrop-blur-xl transition hover:border-white/20 hover:bg-white/[0.055]">
+      <div
+        className={`pointer-events-none absolute inset-0 bg-gradient-to-br ${tone.glow}`}
+      />
+      <div className="pointer-events-none absolute inset-x-5 top-0 h-px bg-white/10" />
+
       <div className="relative flex h-full flex-col justify-between gap-5">
         <div className="flex items-start justify-between gap-4">
           <div className="min-w-0">
             <div className="text-[11px] font-semibold uppercase tracking-[0.2em] text-slate-500">
-              {label}
+              {metric.title}
             </div>
-            <div className={`mt-2 truncate text-3xl font-semibold tracking-[-0.035em] ${toneClasses.value}`}>
-              {value}
+            <div
+              className={`mt-2 truncate text-3xl font-semibold tracking-[-0.035em] ${tone.value}`}
+            >
+              {metric.value}
             </div>
           </div>
 
-          <div className={`flex h-12 w-12 shrink-0 items-center justify-center rounded-2xl border ${toneClasses.icon}`}>
-            <WalletCards className="h-5 w-5" />
+          <div
+            className={`flex h-12 w-12 shrink-0 items-center justify-center rounded-2xl border ${tone.iconWrap}`}
+          >
+            <Icon className="h-5 w-5" />
           </div>
         </div>
 
-        <div className="text-sm leading-6 text-slate-400">{detail}</div>
+        <div className="flex items-center justify-between gap-3">
+          <div className="min-w-0 truncate text-sm leading-6 text-slate-400">
+            {metric.subtitle}
+          </div>
+          <div className={`h-2 w-2 shrink-0 rounded-full ${tone.accent}`} />
+        </div>
       </div>
     </div>
   );
 }
 
-function SortButton({
-  label,
-  sortKey,
-  activeSortKey,
-  direction,
-  onSort,
-  align = "left",
+function MasterDataModuleButton({
+  module,
+  onOpen,
 }: {
-  label: string;
-  sortKey: SortKey;
-  activeSortKey: SortKey;
-  direction: SortDirection;
-  onSort: (key: SortKey) => void;
-  align?: "left" | "right";
+  module: MasterDataModuleCard;
+  onOpen: (route: string) => void;
 }) {
-  const active = sortKey === activeSortKey;
+  const Icon = module.icon;
 
   return (
     <button
       type="button"
-      onClick={() => onSort(sortKey)}
-      className={`inline-flex w-full items-center gap-1 text-[11px] font-semibold uppercase tracking-[0.18em] text-slate-500 transition hover:text-slate-300 ${
-        align === "right" ? "justify-end" : "justify-start"
-      }`}
+      onClick={() => onOpen(module.route)}
+      className="group relative min-h-[248px] overflow-hidden rounded-[30px] border border-white/10 bg-[radial-gradient(circle_at_top_left,rgba(6,182,212,0.16),rgba(255,255,255,0.045)_44%,rgba(255,255,255,0.025)_100%)] p-6 text-left shadow-2xl shadow-black/20 backdrop-blur-xl transition hover:-translate-y-0.5 hover:border-cyan-400/25 hover:bg-white/[0.055]"
     >
-      {label}
-      {active ? (
-        direction === "asc" ? (
-          <ChevronUp className="h-3 w-3" />
-        ) : (
-          <ChevronDown className="h-3 w-3" />
-        )
-      ) : null}
+      <div className="pointer-events-none absolute inset-x-6 top-0 h-px bg-white/10" />
+      <div className="pointer-events-none absolute -right-16 -top-16 h-40 w-40 rounded-full bg-cyan-400/10 blur-3xl transition group-hover:bg-cyan-400/20" />
+      <div className="pointer-events-none absolute -bottom-20 left-10 h-36 w-36 rounded-full bg-violet-400/5 blur-3xl" />
+
+      <div className="relative flex h-full flex-col justify-between gap-6">
+        <div className="flex items-start justify-between gap-4">
+          <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-2xl border border-cyan-400/15 bg-cyan-500/10 text-cyan-200 shadow-lg shadow-cyan-500/5">
+            <Icon className="h-5 w-5" />
+          </div>
+
+          <div className="flex shrink-0 items-center gap-2">
+            <span className="rounded-full border border-white/10 bg-white/[0.07] px-3 py-1 text-[11px] font-semibold uppercase tracking-[0.16em] text-slate-300">
+              {module.statusLabel}
+            </span>
+            <ArrowRight className="h-4 w-4 text-slate-500 transition group-hover:translate-x-1 group-hover:text-cyan-200" />
+          </div>
+        </div>
+
+        <div>
+          <div className="text-[11px] font-semibold uppercase tracking-[0.22em] text-slate-500">
+            {module.requiredAccessLabel}
+          </div>
+          <div className="mt-3 text-xl font-semibold tracking-[-0.025em] text-white">
+            {module.title}
+          </div>
+          <div className="mt-3 min-h-[58px] text-sm leading-6 text-slate-400">
+            {module.description}
+          </div>
+        </div>
+
+        <div className="flex items-end justify-between gap-4 border-t border-white/10 pt-4">
+          <div className="min-w-0">
+            <div className="text-[11px] font-semibold uppercase tracking-[0.18em] text-slate-600">
+              Records
+            </div>
+            <div className="mt-1 text-sm font-semibold text-white">
+              {formatCount(module.count)} configured
+            </div>
+          </div>
+
+          <span className="inline-flex h-10 shrink-0 items-center justify-center rounded-full border border-cyan-400/20 bg-cyan-500/10 px-5 text-xs font-semibold uppercase tracking-[0.16em] text-cyan-100 transition group-hover:bg-cyan-500/15">
+            Open
+          </span>
+        </div>
+      </div>
     </button>
   );
 }
 
-export default function FinancePaymentTermsPage() {
+function MasterDataSectionCard({
+  title,
+  description,
+  icon: Icon,
+  children,
+}: {
+  title: string;
+  description: string;
+  icon: LucideIcon;
+  children: React.ReactNode;
+}) {
+  return (
+    <section className="overflow-hidden rounded-[30px] border border-white/10 bg-white/[0.045] backdrop-blur-xl">
+      <div className="flex items-center justify-between border-b border-white/10 px-5 py-4">
+        <div className="flex min-w-0 items-center gap-3">
+          <div className="rounded-2xl border border-cyan-400/15 bg-cyan-500/10 p-3 text-cyan-200">
+            <Icon className="h-4 w-4" />
+          </div>
+
+          <div className="min-w-0">
+            <h2 className="text-sm font-semibold uppercase tracking-[0.18em] text-slate-400">
+              {title}
+            </h2>
+            <p className="mt-1 text-xs text-slate-500">{description}</p>
+          </div>
+        </div>
+      </div>
+
+      <div className="p-5">{children}</div>
+    </section>
+  );
+}
+
+function HeaderStatusCard({
+  label,
+  value,
+  detail,
+  icon: Icon,
+  tone,
+}: {
+  label: string;
+  value: string;
+  detail: string;
+  icon: LucideIcon;
+  tone: "emerald" | "cyan" | "amber";
+}) {
+  const toneClasses = {
+    emerald: "border-emerald-400/20 bg-emerald-500/10 text-emerald-200",
+    cyan: "border-cyan-400/20 bg-cyan-500/10 text-cyan-200",
+    amber: "border-amber-400/20 bg-amber-500/10 text-amber-200",
+  }[tone];
+
+  return (
+    <div className="min-h-[148px] rounded-[24px] border border-white/10 bg-black/20 p-4">
+      <div className="flex items-start justify-between gap-3">
+        <div className="min-w-0">
+          <div className="text-[11px] font-semibold uppercase tracking-[0.2em] text-slate-500">
+            {label}
+          </div>
+          <div className="mt-2 text-xl font-semibold leading-tight tracking-[-0.035em] text-white">
+            {value}
+          </div>
+        </div>
+
+        <div
+          className={`flex h-10 w-10 shrink-0 items-center justify-center rounded-2xl border ${toneClasses}`}
+        >
+          <Icon className="h-4 w-4" />
+        </div>
+      </div>
+
+      <div className="mt-3 text-xs leading-5 text-slate-500">{detail}</div>
+    </div>
+  );
+}
+
+function AccessSummaryPanel({
+  visibleCount,
+  totalCount,
+  hasAccess,
+}: {
+  visibleCount: number;
+  totalCount: number;
+  hasAccess: boolean;
+}) {
+  if (!hasAccess) {
+    return (
+      <div className="rounded-[30px] border border-rose-400/20 bg-rose-500/10 p-6">
+        <div className="flex items-start gap-4">
+          <div className="rounded-2xl border border-rose-400/20 bg-rose-500/10 p-3 text-rose-200">
+            <LockKeyhole className="h-5 w-5" />
+          </div>
+
+          <div>
+            <div className="text-lg font-semibold text-white">
+              No master-data access is enabled
+            </div>
+            <div className="mt-2 text-sm leading-6 text-rose-100">
+              This user can open Finance only if another permitted Finance area is available.
+              Master Data cards are hidden until a Finance template or user-specific exception
+              grants the required read access.
+            </div>
+          </div>
+        </div>
+      </div>
+    );
+  }
+
+  return (
+    <div className="rounded-[30px] border border-cyan-400/20 bg-[radial-gradient(circle_at_top_left,rgba(6,182,212,0.14),rgba(255,255,255,0.045)_48%)] p-6 backdrop-blur-xl">
+      <div className="flex flex-col gap-4 md:flex-row md:items-center">
+        <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-2xl border border-cyan-400/20 bg-cyan-500/10 text-cyan-200">
+          <ShieldCheck className="h-5 w-5" />
+        </div>
+
+        <div>
+          <div className="text-lg font-semibold text-white">
+            Master-data access is permission filtered
+          </div>
+          <div className="mt-2 max-w-3xl text-sm leading-6 text-slate-400">
+            Showing {formatCount(visibleCount)} of {formatCount(totalCount)} master-data
+            domains for this user. Hidden domains require the correct Finance template
+            baseline or user-specific exception.
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function ReadinessBlock({
+  label,
+  value,
+  detail,
+}: {
+  label: string;
+  value: string;
+  detail?: string;
+}) {
+  return (
+    <div className="rounded-[24px] border border-white/10 bg-black/20 p-4">
+      <div className="text-[11px] uppercase tracking-[0.2em] text-slate-500">
+        {label}
+      </div>
+      <div className="mt-2 text-2xl font-semibold text-white">{value}</div>
+      {detail ? (
+        <div className="mt-2 text-sm leading-6 text-slate-400">{detail}</div>
+      ) : null}
+    </div>
+  );
+}
+
+export default function FinanceMasterDataPage() {
   const navigate = useNavigate();
 
-  const [rows, setRows] = useState<FinancePaymentTermRow[]>([]);
-  const [loading, setLoading] = useState(true);
-  const [saving, setSaving] = useState(false);
-  const [actionLocked, setActionLocked] = useState(false);
-  const [search, setSearch] = useState("");
-  const [statusFilter, setStatusFilter] = useState<StatusFilter>("all");
-  const [archiveTab] = useState<ArchiveTab>("archived");
-  const [archiveOpen, setArchiveOpen] = useState(false);
-  const [role, setRole] = useState<Role | null>(null);
-  const [permissionOverrides, setPermissionOverrides] =
-    useState<Partial<Record<Permission, boolean>> | null>(null);
-  const [dialogOpen, setDialogOpen] = useState(false);
-  const [editingRow, setEditingRow] = useState<FinancePaymentTermRow | null>(null);
-  const [form, setForm] = useState<FormState>(EMPTY_FORM);
-  const [error, setError] = useState("");
-  const [successMessage, setSuccessMessage] = useState("");
-  const [sortKey, setSortKey] = useState<SortKey>("updated_at");
-  const [sortDirection, setSortDirection] = useState<SortDirection>("desc");
+  const [data, setData] = useState<MasterDataPageData>(EMPTY_MASTER_DATA);
+  const [currentProfile, setCurrentProfile] = useState<CurrentUserProfile | null>(null);
+  const [effectivePermissions, setEffectivePermissions] =
+    useState<Record<Permission, boolean> | null>(null);
+  const [isLoadingProfile, setIsLoadingProfile] = useState(true);
+  const [isLoadingData, setIsLoadingData] = useState(true);
 
-  const generatedTerm = useMemo(() => buildGeneratedTerm(form), [form]);
-
-  const loadProfile = useCallback(async () => {
-    const {
-      data: { user },
-    } = await supabase.auth.getUser();
-
-    if (!user?.id) {
-      setRole(null);
-      setPermissionOverrides(null);
-      return;
-    }
-
-    const { data: profile, error: profileError } = await supabase
-      .from("profiles")
-      .select("role, permissions")
-      .eq("user_id", user.id)
-      .maybeSingle();
-
-    if (profileError) throw profileError;
-
-    const typedProfile = (profile || null) as ProfilePermissionRow | null;
-    const backendPermissions = await loadBackendEffectivePermissions(user.id);
-
-    setRole(typedProfile?.role ?? null);
-    setPermissionOverrides(backendPermissions || typedProfile?.permissions || null);
-  }, []);
-
-  const loadPage = useCallback(
+  const loadCurrentProfile = useCallback(
     async (mode: "initial" | "silent" = "initial") => {
       if (mode === "initial") {
-        setLoading(true);
+        setIsLoadingProfile(true);
       }
 
       try {
-        await loadProfile();
-        const nextRows = await getPaymentTerms();
-        setRows(nextRows);
-      } catch (loadError) {
-        console.error("Failed to load payment terms:", loadError);
+        const authResult = await supabase.auth.getUser();
+        if (authResult.error) throw authResult.error;
+
+        const authUserId = authResult.data.user?.id;
+
+        if (!authUserId) {
+          setCurrentProfile(null);
+          setEffectivePermissions(null);
+          return;
+        }
+
+        const profileResult = await supabase
+          .from("profiles")
+          .select("user_id, full_name, role, permissions")
+          .eq("user_id", authUserId)
+          .maybeSingle();
+
+        if (profileResult.error) throw profileResult.error;
+
+        const profile = (profileResult.data || null) as CurrentUserProfile | null;
+        const backendPermissions = authUserId
+          ? await loadBackendEffectivePermissions(authUserId)
+          : null;
+
+        setCurrentProfile(profile);
+
+        if (!profile?.role) {
+          setEffectivePermissions(null);
+          return;
+        }
+
+        const resolvedPermissions = getEffectivePermissions(
+          profile.role,
+          backendPermissions || profile.permissions || null
+        );
+
+        setEffectivePermissions(resolvedPermissions);
+      } catch (error) {
+        console.error("Failed to load master-data profile permissions:", error);
+
         if (mode === "initial") {
-          setRows([]);
+          setCurrentProfile(null);
+          setEffectivePermissions(null);
         }
       } finally {
         if (mode === "initial") {
-          setLoading(false);
+          setIsLoadingProfile(false);
         }
       }
     },
-    [loadProfile]
+    []
   );
 
+  const loadMasterData = useCallback(async (mode: "initial" | "silent" = "initial") => {
+    if (mode === "initial") {
+      setIsLoadingData(true);
+    }
+
+    try {
+      const [
+        clients,
+        vendors,
+        companies,
+        vendorBankAccounts,
+        bankAccounts,
+        paymentMethods,
+        paymentTerms,
+        shippingTerms,
+        taxCodes,
+        expenseCategories,
+        revenueCategories,
+        unitsOfMeasure,
+        items,
+        projects,
+        employees,
+      ] = await Promise.all([
+        supabase
+          .from("finance_clients")
+          .select("id", { count: "exact", head: true }),
+
+        supabase
+          .from("finance_vendors")
+          .select("id", { count: "exact", head: true }),
+
+        supabase
+          .from("finance_companies")
+          .select("id", { count: "exact", head: true }),
+
+        safeCount("finance_vendor_bank_accounts"),
+
+        supabase
+          .from("finance_bank_accounts")
+          .select("id", { count: "exact", head: true }),
+
+        supabase
+          .from("finance_payment_methods")
+          .select("id", { count: "exact", head: true }),
+
+        safeCount("finance_payment_terms"),
+
+        safeCount("finance_shipping_terms"),
+
+        safeCount("finance_tax_codes"),
+
+        supabase
+          .from("finance_expense_categories")
+          .select("id", { count: "exact", head: true }),
+
+        supabase
+          .from("finance_revenue_categories")
+          .select("id", { count: "exact", head: true }),
+
+        safeCount("finance_units_of_measure"),
+
+        safeCount("finance_items"),
+
+        supabase
+          .from("projects")
+          .select("id", { count: "exact", head: true }),
+
+        supabase
+          .from("profiles")
+          .select("user_id", { count: "exact", head: true }),
+      ]);
+
+      const recentChanges: RecentMasterDataChange[] = [];
+      const now = new Date().toISOString();
+
+      if (getCount(clients) > 0) {
+        recentChanges.push({
+          id: "clients",
+          type: "Clients",
+          title: "Clients updated",
+          subtitle: `${getCount(clients)} total clients`,
+          createdAt: now,
+          route: "/finance/master-data/clients",
+        });
+      }
+
+      if (getCount(vendors) > 0) {
+        recentChanges.push({
+          id: "vendors",
+          type: "Vendors",
+          title: "Vendors updated",
+          subtitle: `${getCount(vendors)} total vendors`,
+          createdAt: now,
+          route: "/finance/master-data/vendors",
+        });
+      }
+
+      if (getCount(companies) > 0) {
+        recentChanges.push({
+          id: "companies",
+          type: "Companies",
+          title: "Companies configured",
+          subtitle: `${getCount(companies)} total companies`,
+          createdAt: now,
+          route: "/finance/master-data/companies",
+        });
+      }
+
+      if (getCount(bankAccounts) > 0) {
+        recentChanges.push({
+          id: "bank-accounts",
+          type: "Company Bank Accounts",
+          title: "Company bank accounts active",
+          subtitle: `${getCount(bankAccounts)} company bank accounts`,
+          createdAt: now,
+          route: "/finance/master-data/bank-accounts",
+        });
+      }
+
+      setData({
+        counts: {
+          clients: getCount(clients),
+          vendors: getCount(vendors),
+          companies: getCount(companies),
+          vendorBankAccounts: getCount(vendorBankAccounts),
+          bankAccounts: getCount(bankAccounts),
+          paymentMethods: getCount(paymentMethods),
+          paymentTerms: getCount(paymentTerms),
+          shippingTerms: getCount(shippingTerms),
+          taxCodes: getCount(taxCodes),
+          expenseCategories: getCount(expenseCategories),
+          revenueCategories: getCount(revenueCategories),
+          unitsOfMeasure: getCount(unitsOfMeasure),
+          items: getCount(items),
+          projects: getCount(projects),
+          employees: getCount(employees),
+          currencies: 1,
+        },
+        rates: {
+          sourceLabel: "Currency Master",
+          updatedAtLabel: "Live reference",
+        },
+        recentChanges,
+      });
+    } catch (error) {
+      console.error("Failed to load master data:", error);
+      setData(EMPTY_MASTER_DATA);
+    } finally {
+      if (mode === "initial") {
+        setIsLoadingData(false);
+      }
+    }
+  }, []);
+
   useEffect(() => {
-    void loadPage("initial");
-  }, [loadPage]);
+    void Promise.all([
+      loadCurrentProfile("initial"),
+      loadMasterData("initial"),
+    ]);
+  }, [loadCurrentProfile, loadMasterData]);
 
   useEffect(() => {
     const channel = supabase
-      .channel("finance-payment-terms-page")
-      .on(
-        "postgres_changes",
-        { event: "*", schema: "public", table: "finance_payment_terms" },
-        () => void loadPage("silent")
-      )
+      .channel("finance-master-data-page")
       .on(
         "postgres_changes",
         { event: "*", schema: "public", table: "profiles" },
-        () => void loadPage("silent")
+        () => void loadCurrentProfile("silent")
       )
       .on(
         "postgres_changes",
         { event: "*", schema: "public", table: "finance_permission_templates" },
-        () => void loadPage("silent")
+        () => void loadCurrentProfile("silent")
       )
       .on(
         "postgres_changes",
         { event: "*", schema: "public", table: "finance_user_permission_templates" },
-        () => void loadPage("silent")
+        () => void loadCurrentProfile("silent")
       )
       .subscribe();
 
     const intervalId = window.setInterval(() => {
-      void loadPage("silent");
+      void Promise.all([
+        loadCurrentProfile("silent"),
+        loadMasterData("silent"),
+      ]);
     }, 60000);
 
     return () => {
       window.clearInterval(intervalId);
       supabase.removeChannel(channel);
     };
-  }, [loadPage]);
+  }, [loadCurrentProfile, loadMasterData]);
 
-  const permissions = useMemo(() => {
-    if (!role) return null;
-    return getEffectivePermissions(role, permissionOverrides);
-  }, [permissionOverrides, role]);
+  const accessMap = useMemo(() => {
+    return getMasterDataAccessMap(effectivePermissions);
+  }, [effectivePermissions]);
 
-  const canCreate = Boolean(
-    permissions?.manageFinanceMasterData ||
-      permissions?.createFinanceRecords ||
-      permissions?.editFinanceRecords
-  );
-  const canEdit = Boolean(
-    permissions?.manageFinanceMasterData || permissions?.editFinanceRecords
-  );
-  const canArchive = Boolean(
-    permissions?.manageFinanceMasterData || permissions?.archiveFinanceRecords
-  );
-  const canHardDelete = Boolean(
-    role === "admin" && (permissions?.manageFinanceMasterData || permissions?.manageUsers)
-  );
+  const hasMasterDataAccess = useMemo(() => {
+    return canOpenAnyMasterData(accessMap);
+  }, [accessMap]);
 
-  const activeRows = useMemo(
-    () => rows.filter((row) => row.status !== "archived"),
-    [rows]
-  );
+  const moduleCards = useMemo<MasterDataModuleCard[]>(() => {
+    const allModules: MasterDataModuleCard[] = [
+      {
+        key: "clients",
+        title: "Clients",
+        description: "Manage finance clients and billing entities.",
+        route: "/finance/master-data/clients",
+        icon: Users,
+        count: data.counts.clients,
+        statusLabel: "Active",
+        lastUpdatedLabel: "Live",
+        requiredAccessLabel: "Client Read",
+      },
+      {
+        key: "vendors",
+        title: "Vendors",
+        description: "Manage suppliers and vendor counterparties.",
+        route: "/finance/master-data/vendors",
+        icon: Building2,
+        count: data.counts.vendors,
+        statusLabel: "Active",
+        lastUpdatedLabel: "Live",
+        requiredAccessLabel: "Vendor Read",
+      },
+      {
+        key: "companies",
+        title: "Companies",
+        description:
+          "Manage internal legal entities and finance ownership structure.",
+        route: "/finance/master-data/companies",
+        icon: Building2,
+        count: data.counts.companies,
+        statusLabel: data.counts.companies > 0 ? "Configured" : "New",
+        lastUpdatedLabel: "Live",
+        requiredAccessLabel: "Master Admin",
+      },
+      {
+        key: "vendor-bank-accounts",
+        title: "Vendor Bank Accounts",
+        description: "Store vendor payout accounts for AP and payment flows.",
+        route: "/finance/master-data/vendor-bank-accounts",
+        icon: Landmark,
+        count: data.counts.vendorBankAccounts,
+        statusLabel: data.counts.vendorBankAccounts > 0 ? "Configured" : "New",
+        lastUpdatedLabel: "Live",
+        requiredAccessLabel: "Vendor / Payables",
+      },
+      {
+        key: "bank-accounts",
+        title: "Company Bank Accounts",
+        description: "Control internal company bank accounts and finance banking setup.",
+        route: "/finance/master-data/bank-accounts",
+        icon: Landmark,
+        count: data.counts.bankAccounts,
+        statusLabel: "Active",
+        lastUpdatedLabel: "Live",
+        requiredAccessLabel: "Bank Read",
+      },
+      {
+        key: "payment-methods",
+        title: "Payment Methods",
+        description: "Manage available inbound and outbound payment methods.",
+        route: "/finance/master-data/payment-methods",
+        icon: CreditCard,
+        count: data.counts.paymentMethods,
+        statusLabel: "Active",
+        lastUpdatedLabel: "Live",
+        requiredAccessLabel: "Payment Method Read",
+      },
+      {
+        key: "payment-terms",
+        title: "Payment Terms",
+        description: "Define due terms like Net 7, Net 15, Net 30 and more.",
+        route: "/finance/master-data/payment-terms",
+        icon: WalletCards,
+        count: data.counts.paymentTerms,
+        statusLabel: data.counts.paymentTerms > 0 ? "Configured" : "New",
+        lastUpdatedLabel: "Live",
+        requiredAccessLabel: "Payment Terms Read",
+      },
+      {
+        key: "shipping-terms",
+        title: "Shipping Terms",
+        description: "Define delivery and shipment terms for future documents.",
+        route: "/finance/master-data/shipping-terms",
+        icon: FolderKanban,
+        count: data.counts.shippingTerms,
+        statusLabel: data.counts.shippingTerms > 0 ? "Configured" : "New",
+        lastUpdatedLabel: "Live",
+        requiredAccessLabel: "Shipping Terms Read",
+      },
+      {
+        key: "tax-codes",
+        title: "Tax Codes",
+        description: "Maintain tax rates and tax treatment reference codes.",
+        route: "/finance/master-data/tax-codes",
+        icon: WalletCards,
+        count: data.counts.taxCodes,
+        statusLabel: data.counts.taxCodes > 0 ? "Configured" : "New",
+        lastUpdatedLabel: "Live",
+        requiredAccessLabel: "Tax Code Read",
+      },
+      {
+        key: "expense-categories",
+        title: "Expense Categories",
+        description: "Control spending categories used across finance flows.",
+        route: "/finance/master-data/expense-categories",
+        icon: FolderKanban,
+        count: data.counts.expenseCategories,
+        statusLabel:
+          data.counts.expenseCategories > 0 ? "Configured" : "New",
+        lastUpdatedLabel: "Live",
+        requiredAccessLabel: "Expense Category Read",
+      },
+      {
+        key: "revenue-categories",
+        title: "Revenue Categories",
+        description: "Control revenue classifications for finance records.",
+        route: "/finance/master-data/revenue-categories",
+        icon: WalletCards,
+        count: data.counts.revenueCategories,
+        statusLabel: "Active",
+        lastUpdatedLabel: "Live",
+        requiredAccessLabel: "Revenue Category Read",
+      },
+      {
+        key: "units-of-measure",
+        title: "Units of Measure",
+        description: "Define units like pcs, set, kg, hour, month, and more.",
+        route: "/finance/master-data/units-of-measure",
+        icon: Package2,
+        count: data.counts.unitsOfMeasure,
+        statusLabel: data.counts.unitsOfMeasure > 0 ? "Configured" : "New",
+        lastUpdatedLabel: "Live",
+        requiredAccessLabel: "Unit Read",
+      },
+      {
+        key: "items",
+        title: "Items",
+        description:
+          "Maintain reusable finance items, products, and line entries.",
+        route: "/finance/master-data/items",
+        icon: Package2,
+        count: data.counts.items,
+        statusLabel: data.counts.items > 0 ? "Configured" : "New",
+        lastUpdatedLabel: "Live",
+        requiredAccessLabel: "Item Read",
+      },
+      {
+        key: "projects",
+        title: "Projects",
+        description:
+          "Finance-facing project reference view from your project system.",
+        route: "/finance/master-data/projects",
+        icon: BriefcaseBusiness,
+        count: data.counts.projects,
+        statusLabel: "Linked",
+        lastUpdatedLabel: "Live",
+        requiredAccessLabel: "Finance Read",
+      },
+      {
+        key: "employees",
+        title: "Employees",
+        description:
+          "Finance-facing employee reference view from your employee system.",
+        route: "/finance/master-data/employees",
+        icon: Users,
+        count: data.counts.employees,
+        statusLabel: "Linked",
+        lastUpdatedLabel: "Live",
+        requiredAccessLabel: "Payroll / Expense",
+      },
+      {
+        key: "rates",
+        title: "Rates / Currency",
+        description: "Currency reference, exchange source, and rate controls.",
+        route: "/finance/master-data/currencies",
+        icon: Banknote,
+        count: data.counts.currencies,
+        statusLabel: "Source",
+        lastUpdatedLabel: data.rates.updatedAtLabel,
+        requiredAccessLabel: "Finance Read",
+      },
+    ];
 
-  const archivedRows = useMemo(
-    () => rows.filter((row) => row.status === archiveTab),
-    [archiveTab, rows]
-  );
+    return allModules.filter((module) => accessMap[module.key]);
+  }, [accessMap, data]);
 
-  const availableRows = useMemo(
-    () => rows.filter((row) => row.status === "active"),
-    [rows]
-  );
+  const overviewCards = useMemo<MasterDataOverviewCard[]>(() => {
+    const visibleClients = accessMap.clients ? data.counts.clients : 0;
+    const visibleVendors = accessMap.vendors ? data.counts.vendors : 0;
+    const visibleCompanies = accessMap.companies ? data.counts.companies : 0;
+    const visibleBankAccounts = accessMap["bank-accounts"]
+      ? data.counts.bankAccounts
+      : 0;
+    const visibleItems = accessMap.items ? data.counts.items : 0;
 
-  const inactiveRows = useMemo(
-    () => rows.filter((row) => row.status === "inactive"),
-    [rows]
-  );
+    return [
+      {
+        key: "clients",
+        title: "Clients",
+        value: isLoadingData ? "—" : formatCount(visibleClients),
+        subtitle: accessMap.clients ? "Visible client records" : "Hidden by access",
+        icon: Users,
+        tone: "cyan",
+      },
+      {
+        key: "vendors",
+        title: "Vendors",
+        value: isLoadingData ? "—" : formatCount(visibleVendors),
+        subtitle: accessMap.vendors ? "Visible supplier records" : "Hidden by access",
+        icon: Building2,
+        tone: "amber",
+      },
+      {
+        key: "companies",
+        title: "Companies",
+        value: isLoadingData ? "—" : formatCount(visibleCompanies),
+        subtitle: accessMap.companies ? "Visible legal entities" : "Hidden by access",
+        icon: Building2,
+        tone: "violet",
+      },
+      {
+        key: "bank-accounts",
+        title: "Company Bank Accounts",
+        value: isLoadingData ? "—" : formatCount(visibleBankAccounts),
+        subtitle: accessMap["bank-accounts"]
+          ? "Visible company banking setup"
+          : "Hidden by access",
+        icon: Landmark,
+        tone: "emerald",
+      },
+      {
+        key: "items",
+        title: "Items",
+        value: isLoadingData ? "—" : formatCount(visibleItems),
+        subtitle: accessMap.items ? "Visible finance items" : "Hidden by access",
+        icon: Package2,
+        tone: "rose",
+      },
+    ];
+  }, [accessMap, data, isLoadingData]);
 
-  const depositRows = useMemo(
-    () => rows.filter((row) => row.requires_deposit && row.status === "active"),
-    [rows]
-  );
+  const recentChanges = useMemo(() => {
+    const visibleRoutes = new Set(moduleCards.map((module) => module.route));
 
-  const defaultRow = useMemo(
-    () => rows.find((row) => row.is_default && row.status === "active") ?? null,
-    [rows]
-  );
-
-  const filteredRows = useMemo(() => {
-    const q = search.trim().toLowerCase();
-
-    return activeRows.filter((row) => {
-      const matchesStatus = statusFilter === "all" ? true : row.status === statusFilter;
-      const matchesSearch =
-        !q ||
-        row.name.toLowerCase().includes(q) ||
-        row.code.toLowerCase().includes(q) ||
-        row.term_type.toLowerCase().includes(q) ||
-        (row.document_label ?? "").toLowerCase().includes(q) ||
-        (row.document_terms_text ?? "").toLowerCase().includes(q) ||
-        (row.notes ?? "").toLowerCase().includes(q);
-
-      return matchesStatus && matchesSearch;
-    });
-  }, [activeRows, search, statusFilter]);
-
-  const sortedRows = useMemo(() => {
-    return [...filteredRows].sort((a, b) => {
-      const aValue = getSortValue(a, sortKey);
-      const bValue = getSortValue(b, sortKey);
-      const direction = sortDirection === "asc" ? 1 : -1;
-
-      if (typeof aValue === "number" && typeof bValue === "number") {
-        return (aValue - bValue) * direction;
-      }
-
-      return String(aValue).localeCompare(String(bValue)) * direction;
-    });
-  }, [filteredRows, sortDirection, sortKey]);
-
-  const sortedArchivedRows = useMemo(() => {
-    return [...archivedRows].sort(
-      (a, b) => new Date(b.updated_at).getTime() - new Date(a.updated_at).getTime()
-    );
-  }, [archivedRows]);
-
-  const visibleRowsLabel = useMemo(() => {
-    return `${formatCount(sortedRows.length)} of ${formatCount(activeRows.length)} visible`;
-  }, [activeRows.length, sortedRows.length]);
-
-  const tableNeedsInternalScroll = sortedRows.length > 10;
-
-  function handleSort(nextSortKey: SortKey) {
-    setSortKey((previousKey) => {
-      if (previousKey === nextSortKey) {
-        setSortDirection((previousDirection) =>
-          previousDirection === "asc" ? "desc" : "asc"
-        );
-        return previousKey;
-      }
-
-      setSortDirection(nextSortKey === "updated_at" ? "desc" : "asc");
-      return nextSortKey;
-    });
-  }
-
-  function openCreateDialog() {
-    if (!canCreate) {
-      setError("Create permission is required to add Payment Terms.");
-      return;
-    }
-
-    setEditingRow(null);
-    setForm(EMPTY_FORM);
-    setError("");
-    setSuccessMessage("");
-    setDialogOpen(true);
-  }
-
-  function openEditDialog(row: FinancePaymentTermRow) {
-    if (!canEdit) {
-      setError("Update permission is required to edit Payment Terms.");
-      return;
-    }
-
-    setEditingRow(row);
-
-    if (row.term_type === "immediate") {
-      setForm({
-        ...EMPTY_FORM,
-        term_type: "immediate",
-        net_days: "0",
-        is_default: row.is_default,
-        status: row.status,
-        notes: row.notes ?? "",
-        allow_partial_payments: row.allow_partial_payments,
-      });
-    } else if (row.term_type === "net") {
-      setForm({
-        ...EMPTY_FORM,
-        term_type: "net",
-        net_days: String(row.due_days),
-        is_default: row.is_default,
-        status: row.status,
-        notes: row.notes ?? "",
-        allow_partial_payments: row.allow_partial_payments,
-      });
-    } else if (row.term_type === "deposit_balance") {
-      setForm({
-        ...EMPTY_FORM,
-        term_type: "deposit_balance",
-        deposit_percentage:
-          row.deposit_percentage === null ? "30" : String(row.deposit_percentage),
-        deposit_due_basis: row.deposit_due_basis ?? "before_production",
-        balance_due_basis: row.balance_due_basis ?? "before_shipment",
-        is_default: row.is_default,
-        status: row.status,
-        notes: row.notes ?? "",
-        allow_partial_payments: row.allow_partial_payments,
-      });
-    } else {
-      setForm({
-        ...EMPTY_FORM,
-        term_type: "custom",
-        custom_label: row.document_label ?? row.name,
-        custom_terms_text: row.document_terms_text ?? "",
-        is_default: row.is_default,
-        status: row.status,
-        notes: row.notes ?? "",
-        allow_partial_payments: row.allow_partial_payments,
-      });
-    }
-
-    setError("");
-    setSuccessMessage("");
-    setDialogOpen(true);
-  }
-
-  async function handleSave() {
-    if (!(editingRow ? canEdit : canCreate)) {
-      setError(
-        editingRow
-          ? "Update permission is required to edit Payment Terms."
-          : "Create permission is required to add Payment Terms."
+    return [...data.recentChanges]
+      .filter((change) => !change.route || visibleRoutes.has(change.route))
+      .sort(
+        (a, b) =>
+          new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime()
       );
-      return;
-    }
+  }, [data.recentChanges, moduleCards]);
 
-    const netDays = parseWholeNumber(form.net_days);
-    const depositPercentage = parsePercentage(form.deposit_percentage);
+  const headerStatusCards = useMemo(() => {
+    return [
+      {
+        label: "System Status",
+        value: isLoadingData || isLoadingProfile ? "Loading" : "Live",
+        detail: "Master data counts refresh automatically every 60 seconds.",
+        icon: ShieldCheck,
+        tone: "emerald" as const,
+      },
+      {
+        label: "Visible Domains",
+        value: formatCount(moduleCards.length),
+        detail: "Master-data domains visible to this user after permissions.",
+        icon: Database,
+        tone: "cyan" as const,
+      },
+      {
+        label: "Access Model",
+        value: hasMasterDataAccess ? "Filtered" : "Locked",
+        detail:
+          "Visibility follows Finance templates and user-specific exceptions.",
+        icon: hasMasterDataAccess ? UserRound : LockKeyhole,
+        tone: "amber" as const,
+      },
+    ];
+  }, [hasMasterDataAccess, isLoadingData, isLoadingProfile, moduleCards.length]);
 
-    if (form.term_type === "net" && netDays === null) {
-      setError("Net days must be a whole number 0 or greater.");
-      return;
-    }
+  const totalConfiguredDomains = useMemo(() => {
+    return moduleCards.filter((module) => module.count > 0).length;
+  }, [moduleCards]);
 
-    if (form.term_type === "deposit_balance" && depositPercentage === null) {
-      setError("Deposit percentage must be greater than 0 and less than 100.");
-      return;
-    }
-
-    if (form.term_type === "custom" && !form.custom_label.trim()) {
-      setError("Custom payment terms need a label.");
-      return;
-    }
-
-    if (form.term_type === "custom" && !form.custom_terms_text.trim()) {
-      setError("Custom payment terms need document wording.");
-      return;
-    }
-
-    try {
-      setSaving(true);
-      setActionLocked(true);
-      setError("");
-      setSuccessMessage("");
-
-      const payload: PaymentTermUpsertInput = {
-        code: generatedTerm.code,
-        name: generatedTerm.name,
-        due_days: generatedTerm.dueDays,
-        status: form.status,
-        is_default: form.is_default,
-        notes: form.notes,
-        term_type: form.term_type,
-        due_basis: "invoice_date",
-        requires_deposit: generatedTerm.requiresDeposit,
-        deposit_type: generatedTerm.depositType,
-        deposit_percentage: generatedTerm.depositPercentage,
-        deposit_amount: null,
-        deposit_due_basis: generatedTerm.depositDueBasis,
-        deposit_due_days: null,
-        balance_due_basis: generatedTerm.balanceDueBasis,
-        balance_due_days: generatedTerm.balanceDueDays,
-        allow_partial_payments: form.allow_partial_payments,
-        requires_approval: false,
-        applies_to: ["quotation", "proforma_invoice", "invoice"] as FinancePaymentTermAppliesTo[],
-        document_label: generatedTerm.documentLabel,
-        document_terms_text: generatedTerm.documentTermsText,
-      };
-
-      const savedRow = editingRow
-        ? await updatePaymentTerm(editingRow.id, payload)
-        : await createPaymentTerm(payload);
-
-      setRows((previousRows) => {
-        const defaultClearedRows = savedRow.is_default
-          ? previousRows.map((row) => ({ ...row, is_default: row.id === savedRow.id }))
-          : previousRows;
-
-        if (editingRow) {
-          return defaultClearedRows.map((row) => (row.id === savedRow.id ? savedRow : row));
-        }
-
-        return [savedRow, ...defaultClearedRows];
-      });
-
-      setDialogOpen(false);
-      setForm(EMPTY_FORM);
-      setEditingRow(null);
-      setSuccessMessage(editingRow ? "Payment term updated." : "Payment term created.");
-    } catch (saveError) {
-      console.error("Failed to save payment term:", saveError);
-      setError(saveError instanceof Error ? saveError.message : "Failed to save payment term.");
-    } finally {
-      setSaving(false);
-      setActionLocked(false);
-    }
-  }
-
-  async function handleArchive(row: FinancePaymentTermRow) {
-    if (!canArchive || actionLocked) return;
-
-    try {
-      setActionLocked(true);
-      setError("");
-      setSuccessMessage("");
-      const archivedRow = await archivePaymentTerm(row.id);
-      setRows((previousRows) =>
-        previousRows.map((previousRow) =>
-          previousRow.id === archivedRow.id ? archivedRow : previousRow
-        )
-      );
-      setSuccessMessage("Payment term archived.");
-    } catch (actionError) {
-      console.error("Failed to archive payment term:", actionError);
-      setError("Archive permission or backend validation blocked this action.");
-    } finally {
-      setActionLocked(false);
-    }
-  }
-
-  async function handleRestore(row: FinancePaymentTermRow) {
-    if (!canArchive || actionLocked) return;
-
-    try {
-      setActionLocked(true);
-      setError("");
-      setSuccessMessage("");
-      const restoredRow = await restorePaymentTerm(row.id);
-      setRows((previousRows) =>
-        previousRows.map((previousRow) =>
-          previousRow.id === restoredRow.id ? restoredRow : previousRow
-        )
-      );
-      setSuccessMessage("Payment term restored.");
-    } catch (actionError) {
-      console.error("Failed to restore payment term:", actionError);
-      setError("Restore permission or backend validation blocked this action.");
-    } finally {
-      setActionLocked(false);
-    }
-  }
-
-  async function handleHardDelete(row: FinancePaymentTermRow) {
-    if (!canHardDelete || actionLocked) return;
-
-    try {
-      setActionLocked(true);
-      setError("");
-      setSuccessMessage("");
-      await permanentlyDeletePaymentTerm(row.id);
-      setRows((previousRows) => previousRows.filter((previousRow) => previousRow.id !== row.id));
-      setSuccessMessage("Payment term permanently deleted.");
-    } catch (actionError) {
-      console.error("Failed to permanently delete payment term:", actionError);
-      setError("Permanent delete permission or backend validation blocked this action.");
-    } finally {
-      setActionLocked(false);
-    }
-  }
+  const openRoute = useCallback(
+    (route: string) => {
+      navigate(route);
+    },
+    [navigate]
+  );
 
   return (
     <div className="min-h-screen bg-[#05070d] px-4 py-4 text-white md:px-6 md:py-6">
@@ -969,741 +1191,245 @@ export default function FinancePaymentTermsPage() {
               <div>
                 <button
                   type="button"
-                  onClick={() => navigate("/finance/master-data")}
+                  onClick={() => navigate("/finance")}
                   className="mb-5 inline-flex items-center justify-center gap-2 rounded-full border border-white/10 bg-white/[0.05] px-5 py-2 text-[11px] font-semibold uppercase tracking-[0.22em] text-slate-300 transition hover:border-white/20 hover:bg-white/[0.08] hover:text-white"
                 >
                   <ArrowRight className="h-3.5 w-3.5 rotate-180" />
-                  Master Data
+                  Finance
                 </button>
 
                 <div className="inline-flex w-fit items-center gap-2 rounded-full border border-cyan-400/20 bg-cyan-500/10 px-3 py-1 text-[11px] font-semibold uppercase tracking-[0.22em] text-cyan-200">
                   <Sparkles className="h-3.5 w-3.5" />
-                  Commercial Rules
+                  Master Data Control Center
                 </div>
 
                 <h1 className="mt-4 text-3xl font-semibold tracking-[-0.035em] text-white md:text-5xl">
-                  Payment Terms
+                  Master Data Studio
                 </h1>
 
                 <p className="mt-3 max-w-4xl text-sm leading-6 text-slate-400 md:text-base md:leading-7">
-                  Create reusable finance payment terms for quotations, proforma invoices, and
-                  invoices. This page controls selectable commercial wording only; invoice due dates,
-                  balances, payments, and confirmations stay inside their document flows.
+                  Permission-filtered finance reference layer for clients, vendors,
+                  companies, banking, terms, tax codes, categories, items, projects,
+                  employees, and currency controls.
                 </p>
               </div>
 
               <div className="mt-5 flex flex-wrap gap-2">
                 <div className="rounded-full border border-emerald-400/20 bg-emerald-500/10 px-3 py-1 text-[11px] font-semibold uppercase tracking-[0.16em] text-emerald-200">
-                  Soft refresh enabled
+                  Live backend
                 </div>
                 <div className="rounded-full border border-cyan-400/20 bg-cyan-500/10 px-3 py-1 text-[11px] font-semibold uppercase tracking-[0.16em] text-cyan-200">
                   Permission filtered
                 </div>
                 <div className="rounded-full border border-slate-400/20 bg-slate-500/10 px-3 py-1 text-[11px] font-semibold uppercase tracking-[0.16em] text-slate-300">
-                  Archive center
+                  Auto refresh
                 </div>
               </div>
             </div>
 
             <div className="grid gap-3 md:grid-cols-3 xl:grid-cols-3">
-              <div className="min-h-[148px] rounded-[24px] border border-white/10 bg-black/20 p-4">
-                <div className="flex items-start justify-between gap-3">
-                  <div className="min-w-0">
-                    <div className="text-[11px] font-semibold uppercase tracking-[0.2em] text-slate-500">
-                      Default Term
-                    </div>
-                    <div className="mt-2 line-clamp-2 text-xl font-semibold leading-tight tracking-[-0.035em] text-white">
-                      {defaultRow?.document_label ?? defaultRow?.name ?? "Not Set"}
-                    </div>
-                  </div>
-                  <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-2xl border border-cyan-400/20 bg-cyan-500/10 text-cyan-200">
-                    <CreditCard className="h-4 w-4" />
-                  </div>
-                </div>
-                <div className="mt-3 text-xs leading-5 text-slate-500">
-                  Default selectable term for new finance documents.
-                </div>
-              </div>
-
-              <div className="min-h-[148px] rounded-[24px] border border-white/10 bg-black/20 p-4">
-                <div className="flex items-start justify-between gap-3">
-                  <div>
-                    <div className="text-[11px] font-semibold uppercase tracking-[0.2em] text-slate-500">
-                      Live Status
-                    </div>
-                    <div className="mt-2 text-xl font-semibold leading-tight tracking-[-0.035em] text-white">
-                      {loading ? "Loading" : "Live"}
-                    </div>
-                  </div>
-                  <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-2xl border border-emerald-400/20 bg-emerald-500/10 text-emerald-200">
-                    {loading ? <Loader2 className="h-4 w-4 animate-spin" /> : <ShieldCheck className="h-4 w-4" />}
-                  </div>
-                </div>
-                <div className="mt-3 text-xs leading-5 text-slate-500">
-                  Realtime listener with silent 60-second fallback refresh.
-                </div>
-              </div>
-
-              <div className="min-h-[148px] rounded-[24px] border border-white/10 bg-black/20 p-4">
-                <div className="flex items-start justify-between gap-3">
-                  <div>
-                    <div className="text-[11px] font-semibold uppercase tracking-[0.2em] text-slate-500">
-                      Access
-                    </div>
-                    <div className="mt-2 text-xl font-semibold leading-tight tracking-[-0.035em] text-white">
-                      {canEdit ? "Editable" : "Read Only"}
-                    </div>
-                  </div>
-                  <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-2xl border border-amber-400/20 bg-amber-500/10 text-amber-200">
-                    <ShieldCheck className="h-4 w-4" />
-                  </div>
-                </div>
-                <div className="mt-3 text-xs leading-5 text-slate-500">
-                  Actions follow effective Finance permissions.
-                </div>
-              </div>
+              {headerStatusCards.map((card) => (
+                <HeaderStatusCard
+                  key={card.label}
+                  label={card.label}
+                  value={card.value}
+                  detail={card.detail}
+                  icon={card.icon}
+                  tone={card.tone}
+                />
+              ))}
             </div>
           </div>
         </header>
 
-        <section className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
-          <MetricCard
-            label="Available Terms"
-            value={loading ? "—" : formatCount(availableRows.length)}
-            detail="Active terms selectable on finance documents."
-            tone="cyan"
-          />
-          <MetricCard
-            label="Deposit Terms"
-            value={loading ? "—" : formatCount(depositRows.length)}
-            detail="Terms that include upfront deposit wording."
-            tone="emerald"
-          />
-          <MetricCard
-            label="Inactive Terms"
-            value={loading ? "—" : formatCount(inactiveRows.length)}
-            detail="Visible but not preferred for new documents."
-            tone="amber"
-          />
-          <MetricCard
-            label="Archived Terms"
-            value={loading ? "—" : formatCount(archivedRows.length)}
-            detail="Historical records managed from the archive center."
-            tone="violet"
-          />
+        <section className="grid gap-4 md:grid-cols-2 xl:grid-cols-5">
+          {overviewCards.map((metric) => (
+            <MasterDataOverviewMetric key={metric.key} metric={metric} />
+          ))}
         </section>
 
-        {(error || successMessage) ? (
-          <section
-            className={`rounded-[24px] border p-4 ${
-              error
-                ? "border-rose-400/20 bg-rose-500/10 text-rose-100"
-                : "border-emerald-400/20 bg-emerald-500/10 text-emerald-100"
-            }`}
-          >
-            <div className="flex items-start justify-between gap-4">
-              <div className="flex items-start gap-3">
-                {error ? <AlertTriangle className="mt-0.5 h-4 w-4" /> : <CheckCircle2 className="mt-0.5 h-4 w-4" />}
-                <div className="text-sm leading-6">{error || successMessage}</div>
-              </div>
-              <button
-                type="button"
-                onClick={() => {
-                  setError("");
-                  setSuccessMessage("");
-                }}
-                className="rounded-full p-1 transition hover:bg-white/10"
-              >
-                <X className="h-4 w-4" />
-              </button>
-            </div>
-          </section>
-        ) : null}
+        <section className="grid items-start gap-6 xl:grid-cols-[minmax(0,1fr)_430px]">
+          <div className="grid min-h-0 gap-6">
+            <AccessSummaryPanel
+              visibleCount={moduleCards.length}
+              totalCount={Object.keys(EMPTY_MASTER_DATA_ACCESS).length}
+              hasAccess={hasMasterDataAccess}
+            />
 
-        <section className="overflow-hidden rounded-[30px] border border-white/10 bg-white/[0.045] backdrop-blur-xl">
-          <div className="flex flex-col gap-4 border-b border-white/10 px-5 py-4 xl:flex-row xl:items-center xl:justify-between">
-            <div className="min-w-0">
-              <div className="flex items-center gap-3">
-                <div className="rounded-2xl border border-cyan-400/15 bg-cyan-500/10 p-3 text-cyan-200">
-                  <WalletCards className="h-4 w-4" />
-                </div>
-                <div>
-                  <h2 className="text-sm font-semibold uppercase tracking-[0.18em] text-slate-400">
-                    Payment Terms Registry
-                  </h2>
-                  <p className="mt-1 text-xs text-slate-500">
-                    Active registry excludes archived records. Archived records are restored or permanently deleted only from the archive center.
+            <MasterDataSectionCard
+              title="Master Data Navigation"
+              description="Open each dedicated finance master-data domain available to this user."
+              icon={Database}
+            >
+              {isLoadingProfile || isLoadingData ? (
+                <div className="rounded-[28px] border border-dashed border-white/10 bg-black/20 px-6 py-12 text-center">
+                  <Loader2 className="mx-auto h-8 w-8 animate-spin text-cyan-200" />
+                  <div className="mt-4 text-sm font-medium text-white">
+                    Loading master-data access
+                  </div>
+                  <p className="mt-2 text-sm leading-6 text-slate-500">
+                    Finance templates and master-data permissions are being checked.
                   </p>
                 </div>
-              </div>
-            </div>
+              ) : moduleCards.length === 0 ? (
+                <div className="rounded-[28px] border border-dashed border-white/10 bg-black/20 px-6 py-12 text-center">
+                  <LockKeyhole className="mx-auto h-8 w-8 text-slate-500" />
+                  <div className="mt-4 text-sm font-medium text-white">
+                    No master-data domains available
+                  </div>
+                  <p className="mt-2 text-sm leading-6 text-slate-500">
+                    Ask an Admin to assign a Finance role template or user-specific
+                    exception with Master Data read access.
+                  </p>
+                </div>
+              ) : (
+                <div className="grid gap-4 md:grid-cols-2">
+                  {moduleCards.map((module) => (
+                    <MasterDataModuleButton
+                      key={module.key}
+                      module={module}
+                      onOpen={openRoute}
+                    />
+                  ))}
+                </div>
+              )}
+            </MasterDataSectionCard>
 
-            <div className="flex flex-col gap-3 lg:flex-row lg:items-center">
-              <div className="relative">
-                <Search className="pointer-events-none absolute left-4 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-500" />
-                <Input
-                  value={search}
-                  onChange={(event) => setSearch(event.target.value)}
-                  placeholder="Search code, name, type, wording..."
-                  className="h-11 w-full rounded-2xl border-white/10 bg-black/20 pl-11 text-white placeholder:text-white/35 lg:w-[360px]"
-                />
-              </div>
+            <div className="overflow-hidden rounded-[30px] border border-cyan-400/15 bg-[radial-gradient(circle_at_top,rgba(6,182,212,0.18),rgba(3,7,18,0.94)_58%)]">
+              <div className="flex items-start justify-between gap-4 border-b border-white/10 px-5 py-4">
+                <div>
+                  <div className="text-sm font-semibold uppercase tracking-[0.18em] text-cyan-200">
+                    Master Data Readiness
+                  </div>
+                  <p className="mt-1 text-xs leading-5 text-slate-400">
+                    Visible readiness signals are based only on domains this user can access.
+                  </p>
+                </div>
 
-              <Button
-                type="button"
-                variant="outline"
-                onClick={() => setArchiveOpen(true)}
-                className="h-11 rounded-2xl border-white/10 bg-black/20 px-4 text-sm font-semibold text-white hover:bg-white/10"
-              >
-                <Archive className="mr-2 h-4 w-4" />
-                Archive
-              </Button>
-
-              <Button
-                type="button"
-                onClick={openCreateDialog}
-                disabled={!canCreate || actionLocked}
-                className="h-11 rounded-2xl border border-cyan-400/20 bg-cyan-500 px-4 text-sm font-semibold text-slate-950 transition hover:bg-cyan-400 disabled:cursor-not-allowed disabled:opacity-45"
-              >
-                <Plus className="mr-2 h-4 w-4" />
-                New Payment Term
-              </Button>
-            </div>
-          </div>
-
-          <div className="flex flex-col gap-3 border-b border-white/10 px-5 py-4 lg:flex-row lg:items-center lg:justify-between">
-            <div className="flex flex-wrap gap-2">
-              {STATUS_FILTERS.map((filter) => (
-                <button
-                  key={filter.value}
-                  type="button"
-                  onClick={() => setStatusFilter(filter.value)}
-                  className={`rounded-full border px-4 py-2 text-[11px] font-semibold uppercase tracking-[0.18em] transition ${
-                    statusFilter === filter.value
-                      ? "border-cyan-400/25 bg-cyan-500/10 text-cyan-100"
-                      : "border-white/10 bg-black/20 text-slate-400 hover:bg-white/[0.06] hover:text-white"
-                  }`}
-                >
-                  {filter.label}
-                </button>
-              ))}
-            </div>
-
-            <div className="flex items-center gap-3 text-xs text-slate-500">
-              {actionLocked ? (
-                <span className="inline-flex items-center gap-2 text-cyan-200">
-                  <Loader2 className="h-3.5 w-3.5 animate-spin" />
-                  Updating silently
-                </span>
-              ) : null}
-              <span>{visibleRowsLabel}</span>
-            </div>
-          </div>
-
-          <div className="p-5">
-            {loading ? (
-              <div className="rounded-[28px] border border-dashed border-white/10 bg-black/20 px-6 py-12 text-center">
-                <Loader2 className="mx-auto h-8 w-8 animate-spin text-cyan-200" />
-                <div className="mt-4 text-sm font-medium text-white">Loading payment terms</div>
-                <p className="mt-2 text-sm leading-6 text-slate-500">
-                  Initial data is loading. Future refreshes are silent and do not reset the page.
-                </p>
-              </div>
-            ) : sortedRows.length === 0 ? (
-              <div className="rounded-[28px] border border-dashed border-white/10 bg-black/20 px-6 py-12 text-center">
-                <WalletCards className="mx-auto h-8 w-8 text-slate-500" />
-                <div className="mt-4 text-sm font-medium text-white">No payment terms found</div>
-                <p className="mt-2 text-sm leading-6 text-slate-500">
-                  Adjust search/filter settings or create a new payment term if you have permission.
-                </p>
-              </div>
-            ) : (
-              <div className="overflow-x-auto rounded-[26px] border border-white/10 bg-black/20">
-                <div className={tableNeedsInternalScroll ? "max-h-[720px] overflow-y-auto" : ""}>
-                  <table className="w-full min-w-[1240px] border-collapse">
-                    <thead className="sticky top-0 z-10 border-b border-white/10 bg-black/70 backdrop-blur-xl">
-                      <tr>
-                        <th className="px-5 py-4 text-left">
-                          <SortButton label="Code" sortKey="code" activeSortKey={sortKey} direction={sortDirection} onSort={handleSort} />
-                        </th>
-                        <th className="px-5 py-4 text-left">
-                          <SortButton label="Name" sortKey="name" activeSortKey={sortKey} direction={sortDirection} onSort={handleSort} />
-                        </th>
-                        <th className="px-5 py-4 text-left">
-                          <SortButton label="Type" sortKey="term_type" activeSortKey={sortKey} direction={sortDirection} onSort={handleSort} />
-                        </th>
-                        <th className="px-5 py-4 text-left">
-                          <SortButton label="Due Days" sortKey="due_days" activeSortKey={sortKey} direction={sortDirection} onSort={handleSort} />
-                        </th>
-                        <th className="px-5 py-4 text-left">
-                          <SortButton label="Deposit" sortKey="deposit_percentage" activeSortKey={sortKey} direction={sortDirection} onSort={handleSort} />
-                        </th>
-                        <th className="px-5 py-4 text-left">
-                          <span className="text-[11px] font-semibold uppercase tracking-[0.18em] text-slate-500">Document Wording</span>
-                        </th>
-                        <th className="px-5 py-4 text-left">
-                          <SortButton label="Status" sortKey="status" activeSortKey={sortKey} direction={sortDirection} onSort={handleSort} />
-                        </th>
-                        <th className="px-5 py-4 text-left">
-                          <SortButton label="Updated" sortKey="updated_at" activeSortKey={sortKey} direction={sortDirection} onSort={handleSort} />
-                        </th>
-                        <th className="px-5 py-4 text-right">
-                          <span className="text-[11px] font-semibold uppercase tracking-[0.18em] text-slate-500">Actions</span>
-                        </th>
-                      </tr>
-                    </thead>
-                    <tbody className="divide-y divide-white/5">
-                      {sortedRows.map((row) => (
-                        <tr key={row.id} className="text-sm text-slate-300 transition hover:bg-white/[0.035]">
-                          <td className="px-5 py-4 align-top">
-                            <div className="max-w-[210px] truncate font-mono text-xs font-semibold text-cyan-200">
-                              {row.code}
-                            </div>
-                          </td>
-                          <td className="px-5 py-4 align-top">
-                            <div className="max-w-[240px] text-sm font-semibold text-white">
-                              {row.name}
-                            </div>
-                            {row.is_default ? (
-                              <Badge className="mt-2 rounded-full border border-emerald-400/20 bg-emerald-500/10 px-2.5 py-1 text-[10px] uppercase tracking-[0.16em] text-emerald-200 shadow-none">
-                                Default
-                              </Badge>
-                            ) : null}
-                          </td>
-                          <td className="px-5 py-4 align-top">
-                            <Badge className="rounded-full border border-cyan-400/20 bg-cyan-500/10 px-2.5 py-1 text-[11px] text-cyan-200 shadow-none">
-                              {formatTermType(row.term_type)}
-                            </Badge>
-                          </td>
-                          <td className="px-5 py-4 align-top text-slate-300">
-                            {row.due_days}
-                          </td>
-                          <td className="px-5 py-4 align-top">
-                            {row.requires_deposit ? (
-                              <div>
-                                <div className="font-semibold text-emerald-100">
-                                  {row.deposit_percentage ?? 0}%
-                                </div>
-                                <div className="mt-1 text-xs text-slate-500">
-                                  {formatBasisLabel(row.deposit_due_basis)}
-                                </div>
-                              </div>
-                            ) : (
-                              <span className="text-xs text-slate-500">No deposit</span>
-                            )}
-                          </td>
-                          <td className="px-5 py-4 align-top">
-                            <div className="max-w-[330px]">
-                              <div className="line-clamp-1 font-semibold text-white">
-                                {row.document_label ?? row.name}
-                              </div>
-                              <div className="mt-1 line-clamp-2 text-xs leading-5 text-slate-500">
-                                {row.document_terms_text ?? row.notes ?? "No wording configured."}
-                              </div>
-                            </div>
-                          </td>
-                          <td className="px-5 py-4 align-top">
-                            <Badge className={`rounded-full border px-2.5 py-1 text-[11px] capitalize shadow-none ${getStatusBadgeClass(row.status)}`}>
-                              {row.status}
-                            </Badge>
-                            <div className="mt-2 text-xs text-slate-500">
-                              {row.allow_partial_payments ? "Partial allowed" : "Full only"}
-                            </div>
-                          </td>
-                          <td className="px-5 py-4 align-top text-xs text-slate-500">
-                            {formatDateLabel(row.updated_at)}
-                          </td>
-                          <td className="px-5 py-4 align-top text-right">
-                            <DropdownMenu>
-                              <DropdownMenuTrigger asChild>
-                                <Button
-                                  variant="outline"
-                                  className="h-10 rounded-xl border-white/10 bg-black/15 px-3 text-white hover:bg-white/10"
-                                >
-                                  <MoreHorizontal className="h-4 w-4" />
-                                </Button>
-                              </DropdownMenuTrigger>
-
-                              <DropdownMenuContent align="end" className="w-52 border-white/10 bg-[#101522] text-white">
-                                <DropdownMenuItem
-                                  onClick={() => openEditDialog(row)}
-                                  disabled={!canEdit || actionLocked}
-                                  className="gap-2"
-                                >
-                                  <Pencil className="h-4 w-4" />
-                                  Edit
-                                </DropdownMenuItem>
-
-                                <DropdownMenuItem
-                                  onClick={() => void handleArchive(row)}
-                                  disabled={!canArchive || actionLocked}
-                                  className="gap-2 text-amber-200 focus:text-amber-200"
-                                >
-                                  <Archive className="h-4 w-4" />
-                                  Archive
-                                </DropdownMenuItem>
-                              </DropdownMenuContent>
-                            </DropdownMenu>
-                          </td>
-                        </tr>
-                      ))}
-                    </tbody>
-                  </table>
+                <div className="rounded-2xl border border-cyan-400/20 bg-cyan-500/10 p-3 text-cyan-200">
+                  <Database className="h-5 w-5" />
                 </div>
               </div>
-            )}
+
+              <div className="grid gap-4 p-5 md:grid-cols-3">
+                <ReadinessBlock
+                  label="Visible Domains"
+                  value={formatCount(moduleCards.length)}
+                  detail="Domains available after permission filtering."
+                />
+
+                <ReadinessBlock
+                  label="Configured Domains"
+                  value={formatCount(totalConfiguredDomains)}
+                  detail="Visible domains with at least one record."
+                />
+
+                <ReadinessBlock
+                  label="Currency Source"
+                  value={accessMap.rates ? data.rates.sourceLabel : "Hidden"}
+                  detail={accessMap.rates ? data.rates.updatedAtLabel : "Requires Finance read access."}
+                />
+              </div>
+            </div>
+          </div>
+
+          <div className="grid min-h-0 gap-6">
+            <MasterDataSectionCard
+              title="Recent Changes"
+              description="Recent movement across visible master-data domains."
+              icon={Receipt}
+            >
+              {recentChanges.length === 0 ? (
+                <div className="rounded-[28px] border border-dashed border-white/10 bg-black/20 px-6 py-12 text-center">
+                  <div className="text-sm font-medium text-white">
+                    No visible recent master-data changes
+                  </div>
+                  <p className="mt-2 text-sm leading-6 text-slate-500">
+                    Changes appear here only for master-data domains this user can read.
+                  </p>
+                </div>
+              ) : (
+                <div className="h-[390px] overflow-y-auto overscroll-contain rounded-[26px] border border-white/10 bg-black/20">
+                  <div className="divide-y divide-white/5">
+                    {recentChanges.map((item) => (
+                      <button
+                        key={item.id}
+                        type="button"
+                        onClick={() => {
+                          if (!item.route) return;
+                          navigate(item.route);
+                        }}
+                        className="group flex w-full items-center justify-between gap-4 px-5 py-4 text-left transition hover:bg-white/[0.045]"
+                      >
+                        <div className="min-w-0">
+                          <div className="flex min-w-0 flex-wrap items-center gap-2">
+                            <span className="rounded-full border border-cyan-400/20 bg-cyan-500/10 px-3 py-1 text-[11px] font-semibold uppercase tracking-[0.16em] text-cyan-200">
+                              {item.type}
+                            </span>
+                            <span className="truncate text-sm font-semibold text-white">
+                              {item.title}
+                            </span>
+                          </div>
+
+                          <div className="mt-2 line-clamp-1 text-sm text-slate-400">
+                            {item.subtitle}
+                          </div>
+                        </div>
+
+                        <div className="flex shrink-0 items-center gap-3">
+                          <div className="text-xs text-slate-600">
+                            {formatDateLabel(item.createdAt)}
+                          </div>
+                          <ArrowRight className="h-4 w-4 text-slate-500 transition group-hover:translate-x-1 group-hover:text-cyan-200" />
+                        </div>
+                      </button>
+                    ))}
+                  </div>
+                </div>
+              )}
+            </MasterDataSectionCard>
+
+            <div className="overflow-hidden rounded-[30px] border border-white/10 bg-white/[0.045] backdrop-blur-xl">
+              <div className="flex items-center justify-between border-b border-white/10 px-5 py-4">
+                <div className="flex min-w-0 items-center gap-3">
+                  <div className="rounded-2xl border border-cyan-400/15 bg-cyan-500/10 p-3 text-cyan-200">
+                    <ShieldCheck className="h-4 w-4" />
+                  </div>
+
+                  <div className="min-w-0">
+                    <h2 className="text-sm font-semibold uppercase tracking-[0.18em] text-slate-400">
+                      Access Rule
+                    </h2>
+                    <p className="mt-1 text-xs text-slate-500">
+                      Finance template baseline plus user-specific exceptions.
+                    </p>
+                  </div>
+                </div>
+              </div>
+
+              <div className="space-y-4 p-5">
+                <ReadinessBlock
+                  label="Current User"
+                  value={currentProfile?.full_name || "Unknown"}
+                  detail="The visible modules are calculated for the logged-in user."
+                />
+
+                <ReadinessBlock
+                  label="Permission Model"
+                  value="Read Access"
+                  detail="This page only opens master-data domains where the user has read-level finance access."
+                />
+
+                <ReadinessBlock
+                  label="Edit Rights"
+                  value="Handled inside modules"
+                  detail="Create, Update, Delete/Archive, and Approve/Execute actions must be enforced inside each child page."
+                />
+              </div>
+            </div>
           </div>
         </section>
       </div>
-
-      <Dialog open={dialogOpen} onOpenChange={setDialogOpen}>
-        <DialogContent className="max-h-[92vh] overflow-y-auto border-white/10 bg-[#0f1726] text-white sm:max-w-[920px]">
-          <DialogHeader>
-            <DialogTitle>{editingRow ? "Edit Payment Term" : "Create Payment Term"}</DialogTitle>
-            <DialogDescription className="text-white/45">
-              Create a reusable master-data payment term. Code, name, and document wording are generated from the selected structure.
-            </DialogDescription>
-          </DialogHeader>
-
-          <div className="grid gap-5">
-            {error ? (
-              <div className="rounded-[20px] border border-rose-400/20 bg-rose-500/10 p-4 text-sm leading-6 text-rose-100">
-                {error}
-              </div>
-            ) : null}
-
-            <div className="rounded-[24px] border border-white/10 bg-black/20 p-4">
-              <p className="mb-3 text-[11px] font-semibold uppercase tracking-[0.2em] text-slate-500">
-                Payment Structure
-              </p>
-
-              <div className="grid gap-3 md:grid-cols-4">
-                {TERM_TYPE_OPTIONS.map((option) => (
-                  <button
-                    key={option.value}
-                    type="button"
-                    onClick={() =>
-                      setForm((previous) => ({
-                        ...previous,
-                        term_type: option.value,
-                      }))
-                    }
-                    className={`rounded-[20px] border p-3 text-left transition ${
-                      form.term_type === option.value
-                        ? "border-cyan-400/25 bg-cyan-500/10"
-                        : "border-white/10 bg-white/[0.03] hover:border-white/20 hover:bg-white/[0.05]"
-                    }`}
-                  >
-                    <span className="block text-sm font-semibold text-white">{option.label}</span>
-                    <span className="mt-2 block text-xs leading-5 text-slate-500">
-                      {option.description}
-                    </span>
-                  </button>
-                ))}
-              </div>
-            </div>
-
-            {form.term_type === "net" ? (
-              <div className="rounded-[24px] border border-white/10 bg-black/20 p-4">
-                <p className="mb-3 text-[11px] font-semibold uppercase tracking-[0.2em] text-slate-500">
-                  Net Term
-                </p>
-
-                <Input
-                  type="number"
-                  min="0"
-                  step="1"
-                  value={form.net_days}
-                  onChange={(event) =>
-                    setForm((previous) => ({
-                      ...previous,
-                      net_days: event.target.value,
-                    }))
-                  }
-                  placeholder="Net days, example: 30"
-                  className="h-11 rounded-2xl border-white/10 bg-black/20 text-white"
-                />
-              </div>
-            ) : null}
-
-            {form.term_type === "deposit_balance" ? (
-              <div className="rounded-[24px] border border-white/10 bg-black/20 p-4">
-                <p className="mb-3 text-[11px] font-semibold uppercase tracking-[0.2em] text-slate-500">
-                  Deposit + Balance Term
-                </p>
-
-                <div className="grid gap-4 md:grid-cols-3">
-                  <Input
-                    type="number"
-                    min="1"
-                    max="99"
-                    step="0.01"
-                    value={form.deposit_percentage}
-                    onChange={(event) =>
-                      setForm((previous) => ({
-                        ...previous,
-                        deposit_percentage: event.target.value,
-                      }))
-                    }
-                    placeholder="Deposit percentage"
-                    className="h-11 rounded-2xl border-white/10 bg-black/20 text-white"
-                  />
-
-                  <SelectField
-                    value={form.deposit_due_basis}
-                    onChange={(value) =>
-                      setForm((previous) => ({ ...previous, deposit_due_basis: value }))
-                    }
-                    options={DEPOSIT_DUE_BASIS_OPTIONS}
-                  />
-
-                  <SelectField
-                    value={form.balance_due_basis}
-                    onChange={(value) =>
-                      setForm((previous) => ({ ...previous, balance_due_basis: value }))
-                    }
-                    options={BALANCE_DUE_BASIS_OPTIONS}
-                  />
-                </div>
-
-                <div className="mt-4 rounded-[20px] border border-emerald-400/15 bg-emerald-500/10 p-4">
-                  <p className="text-[11px] font-semibold uppercase tracking-[0.2em] text-emerald-200">
-                    Balance Auto-Calculated
-                  </p>
-                  <p className="mt-2 text-sm leading-6 text-emerald-50/80">
-                    {generatedTerm.documentTermsText}
-                  </p>
-                </div>
-              </div>
-            ) : null}
-
-            {form.term_type === "custom" ? (
-              <div className="grid gap-4 rounded-[24px] border border-white/10 bg-black/20 p-4">
-                <div>
-                  <p className="mb-2 text-[11px] font-semibold uppercase tracking-[0.2em] text-slate-500">
-                    Custom Label
-                  </p>
-                  <Input
-                    value={form.custom_label}
-                    onChange={(event) =>
-                      setForm((previous) => ({
-                        ...previous,
-                        custom_label: event.target.value,
-                      }))
-                    }
-                    placeholder="Example: 50% upfront, 50% after FAT"
-                    className="h-11 rounded-2xl border-white/10 bg-black/20 text-white"
-                  />
-                </div>
-
-                <div>
-                  <p className="mb-2 text-[11px] font-semibold uppercase tracking-[0.2em] text-slate-500">
-                    Document Wording
-                  </p>
-                  <textarea
-                    value={form.custom_terms_text}
-                    onChange={(event) =>
-                      setForm((previous) => ({
-                        ...previous,
-                        custom_terms_text: event.target.value,
-                      }))
-                    }
-                    placeholder="Write the wording that should appear on documents."
-                    className="min-h-[120px] w-full rounded-2xl border border-white/10 bg-black/20 px-4 py-3 text-sm text-white outline-none transition placeholder:text-white/35 focus:border-cyan-400/40"
-                  />
-                </div>
-              </div>
-            ) : null}
-
-            <div className="grid gap-3 md:grid-cols-3">
-              <ToggleCard
-                checked={form.allow_partial_payments}
-                title="Allow Partial Payments"
-                description="Documents using this term can receive partial payments."
-                onChange={(checked) =>
-                  setForm((previous) => ({ ...previous, allow_partial_payments: checked }))
-                }
-              />
-              <ToggleCard
-                checked={form.is_default}
-                title="Default Term"
-                description="Make this the default selectable payment term."
-                onChange={(checked) =>
-                  setForm((previous) => ({ ...previous, is_default: checked }))
-                }
-              />
-              <div className="rounded-[22px] border border-white/10 bg-black/20 p-4">
-                <p className="mb-2 text-[11px] font-semibold uppercase tracking-[0.2em] text-slate-500">
-                  Status
-                </p>
-                <SelectField
-                  value={form.status}
-                  onChange={(value) => setForm((previous) => ({ ...previous, status: value }))}
-                  options={[
-                    { value: "active", label: "Active" },
-                    { value: "inactive", label: "Inactive" },
-                  ]}
-                />
-              </div>
-            </div>
-
-            <div className="rounded-[24px] border border-cyan-400/15 bg-cyan-500/10 p-4">
-              <p className="text-[11px] font-semibold uppercase tracking-[0.2em] text-cyan-200">
-                Generated Output
-              </p>
-              <div className="mt-4 grid gap-3 md:grid-cols-2">
-                <div className="rounded-[18px] border border-white/10 bg-black/20 p-3">
-                  <p className="text-[10px] uppercase tracking-[0.18em] text-slate-500">Code</p>
-                  <p className="mt-2 break-all font-mono text-sm text-cyan-100">{generatedTerm.code}</p>
-                </div>
-                <div className="rounded-[18px] border border-white/10 bg-black/20 p-3">
-                  <p className="text-[10px] uppercase tracking-[0.18em] text-slate-500">Name</p>
-                  <p className="mt-2 text-sm font-semibold text-white">{generatedTerm.name}</p>
-                </div>
-              </div>
-              <div className="mt-3 rounded-[18px] border border-white/10 bg-black/20 p-3">
-                <p className="text-[10px] uppercase tracking-[0.18em] text-slate-500">Document Wording</p>
-                <p className="mt-2 text-sm leading-6 text-slate-300">{generatedTerm.documentTermsText}</p>
-              </div>
-            </div>
-
-            <div className="rounded-[24px] border border-white/10 bg-black/20 p-4">
-              <p className="mb-2 text-[11px] font-semibold uppercase tracking-[0.2em] text-slate-500">
-                Internal Notes
-              </p>
-              <textarea
-                value={form.notes}
-                onChange={(event) =>
-                  setForm((previous) => ({
-                    ...previous,
-                    notes: event.target.value,
-                  }))
-                }
-                placeholder="Optional internal note."
-                className="min-h-[92px] w-full rounded-2xl border border-white/10 bg-black/20 px-4 py-3 text-sm text-white outline-none transition placeholder:text-white/35 focus:border-cyan-400/40"
-              />
-            </div>
-          </div>
-
-          <DialogFooter>
-            <Button
-              type="button"
-              variant="outline"
-              onClick={() => setDialogOpen(false)}
-              className="rounded-2xl border-white/10 bg-black/20 text-white hover:bg-white/10"
-            >
-              Cancel
-            </Button>
-            <Button
-              type="button"
-              onClick={() => void handleSave()}
-              disabled={saving || actionLocked || !(editingRow ? canEdit : canCreate)}
-              className="rounded-2xl bg-cyan-500 text-slate-950 hover:bg-cyan-400 disabled:opacity-45"
-            >
-              {saving ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : null}
-              {editingRow ? "Save Changes" : "Create Payment Term"}
-            </Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
-
-      <Dialog open={archiveOpen} onOpenChange={setArchiveOpen}>
-        <DialogContent className="max-h-[92vh] overflow-hidden border-white/10 bg-[#0f1726] text-white sm:max-w-[1180px]">
-          <DialogHeader>
-            <DialogTitle className="flex items-center gap-2">
-              <Archive className="h-5 w-5 text-amber-200" />
-              Payment Terms Archive
-            </DialogTitle>
-            <DialogDescription className="text-white/45">
-              Archived payment terms can be restored. Permanent deletion is only available here when the user has delete-level permission.
-            </DialogDescription>
-          </DialogHeader>
-
-          <div className="rounded-[24px] border border-white/10 bg-black/20">
-            <div className="flex items-center justify-between border-b border-white/10 px-5 py-4">
-              <div className="flex items-center gap-2">
-                <button
-                  type="button"
-                  className="rounded-full border border-amber-400/20 bg-amber-500/10 px-4 py-2 text-[11px] font-semibold uppercase tracking-[0.18em] text-amber-100"
-                >
-                  Archived
-                </button>
-              </div>
-              <div className="text-xs text-slate-500">
-                {formatCount(sortedArchivedRows.length)} archived records
-              </div>
-            </div>
-
-            {sortedArchivedRows.length === 0 ? (
-              <div className="px-6 py-12 text-center">
-                <Archive className="mx-auto h-8 w-8 text-slate-500" />
-                <div className="mt-4 text-sm font-medium text-white">No archived payment terms</div>
-                <p className="mt-2 text-sm leading-6 text-slate-500">
-                  Archived records will appear here after they are removed from the active registry.
-                </p>
-              </div>
-            ) : (
-              <div className="max-h-[620px] overflow-auto">
-                <table className="w-full min-w-[980px] border-collapse">
-                  <thead className="sticky top-0 z-10 border-b border-white/10 bg-black/70 backdrop-blur-xl">
-                    <tr className="text-left text-[11px] uppercase tracking-[0.18em] text-slate-500">
-                      <th className="px-5 py-4">Code</th>
-                      <th className="px-5 py-4">Name</th>
-                      <th className="px-5 py-4">Type</th>
-                      <th className="px-5 py-4">Document Wording</th>
-                      <th className="px-5 py-4">Updated</th>
-                      <th className="px-5 py-4 text-right">Actions</th>
-                    </tr>
-                  </thead>
-                  <tbody className="divide-y divide-white/5">
-                    {sortedArchivedRows.map((row) => (
-                      <tr key={row.id} className="text-sm text-slate-300 transition hover:bg-white/[0.035]">
-                        <td className="px-5 py-4 font-mono text-xs text-amber-100">{row.code}</td>
-                        <td className="px-5 py-4 font-semibold text-white">{row.name}</td>
-                        <td className="px-5 py-4">{formatTermType(row.term_type)}</td>
-                        <td className="px-5 py-4">
-                          <div className="max-w-[360px] line-clamp-2 text-xs leading-5 text-slate-500">
-                            {row.document_terms_text ?? row.notes ?? "No wording configured."}
-                          </div>
-                        </td>
-                        <td className="px-5 py-4 text-xs text-slate-500">{formatDateLabel(row.updated_at)}</td>
-                        <td className="px-5 py-4 text-right">
-                          <div className="flex justify-end gap-2">
-                            <Button
-                              type="button"
-                              variant="outline"
-                              onClick={() => void handleRestore(row)}
-                              disabled={!canArchive || actionLocked}
-                              className="h-10 rounded-xl border-emerald-400/20 bg-emerald-500/10 px-3 text-xs font-semibold text-emerald-100 hover:bg-emerald-500/15 disabled:opacity-45"
-                            >
-                              <RotateCcw className="mr-2 h-4 w-4" />
-                              Restore
-                            </Button>
-                            <Button
-                              type="button"
-                              variant="outline"
-                              onClick={() => void handleHardDelete(row)}
-                              disabled={!canHardDelete || actionLocked}
-                              className="h-10 rounded-xl border-rose-400/20 bg-rose-500/10 px-3 text-xs font-semibold text-rose-100 hover:bg-rose-500/15 disabled:opacity-45"
-                            >
-                              <Trash2 className="mr-2 h-4 w-4" />
-                              Hard Delete
-                            </Button>
-                          </div>
-                        </td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
-              </div>
-            )}
-          </div>
-
-          <div className="rounded-[20px] border border-amber-400/20 bg-amber-500/10 p-4 text-xs leading-5 text-amber-100/80">
-            This table currently supports archived records through the existing payment-terms backend. A separate Deleted tab requires a `deleted` status or equivalent soft-delete field in `finance_payment_terms`; this rewrite does not invent a backend state that is not present in the current typed model.
-          </div>
-        </DialogContent>
-      </Dialog>
     </div>
   );
 }

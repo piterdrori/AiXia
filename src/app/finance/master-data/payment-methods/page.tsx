@@ -3,11 +3,9 @@ import { useNavigate } from "react-router-dom";
 import {
   Archive,
   ArrowLeft,
-  Banknote,
   CheckCircle2,
   CreditCard,
   Edit3,
-  Landmark,
   Plus,
   Search,
   ShieldCheck,

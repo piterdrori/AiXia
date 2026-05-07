@@ -355,29 +355,78 @@ function SummaryTile({
   icon: typeof Users;
   tone?: "cyan" | "emerald" | "amber" | "violet" | "rose";
 }) {
-  const toneClass = {
-    cyan: "from-cyan-500/12 text-cyan-200",
-    emerald: "from-emerald-500/12 text-emerald-200",
-    amber: "from-amber-500/12 text-amber-200",
-    violet: "from-violet-500/12 text-violet-200",
-    rose: "from-rose-500/12 text-rose-200",
+  const toneMap = {
+    cyan: {
+      shell:
+        "border-cyan-400/15 bg-[radial-gradient(circle_at_top_left,rgba(6,182,212,0.18),transparent_42%),linear-gradient(180deg,rgba(255,255,255,0.045),rgba(255,255,255,0.03))]",
+      icon:
+        "border-cyan-400/20 bg-cyan-500/10 text-cyan-200",
+      dot: "bg-cyan-300",
+      label: "text-cyan-100/75",
+    },
+    emerald: {
+      shell:
+        "border-emerald-400/15 bg-[radial-gradient(circle_at_top_left,rgba(16,185,129,0.18),transparent_42%),linear-gradient(180deg,rgba(255,255,255,0.045),rgba(255,255,255,0.03))]",
+      icon:
+        "border-emerald-400/20 bg-emerald-500/10 text-emerald-200",
+      dot: "bg-emerald-300",
+      label: "text-emerald-100/75",
+    },
+    amber: {
+      shell:
+        "border-amber-400/15 bg-[radial-gradient(circle_at_top_left,rgba(245,158,11,0.18),transparent_42%),linear-gradient(180deg,rgba(255,255,255,0.045),rgba(255,255,255,0.03))]",
+      icon:
+        "border-amber-400/20 bg-amber-500/10 text-amber-200",
+      dot: "bg-amber-300",
+      label: "text-amber-100/75",
+    },
+    violet: {
+      shell:
+        "border-violet-400/15 bg-[radial-gradient(circle_at_top_left,rgba(139,92,246,0.18),transparent_42%),linear-gradient(180deg,rgba(255,255,255,0.045),rgba(255,255,255,0.03))]",
+      icon:
+        "border-violet-400/20 bg-violet-500/10 text-violet-200",
+      dot: "bg-violet-300",
+      label: "text-violet-100/75",
+    },
+    rose: {
+      shell:
+        "border-rose-400/15 bg-[radial-gradient(circle_at_top_left,rgba(244,63,94,0.18),transparent_42%),linear-gradient(180deg,rgba(255,255,255,0.045),rgba(255,255,255,0.03))]",
+      icon:
+        "border-rose-400/20 bg-rose-500/10 text-rose-200",
+      dot: "bg-rose-300",
+      label: "text-rose-100/75",
+    },
   }[tone];
 
   return (
-    <Card className="min-h-[156px] overflow-hidden rounded-[28px] border border-white/10 bg-white/[0.045] backdrop-blur-xl">
+    <Card
+      className={`min-h-[156px] overflow-hidden rounded-[28px] border backdrop-blur-xl ${toneMap.shell}`}
+    >
       <CardContent className="relative flex h-full flex-col justify-between overflow-hidden p-5">
-        <div className={`pointer-events-none absolute inset-0 bg-gradient-to-br ${toneClass} to-transparent opacity-80`} />
+        <div className="pointer-events-none absolute inset-0 bg-[radial-gradient(circle_at_bottom_right,rgba(255,255,255,0.05),transparent_28%)]" />
+
         <div className="relative flex items-start justify-between gap-4">
           <div>
-            <div className="text-xs uppercase tracking-[0.18em] text-slate-500">
+            <div
+              className={`text-xs uppercase tracking-[0.18em] ${toneMap.label}`}
+            >
               {label}
             </div>
-            <div className="mt-3 text-3xl font-semibold text-white">{value}</div>
+            <div className="mt-4 text-4xl font-semibold tracking-tight text-white">
+              {value}
+            </div>
           </div>
 
-          <div className="flex h-12 w-12 items-center justify-center rounded-2xl border border-white/10 bg-black/20 text-white/70">
+          <div
+            className={`flex h-12 w-12 items-center justify-center rounded-2xl border ${toneMap.icon}`}
+          >
             <Icon className="h-5 w-5" />
           </div>
+        </div>
+
+        <div className="relative mt-6 flex items-center justify-between">
+          <div className="text-sm text-slate-400">Current snapshot</div>
+          <div className={`h-2.5 w-2.5 rounded-full ${toneMap.dot}`} />
         </div>
       </CardContent>
     </Card>

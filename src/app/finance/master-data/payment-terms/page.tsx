@@ -61,8 +61,6 @@ type SortKey =
 
 type SortDirection = "asc" | "desc";
 
-type ArchiveTab = "archived";
-
 type FormState = {
   term_type: FinancePaymentTermType;
   net_days: string;

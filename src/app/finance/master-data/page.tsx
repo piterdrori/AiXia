@@ -8,7 +8,6 @@ import {
   ChevronDown,
   ChevronUp,
   CreditCard,
-  FileText,
   Loader2,
   MoreHorizontal,
   Pencil,

@@ -14,6 +14,7 @@ import {
   LockKeyhole,
   Package2,
   Receipt,
+  Search,
   ShieldCheck,
   Sparkles,
   UserRound,
@@ -21,6 +22,14 @@ import {
   WalletCards,
 } from "lucide-react";
 
+import {
+  AixiaBadge,
+  AixiaButton,
+  AixiaHero,
+  AixiaMetricCard,
+  AixiaPage,
+  AixiaSection,
+} from "@/components/aixia";
 import { supabase } from "@/lib/supabase";
 import {
   getEffectivePermissions,
@@ -28,13 +37,17 @@ import {
   type Role,
 } from "@/lib/permissions";
 
+type LoadMode = "initial" | "silent";
+
+type MasterDataMetricTone = "indigo" | "violet" | "gold" | "emerald" | "rose";
+
 type MasterDataOverviewCard = {
   key: string;
   title: string;
   value: string;
   subtitle: string;
   icon: LucideIcon;
-  tone: "emerald" | "cyan" | "amber" | "violet" | "rose";
+  tone: MasterDataMetricTone;
 };
 
 type MasterDataModuleKey =
@@ -65,6 +78,7 @@ type MasterDataModuleCard = {
   statusLabel: string;
   lastUpdatedLabel: string;
   requiredAccessLabel: string;
+  groupLabel: string;
 };
 
 type RecentMasterDataChange = {
@@ -164,7 +178,7 @@ function formatCount(value: number) {
   return value.toLocaleString();
 }
 
-function formatDateLabel(value: string | null) {
+function formatDateLabel(value: string | null | undefined) {
   if (!value) return "—";
 
   const parsed = new Date(value);
@@ -295,10 +309,7 @@ async function loadBackendEffectivePermissions(
     });
 
     if (result.error) {
-      console.warn(
-        "Master Data permission RPC fallback:",
-        result.error.message
-      );
+      console.warn("Master Data permission RPC fallback:", result.error.message);
       return null;
     }
 
@@ -313,187 +324,68 @@ async function loadBackendEffectivePermissions(
   }
 }
 
-function getToneClasses(tone: MasterDataOverviewCard["tone"]) {
-  switch (tone) {
-    case "emerald":
-      return {
-        glow: "from-emerald-500/20 via-emerald-400/10 to-transparent",
-        iconWrap: "border-emerald-400/20 bg-emerald-500/10 text-emerald-200",
-        accent: "bg-emerald-400",
-        value: "text-emerald-100",
-      };
-    case "amber":
-      return {
-        glow: "from-amber-500/20 via-amber-400/10 to-transparent",
-        iconWrap: "border-amber-400/20 bg-amber-500/10 text-amber-200",
-        accent: "bg-amber-400",
-        value: "text-amber-100",
-      };
-    case "violet":
-      return {
-        glow: "from-violet-500/20 via-violet-400/10 to-transparent",
-        iconWrap: "border-violet-400/20 bg-violet-500/10 text-violet-200",
-        accent: "bg-violet-400",
-        value: "text-violet-100",
-      };
-    case "rose":
-      return {
-        glow: "from-rose-500/20 via-rose-400/10 to-transparent",
-        iconWrap: "border-rose-400/20 bg-rose-500/10 text-rose-200",
-        accent: "bg-rose-400",
-        value: "text-rose-100",
-      };
-    case "cyan":
-    default:
-      return {
-        glow: "from-cyan-500/20 via-cyan-400/10 to-transparent",
-        iconWrap: "border-cyan-400/20 bg-cyan-500/10 text-cyan-200",
-        accent: "bg-cyan-400",
-        value: "text-cyan-100",
-      };
-  }
+function getStatusTone(statusLabel: string) {
+  const normalized = statusLabel.toLowerCase();
+
+  if (normalized.includes("new")) return "gold";
+  if (normalized.includes("configured")) return "emerald";
+  if (normalized.includes("linked")) return "violet";
+  if (normalized.includes("source")) return "indigo";
+
+  return "emerald";
 }
 
-function MasterDataOverviewMetric({
-  metric,
+function AccessSummaryPanel({
+  visibleCount,
+  totalCount,
+  hasAccess,
 }: {
-  metric: MasterDataOverviewCard;
+  visibleCount: number;
+  totalCount: number;
+  hasAccess: boolean;
 }) {
-  const Icon = metric.icon;
-  const tone = getToneClasses(metric.tone);
+  if (!hasAccess) {
+    return (
+      <div className="aixia-glass rounded-[32px] border-rose-400/20 bg-rose-500/10 p-6">
+        <div className="flex items-start gap-4">
+          <div className="rounded-2xl border border-rose-400/20 bg-rose-500/10 p-3 text-rose-200">
+            <LockKeyhole className="h-5 w-5" />
+          </div>
 
-  return (
-    <div className="group relative min-h-[156px] overflow-hidden rounded-[28px] border border-white/10 bg-white/[0.045] p-5 backdrop-blur-xl transition hover:border-white/20 hover:bg-white/[0.055]">
-      <div
-        className={`pointer-events-none absolute inset-0 bg-gradient-to-br ${tone.glow}`}
-      />
-      <div className="pointer-events-none absolute inset-x-5 top-0 h-px bg-white/10" />
-
-      <div className="relative flex h-full flex-col justify-between gap-5">
-        <div className="flex items-start justify-between gap-4">
-          <div className="min-w-0">
-            <div className="text-[11px] font-semibold uppercase tracking-[0.2em] text-slate-500">
-              {metric.title}
+          <div>
+            <div className="text-lg font-semibold text-white">
+              No master-data access is enabled
             </div>
-            <div
-              className={`mt-2 truncate text-3xl font-semibold tracking-[-0.035em] ${tone.value}`}
-            >
-              {metric.value}
+            <div className="mt-2 text-sm leading-6 text-rose-100">
+              This user can open Finance only if another permitted Finance area is available.
+              Master Data domains are hidden until a Finance template or user-specific
+              exception grants the required read access.
             </div>
           </div>
-
-          <div
-            className={`flex h-12 w-12 shrink-0 items-center justify-center rounded-2xl border ${tone.iconWrap}`}
-          >
-            <Icon className="h-5 w-5" />
-          </div>
-        </div>
-
-        <div className="flex items-center justify-between gap-3">
-          <div className="min-w-0 truncate text-sm leading-6 text-slate-400">
-            {metric.subtitle}
-          </div>
-          <div className={`h-2 w-2 shrink-0 rounded-full ${tone.accent}`} />
         </div>
       </div>
-    </div>
-  );
-}
-
-function MasterDataModuleButton({
-  module,
-  onOpen,
-}: {
-  module: MasterDataModuleCard;
-  onOpen: (route: string) => void;
-}) {
-  const Icon = module.icon;
+    );
+  }
 
   return (
-    <button
-      type="button"
-      onClick={() => onOpen(module.route)}
-      className="group relative min-h-[248px] overflow-hidden rounded-[30px] border border-white/10 bg-[radial-gradient(circle_at_top_left,rgba(6,182,212,0.16),rgba(255,255,255,0.045)_44%,rgba(255,255,255,0.025)_100%)] p-6 text-left shadow-2xl shadow-black/20 backdrop-blur-xl transition hover:-translate-y-0.5 hover:border-cyan-400/25 hover:bg-white/[0.055]"
-    >
-      <div className="pointer-events-none absolute inset-x-6 top-0 h-px bg-white/10" />
-      <div className="pointer-events-none absolute -right-16 -top-16 h-40 w-40 rounded-full bg-cyan-400/10 blur-3xl transition group-hover:bg-cyan-400/20" />
-      <div className="pointer-events-none absolute -bottom-20 left-10 h-36 w-36 rounded-full bg-violet-400/5 blur-3xl" />
-
-      <div className="relative flex h-full flex-col justify-between gap-6">
-        <div className="flex items-start justify-between gap-4">
-          <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-2xl border border-cyan-400/15 bg-cyan-500/10 text-cyan-200 shadow-lg shadow-cyan-500/5">
-            <Icon className="h-5 w-5" />
-          </div>
-
-          <div className="flex shrink-0 items-center gap-2">
-            <span className="rounded-full border border-white/10 bg-white/[0.07] px-3 py-1 text-[11px] font-semibold uppercase tracking-[0.16em] text-slate-300">
-              {module.statusLabel}
-            </span>
-            <ArrowRight className="h-4 w-4 text-slate-500 transition group-hover:translate-x-1 group-hover:text-cyan-200" />
-          </div>
+    <div className="aixia-glass rounded-[32px] border-[#6366F1]/25 bg-[radial-gradient(circle_at_top_left,rgba(99,102,241,0.18),rgba(255,255,255,0.08)_48%)] p-6">
+      <div className="flex flex-col gap-4 md:flex-row md:items-center">
+        <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-2xl border border-[#6366F1]/30 bg-[#6366F1]/15 text-indigo-200">
+          <ShieldCheck className="h-5 w-5" />
         </div>
 
         <div>
-          <div className="text-[11px] font-semibold uppercase tracking-[0.22em] text-slate-500">
-            {module.requiredAccessLabel}
+          <div className="text-lg font-semibold text-white">
+            Master-data access is permission filtered
           </div>
-          <div className="mt-3 text-xl font-semibold tracking-[-0.025em] text-white">
-            {module.title}
-          </div>
-          <div className="mt-3 min-h-[58px] text-sm leading-6 text-slate-400">
-            {module.description}
-          </div>
-        </div>
-
-        <div className="flex items-end justify-between gap-4 border-t border-white/10 pt-4">
-          <div className="min-w-0">
-            <div className="text-[11px] font-semibold uppercase tracking-[0.18em] text-slate-600">
-              Records
-            </div>
-            <div className="mt-1 text-sm font-semibold text-white">
-              {formatCount(module.count)} configured
-            </div>
-          </div>
-
-          <span className="inline-flex h-10 shrink-0 items-center justify-center rounded-full border border-cyan-400/20 bg-cyan-500/10 px-5 text-xs font-semibold uppercase tracking-[0.16em] text-cyan-100 transition group-hover:bg-cyan-500/15">
-            Open
-          </span>
-        </div>
-      </div>
-    </button>
-  );
-}
-
-function MasterDataSectionCard({
-  title,
-  description,
-  icon: Icon,
-  children,
-}: {
-  title: string;
-  description: string;
-  icon: LucideIcon;
-  children: React.ReactNode;
-}) {
-  return (
-    <section className="overflow-hidden rounded-[30px] border border-white/10 bg-white/[0.045] backdrop-blur-xl">
-      <div className="flex items-center justify-between border-b border-white/10 px-5 py-4">
-        <div className="flex min-w-0 items-center gap-3">
-          <div className="rounded-2xl border border-cyan-400/15 bg-cyan-500/10 p-3 text-cyan-200">
-            <Icon className="h-4 w-4" />
-          </div>
-
-          <div className="min-w-0">
-            <h2 className="text-sm font-semibold uppercase tracking-[0.18em] text-slate-400">
-              {title}
-            </h2>
-            <p className="mt-1 text-xs text-slate-500">{description}</p>
+          <div className="mt-2 max-w-3xl text-sm leading-6 text-white/55">
+            Showing {formatCount(visibleCount)} of {formatCount(totalCount)} master-data
+            domains for this user. Hidden domains require the correct Finance template
+            baseline or user-specific exception.
           </div>
         </div>
       </div>
-
-      <div className="p-5">{children}</div>
-    </section>
+    </div>
   );
 }
 
@@ -508,88 +400,33 @@ function HeaderStatusCard({
   value: string;
   detail: string;
   icon: LucideIcon;
-  tone: "emerald" | "cyan" | "amber";
+  tone: "indigo" | "emerald" | "gold";
 }) {
-  const toneClasses = {
-    emerald: "border-emerald-400/20 bg-emerald-500/10 text-emerald-200",
-    cyan: "border-cyan-400/20 bg-cyan-500/10 text-cyan-200",
-    amber: "border-amber-400/20 bg-amber-500/10 text-amber-200",
-  }[tone];
+  const toneClass =
+    tone === "emerald"
+      ? "border-emerald-400/30 bg-emerald-500/15 text-emerald-200"
+      : tone === "gold"
+        ? "border-[#FBBF24]/30 bg-[#FBBF24]/15 text-[#FBBF24]"
+        : "border-[#6366F1]/30 bg-[#6366F1]/15 text-indigo-200";
 
   return (
     <div className="min-h-[148px] rounded-[24px] border border-white/10 bg-black/20 p-4">
       <div className="flex items-start justify-between gap-3">
         <div className="min-w-0">
-          <div className="text-[11px] font-semibold uppercase tracking-[0.2em] text-slate-500">
-            {label}
-          </div>
+          <div className="aixia-summary-label">{label}</div>
           <div className="mt-2 text-xl font-semibold leading-tight tracking-[-0.035em] text-white">
             {value}
           </div>
         </div>
 
         <div
-          className={`flex h-10 w-10 shrink-0 items-center justify-center rounded-2xl border ${toneClasses}`}
+          className={`flex h-10 w-10 shrink-0 items-center justify-center rounded-2xl border ${toneClass}`}
         >
           <Icon className="h-4 w-4" />
         </div>
       </div>
 
-      <div className="mt-3 text-xs leading-5 text-slate-500">{detail}</div>
-    </div>
-  );
-}
-
-function AccessSummaryPanel({
-  visibleCount,
-  totalCount,
-  hasAccess,
-}: {
-  visibleCount: number;
-  totalCount: number;
-  hasAccess: boolean;
-}) {
-  if (!hasAccess) {
-    return (
-      <div className="rounded-[30px] border border-rose-400/20 bg-rose-500/10 p-6">
-        <div className="flex items-start gap-4">
-          <div className="rounded-2xl border border-rose-400/20 bg-rose-500/10 p-3 text-rose-200">
-            <LockKeyhole className="h-5 w-5" />
-          </div>
-
-          <div>
-            <div className="text-lg font-semibold text-white">
-              No master-data access is enabled
-            </div>
-            <div className="mt-2 text-sm leading-6 text-rose-100">
-              This user can open Finance only if another permitted Finance area is available.
-              Master Data cards are hidden until a Finance template or user-specific exception
-              grants the required read access.
-            </div>
-          </div>
-        </div>
-      </div>
-    );
-  }
-
-  return (
-    <div className="rounded-[30px] border border-cyan-400/20 bg-[radial-gradient(circle_at_top_left,rgba(6,182,212,0.14),rgba(255,255,255,0.045)_48%)] p-6 backdrop-blur-xl">
-      <div className="flex flex-col gap-4 md:flex-row md:items-center">
-        <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-2xl border border-cyan-400/20 bg-cyan-500/10 text-cyan-200">
-          <ShieldCheck className="h-5 w-5" />
-        </div>
-
-        <div>
-          <div className="text-lg font-semibold text-white">
-            Master-data access is permission filtered
-          </div>
-          <div className="mt-2 max-w-3xl text-sm leading-6 text-slate-400">
-            Showing {formatCount(visibleCount)} of {formatCount(totalCount)} master-data
-            domains for this user. Hidden domains require the correct Finance template
-            baseline or user-specific exception.
-          </div>
-        </div>
-      </div>
+      <div className="mt-3 text-xs leading-5 text-white/40">{detail}</div>
     </div>
   );
 }
@@ -605,14 +442,70 @@ function ReadinessBlock({
 }) {
   return (
     <div className="rounded-[24px] border border-white/10 bg-black/20 p-4">
-      <div className="text-[11px] uppercase tracking-[0.2em] text-slate-500">
-        {label}
-      </div>
+      <div className="aixia-summary-label">{label}</div>
       <div className="mt-2 text-2xl font-semibold text-white">{value}</div>
       {detail ? (
-        <div className="mt-2 text-sm leading-6 text-slate-400">{detail}</div>
+        <div className="mt-2 text-sm leading-6 text-white/45">{detail}</div>
       ) : null}
     </div>
+  );
+}
+
+function MasterDataModuleButton({
+  module,
+  onOpen,
+}: {
+  module: MasterDataModuleCard;
+  onOpen: (route: string) => void;
+}) {
+  const Icon = module.icon;
+  const statusTone = getStatusTone(module.statusLabel);
+
+  return (
+    <button
+      type="button"
+      onClick={() => onOpen(module.route)}
+      className="aixia-glass aixia-glass-hover group min-h-[248px] rounded-[32px] p-6 text-left"
+    >
+      <div className="pointer-events-none absolute -right-16 -top-16 h-40 w-40 rounded-full bg-[#6366F1]/12 blur-3xl transition group-hover:bg-[#6366F1]/20" />
+      <div className="pointer-events-none absolute -bottom-20 left-10 h-36 w-36 rounded-full bg-[#A855F7]/10 blur-3xl" />
+
+      <div className="relative flex h-full flex-col justify-between gap-6">
+        <div className="flex items-start justify-between gap-4">
+          <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-2xl border border-[#6366F1]/25 bg-[#6366F1]/12 text-indigo-200 shadow-lg shadow-[#6366F1]/10">
+            <Icon className="h-5 w-5" />
+          </div>
+
+          <div className="flex shrink-0 items-center gap-2">
+            <AixiaBadge tone={statusTone}>{module.statusLabel}</AixiaBadge>
+            <ArrowRight className="h-4 w-4 text-white/30 transition group-hover:translate-x-1 group-hover:text-[#FBBF24]" />
+          </div>
+        </div>
+
+        <div>
+          <div className="aixia-label">{module.requiredAccessLabel}</div>
+          <div className="mt-3 text-xl font-semibold tracking-[-0.025em] text-white">
+            {module.title}
+          </div>
+          <div className="mt-3 min-h-[58px] text-sm leading-6 text-white/50">
+            {module.description}
+          </div>
+        </div>
+
+        <div className="flex items-end justify-between gap-4 border-t border-white/10 pt-4">
+          <div className="min-w-0">
+            <div className="aixia-summary-label">Records</div>
+            <div className="mt-1 text-sm font-semibold text-white">
+              {formatCount(module.count)} configured
+            </div>
+          </div>
+
+          <span className="inline-flex h-10 shrink-0 items-center justify-center rounded-full border border-[#FBBF24]/25 bg-[#FBBF24]/10 px-5 text-xs font-bold uppercase tracking-[0.16em] text-[#FBBF24] transition group-hover:bg-[#FBBF24]/15">
+            Open
+          </span>
+        </div>
+      </div>
+    </button>
   );
 }
 
@@ -623,74 +516,58 @@ export default function FinanceMasterDataPage() {
   const [currentProfile, setCurrentProfile] = useState<CurrentUserProfile | null>(null);
   const [effectivePermissions, setEffectivePermissions] =
     useState<Record<Permission, boolean> | null>(null);
-  const [isLoadingProfile, setIsLoadingProfile] = useState(true);
-  const [isLoadingData, setIsLoadingData] = useState(true);
+  const [initialLoading, setInitialLoading] = useState(true);
+  const [backgroundRefreshing, setBackgroundRefreshing] = useState(false);
+  const [moduleSearch, setModuleSearch] = useState("");
 
-  const loadCurrentProfile = useCallback(
-    async (mode: "initial" | "silent" = "initial") => {
+  const loadCurrentProfile = useCallback(async (mode: LoadMode = "initial") => {
+    try {
+      const authResult = await supabase.auth.getUser();
+      if (authResult.error) throw authResult.error;
+
+      const authUserId = authResult.data.user?.id;
+
+      if (!authUserId) {
+        setCurrentProfile(null);
+        setEffectivePermissions(null);
+        return;
+      }
+
+      const profileResult = await supabase
+        .from("profiles")
+        .select("user_id, full_name, role, permissions")
+        .eq("user_id", authUserId)
+        .maybeSingle();
+
+      if (profileResult.error) throw profileResult.error;
+
+      const profile = (profileResult.data || null) as CurrentUserProfile | null;
+      const backendPermissions = await loadBackendEffectivePermissions(authUserId);
+
+      setCurrentProfile(profile);
+
+      if (!profile?.role) {
+        setEffectivePermissions(null);
+        return;
+      }
+
+      const resolvedPermissions = getEffectivePermissions(
+        profile.role,
+        backendPermissions || profile.permissions || null
+      );
+
+      setEffectivePermissions(resolvedPermissions);
+    } catch (error) {
+      console.error("Failed to load master-data profile permissions:", error);
+
       if (mode === "initial") {
-        setIsLoadingProfile(true);
+        setCurrentProfile(null);
+        setEffectivePermissions(null);
       }
-
-      try {
-        const authResult = await supabase.auth.getUser();
-        if (authResult.error) throw authResult.error;
-
-        const authUserId = authResult.data.user?.id;
-
-        if (!authUserId) {
-          setCurrentProfile(null);
-          setEffectivePermissions(null);
-          return;
-        }
-
-        const profileResult = await supabase
-          .from("profiles")
-          .select("user_id, full_name, role, permissions")
-          .eq("user_id", authUserId)
-          .maybeSingle();
-
-        if (profileResult.error) throw profileResult.error;
-
-        const profile = (profileResult.data || null) as CurrentUserProfile | null;
-        const backendPermissions = authUserId
-          ? await loadBackendEffectivePermissions(authUserId)
-          : null;
-
-        setCurrentProfile(profile);
-
-        if (!profile?.role) {
-          setEffectivePermissions(null);
-          return;
-        }
-
-        const resolvedPermissions = getEffectivePermissions(
-          profile.role,
-          backendPermissions || profile.permissions || null
-        );
-
-        setEffectivePermissions(resolvedPermissions);
-      } catch (error) {
-        console.error("Failed to load master-data profile permissions:", error);
-
-        if (mode === "initial") {
-          setCurrentProfile(null);
-          setEffectivePermissions(null);
-        }
-      } finally {
-        if (mode === "initial") {
-          setIsLoadingProfile(false);
-        }
-      }
-    },
-    []
-  );
-
-  const loadMasterData = useCallback(async (mode: "initial" | "silent" = "initial") => {
-    if (mode === "initial") {
-      setIsLoadingData(true);
     }
+  }, []);
 
+  const loadMasterData = useCallback(async () => {
     try {
       const [
         clients,
@@ -708,6 +585,7 @@ export default function FinanceMasterDataPage() {
         items,
         projects,
         employees,
+        currencies,
       ] = await Promise.all([
         supabase
           .from("finance_clients")
@@ -756,6 +634,8 @@ export default function FinanceMasterDataPage() {
         supabase
           .from("profiles")
           .select("user_id", { count: "exact", head: true }),
+
+        safeCount("finance_currencies"),
       ]);
 
       const recentChanges: RecentMasterDataChange[] = [];
@@ -805,6 +685,17 @@ export default function FinanceMasterDataPage() {
         });
       }
 
+      if (getCount(paymentTerms) > 0) {
+        recentChanges.push({
+          id: "payment-terms",
+          type: "Payment Terms",
+          title: "Payment terms configured",
+          subtitle: `${getCount(paymentTerms)} total payment terms`,
+          createdAt: now,
+          route: "/finance/master-data/payment-terms",
+        });
+      }
+
       setData({
         counts: {
           clients: getCount(clients),
@@ -822,30 +713,47 @@ export default function FinanceMasterDataPage() {
           items: getCount(items),
           projects: getCount(projects),
           employees: getCount(employees),
-          currencies: 1,
+          currencies: getCount(currencies),
         },
         rates: {
-          sourceLabel: "Currency Master",
-          updatedAtLabel: "Live reference",
+          sourceLabel: getCount(currencies) > 0 ? "Currency Master" : "Not connected",
+          updatedAtLabel: getCount(currencies) > 0 ? "Live reference" : "No live rate source",
         },
         recentChanges,
       });
     } catch (error) {
       console.error("Failed to load master data:", error);
       setData(EMPTY_MASTER_DATA);
-    } finally {
-      if (mode === "initial") {
-        setIsLoadingData(false);
-      }
     }
   }, []);
 
+  const loadPage = useCallback(
+    async (mode: LoadMode = "initial") => {
+      if (mode === "initial") {
+        setInitialLoading(true);
+      } else {
+        setBackgroundRefreshing(true);
+      }
+
+      try {
+        await Promise.all([
+          loadCurrentProfile(mode),
+          loadMasterData(),
+        ]);
+      } finally {
+        if (mode === "initial") {
+          setInitialLoading(false);
+        } else {
+          setBackgroundRefreshing(false);
+        }
+      }
+    },
+    [loadCurrentProfile, loadMasterData]
+  );
+
   useEffect(() => {
-    void Promise.all([
-      loadCurrentProfile("initial"),
-      loadMasterData("initial"),
-    ]);
-  }, [loadCurrentProfile, loadMasterData]);
+    void loadPage("initial");
+  }, [loadPage]);
 
   useEffect(() => {
     const channel = supabase
@@ -853,32 +761,99 @@ export default function FinanceMasterDataPage() {
       .on(
         "postgres_changes",
         { event: "*", schema: "public", table: "profiles" },
-        () => void loadCurrentProfile("silent")
+        () => void loadPage("silent")
       )
       .on(
         "postgres_changes",
         { event: "*", schema: "public", table: "finance_permission_templates" },
-        () => void loadCurrentProfile("silent")
+        () => void loadPage("silent")
       )
       .on(
         "postgres_changes",
         { event: "*", schema: "public", table: "finance_user_permission_templates" },
-        () => void loadCurrentProfile("silent")
+        () => void loadPage("silent")
+      )
+      .on(
+        "postgres_changes",
+        { event: "*", schema: "public", table: "finance_clients" },
+        () => void loadPage("silent")
+      )
+      .on(
+        "postgres_changes",
+        { event: "*", schema: "public", table: "finance_vendors" },
+        () => void loadPage("silent")
+      )
+      .on(
+        "postgres_changes",
+        { event: "*", schema: "public", table: "finance_companies" },
+        () => void loadPage("silent")
+      )
+      .on(
+        "postgres_changes",
+        { event: "*", schema: "public", table: "finance_bank_accounts" },
+        () => void loadPage("silent")
+      )
+      .on(
+        "postgres_changes",
+        { event: "*", schema: "public", table: "finance_vendor_bank_accounts" },
+        () => void loadPage("silent")
+      )
+      .on(
+        "postgres_changes",
+        { event: "*", schema: "public", table: "finance_payment_methods" },
+        () => void loadPage("silent")
+      )
+      .on(
+        "postgres_changes",
+        { event: "*", schema: "public", table: "finance_payment_terms" },
+        () => void loadPage("silent")
+      )
+      .on(
+        "postgres_changes",
+        { event: "*", schema: "public", table: "finance_shipping_terms" },
+        () => void loadPage("silent")
+      )
+      .on(
+        "postgres_changes",
+        { event: "*", schema: "public", table: "finance_tax_codes" },
+        () => void loadPage("silent")
+      )
+      .on(
+        "postgres_changes",
+        { event: "*", schema: "public", table: "finance_expense_categories" },
+        () => void loadPage("silent")
+      )
+      .on(
+        "postgres_changes",
+        { event: "*", schema: "public", table: "finance_revenue_categories" },
+        () => void loadPage("silent")
+      )
+      .on(
+        "postgres_changes",
+        { event: "*", schema: "public", table: "finance_units_of_measure" },
+        () => void loadPage("silent")
+      )
+      .on(
+        "postgres_changes",
+        { event: "*", schema: "public", table: "finance_items" },
+        () => void loadPage("silent")
+      )
+      .on(
+        "postgres_changes",
+        { event: "*", schema: "public", table: "finance_currencies" },
+        () => void loadPage("silent")
       )
       .subscribe();
 
     const intervalId = window.setInterval(() => {
-      void Promise.all([
-        loadCurrentProfile("silent"),
-        loadMasterData("silent"),
-      ]);
+      void loadPage("silent");
     }, 60000);
 
     return () => {
       window.clearInterval(intervalId);
-      supabase.removeChannel(channel);
+      void supabase.removeChannel(channel);
     };
-  }, [loadCurrentProfile, loadMasterData]);
+  }, [loadPage]);
 
   const accessMap = useMemo(() => {
     return getMasterDataAccessMap(effectivePermissions);
@@ -900,6 +875,7 @@ export default function FinanceMasterDataPage() {
         statusLabel: "Active",
         lastUpdatedLabel: "Live",
         requiredAccessLabel: "Client Read",
+        groupLabel: "Counterparties",
       },
       {
         key: "vendors",
@@ -911,18 +887,19 @@ export default function FinanceMasterDataPage() {
         statusLabel: "Active",
         lastUpdatedLabel: "Live",
         requiredAccessLabel: "Vendor Read",
+        groupLabel: "Counterparties",
       },
       {
         key: "companies",
         title: "Companies",
-        description:
-          "Manage internal legal entities and finance ownership structure.",
+        description: "Manage internal legal entities and finance ownership structure.",
         route: "/finance/master-data/companies",
         icon: Building2,
         count: data.counts.companies,
         statusLabel: data.counts.companies > 0 ? "Configured" : "New",
         lastUpdatedLabel: "Live",
         requiredAccessLabel: "Master Admin",
+        groupLabel: "Company Setup",
       },
       {
         key: "vendor-bank-accounts",
@@ -934,6 +911,7 @@ export default function FinanceMasterDataPage() {
         statusLabel: data.counts.vendorBankAccounts > 0 ? "Configured" : "New",
         lastUpdatedLabel: "Live",
         requiredAccessLabel: "Vendor / Payables",
+        groupLabel: "Banking",
       },
       {
         key: "bank-accounts",
@@ -942,9 +920,10 @@ export default function FinanceMasterDataPage() {
         route: "/finance/master-data/bank-accounts",
         icon: Landmark,
         count: data.counts.bankAccounts,
-        statusLabel: "Active",
+        statusLabel: data.counts.bankAccounts > 0 ? "Configured" : "New",
         lastUpdatedLabel: "Live",
         requiredAccessLabel: "Bank Read",
+        groupLabel: "Banking",
       },
       {
         key: "payment-methods",
@@ -953,20 +932,22 @@ export default function FinanceMasterDataPage() {
         route: "/finance/master-data/payment-methods",
         icon: CreditCard,
         count: data.counts.paymentMethods,
-        statusLabel: "Active",
+        statusLabel: data.counts.paymentMethods > 0 ? "Configured" : "New",
         lastUpdatedLabel: "Live",
         requiredAccessLabel: "Payment Method Read",
+        groupLabel: "Commercial Terms",
       },
       {
         key: "payment-terms",
         title: "Payment Terms",
-        description: "Define due terms like Net 7, Net 15, Net 30 and more.",
+        description: "Define due terms like Net 7, Net 15, Net 30 and deposits.",
         route: "/finance/master-data/payment-terms",
         icon: WalletCards,
         count: data.counts.paymentTerms,
         statusLabel: data.counts.paymentTerms > 0 ? "Configured" : "New",
         lastUpdatedLabel: "Live",
         requiredAccessLabel: "Payment Terms Read",
+        groupLabel: "Commercial Terms",
       },
       {
         key: "shipping-terms",
@@ -978,6 +959,7 @@ export default function FinanceMasterDataPage() {
         statusLabel: data.counts.shippingTerms > 0 ? "Configured" : "New",
         lastUpdatedLabel: "Live",
         requiredAccessLabel: "Shipping Terms Read",
+        groupLabel: "Commercial Terms",
       },
       {
         key: "tax-codes",
@@ -989,6 +971,7 @@ export default function FinanceMasterDataPage() {
         statusLabel: data.counts.taxCodes > 0 ? "Configured" : "New",
         lastUpdatedLabel: "Live",
         requiredAccessLabel: "Tax Code Read",
+        groupLabel: "Classification",
       },
       {
         key: "expense-categories",
@@ -997,10 +980,10 @@ export default function FinanceMasterDataPage() {
         route: "/finance/master-data/expense-categories",
         icon: FolderKanban,
         count: data.counts.expenseCategories,
-        statusLabel:
-          data.counts.expenseCategories > 0 ? "Configured" : "New",
+        statusLabel: data.counts.expenseCategories > 0 ? "Configured" : "New",
         lastUpdatedLabel: "Live",
         requiredAccessLabel: "Expense Category Read",
+        groupLabel: "Classification",
       },
       {
         key: "revenue-categories",
@@ -1009,9 +992,10 @@ export default function FinanceMasterDataPage() {
         route: "/finance/master-data/revenue-categories",
         icon: WalletCards,
         count: data.counts.revenueCategories,
-        statusLabel: "Active",
+        statusLabel: data.counts.revenueCategories > 0 ? "Configured" : "New",
         lastUpdatedLabel: "Live",
         requiredAccessLabel: "Revenue Category Read",
+        groupLabel: "Classification",
       },
       {
         key: "units-of-measure",
@@ -1023,42 +1007,43 @@ export default function FinanceMasterDataPage() {
         statusLabel: data.counts.unitsOfMeasure > 0 ? "Configured" : "New",
         lastUpdatedLabel: "Live",
         requiredAccessLabel: "Unit Read",
+        groupLabel: "Operations",
       },
       {
         key: "items",
         title: "Items",
-        description:
-          "Maintain reusable finance items, products, and line entries.",
+        description: "Maintain reusable finance items, products, and line entries.",
         route: "/finance/master-data/items",
         icon: Package2,
         count: data.counts.items,
         statusLabel: data.counts.items > 0 ? "Configured" : "New",
         lastUpdatedLabel: "Live",
         requiredAccessLabel: "Item Read",
+        groupLabel: "Operations",
       },
       {
         key: "projects",
         title: "Projects",
-        description:
-          "Finance-facing project reference view from your project system.",
+        description: "Finance-facing project reference view from your project system.",
         route: "/finance/master-data/projects",
         icon: BriefcaseBusiness,
         count: data.counts.projects,
-        statusLabel: "Linked",
+        statusLabel: data.counts.projects > 0 ? "Linked" : "New",
         lastUpdatedLabel: "Live",
         requiredAccessLabel: "Finance Read",
+        groupLabel: "Operations",
       },
       {
         key: "employees",
         title: "Employees",
-        description:
-          "Finance-facing employee reference view from your employee system.",
+        description: "Finance-facing employee reference view from your employee system.",
         route: "/finance/master-data/employees",
         icon: Users,
         count: data.counts.employees,
-        statusLabel: "Linked",
+        statusLabel: data.counts.employees > 0 ? "Linked" : "New",
         lastUpdatedLabel: "Live",
         requiredAccessLabel: "Payroll / Expense",
+        groupLabel: "Operations",
       },
       {
         key: "rates",
@@ -1067,69 +1052,89 @@ export default function FinanceMasterDataPage() {
         route: "/finance/master-data/currencies",
         icon: Banknote,
         count: data.counts.currencies,
-        statusLabel: "Source",
+        statusLabel: data.counts.currencies > 0 ? "Source" : "New",
         lastUpdatedLabel: data.rates.updatedAtLabel,
         requiredAccessLabel: "Finance Read",
+        groupLabel: "Currency",
       },
     ];
 
     return allModules.filter((module) => accessMap[module.key]);
   }, [accessMap, data]);
 
+  const filteredModuleCards = useMemo(() => {
+    const normalizedSearch = moduleSearch.trim().toLowerCase();
+
+    if (!normalizedSearch) {
+      return moduleCards;
+    }
+
+    return moduleCards.filter((module) => {
+      return (
+        module.title.toLowerCase().includes(normalizedSearch) ||
+        module.description.toLowerCase().includes(normalizedSearch) ||
+        module.requiredAccessLabel.toLowerCase().includes(normalizedSearch) ||
+        module.groupLabel.toLowerCase().includes(normalizedSearch) ||
+        module.statusLabel.toLowerCase().includes(normalizedSearch)
+      );
+    });
+  }, [moduleCards, moduleSearch]);
+
   const overviewCards = useMemo<MasterDataOverviewCard[]>(() => {
     const visibleClients = accessMap.clients ? data.counts.clients : 0;
     const visibleVendors = accessMap.vendors ? data.counts.vendors : 0;
-    const visibleCompanies = accessMap.companies ? data.counts.companies : 0;
-    const visibleBankAccounts = accessMap["bank-accounts"]
-      ? data.counts.bankAccounts
-      : 0;
+    const visibleCommercial =
+      (accessMap["payment-methods"] ? data.counts.paymentMethods : 0) +
+      (accessMap["payment-terms"] ? data.counts.paymentTerms : 0) +
+      (accessMap["shipping-terms"] ? data.counts.shippingTerms : 0);
+    const visibleBankAccounts =
+      (accessMap["bank-accounts"] ? data.counts.bankAccounts : 0) +
+      (accessMap["vendor-bank-accounts"] ? data.counts.vendorBankAccounts : 0);
     const visibleItems = accessMap.items ? data.counts.items : 0;
 
     return [
       {
         key: "clients",
         title: "Clients",
-        value: isLoadingData ? "—" : formatCount(visibleClients),
+        value: initialLoading ? "—" : formatCount(visibleClients),
         subtitle: accessMap.clients ? "Visible client records" : "Hidden by access",
         icon: Users,
-        tone: "cyan",
+        tone: "indigo",
       },
       {
         key: "vendors",
         title: "Vendors",
-        value: isLoadingData ? "—" : formatCount(visibleVendors),
+        value: initialLoading ? "—" : formatCount(visibleVendors),
         subtitle: accessMap.vendors ? "Visible supplier records" : "Hidden by access",
         icon: Building2,
-        tone: "amber",
+        tone: "gold",
       },
       {
-        key: "companies",
-        title: "Companies",
-        value: isLoadingData ? "—" : formatCount(visibleCompanies),
-        subtitle: accessMap.companies ? "Visible legal entities" : "Hidden by access",
-        icon: Building2,
+        key: "commercial",
+        title: "Terms",
+        value: initialLoading ? "—" : formatCount(visibleCommercial),
+        subtitle: "Payment methods, payment terms, and shipping terms",
+        icon: WalletCards,
         tone: "violet",
       },
       {
-        key: "bank-accounts",
-        title: "Company Bank Accounts",
-        value: isLoadingData ? "—" : formatCount(visibleBankAccounts),
-        subtitle: accessMap["bank-accounts"]
-          ? "Visible company banking setup"
-          : "Hidden by access",
+        key: "banking",
+        title: "Banking",
+        value: initialLoading ? "—" : formatCount(visibleBankAccounts),
+        subtitle: "Visible company and vendor bank accounts",
         icon: Landmark,
         tone: "emerald",
       },
       {
         key: "items",
         title: "Items",
-        value: isLoadingData ? "—" : formatCount(visibleItems),
+        value: initialLoading ? "—" : formatCount(visibleItems),
         subtitle: accessMap.items ? "Visible finance items" : "Hidden by access",
         icon: Package2,
         tone: "rose",
       },
     ];
-  }, [accessMap, data, isLoadingData]);
+  }, [accessMap, data, initialLoading]);
 
   const recentChanges = useMemo(() => {
     const visibleRoutes = new Set(moduleCards.map((module) => module.route));
@@ -1146,28 +1151,27 @@ export default function FinanceMasterDataPage() {
     return [
       {
         label: "System Status",
-        value: isLoadingData || isLoadingProfile ? "Loading" : "Live",
-        detail: "Master data counts refresh automatically every 60 seconds.",
+        value: initialLoading ? "Loading" : "Live",
+        detail: "Master data refreshes silently without resetting page state.",
         icon: ShieldCheck,
         tone: "emerald" as const,
       },
       {
         label: "Visible Domains",
         value: formatCount(moduleCards.length),
-        detail: "Master-data domains visible to this user after permissions.",
+        detail: "Domains visible to this user after permission filtering.",
         icon: Database,
-        tone: "cyan" as const,
+        tone: "indigo" as const,
       },
       {
         label: "Access Model",
         value: hasMasterDataAccess ? "Filtered" : "Locked",
-        detail:
-          "Visibility follows Finance templates and user-specific exceptions.",
+        detail: "Visibility follows Finance templates and user-specific exceptions.",
         icon: hasMasterDataAccess ? UserRound : LockKeyhole,
-        tone: "amber" as const,
+        tone: "gold" as const,
       },
     ];
-  }, [hasMasterDataAccess, isLoadingData, isLoadingProfile, moduleCards.length]);
+  }, [hasMasterDataAccess, initialLoading, moduleCards.length]);
 
   const totalConfiguredDomains = useMemo(() => {
     return moduleCards.filter((module) => module.count > 0).length;
@@ -1181,255 +1185,245 @@ export default function FinanceMasterDataPage() {
   );
 
   return (
-    <div className="min-h-screen bg-[#05070d] px-4 py-4 text-white md:px-6 md:py-6">
-      <div className="mx-auto flex w-full max-w-[1600px] flex-col gap-6">
-        <header className="relative overflow-hidden rounded-[34px] border border-white/10 bg-white/[0.045] p-6 shadow-2xl shadow-black/30 backdrop-blur-xl">
-          <div className="pointer-events-none absolute inset-0 bg-[radial-gradient(circle_at_top_left,rgba(6,182,212,0.16),transparent_38%),radial-gradient(circle_at_top_right,rgba(139,92,246,0.12),transparent_34%)]" />
+    <AixiaPage>
+      <AixiaHero
+        parentLabel="Finance"
+        parentPath="/finance"
+        badges={[
+          { label: "Master Data Control Center", tone: "indigo" },
+          {
+            label: backgroundRefreshing ? "Updating silently" : "Live backend",
+            tone: backgroundRefreshing ? "gold" : "emerald",
+          },
+        ]}
+        gradientTitle="Master Data"
+        title="Studio"
+        subtitle="Finance Reference Layer"
+        description="Permission-filtered finance reference layer for clients, vendors, companies, banking, commercial terms, tax codes, categories, units, items, projects, employees, and currency controls."
+        rightContent={
+          <div className="grid gap-3 md:grid-cols-3 xl:min-w-[620px]">
+            {headerStatusCards.map((card) => (
+              <HeaderStatusCard
+                key={card.label}
+                label={card.label}
+                value={card.value}
+                detail={card.detail}
+                icon={card.icon}
+                tone={card.tone}
+              />
+            ))}
+          </div>
+        }
+      >
+        <div className="flex flex-wrap gap-2">
+          <AixiaBadge tone="emerald">Permission filtered</AixiaBadge>
+          <AixiaBadge tone="indigo">Supabase realtime</AixiaBadge>
+          <AixiaBadge tone="gold">60-second fallback</AixiaBadge>
+        </div>
+      </AixiaHero>
 
-          <div className="relative grid gap-6 xl:grid-cols-[minmax(0,1fr)_620px] xl:items-stretch">
-            <div className="flex min-w-0 flex-col justify-between">
-              <div>
-                <button
-                  type="button"
-                  onClick={() => navigate("/finance")}
-                  className="mb-5 inline-flex items-center justify-center gap-2 rounded-full border border-white/10 bg-white/[0.05] px-5 py-2 text-[11px] font-semibold uppercase tracking-[0.22em] text-slate-300 transition hover:border-white/20 hover:bg-white/[0.08] hover:text-white"
-                >
-                  <ArrowRight className="h-3.5 w-3.5 rotate-180" />
-                  Finance
-                </button>
+      <section className="grid gap-4 md:grid-cols-2 xl:grid-cols-5">
+        {overviewCards.map((metric) => (
+          <AixiaMetricCard
+            key={metric.key}
+            label={metric.title}
+            value={metric.value}
+            description={metric.subtitle}
+            icon={metric.icon}
+            tone={metric.tone}
+          />
+        ))}
+      </section>
 
-                <div className="inline-flex w-fit items-center gap-2 rounded-full border border-cyan-400/20 bg-cyan-500/10 px-3 py-1 text-[11px] font-semibold uppercase tracking-[0.22em] text-cyan-200">
-                  <Sparkles className="h-3.5 w-3.5" />
-                  Master Data Control Center
+      <section className="grid items-start gap-6 xl:grid-cols-[minmax(0,1fr)_430px]">
+        <div className="grid min-h-0 gap-6">
+          <AccessSummaryPanel
+            visibleCount={moduleCards.length}
+            totalCount={Object.keys(EMPTY_MASTER_DATA_ACCESS).length}
+            hasAccess={hasMasterDataAccess}
+          />
+
+          <AixiaSection
+            title="Master Data Navigation"
+            description="Open each dedicated finance master-data domain available to this user."
+            icon={Database}
+            actions={
+              <div className="relative w-full min-w-[280px] md:w-[360px]">
+                <Search className="pointer-events-none absolute left-4 top-1/2 h-4 w-4 -translate-y-1/2 text-white/30" />
+                <input
+                  value={moduleSearch}
+                  onChange={(event) => setModuleSearch(event.target.value)}
+                  placeholder="Search domains..."
+                  className="aixia-input pl-11"
+                />
+              </div>
+            }
+          >
+            {initialLoading ? (
+              <div className="rounded-[28px] border border-dashed border-white/10 bg-black/20 px-6 py-12 text-center">
+                <Loader2 className="mx-auto h-8 w-8 animate-spin text-indigo-200" />
+                <div className="mt-4 text-sm font-medium text-white">
+                  Loading master-data access
                 </div>
+                <p className="mt-2 text-sm leading-6 text-white/45">
+                  Finance templates and master-data permissions are being checked.
+                </p>
+              </div>
+            ) : moduleCards.length === 0 ? (
+              <div className="rounded-[28px] border border-dashed border-white/10 bg-black/20 px-6 py-12 text-center">
+                <LockKeyhole className="mx-auto h-8 w-8 text-white/30" />
+                <div className="mt-4 text-sm font-medium text-white">
+                  No master-data domains available
+                </div>
+                <p className="mt-2 text-sm leading-6 text-white/45">
+                  Ask an Admin to assign a Finance role template or user-specific
+                  exception with Master Data read access.
+                </p>
+              </div>
+            ) : filteredModuleCards.length === 0 ? (
+              <div className="rounded-[28px] border border-dashed border-white/10 bg-black/20 px-6 py-12 text-center">
+                <Search className="mx-auto h-8 w-8 text-white/30" />
+                <div className="mt-4 text-sm font-medium text-white">
+                  No matching domains
+                </div>
+                <p className="mt-2 text-sm leading-6 text-white/45">
+                  Adjust the search term to find a visible master-data domain.
+                </p>
+              </div>
+            ) : (
+              <div className="grid gap-4 md:grid-cols-2">
+                {filteredModuleCards.map((module) => (
+                  <MasterDataModuleButton
+                    key={module.key}
+                    module={module}
+                    onOpen={openRoute}
+                  />
+                ))}
+              </div>
+            )}
+          </AixiaSection>
 
-                <h1 className="mt-4 text-3xl font-semibold tracking-[-0.035em] text-white md:text-5xl">
-                  Master Data Studio
-                </h1>
-
-                <p className="mt-3 max-w-4xl text-sm leading-6 text-slate-400 md:text-base md:leading-7">
-                  Permission-filtered finance reference layer for clients, vendors,
-                  companies, banking, terms, tax codes, categories, items, projects,
-                  employees, and currency controls.
+          <div className="aixia-glass overflow-hidden rounded-[32px] border-[#6366F1]/20 bg-[radial-gradient(circle_at_top,rgba(99,102,241,0.18),rgba(3,7,18,0.94)_58%)]">
+            <div className="flex items-start justify-between gap-4 border-b border-white/10 px-6 py-5">
+              <div>
+                <div className="aixia-label text-indigo-200">Master Data Readiness</div>
+                <p className="mt-1 text-xs leading-5 text-white/45">
+                  Visible readiness signals are based only on domains this user can access.
                 </p>
               </div>
 
-              <div className="mt-5 flex flex-wrap gap-2">
-                <div className="rounded-full border border-emerald-400/20 bg-emerald-500/10 px-3 py-1 text-[11px] font-semibold uppercase tracking-[0.16em] text-emerald-200">
-                  Live backend
-                </div>
-                <div className="rounded-full border border-cyan-400/20 bg-cyan-500/10 px-3 py-1 text-[11px] font-semibold uppercase tracking-[0.16em] text-cyan-200">
-                  Permission filtered
-                </div>
-                <div className="rounded-full border border-slate-400/20 bg-slate-500/10 px-3 py-1 text-[11px] font-semibold uppercase tracking-[0.16em] text-slate-300">
-                  Auto refresh
-                </div>
+              <div className="rounded-2xl border border-[#6366F1]/25 bg-[#6366F1]/12 p-3 text-indigo-200">
+                <Database className="h-5 w-5" />
               </div>
             </div>
 
-            <div className="grid gap-3 md:grid-cols-3 xl:grid-cols-3">
-              {headerStatusCards.map((card) => (
-                <HeaderStatusCard
-                  key={card.label}
-                  label={card.label}
-                  value={card.value}
-                  detail={card.detail}
-                  icon={card.icon}
-                  tone={card.tone}
-                />
-              ))}
+            <div className="grid gap-4 p-6 md:grid-cols-3">
+              <ReadinessBlock
+                label="Visible Domains"
+                value={formatCount(moduleCards.length)}
+                detail="Domains available after permission filtering."
+              />
+
+              <ReadinessBlock
+                label="Configured Domains"
+                value={formatCount(totalConfiguredDomains)}
+                detail="Visible domains with at least one record."
+              />
+
+              <ReadinessBlock
+                label="Currency Source"
+                value={accessMap.rates ? data.rates.sourceLabel : "Hidden"}
+                detail={
+                  accessMap.rates
+                    ? data.rates.updatedAtLabel
+                    : "Requires Finance read access."
+                }
+              />
             </div>
           </div>
-        </header>
+        </div>
 
-        <section className="grid gap-4 md:grid-cols-2 xl:grid-cols-5">
-          {overviewCards.map((metric) => (
-            <MasterDataOverviewMetric key={metric.key} metric={metric} />
-          ))}
-        </section>
-
-        <section className="grid items-start gap-6 xl:grid-cols-[minmax(0,1fr)_430px]">
-          <div className="grid min-h-0 gap-6">
-            <AccessSummaryPanel
-              visibleCount={moduleCards.length}
-              totalCount={Object.keys(EMPTY_MASTER_DATA_ACCESS).length}
-              hasAccess={hasMasterDataAccess}
-            />
-
-            <MasterDataSectionCard
-              title="Master Data Navigation"
-              description="Open each dedicated finance master-data domain available to this user."
-              icon={Database}
-            >
-              {isLoadingProfile || isLoadingData ? (
-                <div className="rounded-[28px] border border-dashed border-white/10 bg-black/20 px-6 py-12 text-center">
-                  <Loader2 className="mx-auto h-8 w-8 animate-spin text-cyan-200" />
-                  <div className="mt-4 text-sm font-medium text-white">
-                    Loading master-data access
-                  </div>
-                  <p className="mt-2 text-sm leading-6 text-slate-500">
-                    Finance templates and master-data permissions are being checked.
-                  </p>
+        <div className="grid min-h-0 gap-6">
+          <AixiaSection
+            title="Recent Changes"
+            description="Recent movement across visible master-data domains."
+            icon={Receipt}
+          >
+            {recentChanges.length === 0 ? (
+              <div className="rounded-[28px] border border-dashed border-white/10 bg-black/20 px-6 py-12 text-center">
+                <div className="text-sm font-medium text-white">
+                  No visible recent master-data changes
                 </div>
-              ) : moduleCards.length === 0 ? (
-                <div className="rounded-[28px] border border-dashed border-white/10 bg-black/20 px-6 py-12 text-center">
-                  <LockKeyhole className="mx-auto h-8 w-8 text-slate-500" />
-                  <div className="mt-4 text-sm font-medium text-white">
-                    No master-data domains available
-                  </div>
-                  <p className="mt-2 text-sm leading-6 text-slate-500">
-                    Ask an Admin to assign a Finance role template or user-specific
-                    exception with Master Data read access.
-                  </p>
-                </div>
-              ) : (
-                <div className="grid gap-4 md:grid-cols-2">
-                  {moduleCards.map((module) => (
-                    <MasterDataModuleButton
-                      key={module.key}
-                      module={module}
-                      onOpen={openRoute}
-                    />
+                <p className="mt-2 text-sm leading-6 text-white/45">
+                  Changes appear here only for master-data domains this user can read.
+                </p>
+              </div>
+            ) : (
+              <div className="aixia-scrollbar h-[430px] overflow-y-auto overscroll-contain rounded-[26px] border border-white/10 bg-black/20">
+                <div className="divide-y divide-white/5">
+                  {recentChanges.map((item) => (
+                    <button
+                      key={item.id}
+                      type="button"
+                      onClick={() => {
+                        if (!item.route) return;
+                        navigate(item.route);
+                      }}
+                      className="group flex w-full items-center justify-between gap-4 px-5 py-4 text-left transition hover:bg-white/[0.045]"
+                    >
+                      <div className="min-w-0">
+                        <div className="flex min-w-0 flex-wrap items-center gap-2">
+                          <AixiaBadge tone="indigo">{item.type}</AixiaBadge>
+                          <span className="truncate text-sm font-semibold text-white">
+                            {item.title}
+                          </span>
+                        </div>
+
+                        <div className="mt-2 line-clamp-1 text-sm text-white/45">
+                          {item.subtitle}
+                        </div>
+                      </div>
+
+                      <div className="flex shrink-0 items-center gap-3">
+                        <div className="text-xs text-white/25">
+                          {formatDateLabel(item.createdAt)}
+                        </div>
+                        <ArrowRight className="h-4 w-4 text-white/30 transition group-hover:translate-x-1 group-hover:text-[#FBBF24]" />
+                      </div>
+                    </button>
                   ))}
                 </div>
-              )}
-            </MasterDataSectionCard>
-
-            <div className="overflow-hidden rounded-[30px] border border-cyan-400/15 bg-[radial-gradient(circle_at_top,rgba(6,182,212,0.18),rgba(3,7,18,0.94)_58%)]">
-              <div className="flex items-start justify-between gap-4 border-b border-white/10 px-5 py-4">
-                <div>
-                  <div className="text-sm font-semibold uppercase tracking-[0.18em] text-cyan-200">
-                    Master Data Readiness
-                  </div>
-                  <p className="mt-1 text-xs leading-5 text-slate-400">
-                    Visible readiness signals are based only on domains this user can access.
-                  </p>
-                </div>
-
-                <div className="rounded-2xl border border-cyan-400/20 bg-cyan-500/10 p-3 text-cyan-200">
-                  <Database className="h-5 w-5" />
-                </div>
               </div>
+            )}
+          </AixiaSection>
 
-              <div className="grid gap-4 p-5 md:grid-cols-3">
-                <ReadinessBlock
-                  label="Visible Domains"
-                  value={formatCount(moduleCards.length)}
-                  detail="Domains available after permission filtering."
-                />
+          <AixiaSection
+            title="Access Rule"
+            description="Finance template baseline plus user-specific exceptions."
+            icon={ShieldCheck}
+          >
+            <div className="space-y-4">
+              <ReadinessBlock
+                label="Current User"
+                value={currentProfile?.full_name || "Unknown"}
+                detail="The visible modules are calculated for the logged-in user."
+              />
 
-                <ReadinessBlock
-                  label="Configured Domains"
-                  value={formatCount(totalConfiguredDomains)}
-                  detail="Visible domains with at least one record."
-                />
+              <ReadinessBlock
+                label="Permission Model"
+                value="Read Access"
+                detail="This page only opens master-data domains where the user has read-level finance access."
+              />
 
-                <ReadinessBlock
-                  label="Currency Source"
-                  value={accessMap.rates ? data.rates.sourceLabel : "Hidden"}
-                  detail={accessMap.rates ? data.rates.updatedAtLabel : "Requires Finance read access."}
-                />
-              </div>
+              <ReadinessBlock
+                label="Edit Rights"
+                value="Handled inside modules"
+                detail="Create, Update, Delete/Archive, and Approve/Execute actions must be enforced inside each child page."
+              />
             </div>
-          </div>
-
-          <div className="grid min-h-0 gap-6">
-            <MasterDataSectionCard
-              title="Recent Changes"
-              description="Recent movement across visible master-data domains."
-              icon={Receipt}
-            >
-              {recentChanges.length === 0 ? (
-                <div className="rounded-[28px] border border-dashed border-white/10 bg-black/20 px-6 py-12 text-center">
-                  <div className="text-sm font-medium text-white">
-                    No visible recent master-data changes
-                  </div>
-                  <p className="mt-2 text-sm leading-6 text-slate-500">
-                    Changes appear here only for master-data domains this user can read.
-                  </p>
-                </div>
-              ) : (
-                <div className="h-[390px] overflow-y-auto overscroll-contain rounded-[26px] border border-white/10 bg-black/20">
-                  <div className="divide-y divide-white/5">
-                    {recentChanges.map((item) => (
-                      <button
-                        key={item.id}
-                        type="button"
-                        onClick={() => {
-                          if (!item.route) return;
-                          navigate(item.route);
-                        }}
-                        className="group flex w-full items-center justify-between gap-4 px-5 py-4 text-left transition hover:bg-white/[0.045]"
-                      >
-                        <div className="min-w-0">
-                          <div className="flex min-w-0 flex-wrap items-center gap-2">
-                            <span className="rounded-full border border-cyan-400/20 bg-cyan-500/10 px-3 py-1 text-[11px] font-semibold uppercase tracking-[0.16em] text-cyan-200">
-                              {item.type}
-                            </span>
-                            <span className="truncate text-sm font-semibold text-white">
-                              {item.title}
-                            </span>
-                          </div>
-
-                          <div className="mt-2 line-clamp-1 text-sm text-slate-400">
-                            {item.subtitle}
-                          </div>
-                        </div>
-
-                        <div className="flex shrink-0 items-center gap-3">
-                          <div className="text-xs text-slate-600">
-                            {formatDateLabel(item.createdAt)}
-                          </div>
-                          <ArrowRight className="h-4 w-4 text-slate-500 transition group-hover:translate-x-1 group-hover:text-cyan-200" />
-                        </div>
-                      </button>
-                    ))}
-                  </div>
-                </div>
-              )}
-            </MasterDataSectionCard>
-
-            <div className="overflow-hidden rounded-[30px] border border-white/10 bg-white/[0.045] backdrop-blur-xl">
-              <div className="flex items-center justify-between border-b border-white/10 px-5 py-4">
-                <div className="flex min-w-0 items-center gap-3">
-                  <div className="rounded-2xl border border-cyan-400/15 bg-cyan-500/10 p-3 text-cyan-200">
-                    <ShieldCheck className="h-4 w-4" />
-                  </div>
-
-                  <div className="min-w-0">
-                    <h2 className="text-sm font-semibold uppercase tracking-[0.18em] text-slate-400">
-                      Access Rule
-                    </h2>
-                    <p className="mt-1 text-xs text-slate-500">
-                      Finance template baseline plus user-specific exceptions.
-                    </p>
-                  </div>
-                </div>
-              </div>
-
-              <div className="space-y-4 p-5">
-                <ReadinessBlock
-                  label="Current User"
-                  value={currentProfile?.full_name || "Unknown"}
-                  detail="The visible modules are calculated for the logged-in user."
-                />
-
-                <ReadinessBlock
-                  label="Permission Model"
-                  value="Read Access"
-                  detail="This page only opens master-data domains where the user has read-level finance access."
-                />
-
-                <ReadinessBlock
-                  label="Edit Rights"
-                  value="Handled inside modules"
-                  detail="Create, Update, Delete/Archive, and Approve/Execute actions must be enforced inside each child page."
-                />
-              </div>
-            </div>
-          </div>
-        </section>
-      </div>
-    </div>
+          </AixiaSection>
+        </div>
+      </section>
+    </AixiaPage>
   );
 }

@@ -38,6 +38,7 @@ import {
   type FinancePaymentTermAppliesTo,
   type FinancePaymentTermBalanceDueBasis,
   type FinancePaymentTermDepositDueBasis,
+  type FinancePaymentTermDueBasis,
   type FinancePaymentTermRow,
   type FinancePaymentTermStatus,
   type FinancePaymentTermType,
@@ -90,6 +91,7 @@ type GeneratedTerm = {
 };
 
 const DEFAULT_APPLIES_TO = "both" as FinancePaymentTermAppliesTo;
+const DEFAULT_DUE_BASIS = "invoice_date" as FinancePaymentTermDueBasis;
 
 const EMPTY_FORM: FormState = {
   term_type: "net",
@@ -1233,7 +1235,7 @@ export default function FinancePaymentTermsPage() {
         is_default: form.is_default,
         notes: form.notes,
         term_type: form.term_type,
-        due_basis: "invoice_date",
+        due_basis: DEFAULT_DUE_BASIS,
         requires_deposit: generatedTerm.requiresDeposit,
         deposit_percentage: generatedTerm.depositPercentage,
         deposit_due_basis: generatedTerm.depositDueBasis,

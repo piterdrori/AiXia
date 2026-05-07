@@ -90,7 +90,7 @@ type GeneratedTerm = {
   documentTermsText: string;
 };
 
-const DEFAULT_APPLIES_TO = "both" as FinancePaymentTermAppliesTo;
+const DEFAULT_APPLIES_TO = ["customer", "vendor"] as FinancePaymentTermAppliesTo[];
 const DEFAULT_DUE_BASIS = "invoice_date" as FinancePaymentTermDueBasis;
 
 const EMPTY_FORM: FormState = {

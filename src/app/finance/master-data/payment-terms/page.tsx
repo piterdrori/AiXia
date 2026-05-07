@@ -107,6 +107,27 @@ const EMPTY_FORM: FormState = {
   notes: "",
 };
 
+  const toneGradients = {
+    cyan: "from-cyan-400/15 to-cyan-600/5 border-cyan-400/25 text-cyan-100",
+    emerald: "from-emerald-400/15 to-emerald-600/5 border-emerald-400/25 text-emerald-100",
+    amber: "from-amber-400/15 to-amber-600/5 border-amber-400/25 text-amber-100",
+    violet: "from-violet-400/15 to-violet-600/5 border-violet-400/25 text-violet-100",
+  };
+
+function statusBadgeClass(status: FinancePaymentTermStatus) {
+  if (status === "archived") return `${BADGE.base} ${BADGE.rose}`;
+  if (status === "inactive") return `${BADGE.base} ${BADGE.amber}`;
+  return `${BADGE.base} ${BADGE.emerald}`;
+}
+
+function termTypeBadgeClass(type: FinancePaymentTermType) {
+  if (type === "immediate") return `${BADGE.base} ${BADGE.emerald}`;
+  if (type === "deposit_balance") return `${BADGE.base} ${BADGE.amber}`;
+  if (type === "custom") return `${BADGE.base} ${BADGE.violet}`;
+  return `${BADGE.base} ${BADGE.cyan}`;
+}
+
+
 const TERM_TYPE_OPTIONS: Array<{
   value: FinancePaymentTermType;
   label: string;
@@ -956,7 +977,6 @@ export default function FinancePaymentTermsPage() {
 
   const [dialogOpen, setDialogOpen] = useState(false);
   const [archiveOpen, setArchiveOpen] = useState(false);
-  const [archiveTab] = useState<ArchiveTab>("archived");
   const [editingRow, setEditingRow] = useState<FinancePaymentTermRow | null>(null);
   const [form, setForm] = useState<FormState>(EMPTY_FORM);
   const [error, setError] = useState("");
@@ -1231,13 +1251,6 @@ export default function FinancePaymentTermsPage() {
   function closeDialog() {
     setDialogOpen(false);
   }
-
-  const toneGradients = {
-    cyan: "from-cyan-400/15 to-cyan-600/5 border-cyan-400/25 text-cyan-100",
-    emerald: "from-emerald-400/15 to-emerald-600/5 border-emerald-400/25 text-emerald-100",
-    amber: "from-amber-400/15 to-amber-600/5 border-amber-400/25 text-amber-100",
-    violet: "from-violet-400/15 to-violet-600/5 border-violet-400/25 text-violet-100",
-  };
 
   return (
     <div className="relative min-h-screen overflow-x-hidden bg-[#020408] px-4 py-6 text-white md:px-8 md:py-8">

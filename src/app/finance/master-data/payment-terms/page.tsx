@@ -284,7 +284,6 @@ function buildGeneratedTerm(form: FormState): GeneratedTerm {
   };
 }
 
-
 // ============ REDESIGNED UI CLASSES & COMPONENTS ============
 function inputClass() {
   return "h-12 rounded-2xl border border-white/10 bg-white/5 backdrop-blur-md text-white placeholder:text-white/30 focus:border-cyan-400/40 focus:ring-2 focus:ring-cyan-400/20 transition-all duration-300 hover:border-white/20";
@@ -393,7 +392,6 @@ function SummaryTile({
         className={`min-h-[160px] overflow-hidden rounded-3xl border backdrop-blur-2xl ${toneMap.shell} shadow-xl shadow-black/30`}
       >
         <CardContent className="relative flex h-full flex-col justify-between overflow-hidden p-6">
-          {/* Animated Shimmer Overlay */}
           <div className="absolute inset-0 bg-[linear-gradient(110deg,transparent_30%,rgba(255,255,255,0.06)_50%,transparent_70%)] animate-[shimmer_3s_infinite]" />
           
           <div className="relative flex items-start justify-between gap-4">
@@ -579,7 +577,6 @@ function PaymentTermFormModal({
             </div>
 
             <div className="overflow-y-auto p-8 space-y-6">
-              {/* All Modal Sections Redesigned with Glass Gradient & Animated Borders */}
               <section className="rounded-3xl border border-white/10 bg-gradient-to-br from-white/5 to-white/20 backdrop-blur-xl overflow-hidden">
                 <div className="border-b border-white/10 px-6 py-5">
                   <div className="flex items-center gap-4">
@@ -617,7 +614,7 @@ function PaymentTermFormModal({
                     ))}
                   </div>
 
-                  {form.term_type === "net" ? (
+                  {form.term_type === "net" && (
                     <label className="grid gap-3">
                       <span className={labelClass()}>Net Days</span>
                       <Input
@@ -630,9 +627,9 @@ function PaymentTermFormModal({
                         className={inputClass()}
                       />
                     </label>
-                  ) : null}
+                  )}
 
-                  {form.term_type === "deposit_balance" ? (
+                  {form.term_type === "deposit_balance" && (
                     <div className="grid gap-5">
                       <div className="grid gap-5 md:grid-cols-3">
                         <label className="grid gap-3">
@@ -676,9 +673,9 @@ function PaymentTermFormModal({
                         </p>
                       </div>
                     </div>
-                  ) : null}
+                  )}
 
-                  {form.term_type === "custom" ? (
+                  {form.term_type === "custom" && (
                     <div className="grid gap-5">
                       <label className="grid gap-3">
                         <span className={labelClass()}>Custom Label</span>
@@ -701,11 +698,10 @@ function PaymentTermFormModal({
                         />
                       </label>
                     </div>
-                  ) : null}
+                  )}
                 </div>
               </section>
 
-              {/* Auto Preview Section Redesigned */}
               <section className="rounded-3xl border border-white/10 bg-gradient-to-br from-white/5 to-white/20 backdrop-blur-xl overflow-hidden">
                 <div className="border-b border-white/10 px-6 py-5">
                   <div className="flex items-center gap-4">
@@ -750,7 +746,6 @@ function PaymentTermFormModal({
                 </div>
               </section>
 
-              {/* Term Controls Section */}
               <section className="rounded-3xl border border-white/10 bg-gradient-to-br from-white/5 to-white/20 backdrop-blur-xl overflow-hidden">
                 <div className="border-b border-white/10 px-6 py-5">
                   <div className="flex items-center gap-4">
@@ -810,7 +805,7 @@ function PaymentTermFormModal({
                 </div>
               </section>
 
-              {error ? (
+              {error && (
                 <motion.div 
                   initial={{ opacity:0, y:10 }}
                   animate={{ opacity:1, y:0 }}
@@ -818,7 +813,7 @@ function PaymentTermFormModal({
                 >
                   {error}
                 </motion.div>
-              ) : null}
+              )}
             </div>
 
             <div className="flex flex-col gap-3 border-t border-white/10 bg-white/[0.03] px-8 py-6 sm:flex-row sm:justify-end">
@@ -830,19 +825,16 @@ function PaymentTermFormModal({
               >
                 Cancel
               </Button>
-              <motion.div
-                whileHover={{ scale: 1.03 }}
-                whileTap={{ scale: 0.98 }}
+              <motion.Button
+                whileHover={{ scale:1.03 }}
+                whileTap={{ scale:0.98 }}
+                type="button"
+                onClick={onSave}
+                disabled={saving || !canSave}
+                className="h-12 rounded-2xl border border-cyan-400/20 bg-gradient-to-r from-cyan-500/15 to-cyan-600/10 px-6 text-cyan-100 hover:from-cyan-500/20 hover:to-cyan-600/15 disabled:cursor-not-allowed disabled:opacity-50 transition-all"
               >
-                <Button
-                  type="button"
-                  onClick={onSave}
-                  disabled={saving || !canSave}
-                  className="h-12 rounded-2xl border border-cyan-400/20 bg-gradient-to-r from-cyan-500/15 to-cyan-600/10 px-6 text-cyan-100 hover:from-cyan-500/20 hover:to-cyan-600/15 disabled:cursor-not-allowed disabled:opacity-50 transition-all"
-                >
-                  {saving ? "Saving..." : editingRow ? "Save Changes" : "Create Payment Term"}
-                </Button>
-              </motion.div>
+                {saving ? "Saving..." : editingRow ? "Save Changes" : "Create Payment Term"}
+              </motion.Button>
             </div>
           </motion.div>
         </motion.div>
@@ -1161,8 +1153,6 @@ export default function FinancePaymentTermsPage() {
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-slate-950 via-slate-900 to-black text-white">
-      {/* Page UI layout you had originally goes here */}
-      {/* All state, handlers, modals, sorting, filtering are fully wired up */}
       <PaymentTermFormModal
         open={dialogOpen}
         editingRow={editingRow}

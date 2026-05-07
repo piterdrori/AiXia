@@ -21,7 +21,7 @@ type AixiaSortableHeaderProps<TSortKey extends string> = {
 export function AixiaTableShell({
   children,
   minWidthClassName = "min-w-[1240px]",
-  maxHeightClassName = "max-h-[720px]",
+  maxHeightClassName = "max-h-[690px]",
 }: AixiaTableShellProps) {
   return (
     <div className="aixia-table-wrap aixia-scrollbar">
@@ -46,13 +46,13 @@ export function AixiaSortableHeader<TSortKey extends string>({
     <button
       type="button"
       onClick={() => onSort(sortKey)}
-      className={`inline-flex min-w-0 items-center gap-2 whitespace-nowrap transition hover:text-white ${
-        isActive ? "text-[#FBBF24]" : "text-white/40"
+      className={`aixia-sortable-header ${
+        isActive ? "is-active" : ""
       } ${align === "right" ? "justify-end text-right" : "justify-start text-left"}`}
     >
-      <span className="truncate">{label}</span>
+      {label}
       <ArrowUpDown
-        className={`h-3.5 w-3.5 shrink-0 transition ${
+        className={`h-3.5 w-3.5 transition ${
           isActive && sortDirection === "desc" ? "rotate-180" : ""
         }`}
       />

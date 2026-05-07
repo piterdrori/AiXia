@@ -14,11 +14,18 @@ import {
   RotateCcw,
   Search,
   ShieldCheck,
-  Sparkles,
   Trash2,
   WalletCards,
   X,
 } from "lucide-react";
+
+import {
+  AixiaBadge,
+  AixiaHero,
+  AixiaMetricCard,
+  AixiaPage,
+  AixiaSection,
+} from "@/components/aixia";
 
 import {
   archiveBankAccount,
@@ -228,84 +235,22 @@ function compareDates(first: string | null | undefined, second: string | null | 
   return new Date(first || 0).getTime() - new Date(second || 0).getTime();
 }
 
-function getToneClasses(tone: MetricCard["tone"]) {
-  switch (tone) {
-    case "emerald":
-      return {
-        glow: "from-emerald-500/20 via-emerald-400/10 to-transparent",
-        iconWrap: "border-emerald-400/20 bg-emerald-500/10 text-emerald-200",
-        value: "text-emerald-100",
-        accent: "bg-emerald-400",
-      };
-    case "amber":
-      return {
-        glow: "from-amber-500/20 via-amber-400/10 to-transparent",
-        iconWrap: "border-amber-400/20 bg-amber-500/10 text-amber-200",
-        value: "text-amber-100",
-        accent: "bg-amber-400",
-      };
-    case "violet":
-      return {
-        glow: "from-violet-500/20 via-violet-400/10 to-transparent",
-        iconWrap: "border-violet-400/20 bg-violet-500/10 text-violet-200",
-        value: "text-violet-100",
-        accent: "bg-violet-400",
-      };
-    case "rose":
-      return {
-        glow: "from-rose-500/20 via-rose-400/10 to-transparent",
-        iconWrap: "border-rose-400/20 bg-rose-500/10 text-rose-200",
-        value: "text-rose-100",
-        accent: "bg-rose-400",
-      };
-    case "cyan":
-    default:
-      return {
-        glow: "from-cyan-500/20 via-cyan-400/10 to-transparent",
-        iconWrap: "border-cyan-400/20 bg-cyan-500/10 text-cyan-200",
-        value: "text-cyan-100",
-        accent: "bg-cyan-400",
-      };
-  }
+function getMetricTone(tone: MetricCard["tone"]) {
+  if (tone === "cyan") return "indigo";
+  if (tone === "amber") return "gold";
+
+  return tone;
 }
 
 function MetricCardBlock({ metric }: { metric: MetricCard }) {
-  const Icon = metric.icon;
-  const tone = getToneClasses(metric.tone);
-
   return (
-    <div className="group relative min-h-[156px] overflow-hidden rounded-[28px] border border-white/10 bg-white/[0.045] p-5 backdrop-blur-xl transition hover:border-white/20 hover:bg-white/[0.055]">
-      <div className={`pointer-events-none absolute inset-0 bg-gradient-to-br ${tone.glow}`} />
-      <div className="pointer-events-none absolute inset-x-5 top-0 h-px bg-white/10" />
-
-      <div className="relative flex h-full flex-col justify-between gap-5">
-        <div className="flex items-start justify-between gap-4">
-          <div className="min-w-0">
-            <div className="text-[11px] font-semibold uppercase tracking-[0.2em] text-slate-500">
-              {metric.title}
-            </div>
-            <div
-              className={`mt-2 truncate text-3xl font-semibold tracking-[-0.035em] ${tone.value}`}
-            >
-              {metric.value}
-            </div>
-          </div>
-
-          <div
-            className={`flex h-12 w-12 shrink-0 items-center justify-center rounded-2xl border ${tone.iconWrap}`}
-          >
-            <Icon className="h-5 w-5" />
-          </div>
-        </div>
-
-        <div className="flex items-center justify-between gap-3">
-          <div className="min-w-0 truncate text-sm leading-6 text-slate-400">
-            {metric.subtitle}
-          </div>
-          <div className={`h-2 w-2 shrink-0 rounded-full ${tone.accent}`} />
-        </div>
-      </div>
-    </div>
+    <AixiaMetricCard
+      label={metric.title}
+      value={metric.value}
+      description={metric.subtitle}
+      icon={metric.icon}
+      tone={getMetricTone(metric.tone)}
+    />
   );
 }
 

@@ -42,57 +42,52 @@ export function AixiaHero({
     <section className={`aixia-hero aixia-glass-hover ${className}`}>
       <div className="aixia-hero-glow" />
 
-      <div className="relative">
-        {parentLabel && parentPath ? (
-          <button
-            type="button"
-            onClick={() => navigate(parentPath)}
-            className="aixia-parent-pill"
-          >
-            <ArrowLeft className="h-3.5 w-3.5" />
-            {parentLabel}
-          </button>
-        ) : null}
+      <div className="aixia-hero-content">
+        <div>
+          {parentLabel && parentPath ? (
+            <button
+              type="button"
+              onClick={() => navigate(parentPath)}
+              className="aixia-parent-pill"
+            >
+              <ArrowLeft className="h-3.5 w-3.5" />
+              {parentLabel}
+            </button>
+          ) : null}
 
-        <div className="flex flex-col gap-6 lg:flex-row lg:items-end lg:justify-between">
-          <div className="min-w-0">
-            {badges.length > 0 ? (
-              <div className="flex flex-wrap items-center gap-3">
-                {badges.map((badge, index) => (
-                  <AixiaBadge key={index} tone={badge.tone}>
-                    {badge.label}
-                  </AixiaBadge>
-                ))}
-              </div>
-            ) : null}
-
-            <div className="mt-6">
-              <h1 className="aixia-title-xl">
-                <span className="aixia-gradient-text">{gradientTitle}</span>
-                <span className="text-white"> {title}</span>
-              </h1>
-
-              {subtitle ? <h2 className="aixia-subtitle">{subtitle}</h2> : null}
-            </div>
-
-            {description ? (
-              <p className="aixia-body mt-5 max-w-3xl">{description}</p>
-            ) : null}
-
-            {children ? <div className="mt-6">{children}</div> : null}
-          </div>
-
-          {actions || rightContent ? (
-            <div className="flex shrink-0 flex-col gap-4">
-              {rightContent}
-              {actions ? (
-                <div className="flex flex-wrap justify-start gap-3 lg:justify-end">
-                  {actions}
+          <div className="aixia-hero-main">
+            <div className="aixia-hero-text">
+              {badges.length > 0 ? (
+                <div className="flex max-w-[980px] flex-wrap items-center gap-3">
+                  {badges.map((badge, index) => (
+                    <AixiaBadge key={index} tone={badge.tone}>
+                      {badge.label}
+                    </AixiaBadge>
+                  ))}
                 </div>
               ) : null}
+
+              <div className="mt-6">
+                <h1 className="aixia-title-xl">
+                  <span className="aixia-gradient-text">{gradientTitle}</span>
+                  <span className="text-white"> {title}</span>
+                </h1>
+
+                {subtitle ? <h2 className="aixia-subtitle">{subtitle}</h2> : null}
+              </div>
+
+              {description ? <p className="aixia-body mt-5">{description}</p> : null}
+
+              {children ? <div className="mt-6 max-w-[980px]">{children}</div> : null}
             </div>
-          ) : null}
+
+            {rightContent ? (
+              <div className="aixia-hero-side">{rightContent}</div>
+            ) : null}
+          </div>
         </div>
+
+        {actions ? <div className="aixia-hero-actions">{actions}</div> : null}
       </div>
     </section>
   );

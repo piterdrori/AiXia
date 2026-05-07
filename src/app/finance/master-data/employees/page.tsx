@@ -12,7 +12,6 @@ import {
   Save,
   Search,
   Shield,
-  Trash2,
   User2,
   Users,
   WalletCards,
@@ -1238,8 +1237,6 @@ export default function FinanceMasterDataEmployeesPage() {
     }
 
     const defaultGrossPay = toNumber(payProfileForm.defaultGrossPay);
-    const hourlyRate = toNumber(payProfileForm.hourlyRate);
-    const defaultHours = toNumber(payProfileForm.defaultHours);
 
     const databasePayType: DatabasePayType =
       payProfileForm.paycheckType === "salary" ? "salary" : "contractor";

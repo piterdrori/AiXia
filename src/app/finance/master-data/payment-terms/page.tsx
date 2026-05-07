@@ -1,24 +1,33 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { useNavigate } from "react-router-dom";
-import { ArrowRight, MoreHorizontal, Plus } from "lucide-react";
+import {
+  Archive,
+  ArrowLeft,
+  CheckCircle2,
+  Clock3,
+  CreditCard,
+  Edit3,
+  FileText,
+  Percent,
+  Plus,
+  Search,
+  ShieldCheck,
+  Trash2,
+  Undo2,
+  WalletCards,
+  X,
+} from "lucide-react";
 
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
 import {
-  Dialog,
-  DialogContent,
-  DialogDescription,
-  DialogFooter,
-  DialogHeader,
-  DialogTitle,
-} from "@/components/ui/dialog";
-import {
-  DropdownMenu,
-  DropdownMenuContent,
-  DropdownMenuItem,
-  DropdownMenuTrigger,
-} from "@/components/ui/dropdown-menu";
+  Card,
+  CardContent,
+  CardDescription,
+  CardHeader,
+  CardTitle,
+} from "@/components/ui/card";
 
 import { supabase } from "@/lib/supabase";
 import {
@@ -47,6 +56,16 @@ type ProfilePermissionRow = {
 };
 
 type StatusFilter = "all" | FinancePaymentTermStatus;
+
+type SortKey =
+  | "code"
+  | "name"
+  | "term_type"
+  | "due_days"
+  | "status"
+  | "updated_at";
+
+type SortDirection = "asc" | "desc";
 
 type FormState = {
   term_type: FinancePaymentTermType;
@@ -93,26 +112,31 @@ const TERM_TYPE_OPTIONS: Array<{
   value: FinancePaymentTermType;
   label: string;
   description: string;
+  tone: "cyan" | "emerald" | "amber" | "violet";
 }> = [
   {
     value: "immediate",
     label: "Immediate",
     description: "Payment is due immediately.",
+    tone: "emerald",
   },
   {
     value: "net",
     label: "Net Terms",
-    description: "Full payment is due after a fixed number of days.",
+    description: "Full payment is due after fixed days.",
+    tone: "cyan",
   },
   {
     value: "deposit_balance",
     label: "Deposit + Balance",
-    description: "Deposit first, remaining balance later.",
+    description: "Deposit first, balance later.",
+    tone: "amber",
   },
   {
     value: "custom",
     label: "Custom",
-    description: "Write your own payment term wording.",
+    description: "Custom commercial wording.",
+    tone: "violet",
   },
 ];
 
@@ -136,7 +160,9 @@ const BALANCE_DUE_BASIS_OPTIONS: Array<{
   { value: "invoice_date", label: "On Invoice Date" },
 ];
 
-function formatDateLabel(value: string) {
+function formatDateLabel(value: string | null | undefined) {
+  if (!value) return "—";
+
   const parsed = new Date(value);
   if (Number.isNaN(parsed.getTime())) return "—";
 
@@ -145,6 +171,12 @@ function formatDateLabel(value: string) {
     month: "short",
     day: "numeric",
   });
+}
+
+function formatStatusLabel(value: string) {
+  return value
+    .replaceAll("_", " ")
+    .replace(/\b\w/g, (character) => character.toUpperCase());
 }
 
 function formatTermType(value: FinancePaymentTermType) {
@@ -246,7 +278,8 @@ function buildGeneratedTerm(form: FormState): GeneratedTerm {
 
   const customLabel = form.custom_label.trim() || "Custom Payment Terms";
   const customTermsText =
-    form.custom_terms_text.trim() || "Payment terms are defined by the commercial agreement.";
+    form.custom_terms_text.trim() ||
+    "Payment terms are defined by the commercial agreement.";
 
   return {
     code: normalizeGeneratedCode(customLabel),
@@ -262,6 +295,147 @@ function buildGeneratedTerm(form: FormState): GeneratedTerm {
   };
 }
 
+function inputClass() {
+  return "h-11 rounded-2xl border-white/10 bg-black/20 text-white placeholder:text-white/30 focus:border-cyan-400/30 focus:ring-cyan-400/10";
+}
+
+function selectClass() {
+  return "h-11 w-full rounded-2xl border border-white/10 bg-black/20 px-4 text-sm text-white outline-none transition focus:border-cyan-400/30 focus:bg-black/30";
+}
+
+function textareaClass() {
+  return "min-h-[120px] w-full resize-none rounded-2xl border border-white/10 bg-black/20 px-4 py-3 text-sm text-white outline-none transition placeholder:text-white/30 focus:border-cyan-400/30 focus:bg-black/30";
+}
+
+function labelClass() {
+  return "text-sm font-medium text-slate-300";
+}
+
+function statusBadgeClass(status: FinancePaymentTermStatus) {
+  if (status === "archived") {
+    return "rounded-full border border-rose-400/20 bg-rose-500/10 px-2.5 py-1 text-[11px] uppercase tracking-[0.16em] text-rose-200 shadow-none";
+  }
+
+  if (status === "inactive") {
+    return "rounded-full border border-amber-400/20 bg-amber-500/10 px-2.5 py-1 text-[11px] uppercase tracking-[0.16em] text-amber-200 shadow-none";
+  }
+
+  return "rounded-full border border-emerald-400/20 bg-emerald-500/10 px-2.5 py-1 text-[11px] uppercase tracking-[0.16em] text-emerald-200 shadow-none";
+}
+
+function termTypeBadgeClass(type: FinancePaymentTermType) {
+  if (type === "immediate") {
+    return "rounded-full border border-emerald-400/20 bg-emerald-500/10 px-2.5 py-1 text-[11px] uppercase tracking-[0.16em] text-emerald-200 shadow-none";
+  }
+
+  if (type === "deposit_balance") {
+    return "rounded-full border border-amber-400/20 bg-amber-500/10 px-2.5 py-1 text-[11px] uppercase tracking-[0.16em] text-amber-200 shadow-none";
+  }
+
+  if (type === "custom") {
+    return "rounded-full border border-violet-400/20 bg-violet-500/10 px-2.5 py-1 text-[11px] uppercase tracking-[0.16em] text-violet-200 shadow-none";
+  }
+
+  return "rounded-full border border-cyan-400/20 bg-cyan-500/10 px-2.5 py-1 text-[11px] uppercase tracking-[0.16em] text-cyan-200 shadow-none";
+}
+
+function optionToneClass(tone: "cyan" | "emerald" | "amber" | "violet", active: boolean) {
+  const activeMap = {
+    cyan: "border-cyan-400/30 bg-cyan-500/15 text-cyan-100",
+    emerald: "border-emerald-400/30 bg-emerald-500/15 text-emerald-100",
+    amber: "border-amber-400/30 bg-amber-500/15 text-amber-100",
+    violet: "border-violet-400/30 bg-violet-500/15 text-violet-100",
+  };
+
+  return active
+    ? activeMap[tone]
+    : "border-white/10 bg-black/20 text-slate-400 hover:bg-white/[0.06] hover:text-white";
+}
+
+function SummaryTile({
+  label,
+  value,
+  icon: Icon,
+  tone = "cyan",
+  description,
+}: {
+  label: string;
+  value: string | number;
+  icon: typeof WalletCards;
+  tone?: "cyan" | "emerald" | "amber" | "violet" | "rose";
+  description: string;
+}) {
+  const toneMap = {
+    cyan: {
+      shell:
+        "border-cyan-400/15 bg-[radial-gradient(circle_at_top_left,rgba(6,182,212,0.20),transparent_44%),linear-gradient(180deg,rgba(255,255,255,0.05),rgba(255,255,255,0.032))]",
+      icon: "border-cyan-400/20 bg-cyan-500/10 text-cyan-200",
+      label: "text-cyan-100/75",
+      dot: "bg-cyan-300",
+    },
+    emerald: {
+      shell:
+        "border-emerald-400/15 bg-[radial-gradient(circle_at_top_left,rgba(16,185,129,0.20),transparent_44%),linear-gradient(180deg,rgba(255,255,255,0.05),rgba(255,255,255,0.032))]",
+      icon: "border-emerald-400/20 bg-emerald-500/10 text-emerald-200",
+      label: "text-emerald-100/75",
+      dot: "bg-emerald-300",
+    },
+    amber: {
+      shell:
+        "border-amber-400/15 bg-[radial-gradient(circle_at_top_left,rgba(245,158,11,0.20),transparent_44%),linear-gradient(180deg,rgba(255,255,255,0.05),rgba(255,255,255,0.032))]",
+      icon: "border-amber-400/20 bg-amber-500/10 text-amber-200",
+      label: "text-amber-100/75",
+      dot: "bg-amber-300",
+    },
+    violet: {
+      shell:
+        "border-violet-400/15 bg-[radial-gradient(circle_at_top_left,rgba(139,92,246,0.20),transparent_44%),linear-gradient(180deg,rgba(255,255,255,0.05),rgba(255,255,255,0.032))]",
+      icon: "border-violet-400/20 bg-violet-500/10 text-violet-200",
+      label: "text-violet-100/75",
+      dot: "bg-violet-300",
+    },
+    rose: {
+      shell:
+        "border-rose-400/15 bg-[radial-gradient(circle_at_top_left,rgba(244,63,94,0.20),transparent_44%),linear-gradient(180deg,rgba(255,255,255,0.05),rgba(255,255,255,0.032))]",
+      icon: "border-rose-400/20 bg-rose-500/10 text-rose-200",
+      label: "text-rose-100/75",
+      dot: "bg-rose-300",
+    },
+  }[tone];
+
+  return (
+    <Card
+      className={`min-h-[156px] overflow-hidden rounded-[28px] border backdrop-blur-xl ${toneMap.shell}`}
+    >
+      <CardContent className="relative flex h-full flex-col justify-between overflow-hidden p-5">
+        <div className="pointer-events-none absolute inset-0 bg-[radial-gradient(circle_at_bottom_right,rgba(255,255,255,0.06),transparent_30%)]" />
+
+        <div className="relative flex items-start justify-between gap-4">
+          <div>
+            <div className={`text-xs uppercase tracking-[0.18em] ${toneMap.label}`}>
+              {label}
+            </div>
+            <div className="mt-4 text-4xl font-semibold tracking-tight text-white">
+              {value}
+            </div>
+          </div>
+
+          <div
+            className={`flex h-12 w-12 items-center justify-center rounded-2xl border ${toneMap.icon}`}
+          >
+            <Icon className="h-5 w-5" />
+          </div>
+        </div>
+
+        <div className="relative mt-6 flex items-center justify-between gap-4">
+          <div className="text-sm leading-5 text-slate-400">{description}</div>
+          <div className={`h-2.5 w-2.5 flex-none rounded-full ${toneMap.dot}`} />
+        </div>
+      </CardContent>
+    </Card>
+  );
+}
+
 function SelectField<TValue extends string>({
   value,
   onChange,
@@ -275,10 +449,10 @@ function SelectField<TValue extends string>({
     <select
       value={value}
       onChange={(event) => onChange(event.target.value as TValue)}
-      className="h-11 w-full rounded-2xl border border-white/10 bg-black/20 px-3 text-sm text-white outline-none transition focus:border-cyan-400/40"
+      className={selectClass()}
     >
       {options.map((option) => (
-        <option key={option.value} value={option.value} className="bg-[#101522] text-white">
+        <option key={option.value} value={option.value}>
           {option.label}
         </option>
       ))}
@@ -290,35 +464,387 @@ function ToggleCard({
   checked,
   title,
   description,
+  tone,
   onChange,
 }: {
   checked: boolean;
   title: string;
   description: string;
+  tone: "cyan" | "emerald";
   onChange: (checked: boolean) => void;
 }) {
+  const activeClass =
+    tone === "emerald"
+      ? "border-emerald-400/25 bg-emerald-500/10"
+      : "border-cyan-400/25 bg-cyan-500/10";
+
+  const dotClass =
+    tone === "emerald"
+      ? checked
+        ? "border-emerald-300 bg-emerald-400"
+        : "border-white/20 bg-white/5"
+      : checked
+        ? "border-cyan-300 bg-cyan-400"
+        : "border-white/20 bg-white/5";
+
   return (
     <button
       type="button"
       onClick={() => onChange(!checked)}
-      className={`rounded-[22px] border p-4 text-left transition ${
+      className={`rounded-[24px] border p-4 text-left transition ${
         checked
-          ? "border-cyan-400/25 bg-cyan-500/10"
+          ? activeClass
           : "border-white/10 bg-black/20 hover:border-white/20 hover:bg-white/[0.04]"
       }`}
     >
       <div className="flex items-start gap-3">
-        <span
-          className={`mt-1 h-4 w-4 rounded-full border ${
-            checked ? "border-cyan-300 bg-cyan-400" : "border-white/20 bg-white/5"
-          }`}
-        />
+        <span className={`mt-1 h-4 w-4 rounded-full border ${dotClass}`} />
         <span>
           <span className="block text-sm font-semibold text-white">{title}</span>
-          <span className="mt-1 block text-xs leading-5 text-slate-500">{description}</span>
+          <span className="mt-1 block text-xs leading-5 text-slate-500">
+            {description}
+          </span>
         </span>
       </div>
     </button>
+  );
+}
+
+function PaymentTermFormModal({
+  open,
+  editingRow,
+  form,
+  generatedTerm,
+  saving,
+  error,
+  canSave,
+  onClose,
+  onChange,
+  onSave,
+}: {
+  open: boolean;
+  editingRow: FinancePaymentTermRow | null;
+  form: FormState;
+  generatedTerm: GeneratedTerm;
+  saving: boolean;
+  error: string;
+  canSave: boolean;
+  onClose: () => void;
+  onChange: <K extends keyof FormState>(key: K, value: FormState[K]) => void;
+  onSave: () => void;
+}) {
+  if (!open) return null;
+
+  const depositPercentage = parsePercentage(form.deposit_percentage) ?? 0;
+  const balancePercentage = Math.max(0, 100 - depositPercentage);
+
+  return (
+    <div className="fixed inset-0 z-[120] flex items-center justify-center bg-black/70 p-4 backdrop-blur-sm">
+      <div className="flex max-h-[92vh] w-full max-w-6xl flex-col overflow-hidden rounded-[34px] border border-white/10 bg-[#0b111f] shadow-2xl shadow-black/40">
+        <div className="relative overflow-hidden border-b border-white/10 bg-white/[0.035] px-6 py-5">
+          <div className="pointer-events-none absolute inset-0 bg-[radial-gradient(circle_at_top_left,rgba(6,182,212,0.18),transparent_34%),radial-gradient(circle_at_top_right,rgba(139,92,246,0.14),transparent_34%),radial-gradient(circle_at_bottom_right,rgba(245,158,11,0.10),transparent_36%)]" />
+
+          <div className="relative flex items-start justify-between gap-4">
+            <div>
+              <div className="flex flex-wrap items-center gap-2">
+                <Badge className="rounded-full border border-cyan-400/20 bg-cyan-500/10 px-3 py-1 text-[11px] uppercase tracking-[0.18em] text-cyan-200 shadow-none">
+                  Payment Term
+                </Badge>
+                <Badge className="rounded-full border border-emerald-400/20 bg-emerald-500/10 px-3 py-1 text-[11px] uppercase tracking-[0.18em] text-emerald-200 shadow-none">
+                  {editingRow ? "Edit Mode" : "Create Mode"}
+                </Badge>
+              </div>
+
+              <div className="mt-3 text-2xl font-semibold text-white">
+                {editingRow ? "Edit Payment Term" : "Create Payment Term"}
+              </div>
+              <p className="mt-2 max-w-4xl text-sm leading-6 text-slate-400">
+                Create reusable commercial payment terms for quotations, proforma
+                invoices, invoices, vendor quotations, purchase orders, and vendor records.
+              </p>
+            </div>
+
+            <Button
+              type="button"
+              variant="outline"
+              onClick={onClose}
+              className="h-10 rounded-xl border-white/10 bg-black/20 px-3 text-white hover:bg-white/10"
+            >
+              <X className="h-4 w-4" />
+            </Button>
+          </div>
+        </div>
+
+        <div className="overflow-y-auto p-6">
+          <div className="grid gap-5">
+            <section className="rounded-[30px] border border-white/10 bg-white/[0.045] backdrop-blur-xl">
+              <div className="border-b border-white/10 px-5 py-4">
+                <div className="flex items-center gap-3">
+                  <div className="flex h-11 w-11 items-center justify-center rounded-2xl border border-cyan-400/20 bg-cyan-500/10 text-cyan-200">
+                    <WalletCards className="h-5 w-5" />
+                  </div>
+                  <div>
+                    <div className="text-sm font-semibold uppercase tracking-[0.18em] text-slate-400">
+                      Payment Structure
+                    </div>
+                    <p className="mt-1 text-xs leading-5 text-slate-500">
+                      Choose the commercial structure and generate the controlled term.
+                    </p>
+                  </div>
+                </div>
+              </div>
+
+              <div className="grid gap-4 p-5">
+                <div className="grid gap-3 md:grid-cols-4">
+                  {TERM_TYPE_OPTIONS.map((option) => (
+                    <button
+                      key={option.value}
+                      type="button"
+                      onClick={() => onChange("term_type", option.value)}
+                      className={`rounded-[24px] border p-4 text-left transition ${optionToneClass(
+                        option.tone,
+                        form.term_type === option.value
+                      )}`}
+                    >
+                      <div className="font-semibold">{option.label}</div>
+                      <div className="mt-1 text-xs leading-5 opacity-70">
+                        {option.description}
+                      </div>
+                    </button>
+                  ))}
+                </div>
+
+                {form.term_type === "net" ? (
+                  <label className="grid gap-2">
+                    <span className={labelClass()}>Net Days</span>
+                    <Input
+                      type="number"
+                      min="0"
+                      step="1"
+                      value={form.net_days}
+                      onChange={(event) => onChange("net_days", event.target.value)}
+                      placeholder="Example: 30"
+                      className={inputClass()}
+                    />
+                  </label>
+                ) : null}
+
+                {form.term_type === "deposit_balance" ? (
+                  <div className="grid gap-4">
+                    <div className="grid gap-4 md:grid-cols-3">
+                      <label className="grid gap-2">
+                        <span className={labelClass()}>Deposit Percentage</span>
+                        <Input
+                          type="number"
+                          min="1"
+                          max="99"
+                          step="0.01"
+                          value={form.deposit_percentage}
+                          onChange={(event) =>
+                            onChange("deposit_percentage", event.target.value)
+                          }
+                          placeholder="Example: 30"
+                          className={inputClass()}
+                        />
+                      </label>
+
+                      <label className="grid gap-2">
+                        <span className={labelClass()}>Deposit Due</span>
+                        <SelectField
+                          value={form.deposit_due_basis}
+                          onChange={(value) => onChange("deposit_due_basis", value)}
+                          options={DEPOSIT_DUE_BASIS_OPTIONS}
+                        />
+                      </label>
+
+                      <label className="grid gap-2">
+                        <span className={labelClass()}>Balance Due</span>
+                        <SelectField
+                          value={form.balance_due_basis}
+                          onChange={(value) => onChange("balance_due_basis", value)}
+                          options={BALANCE_DUE_BASIS_OPTIONS}
+                        />
+                      </label>
+                    </div>
+
+                    <div className="rounded-[24px] border border-emerald-400/15 bg-emerald-500/10 p-4">
+                      <div className="text-[11px] font-semibold uppercase tracking-[0.18em] text-emerald-200/70">
+                        Balance Auto-Calculated
+                      </div>
+                      <p className="mt-2 text-sm leading-6 text-emerald-100/75">
+                        Deposit is {depositPercentage}%. Balance is {balancePercentage}%.
+                      </p>
+                    </div>
+                  </div>
+                ) : null}
+
+                {form.term_type === "custom" ? (
+                  <div className="grid gap-4">
+                    <label className="grid gap-2">
+                      <span className={labelClass()}>Custom Label</span>
+                      <Input
+                        value={form.custom_label}
+                        onChange={(event) => onChange("custom_label", event.target.value)}
+                        placeholder="Example: 30/40/30 Milestone Payments"
+                        className={inputClass()}
+                      />
+                    </label>
+
+                    <label className="grid gap-2">
+                      <span className={labelClass()}>Custom Document Wording</span>
+                      <textarea
+                        value={form.custom_terms_text}
+                        onChange={(event) =>
+                          onChange("custom_terms_text", event.target.value)
+                        }
+                        placeholder="Example: 30% deposit, 40% before shipment, 30% after installation."
+                        className={textareaClass()}
+                      />
+                    </label>
+                  </div>
+                ) : null}
+              </div>
+            </section>
+
+                        <section className="rounded-[30px] border border-white/10 bg-white/[0.045] backdrop-blur-xl">
+              <div className="border-b border-white/10 px-5 py-4">
+                <div className="flex items-center gap-3">
+                  <div className="flex h-11 w-11 items-center justify-center rounded-2xl border border-violet-400/20 bg-violet-500/10 text-violet-200">
+                    <FileText className="h-5 w-5" />
+                  </div>
+                  <div>
+                    <div className="text-sm font-semibold uppercase tracking-[0.18em] text-slate-400">
+                      Auto Preview
+                    </div>
+                    <p className="mt-1 text-xs leading-5 text-slate-500">
+                      Code, name, and document wording generated from the selected structure.
+                    </p>
+                  </div>
+                </div>
+              </div>
+
+              <div className="grid gap-4 p-5 md:grid-cols-2">
+                <div className="rounded-[24px] border border-cyan-400/15 bg-cyan-500/10 p-4">
+                  <div className="text-[11px] font-semibold uppercase tracking-[0.18em] text-cyan-200/70">
+                    Generated Code
+                  </div>
+                  <div className="mt-2 break-words text-sm font-semibold text-cyan-100">
+                    {generatedTerm.code}
+                  </div>
+                </div>
+
+                <div className="rounded-[24px] border border-emerald-400/15 bg-emerald-500/10 p-4">
+                  <div className="text-[11px] font-semibold uppercase tracking-[0.18em] text-emerald-200/70">
+                    Generated Name
+                  </div>
+                  <div className="mt-2 break-words text-sm font-semibold text-white">
+                    {generatedTerm.name}
+                  </div>
+                </div>
+
+                <div className="rounded-[24px] border border-violet-400/15 bg-violet-500/10 p-4 md:col-span-2">
+                  <div className="text-[11px] font-semibold uppercase tracking-[0.18em] text-violet-200/70">
+                    Document Wording
+                  </div>
+                  <p className="mt-2 text-sm leading-6 text-violet-100/75">
+                    {generatedTerm.documentTermsText}
+                  </p>
+                </div>
+              </div>
+            </section>
+
+            <section className="rounded-[30px] border border-white/10 bg-white/[0.045] backdrop-blur-xl">
+              <div className="border-b border-white/10 px-5 py-4">
+                <div className="flex items-center gap-3">
+                  <div className="flex h-11 w-11 items-center justify-center rounded-2xl border border-emerald-400/20 bg-emerald-500/10 text-emerald-200">
+                    <ShieldCheck className="h-5 w-5" />
+                  </div>
+                  <div>
+                    <div className="text-sm font-semibold uppercase tracking-[0.18em] text-slate-400">
+                      Term Controls
+                    </div>
+                    <p className="mt-1 text-xs leading-5 text-slate-500">
+                      Default behavior, partial payments, status, and internal notes.
+                    </p>
+                  </div>
+                </div>
+              </div>
+
+              <div className="grid gap-4 p-5">
+                <div className="grid gap-4 md:grid-cols-2">
+                  <ToggleCard
+                    checked={form.is_default}
+                    title="Default Term"
+                    description="Use this as the default option when no term is selected."
+                    tone="emerald"
+                    onChange={(checked) => onChange("is_default", checked)}
+                  />
+
+                  <ToggleCard
+                    checked={form.allow_partial_payments}
+                    title="Allow Partial Payments"
+                    description="Lets documents using this term receive partial payments."
+                    tone="cyan"
+                    onChange={(checked) => onChange("allow_partial_payments", checked)}
+                  />
+                </div>
+
+                <div className="grid gap-4 md:grid-cols-2">
+                  <label className="grid gap-2">
+                    <span className={labelClass()}>Internal Notes</span>
+                    <Input
+                      value={form.notes}
+                      onChange={(event) => onChange("notes", event.target.value)}
+                      placeholder="Optional internal notes"
+                      className={inputClass()}
+                    />
+                  </label>
+
+                  <label className="grid gap-2">
+                    <span className={labelClass()}>Status</span>
+                    <SelectField
+                      value={form.status}
+                      onChange={(value) => onChange("status", value)}
+                      options={[
+                        { value: "active", label: "Active" },
+                        { value: "inactive", label: "Inactive" },
+                        { value: "archived", label: "Archived" },
+                      ]}
+                    />
+                  </label>
+                </div>
+              </div>
+            </section>
+
+            {error ? (
+              <div className="rounded-[24px] border border-rose-400/20 bg-rose-500/10 px-5 py-4 text-sm text-rose-100">
+                {error}
+              </div>
+            ) : null}
+          </div>
+        </div>
+
+        <div className="flex flex-col gap-3 border-t border-white/10 bg-white/[0.025] px-6 py-5 sm:flex-row sm:justify-end">
+          <Button
+            type="button"
+            variant="outline"
+            onClick={onClose}
+            className="h-11 rounded-2xl border-white/10 bg-black/20 px-4 text-white hover:bg-white/10"
+          >
+            Cancel
+          </Button>
+
+          <Button
+            type="button"
+            onClick={onSave}
+            disabled={saving || !canSave}
+            className="h-11 rounded-2xl border border-cyan-400/20 bg-cyan-500/10 px-5 text-cyan-100 hover:bg-cyan-500/15 disabled:cursor-not-allowed disabled:opacity-50"
+          >
+            {saving ? "Saving..." : editingRow ? "Save Changes" : "Create Payment Term"}
+          </Button>
+        </div>
+      </div>
+    </div>
   );
 }
 
@@ -328,15 +854,21 @@ export default function FinancePaymentTermsPage() {
   const [rows, setRows] = useState<FinancePaymentTermRow[]>([]);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
+
   const [search, setSearch] = useState("");
   const [statusFilter, setStatusFilter] = useState<StatusFilter>("all");
+  const [sortKey, setSortKey] = useState<SortKey>("updated_at");
+  const [sortDirection, setSortDirection] = useState<SortDirection>("desc");
+
   const [role, setRole] = useState<Role | null>(null);
   const [permissionOverrides, setPermissionOverrides] =
     useState<Partial<Record<Permission, boolean>> | null>(null);
+
   const [dialogOpen, setDialogOpen] = useState(false);
   const [editingRow, setEditingRow] = useState<FinancePaymentTermRow | null>(null);
   const [form, setForm] = useState<FormState>(EMPTY_FORM);
   const [error, setError] = useState("");
+  const [pageMessage, setPageMessage] = useState("");
 
   const generatedTerm = useMemo(() => buildGeneratedTerm(form), [form]);
 
@@ -366,6 +898,11 @@ export default function FinancePaymentTermsPage() {
     } catch (loadError) {
       console.error("Failed to load payment terms:", loadError);
       setRows([]);
+      setError(
+        loadError instanceof Error
+          ? loadError.message
+          : "Failed to load payment terms."
+      );
     } finally {
       setLoading(false);
     }
@@ -373,6 +910,32 @@ export default function FinancePaymentTermsPage() {
 
   useEffect(() => {
     void loadPage();
+  }, [loadPage]);
+
+  useEffect(() => {
+    const channel = supabase
+      .channel("finance-payment-terms-master-data")
+      .on(
+        "postgres_changes",
+        {
+          event: "*",
+          schema: "public",
+          table: "finance_payment_terms",
+        },
+        () => {
+          void loadPage();
+        }
+      )
+      .subscribe();
+
+    const intervalId = window.setInterval(() => {
+      void loadPage();
+    }, 60000);
+
+    return () => {
+      window.clearInterval(intervalId);
+      void supabase.removeChannel(channel);
+    };
   }, [loadPage]);
 
   const permissions = useMemo(() => {
@@ -383,7 +946,7 @@ export default function FinancePaymentTermsPage() {
   const canCreate = !!permissions?.createFinanceRecords;
   const canEdit = !!permissions?.editFinanceRecords;
   const canArchive = !!permissions?.archiveFinanceRecords;
-
+  const canDelete = canArchive;
 
   const activeRows = useMemo(
     () => rows.filter((row) => row.status === "active"),
@@ -400,11 +963,24 @@ export default function FinancePaymentTermsPage() {
     [rows]
   );
 
+  const stats = useMemo(() => {
+    return {
+      total: rows.length,
+      active: rows.filter((row) => row.status === "active").length,
+      deposit: rows.filter((row) => row.requires_deposit).length,
+      defaultTerm: defaultRow?.document_label ?? defaultRow?.name ?? "Not Set",
+      partial: rows.filter((row) => row.allow_partial_payments).length,
+      archived: rows.filter((row) => row.status === "archived").length,
+    };
+  }, [defaultRow, rows]);
+
   const filteredRows = useMemo(() => {
     const q = search.trim().toLowerCase();
 
     return rows.filter((row) => {
-      const matchesStatus = statusFilter === "all" ? true : row.status === statusFilter;
+      const matchesStatus =
+        statusFilter === "all" ? true : row.status === statusFilter;
+
       const matchesSearch =
         !q ||
         row.name.toLowerCase().includes(q) ||
@@ -418,10 +994,59 @@ export default function FinancePaymentTermsPage() {
     });
   }, [rows, search, statusFilter]);
 
+  const sortedRows = useMemo(() => {
+    const sorted = [...filteredRows];
+
+    sorted.sort((a, b) => {
+      const direction = sortDirection === "asc" ? 1 : -1;
+
+      if (sortKey === "updated_at") {
+        return (
+          (new Date(a.updated_at).getTime() - new Date(b.updated_at).getTime()) *
+          direction
+        );
+      }
+
+      if (sortKey === "due_days") {
+        return (a.due_days - b.due_days) * direction;
+      }
+
+      const first = String(a[sortKey] ?? "");
+      const second = String(b[sortKey] ?? "");
+
+      return first.localeCompare(second) * direction;
+    });
+
+    return sorted;
+  }, [filteredRows, sortDirection, sortKey]);
+
+  function updateSort(nextKey: SortKey) {
+    if (sortKey === nextKey) {
+      setSortDirection((current) => (current === "asc" ? "desc" : "asc"));
+      return;
+    }
+
+    setSortKey(nextKey);
+    setSortDirection(nextKey === "updated_at" ? "desc" : "asc");
+  }
+
+  function sortLabel(key: SortKey) {
+    if (sortKey !== key) return "";
+    return sortDirection === "asc" ? " ↑" : " ↓";
+  }
+
+  function updateForm<K extends keyof FormState>(key: K, value: FormState[K]) {
+    setForm((current) => ({
+      ...current,
+      [key]: value,
+    }));
+  }
+
   function openCreateDialog() {
     setEditingRow(null);
     setForm(EMPTY_FORM);
     setError("");
+    setPageMessage("");
     setDialogOpen(true);
   }
 
@@ -475,6 +1100,7 @@ export default function FinancePaymentTermsPage() {
     }
 
     setError("");
+    setPageMessage("");
     setDialogOpen(true);
   }
 
@@ -507,6 +1133,7 @@ export default function FinancePaymentTermsPage() {
     try {
       setSaving(true);
       setError("");
+      setPageMessage("");
 
       const payload = {
         code: generatedTerm.code,
@@ -527,15 +1154,21 @@ export default function FinancePaymentTermsPage() {
         balance_due_days: generatedTerm.balanceDueDays,
         allow_partial_payments: form.allow_partial_payments,
         requires_approval: false,
-        applies_to: ["quotation", "proforma_invoice", "invoice"] as FinancePaymentTermAppliesTo[],
+        applies_to: [
+          "quotation",
+          "proforma_invoice",
+          "invoice",
+        ] as FinancePaymentTermAppliesTo[],
         document_label: generatedTerm.documentLabel,
         document_terms_text: generatedTerm.documentTermsText,
       };
 
       if (editingRow) {
         await updatePaymentTerm(editingRow.id, payload);
+        setPageMessage("Payment term updated successfully.");
       } else {
         await createPaymentTerm(payload);
+        setPageMessage("Payment term created successfully.");
       }
 
       setDialogOpen(false);
@@ -544,38 +1177,104 @@ export default function FinancePaymentTermsPage() {
       await loadPage();
     } catch (saveError) {
       console.error("Failed to save payment term:", saveError);
-      setError(saveError instanceof Error ? saveError.message : "Failed to save payment term.");
+      setError(
+        saveError instanceof Error ? saveError.message : "Failed to save payment term."
+      );
     } finally {
       setSaving(false);
     }
   }
 
-  async function handleDelete(row: FinancePaymentTermRow) {
+  async function handleArchive(row: FinancePaymentTermRow) {
+    if (!canArchive) return;
+
+    const confirmed = window.confirm(
+      "Archive this payment term? It will be hidden from active selections but can be restored later."
+    );
+
+    if (!confirmed) return;
+
     try {
+      setSaving(true);
+      setError("");
+      setPageMessage("");
       await archivePaymentTerm(row.id);
+      setPageMessage("Payment term archived successfully.");
       await loadPage();
     } catch (actionError) {
       console.error("Failed to archive payment term:", actionError);
+      setError(
+        actionError instanceof Error
+          ? actionError.message
+          : "Failed to archive payment term."
+      );
+    } finally {
+      setSaving(false);
     }
   }
 
   async function handleRestore(row: FinancePaymentTermRow) {
+    if (!canArchive) return;
+
     try {
+      setSaving(true);
+      setError("");
+      setPageMessage("");
       await restorePaymentTerm(row.id);
+      setPageMessage("Payment term restored successfully.");
       await loadPage();
     } catch (actionError) {
       console.error("Failed to restore payment term:", actionError);
+      setError(
+        actionError instanceof Error
+          ? actionError.message
+          : "Failed to restore payment term."
+      );
+    } finally {
+      setSaving(false);
     }
   }
 
   async function handleHardDelete(row: FinancePaymentTermRow) {
+    if (!canDelete) return;
+
+    const confirmed = window.confirm(
+      "Permanently delete this payment term? Existing linked documents will lose the payment-term link because the database is configured with SET NULL."
+    );
+
+    if (!confirmed) return;
+
     try {
+      setSaving(true);
+      setError("");
+      setPageMessage("");
       await permanentlyDeletePaymentTerm(row.id);
+      setPageMessage("Payment term permanently deleted.");
       await loadPage();
     } catch (actionError) {
       console.error("Failed to permanently delete payment term:", actionError);
+      setError(
+        actionError instanceof Error
+          ? actionError.message
+          : "Failed to permanently delete payment term."
+      );
+    } finally {
+      setSaving(false);
     }
   }
+
+  const tableHeaders: Array<
+    | { key: SortKey; label: string; sortable: true }
+    | { key: "actions"; label: string; sortable: false }
+  > = [
+    { key: "code", label: "Code", sortable: true },
+    { key: "name", label: "Name", sortable: true },
+    { key: "term_type", label: "Type", sortable: true },
+    { key: "due_days", label: "Due Days", sortable: true },
+    { key: "status", label: "Status", sortable: true },
+    { key: "updated_at", label: "Updated", sortable: true },
+    { key: "actions", label: "Actions", sortable: false },
+  ];
 
   return (
     <div className="min-h-screen bg-[#05070d] px-4 py-4 text-white md:px-6 md:py-6">
@@ -584,78 +1283,63 @@ export default function FinancePaymentTermsPage() {
           <div className="pointer-events-none absolute inset-0 bg-[radial-gradient(circle_at_top_left,rgba(6,182,212,0.16),transparent_38%),radial-gradient(circle_at_top_right,rgba(139,92,246,0.12),transparent_34%)]" />
 
           <div className="relative">
-            <Button
-              variant="outline"
+            <button
+              type="button"
               onClick={() => navigate("/finance/master-data")}
               className="mb-5 inline-flex items-center justify-center gap-2 rounded-full border border-white/10 bg-white/[0.05] px-5 py-2 text-[11px] font-semibold uppercase tracking-[0.22em] text-slate-300 transition hover:border-white/20 hover:bg-white/[0.08] hover:text-white"
             >
-              <ArrowRight className="h-3.5 w-3.5 rotate-180" />
+              <ArrowLeft className="h-3.5 w-3.5" />
               Master Data
-            </Button>
+            </button>
 
-            <div className="grid gap-6 xl:grid-cols-[minmax(0,1fr)_620px] xl:items-stretch">
-              <div>
-                <Badge className="inline-flex w-fit items-center gap-2 rounded-full border border-cyan-400/20 bg-cyan-500/10 px-3 py-1 text-[11px] font-semibold uppercase tracking-[0.22em] text-cyan-200 shadow-none">
-                  Commercial Rules
-                </Badge>
-
-                <h1 className="mt-4 text-3xl font-semibold tracking-[-0.035em] text-white md:text-5xl">
-                  Payment Terms
-                </h1>
-
-                <p className="mt-3 max-w-4xl text-sm leading-6 text-slate-400 md:text-base md:leading-7">
-                  Create reusable payment terms for finance documents. Invoice due dates and payment
-                  actions are handled inside the invoice flow; this page only defines the selectable
-                  commercial term and document wording.
-                </p>
-
-                <div className="mt-5 flex flex-wrap gap-2">
-                  <Badge className="rounded-full border border-emerald-400/20 bg-emerald-500/10 px-3 py-1 text-[11px] font-semibold uppercase tracking-[0.16em] text-emerald-200 shadow-none">
-                    {activeRows.length} Active
+            <div className="flex flex-col gap-5 xl:flex-row xl:items-start xl:justify-between">
+              <div className="space-y-3">
+                <div className="flex flex-wrap items-center gap-2">
+                  <Badge className="rounded-full border border-white/10 bg-white/[0.07] px-3 py-1 text-[11px] uppercase tracking-[0.24em] text-slate-300 shadow-none">
+                    Master Data
                   </Badge>
-                  <Badge className="rounded-full border border-cyan-400/20 bg-cyan-500/10 px-3 py-1 text-[11px] font-semibold uppercase tracking-[0.16em] text-cyan-200 shadow-none">
-                    {depositRows.length} Deposit Terms
+                  <Badge className="rounded-full border border-cyan-400/20 bg-cyan-500/10 px-3 py-1 text-[11px] uppercase tracking-[0.22em] text-cyan-200 shadow-none">
+                    Payment Terms
                   </Badge>
-                  <Badge className="rounded-full border border-white/10 bg-white/[0.05] px-3 py-1 text-[11px] font-semibold uppercase tracking-[0.16em] text-slate-300 shadow-none">
-                    Auto-Generated Codes
+                  <Badge className="rounded-full border border-emerald-400/20 bg-emerald-500/10 px-3 py-1 text-[11px] uppercase tracking-[0.22em] text-emerald-200 shadow-none">
+                    Commercial Rules
                   </Badge>
+                </div>
+
+                <div>
+                  <h1 className="text-3xl font-semibold tracking-tight text-white md:text-5xl">
+                    Payment Terms
+                  </h1>
+                  <p className="mt-3 max-w-4xl text-sm leading-7 text-slate-400 md:text-base">
+                    Reusable commercial payment terms for quotations, proforma invoices,
+                    invoices, purchase orders, vendor quotations, and vendor records.
+                    Document wording is generated from controlled term structures.
+                  </p>
                 </div>
               </div>
 
-              <div className="grid gap-4 sm:grid-cols-3 xl:grid-cols-1">
-                <div className="min-h-[148px] rounded-[24px] border border-white/10 bg-black/20 p-4">
-                  <p className="text-[11px] font-semibold uppercase tracking-[0.2em] text-slate-500">
+              <div className="grid gap-3 sm:grid-cols-2 xl:w-[440px]">
+                <div className="rounded-[24px] border border-cyan-400/15 bg-cyan-500/10 p-4">
+                  <div className="text-[11px] font-semibold uppercase tracking-[0.18em] text-cyan-200/70">
                     Default Term
-                  </p>
-                  <p className="mt-2 text-xl font-semibold leading-tight tracking-[-0.035em] text-white">
+                  </div>
+                  <div className="mt-2 truncate text-sm font-semibold text-white">
                     {defaultRow?.document_label ?? defaultRow?.name ?? "Not Set"}
-                  </p>
-                  <p className="mt-3 text-xs leading-5 text-slate-500">
-                    Default selectable payment term for finance documents.
-                  </p>
-                </div>
-
-                <div className="min-h-[148px] rounded-[24px] border border-white/10 bg-black/20 p-4">
-                  <p className="text-[11px] font-semibold uppercase tracking-[0.2em] text-slate-500">
-                    Deposit Terms
-                  </p>
-                  <p className="mt-2 text-xl font-semibold leading-tight tracking-[-0.035em] text-white">
-                    {depositRows.length}
-                  </p>
-                  <p className="mt-3 text-xs leading-5 text-slate-500">
-                    Terms with upfront deposit wording.
+                  </div>
+                  <p className="mt-1 text-xs leading-5 text-cyan-100/65">
+                    Default selectable term for finance documents.
                   </p>
                 </div>
 
-                <div className="min-h-[148px] rounded-[24px] border border-white/10 bg-black/20 p-4">
-                  <p className="text-[11px] font-semibold uppercase tracking-[0.2em] text-slate-500">
-                    Records
-                  </p>
-                  <p className="mt-2 text-xl font-semibold leading-tight tracking-[-0.035em] text-white">
-                    {rows.length}
-                  </p>
-                  <p className="mt-3 text-xs leading-5 text-slate-500">
-                    Reusable terms available to documents.
+                <div className="rounded-[24px] border border-violet-400/15 bg-violet-500/10 p-4">
+                  <div className="text-[11px] font-semibold uppercase tracking-[0.18em] text-violet-200/70">
+                    Auto-Generated
+                  </div>
+                  <div className="mt-2 text-sm font-semibold text-white">
+                    Codes + Wording
+                  </div>
+                  <p className="mt-1 text-xs leading-5 text-violet-100/65">
+                    Terms generate clean labels and document text.
                   </p>
                 </div>
               </div>
@@ -663,461 +1347,300 @@ export default function FinancePaymentTermsPage() {
           </div>
         </section>
 
-        <section className="overflow-hidden rounded-[30px] border border-white/10 bg-white/[0.045] backdrop-blur-xl">
-          <div className="flex flex-col gap-4 border-b border-white/10 px-5 py-4 lg:flex-row lg:items-center lg:justify-between">
-            <div>
-              <p className="text-sm font-semibold uppercase tracking-[0.18em] text-slate-400">
-                Payment Term Library
-              </p>
-              <p className="mt-1 text-xs text-slate-500">
-                Choose a structure, generate the term, and reuse it on quotations, proforma invoices,
-                and invoices.
-              </p>
-            </div>
-
-            <div className="flex flex-col gap-3 sm:flex-row sm:items-center">
-              <Input
-                value={search}
-                onChange={(event) => setSearch(event.target.value)}
-                placeholder="Search code, name, type, wording..."
-                className="h-11 w-full rounded-2xl border-white/10 bg-black/20 text-white placeholder:text-white/35 sm:w-[340px]"
-              />
-
-              {canCreate ? (
-                <Button
-                  onClick={openCreateDialog}
-                  className="h-11 rounded-xl border border-cyan-400/20 bg-cyan-500 px-4 text-sm font-semibold text-slate-950 transition hover:bg-cyan-400"
-                >
-                  <Plus className="mr-2 h-4 w-4" />
-                  New Payment Term
-                </Button>
-              ) : null}
-            </div>
+        {error ? (
+          <div className="rounded-[24px] border border-rose-400/20 bg-rose-500/10 px-5 py-4 text-sm text-rose-100">
+            {error}
           </div>
+        ) : null}
 
-          <div className="flex flex-wrap gap-2 border-b border-white/10 px-5 py-4">
-            {(["all", "active", "inactive", "archived"] as const).map((value) => (
-              <Button
-                key={value}
-                type="button"
-                variant="outline"
-                onClick={() => setStatusFilter(value)}
-                className={`h-10 rounded-full border-white/10 px-4 text-[11px] font-semibold uppercase tracking-[0.18em] text-white ${
-                  statusFilter === value ? "bg-white/10" : "bg-black/20 hover:bg-white/10"
-                }`}
-              >
-                {value === "all" ? "All" : value}
-              </Button>
-            ))}
+        {pageMessage ? (
+          <div className="rounded-[24px] border border-emerald-400/20 bg-emerald-500/10 px-5 py-4 text-sm text-emerald-100">
+            {pageMessage}
           </div>
+        ) : null}
 
-          <div className="overflow-x-auto p-5">
-            {loading ? (
-              <div className="rounded-[24px] border border-white/10 bg-black/20 p-6 text-sm text-slate-400">
-                Loading payment terms...
+        <section>
+          <div className="grid grid-cols-1 gap-4 md:grid-cols-2 xl:grid-cols-6">
+            <SummaryTile
+              label="Total Terms"
+              value={loading ? "—" : stats.total}
+              icon={WalletCards}
+              tone="cyan"
+              description="All configured terms"
+            />
+            <SummaryTile
+              label="Active"
+              value={loading ? "—" : stats.active}
+              icon={CheckCircle2}
+              tone="emerald"
+              description="Available for documents"
+            />
+            <SummaryTile
+              label="Deposit"
+              value={loading ? "—" : stats.deposit}
+              icon={Percent}
+              tone="amber"
+              description="Deposit/balance terms"
+            />
+            <SummaryTile
+              label="Partial"
+              value={loading ? "—" : stats.partial}
+              icon={CreditCard}
+              tone="violet"
+              description="Partial payment allowed"
+            />
+            <SummaryTile
+              label="Archived"
+              value={loading ? "—" : stats.archived}
+              icon={Archive}
+              tone="rose"
+              description="Hidden from active use"
+            />
+            <SummaryTile
+              label="Active Deposit"
+              value={loading ? "—" : depositRows.length}
+              icon={Clock3}
+              tone="amber"
+              description="Active deposit terms"
+            />
+          </div>
+        </section>
+
+        <Card className="overflow-hidden rounded-[30px] border border-white/10 bg-white/[0.045] backdrop-blur-xl">
+          <CardHeader className="border-b border-white/10 px-5 py-4">
+            <div className="flex flex-col gap-4 lg:flex-row lg:items-end lg:justify-between">
+              <div className="space-y-2">
+                <Badge className="w-fit rounded-full border border-white/10 bg-white/[0.06] px-3 py-1 text-[11px] uppercase tracking-[0.22em] text-slate-400 shadow-none">
+                  Payment Term Registry
+                </Badge>
+                <CardTitle className="text-white">Payment Term Master List</CardTitle>
+                <CardDescription className="text-slate-500">
+                  Search, sort, create, edit, archive, restore, and delete reusable commercial terms.
+                  Active terms: {activeRows.length}.
+                </CardDescription>
               </div>
-            ) : filteredRows.length === 0 ? (
-              <div className="rounded-[24px] border border-white/10 bg-black/20 p-6 text-sm text-slate-400">
-                No payment terms found.
-              </div>
-            ) : (
-              <div className="grid min-w-[1120px] gap-4">
-                {filteredRows.map((row) => (
-                  <div
-                    key={row.id}
-                    className="grid grid-cols-[220px_180px_210px_260px_140px_70px] items-stretch gap-4 rounded-[24px] border border-white/10 bg-black/20 p-4"
-                  >
-                    <div className="min-w-0">
-                      <div className="flex flex-wrap items-center gap-2">
-                        <Badge className="rounded-full border border-cyan-400/20 bg-cyan-500/10 px-2.5 py-1 text-[10px] uppercase tracking-[0.16em] text-cyan-200 shadow-none">
-                          {row.code}
-                        </Badge>
-                        {row.is_default ? (
-                          <Badge className="rounded-full border border-emerald-400/20 bg-emerald-500/10 px-2.5 py-1 text-[10px] uppercase tracking-[0.16em] text-emerald-200 shadow-none">
-                            Default
-                          </Badge>
-                        ) : null}
-                      </div>
-                      <p className="mt-3 truncate text-sm font-semibold text-white">{row.name}</p>
-                      <p className="mt-1 text-xs text-slate-500">
-                        Updated {formatDateLabel(row.updated_at)}
-                      </p>
-                    </div>
 
-                    <div className="rounded-[20px] border border-white/10 bg-white/[0.03] p-3">
-                      <p className="text-[10px] uppercase tracking-[0.18em] text-white/32">
-                        Type
-                      </p>
-                      <p className="mt-2 text-sm font-semibold text-white">
-                        {formatTermType(row.term_type)}
-                      </p>
-                      <p className="mt-2 text-xs leading-5 text-slate-500">
-                        {row.term_type === "net"
-                          ? `Net ${row.due_days}`
-                          : row.term_type === "immediate"
-                            ? "Immediate payment"
-                            : "Reusable term"}
-                      </p>
-                    </div>
+              <div className="flex w-full flex-col gap-3 lg:max-w-[860px] lg:flex-row">
+                <div className="relative flex-1">
+                  <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-500" />
+                  <Input
+                    value={search}
+                    onChange={(event) => setSearch(event.target.value)}
+                    placeholder="Search code, name, type, document wording, or notes..."
+                    className={`${inputClass()} pl-10`}
+                  />
+                </div>
 
-                    <div className="rounded-[20px] border border-white/10 bg-white/[0.03] p-3">
-                      <p className="text-[10px] uppercase tracking-[0.18em] text-white/32">
-                        Deposit
-                      </p>
-                      {row.requires_deposit ? (
-                        <>
-                          <p className="mt-2 text-sm font-semibold text-emerald-100">
-                            {row.deposit_percentage ?? 0}% Deposit
-                          </p>
-                          <p className="mt-2 text-xs leading-5 text-slate-500">
-                            {formatBasisLabel(row.deposit_due_basis)}
-                          </p>
-                        </>
-                      ) : (
-                        <>
-                          <p className="mt-2 text-sm font-semibold text-white">No deposit</p>
-                          <p className="mt-2 text-xs leading-5 text-slate-500">
-                            Standard payment term
-                          </p>
-                        </>
-                      )}
-                    </div>
-
-                    <div className="rounded-[20px] border border-white/10 bg-white/[0.03] p-3">
-                      <p className="text-[10px] uppercase tracking-[0.18em] text-white/32">
-                        Document Wording
-                      </p>
-                      <p className="mt-2 line-clamp-1 text-sm font-semibold text-white">
-                        {row.document_label ?? row.name}
-                      </p>
-                      <p className="mt-2 line-clamp-2 text-xs leading-5 text-slate-500">
-                        {row.document_terms_text ?? row.notes ?? "No wording configured."}
-                      </p>
-                    </div>
-
-                    <div className="rounded-[20px] border border-white/10 bg-white/[0.03] p-3">
-                      <p className="text-[10px] uppercase tracking-[0.18em] text-white/32">
-                        Status
-                      </p>
-                      <Badge
-                        className={`mt-2 rounded-full border px-2.5 py-1 text-[11px] shadow-none ${
-                          row.status === "archived"
-                            ? "border-amber-400/20 bg-amber-500/10 text-amber-200"
-                            : row.status === "inactive"
-                              ? "border-white/10 bg-white/[0.06] text-slate-300"
-                              : "border-emerald-400/20 bg-emerald-500/10 text-emerald-200"
+                <div className="flex gap-2 overflow-x-auto pb-1">
+                  {(["all", "active", "inactive", "archived"] as StatusFilter[]).map(
+                    (value) => (
+                      <Button
+                        key={value}
+                        type="button"
+                        variant="outline"
+                        onClick={() => setStatusFilter(value)}
+                        className={`h-11 rounded-2xl border-white/10 px-4 capitalize text-white ${
+                          statusFilter === value
+                            ? "bg-cyan-500/15 text-cyan-100"
+                            : "bg-black/20 hover:bg-white/[0.06]"
                         }`}
                       >
-                        {row.status}
-                      </Badge>
-                      <p className="mt-2 text-xs leading-5 text-slate-500">
-                        {row.allow_partial_payments ? "Partial allowed" : "Full only"}
-                      </p>
-                    </div>
+                        {value}
+                      </Button>
+                    )
+                  )}
+                </div>
 
-                    <div className="flex items-center justify-end">
-                      <DropdownMenu>
-                        <DropdownMenuTrigger asChild>
-                          <Button
-                            variant="outline"
-                            className="h-10 rounded-xl border-white/10 bg-black/15 px-3 text-white hover:bg-white/10"
-                          >
-                            <MoreHorizontal className="h-4 w-4" />
-                          </Button>
-                        </DropdownMenuTrigger>
-
-                        <DropdownMenuContent
-                          align="end"
-                          className="w-48 border-white/10 bg-[#101522] text-white"
-                        >
-                          {canEdit ? (
-                            <DropdownMenuItem onClick={() => openEditDialog(row)}>
-                              Edit
-                            </DropdownMenuItem>
-                          ) : null}
-
-                          {canArchive ? (
-                            row.status === "archived" ? (
-                              <>
-                                <DropdownMenuItem onClick={() => void handleRestore(row)}>
-                                  Restore
-                                </DropdownMenuItem>
-
-                                <DropdownMenuItem
-                                  onClick={() => void handleHardDelete(row)}
-                                  className="text-red-400 focus:text-red-400"
-                                >
-                                  Hard Delete
-                                </DropdownMenuItem>
-                              </>
-                            ) : (
-                              <DropdownMenuItem onClick={() => void handleDelete(row)}>
-                                Delete
-                              </DropdownMenuItem>
-                            )
-                          ) : null}
-                        </DropdownMenuContent>
-                      </DropdownMenu>
-                    </div>
-                  </div>
-                ))}
+                {canCreate ? (
+                  <Button
+                    type="button"
+                    onClick={openCreateDialog}
+                    className="h-11 rounded-2xl border border-emerald-400/20 bg-emerald-500/10 px-4 text-emerald-100 hover:bg-emerald-500/15"
+                  >
+                    <Plus className="mr-2 h-4 w-4" />
+                    New Term
+                  </Button>
+                ) : null}
               </div>
-            )}
-          </div>
-        </section>
+            </div>
+          </CardHeader>
+
+          <CardContent className="p-0">
+            <div className="overflow-x-auto">
+              <div className="max-h-[720px] overflow-y-auto">
+                <table className="w-full min-w-[1320px] border-collapse">
+                  <thead className="sticky top-0 z-10">
+                    <tr className="border-b border-white/10 bg-black/70 text-left">
+                      {tableHeaders.map((header) => (
+                        <th
+                          key={header.key}
+                          className="px-5 py-4 text-[11px] uppercase tracking-[0.18em] text-slate-500"
+                        >
+                          {header.sortable ? (
+                            <button
+                              type="button"
+                              onClick={() => updateSort(header.key)}
+                              className="transition hover:text-slate-300"
+                            >
+                              {header.label}
+                              {sortLabel(header.key)}
+                            </button>
+                          ) : (
+                            <span>{header.label}</span>
+                          )}
+                        </th>
+                      ))}
+                    </tr>
+                  </thead>
+
+                  <tbody>
+                    {loading ? (
+                      <tr>
+                        <td colSpan={7} className="px-5 py-12 text-sm text-slate-400">
+                          Loading payment terms...
+                        </td>
+                      </tr>
+                    ) : sortedRows.length === 0 ? (
+                      <tr>
+                        <td colSpan={7} className="px-5 py-12 text-sm text-slate-400">
+                          No payment terms found.
+                        </td>
+                      </tr>
+                    ) : (
+                      sortedRows.map((row) => (
+                        <tr
+                          key={row.id}
+                          className="border-b border-white/10 text-sm text-slate-300 transition hover:bg-white/[0.035]"
+                        >
+                          <td className="px-5 py-4">
+                            <div className="font-semibold text-white">{row.code}</div>
+                            {row.is_default ? (
+                              <Badge className="mt-2 rounded-full border border-emerald-400/20 bg-emerald-500/10 px-2.5 py-1 text-[10px] uppercase tracking-[0.16em] text-emerald-200 shadow-none">
+                                Default
+                              </Badge>
+                            ) : null}
+                          </td>
+
+                          <td className="px-5 py-4">
+                            <div className="font-semibold text-white">{row.name}</div>
+                            <div className="mt-1 max-w-[360px] truncate text-xs text-slate-500">
+                              {row.document_terms_text ?? row.notes ?? "No wording configured"}
+                            </div>
+                          </td>
+
+                          <td className="px-5 py-4">
+                            <Badge className={termTypeBadgeClass(row.term_type)}>
+                              {formatTermType(row.term_type)}
+                            </Badge>
+                          </td>
+
+                          <td className="px-5 py-4 text-slate-300">
+                            {row.requires_deposit ? (
+                              <div>
+                                <div className="font-semibold text-amber-100">
+                                  {row.deposit_percentage ?? 0}% Deposit
+                                </div>
+                                <div className="mt-1 text-xs text-slate-500">
+                                  {formatBasisLabel(row.deposit_due_basis)}
+                                </div>
+                              </div>
+                            ) : row.term_type === "immediate" ? (
+                              "Immediate"
+                            ) : (
+                              `${row.due_days} days`
+                            )}
+                          </td>
+
+                          <td className="px-5 py-4">
+                            <Badge className={statusBadgeClass(row.status)}>
+                              {formatStatusLabel(row.status)}
+                            </Badge>
+                          </td>
+
+                          <td className="px-5 py-4 text-slate-400">
+                            {formatDateLabel(row.updated_at)}
+                          </td>
+
+                          <td className="px-5 py-4">
+                            <div className="flex flex-wrap justify-end gap-2">
+                              {canEdit ? (
+                                <Button
+                                  type="button"
+                                  variant="outline"
+                                  onClick={() => openEditDialog(row)}
+                                  className="h-9 rounded-xl border-cyan-400/20 bg-cyan-500/10 px-3 text-xs text-cyan-100 hover:bg-cyan-500/15"
+                                >
+                                  <Edit3 className="mr-1.5 h-3.5 w-3.5" />
+                                  Edit
+                                </Button>
+                              ) : null}
+
+                              {canArchive && row.status === "archived" ? (
+                                <Button
+                                  type="button"
+                                  variant="outline"
+                                  onClick={() => void handleRestore(row)}
+                                  disabled={saving}
+                                  className="h-9 rounded-xl border-emerald-400/20 bg-emerald-500/10 px-3 text-xs text-emerald-100 hover:bg-emerald-500/15 disabled:opacity-50"
+                                >
+                                  <Undo2 className="mr-1.5 h-3.5 w-3.5" />
+                                  Restore
+                                </Button>
+                              ) : null}
+
+                              {canArchive && row.status !== "archived" ? (
+                                <Button
+                                  type="button"
+                                  variant="outline"
+                                  onClick={() => void handleArchive(row)}
+                                  disabled={saving}
+                                  className="h-9 rounded-xl border-amber-400/20 bg-amber-500/10 px-3 text-xs text-amber-100 hover:bg-amber-500/15 disabled:opacity-50"
+                                >
+                                  <Archive className="mr-1.5 h-3.5 w-3.5" />
+                                  Archive
+                                </Button>
+                              ) : null}
+
+                              {canDelete ? (
+                                <Button
+                                  type="button"
+                                  variant="outline"
+                                  onClick={() => void handleHardDelete(row)}
+                                  disabled={saving}
+                                  className="h-9 rounded-xl border-rose-400/20 bg-rose-500/10 px-3 text-xs text-rose-100 hover:bg-rose-500/15 disabled:opacity-50"
+                                >
+                                  <Trash2 className="mr-1.5 h-3.5 w-3.5" />
+                                  Delete
+                                </Button>
+                              ) : null}
+                            </div>
+                          </td>
+                        </tr>
+                      ))
+                    )}
+                  </tbody>
+                </table>
+              </div>
+            </div>
+          </CardContent>
+        </Card>
       </div>
 
-      <Dialog open={dialogOpen} onOpenChange={setDialogOpen}>
-        <DialogContent className="max-h-[92vh] overflow-y-auto border-white/10 bg-[#0f1726] text-white sm:max-w-[920px]">
-          <DialogHeader>
-            <DialogTitle>
-              {editingRow ? "Edit Payment Term" : "Create Payment Term"}
-            </DialogTitle>
-            <DialogDescription className="text-white/45">
-              Create a reusable master-data payment term. The code, name, and document wording are
-              generated from your selected structure.
-            </DialogDescription>
-          </DialogHeader>
-
-          <div className="grid gap-5">
-            <div className="rounded-[24px] border border-white/10 bg-black/20 p-4">
-              <p className="mb-3 text-[11px] font-semibold uppercase tracking-[0.2em] text-slate-500">
-                Payment Structure
-              </p>
-
-              <div className="grid gap-3 md:grid-cols-4">
-                {TERM_TYPE_OPTIONS.map((option) => (
-                  <button
-                    key={option.value}
-                    type="button"
-                    onClick={() =>
-                      setForm((previous) => ({
-                        ...previous,
-                        term_type: option.value,
-                      }))
-                    }
-                    className={`rounded-[20px] border p-3 text-left transition ${
-                      form.term_type === option.value
-                        ? "border-cyan-400/25 bg-cyan-500/10"
-                        : "border-white/10 bg-white/[0.03] hover:border-white/20 hover:bg-white/[0.05]"
-                    }`}
-                  >
-                    <span className="block text-sm font-semibold text-white">{option.label}</span>
-                    <span className="mt-2 block text-xs leading-5 text-slate-500">
-                      {option.description}
-                    </span>
-                  </button>
-                ))}
-              </div>
-            </div>
-
-            {form.term_type === "net" ? (
-              <div className="rounded-[24px] border border-white/10 bg-black/20 p-4">
-                <p className="mb-3 text-[11px] font-semibold uppercase tracking-[0.2em] text-slate-500">
-                  Net Term
-                </p>
-
-                <Input
-                  type="number"
-                  min="0"
-                  step="1"
-                  value={form.net_days}
-                  onChange={(event) =>
-                    setForm((previous) => ({
-                      ...previous,
-                      net_days: event.target.value,
-                    }))
-                  }
-                  placeholder="Net days, example: 30"
-                  className="h-11 rounded-2xl border-white/10 bg-black/20 text-white"
-                />
-              </div>
-            ) : null}
-
-            {form.term_type === "deposit_balance" ? (
-              <div className="rounded-[24px] border border-white/10 bg-black/20 p-4">
-                <p className="mb-3 text-[11px] font-semibold uppercase tracking-[0.2em] text-slate-500">
-                  Deposit + Balance Term
-                </p>
-
-                <div className="grid gap-4 md:grid-cols-3">
-                  <Input
-                    type="number"
-                    min="1"
-                    max="99"
-                    step="0.01"
-                    value={form.deposit_percentage}
-                    onChange={(event) =>
-                      setForm((previous) => ({
-                        ...previous,
-                        deposit_percentage: event.target.value,
-                      }))
-                    }
-                    placeholder="Deposit percentage"
-                    className="h-11 rounded-2xl border-white/10 bg-black/20 text-white"
-                  />
-
-                  <SelectField
-                    value={form.deposit_due_basis}
-                    onChange={(value) =>
-                      setForm((previous) => ({ ...previous, deposit_due_basis: value }))
-                    }
-                    options={DEPOSIT_DUE_BASIS_OPTIONS}
-                  />
-
-                  <SelectField
-                    value={form.balance_due_basis}
-                    onChange={(value) =>
-                      setForm((previous) => ({ ...previous, balance_due_basis: value }))
-                    }
-                    options={BALANCE_DUE_BASIS_OPTIONS}
-                  />
-                </div>
-
-                <div className="mt-4 rounded-[20px] border border-emerald-400/15 bg-emerald-500/10 p-4">
-                  <p className="text-[11px] font-semibold uppercase tracking-[0.2em] text-emerald-200">
-                    Balance Auto-Calculated
-                  </p>
-                  <p className="mt-2 text-sm leading-6 text-slate-300">
-                    Deposit is {parsePercentage(form.deposit_percentage) ?? 0}%. Balance is{" "}
-                    {Math.max(0, 100 - (parsePercentage(form.deposit_percentage) ?? 0))}%.
-                  </p>
-                </div>
-              </div>
-            ) : null}
-
-            {form.term_type === "custom" ? (
-              <div className="grid gap-4 rounded-[24px] border border-white/10 bg-black/20 p-4">
-                <p className="text-[11px] font-semibold uppercase tracking-[0.2em] text-slate-500">
-                  Custom Term
-                </p>
-
-                <Input
-                  value={form.custom_label}
-                  onChange={(event) =>
-                    setForm((previous) => ({
-                      ...previous,
-                      custom_label: event.target.value,
-                    }))
-                  }
-                  placeholder="Custom label, example: 30/40/30 Milestone Payments"
-                  className="h-11 rounded-2xl border-white/10 bg-black/20 text-white"
-                />
-
-                <textarea
-                  value={form.custom_terms_text}
-                  onChange={(event) =>
-                    setForm((previous) => ({
-                      ...previous,
-                      custom_terms_text: event.target.value,
-                    }))
-                  }
-                  placeholder="Document wording, example: 30% deposit, 40% before shipment, 30% after installation."
-                  className="min-h-[120px] rounded-2xl border border-white/10 bg-black/20 px-4 py-3 text-sm text-white outline-none placeholder:text-white/35 focus:border-cyan-400/40"
-                />
-              </div>
-            ) : null}
-
-            <div className="rounded-[24px] border border-white/10 bg-black/20 p-4">
-              <p className="mb-3 text-[11px] font-semibold uppercase tracking-[0.2em] text-slate-500">
-                Auto Preview
-              </p>
-
-              <div className="grid gap-3 md:grid-cols-2">
-                <div className="rounded-[20px] border border-white/10 bg-white/[0.03] p-3">
-                  <p className="text-[10px] uppercase tracking-[0.18em] text-white/32">
-                    Generated Code
-                  </p>
-                  <p className="mt-2 break-words text-sm font-semibold text-cyan-100">
-                    {generatedTerm.code}
-                  </p>
-                </div>
-
-                <div className="rounded-[20px] border border-white/10 bg-white/[0.03] p-3">
-                  <p className="text-[10px] uppercase tracking-[0.18em] text-white/32">
-                    Generated Name
-                  </p>
-                  <p className="mt-2 break-words text-sm font-semibold text-white">
-                    {generatedTerm.name}
-                  </p>
-                </div>
-
-                <div className="rounded-[20px] border border-white/10 bg-white/[0.03] p-3 md:col-span-2">
-                  <p className="text-[10px] uppercase tracking-[0.18em] text-white/32">
-                    Document Wording
-                  </p>
-                  <p className="mt-2 text-sm leading-6 text-slate-300">
-                    {generatedTerm.documentTermsText}
-                  </p>
-                </div>
-              </div>
-            </div>
-
-            <div className="grid gap-4 md:grid-cols-2">
-              <ToggleCard
-                checked={form.is_default}
-                title="Default Term"
-                description="Use this as the default option when no term is selected."
-                onChange={(checked) =>
-                  setForm((previous) => ({ ...previous, is_default: checked }))
-                }
-              />
-
-              <ToggleCard
-                checked={form.allow_partial_payments}
-                title="Allow Partial Payments"
-                description="Lets documents using this term receive partial payments."
-                onChange={(checked) =>
-                  setForm((previous) => ({ ...previous, allow_partial_payments: checked }))
-                }
-              />
-            </div>
-
-            <div className="grid gap-4 md:grid-cols-2">
-              <Input
-                value={form.notes}
-                onChange={(event) =>
-                  setForm((previous) => ({ ...previous, notes: event.target.value }))
-                }
-                placeholder="Internal notes optional"
-                className="h-11 rounded-2xl border-white/10 bg-black/20 text-white"
-              />
-
-              <SelectField
-                value={form.status}
-                onChange={(value) =>
-                  setForm((previous) => ({ ...previous, status: value }))
-                }
-                options={[
-                  { value: "active", label: "Active" },
-                  { value: "inactive", label: "Inactive" },
-                  { value: "archived", label: "Archived" },
-                ]}
-              />
-            </div>
-
-            {error ? <div className="text-sm text-red-400">{error}</div> : null}
-          </div>
-
-          <DialogFooter>
-            <Button
-              variant="outline"
-              onClick={() => setDialogOpen(false)}
-              className="h-11 rounded-2xl border-white/10 bg-black/20 text-white hover:bg-white/10"
-            >
-              Cancel
-            </Button>
-
-            <Button
-              onClick={() => void handleSave()}
-              disabled={saving || !(editingRow ? canEdit : canCreate)}
-              className="h-11 rounded-xl border border-cyan-400/20 bg-cyan-500 px-4 text-sm font-semibold text-slate-950 transition hover:bg-cyan-400"
-            >
-              {saving ? "Saving..." : editingRow ? "Save Changes" : "Create Payment Term"}
-            </Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
+      <PaymentTermFormModal
+        open={dialogOpen}
+        editingRow={editingRow}
+        form={form}
+        generatedTerm={generatedTerm}
+        saving={saving}
+        error={error}
+        canSave={editingRow ? canEdit : canCreate}
+        onClose={() => {
+          setDialogOpen(false);
+          setError("");
+        }}
+        onChange={updateForm}
+        onSave={() => void handleSave()}
+      />
     </div>
   );
 }

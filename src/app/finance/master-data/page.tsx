@@ -27,6 +27,7 @@ import {
   AixiaMetricCard,
   AixiaPage,
   AixiaSection,
+  AixiaSmartLayout,
 } from "@/components/aixia";
 import { supabase } from "@/lib/supabase";
 import {
@@ -1233,8 +1234,12 @@ export default function FinanceMasterDataPage() {
         ))}
       </section>
 
-      <section className="aixia-smart-layout" data-sidebar="wide" data-balance="main">
-        <div className="aixia-smart-main">
+      <AixiaSmartLayout
+        sidebar="wide"
+        balance="main"
+        matchColumns
+        main={
+          <>
           <AccessSummaryPanel
             visibleCount={moduleCards.length}
             totalCount={Object.keys(EMPTY_MASTER_DATA_ACCESS).length}
@@ -1245,6 +1250,10 @@ export default function FinanceMasterDataPage() {
             title="Master Data Navigation"
             description="Open each dedicated finance master-data domain available to this user."
             icon={Database}
+            smartScroll
+            fill
+            visibleCards={8}
+            matchOpposite
             actions={
               <div className="aixia-control-cluster">
                 <div className="aixia-control-field-wide">
@@ -1259,52 +1268,55 @@ export default function FinanceMasterDataPage() {
               </div>
             }
           >
-            {initialLoading ? (
-              <div className="rounded-[28px] border border-dashed border-white/10 bg-black/20 px-6 py-12 text-center">
-                <Loader2 className="mx-auto h-8 w-8 animate-spin text-indigo-200" />
-                <div className="mt-4 text-sm font-medium text-white">
-                  Loading master-data access
+            <div className="aixia-section-smart-scroll-area aixia-scrollbar">
+              {initialLoading ? (
+                <div className="rounded-[28px] border border-dashed border-white/10 bg-black/20 px-6 py-12 text-center">
+                  <Loader2 className="mx-auto h-8 w-8 animate-spin text-indigo-200" />
+                  <div className="mt-4 text-sm font-medium text-white">
+                    Loading master-data access
+                  </div>
+                  <p className="mt-2 text-sm leading-6 text-white/45">
+                    Finance templates and master-data permissions are being checked.
+                  </p>
                 </div>
-                <p className="mt-2 text-sm leading-6 text-white/45">
-                  Finance templates and master-data permissions are being checked.
-                </p>
-              </div>
-            ) : moduleCards.length === 0 ? (
-              <div className="rounded-[28px] border border-dashed border-white/10 bg-black/20 px-6 py-12 text-center">
-                <LockKeyhole className="mx-auto h-8 w-8 text-white/30" />
-                <div className="mt-4 text-sm font-medium text-white">
-                  No master-data domains available
+              ) : moduleCards.length === 0 ? (
+                <div className="rounded-[28px] border border-dashed border-white/10 bg-black/20 px-6 py-12 text-center">
+                  <LockKeyhole className="mx-auto h-8 w-8 text-white/30" />
+                  <div className="mt-4 text-sm font-medium text-white">
+                    No master-data domains available
+                  </div>
+                  <p className="mt-2 text-sm leading-6 text-white/45">
+                    Ask an Admin to assign a Finance role template or user-specific
+                    exception with Master Data read access.
+                  </p>
                 </div>
-                <p className="mt-2 text-sm leading-6 text-white/45">
-                  Ask an Admin to assign a Finance role template or user-specific
-                  exception with Master Data read access.
-                </p>
-              </div>
-            ) : filteredModuleCards.length === 0 ? (
-              <div className="rounded-[28px] border border-dashed border-white/10 bg-black/20 px-6 py-12 text-center">
-                <Search className="mx-auto h-8 w-8 text-white/30" />
-                <div className="mt-4 text-sm font-medium text-white">
-                  No matching domains
+              ) : filteredModuleCards.length === 0 ? (
+                <div className="rounded-[28px] border border-dashed border-white/10 bg-black/20 px-6 py-12 text-center">
+                  <Search className="mx-auto h-8 w-8 text-white/30" />
+                  <div className="mt-4 text-sm font-medium text-white">
+                    No matching domains
+                  </div>
+                  <p className="mt-2 text-sm leading-6 text-white/45">
+                    Adjust the search term to find a visible master-data domain.
+                  </p>
                 </div>
-                <p className="mt-2 text-sm leading-6 text-white/45">
-                  Adjust the search term to find a visible master-data domain.
-                </p>
-              </div>
-            ) : (
-              <div className="aixia-adaptive-grid" data-card-size="large">
-                {filteredModuleCards.map((module) => (
-                  <MasterDataModuleButton
-                    key={module.key}
-                    module={module}
-                    onOpen={openRoute}
-                  />
-                ))}
-              </div>
-            )}
+              ) : (
+                <div className="aixia-adaptive-grid" data-card-size="large">
+                  {filteredModuleCards.map((module) => (
+                    <MasterDataModuleButton
+                      key={module.key}
+                      module={module}
+                      onOpen={openRoute}
+                    />
+                  ))}
+                </div>
+              )}
+            </div>
           </AixiaSection>
-        </div>
-
-        <div className="aixia-smart-side">
+          </>
+        }
+        side={
+          <>
           <AixiaSection
             title="Recent Changes"
             description="Recent movement across visible master-data domains."
@@ -1422,8 +1434,9 @@ export default function FinanceMasterDataPage() {
               />
             </div>
           </AixiaSection>
-        </div>
-      </section>
+          </>
+        }
+      />
     </AixiaPage>
   );
 }

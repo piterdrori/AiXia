@@ -26,7 +26,7 @@ export function AixiaSection({
         <div className="aixia-section-header-layout">
           <div className="aixia-section-title-wrap">
             {Icon ? (
-              <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-2xl border border-[#6366F1]/30 bg-[#6366F1]/12 text-indigo-200 shadow-[0_0_24px_rgba(99,102,241,0.2)]">
+              <div className="aixia-section-icon">
                 <Icon className="h-5 w-5" />
               </div>
             ) : null}

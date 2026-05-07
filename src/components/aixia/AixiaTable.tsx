@@ -1,0 +1,61 @@
+import type { ReactNode } from "react";
+import { ArrowUpDown } from "lucide-react";
+
+type SortDirection = "asc" | "desc";
+
+type AixiaTableShellProps = {
+  children: ReactNode;
+  minWidthClassName?: string;
+  maxHeightClassName?: string;
+};
+
+type AixiaSortableHeaderProps<TSortKey extends string> = {
+  label: string;
+  sortKey: TSortKey;
+  activeSortKey: TSortKey;
+  sortDirection: SortDirection;
+  onSort: (sortKey: TSortKey) => void;
+  align?: "left" | "right";
+};
+
+export function AixiaTableShell({
+  children,
+  minWidthClassName = "min-w-[1240px]",
+  maxHeightClassName = "max-h-[720px]",
+}: AixiaTableShellProps) {
+  return (
+    <div className="aixia-table-wrap aixia-scrollbar">
+      <div className={`aixia-table-scroll aixia-scrollbar ${maxHeightClassName}`}>
+        <table className={`aixia-table ${minWidthClassName}`}>{children}</table>
+      </div>
+    </div>
+  );
+}
+
+export function AixiaSortableHeader<TSortKey extends string>({
+  label,
+  sortKey,
+  activeSortKey,
+  sortDirection,
+  onSort,
+  align = "left",
+}: AixiaSortableHeaderProps<TSortKey>) {
+  const isActive = activeSortKey === sortKey;
+
+  return (
+    <button
+      type="button"
+      onClick={() => onSort(sortKey)}
+      className={`inline-flex min-w-0 items-center gap-2 whitespace-nowrap transition hover:text-white ${
+        isActive ? "text-[#FBBF24]" : "text-white/40"
+      } ${align === "right" ? "justify-end text-right" : "justify-start text-left"}`}
+    >
+      <span className="truncate">{label}</span>
+      <ArrowUpDown
+        className={`h-3.5 w-3.5 shrink-0 transition ${
+          isActive && sortDirection === "desc" ? "rotate-180" : ""
+        }`}
+      />
+    </button>
+  );
+}

@@ -148,16 +148,16 @@ function getCorrelatedCurrencyLabel(
   return companyCurrency || row.currency_code || "—";
 }
 
-function getStatusTone(status: string | null | undefined) {
+function getStatusBadgeTone(status: string | null | undefined) {
   switch (status) {
     case "active":
-      return "border-emerald-400/20 bg-emerald-500/10 text-emerald-200";
+      return "emerald";
     case "inactive":
-      return "border-amber-400/20 bg-amber-500/10 text-amber-200";
+      return "gold";
     case "archived":
-      return "border-rose-400/20 bg-rose-500/10 text-rose-200";
+      return "rose";
     default:
-      return "border-white/10 bg-white/[0.06] text-slate-300";
+      return "neutral";
   }
 }
 
@@ -265,29 +265,17 @@ function StatusBadge({
   className?: string;
 }) {
   return (
-    <span
-      className={`inline-flex max-w-full items-center rounded-full border px-3 py-1 text-[11px] font-semibold uppercase tracking-[0.14em] ${getStatusTone(
-        value
-      )} ${className || ""}`}
-    >
-      <span className="truncate">{formatStatus(value)}</span>
-    </span>
+    <AixiaBadge tone={getStatusBadgeTone(value)} className={className}>
+      {formatStatus(value)}
+    </AixiaBadge>
   );
 }
 
 function DefaultBadge({ isDefault }: { isDefault: boolean }) {
-  if (!isDefault) {
-    return (
-      <span className="inline-flex items-center rounded-full border border-white/10 bg-white/[0.04] px-3 py-1 text-[11px] font-semibold uppercase tracking-[0.14em] text-slate-500">
-        Standard
-      </span>
-    );
-  }
-
   return (
-    <span className="inline-flex items-center rounded-full border border-emerald-400/20 bg-emerald-500/10 px-3 py-1 text-[11px] font-semibold uppercase tracking-[0.14em] text-emerald-200">
-      Default
-    </span>
+    <AixiaBadge tone={isDefault ? "emerald" : "neutral"}>
+      {isDefault ? "Default" : "Standard"}
+    </AixiaBadge>
   );
 }
 
@@ -295,7 +283,7 @@ function HeaderStatusCard({
   label,
   value,
   detail,
-  icon: Icon,
+  icon,
   tone,
 }: {
   label: string;
@@ -304,34 +292,18 @@ function HeaderStatusCard({
   icon: LucideIcon;
   tone: "emerald" | "cyan" | "amber" | "rose";
 }) {
-  const toneClasses = {
-    emerald: "border-emerald-400/20 bg-emerald-500/10 text-emerald-200",
-    cyan: "border-cyan-400/20 bg-cyan-500/10 text-cyan-200",
-    amber: "border-amber-400/20 bg-amber-500/10 text-amber-200",
-    rose: "border-rose-400/20 bg-rose-500/10 text-rose-200",
-  }[tone];
+  const metricTone =
+    tone === "cyan" ? "indigo" : tone === "amber" ? "gold" : tone;
 
   return (
-    <div className="min-h-[148px] rounded-[24px] border border-white/10 bg-black/20 p-4">
-      <div className="flex items-start justify-between gap-3">
-        <div className="min-w-0">
-          <div className="text-[11px] font-semibold uppercase tracking-[0.2em] text-slate-500">
-            {label}
-          </div>
-          <div className="mt-2 text-xl font-semibold leading-tight tracking-[-0.035em] text-white">
-            {value}
-          </div>
-        </div>
-
-        <div
-          className={`flex h-10 w-10 shrink-0 items-center justify-center rounded-2xl border ${toneClasses}`}
-        >
-          <Icon className="h-4 w-4" />
-        </div>
-      </div>
-
-      <div className="mt-3 text-xs leading-5 text-slate-500">{detail}</div>
-    </div>
+    <AixiaMetricCard
+      label={label}
+      value={value}
+      description={detail}
+      icon={icon}
+      tone={metricTone}
+      className="min-h-[148px]"
+    />
   );
 }
 
@@ -1200,14 +1172,15 @@ export default function FinanceMasterDataBankAccountsPage() {
         </AixiaSection>
       )}
 
-      <div className="rounded-[24px] border border-cyan-400/20 bg-cyan-500/10 p-4 text-sm leading-6 text-cyan-100">
-        <div className="font-semibold text-white">Locked access rule</div>
-        <div className="mt-1">
-          This registry requires Bank Account Read access. Create is controlled by
-          Create access. Archive, Restore, and Permanent Delete are controlled by
-          Delete/Archive access. Update/Edit is handled inside the bank account ID page.
+      <AixiaSection
+        title="Locked Access Rule"
+        description="This registry requires Bank Account Read access. Create is controlled by Create access. Archive, Restore, and Permanent Delete are controlled by Delete/Archive access. Update/Edit is handled inside the bank account ID page."
+        icon={ShieldCheck}
+      >
+        <div className="rounded-[24px] border border-cyan-400/20 bg-cyan-500/10 p-4 text-sm leading-6 text-cyan-100">
+          Finance permissions remain enforced by the existing permission state and backend access model.
         </div>
-      </div>
+      </AixiaSection>
 
       <AixiaModal
         open={showArchive}

@@ -168,6 +168,21 @@ export async function restorePaymentMethod(id: string) {
   return data as FinancePaymentMethod;
 }
 
+async function countPaymentMethodDependencies(
+  tableName: string,
+  columnName: string,
+  paymentMethodId: string
+): Promise<number> {
+  const { count, error } = await supabase
+    .from(tableName)
+    .select("*", { count: "exact", head: true })
+    .eq(columnName, paymentMethodId);
+
+  if (error) throw error;
+
+  return count ?? 0;
+}
+
 export async function permanentlyDeletePaymentMethod(id: string) {
   const { data: existing, error: readError } = await supabase
     .from(TABLE)
@@ -177,10 +192,31 @@ export async function permanentlyDeletePaymentMethod(id: string) {
 
   if (readError) throw readError;
 
-  const { error } = await supabase
-    .from(TABLE)
-    .delete()
-    .eq("id", id);
+  const dependencyChecks = await Promise.all([
+    countPaymentMethodDependencies("finance_payments_made", "payment_method_id", id),
+    countPaymentMethodDependencies("finance_reimbursements", "payment_method_id", id),
+  ]);
+
+  const [paymentsMadeCount, reimbursementsCount] = dependencyChecks;
+
+  const dependencyMessages = [
+    paymentsMadeCount > 0
+      ? `${paymentsMadeCount} payment${paymentsMadeCount === 1 ? "" : "s"} made`
+      : null,
+    reimbursementsCount > 0
+      ? `${reimbursementsCount} reimbursement${reimbursementsCount === 1 ? "" : "s"}`
+      : null,
+  ].filter(Boolean);
+
+  if (dependencyMessages.length > 0) {
+    throw new Error(
+      `This payment method is already used in finance records and cannot be permanently deleted. Linked records: ${dependencyMessages.join(
+        ", "
+      )}. Archive the payment method instead.`
+    );
+  }
+
+  const { error } = await supabase.from(TABLE).delete().eq("id", id);
 
   if (error) throw error;
 

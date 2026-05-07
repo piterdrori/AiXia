@@ -1,42 +1,269 @@
 .aixia-page {
-  @apply relative min-h-screen overflow-x-hidden bg-[#05070d] px-4 py-4 text-white md:px-6 md:py-6;
+  min-height: 100vh;
+  overflow-x: hidden;
+  background: #05070d;
+  color: white;
+  padding: clamp(1rem, 1.2vw, 1.5rem);
 }
 
 .aixia-shell {
-  @apply relative z-10 mx-auto flex w-full max-w-[1600px] flex-col gap-6;
+  position: relative;
+  z-index: 10;
+  margin-left: auto;
+  margin-right: auto;
+  display: flex;
+  width: 100%;
+  max-width: 1600px;
+  flex-direction: column;
+  gap: clamp(1rem, 1.5vw, 1.5rem);
 }
 
+/* -------------------------------------------------------
+   GLASS SURFACES
+------------------------------------------------------- */
+
 .aixia-glass {
-  @apply relative overflow-hidden rounded-[32px] border border-white/10 bg-white/[0.045] shadow-[0_24px_80px_rgba(0,0,0,0.35)] backdrop-blur-xl;
+  position: relative;
+  overflow: hidden;
+  border-radius: clamp(1.5rem, 2vw, 2rem);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  background: rgba(255, 255, 255, 0.045);
+  box-shadow: 0 24px 80px rgba(0, 0, 0, 0.35);
+  backdrop-filter: blur(16px);
 }
 
 .aixia-glass-hover {
-  @apply transition-all duration-300 hover:border-white/15 hover:bg-white/[0.055];
+  transition:
+    border-color 300ms ease,
+    background-color 300ms ease,
+    box-shadow 300ms ease,
+    transform 300ms ease;
 }
 
+.aixia-glass-hover:hover {
+  border-color: rgba(255, 255, 255, 0.15);
+  background: rgba(255, 255, 255, 0.055);
+}
+
+/* -------------------------------------------------------
+   GLOBAL SMART RESPONSIVE SYSTEM
+   Definition:
+   Horizontal box = landscape / top and bottom longer
+   Vertical box = portrait / left and right longer
+------------------------------------------------------- */
+
+.aixia-smart-grid {
+  display: grid;
+  width: 100%;
+  min-width: 0;
+  gap: clamp(0.75rem, 1.1vw, 1rem);
+  align-items: stretch;
+  grid-template-columns: 1fr;
+}
+
+.aixia-smart-grid > * {
+  min-width: 0;
+  width: 100%;
+}
+
+.aixia-smart-grid[data-mode="compact"] {
+  grid-template-columns: repeat(auto-fit, minmax(min(100%, 220px), 1fr));
+}
+
+.aixia-smart-grid[data-mode="metrics"],
+.aixia-smart-grid[data-mode="auto"] {
+  grid-template-columns: repeat(auto-fit, minmax(min(100%, 240px), 1fr));
+}
+
+.aixia-smart-grid[data-mode="cards"] {
+  grid-template-columns: repeat(auto-fit, minmax(min(100%, 320px), 1fr));
+}
+
+.aixia-smart-grid[data-mode="wide"] {
+  grid-template-columns: repeat(auto-fit, minmax(min(100%, 380px), 1fr));
+}
+
+.aixia-smart-grid[data-mode="hero-stats"] {
+  grid-template-columns: 1fr;
+}
+
+.aixia-smart-grid[data-mode="hero-stats"] > * {
+  min-height: 132px;
+}
+
+@media (min-width: 640px) {
+  .aixia-smart-grid[data-mode="hero-stats"]:has(> :nth-child(2)) {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .aixia-smart-grid[data-mode="hero-stats"]:has(> :nth-child(2)) > * {
+    min-height: 132px;
+  }
+}
+
+@media (min-width: 1024px) {
+  .aixia-smart-grid[data-mode="hero-stats"]:has(> :nth-child(1)):not(:has(> :nth-child(2))) {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .aixia-smart-grid[data-mode="hero-stats"]:has(> :nth-child(2)):not(:has(> :nth-child(3))) {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .aixia-smart-grid[data-mode="hero-stats"]:has(> :nth-child(3)):not(:has(> :nth-child(4))) {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+  }
+
+  .aixia-smart-grid[data-mode="hero-stats"]:has(> :nth-child(3)):not(:has(> :nth-child(4))) > * {
+    min-height: 190px;
+  }
+
+  .aixia-smart-grid[data-mode="hero-stats"]:has(> :nth-child(4)):not(:has(> :nth-child(5))) {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .aixia-smart-grid[data-mode="hero-stats"]:has(> :nth-child(4)):not(:has(> :nth-child(5))) > * {
+    min-height: 132px;
+  }
+
+  .aixia-smart-grid[data-mode="hero-stats"]:has(> :nth-child(5)):not(:has(> :nth-child(6))) {
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+  }
+
+  .aixia-smart-grid[data-mode="hero-stats"]:has(> :nth-child(5)):not(:has(> :nth-child(6))) > * {
+    min-height: 132px;
+  }
+
+  .aixia-smart-grid[data-mode="hero-stats"]:has(> :nth-child(5)):not(:has(> :nth-child(6))) > :nth-child(1),
+  .aixia-smart-grid[data-mode="hero-stats"]:has(> :nth-child(5)):not(:has(> :nth-child(6))) > :nth-child(2),
+  .aixia-smart-grid[data-mode="hero-stats"]:has(> :nth-child(5)):not(:has(> :nth-child(6))) > :nth-child(4),
+  .aixia-smart-grid[data-mode="hero-stats"]:has(> :nth-child(5)):not(:has(> :nth-child(6))) > :nth-child(5) {
+    grid-column: span 2;
+  }
+
+  .aixia-smart-grid[data-mode="hero-stats"]:has(> :nth-child(5)):not(:has(> :nth-child(6))) > :nth-child(3) {
+    grid-column: 2 / span 2;
+  }
+
+  .aixia-smart-grid[data-mode="hero-stats"]:has(> :nth-child(6)):not(:has(> :nth-child(7))) {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+  }
+
+  .aixia-smart-grid[data-mode="hero-stats"]:has(> :nth-child(6)):not(:has(> :nth-child(7))) > * {
+    min-height: 190px;
+  }
+
+  .aixia-smart-grid[data-mode="hero-stats"]:has(> :nth-child(7)) {
+    grid-template-columns: repeat(auto-fit, minmax(min(100%, 240px), 1fr));
+  }
+}
+
+@media (max-width: 639px) {
+  .aixia-smart-grid[data-mode="hero-stats"] > * {
+    min-height: 124px;
+  }
+}
+
+/* -------------------------------------------------------
+   LEGACY ADAPTIVE GRID SUPPORT
+------------------------------------------------------- */
+
+.aixia-adaptive-grid {
+  display: grid;
+  width: 100%;
+  min-width: 0;
+  gap: 1rem;
+  grid-template-columns: repeat(auto-fit, minmax(min(100%, 300px), 1fr));
+}
+
+.aixia-adaptive-grid > * {
+  min-width: 0;
+  width: 100%;
+}
+
+.aixia-adaptive-grid[data-card-size="large"] {
+  grid-template-columns: repeat(auto-fit, minmax(min(100%, 360px), 1fr));
+}
+
+.aixia-adaptive-grid[data-card-size="small"] {
+  grid-template-columns: repeat(auto-fit, minmax(min(100%, 240px), 1fr));
+}
+
+/* -------------------------------------------------------
+   HERO
+------------------------------------------------------- */
+
 .aixia-hero {
-  min-height: clamp(360px, 32vw, 500px);
-  @apply relative overflow-hidden rounded-[34px] border border-white/10 bg-white/[0.045] p-6 shadow-2xl shadow-black/30 backdrop-blur-xl md:p-8;
+  position: relative;
+  min-height: clamp(340px, 32vw, 500px);
+  overflow: hidden;
+  border-radius: clamp(1.75rem, 2.4vw, 2.125rem);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  background: rgba(255, 255, 255, 0.045);
+  padding: clamp(1.25rem, 2vw, 2rem);
+  box-shadow: 0 24px 80px rgba(0, 0, 0, 0.32);
+  backdrop-filter: blur(16px);
 }
 
 .aixia-hero-glow {
-  @apply pointer-events-none absolute inset-0 rounded-[34px] bg-[radial-gradient(circle_at_top_left,rgba(99,102,241,0.18),transparent_38%),radial-gradient(circle_at_top_right,rgba(168,85,247,0.14),transparent_34%),radial-gradient(circle_at_80%_80%,rgba(251,191,36,0.08),transparent_42%)];
+  pointer-events: none;
+  position: absolute;
+  inset: 0;
+  border-radius: clamp(1.75rem, 2.4vw, 2.125rem);
+  background:
+    radial-gradient(circle at top left, rgba(99, 102, 241, 0.18), transparent 38%),
+    radial-gradient(circle at top right, rgba(168, 85, 247, 0.14), transparent 34%),
+    radial-gradient(circle at 80% 80%, rgba(251, 191, 36, 0.08), transparent 42%);
 }
 
 .aixia-hero-content {
-  @apply relative flex min-h-full flex-col justify-between gap-8;
+  position: relative;
+  display: flex;
+  min-height: inherit;
+  flex-direction: column;
+  justify-content: space-between;
+  gap: clamp(1.5rem, 2vw, 2rem);
 }
 
 .aixia-hero-main {
-  @apply grid min-w-0 gap-8 xl:grid-cols-[minmax(0,1fr)_minmax(320px,520px)] xl:items-end xl:justify-between;
+  display: grid;
+  min-width: 0;
+  gap: clamp(1.5rem, 2vw, 2rem);
+  align-items: end;
+  grid-template-columns: minmax(0, 1fr);
+}
+
+.aixia-hero-main[data-has-side="false"] {
+  grid-template-columns: minmax(0, 1fr);
+}
+
+@media (min-width: 1280px) {
+  .aixia-hero-main[data-has-side="true"] {
+    grid-template-columns: minmax(380px, 0.84fr) minmax(0, 1.16fr);
+  }
+}
+
+@media (min-width: 1536px) {
+  .aixia-hero-main[data-has-side="true"] {
+    grid-template-columns: minmax(480px, 0.82fr) minmax(0, 1.18fr);
+  }
 }
 
 .aixia-hero-text {
-  @apply min-w-0 max-w-[920px];
+  min-width: 0;
+  max-width: 920px;
 }
 
 .aixia-hero-side {
-  @apply min-w-0 w-full xl:justify-self-end;
+  min-width: 0;
+  width: 100%;
+  max-width: 100%;
+  box-sizing: border-box;
+  align-self: end;
+  justify-self: stretch;
+  overflow: hidden;
+  padding-left: 0.25rem;
+  padding-right: clamp(1.25rem, 2vw, 2rem);
 }
 
 .aixia-hero-side > * {
@@ -44,91 +271,135 @@
   max-width: 100% !important;
 }
 
-.aixia-hero-actions {
-  @apply flex flex-wrap justify-start gap-3 xl:justify-end;
+.aixia-hero-side .aixia-adaptive-grid,
+.aixia-hero-side .aixia-smart-grid {
+  display: grid;
+  width: 100%;
+  min-width: 0;
+  gap: 0.75rem;
+  align-items: stretch;
+  grid-template-columns: 1fr;
 }
 
-.aixia-action-system {
-  @apply flex min-w-0 flex-wrap items-center gap-3;
+.aixia-hero-side .aixia-adaptive-grid > *,
+.aixia-hero-side .aixia-smart-grid > * {
+  min-width: 0;
+  width: 100%;
 }
 
-.aixia-action-system[data-align="start"] {
-  @apply justify-start;
+@media (min-width: 640px) {
+  .aixia-hero-side .aixia-adaptive-grid:has(> :nth-child(2)),
+  .aixia-hero-side .aixia-smart-grid:has(> :nth-child(2)) {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
 }
 
-.aixia-action-system[data-align="end"] {
-  @apply justify-start xl:justify-end;
+@media (min-width: 1024px) {
+  .aixia-hero-side .aixia-adaptive-grid:has(> :nth-child(1)):not(:has(> :nth-child(2))),
+  .aixia-hero-side .aixia-smart-grid:has(> :nth-child(1)):not(:has(> :nth-child(2))) {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .aixia-hero-side .aixia-adaptive-grid:has(> :nth-child(2)):not(:has(> :nth-child(3))),
+  .aixia-hero-side .aixia-smart-grid:has(> :nth-child(2)):not(:has(> :nth-child(3))) {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .aixia-hero-side .aixia-adaptive-grid:has(> :nth-child(3)):not(:has(> :nth-child(4))),
+  .aixia-hero-side .aixia-smart-grid:has(> :nth-child(3)):not(:has(> :nth-child(4))) {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    padding-left: 0;
+    padding-right: 0;
+  }
+
+  .aixia-hero-side .aixia-adaptive-grid:has(> :nth-child(3)):not(:has(> :nth-child(4))) > *,
+  .aixia-hero-side .aixia-smart-grid:has(> :nth-child(3)):not(:has(> :nth-child(4))) > * {
+    min-height: 190px;
+    max-width: 100%;
+  }
+
+  .aixia-hero-side .aixia-adaptive-grid:has(> :nth-child(4)):not(:has(> :nth-child(5))),
+  .aixia-hero-side .aixia-smart-grid:has(> :nth-child(4)):not(:has(> :nth-child(5))) {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .aixia-hero-side .aixia-adaptive-grid:has(> :nth-child(5)):not(:has(> :nth-child(6))),
+  .aixia-hero-side .aixia-smart-grid:has(> :nth-child(5)):not(:has(> :nth-child(6))) {
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+  }
+
+  .aixia-hero-side .aixia-adaptive-grid:has(> :nth-child(5)):not(:has(> :nth-child(6))) > :nth-child(1),
+  .aixia-hero-side .aixia-adaptive-grid:has(> :nth-child(5)):not(:has(> :nth-child(6))) > :nth-child(2),
+  .aixia-hero-side .aixia-adaptive-grid:has(> :nth-child(5)):not(:has(> :nth-child(6))) > :nth-child(4),
+  .aixia-hero-side .aixia-adaptive-grid:has(> :nth-child(5)):not(:has(> :nth-child(6))) > :nth-child(5),
+  .aixia-hero-side .aixia-smart-grid:has(> :nth-child(5)):not(:has(> :nth-child(6))) > :nth-child(1),
+  .aixia-hero-side .aixia-smart-grid:has(> :nth-child(5)):not(:has(> :nth-child(6))) > :nth-child(2),
+  .aixia-hero-side .aixia-smart-grid:has(> :nth-child(5)):not(:has(> :nth-child(6))) > :nth-child(4),
+  .aixia-hero-side .aixia-smart-grid:has(> :nth-child(5)):not(:has(> :nth-child(6))) > :nth-child(5) {
+    grid-column: span 2;
+  }
+
+  .aixia-hero-side .aixia-adaptive-grid:has(> :nth-child(5)):not(:has(> :nth-child(6))) > :nth-child(3),
+  .aixia-hero-side .aixia-smart-grid:has(> :nth-child(5)):not(:has(> :nth-child(6))) > :nth-child(3) {
+    grid-column: 2 / span 2;
+  }
+
+  .aixia-hero-side .aixia-adaptive-grid:has(> :nth-child(6)):not(:has(> :nth-child(7))),
+  .aixia-hero-side .aixia-smart-grid:has(> :nth-child(6)):not(:has(> :nth-child(7))) {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+  }
+
+  .aixia-hero-side .aixia-adaptive-grid:has(> :nth-child(6)):not(:has(> :nth-child(7))) > *,
+  .aixia-hero-side .aixia-smart-grid:has(> :nth-child(6)):not(:has(> :nth-child(7))) > * {
+    min-height: 190px;
+  }
+
+  .aixia-hero-side .aixia-adaptive-grid:has(> :nth-child(7)),
+  .aixia-hero-side .aixia-smart-grid:has(> :nth-child(7)) {
+    grid-template-columns: repeat(auto-fit, minmax(min(100%, 240px), 1fr));
+  }
 }
 
-.aixia-action-system[data-align="between"] {
-  @apply justify-between;
-}
-
-.aixia-action-system[data-density="compact"] > * {
-  @apply h-10;
-}
-
-.aixia-action-system[data-density="normal"] > * {
-  @apply h-12;
-}
-
-.aixia-control-cluster {
-  @apply flex min-w-0 flex-col gap-3 sm:flex-row sm:flex-wrap sm:items-center xl:justify-end;
-}
-
-.aixia-control-field {
-  @apply relative w-full min-w-0 sm:w-[320px] xl:w-[360px];
-}
-
-.aixia-control-field-wide {
-  @apply relative w-full min-w-0 sm:w-[360px] xl:w-[420px];
-}
-
-.aixia-section {
-  @apply relative overflow-hidden rounded-[30px] border border-white/10 bg-white/[0.045] shadow-[0_24px_80px_rgba(0,0,0,0.28)] backdrop-blur-xl;
-}
-
-.aixia-section-header {
-  @apply border-b border-white/10 px-5 py-4 md:px-6 md:py-5;
-}
-
-.aixia-section-header-layout {
-  @apply grid min-w-0 gap-5 xl:grid-cols-[minmax(0,1fr)_auto] xl:items-center xl:justify-between;
-}
-
-.aixia-section-title-wrap {
-  @apply flex min-w-0 items-start gap-4;
-}
-
-.aixia-section-actions {
-  @apply min-w-0;
-}
-
-.aixia-section-actions > * {
-  min-width: 0 !important;
-  max-width: 100% !important;
-}
-
-.aixia-section-icon {
-  @apply flex h-12 w-12 shrink-0 items-center justify-center rounded-2xl border border-[#6366F1]/30 bg-[#6366F1]/10 text-indigo-200 shadow-[0_0_24px_rgba(99,102,241,0.2)];
-}
+/* -------------------------------------------------------
+   SMART PAGE LAYOUT
+------------------------------------------------------- */
 
 .aixia-smart-layout {
   display: grid;
-  align-items: start;
-  gap: 1.5rem;
+  align-items: stretch;
+  gap: clamp(1rem, 1.5vw, 1.5rem);
   grid-template-columns: minmax(0, 1fr);
 }
 
 .aixia-smart-main,
 .aixia-smart-side {
-  display: grid;
+  display: flex;
   min-width: 0;
-  gap: 1.5rem;
+  min-height: 0;
+  flex-direction: column;
+  gap: clamp(1rem, 1.5vw, 1.5rem);
+}
+
+.aixia-smart-main {
+  align-self: stretch;
 }
 
 .aixia-smart-side {
-  align-content: start;
+  align-self: stretch;
+}
+
+.aixia-smart-fill {
+  flex: 1 1 auto;
+  min-height: 0;
+}
+
+.aixia-smart-layout[data-match-columns="true"] {
+  align-items: stretch;
+}
+
+.aixia-smart-layout[data-match-columns="true"] > .aixia-smart-main,
+.aixia-smart-layout[data-match-columns="true"] > .aixia-smart-side {
+  height: 100%;
 }
 
 @media (min-width: 1280px) {
@@ -153,186 +424,977 @@
   }
 }
 
-.aixia-adaptive-grid {
+.aixia-section-smart-scroll {
+  display: flex;
+  min-height: 0;
+  flex-direction: column;
+}
+
+.aixia-section-smart-scroll[data-fill="true"] {
+  flex: 0 0 auto;
+}
+
+.aixia-section-smart-scroll .aixia-section-header {
+  flex: 0 0 auto;
+}
+
+.aixia-section-smart-scroll-body {
+  min-height: 0;
+  flex: 1 1 auto;
+  overflow: hidden;
+}
+
+.aixia-section-smart-scroll-area {
+  height: 100%;
+  min-height: 0;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  padding: clamp(1rem, 1.4vw, 1.5rem);
+}
+
+.aixia-section-smart-scroll[data-visible-cards="8"] {
+  min-height: 1120px;
+}
+
+.aixia-section-smart-scroll[data-visible-cards="10"] {
+  min-height: 1340px;
+}
+
+.aixia-section-smart-scroll[data-visible-cards="12"] {
+  min-height: 1580px;
+}
+
+.aixia-section-smart-scroll[data-match-opposite="true"][data-fill="true"] {
+  height: var(--aixia-smart-fill-height, auto);
+  max-height: var(--aixia-smart-fill-height, none);
+}
+
+.aixia-section-smart-scroll[data-match-opposite="true"] .aixia-section-smart-scroll-area {
+  max-height: 100%;
+}
+
+@media (max-width: 767px) {
+  .aixia-section-smart-scroll[data-visible-cards="8"] {
+    min-height: min(760px, calc(8 * 84px + 88px));
+  }
+
+  .aixia-section-smart-scroll[data-match-opposite="true"] {
+    height: auto;
+    max-height: none;
+  }
+}
+
+/* -------------------------------------------------------
+   ACTIONS / BUTTON POSITIONING
+------------------------------------------------------- */
+
+.aixia-action-system {
+  display: flex;
+  min-width: 0;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.75rem;
+}
+
+.aixia-action-system[data-align="start"] {
+  justify-content: flex-start;
+}
+
+.aixia-action-system[data-align="end"] {
+  justify-content: flex-start;
+}
+
+.aixia-action-system[data-align="between"] {
+  justify-content: space-between;
+}
+
+@media (min-width: 1280px) {
+  .aixia-action-system[data-align="end"] {
+    justify-content: flex-end;
+  }
+}
+
+.aixia-action-system[data-density="compact"] > * {
+  min-height: 2.5rem;
+}
+
+.aixia-action-system[data-density="normal"] > * {
+  min-height: 3rem;
+}
+
+/* -------------------------------------------------------
+   FORMS / SEARCH / CONTROLS
+------------------------------------------------------- */
+
+.aixia-control-cluster {
+  display: flex;
+  min-width: 0;
+  flex-direction: column;
+  gap: 0.75rem;
+}
+
+@media (min-width: 640px) {
+  .aixia-control-cluster {
+    flex-flow: row wrap;
+    align-items: center;
+  }
+}
+
+@media (min-width: 1280px) {
+  .aixia-control-cluster {
+    justify-content: flex-end;
+  }
+}
+
+.aixia-control-field,
+.aixia-control-field-wide {
+  position: relative;
+  width: 100%;
+  min-width: 0;
+}
+
+@media (min-width: 640px) {
+  .aixia-control-field {
+    width: 320px;
+  }
+
+  .aixia-control-field-wide {
+    width: 420px;
+  }
+}
+
+.aixia-control-field .aixia-input,
+.aixia-control-field-wide .aixia-input {
+  padding-left: 2.75rem !important;
+}
+
+.aixia-control-field svg,
+.aixia-control-field-wide svg {
+  z-index: 2;
+}
+
+.aixia-search-field {
+  position: relative;
+  width: 100%;
+  min-width: 0;
+}
+
+@media (min-width: 640px) {
+  .aixia-search-field[data-width="normal"] {
+    width: 320px;
+  }
+
+  .aixia-search-field[data-width="wide"] {
+    width: 420px;
+  }
+}
+
+.aixia-search-field[data-width="full"] {
+  width: 100%;
+}
+
+.aixia-search-icon {
+  pointer-events: none;
+  position: absolute;
+  left: 1rem;
+  top: 50%;
+  z-index: 2;
+  height: 1rem;
+  width: 1rem;
+  transform: translateY(-50%);
+  color: rgba(255, 255, 255, 0.35);
+}
+
+.aixia-search-input {
+  height: 3rem;
+  width: 100%;
+  border-radius: 1rem;
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  background: rgba(255, 255, 255, 0.06);
+  padding-left: 2.75rem;
+  padding-right: 1rem;
+  font-size: 0.875rem;
+  color: white;
+  outline: none;
+  transition: all 300ms ease;
+}
+
+.aixia-search-input::placeholder {
+  color: rgba(255, 255, 255, 0.35);
+}
+
+.aixia-search-field:focus-within .aixia-search-icon {
+  color: rgb(199, 210, 254);
+}
+
+.aixia-search-input:focus {
+  border-color: rgba(99, 102, 241, 0.6);
+  background: rgba(255, 255, 255, 0.09);
+  box-shadow: 0 0 28px rgba(99, 102, 241, 0.24);
+}
+
+/* -------------------------------------------------------
+   SECTIONS
+------------------------------------------------------- */
+
+.aixia-section {
+  position: relative;
+  overflow: hidden;
+  border-radius: clamp(1.5rem, 2vw, 1.875rem);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  background: rgba(255, 255, 255, 0.045);
+  box-shadow: 0 24px 80px rgba(0, 0, 0, 0.28);
+  backdrop-filter: blur(16px);
+}
+
+.aixia-section-header {
+  border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+  padding: clamp(1rem, 1.4vw, 1.25rem) clamp(1.25rem, 1.6vw, 1.5rem);
+}
+
+.aixia-section-header-layout {
   display: grid;
+  min-width: 0;
+  gap: 1.25rem;
+  align-items: center;
+  grid-template-columns: minmax(0, 1fr);
+}
+
+@media (min-width: 1280px) {
+  .aixia-section-header-layout[data-has-actions="true"] {
+    grid-template-columns: minmax(0, 1fr) auto;
+  }
+}
+
+.aixia-section-title-wrap {
+  display: flex;
+  min-width: 0;
+  align-items: flex-start;
   gap: 1rem;
-  grid-template-columns: repeat(auto-fit, minmax(min(100%, 300px), 1fr));
 }
 
-.aixia-adaptive-grid[data-card-size="large"] {
-  grid-template-columns: repeat(auto-fit, minmax(min(100%, 360px), 1fr));
+.aixia-section-actions {
+  min-width: 0;
+  width: 100%;
 }
 
-.aixia-adaptive-grid[data-card-size="small"] {
-  grid-template-columns: repeat(auto-fit, minmax(min(100%, 240px), 1fr));
+@media (min-width: 1280px) {
+  .aixia-section-actions {
+    width: auto;
+    justify-self: end;
+  }
 }
+
+.aixia-section-actions > * {
+  min-width: 0 !important;
+  max-width: 100% !important;
+}
+
+.aixia-section-icon {
+  display: flex;
+  height: 3rem;
+  width: 3rem;
+  flex-shrink: 0;
+  align-items: center;
+  justify-content: center;
+  border-radius: 1rem;
+  border: 1px solid rgba(99, 102, 241, 0.3);
+  background: rgba(99, 102, 241, 0.1);
+  color: rgb(199, 210, 254);
+  box-shadow: 0 0 24px rgba(99, 102, 241, 0.2);
+}
+
+/* -------------------------------------------------------
+   SIDE LISTS
+------------------------------------------------------- */
 
 .aixia-stack {
-  @apply grid min-w-0 gap-6;
+  display: grid;
+  min-width: 0;
+  gap: 1.5rem;
 }
 
 .aixia-side-card-list {
-  @apply aixia-scrollbar max-h-[430px] overflow-y-auto overscroll-contain rounded-[26px] border border-white/10 bg-black/20;
+  max-height: 430px;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  border-radius: 26px;
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  background: rgba(0, 0, 0, 0.2);
 }
 
 .aixia-side-list-row {
-  @apply group grid w-full grid-cols-[minmax(0,1fr)_auto] items-center gap-4 px-5 py-4 text-left transition hover:bg-white/[0.045];
+  display: grid;
+  width: 100%;
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: start;
+  gap: 1rem;
+  padding: 1rem 1.25rem;
+  text-align: left;
+  transition:
+    background-color 150ms ease,
+    color 150ms ease;
 }
 
+.aixia-side-list-row:hover {
+  background: rgba(255, 255, 255, 0.045);
+}
+
+.aixia-side-list-row > div:first-child > div:first-child {
+  display: grid !important;
+  min-width: 0;
+  grid-template-columns: minmax(0, 1fr);
+  gap: 0.5rem;
+  align-items: start;
+}
+
+.aixia-side-list-row > div:first-child > div:first-child .aixia-badge {
+  width: fit-content;
+}
+
+.aixia-side-list-row > div:last-child {
+  padding-top: 2.1rem;
+}
+
+/* -------------------------------------------------------
+   TYPOGRAPHY
+------------------------------------------------------- */
+
 .aixia-title-xl {
-  @apply max-w-[980px] text-[clamp(3rem,5.2vw,5.6rem)] font-black leading-[0.95] tracking-[-0.055em];
+  max-width: 980px;
+  font-size: clamp(2.4rem, 5vw, 5.6rem);
+  font-weight: 900;
+  line-height: 0.95;
+  letter-spacing: -0.055em;
 }
 
 .aixia-gradient-text {
-  @apply bg-gradient-to-r from-[#6366F1] via-[#A855F7] to-[#FBBF24] bg-clip-text text-transparent;
+  background: linear-gradient(90deg, #6366f1, #a855f7, #fbbf24);
+  -webkit-background-clip: text;
+  background-clip: text;
+  color: transparent;
 }
 
 .aixia-subtitle {
-  @apply mt-4 max-w-[980px] text-[clamp(1.35rem,2.6vw,2.4rem)] font-black uppercase leading-tight tracking-[0.08em] text-white/90;
+  margin-top: 1rem;
+  max-width: 980px;
+  font-size: clamp(1.1rem, 2.4vw, 2.4rem);
+  font-weight: 900;
+  line-height: 1.1;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: rgba(255, 255, 255, 0.9);
 }
 
 .aixia-body {
-  @apply max-w-[760px] text-sm leading-7 text-white/55 md:text-base md:leading-7;
+  max-width: 760px;
+  font-size: clamp(0.875rem, 0.95vw, 1rem);
+  line-height: 1.75;
+  color: rgba(255, 255, 255, 0.55);
 }
 
 .aixia-label {
-  @apply text-[11px] font-bold uppercase tracking-[0.22em] text-white/55;
+  font-size: 0.6875rem;
+  font-weight: 800;
+  letter-spacing: 0.22em;
+  text-transform: uppercase;
+  color: rgba(255, 255, 255, 0.55);
 }
 
 .aixia-caption {
-  @apply text-xs leading-5 text-white/35;
+  font-size: 0.75rem;
+  line-height: 1.45;
+  color: rgba(255, 255, 255, 0.35);
 }
 
+/* -------------------------------------------------------
+   BADGES
+------------------------------------------------------- */
+
 .aixia-badge {
-  @apply inline-flex items-center rounded-full border px-4 py-1.5 text-[10px] font-bold uppercase tracking-[0.2em] shadow-none backdrop-blur-md;
+  display: inline-flex;
+  align-items: center;
+  border-radius: 999px;
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  padding: 0.375rem 1rem;
+  font-size: 0.625rem;
+  font-weight: 800;
+  letter-spacing: 0.2em;
+  text-transform: uppercase;
+  backdrop-filter: blur(12px);
 }
 
 .aixia-badge-indigo {
-  @apply border-[#6366F1]/30 bg-[#6366F1]/10 text-indigo-200;
+  border-color: rgba(99, 102, 241, 0.3);
+  background: rgba(99, 102, 241, 0.1);
+  color: rgb(199, 210, 254);
 }
 
 .aixia-badge-violet {
-  @apply border-[#A855F7]/30 bg-[#A855F7]/10 text-violet-200;
+  border-color: rgba(168, 85, 247, 0.3);
+  background: rgba(168, 85, 247, 0.1);
+  color: rgb(221, 214, 254);
 }
 
 .aixia-badge-gold {
-  @apply border-[#FBBF24]/30 bg-[#FBBF24]/10 text-[#FBBF24];
+  border-color: rgba(251, 191, 36, 0.3);
+  background: rgba(251, 191, 36, 0.1);
+  color: #fbbf24;
 }
 
 .aixia-badge-emerald {
-  @apply border-emerald-400/30 bg-emerald-500/10 text-emerald-200;
+  border-color: rgba(52, 211, 153, 0.3);
+  background: rgba(16, 185, 129, 0.1);
+  color: rgb(167, 243, 208);
 }
 
 .aixia-badge-rose {
-  @apply border-rose-400/30 bg-rose-500/10 text-rose-200;
+  border-color: rgba(251, 113, 133, 0.3);
+  background: rgba(244, 63, 94, 0.1);
+  color: rgb(254, 205, 211);
+}
+
+.aixia-badge-neutral {
+  border-color: rgba(255, 255, 255, 0.1);
+  background: rgba(255, 255, 255, 0.08);
+  color: rgba(255, 255, 255, 0.65);
+}
+
+/* -------------------------------------------------------
+   BUTTONS
+------------------------------------------------------- */
+
+.aixia-btn-primary,
+.aixia-btn-secondary,
+.aixia-btn-danger {
+  position: relative;
+  display: inline-flex;
+  min-height: 3rem;
+  align-items: center;
+  justify-content: center;
+  overflow: hidden;
+  border-radius: 999px;
+  padding: 0.75rem 1.75rem;
+  font-size: 0.875rem;
+  font-weight: 800;
+  letter-spacing: 0.02em;
+  transition:
+    transform 300ms ease,
+    border-color 300ms ease,
+    background-color 300ms ease,
+    box-shadow 300ms ease,
+    opacity 300ms ease;
+}
+
+.aixia-btn-primary:disabled,
+.aixia-btn-secondary:disabled,
+.aixia-btn-danger:disabled,
+.aixia-icon-btn:disabled {
+  cursor: not-allowed;
+  opacity: 0.4;
 }
 
 .aixia-btn-primary {
-  @apply relative inline-flex h-12 items-center justify-center overflow-hidden rounded-full border border-[#6366F1]/40 bg-[#6366F1] px-7 text-sm font-bold tracking-wide text-white shadow-[0_0_28px_rgba(99,102,241,0.45)] transition-all duration-300 hover:-translate-y-0.5 hover:bg-[#6366F1]/90 hover:shadow-[0_0_38px_rgba(99,102,241,0.6)] disabled:cursor-not-allowed disabled:opacity-40;
+  border: 1px solid rgba(99, 102, 241, 0.4);
+  background: #6366f1;
+  color: white;
+  box-shadow: 0 0 28px rgba(99, 102, 241, 0.45);
+}
+
+.aixia-btn-primary:hover {
+  transform: translateY(-0.125rem);
+  background: rgba(99, 102, 241, 0.9);
+  box-shadow: 0 0 38px rgba(99, 102, 241, 0.6);
 }
 
 .aixia-btn-secondary {
-  @apply relative inline-flex h-12 items-center justify-center overflow-hidden rounded-full border border-white/10 bg-white/[0.08] px-7 text-sm font-bold tracking-wide text-white transition-all duration-300 hover:-translate-y-0.5 hover:border-white/20 hover:bg-white/[0.12] disabled:cursor-not-allowed disabled:opacity-40;
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  background: rgba(255, 255, 255, 0.08);
+  color: white;
+}
+
+.aixia-btn-secondary:hover {
+  transform: translateY(-0.125rem);
+  border-color: rgba(255, 255, 255, 0.2);
+  background: rgba(255, 255, 255, 0.12);
 }
 
 .aixia-btn-danger {
-  @apply relative inline-flex h-12 items-center justify-center overflow-hidden rounded-full border border-rose-400/30 bg-rose-500/15 px-7 text-sm font-bold tracking-wide text-rose-100 transition-all duration-300 hover:-translate-y-0.5 hover:border-rose-400/50 hover:bg-rose-500/25 disabled:cursor-not-allowed disabled:opacity-40;
+  border: 1px solid rgba(251, 113, 133, 0.3);
+  background: rgba(244, 63, 94, 0.15);
+  color: rgb(255, 228, 230);
+}
+
+.aixia-btn-danger:hover {
+  transform: translateY(-0.125rem);
+  border-color: rgba(251, 113, 133, 0.5);
+  background: rgba(244, 63, 94, 0.25);
 }
 
 .aixia-icon-btn {
-  @apply flex h-11 w-11 shrink-0 items-center justify-center rounded-2xl border border-white/10 bg-white/[0.08] text-white transition hover:border-white/20 hover:bg-white/[0.12] disabled:cursor-not-allowed disabled:opacity-40;
+  display: flex;
+  height: 2.75rem;
+  width: 2.75rem;
+  flex-shrink: 0;
+  align-items: center;
+  justify-content: center;
+  border-radius: 1rem;
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  background: rgba(255, 255, 255, 0.08);
+  color: white;
+  transition:
+    border-color 300ms ease,
+    background-color 300ms ease,
+    opacity 300ms ease;
+}
+
+.aixia-icon-btn:hover {
+  border-color: rgba(255, 255, 255, 0.2);
+  background: rgba(255, 255, 255, 0.12);
 }
 
 .aixia-parent-pill {
-  @apply mb-6 inline-flex w-fit items-center gap-2 rounded-full border border-white/10 bg-white/[0.08] px-5 py-2.5 text-[11px] font-bold uppercase tracking-[0.2em] text-white/65 transition hover:border-white/20 hover:bg-white/[0.12] hover:text-white;
+  margin-bottom: 1.5rem;
+  display: inline-flex;
+  width: fit-content;
+  align-items: center;
+  gap: 0.5rem;
+  border-radius: 999px;
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  background: rgba(255, 255, 255, 0.08);
+  padding: 0.625rem 1.25rem;
+  font-size: 0.6875rem;
+  font-weight: 800;
+  letter-spacing: 0.2em;
+  text-transform: uppercase;
+  color: rgba(255, 255, 255, 0.65);
+  transition:
+    border-color 300ms ease,
+    background-color 300ms ease,
+    color 300ms ease;
 }
 
-.aixia-input {
-  @apply h-12 w-full rounded-2xl border border-white/10 bg-white/[0.06] px-4 text-sm text-white outline-none transition-all duration-300 placeholder:text-white/35 focus:border-[#6366F1]/60 focus:bg-white/[0.09] focus:shadow-[0_0_28px_rgba(99,102,241,0.24)] focus:ring-1 focus:ring-[#6366F1]/40 disabled:cursor-not-allowed disabled:opacity-50;
+.aixia-parent-pill:hover {
+  border-color: rgba(255, 255, 255, 0.2);
+  background: rgba(255, 255, 255, 0.12);
+  color: white;
 }
 
+/* -------------------------------------------------------
+   INPUTS
+------------------------------------------------------- */
+
+.aixia-input,
+.aixia-select,
+.aixia-textarea {
+  width: 100%;
+  border-radius: 1rem;
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  background: rgba(255, 255, 255, 0.06);
+  padding-left: 1rem;
+  padding-right: 1rem;
+  font-size: 0.875rem;
+  color: white;
+  outline: none;
+  transition:
+    border-color 300ms ease,
+    background-color 300ms ease,
+    box-shadow 300ms ease,
+    opacity 300ms ease;
+}
+
+.aixia-input,
 .aixia-select {
-  @apply h-12 w-full rounded-2xl border border-white/10 bg-white/[0.06] px-4 text-sm text-white outline-none transition-all duration-300 focus:border-[#6366F1]/60 focus:bg-white/[0.09] focus:shadow-[0_0_28px_rgba(99,102,241,0.24)] focus:ring-1 focus:ring-[#6366F1]/40 disabled:cursor-not-allowed disabled:opacity-50;
+  height: 3rem;
 }
 
 .aixia-textarea {
-  @apply min-h-[120px] w-full resize-none rounded-2xl border border-white/10 bg-white/[0.06] px-4 py-3 text-sm text-white outline-none transition-all duration-300 placeholder:text-white/35 focus:border-[#6366F1]/60 focus:bg-white/[0.09] focus:shadow-[0_0_28px_rgba(99,102,241,0.24)] focus:ring-1 focus:ring-[#6366F1]/40 disabled:cursor-not-allowed disabled:opacity-50;
+  min-height: 7.5rem;
+  resize: none;
+  padding-top: 0.75rem;
+  padding-bottom: 0.75rem;
 }
 
+.aixia-input::placeholder,
+.aixia-textarea::placeholder {
+  color: rgba(255, 255, 255, 0.35);
+}
+
+.aixia-input:focus,
+.aixia-select:focus,
+.aixia-textarea:focus {
+  border-color: rgba(99, 102, 241, 0.6);
+  background: rgba(255, 255, 255, 0.09);
+  box-shadow: 0 0 28px rgba(99, 102, 241, 0.24);
+}
+
+.aixia-input:disabled,
+.aixia-select:disabled,
+.aixia-textarea:disabled {
+  cursor: not-allowed;
+  opacity: 0.5;
+}
+
+/* -------------------------------------------------------
+   SUMMARY / METRIC CARDS
+------------------------------------------------------- */
+
 .aixia-summary-card {
-  @apply min-h-[156px] rounded-[28px] border border-white/10 bg-white/[0.045] p-5 shadow-[0_24px_80px_rgba(0,0,0,0.28)] backdrop-blur-xl transition-all duration-300 hover:border-white/15 hover:bg-white/[0.055];
+  min-height: 156px;
+  border-radius: clamp(1.25rem, 1.8vw, 1.75rem);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  background: rgba(255, 255, 255, 0.045);
+  padding: clamp(1rem, 1.4vw, 1.25rem);
+  box-shadow: 0 24px 80px rgba(0, 0, 0, 0.28);
+  backdrop-filter: blur(16px);
+  transition:
+    border-color 300ms ease,
+    background-color 300ms ease,
+    transform 300ms ease;
+}
+
+.aixia-summary-card:hover {
+  border-color: rgba(255, 255, 255, 0.15);
+  background: rgba(255, 255, 255, 0.055);
 }
 
 .aixia-summary-label {
-  @apply text-[11px] font-bold uppercase tracking-[0.22em] text-white/45;
+  font-size: 0.6875rem;
+  font-weight: 800;
+  letter-spacing: 0.22em;
+  text-transform: uppercase;
+  color: rgba(255, 255, 255, 0.45);
 }
 
 .aixia-summary-value {
-  @apply mt-3 text-3xl font-black tracking-tight text-white drop-shadow-[0_0_18px_rgba(255,255,255,0.16)];
+  margin-top: 0.75rem;
+  font-size: clamp(1.75rem, 2vw, 1.875rem);
+  font-weight: 900;
+  letter-spacing: -0.025em;
+  color: white;
+  text-shadow: 0 0 18px rgba(255, 255, 255, 0.16);
 }
 
+.aixia-smart-box {
+  min-width: 0;
+}
+
+.aixia-smart-box-content {
+  display: flex;
+  min-height: 100%;
+  flex-direction: column;
+  justify-content: space-between;
+}
+
+.aixia-smart-box-description {
+  margin-top: 1rem;
+  font-size: 0.75rem;
+  line-height: 1.45;
+  color: rgba(255, 255, 255, 0.45);
+}
+
+.aixia-smart-icon {
+  display: flex;
+  height: 3rem;
+  width: 3rem;
+  flex-shrink: 0;
+  align-items: center;
+  justify-content: center;
+  border-radius: 1rem;
+  border: 1px solid rgba(99, 102, 241, 0.3);
+}
+
+.aixia-smart-icon-indigo {
+  border-color: rgba(99, 102, 241, 0.3);
+  background: rgba(99, 102, 241, 0.15);
+  color: rgb(199, 210, 254);
+  box-shadow: 0 0 28px rgba(99, 102, 241, 0.2);
+}
+
+.aixia-smart-icon-violet {
+  border-color: rgba(168, 85, 247, 0.3);
+  background: rgba(168, 85, 247, 0.15);
+  color: rgb(221, 214, 254);
+  box-shadow: 0 0 28px rgba(168, 85, 247, 0.2);
+}
+
+.aixia-smart-icon-gold {
+  border-color: rgba(251, 191, 36, 0.3);
+  background: rgba(251, 191, 36, 0.15);
+  color: #fbbf24;
+  box-shadow: 0 0 28px rgba(251, 191, 36, 0.2);
+}
+
+.aixia-smart-icon-emerald {
+  border-color: rgba(52, 211, 153, 0.3);
+  background: rgba(16, 185, 129, 0.15);
+  color: rgb(167, 243, 208);
+  box-shadow: 0 0 28px rgba(16, 185, 129, 0.2);
+}
+
+.aixia-smart-icon-rose {
+  border-color: rgba(251, 113, 133, 0.3);
+  background: rgba(244, 63, 94, 0.15);
+  color: rgb(254, 205, 211);
+  box-shadow: 0 0 28px rgba(244, 63, 94, 0.2);
+}
+
+/* -------------------------------------------------------
+   TABLES
+------------------------------------------------------- */
+
 .aixia-table-wrap {
-  @apply overflow-x-auto;
+  overflow-x: auto;
 }
 
 .aixia-table-scroll {
-  @apply max-h-[720px] overflow-y-auto;
+  max-height: 720px;
+  overflow-y: auto;
 }
 
 .aixia-table {
-  @apply w-full min-w-[1240px] border-collapse;
+  width: 100%;
+  min-width: 1240px;
+  border-collapse: collapse;
 }
 
 .aixia-table-head {
-  @apply sticky top-0 z-10 border-b border-white/10 bg-[#0F172A]/85 text-left text-[10px] font-bold uppercase tracking-[0.2em] text-white/40 backdrop-blur-xl;
+  position: sticky;
+  top: 0;
+  z-index: 10;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+  background: rgba(15, 23, 42, 0.85);
+  text-align: left;
+  font-size: 0.625rem;
+  font-weight: 800;
+  letter-spacing: 0.2em;
+  text-transform: uppercase;
+  color: rgba(255, 255, 255, 0.4);
+  backdrop-filter: blur(16px);
 }
 
-.aixia-table-th {
-  @apply px-5 py-4;
+.aixia-table-th,
+.aixia-table-cell {
+  padding: 1rem 1.25rem;
 }
 
 .aixia-table-row {
-  @apply border-b border-white/[0.045] text-sm text-white/70 transition-colors duration-300 hover:bg-white/[0.045];
+  border-bottom: 1px solid rgba(255, 255, 255, 0.045);
+  font-size: 0.875rem;
+  color: rgba(255, 255, 255, 0.7);
+  transition: background-color 300ms ease;
 }
 
-.aixia-table-cell {
-  @apply px-5 py-4;
+.aixia-table-row:hover {
+  background: rgba(255, 255, 255, 0.045);
 }
+
+/* -------------------------------------------------------
+   MODALS
+------------------------------------------------------- */
 
 .aixia-modal-backdrop {
-  @apply fixed inset-0 z-[120] flex items-center justify-center bg-[#020617]/90 p-4 backdrop-blur-[44px];
+  position: fixed;
+  inset: 0;
+  z-index: 120;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: rgba(2, 6, 23, 0.9);
+  padding: 1rem;
+  backdrop-filter: blur(44px);
 }
 
 .aixia-modal {
-  @apply flex max-h-[92vh] w-full max-w-6xl flex-col overflow-hidden rounded-[40px] border border-white/15 bg-[#0F172A] shadow-[0_28px_90px_rgba(0,0,0,0.78),0_0_0_1px_rgba(255,255,255,0.05)];
+  display: flex;
+  max-height: 92vh;
+  width: 100%;
+  max-width: 72rem;
+  flex-direction: column;
+  overflow: hidden;
+  border-radius: 2.5rem;
+  border: 1px solid rgba(255, 255, 255, 0.15);
+  background: #0f172a;
+  box-shadow:
+    0 28px 90px rgba(0, 0, 0, 0.78),
+    0 0 0 1px rgba(255, 255, 255, 0.05);
 }
 
 .aixia-modal-header {
-  @apply relative overflow-hidden border-b border-white/10 bg-white/[0.06] px-8 py-7;
+  position: relative;
+  overflow: hidden;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+  background: rgba(255, 255, 255, 0.06);
+  padding: 1.75rem 2rem;
 }
 
 .aixia-modal-body {
-  @apply aixia-scrollbar space-y-8 overflow-y-auto p-8;
+  overflow-y: auto;
+  padding: 2rem;
+}
+
+.aixia-modal-body > * + * {
+  margin-top: 2rem;
 }
 
 .aixia-modal-footer {
-  @apply flex flex-col gap-3 border-t border-white/10 bg-white/[0.04] px-8 py-6 sm:flex-row sm:justify-end;
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+  border-top: 1px solid rgba(255, 255, 255, 0.1);
+  background: rgba(255, 255, 255, 0.04);
+  padding: 1.5rem 2rem;
 }
 
-.aixia-scrollbar::-webkit-scrollbar {
+@media (min-width: 640px) {
+  .aixia-modal-footer {
+    flex-direction: row;
+    justify-content: flex-end;
+  }
+}
+
+/* -------------------------------------------------------
+   MOBILE / TOUCH SUPPORT
+------------------------------------------------------- */
+
+@media (max-width: 767px) {
+  .aixia-page {
+    padding: 0.75rem;
+  }
+
+  .aixia-shell {
+    gap: 1rem;
+  }
+
+  .aixia-hero {
+    min-height: auto;
+    border-radius: 1.5rem;
+    padding: 1.25rem;
+  }
+
+  .aixia-section,
+  .aixia-glass,
+  .aixia-summary-card {
+    border-radius: 1.25rem;
+  }
+
+  .aixia-title-xl {
+    font-size: clamp(2.25rem, 12vw, 3.25rem);
+    line-height: 0.98;
+  }
+
+  .aixia-subtitle {
+    font-size: clamp(1rem, 5vw, 1.35rem);
+    line-height: 1.15;
+  }
+
+  .aixia-body {
+    font-size: 0.875rem;
+    line-height: 1.65;
+  }
+
+  .aixia-section-header-layout {
+    gap: 1rem;
+  }
+
+  .aixia-section-title-wrap {
+    gap: 0.75rem;
+  }
+
+  .aixia-section-icon {
+    height: 2.5rem;
+    width: 2.5rem;
+    border-radius: 0.875rem;
+  }
+
+  .aixia-action-system,
+  .aixia-control-cluster {
+    width: 100%;
+  }
+
+  .aixia-action-system > *,
+  .aixia-control-cluster > * {
+    width: 100%;
+  }
+
+  .aixia-btn-primary,
+  .aixia-btn-secondary,
+  .aixia-btn-danger {
+    width: 100%;
+    min-height: 3rem;
+  }
+
+  .aixia-badge {
+    max-width: 100%;
+    white-space: normal;
+    line-height: 1.35;
+  }
+
+  .aixia-side-list-row {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .aixia-side-list-row > div:last-child {
+    padding-top: 0;
+  }
+}
+
+/* -------------------------------------------------------
+   LARGE SCREEN / TV SUPPORT
+------------------------------------------------------- */
+
+@media (min-width: 1800px) {
+  .aixia-shell {
+    max-width: 1760px;
+  }
+
+  .aixia-title-xl {
+    font-size: clamp(4rem, 4vw, 6rem);
+  }
+
+  .aixia-body {
+    max-width: 820px;
+  }
+
+  .aixia-hero-main[data-has-side="true"] {
+    grid-template-columns: minmax(560px, 0.82fr) minmax(0, 1.18fr);
+  }
+}
+
+/* -------------------------------------------------------
+   SCROLLBARS
+------------------------------------------------------- */
+
+.aixia-scrollbar::-webkit-scrollbar,
+.aixia-modal-body::-webkit-scrollbar,
+.aixia-side-card-list::-webkit-scrollbar,
+.aixia-table-wrap::-webkit-scrollbar,
+.aixia-table-scroll::-webkit-scrollbar {
   width: 7px;
   height: 7px;
 }
 
-.aixia-scrollbar::-webkit-scrollbar-track {
+.aixia-scrollbar::-webkit-scrollbar-track,
+.aixia-modal-body::-webkit-scrollbar-track,
+.aixia-side-card-list::-webkit-scrollbar-track,
+.aixia-table-wrap::-webkit-scrollbar-track,
+.aixia-table-scroll::-webkit-scrollbar-track {
   background: transparent;
 }
 
-.aixia-scrollbar::-webkit-scrollbar-thumb {
+.aixia-scrollbar::-webkit-scrollbar-thumb,
+.aixia-modal-body::-webkit-scrollbar-thumb,
+.aixia-side-card-list::-webkit-scrollbar-thumb,
+.aixia-table-wrap::-webkit-scrollbar-thumb,
+.aixia-table-scroll::-webkit-scrollbar-thumb {
   background: rgba(255, 255, 255, 0.14);
   border-radius: 999px;
 }
 
-.aixia-scrollbar::-webkit-scrollbar-thumb:hover {
+.aixia-scrollbar::-webkit-scrollbar-thumb:hover,
+.aixia-modal-body::-webkit-scrollbar-thumb:hover,
+.aixia-side-card-list::-webkit-scrollbar-thumb:hover,
+.aixia-table-wrap::-webkit-scrollbar-thumb:hover,
+.aixia-table-scroll::-webkit-scrollbar-thumb:hover {
   background: rgba(255, 255, 255, 0.24);
 }

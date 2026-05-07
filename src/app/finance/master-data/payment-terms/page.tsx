@@ -91,7 +91,7 @@ type GeneratedTerm = {
 };
 
 const DEFAULT_APPLIES_TO: FinancePaymentTermAppliesTo[] = ["all"];
-const DEFAULT_DUE_BASIS = "invoice_date" as FinancePaymentTermDueBasis;
+const DEFAULT_DUE_BASIS: FinancePaymentTermDueBasis = "invoice_date";
 
 const EMPTY_FORM: FormState = {
   term_type: "net",
@@ -143,21 +143,45 @@ const DEPOSIT_DUE_BASIS_OPTIONS: Array<{
   value: FinancePaymentTermDepositDueBasis;
   label: string;
 }> = [
-  { value: "immediate", label: "Immediately" },
-  { value: "before_production", label: "Before Production" },
-  { value: "before_shipment", label: "Before Shipment" },
-  { value: "before_delivery", label: "Before Delivery" },
+  {
+    value: "immediate",
+    label: "Immediately",
+  },
+  {
+    value: "before_production",
+    label: "Before Production",
+  },
+  {
+    value: "before_shipment",
+    label: "Before Shipment",
+  },
+  {
+    value: "before_delivery",
+    label: "Before Delivery",
+  },
 ];
 
 const BALANCE_DUE_BASIS_OPTIONS: Array<{
   value: FinancePaymentTermBalanceDueBasis;
   label: string;
 }> = [
-  { value: "before_shipment", label: "Before Shipment" },
-  { value: "delivery_date", label: "On Delivery" },
-  { value: "shipment_date", label: "On Shipment" },
-  { value: "invoice_date", label: "On Invoice Date" },
-};
+  {
+    value: "before_shipment",
+    label: "Before Shipment",
+  },
+  {
+    value: "delivery_date",
+    label: "On Delivery",
+  },
+  {
+    value: "shipment_date",
+    label: "On Shipment",
+  },
+  {
+    value: "invoice_date",
+    label: "On Invoice Date",
+  },
+];
 
 function formatDateLabel(value: string | null | undefined) {
   if (!value) return "—";

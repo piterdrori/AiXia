@@ -13,7 +13,6 @@ The goal is to make every page feel like it was built by the same designer, foll
 
 Do not rewrite or globally redesign files inside:
 
-````md
 ```txt
 src/components/ui/
 ```

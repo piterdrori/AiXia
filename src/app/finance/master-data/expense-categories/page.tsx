@@ -3,8 +3,6 @@ import { useNavigate } from "react-router-dom";
 import {
   Archive,
   ArrowLeft,
-  BadgeDollarSign,
-  BookOpen,
   CheckCircle2,
   Edit3,
   Landmark,
@@ -786,14 +784,17 @@ export default function FinanceExpenseCategoriesPage() {
     }
   }
 
-  const tableHeaders: Array<{ key: SortKey | "actions"; label: string }> = [
-    { key: "code", label: "Code" },
-    { key: "name", label: "Name" },
-    { key: "ledger", label: "Ledger Link" },
-    { key: "status", label: "Status" },
-    { key: "posted", label: "Posted" },
-    { key: "updated_at", label: "Updated" },
-    { key: "actions", label: "Actions" },
+  const tableHeaders: Array<
+    | { key: SortKey; label: string; sortable: true }
+    | { key: "actions"; label: string; sortable: false }
+  > = [
+    { key: "code", label: "Code", sortable: true },
+    { key: "name", label: "Name", sortable: true },
+    { key: "ledger", label: "Ledger Link", sortable: true },
+    { key: "status", label: "Status", sortable: true },
+    { key: "posted", label: "Posted", sortable: true },
+    { key: "updated_at", label: "Updated", sortable: true },
+    { key: "actions", label: "Actions", sortable: false },
   ];
 
   return (
@@ -991,9 +992,7 @@ export default function FinanceExpenseCategoriesPage() {
                           key={header.key}
                           className="px-5 py-4 text-[11px] uppercase tracking-[0.18em] text-slate-500"
                         >
-                          {header.key === "actions" ? (
-                            <span>{header.label}</span>
-                          ) : (
+                          {header.sortable ? (
                             <button
                               type="button"
                               onClick={() => updateSort(header.key)}
@@ -1002,6 +1001,8 @@ export default function FinanceExpenseCategoriesPage() {
                               {header.label}
                               {sortLabel(header.key)}
                             </button>
+                          ) : (
+                            <span>{header.label}</span>
                           )}
                         </th>
                       ))}

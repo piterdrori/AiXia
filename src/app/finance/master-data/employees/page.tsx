@@ -432,151 +432,193 @@ function ToggleButton({
 function PayProfileCard({
   profile,
   onEdit,
-  onArchive,
+  onDelete,
 }: {
   profile: PayProfileRow;
   onEdit: () => void;
-  onArchive: () => void;
+  onDelete: () => void;
 }) {
   const hourlyStructure = getHourlyStructure(profile);
   const grossPay = getPrimaryGrossPay(profile);
 
   return (
-    <div className="overflow-hidden rounded-[28px] border border-emerald-400/15 bg-emerald-500/10 p-5">
-      <div className="flex flex-col gap-5 xl:flex-row xl:items-start xl:justify-between">
-        <div className="min-w-0 space-y-3">
-          <div className="flex flex-wrap items-center gap-2">
-            <Badge className="rounded-full border border-emerald-400/20 bg-emerald-500/10 px-2.5 py-1 text-[11px] text-emerald-200 shadow-none">
-              {profile.active && profile.status === "active" ? "Active" : formatLabel(profile.status)}
-            </Badge>
-            <Badge className="rounded-full border border-cyan-400/20 bg-cyan-500/10 px-2.5 py-1 text-[11px] text-cyan-200 shadow-none">
-              {getPaycheckTypeLabel(profile)}
-            </Badge>
-            <Badge className="rounded-full border border-violet-400/20 bg-violet-500/10 px-2.5 py-1 text-[11px] text-violet-200 shadow-none">
-              {formatLabel(profile.payment_frequency)}
-            </Badge>
-            {hourlyStructure.enabled ? (
-              <Badge className="rounded-full border border-amber-400/20 bg-amber-500/10 px-2.5 py-1 text-[11px] text-amber-200 shadow-none">
-                Hourly Structure Enabled
+    <div className="relative overflow-hidden rounded-[32px] border border-white/10 bg-white/[0.045] p-5 shadow-2xl shadow-black/30 backdrop-blur-xl">
+      <div className="pointer-events-none absolute inset-0 bg-[radial-gradient(circle_at_top_left,rgba(6,182,212,0.20),transparent_34%),radial-gradient(circle_at_top_right,rgba(16,185,129,0.18),transparent_34%),radial-gradient(circle_at_bottom_right,rgba(139,92,246,0.16),transparent_36%)]" />
+
+      <div className="relative">
+        <div className="flex flex-col gap-5 xl:flex-row xl:items-start xl:justify-between">
+          <div className="min-w-0 space-y-4">
+            <div className="flex flex-wrap items-center gap-2">
+              <Badge className="rounded-full border border-emerald-400/20 bg-emerald-500/10 px-3 py-1 text-[11px] uppercase tracking-[0.18em] text-emerald-200 shadow-none">
+                {profile.active && profile.status === "active" ? "Active Profile" : formatLabel(profile.status)}
               </Badge>
-            ) : null}
+              <Badge className="rounded-full border border-cyan-400/20 bg-cyan-500/10 px-3 py-1 text-[11px] uppercase tracking-[0.18em] text-cyan-200 shadow-none">
+                {getPaycheckTypeLabel(profile)}
+              </Badge>
+              <Badge className="rounded-full border border-violet-400/20 bg-violet-500/10 px-3 py-1 text-[11px] uppercase tracking-[0.18em] text-violet-200 shadow-none">
+                {formatLabel(profile.payment_frequency)}
+              </Badge>
+              {hourlyStructure.enabled ? (
+                <Badge className="rounded-full border border-amber-400/20 bg-amber-500/10 px-3 py-1 text-[11px] uppercase tracking-[0.18em] text-amber-200 shadow-none">
+                  Hourly Enabled
+                </Badge>
+              ) : null}
+            </div>
+
+            <div>
+              <div className="text-2xl font-semibold tracking-tight text-white">
+                {profile.profile_number || "Active Pay Profile"}
+              </div>
+              <div className="mt-2 max-w-3xl text-sm leading-6 text-slate-400">
+                Global paycheck setup for payroll defaults. Hourly structure is separated
+                as an optional add-on and does not control the main paycheck amount.
+              </div>
+            </div>
           </div>
 
-          <div>
-            <div className="text-xl font-semibold text-white">
-              {buildPayProfileTitle(profile)}
+          <div className="grid gap-3 sm:grid-cols-2 xl:w-[390px]">
+            <div className="rounded-[26px] border border-emerald-400/20 bg-emerald-500/10 p-4">
+              <div className="text-[11px] font-semibold uppercase tracking-[0.18em] text-emerald-200/70">
+                Default Gross Pay
+              </div>
+              <div className="mt-3 text-2xl font-semibold text-white">
+                {formatMoney(grossPay, profile.currency_code)}
+              </div>
+              <div className="mt-2 text-xs leading-5 text-emerald-100/65">
+                {getPaycheckTypeLabel(profile)} · {formatLabel(profile.payment_frequency)}
+              </div>
             </div>
-            <div className="mt-1 text-sm text-slate-400">
-              Start Date {formatDateLabel(profile.effective_from)}
-              {profile.effective_to
-                ? ` • Future Termination Date ${formatDateLabel(profile.effective_to)}`
-                : " • No future termination date"}
+
+            <div className="rounded-[26px] border border-amber-400/20 bg-amber-500/10 p-4">
+              <div className="text-[11px] font-semibold uppercase tracking-[0.18em] text-amber-200/70">
+                Hourly Structure
+              </div>
+              <div className="mt-3 text-2xl font-semibold text-white">
+                {hourlyStructure.enabled ? "On" : "Off"}
+              </div>
+              <div className="mt-2 text-xs leading-5 text-amber-100/65">
+                {hourlyStructure.enabled && hourlyStructure.hourly_rate
+                  ? `${formatMoney(hourlyStructure.hourly_rate, profile.currency_code)} / hour`
+                  : "Optional only"}
+              </div>
             </div>
           </div>
         </div>
 
-        <div className="flex flex-col gap-3 sm:flex-row xl:flex-col xl:items-end">
-          <div className="min-w-[180px] rounded-2xl border border-white/10 bg-black/20 px-4 py-3 text-left xl:text-right">
-            <div className="text-[11px] font-semibold uppercase tracking-[0.18em] text-slate-500">
-              Default Gross Pay
+        <div className="mt-5 grid gap-4 lg:grid-cols-3">
+          <div className="rounded-[26px] border border-cyan-400/15 bg-cyan-500/10 p-4">
+            <div className="text-[11px] font-semibold uppercase tracking-[0.18em] text-cyan-200/70">
+              Paycheck Model
             </div>
-            <div className="mt-1 text-xl font-semibold text-white">
-              {formatMoney(grossPay, profile.currency_code)}
+            <div className="mt-3 text-lg font-semibold text-white">
+              {getPaycheckTypeLabel(profile)}
+            </div>
+            <div className="mt-1 text-sm text-cyan-100/65">
+              {formatLabel(profile.payment_frequency)} · {profile.currency_code}
             </div>
           </div>
 
-          <div className="flex gap-2">
-            <Button
-              type="button"
-              variant="outline"
-              onClick={onEdit}
-              className="h-10 rounded-2xl border-cyan-400/20 bg-cyan-500/10 px-4 text-cyan-100 hover:bg-cyan-500/15"
+          <div className="rounded-[26px] border border-violet-400/15 bg-violet-500/10 p-4">
+            <div className="text-[11px] font-semibold uppercase tracking-[0.18em] text-violet-200/70">
+              Start Date
+            </div>
+            <div className="mt-3 text-lg font-semibold text-white">
+              {formatDateLabel(profile.effective_from)}
+            </div>
+            <div className="mt-1 text-sm text-violet-100/65">
+              Payroll profile begins here
+            </div>
+          </div>
+
+          <div className="rounded-[26px] border border-rose-400/15 bg-rose-500/10 p-4">
+            <div className="text-[11px] font-semibold uppercase tracking-[0.18em] text-rose-200/70">
+              Future Termination
+            </div>
+            <div className="mt-3 text-lg font-semibold text-white">
+              {profile.effective_to ? formatDateLabel(profile.effective_to) : "Not Planned"}
+            </div>
+            <div className="mt-1 text-sm text-rose-100/65">
+              Optional future payroll stop date
+            </div>
+          </div>
+        </div>
+
+        <div className="mt-5 rounded-[28px] border border-white/10 bg-black/25 p-5">
+          <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
+            <div>
+              <div className="flex items-center gap-2 text-sm font-semibold uppercase tracking-[0.18em] text-slate-400">
+                <Clock3 className="h-4 w-4 text-amber-200" />
+                Optional Hourly Structure
+              </div>
+              <p className="mt-2 max-w-3xl text-xs leading-5 text-slate-500">
+                This is separate from the global paycheck amount. It is used only when
+                payroll needs hourly calculation, overtime, or variable-hour requests.
+              </p>
+            </div>
+
+            <Badge
+              className={
+                hourlyStructure.enabled
+                  ? "w-fit rounded-full border border-emerald-400/20 bg-emerald-500/10 px-3 py-1 text-[11px] uppercase tracking-[0.18em] text-emerald-200 shadow-none"
+                  : "w-fit rounded-full border border-white/10 bg-white/[0.04] px-3 py-1 text-[11px] uppercase tracking-[0.18em] text-slate-400 shadow-none"
+              }
             >
-              <Edit3 className="mr-2 h-4 w-4" />
-              Edit
-            </Button>
-            <Button
-              type="button"
-              variant="outline"
-              onClick={onArchive}
-              className="h-10 rounded-2xl border-rose-400/20 bg-rose-500/10 px-4 text-rose-100 hover:bg-rose-500/15"
-            >
-              <Archive className="mr-2 h-4 w-4" />
-              Archive
-            </Button>
+              {hourlyStructure.enabled ? "Enabled" : "Not Enabled"}
+            </Badge>
           </div>
-        </div>
-      </div>
 
-      <div className="mt-5 grid gap-3 md:grid-cols-3">
-        <DetailBlock
-          label="Paycheck Type"
-          value={getPaycheckTypeLabel(profile)}
-        />
-        <DetailBlock
-          label="Pay Schedule"
-          value={formatLabel(profile.payment_frequency)}
-        />
-        <DetailBlock
-          label="Currency"
-          value={profile.currency_code}
-        />
-        <DetailBlock
-          label="Start Date"
-          value={formatDateLabel(profile.effective_from)}
-        />
-        <DetailBlock
-          label="Future Termination Date"
-          value={profile.effective_to ? formatDateLabel(profile.effective_to) : "Not planned"}
-        />
-        <DetailBlock
-          label="Profile Number"
-          value={profile.profile_number || "—"}
-        />
-      </div>
+          {hourlyStructure.enabled ? (
+            <div className="mt-4 grid gap-4 md:grid-cols-2">
+              <div className="rounded-[24px] border border-amber-400/15 bg-amber-500/10 p-4">
+                <div className="text-[11px] font-semibold uppercase tracking-[0.18em] text-amber-200/70">
+                  Hourly Rate
+                </div>
+                <div className="mt-2 text-lg font-semibold text-white">
+                  {hourlyStructure.hourly_rate
+                    ? `${formatMoney(hourlyStructure.hourly_rate, profile.currency_code)} / hour`
+                    : "—"}
+                </div>
+              </div>
 
-      <div className="mt-4 rounded-[24px] border border-white/10 bg-black/20 p-4">
-        <div className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
-          <div>
-            <div className="flex items-center gap-2 text-sm font-semibold text-white">
-              <Clock3 className="h-4 w-4 text-amber-200" />
-              Optional Hourly Structure
+              <div className="rounded-[24px] border border-cyan-400/15 bg-cyan-500/10 p-4">
+                <div className="text-[11px] font-semibold uppercase tracking-[0.18em] text-cyan-200/70">
+                  Default Hours Per Pay Period
+                </div>
+                <div className="mt-2 text-lg font-semibold text-white">
+                  {hourlyStructure.default_hours ? String(hourlyStructure.default_hours) : "—"}
+                </div>
+              </div>
             </div>
-            <p className="mt-1 text-xs leading-5 text-slate-500">
-              Separate hourly defaults used only when paycheck requests need extra hourly calculation.
-            </p>
-          </div>
-
-          <Badge
-            className={
-              hourlyStructure.enabled
-                ? "w-fit rounded-full border border-emerald-400/20 bg-emerald-500/10 px-3 py-1 text-[11px] text-emerald-200 shadow-none"
-                : "w-fit rounded-full border border-white/10 bg-white/[0.04] px-3 py-1 text-[11px] text-slate-400 shadow-none"
-            }
-          >
-            {hourlyStructure.enabled ? "Enabled" : "Not Enabled"}
-          </Badge>
+          ) : null}
         </div>
 
-        {hourlyStructure.enabled ? (
-          <div className="mt-4 grid gap-3 md:grid-cols-2">
-            <DetailBlock
-              label="Hourly Rate"
-              value={hourlyStructure.hourly_rate ? `${formatMoney(hourlyStructure.hourly_rate, profile.currency_code)} / hour` : "—"}
-            />
-            <DetailBlock
-              label="Default Hours Per Pay Period"
-              value={hourlyStructure.default_hours ? String(hourlyStructure.default_hours) : "—"}
-            />
+        {profile.notes ? (
+          <div className="mt-5 rounded-[26px] border border-white/10 bg-black/25 p-4 text-sm leading-6 text-slate-300">
+            {profile.notes}
           </div>
         ) : null}
-      </div>
 
-      {profile.notes ? (
-        <div className="mt-4 rounded-[24px] border border-white/10 bg-black/20 p-4 text-sm leading-6 text-slate-300">
-          {profile.notes}
+        <div className="mt-5 flex flex-col gap-3 sm:flex-row sm:justify-end">
+          <Button
+            type="button"
+            variant="outline"
+            onClick={onEdit}
+            className="h-11 rounded-2xl border-cyan-400/20 bg-cyan-500/10 px-5 text-cyan-100 hover:bg-cyan-500/15"
+          >
+            <Edit3 className="mr-2 h-4 w-4" />
+            Edit
+          </Button>
+          <Button
+            type="button"
+            variant="outline"
+            onClick={onDelete}
+            className="h-11 rounded-2xl border-rose-400/20 bg-rose-500/10 px-5 text-rose-100 hover:bg-rose-500/15"
+          >
+            <Trash2 className="mr-2 h-4 w-4" />
+            Delete
+          </Button>
         </div>
-      ) : null}
+      </div>
     </div>
   );
 }
@@ -765,20 +807,40 @@ function PayProfileForm({
               />
             </label>
 
-            <label className="grid gap-2">
+            <div className="grid gap-2">
               <span className={labelClass()}>Future Termination Date</span>
-              <Input
-                type="date"
-                value={form.futureTerminationDate}
-                onChange={(event) =>
-                  onChange("futureTerminationDate", event.target.value)
-                }
-                className={inputClass()}
-              />
+              <div className="rounded-2xl border border-rose-400/15 bg-rose-500/10 p-3">
+                <label className="group flex h-11 cursor-pointer items-center justify-between rounded-2xl border border-white/10 bg-black/20 px-4 text-sm text-white transition hover:border-rose-400/30 hover:bg-black/30">
+                  <span className={form.futureTerminationDate ? "text-white" : "text-slate-500"}>
+                    {form.futureTerminationDate
+                      ? formatDateLabel(form.futureTerminationDate)
+                      : "Select termination date"}
+                  </span>
+                  <CalendarDays className="h-4 w-4 text-rose-200/80 transition group-hover:text-rose-100" />
+                  <input
+                    type="date"
+                    value={form.futureTerminationDate}
+                    onChange={(event) =>
+                      onChange("futureTerminationDate", event.target.value)
+                    }
+                    className="sr-only"
+                  />
+                </label>
+
+                {form.futureTerminationDate ? (
+                  <button
+                    type="button"
+                    onClick={() => onChange("futureTerminationDate", "")}
+                    className="mt-2 text-xs font-semibold text-rose-100/80 transition hover:text-rose-100"
+                  >
+                    Clear termination date
+                  </button>
+                ) : null}
+              </div>
               <span className="text-[11px] leading-4 text-slate-500">
                 Optional. Use only when there is a known future payroll stop date.
               </span>
-            </label>
+            </div>
 
             <label className="grid gap-2 xl:col-span-3">
               <span className={labelClass()}>Notes</span>
@@ -1335,14 +1397,14 @@ export default function FinanceMasterDataEmployeesPage() {
     }
   }
 
-  async function archivePayProfile(profile: PayProfileRow) {
+  async function deletePayProfile(profile: PayProfileRow) {
     if (!currentUserId) {
       setActionError("You must be signed in.");
       return;
     }
 
     const confirmed = window.confirm(
-      "Archive this pay profile? It will stay in history but will no longer be active."
+      "Delete this pay profile permanently? This action cannot be undone."
     );
 
     if (!confirmed) return;
@@ -1354,11 +1416,7 @@ export default function FinanceMasterDataEmployeesPage() {
     try {
       const result = await supabase
         .from("finance_pay_profiles")
-        .update({
-          active: false,
-          status: "archived" as PayProfileStatus,
-          updated_by: currentUserId,
-        })
+        .delete()
         .eq("id", profile.id)
         .select("id")
         .single();
@@ -1369,48 +1427,12 @@ export default function FinanceMasterDataEmployeesPage() {
         closePayProfileForm();
       }
 
-      setActionMessage("Pay profile archived successfully.");
+      setActionMessage("Pay profile deleted successfully.");
       await loadData();
     } catch (error) {
-      console.error("Failed to archive pay profile:", error);
+      console.error("Failed to delete pay profile:", error);
       setActionError(
-        error instanceof Error ? error.message : "Failed to archive pay profile."
-      );
-    } finally {
-      setProfileSaving(false);
-    }
-  }
-
-  async function restorePayProfile(profile: PayProfileRow) {
-    if (!currentUserId) {
-      setActionError("You must be signed in.");
-      return;
-    }
-
-    setProfileSaving(true);
-    setActionError(null);
-    setActionMessage(null);
-
-    try {
-      const result = await supabase
-        .from("finance_pay_profiles")
-        .update({
-          active: true,
-          status: "active" as PayProfileStatus,
-          updated_by: currentUserId,
-        })
-        .eq("id", profile.id)
-        .select("id")
-        .single();
-
-      if (result.error) throw result.error;
-
-      setActionMessage("Pay profile restored successfully.");
-      await loadData();
-    } catch (error) {
-      console.error("Failed to restore pay profile:", error);
-      setActionError(
-        error instanceof Error ? error.message : "Failed to restore pay profile."
+        error instanceof Error ? error.message : "Failed to delete pay profile."
       );
     } finally {
       setProfileSaving(false);
@@ -1863,7 +1885,7 @@ export default function FinanceMasterDataEmployeesPage() {
                       <PayProfileCard
                         profile={selectedActivePayProfile}
                         onEdit={() => openEditPayProfile(selectedActivePayProfile)}
-                        onArchive={() => void archivePayProfile(selectedActivePayProfile)}
+                        onDelete={() => void deletePayProfile(selectedActivePayProfile)}
                       />
                     ) : (
                       <div className="rounded-[28px] border border-amber-400/20 bg-amber-500/10 p-5 text-amber-100">
@@ -1945,41 +1967,29 @@ export default function FinanceMasterDataEmployeesPage() {
                                       {hourlyStructure.enabled ? "Hourly On" : "Hourly Off"}
                                     </Badge>
 
-                                    {profile.status === "archived" ? (
+                                    <>
                                       <Button
                                         type="button"
                                         variant="outline"
-                                        onClick={() => void restorePayProfile(profile)}
+                                        onClick={() => openEditPayProfile(profile)}
                                         disabled={profileSaving}
-                                        className="h-8 rounded-xl border-emerald-400/20 bg-emerald-500/10 px-3 text-xs text-emerald-100 hover:bg-emerald-500/15 disabled:opacity-50"
+                                        className="h-8 rounded-xl border-cyan-400/20 bg-cyan-500/10 px-3 text-xs text-cyan-100 hover:bg-cyan-500/15 disabled:opacity-50"
                                       >
-                                        Restore
+                                        <Edit3 className="mr-1.5 h-3.5 w-3.5" />
+                                        Edit
                                       </Button>
-                                    ) : (
-                                      <>
-                                        <Button
-                                          type="button"
-                                          variant="outline"
-                                          onClick={() => openEditPayProfile(profile)}
-                                          disabled={profileSaving}
-                                          className="h-8 rounded-xl border-cyan-400/20 bg-cyan-500/10 px-3 text-xs text-cyan-100 hover:bg-cyan-500/15 disabled:opacity-50"
-                                        >
-                                          <Edit3 className="mr-1.5 h-3.5 w-3.5" />
-                                          Edit
-                                        </Button>
 
-                                        <Button
-                                          type="button"
-                                          variant="outline"
-                                          onClick={() => void archivePayProfile(profile)}
-                                          disabled={profileSaving}
-                                          className="h-8 rounded-xl border-rose-400/20 bg-rose-500/10 px-3 text-xs text-rose-100 hover:bg-rose-500/15 disabled:opacity-50"
-                                        >
-                                          <Archive className="mr-1.5 h-3.5 w-3.5" />
-                                          Archive
-                                        </Button>
-                                      </>
-                                    )}
+                                      <Button
+                                        type="button"
+                                        variant="outline"
+                                        onClick={() => void deletePayProfile(profile)}
+                                        disabled={profileSaving}
+                                        className="h-8 rounded-xl border-rose-400/20 bg-rose-500/10 px-3 text-xs text-rose-100 hover:bg-rose-500/15 disabled:opacity-50"
+                                      >
+                                        <Trash2 className="mr-1.5 h-3.5 w-3.5" />
+                                        Delete
+                                      </Button>
+                                    </>
                                   </div>
                                 </div>
                               );

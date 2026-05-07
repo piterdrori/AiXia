@@ -61,8 +61,6 @@ type SortKey =
 
 type SortDirection = "asc" | "desc";
 
-type ArchiveTab = "archived";
-
 type FormState = {
   term_type: FinancePaymentTermType;
   net_days: string;
@@ -966,7 +964,6 @@ export default function FinancePaymentTermsPage() {
 
   const [dialogOpen, setDialogOpen] = useState(false);
   const [archiveOpen, setArchiveOpen] = useState(false);
-  const [archiveTab] = useState<ArchiveTab>("archived");
   const [editingRow, setEditingRow] = useState<FinancePaymentTermRow | null>(null);
   const [form, setForm] = useState<FormState>(EMPTY_FORM);
   const [error, setError] = useState("");

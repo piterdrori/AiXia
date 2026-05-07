@@ -16,6 +16,7 @@ import {
   WalletCards,
   X,
 } from "lucide-react";
+import { AnimatePresence, motion } from "framer-motion";
 
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -88,6 +89,8 @@ type GeneratedTerm = {
   documentTermsText: string;
 };
 
+const DEFAULT_APPLIES_TO = "both" as FinancePaymentTermAppliesTo;
+
 const EMPTY_FORM: FormState = {
   term_type: "net",
   net_days: "30",
@@ -154,10 +157,23 @@ const BALANCE_DUE_BASIS_OPTIONS: Array<{
   { value: "invoice_date", label: "On Invoice Date" },
 ];
 
+const pageFade = {
+  hidden: { opacity: 0, y: 14 },
+  visible: { opacity: 1, y: 0 },
+};
+
+const cardHover = {
+  y: -4,
+  scale: 1.01,
+};
+
 function formatDateLabel(value: string | null | undefined) {
   if (!value) return "—";
+
   const parsed = new Date(value);
+
   if (Number.isNaN(parsed.getTime())) return "—";
+
   return parsed.toLocaleDateString(undefined, {
     year: "numeric",
     month: "short",
@@ -198,13 +214,17 @@ function normalizeGeneratedCode(value: string) {
 
 function parseWholeNumber(value: string) {
   const parsed = Number(value);
+
   if (!Number.isInteger(parsed) || parsed < 0) return null;
+
   return parsed;
 }
 
 function parsePercentage(value: string) {
   const parsed = Number(value);
+
   if (!Number.isFinite(parsed) || parsed <= 0 || parsed >= 100) return null;
+
   return parsed;
 }
 
@@ -335,10 +355,13 @@ function optionToneClass(
   active: boolean
 ) {
   const activeMap = {
-    cyan: "border-cyan-400/40 bg-cyan-500/15 text-cyan-100",
-    emerald: "border-emerald-400/40 bg-emerald-500/15 text-emerald-100",
-    amber: "border-amber-400/40 bg-amber-500/15 text-amber-100",
-    violet: "border-violet-400/40 bg-violet-500/15 text-violet-100",
+    cyan: "border-cyan-400/40 bg-cyan-500/15 text-cyan-100 shadow-lg shadow-cyan-500/10",
+    emerald:
+      "border-emerald-400/40 bg-emerald-500/15 text-emerald-100 shadow-lg shadow-emerald-500/10",
+    amber:
+      "border-amber-400/40 bg-amber-500/15 text-amber-100 shadow-lg shadow-amber-500/10",
+    violet:
+      "border-violet-400/40 bg-violet-500/15 text-violet-100 shadow-lg shadow-violet-500/10",
   };
 
   return active
@@ -391,22 +414,29 @@ function ToggleCard({
   const dotClass =
     tone === "emerald"
       ? checked
-        ? "border-emerald-300 bg-emerald-400"
+        ? "border-emerald-300 bg-emerald-400 shadow-sm shadow-emerald-300/50"
         : "border-white/20 bg-white/5"
       : checked
-        ? "border-cyan-300 bg-cyan-400"
+        ? "border-cyan-300 bg-cyan-400 shadow-sm shadow-cyan-300/50"
         : "border-white/20 bg-white/5";
 
   return (
-    <button
+    <motion.button
       type="button"
       onClick={() => onChange(!checked)}
-      className={`rounded-[24px] border p-4 text-left transition hover:-translate-y-0.5 ${
+      whileHover={{ y: -3, scale: 1.01 }}
+      whileTap={{ scale: 0.985 }}
+      transition={{ type: "spring", stiffness: 380, damping: 22 }}
+      className={`rounded-[24px] border p-4 text-left transition ${
         checked ? activeClass : "border-white/10 bg-black/20 hover:bg-white/[0.035]"
       }`}
     >
       <div className="flex items-start gap-3">
-        <span className={`mt-1 block h-4 w-4 rounded-full border ${dotClass}`} />
+        <motion.span
+          animate={{ scale: checked ? 1.12 : 1 }}
+          transition={{ type: "spring", stiffness: 420, damping: 18 }}
+          className={`mt-1 block h-4 w-4 rounded-full border ${dotClass}`}
+        />
         <span>
           <span className="block text-sm font-semibold text-white">{title}</span>
           <span className="mt-1 block text-xs leading-5 text-slate-500">
@@ -414,7 +444,7 @@ function ToggleCard({
           </span>
         </span>
       </div>
-    </button>
+    </motion.button>
   );
 }
 
@@ -424,12 +454,14 @@ function SummaryCard({
   description,
   icon: Icon,
   tone,
+  delay,
 }: {
   label: string;
   value: string | number;
   description: string;
   icon: typeof WalletCards;
   tone: "cyan" | "emerald" | "amber" | "violet";
+  delay: number;
 }) {
   const toneMap = {
     cyan: "border-cyan-400/20 bg-cyan-500/10 text-cyan-200",
@@ -439,22 +471,30 @@ function SummaryCard({
   };
 
   return (
-    <div className="min-h-[156px] rounded-[28px] border border-white/10 bg-white/[0.045] p-5 backdrop-blur-xl">
-      <div className="flex items-start justify-between gap-4">
+    <motion.div
+      initial={{ opacity: 0, y: 18 }}
+      animate={{ opacity: 1, y: 0 }}
+      transition={{ duration: 0.35, delay }}
+      whileHover={cardHover}
+      className="min-h-[156px] overflow-hidden rounded-[28px] border border-white/10 bg-white/[0.045] p-5 backdrop-blur-xl"
+    >
+      <div className="pointer-events-none absolute inset-0 bg-[linear-gradient(110deg,transparent_30%,rgba(255,255,255,0.045)_50%,transparent_70%)]" />
+      <div className="relative flex items-start justify-between gap-4">
         <div>
           <div className="text-[11px] font-semibold uppercase tracking-[0.18em] text-slate-500">
             {label}
           </div>
           <div className="mt-4 text-3xl font-bold text-white">{value}</div>
         </div>
-        <div
+        <motion.div
+          whileHover={{ rotate: 8 }}
           className={`flex h-12 w-12 items-center justify-center rounded-2xl border ${toneMap[tone]}`}
         >
           <Icon className="h-5 w-5" />
-        </div>
+        </motion.div>
       </div>
-      <p className="mt-5 text-sm leading-6 text-slate-400">{description}</p>
-    </div>
+      <p className="relative mt-5 text-sm leading-6 text-slate-400">{description}</p>
+    </motion.div>
   );
 }
 
@@ -481,312 +521,398 @@ function PaymentTermFormModal({
   onChange: <K extends keyof FormState>(key: K, value: FormState[K]) => void;
   onSave: () => void;
 }) {
-  if (!open) return null;
-
   const depositPercentage = parsePercentage(form.deposit_percentage) ?? 0;
   const balancePercentage = Math.max(0, 100 - depositPercentage);
 
   return (
-    <div className="fixed inset-0 z-[120] flex items-center justify-center bg-black/80 p-4 backdrop-blur-xl">
-      <div className="flex max-h-[92vh] w-full max-w-6xl flex-col overflow-hidden rounded-[36px] border border-white/15 bg-[#05070d] shadow-2xl shadow-black/60">
-        <div className="relative overflow-hidden border-b border-white/10 bg-white/[0.045] px-8 py-6">
-          <div className="pointer-events-none absolute inset-0 bg-[radial-gradient(circle_at_top_left,rgba(6,182,212,0.18),transparent_38%),radial-gradient(circle_at_top_right,rgba(139,92,246,0.16),transparent_38%)]" />
-          <div className="relative flex items-start justify-between gap-4">
-            <div>
-              <div className="flex flex-wrap items-center gap-3">
-                <Badge className="rounded-full border border-cyan-400/20 bg-cyan-500/10 px-3 py-1 text-[11px] uppercase tracking-[0.18em] text-cyan-200 shadow-none">
-                  Payment Term
-                </Badge>
-                <Badge className="rounded-full border border-emerald-400/20 bg-emerald-500/10 px-3 py-1 text-[11px] uppercase tracking-[0.18em] text-emerald-200 shadow-none">
-                  {editingRow ? "Edit Mode" : "Create Mode"}
-                </Badge>
-              </div>
-              <div className="mt-4 text-3xl font-bold text-white">
-                {editingRow ? "Edit Payment Term" : "Create Payment Term"}
-              </div>
-              <p className="mt-3 max-w-4xl text-sm leading-6 text-slate-400">
-                Create reusable commercial payment terms for quotations, proforma invoices,
-                invoices, vendor quotations, purchase orders, and vendor records.
-              </p>
-            </div>
+    <AnimatePresence>
+      {open ? (
+        <motion.div
+          key="payment-term-modal-backdrop"
+          initial={{ opacity: 0 }}
+          animate={{ opacity: 1 }}
+          exit={{ opacity: 0 }}
+          className="fixed inset-0 z-[120] flex items-center justify-center bg-black/80 p-4 backdrop-blur-xl"
+        >
+          <motion.div
+            key="payment-term-modal"
+            initial={{ opacity: 0, y: 24, scale: 0.96 }}
+            animate={{ opacity: 1, y: 0, scale: 1 }}
+            exit={{ opacity: 0, y: 24, scale: 0.96 }}
+            transition={{ type: "spring", stiffness: 280, damping: 26 }}
+            className="flex max-h-[92vh] w-full max-w-6xl flex-col overflow-hidden rounded-[36px] border border-white/15 bg-[#05070d] shadow-2xl shadow-black/60"
+          >
+            <div className="relative overflow-hidden border-b border-white/10 bg-white/[0.045] px-8 py-6">
+              <div className="pointer-events-none absolute inset-0 bg-[radial-gradient(circle_at_top_left,rgba(6,182,212,0.18),transparent_38%),radial-gradient(circle_at_top_right,rgba(139,92,246,0.16),transparent_38%)]" />
 
-            <button
-              type="button"
-              onClick={onClose}
-              className="flex h-11 w-11 items-center justify-center rounded-xl border border-white/10 bg-white/5 text-white transition hover:bg-white/10"
-            >
-              <X className="h-5 w-5" />
-            </button>
-          </div>
-        </div>
-
-        <div className="space-y-6 overflow-y-auto p-8">
-          <section className="overflow-hidden rounded-[30px] border border-white/10 bg-white/[0.045]">
-            <div className="border-b border-white/10 px-6 py-5">
-              <div className="flex items-center gap-4">
-                <div className="flex h-12 w-12 items-center justify-center rounded-2xl border border-cyan-400/20 bg-cyan-500/10 text-cyan-200">
-                  <WalletCards className="h-5 w-5" />
-                </div>
+              <div className="relative flex items-start justify-between gap-4">
                 <div>
-                  <div className="text-sm font-semibold uppercase tracking-[0.18em] text-slate-400">
-                    Payment Structure
+                  <div className="flex flex-wrap items-center gap-3">
+                    <Badge className="rounded-full border border-cyan-400/20 bg-cyan-500/10 px-3 py-1 text-[11px] uppercase tracking-[0.18em] text-cyan-200 shadow-none">
+                      Payment Term
+                    </Badge>
+                    <Badge className="rounded-full border border-emerald-400/20 bg-emerald-500/10 px-3 py-1 text-[11px] uppercase tracking-[0.18em] text-emerald-200 shadow-none">
+                      {editingRow ? "Edit Mode" : "Create Mode"}
+                    </Badge>
                   </div>
-                  <p className="mt-1 text-xs leading-5 text-slate-500">
-                    Choose the commercial structure and generate the controlled term.
+
+                  <div className="mt-4 text-3xl font-bold text-white">
+                    {editingRow ? "Edit Payment Term" : "Create Payment Term"}
+                  </div>
+
+                  <p className="mt-3 max-w-4xl text-sm leading-6 text-slate-400">
+                    Create reusable commercial payment terms for quotations, proforma
+                    invoices, invoices, vendor quotations, purchase orders, and vendor records.
                   </p>
                 </div>
+
+                <motion.button
+                  type="button"
+                  onClick={onClose}
+                  whileHover={{ rotate: 90, scale: 1.04 }}
+                  whileTap={{ scale: 0.96 }}
+                  className="flex h-11 w-11 items-center justify-center rounded-xl border border-white/10 bg-white/5 text-white transition hover:bg-white/10"
+                >
+                  <X className="h-5 w-5" />
+                </motion.button>
               </div>
             </div>
 
-            <div className="grid gap-5 p-6">
-              <div className="grid gap-4 md:grid-cols-4">
-                {TERM_TYPE_OPTIONS.map((option) => (
-                  <button
-                    key={option.value}
-                    type="button"
-                    onClick={() => onChange("term_type", option.value)}
-                    className={`rounded-2xl border p-5 text-left transition hover:-translate-y-0.5 ${optionToneClass(
-                      option.tone,
-                      form.term_type === option.value
-                    )}`}
-                  >
-                    <div className="text-base font-semibold">{option.label}</div>
-                    <div className="mt-2 text-xs leading-5 opacity-80">
-                      {option.description}
+            <div className="space-y-6 overflow-y-auto p-8">
+              <motion.section
+                initial={{ opacity: 0, y: 14 }}
+                animate={{ opacity: 1, y: 0 }}
+                transition={{ delay: 0.05 }}
+                className="overflow-hidden rounded-[30px] border border-white/10 bg-white/[0.045]"
+              >
+                <div className="border-b border-white/10 px-6 py-5">
+                  <div className="flex items-center gap-4">
+                    <div className="flex h-12 w-12 items-center justify-center rounded-2xl border border-cyan-400/20 bg-cyan-500/10 text-cyan-200">
+                      <WalletCards className="h-5 w-5" />
                     </div>
-                  </button>
-                ))}
-              </div>
+                    <div>
+                      <div className="text-sm font-semibold uppercase tracking-[0.18em] text-slate-400">
+                        Payment Structure
+                      </div>
+                      <p className="mt-1 text-xs leading-5 text-slate-500">
+                        Choose the commercial structure and generate the controlled term.
+                      </p>
+                    </div>
+                  </div>
+                </div>
 
-              {form.term_type === "net" ? (
-                <label className="grid gap-3">
-                  <span className={labelClass()}>Net Days</span>
-                  <Input
-                    type="number"
-                    min="0"
-                    step="1"
-                    value={form.net_days}
-                    onChange={(event) => onChange("net_days", event.target.value)}
-                    placeholder="Example: 30"
-                    className={inputClass()}
-                  />
-                </label>
-              ) : null}
+                <div className="grid gap-5 p-6">
+                  <div className="grid gap-4 md:grid-cols-4">
+                    {TERM_TYPE_OPTIONS.map((option) => (
+                      <motion.button
+                        key={option.value}
+                        type="button"
+                        onClick={() => onChange("term_type", option.value)}
+                        whileHover={{ y: -4, scale: 1.01 }}
+                        whileTap={{ scale: 0.985 }}
+                        transition={{ type: "spring", stiffness: 360, damping: 22 }}
+                        className={`rounded-2xl border p-5 text-left transition ${optionToneClass(
+                          option.tone,
+                          form.term_type === option.value
+                        )}`}
+                      >
+                        <div className="text-base font-semibold">{option.label}</div>
+                        <div className="mt-2 text-xs leading-5 opacity-80">
+                          {option.description}
+                        </div>
+                      </motion.button>
+                    ))}
+                  </div>
 
-              {form.term_type === "deposit_balance" ? (
-                <div className="grid gap-5">
-                  <div className="grid gap-5 md:grid-cols-3">
+                  <AnimatePresence mode="wait">
+                    {form.term_type === "net" ? (
+                      <motion.label
+                        key="net-fields"
+                        initial={{ opacity: 0, y: 10 }}
+                        animate={{ opacity: 1, y: 0 }}
+                        exit={{ opacity: 0, y: -10 }}
+                        className="grid gap-3"
+                      >
+                        <span className={labelClass()}>Net Days</span>
+                        <Input
+                          type="number"
+                          min="0"
+                          step="1"
+                          value={form.net_days}
+                          onChange={(event) => onChange("net_days", event.target.value)}
+                          placeholder="Example: 30"
+                          className={inputClass()}
+                        />
+                      </motion.label>
+                    ) : null}
+
+                    {form.term_type === "deposit_balance" ? (
+                      <motion.div
+                        key="deposit-fields"
+                        initial={{ opacity: 0, y: 10 }}
+                        animate={{ opacity: 1, y: 0 }}
+                        exit={{ opacity: 0, y: -10 }}
+                        className="grid gap-5"
+                      >
+                        <div className="grid gap-5 md:grid-cols-3">
+                          <label className="grid gap-3">
+                            <span className={labelClass()}>Deposit Percentage</span>
+                            <Input
+                              type="number"
+                              min="1"
+                              max="99"
+                              step="0.01"
+                              value={form.deposit_percentage}
+                              onChange={(event) =>
+                                onChange("deposit_percentage", event.target.value)
+                              }
+                              placeholder="Example: 30"
+                              className={inputClass()}
+                            />
+                          </label>
+
+                          <label className="grid gap-3">
+                            <span className={labelClass()}>Deposit Due</span>
+                            <SelectField
+                              value={form.deposit_due_basis}
+                              onChange={(value) => onChange("deposit_due_basis", value)}
+                              options={DEPOSIT_DUE_BASIS_OPTIONS}
+                            />
+                          </label>
+
+                          <label className="grid gap-3">
+                            <span className={labelClass()}>Balance Due</span>
+                            <SelectField
+                              value={form.balance_due_basis}
+                              onChange={(value) => onChange("balance_due_basis", value)}
+                              options={BALANCE_DUE_BASIS_OPTIONS}
+                            />
+                          </label>
+                        </div>
+
+                        <div className="rounded-2xl border border-emerald-400/20 bg-emerald-500/10 p-5">
+                          <div className="text-[11px] font-semibold uppercase tracking-[0.18em] text-emerald-200/80">
+                            Balance Auto-Calculated
+                          </div>
+                          <p className="mt-2 text-sm leading-6 text-emerald-100/80">
+                            Deposit is {depositPercentage}%. Balance is{" "}
+                            {balancePercentage}%.
+                          </p>
+                        </div>
+                      </motion.div>
+                    ) : null}
+
+                    {form.term_type === "custom" ? (
+                      <motion.div
+                        key="custom-fields"
+                        initial={{ opacity: 0, y: 10 }}
+                        animate={{ opacity: 1, y: 0 }}
+                        exit={{ opacity: 0, y: -10 }}
+                        className="grid gap-5"
+                      >
+                        <label className="grid gap-3">
+                          <span className={labelClass()}>Custom Label</span>
+                          <Input
+                            value={form.custom_label}
+                            onChange={(event) =>
+                              onChange("custom_label", event.target.value)
+                            }
+                            placeholder="Example: 30/40/30 Milestone Payments"
+                            className={inputClass()}
+                          />
+                        </label>
+
+                        <label className="grid gap-3">
+                          <span className={labelClass()}>Custom Document Wording</span>
+                          <textarea
+                            value={form.custom_terms_text}
+                            onChange={(event) =>
+                              onChange("custom_terms_text", event.target.value)
+                            }
+                            placeholder="Example: 30% deposit, 40% before shipment, 30% after installation."
+                            className={textareaClass()}
+                          />
+                        </label>
+                      </motion.div>
+                    ) : null}
+                  </AnimatePresence>
+                </div>
+              </motion.section>
+
+              <motion.section
+                initial={{ opacity: 0, y: 14 }}
+                animate={{ opacity: 1, y: 0 }}
+                transition={{ delay: 0.1 }}
+                className="overflow-hidden rounded-[30px] border border-white/10 bg-white/[0.045]"
+              >
+                <div className="border-b border-white/10 px-6 py-5">
+                  <div className="flex items-center gap-4">
+                    <div className="flex h-12 w-12 items-center justify-center rounded-2xl border border-violet-400/20 bg-violet-500/10 text-violet-200">
+                      <FileText className="h-5 w-5" />
+                    </div>
+                    <div>
+                      <div className="text-sm font-semibold uppercase tracking-[0.18em] text-slate-400">
+                        Auto Preview
+                      </div>
+                      <p className="mt-1 text-xs leading-5 text-slate-500">
+                        Code, name, and document wording generated from the selected
+                        structure.
+                      </p>
+                    </div>
+                  </div>
+                </div>
+
+                <div className="grid gap-5 p-6 md:grid-cols-2">
+                  <motion.div
+                    layout
+                    className="rounded-2xl border border-cyan-400/20 bg-cyan-500/10 p-5"
+                  >
+                    <div className="text-[11px] font-semibold uppercase tracking-[0.18em] text-cyan-200/80">
+                      Generated Code
+                    </div>
+                    <div className="mt-3 break-words text-base font-semibold text-cyan-100">
+                      {generatedTerm.code}
+                    </div>
+                  </motion.div>
+
+                  <motion.div
+                    layout
+                    className="rounded-2xl border border-emerald-400/20 bg-emerald-500/10 p-5"
+                  >
+                    <div className="text-[11px] font-semibold uppercase tracking-[0.18em] text-emerald-200/80">
+                      Generated Name
+                    </div>
+                    <div className="mt-3 break-words text-base font-semibold text-white">
+                      {generatedTerm.name}
+                    </div>
+                  </motion.div>
+
+                  <motion.div
+                    layout
+                    className="rounded-2xl border border-violet-400/20 bg-violet-500/10 p-5 md:col-span-2"
+                  >
+                    <div className="text-[11px] font-semibold uppercase tracking-[0.18em] text-violet-200/80">
+                      Document Wording
+                    </div>
+                    <p className="mt-3 text-sm leading-6 text-violet-100/80">
+                      {generatedTerm.documentTermsText}
+                    </p>
+                  </motion.div>
+                </div>
+              </motion.section>
+
+              <motion.section
+                initial={{ opacity: 0, y: 14 }}
+                animate={{ opacity: 1, y: 0 }}
+                transition={{ delay: 0.15 }}
+                className="overflow-hidden rounded-[30px] border border-white/10 bg-white/[0.045]"
+              >
+                <div className="border-b border-white/10 px-6 py-5">
+                  <div className="flex items-center gap-4">
+                    <div className="flex h-12 w-12 items-center justify-center rounded-2xl border border-emerald-400/20 bg-emerald-500/10 text-emerald-200">
+                      <ShieldCheck className="h-5 w-5" />
+                    </div>
+                    <div>
+                      <div className="text-sm font-semibold uppercase tracking-[0.18em] text-slate-400">
+                        Term Controls
+                      </div>
+                      <p className="mt-1 text-xs leading-5 text-slate-500">
+                        Default behavior, partial payments, status, and internal notes.
+                      </p>
+                    </div>
+                  </div>
+                </div>
+
+                <div className="grid gap-5 p-6">
+                  <div className="grid gap-5 md:grid-cols-2">
+                    <ToggleCard
+                      checked={form.is_default}
+                      title="Default Term"
+                      description="Use this as the default option when no term is selected."
+                      tone="emerald"
+                      onChange={(checked) => onChange("is_default", checked)}
+                    />
+
+                    <ToggleCard
+                      checked={form.allow_partial_payments}
+                      title="Allow Partial Payments"
+                      description="Lets documents using this term receive partial payments."
+                      tone="cyan"
+                      onChange={(checked) => onChange("allow_partial_payments", checked)}
+                    />
+                  </div>
+
+                  <div className="grid gap-5 md:grid-cols-2">
                     <label className="grid gap-3">
-                      <span className={labelClass()}>Deposit Percentage</span>
+                      <span className={labelClass()}>Internal Notes</span>
                       <Input
-                        type="number"
-                        min="1"
-                        max="99"
-                        step="0.01"
-                        value={form.deposit_percentage}
-                        onChange={(event) =>
-                          onChange("deposit_percentage", event.target.value)
-                        }
-                        placeholder="Example: 30"
+                        value={form.notes}
+                        onChange={(event) => onChange("notes", event.target.value)}
+                        placeholder="Optional internal notes"
                         className={inputClass()}
                       />
                     </label>
 
                     <label className="grid gap-3">
-                      <span className={labelClass()}>Deposit Due</span>
+                      <span className={labelClass()}>Status</span>
                       <SelectField
-                        value={form.deposit_due_basis}
-                        onChange={(value) => onChange("deposit_due_basis", value)}
-                        options={DEPOSIT_DUE_BASIS_OPTIONS}
-                      />
-                    </label>
-
-                    <label className="grid gap-3">
-                      <span className={labelClass()}>Balance Due</span>
-                      <SelectField
-                        value={form.balance_due_basis}
-                        onChange={(value) => onChange("balance_due_basis", value)}
-                        options={BALANCE_DUE_BASIS_OPTIONS}
+                        value={form.status}
+                        onChange={(value) => onChange("status", value)}
+                        options={[
+                          { value: "active", label: "Active" },
+                          { value: "inactive", label: "Inactive" },
+                          { value: "archived", label: "Archived" },
+                        ]}
                       />
                     </label>
                   </div>
-
-                  <div className="rounded-2xl border border-emerald-400/20 bg-emerald-500/10 p-5">
-                    <div className="text-[11px] font-semibold uppercase tracking-[0.18em] text-emerald-200/80">
-                      Balance Auto-Calculated
-                    </div>
-                    <p className="mt-2 text-sm leading-6 text-emerald-100/80">
-                      Deposit is {depositPercentage}%. Balance is {balancePercentage}%.
-                    </p>
-                  </div>
                 </div>
-              ) : null}
+              </motion.section>
 
-              {form.term_type === "custom" ? (
-                <div className="grid gap-5">
-                  <label className="grid gap-3">
-                    <span className={labelClass()}>Custom Label</span>
-                    <Input
-                      value={form.custom_label}
-                      onChange={(event) => onChange("custom_label", event.target.value)}
-                      placeholder="Example: 30/40/30 Milestone Payments"
-                      className={inputClass()}
-                    />
-                  </label>
-
-                  <label className="grid gap-3">
-                    <span className={labelClass()}>Custom Document Wording</span>
-                    <textarea
-                      value={form.custom_terms_text}
-                      onChange={(event) =>
-                        onChange("custom_terms_text", event.target.value)
-                      }
-                      placeholder="Example: 30% deposit, 40% before shipment, 30% after installation."
-                      className={textareaClass()}
-                    />
-                  </label>
-                </div>
-              ) : null}
-            </div>
-          </section>
-
-          <section className="overflow-hidden rounded-[30px] border border-white/10 bg-white/[0.045]">
-            <div className="border-b border-white/10 px-6 py-5">
-              <div className="flex items-center gap-4">
-                <div className="flex h-12 w-12 items-center justify-center rounded-2xl border border-violet-400/20 bg-violet-500/10 text-violet-200">
-                  <FileText className="h-5 w-5" />
-                </div>
-                <div>
-                  <div className="text-sm font-semibold uppercase tracking-[0.18em] text-slate-400">
-                    Auto Preview
-                  </div>
-                  <p className="mt-1 text-xs leading-5 text-slate-500">
-                    Code, name, and document wording generated from the selected structure.
-                  </p>
-                </div>
-              </div>
+              <AnimatePresence>
+                {error ? (
+                  <motion.div
+                    key="modal-error"
+                    initial={{ opacity: 0, y: 8 }}
+                    animate={{ opacity: 1, y: 0 }}
+                    exit={{ opacity: 0, y: -8 }}
+                    className="rounded-2xl border border-rose-400/20 bg-rose-500/10 px-5 py-4 text-sm text-rose-100"
+                  >
+                    {error}
+                  </motion.div>
+                ) : null}
+              </AnimatePresence>
             </div>
 
-            <div className="grid gap-5 p-6 md:grid-cols-2">
-              <div className="rounded-2xl border border-cyan-400/20 bg-cyan-500/10 p-5">
-                <div className="text-[11px] font-semibold uppercase tracking-[0.18em] text-cyan-200/80">
-                  Generated Code
-                </div>
-                <div className="mt-3 break-words text-base font-semibold text-cyan-100">
-                  {generatedTerm.code}
-                </div>
-              </div>
+            <div className="flex flex-col gap-3 border-t border-white/10 bg-white/[0.03] px-8 py-6 sm:flex-row sm:justify-end">
+              <Button
+                type="button"
+                variant="outline"
+                onClick={onClose}
+                className="h-12 rounded-2xl border-white/10 bg-white/5 px-5 text-white hover:bg-white/10"
+              >
+                Cancel
+              </Button>
 
-              <div className="rounded-2xl border border-emerald-400/20 bg-emerald-500/10 p-5">
-                <div className="text-[11px] font-semibold uppercase tracking-[0.18em] text-emerald-200/80">
-                  Generated Name
-                </div>
-                <div className="mt-3 break-words text-base font-semibold text-white">
-                  {generatedTerm.name}
-                </div>
-              </div>
-
-              <div className="rounded-2xl border border-violet-400/20 bg-violet-500/10 p-5 md:col-span-2">
-                <div className="text-[11px] font-semibold uppercase tracking-[0.18em] text-violet-200/80">
-                  Document Wording
-                </div>
-                <p className="mt-3 text-sm leading-6 text-violet-100/80">
-                  {generatedTerm.documentTermsText}
-                </p>
-              </div>
+              <motion.div whileHover={{ scale: 1.02 }} whileTap={{ scale: 0.98 }}>
+                <Button
+                  type="button"
+                  onClick={onSave}
+                  disabled={saving || !canSave}
+                  className="h-12 rounded-2xl border border-cyan-400/20 bg-cyan-500/15 px-6 text-cyan-100 hover:bg-cyan-500/20 disabled:cursor-not-allowed disabled:opacity-50"
+                >
+                  {saving
+                    ? "Saving..."
+                    : editingRow
+                      ? "Save Changes"
+                      : "Create Payment Term"}
+                </Button>
+              </motion.div>
             </div>
-          </section>
-
-          <section className="overflow-hidden rounded-[30px] border border-white/10 bg-white/[0.045]">
-            <div className="border-b border-white/10 px-6 py-5">
-              <div className="flex items-center gap-4">
-                <div className="flex h-12 w-12 items-center justify-center rounded-2xl border border-emerald-400/20 bg-emerald-500/10 text-emerald-200">
-                  <ShieldCheck className="h-5 w-5" />
-                </div>
-                <div>
-                  <div className="text-sm font-semibold uppercase tracking-[0.18em] text-slate-400">
-                    Term Controls
-                  </div>
-                  <p className="mt-1 text-xs leading-5 text-slate-500">
-                    Default behavior, partial payments, status, and internal notes.
-                  </p>
-                </div>
-              </div>
-            </div>
-
-            <div className="grid gap-5 p-6">
-              <div className="grid gap-5 md:grid-cols-2">
-                <ToggleCard
-                  checked={form.is_default}
-                  title="Default Term"
-                  description="Use this as the default option when no term is selected."
-                  tone="emerald"
-                  onChange={(checked) => onChange("is_default", checked)}
-                />
-                <ToggleCard
-                  checked={form.allow_partial_payments}
-                  title="Allow Partial Payments"
-                  description="Lets documents using this term receive partial payments."
-                  tone="cyan"
-                  onChange={(checked) => onChange("allow_partial_payments", checked)}
-                />
-              </div>
-
-              <div className="grid gap-5 md:grid-cols-2">
-                <label className="grid gap-3">
-                  <span className={labelClass()}>Internal Notes</span>
-                  <Input
-                    value={form.notes}
-                    onChange={(event) => onChange("notes", event.target.value)}
-                    placeholder="Optional internal notes"
-                    className={inputClass()}
-                  />
-                </label>
-
-                <label className="grid gap-3">
-                  <span className={labelClass()}>Status</span>
-                  <SelectField
-                    value={form.status}
-                    onChange={(value) => onChange("status", value)}
-                    options={[
-                      { value: "active", label: "Active" },
-                      { value: "inactive", label: "Inactive" },
-                      { value: "archived", label: "Archived" },
-                    ]}
-                  />
-                </label>
-              </div>
-            </div>
-          </section>
-
-          {error ? (
-            <div className="rounded-2xl border border-rose-400/20 bg-rose-500/10 px-5 py-4 text-sm text-rose-100">
-              {error}
-            </div>
-          ) : null}
-        </div>
-
-        <div className="flex flex-col gap-3 border-t border-white/10 bg-white/[0.03] px-8 py-6 sm:flex-row sm:justify-end">
-          <Button
-            type="button"
-            variant="outline"
-            onClick={onClose}
-            className="h-12 rounded-2xl border-white/10 bg-white/5 px-5 text-white hover:bg-white/10"
-          >
-            Cancel
-          </Button>
-
-          <Button
-            type="button"
-            onClick={onSave}
-            disabled={saving || !canSave}
-            className="h-12 rounded-2xl border border-cyan-400/20 bg-cyan-500/15 px-6 text-cyan-100 hover:bg-cyan-500/20 disabled:cursor-not-allowed disabled:opacity-50"
-          >
-            {saving ? "Saving..." : editingRow ? "Save Changes" : "Create Payment Term"}
-          </Button>
-        </div>
-      </div>
-    </div>
+          </motion.div>
+        </motion.div>
+      ) : null}
+    </AnimatePresence>
   );
 }
 
@@ -964,7 +1090,10 @@ export default function FinancePaymentTermsPage() {
       if (sortKey === "updated_at") {
         const firstDate = new Date(a.updated_at ?? "").getTime();
         const secondDate = new Date(b.updated_at ?? "").getTime();
-        return ((Number.isNaN(firstDate) ? 0 : firstDate) - (Number.isNaN(secondDate) ? 0 : secondDate)) * direction;
+        const normalizedFirstDate = Number.isNaN(firstDate) ? 0 : firstDate;
+        const normalizedSecondDate = Number.isNaN(secondDate) ? 0 : secondDate;
+
+        return (normalizedFirstDate - normalizedSecondDate) * direction;
       }
 
       if (sortKey === "due_days") {
@@ -973,6 +1102,7 @@ export default function FinancePaymentTermsPage() {
 
       const first = String(a[sortKey] ?? "");
       const second = String(b[sortKey] ?? "");
+
       return first.localeCompare(second) * direction;
     });
 
@@ -991,6 +1121,7 @@ export default function FinancePaymentTermsPage() {
 
   function sortLabel(key: SortKey) {
     if (sortKey !== key) return "";
+
     return sortDirection === "asc" ? " ↑" : " ↓";
   }
 
@@ -1112,7 +1243,7 @@ export default function FinancePaymentTermsPage() {
         document_terms_text: generatedTerm.documentTermsText,
         allow_partial_payments: form.allow_partial_payments,
         requires_approval: false,
-        applies_to: "both" as FinancePaymentTermAppliesTo,
+        applies_to: DEFAULT_APPLIES_TO,
       };
 
       if (editingRow) {
@@ -1140,7 +1271,9 @@ export default function FinancePaymentTermsPage() {
       setActionLoadingId(row.id);
       setPageMessage("");
       setError("");
+
       await archivePaymentTerm(row.id);
+
       setPageMessage("Payment term archived successfully.");
       void loadPage({ silent: true });
     } catch (err) {
@@ -1158,7 +1291,9 @@ export default function FinancePaymentTermsPage() {
       setActionLoadingId(row.id);
       setPageMessage("");
       setError("");
+
       await restorePaymentTerm(row.id);
+
       setPageMessage("Payment term restored successfully.");
       void loadPage({ silent: true });
     } catch (err) {
@@ -1176,7 +1311,9 @@ export default function FinancePaymentTermsPage() {
       setActionLoadingId(row.id);
       setPageMessage("");
       setError("");
+
       await permanentlyDeletePaymentTerm(row.id);
+
       setPageMessage("Payment term permanently deleted.");
       void loadPage({ silent: true });
     } catch (err) {
@@ -1197,19 +1334,32 @@ export default function FinancePaymentTermsPage() {
 
   return (
     <div className="min-h-screen bg-[#05070d] px-4 py-4 text-white md:px-6 md:py-6">
-      <div className="mx-auto flex w-full max-w-[1600px] flex-col gap-6">
-        <section className="relative overflow-hidden rounded-[34px] border border-white/10 bg-white/[0.045] p-6 backdrop-blur-xl">
+      <motion.div
+        initial="hidden"
+        animate="visible"
+        variants={pageFade}
+        transition={{ duration: 0.35 }}
+        className="mx-auto flex w-full max-w-[1600px] flex-col gap-6"
+      >
+        <motion.section
+          initial={{ opacity: 0, y: 18 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ duration: 0.38 }}
+          className="relative overflow-hidden rounded-[34px] border border-white/10 bg-white/[0.045] p-6 backdrop-blur-xl"
+        >
           <div className="pointer-events-none absolute inset-0 bg-[radial-gradient(circle_at_top_left,rgba(6,182,212,0.18),transparent_38%),radial-gradient(circle_at_top_right,rgba(139,92,246,0.14),transparent_34%)]" />
 
           <div className="relative">
-            <button
+            <motion.button
               type="button"
               onClick={() => navigate("/finance/master-data")}
+              whileHover={{ x: -2 }}
+              whileTap={{ scale: 0.98 }}
               className="mb-5 inline-flex items-center gap-2 rounded-full border border-white/10 bg-white/[0.05] px-5 py-2 text-[11px] font-semibold uppercase tracking-[0.22em] text-slate-300 transition hover:bg-white/[0.08] hover:text-white"
             >
               <ArrowLeft className="h-3.5 w-3.5" />
               Master Data
-            </button>
+            </motion.button>
 
             <div className="flex flex-col gap-5 lg:flex-row lg:items-start lg:justify-between">
               <div>
@@ -1220,11 +1370,21 @@ export default function FinancePaymentTermsPage() {
                   <Badge className="rounded-full border border-violet-400/20 bg-violet-500/10 px-3 py-1 text-[11px] uppercase tracking-[0.18em] text-violet-200 shadow-none">
                     Payment Terms
                   </Badge>
-                  {backgroundRefreshing ? (
-                    <Badge className="rounded-full border border-emerald-400/20 bg-emerald-500/10 px-3 py-1 text-[11px] uppercase tracking-[0.18em] text-emerald-200 shadow-none">
-                      Updating Silently
-                    </Badge>
-                  ) : null}
+
+                  <AnimatePresence>
+                    {backgroundRefreshing ? (
+                      <motion.div
+                        key="background-refreshing"
+                        initial={{ opacity: 0, scale: 0.94 }}
+                        animate={{ opacity: 1, scale: 1 }}
+                        exit={{ opacity: 0, scale: 0.94 }}
+                      >
+                        <Badge className="rounded-full border border-emerald-400/20 bg-emerald-500/10 px-3 py-1 text-[11px] uppercase tracking-[0.18em] text-emerald-200 shadow-none">
+                          Updating Silently
+                        </Badge>
+                      </motion.div>
+                    ) : null}
+                  </AnimatePresence>
                 </div>
 
                 <h1 className="mt-5 text-4xl font-bold tracking-tight text-white">
@@ -1239,29 +1399,33 @@ export default function FinancePaymentTermsPage() {
               </div>
 
               <div className="flex flex-wrap gap-3">
-                <Button
-                  type="button"
-                  onClick={() => setArchiveOpen(true)}
-                  variant="outline"
-                  className="h-11 rounded-2xl border-white/10 bg-white/[0.05] px-5 text-white hover:bg-white/[0.08]"
-                >
-                  <Archive className="mr-2 h-4 w-4" />
-                  Archive
-                </Button>
+                <motion.div whileHover={{ scale: 1.02 }} whileTap={{ scale: 0.98 }}>
+                  <Button
+                    type="button"
+                    onClick={() => setArchiveOpen(true)}
+                    variant="outline"
+                    className="h-11 rounded-2xl border-white/10 bg-white/[0.05] px-5 text-white hover:bg-white/[0.08]"
+                  >
+                    <Archive className="mr-2 h-4 w-4" />
+                    Archive
+                  </Button>
+                </motion.div>
 
-                <Button
-                  type="button"
-                  onClick={openCreateDialog}
-                  disabled={!canCreate}
-                  className="h-11 rounded-2xl border border-cyan-400/20 bg-cyan-500/15 px-5 text-cyan-100 hover:bg-cyan-500/20 disabled:cursor-not-allowed disabled:opacity-50"
-                >
-                  <Plus className="mr-2 h-4 w-4" />
-                  New Payment Term
-                </Button>
+                <motion.div whileHover={{ scale: 1.02 }} whileTap={{ scale: 0.98 }}>
+                  <Button
+                    type="button"
+                    onClick={openCreateDialog}
+                    disabled={!canCreate}
+                    className="h-11 rounded-2xl border border-cyan-400/20 bg-cyan-500/15 px-5 text-cyan-100 hover:bg-cyan-500/20 disabled:cursor-not-allowed disabled:opacity-50"
+                  >
+                    <Plus className="mr-2 h-4 w-4" />
+                    New Payment Term
+                  </Button>
+                </motion.div>
               </div>
             </div>
           </div>
-        </section>
+        </motion.section>
 
         <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
           <SummaryCard
@@ -1270,6 +1434,7 @@ export default function FinancePaymentTermsPage() {
             description="Available payment terms that can be selected on finance documents."
             icon={CheckCircle2}
             tone="emerald"
+            delay={0.05}
           />
           <SummaryCard
             label="Deposit Terms"
@@ -1277,6 +1442,7 @@ export default function FinancePaymentTermsPage() {
             description="Terms that require a deposit before the remaining balance."
             icon={Percent}
             tone="amber"
+            delay={0.1}
           />
           <SummaryCard
             label="Default Term"
@@ -1284,6 +1450,7 @@ export default function FinancePaymentTermsPage() {
             description="The active default payment term for document creation."
             icon={WalletCards}
             tone="cyan"
+            delay={0.15}
           />
           <SummaryCard
             label="Archived"
@@ -1291,22 +1458,44 @@ export default function FinancePaymentTermsPage() {
             description="Inactive historical terms stored in the archive area."
             icon={Archive}
             tone="violet"
+            delay={0.2}
           />
         </div>
 
-        {pageMessage ? (
-          <div className="rounded-[24px] border border-emerald-400/20 bg-emerald-500/10 px-5 py-4 text-sm text-emerald-100">
-            {pageMessage}
-          </div>
-        ) : null}
+        <AnimatePresence>
+          {pageMessage ? (
+            <motion.div
+              key="page-message"
+              initial={{ opacity: 0, y: 8 }}
+              animate={{ opacity: 1, y: 0 }}
+              exit={{ opacity: 0, y: -8 }}
+              className="rounded-[24px] border border-emerald-400/20 bg-emerald-500/10 px-5 py-4 text-sm text-emerald-100"
+            >
+              {pageMessage}
+            </motion.div>
+          ) : null}
+        </AnimatePresence>
 
-        {error ? (
-          <div className="rounded-[24px] border border-rose-400/20 bg-rose-500/10 px-5 py-4 text-sm text-rose-100">
-            {error}
-          </div>
-        ) : null}
+        <AnimatePresence>
+          {error ? (
+            <motion.div
+              key="page-error"
+              initial={{ opacity: 0, y: 8 }}
+              animate={{ opacity: 1, y: 0 }}
+              exit={{ opacity: 0, y: -8 }}
+              className="rounded-[24px] border border-rose-400/20 bg-rose-500/10 px-5 py-4 text-sm text-rose-100"
+            >
+              {error}
+            </motion.div>
+          ) : null}
+        </AnimatePresence>
 
-        <section className="overflow-hidden rounded-[30px] border border-white/10 bg-white/[0.045] backdrop-blur-xl">
+        <motion.section
+          initial={{ opacity: 0, y: 18 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ delay: 0.12, duration: 0.35 }}
+          className="overflow-hidden rounded-[30px] border border-white/10 bg-white/[0.045] backdrop-blur-xl"
+        >
           <div className="border-b border-white/10 px-5 py-4">
             <div className="flex flex-col gap-4 xl:flex-row xl:items-center xl:justify-between">
               <div>
@@ -1416,29 +1605,43 @@ export default function FinancePaymentTermsPage() {
                 <tbody>
                   {initialLoading ? (
                     <tr>
-                      <td colSpan={9} className="px-5 py-10 text-center text-sm text-slate-500">
+                      <td
+                        colSpan={9}
+                        className="px-5 py-10 text-center text-sm text-slate-500"
+                      >
                         Loading payment terms...
                       </td>
                     </tr>
                   ) : sortedRows.length === 0 ? (
                     <tr>
-                      <td colSpan={9} className="px-5 py-10 text-center text-sm text-slate-500">
+                      <td
+                        colSpan={9}
+                        className="px-5 py-10 text-center text-sm text-slate-500"
+                      >
                         No payment terms match the current filters.
                       </td>
                     </tr>
                   ) : (
                     sortedRows.map((row) => (
-                      <tr
+                      <motion.tr
                         key={row.id}
+                        layout
+                        initial={{ opacity: 0, y: 8 }}
+                        animate={{ opacity: 1, y: 0 }}
+                        exit={{ opacity: 0, y: -8 }}
                         className="border-b border-white/5 text-sm text-slate-300 transition hover:bg-white/[0.035]"
                       >
                         <td className="px-5 py-4">
-                          <div className="font-mono text-xs text-cyan-200">{row.code}</div>
+                          <div className="font-mono text-xs text-cyan-200">
+                            {row.code}
+                          </div>
                         </td>
                         <td className="px-5 py-4">
                           <div className="font-semibold text-white">{row.name}</div>
                           {row.is_default ? (
-                            <div className="mt-1 text-xs text-emerald-300">Default term</div>
+                            <div className="mt-1 text-xs text-emerald-300">
+                              Default term
+                            </div>
                           ) : null}
                         </td>
                         <td className="px-5 py-4">
@@ -1481,149 +1684,187 @@ export default function FinancePaymentTermsPage() {
                         </td>
                         <td className="px-5 py-4">
                           <div className="flex justify-end gap-2">
-                            <Button
-                              type="button"
-                              variant="outline"
-                              onClick={() => openEditDialog(row)}
-                              disabled={!canEdit}
-                              className="h-9 rounded-xl border-white/10 bg-white/[0.05] px-3 text-white hover:bg-white/[0.08] disabled:cursor-not-allowed disabled:opacity-50"
-                            >
-                              <Edit3 className="mr-2 h-4 w-4" />
-                              Edit
-                            </Button>
+                            <motion.div whileHover={{ scale: 1.02 }} whileTap={{ scale: 0.98 }}>
+                              <Button
+                                type="button"
+                                variant="outline"
+                                onClick={() => openEditDialog(row)}
+                                disabled={!canEdit}
+                                className="h-9 rounded-xl border-white/10 bg-white/[0.05] px-3 text-white hover:bg-white/[0.08] disabled:cursor-not-allowed disabled:opacity-50"
+                              >
+                                <Edit3 className="mr-2 h-4 w-4" />
+                                Edit
+                              </Button>
+                            </motion.div>
 
-                            <Button
-                              type="button"
-                              variant="outline"
-                              onClick={() => handleArchive(row)}
-                              disabled={!canArchive || actionLoadingId === row.id}
-                              className="h-9 rounded-xl border-amber-400/20 bg-amber-500/10 px-3 text-amber-100 hover:bg-amber-500/15 disabled:cursor-not-allowed disabled:opacity-50"
-                            >
-                              <Archive className="mr-2 h-4 w-4" />
-                              Archive
-                            </Button>
+                            <motion.div whileHover={{ scale: 1.02 }} whileTap={{ scale: 0.98 }}>
+                              <Button
+                                type="button"
+                                variant="outline"
+                                onClick={() => handleArchive(row)}
+                                disabled={!canArchive || actionLoadingId === row.id}
+                                className="h-9 rounded-xl border-amber-400/20 bg-amber-500/10 px-3 text-amber-100 hover:bg-amber-500/15 disabled:cursor-not-allowed disabled:opacity-50"
+                              >
+                                <Archive className="mr-2 h-4 w-4" />
+                                Archive
+                              </Button>
+                            </motion.div>
                           </div>
                         </td>
-                      </tr>
+                      </motion.tr>
                     ))
                   )}
                 </tbody>
               </table>
             </div>
           </div>
-        </section>
-      </div>
+        </motion.section>
+      </motion.div>
 
-      {archiveOpen ? (
-        <div className="fixed inset-0 z-[110] flex items-center justify-center bg-black/80 p-4 backdrop-blur-xl">
-          <div className="flex max-h-[88vh] w-full max-w-6xl flex-col overflow-hidden rounded-[34px] border border-white/10 bg-[#05070d] shadow-2xl shadow-black/60">
-            <div className="border-b border-white/10 bg-white/[0.045] px-6 py-5">
-              <div className="flex items-start justify-between gap-4">
-                <div>
-                  <Badge className="rounded-full border border-violet-400/20 bg-violet-500/10 px-3 py-1 text-[11px] uppercase tracking-[0.18em] text-violet-200 shadow-none">
-                    Archive
-                  </Badge>
-                  <h2 className="mt-4 text-2xl font-bold text-white">
-                    Archived Payment Terms
-                  </h2>
-                  <p className="mt-2 text-sm text-slate-400">
-                    Restore archived terms or permanently delete records when allowed.
-                  </p>
+      <AnimatePresence>
+        {archiveOpen ? (
+          <motion.div
+            key="archive-backdrop"
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            className="fixed inset-0 z-[110] flex items-center justify-center bg-black/80 p-4 backdrop-blur-xl"
+          >
+            <motion.div
+              key="archive-modal"
+              initial={{ opacity: 0, y: 24, scale: 0.96 }}
+              animate={{ opacity: 1, y: 0, scale: 1 }}
+              exit={{ opacity: 0, y: 24, scale: 0.96 }}
+              transition={{ type: "spring", stiffness: 280, damping: 26 }}
+              className="flex max-h-[88vh] w-full max-w-6xl flex-col overflow-hidden rounded-[34px] border border-white/10 bg-[#05070d] shadow-2xl shadow-black/60"
+            >
+              <div className="border-b border-white/10 bg-white/[0.045] px-6 py-5">
+                <div className="flex items-start justify-between gap-4">
+                  <div>
+                    <Badge className="rounded-full border border-violet-400/20 bg-violet-500/10 px-3 py-1 text-[11px] uppercase tracking-[0.18em] text-violet-200 shadow-none">
+                      Archive
+                    </Badge>
+                    <h2 className="mt-4 text-2xl font-bold text-white">
+                      Archived Payment Terms
+                    </h2>
+                    <p className="mt-2 text-sm text-slate-400">
+                      Restore archived terms or permanently delete records when allowed.
+                    </p>
+                  </div>
+
+                  <motion.button
+                    type="button"
+                    onClick={() => setArchiveOpen(false)}
+                    whileHover={{ rotate: 90, scale: 1.04 }}
+                    whileTap={{ scale: 0.96 }}
+                    className="flex h-11 w-11 items-center justify-center rounded-xl border border-white/10 bg-white/5 text-white transition hover:bg-white/10"
+                  >
+                    <X className="h-5 w-5" />
+                  </motion.button>
                 </div>
-
-                <button
-                  type="button"
-                  onClick={() => setArchiveOpen(false)}
-                  className="flex h-11 w-11 items-center justify-center rounded-xl border border-white/10 bg-white/5 text-white transition hover:bg-white/10"
-                >
-                  <X className="h-5 w-5" />
-                </button>
               </div>
-            </div>
 
-            <div className="border-b border-white/10 px-6 py-4">
-              <Badge className="rounded-full border border-violet-400/20 bg-violet-500/10 px-4 py-2 text-[11px] uppercase tracking-[0.18em] text-violet-200 shadow-none">
-                {archiveTab === "archived" ? "Archived" : "Archived"}
-              </Badge>
-            </div>
+              <div className="border-b border-white/10 px-6 py-4">
+                <Badge className="rounded-full border border-violet-400/20 bg-violet-500/10 px-4 py-2 text-[11px] uppercase tracking-[0.18em] text-violet-200 shadow-none">
+                  {archiveTab === "archived" ? "Archived" : "Archived"}
+                </Badge>
+              </div>
 
-            <div className="overflow-x-auto">
-              <div className="max-h-[620px] overflow-y-auto">
-                <table className="w-full min-w-[980px] border-collapse">
-                  <thead className="sticky top-0 z-10 border-b border-white/10 bg-black/40 text-left text-[11px] uppercase tracking-[0.18em] text-slate-500 backdrop-blur-xl">
-                    <tr>
-                      <th className="px-5 py-4">Code</th>
-                      <th className="px-5 py-4">Name</th>
-                      <th className="px-5 py-4">Type</th>
-                      <th className="px-5 py-4">Updated</th>
-                      <th className="px-5 py-4 text-right">Actions</th>
-                    </tr>
-                  </thead>
-
-                  <tbody>
-                    {archivedRows.length === 0 ? (
+              <div className="overflow-x-auto">
+                <div className="max-h-[620px] overflow-y-auto">
+                  <table className="w-full min-w-[980px] border-collapse">
+                    <thead className="sticky top-0 z-10 border-b border-white/10 bg-black/40 text-left text-[11px] uppercase tracking-[0.18em] text-slate-500 backdrop-blur-xl">
                       <tr>
-                        <td colSpan={5} className="px-5 py-10 text-center text-sm text-slate-500">
-                          No archived payment terms.
-                        </td>
+                        <th className="px-5 py-4">Code</th>
+                        <th className="px-5 py-4">Name</th>
+                        <th className="px-5 py-4">Type</th>
+                        <th className="px-5 py-4">Updated</th>
+                        <th className="px-5 py-4 text-right">Actions</th>
                       </tr>
-                    ) : (
-                      archivedRows.map((row) => (
-                        <tr
-                          key={row.id}
-                          className="border-b border-white/5 text-sm text-slate-300 transition hover:bg-white/[0.035]"
-                        >
-                          <td className="px-5 py-4">
-                            <span className="font-mono text-xs text-cyan-200">
-                              {row.code}
-                            </span>
-                          </td>
-                          <td className="px-5 py-4">
-                            <div className="font-semibold text-white">{row.name}</div>
-                          </td>
-                          <td className="px-5 py-4">
-                            <Badge className={termTypeBadgeClass(row.term_type)}>
-                              {formatTermType(row.term_type)}
-                            </Badge>
-                          </td>
-                          <td className="px-5 py-4 text-slate-500">
-                            {formatDateLabel(row.updated_at)}
-                          </td>
-                          <td className="px-5 py-4">
-                            <div className="flex justify-end gap-2">
-                              <Button
-                                type="button"
-                                variant="outline"
-                                onClick={() => handleRestore(row)}
-                                disabled={!canArchive || actionLoadingId === row.id}
-                                className="h-9 rounded-xl border-emerald-400/20 bg-emerald-500/10 px-3 text-emerald-100 hover:bg-emerald-500/15 disabled:cursor-not-allowed disabled:opacity-50"
-                              >
-                                <Undo2 className="mr-2 h-4 w-4" />
-                                Restore
-                              </Button>
+                    </thead>
 
-                              <Button
-                                type="button"
-                                variant="outline"
-                                onClick={() => handlePermanentDelete(row)}
-                                disabled={!canDelete || actionLoadingId === row.id}
-                                className="h-9 rounded-xl border-rose-400/20 bg-rose-500/10 px-3 text-rose-100 hover:bg-rose-500/15 disabled:cursor-not-allowed disabled:opacity-50"
-                              >
-                                <Trash2 className="mr-2 h-4 w-4" />
-                                Hard Delete
-                              </Button>
-                            </div>
+                    <tbody>
+                      {archivedRows.length === 0 ? (
+                        <tr>
+                          <td
+                            colSpan={5}
+                            className="px-5 py-10 text-center text-sm text-slate-500"
+                          >
+                            No archived payment terms.
                           </td>
                         </tr>
-                      ))
-                    )}
-                  </tbody>
-                </table>
+                      ) : (
+                        archivedRows.map((row) => (
+                          <motion.tr
+                            key={row.id}
+                            layout
+                            initial={{ opacity: 0, y: 8 }}
+                            animate={{ opacity: 1, y: 0 }}
+                            exit={{ opacity: 0, y: -8 }}
+                            className="border-b border-white/5 text-sm text-slate-300 transition hover:bg-white/[0.035]"
+                          >
+                            <td className="px-5 py-4">
+                              <span className="font-mono text-xs text-cyan-200">
+                                {row.code}
+                              </span>
+                            </td>
+                            <td className="px-5 py-4">
+                              <div className="font-semibold text-white">{row.name}</div>
+                            </td>
+                            <td className="px-5 py-4">
+                              <Badge className={termTypeBadgeClass(row.term_type)}>
+                                {formatTermType(row.term_type)}
+                              </Badge>
+                            </td>
+                            <td className="px-5 py-4 text-slate-500">
+                              {formatDateLabel(row.updated_at)}
+                            </td>
+                            <td className="px-5 py-4">
+                              <div className="flex justify-end gap-2">
+                                <motion.div
+                                  whileHover={{ scale: 1.02 }}
+                                  whileTap={{ scale: 0.98 }}
+                                >
+                                  <Button
+                                    type="button"
+                                    variant="outline"
+                                    onClick={() => handleRestore(row)}
+                                    disabled={!canArchive || actionLoadingId === row.id}
+                                    className="h-9 rounded-xl border-emerald-400/20 bg-emerald-500/10 px-3 text-emerald-100 hover:bg-emerald-500/15 disabled:cursor-not-allowed disabled:opacity-50"
+                                  >
+                                    <Undo2 className="mr-2 h-4 w-4" />
+                                    Restore
+                                  </Button>
+                                </motion.div>
+
+                                <motion.div
+                                  whileHover={{ scale: 1.02 }}
+                                  whileTap={{ scale: 0.98 }}
+                                >
+                                  <Button
+                                    type="button"
+                                    variant="outline"
+                                    onClick={() => handlePermanentDelete(row)}
+                                    disabled={!canDelete || actionLoadingId === row.id}
+                                    className="h-9 rounded-xl border-rose-400/20 bg-rose-500/10 px-3 text-rose-100 hover:bg-rose-500/15 disabled:cursor-not-allowed disabled:opacity-50"
+                                  >
+                                    <Trash2 className="mr-2 h-4 w-4" />
+                                    Hard Delete
+                                  </Button>
+                                </motion.div>
+                              </div>
+                            </td>
+                          </motion.tr>
+                        ))
+                      )}
+                    </tbody>
+                  </table>
+                </div>
               </div>
-            </div>
-          </div>
-        </div>
-      ) : null}
+            </motion.div>
+          </motion.div>
+        ) : null}
+      </AnimatePresence>
 
       <PaymentTermFormModal
         open={dialogOpen}

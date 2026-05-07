@@ -16,7 +16,6 @@ import {
   Receipt,
   Search,
   ShieldCheck,
-  Sparkles,
   UserRound,
   Users,
   WalletCards,
@@ -24,7 +23,6 @@ import {
 
 import {
   AixiaBadge,
-  AixiaButton,
   AixiaHero,
   AixiaMetricCard,
   AixiaPage,

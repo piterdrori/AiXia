@@ -214,8 +214,51 @@ export async function restoreExpenseCategory(
   return data as FinanceExpenseCategoryRow;
 }
 
+async function countExpenseCategoryDependencies(
+  tableName: string,
+  columnName: string,
+  categoryId: string
+): Promise<number> {
+  const { count, error } = await supabase
+    .from(tableName)
+    .select("*", { count: "exact", head: true })
+    .eq(columnName, categoryId);
+
+  if (error) throw error;
+
+  return count ?? 0;
+}
+
 export async function permanentlyDeleteExpenseCategory(id: string): Promise<void> {
   const row = await getExpenseCategoryById(id);
+
+  const dependencyChecks = await Promise.all([
+    countExpenseCategoryDependencies("finance_bill_line_items", "expense_category_id", id),
+    countExpenseCategoryDependencies("finance_expenses", "category_id", id),
+    countExpenseCategoryDependencies("finance_items", "expense_category_id", id),
+  ]);
+
+  const [billLineItemsCount, expensesCount, itemsCount] = dependencyChecks;
+
+  const dependencyMessages = [
+    billLineItemsCount > 0
+      ? `${billLineItemsCount} bill line item${billLineItemsCount === 1 ? "" : "s"}`
+      : null,
+    expensesCount > 0
+      ? `${expensesCount} expense${expensesCount === 1 ? "" : "s"}`
+      : null,
+    itemsCount > 0
+      ? `${itemsCount} item${itemsCount === 1 ? "" : "s"}`
+      : null,
+  ].filter(Boolean);
+
+  if (dependencyMessages.length > 0) {
+    throw new Error(
+      `This expense category is already used in finance records and cannot be permanently deleted. Linked records: ${dependencyMessages.join(
+        ", "
+      )}. Archive the category instead.`
+    );
+  }
 
   const { error } = await supabase.from(TABLE).delete().eq("id", id);
 

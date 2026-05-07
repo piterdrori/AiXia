@@ -13,9 +13,10 @@ The goal is to make every page feel like it was built by the same designer, foll
 
 Do not rewrite or globally redesign files inside:
 
+````md
 ```txt
 src/components/ui/
-````
+```
 
 These are low-level primitives. Keep them stable.
 
@@ -1153,17 +1154,6 @@ useEffect(() => {
 }, [loadPage]);
 ```
 
-```txt
-FILE:
-src/components/aixia/AIXIA_STANDARD.md
-
-CHANGE TYPE:
-SECTION
-```
-
-SELECT THIS EXACT SECTION AT THE END OF THE FILE:
-
-```md
 Every page rewrite must be checked against this rule before code is delivered.
 
 ---
@@ -1199,7 +1189,7 @@ Every change must clearly define:
 
 ### 16.2 Required delivery format
 
-Every code change must use this format:
+Every code change must use this exact format:
 
 ```txt
 FILE:
@@ -1213,18 +1203,19 @@ SELECT THIS EXACT SECTION:
 
 PASTE THIS EXACT SECTION IN THE SAME PLACE:
 [paste the complete replacement section]
+```
 
-Use FULL FILE only when replacing the entire file.
+Use `FULL FILE` only when replacing the entire file.
 
-Use SECTION for large page areas or multi-function areas.
+Use `SECTION` for large page areas or multi-function areas.
 
-Use BLOCK for a smaller unique JSX/function/object block.
+Use `BLOCK` for a smaller unique JSX/function/object block.
 
-Use LINE only when the line is unique and appears one time only.
+Use `LINE` only when the line is unique and appears one time only.
 
 If a line appears more than once, do not use a line change. Use a larger block or section with unique anchors.
 
-16.3 Unique anchor rule
+### 16.3 Unique anchor rule
 
 Every selected section/block/line must be uniquely identifiable.
 
@@ -1232,11 +1223,14 @@ A valid selected section must include enough surrounding code so the user can se
 
 Bad:
 
+```txt
 SELECT THIS:
 <div>
+```
 
 Good:
 
+```tsx
 <section className="aixia-section aixia-glass-hover">
   <div className="aixia-section-header">
     <div className="flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
@@ -1244,10 +1238,11 @@ Good:
     </div>
   </div>
 </section>
+```
 
 If uniqueness is not certain, ask the user to upload the file before writing code.
 
-16.4 Prefer large sections over many small edits
+### 16.4 Prefer large sections over many small edits
 
 When changes are close together, use one large section replacement.
 
@@ -1255,15 +1250,19 @@ Do not give 10 small edits when one larger section replacement can safely cover 
 
 Preferred:
 
+```txt
 one large SECTION replacement
+```
 
 Avoid:
 
+```txt
 many small LINE/BLOCK replacements near each other
+```
 
 Large sections reduce mistakes and are easier for the user to copy/paste.
 
-16.5 Long file delivery rule
+### 16.5 Long file delivery rule
 
 For long files, deliver continuous sections of 600–700 lines minimum.
 
@@ -1271,75 +1270,76 @@ Less than 600 lines for a long-file section is a fatal mistake unless the file e
 
 Rules:
 
-600–700 lines per part is preferred.
-More than 700 lines is acceptable if needed.
-Less than 600 lines is only acceptable when it is the final part and the file ends.
-Each part must be continuous.
-Do not skip around the file.
-Do not send fragmented snippets from different places unless explicitly requested.
-After each long part, stop and wait for the user to confirm before continuing.
-16.6 No guessing rule
+- 600–700 lines per part is preferred.
+- More than 700 lines is acceptable if needed.
+- Less than 600 lines is only acceptable when it is the final part and the file ends.
+- Each part must be continuous.
+- Do not skip around the file.
+- Do not send fragmented snippets from different places unless explicitly requested.
+- After each long part, stop and wait for the user to confirm before continuing.
+
+### 16.6 No guessing rule
 
 Do not guess file structure, backend schema, table columns, function names, route names, storage buckets, permissions, or business logic.
 
 If uncertain:
 
-ask the user to upload the relevant file
-or provide exact SQL test queries
-or ask for the Vercel/Supabase error result
+- ask the user to upload the relevant file
+- or provide exact SQL test queries
+- or ask for the Vercel/Supabase error result
 
 Do not write code based on assumptions.
 
-16.7 Preserve existing logic rule
+### 16.7 Preserve existing logic rule
 
 When rewriting or redesigning a page, preserve all existing working logic unless the user explicitly asks to change it.
 
 Do not remove:
 
-Supabase queries
-RPC calls
-Edge Function calls
-permissions
-validation
-route paths
-handlers
-archive/delete logic
-soft refresh logic
-modals
-filters
-sorting
-selected tabs
-file upload logic
-print/export logic
-currency conversion logic
-linked-record logic
-backend-controlled workflow logic
+- Supabase queries
+- RPC calls
+- Edge Function calls
+- permissions
+- validation
+- route paths
+- handlers
+- archive/delete logic
+- soft refresh logic
+- modals
+- filters
+- sorting
+- selected tabs
+- file upload logic
+- print/export logic
+- currency conversion logic
+- linked-record logic
+- backend-controlled workflow logic
 
 Design changes must not silently remove business logic.
 
-16.8 Minimal explanation rule
+### 16.8 Minimal explanation rule
 
 The user does not want long explanations unless they ask.
 
 Default response style for code work:
 
-exact file path
-change type
-exact selected section
-exact replacement section
-short note only if necessary
+- exact file path
+- change type
+- exact selected section
+- exact replacement section
+- short note only if necessary
 
 Do not over-explain.
 
-16.9 No images unless explicitly requested
+### 16.9 No images unless explicitly requested
 
 Do not generate images unless the user explicitly asks for an image.
 
-For UI/code work, provide code or copy/paste instructions only.
+For UI/code work, provide code or copy-paste instructions only.
 
 Do not use image generation for design/code tasks.
 
-16.10 If unsure, ask for the file
+### 16.10 If unsure, ask for the file
 
 If the AI cannot identify the exact unique section, it must ask the user to upload the file.
 
@@ -1349,21 +1349,21 @@ Do not say “find the similar section.”
 
 Do not assume the user knows what to do.
 
-16.11 Required behavior before delivering code
+### 16.11 Required behavior before delivering code
 
 Before delivering code, check:
 
-Is the file path exact?
-Is the change type clearly labeled?
-Is the selected text unique?
-Is the replacement complete?
-Are nearby edits grouped into one large section where possible?
-Is existing logic preserved?
-Are archive/delete rules preserved where relevant?
-Are soft refresh rules preserved?
-Are permissions preserved?
-Are there no vague placement instructions?
-Are there no generated images?
-If the file is long, is the part at least 600 lines unless it ends?
+- Is the file path exact?
+- Is the change type clearly labeled?
+- Is the selected text unique?
+- Is the replacement complete?
+- Are nearby edits grouped into one large section where possible?
+- Is existing logic preserved?
+- Are archive/delete rules preserved where relevant?
+- Are soft refresh rules preserved?
+- Are permissions preserved?
+- Are there no vague placement instructions?
+- Are there no generated images?
+- If the file is long, is the part at least 600 lines unless it ends?
 
 If any answer is no, fix the response before sending it.

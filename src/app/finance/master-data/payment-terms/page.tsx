@@ -745,7 +745,7 @@ function PaymentTermFormModal({
                     </div>
                     <p className="mt-3 text-sm leading-6 text-violet-100/80">
                       {generatedTerm.documentTermsText}
-                    </div>
+                    </p>
                   </div>
                 </div>
               </section>
@@ -830,16 +830,19 @@ function PaymentTermFormModal({
               >
                 Cancel
               </Button>
-              <motion.Button
-                whileHover={{ scale:1.03 }}
-                whileTap={{ scale:0.98 }}
-                type="button"
-                onClick={onSave}
-                disabled={saving || !canSave}
-                className="h-12 rounded-2xl border border-cyan-400/20 bg-gradient-to-r from-cyan-500/15 to-cyan-600/10 px-6 text-cyan-100 hover:from-cyan-500/20 hover:to-cyan-600/15 disabled:cursor-not-allowed disabled:opacity-50 transition-all"
+              <motion.div
+                whileHover={{ scale: 1.03 }}
+                whileTap={{ scale: 0.98 }}
               >
-                {saving ? "Saving..." : editingRow ? "Save Changes" : "Create Payment Term"}
-              </motion.Button>
+                <Button
+                  type="button"
+                  onClick={onSave}
+                  disabled={saving || !canSave}
+                  className="h-12 rounded-2xl border border-cyan-400/20 bg-gradient-to-r from-cyan-500/15 to-cyan-600/10 px-6 text-cyan-100 hover:from-cyan-500/20 hover:to-cyan-600/15 disabled:cursor-not-allowed disabled:opacity-50 transition-all"
+                >
+                  {saving ? "Saving..." : editingRow ? "Save Changes" : "Create Payment Term"}
+                </Button>
+              </motion.div>
             </div>
           </motion.div>
         </motion.div>

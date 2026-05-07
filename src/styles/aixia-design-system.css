@@ -1289,17 +1289,22 @@
 
 .aixia-table-wrap {
   overflow-x: auto;
+  border-radius: 1.5rem;
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  background: rgba(0, 0, 0, 0.2);
 }
 
 .aixia-table-scroll {
-  max-height: 720px;
+  max-height: 690px;
   overflow-y: auto;
+  overscroll-behavior: contain;
 }
 
 .aixia-table {
   width: 100%;
   min-width: 1240px;
   border-collapse: collapse;
+  table-layout: auto;
 }
 
 .aixia-table-head {
@@ -1307,30 +1312,107 @@
   top: 0;
   z-index: 10;
   border-bottom: 1px solid rgba(255, 255, 255, 0.1);
-  background: rgba(15, 23, 42, 0.85);
+  background: rgba(15, 23, 42, 0.92);
   text-align: left;
-  font-size: 0.625rem;
+  font-size: 0.6875rem;
   font-weight: 800;
-  letter-spacing: 0.2em;
+  letter-spacing: 0.18em;
   text-transform: uppercase;
-  color: rgba(255, 255, 255, 0.4);
+  color: rgba(255, 255, 255, 0.42);
   backdrop-filter: blur(16px);
+}
+
+.aixia-table th {
+  padding: 0.95rem 1.25rem;
+  font-size: 0.6875rem;
+  font-weight: 800;
+  letter-spacing: 0.18em;
+  text-transform: uppercase;
+  color: rgba(255, 255, 255, 0.42);
+  white-space: nowrap;
+}
+
+.aixia-table td {
+  min-height: 4rem;
+  padding: 0.95rem 1.25rem;
+  vertical-align: middle;
+  font-size: 0.8125rem;
+  line-height: 1.45;
+  color: rgba(255, 255, 255, 0.68);
+}
+
+.aixia-table td .font-semibold {
+  font-size: 0.875rem;
+  line-height: 1.35;
+  color: rgba(255, 255, 255, 0.92);
+}
+
+.aixia-table td .text-xs {
+  font-size: 0.75rem;
+  line-height: 1.35;
+  color: rgba(148, 163, 184, 0.68);
 }
 
 .aixia-table-th,
 .aixia-table-cell {
-  padding: 1rem 1.25rem;
+  padding: 0.95rem 1.25rem;
 }
 
 .aixia-table-row {
+  min-height: 4rem;
   border-bottom: 1px solid rgba(255, 255, 255, 0.045);
-  font-size: 0.875rem;
-  color: rgba(255, 255, 255, 0.7);
+  font-size: 0.8125rem;
+  color: rgba(255, 255, 255, 0.68);
   transition: background-color 300ms ease;
 }
 
 .aixia-table-row:hover {
   background: rgba(255, 255, 255, 0.045);
+}
+
+.aixia-sortable-header {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.45rem;
+  font-size: 0.6875rem;
+  font-weight: 800;
+  letter-spacing: 0.18em;
+  text-transform: uppercase;
+  color: rgba(255, 255, 255, 0.42);
+  transition: color 200ms ease;
+}
+
+.aixia-sortable-header:hover {
+  color: rgba(255, 255, 255, 0.82);
+}
+
+.aixia-sortable-header.is-active {
+  color: #fbbf24;
+}
+
+.aixia-table .aixia-btn-primary,
+.aixia-table .aixia-btn-secondary,
+.aixia-table .aixia-btn-danger {
+  min-height: 2.45rem;
+  height: 2.45rem;
+  padding: 0.5rem 1rem;
+  border-radius: 999px;
+  font-size: 0.6875rem;
+  font-weight: 800;
+  letter-spacing: 0.12em;
+  white-space: nowrap;
+}
+
+.aixia-table .aixia-badge {
+  min-height: 1.85rem;
+  padding: 0.35rem 0.875rem;
+  font-size: 0.625rem;
+  letter-spacing: 0.16em;
+  white-space: nowrap;
+}
+
+.aixia-table td:last-child {
+  white-space: nowrap;
 }
 
 /* -------------------------------------------------------

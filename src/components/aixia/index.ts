@@ -1,7 +1,9 @@
 export { AixiaActionSystem } from "./AixiaActionSystem";
 export { AixiaBadge } from "./AixiaBadge";
 export { AixiaButton } from "./AixiaButton";
+export { AixiaDefaultBadge } from "./AixiaDefaultBadge";
 export { AixiaHero } from "./AixiaHero";
+export { AixiaInfoBlock } from "./AixiaInfoBlock";
 export { AixiaMetricCard } from "./AixiaMetricCard";
 export { AixiaModal } from "./AixiaModal";
 export { AixiaPage } from "./AixiaPage";
@@ -9,5 +11,6 @@ export { AixiaSearchField } from "./AixiaSearchField";
 export { AixiaSection } from "./AixiaSection";
 export { AixiaSmartGrid } from "./AixiaSmartGrid";
 export { AixiaSmartLayout } from "./AixiaSmartLayout";
+export { AixiaStatusBadge } from "./AixiaStatusBadge";
 export { AixiaStatusCard } from "./AixiaStatusCard";
 export { AixiaSortableHeader, AixiaTableShell } from "./AixiaTable";

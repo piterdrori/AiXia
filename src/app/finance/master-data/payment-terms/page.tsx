@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import {
   Archive,
@@ -16,7 +16,7 @@ import {
   WalletCards,
   X,
 } from "lucide-react";
-import { AnimatePresence, motion } from "framer-motion";
+import { AnimatePresence, motion, useMotionTemplate, useMotionValue, useSpring } from "framer-motion";
 
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -60,6 +60,8 @@ type SortKey =
   | "updated_at";
 
 type SortDirection = "asc" | "desc";
+
+type ArchiveTab = "archived";
 
 type FormState = {
   term_type: FinancePaymentTermType;
@@ -282,94 +284,101 @@ function buildGeneratedTerm(form: FormState): GeneratedTerm {
   };
 }
 
-/* ─── Visual Tokens ─── */
+/* ═══════════════════════════════════════════════════════════════
+   VISUAL SYSTEM — Competition Grade Design Tokens
+   ═══════════════════════════════════════════════════════════════ */
 
-const glassSurface =
-  "relative overflow-hidden rounded-[32px] border border-white/[0.08] bg-white/[0.03] backdrop-blur-[40px] shadow-[0_8px_32px_rgba(0,0,0,0.4),inset_0_1px_0_rgba(255,255,255,0.06)]";
-
-const glassSurfaceHover =
-  "hover:border-white/[0.14] hover:bg-white/[0.05] hover:shadow-[0_12px_48px_rgba(0,0,0,0.5),inset_0_1px_0_rgba(255,255,255,0.1)] transition-all duration-500";
-
-const cinematicButton =
-  "relative overflow-hidden rounded-2xl font-medium tracking-wide transition-all duration-300 before:absolute before:inset-0 before:-translate-x-full before:bg-gradient-to-r before:from-transparent before:via-white/20 before:to-transparent before:transition-transform before:duration-700 hover:before:translate-x-full";
-
-const inputGlass =
-  "h-12 w-full rounded-2xl border border-white/[0.08] bg-black/30 px-4 text-sm text-white outline-none transition-all duration-300 placeholder:text-slate-600 focus:border-white/20 focus:bg-black/40 focus:shadow-[0_0_20px_rgba(6,182,212,0.15)] focus:ring-1 focus:ring-cyan-400/30 disabled:cursor-not-allowed disabled:opacity-50";
-
-const selectGlass =
-  "h-12 w-full rounded-2xl border border-white/[0.08] bg-black/30 px-4 text-sm text-white outline-none transition-all duration-300 focus:border-white/20 focus:bg-black/40 focus:shadow-[0_0_20px_rgba(6,182,212,0.15)] focus:ring-1 focus:ring-cyan-400/30 disabled:cursor-not-allowed disabled:opacity-50";
-
-const textareaGlass =
-  "min-h-[120px] w-full resize-none rounded-2xl border border-white/[0.08] bg-black/30 px-4 py-3 text-sm text-white outline-none transition-all duration-300 placeholder:text-slate-600 focus:border-white/20 focus:bg-black/40 focus:shadow-[0_0_20px_rgba(6,182,212,0.15)] focus:ring-1 focus:ring-cyan-400/30 disabled:cursor-not-allowed disabled:opacity-50";
-
-const labelGlass = "text-xs font-semibold uppercase tracking-[0.2em] text-slate-400";
-
-const badgeBase =
-  "rounded-full border px-4 py-1.5 text-[10px] font-bold uppercase tracking-[0.2em] shadow-none backdrop-blur-md";
-
-function statusBadgeClass(status: FinancePaymentTermStatus) {
-  if (status === "archived")
-    return `${badgeBase} border-rose-500/30 bg-rose-500/10 text-rose-200`;
-  if (status === "inactive")
-    return `${badgeBase} border-amber-500/30 bg-amber-500/10 text-amber-200`;
-  return `${badgeBase} border-emerald-500/30 bg-emerald-500/10 text-emerald-200`;
-}
-
-function termTypeBadgeClass(type: FinancePaymentTermType) {
-  if (type === "immediate")
-    return `${badgeBase} border-emerald-500/30 bg-emerald-500/10 text-emerald-200`;
-  if (type === "deposit_balance")
-    return `${badgeBase} border-amber-500/30 bg-amber-500/10 text-amber-200`;
-  if (type === "custom")
-    return `${badgeBase} border-violet-500/30 bg-violet-500/10 text-violet-200`;
-  return `${badgeBase} border-cyan-500/30 bg-cyan-500/10 text-cyan-200`;
-}
-
-const toneGradients = {
-  cyan: "from-cyan-400/20 to-cyan-600/5 border-cyan-400/30 text-cyan-100 shadow-[0_0_30px_rgba(6,182,212,0.15)]",
-  emerald:
-    "from-emerald-400/20 to-emerald-600/5 border-emerald-400/30 text-emerald-100 shadow-[0_0_30px_rgba(16,185,129,0.15)]",
-  amber: "from-amber-400/20 to-amber-600/5 border-amber-400/30 text-amber-100 shadow-[0_0_30px_rgba(245,158,11,0.15)]",
-  violet:
-    "from-violet-400/20 to-violet-600/5 border-violet-400/30 text-violet-100 shadow-[0_0_30px_rgba(139,92,246,0.15)]",
+const GLOW = {
+  cyan: "shadow-[0_0_40px_rgba(6,182,212,0.25)]",
+  emerald: "shadow-[0_0_40px_rgba(16,185,129,0.25)]",
+  amber: "shadow-[0_0_40px_rgba(245,158,11,0.25)]",
+  violet: "shadow-[0_0_40px_rgba(139,92,246,0.25)]",
+  rose: "shadow-[0_0_40px_rgba(244,63,94,0.25)]",
 };
 
-const toneGradientsInactive =
-  "from-white/[0.02] to-transparent border-white/[0.08] text-slate-500 hover:border-white/[0.14] hover:from-white/[0.04] hover:text-slate-300 hover:shadow-none";
+const GLASS = {
+  base: "relative overflow-hidden rounded-[32px] border border-white/[0.06] bg-[#080c14]/60 backdrop-blur-[48px]",
+  hover: "hover:border-white/[0.12] hover:bg-[#0a0f1a]/70 transition-all duration-700 ease-out",
+  shine:
+    "before:pointer-events-none before:absolute before:inset-0 before:rounded-[32px] before:bg-[linear-gradient(105deg,transparent_40%,rgba(255,255,255,0.03)_45%,rgba(255,255,255,0.06)_50%,rgba(255,255,255,0.03)_55%,transparent_60%)] before:bg-[length:200%_100%] before:transition-all before:duration-1000 hover:before:bg-[position:100%_0]",
+};
 
-function optionToneClass(tone: "cyan" | "emerald" | "amber" | "violet", active: boolean) {
-  return active
-    ? `bg-gradient-to-br ${toneGradients[tone]}`
-    : `bg-gradient-to-br ${toneGradientsInactive}`;
-}
+const INPUT = {
+  base: "h-12 w-full rounded-2xl border border-white/[0.06] bg-black/40 px-4 text-sm text-white outline-none transition-all duration-300 placeholder:text-slate-700 focus:border-cyan-400/30 focus:bg-black/50 focus:shadow-[0_0_24px_rgba(6,182,212,0.12)] focus:ring-1 focus:ring-cyan-400/20",
+  textarea:
+    "min-h-[120px] w-full resize-none rounded-2xl border border-white/[0.06] bg-black/40 px-4 py-3 text-sm text-white outline-none transition-all duration-300 placeholder:text-slate-700 focus:border-cyan-400/30 focus:bg-black/50 focus:shadow-[0_0_24px_rgba(6,182,212,0.12)] focus:ring-1 focus:ring-cyan-400/20",
+  select:
+    "h-12 w-full rounded-2xl border border-white/[0.06] bg-black/40 px-4 text-sm text-white outline-none transition-all duration-300 focus:border-cyan-400/30 focus:bg-black/50 focus:shadow-[0_0_24px_rgba(6,182,212,0.12)] focus:ring-1 focus:ring-cyan-400/20",
+};
 
-/* ─── 3D Card ─── */
+const LABEL = "text-[11px] font-bold uppercase tracking-[0.22em] text-slate-500";
 
-function Card3D({
+const BADGE = {
+  base: "rounded-full border px-3.5 py-1 text-[10px] font-bold uppercase tracking-[0.18em] backdrop-blur-md",
+  cyan: "border-cyan-400/20 bg-cyan-500/10 text-cyan-200",
+  emerald: "border-emerald-400/20 bg-emerald-500/10 text-emerald-200",
+  amber: "border-amber-400/20 bg-amber-500/10 text-amber-200",
+  violet: "border-violet-400/20 bg-violet-500/10 text-violet-200",
+  rose: "border-rose-400/20 bg-rose-500/10 text-rose-200",
+  slate: "border-white/10 bg-white/[0.04] text-slate-400",
+};
+
+/* ═══════════════════════════════════════════════════════════════
+   3D SPOTLIGHT CARD — Mouse-tracking ambient light
+   ═══════════════════════════════════════════════════════════════ */
+
+function SpotlightCard({
   children,
   className = "",
   delay = 0,
+  color = "rgba(6,182,212,0.15)",
 }: {
   children: React.ReactNode;
   className?: string;
   delay?: number;
+  color?: string;
 }) {
+  const x = useMotionValue(0);
+  const y = useMotionValue(0);
+  const mouseX = useSpring(x, { stiffness: 500, damping: 100 });
+  const mouseY = useSpring(y, { stiffness: 500, damping: 100 });
+
+  function handleMouseMove({ currentTarget, clientX, clientY }: React.MouseEvent) {
+    const { left, top, width, height } = currentTarget.getBoundingClientRect();
+    x.set(clientX - left - width / 2);
+    y.set(clientY - top - height / 2);
+  }
+
+  function handleMouseLeave() {
+    x.set(0);
+    y.set(0);
+  }
+
+  const background = useMotionTemplate`radial-gradient(400px circle at ${mouseX}px ${mouseY}px, ${color}, transparent 70%)`;
+
   return (
     <motion.div
-      initial={{ opacity: 0, y: 40, rotateX: 12 }}
+      initial={{ opacity: 0, y: 50, rotateX: 15 }}
       animate={{ opacity: 1, y: 0, rotateX: 0 }}
-      transition={{ duration: 0.7, delay, type: "spring", stiffness: 100, damping: 20 }}
-      whileHover={{ y: -6, rotateX: 2, scale: 1.01, transition: { duration: 0.3 } }}
+      transition={{ duration: 0.8, delay, type: "spring", stiffness: 80, damping: 20 }}
+      onMouseMove={handleMouseMove}
+      onMouseLeave={handleMouseLeave}
       style={{ perspective: 1000, transformStyle: "preserve-3d" }}
-      className={`${glassSurface} ${glassSurfaceHover} ${className}`}
+      className={`${GLASS.base} ${GLASS.hover} ${GLASS.shine} group ${className}`}
     >
-      <div className="pointer-events-none absolute inset-0 rounded-[32px] bg-[linear-gradient(110deg,transparent_25%,rgba(255,255,255,0.04)_45%,transparent_65%)]" />
+      <motion.div
+        className="pointer-events-none absolute inset-0 rounded-[32px] opacity-0 transition-opacity duration-500 group-hover:opacity-100"
+        style={{ background }}
+      />
+      <div className="pointer-events-none absolute inset-0 rounded-[32px] bg-[linear-gradient(110deg,transparent_30%,rgba(255,255,255,0.02)_50%,transparent_70%)]" />
       <div className="relative z-10">{children}</div>
     </motion.div>
   );
 }
 
-/* ─── Magnetic Button ─── */
+/* ═══════════════════════════════════════════════════════════════
+   MAGNETIC BUTTON — Cinematic interaction
+   ═══════════════════════════════════════════════════════════════ */
 
 function MagneticButton({
   children,
@@ -384,31 +393,64 @@ function MagneticButton({
   variant?: "primary" | "secondary" | "danger" | "ghost";
   className?: string;
 }) {
+  const ref = useRef<HTMLButtonElement>(null);
+  const x = useMotionValue(0);
+  const y = useMotionValue(0);
+  const springX = useSpring(x, { stiffness: 400, damping: 25 });
+  const springY = useSpring(y, { stiffness: 400, damping: 25 });
+
+  function handleMouseMove(e: React.MouseEvent) {
+    if (!ref.current || disabled) return;
+    const rect = ref.current.getBoundingClientRect();
+    const centerX = rect.left + rect.width / 2;
+    const centerY = rect.top + rect.height / 2;
+    x.set((e.clientX - centerX) * 0.15);
+    y.set((e.clientY - centerY) * 0.15);
+  }
+
+  function handleMouseLeave() {
+    x.set(0);
+    y.set(0);
+  }
+
   const variants = {
     primary:
-      "border-cyan-400/30 bg-cyan-500/15 text-cyan-100 hover:bg-cyan-500/25 hover:border-cyan-400/50 hover:shadow-[0_0_30px_rgba(6,182,212,0.2)]",
+      "relative border border-cyan-400/20 bg-cyan-500/10 text-cyan-100 hover:border-cyan-400/40 hover:bg-cyan-500/20 hover:shadow-[0_0_30px_rgba(6,182,212,0.25)] overflow-hidden",
     secondary:
-      "border-white/10 bg-white/[0.06] text-white hover:bg-white/[0.12] hover:border-white/20 hover:shadow-[0_0_20px_rgba(255,255,255,0.05)]",
+      "border border-white/[0.08] bg-white/[0.04] text-white hover:border-white/[0.14] hover:bg-white/[0.08] hover:shadow-[0_0_20px_rgba(255,255,255,0.05)]",
     danger:
-      "border-rose-400/30 bg-rose-500/15 text-rose-100 hover:bg-rose-500/25 hover:border-rose-400/50 hover:shadow-[0_0_30px_rgba(244,63,94,0.2)]",
+      "border border-rose-400/20 bg-rose-500/10 text-rose-200 hover:border-rose-400/40 hover:bg-rose-500/20 hover:shadow-[0_0_30px_rgba(244,63,94,0.25)]",
     ghost: "border-transparent bg-transparent text-slate-400 hover:text-white hover:bg-white/[0.04]",
   };
 
   return (
     <motion.button
+      ref={ref}
       type="button"
       onClick={onClick}
       disabled={disabled}
-      whileHover={{ scale: 1.03 }}
-      whileTap={{ scale: 0.97 }}
-      className={`${cinematicButton} h-11 px-6 text-sm font-semibold tracking-wide border rounded-2xl backdrop-blur-md transition-all duration-300 disabled:cursor-not-allowed disabled:opacity-40 ${variants[variant]} ${className}`}
+      onMouseMove={handleMouseMove}
+      onMouseLeave={handleMouseLeave}
+      style={{ x: springX, y: springY }}
+      whileTap={{ scale: 0.96 }}
+      className={`h-11 rounded-2xl px-6 text-sm font-semibold tracking-wide backdrop-blur-md transition-colors duration-300 disabled:cursor-not-allowed disabled:opacity-40 ${variants[variant]} ${className}`}
     >
-      {children}
+      <span className="relative z-10 flex items-center">{children}</span>
+      {variant === "primary" && (
+        <motion.div
+          className="absolute inset-0 bg-gradient-to-r from-transparent via-white/10 to-transparent"
+          initial={{ x: "-100%" }}
+          whileHover={{ x: "100%" }}
+          transition={{ duration: 0.6, ease: "easeInOut" }}
+        />
+      )}
     </motion.button>
   );
 }
 
-/* ─── Form Components ─── */
+/* ═══════════════════════════════════════════════════════════════
+   FORM COMPONENTS
+   ═══════════════════════════════════════════════════════════════ */
 
 function SelectField<TValue extends string>({
   value,
@@ -423,10 +465,10 @@ function SelectField<TValue extends string>({
     <select
       value={value}
       onChange={(event) => onChange(event.target.value as TValue)}
-      className={selectGlass}
+      className={INPUT.select}
     >
       {options.map((option) => (
-        <option key={option.value} value={option.value} className="bg-[#0a0e1a]">
+        <option key={option.value} value={option.value} className="bg-[#050810]">
           {option.label}
         </option>
       ))}
@@ -449,32 +491,32 @@ function ToggleCard({
 }) {
   const activeGrad =
     tone === "emerald"
-      ? "border-emerald-400/30 bg-gradient-to-br from-emerald-500/15 to-emerald-600/5 shadow-[0_0_20px_rgba(16,185,129,0.15)]"
-      : "border-cyan-400/30 bg-gradient-to-br from-cyan-500/15 to-cyan-600/5 shadow-[0_0_20px_rgba(6,182,212,0.15)]";
+      ? "border-emerald-400/20 bg-emerald-500/[0.08] shadow-[0_0_20px_rgba(16,185,129,0.1)]"
+      : "border-cyan-400/20 bg-cyan-500/[0.08] shadow-[0_0_20px_rgba(6,182,212,0.1)]";
   const dotActive =
     tone === "emerald"
-      ? "border-emerald-300 bg-emerald-400 shadow-[0_0_12px_rgba(16,185,129,0.6)]"
-      : "border-cyan-300 bg-cyan-400 shadow-[0_0_12px_rgba(6,182,212,0.6)]";
+      ? "border-emerald-300 bg-emerald-400 shadow-[0_0_12px_rgba(16,185,129,0.5)]"
+      : "border-cyan-300 bg-cyan-400 shadow-[0_0_12px_rgba(6,182,212,0.5)]";
 
   return (
     <motion.button
       type="button"
       onClick={() => onChange(!checked)}
-      whileHover={{ y: -3, scale: 1.01 }}
-      whileTap={{ scale: 0.985 }}
-      transition={{ type: "spring", stiffness: 380, damping: 22 }}
+      whileHover={{ y: -4, scale: 1.01 }}
+      whileTap={{ scale: 0.98 }}
+      transition={{ type: "spring", stiffness: 400, damping: 20 }}
       className={`rounded-[24px] border p-5 text-left transition-all duration-500 ${
         checked
           ? activeGrad
-          : "border-white/[0.08] bg-white/[0.02] hover:border-white/[0.14] hover:bg-white/[0.04]"
+          : "border-white/[0.06] bg-white/[0.02] hover:border-white/[0.1] hover:bg-white/[0.03]"
       }`}
     >
       <div className="flex items-start gap-4">
         <motion.span
-          animate={{ scale: checked ? 1.15 : 1 }}
-          transition={{ type: "spring", stiffness: 420, damping: 18 }}
+          animate={{ scale: checked ? 1.2 : 1 }}
+          transition={{ type: "spring", stiffness: 500, damping: 15 }}
           className={`mt-1 block h-5 w-5 rounded-full border-2 transition-all duration-300 ${
-            checked ? dotActive : "border-white/20 bg-white/5"
+            checked ? dotActive : "border-white/10 bg-white/[0.04]"
           }`}
         />
         <span>
@@ -486,7 +528,9 @@ function ToggleCard({
   );
 }
 
-/* ─── Summary Card ─── */
+/* ═══════════════════════════════════════════════════════════════
+   SUMMARY CARD — With 3D tilt and ambient glow
+   ═══════════════════════════════════════════════════════════════ */
 
 function SummaryCard({
   label,
@@ -504,39 +548,44 @@ function SummaryCard({
   delay: number;
 }) {
   const toneMap = {
-    cyan: "border-cyan-400/20 bg-cyan-500/10 text-cyan-300 shadow-[0_0_20px_rgba(6,182,212,0.15)]",
-    emerald:
-      "border-emerald-400/20 bg-emerald-500/10 text-emerald-300 shadow-[0_0_20px_rgba(16,185,129,0.15)]",
-    amber: "border-amber-400/20 bg-amber-500/10 text-amber-300 shadow-[0_0_20px_rgba(245,158,11,0.15)]",
-    violet:
-      "border-violet-400/20 bg-violet-500/10 text-violet-300 shadow-[0_0_20px_rgba(139,92,246,0.15)]",
+    cyan: "border-cyan-400/15 bg-cyan-500/[0.08] text-cyan-300",
+    emerald: "border-emerald-400/15 bg-emerald-500/[0.08] text-emerald-300",
+    amber: "border-amber-400/15 bg-amber-500/[0.08] text-amber-300",
+    violet: "border-violet-400/15 bg-violet-500/[0.08] text-violet-300",
+  };
+
+  const glowMap = {
+    cyan: "rgba(6,182,212,0.12)",
+    emerald: "rgba(16,185,129,0.12)",
+    amber: "rgba(245,158,11,0.12)",
+    violet: "rgba(139,92,246,0.12)",
   };
 
   return (
-    <Card3D delay={delay} className="p-6 min-h-[164px] flex flex-col justify-between">
+    <SpotlightCard delay={delay} color={glowMap[tone]} className="p-6 min-h-[170px] flex flex-col justify-between">
       <div className="flex items-start justify-between gap-4">
         <div>
-          <div className="text-[11px] font-bold uppercase tracking-[0.22em] text-slate-500">
-            {label}
-          </div>
-          <div className="mt-3 text-3xl font-bold tracking-tight text-white drop-shadow-[0_0_15px_rgba(255,255,255,0.15)]">
+          <div className="text-[11px] font-bold uppercase tracking-[0.22em] text-slate-600">{label}</div>
+          <div className="mt-3 text-4xl font-black tracking-tight text-white drop-shadow-[0_0_20px_rgba(255,255,255,0.1)]">
             {value}
           </div>
         </div>
         <motion.div
-          whileHover={{ rotate: 12, scale: 1.1 }}
-          transition={{ type: "spring", stiffness: 300 }}
-          className={`flex h-12 w-12 shrink-0 items-center justify-center rounded-2xl border ${toneMap[tone]}`}
+          whileHover={{ rotate: 15, scale: 1.15 }}
+          transition={{ type: "spring", stiffness: 300, damping: 15 }}
+          className={`flex h-12 w-12 shrink-0 items-center justify-center rounded-2xl border ${toneMap[tone]} ${GLOW[tone]}`}
         >
           <Icon className="h-5 w-5" />
         </motion.div>
       </div>
-      <p className="text-xs leading-5 text-slate-500 mt-4">{description}</p>
-    </Card3D>
+      <p className="mt-4 text-xs leading-5 text-slate-600">{description}</p>
+    </SpotlightCard>
   );
 }
 
-/* ─── Modal ─── */
+/* ═══════════════════════════════════════════════════════════════
+   PAYMENT TERM FORM MODAL — Cinematic depth
+   ═══════════════════════════════════════════════════════════════ */
 
 function PaymentTermFormModal({
   open,
@@ -566,60 +615,50 @@ function PaymentTermFormModal({
 
   return (
     <AnimatePresence>
-      {open ? (
+      {open && (
         <motion.div
-          key="payment-term-modal-backdrop"
           initial={{ opacity: 0 }}
           animate={{ opacity: 1 }}
           exit={{ opacity: 0 }}
           transition={{ duration: 0.3 }}
-          className="fixed inset-0 z-[120] flex items-center justify-center bg-black/90 p-4 backdrop-blur-[60px]"
-          style={{ perspective: 1200 }}
+          className="fixed inset-0 z-[120] flex items-center justify-center bg-black/85 p-4 backdrop-blur-[80px]"
+          style={{ perspective: 1500 }}
         >
           <motion.div
-            key="payment-term-modal"
-            initial={{ opacity: 0, y: 60, rotateX: 8, scale: 0.92 }}
+            initial={{ opacity: 0, y: 80, rotateX: 12, scale: 0.9 }}
             animate={{ opacity: 1, y: 0, rotateX: 0, scale: 1 }}
-            exit={{ opacity: 0, y: 40, rotateX: -4, scale: 0.95 }}
-            transition={{ type: "spring", stiffness: 200, damping: 25 }}
+            exit={{ opacity: 0, y: 50, rotateX: -8, scale: 0.95 }}
+            transition={{ type: "spring", stiffness: 180, damping: 24 }}
             style={{ transformStyle: "preserve-3d" }}
-            className="flex max-h-[92vh] w-full max-w-6xl flex-col overflow-hidden rounded-[40px] border border-white/[0.12] bg-[#060912] shadow-[0_24px_80px_rgba(0,0,0,0.8),0_0_0_1px_rgba(255,255,255,0.05)]"
+            className="flex max-h-[92vh] w-full max-w-6xl flex-col overflow-hidden rounded-[40px] border border-white/[0.1] bg-[#04060a] shadow-[0_32px_96px_rgba(0,0,0,0.9),0_0_0_1px_rgba(255,255,255,0.04)]"
           >
             {/* Header */}
-            <div className="relative overflow-hidden border-b border-white/[0.08] bg-white/[0.02] px-8 py-7">
+            <div className="relative overflow-hidden border-b border-white/[0.06] bg-white/[0.02] px-8 py-8">
               <div className="pointer-events-none absolute inset-0">
-                <div className="absolute -left-20 -top-20 h-64 w-64 rounded-full bg-cyan-500/10 blur-[80px]" />
-                <div className="absolute -right-20 -top-20 h-64 w-64 rounded-full bg-violet-500/10 blur-[80px]" />
+                <div className="absolute -left-24 -top-24 h-72 w-72 rounded-full bg-cyan-500/10 blur-[100px]" />
+                <div className="absolute -right-24 -top-24 h-72 w-72 rounded-full bg-violet-500/10 blur-[100px]" />
               </div>
               <div className="relative flex items-start justify-between gap-4">
                 <div>
                   <div className="flex flex-wrap items-center gap-3">
-                    <Badge
-                      className={`${badgeBase} border-cyan-400/20 bg-cyan-500/10 text-cyan-200`}
-                    >
-                      Payment Term
-                    </Badge>
-                    <Badge
-                      className={`${badgeBase} border-emerald-400/20 bg-emerald-500/10 text-emerald-200`}
-                    >
+                    <Badge className={`${BADGE.base} ${BADGE.cyan}`}>Payment Term</Badge>
+                    <Badge className={`${BADGE.base} ${BADGE.emerald}`}>
                       {editingRow ? "Edit Mode" : "Create Mode"}
                     </Badge>
                   </div>
-                  <div className="mt-5 text-3xl font-bold tracking-tight text-white drop-shadow-[0_2px_10px_rgba(0,0,0,0.5)]">
+                  <h2 className="mt-5 text-3xl font-black tracking-tight text-white">
                     {editingRow ? "Edit Payment Term" : "Create Payment Term"}
-                  </div>
-                  <p className="mt-3 max-w-3xl text-sm leading-6 text-slate-500">
-                    Create reusable commercial payment terms for quotations, proforma
-                    invoices, invoices, vendor quotations, purchase orders, and vendor
-                    records.
+                  </h2>
+                  <p className="mt-3 max-w-2xl text-sm leading-6 text-slate-500">
+                    Create reusable commercial payment terms for quotations, proforma invoices, invoices, vendor quotations, purchase orders, and vendor records.
                   </p>
                 </div>
                 <motion.button
                   type="button"
                   onClick={onClose}
-                  whileHover={{ rotate: 90, scale: 1.05 }}
-                  whileTap={{ scale: 0.95 }}
-                  className="flex h-11 w-11 shrink-0 items-center justify-center rounded-2xl border border-white/[0.1] bg-white/[0.04] text-white transition hover:bg-white/[0.1] hover:border-white/20"
+                  whileHover={{ rotate: 90, scale: 1.08 }}
+                  whileTap={{ scale: 0.92 }}
+                  className="flex h-11 w-11 shrink-0 items-center justify-center rounded-2xl border border-white/[0.08] bg-white/[0.03] text-white transition hover:bg-white/[0.08] hover:border-white/[0.14]"
                 >
                   <X className="h-5 w-5" />
                 </motion.button>
@@ -633,20 +672,16 @@ function PaymentTermFormModal({
                 initial={{ opacity: 0, y: 20 }}
                 animate={{ opacity: 1, y: 0 }}
                 transition={{ delay: 0.05 }}
-                className={`${glassSurface} ${glassSurfaceHover}`}
+                className={`${GLASS.base} ${GLASS.hover} ${GLASS.shine}`}
               >
-                <div className="border-b border-white/[0.06] px-6 py-5">
+                <div className="border-b border-white/[0.04] px-6 py-5">
                   <div className="flex items-center gap-4">
-                    <div className="flex h-12 w-12 items-center justify-center rounded-2xl border border-cyan-400/20 bg-cyan-500/10 text-cyan-300 shadow-[0_0_20px_rgba(6,182,212,0.15)]">
+                    <div className={`flex h-12 w-12 items-center justify-center rounded-2xl border border-cyan-400/15 bg-cyan-500/[0.08] text-cyan-300 ${GLOW.cyan}`}>
                       <WalletCards className="h-5 w-5" />
                     </div>
                     <div>
-                      <div className="text-xs font-bold uppercase tracking-[0.2em] text-slate-400">
-                        Payment Structure
-                      </div>
-                      <p className="mt-1 text-xs text-slate-600">
-                        Choose the commercial structure and generate the controlled term.
-                      </p>
+                      <div className={LABEL}>Payment Structure</div>
+                      <p className="mt-1 text-xs text-slate-600">Choose the commercial structure and generate the controlled term.</p>
                     </div>
                   </div>
                 </div>
@@ -657,24 +692,23 @@ function PaymentTermFormModal({
                         key={option.value}
                         type="button"
                         onClick={() => onChange("term_type", option.value)}
-                        whileHover={{ y: -6, scale: 1.02, transition: { duration: 0.2 } }}
-                        whileTap={{ scale: 0.98 }}
-                        transition={{ type: "spring", stiffness: 360, damping: 22 }}
-                        className={`rounded-[24px] border p-6 text-left transition-all duration-500 ${optionToneClass(
-                          option.tone,
+                        whileHover={{ y: -6, scale: 1.02 }}
+                        whileTap={{ scale: 0.97 }}
+                        transition={{ type: "spring", stiffness: 400, damping: 20 }}
+                        className={`rounded-[24px] border p-6 text-left transition-all duration-500 ${
                           form.term_type === option.value
-                        )}`}
+                            ? `bg-gradient-to-br ${toneGradients[option.tone]}`
+                            : `bg-gradient-to-br from-white/[0.02] to-transparent border-white/[0.06] text-slate-500 hover:border-white/[0.1] hover:from-white/[0.03] hover:text-slate-300`
+                        }`}
                       >
                         <div className="text-base font-bold">{option.label}</div>
-                        <div className="mt-2 text-xs leading-5 opacity-70">
-                          {option.description}
-                        </div>
+                        <div className="mt-2 text-xs leading-5 opacity-70">{option.description}</div>
                       </motion.button>
                     ))}
                   </div>
 
                   <AnimatePresence mode="wait">
-                    {form.term_type === "net" ? (
+                    {form.term_type === "net" && (
                       <motion.label
                         key="net-fields"
                         initial={{ opacity: 0, y: 12 }}
@@ -682,7 +716,7 @@ function PaymentTermFormModal({
                         exit={{ opacity: 0, y: -12 }}
                         className="grid gap-3"
                       >
-                        <span className={labelGlass}>Net Days</span>
+                        <span className={LABEL}>Net Days</span>
                         <Input
                           type="number"
                           min="0"
@@ -690,12 +724,12 @@ function PaymentTermFormModal({
                           value={form.net_days}
                           onChange={(event) => onChange("net_days", event.target.value)}
                           placeholder="Example: 30"
-                          className={inputGlass}
+                          className={INPUT.base}
                         />
                       </motion.label>
-                    ) : null}
+                    )}
 
-                    {form.term_type === "deposit_balance" ? (
+                    {form.term_type === "deposit_balance" && (
                       <motion.div
                         key="deposit-fields"
                         initial={{ opacity: 0, y: 12 }}
@@ -705,22 +739,20 @@ function PaymentTermFormModal({
                       >
                         <div className="grid gap-5 md:grid-cols-3">
                           <label className="grid gap-3">
-                            <span className={labelGlass}>Deposit Percentage</span>
+                            <span className={LABEL}>Deposit Percentage</span>
                             <Input
                               type="number"
                               min="1"
                               max="99"
                               step="0.01"
                               value={form.deposit_percentage}
-                              onChange={(event) =>
-                                onChange("deposit_percentage", event.target.value)
-                              }
+                              onChange={(event) => onChange("deposit_percentage", event.target.value)}
                               placeholder="Example: 30"
-                              className={inputGlass}
+                              className={INPUT.base}
                             />
                           </label>
                           <label className="grid gap-3">
-                            <span className={labelGlass}>Deposit Due</span>
+                            <span className={LABEL}>Deposit Due</span>
                             <SelectField
                               value={form.deposit_due_basis}
                               onChange={(value) => onChange("deposit_due_basis", value)}
@@ -728,7 +760,7 @@ function PaymentTermFormModal({
                             />
                           </label>
                           <label className="grid gap-3">
-                            <span className={labelGlass}>Balance Due</span>
+                            <span className={LABEL}>Balance Due</span>
                             <SelectField
                               value={form.balance_due_basis}
                               onChange={(value) => onChange("balance_due_basis", value)}
@@ -736,18 +768,16 @@ function PaymentTermFormModal({
                             />
                           </label>
                         </div>
-                        <div className="rounded-[20px] border border-emerald-400/20 bg-gradient-to-r from-emerald-500/10 to-emerald-600/5 p-5 shadow-[0_0_20px_rgba(16,185,129,0.1)]">
-                          <div className="text-[11px] font-bold uppercase tracking-[0.2em] text-emerald-300/80">
-                            Balance Auto-Calculated
-                          </div>
-                          <p className="mt-2 text-sm leading-6 text-emerald-200/70">
+                        <div className="rounded-[20px] border border-emerald-400/15 bg-emerald-500/[0.06] p-5 shadow-[0_0_24px_rgba(16,185,129,0.08)]">
+                          <div className="text-[11px] font-bold uppercase tracking-[0.2em] text-emerald-300/70">Balance Auto-Calculated</div>
+                          <p className="mt-2 text-sm leading-6 text-emerald-200/60">
                             Deposit is {depositPercentage}%. Balance is {balancePercentage}%.
                           </p>
                         </div>
                       </motion.div>
-                    ) : null}
+                    )}
 
-                    {form.term_type === "custom" ? (
+                    {form.term_type === "custom" && (
                       <motion.div
                         key="custom-fields"
                         initial={{ opacity: 0, y: 12 }}
@@ -756,27 +786,25 @@ function PaymentTermFormModal({
                         className="grid gap-5"
                       >
                         <label className="grid gap-3">
-                          <span className={labelGlass}>Custom Label</span>
+                          <span className={LABEL}>Custom Label</span>
                           <Input
                             value={form.custom_label}
                             onChange={(event) => onChange("custom_label", event.target.value)}
                             placeholder="Example: 30/40/30 Milestone Payments"
-                            className={inputGlass}
+                            className={INPUT.base}
                           />
                         </label>
                         <label className="grid gap-3">
-                          <span className={labelGlass}>Custom Document Wording</span>
+                          <span className={LABEL}>Custom Document Wording</span>
                           <textarea
                             value={form.custom_terms_text}
-                            onChange={(event) =>
-                              onChange("custom_terms_text", event.target.value)
-                            }
+                            onChange={(event) => onChange("custom_terms_text", event.target.value)}
                             placeholder="Example: 30% deposit, 40% before shipment, 30% after installation."
-                            className={textareaGlass}
+                            className={INPUT.textarea}
                           />
                         </label>
                       </motion.div>
-                    ) : null}
+                    )}
                   </AnimatePresence>
                 </div>
               </motion.section>
@@ -786,57 +814,31 @@ function PaymentTermFormModal({
                 initial={{ opacity: 0, y: 20 }}
                 animate={{ opacity: 1, y: 0 }}
                 transition={{ delay: 0.1 }}
-                className={`${glassSurface} ${glassSurfaceHover}`}
+                className={`${GLASS.base} ${GLASS.hover} ${GLASS.shine}`}
               >
-                <div className="border-b border-white/[0.06] px-6 py-5">
+                <div className="border-b border-white/[0.04] px-6 py-5">
                   <div className="flex items-center gap-4">
-                    <div className="flex h-12 w-12 items-center justify-center rounded-2xl border border-violet-400/20 bg-violet-500/10 text-violet-300 shadow-[0_0_20px_rgba(139,92,246,0.15)]">
+                    <div className={`flex h-12 w-12 items-center justify-center rounded-2xl border border-violet-400/15 bg-violet-500/[0.08] text-violet-300 ${GLOW.violet}`}>
                       <FileText className="h-5 w-5" />
                     </div>
                     <div>
-                      <div className="text-xs font-bold uppercase tracking-[0.2em] text-slate-400">
-                        Auto Preview
-                      </div>
-                      <p className="mt-1 text-xs text-slate-600">
-                        Code, name, and document wording generated from the selected
-                        structure.
-                      </p>
+                      <div className={LABEL}>Auto Preview</div>
+                      <p className="mt-1 text-xs text-slate-600">Code, name, and document wording generated from the selected structure.</p>
                     </div>
                   </div>
                 </div>
                 <div className="grid gap-5 p-6 md:grid-cols-2">
-                  <motion.div
-                    layout
-                    className="rounded-[20px] border border-cyan-400/15 bg-cyan-500/[0.07] p-5 shadow-[0_0_20px_rgba(6,182,212,0.08)]"
-                  >
-                    <div className="text-[11px] font-bold uppercase tracking-[0.2em] text-cyan-300/70">
-                      Generated Code
-                    </div>
-                    <div className="mt-3 break-words text-base font-bold text-cyan-100">
-                      {generatedTerm.code}
-                    </div>
+                  <motion.div layout className="rounded-[20px] border border-cyan-400/10 bg-cyan-500/[0.04] p-5">
+                    <div className="text-[11px] font-bold uppercase tracking-[0.2em] text-cyan-400/50">Generated Code</div>
+                    <div className="mt-3 break-words text-base font-bold text-cyan-100">{generatedTerm.code}</div>
                   </motion.div>
-                  <motion.div
-                    layout
-                    className="rounded-[20px] border border-emerald-400/15 bg-emerald-500/[0.07] p-5 shadow-[0_0_20px_rgba(16,185,129,0.08)]"
-                  >
-                    <div className="text-[11px] font-bold uppercase tracking-[0.2em] text-emerald-300/70">
-                      Generated Name
-                    </div>
-                    <div className="mt-3 break-words text-base font-bold text-white">
-                      {generatedTerm.name}
-                    </div>
+                  <motion.div layout className="rounded-[20px] border border-emerald-400/10 bg-emerald-500/[0.04] p-5">
+                    <div className="text-[11px] font-bold uppercase tracking-[0.2em] text-emerald-400/50">Generated Name</div>
+                    <div className="mt-3 break-words text-base font-bold text-white">{generatedTerm.name}</div>
                   </motion.div>
-                  <motion.div
-                    layout
-                    className="rounded-[20px] border border-violet-400/15 bg-violet-500/[0.07] p-5 shadow-[0_0_20px_rgba(139,92,246,0.08)] md:col-span-2"
-                  >
-                    <div className="text-[11px] font-bold uppercase tracking-[0.2em] text-violet-300/70">
-                      Document Wording
-                    </div>
-                    <p className="mt-3 text-sm leading-6 text-violet-200/70">
-                      {generatedTerm.documentTermsText}
-                    </p>
+                  <motion.div layout className="rounded-[20px] border border-violet-400/10 bg-violet-500/[0.04] p-5 md:col-span-2">
+                    <div className="text-[11px] font-bold uppercase tracking-[0.2em] text-violet-400/50">Document Wording</div>
+                    <p className="mt-3 text-sm leading-6 text-violet-200/60">{generatedTerm.documentTermsText}</p>
                   </motion.div>
                 </div>
               </motion.section>
@@ -846,20 +848,16 @@ function PaymentTermFormModal({
                 initial={{ opacity: 0, y: 20 }}
                 animate={{ opacity: 1, y: 0 }}
                 transition={{ delay: 0.15 }}
-                className={`${glassSurface} ${glassSurfaceHover}`}
+                className={`${GLASS.base} ${GLASS.hover} ${GLASS.shine}`}
               >
-                <div className="border-b border-white/[0.06] px-6 py-5">
+                <div className="border-b border-white/[0.04] px-6 py-5">
                   <div className="flex items-center gap-4">
-                    <div className="flex h-12 w-12 items-center justify-center rounded-2xl border border-emerald-400/20 bg-emerald-500/10 text-emerald-300 shadow-[0_0_20px_rgba(16,185,129,0.15)]">
+                    <div className={`flex h-12 w-12 items-center justify-center rounded-2xl border border-emerald-400/15 bg-emerald-500/[0.08] text-emerald-300 ${GLOW.emerald}`}>
                       <ShieldCheck className="h-5 w-5" />
                     </div>
                     <div>
-                      <div className="text-xs font-bold uppercase tracking-[0.2em] text-slate-400">
-                        Term Controls
-                      </div>
-                      <p className="mt-1 text-xs text-slate-600">
-                        Default behavior, partial payments, status, and internal notes.
-                      </p>
+                      <div className={LABEL}>Term Controls</div>
+                      <p className="mt-1 text-xs text-slate-600">Default behavior, partial payments, status, and internal notes.</p>
                     </div>
                   </div>
                 </div>
@@ -882,16 +880,16 @@ function PaymentTermFormModal({
                   </div>
                   <div className="grid gap-5 md:grid-cols-2">
                     <label className="grid gap-3">
-                      <span className={labelGlass}>Internal Notes</span>
+                      <span className={LABEL}>Internal Notes</span>
                       <Input
                         value={form.notes}
                         onChange={(event) => onChange("notes", event.target.value)}
                         placeholder="Optional internal notes"
-                        className={inputGlass}
+                        className={INPUT.base}
                       />
                     </label>
                     <label className="grid gap-3">
-                      <span className={labelGlass}>Status</span>
+                      <span className={LABEL}>Status</span>
                       <SelectField
                         value={form.status}
                         onChange={(value) => onChange("status", value)}
@@ -907,42 +905,36 @@ function PaymentTermFormModal({
               </motion.section>
 
               <AnimatePresence>
-                {error ? (
+                {error && (
                   <motion.div
-                    key="modal-error"
                     initial={{ opacity: 0, y: 8 }}
                     animate={{ opacity: 1, y: 0 }}
                     exit={{ opacity: 0, y: -8 }}
-                    className={`${glassSurface} border-rose-400/20 bg-rose-500/10 px-5 py-4 text-sm text-rose-200 shadow-[0_0_20px_rgba(244,63,94,0.1)]`}
+                    className={`${GLASS.base} border-rose-400/15 bg-rose-500/[0.06] px-5 py-4 text-sm text-rose-200 shadow-[0_0_24px_rgba(244,63,94,0.1)]`}
                   >
                     {error}
                   </motion.div>
-                ) : null}
+                )}
               </AnimatePresence>
             </div>
 
             {/* Footer */}
-            <div className="flex flex-col gap-3 border-t border-white/[0.06] bg-white/[0.02] px-8 py-6 sm:flex-row sm:justify-end">
-              <MagneticButton onClick={onClose} variant="secondary">
-                Cancel
-              </MagneticButton>
-              <MagneticButton
-                onClick={onSave}
-                disabled={saving || !canSave}
-                variant="primary"
-                className={saving ? "opacity-70" : ""}
-              >
+            <div className="flex flex-col gap-3 border-t border-white/[0.04] bg-white/[0.02] px-8 py-6 sm:flex-row sm:justify-end">
+              <MagneticButton onClick={onClose} variant="secondary">Cancel</MagneticButton>
+              <MagneticButton onClick={onSave} disabled={saving || !canSave} variant="primary">
                 {saving ? "Saving..." : editingRow ? "Save Changes" : "Create Payment Term"}
               </MagneticButton>
             </div>
           </motion.div>
         </motion.div>
-      ) : null}
+      )}
     </AnimatePresence>
   );
 }
 
-/* ─── Main Page ─── */
+/* ═══════════════════════════════════════════════════════════════
+   MAIN PAGE — Award-Winning Financial Command Center
+   ═══════════════════════════════════════════════════════════════ */
 
 export default function FinancePaymentTermsPage() {
   const navigate = useNavigate();
@@ -964,6 +956,7 @@ export default function FinancePaymentTermsPage() {
 
   const [dialogOpen, setDialogOpen] = useState(false);
   const [archiveOpen, setArchiveOpen] = useState(false);
+  const [archiveTab] = useState<ArchiveTab>("archived");
   const [editingRow, setEditingRow] = useState<FinancePaymentTermRow | null>(null);
   const [form, setForm] = useState<FormState>(EMPTY_FORM);
   const [error, setError] = useState("");
@@ -973,15 +966,10 @@ export default function FinancePaymentTermsPage() {
 
   const loadPage = useCallback(async (options?: { silent?: boolean }) => {
     const silent = options?.silent === true;
-    if (silent) {
-      setBackgroundRefreshing(true);
-    } else {
-      setInitialLoading(true);
-    }
+    if (silent) setBackgroundRefreshing(true);
+    else setInitialLoading(true);
     try {
-      const {
-        data: { user },
-      } = await supabase.auth.getUser();
+      const { data: { user } } = await supabase.auth.getUser();
       if (user?.id) {
         const { data: profile } = await supabase
           .from("profiles")
@@ -999,11 +987,7 @@ export default function FinancePaymentTermsPage() {
     } catch (loadError) {
       console.error("Failed to load payment terms:", loadError);
       if (!silent) setRows([]);
-      setError(
-        loadError instanceof Error
-          ? loadError.message
-          : "Failed to load payment terms."
-      );
+      setError(loadError instanceof Error ? loadError.message : "Failed to load payment terms.");
     } finally {
       if (silent) setBackgroundRefreshing(false);
       else setInitialLoading(false);
@@ -1019,19 +1003,11 @@ export default function FinancePaymentTermsPage() {
       .channel("finance-payment-terms-master-data")
       .on(
         "postgres_changes",
-        {
-          event: "*",
-          schema: "public",
-          table: "finance_payment_terms",
-        },
-        () => {
-          void loadPage({ silent: true });
-        }
+        { event: "*", schema: "public", table: "finance_payment_terms" },
+        () => void loadPage({ silent: true })
       )
       .subscribe();
-    const intervalId = window.setInterval(() => {
-      void loadPage({ silent: true });
-    }, 60000);
+    const intervalId = window.setInterval(() => void loadPage({ silent: true }), 60000);
     return () => {
       window.clearInterval(intervalId);
       void supabase.removeChannel(channel);
@@ -1050,10 +1026,7 @@ export default function FinancePaymentTermsPage() {
 
   const activeRows = useMemo(() => rows.filter((row) => row.status !== "archived"), [rows]);
   const archivedRows = useMemo(() => rows.filter((row) => row.status === "archived"), [rows]);
-  const defaultRow = useMemo(
-    () => rows.find((row) => row.is_default && row.status === "active") ?? null,
-    [rows]
-  );
+  const defaultRow = useMemo(() => rows.find((row) => row.is_default && row.status === "active") ?? null, [rows]);
 
   const stats = useMemo(() => {
     return {
@@ -1093,9 +1066,7 @@ export default function FinancePaymentTermsPage() {
         const normalizedSecondDate = Number.isNaN(secondDate) ? 0 : secondDate;
         return (normalizedFirstDate - normalizedSecondDate) * direction;
       }
-      if (sortKey === "due_days") {
-        return (a.due_days - b.due_days) * direction;
-      }
+      if (sortKey === "due_days") return (a.due_days - b.due_days) * direction;
       const first = String(a[sortKey] ?? "");
       const second = String(b[sortKey] ?? "");
       return first.localeCompare(second) * direction;
@@ -1132,49 +1103,13 @@ export default function FinancePaymentTermsPage() {
   function openEditDialog(row: FinancePaymentTermRow) {
     setEditingRow(row);
     if (row.term_type === "immediate") {
-      setForm({
-        ...EMPTY_FORM,
-        term_type: "immediate",
-        net_days: "0",
-        is_default: row.is_default,
-        status: row.status,
-        notes: row.notes ?? "",
-        allow_partial_payments: row.allow_partial_payments,
-      });
+      setForm({ ...EMPTY_FORM, term_type: "immediate", net_days: "0", is_default: row.is_default, status: row.status, notes: row.notes ?? "", allow_partial_payments: row.allow_partial_payments });
     } else if (row.term_type === "net") {
-      setForm({
-        ...EMPTY_FORM,
-        term_type: "net",
-        net_days: String(row.due_days),
-        is_default: row.is_default,
-        status: row.status,
-        notes: row.notes ?? "",
-        allow_partial_payments: row.allow_partial_payments,
-      });
+      setForm({ ...EMPTY_FORM, term_type: "net", net_days: String(row.due_days), is_default: row.is_default, status: row.status, notes: row.notes ?? "", allow_partial_payments: row.allow_partial_payments });
     } else if (row.term_type === "deposit_balance") {
-      setForm({
-        ...EMPTY_FORM,
-        term_type: "deposit_balance",
-        deposit_percentage:
-          row.deposit_percentage === null ? "30" : String(row.deposit_percentage),
-        deposit_due_basis: row.deposit_due_basis ?? "before_production",
-        balance_due_basis: row.balance_due_basis ?? "before_shipment",
-        is_default: row.is_default,
-        status: row.status,
-        notes: row.notes ?? "",
-        allow_partial_payments: row.allow_partial_payments,
-      });
+      setForm({ ...EMPTY_FORM, term_type: "deposit_balance", deposit_percentage: row.deposit_percentage === null ? "30" : String(row.deposit_percentage), deposit_due_basis: row.deposit_due_basis ?? "before_production", balance_due_basis: row.balance_due_basis ?? "before_shipment", is_default: row.is_default, status: row.status, notes: row.notes ?? "", allow_partial_payments: row.allow_partial_payments });
     } else {
-      setForm({
-        ...EMPTY_FORM,
-        term_type: "custom",
-        custom_label: row.document_label ?? row.name,
-        custom_terms_text: row.document_terms_text ?? "",
-        is_default: row.is_default,
-        status: row.status,
-        notes: row.notes ?? "",
-        allow_partial_payments: row.allow_partial_payments,
-      });
+      setForm({ ...EMPTY_FORM, term_type: "custom", custom_label: row.document_label ?? row.name, custom_terms_text: row.document_terms_text ?? "", is_default: row.is_default, status: row.status, notes: row.notes ?? "", allow_partial_payments: row.allow_partial_payments });
     }
     setError("");
     setPageMessage("");
@@ -1287,11 +1222,7 @@ export default function FinancePaymentTermsPage() {
       void loadPage({ silent: true });
     } catch (err) {
       console.error("Permanent delete failed:", err);
-      setError(
-        err instanceof Error
-          ? err.message
-          : "Failed to permanently delete payment term."
-      );
+      setError(err instanceof Error ? err.message : "Failed to permanently delete payment term.");
     } finally {
       setActionLoadingId(null);
     }
@@ -1301,94 +1232,85 @@ export default function FinancePaymentTermsPage() {
     setDialogOpen(false);
   }
 
+  const toneGradients = {
+    cyan: "from-cyan-400/15 to-cyan-600/5 border-cyan-400/25 text-cyan-100",
+    emerald: "from-emerald-400/15 to-emerald-600/5 border-emerald-400/25 text-emerald-100",
+    amber: "from-amber-400/15 to-amber-600/5 border-amber-400/25 text-amber-100",
+    violet: "from-violet-400/15 to-violet-600/5 border-violet-400/25 text-violet-100",
+  };
+
   return (
-    <div className="relative min-h-screen overflow-x-hidden bg-[#03050a] px-4 py-6 text-white md:px-8 md:py-8">
-      {/* Ambient Background */}
+    <div className="relative min-h-screen overflow-x-hidden bg-[#020408] px-4 py-6 text-white md:px-8 md:py-8">
+      {/* ═══════ AMBIENT COSMOS BACKGROUND ═══════ */}
       <div className="pointer-events-none fixed inset-0 z-0 overflow-hidden">
         <motion.div
-          animate={{ x: [0, 30, 0], y: [0, -30, 0], scale: [1, 1.1, 1] }}
+          animate={{ x: [0, 40, 0], y: [0, -30, 0], scale: [1, 1.15, 1] }}
+          transition={{ duration: 14, repeat: Infinity, repeatType: "reverse", ease: "easeInOut" }}
+          className="absolute left-[10%] top-[5%] h-[600px] w-[600px] rounded-full bg-cyan-500/[0.07] blur-[120px]"
+        />
+        <motion.div
+          animate={{ x: [0, -30, 0], y: [0, 40, 0], scale: [1, 1.2, 1] }}
+          transition={{ duration: 18, repeat: Infinity, repeatType: "reverse", ease: "easeInOut" }}
+          className="absolute left-[65%] top-[55%] h-[700px] w-[700px] rounded-full bg-violet-500/[0.06] blur-[120px]"
+        />
+        <motion.div
+          animate={{ x: [0, 20, 0], y: [0, 20, 0], scale: [1, 1.1, 1] }}
           transition={{ duration: 12, repeat: Infinity, repeatType: "reverse", ease: "easeInOut" }}
-          className="absolute left-[15%] top-[10%] h-[500px] w-[500px] rounded-full bg-cyan-500/20 blur-[100px]"
+          className="absolute left-[30%] top-[40%] h-[500px] w-[500px] rounded-full bg-emerald-500/[0.05] blur-[120px]"
         />
-        <motion.div
-          animate={{ x: [0, -20, 0], y: [0, 20, 0], scale: [1, 1.15, 1] }}
-          transition={{ duration: 15, repeat: Infinity, repeatType: "reverse", ease: "easeInOut" }}
-          className="absolute left-[70%] top-[60%] h-[600px] w-[600px] rounded-full bg-violet-500/15 blur-[100px]"
-        />
-        <motion.div
-          animate={{ x: [0, 25, 0], y: [0, 15, 0], scale: [1, 1.08, 1] }}
-          transition={{ duration: 10, repeat: Infinity, repeatType: "reverse", ease: "easeInOut" }}
-          className="absolute left-[40%] top-[40%] h-[400px] w-[400px] rounded-full bg-emerald-500/10 blur-[100px]"
-        />
-        <div className="absolute inset-0 bg-[url('data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHdpZHRoPSIzMDAiIGhlaWdodD0iMzAwIj48ZmlsdGVyIGlkPSJhIiB4PSIwIiB5PSIwIj48ZmVUdXJidWxlbmNlIHR5cGU9ImZyYWN0YWxOb2lzZSIgYmFzZUZyZXF1ZW5jeT0iLjc1IiBzdGl0Y2hUaWxlcz0ic3RpdGNoIi8+PGZlQ29sb3JNYXRyaXggdHlwZT0ic2F0dXJhdGUiIHZhbHVlcz0iMCIvPjwvZmlsdGVyPjxyZWN0IHdpZHRoPSIxMDAlIiBoZWlnaHQ9IjEwMCUiIGZpbHRlcj0idXJsKCNhKSIgb3BhY2l0eT0iMC4wNCIvPjwvc3ZnPg==')] opacity-50" />
+        <div className="absolute inset-0 bg-[url('data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHdpZHRoPSIzMDAiIGhlaWdodD0iMzAwIj48ZmlsdGVyIGlkPSJhIiB4PSIwIiB5PSIwIj48ZmVUdXJidWxlbmNlIHR5cGU9ImZyYWN0YWxOb2lzZSIgYmFzZUZyZXF1ZW5jeT0iLjc1IiBzdGl0Y2hUaWxlcz0ic3RpdGNoIi8+PGZlQ29sb3JNYXRyaXggdHlwZT0ic2F0dXJhdGUiIHZhbHVlcz0iMCIvPjwvZmlsdGVyPjxyZWN0IHdpZHRoPSIxMDAlIiBoZWlnaHQ9IjEwMCUiIGZpbHRlcj0idXJsKCNhKSIgb3BhY2l0eT0iMC4wNCIvPjwvc3ZnPg==')] opacity-40" />
       </div>
 
       <motion.div
         initial={{ opacity: 0 }}
         animate={{ opacity: 1 }}
-        transition={{ duration: 0.6 }}
+        transition={{ duration: 0.8 }}
         className="relative z-10 mx-auto flex w-full max-w-[1600px] flex-col gap-8"
       >
-        {/* Hero Header */}
+        {/* ═══════ HERO COMMAND CENTER ═══════ */}
         <motion.section
-          initial={{ opacity: 0, y: 30, rotateX: 10 }}
+          initial={{ opacity: 0, y: 40, rotateX: 12 }}
           animate={{ opacity: 1, y: 0, rotateX: 0 }}
-          transition={{ duration: 0.8, type: "spring", stiffness: 80 }}
-          style={{ perspective: 1000 }}
-          className={`${glassSurface} ${glassSurfaceHover} p-8`}
+          transition={{ duration: 1, type: "spring", stiffness: 60, damping: 20 }}
+          style={{ perspective: 1200, transformStyle: "preserve-3d" }}
+          className={`${GLASS.base} ${GLASS.hover} p-8 md:p-10`}
         >
-          <div className="pointer-events-none absolute inset-0 rounded-[32px] bg-[radial-gradient(circle_at_20%_50%,rgba(6,182,212,0.08),transparent_50%),radial-gradient(circle_at_80%_50%,rgba(139,92,246,0.06),transparent_50%)]" />
+          <div className="pointer-events-none absolute inset-0 rounded-[32px] bg-[radial-gradient(circle_at_20%_50%,rgba(6,182,212,0.06),transparent_50%),radial-gradient(circle_at_80%_50%,rgba(139,92,246,0.05),transparent_50%)]" />
           <div className="relative">
             <motion.button
               type="button"
               onClick={() => navigate("/finance/master-data")}
-              whileHover={{ x: -4, scale: 1.02 }}
+              whileHover={{ x: -6, scale: 1.02 }}
               whileTap={{ scale: 0.98 }}
-              className="mb-6 inline-flex items-center gap-2 rounded-full border border-white/[0.08] bg-white/[0.04] px-5 py-2.5 text-[11px] font-bold uppercase tracking-[0.2em] text-slate-400 transition hover:border-white/[0.14] hover:bg-white/[0.08] hover:text-white"
+              className="mb-8 inline-flex items-center gap-2 rounded-full border border-white/[0.06] bg-white/[0.03] px-5 py-2.5 text-[11px] font-bold uppercase tracking-[0.2em] text-slate-500 transition hover:border-white/[0.1] hover:bg-white/[0.06] hover:text-slate-300"
             >
               <ArrowLeft className="h-3.5 w-3.5" />
               Master Data
             </motion.button>
 
-            <div className="flex flex-col gap-6 lg:flex-row lg:items-end lg:justify-between">
-              <div>
+            <div className="flex flex-col gap-8 lg:flex-row lg:items-end lg:justify-between">
+              <div className="max-w-3xl">
                 <div className="flex flex-wrap items-center gap-3">
-                  <Badge
-                    className={`${badgeBase} border-cyan-400/20 bg-cyan-500/10 text-cyan-200`}
-                  >
-                    Finance Master Data
-                  </Badge>
-                  <Badge
-                    className={`${badgeBase} border-violet-400/20 bg-violet-500/10 text-violet-200`}
-                  >
-                    Payment Terms
-                  </Badge>
+                  <Badge className={`${BADGE.base} ${BADGE.cyan}`}>Finance Master Data</Badge>
+                  <Badge className={`${BADGE.base} ${BADGE.violet}`}>Payment Terms</Badge>
                   <AnimatePresence>
-                    {backgroundRefreshing ? (
-                      <motion.div
-                        key="background-refreshing"
-                        initial={{ opacity: 0, scale: 0.9 }}
-                        animate={{ opacity: 1, scale: 1 }}
-                        exit={{ opacity: 0, scale: 0.9 }}
-                      >
-                        <Badge
-                          className={`${badgeBase} border-emerald-400/20 bg-emerald-500/10 text-emerald-200`}
-                        >
-                          <span className="mr-2 inline-block h-1.5 w-1.5 animate-pulse rounded-full bg-emerald-400" />
-                          Updating
+                    {backgroundRefreshing && (
+                      <motion.div initial={{ opacity: 0, scale: 0.9 }} animate={{ opacity: 1, scale: 1 }} exit={{ opacity: 0, scale: 0.9 }}>
+                        <Badge className={`${BADGE.base} ${BADGE.emerald}`}>
+                          <span className="mr-2 inline-block h-1.5 w-1.5 animate-pulse rounded-full bg-emerald-400 shadow-[0_0_8px_rgba(16,185,129,0.8)]" />
+                          Syncing
                         </Badge>
                       </motion.div>
-                    ) : null}
+                    )}
                   </AnimatePresence>
                 </div>
 
-                <h1 className="mt-6 text-5xl font-black tracking-tight text-white drop-shadow-[0_0_30px_rgba(255,255,255,0.1)]">
+                <h1 className="mt-6 text-5xl font-black tracking-tight text-transparent bg-clip-text bg-gradient-to-r from-white via-slate-200 to-slate-400 drop-shadow-[0_0_30px_rgba(255,255,255,0.08)] md:text-6xl">
                   Payment Terms
                 </h1>
-                <p className="mt-4 max-w-2xl text-sm leading-7 text-slate-500">
-                  Manage reusable payment terms used across customer and vendor finance
-                  documents. Terms control document wording, due logic, deposit rules,
-                  default selection, and partial payment behavior.
+                <p className="mt-4 text-sm leading-7 text-slate-600">
+                  Manage reusable payment terms used across customer and vendor finance documents. 
+                  Terms control document wording, due logic, deposit rules, default selection, and partial payment behavior.
                 </p>
               </div>
 
@@ -1406,109 +1328,71 @@ export default function FinancePaymentTermsPage() {
           </div>
         </motion.section>
 
-        {/* Stats Grid */}
+        {/* ═══════ STATS GRID ═══════ */}
         <div className="grid gap-5 md:grid-cols-2 xl:grid-cols-4">
-          <SummaryCard
-            label="Active Terms"
-            value={stats.active}
-            description="Available payment terms that can be selected on finance documents."
-            icon={CheckCircle2}
-            tone="emerald"
-            delay={0.05}
-          />
-          <SummaryCard
-            label="Deposit Terms"
-            value={stats.deposit}
-            description="Terms that require a deposit before the remaining balance."
-            icon={Percent}
-            tone="amber"
-            delay={0.1}
-          />
-          <SummaryCard
-            label="Default Term"
-            value={stats.defaultTerm}
-            description="The active default payment term for document creation."
-            icon={WalletCards}
-            tone="cyan"
-            delay={0.15}
-          />
-          <SummaryCard
-            label="Archived"
-            value={stats.archived}
-            description="Inactive historical terms stored in the archive area."
-            icon={Archive}
-            tone="violet"
-            delay={0.2}
-          />
+          <SummaryCard label="Active Terms" value={stats.active} description="Available payment terms that can be selected on finance documents." icon={CheckCircle2} tone="emerald" delay={0.05} />
+          <SummaryCard label="Deposit Terms" value={stats.deposit} description="Terms that require a deposit before the remaining balance." icon={Percent} tone="amber" delay={0.1} />
+          <SummaryCard label="Default Term" value={stats.defaultTerm} description="The active default payment term for document creation." icon={WalletCards} tone="cyan" delay={0.15} />
+          <SummaryCard label="Archived" value={stats.archived} description="Inactive historical terms stored in the archive area." icon={Archive} tone="violet" delay={0.2} />
         </div>
 
-        {/* Messages */}
+        {/* ═══════ MESSAGES ═══════ */}
         <AnimatePresence mode="wait">
-          {pageMessage ? (
+          {pageMessage && (
             <motion.div
               key="page-message"
-              initial={{ opacity: 0, y: 12, scale: 0.98 }}
+              initial={{ opacity: 0, y: 16, scale: 0.98 }}
               animate={{ opacity: 1, y: 0, scale: 1 }}
-              exit={{ opacity: 0, y: -12, scale: 0.98 }}
-              className={`${glassSurface} border-emerald-400/20 bg-emerald-500/[0.08] px-6 py-4 text-sm text-emerald-200 shadow-[0_0_30px_rgba(16,185,129,0.1)]`}
+              exit={{ opacity: 0, y: -16, scale: 0.98 }}
+              className={`${GLASS.base} border-emerald-400/15 bg-emerald-500/[0.06] px-6 py-4 text-sm text-emerald-200 shadow-[0_0_30px_rgba(16,185,129,0.1)]`}
             >
               {pageMessage}
             </motion.div>
-          ) : null}
-          {error && !pageMessage ? (
+          )}
+          {error && !pageMessage && (
             <motion.div
               key="page-error"
-              initial={{ opacity: 0, y: 12, scale: 0.98 }}
+              initial={{ opacity: 0, y: 16, scale: 0.98 }}
               animate={{ opacity: 1, y: 0, scale: 1 }}
-              exit={{ opacity: 0, y: -12, scale: 0.98 }}
-              className={`${glassSurface} border-rose-400/20 bg-rose-500/[0.08] px-6 py-4 text-sm text-rose-200 shadow-[0_0_30px_rgba(244,63,94,0.1)]`}
+              exit={{ opacity: 0, y: -16, scale: 0.98 }}
+              className={`${GLASS.base} border-rose-400/15 bg-rose-500/[0.06] px-6 py-4 text-sm text-rose-200 shadow-[0_0_30px_rgba(244,63,94,0.1)]`}
             >
               {error}
             </motion.div>
-          ) : null}
+          )}
         </AnimatePresence>
 
-        {/* Data Table */}
+        {/* ═══════ DATA TABLE ═══════ */}
         <motion.section
-          initial={{ opacity: 0, y: 30 }}
+          initial={{ opacity: 0, y: 40 }}
           animate={{ opacity: 1, y: 0 }}
-          transition={{ delay: 0.2, duration: 0.6 }}
-          className={`${glassSurface} ${glassSurfaceHover}`}
+          transition={{ delay: 0.25, duration: 0.7 }}
+          className={`${GLASS.base} ${GLASS.hover}`}
         >
-          <div className="border-b border-white/[0.06] px-6 py-5">
+          <div className="border-b border-white/[0.04] px-6 py-5">
             <div className="flex flex-col gap-5 xl:flex-row xl:items-center xl:justify-between">
               <div>
-                <div className="text-xs font-bold uppercase tracking-[0.2em] text-slate-400">
-                  Payment Terms Registry
-                </div>
-                <p className="mt-1 text-xs text-slate-600">
-                  Active and inactive terms. Archived records are managed from the archive.
-                </p>
+                <div className={LABEL}>Payment Terms Registry</div>
+                <p className="mt-1 text-xs text-slate-600">Active and inactive terms. Archived records are managed from the archive.</p>
               </div>
               <div className="flex flex-col gap-3 md:flex-row md:items-center">
                 <div className="relative group">
-                  <Search className="pointer-events-none absolute left-4 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-600 transition group-focus-within:text-cyan-400" />
+                  <Search className="pointer-events-none absolute left-4 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-700 transition group-focus-within:text-cyan-400" />
                   <Input
                     value={search}
                     onChange={(event) => setSearch(event.target.value)}
                     placeholder="Search payment terms..."
-                    className={`${inputGlass} md:w-[320px] pl-11`}
+                    className={`${INPUT.base} md:w-[320px] pl-11`}
                   />
                 </div>
                 <select
                   value={statusFilter}
                   onChange={(event) => setStatusFilter(event.target.value as StatusFilter)}
-                  className={selectGlass}
+                  className={INPUT.select}
                 >
-                  <option value="all" className="bg-[#0a0e1a]">
-                    All Statuses
-                  </option>
-                  <option value="active" className="bg-[#0a0e1a]">
-                    Active
-                  </option>
-                  <option value="inactive" className="bg-[#0a0e1a]">
-                    Inactive
-                  </option>
+                  <option value="all" className="bg-[#050810]">All Statuses</option>
+                  <option value="active" className="bg-[#050810]">Active</option>
+                  <option value="inactive" className="bg-[#050810]">Inactive</option>
                 </select>
               </div>
             </div>
@@ -1517,64 +1401,16 @@ export default function FinancePaymentTermsPage() {
           <div className="overflow-x-auto">
             <div className="max-h-[720px] overflow-y-auto">
               <table className="w-full min-w-[1240px] border-collapse">
-                <thead className="sticky top-0 z-10 border-b border-white/[0.08] bg-[#03050a]/80 text-left text-[10px] font-bold uppercase tracking-[0.2em] text-slate-500 backdrop-blur-xl">
+                <thead className="sticky top-0 z-10 border-b border-white/[0.06] bg-[#020408]/90 text-left text-[10px] font-bold uppercase tracking-[0.2em] text-slate-600 backdrop-blur-xl">
                   <tr>
-                    <th className="px-5 py-4">
-                      <button
-                        type="button"
-                        onClick={() => updateSort("code")}
-                        className="flex items-center gap-1.5 transition hover:text-white"
-                      >
-                        Code<span className="text-cyan-400/60">{sortLabel("code")}</span>
-                      </button>
-                    </th>
-                    <th className="px-5 py-4">
-                      <button
-                        type="button"
-                        onClick={() => updateSort("name")}
-                        className="flex items-center gap-1.5 transition hover:text-white"
-                      >
-                        Name<span className="text-cyan-400/60">{sortLabel("name")}</span>
-                      </button>
-                    </th>
-                    <th className="px-5 py-4">
-                      <button
-                        type="button"
-                        onClick={() => updateSort("term_type")}
-                        className="flex items-center gap-1.5 transition hover:text-white"
-                      >
-                        Type<span className="text-cyan-400/60">{sortLabel("term_type")}</span>
-                      </button>
-                    </th>
-                    <th className="px-5 py-4">
-                      <button
-                        type="button"
-                        onClick={() => updateSort("due_days")}
-                        className="flex items-center gap-1.5 transition hover:text-white"
-                      >
-                        Due Days<span className="text-cyan-400/60">{sortLabel("due_days")}</span>
-                      </button>
-                    </th>
+                    <th className="px-5 py-4"><button type="button" onClick={() => updateSort("code")} className="flex items-center gap-1.5 transition hover:text-white">Code<span className="text-cyan-400/50">{sortLabel("code")}</span></button></th>
+                    <th className="px-5 py-4"><button type="button" onClick={() => updateSort("name")} className="flex items-center gap-1.5 transition hover:text-white">Name<span className="text-cyan-400/50">{sortLabel("name")}</span></button></th>
+                    <th className="px-5 py-4"><button type="button" onClick={() => updateSort("term_type")} className="flex items-center gap-1.5 transition hover:text-white">Type<span className="text-cyan-400/50">{sortLabel("term_type")}</span></button></th>
+                    <th className="px-5 py-4"><button type="button" onClick={() => updateSort("due_days")} className="flex items-center gap-1.5 transition hover:text-white">Due Days<span className="text-cyan-400/50">{sortLabel("due_days")}</span></button></th>
                     <th className="px-5 py-4">Deposit</th>
                     <th className="px-5 py-4">Document Wording</th>
-                    <th className="px-5 py-4">
-                      <button
-                        type="button"
-                        onClick={() => updateSort("status")}
-                        className="flex items-center gap-1.5 transition hover:text-white"
-                      >
-                        Status<span className="text-cyan-400/60">{sortLabel("status")}</span>
-                      </button>
-                    </th>
-                    <th className="px-5 py-4">
-                      <button
-                        type="button"
-                        onClick={() => updateSort("updated_at")}
-                        className="flex items-center gap-1.5 transition hover:text-white"
-                      >
-                        Updated<span className="text-cyan-400/60">{sortLabel("updated_at")}</span>
-                      </button>
-                    </th>
+                    <th className="px-5 py-4"><button type="button" onClick={() => updateSort("status")} className="flex items-center gap-1.5 transition hover:text-white">Status<span className="text-cyan-400/50">{sortLabel("status")}</span></button></th>
+                    <th className="px-5 py-4"><button type="button" onClick={() => updateSort("updated_at")} className="flex items-center gap-1.5 transition hover:text-white">Updated<span className="text-cyan-400/50">{sortLabel("updated_at")}</span></button></th>
                     <th className="px-5 py-4 text-right">Actions</th>
                   </tr>
                 </thead>
@@ -1583,15 +1419,18 @@ export default function FinancePaymentTermsPage() {
                   {initialLoading ? (
                     <tr>
                       <td colSpan={9} className="px-5 py-16 text-center">
-                        <div className="flex flex-col items-center gap-3">
-                          <div className="h-8 w-8 animate-spin rounded-full border-2 border-cyan-400/20 border-t-cyan-400" />
-                          <span className="text-sm text-slate-600">Loading payment terms...</span>
+                        <div className="flex flex-col items-center gap-4">
+                          <div className="relative h-10 w-10">
+                            <div className="absolute inset-0 rounded-full border-2 border-cyan-400/10" />
+                            <div className="absolute inset-0 rounded-full border-2 border-t-cyan-400 animate-spin" />
+                          </div>
+                          <span className="text-sm text-slate-600 tracking-wide">Loading payment terms...</span>
                         </div>
                       </td>
                     </tr>
                   ) : sortedRows.length === 0 ? (
                     <tr>
-                      <td colSpan={9} className="px-5 py-16 text-center text-sm text-slate-600">
+                      <td colSpan={9} className="px-5 py-16 text-center text-sm text-slate-600 tracking-wide">
                         No payment terms match the current filters.
                       </td>
                     </tr>
@@ -1600,89 +1439,74 @@ export default function FinancePaymentTermsPage() {
                       <motion.tr
                         key={row.id}
                         layout
-                        initial={{ opacity: 0, y: 12 }}
+                        initial={{ opacity: 0, y: 16 }}
                         animate={{ opacity: 1, y: 0 }}
-                        exit={{ opacity: 0, y: -12 }}
-                        transition={{ delay: index * 0.03, duration: 0.3 }}
-                        whileHover={{ scale: 1.005, backgroundColor: "rgba(255,255,255,0.03)" }}
-                        className="group border-b border-white/[0.04] text-sm text-slate-300 transition-colors duration-300"
+                        exit={{ opacity: 0, y: -16 }}
+                        transition={{ delay: index * 0.04, duration: 0.35 }}
+                        whileHover={{ scale: 1.003, backgroundColor: "rgba(255,255,255,0.025)" }}
+                        className="group border-b border-white/[0.03] text-sm text-slate-300 transition-colors duration-300"
                       >
                         <td className="px-5 py-4">
-                          <div className="font-mono text-xs font-bold text-cyan-300/80 tracking-wider">
-                            {row.code}
-                          </div>
+                          <div className="font-mono text-[11px] font-bold text-cyan-300/60 tracking-widest">{row.code}</div>
                         </td>
                         <td className="px-5 py-4">
-                          <div className="font-bold text-white">{row.name}</div>
-                          {row.is_default ? (
-                            <div className="mt-1.5 inline-flex items-center gap-1.5 rounded-full border border-emerald-400/20 bg-emerald-500/10 px-2.5 py-0.5 text-[10px] font-bold uppercase tracking-wider text-emerald-300">
-                              <CheckCircle2 className="h-3 w-3" />
-                              Default
+                          <div className="font-bold text-white text-sm">{row.name}</div>
+                          {row.is_default && (
+                            <div className="mt-1.5 inline-flex items-center gap-1.5 rounded-full border border-emerald-400/15 bg-emerald-500/[0.06] px-2 py-0.5 text-[10px] font-bold uppercase tracking-wider text-emerald-300">
+                              <CheckCircle2 className="h-3 w-3" />Default
                             </div>
-                          ) : null}
+                          )}
                         </td>
                         <td className="px-5 py-4">
-                          <Badge className={termTypeBadgeClass(row.term_type)}>
-                            {formatTermType(row.term_type)}
-                          </Badge>
+                          <Badge className={termTypeBadgeClass(row.term_type)}>{formatTermType(row.term_type)}</Badge>
                         </td>
                         <td className="px-5 py-4">
-                          <div className="flex items-center gap-2 text-slate-400">
-                            <Clock3 className="h-4 w-4 text-slate-600" />
+                          <div className="flex items-center gap-2 text-slate-500">
+                            <Clock3 className="h-4 w-4 text-slate-700" />
                             <span className="font-mono text-sm">{row.due_days}</span>
                           </div>
                         </td>
                         <td className="px-5 py-4">
                           {row.requires_deposit ? (
                             <div>
-                              <div className="text-sm font-bold text-amber-200">
-                                {row.deposit_percentage ?? 0}%
-                              </div>
-                              <div className="mt-1 text-[11px] text-slate-600">
-                                {formatBasisLabel(row.deposit_due_basis)}
-                              </div>
+                              <div className="text-sm font-bold text-amber-200">{row.deposit_percentage ?? 0}%</div>
+                              <div className="mt-1 text-[11px] text-slate-600">{formatBasisLabel(row.deposit_due_basis)}</div>
                             </div>
                           ) : (
                             <span className="text-xs text-slate-700">No deposit</span>
                           )}
                         </td>
                         <td className="max-w-[360px] px-5 py-4">
-                          <p className="line-clamp-2 text-sm leading-6 text-slate-500 group-hover:text-slate-400 transition-colors">
+                          <p className="line-clamp-2 text-sm leading-6 text-slate-600 group-hover:text-slate-400 transition-colors duration-300">
                             {row.document_terms_text || row.document_label || "—"}
                           </p>
                         </td>
                         <td className="px-5 py-4">
-                          <Badge className={statusBadgeClass(row.status)}>
-                            {formatStatusLabel(row.status)}
-                          </Badge>
+                          <Badge className={statusBadgeClass(row.status)}>{formatStatusLabel(row.status)}</Badge>
                         </td>
-                        <td className="px-5 py-4 text-xs text-slate-600 font-mono">
-                          {formatDateLabel(row.updated_at)}
-                        </td>
+                        <td className="px-5 py-4 text-xs text-slate-600 font-mono tracking-wide">{formatDateLabel(row.updated_at)}</td>
                         <td className="px-5 py-4">
-                          <div className="flex justify-end gap-2 opacity-80 group-hover:opacity-100 transition-opacity">
-                            <motion.div whileHover={{ scale: 1.05 }} whileTap={{ scale: 0.95 }}>
+                          <div className="flex justify-end gap-2 opacity-70 group-hover:opacity-100 transition-opacity duration-300">
+                            <motion.div whileHover={{ scale: 1.06 }} whileTap={{ scale: 0.94 }}>
                               <Button
                                 type="button"
                                 variant="outline"
                                 onClick={() => openEditDialog(row)}
                                 disabled={!canEdit}
-                                className="h-9 rounded-xl border-white/[0.08] bg-white/[0.04] px-3 text-xs text-white hover:bg-white/[0.1] hover:border-white/[0.14] disabled:cursor-not-allowed disabled:opacity-40"
+                                className="h-9 rounded-xl border-white/[0.06] bg-white/[0.03] px-3 text-xs text-white hover:bg-white/[0.08] hover:border-white/[0.1] disabled:cursor-not-allowed disabled:opacity-30"
                               >
-                                <Edit3 className="mr-2 h-3.5 w-3.5" />
-                                Edit
+                                <Edit3 className="mr-2 h-3.5 w-3.5" />Edit
                               </Button>
                             </motion.div>
-                            <motion.div whileHover={{ scale: 1.05 }} whileTap={{ scale: 0.95 }}>
+                            <motion.div whileHover={{ scale: 1.06 }} whileTap={{ scale: 0.94 }}>
                               <Button
                                 type="button"
                                 variant="outline"
                                 onClick={() => handleArchive(row)}
                                 disabled={!canArchive || actionLoadingId === row.id}
-                                className="h-9 rounded-xl border-amber-400/15 bg-amber-500/10 px-3 text-xs text-amber-200 hover:bg-amber-500/15 hover:border-amber-400/25 disabled:cursor-not-allowed disabled:opacity-40"
+                                className="h-9 rounded-xl border-amber-400/10 bg-amber-500/[0.06] px-3 text-xs text-amber-200 hover:bg-amber-500/[0.1] hover:border-amber-400/20 disabled:cursor-not-allowed disabled:opacity-30"
                               >
-                                <Archive className="mr-2 h-3.5 w-3.5" />
-                                Archive
+                                <Archive className="mr-2 h-3.5 w-3.5" />Archive
                               </Button>
                             </motion.div>
                           </div>
@@ -1697,68 +1521,54 @@ export default function FinancePaymentTermsPage() {
         </motion.section>
       </motion.div>
 
-      {/* Archive Modal */}
+      {/* ═══════ ARCHIVE MODAL ═══════ */}
       <AnimatePresence>
-        {archiveOpen ? (
+        {archiveOpen && (
           <motion.div
-            key="archive-backdrop"
             initial={{ opacity: 0 }}
             animate={{ opacity: 1 }}
             exit={{ opacity: 0 }}
-            className="fixed inset-0 z-[110] flex items-center justify-center bg-black/90 p-4 backdrop-blur-[60px]"
-            style={{ perspective: 1200 }}
+            className="fixed inset-0 z-[110] flex items-center justify-center bg-black/85 p-4 backdrop-blur-[80px]"
+            style={{ perspective: 1500 }}
           >
             <motion.div
-              key="archive-modal"
-              initial={{ opacity: 0, y: 50, rotateX: 8, scale: 0.94 }}
+              initial={{ opacity: 0, y: 60, rotateX: 10, scale: 0.92 }}
               animate={{ opacity: 1, y: 0, rotateX: 0, scale: 1 }}
-              exit={{ opacity: 0, y: 30, rotateX: -4, scale: 0.96 }}
-              transition={{ type: "spring", stiffness: 200, damping: 25 }}
+              exit={{ opacity: 0, y: 40, rotateX: -6, scale: 0.95 }}
+              transition={{ type: "spring", stiffness: 180, damping: 24 }}
               style={{ transformStyle: "preserve-3d" }}
-              className="flex max-h-[88vh] w-full max-w-6xl flex-col overflow-hidden rounded-[40px] border border-white/[0.1] bg-[#060912] shadow-[0_24px_80px_rgba(0,0,0,0.8)]"
+              className="flex max-h-[88vh] w-full max-w-6xl flex-col overflow-hidden rounded-[40px] border border-white/[0.08] bg-[#04060a] shadow-[0_32px_96px_rgba(0,0,0,0.9)]"
             >
-              <div className="relative border-b border-white/[0.06] bg-white/[0.02] px-8 py-7">
+              <div className="relative border-b border-white/[0.04] bg-white/[0.02] px-8 py-7">
                 <div className="pointer-events-none absolute inset-0">
-                  <div className="absolute -right-20 -top-20 h-64 w-64 rounded-full bg-violet-500/10 blur-[80px]" />
+                  <div className="absolute -right-24 -top-24 h-72 w-72 rounded-full bg-violet-500/10 blur-[100px]" />
                 </div>
                 <div className="relative flex items-start justify-between gap-4">
                   <div>
-                    <Badge
-                      className={`${badgeBase} border-violet-400/20 bg-violet-500/10 text-violet-200`}
-                    >
-                      Archive
-                    </Badge>
-                    <h2 className="mt-5 text-3xl font-bold tracking-tight text-white">
-                      Archived Payment Terms
-                    </h2>
-                    <p className="mt-2 text-sm text-slate-500">
-                      Restore archived terms or permanently delete records when allowed.
-                    </p>
+                    <Badge className={`${BADGE.base} ${BADGE.violet}`}>Archive</Badge>
+                    <h2 className="mt-5 text-3xl font-black tracking-tight text-white">Archived Payment Terms</h2>
+                    <p className="mt-2 text-sm text-slate-500">Restore archived terms or permanently delete records when allowed.</p>
                   </div>
                   <motion.button
                     type="button"
                     onClick={() => setArchiveOpen(false)}
-                    whileHover={{ rotate: 90, scale: 1.05 }}
-                    whileTap={{ scale: 0.95 }}
-                    className="flex h-11 w-11 shrink-0 items-center justify-center rounded-2xl border border-white/[0.1] bg-white/[0.04] text-white transition hover:bg-white/[0.1]"
+                    whileHover={{ rotate: 90, scale: 1.08 }}
+                    whileTap={{ scale: 0.92 }}
+                    className="flex h-11 w-11 shrink-0 items-center justify-center rounded-2xl border border-white/[0.06] bg-white/[0.03] text-white transition hover:bg-white/[0.08]"
                   >
                     <X className="h-5 w-5" />
                   </motion.button>
                 </div>
               </div>
 
-              <div className="border-b border-white/[0.06] px-8 py-4">
-                <Badge
-                  className={`${badgeBase} border-violet-400/20 bg-violet-500/10 text-violet-200`}
-                >
-                  {archivedRows.length} Records
-                </Badge>
+              <div className="border-b border-white/[0.04] px-8 py-4">
+                <Badge className={`${BADGE.base} ${BADGE.violet}`}>{archivedRows.length} Records</Badge>
               </div>
 
               <div className="overflow-x-auto">
                 <div className="max-h-[620px] overflow-y-auto">
                   <table className="w-full min-w-[980px] border-collapse">
-                    <thead className="sticky top-0 z-10 border-b border-white/[0.08] bg-[#03050a]/80 text-left text-[10px] font-bold uppercase tracking-[0.2em] text-slate-500 backdrop-blur-xl">
+                    <thead className="sticky top-0 z-10 border-b border-white/[0.06] bg-[#020408]/90 text-left text-[10px] font-bold uppercase tracking-[0.2em] text-slate-600 backdrop-blur-xl">
                       <tr>
                         <th className="px-5 py-4">Code</th>
                         <th className="px-5 py-4">Name</th>
@@ -1770,10 +1580,7 @@ export default function FinancePaymentTermsPage() {
                     <tbody>
                       {archivedRows.length === 0 ? (
                         <tr>
-                          <td
-                            colSpan={5}
-                            className="px-5 py-16 text-center text-sm text-slate-600"
-                          >
+                          <td colSpan={5} className="px-5 py-16 text-center text-sm text-slate-600 tracking-wide">
                             No archived payment terms.
                           </td>
                         </tr>
@@ -1785,50 +1592,42 @@ export default function FinancePaymentTermsPage() {
                             initial={{ opacity: 0, y: 12 }}
                             animate={{ opacity: 1, y: 0 }}
                             exit={{ opacity: 0, y: -12 }}
-                            transition={{ delay: index * 0.04 }}
-                            whileHover={{ backgroundColor: "rgba(255,255,255,0.03)" }}
-                            className="border-b border-white/[0.04] text-sm text-slate-300 transition-colors"
+                            transition={{ delay: index * 0.05 }}
+                            whileHover={{ backgroundColor: "rgba(255,255,255,0.02)" }}
+                            className="border-b border-white/[0.03] text-sm text-slate-300 transition-colors"
                           >
                             <td className="px-5 py-4">
-                              <span className="font-mono text-xs font-bold text-cyan-300/70 tracking-wider">
-                                {row.code}
-                              </span>
+                              <span className="font-mono text-[11px] font-bold text-cyan-300/50 tracking-widest">{row.code}</span>
                             </td>
                             <td className="px-5 py-4">
                               <div className="font-bold text-white">{row.name}</div>
                             </td>
                             <td className="px-5 py-4">
-                              <Badge className={termTypeBadgeClass(row.term_type)}>
-                                {formatTermType(row.term_type)}
-                              </Badge>
+                              <Badge className={termTypeBadgeClass(row.term_type)}>{formatTermType(row.term_type)}</Badge>
                             </td>
-                            <td className="px-5 py-4 text-xs text-slate-600 font-mono">
-                              {formatDateLabel(row.updated_at)}
-                            </td>
+                            <td className="px-5 py-4 text-xs text-slate-600 font-mono tracking-wide">{formatDateLabel(row.updated_at)}</td>
                             <td className="px-5 py-4">
                               <div className="flex justify-end gap-2">
-                                <motion.div whileHover={{ scale: 1.05 }} whileTap={{ scale: 0.95 }}>
+                                <motion.div whileHover={{ scale: 1.06 }} whileTap={{ scale: 0.94 }}>
                                   <Button
                                     type="button"
                                     variant="outline"
                                     onClick={() => handleRestore(row)}
                                     disabled={!canArchive || actionLoadingId === row.id}
-                                    className="h-9 rounded-xl border-emerald-400/15 bg-emerald-500/10 px-3 text-xs text-emerald-200 hover:bg-emerald-500/15 hover:border-emerald-400/25 disabled:cursor-not-allowed disabled:opacity-40"
+                                    className="h-9 rounded-xl border-emerald-400/10 bg-emerald-500/[0.06] px-3 text-xs text-emerald-200 hover:bg-emerald-500/[0.1] hover:border-emerald-400/20 disabled:cursor-not-allowed disabled:opacity-30"
                                   >
-                                    <Undo2 className="mr-2 h-3.5 w-3.5" />
-                                    Restore
+                                    <Undo2 className="mr-2 h-3.5 w-3.5" />Restore
                                   </Button>
                                 </motion.div>
-                                <motion.div whileHover={{ scale: 1.05 }} whileTap={{ scale: 0.95 }}>
+                                <motion.div whileHover={{ scale: 1.06 }} whileTap={{ scale: 0.94 }}>
                                   <Button
                                     type="button"
                                     variant="outline"
                                     onClick={() => handlePermanentDelete(row)}
                                     disabled={!canDelete || actionLoadingId === row.id}
-                                    className="h-9 rounded-xl border-rose-400/15 bg-rose-500/10 px-3 text-xs text-rose-200 hover:bg-rose-500/15 hover:border-rose-400/25 disabled:cursor-not-allowed disabled:opacity-40"
+                                    className="h-9 rounded-xl border-rose-400/10 bg-rose-500/[0.06] px-3 text-xs text-rose-200 hover:bg-rose-500/[0.1] hover:border-rose-400/20 disabled:cursor-not-allowed disabled:opacity-30"
                                   >
-                                    <Trash2 className="mr-2 h-3.5 w-3.5" />
-                                    Hard Delete
+                                    <Trash2 className="mr-2 h-3.5 w-3.5" />Hard Delete
                                   </Button>
                                 </motion.div>
                               </div>
@@ -1842,7 +1641,7 @@ export default function FinancePaymentTermsPage() {
               </div>
             </motion.div>
           </motion.div>
-        ) : null}
+        )}
       </AnimatePresence>
 
       <PaymentTermFormModal

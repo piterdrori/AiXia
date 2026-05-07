@@ -288,39 +288,6 @@ function DefaultBadge({ isDefault }: { isDefault: boolean }) {
   );
 }
 
-function SectionCard({
-  title,
-  description,
-  icon: Icon,
-  children,
-}: {
-  title: string;
-  description: string;
-  icon: LucideIcon;
-  children: React.ReactNode;
-}) {
-  return (
-    <section className="overflow-hidden rounded-[30px] border border-white/10 bg-white/[0.045] backdrop-blur-xl">
-      <div className="flex items-start justify-between gap-4 border-b border-white/10 px-5 py-4">
-        <div className="flex min-w-0 items-start gap-3">
-          <div className="rounded-2xl border border-cyan-400/15 bg-cyan-500/10 p-3 text-cyan-200">
-            <Icon className="h-4 w-4" />
-          </div>
-
-          <div className="min-w-0">
-            <h2 className="text-sm font-semibold uppercase tracking-[0.18em] text-slate-400">
-              {title}
-            </h2>
-            <p className="mt-1 text-xs leading-5 text-slate-500">{description}</p>
-          </div>
-        </div>
-      </div>
-
-      <div className="p-5">{children}</div>
-    </section>
-  );
-}
-
 function HeaderStatusCard({
   label,
   value,
@@ -926,125 +893,104 @@ export default function FinanceMasterDataBankAccountsPage() {
   const isActionRunning = Boolean(runningAction);
 
   return (
-    <div className="min-h-screen bg-[#05070d] px-4 py-4 text-white md:px-6 md:py-6">
-      <div className="mx-auto flex w-full max-w-[1600px] flex-col gap-6">
-        <header className="relative overflow-hidden rounded-[34px] border border-white/10 bg-white/[0.045] p-6 shadow-2xl shadow-black/30 backdrop-blur-xl">
-          <div className="pointer-events-none absolute inset-0 bg-[radial-gradient(circle_at_top_left,rgba(6,182,212,0.16),transparent_38%),radial-gradient(circle_at_top_right,rgba(139,92,246,0.12),transparent_34%)]" />
-
-          <div className="relative grid gap-6 xl:grid-cols-[minmax(0,1fr)_520px] xl:items-end">
-            <div>
-              <button
-                type="button"
-                onClick={() => navigate("/finance/master-data")}
-                className="mb-5 inline-flex items-center justify-center gap-2 rounded-full border border-white/10 bg-white/[0.05] px-5 py-2 text-[11px] font-semibold uppercase tracking-[0.22em] text-slate-300 transition hover:border-white/20 hover:bg-white/[0.08] hover:text-white"
-              >
-                <ArrowRight className="h-3.5 w-3.5 rotate-180" />
-                Master Data
-              </button>
-
-              <div className="inline-flex w-fit items-center gap-2 rounded-full border border-cyan-400/20 bg-cyan-500/10 px-3 py-1 text-[11px] font-semibold uppercase tracking-[0.22em] text-cyan-200">
-                <Sparkles className="h-3.5 w-3.5" />
-                Company Banking Master Data
-              </div>
-
-              <h1 className="mt-4 text-3xl font-semibold tracking-[-0.035em] text-white md:text-5xl">
-                Company Bank Accounts
-              </h1>
-
-              <p className="mt-3 max-w-4xl text-sm leading-6 text-slate-400 md:text-base md:leading-7">
-                Permission-filtered registry for company-linked bank accounts used by treasury,
-                payment instructions, and finance document snapshots.
-              </p>
-
-              <div className="mt-5 flex flex-wrap gap-2">
-                <span className="rounded-full border border-emerald-400/20 bg-emerald-500/10 px-3 py-1 text-[11px] font-semibold uppercase tracking-[0.16em] text-emerald-200">
-                  Live backend
-                </span>
-                <span className="rounded-full border border-cyan-400/20 bg-cyan-500/10 px-3 py-1 text-[11px] font-semibold uppercase tracking-[0.16em] text-cyan-200">
-                  Permission filtered
-                </span>
-                <span className="rounded-full border border-slate-400/20 bg-slate-500/10 px-3 py-1 text-[11px] font-semibold uppercase tracking-[0.16em] text-slate-300">
-                  Realtime + 60s fallback
-                </span>
-              </div>
-            </div>
-
-            <div className="grid gap-3 sm:grid-cols-2">
-              <HeaderStatusCard
-                label="Read Access"
-                value={
-                  isLoadingProfile ? "Checking" : permissionState.canRead ? "Enabled" : "Locked"
-                }
-                detail="This page requires Bank Account read access or Master Data admin access."
-                icon={permissionState.canRead ? ShieldCheck : LockKeyhole}
-                tone={permissionState.canRead ? "emerald" : "rose"}
-              />
-
-              <HeaderStatusCard
-                label="Lifecycle Access"
-                value={
-                  permissionState.canDeleteArchive
-                    ? "Archive Enabled"
-                    : permissionState.canCreate
-                      ? "Create Enabled"
-                      : "Read Only"
-                }
-                detail="Create and Delete/Archive actions follow the selected Finance template."
-                icon={permissionState.canDeleteArchive ? Archive : CreditCard}
-                tone={permissionState.canDeleteArchive ? "amber" : "cyan"}
-              />
-            </div>
-          </div>
-        </header>
-
-        {pageError ? (
-          <div className="rounded-[24px] border border-rose-400/20 bg-rose-500/10 p-4 text-sm leading-6 text-rose-100">
-            <div className="flex items-start gap-3">
-              <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0" />
-              <div>{pageError}</div>
-            </div>
-          </div>
-        ) : null}
-
-        {pageMessage ? (
-          <div className="rounded-[24px] border border-emerald-400/20 bg-emerald-500/10 p-4 text-sm leading-6 text-emerald-100">
-            <div className="flex items-start gap-3">
-              <CheckCircle2 className="mt-0.5 h-4 w-4 shrink-0" />
-              <div>{pageMessage}</div>
-            </div>
-          </div>
-        ) : null}
-
-        <section className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
-          {metricCards.map((metric) => (
-            <MetricCardBlock key={metric.key} metric={metric} />
-          ))}
-        </section>
-
-        {!permissionState.canRead && !isPageLoading ? (
-          <SectionCard
-            title="Bank Account Access Locked"
-            description="The logged-in user does not have Bank Account read access."
-            icon={LockKeyhole}
-          >
-            <EmptyState
-              icon={LockKeyhole}
-              title="No bank account access is enabled"
-              description="Ask an Admin to assign a Finance role template or user-specific exception with Bank Account read access."
+    <AixiaPage>
+      <AixiaHero
+        parentLabel="Master Data"
+        parentPath="/finance/master-data"
+        badges={[
+          { label: "Company Banking Master Data", tone: "indigo" },
+          { label: "Permission filtered", tone: "emerald" },
+          { label: "Realtime + 60s fallback", tone: "gold" },
+        ]}
+        gradientTitle="Company Bank"
+        title="Accounts"
+        subtitle="Treasury Reference Registry"
+        description="Permission-filtered registry for company-linked bank accounts used by treasury, payment instructions, and finance document snapshots."
+        rightContent={
+          <div className="aixia-adaptive-grid" data-card-size="small">
+            <HeaderStatusCard
+              label="Read Access"
+              value={
+                isLoadingProfile ? "Checking" : permissionState.canRead ? "Enabled" : "Locked"
+              }
+              detail="This page requires Bank Account read access or Master Data admin access."
+              icon={permissionState.canRead ? ShieldCheck : LockKeyhole}
+              tone={permissionState.canRead ? "emerald" : "rose"}
             />
-          </SectionCard>
-        ) : (
-          <SectionCard
-            title="Bank Account Registry"
-            description="Active and inactive bank accounts. Archived records are managed only through the archive modal."
-            icon={Landmark}
-          >
-            <div className="mb-5 grid gap-3 xl:grid-cols-[minmax(0,1fr)_auto_auto]">
-              <TextInput
-                value={search}
-                onChange={setSearch}
-                placeholder="Search by company, bank, identifier, currency, location, or status"
-              />
+
+            <HeaderStatusCard
+              label="Lifecycle Access"
+              value={
+                permissionState.canDeleteArchive
+                  ? "Archive Enabled"
+                  : permissionState.canCreate
+                    ? "Create Enabled"
+                    : "Read Only"
+              }
+              detail="Create and Delete/Archive actions follow the selected Finance template."
+              icon={permissionState.canDeleteArchive ? Archive : CreditCard}
+              tone={permissionState.canDeleteArchive ? "amber" : "cyan"}
+            />
+          </div>
+        }
+      >
+        <div className="aixia-action-system" data-align="start" data-density="compact">
+          <AixiaBadge tone="emerald">Live backend</AixiaBadge>
+          <AixiaBadge tone="indigo">Permission filtered</AixiaBadge>
+          <AixiaBadge tone="gold">Soft refresh</AixiaBadge>
+        </div>
+      </AixiaHero>
+
+      {pageError ? (
+        <div className="rounded-[24px] border border-rose-400/20 bg-rose-500/10 p-4 text-sm leading-6 text-rose-100">
+          <div className="flex items-start gap-3">
+            <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0" />
+            <div>{pageError}</div>
+          </div>
+        </div>
+      ) : null}
+
+      {pageMessage ? (
+        <div className="rounded-[24px] border border-emerald-400/20 bg-emerald-500/10 p-4 text-sm leading-6 text-emerald-100">
+          <div className="flex items-start gap-3">
+            <CheckCircle2 className="mt-0.5 h-4 w-4 shrink-0" />
+            <div>{pageMessage}</div>
+          </div>
+        </div>
+      ) : null}
+
+      <section className="aixia-smart-grid" data-mode="metrics">
+        {metricCards.map((metric) => (
+          <MetricCardBlock key={metric.key} metric={metric} />
+        ))}
+      </section>
+
+      {!permissionState.canRead && !isPageLoading ? (
+        <AixiaSection
+          title="Bank Account Access Locked"
+          description="The logged-in user does not have Bank Account read access."
+          icon={LockKeyhole}
+        >
+          <EmptyState
+            icon={LockKeyhole}
+            title="No bank account access is enabled"
+            description="Ask an Admin to assign a Finance role template or user-specific exception with Bank Account read access."
+          />
+        </AixiaSection>
+      ) : (
+        <AixiaSection
+          title="Bank Account Registry"
+          description="Active and inactive bank accounts. Archived records are managed only through the archive modal."
+          icon={Landmark}
+          actions={
+            <div className="aixia-control-cluster">
+              <div className="aixia-control-field-wide">
+                <TextInput
+                  value={search}
+                  onChange={setSearch}
+                  placeholder="Search by company, bank, identifier, currency, location, or status"
+                />
+              </div>
 
               {permissionState.canCreate ? (
                 <button
@@ -1073,205 +1019,203 @@ export default function FinanceMasterDataBankAccountsPage() {
                 </button>
               ) : null}
             </div>
-
-            {isPageLoading ? (
-              <div className="rounded-[28px] border border-dashed border-white/10 bg-black/20 px-6 py-12 text-center">
-                <Loader2 className="mx-auto h-8 w-8 animate-spin text-cyan-200" />
-                <div className="mt-4 text-sm font-semibold text-white">
-                  Loading bank accounts
-                </div>
-                <p className="mt-2 text-sm leading-6 text-slate-500">
-                  Bank account records and permission state are being checked.
-                </p>
+          }
+        >
+          {isPageLoading ? (
+            <div className="rounded-[28px] border border-dashed border-white/10 bg-black/20 px-6 py-12 text-center">
+              <Loader2 className="mx-auto h-8 w-8 animate-spin text-cyan-200" />
+              <div className="mt-4 text-sm font-semibold text-white">
+                Loading bank accounts
               </div>
-            ) : filteredRows.length === 0 ? (
-              <EmptyState
-                icon={CreditCard}
-                title="No visible bank accounts found"
-                description="Create a bank account or adjust the search filter to find a company banking record."
-              />
-            ) : (
-              <div className="overflow-x-auto rounded-[24px] border border-white/10 bg-black/20">
-                <div className="max-h-[720px] overflow-y-auto">
-                  <table className="w-full min-w-[1240px] border-collapse">
-                    <thead className="sticky top-0 z-20 border-b border-white/10 bg-black/70 backdrop-blur-xl">
-                      <tr>
-                        <th className="px-5 py-4 text-left text-[11px] font-semibold uppercase tracking-[0.18em]">
-                          <SortButton
-                            label="Company"
-                            sortKey="company"
-                            activeSortKey={sortKey}
-                            direction={sortDirection}
-                            onClick={toggleSort}
-                          />
-                        </th>
-                        <th className="px-5 py-4 text-left text-[11px] font-semibold uppercase tracking-[0.18em]">
-                          <SortButton
-                            label="Bank"
-                            sortKey="bank"
-                            activeSortKey={sortKey}
-                            direction={sortDirection}
-                            onClick={toggleSort}
-                          />
-                        </th>
-                        <th className="px-5 py-4 text-left text-[11px] font-semibold uppercase tracking-[0.18em]">
-                          <SortButton
-                            label="Identifier"
-                            sortKey="identifier"
-                            activeSortKey={sortKey}
-                            direction={sortDirection}
-                            onClick={toggleSort}
-                          />
-                        </th>
-                        <th className="px-5 py-4 text-left text-[11px] font-semibold uppercase tracking-[0.18em]">
-                          <SortButton
-                            label="Currency"
-                            sortKey="currency"
-                            activeSortKey={sortKey}
-                            direction={sortDirection}
-                            onClick={toggleSort}
-                          />
-                        </th>
-                        <th className="px-5 py-4 text-left text-[11px] font-semibold uppercase tracking-[0.18em]">
-                          <SortButton
-                            label="Default"
-                            sortKey="default"
-                            activeSortKey={sortKey}
-                            direction={sortDirection}
-                            onClick={toggleSort}
-                          />
-                        </th>
-                        <th className="px-5 py-4 text-left text-[11px] font-semibold uppercase tracking-[0.18em]">
-                          <SortButton
-                            label="Status"
-                            sortKey="status"
-                            activeSortKey={sortKey}
-                            direction={sortDirection}
-                            onClick={toggleSort}
-                          />
-                        </th>
-                        <th className="px-5 py-4 text-left text-[11px] font-semibold uppercase tracking-[0.18em]">
-                          <SortButton
-                            label="Updated"
-                            sortKey="updated"
-                            activeSortKey={sortKey}
-                            direction={sortDirection}
-                            onClick={toggleSort}
-                          />
-                        </th>
-                        <th className="px-5 py-4 text-right text-[11px] font-semibold uppercase tracking-[0.18em] text-slate-500">
-                          Actions
-                        </th>
-                      </tr>
-                    </thead>
+              <p className="mt-2 text-sm leading-6 text-slate-500">
+                Bank account records and permission state are being checked.
+              </p>
+            </div>
+          ) : filteredRows.length === 0 ? (
+            <EmptyState
+              icon={CreditCard}
+              title="No visible bank accounts found"
+              description="Create a bank account or adjust the search filter to find a company banking record."
+            />
+          ) : (
+            <div className="overflow-x-auto rounded-[24px] border border-white/10 bg-black/20">
+              <div className="max-h-[720px] overflow-y-auto">
+                <table className="w-full min-w-[1240px] border-collapse">
+                  <thead className="sticky top-0 z-20 border-b border-white/10 bg-black/70 backdrop-blur-xl">
+                    <tr>
+                      <th className="px-5 py-4 text-left text-[11px] font-semibold uppercase tracking-[0.18em]">
+                        <SortButton
+                          label="Company"
+                          sortKey="company"
+                          activeSortKey={sortKey}
+                          direction={sortDirection}
+                          onClick={toggleSort}
+                        />
+                      </th>
+                      <th className="px-5 py-4 text-left text-[11px] font-semibold uppercase tracking-[0.18em]">
+                        <SortButton
+                          label="Bank"
+                          sortKey="bank"
+                          activeSortKey={sortKey}
+                          direction={sortDirection}
+                          onClick={toggleSort}
+                        />
+                      </th>
+                      <th className="px-5 py-4 text-left text-[11px] font-semibold uppercase tracking-[0.18em]">
+                        <SortButton
+                          label="Identifier"
+                          sortKey="identifier"
+                          activeSortKey={sortKey}
+                          direction={sortDirection}
+                          onClick={toggleSort}
+                        />
+                      </th>
+                      <th className="px-5 py-4 text-left text-[11px] font-semibold uppercase tracking-[0.18em]">
+                        <SortButton
+                          label="Currency"
+                          sortKey="currency"
+                          activeSortKey={sortKey}
+                          direction={sortDirection}
+                          onClick={toggleSort}
+                        />
+                      </th>
+                      <th className="px-5 py-4 text-left text-[11px] font-semibold uppercase tracking-[0.18em]">
+                        <SortButton
+                          label="Default"
+                          sortKey="default"
+                          activeSortKey={sortKey}
+                          direction={sortDirection}
+                          onClick={toggleSort}
+                        />
+                      </th>
+                      <th className="px-5 py-4 text-left text-[11px] font-semibold uppercase tracking-[0.18em]">
+                        <SortButton
+                          label="Status"
+                          sortKey="status"
+                          activeSortKey={sortKey}
+                          direction={sortDirection}
+                          onClick={toggleSort}
+                        />
+                      </th>
+                      <th className="px-5 py-4 text-left text-[11px] font-semibold uppercase tracking-[0.18em]">
+                        <SortButton
+                          label="Updated"
+                          sortKey="updated"
+                          activeSortKey={sortKey}
+                          direction={sortDirection}
+                          onClick={toggleSort}
+                        />
+                      </th>
+                      <th className="px-5 py-4 text-right text-[11px] font-semibold uppercase tracking-[0.18em] text-slate-500">
+                        Actions
+                      </th>
+                    </tr>
+                  </thead>
 
-                    <tbody>
-                      {filteredRows.map((row) => {
-                        const updatedAt = row.updated_at || row.created_at;
-                        const isRowActionRunning = activeActionId === row.id;
+                  <tbody>
+                    {filteredRows.map((row) => {
+                      const updatedAt = row.updated_at || row.created_at;
+                      const isRowActionRunning = activeActionId === row.id;
 
-                        return (
-                          <tr
-                            key={row.id}
-                            className="border-b border-white/5 text-sm text-slate-300 transition hover:bg-white/[0.035]"
-                          >
-                            <td className="min-w-[260px] px-5 py-4">
-                              <div className="font-semibold text-white">
-                                {getCompanyName(row)}
-                              </div>
-                              <div className="mt-1 text-xs text-slate-500">
-                                {row.company_code || "No company code"}
-                              </div>
-                            </td>
+                      return (
+                        <tr
+                          key={row.id}
+                          className="border-b border-white/5 text-sm text-slate-300 transition hover:bg-white/[0.035]"
+                        >
+                          <td className="min-w-[260px] px-5 py-4">
+                            <div className="font-semibold text-white">
+                              {getCompanyName(row)}
+                            </div>
+                            <div className="mt-1 text-xs text-slate-500">
+                              {row.company_code || "No company code"}
+                            </div>
+                          </td>
 
-                            <td className="min-w-[230px] px-5 py-4">
-                              <div className="font-semibold text-white">
-                                {getBankName(row)}
-                              </div>
-                              <div className="mt-1 text-xs text-slate-500">
-                                {getLocationLabel(row)}
-                              </div>
-                            </td>
+                          <td className="min-w-[230px] px-5 py-4">
+                            <div className="font-semibold text-white">
+                              {getBankName(row)}
+                            </div>
+                            <div className="mt-1 text-xs text-slate-500">
+                              {getLocationLabel(row)}
+                            </div>
+                          </td>
 
-                            <td className="min-w-[180px] px-5 py-4">
-                              <div className="font-semibold text-white">
-                                {getIdentifierLabel(row)}
-                              </div>
-                              <div className="mt-1 text-xs text-slate-500">
-                                {row.beneficiary_name || "No beneficiary"}
-                              </div>
-                            </td>
+                          <td className="min-w-[180px] px-5 py-4">
+                            <div className="font-semibold text-white">
+                              {getIdentifierLabel(row)}
+                            </div>
+                            <div className="mt-1 text-xs text-slate-500">
+                              {row.beneficiary_name || "No beneficiary"}
+                            </div>
+                          </td>
 
-                            <td className="min-w-[130px] px-5 py-4">
-                              <span className="inline-flex rounded-full border border-white/10 bg-white/[0.04] px-3 py-1 text-xs font-semibold text-white">
-                                {getCorrelatedCurrencyLabel(row, companyCurrencyByCode)}
-                              </span>
-                            </td>
+                          <td className="min-w-[130px] px-5 py-4">
+                            <span className="inline-flex rounded-full border border-white/10 bg-white/[0.04] px-3 py-1 text-xs font-semibold text-white">
+                              {getCorrelatedCurrencyLabel(row, companyCurrencyByCode)}
+                            </span>
+                          </td>
 
-                            <td className="min-w-[130px] px-5 py-4">
-                              <DefaultBadge isDefault={Boolean(row.is_default)} />
-                            </td>
+                          <td className="min-w-[130px] px-5 py-4">
+                            <DefaultBadge isDefault={Boolean(row.is_default)} />
+                          </td>
 
-                            <td className="min-w-[140px] px-5 py-4">
-                              <StatusBadge value={row.status} />
-                            </td>
+                          <td className="min-w-[140px] px-5 py-4">
+                            <StatusBadge value={row.status} />
+                          </td>
 
-                            <td className="min-w-[150px] px-5 py-4">
-                              <div className="text-sm text-slate-300">
-                                {formatDateLabel(updatedAt)}
-                              </div>
-                            </td>
+                          <td className="min-w-[150px] px-5 py-4">
+                            <div className="text-sm text-slate-300">
+                              {formatDateLabel(updatedAt)}
+                            </div>
+                          </td>
 
-                            <td className="px-5 py-4 text-right">
-                              <div className="flex justify-end gap-2">
+                          <td className="px-5 py-4 text-right">
+                            <div className="flex justify-end gap-2">
+                              <button
+                                type="button"
+                                onClick={() =>
+                                  navigate(`/finance/master-data/bank-accounts/${row.id}`)
+                                }
+                                className="inline-flex h-9 items-center justify-center gap-2 rounded-full border border-cyan-400/20 bg-cyan-500/10 px-4 text-xs font-semibold uppercase tracking-[0.14em] text-cyan-100 transition hover:bg-cyan-500/15"
+                              >
+                                Open
+                                <ArrowRight className="h-3.5 w-3.5" />
+                              </button>
+
+                              {permissionState.canDeleteArchive ? (
                                 <button
                                   type="button"
-                                  onClick={() =>
-                                    navigate(
-                                      `/finance/master-data/bank-accounts/${row.id}`
-                                    )
-                                  }
-                                  className="inline-flex h-9 items-center justify-center gap-2 rounded-full border border-cyan-400/20 bg-cyan-500/10 px-4 text-xs font-semibold uppercase tracking-[0.14em] text-cyan-100 transition hover:bg-cyan-500/15"
+                                  onClick={() => void handleArchive(row.id)}
+                                  disabled={isActionRunning}
+                                  className="inline-flex h-9 items-center justify-center gap-2 rounded-full border border-rose-400/20 bg-rose-500/10 px-4 text-xs font-semibold uppercase tracking-[0.14em] text-rose-100 transition hover:bg-rose-500/15 disabled:cursor-not-allowed disabled:opacity-50"
                                 >
-                                  Open
-                                  <ArrowRight className="h-3.5 w-3.5" />
+                                  {isRowActionRunning && runningAction === "archive" ? (
+                                    <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                                  ) : (
+                                    <Archive className="h-3.5 w-3.5" />
+                                  )}
+                                  Archive
                                 </button>
-
-                                {permissionState.canDeleteArchive ? (
-                                  <button
-                                    type="button"
-                                    onClick={() => void handleArchive(row.id)}
-                                    disabled={isActionRunning}
-                                    className="inline-flex h-9 items-center justify-center gap-2 rounded-full border border-rose-400/20 bg-rose-500/10 px-4 text-xs font-semibold uppercase tracking-[0.14em] text-rose-100 transition hover:bg-rose-500/15 disabled:cursor-not-allowed disabled:opacity-50"
-                                  >
-                                    {isRowActionRunning && runningAction === "archive" ? (
-                                      <Loader2 className="h-3.5 w-3.5 animate-spin" />
-                                    ) : (
-                                      <Archive className="h-3.5 w-3.5" />
-                                    )}
-                                    Archive
-                                  </button>
-                                ) : null}
-                              </div>
-                            </td>
-                          </tr>
-                        );
-                      })}
-                    </tbody>
-                  </table>
-                </div>
+                              ) : null}
+                            </div>
+                          </td>
+                        </tr>
+                      );
+                    })}
+                  </tbody>
+                </table>
               </div>
-            )}
-          </SectionCard>
-        )}
+            </div>
+          )}
+        </AixiaSection>
+      )}
 
-        <div className="rounded-[24px] border border-cyan-400/20 bg-cyan-500/10 p-4 text-sm leading-6 text-cyan-100">
-          <div className="font-semibold text-white">Locked access rule</div>
-          <div className="mt-1">
-            This registry requires Bank Account Read access. Create is controlled by
-            Create access. Archive, Restore, and Permanent Delete are controlled by
-            Delete/Archive access. Update/Edit is handled inside the bank account ID page.
-          </div>
+      <div className="rounded-[24px] border border-cyan-400/20 bg-cyan-500/10 p-4 text-sm leading-6 text-cyan-100">
+        <div className="font-semibold text-white">Locked access rule</div>
+        <div className="mt-1">
+          This registry requires Bank Account Read access. Create is controlled by
+          Create access. Archive, Restore, and Permanent Delete are controlled by
+          Delete/Archive access. Update/Edit is handled inside the bank account ID page.
         </div>
       </div>
 
@@ -1387,9 +1331,7 @@ export default function FinanceMasterDataBankAccountsPage() {
                                 <button
                                   type="button"
                                   onClick={() =>
-                                    navigate(
-                                      `/finance/master-data/bank-accounts/${row.id}`
-                                    )
+                                    navigate(`/finance/master-data/bank-accounts/${row.id}`)
                                   }
                                   className="inline-flex h-9 items-center justify-center gap-2 rounded-full border border-cyan-400/20 bg-cyan-500/10 px-4 text-xs font-semibold uppercase tracking-[0.14em] text-cyan-100 transition hover:bg-cyan-500/15"
                                 >
@@ -1416,8 +1358,7 @@ export default function FinanceMasterDataBankAccountsPage() {
                                   disabled={isActionRunning}
                                   className="inline-flex h-9 items-center justify-center gap-2 rounded-full border border-rose-400/20 bg-rose-500/10 px-4 text-xs font-semibold uppercase tracking-[0.14em] text-rose-100 transition hover:bg-rose-500/15 disabled:cursor-not-allowed disabled:opacity-50"
                                 >
-                                  {isRowActionRunning &&
-                                  runningAction === "hard-delete" ? (
+                                  {isRowActionRunning && runningAction === "hard-delete" ? (
                                     <Loader2 className="h-3.5 w-3.5 animate-spin" />
                                   ) : (
                                     <Trash2 className="h-3.5 w-3.5" />
@@ -1437,6 +1378,6 @@ export default function FinanceMasterDataBankAccountsPage() {
           </div>
         </div>
       ) : null}
-    </div>
+    </AixiaPage>
   );
 }

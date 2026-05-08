@@ -38,7 +38,7 @@ export function AixiaSortableHeader<TSortKey extends string>({
   activeSortKey,
   sortDirection,
   onSort,
-  align = "left",
+  align = "center",
 }: AixiaSortableHeaderProps<TSortKey>) {
   const isActive = activeSortKey === sortKey;
 
@@ -51,9 +51,9 @@ export function AixiaSortableHeader<TSortKey extends string>({
       } ${
         align === "right"
           ? "justify-end text-right"
-          : align === "center"
-            ? "justify-center text-center"
-            : "justify-start text-left"
+          : align === "left"
+            ? "justify-start text-left"
+            : "justify-center text-center"
       }`}
     >
       {label}

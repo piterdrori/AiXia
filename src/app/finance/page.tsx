@@ -1356,20 +1356,13 @@ export default function FinancePage() {
         title="Studio"
         subtitle="Finance Command Center"
         description="Permission-aware Finance command layer for Master Data, Transactions, Reports, Settings, and Finance Access Approvals. Each user sees only the areas enabled for their role and profile."
-        rightContent={
-          <>
-            {headerStatusCards.map((card) => (
-              <AixiaStatusCard
-                key={card.label}
-                label={card.label}
-                value={card.value}
-                description={card.detail}
-                icon={card.icon}
-                tone={card.tone}
-              />
-            ))}
-          </>
-        }
+        statusCards={headerStatusCards.map((card) => ({
+          label: card.label,
+          value: card.value,
+          description: card.detail,
+          icon: card.icon,
+          tone: card.tone,
+        }))}
       />
 
       {dashboardMetricCards.length > 0 ? (

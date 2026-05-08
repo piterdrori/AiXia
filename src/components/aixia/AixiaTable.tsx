@@ -2,9 +2,11 @@ import type { ReactNode } from "react";
 import { ArrowUpDown } from "lucide-react";
 
 type SortDirection = "asc" | "desc";
+type AixiaTableShellVariant = "default" | "registry" | "archive";
 
 type AixiaTableShellProps = {
   children: ReactNode;
+  variant?: AixiaTableShellVariant;
   minWidthClassName?: string;
   maxHeightClassName?: string;
 };
@@ -20,12 +22,18 @@ type AixiaSortableHeaderProps<TSortKey extends string> = {
 
 export function AixiaTableShell({
   children,
-  minWidthClassName = "min-w-max",
-  maxHeightClassName = "max-h-[690px]",
+  variant = "default",
+  minWidthClassName = "",
+  maxHeightClassName = "",
 }: AixiaTableShellProps) {
   return (
-    <div className="aixia-table-wrap aixia-scrollbar">
-      <div className={`aixia-table-scroll aixia-scrollbar ${maxHeightClassName}`}>
+    <div
+      className="aixia-table-wrap aixia-scrollbar"
+      data-table-variant={variant}
+    >
+      <div
+        className={`aixia-table-scroll aixia-scrollbar ${maxHeightClassName}`}
+      >
         <table className={`aixia-table ${minWidthClassName}`}>{children}</table>
       </div>
     </div>

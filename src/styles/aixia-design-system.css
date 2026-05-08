@@ -2868,6 +2868,91 @@
   min-width: 0;
 }
 
+.aixia-form-row-card {
+  min-width: 0;
+  border-radius: 1.5rem;
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  background: rgba(0, 0, 0, 0.2);
+  padding: 1rem;
+}
+
+.aixia-form-row-card-header {
+  margin-bottom: 1rem;
+  display: flex;
+  min-width: 0;
+  flex-direction: column;
+  gap: 0.75rem;
+}
+
+@media (min-width: 640px) {
+  .aixia-form-row-card-header {
+    flex-direction: row;
+    align-items: flex-start;
+    justify-content: space-between;
+  }
+}
+
+.aixia-form-row-card-title-wrap {
+  min-width: 0;
+}
+
+.aixia-form-row-card-title {
+  font-size: 0.875rem;
+  font-weight: 900;
+  color: white;
+}
+
+.aixia-form-row-card-description {
+  margin-top: 0.25rem;
+  font-size: 0.75rem;
+  line-height: 1.55;
+  color: rgba(100, 116, 139, 0.95);
+}
+
+.aixia-form-row-card-remove {
+  display: inline-flex;
+  min-height: 2.5rem;
+  flex-shrink: 0;
+  align-items: center;
+  justify-content: center;
+  border-radius: 1rem;
+  border: 1px solid rgba(251, 113, 133, 0.24);
+  background: rgba(244, 63, 94, 0.12);
+  padding: 0.625rem 1rem;
+  font-size: 0.75rem;
+  font-weight: 800;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  color: rgb(255, 228, 230);
+  transition:
+    border-color 300ms ease,
+    background-color 300ms ease,
+    opacity 300ms ease;
+}
+
+.aixia-form-row-card-remove:hover {
+  border-color: rgba(251, 113, 133, 0.4);
+  background: rgba(244, 63, 94, 0.2);
+}
+
+.aixia-form-row-card-remove:disabled {
+  cursor: not-allowed;
+  opacity: 0.5;
+}
+
+.aixia-form-row-card-body {
+  min-width: 0;
+}
+
+.aixia-form-row-list {
+  display: grid;
+  max-height: 720px;
+  min-width: 0;
+  gap: 1rem;
+  overflow-y: auto;
+  padding-right: 0.25rem;
+}
+
 .aixia-review-grid {
   display: grid;
   min-width: 0;

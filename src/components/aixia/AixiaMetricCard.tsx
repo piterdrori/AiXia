@@ -1,7 +1,15 @@
 import type { ReactNode } from "react";
 import type { LucideIcon } from "lucide-react";
 
-type AixiaMetricTone = "indigo" | "violet" | "gold" | "emerald" | "rose";
+type AixiaMetricTone =
+  | "indigo"
+  | "violet"
+  | "gold"
+  | "amber"
+  | "emerald"
+  | "cyan"
+  | "rose"
+  | "neutral";
 
 type AixiaMetricCardProps = {
   label: string;
@@ -17,7 +25,7 @@ function getToneClass(tone: AixiaMetricTone) {
     return "aixia-smart-icon-violet";
   }
 
-  if (tone === "gold") {
+  if (tone === "gold" || tone === "amber") {
     return "aixia-smart-icon-gold";
   }
 
@@ -25,8 +33,16 @@ function getToneClass(tone: AixiaMetricTone) {
     return "aixia-smart-icon-emerald";
   }
 
+  if (tone === "cyan") {
+    return "aixia-smart-icon-cyan";
+  }
+
   if (tone === "rose") {
     return "aixia-smart-icon-rose";
+  }
+
+  if (tone === "neutral") {
+    return "aixia-smart-icon-neutral";
   }
 
   return "aixia-smart-icon-indigo";

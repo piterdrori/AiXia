@@ -1156,26 +1156,19 @@ export default function FinanceMasterDataPage() {
             tone: backgroundRefreshing ? "gold" : "emerald",
           },
           { label: "Permission filtered", tone: "emerald" },
-          { label: "Silent refresh", tone: "neutral" },
+          { label: "Realtime + 60s fallback", tone: "gold" },
         ]}
         gradientTitle="Master Data"
         title="Studio"
         subtitle="Finance Reference Layer"
         description="Permission-filtered finance reference layer for clients, vendors, companies, banking, commercial terms, tax codes, categories, units, items, projects, employees, and currency controls."
-        rightContent={
-          <AixiaSmartGrid mode="hero-stats">
-            {headerStatusCards.map((card) => (
-              <AixiaStatusCard
-                key={card.label}
-                label={card.label}
-                value={card.value}
-                description={card.detail}
-                icon={card.icon}
-                tone={card.tone}
-              />
-            ))}
-          </AixiaSmartGrid>
-        }
+        statusCards={headerStatusCards.map((card) => ({
+          label: card.label,
+          value: card.value,
+          description: card.detail,
+          icon: card.icon,
+          tone: card.tone,
+        }))}
       />
 
       <section className="aixia-adaptive-grid" data-card-size="small">

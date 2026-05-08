@@ -73,8 +73,6 @@ type PageAction =
 
 type SortKey =
   | "company"
-  | "code"
-  | "companyCode"
   | "contact"
   | "email"
   | "phone"
@@ -517,14 +515,6 @@ export default function FinanceMasterDataCompaniesPage() {
           comparison = compareStrings(getCompanyName(first), getCompanyName(second));
         }
 
-        if (sortKey === "code") {
-          comparison = compareStrings(first.code, second.code);
-        }
-
-        if (sortKey === "companyCode") {
-          comparison = compareStrings(first.company_code, second.company_code);
-        }
-
         if (sortKey === "contact") {
           comparison = compareStrings(
             getContactLabel(first),
@@ -905,31 +895,13 @@ export default function FinanceMasterDataCompaniesPage() {
               description="Create a company or adjust the search filter to find an internal legal entity record."
             />
           ) : (
-            <AixiaTableShell minWidthClassName="min-w-[1480px]">
+            <AixiaTableShell minWidthClassName="min-w-[1240px]">
               <thead className="aixia-table-head">
                 <tr>
                   <th>
                     <AixiaSortableHeader
                       label="Company"
                       sortKey="company"
-                      activeSortKey={sortKey}
-                      sortDirection={sortDirection}
-                      onSort={toggleSort}
-                    />
-                  </th>
-                  <th>
-                    <AixiaSortableHeader
-                      label="Code"
-                      sortKey="code"
-                      activeSortKey={sortKey}
-                      sortDirection={sortDirection}
-                      onSort={toggleSort}
-                    />
-                  </th>
-                  <th>
-                    <AixiaSortableHeader
-                      label="Company Code"
-                      sortKey="companyCode"
                       activeSortKey={sortKey}
                       sortDirection={sortDirection}
                       onSort={toggleSort}
@@ -1014,18 +986,10 @@ export default function FinanceMasterDataCompaniesPage() {
                         primary={getCompanyName(company)}
                         secondary={
                           company.name && company.name !== company.legal_name
-                            ? company.name
-                            : "Internal legal entity"
+                            ? `${company.name} • ${getCompanyCode(company)}`
+                            : getCompanyCode(company)
                         }
                       />
-
-                      <AixiaTableBadgeCell width="sm">
-                        <AixiaBadge tone="neutral">{company.code || "—"}</AixiaBadge>
-                      </AixiaTableBadgeCell>
-
-                      <AixiaTableBadgeCell width="sm">
-                        <AixiaBadge tone="neutral">{getCompanyCode(company)}</AixiaBadge>
-                      </AixiaTableBadgeCell>
 
                       <AixiaTableTextCell
                         width="md"
@@ -1135,12 +1099,10 @@ export default function FinanceMasterDataCompaniesPage() {
             description="Archived internal legal entities will appear here after they are removed from active operational use."
           />
         ) : (
-          <AixiaTableShell minWidthClassName="min-w-[1040px]" maxHeightClassName="max-h-[620px]">
+          <AixiaTableShell minWidthClassName="min-w-[860px]" maxHeightClassName="max-h-[620px]">
             <thead className="aixia-table-head">
               <tr>
                 <th>Company</th>
-                <th>Code</th>
-                <th>Company Code</th>
                 <th>Contact</th>
                 <th>Updated</th>
                 <th>Actions</th>
@@ -1157,16 +1119,8 @@ export default function FinanceMasterDataCompaniesPage() {
                     <AixiaTableTextCell
                       width="xl"
                       primary={getCompanyName(company)}
-                      secondary={getLocationLabel(company)}
+                      secondary={`${getCompanyCode(company)} • ${getLocationLabel(company)}`}
                     />
-
-                    <AixiaTableBadgeCell width="sm">
-                      <AixiaBadge tone="neutral">{company.code || "—"}</AixiaBadge>
-                    </AixiaTableBadgeCell>
-
-                    <AixiaTableBadgeCell width="sm">
-                      <AixiaBadge tone="neutral">{getCompanyCode(company)}</AixiaBadge>
-                    </AixiaTableBadgeCell>
 
                     <AixiaTableTextCell
                       width="md"

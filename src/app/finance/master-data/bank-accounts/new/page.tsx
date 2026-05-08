@@ -1,18 +1,9 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
-import type {
-  FormEvent,
-  InputHTMLAttributes,
-  ReactNode,
-  TextareaHTMLAttributes,
-} from "react";
+import type { FormEvent } from "react";
 import { useNavigate, useSearchParams } from "react-router-dom";
 import type { LucideIcon } from "lucide-react";
 import {
-  AlertTriangle,
-  ArrowRight,
-  Banknote,
   Building2,
-  CheckCircle2,
   CreditCard,
   FileText,
   Landmark,
@@ -26,6 +17,29 @@ import {
 } from "lucide-react";
 
 import {
+  AixiaAccessDeniedState,
+  AixiaActionStack,
+  AixiaAlert,
+  AixiaAlertText,
+  AixiaButton,
+  AixiaCheckboxField,
+  AixiaDisplayBlock,
+  AixiaFieldLabel,
+  AixiaFormField,
+  AixiaFormFullWidth,
+  AixiaFormGrid,
+  AixiaHero,
+  AixiaInputField,
+  AixiaLoadingState,
+  AixiaPage,
+  AixiaReviewBlock,
+  AixiaReviewGrid,
+  AixiaSection,
+  AixiaSelectField,
+  AixiaSmartLayout,
+  AixiaTextareaField,
+} from "@/components/aixia";
+import {
   createBankAccount,
   getCompanyOptions,
   type CompanyOption,
@@ -36,6 +50,8 @@ import {
   type Role,
 } from "@/lib/permissions";
 import { supabase } from "@/lib/supabase";
+
+type LoadMode = "initial" | "silent";
 
 type ProfilePermissionRow = {
   user_id: string;
@@ -75,7 +91,7 @@ type PermissionState = {
 type HeaderStatusCardData = {
   label: string;
   value: string;
-  detail: string;
+  description: string;
   icon: LucideIcon;
   tone: "emerald" | "cyan" | "amber" | "rose";
 };
@@ -83,9 +99,7 @@ type HeaderStatusCardData = {
 type SummaryItem = {
   label: string;
   value: string;
-  detail: string;
-  icon: LucideIcon;
-  tone: "cyan" | "emerald" | "amber" | "violet" | "rose";
+  description: string;
 };
 
 const EMPTY_FORM: FormState = {
@@ -143,7 +157,8 @@ function buildPermissionState(
 }
 
 async function loadBackendEffectivePermissions(
-  userId: string
+  userId: string,
+  mode: LoadMode
 ): Promise<Partial<Record<Permission, boolean>> | null> {
   try {
     const result = await supabase.rpc("finance_get_effective_permissions", {
@@ -151,6 +166,10 @@ async function loadBackendEffectivePermissions(
     });
 
     if (result.error) {
+      if (mode === "silent") {
+        throw result.error;
+      }
+
       console.warn(
         "Create Bank Account permission RPC fallback:",
         result.error.message
@@ -159,251 +178,24 @@ async function loadBackendEffectivePermissions(
     }
 
     if (!result.data || typeof result.data !== "object") {
+      if (mode === "silent") {
+        throw new Error(
+          "Silent create bank account permission refresh returned no effective permission payload."
+        );
+      }
+
       return null;
     }
 
     return result.data as Partial<Record<Permission, boolean>>;
   } catch (error) {
+    if (mode === "silent") {
+      throw error;
+    }
+
     console.warn("Create Bank Account permission RPC failed:", error);
     return null;
   }
-}
-
-function getToneClasses(tone: SummaryItem["tone"]) {
-  switch (tone) {
-    case "emerald":
-      return {
-        card: "border-emerald-400/20 bg-emerald-500/10",
-        icon: "border-emerald-400/20 bg-emerald-500/10 text-emerald-200",
-        value: "text-emerald-100",
-      };
-    case "amber":
-      return {
-        card: "border-amber-400/20 bg-amber-500/10",
-        icon: "border-amber-400/20 bg-amber-500/10 text-amber-200",
-        value: "text-amber-100",
-      };
-    case "violet":
-      return {
-        card: "border-violet-400/20 bg-violet-500/10",
-        icon: "border-violet-400/20 bg-violet-500/10 text-violet-200",
-        value: "text-violet-100",
-      };
-    case "rose":
-      return {
-        card: "border-rose-400/20 bg-rose-500/10",
-        icon: "border-rose-400/20 bg-rose-500/10 text-rose-200",
-        value: "text-rose-100",
-      };
-    case "cyan":
-    default:
-      return {
-        card: "border-cyan-400/20 bg-cyan-500/10",
-        icon: "border-cyan-400/20 bg-cyan-500/10 text-cyan-200",
-        value: "text-cyan-100",
-      };
-  }
-}
-
-function HeaderStatusCard({ item }: { item: HeaderStatusCardData }) {
-  const Icon = item.icon;
-
-  const toneClasses = {
-    emerald: "border-emerald-400/20 bg-emerald-500/10 text-emerald-200",
-    cyan: "border-cyan-400/20 bg-cyan-500/10 text-cyan-200",
-    amber: "border-amber-400/20 bg-amber-500/10 text-amber-200",
-    rose: "border-rose-400/20 bg-rose-500/10 text-rose-200",
-  }[item.tone];
-
-  return (
-    <div className="min-h-[148px] rounded-[24px] border border-white/10 bg-black/20 p-4">
-      <div className="flex items-start justify-between gap-3">
-        <div className="min-w-0">
-          <div className="text-[11px] font-semibold uppercase tracking-[0.2em] text-slate-500">
-            {item.label}
-          </div>
-          <div className="mt-2 text-xl font-semibold leading-tight tracking-[-0.035em] text-white">
-            {item.value}
-          </div>
-        </div>
-
-        <div
-          className={`flex h-10 w-10 shrink-0 items-center justify-center rounded-2xl border ${toneClasses}`}
-        >
-          <Icon className="h-4 w-4" />
-        </div>
-      </div>
-
-      <div className="mt-3 text-xs leading-5 text-slate-500">{item.detail}</div>
-    </div>
-  );
-}
-
-function SummaryCard({ item }: { item: SummaryItem }) {
-  const Icon = item.icon;
-  const tone = getToneClasses(item.tone);
-
-  return (
-    <div className={`rounded-[24px] border bg-black/20 p-4 ${tone.card}`}>
-      <div className="flex items-start justify-between gap-3">
-        <div className="min-w-0">
-          <div className="text-[11px] font-semibold uppercase tracking-[0.2em] text-slate-500">
-            {item.label}
-          </div>
-          <div className={`mt-2 text-lg font-semibold leading-6 ${tone.value}`}>
-            {item.value}
-          </div>
-        </div>
-
-        <div
-          className={`flex h-10 w-10 shrink-0 items-center justify-center rounded-2xl border ${tone.icon}`}
-        >
-          <Icon className="h-4 w-4" />
-        </div>
-      </div>
-
-      <div className="mt-3 text-xs leading-5 text-slate-500">{item.detail}</div>
-    </div>
-  );
-}
-
-function FieldLabel({
-  label,
-  required = false,
-}: {
-  label: string;
-  required?: boolean;
-}) {
-  return (
-    <label className="mb-2 block text-sm font-medium text-slate-300">
-      {label}
-      {required ? <span className="ml-1 text-rose-300">*</span> : null}
-    </label>
-  );
-}
-
-function InputField({
-  className,
-  ...props
-}: InputHTMLAttributes<HTMLInputElement>) {
-  return (
-    <input
-      {...props}
-      className={`h-11 w-full rounded-2xl border border-white/10 bg-black/20 px-4 text-sm text-white outline-none transition placeholder:text-slate-600 focus:border-cyan-400/30 focus:bg-black/30 disabled:cursor-not-allowed disabled:opacity-60 ${
-        className || ""
-      }`}
-    />
-  );
-}
-
-function SelectField({
-  value,
-  onChange,
-  children,
-  disabled = false,
-}: {
-  value: string;
-  onChange: (value: string) => void;
-  children: ReactNode;
-  disabled?: boolean;
-}) {
-  return (
-    <select
-      value={value}
-      disabled={disabled}
-      onChange={(event) => onChange(event.target.value)}
-      className="h-11 w-full rounded-2xl border border-white/10 bg-black/20 px-4 text-sm text-white outline-none transition focus:border-cyan-400/30 focus:bg-black/30 disabled:cursor-not-allowed disabled:opacity-60"
-    >
-      {children}
-    </select>
-  );
-}
-
-function TextareaField({
-  className,
-  ...props
-}: TextareaHTMLAttributes<HTMLTextAreaElement>) {
-  return (
-    <textarea
-      {...props}
-      className={`min-h-[132px] w-full rounded-2xl border border-white/10 bg-black/20 px-4 py-3 text-sm text-white outline-none transition placeholder:text-slate-600 focus:border-cyan-400/30 focus:bg-black/30 disabled:cursor-not-allowed disabled:opacity-60 ${
-        className || ""
-      }`}
-    />
-  );
-}
-
-function FormSection({
-  title,
-  description,
-  icon: Icon,
-  children,
-}: {
-  title: string;
-  description: string;
-  icon: LucideIcon;
-  children: ReactNode;
-}) {
-  return (
-    <section className="overflow-hidden rounded-[30px] border border-white/10 bg-white/[0.045] backdrop-blur-xl">
-      <div className="flex items-start gap-4 border-b border-white/10 px-5 py-4">
-        <div className="rounded-2xl border border-cyan-400/15 bg-cyan-500/10 p-3 text-cyan-200">
-          <Icon className="h-4 w-4" />
-        </div>
-
-        <div className="min-w-0">
-          <h2 className="text-sm font-semibold uppercase tracking-[0.18em] text-slate-400">
-            {title}
-          </h2>
-          <p className="mt-1 text-xs leading-5 text-slate-500">{description}</p>
-        </div>
-      </div>
-
-      <div className="p-5">{children}</div>
-    </section>
-  );
-}
-
-function ReadOnlyBlock({
-  label,
-  value,
-  detail,
-}: {
-  label: string;
-  value: string;
-  detail?: string;
-}) {
-  return (
-    <div className="rounded-2xl border border-white/10 bg-black/20 px-4 py-3">
-      <div className="text-[11px] font-semibold uppercase tracking-[0.18em] text-slate-500">
-        {label}
-      </div>
-      <div className="mt-2 text-sm font-semibold text-white">{value}</div>
-      {detail ? <div className="mt-1 text-xs leading-5 text-slate-500">{detail}</div> : null}
-    </div>
-  );
-}
-
-function EmptyLockedState() {
-  return (
-    <section className="overflow-hidden rounded-[30px] border border-rose-400/20 bg-rose-500/10 backdrop-blur-xl">
-      <div className="p-8 text-center">
-        <div className="mx-auto flex h-14 w-14 items-center justify-center rounded-2xl border border-rose-400/20 bg-rose-500/10 text-rose-200">
-          <LockKeyhole className="h-6 w-6" />
-        </div>
-
-        <div className="mt-4 text-lg font-semibold text-white">
-          Create access is not enabled
-        </div>
-
-        <p className="mx-auto mt-2 max-w-2xl text-sm leading-6 text-rose-100">
-          This page requires Bank Account create access or Master Data admin access.
-          Ask an Admin to update this user’s Finance role template or user-specific
-          exception before creating company bank accounts.
-        </p>
-      </div>
-    </section>
-  );
 }
 
 function normalizeIdentifierType(value: string): BankIdentifierType {
@@ -438,13 +230,16 @@ export default function FinanceMasterDataBankAccountCreatePage() {
     useState<Record<Permission, boolean> | null>(null);
   const [isLoadingProfile, setIsLoadingProfile] = useState(true);
   const [isLoadingCompanies, setIsLoadingCompanies] = useState(true);
+  const [backgroundRefreshing, setBackgroundRefreshing] = useState(false);
   const [isSaving, setIsSaving] = useState(false);
   const [formError, setFormError] = useState<string | null>(null);
   const [formMessage, setFormMessage] = useState<string | null>(null);
 
-  const loadCurrentProfile = useCallback(async (mode: "initial" | "silent" = "initial") => {
+  const loadCurrentProfile = useCallback(async (mode: LoadMode = "initial") => {
     if (mode === "initial") {
       setIsLoadingProfile(true);
+    } else {
+      setBackgroundRefreshing(true);
     }
 
     try {
@@ -454,8 +249,15 @@ export default function FinanceMasterDataBankAccountCreatePage() {
       const authUserId = authResult.data.user?.id;
 
       if (!authUserId) {
-        setProfile(null);
-        setEffectivePermissions(null);
+        if (mode === "initial") {
+          setProfile(null);
+          setEffectivePermissions(null);
+        } else {
+          console.warn(
+            "Silent create bank account profile refresh returned no auth user; keeping current profile."
+          );
+        }
+
         return;
       }
 
@@ -468,12 +270,33 @@ export default function FinanceMasterDataBankAccountCreatePage() {
       if (profileResult.error) throw profileResult.error;
 
       const loadedProfile = (profileResult.data || null) as ProfilePermissionRow | null;
-      const backendPermissions = await loadBackendEffectivePermissions(authUserId);
+
+      if (!loadedProfile) {
+        if (mode === "initial") {
+          setProfile(null);
+          setEffectivePermissions(null);
+        } else {
+          console.warn(
+            "Silent create bank account profile refresh returned no profile; keeping current profile."
+          );
+        }
+
+        return;
+      }
+
+      const backendPermissions = await loadBackendEffectivePermissions(authUserId, mode);
 
       setProfile(loadedProfile);
 
-      if (!loadedProfile?.role) {
-        setEffectivePermissions(null);
+      if (!loadedProfile.role) {
+        if (mode === "initial") {
+          setEffectivePermissions(null);
+        } else {
+          console.warn(
+            "Silent create bank account profile refresh returned no role; keeping current permissions."
+          );
+        }
+
         return;
       }
 
@@ -485,18 +308,25 @@ export default function FinanceMasterDataBankAccountCreatePage() {
       setEffectivePermissions(resolvedPermissions);
     } catch (error) {
       console.error("Failed to load create bank account permissions:", error);
-      setProfile(null);
-      setEffectivePermissions(null);
+
+      if (mode === "initial") {
+        setProfile(null);
+        setEffectivePermissions(null);
+      }
     } finally {
       if (mode === "initial") {
         setIsLoadingProfile(false);
+      } else {
+        setBackgroundRefreshing(false);
       }
     }
   }, []);
 
-  const loadCompanies = useCallback(async (mode: "initial" | "silent" = "initial") => {
+  const loadCompanies = useCallback(async (mode: LoadMode = "initial") => {
     if (mode === "initial") {
       setIsLoadingCompanies(true);
+    } else {
+      setBackgroundRefreshing(true);
     }
 
     try {
@@ -504,15 +334,15 @@ export default function FinanceMasterDataBankAccountCreatePage() {
       setCompanies(rows);
 
       const companyIdFromUrl = searchParams.get("company_id");
-      if (!companyIdFromUrl) return;
+      if (!companyIdFromUrl || mode !== "initial") return;
 
       const company = rows.find((item) => item.id === companyIdFromUrl) ?? null;
       if (!company) return;
 
       setForm((previousForm) => ({
         ...previousForm,
-        company_id: companyIdFromUrl,
-        company_code: company.code ?? "",
+        company_id: previousForm.company_id || companyIdFromUrl,
+        company_code: previousForm.company_code || company.code || "",
         beneficiary_name:
           previousForm.beneficiary_name ||
           company.legal_name?.trim() ||
@@ -523,13 +353,18 @@ export default function FinanceMasterDataBankAccountCreatePage() {
       }));
     } catch (error) {
       console.error("Failed to load companies for bank account create page:", error);
-      setCompanies([]);
-      setFormError(
-        error instanceof Error ? error.message : "Failed to load company options."
-      );
+
+      if (mode === "initial") {
+        setCompanies([]);
+        setFormError(
+          error instanceof Error ? error.message : "Failed to load company options."
+        );
+      }
     } finally {
       if (mode === "initial") {
         setIsLoadingCompanies(false);
+      } else {
+        setBackgroundRefreshing(false);
       }
     }
   }, [searchParams]);
@@ -575,7 +410,7 @@ export default function FinanceMasterDataBankAccountCreatePage() {
 
     return () => {
       window.clearInterval(intervalId);
-      supabase.removeChannel(channel);
+      void supabase.removeChannel(channel);
     };
   }, [loadCompanies, loadCurrentProfile]);
 
@@ -602,7 +437,7 @@ export default function FinanceMasterDataBankAccountCreatePage() {
           : permissionState.canCreate
             ? "Enabled"
             : "Locked",
-        detail:
+        description:
           "Bank Account create access follows the Finance role template and user-specific exceptions.",
         icon: permissionState.canCreate ? ShieldCheck : LockKeyhole,
         tone: permissionState.canCreate ? "emerald" : "rose",
@@ -610,43 +445,43 @@ export default function FinanceMasterDataBankAccountCreatePage() {
       {
         label: "Company Source",
         value: isLoadingCompanies ? "Loading" : `${companies.length} Options`,
-        detail:
-          "Company options are pulled from Finance Companies and used to prefill beneficiary and currency.",
+        description:
+          backgroundRefreshing
+            ? "Reference data is refreshing silently without resetting the form."
+            : "Company options are pulled from Finance Companies and used to prefill beneficiary and currency.",
         icon: Building2,
         tone: "cyan",
       },
     ];
-  }, [companies.length, isLoadingCompanies, isLoadingProfile, permissionState.canCreate]);
+  }, [
+    backgroundRefreshing,
+    companies.length,
+    isLoadingCompanies,
+    isLoadingProfile,
+    permissionState.canCreate,
+  ]);
 
   const summaryItems = useMemo<SummaryItem[]>(() => {
     return [
       {
         label: "Company",
         value: getCompanyDisplayName(selectedCompany),
-        detail: getCompanyCodeLabel(selectedCompany, form.company_code),
-        icon: Building2,
-        tone: "cyan",
+        description: getCompanyCodeLabel(selectedCompany, form.company_code),
       },
       {
         label: "Bank",
         value: form.bank_name.trim() || "Bank name required",
-        detail: form.beneficiary_name.trim() || "Beneficiary name required",
-        icon: Landmark,
-        tone: form.bank_name.trim() ? "emerald" : "amber",
+        description: form.beneficiary_name.trim() || "Beneficiary name required",
       },
       {
         label: "Identifier",
         value: form.account_identifier_type.toUpperCase(),
-        detail: form.account_identifier_value.trim() || "No identifier value yet",
-        icon: CreditCard,
-        tone: "violet",
+        description: form.account_identifier_value.trim() || "No identifier value yet",
       },
       {
         label: "Currency",
         value: getCurrencyLabel(selectedCompany, form.currency_code),
-        detail: form.is_default ? "Default account enabled" : "Standard account",
-        icon: Banknote,
-        tone: "rose",
+        description: form.is_default ? "Default account enabled" : "Standard account",
       },
     ];
   }, [form, selectedCompany]);
@@ -736,413 +571,352 @@ export default function FinanceMasterDataBankAccountCreatePage() {
   }
 
   return (
-    <div className="min-h-screen bg-[#05070d] px-4 py-4 text-white md:px-6 md:py-6">
-      <div className="mx-auto flex w-full max-w-[1600px] flex-col gap-6">
-        <header className="relative overflow-hidden rounded-[34px] border border-white/10 bg-white/[0.045] p-6 shadow-2xl shadow-black/30 backdrop-blur-xl">
-          <div className="pointer-events-none absolute inset-0 bg-[radial-gradient(circle_at_top_left,rgba(6,182,212,0.16),transparent_38%),radial-gradient(circle_at_top_right,rgba(139,92,246,0.12),transparent_34%)]" />
+    <AixiaPage>
+      <AixiaHero
+        parentLabel="Bank Accounts"
+        parentPath="/finance/master-data/bank-accounts"
+        badges={[
+          { label: "New Company Bank Account", tone: "cyan" },
+          { label: "Company linked", tone: "emerald" },
+          { label: "Permission protected", tone: "cyan" },
+          { label: "Opens ID page after create", tone: "neutral" },
+        ]}
+        gradientTitle="Create"
+        title="Bank Account"
+        subtitle="Company Payment Master Data"
+        description="Create a company-linked bank account for treasury, payment instructions, and future finance document snapshots. After saving, the new bank account record opens directly."
+        statusCards={headerStatusCards}
+      />
 
-          <div className="relative grid gap-6 xl:grid-cols-[minmax(0,1fr)_520px] xl:items-end">
-            <div>
-              <button
-                type="button"
-                onClick={() => navigate("/finance/master-data/bank-accounts")}
-                className="mb-5 inline-flex items-center justify-center gap-2 rounded-full border border-white/10 bg-white/[0.05] px-5 py-2 text-[11px] font-semibold uppercase tracking-[0.22em] text-slate-300 transition hover:border-white/20 hover:bg-white/[0.08] hover:text-white"
-              >
-                <ArrowRight className="h-3.5 w-3.5 rotate-180" />
-                Bank Accounts
-              </button>
+      {formError ? <AixiaAlert tone="error">{formError}</AixiaAlert> : null}
+      {formMessage ? <AixiaAlert tone="success">{formMessage}</AixiaAlert> : null}
 
-              <div className="inline-flex w-fit items-center gap-2 rounded-full border border-cyan-400/20 bg-cyan-500/10 px-3 py-1 text-[11px] font-semibold uppercase tracking-[0.22em] text-cyan-200">
-                <Sparkles className="h-3.5 w-3.5" />
-                New Company Bank Account
-              </div>
-
-              <h1 className="mt-4 text-3xl font-semibold tracking-[-0.035em] text-white md:text-5xl">
-                Create Bank Account
-              </h1>
-
-              <p className="mt-3 max-w-4xl text-sm leading-6 text-slate-400 md:text-base md:leading-7">
-                Create a company-linked bank account for treasury, payment instructions,
-                and future finance document snapshots. After saving, the new bank account
-                record opens directly.
-              </p>
-
-              <div className="mt-5 flex flex-wrap gap-2">
-                <span className="rounded-full border border-emerald-400/20 bg-emerald-500/10 px-3 py-1 text-[11px] font-semibold uppercase tracking-[0.16em] text-emerald-200">
-                  Company linked
-                </span>
-                <span className="rounded-full border border-cyan-400/20 bg-cyan-500/10 px-3 py-1 text-[11px] font-semibold uppercase tracking-[0.16em] text-cyan-200">
-                  Permission protected
-                </span>
-                <span className="rounded-full border border-slate-400/20 bg-slate-500/10 px-3 py-1 text-[11px] font-semibold uppercase tracking-[0.16em] text-slate-300">
-                  Opens ID page after create
-                </span>
-              </div>
-            </div>
-
-            <div className="grid gap-3 sm:grid-cols-2">
-              {headerStatusCards.map((item) => (
-                <HeaderStatusCard key={item.label} item={item} />
-              ))}
-            </div>
-          </div>
-        </header>
-
-        {formError ? (
-          <div className="rounded-[24px] border border-rose-400/20 bg-rose-500/10 p-4 text-sm leading-6 text-rose-100">
-            <div className="flex items-start gap-3">
-              <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0" />
-              <div>{formError}</div>
-            </div>
-          </div>
-        ) : null}
-
-        {formMessage ? (
-          <div className="rounded-[24px] border border-emerald-400/20 bg-emerald-500/10 p-4 text-sm leading-6 text-emerald-100">
-            <div className="flex items-start gap-3">
-              <CheckCircle2 className="mt-0.5 h-4 w-4 shrink-0" />
-              <div>{formMessage}</div>
-            </div>
-          </div>
-        ) : null}
-
-        {isPageLoading ? (
-          <section className="rounded-[30px] border border-white/10 bg-white/[0.045] p-10 text-center backdrop-blur-xl">
-            <Loader2 className="mx-auto h-8 w-8 animate-spin text-cyan-200" />
-            <div className="mt-4 text-sm font-semibold text-white">
-              Loading create page
-            </div>
-            <p className="mt-2 text-sm leading-6 text-slate-500">
-              Company options and permission state are being checked.
-            </p>
-          </section>
-        ) : !permissionState.canCreate ? (
-          <EmptyLockedState />
-        ) : (
-          <form
-            id="bank-account-create-form"
-            onSubmit={handleSubmit}
-            className="grid items-start gap-6 xl:grid-cols-[minmax(0,1fr)_420px]"
-          >
-            <div className="grid gap-6">
-              <FormSection
-                title="Company Link"
-                description="Select the company and pull linked finance identity."
-                icon={Building2}
-              >
-                <div className="grid gap-4 md:grid-cols-2">
-                  <div className="md:col-span-2">
-                    <FieldLabel label="Company" required />
-                    <SelectField
-                      value={form.company_id}
-                      onChange={handleCompanyChange}
-                      disabled={isSaving}
-                    >
-                      <option value="" className="bg-[#05070d]">
-                        Select company
-                      </option>
-                      {companies.map((company) => (
-                        <option
-                          key={company.id}
-                          value={company.id}
-                          className="bg-[#05070d]"
-                        >
-                          {(company.legal_name?.trim() || company.name) +
-                            (company.code ? ` • ${company.code}` : "")}
+      {isPageLoading ? (
+        <AixiaLoadingState
+          fullPage={false}
+          title="Loading create page"
+          description="Company options and permission state are being checked."
+        />
+      ) : !permissionState.canCreate ? (
+        <AixiaAccessDeniedState
+          title="Create access is not enabled"
+          description="This page requires Bank Account create access or Master Data admin access. Ask an Admin to update this user’s Finance role template or user-specific exception before creating company bank accounts."
+        />
+      ) : (
+        <form id="bank-account-create-form" onSubmit={handleSubmit}>
+          <AixiaSmartLayout
+            sidebar="normal"
+            balance="main"
+            main={
+              <>
+                <AixiaSection
+                  title="Company Link"
+                  description="Select the company and pull linked finance identity."
+                  icon={Building2}
+                >
+                  <AixiaFormGrid columns="two">
+                    <AixiaFormFullWidth>
+                      <AixiaFieldLabel label="Company" required />
+                      <AixiaSelectField
+                        value={form.company_id}
+                        disabled={isSaving}
+                        onChange={(event) => handleCompanyChange(event.target.value)}
+                      >
+                        <option value="" className="bg-[#05070d]">
+                          Select company
                         </option>
-                      ))}
-                    </SelectField>
-                  </div>
+                        {companies.map((company) => (
+                          <option
+                            key={company.id}
+                            value={company.id}
+                            className="bg-[#05070d]"
+                          >
+                            {(company.legal_name?.trim() || company.name) +
+                              (company.code ? ` • ${company.code}` : "")}
+                          </option>
+                        ))}
+                      </AixiaSelectField>
+                    </AixiaFormFullWidth>
 
-                  <ReadOnlyBlock
-                    label="Company Code"
-                    value={getCompanyCodeLabel(selectedCompany, form.company_code)}
-                    detail="Pulled from the selected company."
-                  />
-
-                  <ReadOnlyBlock
-                    label="Company Currency"
-                    value={selectedCompany?.currency_code || "—"}
-                    detail="Used as a suggested bank account currency."
-                  />
-
-                  <div className="md:col-span-2">
-                    <FieldLabel label="Beneficiary Name" required />
-                    <InputField
-                      value={form.beneficiary_name}
-                      disabled={isSaving}
-                      onChange={(event) =>
-                        updateForm("beneficiary_name", event.target.value)
-                      }
-                      placeholder="Legal beneficiary name"
+                    <AixiaDisplayBlock
+                      label="Company Code"
+                      value={getCompanyCodeLabel(selectedCompany, form.company_code)}
+                      detail="Pulled from the selected company."
                     />
-                  </div>
-                </div>
-              </FormSection>
 
-              <FormSection
-                title="Bank Identity"
-                description="Bank name and main account number."
-                icon={Landmark}
-              >
-                <div className="grid gap-4 md:grid-cols-2">
-                  <div className="md:col-span-2">
-                    <FieldLabel label="Bank Name" required />
-                    <InputField
-                      value={form.bank_name}
-                      disabled={isSaving}
-                      onChange={(event) => updateForm("bank_name", event.target.value)}
-                      placeholder="Bank name"
+                    <AixiaDisplayBlock
+                      label="Company Currency"
+                      value={selectedCompany?.currency_code || "—"}
+                      detail="Used as a suggested bank account currency."
                     />
-                  </div>
 
-                  <div className="md:col-span-2">
-                    <FieldLabel label="Account Number" />
-                    <InputField
-                      value={form.account_number}
-                      disabled={isSaving}
-                      onChange={(event) =>
-                        updateForm("account_number", event.target.value)
-                      }
-                      placeholder="Account number or masked account number"
-                    />
-                  </div>
-                </div>
-              </FormSection>
+                    <AixiaFormFullWidth>
+                      <AixiaFieldLabel label="Beneficiary Name" required />
+                      <AixiaInputField
+                        value={form.beneficiary_name}
+                        disabled={isSaving}
+                        onChange={(event) =>
+                          updateForm("beneficiary_name", event.target.value)
+                        }
+                        placeholder="Legal beneficiary name"
+                      />
+                    </AixiaFormFullWidth>
+                  </AixiaFormGrid>                
+                 </AixiaSection>
 
-              <FormSection
-                title="Bank Address"
-                description="Bank address details used for records and payment instructions."
-                icon={WalletCards}
-              >
-                <div className="grid gap-4 md:grid-cols-2">
-                  <div>
-                    <FieldLabel label="Country" />
-                    <InputField
-                      value={form.country}
-                      disabled={isSaving}
-                      onChange={(event) => updateForm("country", event.target.value)}
-                      placeholder="Country"
-                    />
-                  </div>
+                <AixiaSection
+                  title="Bank Identity"
+                  description="Bank name and main account number."
+                  icon={Landmark}
+                >
+                  <AixiaFormGrid columns="two">
+                    <AixiaFormFullWidth>
+                      <AixiaFieldLabel label="Bank Name" required />
+                      <AixiaInputField
+                        value={form.bank_name}
+                        disabled={isSaving}
+                        onChange={(event) =>
+                          updateForm("bank_name", event.target.value)
+                        }
+                        placeholder="Bank name"
+                      />
+                    </AixiaFormFullWidth>
 
-                  <div>
-                    <FieldLabel label="City" />
-                    <InputField
-                      value={form.city}
-                      disabled={isSaving}
-                      onChange={(event) => updateForm("city", event.target.value)}
-                      placeholder="City"
-                    />
-                  </div>
+                    <AixiaFormFullWidth>
+                      <AixiaFieldLabel label="Account Number" />
+                      <AixiaInputField
+                        value={form.account_number}
+                        disabled={isSaving}
+                        onChange={(event) =>
+                          updateForm("account_number", event.target.value)
+                        }
+                        placeholder="Account number or masked account number"
+                      />
+                    </AixiaFormFullWidth>
+                  </AixiaFormGrid>
+                </AixiaSection>
 
-                  <div>
-                    <FieldLabel label="ZIP / Postal Code" />
-                    <InputField
-                      value={form.postal_code}
-                      disabled={isSaving}
-                      onChange={(event) =>
-                        updateForm("postal_code", event.target.value)
-                      }
-                      placeholder="Postal code"
-                    />
-                  </div>
+                <AixiaSection
+                  title="Bank Address"
+                  description="Bank address details used for records and payment instructions."
+                  icon={WalletCards}
+                >
+                  <AixiaFormGrid columns="two">
+                    <AixiaFormField>
+                      <AixiaFieldLabel label="Country" />
+                      <AixiaInputField
+                        value={form.country}
+                        disabled={isSaving}
+                        onChange={(event) => updateForm("country", event.target.value)}
+                        placeholder="Country"
+                      />
+                    </AixiaFormField>
 
-                  <div className="md:col-span-2">
-                    <FieldLabel label="Address Line 1" />
-                    <InputField
-                      value={form.address_line_1}
-                      disabled={isSaving}
-                      onChange={(event) =>
-                        updateForm("address_line_1", event.target.value)
-                      }
-                      placeholder="Address line 1"
-                    />
-                  </div>
+                    <AixiaFormField>
+                      <AixiaFieldLabel label="City" />
+                      <AixiaInputField
+                        value={form.city}
+                        disabled={isSaving}
+                        onChange={(event) => updateForm("city", event.target.value)}
+                        placeholder="City"
+                      />
+                    </AixiaFormField>
 
-                  <div className="md:col-span-2">
-                    <FieldLabel label="Address Line 2" />
-                    <InputField
-                      value={form.address_line_2}
-                      disabled={isSaving}
-                      onChange={(event) =>
-                        updateForm("address_line_2", event.target.value)
-                      }
-                      placeholder="Address line 2"
-                    />
-                  </div>
-                </div>
-              </FormSection>
+                    <AixiaFormField>
+                      <AixiaFieldLabel label="ZIP / Postal Code" />
+                      <AixiaInputField
+                        value={form.postal_code}
+                        disabled={isSaving}
+                        onChange={(event) =>
+                          updateForm("postal_code", event.target.value)
+                        }
+                        placeholder="Postal code"
+                      />
+                    </AixiaFormField>
+                    <AixiaFormFullWidth>
+                      <AixiaFieldLabel label="Address Line 1" />
+                      <AixiaInputField
+                        value={form.address_line_1}
+                        disabled={isSaving}
+                        onChange={(event) =>
+                          updateForm("address_line_1", event.target.value)
+                        }
+                        placeholder="Address line 1"
+                      />
+                    </AixiaFormFullWidth>
 
-              <FormSection
-                title="Identifier / Currency / Control"
-                description="Identifier type, currency, default flag, and lifecycle."
-                icon={CreditCard}
-              >
-                <div className="grid gap-4 md:grid-cols-2">
-                  <div>
-                    <FieldLabel label="Identifier Type" />
-                    <SelectField
-                      value={form.account_identifier_type}
-                      disabled={isSaving}
-                      onChange={(value) =>
-                        updateForm("account_identifier_type", normalizeIdentifierType(value))
-                      }
-                    >
-                      <option value="swift" className="bg-[#05070d]">
-                        SWIFT
-                      </option>
-                      <option value="iban" className="bg-[#05070d]">
-                        IBAN
-                      </option>
-                    </SelectField>
-                  </div>
+                    <AixiaFormFullWidth>
+                      <AixiaFieldLabel label="Address Line 2" />
+                      <AixiaInputField
+                        value={form.address_line_2}
+                        disabled={isSaving}
+                        onChange={(event) =>
+                          updateForm("address_line_2", event.target.value)
+                        }
+                        placeholder="Address line 2"
+                      />
+                    </AixiaFormFullWidth>
+                  </AixiaFormGrid>
+                </AixiaSection>
 
-                  <div>
-                    <FieldLabel label={identifierLabel} />
-                    <InputField
-                      value={form.account_identifier_value}
-                      disabled={isSaving}
-                      onChange={(event) =>
-                        updateForm("account_identifier_value", event.target.value)
-                      }
-                      placeholder="Identifier value"
-                    />
-                  </div>
+                <AixiaSection
+                  title="Identifier / Currency / Control"
+                  description="Identifier type, currency, default flag, and lifecycle."
+                  icon={CreditCard}
+                >
+                  <AixiaFormGrid columns="two">
+                     <AixiaFormField>
+                      <AixiaFieldLabel label="Identifier Type" />
+                      <AixiaSelectField
+                        value={form.account_identifier_type}
+                        disabled={isSaving}
+                        onChange={(event) =>
+                          updateForm(
+                            "account_identifier_type",
+                            normalizeIdentifierType(event.target.value)
+                          )
+                        }
+                      >
+                        <option value="swift" className="bg-[#05070d]">
+                          SWIFT
+                        </option>
+                        <option value="iban" className="bg-[#05070d]">
+                          IBAN
+                        </option>
+                      </AixiaSelectField>
+                    </AixiaFormField>
 
-                  <div>
-                    <FieldLabel label="Currency Code" />
-                    <InputField
-                      value={form.currency_code}
-                      disabled={isSaving}
-                      onChange={(event) =>
-                        updateForm("currency_code", event.target.value.toUpperCase())
-                      }
-                      placeholder="USD / EUR / CNY / ILS"
-                    />
-                  </div>
+                    <AixiaFormField>
+                      <AixiaFieldLabel label={identifierLabel} />
+                      <AixiaInputField
+                        value={form.account_identifier_value}
+                        disabled={isSaving}
+                        onChange={(event) =>
+                          updateForm("account_identifier_value", event.target.value)
+                        }
+                        placeholder="Identifier value"
+                      />
+                    </AixiaFormField>
 
-                  <div>
-                    <FieldLabel label="Status" />
-                    <SelectField
-                      value={form.status}
-                      disabled={isSaving}
-                      onChange={(value) => updateForm("status", normalizeStatus(value))}
-                    >
-                      <option value="active" className="bg-[#05070d]">
-                        Active
-                      </option>
-                      <option value="inactive" className="bg-[#05070d]">
-                        Inactive
-                      </option>
-                    </SelectField>
-                  </div>
+                    <AixiaFormField>
+                      <AixiaFieldLabel label="Currency Code" />
+                      <AixiaInputField
+                        value={form.currency_code}
+                        disabled={isSaving}
+                        onChange={(event) =>
+                          updateForm("currency_code", event.target.value.toUpperCase())
+                        }
+                        placeholder="USD / EUR / CNY / ILS"
+                      />
+                    </AixiaFormField>
 
-                  <div className="md:col-span-2">
-                    <label className="flex items-start gap-3 rounded-2xl border border-white/10 bg-black/20 px-4 py-3 text-sm text-slate-300">
-                      <input
-                        type="checkbox"
+                    <AixiaFormField>
+                      <AixiaFieldLabel label="Status" />
+                      <AixiaSelectField
+                        value={form.status}
+                        disabled={isSaving}
+                        onChange={(event) =>
+                          updateForm("status", normalizeStatus(event.target.value))
+                        }
+                      >
+                        <option value="active" className="bg-[#05070d]">
+                          Active
+                        </option>
+                        <option value="inactive" className="bg-[#05070d]">
+                          Inactive
+                        </option>
+                      </AixiaSelectField>
+                    </AixiaFormField>
+
+                    <AixiaFormFullWidth>
+                      <AixiaCheckboxField
                         checked={form.is_default}
                         disabled={isSaving}
                         onChange={(event) =>
                           updateForm("is_default", event.target.checked)
                         }
-                        className="mt-1"
+                        label="Set as default bank account for this company"
+                        description="The helper logic will reset other default accounts for the same company during update flows."
                       />
-                      <span>
-                        <span className="block font-semibold text-white">
-                          Set as default bank account for this company
-                        </span>
-                        <span className="mt-1 block text-xs leading-5 text-slate-500">
-                          The helper logic will reset other default accounts for the same
-                          company during update flows.
-                        </span>
-                      </span>
-                    </label>
-                  </div>
-                </div>
-              </FormSection>
+                    </AixiaFormFullWidth>
+                  </AixiaFormGrid>                
+                 </AixiaSection>
 
-              <FormSection
-                title="Notes"
-                description="Internal notes for finance operators."
-                icon={FileText}
-              >
-                <TextareaField
-                  value={form.notes}
-                  disabled={isSaving}
-                  onChange={(event) => updateForm("notes", event.target.value)}
-                  placeholder="Notes..."
-                />
-              </FormSection>
-            </div>
-
-            <aside className="grid gap-6">
-              <section className="overflow-hidden rounded-[30px] border border-white/10 bg-white/[0.045] backdrop-blur-xl">
-                <div className="border-b border-white/10 px-5 py-4">
-                  <div className="text-sm font-semibold uppercase tracking-[0.18em] text-slate-400">
-                    Create Summary
-                  </div>
-                  <p className="mt-1 text-xs leading-5 text-slate-500">
-                    Review the bank account before creating it.
-                  </p>
-                </div>
-
-                <div className="grid gap-4 p-5">
-                  {summaryItems.map((item) => (
-                    <SummaryCard key={item.label} item={item} />
-                  ))}
-                </div>
-              </section>
-
-              <section className="overflow-hidden rounded-[30px] border border-white/10 bg-white/[0.045] backdrop-blur-xl">
-                <div className="border-b border-white/10 px-5 py-4">
-                  <div className="text-sm font-semibold uppercase tracking-[0.18em] text-slate-400">
-                    Actions
-                  </div>
-                  <p className="mt-1 text-xs leading-5 text-slate-500">
-                    Create opens the new bank account ID page directly.
-                  </p>
-                </div>
-
-                <div className="grid gap-3 p-5">
-                  <button
-                    type="submit"
+                <AixiaSection
+                  title="Notes"
+                  description="Internal notes for finance operators."
+                  icon={FileText}
+                >
+                  <AixiaTextareaField
+                    value={form.notes}
                     disabled={isSaving}
-                    className="inline-flex h-12 items-center justify-center gap-2 rounded-2xl border border-cyan-400/20 bg-cyan-500 px-5 text-sm font-semibold text-slate-950 transition hover:bg-cyan-400 disabled:cursor-not-allowed disabled:opacity-60"
-                  >
-                    {isSaving ? (
-                      <Loader2 className="h-4 w-4 animate-spin" />
-                    ) : (
-                      <Save className="h-4 w-4" />
-                    )}
-                    {isSaving ? "Creating..." : "Create Bank Account"}
-                  </button>
+                    onChange={(event) => updateForm("notes", event.target.value)}
+                    placeholder="Notes..."
+                  />
+                </AixiaSection>
+              </>
+            }
+            side={
+              <>
+                <AixiaSection
+                  title="Create Summary"
+                  description="Review the bank account before creating it."
+                  icon={Sparkles}
+                >
+                  <AixiaReviewGrid>
+                    {summaryItems.map((item) => (
+                      <AixiaReviewBlock
+                        key={item.label}
+                        label={item.label}
+                        value={item.value}
+                        description={item.description}
+                      />
+                    ))}
+                  </AixiaReviewGrid>
+                </AixiaSection>
 
-                  <button
-                    type="button"
-                    disabled={isSaving}
-                    onClick={handleReset}
-                    className="inline-flex h-12 items-center justify-center gap-2 rounded-2xl border border-white/10 bg-white/[0.05] px-5 text-sm font-semibold text-slate-300 transition hover:bg-white/[0.08] disabled:cursor-not-allowed disabled:opacity-60"
-                  >
-                    <RotateCcw className="h-4 w-4" />
-                    Reset Form
-                  </button>
-                </div>
-              </section>
+                <AixiaSection
+                  title="Actions"
+                  description="Create opens the new bank account ID page directly."
+                  icon={Save}
+                >
+                  <AixiaActionStack>
+                    <AixiaButton
+                      type="submit"
+                      variant="primary"
+                      disabled={isSaving}
+                    >
+                      {isSaving ? (
+                        <Loader2 className="h-4 w-4 animate-spin" />
+                      ) : (
+                        <Save className="h-4 w-4" />
+                      )}
+                      {isSaving ? "Creating..." : "Create Bank Account"}
+                    </AixiaButton>
 
-              <section className="rounded-[24px] border border-cyan-400/20 bg-cyan-500/10 p-4 text-sm leading-6 text-cyan-100">
-                <div className="font-semibold text-white">Locked create rule</div>
-                <div className="mt-1">
-                  This page requires Bank Account create access. New records can be
-                  created as Active or Inactive only. Archived records are managed from
-                  the Bank Accounts archive modal.
-                </div>
-              </section>
-            </aside>
-          </form>
-        )}
-      </div>
-    </div>
+                    <AixiaButton
+                      type="button"
+                      variant="secondary"
+                      disabled={isSaving}
+                      onClick={handleReset}
+                    >
+                      <RotateCcw className="h-4 w-4" />
+                      Reset Form
+                    </AixiaButton>
+                  </AixiaActionStack>
+                </AixiaSection>
+
+                <AixiaAlert tone="info">
+                  <AixiaAlertText
+                    title="Locked create rule"
+                    description="This page requires Bank Account create access. New records can be created as Active or Inactive only. Archived records are managed from the Bank Accounts archive modal."
+                  />
+                </AixiaAlert>
+              </>
+            }
+          />
+        </form>
+      )}
+    </AixiaPage>
   );
 }

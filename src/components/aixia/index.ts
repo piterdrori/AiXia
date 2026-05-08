@@ -18,6 +18,11 @@ export { AixiaSmartGrid } from "./AixiaSmartGrid";
 export { AixiaSmartLayout } from "./AixiaSmartLayout";
 export { AixiaStatusBadge } from "./AixiaStatusBadge";
 export { AixiaStatusCard } from "./AixiaStatusCard";
+export { AixiaFeaturePanel } from "./AixiaFeaturePanel";
+export { AixiaSignalRow } from "./AixiaSignalRow";
+export { AixiaSideList, AixiaSideListRow } from "./AixiaSideList";
+export { AixiaValueBlock } from "./AixiaValueBlock";
+export { AixiaWorkspaceCard } from "./AixiaWorkspaceCard";
 export { AixiaSortableHeader, AixiaTableShell } from "./AixiaTable";
 export {
   AixiaTableActionsCell,

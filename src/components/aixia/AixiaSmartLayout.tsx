@@ -163,13 +163,6 @@ export function AixiaSmartLayout({
     return flattenLayoutChildren(side);
   }, [side]);
 
-  const useBottomSpan = shouldUseBottomSpan(
-    normalizedMainChildren,
-    normalizedSideChildren,
-    bottomSpan,
-    mainTopCount
-  );
-
   const useSideRebalance = shouldRebalanceSide(
     normalizedSideChildren,
     sideRebalance

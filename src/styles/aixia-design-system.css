@@ -2391,3 +2391,57 @@
 .aixia-status-card-description {
   margin-top: 1rem !important;
 }
+
+/* -------------------------------------------------------
+   LOCKED SMART LAYOUT GAP-FILL STANDARD
+   Core rule: two-column layouts must organize themselves
+   without dead vertical holes. Pages must not patch this.
+------------------------------------------------------- */
+
+@media (min-width: 1280px) {
+  .aixia-smart-layout[data-match-columns="true"] {
+    align-items: stretch !important;
+  }
+
+  .aixia-smart-layout[data-match-columns="true"] > .aixia-smart-main,
+  .aixia-smart-layout[data-match-columns="true"] > .aixia-smart-side {
+    height: auto !important;
+    align-self: stretch !important;
+  }
+
+  .aixia-smart-layout[data-match-columns="true"] > .aixia-smart-main > *,
+  .aixia-smart-layout[data-match-columns="true"] > .aixia-smart-side > * {
+    transition:
+      min-height 220ms ease,
+      height 220ms ease,
+      border-color 300ms ease,
+      background-color 300ms ease,
+      box-shadow 300ms ease;
+  }
+
+  .aixia-smart-layout[data-match-columns="true"] > .aixia-smart-main > [data-smart-row-matched="true"],
+  .aixia-smart-layout[data-match-columns="true"] > .aixia-smart-side > [data-smart-row-matched="true"] {
+    min-height: var(--aixia-smart-auto-min-height) !important;
+  }
+
+  .aixia-smart-layout[data-match-columns="true"] > .aixia-smart-main > [data-smart-auto-fill="true"],
+  .aixia-smart-layout[data-match-columns="true"] > .aixia-smart-side > [data-smart-auto-fill="true"] {
+    min-height: calc(
+      var(--aixia-smart-auto-min-height, 0px) +
+      var(--aixia-smart-auto-extra-height, 0px)
+    ) !important;
+  }
+
+  .aixia-smart-layout[data-match-columns="true"] > .aixia-smart-main > [data-smart-auto-fill="true"].aixia-section,
+  .aixia-smart-layout[data-match-columns="true"] > .aixia-smart-side > [data-smart-auto-fill="true"].aixia-section {
+    display: flex !important;
+    flex-direction: column !important;
+  }
+
+  .aixia-smart-layout[data-match-columns="true"] > .aixia-smart-main > [data-smart-auto-fill="true"].aixia-section > .aixia-section-smart-scroll-body,
+  .aixia-smart-layout[data-match-columns="true"] > .aixia-smart-side > [data-smart-auto-fill="true"].aixia-section > .aixia-section-smart-scroll-body,
+  .aixia-smart-layout[data-match-columns="true"] > .aixia-smart-main > [data-smart-auto-fill="true"].aixia-section > .p-6,
+  .aixia-smart-layout[data-match-columns="true"] > .aixia-smart-side > [data-smart-auto-fill="true"].aixia-section > .p-6 {
+    flex: 1 1 auto !important;
+  }
+}

@@ -505,6 +505,76 @@
 }
 
 /* -------------------------------------------------------
+   EMPTY STATES / ALERTS / STANDARD PAGE FEEDBACK
+------------------------------------------------------- */
+
+.aixia-empty-state {
+  border-radius: 1.75rem;
+  border: 1px dashed rgba(255, 255, 255, 0.1);
+  background: rgba(0, 0, 0, 0.2);
+  padding: 3rem 1.5rem;
+  text-align: center;
+}
+
+.aixia-empty-state-icon {
+  margin-left: auto;
+  margin-right: auto;
+  display: flex;
+  height: 3.5rem;
+  width: 3.5rem;
+  align-items: center;
+  justify-content: center;
+  border-radius: 1rem;
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  background: rgba(255, 255, 255, 0.04);
+  color: rgb(100, 116, 139);
+}
+
+.aixia-empty-state-title {
+  margin-top: 1rem;
+  font-size: 0.875rem;
+  font-weight: 800;
+  color: white;
+}
+
+.aixia-empty-state-description {
+  margin: 0.5rem auto 0;
+  max-width: 36rem;
+  font-size: 0.875rem;
+  line-height: 1.6;
+  color: rgb(100, 116, 139);
+}
+
+.aixia-alert {
+  display: flex;
+  align-items: flex-start;
+  gap: 0.75rem;
+  border-radius: 1.5rem;
+  border-width: 1px;
+  padding: 1rem;
+  font-size: 0.875rem;
+  line-height: 1.6;
+}
+
+.aixia-alert-success {
+  border-color: rgba(52, 211, 153, 0.2);
+  background: rgba(16, 185, 129, 0.1);
+  color: rgb(209, 250, 229);
+}
+
+.aixia-alert-error {
+  border-color: rgba(251, 113, 133, 0.2);
+  background: rgba(244, 63, 94, 0.1);
+  color: rgb(255, 228, 230);
+}
+
+.aixia-alert-info {
+  border-color: rgba(34, 211, 238, 0.2);
+  background: rgba(6, 182, 212, 0.1);
+  color: rgb(207, 250, 254);
+}
+
+/* -------------------------------------------------------
    SMART PAGE LAYOUT
 ------------------------------------------------------- */
 

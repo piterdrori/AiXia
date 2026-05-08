@@ -1,12 +1,32 @@
 import type { ReactNode } from "react";
+import type { LucideIcon } from "lucide-react";
 import { ArrowLeft } from "lucide-react";
 import { useNavigate } from "react-router-dom";
 
 import { AixiaBadge } from "./AixiaBadge";
+import { AixiaStatusCard } from "./AixiaStatusCard";
+
+type AixiaHeroTone =
+  | "indigo"
+  | "violet"
+  | "gold"
+  | "amber"
+  | "emerald"
+  | "cyan"
+  | "rose"
+  | "neutral";
 
 type AixiaHeroBadge = {
   label: ReactNode;
-  tone?: "indigo" | "violet" | "gold" | "amber" | "emerald" | "cyan" | "rose" | "neutral";
+  tone?: AixiaHeroTone;
+};
+
+type AixiaHeroStatusCard = {
+  label: string;
+  value: ReactNode;
+  description?: ReactNode;
+  icon: LucideIcon;
+  tone?: AixiaHeroTone;
 };
 
 type AixiaHeroProps = {
@@ -17,8 +37,16 @@ type AixiaHeroProps = {
   title: string;
   subtitle?: string;
   description?: string;
+  statusCards?: AixiaHeroStatusCard[];
   actions?: ReactNode;
+
+  /**
+   * Legacy escape hatch only.
+   * Do not use on newly standardized AiXia pages.
+   * Use statusCards instead so the hero owns the layout.
+   */
   rightContent?: ReactNode;
+
   children?: ReactNode;
   className?: string;
 };
@@ -31,12 +59,15 @@ export function AixiaHero({
   title,
   subtitle,
   description,
+  statusCards = [],
   actions,
   rightContent,
   children,
   className = "",
 }: AixiaHeroProps) {
   const navigate = useNavigate();
+  const hasStatusCards = statusCards.length > 0;
+  const hasSide = hasStatusCards || Boolean(rightContent);
 
   return (
     <section className={`aixia-hero aixia-glass-hover ${className}`}>
@@ -70,10 +101,7 @@ export function AixiaHero({
           ) : null}
         </div>
 
-        <div
-          className="aixia-hero-main"
-          data-has-side={rightContent ? "true" : "false"}
-        >
+        <div className="aixia-hero-main" data-has-side={hasSide ? "true" : "false"}>
           <div className="aixia-hero-text">
             <div className="aixia-hero-title-wrap">
               <h1 className="aixia-title-xl">
@@ -89,9 +117,22 @@ export function AixiaHero({
             {children ? <div className="aixia-hero-children">{children}</div> : null}
           </div>
 
-          {rightContent ? (
+          {hasSide ? (
             <div className="aixia-hero-side">
-              <div className="aixia-hero-status-grid">{rightContent}</div>
+              <div className="aixia-hero-status-grid">
+                {hasStatusCards
+                  ? statusCards.map((card) => (
+                      <AixiaStatusCard
+                        key={card.label}
+                        label={card.label}
+                        value={card.value}
+                        description={card.description}
+                        icon={card.icon}
+                        tone={card.tone}
+                      />
+                    ))
+                  : rightContent}
+              </div>
             </div>
           ) : null}
         </div>

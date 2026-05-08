@@ -6,7 +6,7 @@ import { AixiaBadge } from "./AixiaBadge";
 
 type AixiaHeroBadge = {
   label: ReactNode;
-  tone?: "indigo" | "violet" | "gold" | "emerald" | "rose" | "neutral";
+  tone?: "indigo" | "violet" | "gold" | "amber" | "emerald" | "cyan" | "rose" | "neutral";
 };
 
 type AixiaHeroProps = {

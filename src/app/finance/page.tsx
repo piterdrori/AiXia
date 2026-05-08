@@ -250,6 +250,8 @@ type CountResult = {
   count?: number | null;
 };
 
+type SafeQueryMode = "initial" | "silent";
+
 const EMPTY_DASHBOARD_DATA: DashboardData = {
   counts: {
     bankAccounts: 0,
@@ -536,14 +538,31 @@ function buildAccessFlags(profile: CurrentUserProfile | null): AccessFlags {
   };
 }
 
-async function safeCount(tableName: string): Promise<CountResult> {
+async function safeCount(
+  tableName: string,
+  mode: SafeQueryMode = "initial"
+): Promise<CountResult> {
   try {
     const result = await supabase
       .from(tableName)
       .select("id", { count: "exact", head: true });
 
+    if (result.error) {
+      if (mode === "silent") {
+        throw result.error;
+      }
+
+      console.warn(`Finance page count skipped for ${tableName}:`, result.error.message);
+      return { count: 0 };
+    }
+
     return { count: result.count ?? 0 };
-  } catch {
+  } catch (error) {
+    if (mode === "silent") {
+      throw error;
+    }
+
+    console.warn(`Finance page count failed for ${tableName}:`, error);
     return { count: 0 };
   }
 }
@@ -555,8 +574,11 @@ async function safeSelect<T>(
     orderColumn?: string;
     ascending?: boolean;
     limit?: number;
+    mode?: SafeQueryMode;
   }
 ): Promise<T[]> {
+  const mode = options?.mode ?? "initial";
+
   try {
     let query = supabase.from(tableName).select(selectQuery);
 
@@ -573,12 +595,20 @@ async function safeSelect<T>(
     const result = await query;
 
     if (result.error) {
+      if (mode === "silent") {
+        throw result.error;
+      }
+
       console.warn(`Finance page query skipped for ${tableName}:`, result.error.message);
       return [];
     }
 
     return (result.data || []) as T[];
   } catch (error) {
+    if (mode === "silent") {
+      throw error;
+    }
+
     console.warn(`Finance page query failed for ${tableName}:`, error);
     return [];
   }
@@ -618,7 +648,14 @@ export default function FinancePage() {
       const authUserId = authResult.data.user?.id;
 
       if (!authUserId) {
-        setCurrentProfile(null);
+        if (mode === "initial") {
+          setCurrentProfile(null);
+        } else {
+          console.warn(
+            "Silent finance profile refresh skipped because no authenticated user was returned."
+          );
+        }
+
         return;
       }
 
@@ -630,7 +667,15 @@ export default function FinancePage() {
 
       if (profileResult.error) throw profileResult.error;
 
-      setCurrentProfile((profileResult.data || null) as CurrentUserProfile | null);
+      if (profileResult.data) {
+        setCurrentProfile(profileResult.data as CurrentUserProfile);
+      } else if (mode === "initial") {
+        setCurrentProfile(null);
+      } else {
+        console.warn(
+          "Silent finance profile refresh returned no profile; keeping current profile."
+        );
+      }
     } catch (error) {
       console.error("Failed to load finance profile permissions:", error);
 
@@ -667,44 +712,45 @@ export default function FinancePage() {
       ] = await Promise.all([
         safeSelect<FinanceBankAccountRow>(
           "finance_bank_accounts",
-          "id, name, currency_code, opening_balance, status, is_default"
+          "id, name, currency_code, opening_balance, status, is_default",
+          { mode }
         ),
         safeSelect<FinanceInvoiceRow>(
           "finance_invoices_issued",
           "id, invoice_number, status, total_amount, balance_due, due_date, created_at",
-          { orderColumn: "created_at", ascending: false, limit: 50 }
+          { orderColumn: "created_at", ascending: false, limit: 50, mode }
         ),
         safeSelect<FinanceBillRow>(
           "finance_bills_received",
           "id, bill_number, status, total_amount, balance_due, due_date, created_at",
-          { orderColumn: "created_at", ascending: false, limit: 50 }
+          { orderColumn: "created_at", ascending: false, limit: 50, mode }
         ),
         safeSelect<FinanceExpenseRow>(
           "finance_expenses",
           "id, expense_number, title, amount, status, approval_status, payment_status, created_at",
-          { orderColumn: "created_at", ascending: false, limit: 50 }
+          { orderColumn: "created_at", ascending: false, limit: 50, mode }
         ),
         safeSelect<FinancePaymentMadeRow>(
           "finance_payments_made",
           "id, amount, payment_date, created_at",
-          { orderColumn: "payment_date", ascending: false, limit: 50 }
+          { orderColumn: "payment_date", ascending: false, limit: 50, mode }
         ),
         safeSelect<FinancePaymentReceivedRow>(
           "finance_payments_received",
           "id, amount, payment_date, created_at",
-          { orderColumn: "payment_date", ascending: false, limit: 50 }
+          { orderColumn: "payment_date", ascending: false, limit: 50, mode }
         ),
         safeSelect<FinancePayrollRunRow>(
           "finance_payroll_runs",
           "id, run_number, status, total_net, created_at",
-          { orderColumn: "created_at", ascending: false, limit: 50 }
+          { orderColumn: "created_at", ascending: false, limit: 50, mode }
         ),
         safeSelect<AccessApprovalUserRow>(
           "profiles",
           "user_id, full_name, role, status, created_at, updated_at",
-          { orderColumn: "updated_at", ascending: false, limit: 50 }
+          { orderColumn: "updated_at", ascending: false, limit: 50, mode }
         ),
-        safeCount("finance_paycheck_requests"),
+        safeCount("finance_paycheck_requests", mode),
       ]);
 
       const activeBankAccounts = bankAccounts.filter(
@@ -889,6 +935,11 @@ export default function FinancePage() {
         () => {
           void Promise.all([loadCurrentProfile("silent"), loadDashboard("silent")]);
         }
+      )
+      .on(
+        "postgres_changes",
+        { event: "*", schema: "public", table: "finance_bank_accounts" },
+        () => void loadDashboard("silent")
       )
       .on(
         "postgres_changes",

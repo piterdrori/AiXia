@@ -1,18 +1,10 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
-import type {
-  FormEvent,
-  InputHTMLAttributes,
-  ReactNode,
-  SelectHTMLAttributes,
-  TextareaHTMLAttributes,
-} from "react";
+import type { FormEvent } from "react";
 import { useNavigate } from "react-router-dom";
 import type { LucideIcon } from "lucide-react";
 import {
-  AlertTriangle,
   ArrowRight,
   Building2,
-  CheckCircle2,
   FileText,
   Globe,
   Landmark,
@@ -24,11 +16,34 @@ import {
   Save,
   ShieldCheck,
   Sparkles,
-  Trash2,
   Truck,
   Users,
 } from "lucide-react";
 
+import {
+  AixiaAccessDeniedState,
+  AixiaActionStack,
+  AixiaAlert,
+  AixiaAlertText,
+  AixiaButton,
+  AixiaCheckboxField,
+  AixiaDisplayBlock,
+  AixiaFieldLabel,
+  AixiaFormField,
+  AixiaFormFullWidth,
+  AixiaFormGrid,
+  AixiaFormRowCard,
+  AixiaHero,
+  AixiaInputField,
+  AixiaLoadingState,
+  AixiaPage,
+  AixiaReviewBlock,
+  AixiaReviewGrid,
+  AixiaSection,
+  AixiaSelectField,
+  AixiaSmartLayout,
+  AixiaTextareaField,
+} from "@/components/aixia";
 import { createCompany } from "@/lib/finance/companies";
 import {
   getEffectivePermissions,
@@ -36,6 +51,8 @@ import {
   type Role,
 } from "@/lib/permissions";
 import { supabase } from "@/lib/supabase";
+
+type LoadMode = "initial" | "silent";
 
 type ProfilePermissionRow = {
   user_id: string;
@@ -102,7 +119,7 @@ type PermissionState = {
 type HeaderStatusCardData = {
   label: string;
   value: string;
-  detail: string;
+  description: string;
   icon: LucideIcon;
   tone: "emerald" | "cyan" | "amber" | "rose";
 };
@@ -110,9 +127,7 @@ type HeaderStatusCardData = {
 type SummaryItem = {
   label: string;
   value: string;
-  detail: string;
-  icon: LucideIcon;
-  tone: "cyan" | "emerald" | "amber" | "violet" | "rose";
+  description: string;
 };
 
 type CurrencyOption = {
@@ -219,7 +234,8 @@ function buildPermissionState(
 }
 
 async function loadBackendEffectivePermissions(
-  userId: string
+  userId: string,
+  mode: LoadMode
 ): Promise<Partial<Record<Permission, boolean>> | null> {
   try {
     const result = await supabase.rpc("finance_get_effective_permissions", {
@@ -227,6 +243,10 @@ async function loadBackendEffectivePermissions(
     });
 
     if (result.error) {
+      if (mode === "silent") {
+        throw result.error;
+      }
+
       console.warn(
         "Create Company permission RPC fallback:",
         result.error.message
@@ -235,11 +255,21 @@ async function loadBackendEffectivePermissions(
     }
 
     if (!result.data || typeof result.data !== "object") {
+      if (mode === "silent") {
+        throw new Error(
+          "Silent create company permission refresh returned no effective permission payload."
+        );
+      }
+
       return null;
     }
 
     return result.data as Partial<Record<Permission, boolean>>;
   } catch (error) {
+    if (mode === "silent") {
+      throw error;
+    }
+
     console.warn("Create Company permission RPC failed:", error);
     return null;
   }
@@ -284,308 +314,25 @@ function countFilledShippingRows(rows: ShippingRow[]) {
   ).length;
 }
 
-function getToneClasses(tone: SummaryItem["tone"]) {
-  switch (tone) {
-    case "emerald":
-      return {
-        card: "border-emerald-400/20 bg-emerald-500/10",
-        icon: "border-emerald-400/20 bg-emerald-500/10 text-emerald-200",
-        value: "text-emerald-100",
-      };
-    case "amber":
-      return {
-        card: "border-amber-400/20 bg-amber-500/10",
-        icon: "border-amber-400/20 bg-amber-500/10 text-amber-200",
-        value: "text-amber-100",
-      };
-    case "violet":
-      return {
-        card: "border-violet-400/20 bg-violet-500/10",
-        icon: "border-violet-400/20 bg-violet-500/10 text-violet-200",
-        value: "text-violet-100",
-      };
-    case "rose":
-      return {
-        card: "border-rose-400/20 bg-rose-500/10",
-        icon: "border-rose-400/20 bg-rose-500/10 text-rose-200",
-        value: "text-rose-100",
-      };
-    case "cyan":
-    default:
-      return {
-        card: "border-cyan-400/20 bg-cyan-500/10",
-        icon: "border-cyan-400/20 bg-cyan-500/10 text-cyan-200",
-        value: "text-cyan-100",
-      };
-  }
+function getCurrencyOptionLabel(currency: CurrencyOption) {
+  return `${currency.currency_code} — ${currency.currency_name}${
+    currency.currency_symbol ? ` (${currency.currency_symbol})` : ""
+  }${currency.is_base_currency ? " • Base" : ""}`;
 }
 
-function HeaderStatusCard({ item }: { item: HeaderStatusCardData }) {
-  const Icon = item.icon;
+function getSelectedCurrencyLabel(
+  currencyCode: string,
+  currencyOptions: CurrencyOption[]
+) {
+  if (!currencyCode) return "—";
 
-  const toneClasses = {
-    emerald: "border-emerald-400/20 bg-emerald-500/10 text-emerald-200",
-    cyan: "border-cyan-400/20 bg-cyan-500/10 text-cyan-200",
-    amber: "border-amber-400/20 bg-amber-500/10 text-amber-200",
-    rose: "border-rose-400/20 bg-rose-500/10 text-rose-200",
-  }[item.tone];
-
-  return (
-    <div className="min-h-[148px] rounded-[24px] border border-white/10 bg-black/20 p-4">
-      <div className="flex items-start justify-between gap-3">
-        <div className="min-w-0">
-          <div className="text-[11px] font-semibold uppercase tracking-[0.2em] text-slate-500">
-            {item.label}
-          </div>
-          <div className="mt-2 text-xl font-semibold leading-tight tracking-[-0.035em] text-white">
-            {item.value}
-          </div>
-        </div>
-
-        <div
-          className={`flex h-10 w-10 shrink-0 items-center justify-center rounded-2xl border ${toneClasses}`}
-        >
-          <Icon className="h-4 w-4" />
-        </div>
-      </div>
-
-      <div className="mt-3 text-xs leading-5 text-slate-500">{item.detail}</div>
-    </div>
+  const selectedCurrency = currencyOptions.find(
+    (currency) => currency.currency_code === currencyCode
   );
-}
 
-function SummaryCard({ item }: { item: SummaryItem }) {
-  const Icon = item.icon;
-  const tone = getToneClasses(item.tone);
+  if (!selectedCurrency) return currencyCode;
 
-  return (
-    <div className={`rounded-[24px] border bg-black/20 p-4 ${tone.card}`}>
-      <div className="flex items-start justify-between gap-3">
-        <div className="min-w-0">
-          <div className="text-[11px] font-semibold uppercase tracking-[0.2em] text-slate-500">
-            {item.label}
-          </div>
-          <div className={`mt-2 text-lg font-semibold leading-6 ${tone.value}`}>
-            {item.value}
-          </div>
-        </div>
-
-        <div
-          className={`flex h-10 w-10 shrink-0 items-center justify-center rounded-2xl border ${tone.icon}`}
-        >
-          <Icon className="h-4 w-4" />
-        </div>
-      </div>
-
-      <div className="mt-3 text-xs leading-5 text-slate-500">{item.detail}</div>
-    </div>
-  );
-}
-
-function FieldLabel({
-  label,
-  required = false,
-}: {
-  label: string;
-  required?: boolean;
-}) {
-  return (
-    <label className="mb-2 block text-sm font-medium text-slate-300">
-      {label}
-      {required ? <span className="ml-1 text-rose-300">*</span> : null}
-    </label>
-  );
-}
-
-function InputField({
-  className,
-  ...props
-}: InputHTMLAttributes<HTMLInputElement>) {
-  return (
-    <input
-      {...props}
-      className={`h-11 w-full rounded-2xl border border-white/10 bg-black/20 px-4 text-sm text-white outline-none transition placeholder:text-slate-600 focus:border-cyan-400/30 focus:bg-black/30 disabled:cursor-not-allowed disabled:opacity-60 ${
-        className || ""
-      }`}
-    />
-  );
-}
-
-function SelectField({
-  className,
-  children,
-  ...props
-}: SelectHTMLAttributes<HTMLSelectElement> & {
-  children: ReactNode;
-}) {
-  return (
-    <select
-      {...props}
-      className={`h-11 w-full rounded-2xl border border-white/10 bg-black/20 px-4 text-sm text-white outline-none transition focus:border-cyan-400/30 focus:bg-black/30 disabled:cursor-not-allowed disabled:opacity-60 ${
-        className || ""
-      }`}
-    >
-      {children}
-    </select>
-  );
-}
-
-function TextareaField({
-  className,
-  ...props
-}: TextareaHTMLAttributes<HTMLTextAreaElement>) {
-  return (
-    <textarea
-      {...props}
-      className={`min-h-[132px] w-full rounded-2xl border border-white/10 bg-black/20 px-4 py-3 text-sm text-white outline-none transition placeholder:text-slate-600 focus:border-cyan-400/30 focus:bg-black/30 disabled:cursor-not-allowed disabled:opacity-60 ${
-        className || ""
-      }`}
-    />
-  );
-}
-
-function FormSection({
-  title,
-  description,
-  icon: Icon,
-  actions,
-  children,
-}: {
-  title: string;
-  description: string;
-  icon: LucideIcon;
-  actions?: ReactNode;
-  children: ReactNode;
-}) {
-  return (
-    <section className="overflow-hidden rounded-[30px] border border-white/10 bg-white/[0.045] backdrop-blur-xl">
-      <div className="flex flex-col gap-4 border-b border-white/10 px-5 py-4 lg:flex-row lg:items-start lg:justify-between">
-        <div className="flex min-w-0 items-start gap-3">
-          <div className="rounded-2xl border border-cyan-400/15 bg-cyan-500/10 p-3 text-cyan-200">
-            <Icon className="h-4 w-4" />
-          </div>
-
-          <div className="min-w-0">
-            <h2 className="text-sm font-semibold uppercase tracking-[0.18em] text-slate-400">
-              {title}
-            </h2>
-            <p className="mt-1 text-xs leading-5 text-slate-500">{description}</p>
-          </div>
-        </div>
-
-        {actions ? <div className="shrink-0">{actions}</div> : null}
-      </div>
-
-      <div className="p-5">{children}</div>
-    </section>
-  );
-}
-
-function RowCard({
-  title,
-  description,
-  onRemove,
-  removeDisabled = false,
-  children,
-}: {
-  title: string;
-  description?: string;
-  onRemove?: () => void;
-  removeDisabled?: boolean;
-  children: ReactNode;
-}) {
-  return (
-    <div className="rounded-[24px] border border-white/10 bg-black/20 p-4">
-      <div className="mb-4 flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
-        <div className="min-w-0">
-          <div className="text-sm font-semibold text-white">{title}</div>
-          {description ? (
-            <div className="mt-1 text-xs leading-5 text-slate-500">
-              {description}
-            </div>
-          ) : null}
-        </div>
-
-        {onRemove ? (
-          <button
-            type="button"
-            onClick={onRemove}
-            disabled={removeDisabled}
-            className="inline-flex h-10 shrink-0 items-center justify-center gap-2 rounded-2xl border border-rose-400/20 bg-rose-500/10 px-3 text-xs font-semibold uppercase tracking-[0.14em] text-rose-100 transition hover:bg-rose-500/15 disabled:cursor-not-allowed disabled:opacity-50"
-          >
-            <Trash2 className="h-3.5 w-3.5" />
-            Remove
-          </button>
-        ) : null}
-      </div>
-
-      {children}
-    </div>
-  );
-}
-
-function AddRowButton({
-  label,
-  onClick,
-  disabled,
-}: {
-  label: string;
-  onClick: () => void;
-  disabled?: boolean;
-}) {
-  return (
-    <button
-      type="button"
-      onClick={onClick}
-      disabled={disabled}
-      className="inline-flex h-10 items-center justify-center gap-2 rounded-2xl border border-cyan-400/20 bg-cyan-500/10 px-4 text-xs font-semibold uppercase tracking-[0.14em] text-cyan-100 transition hover:bg-cyan-500/15 disabled:cursor-not-allowed disabled:opacity-60"
-    >
-      <Plus className="h-3.5 w-3.5" />
-      {label}
-    </button>
-  );
-}
-
-function EmptyLockedState() {
-  return (
-    <section className="overflow-hidden rounded-[30px] border border-rose-400/20 bg-rose-500/10 backdrop-blur-xl">
-      <div className="p-8 text-center">
-        <div className="mx-auto flex h-14 w-14 items-center justify-center rounded-2xl border border-rose-400/20 bg-rose-500/10 text-rose-200">
-          <LockKeyhole className="h-6 w-6" />
-        </div>
-
-        <div className="mt-4 text-lg font-semibold text-white">
-          Create access is not enabled
-        </div>
-
-        <p className="mx-auto mt-2 max-w-2xl text-sm leading-6 text-rose-100">
-          This page requires Company create access or Master Data admin access.
-          Ask an Admin to update this user’s Finance role template or user-specific
-          exception before creating internal company records.
-        </p>
-      </div>
-    </section>
-  );
-}
-
-function ReadOnlyBlock({
-  label,
-  value,
-  detail,
-}: {
-  label: string;
-  value: string;
-  detail?: string;
-}) {
-  return (
-    <div className="rounded-2xl border border-white/10 bg-black/20 px-4 py-3">
-      <div className="text-[11px] font-semibold uppercase tracking-[0.18em] text-slate-500">
-        {label}
-      </div>
-      <div className="mt-2 text-sm font-semibold text-white">{value}</div>
-      {detail ? <div className="mt-1 text-xs leading-5 text-slate-500">{detail}</div> : null}
-    </div>
-  );
+  return `${selectedCurrency.currency_code} • ${selectedCurrency.currency_name}`;
 }
 
 export default function FinanceMasterDataCompanyCreatePage() {
@@ -597,69 +344,106 @@ export default function FinanceMasterDataCompanyCreatePage() {
     useState<Record<Permission, boolean> | null>(null);
   const [currencyOptions, setCurrencyOptions] = useState<CurrencyOption[]>([]);
   const [isLoadingProfile, setIsLoadingProfile] = useState(true);
+  const [isLoadingCurrencies, setIsLoadingCurrencies] = useState(true);
+  const [backgroundRefreshing, setBackgroundRefreshing] = useState(false);
   const [isSaving, setIsSaving] = useState(false);
   const [formError, setFormError] = useState<string | null>(null);
   const [formMessage, setFormMessage] = useState<string | null>(null);
 
-  const loadCurrentProfile = useCallback(
-    async (mode: "initial" | "silent" = "initial") => {
+  const loadCurrentProfile = useCallback(async (mode: LoadMode = "initial") => {
+    if (mode === "initial") {
+      setIsLoadingProfile(true);
+    } else {
+      setBackgroundRefreshing(true);
+    }
+
+    try {
+      const authResult = await supabase.auth.getUser();
+      if (authResult.error) throw authResult.error;
+
+      const authUserId = authResult.data.user?.id;
+
+      if (!authUserId) {
+        if (mode === "initial") {
+          setProfile(null);
+          setEffectivePermissions(null);
+        } else {
+          console.warn(
+            "Silent create company profile refresh returned no auth user; keeping current profile and permissions."
+          );
+        }
+
+        return;
+      }
+
+      const profileResult = await supabase
+        .from("profiles")
+        .select("user_id, full_name, role, permissions")
+        .eq("user_id", authUserId)
+        .maybeSingle();
+
+      if (profileResult.error) throw profileResult.error;
+
+      const loadedProfile = (profileResult.data || null) as ProfilePermissionRow | null;
+
+      if (!loadedProfile) {
+        if (mode === "initial") {
+          setProfile(null);
+          setEffectivePermissions(null);
+        } else {
+          console.warn(
+            "Silent create company profile refresh returned no profile; keeping current profile and permissions."
+          );
+        }
+
+        return;
+      }
+
+      const backendPermissions = await loadBackendEffectivePermissions(authUserId, mode);
+
+      setProfile(loadedProfile);
+
+      if (!loadedProfile.role) {
+        if (mode === "initial") {
+          setEffectivePermissions(null);
+        } else {
+          console.warn(
+            "Silent create company profile refresh returned no role; keeping current permissions."
+          );
+        }
+
+        return;
+      }
+
+      const resolvedPermissions = getEffectivePermissions(
+        loadedProfile.role,
+        backendPermissions || loadedProfile.permissions || null
+      );
+
+      setEffectivePermissions(resolvedPermissions);
+    } catch (error) {
+      console.error("Failed to load create company permissions:", error);
+
       if (mode === "initial") {
-        setIsLoadingProfile(true);
+        setProfile(null);
+        setEffectivePermissions(null);
       }
-
-      try {
-        const authResult = await supabase.auth.getUser();
-        if (authResult.error) throw authResult.error;
-
-        const authUserId = authResult.data.user?.id;
-
-        if (!authUserId) {
-          setProfile(null);
-          setEffectivePermissions(null);
-          return;
-        }
-
-        const profileResult = await supabase
-          .from("profiles")
-          .select("user_id, full_name, role, permissions")
-          .eq("user_id", authUserId)
-          .maybeSingle();
-
-        if (profileResult.error) throw profileResult.error;
-
-        const loadedProfile = (profileResult.data || null) as ProfilePermissionRow | null;
-        const backendPermissions = await loadBackendEffectivePermissions(authUserId);
-
-        setProfile(loadedProfile);
-
-        if (!loadedProfile?.role) {
-          setEffectivePermissions(null);
-          return;
-        }
-
-        const resolvedPermissions = getEffectivePermissions(
-          loadedProfile.role,
-          backendPermissions || loadedProfile.permissions || null
-        );
-
-        setEffectivePermissions(resolvedPermissions);
-      } catch (error) {
-        console.error("Failed to load create company permissions:", error);
-
-        if (mode === "initial") {
-          setProfile(null);
-          setEffectivePermissions(null);
-        }
-      } finally {
-        if (mode === "initial") {
-          setIsLoadingProfile(false);
-        }
+    } finally {
+      if (mode === "initial") {
+        setIsLoadingProfile(false);
+      } else {
+        setBackgroundRefreshing(false);
       }
-    },
-    []
-  );
+    }
+  }, []);
 
-  const loadCurrencyOptions = useCallback(async () => {
+  const loadCurrencyOptions = useCallback(async (mode: LoadMode = "initial") => {
+    if (mode === "initial") {
+      setIsLoadingCurrencies(true);
+    } else {
+      setBackgroundRefreshing(true);
+    }
+
     try {
       const { data, error } = await supabase
         .from("finance_currencies")
@@ -680,6 +464,7 @@ export default function FinanceMasterDataCompanyCreatePage() {
       if (error) throw error;
 
       const loadedCurrencies = (data ?? []) as CurrencyOption[];
+
       setCurrencyOptions(loadedCurrencies);
 
       setForm((previousForm) => {
@@ -698,14 +483,23 @@ export default function FinanceMasterDataCompanyCreatePage() {
       });
     } catch (error) {
       console.error("Failed to load currency master data:", error);
-      setCurrencyOptions([]);
+
+      if (mode === "initial") {
+        setCurrencyOptions([]);
+      }
+    } finally {
+      if (mode === "initial") {
+        setIsLoadingCurrencies(false);
+      } else {
+        setBackgroundRefreshing(false);
+      }
     }
   }, []);
 
   useEffect(() => {
     void Promise.all([
       loadCurrentProfile("initial"),
-      loadCurrencyOptions(),
+      loadCurrencyOptions("initial"),
     ]);
   }, [loadCurrencyOptions, loadCurrentProfile]);
 
@@ -730,20 +524,20 @@ export default function FinanceMasterDataCompanyCreatePage() {
       .on(
         "postgres_changes",
         { event: "*", schema: "public", table: "finance_currencies" },
-        () => void loadCurrencyOptions()
+        () => void loadCurrencyOptions("silent")
       )
       .subscribe();
 
     const intervalId = window.setInterval(() => {
       void Promise.all([
         loadCurrentProfile("silent"),
-        loadCurrencyOptions(),
+        loadCurrencyOptions("silent"),
       ]);
     }, 60000);
 
     return () => {
       window.clearInterval(intervalId);
-      supabase.removeChannel(channel);
+      void supabase.removeChannel(channel);
     };
   }, [loadCurrencyOptions, loadCurrentProfile]);
 
@@ -763,10 +557,6 @@ export default function FinanceMasterDataCompanyCreatePage() {
     }));
   }, [form.addresses]);
 
-  const currencySelectOptions = useMemo(() => {
-    return currencyOptions;
-  }, [currencyOptions]);
-
   const headerStatusCards = useMemo<HeaderStatusCardData[]>(() => {
     return [
       {
@@ -776,21 +566,35 @@ export default function FinanceMasterDataCompanyCreatePage() {
           : permissionState.canCreate
             ? "Enabled"
             : "Locked",
-        detail:
+        description:
           "Company create access follows the Finance role template and user-specific exceptions.",
         icon: permissionState.canCreate ? ShieldCheck : LockKeyhole,
         tone: permissionState.canCreate ? "emerald" : "rose",
       },
       {
-        label: "Save Result",
-        value: "ID Page",
-        detail:
-          "After successful creation, the new company detail page opens directly.",
-        icon: Landmark,
+        label: "Currency Source",
+        value: isLoadingCurrencies ? "Loading" : `${currencyOptions.length} Active`,
+        description: backgroundRefreshing
+          ? "Currency master data is refreshing silently without disturbing the form."
+          : "Company currency is selected from Finance Currency master data.",
+        icon: Globe,
         tone: "cyan",
       },
+      {
+        label: "Save Result",
+        value: "ID Page",
+        description: "After successful creation, the new company detail page opens directly.",
+        icon: Landmark,
+        tone: "amber",
+      },
     ];
-  }, [isLoadingProfile, permissionState.canCreate]);
+  }, [
+    backgroundRefreshing,
+    currencyOptions.length,
+    isLoadingCurrencies,
+    isLoadingProfile,
+    permissionState.canCreate,
+  ]);
 
   const summaryItems = useMemo<SummaryItem[]>(() => {
     const filledPersonnel = countFilledPersonnel(form.personnel);
@@ -801,30 +605,22 @@ export default function FinanceMasterDataCompanyCreatePage() {
       {
         label: "Legal Name",
         value: form.legal_name.trim() || "Required",
-        detail: form.display_name.trim() || "No display name yet",
-        icon: Building2,
-        tone: form.legal_name.trim() ? "emerald" : "amber",
+        description: form.display_name.trim() || "No display name yet",
       },
       {
         label: "Currency",
         value: form.currency_code || "—",
-        detail: "Default currency for this internal company record.",
-        icon: Globe,
-        tone: "cyan",
+        description: "Default currency for this internal company record.",
       },
       {
         label: "Personnel",
         value: `${filledPersonnel} Filled`,
-        detail: `${form.personnel.length} row${form.personnel.length === 1 ? "" : "s"} available`,
-        icon: Users,
-        tone: filledPersonnel > 0 ? "violet" : "amber",
+        description: `${form.personnel.length} row${form.personnel.length === 1 ? "" : "s"} available`,
       },
       {
         label: "Addresses",
         value: `${filledAddresses} Filled`,
-        detail: `${filledShipping} shipping row${filledShipping === 1 ? "" : "s"} ready`,
-        icon: MapPin,
-        tone: filledAddresses > 0 ? "emerald" : "rose",
+        description: `${filledShipping} shipping row${filledShipping === 1 ? "" : "s"} ready`,
       },
     ];
   }, [form]);
@@ -1038,6 +834,17 @@ export default function FinanceMasterDataCompanyCreatePage() {
     setForm(createEmptyForm());
     setFormError(null);
     setFormMessage(null);
+
+    const baseCurrency =
+      currencyOptions.find((currency) => currency.is_base_currency) ||
+      currencyOptions[0];
+
+    if (baseCurrency) {
+      setForm((previousForm) => ({
+        ...previousForm,
+        currency_code: baseCurrency.currency_code,
+      }));
+    }
   }
 
   async function handleSubmit(event: FormEvent<HTMLFormElement>) {
@@ -1227,754 +1034,694 @@ export default function FinanceMasterDataCompanyCreatePage() {
   const isPageLoading = isLoadingProfile;
 
   return (
-    <div className="min-h-screen bg-[#05070d] px-4 py-4 text-white md:px-6 md:py-6">
-      <div className="mx-auto flex w-full max-w-[1600px] flex-col gap-6">
-        <header className="relative overflow-hidden rounded-[34px] border border-white/10 bg-white/[0.045] p-6 shadow-2xl shadow-black/30 backdrop-blur-xl">
-          <div className="pointer-events-none absolute inset-0 bg-[radial-gradient(circle_at_top_left,rgba(6,182,212,0.16),transparent_38%),radial-gradient(circle_at_top_right,rgba(139,92,246,0.12),transparent_34%)]" />
+    <AixiaPage>
+      <AixiaHero
+        parentLabel="Companies"
+        parentPath="/finance/master-data/companies"
+        badges={[
+          { label: "New Internal Company", tone: "cyan" },
+          { label: "Company master data", tone: "emerald" },
+          { label: "Permission protected", tone: "cyan" },
+          { label: "Opens ID page after create", tone: "neutral" },
+        ]}
+        gradientTitle="Create"
+        title="Company"
+        subtitle="Internal Legal Entity Master Data"
+        description="Create an internal finance company with legal identity, default currency, registration details, personnel, primary addresses, shipping addresses, and internal notes."
+        statusCards={headerStatusCards}
+      />
 
-          <div className="relative grid gap-6 xl:grid-cols-[minmax(0,1fr)_520px] xl:items-end">
-            <div>
-              <button
-                type="button"
-                onClick={() => navigate("/finance/master-data/companies")}
-                className="mb-5 inline-flex items-center justify-center gap-2 rounded-full border border-white/10 bg-white/[0.05] px-5 py-2 text-[11px] font-semibold uppercase tracking-[0.22em] text-slate-300 transition hover:border-white/20 hover:bg-white/[0.08] hover:text-white"
-              >
-                <ArrowRight className="h-3.5 w-3.5 rotate-180" />
-                Companies
-              </button>
+      {formError ? <AixiaAlert tone="error">{formError}</AixiaAlert> : null}
+      {formMessage ? <AixiaAlert tone="success">{formMessage}</AixiaAlert> : null}
 
-              <div className="inline-flex w-fit items-center gap-2 rounded-full border border-cyan-400/20 bg-cyan-500/10 px-3 py-1 text-[11px] font-semibold uppercase tracking-[0.22em] text-cyan-200">
-                <Sparkles className="h-3.5 w-3.5" />
-                New Internal Company
-              </div>
+      {isPageLoading ? (
+        <AixiaLoadingState
+          fullPage={false}
+          title="Loading create page"
+          description="Permission state is being checked."
+        />
+      ) : !permissionState.canCreate ? (
+        <AixiaAccessDeniedState
+          title="Create access is not enabled"
+          description="This page requires Company create access or Master Data admin access. Ask an Admin to update this user’s Finance role template or user-specific exception before creating internal company records."
+        />
+      ) : (
+        <form id="company-create-form" onSubmit={handleSubmit}>
+          <AixiaSmartLayout
+            sidebar="normal"
+            balance="main"
+            bottomSpan="never"
+            sideRebalance="last-to-bottom"
+            mainTopCount={3}
+            main={
+              <>
+                <AixiaSection
+                  title="Basic Company Identity"
+                  description="Legal name, display name, contact details, and lifecycle."
+                  icon={Building2}
+                >
+                  <AixiaFormGrid columns="two">
+                    <AixiaFormFullWidth>
+                      <AixiaFieldLabel label="Legal Name" required />
+                      <AixiaInputField
+                        value={form.legal_name}
+                        disabled={isSaving}
+                        onChange={(event) =>
+                          updateForm("legal_name", event.target.value)
+                        }
+                        placeholder="Legal company name"
+                      />
+                    </AixiaFormFullWidth>
 
-              <h1 className="mt-4 text-3xl font-semibold tracking-[-0.035em] text-white md:text-5xl">
-                Create Company
-              </h1>
+                    <AixiaFormFullWidth>
+                      <AixiaFieldLabel label="Display Name" />
+                      <AixiaInputField
+                        value={form.display_name}
+                        disabled={isSaving}
+                        onChange={(event) =>
+                          updateForm("display_name", event.target.value)
+                        }
+                        placeholder="Optional short display name"
+                      />
+                    </AixiaFormFullWidth>
 
-              <p className="mt-3 max-w-4xl text-sm leading-6 text-slate-400 md:text-base md:leading-7">
-                Create an internal finance company with legal identity, default
-                currency, registration details, personnel, primary addresses,
-                shipping addresses, and internal notes.
-              </p>
+                    <AixiaFormField>
+                      <AixiaFieldLabel label="Contact Person" />
+                      <AixiaInputField
+                        value={form.contact_person}
+                        disabled={isSaving}
+                        onChange={(event) =>
+                          updateForm("contact_person", event.target.value)
+                        }
+                        placeholder="Primary contact"
+                      />
+                    </AixiaFormField>
 
-              <div className="mt-5 flex flex-wrap gap-2">
-                <span className="rounded-full border border-emerald-400/20 bg-emerald-500/10 px-3 py-1 text-[11px] font-semibold uppercase tracking-[0.16em] text-emerald-200">
-                  Internal company
-                </span>
-                <span className="rounded-full border border-cyan-400/20 bg-cyan-500/10 px-3 py-1 text-[11px] font-semibold uppercase tracking-[0.16em] text-cyan-200">
-                  Permission protected
-                </span>
-                <span className="rounded-full border border-slate-400/20 bg-slate-500/10 px-3 py-1 text-[11px] font-semibold uppercase tracking-[0.16em] text-slate-300">
-                  Opens ID page after create
-                </span>
-              </div>
-            </div>
+                    <AixiaFormField>
+                      <AixiaFieldLabel label="Email" />
+                      <AixiaInputField
+                        type="email"
+                        value={form.email}
+                        disabled={isSaving}
+                        onChange={(event) => updateForm("email", event.target.value)}
+                        placeholder="company@email.com"
+                      />
+                    </AixiaFormField>
 
-            <div className="grid gap-3 sm:grid-cols-2">
-              {headerStatusCards.map((item) => (
-                <HeaderStatusCard key={item.label} item={item} />
-              ))}
-            </div>
-          </div>
-        </header>
+                    <AixiaFormField>
+                      <AixiaFieldLabel label="Phone" />
+                      <AixiaInputField
+                        value={form.phone}
+                        disabled={isSaving}
+                        onChange={(event) => updateForm("phone", event.target.value)}
+                        placeholder="Company phone"
+                      />
+                    </AixiaFormField>
 
-        {formError ? (
-          <div className="rounded-[24px] border border-rose-400/20 bg-rose-500/10 p-4 text-sm leading-6 text-rose-100">
-            <div className="flex items-start gap-3">
-              <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0" />
-              <div>{formError}</div>
-            </div>
-          </div>
-        ) : null}
+                    <AixiaFormField>
+                      <AixiaFieldLabel label="Status" />
+                      <AixiaSelectField
+                        value={form.status}
+                        disabled={isSaving}
+                        onChange={(event) =>
+                          updateForm("status", normalizeStatus(event.target.value))
+                        }
+                      >
+                        <option value="active" className="bg-[#05070d]">
+                          Active
+                        </option>
+                        <option value="inactive" className="bg-[#05070d]">
+                          Inactive
+                        </option>
+                      </AixiaSelectField>
+                    </AixiaFormField>
+                  </AixiaFormGrid>
+                </AixiaSection>
 
-        {formMessage ? (
-          <div className="rounded-[24px] border border-emerald-400/20 bg-emerald-500/10 p-4 text-sm leading-6 text-emerald-100">
-            <div className="flex items-start gap-3">
-              <CheckCircle2 className="mt-0.5 h-4 w-4 shrink-0" />
-              <div>{formMessage}</div>
-            </div>
-          </div>
-        ) : null}
-
-        {isPageLoading ? (
-          <section className="rounded-[30px] border border-white/10 bg-white/[0.045] p-10 text-center backdrop-blur-xl">
-            <Loader2 className="mx-auto h-8 w-8 animate-spin text-cyan-200" />
-            <div className="mt-4 text-sm font-semibold text-white">
-              Loading create page
-            </div>
-            <p className="mt-2 text-sm leading-6 text-slate-500">
-              Permission state is being checked.
-            </p>
-          </section>
-        ) : !permissionState.canCreate ? (
-          <EmptyLockedState />
-        ) : (
-          <form
-            id="company-create-form"
-            onSubmit={handleSubmit}
-            className="grid items-start gap-6 xl:grid-cols-[minmax(0,1fr)_420px]"
-          >
-            <div className="grid gap-6">
-              <FormSection
-                title="Basic Company Identity"
-                description="Legal name, display name, contact details, and lifecycle."
-                icon={Building2}
-              >
-                <div className="grid gap-4 md:grid-cols-2">
-                  <div className="md:col-span-2">
-                    <FieldLabel label="Legal Name" required />
-                    <InputField
-                      value={form.legal_name}
-                      disabled={isSaving}
-                      onChange={(event) =>
-                        updateForm("legal_name", event.target.value)
-                      }
-                      placeholder="Legal company name"
-                    />
-                  </div>
-
-                  <div className="md:col-span-2">
-                    <FieldLabel label="Display Name" />
-                    <InputField
-                      value={form.display_name}
-                      disabled={isSaving}
-                      onChange={(event) =>
-                        updateForm("display_name", event.target.value)
-                      }
-                      placeholder="Optional short display name"
-                    />
-                  </div>
-
-                  <div>
-                    <FieldLabel label="Contact Person" />
-                    <InputField
-                      value={form.contact_person}
-                      disabled={isSaving}
-                      onChange={(event) =>
-                        updateForm("contact_person", event.target.value)
-                      }
-                      placeholder="Primary contact"
-                    />
-                  </div>
-
-                  <div>
-                    <FieldLabel label="Email" />
-                    <InputField
-                      type="email"
-                      value={form.email}
-                      disabled={isSaving}
-                      onChange={(event) => updateForm("email", event.target.value)}
-                      placeholder="company@email.com"
-                    />
-                  </div>
-
-                  <div>
-                    <FieldLabel label="Phone" />
-                    <InputField
-                      value={form.phone}
-                      disabled={isSaving}
-                      onChange={(event) => updateForm("phone", event.target.value)}
-                      placeholder="Company phone"
-                    />
-                  </div>
-
-                  <div>
-                    <FieldLabel label="Status" />
-                    <SelectField
-                      value={form.status}
-                      disabled={isSaving}
-                      onChange={(event) =>
-                        updateForm("status", normalizeStatus(event.target.value))
-                      }
-                    >
-                      <option value="active" className="bg-[#05070d]">
-                        Active
-                      </option>
-                      <option value="inactive" className="bg-[#05070d]">
-                        Inactive
-                      </option>
-                    </SelectField>
-                  </div>
-                </div>
-              </FormSection>
-
-              <FormSection
-                title="Company Identity"
-                description="Default currency and legal registration fields."
-                icon={Landmark}
-              >
-                <div className="grid gap-4 md:grid-cols-2">
-                  <div>
-                    <FieldLabel label="Company Code" />
-                    <ReadOnlyBlock
+                <AixiaSection
+                  title="Company Identity"
+                  description="Default currency and legal registration fields."
+                  icon={Landmark}
+                >
+                  <AixiaFormGrid columns="two">
+                    <AixiaDisplayBlock
                       label="Company Code"
                       value="Auto-generated after company creation"
                       detail="Assigned by backend/company sequence."
                     />
-                  </div>
 
-                  <div>
-                    <FieldLabel label="Currency Code" />
-                    <SelectField
-                      value={form.currency_code}
-                      disabled={isSaving}
-                      onChange={(event) =>
-                        updateForm("currency_code", event.target.value)
-                      }
-                    >
-                      {currencySelectOptions.length === 0 ? (
-                        <option value="" className="bg-[#05070d]">
-                          No active currencies available
-                        </option>
-                      ) : (
-                        currencySelectOptions.map((currency) => (
-                          <option
-                            key={currency.id}
-                            value={currency.currency_code}
-                            className="bg-[#05070d]"
-                          >
-                            {currency.currency_code} — {currency.currency_name}
-                            {currency.currency_symbol ? ` (${currency.currency_symbol})` : ""}
-                            {currency.is_base_currency ? " • Base" : ""}
+                    <AixiaFormField>
+                      <AixiaFieldLabel label="Currency Code" />
+                      <AixiaSelectField
+                        value={form.currency_code}
+                        disabled={isSaving || isLoadingCurrencies}
+                        onChange={(event) =>
+                          updateForm("currency_code", event.target.value)
+                        }
+                      >
+                        {currencyOptions.length === 0 ? (
+                          <option value="" className="bg-[#05070d]">
+                            No active currencies available
                           </option>
-                        ))
-                      )}
-                    </SelectField>
-                  </div>
+                        ) : (
+                          currencyOptions.map((currency) => (
+                            <option
+                              key={currency.id}
+                              value={currency.currency_code}
+                              className="bg-[#05070d]"
+                            >
+                              {getCurrencyOptionLabel(currency)}
+                            </option>
+                          ))
+                        )}
+                      </AixiaSelectField>
+                    </AixiaFormField>
 
-                  <div>
-                    <FieldLabel label="Registration Number" />
-                    <InputField
-                      value={form.registration_number}
+                    <AixiaFormField>
+                      <AixiaFieldLabel label="Registration Number" />
+                      <AixiaInputField
+                        value={form.registration_number}
+                        disabled={isSaving}
+                        onChange={(event) =>
+                          updateForm("registration_number", event.target.value)
+                        }
+                        placeholder="Registration number"
+                      />
+                    </AixiaFormField>
+
+                    <AixiaFormField>
+                      <AixiaFieldLabel label="Tax Number" />
+                      <AixiaInputField
+                        value={form.tax_number}
+                        disabled={isSaving}
+                        onChange={(event) =>
+                          updateForm("tax_number", event.target.value)
+                        }
+                        placeholder="Tax number"
+                      />
+                    </AixiaFormField>
+
+                    <AixiaFormFullWidth>
+                      <AixiaFieldLabel label="Website" />
+                      <AixiaInputField
+                        value={form.website}
+                        disabled={isSaving}
+                        onChange={(event) =>
+                          updateForm("website", event.target.value)
+                        }
+                        placeholder="https://example.com"
+                      />
+                    </AixiaFormFullWidth>
+                  </AixiaFormGrid>
+                </AixiaSection>
+
+                <AixiaSection
+                  title="Personnel"
+                  description="People related to this company. Rows with empty values are ignored during save."
+                  icon={Users}
+                  actions={
+                    <AixiaButton
+                      type="button"
+                      variant="secondary"
+                      onClick={addPersonnelRow}
                       disabled={isSaving}
-                      onChange={(event) =>
-                        updateForm("registration_number", event.target.value)
-                      }
-                      placeholder="Registration number"
-                    />
-                  </div>
+                    >
+                      <Plus className="h-4 w-4" />
+                      Add Person
+                    </AixiaButton>
+                  }
+                >
+                  <div className="aixia-form-row-list">
+                    {form.personnel.map((row, index) => (
+                      <AixiaFormRowCard
+                        key={row.id}
+                        title={`Person ${index + 1}`}
+                        description={index === 0 ? "Primary personnel row." : undefined}
+                        onRemove={() => removePersonnelRow(row.id)}
+                        removeDisabled={isSaving || form.personnel.length === 1}
+                      >
+                        <AixiaFormGrid columns="two">
+                          <AixiaFormField>
+                            <AixiaFieldLabel label="Name" />
+                            <AixiaInputField
+                              value={row.name}
+                              disabled={isSaving}
+                              onChange={(event) =>
+                                updatePersonnelRow(row.id, "name", event.target.value)
+                              }
+                              placeholder="Person name"
+                            />
+                          </AixiaFormField>
 
-                  <div>
-                    <FieldLabel label="Tax Number" />
-                    <InputField
-                      value={form.tax_number}
+                          <AixiaFormField>
+                            <AixiaFieldLabel label="Position" />
+                            <AixiaInputField
+                              value={row.position}
+                              disabled={isSaving}
+                              onChange={(event) =>
+                                updatePersonnelRow(
+                                  row.id,
+                                  "position",
+                                  event.target.value
+                                )
+                              }
+                              placeholder="Position"
+                            />
+                          </AixiaFormField>
+
+                          <AixiaFormField>
+                            <AixiaFieldLabel label="Phone" />
+                            <AixiaInputField
+                              value={row.phone}
+                              disabled={isSaving}
+                              onChange={(event) =>
+                                updatePersonnelRow(row.id, "phone", event.target.value)
+                              }
+                              placeholder="Phone"
+                            />
+                          </AixiaFormField>
+
+                          <AixiaFormField>
+                            <AixiaFieldLabel label="Email" />
+                            <AixiaInputField
+                              type="email"
+                              value={row.email}
+                              disabled={isSaving}
+                              onChange={(event) =>
+                                updatePersonnelRow(row.id, "email", event.target.value)
+                              }
+                              placeholder="Email"
+                            />
+                          </AixiaFormField>
+                        </AixiaFormGrid>
+                      </AixiaFormRowCard>
+                    ))}
+                  </div>
+                </AixiaSection>
+
+                <AixiaSection
+                  title="Primary Addresses"
+                  description="Primary legal and billing addresses. Rows with empty values are ignored during save."
+                  icon={MapPin}
+                  actions={
+                    <AixiaButton
+                      type="button"
+                      variant="secondary"
+                      onClick={addAddressRow}
                       disabled={isSaving}
-                      onChange={(event) =>
-                        updateForm("tax_number", event.target.value)
-                      }
-                      placeholder="Tax number"
-                    />
-                  </div>
+                    >
+                      <Plus className="h-4 w-4" />
+                      Add Address
+                    </AixiaButton>
+                  }
+                >
+                  <div className="aixia-form-row-list">
+                    {form.addresses.map((row, index) => (
+                      <AixiaFormRowCard
+                        key={row.id}
+                        title={`Address ${index + 1}`}
+                        description={index === 0 ? "Primary address row." : undefined}
+                        onRemove={() => removeAddressRow(row.id)}
+                        removeDisabled={isSaving || form.addresses.length === 1}
+                      >
+                        <AixiaFormGrid columns="two">
+                          <AixiaFormField>
+                            <AixiaFieldLabel label="Country" />
+                            <AixiaInputField
+                              value={row.country}
+                              disabled={isSaving}
+                              onChange={(event) =>
+                                updateAddressRow(row.id, "country", event.target.value)
+                              }
+                              placeholder="Country"
+                            />
+                          </AixiaFormField>
 
-                  <div className="md:col-span-2">
-                    <FieldLabel label="Website" />
-                    <InputField
-                      value={form.website}
+                          <AixiaFormField>
+                            <AixiaFieldLabel label="City" />
+                            <AixiaInputField
+                              value={row.city}
+                              disabled={isSaving}
+                              onChange={(event) =>
+                                updateAddressRow(row.id, "city", event.target.value)
+                              }
+                              placeholder="City"
+                            />
+                          </AixiaFormField>
+
+                          <AixiaFormField>
+                            <AixiaFieldLabel label="State / Province" />
+                            <AixiaInputField
+                              value={row.state_province}
+                              disabled={isSaving}
+                              onChange={(event) =>
+                                updateAddressRow(
+                                  row.id,
+                                  "state_province",
+                                  event.target.value
+                                )
+                              }
+                              placeholder="State / Province"
+                            />
+                          </AixiaFormField>
+
+                          <AixiaFormField>
+                            <AixiaFieldLabel label="ZIP / Postal Code" />
+                            <AixiaInputField
+                              value={row.postal_code}
+                              disabled={isSaving}
+                              onChange={(event) =>
+                                updateAddressRow(
+                                  row.id,
+                                  "postal_code",
+                                  event.target.value
+                                )
+                              }
+                              placeholder="Postal code"
+                            />
+                          </AixiaFormField>
+
+                          <AixiaFormFullWidth>
+                            <AixiaFieldLabel label="Address Line 1" />
+                            <AixiaInputField
+                              value={row.address_line_1}
+                              disabled={isSaving}
+                              onChange={(event) =>
+                                updateAddressRow(
+                                  row.id,
+                                  "address_line_1",
+                                  event.target.value
+                                )
+                              }
+                              placeholder="Address line 1"
+                            />
+                          </AixiaFormFullWidth>
+
+                          <AixiaFormFullWidth>
+                            <AixiaFieldLabel label="Address Line 2" />
+                            <AixiaInputField
+                              value={row.address_line_2}
+                              disabled={isSaving}
+                              onChange={(event) =>
+                                updateAddressRow(
+                                  row.id,
+                                  "address_line_2",
+                                  event.target.value
+                                )
+                              }
+                              placeholder="Address line 2"
+                            />
+                          </AixiaFormFullWidth>
+                        </AixiaFormGrid>
+                      </AixiaFormRowCard>
+                    ))}
+                  </div>
+                </AixiaSection>
+
+                <AixiaSection
+                  title="Shipping Addresses"
+                  description="Shipping addresses can be standalone or copied from primary addresses."
+                  icon={Truck}
+                  actions={
+                    <AixiaButton
+                      type="button"
+                      variant="secondary"
+                      onClick={addShippingRow}
                       disabled={isSaving}
-                      onChange={(event) =>
-                        updateForm("website", event.target.value)
-                      }
-                      placeholder="https://example.com"
-                    />
-                  </div>
-                </div>
-              </FormSection>
-
-              <FormSection
-                title="Personnel"
-                description="People related to this company. Rows with empty values are ignored during save."
-                icon={Users}
-                actions={
-                  <AddRowButton
-                    label="Add Person"
-                    onClick={addPersonnelRow}
-                    disabled={isSaving}
-                  />
-                }
-              >
-                <div className="max-h-[720px] space-y-4 overflow-y-auto pr-1">
-                  {form.personnel.map((row, index) => (
-                    <RowCard
-                      key={row.id}
-                      title={`Person ${index + 1}`}
-                      description={index === 0 ? "Primary personnel row." : undefined}
-                      onRemove={() => removePersonnelRow(row.id)}
-                      removeDisabled={isSaving || form.personnel.length === 1}
                     >
-                      <div className="grid gap-4 md:grid-cols-2">
-                        <div>
-                          <FieldLabel label="Name" />
-                          <InputField
-                            value={row.name}
-                            disabled={isSaving}
-                            onChange={(event) =>
-                              updatePersonnelRow(row.id, "name", event.target.value)
-                            }
-                            placeholder="Person name"
-                          />
-                        </div>
-
-                        <div>
-                          <FieldLabel label="Position" />
-                          <InputField
-                            value={row.position}
-                            disabled={isSaving}
-                            onChange={(event) =>
-                              updatePersonnelRow(
-                                row.id,
-                                "position",
-                                event.target.value
-                              )
-                            }
-                            placeholder="Position"
-                          />
-                        </div>
-
-                        <div>
-                          <FieldLabel label="Phone" />
-                          <InputField
-                            value={row.phone}
-                            disabled={isSaving}
-                            onChange={(event) =>
-                              updatePersonnelRow(row.id, "phone", event.target.value)
-                            }
-                            placeholder="Phone"
-                          />
-                        </div>
-
-                        <div>
-                          <FieldLabel label="Email" />
-                          <InputField
-                            type="email"
-                            value={row.email}
-                            disabled={isSaving}
-                            onChange={(event) =>
-                              updatePersonnelRow(row.id, "email", event.target.value)
-                            }
-                            placeholder="Email"
-                          />
-                        </div>
-                      </div>
-                    </RowCard>
-                  ))}
-                </div>
-              </FormSection>
-
-                          <FormSection
-                title="Primary Addresses"
-                description="Primary legal and billing addresses. Rows with empty values are ignored during save."
-                icon={MapPin}
-                actions={
-                  <AddRowButton
-                    label="Add Address"
-                    onClick={addAddressRow}
-                    disabled={isSaving}
-                  />
-                }
-              >
-                <div className="max-h-[720px] space-y-4 overflow-y-auto pr-1">
-                  {form.addresses.map((row, index) => (
-                    <RowCard
-                      key={row.id}
-                      title={`Address ${index + 1}`}
-                      description={index === 0 ? "Primary address row." : undefined}
-                      onRemove={() => removeAddressRow(row.id)}
-                      removeDisabled={isSaving || form.addresses.length === 1}
-                    >
-                      <div className="grid gap-4 md:grid-cols-2">
-                        <div>
-                          <FieldLabel label="Country" />
-                          <InputField
-                            value={row.country}
-                            disabled={isSaving}
-                            onChange={(event) =>
-                              updateAddressRow(row.id, "country", event.target.value)
-                            }
-                            placeholder="Country"
-                          />
-                        </div>
-
-                        <div>
-                          <FieldLabel label="City" />
-                          <InputField
-                            value={row.city}
-                            disabled={isSaving}
-                            onChange={(event) =>
-                              updateAddressRow(row.id, "city", event.target.value)
-                            }
-                            placeholder="City"
-                          />
-                        </div>
-
-                        <div>
-                          <FieldLabel label="State / Province" />
-                          <InputField
-                            value={row.state_province}
-                            disabled={isSaving}
-                            onChange={(event) =>
-                              updateAddressRow(
-                                row.id,
-                                "state_province",
-                                event.target.value
-                              )
-                            }
-                            placeholder="State / Province"
-                          />
-                        </div>
-
-                        <div>
-                          <FieldLabel label="ZIP / Postal Code" />
-                          <InputField
-                            value={row.postal_code}
-                            disabled={isSaving}
-                            onChange={(event) =>
-                              updateAddressRow(
-                                row.id,
-                                "postal_code",
-                                event.target.value
-                              )
-                            }
-                            placeholder="Postal code"
-                          />
-                        </div>
-
-                        <div className="md:col-span-2">
-                          <FieldLabel label="Address Line 1" />
-                          <InputField
-                            value={row.address_line_1}
-                            disabled={isSaving}
-                            onChange={(event) =>
-                              updateAddressRow(
-                                row.id,
-                                "address_line_1",
-                                event.target.value
-                              )
-                            }
-                            placeholder="Address line 1"
-                          />
-                        </div>
-
-                        <div className="md:col-span-2">
-                          <FieldLabel label="Address Line 2" />
-                          <InputField
-                            value={row.address_line_2}
-                            disabled={isSaving}
-                            onChange={(event) =>
-                              updateAddressRow(
-                                row.id,
-                                "address_line_2",
-                                event.target.value
-                              )
-                            }
-                            placeholder="Address line 2"
-                          />
-                        </div>
-                      </div>
-                    </RowCard>
-                  ))}
-                </div>
-              </FormSection>
-
-              <FormSection
-                title="Shipping Addresses"
-                description="Shipping addresses can be standalone or copied from primary addresses."
-                icon={Truck}
-                actions={
-                  <AddRowButton
-                    label="Add Shipping"
-                    onClick={addShippingRow}
-                    disabled={isSaving}
-                  />
-                }
-              >
-                <div className="max-h-[720px] space-y-4 overflow-y-auto pr-1">
-                  {form.shipping_addresses.map((row, index) => (
-                    <RowCard
-                      key={row.id}
-                      title={`Shipping ${index + 1}`}
-                      description={
-                        row.same_as_primary
-                          ? "Linked to a primary address."
-                          : "Standalone shipping address."
-                      }
-                      onRemove={() => removeShippingRow(row.id)}
-                      removeDisabled={isSaving || form.shipping_addresses.length === 1}
-                    >
-                      <div className="space-y-4">
-                        <label className="flex items-start gap-3 rounded-2xl border border-white/10 bg-black/20 px-4 py-3 text-sm text-slate-300">
-                          <input
-                            type="checkbox"
-                            checked={row.same_as_primary}
-                            disabled={isSaving}
-                            onChange={(event) =>
-                              updateShippingRow(
-                                row.id,
-                                "same_as_primary",
-                                event.target.checked
-                              )
-                            }
-                            className="mt-1"
-                          />
-                          <span>
-                            <span className="block font-semibold text-white">
-                              Same as primary address
-                            </span>
-                            <span className="mt-1 block text-xs leading-5 text-slate-500">
-                              Select one primary address and copy its values into this
-                              shipping row.
-                            </span>
-                          </span>
-                        </label>
-
-                        {row.same_as_primary ? (
-                          <div>
-                            <FieldLabel label="Source Primary Address" />
-                            <SelectField
-                              value={row.source_address_id}
+                      <Plus className="h-4 w-4" />
+                      Add Shipping
+                    </AixiaButton>
+                  }
+                >
+                  <div className="aixia-form-row-list">
+                    {form.shipping_addresses.map((row, index) => (
+                      <AixiaFormRowCard
+                        key={row.id}
+                        title={`Shipping ${index + 1}`}
+                        description={
+                          row.same_as_primary
+                            ? "Linked to a primary address."
+                            : "Standalone shipping address."
+                        }
+                        onRemove={() => removeShippingRow(row.id)}
+                        removeDisabled={isSaving || form.shipping_addresses.length === 1}
+                      >
+                        <AixiaFormGrid columns="two">
+                          <AixiaFormFullWidth>
+                            <AixiaCheckboxField
+                              checked={row.same_as_primary}
                               disabled={isSaving}
                               onChange={(event) =>
                                 updateShippingRow(
                                   row.id,
-                                  "source_address_id",
-                                  event.target.value
+                                  "same_as_primary",
+                                  event.target.checked
                                 )
                               }
-                            >
-                              <option value="" className="bg-[#05070d]">
-                                Select address
-                              </option>
-                              {addressOptions.map((option) => (
-                                <option
-                                  key={option.id}
-                                  value={option.id}
-                                  className="bg-[#05070d]"
-                                >
-                                  {option.label}
+                              label="Same as primary address"
+                              description="Select one primary address and copy its values into this shipping row."
+                            />
+                          </AixiaFormFullWidth>
+
+                          {row.same_as_primary ? (
+                            <AixiaFormFullWidth>
+                              <AixiaFieldLabel label="Source Primary Address" />
+                              <AixiaSelectField
+                                value={row.source_address_id}
+                                disabled={isSaving}
+                                onChange={(event) =>
+                                  updateShippingRow(
+                                    row.id,
+                                    "source_address_id",
+                                    event.target.value
+                                  )
+                                }
+                              >
+                                <option value="" className="bg-[#05070d]">
+                                  Select address
                                 </option>
-                              ))}
-                            </SelectField>
-                          </div>
-                        ) : (
-                          <div className="grid gap-4 md:grid-cols-2">
-                            <div>
-                              <FieldLabel label="Country" />
-                              <InputField
-                                value={row.country}
-                                disabled={isSaving}
-                                onChange={(event) =>
-                                  updateShippingRow(
-                                    row.id,
-                                    "country",
-                                    event.target.value
-                                  )
-                                }
-                                placeholder="Country"
-                              />
-                            </div>
+                                {addressOptions.map((option) => (
+                                  <option
+                                    key={option.id}
+                                    value={option.id}
+                                    className="bg-[#05070d]"
+                                  >
+                                    {option.label}
+                                  </option>
+                                ))}
+                              </AixiaSelectField>
+                            </AixiaFormFullWidth>
+                          ) : (
+                            <>
+                              <AixiaFormField>
+                                <AixiaFieldLabel label="Country" />
+                                <AixiaInputField
+                                  value={row.country}
+                                  disabled={isSaving}
+                                  onChange={(event) =>
+                                    updateShippingRow(
+                                      row.id,
+                                      "country",
+                                      event.target.value
+                                    )
+                                  }
+                                  placeholder="Country"
+                                />
+                              </AixiaFormField>
 
-                            <div>
-                              <FieldLabel label="City" />
-                              <InputField
-                                value={row.city}
-                                disabled={isSaving}
-                                onChange={(event) =>
-                                  updateShippingRow(
-                                    row.id,
-                                    "city",
-                                    event.target.value
-                                  )
-                                }
-                                placeholder="City"
-                              />
-                            </div>
+                              <AixiaFormField>
+                                <AixiaFieldLabel label="City" />
+                                <AixiaInputField
+                                  value={row.city}
+                                  disabled={isSaving}
+                                  onChange={(event) =>
+                                    updateShippingRow(
+                                      row.id,
+                                      "city",
+                                      event.target.value
+                                    )
+                                  }
+                                  placeholder="City"
+                                />
+                              </AixiaFormField>
 
-                            <div>
-                              <FieldLabel label="State / Province" />
-                              <InputField
-                                value={row.state_province}
-                                disabled={isSaving}
-                                onChange={(event) =>
-                                  updateShippingRow(
-                                    row.id,
-                                    "state_province",
-                                    event.target.value
-                                  )
-                                }
-                                placeholder="State / Province"
-                              />
-                            </div>
+                              <AixiaFormField>
+                                <AixiaFieldLabel label="State / Province" />
+                                <AixiaInputField
+                                  value={row.state_province}
+                                  disabled={isSaving}
+                                  onChange={(event) =>
+                                    updateShippingRow(
+                                      row.id,
+                                      "state_province",
+                                      event.target.value
+                                    )
+                                  }
+                                  placeholder="State / Province"
+                                />
+                              </AixiaFormField>
 
-                            <div>
-                              <FieldLabel label="ZIP / Postal Code" />
-                              <InputField
-                                value={row.postal_code}
-                                disabled={isSaving}
-                                onChange={(event) =>
-                                  updateShippingRow(
-                                    row.id,
-                                    "postal_code",
-                                    event.target.value
-                                  )
-                                }
-                                placeholder="Postal code"
-                              />
-                            </div>
+                              <AixiaFormField>
+                                <AixiaFieldLabel label="ZIP / Postal Code" />
+                                <AixiaInputField
+                                  value={row.postal_code}
+                                  disabled={isSaving}
+                                  onChange={(event) =>
+                                    updateShippingRow(
+                                      row.id,
+                                      "postal_code",
+                                      event.target.value
+                                    )
+                                  }
+                                  placeholder="Postal code"
+                                />
+                              </AixiaFormField>
 
-                            <div className="md:col-span-2">
-                              <FieldLabel label="Address Line 1" />
-                              <InputField
-                                value={row.address_line_1}
-                                disabled={isSaving}
-                                onChange={(event) =>
-                                  updateShippingRow(
-                                    row.id,
-                                    "address_line_1",
-                                    event.target.value
-                                  )
-                                }
-                                placeholder="Address line 1"
-                              />
-                            </div>
+                              <AixiaFormFullWidth>
+                                <AixiaFieldLabel label="Address Line 1" />
+                                <AixiaInputField
+                                  value={row.address_line_1}
+                                  disabled={isSaving}
+                                  onChange={(event) =>
+                                    updateShippingRow(
+                                      row.id,
+                                      "address_line_1",
+                                      event.target.value
+                                    )
+                                  }
+                                  placeholder="Address line 1"
+                                />
+                              </AixiaFormFullWidth>
 
-                            <div className="md:col-span-2">
-                              <FieldLabel label="Address Line 2" />
-                              <InputField
-                                value={row.address_line_2}
-                                disabled={isSaving}
-                                onChange={(event) =>
-                                  updateShippingRow(
-                                    row.id,
-                                    "address_line_2",
-                                    event.target.value
-                                  )
-                                }
-                                placeholder="Address line 2"
-                              />
-                            </div>
-                          </div>
-                        )}
-                      </div>
-                    </RowCard>
-                  ))}
-                </div>
-              </FormSection>
-
-              <FormSection
-                title="Notes"
-                description="Internal finance notes for this company."
-                icon={FileText}
-              >
-                <TextareaField
-                  value={form.notes}
-                  disabled={isSaving}
-                  onChange={(event) => updateForm("notes", event.target.value)}
-                  placeholder="Notes..."
-                />
-              </FormSection>
-            </div>
-
-            <aside className="grid gap-6">
-              <section className="overflow-hidden rounded-[30px] border border-white/10 bg-white/[0.045] backdrop-blur-xl">
-                <div className="border-b border-white/10 px-5 py-4">
-                  <div className="text-sm font-semibold uppercase tracking-[0.18em] text-slate-400">
-                    Create Summary
+                              <AixiaFormFullWidth>
+                                <AixiaFieldLabel label="Address Line 2" />
+                                <AixiaInputField
+                                  value={row.address_line_2}
+                                  disabled={isSaving}
+                                  onChange={(event) =>
+                                    updateShippingRow(
+                                      row.id,
+                                      "address_line_2",
+                                      event.target.value
+                                    )
+                                  }
+                                  placeholder="Address line 2"
+                                />
+                              </AixiaFormFullWidth>
+                            </>
+                          )}
+                        </AixiaFormGrid>
+                      </AixiaFormRowCard>
+                    ))}
                   </div>
-                  <p className="mt-1 text-xs leading-5 text-slate-500">
-                    Review the company before creating it.
-                  </p>
-                </div>
+                </AixiaSection>
 
-                <div className="grid gap-4 p-5">
-                  {summaryItems.map((item) => (
-                    <SummaryCard key={item.label} item={item} />
-                  ))}
-                </div>
-              </section>
-
-              <section className="overflow-hidden rounded-[30px] border border-white/10 bg-white/[0.045] backdrop-blur-xl">
-                <div className="border-b border-white/10 px-5 py-4">
-                  <div className="text-sm font-semibold uppercase tracking-[0.18em] text-slate-400">
-                    Actions
-                  </div>
-                  <p className="mt-1 text-xs leading-5 text-slate-500">
-                    Create opens the new company ID page directly.
-                  </p>
-                </div>
-
-                <div className="grid gap-3 p-5">
-                  <button
-                    type="submit"
+                <AixiaSection
+                  title="Notes"
+                  description="Internal finance notes for this company."
+                  icon={FileText}
+                >
+                  <AixiaTextareaField
+                    value={form.notes}
                     disabled={isSaving}
-                    className="inline-flex h-12 items-center justify-center gap-2 rounded-2xl border border-cyan-400/20 bg-cyan-500 px-5 text-sm font-semibold text-slate-950 transition hover:bg-cyan-400 disabled:cursor-not-allowed disabled:opacity-60"
-                  >
-                    {isSaving ? (
-                      <Loader2 className="h-4 w-4 animate-spin" />
-                    ) : (
-                      <Save className="h-4 w-4" />
-                    )}
-                    {isSaving ? "Creating..." : "Create Company"}
-                  </button>
-
-                  <button
-                    type="button"
-                    disabled={isSaving}
-                    onClick={handleReset}
-                    className="inline-flex h-12 items-center justify-center gap-2 rounded-2xl border border-white/10 bg-white/[0.05] px-5 text-sm font-semibold text-slate-300 transition hover:bg-white/[0.08] disabled:cursor-not-allowed disabled:opacity-60"
-                  >
-                    <RotateCcw className="h-4 w-4" />
-                    Reset Form
-                  </button>
-                </div>
-              </section>
-
-              <section className="overflow-hidden rounded-[30px] border border-white/10 bg-white/[0.045] backdrop-blur-xl">
-                <div className="border-b border-white/10 px-5 py-4">
-                  <div className="text-sm font-semibold uppercase tracking-[0.18em] text-slate-400">
-                    Primary Preview
-                  </div>
-                  <p className="mt-1 text-xs leading-5 text-slate-500">
-                    First row values used for main company fields.
-                  </p>
-                </div>
-
-                <div className="grid gap-3 p-5">
-                  <ReadOnlyBlock
-                    label="Main Country"
-                    value={form.addresses[0]?.country || "—"}
-                    detail="Saved to the company main country field."
+                    onChange={(event) => updateForm("notes", event.target.value)}
+                    placeholder="Notes..."
                   />
-                  <ReadOnlyBlock
-                    label="Main City"
-                    value={form.addresses[0]?.city || "—"}
-                    detail="Saved to the company main city field."
-                  />
-                  <ReadOnlyBlock
-                    label="Main Address Line 1"
-                    value={form.addresses[0]?.address_line_1 || "—"}
-                    detail="Saved to the company main address field."
-                  />
-                  <ReadOnlyBlock
-                    label="Primary Contact"
-                    value={form.contact_person || "—"}
-                    detail="Stored as the company primary contact."
-                  />
-                </div>
-              </section>
+                </AixiaSection>
+              </>
+            }
+            side={
+              <>
+                <AixiaSection
+                  title="Create Summary"
+                  description="Review the company before creating it."
+                  icon={Sparkles}
+                >
+                  <AixiaReviewGrid>
+                    {summaryItems.map((item) => (
+                      <AixiaReviewBlock
+                        key={item.label}
+                        label={item.label}
+                        value={item.value}
+                        description={item.description}
+                      />
+                    ))}
+                  </AixiaReviewGrid>
+                </AixiaSection>
 
-              <section className="rounded-[24px] border border-cyan-400/20 bg-cyan-500/10 p-4 text-sm leading-6 text-cyan-100">
-                <div className="font-semibold text-white">Locked create rule</div>
-                <div className="mt-1">
-                  This page requires Company create access. New records can be
-                  created as Active or Inactive only. Archived companies are managed
-                  from the Company registry archive modal. Permission refresh is silent
-                  and must not disturb the form.
-                </div>
-              </section>
-            </aside>
-          </form>
-        )}
-      </div>
-    </div>
+                <AixiaSection
+                  title="Actions"
+                  description="Create opens the new company ID page directly."
+                  icon={Save}
+                >
+                  <AixiaActionStack>
+                    <AixiaButton type="submit" variant="primary" disabled={isSaving}>
+                      {isSaving ? (
+                        <Loader2 className="h-4 w-4 animate-spin" />
+                      ) : (
+                        <Save className="h-4 w-4" />
+                      )}
+                      {isSaving ? "Creating..." : "Create Company"}
+                    </AixiaButton>
+
+                    <AixiaButton
+                      type="button"
+                      variant="secondary"
+                      disabled={isSaving}
+                      onClick={handleReset}
+                    >
+                      <RotateCcw className="h-4 w-4" />
+                      Reset Form
+                    </AixiaButton>
+                  </AixiaActionStack>
+                </AixiaSection>
+
+                <AixiaSection
+                  title="Primary Preview"
+                  description="First row values used for main company fields."
+                  icon={Building2}
+                >
+                  <AixiaFormGrid columns="one">
+                    <AixiaDisplayBlock
+                      label="Currency"
+                      value={getSelectedCurrencyLabel(form.currency_code, currencyOptions)}
+                      detail="Saved as the company default currency."
+                    />
+                    <AixiaDisplayBlock
+                      label="Main Country"
+                      value={form.addresses[0]?.country || "—"}
+                      detail="Saved to the company main country field."
+                    />
+                    <AixiaDisplayBlock
+                      label="Main City"
+                      value={form.addresses[0]?.city || "—"}
+                      detail="Saved to the company main city field."
+                    />
+                    <AixiaDisplayBlock
+                      label="Main Address Line 1"
+                      value={form.addresses[0]?.address_line_1 || "—"}
+                      detail="Saved to the company main address field."
+                    />
+                    <AixiaDisplayBlock
+                      label="Primary Contact"
+                      value={form.contact_person || "—"}
+                      detail="Stored as the company primary contact."
+                    />
+                  </AixiaFormGrid>
+                </AixiaSection>
+
+                <AixiaAlert tone="info">
+                  <AixiaAlertText
+                    title="Locked create rule"
+                    description="This page requires Company create access. New records can be created as Active or Inactive only. Archived companies are managed from the Company registry archive modal. Permission and currency refresh are silent and must not disturb the form."
+                  />
+                </AixiaAlert>
+              </>
+            }
+          />
+        </form>
+      )}
+    </AixiaPage>
   );
 }

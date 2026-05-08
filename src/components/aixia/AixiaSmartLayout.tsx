@@ -109,9 +109,6 @@ function applyMatchedRows(mainChildren: HTMLElement[], sideChildren: HTMLElement
 }
 
 function applyColumnFill(mainElement: HTMLElement, sideElement: HTMLElement) {
-  const mainChildren = getColumnChildren(mainElement);
-  const sideChildren = getColumnChildren(sideElement);
-
   const mainHeight = getColumnNaturalHeight(mainElement);
   const sideHeight = getColumnNaturalHeight(sideElement);
   const targetHeight = Math.max(mainHeight, sideHeight);

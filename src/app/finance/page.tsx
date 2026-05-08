@@ -34,7 +34,6 @@ import {
   AixiaSignalRow,
   AixiaSmartGrid,
   AixiaSmartLayout,
-  AixiaStatusCard,
   AixiaValueBlock,
   AixiaWorkspaceCard,
 } from "@/components/aixia";

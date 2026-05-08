@@ -195,7 +195,7 @@
 
 .aixia-hero {
   position: relative;
-  min-height: clamp(420px, 34vw, 560px);
+  min-height: auto;
   overflow: hidden;
   border-radius: clamp(1.75rem, 2.4vw, 2.125rem);
   border: 1px solid rgba(255, 255, 255, 0.1);
@@ -219,10 +219,10 @@
 .aixia-hero-content {
   position: relative;
   display: flex;
-  min-height: inherit;
+  min-height: 0;
   flex-direction: column;
   justify-content: flex-start;
-  gap: clamp(1rem, 1.4vw, 1.25rem);
+  gap: clamp(1rem, 1.35vw, 1.35rem);
 }
 
 .aixia-hero-top {
@@ -240,9 +240,9 @@
 .aixia-hero-main {
   display: grid;
   min-width: 0;
-  margin-top: clamp(0.875rem, 1.2vw, 1.25rem);
-  gap: clamp(1rem, 1.6vw, 1.75rem);
-  align-items: end;
+  margin-top: clamp(0.85rem, 1.15vw, 1.2rem);
+  gap: clamp(1rem, 1.7vw, 1.9rem);
+  align-items: center;
   grid-template-columns: minmax(0, 1fr);
 }
 
@@ -270,15 +270,15 @@
 .aixia-hero-title-wrap {
   display: grid;
   min-width: 0;
-  gap: clamp(0.75rem, 1vw, 1rem);
+  gap: clamp(0.7rem, 0.95vw, 0.95rem);
 }
 
 .aixia-hero-text .aixia-body {
-  margin-top: clamp(1rem, 1.2vw, 1.25rem);
+  margin-top: clamp(0.85rem, 1vw, 1.05rem);
 }
 
 .aixia-hero-children {
-  margin-top: clamp(1.25rem, 1.6vw, 1.5rem);
+  margin-top: clamp(1rem, 1.25vw, 1.25rem);
   max-width: 980px;
 }
 
@@ -287,10 +287,10 @@
   width: 100%;
   max-width: 100%;
   box-sizing: border-box;
-  align-self: end;
+  align-self: center;
   justify-self: stretch;
   overflow: hidden;
-  padding-right: clamp(1.25rem, 2vw, 2rem);
+  padding-right: 0;
 }
 
 .aixia-hero-side > * {
@@ -314,94 +314,62 @@
 
 .aixia-hero-status-grid > .aixia-adaptive-grid,
 .aixia-hero-status-grid > .aixia-smart-grid {
-  display: grid;
-  width: 100%;
-  min-width: 0;
-  gap: clamp(0.75rem, 1vw, 1rem);
-  grid-template-columns: 1fr;
+  display: contents;
 }
 
 @media (min-width: 640px) {
-  .aixia-hero-status-grid:has(> :nth-child(2)),
-  .aixia-hero-status-grid > .aixia-adaptive-grid:has(> :nth-child(2)),
-  .aixia-hero-status-grid > .aixia-smart-grid:has(> :nth-child(2)) {
+  .aixia-hero-status-grid:has(> :nth-child(2)) {
     grid-template-columns: repeat(2, minmax(0, 1fr));
   }
 }
 
 @media (min-width: 1024px) {
-  .aixia-hero-status-grid:has(> :nth-child(1)):not(:has(> :nth-child(2))),
-  .aixia-hero-status-grid > .aixia-adaptive-grid:has(> :nth-child(1)):not(:has(> :nth-child(2))),
-  .aixia-hero-status-grid > .aixia-smart-grid:has(> :nth-child(1)):not(:has(> :nth-child(2))) {
+  .aixia-hero-status-grid:has(> :nth-child(1)):not(:has(> :nth-child(2))) {
     grid-template-columns: minmax(0, 1fr);
   }
 
-  .aixia-hero-status-grid:has(> :nth-child(2)):not(:has(> :nth-child(3))),
-  .aixia-hero-status-grid > .aixia-adaptive-grid:has(> :nth-child(2)):not(:has(> :nth-child(3))),
-  .aixia-hero-status-grid > .aixia-smart-grid:has(> :nth-child(2)):not(:has(> :nth-child(3))) {
+  .aixia-hero-status-grid:has(> :nth-child(2)):not(:has(> :nth-child(3))) {
     grid-template-columns: repeat(2, minmax(0, 1fr));
   }
 
-  .aixia-hero-status-grid:has(> :nth-child(3)):not(:has(> :nth-child(4))),
-  .aixia-hero-status-grid > .aixia-adaptive-grid:has(> :nth-child(3)):not(:has(> :nth-child(4))),
-  .aixia-hero-status-grid > .aixia-smart-grid:has(> :nth-child(3)):not(:has(> :nth-child(4))) {
+  .aixia-hero-status-grid:has(> :nth-child(3)):not(:has(> :nth-child(4))) {
     grid-template-columns: repeat(3, minmax(0, 1fr));
   }
 
-  .aixia-hero-status-grid:has(> :nth-child(3)):not(:has(> :nth-child(4))) > *,
-  .aixia-hero-status-grid > .aixia-adaptive-grid:has(> :nth-child(3)):not(:has(> :nth-child(4))) > *,
-  .aixia-hero-status-grid > .aixia-smart-grid:has(> :nth-child(3)):not(:has(> :nth-child(4))) > * {
-    min-height: 190px;
+  .aixia-hero-status-grid:has(> :nth-child(3)):not(:has(> :nth-child(4))) > * {
+    min-height: 148px;
   }
 
-  .aixia-hero-status-grid:has(> :nth-child(4)):not(:has(> :nth-child(5))),
-  .aixia-hero-status-grid > .aixia-adaptive-grid:has(> :nth-child(4)):not(:has(> :nth-child(5))),
-  .aixia-hero-status-grid > .aixia-smart-grid:has(> :nth-child(4)):not(:has(> :nth-child(5))) {
+  .aixia-hero-status-grid:has(> :nth-child(4)):not(:has(> :nth-child(5))) {
     grid-template-columns: repeat(2, minmax(0, 1fr));
   }
 
-  .aixia-hero-status-grid:has(> :nth-child(5)):not(:has(> :nth-child(6))),
-  .aixia-hero-status-grid > .aixia-adaptive-grid:has(> :nth-child(5)):not(:has(> :nth-child(6))),
-  .aixia-hero-status-grid > .aixia-smart-grid:has(> :nth-child(5)):not(:has(> :nth-child(6))) {
+  .aixia-hero-status-grid:has(> :nth-child(5)):not(:has(> :nth-child(6))) {
     grid-template-columns: repeat(4, minmax(0, 1fr));
   }
 
   .aixia-hero-status-grid:has(> :nth-child(5)):not(:has(> :nth-child(6))) > :nth-child(1),
   .aixia-hero-status-grid:has(> :nth-child(5)):not(:has(> :nth-child(6))) > :nth-child(2),
   .aixia-hero-status-grid:has(> :nth-child(5)):not(:has(> :nth-child(6))) > :nth-child(4),
-  .aixia-hero-status-grid:has(> :nth-child(5)):not(:has(> :nth-child(6))) > :nth-child(5),
-  .aixia-hero-status-grid > .aixia-adaptive-grid:has(> :nth-child(5)):not(:has(> :nth-child(6))) > :nth-child(1),
-  .aixia-hero-status-grid > .aixia-adaptive-grid:has(> :nth-child(5)):not(:has(> :nth-child(6))) > :nth-child(2),
-  .aixia-hero-status-grid > .aixia-adaptive-grid:has(> :nth-child(5)):not(:has(> :nth-child(6))) > :nth-child(4),
-  .aixia-hero-status-grid > .aixia-adaptive-grid:has(> :nth-child(5)):not(:has(> :nth-child(6))) > :nth-child(5),
-  .aixia-hero-status-grid > .aixia-smart-grid:has(> :nth-child(5)):not(:has(> :nth-child(6))) > :nth-child(1),
-  .aixia-hero-status-grid > .aixia-smart-grid:has(> :nth-child(5)):not(:has(> :nth-child(6))) > :nth-child(2),
-  .aixia-hero-status-grid > .aixia-smart-grid:has(> :nth-child(5)):not(:has(> :nth-child(6))) > :nth-child(4),
-  .aixia-hero-status-grid > .aixia-smart-grid:has(> :nth-child(5)):not(:has(> :nth-child(6))) > :nth-child(5) {
+  .aixia-hero-status-grid:has(> :nth-child(5)):not(:has(> :nth-child(6))) > :nth-child(5) {
     grid-column: span 2;
   }
 
-  .aixia-hero-status-grid:has(> :nth-child(5)):not(:has(> :nth-child(6))) > :nth-child(3),
-  .aixia-hero-status-grid > .aixia-adaptive-grid:has(> :nth-child(5)):not(:has(> :nth-child(6))) > :nth-child(3),
-  .aixia-hero-status-grid > .aixia-smart-grid:has(> :nth-child(5)):not(:has(> :nth-child(6))) > :nth-child(3) {
+  .aixia-hero-status-grid:has(> :nth-child(5)):not(:has(> :nth-child(6))) > :nth-child(3) {
     grid-column: 2 / span 2;
   }
 
-  .aixia-hero-status-grid:has(> :nth-child(6)):not(:has(> :nth-child(7))),
-  .aixia-hero-status-grid > .aixia-adaptive-grid:has(> :nth-child(6)):not(:has(> :nth-child(7))),
-  .aixia-hero-status-grid > .aixia-smart-grid:has(> :nth-child(6)):not(:has(> :nth-child(7))) {
+  .aixia-hero-status-grid:has(> :nth-child(6)):not(:has(> :nth-child(7))) {
     grid-template-columns: repeat(3, minmax(0, 1fr));
   }
 
-  .aixia-hero-status-grid:has(> :nth-child(6)):not(:has(> :nth-child(7))) > *,
-  .aixia-hero-status-grid > .aixia-adaptive-grid:has(> :nth-child(6)):not(:has(> :nth-child(7))) > *,
-  .aixia-hero-status-grid > .aixia-smart-grid:has(> :nth-child(6)):not(:has(> :nth-child(7))) > * {
-    min-height: 190px;
+  .aixia-hero-status-grid:has(> :nth-child(6)):not(:has(> :nth-child(7))) > * {
+    min-height: 148px;
   }
 }
 
 .aixia-hero-actions {
-  margin-top: auto;
+  margin-top: 0;
 }
 
 /* -------------------------------------------------------

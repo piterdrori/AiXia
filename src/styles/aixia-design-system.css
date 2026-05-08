@@ -2265,3 +2265,129 @@
 .aixia-table-scroll::-webkit-scrollbar-thumb:hover {
   background: rgba(255, 255, 255, 0.24);
 }
+
+/* -------------------------------------------------------
+   LOCKED HERO STANDARD OVERRIDE
+   This is the final source of truth for AiXia page headers.
+   Pages pass content only. Pages must not control hero layout.
+------------------------------------------------------- */
+
+.aixia-hero {
+  min-height: auto !important;
+  padding: clamp(1.35rem, 1.8vw, 1.75rem) !important;
+}
+
+.aixia-hero-content {
+  min-height: 0 !important;
+  gap: clamp(1rem, 1.25vw, 1.25rem) !important;
+}
+
+.aixia-hero-top {
+  gap: 0.875rem !important;
+}
+
+.aixia-parent-pill {
+  margin-bottom: 0.875rem !important;
+}
+
+.aixia-hero-main {
+  margin-top: clamp(0.875rem, 1.1vw, 1.15rem) !important;
+  align-items: center !important;
+  gap: clamp(1.25rem, 1.8vw, 2rem) !important;
+}
+
+@media (min-width: 1280px) {
+  .aixia-hero-main[data-has-side="true"] {
+    grid-template-columns: minmax(480px, 0.9fr) minmax(520px, 1.1fr) !important;
+  }
+}
+
+@media (min-width: 1536px) {
+  .aixia-hero-main[data-has-side="true"] {
+    grid-template-columns: minmax(560px, 0.92fr) minmax(560px, 1.08fr) !important;
+  }
+}
+
+@media (min-width: 1800px) {
+  .aixia-hero-main[data-has-side="true"] {
+    grid-template-columns: minmax(620px, 0.92fr) minmax(620px, 1.08fr) !important;
+  }
+}
+
+.aixia-hero-text {
+  max-width: 920px !important;
+}
+
+.aixia-hero-title-wrap {
+  gap: clamp(0.625rem, 0.85vw, 0.875rem) !important;
+}
+
+.aixia-hero-text .aixia-body {
+  margin-top: clamp(0.8rem, 0.95vw, 1rem) !important;
+}
+
+.aixia-hero-side {
+  align-self: center !important;
+  justify-self: stretch !important;
+  padding-right: 0 !important;
+  overflow: visible !important;
+}
+
+.aixia-hero-status-grid {
+  display: grid !important;
+  width: 100% !important;
+  min-width: 0 !important;
+  gap: clamp(0.875rem, 1vw, 1rem) !important;
+  align-items: stretch !important;
+  grid-template-columns: 1fr !important;
+}
+
+.aixia-hero-status-grid > .aixia-adaptive-grid,
+.aixia-hero-status-grid > .aixia-smart-grid {
+  display: contents !important;
+}
+
+@media (min-width: 640px) {
+  .aixia-hero-status-grid:has(> :nth-child(2)) {
+    grid-template-columns: repeat(2, minmax(0, 1fr)) !important;
+  }
+}
+
+@media (min-width: 1024px) {
+  .aixia-hero-status-grid:has(> :nth-child(2)):not(:has(> :nth-child(3))) {
+    grid-template-columns: repeat(2, minmax(0, 1fr)) !important;
+  }
+
+  .aixia-hero-status-grid:has(> :nth-child(3)):not(:has(> :nth-child(4))) {
+    grid-template-columns: repeat(3, minmax(0, 1fr)) !important;
+  }
+
+  .aixia-hero-status-grid:has(> :nth-child(4)):not(:has(> :nth-child(5))) {
+    grid-template-columns: repeat(2, minmax(0, 1fr)) !important;
+  }
+
+  .aixia-hero-status-grid:has(> :nth-child(5)):not(:has(> :nth-child(6))) {
+    grid-template-columns: repeat(4, minmax(0, 1fr)) !important;
+  }
+
+  .aixia-hero-status-grid:has(> :nth-child(6)):not(:has(> :nth-child(7))) {
+    grid-template-columns: repeat(3, minmax(0, 1fr)) !important;
+  }
+}
+
+.aixia-hero-status-grid > .aixia-status-card,
+.aixia-hero-status-grid > .aixia-adaptive-grid > .aixia-status-card,
+.aixia-hero-status-grid > .aixia-smart-grid > .aixia-status-card {
+  min-height: 148px !important;
+}
+
+.aixia-status-card {
+  display: flex !important;
+  min-height: 148px !important;
+  flex-direction: column !important;
+  justify-content: space-between !important;
+}
+
+.aixia-status-card-description {
+  margin-top: 1rem !important;
+}

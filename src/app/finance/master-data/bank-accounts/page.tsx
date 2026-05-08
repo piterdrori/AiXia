@@ -33,7 +33,11 @@ import {
   AixiaSortableHeader,
   AixiaStatusBadge,
   AixiaStatusCard,
+  AixiaTableActionsCell,
+  AixiaTableBadgeCell,
+  AixiaTableDateCell,
   AixiaTableShell,
+  AixiaTableTextCell,
 } from "@/components/aixia";
 
 import {
@@ -44,11 +48,13 @@ import {
   restoreBankAccount,
   type FinanceBankAccountListRow,
 } from "@/lib/finance/bankAccounts";
+
 import {
   getEffectivePermissions,
   type Permission,
   type Role,
 } from "@/lib/permissions";
+
 import { supabase } from "@/lib/supabase";
 
 type ProfilePermissionRow = {
@@ -264,8 +270,10 @@ export default function FinanceMasterDataBankAccountsPage() {
       const authUserId = authResult.data.user?.id;
 
       if (!authUserId) {
-        setProfile(null);
-        setEffectivePermissions(null);
+        if (mode === "initial") {
+          setProfile(null);
+          setEffectivePermissions(null);
+        }
         return;
       }
 
@@ -295,8 +303,11 @@ export default function FinanceMasterDataBankAccountsPage() {
       setEffectivePermissions(resolvedPermissions);
     } catch (error) {
       console.error("Failed to load bank account profile permissions:", error);
-      setProfile(null);
-      setEffectivePermissions(null);
+
+      if (mode === "initial") {
+        setProfile(null);
+        setEffectivePermissions(null);
+      }
     } finally {
       if (mode === "initial") {
         setIsLoadingProfile(false);
@@ -311,18 +322,25 @@ export default function FinanceMasterDataBankAccountsPage() {
   const loadRows = useCallback(async (mode: "initial" | "silent" = "initial") => {
     if (mode === "initial") {
       setIsLoadingRows(true);
+      setPageError(null);
     }
-    setPageError(null);
 
     try {
       const data = await getBankAccounts();
       setRows(data);
+
+      if (mode === "initial") {
+        setPageError(null);
+      }
     } catch (error) {
       console.error("Failed to load bank accounts:", error);
-      setRows([]);
-      setPageError(
-        error instanceof Error ? error.message : "Failed to load bank accounts."
-      );
+
+      if (mode === "initial") {
+        setRows([]);
+        setPageError(
+          error instanceof Error ? error.message : "Failed to load bank accounts."
+        );
+      }
     } finally {
       if (mode === "initial") {
         setIsLoadingRows(false);
@@ -330,36 +348,49 @@ export default function FinanceMasterDataBankAccountsPage() {
     }
   }, []);
 
-  const loadCompanyCurrencyReferences = useCallback(async () => {
-    try {
-      const { data, error } = await supabase
-        .from("finance_companies")
-        .select("id, code, company_code, currency_code");
+  const loadCompanyCurrencyReferences = useCallback(
+    async (mode: "initial" | "silent" = "initial") => {
+      try {
+        const { data, error } = await supabase
+          .from("finance_companies")
+          .select("id, code, company_code, currency_code");
 
-      if (error) throw error;
+        if (error) throw error;
 
-      setCompanyCurrencyReferences((data ?? []) as CompanyCurrencyReference[]);
-    } catch (error) {
-      console.error("Failed to load company currency references:", error);
-      setCompanyCurrencyReferences([]);
-    }
-  }, []);
+        setCompanyCurrencyReferences((data ?? []) as CompanyCurrencyReference[]);
+      } catch (error) {
+        console.error("Failed to load company currency references:", error);
+
+        if (mode === "initial") {
+          setCompanyCurrencyReferences([]);
+        }
+      }
+    },
+    []
+  );
 
   const loadArchivedRows = useCallback(async (mode: "initial" | "silent" = "initial") => {
     if (mode === "initial") {
       setIsLoadingArchive(true);
+      setPageError(null);
     }
-    setPageError(null);
 
     try {
       const data = await getArchivedBankAccounts();
       setArchivedRows(data);
+
+      if (mode === "initial") {
+        setPageError(null);
+      }
     } catch (error) {
       console.error("Failed to load archived bank accounts:", error);
-      setArchivedRows([]);
-      setPageError(
-        error instanceof Error ? error.message : "Failed to load archived bank accounts."
-      );
+
+      if (mode === "initial") {
+        setArchivedRows([]);
+        setPageError(
+          error instanceof Error ? error.message : "Failed to load archived bank accounts."
+        );
+      }
     } finally {
       if (mode === "initial") {
         setIsLoadingArchive(false);
@@ -371,7 +402,7 @@ export default function FinanceMasterDataBankAccountsPage() {
     void Promise.all([
       loadCurrentProfile("initial"),
       loadRows("initial"),
-      loadCompanyCurrencyReferences(),
+      loadCompanyCurrencyReferences("initial"),
     ]);
   }, [loadCompanyCurrencyReferences, loadCurrentProfile, loadRows]);
 
@@ -405,7 +436,7 @@ export default function FinanceMasterDataBankAccountsPage() {
         "postgres_changes",
         { event: "*", schema: "public", table: "finance_companies" },
         () => {
-          void loadCompanyCurrencyReferences();
+          void loadCompanyCurrencyReferences("silent");
           void loadRows("silent");
           if (showArchive) void loadArchivedRows("silent");
         }
@@ -416,7 +447,7 @@ export default function FinanceMasterDataBankAccountsPage() {
       void Promise.all([
         loadCurrentProfile("silent"),
         loadRows("silent"),
-        loadCompanyCurrencyReferences(),
+        loadCompanyCurrencyReferences("silent"),
         showArchive ? loadArchivedRows("silent") : Promise.resolve(),
       ]);
     }, 60000);
@@ -926,83 +957,68 @@ export default function FinanceMasterDataBankAccountsPage() {
 
                       return (
                         <tr key={row.id} className="aixia-table-row">
-                          <td className="min-w-[260px] px-5 py-4">
-                            <div className="font-semibold text-white">
-                              {getCompanyName(row)}
-                            </div>
-                            <div className="mt-1 text-xs text-slate-500">
-                              {row.company_code || "No company code"}
-                            </div>
-                          </td>
+                          <AixiaTableTextCell
+                            width="xl"
+                            primary={getCompanyName(row)}
+                            secondary={row.company_code || "No company code"}
+                          />
 
-                          <td className="min-w-[230px] px-5 py-4">
-                            <div className="font-semibold text-white">
-                              {getBankName(row)}
-                            </div>
-                            <div className="mt-1 text-xs text-slate-500">
-                              {getLocationLabel(row)}
-                            </div>
-                          </td>
+                          <AixiaTableTextCell
+                            width="lg"
+                            primary={getBankName(row)}
+                            secondary={getLocationLabel(row)}
+                          />
 
-                          <td className="min-w-[180px] px-5 py-4">
-                            <div className="font-semibold text-white">
-                              {getIdentifierLabel(row)}
-                            </div>
-                            <div className="mt-1 text-xs text-slate-500">
-                              {row.beneficiary_name || "No beneficiary"}
-                            </div>
-                          </td>
+                          <AixiaTableTextCell
+                            width="md"
+                            primary={getIdentifierLabel(row)}
+                            secondary={row.beneficiary_name || "No beneficiary"}
+                          />
 
-                          <td className="min-w-[130px] px-5 py-4">
+                          <AixiaTableBadgeCell>
                             <AixiaCurrencyBadge
                               value={getCorrelatedCurrencyLabel(row, companyCurrencyByCode)}
                             />
-                          </td>
+                          </AixiaTableBadgeCell>
 
-                          <td className="min-w-[130px] px-5 py-4">
+                          <AixiaTableBadgeCell>
                             <AixiaDefaultBadge isDefault={Boolean(row.is_default)} />
-                          </td>
+                          </AixiaTableBadgeCell>
 
-                          <td className="min-w-[140px] px-5 py-4">
+                          <AixiaTableBadgeCell>
                             <AixiaStatusBadge value={row.status} />
-                          </td>
+                          </AixiaTableBadgeCell>
 
-                          <td className="min-w-[150px] px-5 py-4">
-                            <div className="text-sm text-slate-300">
-                              {formatDateLabel(updatedAt)}
-                            </div>
-                          </td>
+                          <AixiaTableDateCell>{formatDateLabel(updatedAt)}</AixiaTableDateCell>
 
-                          <td className="px-5 py-4 text-right">
-                            <div className="flex justify-end gap-2">
+                          <AixiaTableActionsCell>
+                            <AixiaButton
+                              type="button"
+                              variant="secondary"
+                              onClick={() =>
+                                navigate(`/finance/master-data/bank-accounts/${row.id}`)
+                              }
+                            >
+                              Open
+                              <ArrowRight className="h-3.5 w-3.5" />
+                            </AixiaButton>
+
+                            {permissionState.canDeleteArchive ? (
                               <AixiaButton
                                 type="button"
-                                variant="secondary"
-                                onClick={() =>
-                                  navigate(`/finance/master-data/bank-accounts/${row.id}`)
-                                }
+                                variant="danger"
+                                onClick={() => void handleArchive(row.id)}
+                                disabled={isActionRunning}
                               >
-                                Open
-                                <ArrowRight className="h-3.5 w-3.5" />
+                                {isRowActionRunning && runningAction === "archive" ? (
+                                  <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                                ) : (
+                                  <Archive className="h-3.5 w-3.5" />
+                                )}
+                                Archive
                               </AixiaButton>
-
-                              {permissionState.canDeleteArchive ? (
-                                <AixiaButton
-                                  type="button"
-                                  variant="danger"
-                                  onClick={() => void handleArchive(row.id)}
-                                  disabled={isActionRunning}
-                                >
-                                  {isRowActionRunning && runningAction === "archive" ? (
-                                    <Loader2 className="h-3.5 w-3.5 animate-spin" />
-                                  ) : (
-                                    <Archive className="h-3.5 w-3.5" />
-                                  )}
-                                  Archive
-                                </AixiaButton>
-                              ) : null}
-                            </div>
-                          </td>
+                            ) : null}
+                          </AixiaTableActionsCell>
                         </tr>
                       );
                     })}
@@ -1061,75 +1077,65 @@ export default function FinanceMasterDataBankAccountsPage() {
 
                         return (
                           <tr key={row.id} className="aixia-table-row">
-                            <td className="min-w-[260px] px-5 py-4">
-                              <div className="font-semibold text-white">
-                                {getCompanyName(row)}
-                              </div>
-                              <div className="mt-1 text-xs text-slate-500">
-                                {row.company_code || "No company code"}
-                              </div>
-                            </td>
+                            <AixiaTableTextCell
+                              width="xl"
+                              primary={getCompanyName(row)}
+                              secondary={row.company_code || "No company code"}
+                            />
 
-                            <td className="min-w-[240px] px-5 py-4">
-                              <div className="font-semibold text-white">
-                                {getBankName(row)}
-                              </div>
-                              <div className="mt-1 text-xs text-slate-500">
-                                {getIdentifierLabel(row)}
-                              </div>
-                            </td>
+                            <AixiaTableTextCell
+                              width="lg"
+                              primary={getBankName(row)}
+                              secondary={getIdentifierLabel(row)}
+                            />
 
-                            <td className="min-w-[130px] px-5 py-4">
+                            <AixiaTableBadgeCell>
                               <AixiaCurrencyBadge
                                 value={getCorrelatedCurrencyLabel(row, companyCurrencyByCode)}
                               />
-                            </td>
+                            </AixiaTableBadgeCell>
 
-                            <td className="min-w-[150px] px-5 py-4">
-                              {formatDateLabel(updatedAt)}
-                            </td>
+                            <AixiaTableDateCell>{formatDateLabel(updatedAt)}</AixiaTableDateCell>
 
-                            <td className="px-5 py-4 text-right">
-                              <div className="flex justify-end gap-2">
-                                <AixiaButton
-                                  type="button"
-                                  variant="secondary"
-                                  onClick={() =>
-                                    navigate(`/finance/master-data/bank-accounts/${row.id}`)
-                                  }
-                                >
-                                  Open
-                                </AixiaButton>
+                            <AixiaTableActionsCell>
+                              <AixiaButton
+                                type="button"
+                                variant="secondary"
+                                onClick={() =>
+                                  navigate(`/finance/master-data/bank-accounts/${row.id}`)
+                                }
+                              >
+                                Open
+                              </AixiaButton>
 
-                                <AixiaButton
-                                  type="button"
-                                  variant="secondary"
-                                  onClick={() => void handleRestore(row.id)}
-                                  disabled={isActionRunning}
-                                >
-                                  {isRowActionRunning && runningAction === "restore" ? (
-                                    <Loader2 className="h-3.5 w-3.5 animate-spin" />
-                                  ) : (
-                                    <RotateCcw className="h-3.5 w-3.5" />
-                                  )}
-                                  Restore
-                                </AixiaButton>
+                              <AixiaButton
+                                type="button"
+                                variant="secondary"
+                                onClick={() => void handleRestore(row.id)}
+                                disabled={isActionRunning}
+                              >
+                                {isRowActionRunning && runningAction === "restore" ? (
+                                  <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                                ) : (
+                                  <RotateCcw className="h-3.5 w-3.5" />
+                                )}
+                                Restore
+                              </AixiaButton>
 
-                                <AixiaButton
-                                  type="button"
-                                  variant="danger"
-                                  onClick={() => void handlePermanentDelete(row.id)}
-                                  disabled={isActionRunning}
-                                >
-                                  {isRowActionRunning && runningAction === "hard-delete" ? (
-                                    <Loader2 className="h-3.5 w-3.5 animate-spin" />
-                                  ) : (
-                                    <Trash2 className="h-3.5 w-3.5" />
-                                  )}
-                                  Delete
-                                </AixiaButton>
-                              </div>
-                            </td>
+                              <AixiaButton
+                                type="button"
+                                variant="danger"
+                                onClick={() => void handlePermanentDelete(row.id)}
+                                disabled={isActionRunning}
+                              >
+                                {isRowActionRunning && runningAction === "hard-delete" ? (
+                                  <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                                ) : (
+                                  <Trash2 className="h-3.5 w-3.5" />
+                                )}
+                                Delete
+                              </AixiaButton>
+                            </AixiaTableActionsCell>
                           </tr>
                         );
                       })}

@@ -2424,6 +2424,10 @@
   min-width: 0;
 }
 
+.aixia-smart-layout[data-has-explicit-main-split="true"] > .aixia-smart-bottom-span {
+  margin-top: 0;
+}
+
 @media (min-width: 1280px) {
   .aixia-smart-layout[data-match-columns="true"] {
     align-items: stretch !important;

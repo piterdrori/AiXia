@@ -1,6 +1,7 @@
 export { AixiaActionSystem } from "./AixiaActionSystem";
 export { AixiaBadge } from "./AixiaBadge";
 export { AixiaButton } from "./AixiaButton";
+export { AixiaCurrencyBadge } from "./AixiaCurrencyBadge";
 export { AixiaDefaultBadge } from "./AixiaDefaultBadge";
 export { AixiaHero } from "./AixiaHero";
 export { AixiaInfoBlock } from "./AixiaInfoBlock";

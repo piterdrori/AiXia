@@ -27,9 +27,7 @@ import {
   AixiaMetricCard,
   AixiaPage,
   AixiaSection,
-  AixiaSmartGrid,
   AixiaSmartLayout,
-  AixiaStatusCard,
 } from "@/components/aixia";
 
 import { supabase } from "@/lib/supabase";

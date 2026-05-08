@@ -582,6 +582,18 @@
   min-width: 0;
 }
 
+.aixia-smart-main-top-tail {
+  display: flex;
+  min-width: 0;
+  min-height: var(--aixia-smart-main-tail-height, auto);
+  flex-direction: column;
+}
+
+.aixia-smart-main-top-tail > * {
+  min-width: 0;
+  flex: 1 1 auto;
+}
+
 .aixia-smart-fill {
   flex: 1 1 auto;
   min-height: 0;

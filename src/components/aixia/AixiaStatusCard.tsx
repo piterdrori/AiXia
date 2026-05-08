@@ -5,7 +5,9 @@ type AixiaStatusCardTone =
   | "indigo"
   | "violet"
   | "gold"
+  | "amber"
   | "emerald"
+  | "cyan"
   | "rose"
   | "neutral";
 
@@ -23,12 +25,16 @@ function getToneClass(tone: AixiaStatusCardTone) {
     return "border-[#A855F7]/30 bg-[#A855F7]/15 text-violet-200 shadow-[0_0_28px_rgba(168,85,247,0.2)]";
   }
 
-  if (tone === "gold") {
+  if (tone === "gold" || tone === "amber") {
     return "border-[#FBBF24]/30 bg-[#FBBF24]/15 text-[#FBBF24] shadow-[0_0_28px_rgba(251,191,36,0.2)]";
   }
 
   if (tone === "emerald") {
     return "border-emerald-400/30 bg-emerald-500/15 text-emerald-200 shadow-[0_0_28px_rgba(16,185,129,0.2)]";
+  }
+
+  if (tone === "cyan") {
+    return "border-cyan-400/30 bg-cyan-500/15 text-cyan-200 shadow-[0_0_28px_rgba(6,182,212,0.2)]";
   }
 
   if (tone === "rose") {

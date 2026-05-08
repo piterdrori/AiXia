@@ -1327,12 +1327,31 @@
   width: auto;
   padding: 0.7rem 0.85rem;
   vertical-align: middle;
+  text-align: center;
   font-size: 0.65625rem;
   font-weight: 800;
   letter-spacing: 0.16em;
   text-transform: uppercase;
   color: rgba(255, 255, 255, 0.42);
   white-space: nowrap;
+}
+
+.aixia-table th .aixia-sortable-header {
+  margin-left: auto;
+  margin-right: auto;
+  justify-content: center;
+  text-align: center;
+}
+
+.aixia-table th:last-child {
+  text-align: right;
+}
+
+.aixia-table th:last-child .aixia-sortable-header {
+  margin-left: auto;
+  margin-right: 0;
+  justify-content: flex-end;
+  text-align: right;
 }
 
 .aixia-table td {

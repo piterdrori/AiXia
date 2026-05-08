@@ -19,3 +19,9 @@ export { AixiaSmartLayout } from "./AixiaSmartLayout";
 export { AixiaStatusBadge } from "./AixiaStatusBadge";
 export { AixiaStatusCard } from "./AixiaStatusCard";
 export { AixiaSortableHeader, AixiaTableShell } from "./AixiaTable";
+export {
+  AixiaTableActionsCell,
+  AixiaTableBadgeCell,
+  AixiaTableDateCell,
+  AixiaTableTextCell,
+} from "./AixiaTableCells";

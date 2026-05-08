@@ -1,37 +1,53 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
-import type {
-  InputHTMLAttributes,
-  ReactNode,
-  SelectHTMLAttributes,
-  TextareaHTMLAttributes,
-} from "react";
 import { useNavigate, useParams } from "react-router-dom";
 import type { LucideIcon } from "lucide-react";
 import {
-  AlertTriangle,
   Archive,
   ArrowRight,
   Building2,
-  CheckCircle2,
   FileText,
+  Landmark,
   Loader2,
   LockKeyhole,
-  Mail,
   MapPin,
   Pencil,
-  Phone,
   Plus,
   RotateCcw,
-  Save,
   ShieldCheck,
   Sparkles,
-  Trash2,
   Truck,
   UserRound,
   Users,
-  X,
 } from "lucide-react";
 
+import {
+  AixiaAccessDeniedState,
+  AixiaActionStack,
+  AixiaAlert,
+  AixiaAlertText,
+  AixiaButton,
+  AixiaCheckboxField,
+  AixiaDetailSection,
+  AixiaDisplayBlock,
+  AixiaEmptyState,
+  AixiaFieldLabel,
+  AixiaFormField,
+  AixiaFormFullWidth,
+  AixiaFormGrid,
+  AixiaFormRowCard,
+  AixiaHero,
+  AixiaInputField,
+  AixiaLoadingState,
+  AixiaNotFoundState,
+  AixiaPage,
+  AixiaReviewBlock,
+  AixiaReviewGrid,
+  AixiaSection,
+  AixiaSelectField,
+  AixiaSmartLayout,
+  AixiaStatusBadge,
+  AixiaTextareaField,
+} from "@/components/aixia";
 import { archiveClient, updateClient } from "@/lib/finance/clients";
 import {
   getEffectivePermissions,
@@ -39,6 +55,8 @@ import {
   type Role,
 } from "@/lib/permissions";
 import { supabase } from "@/lib/supabase";
+
+type LoadMode = "initial" | "silent";
 
 type ProfilePermissionRow = {
   user_id: string;
@@ -150,17 +168,15 @@ type PermissionState = {
 type HeaderStatusCardData = {
   label: string;
   value: string;
-  detail: string;
+  description: string;
   icon: LucideIcon;
   tone: "emerald" | "cyan" | "amber" | "rose";
 };
 
-type SummaryCardData = {
+type SummaryItem = {
   label: string;
   value: string;
-  detail: string;
-  icon: LucideIcon;
-  tone: "cyan" | "emerald" | "amber" | "violet" | "rose";
+  description: string;
 };
 
 const EMPTY_PERMISSION_STATE: PermissionState = {
@@ -254,7 +270,8 @@ function buildPermissionState(
 }
 
 async function loadBackendEffectivePermissions(
-  userId: string
+  userId: string,
+  mode: LoadMode
 ): Promise<Partial<Record<Permission, boolean>> | null> {
   try {
     const result = await supabase.rpc("finance_get_effective_permissions", {
@@ -262,16 +279,30 @@ async function loadBackendEffectivePermissions(
     });
 
     if (result.error) {
+      if (mode === "silent") {
+        throw result.error;
+      }
+
       console.warn("Client ID permission RPC fallback:", result.error.message);
       return null;
     }
 
     if (!result.data || typeof result.data !== "object") {
+      if (mode === "silent") {
+        throw new Error(
+          "Silent client ID permission refresh returned no effective permission payload."
+        );
+      }
+
       return null;
     }
 
     return result.data as Partial<Record<Permission, boolean>>;
   } catch (error) {
+    if (mode === "silent") {
+      throw error;
+    }
+
     console.warn("Client ID permission RPC failed:", error);
     return null;
   }
@@ -308,55 +339,6 @@ function formatStatus(value: string | null | undefined) {
     .filter(Boolean)
     .map((part) => part.charAt(0).toUpperCase() + part.slice(1))
     .join(" ");
-}
-
-function getStatusTone(status: string | null | undefined) {
-  switch (status) {
-    case "active":
-      return "border-emerald-400/20 bg-emerald-500/10 text-emerald-200";
-    case "inactive":
-      return "border-amber-400/20 bg-amber-500/10 text-amber-200";
-    case "archived":
-      return "border-rose-400/20 bg-rose-500/10 text-rose-200";
-    default:
-      return "border-white/10 bg-white/[0.06] text-slate-300";
-  }
-}
-
-function getToneClasses(tone: SummaryCardData["tone"]) {
-  switch (tone) {
-    case "emerald":
-      return {
-        card: "border-emerald-400/20 bg-emerald-500/10",
-        icon: "border-emerald-400/20 bg-emerald-500/10 text-emerald-200",
-        value: "text-emerald-100",
-      };
-    case "amber":
-      return {
-        card: "border-amber-400/20 bg-amber-500/10",
-        icon: "border-amber-400/20 bg-amber-500/10 text-amber-200",
-        value: "text-amber-100",
-      };
-    case "violet":
-      return {
-        card: "border-violet-400/20 bg-violet-500/10",
-        icon: "border-violet-400/20 bg-violet-500/10 text-violet-200",
-        value: "text-violet-100",
-      };
-    case "rose":
-      return {
-        card: "border-rose-400/20 bg-rose-500/10",
-        icon: "border-rose-400/20 bg-rose-500/10 text-rose-200",
-        value: "text-rose-100",
-      };
-    case "cyan":
-    default:
-      return {
-        card: "border-cyan-400/20 bg-cyan-500/10",
-        icon: "border-cyan-400/20 bg-cyan-500/10 text-cyan-200",
-        value: "text-cyan-100",
-      };
-  }
 }
 
 function getClientDisplayName(client: ClientDetailRecord | null) {
@@ -422,358 +404,34 @@ function getPersonnelSummary(personnel: PersonnelRow[]) {
   return first.full_name || first.email || `${personnel.length} personnel rows`;
 }
 
-function FieldLabel({
-  label,
-  required = false,
-}: {
-  label: string;
-  required?: boolean;
-}) {
-  return (
-    <label className="mb-2 block text-sm font-medium text-slate-300">
-      {label}
-      {required ? <span className="ml-1 text-rose-300">*</span> : null}
-    </label>
-  );
+function mapPrimaryAddressToDraft(row: AddressRow): AddressDraftRow {
+  return {
+    id: row.id,
+    country: row.country || "",
+    city: row.city || "",
+    state_province: row.state_province || "",
+    postal_code: row.postal_code || "",
+    address_line_1: row.address_line_1 || "",
+    address_line_2: row.address_line_2 || "",
+  };
 }
 
-function InputField({
-  className,
-  ...props
-}: InputHTMLAttributes<HTMLInputElement>) {
-  return (
-    <input
-      {...props}
-      className={`h-11 w-full rounded-2xl border border-white/10 bg-black/20 px-4 text-sm text-white outline-none transition placeholder:text-slate-600 focus:border-cyan-400/30 focus:bg-black/30 disabled:cursor-not-allowed disabled:opacity-60 ${
-        className || ""
-      }`}
-    />
-  );
+function mapShippingAddressToDraft(row: AddressRow): ShippingDraftRow {
+  return {
+    id: row.id,
+    same_as_primary: row.is_same_as_primary,
+    source_address_id: "",
+    country: row.country || "",
+    city: row.city || "",
+    state_province: row.state_province || "",
+    postal_code: row.postal_code || "",
+    address_line_1: row.address_line_1 || "",
+    address_line_2: row.address_line_2 || "",
+  };
 }
 
-function SelectField({
-  className,
-  children,
-  ...props
-}: SelectHTMLAttributes<HTMLSelectElement> & {
-  children: ReactNode;
-}) {
-  return (
-    <select
-      {...props}
-      className={`h-11 w-full rounded-2xl border border-white/10 bg-black/20 px-4 text-sm text-white outline-none transition focus:border-cyan-400/30 focus:bg-black/30 disabled:cursor-not-allowed disabled:opacity-60 ${
-        className || ""
-      }`}
-    >
-      {children}
-    </select>
-  );
-}
-
-function TextareaField({
-  className,
-  ...props
-}: TextareaHTMLAttributes<HTMLTextAreaElement>) {
-  return (
-    <textarea
-      {...props}
-      className={`min-h-[132px] w-full rounded-2xl border border-white/10 bg-black/20 px-4 py-3 text-sm text-white outline-none transition placeholder:text-slate-600 focus:border-cyan-400/30 focus:bg-black/30 disabled:cursor-not-allowed disabled:opacity-60 ${
-        className || ""
-      }`}
-    />
-  );
-}
-
-function DisplayBlock({
-  label,
-  value,
-  detail,
-}: {
-  label: string;
-  value: ReactNode;
-  detail?: ReactNode;
-}) {
-  return (
-    <div className="rounded-[20px] border border-white/10 bg-black/20 px-4 py-3">
-      <div className="text-[11px] font-semibold uppercase tracking-[0.18em] text-slate-500">
-        {label}
-      </div>
-      <div className="mt-2 break-words text-sm font-semibold leading-6 text-white">
-        {value || "—"}
-      </div>
-      {detail ? (
-        <div className="mt-1 text-xs leading-5 text-slate-500">{detail}</div>
-      ) : null}
-    </div>
-  );
-}
-
-function StatusBadge({ status }: { status: string | null | undefined }) {
-  return (
-    <span
-      className={`inline-flex max-w-full items-center rounded-full border px-3 py-1 text-[11px] font-semibold uppercase tracking-[0.14em] ${getStatusTone(
-        status
-      )}`}
-    >
-      <span className="truncate">{formatStatus(status)}</span>
-    </span>
-  );
-}
-
-function HeaderStatusCard({ item }: { item: HeaderStatusCardData }) {
-  const Icon = item.icon;
-
-  const toneClasses = {
-    emerald: "border-emerald-400/20 bg-emerald-500/10 text-emerald-200",
-    cyan: "border-cyan-400/20 bg-cyan-500/10 text-cyan-200",
-    amber: "border-amber-400/20 bg-amber-500/10 text-amber-200",
-    rose: "border-rose-400/20 bg-rose-500/10 text-rose-200",
-  }[item.tone];
-
-  return (
-    <div className="min-h-[148px] rounded-[24px] border border-white/10 bg-black/20 p-4">
-      <div className="flex items-start justify-between gap-3">
-        <div className="min-w-0">
-          <div className="text-[11px] font-semibold uppercase tracking-[0.2em] text-slate-500">
-            {item.label}
-          </div>
-          <div className="mt-2 text-xl font-semibold leading-tight tracking-[-0.035em] text-white">
-            {item.value}
-          </div>
-        </div>
-
-        <div
-          className={`flex h-10 w-10 shrink-0 items-center justify-center rounded-2xl border ${toneClasses}`}
-        >
-          <Icon className="h-4 w-4" />
-        </div>
-      </div>
-
-      <div className="mt-3 text-xs leading-5 text-slate-500">{item.detail}</div>
-    </div>
-  );
-}
-
-function SummaryCard({ item }: { item: SummaryCardData }) {
-  const Icon = item.icon;
-  const tone = getToneClasses(item.tone);
-
-  return (
-    <div className={`rounded-[24px] border bg-black/20 p-4 ${tone.card}`}>
-      <div className="flex items-start justify-between gap-3">
-        <div className="min-w-0">
-          <div className="text-[11px] font-semibold uppercase tracking-[0.2em] text-slate-500">
-            {item.label}
-          </div>
-          <div className={`mt-2 text-lg font-semibold leading-6 ${tone.value}`}>
-            {item.value}
-          </div>
-        </div>
-
-        <div
-          className={`flex h-10 w-10 shrink-0 items-center justify-center rounded-2xl border ${tone.icon}`}
-        >
-          <Icon className="h-4 w-4" />
-        </div>
-      </div>
-
-      <div className="mt-3 text-xs leading-5 text-slate-500">{item.detail}</div>
-    </div>
-  );
-}
-
-function DetailSection({
-  title,
-  description,
-  icon: Icon,
-  isEditing,
-  canEdit,
-  onEdit,
-  onCancel,
-  onSave,
-  isSaving,
-  children,
-}: {
-  title: string;
-  description: string;
-  icon: LucideIcon;
-  isEditing: boolean;
-  canEdit: boolean;
-  onEdit?: () => void;
-  onCancel?: () => void;
-  onSave?: () => void;
-  isSaving?: boolean;
-  children: ReactNode;
-}) {
-  return (
-    <section className="overflow-hidden rounded-[30px] border border-white/10 bg-white/[0.045] backdrop-blur-xl">
-      <div className="flex flex-col gap-4 border-b border-white/10 px-5 py-4 lg:flex-row lg:items-start lg:justify-between">
-        <div className="flex min-w-0 items-start gap-3">
-          <div className="rounded-2xl border border-cyan-400/15 bg-cyan-500/10 p-3 text-cyan-200">
-            <Icon className="h-4 w-4" />
-          </div>
-
-          <div className="min-w-0">
-            <h2 className="text-sm font-semibold uppercase tracking-[0.18em] text-slate-400">
-              {title}
-            </h2>
-            <p className="mt-1 text-xs leading-5 text-slate-500">{description}</p>
-          </div>
-        </div>
-
-        {canEdit ? (
-          <div className="flex shrink-0 flex-wrap gap-2">
-            {isEditing ? (
-              <>
-                <button
-                  type="button"
-                  onClick={onCancel}
-                  disabled={isSaving}
-                  className="inline-flex h-10 items-center justify-center gap-2 rounded-2xl border border-white/10 bg-white/[0.05] px-4 text-xs font-semibold uppercase tracking-[0.14em] text-slate-300 transition hover:bg-white/[0.08] disabled:cursor-not-allowed disabled:opacity-60"
-                >
-                  <X className="h-3.5 w-3.5" />
-                  Cancel
-                </button>
-
-                <button
-                  type="button"
-                  onClick={onSave}
-                  disabled={isSaving}
-                  className="inline-flex h-10 items-center justify-center gap-2 rounded-2xl border border-cyan-400/20 bg-cyan-500/10 px-4 text-xs font-semibold uppercase tracking-[0.14em] text-cyan-100 transition hover:bg-cyan-500/15 disabled:cursor-not-allowed disabled:opacity-60"
-                >
-                  {isSaving ? (
-                    <Loader2 className="h-3.5 w-3.5 animate-spin" />
-                  ) : (
-                    <Save className="h-3.5 w-3.5" />
-                  )}
-                  Save
-                </button>
-              </>
-            ) : (
-              <button
-                type="button"
-                onClick={onEdit}
-                className="inline-flex h-10 items-center justify-center gap-2 rounded-2xl border border-white/10 bg-white/[0.05] px-4 text-xs font-semibold uppercase tracking-[0.14em] text-slate-300 transition hover:bg-white/[0.08] hover:text-white"
-              >
-                <Pencil className="h-3.5 w-3.5" />
-                Edit
-              </button>
-            )}
-          </div>
-        ) : null}
-      </div>
-
-      <div className="p-5">{children}</div>
-    </section>
-  );
-}
-
-function RowCard({
-  title,
-  description,
-  onRemove,
-  removeDisabled = false,
-  children,
-}: {
-  title: string;
-  description?: string;
-  onRemove?: () => void;
-  removeDisabled?: boolean;
-  children: ReactNode;
-}) {
-  return (
-    <div className="rounded-[24px] border border-white/10 bg-black/20 p-4">
-      <div className="mb-4 flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
-        <div className="min-w-0">
-          <div className="text-sm font-semibold text-white">{title}</div>
-          {description ? (
-            <div className="mt-1 text-xs leading-5 text-slate-500">
-              {description}
-            </div>
-          ) : null}
-        </div>
-
-        {onRemove ? (
-          <button
-            type="button"
-            onClick={onRemove}
-            disabled={removeDisabled}
-            className="inline-flex h-10 shrink-0 items-center justify-center gap-2 rounded-2xl border border-rose-400/20 bg-rose-500/10 px-3 text-xs font-semibold uppercase tracking-[0.14em] text-rose-100 transition hover:bg-rose-500/15 disabled:cursor-not-allowed disabled:opacity-50"
-          >
-            <Trash2 className="h-3.5 w-3.5" />
-            Remove
-          </button>
-        ) : null}
-      </div>
-
-      {children}
-    </div>
-  );
-}
-
-function AddRowButton({
-  label,
-  onClick,
-  disabled,
-}: {
-  label: string;
-  onClick: () => void;
-  disabled?: boolean;
-}) {
-  return (
-    <button
-      type="button"
-      onClick={onClick}
-      disabled={disabled}
-      className="inline-flex h-10 items-center justify-center gap-2 rounded-2xl border border-cyan-400/20 bg-cyan-500/10 px-4 text-xs font-semibold uppercase tracking-[0.14em] text-cyan-100 transition hover:bg-cyan-500/15 disabled:cursor-not-allowed disabled:opacity-60"
-    >
-      <Plus className="h-3.5 w-3.5" />
-      {label}
-    </button>
-  );
-}
-
-function LoadingState() {
-  return (
-    <div className="min-h-screen bg-[#05070d] px-4 py-4 text-white md:px-6 md:py-6">
-      <div className="mx-auto flex w-full max-w-[1600px] flex-col gap-6">
-        <section className="rounded-[34px] border border-white/10 bg-white/[0.045] p-12 text-center backdrop-blur-xl">
-          <Loader2 className="mx-auto h-8 w-8 animate-spin text-cyan-200" />
-          <div className="mt-4 text-sm font-semibold text-white">
-            Loading client detail
-          </div>
-          <p className="mt-2 text-sm leading-6 text-slate-500">
-            Client record and permission state are being checked.
-          </p>
-        </section>
-      </div>
-    </div>
-  );
-}
-
-function EmptyState({
-  icon: Icon,
-  title,
-  description,
-  action,
-}: {
-  icon: LucideIcon;
-  title: string;
-  description: string;
-  action?: ReactNode;
-}) {
-  return (
-    <section className="rounded-[30px] border border-white/10 bg-white/[0.045] p-10 text-center backdrop-blur-xl">
-      <div className="mx-auto flex h-14 w-14 items-center justify-center rounded-2xl border border-white/10 bg-black/20 text-slate-500">
-        <Icon className="h-6 w-6" />
-      </div>
-      <div className="mt-4 text-lg font-semibold text-white">{title}</div>
-      <p className="mx-auto mt-2 max-w-2xl text-sm leading-6 text-slate-500">
-        {description}
-      </p>
-      {action ? <div className="mt-6">{action}</div> : null}
-    </section>
-  );
+function isSamePrimarySummary(row: ShippingDraftRow) {
+  return row.same_as_primary ? "Linked to a primary address." : "Standalone shipping address.";
 }
 
 export default function FinanceMasterDataClientDetailPage() {
@@ -789,6 +447,7 @@ export default function FinanceMasterDataClientDetailPage() {
   const [shippingAddresses, setShippingAddresses] = useState<AddressRow[]>([]);
   const [isLoadingProfile, setIsLoadingProfile] = useState(true);
   const [isLoadingClient, setIsLoadingClient] = useState(true);
+  const [backgroundRefreshing, setBackgroundRefreshing] = useState(false);
   const [isSaving, setIsSaving] = useState(false);
   const [isLifecycleRunning, setIsLifecycleRunning] = useState(false);
   const [editingSection, setEditingSection] = useState<EditSection>(null);
@@ -808,173 +467,208 @@ export default function FinanceMasterDataClientDetailPage() {
   ]);
   const [notesDraft, setNotesDraft] = useState("");
 
-  const loadCurrentProfile = useCallback(
-    async (mode: "initial" | "silent" = "initial") => {
-      if (mode === "initial") {
-        setIsLoadingProfile(true);
-      }
+  const loadCurrentProfile = useCallback(async (mode: LoadMode = "initial") => {
+    if (mode === "initial") {
+      setIsLoadingProfile(true);
+    } else {
+      setBackgroundRefreshing(true);
+    }
 
-      try {
-        const authResult = await supabase.auth.getUser();
-        if (authResult.error) throw authResult.error;
+    try {
+      const authResult = await supabase.auth.getUser();
+      if (authResult.error) throw authResult.error;
 
-        const authUserId = authResult.data.user?.id;
+      const authUserId = authResult.data.user?.id;
 
-        if (!authUserId) {
-          setProfile(null);
-          setEffectivePermissions(null);
-          return;
-        }
-
-        const profileResult = await supabase
-          .from("profiles")
-          .select("user_id, full_name, role, permissions")
-          .eq("user_id", authUserId)
-          .maybeSingle();
-
-        if (profileResult.error) throw profileResult.error;
-
-        const loadedProfile = (profileResult.data || null) as ProfilePermissionRow | null;
-        const backendPermissions = await loadBackendEffectivePermissions(authUserId);
-
-        setProfile(loadedProfile);
-
-        if (!loadedProfile?.role) {
-          setEffectivePermissions(null);
-          return;
-        }
-
-        const resolvedPermissions = getEffectivePermissions(
-          loadedProfile.role,
-          backendPermissions || loadedProfile.permissions || null
-        );
-
-        setEffectivePermissions(resolvedPermissions);
-      } catch (error) {
-        console.error("Failed to load client ID permissions:", error);
-
+      if (!authUserId) {
         if (mode === "initial") {
           setProfile(null);
           setEffectivePermissions(null);
-        }
-      } finally {
-        if (mode === "initial") {
-          setIsLoadingProfile(false);
-        }
-      }
-    },
-    []
-  );
-
-  const loadClient = useCallback(
-    async (mode: "initial" | "silent" = "initial") => {
-      if (!id) return;
-
-      if (mode === "initial") {
-        setIsLoadingClient(true);
-      }
-
-      try {
-        const [clientResult, personnelResult, addressResult] = await Promise.all([
-          supabase
-            .from("finance_clients")
-            .select(
-              `
-                id,
-                code,
-                name,
-                legal_name,
-                contact_person,
-                status,
-                company_email,
-                company_phone,
-                country,
-                address_line_1,
-                address_line_2,
-                shipping_address_line_1,
-                shipping_address_line_2,
-                notes,
-                created_at,
-                updated_at
-              `
-            )
-            .eq("id", id)
-            .single(),
-          supabase
-            .from("finance_client_personnel")
-            .select(
-              `
-                id,
-                full_name,
-                position,
-                phone,
-                email,
-                sort_order,
-                is_primary,
-                status
-              `
-            )
-            .eq("client_id", id)
-            .order("sort_order", { ascending: true }),
-          supabase
-            .from("finance_client_addresses")
-            .select(
-              `
-                id,
-                address_type,
-                country,
-                city,
-                state_province,
-                postal_code,
-                address_line_1,
-                address_line_2,
-                sort_order,
-                is_primary,
-                is_same_as_primary,
-                status
-              `
-            )
-            .eq("client_id", id)
-            .order("address_type", { ascending: true })
-            .order("sort_order", { ascending: true }),
-        ]);
-
-        if (clientResult.error) throw clientResult.error;
-        if (personnelResult.error) throw personnelResult.error;
-        if (addressResult.error) throw addressResult.error;
-
-        const clientData = clientResult.data as ClientDetailRecord;
-        const personnelData = (personnelResult.data ?? []) as PersonnelRow[];
-        const addressData = (addressResult.data ?? []) as AddressRow[];
-
-        setClient(clientData);
-        setPersonnel(personnelData);
-        setAddresses(addressData.filter((row) => row.address_type === "primary"));
-        setShippingAddresses(
-          addressData.filter((row) => row.address_type === "shipping")
-        );
-      } catch (error) {
-        console.error("Failed to load finance client details:", error);
-
-        if (mode === "initial") {
-          setClient(null);
-          setPersonnel([]);
-          setAddresses([]);
-          setShippingAddresses([]);
-          setPageError(
-            error instanceof Error
-              ? error.message
-              : "Failed to load finance client details."
+        } else {
+          console.warn(
+            "Silent client ID profile refresh returned no auth user; keeping current profile and permissions."
           );
         }
-      } finally {
-        if (mode === "initial") {
-          setIsLoadingClient(false);
-        }
+
+        return;
       }
-    },
-    [id]
-  );
+
+      const profileResult = await supabase
+        .from("profiles")
+        .select("user_id, full_name, role, permissions")
+        .eq("user_id", authUserId)
+        .maybeSingle();
+
+      if (profileResult.error) throw profileResult.error;
+
+      const loadedProfile = (profileResult.data || null) as ProfilePermissionRow | null;
+
+      if (!loadedProfile) {
+        if (mode === "initial") {
+          setProfile(null);
+          setEffectivePermissions(null);
+        } else {
+          console.warn(
+            "Silent client ID profile refresh returned no profile; keeping current profile and permissions."
+          );
+        }
+
+        return;
+      }
+
+      const backendPermissions = await loadBackendEffectivePermissions(authUserId, mode);
+
+      setProfile(loadedProfile);
+
+      if (!loadedProfile.role) {
+        if (mode === "initial") {
+          setEffectivePermissions(null);
+        } else {
+          console.warn(
+            "Silent client ID profile refresh returned no role; keeping current permissions."
+          );
+        }
+
+        return;
+      }
+
+      const resolvedPermissions = getEffectivePermissions(
+        loadedProfile.role,
+        backendPermissions || loadedProfile.permissions || null
+      );
+
+      setEffectivePermissions(resolvedPermissions);
+    } catch (error) {
+      console.error("Failed to load client ID permissions:", error);
+
+      if (mode === "initial") {
+        setProfile(null);
+        setEffectivePermissions(null);
+      }
+    } finally {
+      if (mode === "initial") {
+        setIsLoadingProfile(false);
+      } else {
+        setBackgroundRefreshing(false);
+      }
+    }
+  }, []);
+
+  const loadClient = useCallback(async (mode: LoadMode = "initial") => {
+    if (!id) return;
+
+    if (mode === "initial") {
+      setIsLoadingClient(true);
+      setPageError(null);
+    } else {
+      setBackgroundRefreshing(true);
+    }
+
+    try {
+      const [clientResult, personnelResult, addressResult] = await Promise.all([
+        supabase
+          .from("finance_clients")
+          .select(
+            `
+              id,
+              code,
+              name,
+              legal_name,
+              contact_person,
+              status,
+              company_email,
+              company_phone,
+              country,
+              address_line_1,
+              address_line_2,
+              shipping_address_line_1,
+              shipping_address_line_2,
+              notes,
+              created_at,
+              updated_at
+            `
+          )
+          .eq("id", id)
+          .single(),
+        supabase
+          .from("finance_client_personnel")
+          .select(
+            `
+              id,
+              full_name,
+              position,
+              phone,
+              email,
+              sort_order,
+              is_primary,
+              status
+            `
+          )
+          .eq("client_id", id)
+          .order("sort_order", { ascending: true }),
+        supabase
+          .from("finance_client_addresses")
+          .select(
+            `
+              id,
+              address_type,
+              country,
+              city,
+              state_province,
+              postal_code,
+              address_line_1,
+              address_line_2,
+              sort_order,
+              is_primary,
+              is_same_as_primary,
+              status
+            `
+          )
+          .eq("client_id", id)
+          .order("address_type", { ascending: true })
+          .order("sort_order", { ascending: true }),
+      ]);
+
+      if (clientResult.error) throw clientResult.error;
+      if (personnelResult.error) throw personnelResult.error;
+      if (addressResult.error) throw addressResult.error;
+
+      const clientData = clientResult.data as ClientDetailRecord;
+      const personnelData = (personnelResult.data ?? []) as PersonnelRow[];
+      const addressData = (addressResult.data ?? []) as AddressRow[];
+
+      setClient(clientData);
+      setPersonnel(personnelData);
+      setAddresses(addressData.filter((row) => row.address_type === "primary"));
+      setShippingAddresses(
+        addressData.filter((row) => row.address_type === "shipping")
+      );
+
+      if (mode === "initial") {
+        setPageError(null);
+      }
+    } catch (error) {
+      console.error("Failed to load finance client details:", error);
+
+      if (mode === "initial") {
+        setClient(null);
+        setPersonnel([]);
+        setAddresses([]);
+        setShippingAddresses([]);
+        setPageError(
+          error instanceof Error
+            ? error.message
+            : "Failed to load finance client details."
+        );
+      }
+    } finally {
+      if (mode === "initial") {
+        setIsLoadingClient(false);
+      } else {
+        setBackgroundRefreshing(false);
+      }
+    }
+  }, [id]);
 
   useEffect(() => {
     void Promise.all([
@@ -1027,7 +721,7 @@ export default function FinanceMasterDataClientDetailPage() {
 
     return () => {
       window.clearInterval(intervalId);
-      supabase.removeChannel(channel);
+      void supabase.removeChannel(channel);
     };
   }, [loadClient, loadCurrentProfile]);
 
@@ -1056,49 +750,56 @@ export default function FinanceMasterDataClientDetailPage() {
           : permissionState.canRead
             ? "Enabled"
             : "Locked",
-        detail: "Viewing this record requires Client read access.",
+        description: "Viewing this record requires Client read access.",
         icon: permissionState.canRead ? ShieldCheck : LockKeyhole,
         tone: permissionState.canRead ? "emerald" : "rose",
       },
       {
         label: "Edit Access",
         value: permissionState.canUpdate ? "Enabled" : "Read Only",
-        detail: "Section edits require Update access or Master Data admin access.",
+        description: "Section edits require Update access or Master Data admin access.",
         icon: permissionState.canUpdate ? Pencil : LockKeyhole,
         tone: permissionState.canUpdate ? "cyan" : "amber",
       },
+      {
+        label: "Lifecycle Access",
+        value: permissionState.canDeleteArchive ? "Archive Enabled" : "Locked",
+        description: backgroundRefreshing
+          ? "Silent refresh is updating data without disturbing the page."
+          : "Archive and Restore require Delete/Archive access.",
+        icon: permissionState.canDeleteArchive ? Archive : LockKeyhole,
+        tone: permissionState.canDeleteArchive ? "amber" : "rose",
+      },
     ];
-  }, [isLoadingProfile, permissionState.canRead, permissionState.canUpdate]);
+  }, [
+    backgroundRefreshing,
+    isLoadingProfile,
+    permissionState.canDeleteArchive,
+    permissionState.canRead,
+    permissionState.canUpdate,
+  ]);
 
-  const summaryCards = useMemo<SummaryCardData[]>(() => {
+  const summaryItems = useMemo<SummaryItem[]>(() => {
     return [
       {
         label: "Client",
         value: getClientDisplayName(client),
-        detail: client?.code || "No client code",
-        icon: Building2,
-        tone: "cyan",
+        description: client?.code || "No client code",
       },
       {
         label: "Contact",
         value: getClientContactLabel(client),
-        detail: `${getClientEmailLabel(client)} • ${getClientPhoneLabel(client)}`,
-        icon: UserRound,
-        tone: "emerald",
+        description: `${getClientEmailLabel(client)} • ${getClientPhoneLabel(client)}`,
       },
       {
         label: "Personnel",
         value: `${personnel.length} Row${personnel.length === 1 ? "" : "s"}`,
-        detail: getPersonnelSummary(personnel),
-        icon: Users,
-        tone: "violet",
+        description: getPersonnelSummary(personnel),
       },
       {
         label: "Lifecycle",
         value: formatStatus(client?.status),
-        detail: getPrimaryAddressSummary(addresses),
-        icon: client?.status === "archived" ? Archive : ShieldCheck,
-        tone: client?.status === "archived" ? "rose" : "amber",
+        description: getPrimaryAddressSummary(addresses),
       },
     ];
   }, [addresses, client, personnel]);
@@ -1149,15 +850,7 @@ export default function FinanceMasterDataClientDetailPage() {
     setPageMessage(null);
     setAddressDraft(
       addresses.length > 0
-        ? addresses.map((row) => ({
-            id: row.id,
-            country: row.country || "",
-            city: row.city || "",
-            state_province: row.state_province || "",
-            postal_code: row.postal_code || "",
-            address_line_1: row.address_line_1 || "",
-            address_line_2: row.address_line_2 || "",
-          }))
+        ? addresses.map(mapPrimaryAddressToDraft)
         : [createEmptyAddressDraftRow()]
     );
     setEditingSection("primary-addresses");
@@ -1170,30 +863,12 @@ export default function FinanceMasterDataClientDetailPage() {
     setPageMessage(null);
     setAddressDraft(
       addresses.length > 0
-        ? addresses.map((row) => ({
-            id: row.id,
-            country: row.country || "",
-            city: row.city || "",
-            state_province: row.state_province || "",
-            postal_code: row.postal_code || "",
-            address_line_1: row.address_line_1 || "",
-            address_line_2: row.address_line_2 || "",
-          }))
+        ? addresses.map(mapPrimaryAddressToDraft)
         : [createEmptyAddressDraftRow()]
     );
     setShippingDraft(
       shippingAddresses.length > 0
-        ? shippingAddresses.map((row) => ({
-            id: row.id,
-            same_as_primary: row.is_same_as_primary,
-            source_address_id: "",
-            country: row.country || "",
-            city: row.city || "",
-            state_province: row.state_province || "",
-            postal_code: row.postal_code || "",
-            address_line_1: row.address_line_1 || "",
-            address_line_2: row.address_line_2 || "",
-          }))
+        ? shippingAddresses.map(mapShippingAddressToDraft)
         : [createEmptyShippingDraftRow()]
     );
     setEditingSection("shipping-addresses");
@@ -1709,154 +1384,99 @@ export default function FinanceMasterDataClientDetailPage() {
   const isPageLoading = isLoadingProfile || isLoadingClient;
 
   if (isPageLoading) {
-    return <LoadingState />;
+    return (
+      <AixiaLoadingState
+        title="Loading client detail"
+        description="Client record and permission state are being checked."
+      />
+    );
   }
 
   if (!client) {
     return (
-      <div className="min-h-screen bg-[#05070d] px-4 py-4 text-white md:px-6 md:py-6">
-        <div className="mx-auto flex w-full max-w-[1600px] flex-col gap-6">
-          <EmptyState
-            icon={Building2}
-            title="Client not found"
-            description="The client record could not be loaded or no longer exists."
-            action={
-              <button
-                type="button"
-                onClick={() => navigate("/finance/master-data/clients")}
-                className="inline-flex h-11 items-center justify-center gap-2 rounded-2xl border border-cyan-400/20 bg-cyan-500/10 px-5 text-sm font-semibold text-cyan-100 transition hover:bg-cyan-500/15"
-              >
-                <ArrowRight className="h-4 w-4 rotate-180" />
-                Clients
-              </button>
-            }
-          />
-        </div>
-      </div>
+      <AixiaPage>
+        <AixiaNotFoundState
+          title="Client not found"
+          description="The client record could not be loaded or no longer exists."
+          action={
+            <AixiaButton
+              type="button"
+              variant="secondary"
+              onClick={() => navigate("/finance/master-data/clients")}
+            >
+              <ArrowRight className="h-4 w-4 rotate-180" />
+              Clients
+            </AixiaButton>
+          }
+        />
+      </AixiaPage>
     );
   }
 
   if (!permissionState.canRead) {
     return (
-      <div className="min-h-screen bg-[#05070d] px-4 py-4 text-white md:px-6 md:py-6">
-        <div className="mx-auto flex w-full max-w-[1600px] flex-col gap-6">
-          <header className="relative overflow-hidden rounded-[34px] border border-white/10 bg-white/[0.045] p-6 shadow-2xl shadow-black/30 backdrop-blur-xl">
-            <div className="pointer-events-none absolute inset-0 bg-[radial-gradient(circle_at_top_left,rgba(6,182,212,0.16),transparent_38%),radial-gradient(circle_at_top_right,rgba(139,92,246,0.12),transparent_34%)]" />
+      <AixiaPage>
+        <AixiaHero
+          parentLabel="Clients"
+          parentPath="/finance/master-data/clients"
+          badges={[
+            { label: "Access Locked", tone: "rose" },
+            { label: "Permission protected", tone: "cyan" },
+          ]}
+          gradientTitle="Client"
+          title="Access Locked"
+          subtitle="Read Permission Required"
+          description="This page requires Client read access or Master Data admin access."
+          statusCards={[
+            {
+              label: "Read Access",
+              value: "Locked",
+              description:
+                "Ask an Admin to assign a Finance role template or user-specific exception with Client read access.",
+              icon: LockKeyhole,
+              tone: "rose",
+            },
+          ]}
+        />
 
-            <div className="relative">
-              <button
-                type="button"
-                onClick={() => navigate("/finance/master-data/clients")}
-                className="mb-5 inline-flex items-center justify-center gap-2 rounded-full border border-white/10 bg-white/[0.05] px-5 py-2 text-[11px] font-semibold uppercase tracking-[0.22em] text-slate-300 transition hover:border-white/20 hover:bg-white/[0.08] hover:text-white"
-              >
-                <ArrowRight className="h-3.5 w-3.5 rotate-180" />
-                Clients
-              </button>
-
-              <div className="inline-flex w-fit items-center gap-2 rounded-full border border-rose-400/20 bg-rose-500/10 px-3 py-1 text-[11px] font-semibold uppercase tracking-[0.22em] text-rose-200">
-                <LockKeyhole className="h-3.5 w-3.5" />
-                Access Locked
-              </div>
-
-              <h1 className="mt-4 text-3xl font-semibold tracking-[-0.035em] text-white md:text-5xl">
-                Client Access Locked
-              </h1>
-
-              <p className="mt-3 max-w-4xl text-sm leading-6 text-slate-400 md:text-base md:leading-7">
-                This page requires Client read access or Master Data admin access.
-              </p>
-            </div>
-          </header>
-
-          <EmptyState
-            icon={LockKeyhole}
-            title="No client read access"
-            description="Ask an Admin to assign a Finance role template or user-specific exception with Client read access."
-          />
-        </div>
-      </div>
+        <AixiaAccessDeniedState
+          title="No client read access"
+          description="Ask an Admin to assign a Finance role template or user-specific exception with Client read access."
+        />
+      </AixiaPage>
     );
   }
 
   return (
-    <div className="min-h-screen bg-[#05070d] px-4 py-4 text-white md:px-6 md:py-6">
-      <div className="mx-auto flex w-full max-w-[1600px] flex-col gap-6">
-        <header className="relative overflow-hidden rounded-[34px] border border-white/10 bg-white/[0.045] p-6 shadow-2xl shadow-black/30 backdrop-blur-xl">
-          <div className="pointer-events-none absolute inset-0 bg-[radial-gradient(circle_at_top_left,rgba(6,182,212,0.16),transparent_38%),radial-gradient(circle_at_top_right,rgba(139,92,246,0.12),transparent_34%)]" />
+    <AixiaPage>
+      <AixiaHero
+        parentLabel="Clients"
+        parentPath="/finance/master-data/clients"
+        badges={[
+          { label: "Client Detail", tone: "cyan" },
+          { label: client.code || "No Client Code", tone: "neutral" },
+          { label: getClientContactLabel(client), tone: "emerald" },
+          { label: formatStatus(client.status), tone: "amber" },
+        ]}
+        gradientTitle={getClientDisplayName(client)}
+        title="Client"
+        subtitle="Finance Customer Master Data"
+        description="Finance client record with same-place section editing, personnel, primary addresses, shipping addresses, notes, and lifecycle control."
+        statusCards={headerStatusCards}
+      />
 
-          <div className="relative grid gap-6 xl:grid-cols-[minmax(0,1fr)_520px] xl:items-end">
-            <div>
-              <button
-                type="button"
-                onClick={() => navigate("/finance/master-data/clients")}
-                className="mb-5 inline-flex items-center justify-center gap-2 rounded-full border border-white/10 bg-white/[0.05] px-5 py-2 text-[11px] font-semibold uppercase tracking-[0.22em] text-slate-300 transition hover:border-white/20 hover:bg-white/[0.08] hover:text-white"
-              >
-                <ArrowRight className="h-3.5 w-3.5 rotate-180" />
-                Clients
-              </button>
+      {pageError ? <AixiaAlert tone="error">{pageError}</AixiaAlert> : null}
+      {pageMessage ? <AixiaAlert tone="success">{pageMessage}</AixiaAlert> : null}
 
-              <div className="inline-flex w-fit items-center gap-2 rounded-full border border-cyan-400/20 bg-cyan-500/10 px-3 py-1 text-[11px] font-semibold uppercase tracking-[0.22em] text-cyan-200">
-                <Sparkles className="h-3.5 w-3.5" />
-                Client Detail
-              </div>
-
-              <h1 className="mt-4 text-3xl font-semibold tracking-[-0.035em] text-white md:text-5xl">
-                {getClientDisplayName(client)}
-              </h1>
-
-              <p className="mt-3 max-w-4xl text-sm leading-6 text-slate-400 md:text-base md:leading-7">
-                Finance client record with same-place section editing, personnel,
-                primary addresses, shipping addresses, notes, and lifecycle control.
-              </p>
-
-              <div className="mt-5 flex flex-wrap gap-2">
-                <span className="rounded-full border border-white/10 bg-white/[0.05] px-3 py-1 text-[11px] font-semibold uppercase tracking-[0.16em] text-slate-300">
-                  {client.code || "No Client Code"}
-                </span>
-
-                <span className="rounded-full border border-white/10 bg-white/[0.05] px-3 py-1 text-[11px] font-semibold uppercase tracking-[0.16em] text-slate-300">
-                  {getClientContactLabel(client)}
-                </span>
-
-                <StatusBadge status={client.status} />
-              </div>
-            </div>
-
-            <div className="grid gap-3 sm:grid-cols-2">
-              {headerStatusCards.map((item) => (
-                <HeaderStatusCard key={item.label} item={item} />
-              ))}
-            </div>
-          </div>
-        </header>
-
-        {pageError ? (
-          <div className="rounded-[24px] border border-rose-400/20 bg-rose-500/10 p-4 text-sm leading-6 text-rose-100">
-            <div className="flex items-start gap-3">
-              <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0" />
-              <div>{pageError}</div>
-            </div>
-          </div>
-        ) : null}
-
-        {pageMessage ? (
-          <div className="rounded-[24px] border border-emerald-400/20 bg-emerald-500/10 p-4 text-sm leading-6 text-emerald-100">
-            <div className="flex items-start gap-3">
-              <CheckCircle2 className="mt-0.5 h-4 w-4 shrink-0" />
-              <div>{pageMessage}</div>
-            </div>
-          </div>
-        ) : null}
-
-        <section className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
-          {summaryCards.map((item) => (
-            <SummaryCard key={item.label} item={item} />
-          ))}
-        </section>
-
-                <section className="grid items-start gap-6 xl:grid-cols-[minmax(0,1fr)_420px]">
-          <div className="grid gap-6">
-            <DetailSection
+      <AixiaSmartLayout
+        sidebar="normal"
+        balance="main"
+        bottomSpan="never"
+        sideRebalance="last-to-bottom"
+        mainTopCount={3}
+        main={
+          <>
+            <AixiaDetailSection
               title="Client Overview"
               description="Legal identity, primary contact, communication, and lifecycle status."
               icon={Building2}
@@ -1868,10 +1488,10 @@ export default function FinanceMasterDataClientDetailPage() {
               isSaving={isSaving}
             >
               {editingSection === "overview" ? (
-                <div className="grid gap-4 md:grid-cols-2">
-                  <div className="md:col-span-2">
-                    <FieldLabel label="Legal Name" required />
-                    <InputField
+                <AixiaFormGrid columns="two">
+                  <AixiaFormFullWidth>
+                    <AixiaFieldLabel label="Legal Name" required />
+                    <AixiaInputField
                       value={overviewDraft.legal_name}
                       disabled={isSaving}
                       onChange={(event) =>
@@ -1879,11 +1499,11 @@ export default function FinanceMasterDataClientDetailPage() {
                       }
                       placeholder="Legal company name"
                     />
-                  </div>
+                  </AixiaFormFullWidth>
 
-                  <div>
-                    <FieldLabel label="Primary Contact" />
-                    <InputField
+                  <AixiaFormField>
+                    <AixiaFieldLabel label="Primary Contact" />
+                    <AixiaInputField
                       value={overviewDraft.contact_person}
                       disabled={isSaving}
                       onChange={(event) =>
@@ -1891,11 +1511,11 @@ export default function FinanceMasterDataClientDetailPage() {
                       }
                       placeholder="Primary contact"
                     />
-                  </div>
+                  </AixiaFormField>
 
-                  <div>
-                    <FieldLabel label="Company Email" />
-                    <InputField
+                  <AixiaFormField>
+                    <AixiaFieldLabel label="Company Email" />
+                    <AixiaInputField
                       type="email"
                       value={overviewDraft.company_email}
                       disabled={isSaving}
@@ -1904,11 +1524,11 @@ export default function FinanceMasterDataClientDetailPage() {
                       }
                       placeholder="company@email.com"
                     />
-                  </div>
+                  </AixiaFormField>
 
-                  <div>
-                    <FieldLabel label="Company Phone" />
-                    <InputField
+                  <AixiaFormField>
+                    <AixiaFieldLabel label="Company Phone" />
+                    <AixiaInputField
                       value={overviewDraft.company_phone}
                       disabled={isSaving}
                       onChange={(event) =>
@@ -1916,11 +1536,11 @@ export default function FinanceMasterDataClientDetailPage() {
                       }
                       placeholder="Company phone"
                     />
-                  </div>
+                  </AixiaFormField>
 
-                  <div>
-                    <FieldLabel label="Status" />
-                    <SelectField
+                  <AixiaFormField>
+                    <AixiaFieldLabel label="Status" />
+                    <AixiaSelectField
                       value={overviewDraft.status}
                       disabled={isSaving}
                       onChange={(event) =>
@@ -1936,50 +1556,36 @@ export default function FinanceMasterDataClientDetailPage() {
                       <option value="archived" className="bg-[#05070d]">
                         Archived
                       </option>
-                    </SelectField>
-                  </div>
-                </div>
+                    </AixiaSelectField>
+                  </AixiaFormField>
+                </AixiaFormGrid>
               ) : (
-                <div className="grid gap-3 md:grid-cols-2">
-                  <DisplayBlock label="Legal Name" value={getClientDisplayName(client)} />
-                  <DisplayBlock label="Client Code" value={client.code || "—"} />
-                  <DisplayBlock
+                <AixiaFormGrid columns="two">
+                  <AixiaDisplayBlock label="Legal Name" value={getClientDisplayName(client)} />
+                  <AixiaDisplayBlock label="Client Code" value={client.code || "—"} />
+                  <AixiaDisplayBlock
                     label="Primary Contact"
                     value={client.contact_person || "—"}
                   />
-                  <DisplayBlock
+                  <AixiaDisplayBlock
                     label="Company Email"
                     value={client.company_email || "—"}
-                    detail={
-                      client.company_email ? (
-                        <span className="inline-flex items-center gap-1">
-                          <Mail className="h-3.5 w-3.5" />
-                          Communication email
-                        </span>
-                      ) : null
-                    }
+                    detail={client.company_email ? "Communication email" : undefined}
                   />
-                  <DisplayBlock
+                  <AixiaDisplayBlock
                     label="Company Phone"
                     value={client.company_phone || "—"}
-                    detail={
-                      client.company_phone ? (
-                        <span className="inline-flex items-center gap-1">
-                          <Phone className="h-3.5 w-3.5" />
-                          Communication phone
-                        </span>
-                      ) : null
-                    }
+                    detail={client.company_phone ? "Communication phone" : undefined}
                   />
-                  <DisplayBlock
+                  <AixiaDisplayBlock
                     label="Lifecycle Status"
-                    value={<StatusBadge status={client.status} />}
+                    value={<AixiaStatusBadge value={client.status} />}
                   />
-                </div>
+                </AixiaFormGrid>
               )}
-            </DetailSection>
+            </AixiaDetailSection>
 
-            <DetailSection
+            <AixiaDetailSection
               title="Personnel"
               description="People connected to this client."
               icon={Users}
@@ -1991,28 +1597,32 @@ export default function FinanceMasterDataClientDetailPage() {
               isSaving={isSaving}
             >
               {editingSection === "personnel" ? (
-                <div className="space-y-4">
-                  <div className="flex justify-end">
-                    <AddRowButton
-                      label="Add Person"
+                <>
+                  <AixiaActionStack>
+                    <AixiaButton
+                      type="button"
+                      variant="secondary"
                       onClick={addPersonnelDraftRow}
                       disabled={isSaving}
-                    />
-                  </div>
+                    >
+                      <Plus className="h-4 w-4" />
+                      Add Person
+                    </AixiaButton>
+                  </AixiaActionStack>
 
-                  <div className="max-h-[720px] space-y-4 overflow-y-auto pr-1">
+                  <div className="aixia-form-row-list">
                     {personnelDraft.map((row, index) => (
-                      <RowCard
+                      <AixiaFormRowCard
                         key={row.id}
                         title={`Person ${index + 1}`}
                         description={index === 0 ? "Primary personnel row." : undefined}
                         onRemove={() => removePersonnelDraftRow(row.id)}
                         removeDisabled={isSaving || personnelDraft.length === 1}
                       >
-                        <div className="grid gap-4 md:grid-cols-2">
-                          <div>
-                            <FieldLabel label="Name" />
-                            <InputField
+                        <AixiaFormGrid columns="two">
+                          <AixiaFormField>
+                            <AixiaFieldLabel label="Name" />
+                            <AixiaInputField
                               value={row.full_name}
                               disabled={isSaving}
                               onChange={(event) =>
@@ -2024,11 +1634,11 @@ export default function FinanceMasterDataClientDetailPage() {
                               }
                               placeholder="Person name"
                             />
-                          </div>
+                          </AixiaFormField>
 
-                          <div>
-                            <FieldLabel label="Position" />
-                            <InputField
+                          <AixiaFormField>
+                            <AixiaFieldLabel label="Position" />
+                            <AixiaInputField
                               value={row.position}
                               disabled={isSaving}
                               onChange={(event) =>
@@ -2040,11 +1650,11 @@ export default function FinanceMasterDataClientDetailPage() {
                               }
                               placeholder="Position"
                             />
-                          </div>
+                          </AixiaFormField>
 
-                          <div>
-                            <FieldLabel label="Phone" />
-                            <InputField
+                          <AixiaFormField>
+                            <AixiaFieldLabel label="Phone" />
+                            <AixiaInputField
                               value={row.phone}
                               disabled={isSaving}
                               onChange={(event) =>
@@ -2056,11 +1666,11 @@ export default function FinanceMasterDataClientDetailPage() {
                               }
                               placeholder="Phone"
                             />
-                          </div>
+                          </AixiaFormField>
 
-                          <div>
-                            <FieldLabel label="Email" />
-                            <InputField
+                          <AixiaFormField>
+                            <AixiaFieldLabel label="Email" />
+                            <AixiaInputField
                               type="email"
                               value={row.email}
                               disabled={isSaving}
@@ -2073,47 +1683,39 @@ export default function FinanceMasterDataClientDetailPage() {
                               }
                               placeholder="Email"
                             />
-                          </div>
-                        </div>
-                      </RowCard>
+                          </AixiaFormField>
+                        </AixiaFormGrid>
+                      </AixiaFormRowCard>
                     ))}
                   </div>
-                </div>
+                </>
               ) : personnel.length === 0 ? (
-                <div className="rounded-[20px] border border-dashed border-white/10 bg-black/20 px-4 py-8 text-center text-sm text-slate-500">
-                  No personnel added yet.
-                </div>
+                <AixiaEmptyState
+                  icon={UserRound}
+                  title="No personnel added yet"
+                  description="Client personnel records will appear here after they are added."
+                />
               ) : (
-                <div className="max-h-[720px] space-y-3 overflow-y-auto pr-1">
+                <div className="aixia-form-row-list">
                   {personnel.map((row, index) => (
-                    <div
+                    <AixiaFormRowCard
                       key={row.id}
-                      className="rounded-[24px] border border-white/10 bg-black/20 p-4"
+                      title={`Person ${index + 1}`}
+                      description={row.is_primary ? "Primary personnel row." : undefined}
                     >
-                      <div className="mb-3 flex items-center justify-between gap-3">
-                        <div className="text-sm font-semibold text-white">
-                          Person {index + 1}
-                        </div>
-                        {row.is_primary ? (
-                          <span className="rounded-full border border-cyan-400/20 bg-cyan-500/10 px-3 py-1 text-[11px] font-semibold uppercase tracking-[0.14em] text-cyan-100">
-                            Primary
-                          </span>
-                        ) : null}
-                      </div>
-
-                      <div className="grid gap-3 md:grid-cols-2">
-                        <DisplayBlock label="Name" value={row.full_name || "—"} />
-                        <DisplayBlock label="Position" value={row.position || "—"} />
-                        <DisplayBlock label="Phone" value={row.phone || "—"} />
-                        <DisplayBlock label="Email" value={row.email || "—"} />
-                      </div>
-                    </div>
+                      <AixiaFormGrid columns="two">
+                        <AixiaDisplayBlock label="Name" value={row.full_name || "—"} />
+                        <AixiaDisplayBlock label="Position" value={row.position || "—"} />
+                        <AixiaDisplayBlock label="Phone" value={row.phone || "—"} />
+                        <AixiaDisplayBlock label="Email" value={row.email || "—"} />
+                      </AixiaFormGrid>
+                    </AixiaFormRowCard>
                   ))}
                 </div>
               )}
-            </DetailSection>
+            </AixiaDetailSection>
 
-            <DetailSection
+            <AixiaDetailSection
               title="Primary Addresses"
               description="Primary legal and billing addresses."
               icon={MapPin}
@@ -2125,28 +1727,32 @@ export default function FinanceMasterDataClientDetailPage() {
               isSaving={isSaving}
             >
               {editingSection === "primary-addresses" ? (
-                <div className="space-y-4">
-                  <div className="flex justify-end">
-                    <AddRowButton
-                      label="Add Address"
+                <>
+                  <AixiaActionStack>
+                    <AixiaButton
+                      type="button"
+                      variant="secondary"
                       onClick={addAddressDraftRow}
                       disabled={isSaving}
-                    />
-                  </div>
+                    >
+                      <Plus className="h-4 w-4" />
+                      Add Address
+                    </AixiaButton>
+                  </AixiaActionStack>
 
-                  <div className="max-h-[720px] space-y-4 overflow-y-auto pr-1">
+                  <div className="aixia-form-row-list">
                     {addressDraft.map((row, index) => (
-                      <RowCard
+                      <AixiaFormRowCard
                         key={row.id}
                         title={`Address ${index + 1}`}
                         description={index === 0 ? "Primary address row." : undefined}
                         onRemove={() => removeAddressDraftRow(row.id)}
                         removeDisabled={isSaving || addressDraft.length === 1}
                       >
-                        <div className="grid gap-4 md:grid-cols-2">
-                          <div>
-                            <FieldLabel label="Country" />
-                            <InputField
+                        <AixiaFormGrid columns="two">
+                          <AixiaFormField>
+                            <AixiaFieldLabel label="Country" />
+                            <AixiaInputField
                               value={row.country}
                               disabled={isSaving}
                               onChange={(event) =>
@@ -2158,11 +1764,11 @@ export default function FinanceMasterDataClientDetailPage() {
                               }
                               placeholder="Country"
                             />
-                          </div>
+                          </AixiaFormField>
 
-                          <div>
-                            <FieldLabel label="City" />
-                            <InputField
+                          <AixiaFormField>
+                            <AixiaFieldLabel label="City" />
+                            <AixiaInputField
                               value={row.city}
                               disabled={isSaving}
                               onChange={(event) =>
@@ -2174,11 +1780,11 @@ export default function FinanceMasterDataClientDetailPage() {
                               }
                               placeholder="City"
                             />
-                          </div>
+                          </AixiaFormField>
 
-                          <div>
-                            <FieldLabel label="State / Province" />
-                            <InputField
+                          <AixiaFormField>
+                            <AixiaFieldLabel label="State / Province" />
+                            <AixiaInputField
                               value={row.state_province}
                               disabled={isSaving}
                               onChange={(event) =>
@@ -2190,11 +1796,11 @@ export default function FinanceMasterDataClientDetailPage() {
                               }
                               placeholder="State / Province"
                             />
-                          </div>
+                          </AixiaFormField>
 
-                          <div>
-                            <FieldLabel label="ZIP / Postal Code" />
-                            <InputField
+                          <AixiaFormField>
+                            <AixiaFieldLabel label="ZIP / Postal Code" />
+                            <AixiaInputField
                               value={row.postal_code}
                               disabled={isSaving}
                               onChange={(event) =>
@@ -2206,11 +1812,11 @@ export default function FinanceMasterDataClientDetailPage() {
                               }
                               placeholder="Postal code"
                             />
-                          </div>
+                          </AixiaFormField>
 
-                          <div className="md:col-span-2">
-                            <FieldLabel label="Address Line 1" />
-                            <InputField
+                          <AixiaFormFullWidth>
+                            <AixiaFieldLabel label="Address Line 1" />
+                            <AixiaInputField
                               value={row.address_line_1}
                               disabled={isSaving}
                               onChange={(event) =>
@@ -2222,11 +1828,11 @@ export default function FinanceMasterDataClientDetailPage() {
                               }
                               placeholder="Address line 1"
                             />
-                          </div>
+                          </AixiaFormFullWidth>
 
-                          <div className="md:col-span-2">
-                            <FieldLabel label="Address Line 2" />
-                            <InputField
+                          <AixiaFormFullWidth>
+                            <AixiaFieldLabel label="Address Line 2" />
+                            <AixiaInputField
                               value={row.address_line_2}
                               disabled={isSaving}
                               onChange={(event) =>
@@ -2238,61 +1844,53 @@ export default function FinanceMasterDataClientDetailPage() {
                               }
                               placeholder="Address line 2"
                             />
-                          </div>
-                        </div>
-                      </RowCard>
+                          </AixiaFormFullWidth>
+                        </AixiaFormGrid>
+                      </AixiaFormRowCard>
                     ))}
                   </div>
-                </div>
+                </>
               ) : addresses.length === 0 ? (
-                <div className="rounded-[20px] border border-dashed border-white/10 bg-black/20 px-4 py-8 text-center text-sm text-slate-500">
-                  No primary addresses added yet.
-                </div>
+                <AixiaEmptyState
+                  icon={MapPin}
+                  title="No primary addresses added yet"
+                  description="Primary legal and billing addresses will appear here after they are added."
+                />
               ) : (
-                <div className="max-h-[720px] space-y-3 overflow-y-auto pr-1">
+                <div className="aixia-form-row-list">
                   {addresses.map((row, index) => (
-                    <div
+                    <AixiaFormRowCard
                       key={row.id}
-                      className="rounded-[24px] border border-white/10 bg-black/20 p-4"
+                      title={`Address ${index + 1}`}
+                      description={row.is_primary ? "Primary address row." : undefined}
                     >
-                      <div className="mb-3 flex items-center justify-between gap-3">
-                        <div className="text-sm font-semibold text-white">
-                          Address {index + 1}
-                        </div>
-                        {row.is_primary ? (
-                          <span className="rounded-full border border-cyan-400/20 bg-cyan-500/10 px-3 py-1 text-[11px] font-semibold uppercase tracking-[0.14em] text-cyan-100">
-                            Primary
-                          </span>
-                        ) : null}
-                      </div>
-
-                      <div className="grid gap-3 md:grid-cols-2">
-                        <DisplayBlock label="Country" value={row.country || "—"} />
-                        <DisplayBlock label="City" value={row.city || "—"} />
-                        <DisplayBlock
+                      <AixiaFormGrid columns="two">
+                        <AixiaDisplayBlock label="Country" value={row.country || "—"} />
+                        <AixiaDisplayBlock label="City" value={row.city || "—"} />
+                        <AixiaDisplayBlock
                           label="State / Province"
                           value={row.state_province || "—"}
                         />
-                        <DisplayBlock
+                        <AixiaDisplayBlock
                           label="ZIP / Postal Code"
                           value={row.postal_code || "—"}
                         />
-                        <DisplayBlock
+                        <AixiaDisplayBlock
                           label="Address Line 1"
                           value={row.address_line_1 || "—"}
                         />
-                        <DisplayBlock
+                        <AixiaDisplayBlock
                           label="Address Line 2"
                           value={row.address_line_2 || "—"}
                         />
-                      </div>
-                    </div>
+                      </AixiaFormGrid>
+                    </AixiaFormRowCard>
                   ))}
                 </div>
               )}
-            </DetailSection>
+            </AixiaDetailSection>
 
-            <DetailSection
+            <AixiaDetailSection
               title="Shipping Addresses"
               description="Shipping destinations for this client."
               icon={Truck}
@@ -2304,32 +1902,31 @@ export default function FinanceMasterDataClientDetailPage() {
               isSaving={isSaving}
             >
               {editingSection === "shipping-addresses" ? (
-                <div className="space-y-4">
-                  <div className="flex justify-end">
-                    <AddRowButton
-                      label="Add Shipping"
+                <>
+                  <AixiaActionStack>
+                    <AixiaButton
+                      type="button"
+                      variant="secondary"
                       onClick={addShippingDraftRow}
                       disabled={isSaving}
-                    />
-                  </div>
+                    >
+                      <Plus className="h-4 w-4" />
+                      Add Shipping
+                    </AixiaButton>
+                  </AixiaActionStack>
 
-                  <div className="max-h-[720px] space-y-4 overflow-y-auto pr-1">
+                  <div className="aixia-form-row-list">
                     {shippingDraft.map((row, index) => (
-                      <RowCard
+                      <AixiaFormRowCard
                         key={row.id}
                         title={`Shipping ${index + 1}`}
-                        description={
-                          row.same_as_primary
-                            ? "Linked to a primary address."
-                            : "Standalone shipping address."
-                        }
+                        description={isSamePrimarySummary(row)}
                         onRemove={() => removeShippingDraftRow(row.id)}
                         removeDisabled={isSaving || shippingDraft.length === 1}
                       >
-                        <div className="space-y-4">
-                          <label className="flex items-start gap-3 rounded-2xl border border-white/10 bg-black/20 px-4 py-3 text-sm text-slate-300">
-                            <input
-                              type="checkbox"
+                        <AixiaFormGrid columns="two">
+                          <AixiaFormFullWidth>
+                            <AixiaCheckboxField
                               checked={row.same_as_primary}
                               disabled={isSaving}
                               onChange={(event) =>
@@ -2339,23 +1936,15 @@ export default function FinanceMasterDataClientDetailPage() {
                                   event.target.checked
                                 )
                               }
-                              className="mt-1"
+                              label="Same as primary address"
+                              description="Select one primary address and copy its values into this shipping row."
                             />
-                            <span>
-                              <span className="block font-semibold text-white">
-                                Same as primary address
-                              </span>
-                              <span className="mt-1 block text-xs leading-5 text-slate-500">
-                                Select one primary address and copy its values into this
-                                shipping row.
-                              </span>
-                            </span>
-                          </label>
+                          </AixiaFormFullWidth>
 
                           {row.same_as_primary ? (
-                            <div>
-                              <FieldLabel label="Source Primary Address" />
-                              <SelectField
+                            <AixiaFormFullWidth>
+                              <AixiaFieldLabel label="Source Primary Address" />
+                              <AixiaSelectField
                                 value={row.source_address_id}
                                 disabled={isSaving}
                                 onChange={(event) =>
@@ -2378,13 +1967,13 @@ export default function FinanceMasterDataClientDetailPage() {
                                     {option.label}
                                   </option>
                                 ))}
-                              </SelectField>
-                            </div>
+                              </AixiaSelectField>
+                            </AixiaFormFullWidth>
                           ) : (
-                            <div className="grid gap-4 md:grid-cols-2">
-                              <div>
-                                <FieldLabel label="Country" />
-                                <InputField
+                            <>
+                              <AixiaFormField>
+                                <AixiaFieldLabel label="Country" />
+                                <AixiaInputField
                                   value={row.country}
                                   disabled={isSaving}
                                   onChange={(event) =>
@@ -2396,11 +1985,11 @@ export default function FinanceMasterDataClientDetailPage() {
                                   }
                                   placeholder="Country"
                                 />
-                              </div>
+                              </AixiaFormField>
 
-                              <div>
-                                <FieldLabel label="City" />
-                                <InputField
+                              <AixiaFormField>
+                                <AixiaFieldLabel label="City" />
+                                <AixiaInputField
                                   value={row.city}
                                   disabled={isSaving}
                                   onChange={(event) =>
@@ -2412,11 +2001,11 @@ export default function FinanceMasterDataClientDetailPage() {
                                   }
                                   placeholder="City"
                                 />
-                              </div>
+                              </AixiaFormField>
 
-                              <div>
-                                <FieldLabel label="State / Province" />
-                                <InputField
+                              <AixiaFormField>
+                                <AixiaFieldLabel label="State / Province" />
+                                <AixiaInputField
                                   value={row.state_province}
                                   disabled={isSaving}
                                   onChange={(event) =>
@@ -2428,11 +2017,11 @@ export default function FinanceMasterDataClientDetailPage() {
                                   }
                                   placeholder="State / Province"
                                 />
-                              </div>
+                              </AixiaFormField>
 
-                              <div>
-                                <FieldLabel label="ZIP / Postal Code" />
-                                <InputField
+                              <AixiaFormField>
+                                <AixiaFieldLabel label="ZIP / Postal Code" />
+                                <AixiaInputField
                                   value={row.postal_code}
                                   disabled={isSaving}
                                   onChange={(event) =>
@@ -2444,11 +2033,11 @@ export default function FinanceMasterDataClientDetailPage() {
                                   }
                                   placeholder="Postal code"
                                 />
-                              </div>
+                              </AixiaFormField>
 
-                              <div className="md:col-span-2">
-                                <FieldLabel label="Address Line 1" />
-                                <InputField
+                              <AixiaFormFullWidth>
+                                <AixiaFieldLabel label="Address Line 1" />
+                                <AixiaInputField
                                   value={row.address_line_1}
                                   disabled={isSaving}
                                   onChange={(event) =>
@@ -2460,11 +2049,11 @@ export default function FinanceMasterDataClientDetailPage() {
                                   }
                                   placeholder="Address line 1"
                                 />
-                              </div>
+                              </AixiaFormFullWidth>
 
-                              <div className="md:col-span-2">
-                                <FieldLabel label="Address Line 2" />
-                                <InputField
+                              <AixiaFormFullWidth>
+                                <AixiaFieldLabel label="Address Line 2" />
+                                <AixiaInputField
                                   value={row.address_line_2}
                                   disabled={isSaving}
                                   onChange={(event) =>
@@ -2476,69 +2065,68 @@ export default function FinanceMasterDataClientDetailPage() {
                                   }
                                   placeholder="Address line 2"
                                 />
-                              </div>
-                            </div>
+                              </AixiaFormFullWidth>
+                            </>
                           )}
-                        </div>
-                      </RowCard>
+                        </AixiaFormGrid>
+                      </AixiaFormRowCard>
                     ))}
                   </div>
-                </div>
+                </>
               ) : shippingAddresses.length === 0 ? (
-                <div className="rounded-[20px] border border-dashed border-white/10 bg-black/20 px-4 py-8 text-center text-sm text-slate-500">
-                  No shipping addresses added yet.
-                </div>
+                <AixiaEmptyState
+                  icon={Truck}
+                  title="No shipping addresses added yet"
+                  description="Shipping destination records will appear here after they are added."
+                />
               ) : (
-                <div className="max-h-[720px] space-y-3 overflow-y-auto pr-1">
+                <div className="aixia-form-row-list">
                   {shippingAddresses.map((row, index) => (
-                    <div
+                    <AixiaFormRowCard
                       key={row.id}
-                      className="rounded-[24px] border border-white/10 bg-black/20 p-4"
+                      title={`Shipping ${index + 1}`}
+                      description={
+                        row.is_same_as_primary
+                          ? "Same as primary address."
+                          : "Standalone shipping address."
+                      }
                     >
-                      <div className="mb-3 flex items-center justify-between gap-3">
-                        <div className="text-sm font-semibold text-white">
-                          Shipping {index + 1}
-                        </div>
-                        {row.is_same_as_primary ? (
-                          <span className="rounded-full border border-emerald-400/20 bg-emerald-500/10 px-3 py-1 text-[11px] font-semibold uppercase tracking-[0.14em] text-emerald-100">
-                            Same as primary
-                          </span>
-                        ) : null}
-                      </div>
-
                       {row.is_same_as_primary ? (
-                        <div className="rounded-[20px] border border-white/10 bg-white/[0.035] px-4 py-3 text-sm text-slate-300">
-                          Same as primary address.
-                        </div>
+                        <AixiaAlert tone="info">
+                          <AixiaAlertText
+                            title="Same as primary address"
+                            description="This shipping row is linked to the primary address."
+                          />
+                        </AixiaAlert>
                       ) : (
-                        <div className="grid gap-3 md:grid-cols-2">
-                          <DisplayBlock label="Country" value={row.country || "—"} />
-                          <DisplayBlock label="City" value={row.city || "—"} />
-                          <DisplayBlock
+                        <AixiaFormGrid columns="two">
+                          <AixiaDisplayBlock label="Country" value={row.country || "—"} />
+                          <AixiaDisplayBlock label="City" value={row.city || "—"} />
+                          <AixiaDisplayBlock
                             label="State / Province"
                             value={row.state_province || "—"}
                           />
-                          <DisplayBlock
+                          <AixiaDisplayBlock
                             label="ZIP / Postal Code"
                             value={row.postal_code || "—"}
                           />
-                          <DisplayBlock
+                          <AixiaDisplayBlock
                             label="Address Line 1"
                             value={row.address_line_1 || "—"}
                           />
-                          <DisplayBlock
+                          <AixiaDisplayBlock
                             label="Address Line 2"
                             value={row.address_line_2 || "—"}
                           />
-                        </div>
+                        </AixiaFormGrid>
                       )}
-                    </div>
+                    </AixiaFormRowCard>
                   ))}
                 </div>
               )}
-            </DetailSection>
+            </AixiaDetailSection>
 
-                        <DetailSection
+            <AixiaDetailSection
               title="Notes"
               description="Internal finance notes for this client."
               icon={FileText}
@@ -2550,63 +2138,55 @@ export default function FinanceMasterDataClientDetailPage() {
               isSaving={isSaving}
             >
               {editingSection === "notes" ? (
-                <div>
-                  <FieldLabel label="Notes" />
-                  <TextareaField
+                <AixiaFormField>
+                  <AixiaFieldLabel label="Notes" />
+                  <AixiaTextareaField
                     value={notesDraft}
                     disabled={isSaving}
                     onChange={(event) => setNotesDraft(event.target.value)}
                     placeholder="Internal notes..."
                   />
-                </div>
+                </AixiaFormField>
               ) : (
-                <div className="rounded-[20px] border border-white/10 bg-black/20 px-4 py-4 text-sm leading-7 text-slate-300">
-                  {client.notes || "No notes added yet."}
-                </div>
+                <AixiaDisplayBlock
+                  label="Notes"
+                  value={client.notes || "No notes added yet."}
+                />
               )}
-            </DetailSection>
-          </div>
-
-          <aside className="grid gap-6">
-            <section className="overflow-hidden rounded-[30px] border border-white/10 bg-white/[0.045] backdrop-blur-xl">
-              <div className="border-b border-white/10 px-5 py-4">
-                <div className="text-sm font-semibold uppercase tracking-[0.18em] text-slate-400">
-                  Record Summary
-                </div>
-                <p className="mt-1 text-xs leading-5 text-slate-500">
-                  Key client details and current lifecycle.
-                </p>
-              </div>
-
-              <div className="grid gap-4 p-5">
-                {summaryCards.map((item) => (
-                  <SummaryCard key={item.label} item={item} />
+            </AixiaDetailSection>
+          </>
+        }
+        side={
+          <>
+            <AixiaSection
+              title="Record Summary"
+              description="Key client details and current lifecycle."
+              icon={Sparkles}
+            >
+              <AixiaReviewGrid>
+                {summaryItems.map((item) => (
+                  <AixiaReviewBlock
+                    key={item.label}
+                    label={item.label}
+                    value={item.value}
+                    description={item.description}
+                  />
                 ))}
-              </div>
-            </section>
+              </AixiaReviewGrid>
+            </AixiaSection>
 
-            <section className="overflow-hidden rounded-[30px] border border-white/10 bg-white/[0.045] backdrop-blur-xl">
-              <div className="border-b border-white/10 px-5 py-4">
-                <div className="text-sm font-semibold uppercase tracking-[0.18em] text-slate-400">
-                  Lifecycle Actions
-                </div>
-                <p className="mt-1 text-xs leading-5 text-slate-500">
-                  Archive or restore this client. Permanent delete is only available
-                  from the registry archive modal.
-                </p>
-              </div>
-
-              <div className="grid gap-3 p-5">
+            <AixiaSection
+              title="Lifecycle Actions"
+              description="Archive or restore this client. Permanent delete is only available from the registry archive modal."
+              icon={Archive}
+            >
+              <AixiaActionStack>
                 {permissionState.canDeleteArchive ? (
-                  <button
+                  <AixiaButton
                     type="button"
+                    variant={client.status === "archived" ? "secondary" : "danger"}
                     onClick={() => void handleArchiveToggle()}
                     disabled={isLifecycleRunning}
-                    className={`inline-flex h-12 items-center justify-center gap-2 rounded-2xl border px-5 text-sm font-semibold transition disabled:cursor-not-allowed disabled:opacity-60 ${
-                      client.status === "archived"
-                        ? "border-emerald-400/20 bg-emerald-500/10 text-emerald-100 hover:bg-emerald-500/15"
-                        : "border-rose-400/20 bg-rose-500/10 text-rose-100 hover:bg-rose-500/15"
-                    }`}
                   >
                     {isLifecycleRunning ? (
                       <Loader2 className="h-4 w-4 animate-spin" />
@@ -2616,67 +2196,63 @@ export default function FinanceMasterDataClientDetailPage() {
                       <Archive className="h-4 w-4" />
                     )}
                     {client.status === "archived" ? "Restore Client" : "Archive Client"}
-                  </button>
+                  </AixiaButton>
                 ) : (
-                  <div className="rounded-[20px] border border-amber-400/20 bg-amber-500/10 p-4 text-sm leading-6 text-amber-100">
-                    Delete/Archive access is not enabled for this user.
-                  </div>
+                  <AixiaAlert tone="info">
+                    <AixiaAlertText
+                      title="Lifecycle access locked"
+                      description="Delete/Archive access is not enabled for this user."
+                    />
+                  </AixiaAlert>
                 )}
 
-                <button
+                <AixiaButton
                   type="button"
+                  variant="secondary"
                   onClick={() => navigate("/finance/master-data/clients")}
-                  className="inline-flex h-12 items-center justify-center gap-2 rounded-2xl border border-white/10 bg-white/[0.05] px-5 text-sm font-semibold text-slate-300 transition hover:bg-white/[0.08]"
                 >
                   <ArrowRight className="h-4 w-4 rotate-180" />
                   Clients
-                </button>
-              </div>
-            </section>
+                </AixiaButton>
+              </AixiaActionStack>
+            </AixiaSection>
 
-            <section className="overflow-hidden rounded-[30px] border border-white/10 bg-white/[0.045] backdrop-blur-xl">
-              <div className="border-b border-white/10 px-5 py-4">
-                <div className="text-sm font-semibold uppercase tracking-[0.18em] text-slate-400">
-                  System Fields
-                </div>
-                <p className="mt-1 text-xs leading-5 text-slate-500">
-                  Read-only audit and system metadata.
-                </p>
-              </div>
-
-              <div className="grid gap-3 p-5">
-                <DisplayBlock label="Client Code" value={client.code || "—"} />
-                <DisplayBlock label="Record ID" value={client.id} />
-                <DisplayBlock
+            <AixiaSection
+              title="System Fields"
+              description="Read-only audit and system metadata."
+              icon={Landmark}
+            >
+              <AixiaReviewGrid>
+                <AixiaReviewBlock label="Client Code" value={client.code || "—"} />
+                <AixiaReviewBlock label="Record ID" value={client.id} />
+                <AixiaReviewBlock
                   label="Created"
                   value={formatDateTimeLabel(client.created_at)}
                 />
-                <DisplayBlock
+                <AixiaReviewBlock
                   label="Updated"
                   value={formatDateTimeLabel(client.updated_at)}
                 />
-                <DisplayBlock
+                <AixiaReviewBlock
                   label="Primary Address"
                   value={getPrimaryAddressSummary(addresses)}
                 />
-                <DisplayBlock
+                <AixiaReviewBlock
                   label="Shipping"
                   value={getShippingSummary(shippingAddresses)}
                 />
-              </div>
-            </section>
+              </AixiaReviewGrid>
+            </AixiaSection>
 
-            <section className="rounded-[24px] border border-cyan-400/20 bg-cyan-500/10 p-4 text-sm leading-6 text-cyan-100">
-              <div className="font-semibold text-white">Locked detail rule</div>
-              <div className="mt-1">
-                This page requires Client Read access. Section edits require Update
-                access. Archive and Restore require Delete/Archive access. Refresh is
-                silent in the background and must not jump the page or reset the UI.
-              </div>
-            </section>
-          </aside>
-        </section>
-      </div>
-    </div>
+            <AixiaAlert tone="info">
+              <AixiaAlertText
+                title="Locked detail rule"
+                description="This page requires Client Read access. Section edits require Update access. Archive and Restore require Delete/Archive access. Refresh is silent in the background and must not jump the page or reset the UI."
+              />
+            </AixiaAlert>
+          </>
+        }
+      />
+    </AixiaPage>
   );
 }

@@ -1603,11 +1603,21 @@
   gap: 0.5rem;
 }
 
-.aixia-table .aixia-currency-badge {
-  border-color: rgba(99, 102, 241, 0.34);
-  background: rgba(99, 102, 241, 0.14);
-  color: rgb(199, 210, 254);
+.aixia-currency-badge {
+  min-height: 1.65rem;
+  justify-content: center;
+  border-color: rgba(99, 102, 241, 0.34) !important;
+  background: rgba(99, 102, 241, 0.14) !important;
+  color: rgb(199, 210, 254) !important;
   box-shadow: 0 0 18px rgba(99, 102, 241, 0.14);
+}
+
+.aixia-table .aixia-currency-badge {
+  min-height: 1.65rem;
+  padding: 0.28rem 0.75rem;
+  font-size: 0.59375rem;
+  letter-spacing: 0.14em;
+  white-space: nowrap;
 }
 /* -------------------------------------------------------
    MODALS

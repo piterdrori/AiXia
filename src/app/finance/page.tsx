@@ -1,9 +1,7 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
-import type { ReactNode } from "react";
 import { useNavigate } from "react-router-dom";
 import type { LucideIcon } from "lucide-react";
 import {
-  ArrowRight,
   BadgeAlert,
   BriefcaseBusiness,
   CheckCircle2,
@@ -12,7 +10,6 @@ import {
   Database,
   FileBarChart2,
   KeyRound,
-  Loader2,
   LockKeyhole,
   Receipt,
   Settings2,
@@ -24,12 +21,44 @@ import {
   Wallet,
 } from "lucide-react";
 
+import {
+  AixiaBadge,
+  AixiaEmptyState,
+  AixiaFeaturePanel,
+  AixiaHero,
+  AixiaMetricCard,
+  AixiaMetricGrid,
+  AixiaPage,
+  AixiaSection,
+  AixiaSideList,
+  AixiaSideListRow,
+  AixiaSignalRow,
+  AixiaSmartGrid,
+  AixiaSmartLayout,
+  AixiaStatusCard,
+  AixiaValueBlock,
+  AixiaWorkspaceCard,
+} from "@/components/aixia";
 import { supabase } from "@/lib/supabase";
 import {
   getEffectivePermissions,
   type Permission,
   type Role,
 } from "@/lib/permissions";
+
+type LoadMode = "initial" | "silent";
+
+type DashboardTone = "emerald" | "cyan" | "amber" | "violet" | "rose";
+
+type SignalTone =
+  | "indigo"
+  | "violet"
+  | "gold"
+  | "amber"
+  | "emerald"
+  | "cyan"
+  | "rose"
+  | "neutral";
 
 type WorkspaceKey =
   | "transactions"
@@ -44,7 +73,7 @@ type DashboardMetricCard = {
   value: string;
   subtitle: string;
   icon: LucideIcon;
-  tone: "emerald" | "cyan" | "amber" | "violet" | "rose";
+  tone: DashboardTone;
 };
 
 type WorkspaceTab = {
@@ -54,7 +83,7 @@ type WorkspaceTab = {
   description: string;
   icon: LucideIcon;
   route: string;
-  tone: "emerald" | "cyan" | "amber" | "violet" | "rose";
+  tone: DashboardTone;
   statusLabel: string;
   summary: string;
 };
@@ -555,327 +584,6 @@ async function safeSelect<T>(
   }
 }
 
-function getMetricToneClasses(tone: DashboardMetricCard["tone"]) {
-  switch (tone) {
-    case "emerald":
-      return {
-        glow: "from-emerald-500/20 via-emerald-400/10 to-transparent",
-        iconWrap: "border-emerald-400/20 bg-emerald-500/10 text-emerald-200",
-        accent: "bg-emerald-400",
-        value: "text-emerald-100",
-      };
-    case "amber":
-      return {
-        glow: "from-amber-500/20 via-amber-400/10 to-transparent",
-        iconWrap: "border-amber-400/20 bg-amber-500/10 text-amber-200",
-        accent: "bg-amber-400",
-        value: "text-amber-100",
-      };
-    case "violet":
-      return {
-        glow: "from-violet-500/20 via-violet-400/10 to-transparent",
-        iconWrap: "border-violet-400/20 bg-violet-500/10 text-violet-200",
-        accent: "bg-violet-400",
-        value: "text-violet-100",
-      };
-    case "rose":
-      return {
-        glow: "from-rose-500/20 via-rose-400/10 to-transparent",
-        iconWrap: "border-rose-400/20 bg-rose-500/10 text-rose-200",
-        accent: "bg-rose-400",
-        value: "text-rose-100",
-      };
-    case "cyan":
-    default:
-      return {
-        glow: "from-cyan-500/20 via-cyan-400/10 to-transparent",
-        iconWrap: "border-cyan-400/20 bg-cyan-500/10 text-cyan-200",
-        accent: "bg-cyan-400",
-        value: "text-cyan-100",
-      };
-  }
-}
-
-function FinanceMetricCard({ metric }: { metric: DashboardMetricCard }) {
-  const Icon = metric.icon;
-  const tone = getMetricToneClasses(metric.tone);
-
-  return (
-    <div className="group relative min-h-[156px] overflow-hidden rounded-[28px] border border-white/10 bg-white/[0.045] p-5 backdrop-blur-xl transition hover:border-white/20 hover:bg-white/[0.055]">
-      <div
-        className={`pointer-events-none absolute inset-0 bg-gradient-to-br ${tone.glow}`}
-      />
-      <div className="pointer-events-none absolute inset-x-5 top-0 h-px bg-white/10" />
-
-      <div className="relative flex h-full flex-col justify-between gap-5">
-        <div className="flex items-start justify-between gap-4">
-          <div className="min-w-0">
-            <div className="text-[11px] font-semibold uppercase tracking-[0.2em] text-slate-500">
-              {metric.title}
-            </div>
-            <div
-              className={`mt-2 truncate text-3xl font-semibold tracking-[-0.035em] ${tone.value}`}
-            >
-              {metric.value}
-            </div>
-          </div>
-
-          <div
-            className={`flex h-12 w-12 shrink-0 items-center justify-center rounded-2xl border ${tone.iconWrap}`}
-          >
-            <Icon className="h-5 w-5" />
-          </div>
-        </div>
-
-        <div className="flex items-center justify-between gap-3">
-          <div className="min-w-0 truncate text-sm leading-6 text-slate-400">
-            {metric.subtitle}
-          </div>
-          <div className={`h-2 w-2 shrink-0 rounded-full ${tone.accent}`} />
-        </div>
-      </div>
-    </div>
-  );
-}
-
-function getWorkspaceToneClasses(tone: WorkspaceTab["tone"]) {
-  switch (tone) {
-    case "emerald":
-      return {
-        card: "border-emerald-400/20 bg-[radial-gradient(circle_at_top_left,rgba(16,185,129,0.16),rgba(255,255,255,0.035)_48%)]",
-        icon: "border-emerald-400/20 bg-emerald-500/10 text-emerald-200",
-        badge: "border-emerald-400/20 bg-emerald-500/10 text-emerald-200",
-        button: "border-emerald-400/20 bg-emerald-500/10 text-emerald-100 hover:bg-emerald-500/15",
-      };
-    case "amber":
-      return {
-        card: "border-amber-400/20 bg-[radial-gradient(circle_at_top_left,rgba(245,158,11,0.16),rgba(255,255,255,0.035)_48%)]",
-        icon: "border-amber-400/20 bg-amber-500/10 text-amber-200",
-        badge: "border-amber-400/20 bg-amber-500/10 text-amber-200",
-        button: "border-amber-400/20 bg-amber-500/10 text-amber-100 hover:bg-amber-500/15",
-      };
-    case "violet":
-      return {
-        card: "border-violet-400/20 bg-[radial-gradient(circle_at_top_left,rgba(139,92,246,0.16),rgba(255,255,255,0.035)_48%)]",
-        icon: "border-violet-400/20 bg-violet-500/10 text-violet-200",
-        badge: "border-violet-400/20 bg-violet-500/10 text-violet-200",
-        button: "border-violet-400/20 bg-violet-500/10 text-violet-100 hover:bg-violet-500/15",
-      };
-    case "rose":
-      return {
-        card: "border-rose-400/20 bg-[radial-gradient(circle_at_top_left,rgba(244,63,94,0.16),rgba(255,255,255,0.035)_48%)]",
-        icon: "border-rose-400/20 bg-rose-500/10 text-rose-200",
-        badge: "border-rose-400/20 bg-rose-500/10 text-rose-200",
-        button: "border-rose-400/20 bg-rose-500/10 text-rose-100 hover:bg-rose-500/15",
-      };
-    case "cyan":
-    default:
-      return {
-        card: "border-cyan-400/20 bg-[radial-gradient(circle_at_top_left,rgba(6,182,212,0.16),rgba(255,255,255,0.035)_48%)]",
-        icon: "border-cyan-400/20 bg-cyan-500/10 text-cyan-200",
-        badge: "border-cyan-400/20 bg-cyan-500/10 text-cyan-200",
-        button: "border-cyan-400/20 bg-cyan-500/10 text-cyan-100 hover:bg-cyan-500/15",
-      };
-  }
-}
-
-function FinanceWorkspaceCard({
-  tab,
-  onOpen,
-}: {
-  tab: WorkspaceTab;
-  onOpen: (route: string) => void;
-}) {
-  const Icon = tab.icon;
-  const tone = getWorkspaceToneClasses(tab.tone);
-
-  return (
-    <button
-      type="button"
-      onClick={() => onOpen(tab.route)}
-      className={`group relative flex min-h-[220px] flex-col justify-between overflow-hidden rounded-[28px] border p-5 text-left transition hover:-translate-y-0.5 hover:border-white/20 hover:bg-white/[0.055] ${tone.card}`}
-    >
-      <div className="pointer-events-none absolute inset-0 bg-[radial-gradient(circle_at_top_right,rgba(255,255,255,0.08),transparent_42%)]" />
-
-      <div className="relative flex items-start justify-between gap-4">
-        <div className={`rounded-2xl border p-3 ${tone.icon}`}>
-          <Icon className="h-5 w-5" />
-        </div>
-
-        <div className="flex items-center gap-2">
-          <span className={`rounded-full border px-3 py-1 text-[10px] font-semibold uppercase tracking-[0.14em] ${tone.badge}`}>
-            {tab.statusLabel}
-          </span>
-          <ArrowRight className="h-4 w-4 text-slate-500 transition group-hover:translate-x-1 group-hover:text-white" />
-        </div>
-      </div>
-
-      <div className="relative mt-5">
-        <div className="text-[11px] font-semibold uppercase tracking-[0.18em] text-slate-500">
-          {tab.eyebrow}
-        </div>
-        <div className="mt-2 text-xl font-semibold tracking-[-0.03em] text-white">
-          {tab.label}
-        </div>
-        <p className="mt-2 text-sm leading-6 text-slate-400">
-          {tab.description}
-        </p>
-      </div>
-
-      <div className="relative mt-5 flex items-center justify-between gap-4 border-t border-white/10 pt-4">
-        <div className="min-w-0">
-          <div className="text-[10px] font-semibold uppercase tracking-[0.18em] text-slate-600">
-            Access
-          </div>
-          <div className="mt-1 truncate text-sm font-medium text-slate-300">
-            {tab.summary}
-          </div>
-        </div>
-
-        <span className={`inline-flex h-9 shrink-0 items-center justify-center rounded-full border px-4 text-xs font-semibold uppercase tracking-[0.12em] transition ${tone.button}`}>
-          Open
-        </span>
-      </div>
-    </button>
-  );
-}
-
-function FinanceSectionCard({
-  title,
-  description,
-  icon: Icon,
-  children,
-}: {
-  title: string;
-  description: string;
-  icon: LucideIcon;
-  children: ReactNode;
-}) {
-  return (
-    <section className="overflow-hidden rounded-[30px] border border-white/10 bg-white/[0.045] backdrop-blur-xl">
-      <div className="flex items-center justify-between border-b border-white/10 px-5 py-4">
-        <div className="flex min-w-0 items-center gap-3">
-          <div className="rounded-2xl border border-cyan-400/15 bg-cyan-500/10 p-3 text-cyan-200">
-            <Icon className="h-4 w-4" />
-          </div>
-
-          <div className="min-w-0">
-            <h2 className="text-sm font-semibold uppercase tracking-[0.18em] text-slate-400">
-              {title}
-            </h2>
-            <p className="mt-1 text-xs text-slate-500">{description}</p>
-          </div>
-        </div>
-      </div>
-
-      <div className="p-5">{children}</div>
-    </section>
-  );
-}
-
-function FinanceSignalCard({
-  label,
-  value,
-  tone,
-}: {
-  label: string;
-  value: string;
-  tone: string;
-}) {
-  return (
-    <div className="flex items-center justify-between gap-3 rounded-[20px] border border-white/10 bg-black/20 px-4 py-3 transition hover:bg-white/[0.045]">
-      <div className="text-sm text-slate-400">{label}</div>
-      <div className={`text-sm font-semibold ${tone}`}>{value}</div>
-    </div>
-  );
-}
-
-function SummaryBlock({
-  label,
-  value,
-  detail,
-}: {
-  label: string;
-  value: string;
-  detail?: string;
-}) {
-  return (
-    <div className="rounded-[24px] border border-white/10 bg-black/20 p-4">
-      <div className="text-[11px] uppercase tracking-[0.2em] text-slate-500">
-        {label}
-      </div>
-      <div className="mt-2 text-2xl font-semibold text-white">{value}</div>
-      {detail ? (
-        <div className="mt-2 text-sm leading-6 text-slate-400">{detail}</div>
-      ) : null}
-    </div>
-  );
-}
-
-function HeaderStatusCard({
-  label,
-  value,
-  detail,
-  icon: Icon,
-  tone,
-}: {
-  label: string;
-  value: string;
-  detail: string;
-  icon: LucideIcon;
-  tone: "emerald" | "cyan" | "amber";
-}) {
-  const toneClasses = {
-    emerald: "border-emerald-400/20 bg-emerald-500/10 text-emerald-200",
-    cyan: "border-cyan-400/20 bg-cyan-500/10 text-cyan-200",
-    amber: "border-amber-400/20 bg-amber-500/10 text-amber-200",
-  }[tone];
-
-  return (
-    <div className="min-h-[148px] rounded-[24px] border border-white/10 bg-black/20 p-4">
-      <div className="flex items-start justify-between gap-3">
-        <div className="min-w-0">
-          <div className="text-[11px] font-semibold uppercase tracking-[0.2em] text-slate-500">
-            {label}
-          </div>
-          <div className="mt-2 text-xl font-semibold leading-tight tracking-[-0.035em] text-white">
-            {value}
-          </div>
-        </div>
-
-        <div
-          className={`flex h-10 w-10 shrink-0 items-center justify-center rounded-2xl border ${toneClasses}`}
-        >
-          <Icon className="h-4 w-4" />
-        </div>
-      </div>
-
-      <div className="mt-3 text-xs leading-5 text-slate-500">{detail}</div>
-    </div>
-  );
-}
-
-function PersonalAccessPanel() {
-  return (
-    <div className="rounded-[30px] border border-cyan-400/20 bg-[radial-gradient(circle_at_top_left,rgba(6,182,212,0.14),rgba(255,255,255,0.045)_48%)] p-6 backdrop-blur-xl">
-      <div className="flex flex-col gap-4 md:flex-row md:items-center">
-        <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-2xl border border-cyan-400/20 bg-cyan-500/10 text-cyan-200">
-          <UserRound className="h-5 w-5" />
-        </div>
-
-        <div>
-          <div className="text-lg font-semibold text-white">
-            Personal finance access is enabled
-          </div>
-          <div className="mt-2 max-w-3xl text-sm leading-6 text-slate-400">
-            Normal users can open Transactions to create, edit, submit, upload, and confirm their own expenses and paycheck requests. Company-level finance dashboards, controls, and totals appear only after Finance Access Approvals enables them.
-          </div>
-        </div>
-      </div>
-    </div>
-  );
-}
-
 export default function FinancePage() {
   const navigate = useNavigate();
 
@@ -886,13 +594,22 @@ export default function FinancePage() {
     useState<DashboardData>(EMPTY_DASHBOARD_DATA);
   const [isLoadingProfile, setIsLoadingProfile] = useState(true);
   const [isLoadingDashboard, setIsLoadingDashboard] = useState(true);
+  const [isRefreshingProfile, setIsRefreshingProfile] = useState(false);
+  const [isRefreshingDashboard, setIsRefreshingDashboard] = useState(false);
 
   const accessFlags = useMemo(() => {
     return buildAccessFlags(currentProfile);
   }, [currentProfile]);
 
-  const loadCurrentProfile = useCallback(async () => {
-    setIsLoadingProfile(true);
+  const isInitialLoading = isLoadingProfile || isLoadingDashboard;
+  const isBackgroundRefreshing = isRefreshingProfile || isRefreshingDashboard;
+
+  const loadCurrentProfile = useCallback(async (mode: LoadMode = "initial") => {
+    if (mode === "initial") {
+      setIsLoadingProfile(true);
+    } else {
+      setIsRefreshingProfile(true);
+    }
 
     try {
       const authResult = await supabase.auth.getUser();
@@ -916,14 +633,25 @@ export default function FinancePage() {
       setCurrentProfile((profileResult.data || null) as CurrentUserProfile | null);
     } catch (error) {
       console.error("Failed to load finance profile permissions:", error);
-      setCurrentProfile(null);
+
+      if (mode === "initial") {
+        setCurrentProfile(null);
+      }
     } finally {
-      setIsLoadingProfile(false);
+      if (mode === "initial") {
+        setIsLoadingProfile(false);
+      } else {
+        setIsRefreshingProfile(false);
+      }
     }
   }, []);
 
-  const loadDashboard = useCallback(async () => {
-    setIsLoadingDashboard(true);
+  const loadDashboard = useCallback(async (mode: LoadMode = "initial") => {
+    if (mode === "initial") {
+      setIsLoadingDashboard(true);
+    } else {
+      setIsRefreshingDashboard(true);
+    }
 
     try {
       const [
@@ -1135,14 +863,21 @@ export default function FinancePage() {
       });
     } catch (error) {
       console.error("Failed to load finance dashboard:", error);
-      setDashboardData(EMPTY_DASHBOARD_DATA);
+
+      if (mode === "initial") {
+        setDashboardData(EMPTY_DASHBOARD_DATA);
+      }
     } finally {
-      setIsLoadingDashboard(false);
+      if (mode === "initial") {
+        setIsLoadingDashboard(false);
+      } else {
+        setIsRefreshingDashboard(false);
+      }
     }
   }, []);
 
   useEffect(() => {
-    void Promise.all([loadCurrentProfile(), loadDashboard()]);
+    void Promise.all([loadCurrentProfile("initial"), loadDashboard("initial")]);
   }, [loadCurrentProfile, loadDashboard]);
 
   useEffect(() => {
@@ -1152,53 +887,53 @@ export default function FinancePage() {
         "postgres_changes",
         { event: "*", schema: "public", table: "profiles" },
         () => {
-          void Promise.all([loadCurrentProfile(), loadDashboard()]);
+          void Promise.all([loadCurrentProfile("silent"), loadDashboard("silent")]);
         }
       )
       .on(
         "postgres_changes",
         { event: "*", schema: "public", table: "finance_invoices_issued" },
-        () => void loadDashboard()
+        () => void loadDashboard("silent")
       )
       .on(
         "postgres_changes",
         { event: "*", schema: "public", table: "finance_bills_received" },
-        () => void loadDashboard()
+        () => void loadDashboard("silent")
       )
       .on(
         "postgres_changes",
         { event: "*", schema: "public", table: "finance_expenses" },
-        () => void loadDashboard()
+        () => void loadDashboard("silent")
       )
       .on(
         "postgres_changes",
         { event: "*", schema: "public", table: "finance_payments_made" },
-        () => void loadDashboard()
+        () => void loadDashboard("silent")
       )
       .on(
         "postgres_changes",
         { event: "*", schema: "public", table: "finance_payments_received" },
-        () => void loadDashboard()
+        () => void loadDashboard("silent")
       )
       .on(
         "postgres_changes",
         { event: "*", schema: "public", table: "finance_payroll_runs" },
-        () => void loadDashboard()
+        () => void loadDashboard("silent")
       )
       .on(
         "postgres_changes",
         { event: "*", schema: "public", table: "finance_paycheck_requests" },
-        () => void loadDashboard()
+        () => void loadDashboard("silent")
       )
       .subscribe();
 
     const intervalId = window.setInterval(() => {
-      void Promise.all([loadCurrentProfile(), loadDashboard()]);
+      void Promise.all([loadCurrentProfile("silent"), loadDashboard("silent")]);
     }, 60000);
 
     return () => {
       window.clearInterval(intervalId);
-      supabase.removeChannel(channel);
+      void supabase.removeChannel(channel);
     };
   }, [loadCurrentProfile, loadDashboard]);
 
@@ -1345,6 +1080,7 @@ export default function FinancePage() {
         tone: "amber",
       });
     }
+
     if (
       accessFlags.canMonitorSupplierProcurement ||
       accessFlags.canMonitorExpenseFunding ||
@@ -1425,8 +1161,8 @@ export default function FinancePage() {
     return [
       {
         label: "System Status",
-        value: isLoadingDashboard || isLoadingProfile ? "Loading" : "Live",
-        detail: "Finance Studio refreshes automatically every 60 seconds.",
+        value: isInitialLoading ? "Loading" : isBackgroundRefreshing ? "Updating" : "Live",
+        detail: "Finance Studio refreshes silently with realtime and a 60-second fallback.",
         icon: CheckCircle2,
         tone: "emerald" as const,
       },
@@ -1448,23 +1184,20 @@ export default function FinancePage() {
         tone: "amber" as const,
       },
     ];
-  }, [accessFlags, isLoadingDashboard, isLoadingProfile]);
+  }, [accessFlags, isBackgroundRefreshing, isInitialLoading]);
 
   const insightAlerts = useMemo(() => {
     const alerts: {
       label: string;
       value: string;
-      tone: string;
+      tone: SignalTone;
     }[] = [];
 
     if (accessFlags.canMonitorIncomingMoney) {
       alerts.push({
         label: "Overdue invoices",
         value: formatCount(dashboardData.alerts.overdueInvoices),
-        tone:
-          dashboardData.alerts.overdueInvoices > 0
-            ? "text-rose-200"
-            : "text-slate-300",
+        tone: dashboardData.alerts.overdueInvoices > 0 ? "rose" : "neutral",
       });
     }
 
@@ -1472,10 +1205,7 @@ export default function FinancePage() {
       alerts.push({
         label: "Overdue bills",
         value: formatCount(dashboardData.alerts.overdueBills),
-        tone:
-          dashboardData.alerts.overdueBills > 0
-            ? "text-amber-200"
-            : "text-slate-300",
+        tone: dashboardData.alerts.overdueBills > 0 ? "amber" : "neutral",
       });
     }
 
@@ -1483,10 +1213,7 @@ export default function FinancePage() {
       alerts.push({
         label: "Pending expenses",
         value: formatCount(dashboardData.alerts.pendingExpenses),
-        tone:
-          dashboardData.alerts.pendingExpenses > 0
-            ? "text-cyan-200"
-            : "text-slate-300",
+        tone: dashboardData.alerts.pendingExpenses > 0 ? "cyan" : "neutral",
       });
     }
 
@@ -1494,10 +1221,7 @@ export default function FinancePage() {
       alerts.push({
         label: "Access reviews",
         value: formatCount(dashboardData.alerts.pendingAccessReviews),
-        tone:
-          dashboardData.alerts.pendingAccessReviews > 0
-            ? "text-violet-200"
-            : "text-slate-300",
+        tone: dashboardData.alerts.pendingAccessReviews > 0 ? "violet" : "neutral",
       });
     }
 
@@ -1569,152 +1293,137 @@ export default function FinancePage() {
   );
 
   return (
-    <div className="min-h-screen bg-[#05070d] px-4 py-4 text-white md:px-6 md:py-6">
-      <div className="mx-auto flex w-full max-w-[1600px] flex-col gap-6">
-        <header className="relative overflow-hidden rounded-[34px] border border-white/10 bg-white/[0.045] p-6 shadow-2xl shadow-black/30 backdrop-blur-xl">
-          <div className="pointer-events-none absolute inset-0 bg-[radial-gradient(circle_at_top_left,rgba(6,182,212,0.16),transparent_38%),radial-gradient(circle_at_top_right,rgba(139,92,246,0.12),transparent_34%)]" />
-
-          <div className="relative grid gap-6 xl:grid-cols-[minmax(0,1fr)_620px] xl:items-stretch">
-            <div className="flex min-w-0 flex-col justify-between">
-              <div>
-                <div className="inline-flex w-fit items-center gap-2 rounded-full border border-cyan-400/20 bg-cyan-500/10 px-3 py-1 text-[11px] font-semibold uppercase tracking-[0.22em] text-cyan-200">
-                  <Sparkles className="h-3.5 w-3.5" />
-                  Finance Control Center
-                </div>
-
-                <h1 className="mt-4 text-3xl font-semibold tracking-[-0.035em] text-white md:text-5xl">
-                  Finance Studio
-                </h1>
-
-                <p className="mt-3 max-w-4xl text-sm leading-6 text-slate-400 md:text-base md:leading-7">
-                  Permission-aware Finance command layer for Master Data,
-                  Transactions, Reports, Settings, and Finance Access Approvals.
-                  Each user sees only the areas enabled for their role and profile.
-                </p>
-              </div>
-
-              <div className="mt-5 flex flex-wrap gap-2">
-                <div className="rounded-full border border-emerald-400/20 bg-emerald-500/10 px-3 py-1 text-[11px] font-semibold uppercase tracking-[0.16em] text-emerald-200">
-                  Live backend
-                </div>
-                <div className="rounded-full border border-cyan-400/20 bg-cyan-500/10 px-3 py-1 text-[11px] font-semibold uppercase tracking-[0.16em] text-cyan-200">
-                  Permission filtered
-                </div>
-                <div className="rounded-full border border-slate-400/20 bg-slate-500/10 px-3 py-1 text-[11px] font-semibold uppercase tracking-[0.16em] text-slate-300">
-                  Auto refresh
-                </div>
-              </div>
-            </div>
-
-            <div className="grid gap-3 md:grid-cols-3 xl:grid-cols-3">
-              {headerStatusCards.map((card) => (
-                <HeaderStatusCard
-                  key={card.label}
-                  label={card.label}
-                  value={card.value}
-                  detail={card.detail}
-                  icon={card.icon}
-                  tone={card.tone}
-                />
-              ))}
-            </div>
-          </div>
-        </header>
-
-        {dashboardMetricCards.length > 0 ? (
-          <section className="grid gap-4 md:grid-cols-2 xl:grid-cols-5">
-            {dashboardMetricCards.map((metric) => (
-              <FinanceMetricCard key={metric.key} metric={metric} />
+    <AixiaPage>
+      <AixiaHero
+        badges={[
+          {
+            label: (
+              <>
+                <Sparkles className="h-3.5 w-3.5" />
+                Finance Control Center
+              </>
+            ),
+            tone: "cyan",
+          },
+          { label: "Live backend", tone: "emerald" },
+          { label: "Permission filtered", tone: "cyan" },
+          { label: "Silent refresh", tone: "neutral" },
+        ]}
+        gradientTitle="Finance"
+        title="Studio"
+        description="Permission-aware Finance command layer for Master Data, Transactions, Reports, Settings, and Finance Access Approvals. Each user sees only the areas enabled for their role and profile."
+        rightContent={
+          <AixiaSmartGrid mode="hero-stats">
+            {headerStatusCards.map((card) => (
+              <AixiaStatusCard
+                key={card.label}
+                label={card.label}
+                value={card.value}
+                description={card.detail}
+                icon={card.icon}
+                tone={card.tone}
+              />
             ))}
-          </section>
-        ) : null}
+          </AixiaSmartGrid>
+        }
+      />
 
-        <section className="grid items-start gap-6 xl:grid-cols-[minmax(0,1fr)_430px]">
-          <div className="grid min-h-0 gap-6">
-            <FinanceSectionCard
+      {dashboardMetricCards.length > 0 ? (
+        <AixiaMetricGrid>
+          {dashboardMetricCards.map((metric) => (
+            <AixiaMetricCard
+              key={metric.key}
+              label={metric.title}
+              value={metric.value}
+              description={metric.subtitle}
+              icon={metric.icon}
+              tone={metric.tone}
+            />
+          ))}
+        </AixiaMetricGrid>
+      ) : null}
+
+      <AixiaSmartLayout
+        sidebar="normal"
+        main={
+          <>
+            <AixiaSection
               title="Finance Workspace Map"
               description="Open only the Finance areas available to this user. The cards below are filtered by Finance Access Approvals."
               icon={Database}
             >
               {isLoadingProfile ? (
-                <div className="rounded-[28px] border border-dashed border-white/10 bg-black/20 px-6 py-10 text-center">
-                  <Loader2 className="mx-auto h-6 w-6 animate-spin text-cyan-200" />
-                  <div className="mt-4 text-sm font-medium text-white">
-                    Loading workspace permissions
-                  </div>
-                  <p className="mt-2 text-sm leading-6 text-slate-500">
-                    Finance access controls are being checked.
-                  </p>
-                </div>
+                <AixiaEmptyState
+                  icon={KeyRound}
+                  title="Loading workspace permissions"
+                  description="Finance access controls are being checked."
+                />
               ) : workspaceTabs.length === 0 ? (
-                <div className="rounded-[28px] border border-dashed border-white/10 bg-black/20 px-6 py-12 text-center">
-                  <LockKeyhole className="mx-auto h-8 w-8 text-slate-500" />
-                  <div className="mt-4 text-sm font-medium text-white">
-                    No Finance workspace access is enabled
-                  </div>
-                  <p className="mt-2 text-sm leading-6 text-slate-500">
-                    Ask an Admin to review this user in Finance Access Approvals.
-                  </p>
-                </div>
+                <AixiaEmptyState
+                  icon={LockKeyhole}
+                  title="No Finance workspace access is enabled"
+                  description="Ask an Admin to review this user in Finance Access Approvals."
+                />
               ) : (
-                <div className="grid gap-4 xl:grid-cols-2">
+                <AixiaSmartGrid mode="cards">
                   {workspaceTabs.map((tab) => (
-                    <FinanceWorkspaceCard
+                    <AixiaWorkspaceCard
                       key={tab.key}
-                      tab={tab}
-                      onOpen={handleTabOpen}
+                      label={tab.label}
+                      eyebrow={tab.eyebrow}
+                      description={tab.description}
+                      icon={tab.icon}
+                      statusLabel={tab.statusLabel}
+                      summary={tab.summary}
+                      tone={tab.tone}
+                      onClick={() => handleTabOpen(tab.route)}
                     />
                   ))}
-                </div>
+                </AixiaSmartGrid>
               )}
-            </FinanceSectionCard>
+            </AixiaSection>
 
             {!accessFlags.canMonitorAnyCompanyFinance &&
             !accessFlags.canSeeAccessApprovals ? (
-              <PersonalAccessPanel />
+              <AixiaFeaturePanel
+                title="Personal finance access is enabled"
+                description="Normal users can open Transactions to create, edit, submit, upload, and confirm their own expenses and paycheck requests. Company-level finance dashboards, controls, and totals appear only after Finance Access Approvals enables them."
+                icon={UserRound}
+                tone="cyan"
+              />
             ) : null}
 
             {openBalances.length > 0 ? (
-              <div className="overflow-hidden rounded-[30px] border border-cyan-400/15 bg-[radial-gradient(circle_at_top,rgba(6,182,212,0.18),rgba(3,7,18,0.94)_58%)]">
-                <div className="flex items-start justify-between gap-4 border-b border-white/10 px-5 py-4">
-                  <div>
-                    <div className="text-sm font-semibold uppercase tracking-[0.18em] text-cyan-200">
-                      Finance Readiness
-                    </div>
-                    <p className="mt-1 text-xs leading-5 text-slate-400">
-                      Visible company-level balances and workflow signals based on enabled Finance access.
-                    </p>
-                  </div>
-
-                  <div className="rounded-2xl border border-cyan-400/20 bg-cyan-500/10 p-3 text-cyan-200">
-                    <CircleDollarSign className="h-5 w-5" />
-                  </div>
-                </div>
-
-                <div className="grid gap-4 p-5 md:grid-cols-2 xl:grid-cols-3">
+              <AixiaSection
+                title="Finance Readiness"
+                description="Visible company-level balances and workflow signals based on enabled Finance access."
+                icon={CircleDollarSign}
+              >
+                <AixiaSmartGrid mode="cards">
                   {openBalances.map((item) => (
-                    <SummaryBlock
+                    <AixiaValueBlock
                       key={item.label}
                       label={item.label}
                       value={item.value}
                       detail={item.detail}
                     />
                   ))}
-                </div>
-              </div>
+                </AixiaSmartGrid>
+              </AixiaSection>
             ) : null}
-          </div>
-
-          <div className="grid min-h-0 gap-6">
+          </>
+        }
+        side={
+          <>
             {insightAlerts.length > 0 ? (
-              <FinanceSectionCard
+              <AixiaSection
                 title="Control Signals"
                 description="Live finance risks and operating blockers visible to this user."
                 icon={BadgeAlert}
               >
-                <div className="space-y-3">
+                <div className="aixia-stack">
                   {insightAlerts.map((item) => (
-                    <FinanceSignalCard
+                    <AixiaSignalRow
                       key={item.label}
                       label={item.label}
                       value={item.value}
@@ -1722,74 +1431,48 @@ export default function FinancePage() {
                     />
                   ))}
                 </div>
-              </FinanceSectionCard>
+              </AixiaSection>
             ) : null}
 
             {recentActivity.length > 0 ? (
-              <FinanceSectionCard
+              <AixiaSection
                 title="Recent Activity"
                 description="Latest permitted finance movement across company records."
                 icon={Receipt}
               >
-                <div className="h-[430px] overflow-y-auto overscroll-contain rounded-[26px] border border-white/10 bg-black/20">
-                  <div className="divide-y divide-white/5">
-                    {recentActivity.map((item) => (
-                      <button
-                        key={item.id}
-                        type="button"
-                        onClick={() => {
-                          if (!item.route) return;
-                          navigate(item.route);
-                        }}
-                        className="group flex w-full items-center justify-between gap-4 px-5 py-4 text-left transition hover:bg-white/[0.045]"
-                      >
-                        <div className="min-w-0">
-                          <div className="flex min-w-0 flex-wrap items-center gap-2">
-                            <span className="rounded-full border border-cyan-400/20 bg-cyan-500/10 px-3 py-1 text-[11px] font-semibold uppercase tracking-[0.16em] text-cyan-200">
-                              {item.type}
-                            </span>
-                            <span className="truncate text-sm font-semibold text-white">
-                              {item.title}
-                            </span>
-                          </div>
-
-                          <div className="mt-2 line-clamp-1 text-sm text-slate-400">
-                            {item.subtitle}
-                          </div>
-                        </div>
-
-                        <div className="flex shrink-0 items-center gap-3">
-                          <div className="text-xs text-slate-600">
-                            {formatDateLabel(item.createdAt)}
-                          </div>
-                          <ArrowRight className="h-4 w-4 text-slate-500 transition group-hover:translate-x-1 group-hover:text-cyan-200" />
-                        </div>
-                      </button>
-                    ))}
-                  </div>
-                </div>
-              </FinanceSectionCard>
+                <AixiaSideList>
+                  {recentActivity.map((item) => (
+                    <AixiaSideListRow
+                      key={item.id}
+                      badge={<AixiaBadge tone="cyan">{item.type}</AixiaBadge>}
+                      title={item.title}
+                      description={item.subtitle}
+                      meta={formatDateLabel(item.createdAt)}
+                      onClick={() => {
+                        if (!item.route) return;
+                        navigate(item.route);
+                      }}
+                    />
+                  ))}
+                </AixiaSideList>
+              </AixiaSection>
             ) : accessFlags.canMonitorAnyCompanyFinance ||
               accessFlags.canSeeAccessApprovals ? (
-              <FinanceSectionCard
+              <AixiaSection
                 title="Recent Activity"
                 description="Latest permitted finance movement across company records."
                 icon={Receipt}
               >
-                <div className="rounded-[28px] border border-dashed border-white/10 bg-black/20 px-6 py-12 text-center">
-                  <div className="text-sm font-medium text-white">
-                    No permitted finance activity found
-                  </div>
-                  <p className="mt-2 text-sm leading-6 text-slate-500">
-                    Activity appears here only for Finance areas this user can monitor.
-                  </p>
-                </div>
-              </FinanceSectionCard>
+                <AixiaEmptyState
+                  icon={Receipt}
+                  title="No permitted finance activity found"
+                  description="Activity appears here only for Finance areas this user can monitor."
+                />
+              </AixiaSection>
             ) : null}
-          </div>
-        </section>
-      </div>
-    </div>
+          </>
+        }
+      />
+    </AixiaPage>
   );
 }
-                                                              

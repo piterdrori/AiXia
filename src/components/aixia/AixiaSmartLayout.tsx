@@ -150,10 +150,12 @@ export function AixiaSmartLayout({
   className = "",
   ...props
 }: AixiaSmartLayoutProps) {
+ 
   const layoutRef = useRef<HTMLElement | null>(null);
   const mainRef = useRef<HTMLDivElement | null>(null);
   const sideRef = useRef<HTMLDivElement | null>(null);
   const [matchedFillHeight, setMatchedFillHeight] = useState<number | null>(null);
+  const [matchedMainTailHeight, setMatchedMainTailHeight] = useState<number | null>(null);
 
   const normalizedMainChildren = useMemo(() => {
     return flattenLayoutChildren(main);
@@ -162,6 +164,11 @@ export function AixiaSmartLayout({
   const normalizedSideChildren = useMemo(() => {
     return flattenLayoutChildren(side);
   }, [side]);
+
+  const hasExplicitMainSplit = shouldUseExplicitMainSplit(
+    normalizedMainChildren,
+    mainTopCount
+  );
 
   const useSideRebalance = shouldRebalanceSide(
     normalizedSideChildren,
@@ -214,34 +221,65 @@ export function AixiaSmartLayout({
       window.cancelAnimationFrame(frameId);
 
       frameId = window.requestAnimationFrame(() => {
+        const mainChildren = getColumnChildren(mainElement);
+        const sideHeight = sideElement.getBoundingClientRect().height;
+        const columnGap = getColumnGap(mainElement);
+
         const fillSection = mainElement.querySelector<HTMLElement>(
           '.aixia-section-smart-scroll[data-fill="true"]'
         );
 
-        if (!fillSection) {
+        if (fillSection) {
+          const visibleCards = fillSection.getAttribute("data-visible-cards");
+          const minimumFillHeight = getVisibleCardMinimumHeight(visibleCards);
+
+          const nonFillHeight = mainChildren.reduce((total, child) => {
+            if (child === fillSection) return total;
+
+            return total + child.getBoundingClientRect().height;
+          }, 0);
+
+          const gapsBeforeFill = Math.max(mainChildren.length - 1, 0) * columnGap;
+          const availableOppositeHeight = sideHeight - nonFillHeight - gapsBeforeFill;
+          const nextHeight = Math.max(minimumFillHeight, availableOppositeHeight);
+
+          setMatchedFillHeight(
+            Number.isFinite(nextHeight) && nextHeight > 0 ? Math.round(nextHeight) : null
+          );
+        } else {
           setMatchedFillHeight(null);
-          return;
         }
 
-        const sideHeight = sideElement.getBoundingClientRect().height;
-        const mainChildren = getColumnChildren(mainElement);
-        const columnGap = getColumnGap(mainElement);
-        const visibleCards = fillSection.getAttribute("data-visible-cards");
-        const minimumFillHeight = getVisibleCardMinimumHeight(visibleCards);
+        if (hasExplicitMainSplit && mainChildren.length > 0) {
+          const tailWrapper = mainElement.querySelector<HTMLElement>(
+            ".aixia-smart-main-top-tail"
+          );
 
-        const nonFillHeight = mainChildren.reduce((total, child) => {
-          if (child === fillSection) return total;
+          if (!tailWrapper) {
+            setMatchedMainTailHeight(null);
+            return;
+          }
 
-          return total + child.getBoundingClientRect().height;
-        }, 0);
+          const naturalTailHeight = tailWrapper.getBoundingClientRect().height;
 
-        const gapsBeforeFill = Math.max(mainChildren.length - 1, 0) * columnGap;
-        const availableOppositeHeight = sideHeight - nonFillHeight - gapsBeforeFill;
-        const nextHeight = Math.max(minimumFillHeight, availableOppositeHeight);
+          const nonTailHeight = mainChildren.reduce((total, child) => {
+            if (child === tailWrapper) return total;
 
-        setMatchedFillHeight(
-          Number.isFinite(nextHeight) && nextHeight > 0 ? Math.round(nextHeight) : null
-        );
+            return total + child.getBoundingClientRect().height;
+          }, 0);
+
+          const gapsBeforeTail = Math.max(mainChildren.length - 1, 0) * columnGap;
+          const availableTailHeight = sideHeight - nonTailHeight - gapsBeforeTail;
+          const nextTailHeight = Math.max(naturalTailHeight, availableTailHeight);
+
+          setMatchedMainTailHeight(
+            Number.isFinite(nextTailHeight) && nextTailHeight > naturalTailHeight
+              ? Math.round(nextTailHeight)
+              : null
+          );
+        } else {
+          setMatchedMainTailHeight(null);
+        }
       });
     };
 
@@ -259,6 +297,12 @@ export function AixiaSmartLayout({
 
     if (fillSection) observer.observe(fillSection);
 
+    const tailWrapper = mainElement.querySelector<HTMLElement>(
+      ".aixia-smart-main-top-tail"
+    );
+
+    if (tailWrapper) observer.observe(tailWrapper);
+
     window.addEventListener("resize", updateMatchedHeight);
 
     return () => {
@@ -266,12 +310,15 @@ export function AixiaSmartLayout({
       observer.disconnect();
       window.removeEventListener("resize", updateMatchedHeight);
     };
-  }, [matchColumns, main, side]);
+  }, [hasExplicitMainSplit, matchColumns, main, side]);
 
   const style: CSSProperties = {
     ...props.style,
     ...(matchedFillHeight
       ? ({ "--aixia-smart-fill-height": `${matchedFillHeight}px` } as CSSProperties)
+      : null),
+    ...(matchedMainTailHeight
+      ? ({ "--aixia-smart-main-tail-height": `${matchedMainTailHeight}px` } as CSSProperties)
       : null),
   };
 
@@ -302,7 +349,16 @@ export function AixiaSmartLayout({
       {...props}
     >
       <div ref={mainRef} className="aixia-smart-main">
-        {mainColumnChildren}
+        {hasExplicitMainSplit && mainColumnChildren.length > 0 ? (
+          <>
+            {mainColumnChildren.slice(0, -1)}
+            <div className="aixia-smart-main-top-tail">
+              {mainColumnChildren.slice(-1)}
+            </div>
+          </>
+        ) : (
+          mainColumnChildren
+        )}
 
         {rebalancedSideChildren.length > 0 ? (
           <div className="aixia-smart-main-rebalanced-side">

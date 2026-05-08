@@ -15,6 +15,7 @@ type AixiaTableBadgeCellProps = {
 
 type AixiaTableDateCellProps = {
   children: ReactNode;
+  width?: AixiaTableTextCellWidth;
 };
 
 type AixiaTableActionsCellProps = {
@@ -46,11 +47,22 @@ export function AixiaTableBadgeCell({
   children,
   width = "sm",
 }: AixiaTableBadgeCellProps) {
-  return <td className={`aixia-table-cell-badge ${getWidthClass(width)}`}>{children}</td>;
+  return (
+    <td className={`aixia-table-cell-badge ${getWidthClass(width)}`}>
+      {children}
+    </td>
+  );
 }
 
-export function AixiaTableDateCell({ children }: AixiaTableDateCellProps) {
-  return <td className="aixia-table-cell-date min-w-[150px]">{children}</td>;
+export function AixiaTableDateCell({
+  children,
+  width = "sm",
+}: AixiaTableDateCellProps) {
+  return (
+    <td className={`aixia-table-cell-date ${getWidthClass(width)}`}>
+      {children}
+    </td>
+  );
 }
 
 export function AixiaTableActionsCell({ children }: AixiaTableActionsCellProps) {

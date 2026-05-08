@@ -2394,9 +2394,10 @@
 
 /* -------------------------------------------------------
    LOCKED SMART LAYOUT GAP-FILL STANDARD
-   Core rule: if a main-column lower section would create
-   a dead side gap, SmartLayout moves it into a full-width
-   bottom row. Side boxes stay natural-height at the top.
+   Core rule: lower main sections become full-width bottom
+   rows when a two-column layout would create dead gaps.
+   Side content stays in the top row and stretches only to
+   the bottom-row start, never to the full page bottom.
 ------------------------------------------------------- */
 
 .aixia-smart-bottom-span {
@@ -2406,37 +2407,490 @@
   gap: clamp(1rem, 1.5vw, 1.5rem);
 }
 
+.aixia-smart-bottom-span > * {
+  width: 100%;
+  min-width: 0;
+}
+
 @media (min-width: 1280px) {
   .aixia-smart-layout[data-match-columns="true"] {
-    align-items: start !important;
-  }
-
-  .aixia-smart-layout[data-match-columns="true"] > .aixia-smart-main,
-  .aixia-smart-layout[data-match-columns="true"] > .aixia-smart-side {
-    height: auto !important;
-    align-self: start !important;
+    align-items: stretch !important;
   }
 
   .aixia-smart-layout[data-has-bottom-span="true"] {
     grid-auto-flow: row !important;
+    align-items: stretch !important;
   }
 
   .aixia-smart-layout[data-has-bottom-span="true"] > .aixia-smart-main {
     grid-column: 1 !important;
     grid-row: 1 !important;
+    height: 100% !important;
+    align-self: stretch !important;
   }
 
   .aixia-smart-layout[data-has-bottom-span="true"] > .aixia-smart-side {
     grid-column: 2 !important;
     grid-row: 1 !important;
+    height: 100% !important;
+    align-self: stretch !important;
   }
 
   .aixia-smart-layout[data-has-bottom-span="true"] > .aixia-smart-bottom-span {
     grid-column: 1 / -1 !important;
     grid-row: 2 !important;
+    width: 100% !important;
+    min-width: 0 !important;
   }
 
-  .aixia-smart-layout[data-has-bottom-span="true"] > .aixia-smart-bottom-span > * {
+  .aixia-smart-layout[data-has-bottom-span="true"] > .aixia-smart-side > :last-child {
+    flex: 1 1 auto !important;
+    min-height: 0 !important;
+  }
+
+  .aixia-smart-layout[data-has-bottom-span="true"] > .aixia-smart-side > :last-child.aixia-section {
+    display: flex !important;
+    flex-direction: column !important;
+  }
+
+  .aixia-smart-layout[data-has-bottom-span="true"] > .aixia-smart-side > :last-child.aixia-section > .p-6,
+  .aixia-smart-layout[data-has-bottom-span="true"] > .aixia-smart-side > :last-child.aixia-section > .aixia-section-smart-scroll-body {
+    flex: 1 1 auto !important;
+    min-height: 0 !important;
+  }
+
+  .aixia-smart-layout[data-has-bottom-span="true"] > .aixia-smart-bottom-span .aixia-section {
     width: 100% !important;
   }
+
+  .aixia-smart-layout[data-has-bottom-span="true"] > .aixia-smart-bottom-span .aixia-smart-grid[data-mode="cards"] {
+    grid-template-columns: repeat(auto-fit, minmax(min(100%, 280px), 1fr)) !important;
+  }
+}
+
+/* -------------------------------------------------------
+   DETAIL / FORM / PAGE STATE SHARED LAYER
+   Additive only. Do not remove previous classes.
+   These classes standardize detail pages before page rewrites.
+------------------------------------------------------- */
+
+.aixia-field-label {
+  margin-bottom: 0.5rem;
+  display: flex;
+  min-width: 0;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.75rem;
+  font-size: 0.875rem;
+  font-weight: 700;
+  color: rgba(203, 213, 225, 0.9);
+}
+
+.aixia-field-required {
+  margin-left: 0.25rem;
+  color: rgb(253, 164, 175);
+}
+
+.aixia-field-helper {
+  flex-shrink: 0;
+  font-size: 0.75rem;
+  font-weight: 600;
+  color: rgba(100, 116, 139, 0.92);
+}
+
+.aixia-form-grid {
+  display: grid;
+  min-width: 0;
+  gap: 1rem;
+  grid-template-columns: minmax(0, 1fr);
+}
+
+@media (min-width: 768px) {
+  .aixia-form-grid[data-columns="two"] {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .aixia-form-grid[data-columns="three"] {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+  }
+}
+
+.aixia-form-full {
+  min-width: 0;
+}
+
+@media (min-width: 768px) {
+  .aixia-form-grid[data-columns="two"] > .aixia-form-full,
+  .aixia-form-grid[data-columns="three"] > .aixia-form-full {
+    grid-column: 1 / -1;
+  }
+}
+
+.aixia-form-input,
+.aixia-form-select,
+.aixia-form-textarea {
+  width: 100%;
+  border-radius: 1rem;
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  background: rgba(0, 0, 0, 0.2);
+  padding-left: 1rem;
+  padding-right: 1rem;
+  font-size: 0.875rem;
+  color: white;
+  outline: none;
+  transition:
+    border-color 300ms ease,
+    background-color 300ms ease,
+    box-shadow 300ms ease,
+    opacity 300ms ease;
+}
+
+.aixia-form-input,
+.aixia-form-select {
+  height: 2.75rem;
+}
+
+.aixia-form-textarea {
+  min-height: 8.25rem;
+  resize: vertical;
+  padding-top: 0.75rem;
+  padding-bottom: 0.75rem;
+  line-height: 1.6;
+}
+
+.aixia-form-input::placeholder,
+.aixia-form-textarea::placeholder {
+  color: rgba(100, 116, 139, 0.9);
+}
+
+.aixia-form-input:focus,
+.aixia-form-select:focus,
+.aixia-form-textarea:focus {
+  border-color: rgba(34, 211, 238, 0.34);
+  background: rgba(0, 0, 0, 0.3);
+  box-shadow: 0 0 28px rgba(6, 182, 212, 0.14);
+}
+
+.aixia-form-input:disabled,
+.aixia-form-select:disabled,
+.aixia-form-textarea:disabled {
+  cursor: not-allowed;
+  opacity: 0.6;
+}
+
+.aixia-checkbox-field {
+  display: flex;
+  min-width: 0;
+  align-items: flex-start;
+  gap: 0.75rem;
+  border-radius: 1.25rem;
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  background: rgba(0, 0, 0, 0.2);
+  padding: 0.9rem 1rem;
+  color: rgba(203, 213, 225, 0.92);
+  transition:
+    border-color 300ms ease,
+    background-color 300ms ease;
+}
+
+.aixia-checkbox-field:hover {
+  border-color: rgba(255, 255, 255, 0.16);
+  background: rgba(255, 255, 255, 0.045);
+}
+
+.aixia-checkbox-input {
+  margin-top: 0.2rem;
+  height: 1rem;
+  width: 1rem;
+  flex-shrink: 0;
+  accent-color: rgb(34, 211, 238);
+}
+
+.aixia-checkbox-body {
+  display: grid;
+  min-width: 0;
+  gap: 0.25rem;
+}
+
+.aixia-checkbox-label {
+  font-size: 0.875rem;
+  font-weight: 800;
+  color: white;
+}
+
+.aixia-checkbox-description {
+  font-size: 0.75rem;
+  line-height: 1.5;
+  color: rgba(148, 163, 184, 0.78);
+}
+
+.aixia-display-block {
+  min-width: 0;
+  border-radius: 1.25rem;
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  background: rgba(0, 0, 0, 0.2);
+  padding: 0.85rem 1rem;
+}
+
+.aixia-display-block-label {
+  font-size: 0.6875rem;
+  font-weight: 800;
+  letter-spacing: 0.18em;
+  text-transform: uppercase;
+  color: rgba(100, 116, 139, 0.92);
+}
+
+.aixia-display-block-value {
+  margin-top: 0.5rem;
+  overflow-wrap: anywhere;
+  font-size: 0.875rem;
+  font-weight: 800;
+  line-height: 1.55;
+  color: white;
+}
+
+.aixia-display-block-detail {
+  margin-top: 0.25rem;
+  overflow-wrap: anywhere;
+  font-size: 0.75rem;
+  line-height: 1.55;
+  color: rgba(100, 116, 139, 0.92);
+}
+
+.aixia-detail-section {
+  position: relative;
+  overflow: hidden;
+  border-radius: clamp(1.5rem, 2vw, 1.875rem);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  background: rgba(255, 255, 255, 0.045);
+  box-shadow: 0 24px 80px rgba(0, 0, 0, 0.28);
+  backdrop-filter: blur(16px);
+}
+
+.aixia-detail-section-header {
+  display: flex;
+  flex-direction: column;
+  gap: 1rem;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+  padding: clamp(1rem, 1.4vw, 1.25rem) clamp(1.25rem, 1.6vw, 1.5rem);
+}
+
+@media (min-width: 1024px) {
+  .aixia-detail-section-header {
+    flex-direction: row;
+    align-items: flex-start;
+    justify-content: space-between;
+  }
+}
+
+.aixia-detail-section-title-wrap {
+  display: flex;
+  min-width: 0;
+  align-items: flex-start;
+  gap: 0.875rem;
+}
+
+.aixia-detail-section-icon {
+  display: flex;
+  height: 2.75rem;
+  width: 2.75rem;
+  flex-shrink: 0;
+  align-items: center;
+  justify-content: center;
+  border-radius: 1rem;
+  border: 1px solid rgba(34, 211, 238, 0.18);
+  background: rgba(6, 182, 212, 0.1);
+  color: rgb(165, 243, 252);
+  box-shadow: 0 0 22px rgba(6, 182, 212, 0.12);
+}
+
+.aixia-detail-section-title {
+  font-size: 0.875rem;
+  font-weight: 900;
+  letter-spacing: 0.18em;
+  text-transform: uppercase;
+  color: rgba(203, 213, 225, 0.9);
+}
+
+.aixia-detail-section-description {
+  margin-top: 0.25rem;
+  max-width: 42rem;
+  font-size: 0.75rem;
+  line-height: 1.55;
+  color: rgba(100, 116, 139, 0.95);
+}
+
+.aixia-detail-section-actions {
+  display: flex;
+  flex-shrink: 0;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+.aixia-detail-section-body {
+  padding: clamp(1rem, 1.4vw, 1.25rem);
+}
+
+.aixia-detail-action-primary,
+.aixia-detail-action-secondary {
+  display: inline-flex;
+  min-height: 2.5rem;
+  align-items: center;
+  justify-content: center;
+  gap: 0.5rem;
+  border-radius: 1rem;
+  padding: 0.625rem 1rem;
+  font-size: 0.75rem;
+  font-weight: 800;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  transition:
+    border-color 300ms ease,
+    background-color 300ms ease,
+    color 300ms ease,
+    opacity 300ms ease,
+    transform 300ms ease;
+}
+
+.aixia-detail-action-primary:disabled,
+.aixia-detail-action-secondary:disabled {
+  cursor: not-allowed;
+  opacity: 0.55;
+}
+
+.aixia-detail-action-primary {
+  border: 1px solid rgba(34, 211, 238, 0.24);
+  background: rgba(6, 182, 212, 0.12);
+  color: rgb(207, 250, 254);
+}
+
+.aixia-detail-action-primary:hover {
+  border-color: rgba(34, 211, 238, 0.38);
+  background: rgba(6, 182, 212, 0.18);
+  color: white;
+}
+
+.aixia-detail-action-secondary {
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  background: rgba(255, 255, 255, 0.055);
+  color: rgba(203, 213, 225, 0.9);
+}
+
+.aixia-detail-action-secondary:hover {
+  border-color: rgba(255, 255, 255, 0.18);
+  background: rgba(255, 255, 255, 0.085);
+  color: white;
+}
+
+.aixia-page-state {
+  border-radius: clamp(1.5rem, 2vw, 1.875rem);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  background: rgba(255, 255, 255, 0.045);
+  padding: clamp(2.25rem, 4vw, 3rem) clamp(1.25rem, 2vw, 2rem);
+  text-align: center;
+  box-shadow: 0 24px 80px rgba(0, 0, 0, 0.28);
+  backdrop-filter: blur(16px);
+}
+
+.aixia-page-state-icon {
+  margin-left: auto;
+  margin-right: auto;
+  display: flex;
+  height: 3.5rem;
+  width: 3.5rem;
+  align-items: center;
+  justify-content: center;
+  border-radius: 1.125rem;
+  border: 1px solid rgba(34, 211, 238, 0.18);
+  background: rgba(6, 182, 212, 0.1);
+  color: rgb(165, 243, 252);
+}
+
+.aixia-page-state-title {
+  margin-top: 1rem;
+  font-size: 1.125rem;
+  font-weight: 900;
+  color: white;
+}
+
+.aixia-page-state-description {
+  margin: 0.5rem auto 0;
+  max-width: 44rem;
+  font-size: 0.875rem;
+  line-height: 1.65;
+  color: rgba(100, 116, 139, 0.95);
+}
+
+.aixia-page-state-action {
+  margin-top: 1.5rem;
+}
+
+.aixia-action-stack {
+  display: grid;
+  min-width: 0;
+  gap: 0.75rem;
+}
+
+.aixia-action-stack > .aixia-btn-primary,
+.aixia-action-stack > .aixia-btn-secondary,
+.aixia-action-stack > .aixia-btn-danger {
+  width: 100%;
+}
+
+.aixia-alert-text {
+  min-width: 0;
+}
+
+.aixia-alert-title {
+  font-weight: 800;
+  color: white;
+}
+
+.aixia-alert-description {
+  margin-top: 0.25rem;
+  color: currentColor;
+}
+
+.aixia-form-field {
+  min-width: 0;
+}
+
+.aixia-review-grid {
+  display: grid;
+  min-width: 0;
+  gap: 0.75rem;
+}
+
+.aixia-review-block {
+  min-width: 0;
+  border-radius: 1.25rem;
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  background: rgba(0, 0, 0, 0.2);
+  padding: 0.95rem 1rem;
+}
+
+.aixia-review-block-label {
+  font-size: 0.6875rem;
+  font-weight: 800;
+  letter-spacing: 0.18em;
+  text-transform: uppercase;
+  color: rgba(100, 116, 139, 0.92);
+}
+
+.aixia-review-block-value {
+  margin-top: 0.45rem;
+  overflow-wrap: anywhere;
+  font-size: 0.95rem;
+  font-weight: 900;
+  line-height: 1.45;
+  color: white;
+}
+
+.aixia-review-block-description {
+  margin-top: 0.25rem;
+  overflow-wrap: anywhere;
+  font-size: 0.75rem;
+  line-height: 1.5;
+  color: rgba(148, 163, 184, 0.82);
 }

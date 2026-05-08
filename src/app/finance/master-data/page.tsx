@@ -1186,6 +1186,7 @@ export default function FinanceMasterDataPage() {
         sidebar="wide"
         balance="main"
         matchColumns
+        bottomSpan="never"
         main={
           <>
           <AccessSummaryPanel

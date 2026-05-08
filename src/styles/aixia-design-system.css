@@ -1354,7 +1354,7 @@
 }
 
 /* -------------------------------------------------------
-   TABLES / LOCKED SMART TABLE SYSTEM
+   TABLES / LOCKED SMART CENTERED TABLE SYSTEM
 ------------------------------------------------------- */
 
 .aixia-table-wrap {
@@ -1384,7 +1384,7 @@
   z-index: 10;
   border-bottom: 1px solid rgba(255, 255, 255, 0.1);
   background: rgba(15, 23, 42, 0.92);
-  text-align: left;
+  text-align: center;
   font-size: 0.65625rem;
   font-weight: 800;
   letter-spacing: 0.16em;
@@ -1413,23 +1413,13 @@
   text-align: center;
 }
 
-.aixia-table th:last-child {
-  text-align: right;
-}
-
-.aixia-table th:last-child .aixia-sortable-header {
-  margin-left: auto;
-  margin-right: 0;
-  justify-content: flex-end;
-  text-align: right;
-}
-
 .aixia-table td {
   width: auto;
   min-width: max-content;
   min-height: 3.25rem;
   padding: 0.7rem 0.85rem;
   vertical-align: middle;
+  text-align: center;
   font-size: 0.8125rem;
   line-height: 1.35;
   color: rgba(255, 255, 255, 0.68);
@@ -1445,21 +1435,10 @@
   max-width: 260px;
 }
 
-.aixia-table td .font-semibold {
-  font-size: 0.875rem;
-  line-height: 1.35;
-  color: rgba(255, 255, 255, 0.92);
-}
-
-.aixia-table td .text-xs {
-  font-size: 0.75rem;
-  line-height: 1.35;
-  color: rgba(148, 163, 184, 0.68);
-}
-
 .aixia-table-th,
 .aixia-table-cell {
   padding: 0.7rem 0.85rem;
+  text-align: center;
 }
 
 .aixia-table-row {
@@ -1477,7 +1456,10 @@
 .aixia-sortable-header {
   display: inline-flex;
   align-items: center;
+  justify-content: center;
   gap: 0.45rem;
+  width: 100%;
+  text-align: center;
   font-size: 0.65625rem;
   font-weight: 800;
   letter-spacing: 0.16em;
@@ -1492,38 +1474,6 @@
 
 .aixia-sortable-header.is-active {
   color: #fbbf24;
-}
-
-.aixia-table td:has(.aixia-badge) {
-  width: 1%;
-  text-align: center;
-  white-space: nowrap;
-}
-
-.aixia-table td:has(.aixia-badge) .aixia-badge {
-  margin-left: auto;
-  margin-right: auto;
-  justify-content: center;
-}
-
-.aixia-table td:has(.aixia-btn-primary),
-.aixia-table td:has(.aixia-btn-secondary),
-.aixia-table td:has(.aixia-btn-danger) {
-  width: 1%;
-  text-align: right;
-  white-space: nowrap;
-}
-
-.aixia-table td:has(.aixia-btn-primary) > div,
-.aixia-table td:has(.aixia-btn-secondary) > div,
-.aixia-table td:has(.aixia-btn-danger) > div {
-  justify-content: flex-end;
-}
-
-.aixia-table td:last-child {
-  width: 1%;
-  text-align: right;
-  white-space: nowrap;
 }
 
 .aixia-table .aixia-btn-primary,
@@ -1597,19 +1547,30 @@
 .aixia-table-cell-actions {
   padding: 0.7rem 0.85rem;
   vertical-align: middle;
+  text-align: center;
+}
+
+.aixia-table-cell-text {
+  white-space: normal;
 }
 
 .aixia-table-primary-text {
+  max-width: 280px;
+  margin-left: auto;
+  margin-right: auto;
   font-size: 0.875rem;
   font-weight: 800;
   line-height: 1.35;
+  text-align: center;
   color: rgba(255, 255, 255, 0.92);
 }
 
 .aixia-table-secondary-text {
-  margin-top: 0.25rem;
+  max-width: 280px;
+  margin: 0.25rem auto 0;
   font-size: 0.75rem;
   line-height: 1.35;
+  text-align: center;
   color: rgba(148, 163, 184, 0.68);
 }
 
@@ -1618,7 +1579,8 @@
   white-space: nowrap;
 }
 
-.aixia-table-cell-badge .aixia-badge {
+.aixia-table-cell-badge .aixia-badge,
+.aixia-table td:has(.aixia-badge) .aixia-badge {
   margin-left: auto;
   margin-right: auto;
   justify-content: center;
@@ -1626,18 +1588,26 @@
 
 .aixia-table-cell-date {
   font-size: 0.8125rem;
+  text-align: center;
   color: rgba(203, 213, 225, 0.86);
 }
 
-.aixia-table-cell-actions {
+.aixia-table-cell-actions,
+.aixia-table td:has(.aixia-btn-primary),
+.aixia-table td:has(.aixia-btn-secondary),
+.aixia-table td:has(.aixia-btn-danger) {
   width: 1%;
-  text-align: right;
+  text-align: center;
   white-space: nowrap;
 }
 
-.aixia-table-actions {
+.aixia-table-actions,
+.aixia-table td:has(.aixia-btn-primary) > div,
+.aixia-table td:has(.aixia-btn-secondary) > div,
+.aixia-table td:has(.aixia-btn-danger) > div {
   display: flex;
-  justify-content: flex-end;
+  justify-content: center;
+  align-items: center;
   gap: 0.5rem;
 }
 
@@ -1647,7 +1617,6 @@
   color: rgb(199, 210, 254);
   box-shadow: 0 0 18px rgba(99, 102, 241, 0.14);
 }
-
 /* -------------------------------------------------------
    MODALS
 ------------------------------------------------------- */

@@ -1591,6 +1591,56 @@
   white-space: nowrap;
 }
 
+.aixia-table-cell-text,
+.aixia-table-cell-badge,
+.aixia-table-cell-date,
+.aixia-table-cell-actions {
+  padding: 0.7rem 0.85rem;
+  vertical-align: middle;
+}
+
+.aixia-table-primary-text {
+  font-size: 0.875rem;
+  font-weight: 800;
+  line-height: 1.35;
+  color: rgba(255, 255, 255, 0.92);
+}
+
+.aixia-table-secondary-text {
+  margin-top: 0.25rem;
+  font-size: 0.75rem;
+  line-height: 1.35;
+  color: rgba(148, 163, 184, 0.68);
+}
+
+.aixia-table-cell-badge {
+  text-align: center;
+  white-space: nowrap;
+}
+
+.aixia-table-cell-badge .aixia-badge {
+  margin-left: auto;
+  margin-right: auto;
+  justify-content: center;
+}
+
+.aixia-table-cell-date {
+  font-size: 0.8125rem;
+  color: rgba(203, 213, 225, 0.86);
+}
+
+.aixia-table-cell-actions {
+  width: 1%;
+  text-align: right;
+  white-space: nowrap;
+}
+
+.aixia-table-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 0.5rem;
+}
+
 .aixia-table .aixia-currency-badge {
   border-color: rgba(99, 102, 241, 0.34);
   background: rgba(99, 102, 241, 0.14);

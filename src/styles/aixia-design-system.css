@@ -1502,6 +1502,13 @@
   white-space: nowrap;
 }
 
+.aixia-table .aixia-currency-badge {
+  border-color: rgba(99, 102, 241, 0.34);
+  background: rgba(99, 102, 241, 0.14);
+  color: rgb(199, 210, 254);
+  box-shadow: 0 0 18px rgba(99, 102, 241, 0.14);
+}
+
 /* -------------------------------------------------------
    MODALS
 ------------------------------------------------------- */

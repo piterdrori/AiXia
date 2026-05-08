@@ -19,6 +19,7 @@ import {
 
 import {
   AixiaButton,
+  AixiaCurrencyBadge,
   AixiaDefaultBadge,
   AixiaHero,
   AixiaInfoBlock,
@@ -1180,10 +1181,10 @@ export default function FinanceMasterDataBankAccountsPage() {
                               </div>
                             </td>
 
-                            <td className="min-w-[120px] px-5 py-4">
-                              <span className="inline-flex rounded-full border border-white/10 bg-white/[0.04] px-3 py-1 text-xs font-semibold text-white">
-                                {getCorrelatedCurrencyLabel(row, companyCurrencyByCode)}
-                              </span>
+                            <td className="min-w-[130px] px-5 py-4">
+                              <AixiaCurrencyBadge
+                                value={getCorrelatedCurrencyLabel(row, companyCurrencyByCode)}
+                              />
                             </td>
 
                             <td className="min-w-[150px] px-5 py-4">

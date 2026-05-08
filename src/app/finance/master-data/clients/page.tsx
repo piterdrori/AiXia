@@ -2,7 +2,6 @@ import { useCallback, useEffect, useMemo, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import type { LucideIcon } from "lucide-react";
 import {
-  AlertTriangle,
   Archive,
   ArrowRight,
   Building2,
@@ -10,17 +9,35 @@ import {
   Loader2,
   LockKeyhole,
   Mail,
-  Phone,
   Plus,
   RotateCcw,
-  Search,
   ShieldCheck,
-  Sparkles,
   Trash2,
   Users,
-  X,
 } from "lucide-react";
 
+import {
+  AixiaAlert,
+  AixiaAlertText,
+  AixiaBadge,
+  AixiaButton,
+  AixiaEmptyState,
+  AixiaHero,
+  AixiaLoadingState,
+  AixiaMetricCard,
+  AixiaMetricGrid,
+  AixiaModal,
+  AixiaPage,
+  AixiaSearchField,
+  AixiaSection,
+  AixiaSortableHeader,
+  AixiaStatusBadge,
+  AixiaTableActionsCell,
+  AixiaTableBadgeCell,
+  AixiaTableDateCell,
+  AixiaTableShell,
+  AixiaTableTextCell,
+} from "@/components/aixia";
 import {
   archiveClient,
   getArchivedClients,
@@ -35,6 +52,8 @@ import {
   type Role,
 } from "@/lib/permissions";
 import { supabase } from "@/lib/supabase";
+
+type LoadMode = "initial" | "silent";
 
 type ProfilePermissionRow = {
   user_id: string;
@@ -80,6 +99,14 @@ type PermissionState = {
   isAdmin: boolean;
 };
 
+type HeaderStatusCardData = {
+  label: string;
+  value: string;
+  description: string;
+  icon: LucideIcon;
+  tone: "emerald" | "cyan" | "amber" | "rose";
+};
+
 const EMPTY_PERMISSION_STATE: PermissionState = {
   canRead: false,
   canCreate: false,
@@ -105,16 +132,6 @@ function formatDateLabel(value: string | null | undefined) {
   });
 }
 
-function formatStatus(value: string | null | undefined) {
-  if (!value) return "Unknown";
-
-  return value
-    .split("_")
-    .filter(Boolean)
-    .map((part) => part.charAt(0).toUpperCase() + part.slice(1))
-    .join(" ");
-}
-
 function getClientName(client: FinanceClientListRow) {
   return client.legal_name || client.name || "Unnamed client";
 }
@@ -133,19 +150,6 @@ function getClientEmail(client: FinanceClientListRow) {
 
 function getClientPhone(client: FinanceClientListRow) {
   return client.company_phone || client.personnel_phone || "—";
-}
-
-function getStatusTone(status: string | null | undefined) {
-  switch (status) {
-    case "active":
-      return "border-emerald-400/20 bg-emerald-500/10 text-emerald-200";
-    case "inactive":
-      return "border-amber-400/20 bg-amber-500/10 text-amber-200";
-    case "archived":
-      return "border-rose-400/20 bg-rose-500/10 text-rose-200";
-    default:
-      return "border-white/10 bg-white/[0.06] text-slate-300";
-  }
 }
 
 function hasPermission(
@@ -188,7 +192,8 @@ function buildPermissionState(
 }
 
 async function loadBackendEffectivePermissions(
-  userId: string
+  userId: string,
+  mode: LoadMode
 ): Promise<Partial<Record<Permission, boolean>> | null> {
   try {
     const result = await supabase.rpc("finance_get_effective_permissions", {
@@ -196,16 +201,30 @@ async function loadBackendEffectivePermissions(
     });
 
     if (result.error) {
+      if (mode === "silent") {
+        throw result.error;
+      }
+
       console.warn("Clients permission RPC fallback:", result.error.message);
       return null;
     }
 
     if (!result.data || typeof result.data !== "object") {
+      if (mode === "silent") {
+        throw new Error(
+          "Silent clients permission refresh returned no effective permission payload."
+        );
+      }
+
       return null;
     }
 
     return result.data as Partial<Record<Permission, boolean>>;
   } catch (error) {
+    if (mode === "silent") {
+      throw error;
+    }
+
     console.warn("Clients permission RPC failed:", error);
     return null;
   }
@@ -217,255 +236,6 @@ function compareStrings(first: string | null | undefined, second: string | null 
 
 function compareDates(first: string | null | undefined, second: string | null | undefined) {
   return new Date(first || 0).getTime() - new Date(second || 0).getTime();
-}
-
-function getToneClasses(tone: MetricCard["tone"]) {
-  switch (tone) {
-    case "emerald":
-      return {
-        glow: "from-emerald-500/20 via-emerald-400/10 to-transparent",
-        iconWrap: "border-emerald-400/20 bg-emerald-500/10 text-emerald-200",
-        value: "text-emerald-100",
-        accent: "bg-emerald-400",
-      };
-    case "amber":
-      return {
-        glow: "from-amber-500/20 via-amber-400/10 to-transparent",
-        iconWrap: "border-amber-400/20 bg-amber-500/10 text-amber-200",
-        value: "text-amber-100",
-        accent: "bg-amber-400",
-      };
-    case "violet":
-      return {
-        glow: "from-violet-500/20 via-violet-400/10 to-transparent",
-        iconWrap: "border-violet-400/20 bg-violet-500/10 text-violet-200",
-        value: "text-violet-100",
-        accent: "bg-violet-400",
-      };
-    case "rose":
-      return {
-        glow: "from-rose-500/20 via-rose-400/10 to-transparent",
-        iconWrap: "border-rose-400/20 bg-rose-500/10 text-rose-200",
-        value: "text-rose-100",
-        accent: "bg-rose-400",
-      };
-    case "cyan":
-    default:
-      return {
-        glow: "from-cyan-500/20 via-cyan-400/10 to-transparent",
-        iconWrap: "border-cyan-400/20 bg-cyan-500/10 text-cyan-200",
-        value: "text-cyan-100",
-        accent: "bg-cyan-400",
-      };
-  }
-}
-
-function MetricCardBlock({ metric }: { metric: MetricCard }) {
-  const Icon = metric.icon;
-  const tone = getToneClasses(metric.tone);
-
-  return (
-    <div className="group relative min-h-[156px] overflow-hidden rounded-[28px] border border-white/10 bg-white/[0.045] p-5 backdrop-blur-xl transition hover:border-white/20 hover:bg-white/[0.055]">
-      <div className={`pointer-events-none absolute inset-0 bg-gradient-to-br ${tone.glow}`} />
-      <div className="pointer-events-none absolute inset-x-5 top-0 h-px bg-white/10" />
-
-      <div className="relative flex h-full flex-col justify-between gap-5">
-        <div className="flex items-start justify-between gap-4">
-          <div className="min-w-0">
-            <div className="text-[11px] font-semibold uppercase tracking-[0.2em] text-slate-500">
-              {metric.title}
-            </div>
-            <div
-              className={`mt-2 truncate text-3xl font-semibold tracking-[-0.035em] ${tone.value}`}
-            >
-              {metric.value}
-            </div>
-          </div>
-
-          <div
-            className={`flex h-12 w-12 shrink-0 items-center justify-center rounded-2xl border ${tone.iconWrap}`}
-          >
-            <Icon className="h-5 w-5" />
-          </div>
-        </div>
-
-        <div className="flex items-center justify-between gap-3">
-          <div className="min-w-0 truncate text-sm leading-6 text-slate-400">
-            {metric.subtitle}
-          </div>
-          <div className={`h-2 w-2 shrink-0 rounded-full ${tone.accent}`} />
-        </div>
-      </div>
-    </div>
-  );
-}
-
-function StatusBadge({
-  value,
-  className,
-}: {
-  value: string | null | undefined;
-  className?: string;
-}) {
-  return (
-    <span
-      className={`inline-flex max-w-full items-center rounded-full border px-3 py-1 text-[11px] font-semibold uppercase tracking-[0.14em] ${getStatusTone(
-        value
-      )} ${className || ""}`}
-    >
-      <span className="truncate">{formatStatus(value)}</span>
-    </span>
-  );
-}
-
-function SectionCard({
-  title,
-  description,
-  icon: Icon,
-  children,
-}: {
-  title: string;
-  description: string;
-  icon: LucideIcon;
-  children: React.ReactNode;
-}) {
-  return (
-    <section className="overflow-hidden rounded-[30px] border border-white/10 bg-white/[0.045] backdrop-blur-xl">
-      <div className="flex items-start justify-between gap-4 border-b border-white/10 px-5 py-4">
-        <div className="flex min-w-0 items-start gap-3">
-          <div className="rounded-2xl border border-cyan-400/15 bg-cyan-500/10 p-3 text-cyan-200">
-            <Icon className="h-4 w-4" />
-          </div>
-
-          <div className="min-w-0">
-            <h2 className="text-sm font-semibold uppercase tracking-[0.18em] text-slate-400">
-              {title}
-            </h2>
-            <p className="mt-1 text-xs leading-5 text-slate-500">{description}</p>
-          </div>
-        </div>
-      </div>
-
-      <div className="p-5">{children}</div>
-    </section>
-  );
-}
-
-function HeaderStatusCard({
-  label,
-  value,
-  detail,
-  icon: Icon,
-  tone,
-}: {
-  label: string;
-  value: string;
-  detail: string;
-  icon: LucideIcon;
-  tone: "emerald" | "cyan" | "amber" | "rose";
-}) {
-  const toneClasses = {
-    emerald: "border-emerald-400/20 bg-emerald-500/10 text-emerald-200",
-    cyan: "border-cyan-400/20 bg-cyan-500/10 text-cyan-200",
-    amber: "border-amber-400/20 bg-amber-500/10 text-amber-200",
-    rose: "border-rose-400/20 bg-rose-500/10 text-rose-200",
-  }[tone];
-
-  return (
-    <div className="min-h-[148px] rounded-[24px] border border-white/10 bg-black/20 p-4">
-      <div className="flex items-start justify-between gap-3">
-        <div className="min-w-0">
-          <div className="text-[11px] font-semibold uppercase tracking-[0.2em] text-slate-500">
-            {label}
-          </div>
-          <div className="mt-2 text-xl font-semibold leading-tight tracking-[-0.035em] text-white">
-            {value}
-          </div>
-        </div>
-
-        <div
-          className={`flex h-10 w-10 shrink-0 items-center justify-center rounded-2xl border ${toneClasses}`}
-        >
-          <Icon className="h-4 w-4" />
-        </div>
-      </div>
-
-      <div className="mt-3 text-xs leading-5 text-slate-500">{detail}</div>
-    </div>
-  );
-}
-
-function SortButton({
-  label,
-  sortKey,
-  activeSortKey,
-  direction,
-  onClick,
-}: {
-  label: string;
-  sortKey: SortKey;
-  activeSortKey: SortKey;
-  direction: SortDirection;
-  onClick: (sortKey: SortKey) => void;
-}) {
-  const isActive = activeSortKey === sortKey;
-
-  return (
-    <button
-      type="button"
-      onClick={() => onClick(sortKey)}
-      className={`inline-flex items-center gap-1 transition hover:text-cyan-200 ${
-        isActive ? "text-cyan-200" : "text-slate-500"
-      }`}
-    >
-      {label}
-      {isActive ? <span>{direction === "asc" ? "↑" : "↓"}</span> : null}
-    </button>
-  );
-}
-
-function TextInput({
-  value,
-  onChange,
-  placeholder,
-}: {
-  value: string;
-  onChange: (value: string) => void;
-  placeholder: string;
-}) {
-  return (
-    <label className="relative block">
-      <Search className="pointer-events-none absolute left-4 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-500" />
-      <input
-        value={value}
-        onChange={(event) => onChange(event.target.value)}
-        placeholder={placeholder}
-        className="h-11 w-full rounded-2xl border border-white/10 bg-black/20 px-4 pl-11 text-sm text-white outline-none transition placeholder:text-slate-600 focus:border-cyan-400/30 focus:bg-black/30"
-      />
-    </label>
-  );
-}
-
-function EmptyState({
-  icon: Icon,
-  title,
-  description,
-}: {
-  icon: LucideIcon;
-  title: string;
-  description: string;
-}) {
-  return (
-    <div className="rounded-[28px] border border-dashed border-white/10 bg-black/20 px-6 py-12 text-center">
-      <div className="mx-auto flex h-14 w-14 items-center justify-center rounded-2xl border border-white/10 bg-white/[0.04] text-slate-500">
-        <Icon className="h-6 w-6" />
-      </div>
-      <div className="mt-4 text-sm font-semibold text-white">{title}</div>
-      <p className="mx-auto mt-2 max-w-xl text-sm leading-6 text-slate-500">
-        {description}
-      </p>
-    </div>
-  );
 }
 
 export default function FinanceMasterDataClientsPage() {
@@ -482,6 +252,7 @@ export default function FinanceMasterDataClientsPage() {
   const [isLoadingProfile, setIsLoadingProfile] = useState(true);
   const [isLoadingClients, setIsLoadingClients] = useState(true);
   const [isLoadingArchive, setIsLoadingArchive] = useState(false);
+  const [backgroundRefreshing, setBackgroundRefreshing] = useState(false);
   const [pageError, setPageError] = useState<string | null>(null);
   const [pageMessage, setPageMessage] = useState<string | null>(null);
   const [runningAction, setRunningAction] = useState<PageAction>(null);
@@ -489,9 +260,11 @@ export default function FinanceMasterDataClientsPage() {
   const [sortKey, setSortKey] = useState<SortKey>("updated");
   const [sortDirection, setSortDirection] = useState<SortDirection>("desc");
 
-  const loadCurrentProfile = useCallback(async (mode: "initial" | "silent" = "initial") => {
+  const loadCurrentProfile = useCallback(async (mode: LoadMode = "initial") => {
     if (mode === "initial") {
       setIsLoadingProfile(true);
+    } else {
+      setBackgroundRefreshing(true);
     }
 
     try {
@@ -501,8 +274,15 @@ export default function FinanceMasterDataClientsPage() {
       const authUserId = authResult.data.user?.id;
 
       if (!authUserId) {
-        setProfile(null);
-        setEffectivePermissions(null);
+        if (mode === "initial") {
+          setProfile(null);
+          setEffectivePermissions(null);
+        } else {
+          console.warn(
+            "Silent clients profile refresh returned no auth user; keeping current profile and permissions."
+          );
+        }
+
         return;
       }
 
@@ -515,12 +295,33 @@ export default function FinanceMasterDataClientsPage() {
       if (profileResult.error) throw profileResult.error;
 
       const loadedProfile = (profileResult.data || null) as ProfilePermissionRow | null;
-      const backendPermissions = await loadBackendEffectivePermissions(authUserId);
+
+      if (!loadedProfile) {
+        if (mode === "initial") {
+          setProfile(null);
+          setEffectivePermissions(null);
+        } else {
+          console.warn(
+            "Silent clients profile refresh returned no profile; keeping current profile and permissions."
+          );
+        }
+
+        return;
+      }
+
+      const backendPermissions = await loadBackendEffectivePermissions(authUserId, mode);
 
       setProfile(loadedProfile);
 
-      if (!loadedProfile?.role) {
-        setEffectivePermissions(null);
+      if (!loadedProfile.role) {
+        if (mode === "initial") {
+          setEffectivePermissions(null);
+        } else {
+          console.warn(
+            "Silent clients profile refresh returned no role; keeping current permissions."
+          );
+        }
+
         return;
       }
 
@@ -532,59 +333,82 @@ export default function FinanceMasterDataClientsPage() {
       setEffectivePermissions(resolvedPermissions);
     } catch (error) {
       console.error("Failed to load clients profile permissions:", error);
-      setProfile(null);
-      setEffectivePermissions(null);
+
+      if (mode === "initial") {
+        setProfile(null);
+        setEffectivePermissions(null);
+      }
     } finally {
       if (mode === "initial") {
         setIsLoadingProfile(false);
+      } else {
+        setBackgroundRefreshing(false);
       }
     }
   }, []);
 
-  const permissionState = useMemo(() => {
-    return buildPermissionState(profile, effectivePermissions);
-  }, [effectivePermissions, profile]);
-
-  const loadClients = useCallback(async (mode: "initial" | "silent" = "initial") => {
+  const loadClients = useCallback(async (mode: LoadMode = "initial") => {
     if (mode === "initial") {
       setIsLoadingClients(true);
+      setPageError(null);
+    } else {
+      setBackgroundRefreshing(true);
     }
-    setPageError(null);
 
     try {
       const rows = await getClients();
       setClients(rows);
+
+      if (mode === "initial") {
+        setPageError(null);
+      }
     } catch (error) {
       console.error("Failed to load finance clients:", error);
-      setClients([]);
-      setPageError(
-        error instanceof Error ? error.message : "Failed to load finance clients."
-      );
+
+      if (mode === "initial") {
+        setClients([]);
+        setPageError(
+          error instanceof Error ? error.message : "Failed to load finance clients."
+        );
+      }
     } finally {
       if (mode === "initial") {
         setIsLoadingClients(false);
+      } else {
+        setBackgroundRefreshing(false);
       }
     }
   }, []);
 
-  const loadArchivedClients = useCallback(async (mode: "initial" | "silent" = "initial") => {
+  const loadArchivedClients = useCallback(async (mode: LoadMode = "initial") => {
     if (mode === "initial") {
       setIsLoadingArchive(true);
+      setPageError(null);
+    } else {
+      setBackgroundRefreshing(true);
     }
-    setPageError(null);
 
     try {
       const rows = await getArchivedClients();
       setArchivedClients(rows);
+
+      if (mode === "initial") {
+        setPageError(null);
+      }
     } catch (error) {
       console.error("Failed to load archived finance clients:", error);
-      setArchivedClients([]);
-      setPageError(
-        error instanceof Error ? error.message : "Failed to load archived clients."
-      );
+
+      if (mode === "initial") {
+        setArchivedClients([]);
+        setPageError(
+          error instanceof Error ? error.message : "Failed to load archived clients."
+        );
+      }
     } finally {
       if (mode === "initial") {
         setIsLoadingArchive(false);
+      } else {
+        setBackgroundRefreshing(false);
       }
     }
   }, []);
@@ -634,9 +458,13 @@ export default function FinanceMasterDataClientsPage() {
 
     return () => {
       window.clearInterval(intervalId);
-      supabase.removeChannel(channel);
+      void supabase.removeChannel(channel);
     };
   }, [loadArchivedClients, loadClients, loadCurrentProfile, showArchive]);
+
+  const permissionState = useMemo(() => {
+    return buildPermissionState(profile, effectivePermissions);
+  }, [effectivePermissions, profile]);
 
   const visibleClients = useMemo(() => {
     return clients.filter((client) => client.status !== "archived");
@@ -787,6 +615,41 @@ export default function FinanceMasterDataClientsPage() {
     ];
   }, [counts, isLoadingClients]);
 
+  const headerStatusCards = useMemo<HeaderStatusCardData[]>(() => {
+    return [
+      {
+        label: "Read Access",
+        value: isLoadingProfile
+          ? "Checking"
+          : permissionState.canRead
+            ? "Enabled"
+            : "Locked",
+        description: "This page requires Client read access or Master Data admin access.",
+        icon: permissionState.canRead ? ShieldCheck : LockKeyhole,
+        tone: permissionState.canRead ? "emerald" : "rose",
+      },
+      {
+        label: "Lifecycle Access",
+        value: permissionState.canDeleteArchive
+          ? "Archive Enabled"
+          : permissionState.canCreate
+            ? "Create Enabled"
+            : "Read Only",
+        description: backgroundRefreshing
+          ? "Silent refresh is updating client records without resetting the registry."
+          : "Create and Delete/Archive actions follow the Finance template.",
+        icon: permissionState.canDeleteArchive ? Archive : Building2,
+        tone: permissionState.canDeleteArchive ? "amber" : "cyan",
+      },
+    ];
+  }, [
+    backgroundRefreshing,
+    isLoadingProfile,
+    permissionState.canCreate,
+    permissionState.canDeleteArchive,
+    permissionState.canRead,
+  ]);
+
   const toggleSort = useCallback((nextKey: SortKey) => {
     setSortKey((currentKey) => {
       if (currentKey !== nextKey) {
@@ -913,144 +776,92 @@ export default function FinanceMasterDataClientsPage() {
   const isPageLoading = isLoadingProfile || isLoadingClients;
   const isActionRunning = Boolean(runningAction);
 
+  if (isPageLoading) {
+    return (
+      <AixiaLoadingState
+        title="Loading clients"
+        description="Client records and permission state are being checked."
+      />
+    );
+  }
+
   return (
-    <div className="min-h-screen bg-[#05070d] px-4 py-4 text-white md:px-6 md:py-6">
-      <div className="mx-auto flex w-full max-w-[1600px] flex-col gap-6">
-        <header className="relative overflow-hidden rounded-[34px] border border-white/10 bg-white/[0.045] p-6 shadow-2xl shadow-black/30 backdrop-blur-xl">
-          <div className="pointer-events-none absolute inset-0 bg-[radial-gradient(circle_at_top_left,rgba(6,182,212,0.16),transparent_38%),radial-gradient(circle_at_top_right,rgba(139,92,246,0.12),transparent_34%)]" />
+    <AixiaPage>
+      <AixiaHero
+        parentLabel="Master Data"
+        parentPath="/finance/master-data"
+        badges={[
+          { label: "Finance Client Master Data", tone: "cyan" },
+          { label: "Live backend", tone: "emerald" },
+          { label: "Permission filtered", tone: "cyan" },
+          { label: "Realtime + 60s fallback", tone: "neutral" },
+        ]}
+        gradientTitle="Clients"
+        title="Registry"
+        subtitle="Finance Customer Master Data"
+        description="Permission-filtered registry for finance customers, billing entities, contacts, legal identity, and client lifecycle control."
+        statusCards={headerStatusCards}
+      />
 
-          <div className="relative grid gap-6 xl:grid-cols-[minmax(0,1fr)_520px] xl:items-end">
-            <div>
-              <button
-                type="button"
-                onClick={() => navigate("/finance/master-data")}
-                className="mb-5 inline-flex items-center justify-center gap-2 rounded-full border border-white/10 bg-white/[0.05] px-5 py-2 text-[11px] font-semibold uppercase tracking-[0.22em] text-slate-300 transition hover:border-white/20 hover:bg-white/[0.08] hover:text-white"
-              >
-                <ArrowRight className="h-3.5 w-3.5 rotate-180" />
-                Master Data
-              </button>
+      {pageError ? <AixiaAlert tone="error">{pageError}</AixiaAlert> : null}
+      {pageMessage ? <AixiaAlert tone="success">{pageMessage}</AixiaAlert> : null}
 
-              <div className="inline-flex w-fit items-center gap-2 rounded-full border border-cyan-400/20 bg-cyan-500/10 px-3 py-1 text-[11px] font-semibold uppercase tracking-[0.22em] text-cyan-200">
-                <Sparkles className="h-3.5 w-3.5" />
-                Finance Client Master Data
-              </div>
+      <AixiaMetricGrid>
+        {metricCards.map((metric) => (
+          <AixiaMetricCard
+            key={metric.key}
+            label={metric.title}
+            value={metric.value}
+            description={metric.subtitle}
+            icon={metric.icon}
+            tone={metric.tone}
+          />
+        ))}
+      </AixiaMetricGrid>
 
-              <h1 className="mt-4 text-3xl font-semibold tracking-[-0.035em] text-white md:text-5xl">
-                Clients
-              </h1>
-
-              <p className="mt-3 max-w-4xl text-sm leading-6 text-slate-400 md:text-base md:leading-7">
-                Permission-filtered registry for finance customers, billing entities,
-                contacts, legal identity, and client lifecycle control.
-              </p>
-
-              <div className="mt-5 flex flex-wrap gap-2">
-                <span className="rounded-full border border-emerald-400/20 bg-emerald-500/10 px-3 py-1 text-[11px] font-semibold uppercase tracking-[0.16em] text-emerald-200">
-                  Live backend
-                </span>
-                <span className="rounded-full border border-cyan-400/20 bg-cyan-500/10 px-3 py-1 text-[11px] font-semibold uppercase tracking-[0.16em] text-cyan-200">
-                  Permission filtered
-                </span>
-                <span className="rounded-full border border-slate-400/20 bg-slate-500/10 px-3 py-1 text-[11px] font-semibold uppercase tracking-[0.16em] text-slate-300">
-                  Realtime + 60s fallback
-                </span>
-              </div>
-            </div>
-
-            <div className="grid gap-3 sm:grid-cols-2">
-              <HeaderStatusCard
-                label="Read Access"
-                value={
-                  isLoadingProfile ? "Checking" : permissionState.canRead ? "Enabled" : "Locked"
-                }
-                detail="This page requires Client read access or Master Data admin access."
-                icon={permissionState.canRead ? ShieldCheck : LockKeyhole}
-                tone={permissionState.canRead ? "emerald" : "rose"}
-              />
-
-              <HeaderStatusCard
-                label="Lifecycle Access"
-                value={
-                  permissionState.canDeleteArchive
-                    ? "Archive Enabled"
-                    : permissionState.canCreate
-                      ? "Create Enabled"
-                      : "Read Only"
-                }
-                detail="Create and Delete/Archive actions follow the Finance template."
-                icon={permissionState.canDeleteArchive ? Archive : Building2}
-                tone={permissionState.canDeleteArchive ? "amber" : "cyan"}
-              />
-            </div>
-          </div>
-        </header>
-
-        {pageError ? (
-          <div className="rounded-[24px] border border-rose-400/20 bg-rose-500/10 p-4 text-sm leading-6 text-rose-100">
-            <div className="flex items-start gap-3">
-              <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0" />
-              <div>{pageError}</div>
-            </div>
-          </div>
-        ) : null}
-
-        {pageMessage ? (
-          <div className="rounded-[24px] border border-emerald-400/20 bg-emerald-500/10 p-4 text-sm leading-6 text-emerald-100">
-            <div className="flex items-start gap-3">
-              <CheckCircle2 className="mt-0.5 h-4 w-4 shrink-0" />
-              <div>{pageMessage}</div>
-            </div>
-          </div>
-        ) : null}
-
-        <section className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
-          {metricCards.map((metric) => (
-            <MetricCardBlock key={metric.key} metric={metric} />
-          ))}
-        </section>
-
-        {!permissionState.canRead && !isPageLoading ? (
-          <SectionCard
-            title="Client Access Locked"
-            description="The logged-in user does not have Client read access."
+      {!permissionState.canRead ? (
+        <AixiaSection
+          title="Client Access Locked"
+          description="The logged-in user does not have Client read access."
+          icon={LockKeyhole}
+        >
+          <AixiaEmptyState
             icon={LockKeyhole}
-          >
-            <EmptyState
-              icon={LockKeyhole}
-              title="No client access is enabled"
-              description="Ask an Admin to assign a Finance role template or user-specific exception with Client read access."
-            />
-          </SectionCard>
-        ) : (
-          <SectionCard
-            title="Client Registry"
-            description="Active and inactive clients. Archived clients are managed only through the archive modal."
-            icon={Users}
-          >
-            <div className="mb-5 grid gap-3 xl:grid-cols-[minmax(0,1fr)_auto_auto]">
-              <TextInput
+            title="No client access is enabled"
+            description="Ask an Admin to assign a Finance role template or user-specific exception with Client read access."
+          />
+        </AixiaSection>
+      ) : (
+        <AixiaSection
+          title="Client Registry"
+          description="Active and inactive clients. Archived clients are managed only through the archive modal."
+          icon={Users}
+          actions={
+            <div className="aixia-control-cluster">
+              <AixiaSearchField
+                width="wide"
                 value={search}
-                onChange={setSearch}
-                placeholder="Search by client, code, contact, email, phone, country, or status"
+                onChange={(event) => setSearch(event.target.value)}
+                placeholder="Search clients"
               />
 
               {permissionState.canCreate ? (
-                <button
+                <AixiaButton
                   type="button"
+                  variant="primary"
                   onClick={() => navigate("/finance/master-data/clients/new")}
-                  className="inline-flex h-11 items-center justify-center gap-2 rounded-2xl border border-cyan-400/20 bg-cyan-500/10 px-5 text-sm font-semibold text-cyan-100 transition hover:bg-cyan-500/15"
                 >
                   <Plus className="h-4 w-4" />
                   Create Client
-                </button>
+                </AixiaButton>
               ) : null}
 
               {permissionState.canDeleteArchive ? (
-                <button
+                <AixiaButton
                   type="button"
+                  variant="danger"
                   onClick={() => void openArchiveModal()}
                   disabled={isActionRunning}
-                  className="inline-flex h-11 items-center justify-center gap-2 rounded-2xl border border-rose-400/20 bg-rose-500/10 px-5 text-sm font-semibold text-rose-100 transition hover:bg-rose-500/15 disabled:cursor-not-allowed disabled:opacity-50"
                 >
                   {runningAction === "archive-modal" ? (
                     <Loader2 className="h-4 w-4 animate-spin" />
@@ -1058,380 +869,305 @@ export default function FinanceMasterDataClientsPage() {
                     <Archive className="h-4 w-4" />
                   )}
                   Archive
-                </button>
+                </AixiaButton>
               ) : null}
             </div>
+          }
+        >
+          {filteredClients.length === 0 ? (
+            <AixiaEmptyState
+              icon={Building2}
+              title="No visible clients found"
+              description="Create a client or adjust the search filter to find a finance client record."
+            />
+          ) : (
+            <AixiaTableShell minWidthClassName="min-w-[1320px]">
+              <thead className="aixia-table-head">
+                <tr>
+                  <th>
+                    <AixiaSortableHeader
+                      label="Client"
+                      sortKey="client"
+                      activeSortKey={sortKey}
+                      sortDirection={sortDirection}
+                      onSort={toggleSort}
+                    />
+                  </th>
+                  <th>
+                    <AixiaSortableHeader
+                      label="Code"
+                      sortKey="code"
+                      activeSortKey={sortKey}
+                      sortDirection={sortDirection}
+                      onSort={toggleSort}
+                    />
+                  </th>
+                  <th>
+                    <AixiaSortableHeader
+                      label="Contact"
+                      sortKey="contact"
+                      activeSortKey={sortKey}
+                      sortDirection={sortDirection}
+                      onSort={toggleSort}
+                    />
+                  </th>
+                  <th>
+                    <AixiaSortableHeader
+                      label="Email"
+                      sortKey="email"
+                      activeSortKey={sortKey}
+                      sortDirection={sortDirection}
+                      onSort={toggleSort}
+                    />
+                  </th>
+                  <th>
+                    <AixiaSortableHeader
+                      label="Phone"
+                      sortKey="phone"
+                      activeSortKey={sortKey}
+                      sortDirection={sortDirection}
+                      onSort={toggleSort}
+                    />
+                  </th>
+                  <th>
+                    <AixiaSortableHeader
+                      label="Country"
+                      sortKey="country"
+                      activeSortKey={sortKey}
+                      sortDirection={sortDirection}
+                      onSort={toggleSort}
+                    />
+                  </th>
+                  <th>
+                    <AixiaSortableHeader
+                      label="Status"
+                      sortKey="status"
+                      activeSortKey={sortKey}
+                      sortDirection={sortDirection}
+                      onSort={toggleSort}
+                    />
+                  </th>
+                  <th>
+                    <AixiaSortableHeader
+                      label="Updated"
+                      sortKey="updated"
+                      activeSortKey={sortKey}
+                      sortDirection={sortDirection}
+                      onSort={toggleSort}
+                    />
+                  </th>
+                  <th>Actions</th>
+                </tr>
+              </thead>
 
-            {isPageLoading ? (
-              <div className="rounded-[28px] border border-dashed border-white/10 bg-black/20 px-6 py-12 text-center">
-                <Loader2 className="mx-auto h-8 w-8 animate-spin text-cyan-200" />
-                <div className="mt-4 text-sm font-semibold text-white">
-                  Loading clients
-                </div>
-                <p className="mt-2 text-sm leading-6 text-slate-500">
-                  Client records and permission state are being checked.
-                </p>
-              </div>
-            ) : filteredClients.length === 0 ? (
-              <EmptyState
-                icon={Building2}
-                title="No visible clients found"
-                description="Create a client or adjust the search filter to find a finance client record."
-              />
-            ) : (
-              <div className="overflow-x-auto rounded-[24px] border border-white/10 bg-black/20">
-                <div className="max-h-[720px] overflow-y-auto">
-                  <table className="w-full min-w-[1320px] border-collapse">
-                    <thead className="sticky top-0 z-20 border-b border-white/10 bg-black/70 backdrop-blur-xl">
-                      <tr>
-                        <th className="px-5 py-4 text-left text-[11px] font-semibold uppercase tracking-[0.18em]">
-                          <SortButton
-                            label="Client"
-                            sortKey="client"
-                            activeSortKey={sortKey}
-                            direction={sortDirection}
-                            onClick={toggleSort}
-                          />
-                        </th>
-                        <th className="px-5 py-4 text-left text-[11px] font-semibold uppercase tracking-[0.18em]">
-                          <SortButton
-                            label="Code"
-                            sortKey="code"
-                            activeSortKey={sortKey}
-                            direction={sortDirection}
-                            onClick={toggleSort}
-                          />
-                        </th>
-                        <th className="px-5 py-4 text-left text-[11px] font-semibold uppercase tracking-[0.18em]">
-                          <SortButton
-                            label="Contact"
-                            sortKey="contact"
-                            activeSortKey={sortKey}
-                            direction={sortDirection}
-                            onClick={toggleSort}
-                          />
-                        </th>
-                        <th className="px-5 py-4 text-left text-[11px] font-semibold uppercase tracking-[0.18em]">
-                          <SortButton
-                            label="Email"
-                            sortKey="email"
-                            activeSortKey={sortKey}
-                            direction={sortDirection}
-                            onClick={toggleSort}
-                          />
-                        </th>
-                        <th className="px-5 py-4 text-left text-[11px] font-semibold uppercase tracking-[0.18em]">
-                          <SortButton
-                            label="Phone"
-                            sortKey="phone"
-                            activeSortKey={sortKey}
-                            direction={sortDirection}
-                            onClick={toggleSort}
-                          />
-                        </th>
-                        <th className="px-5 py-4 text-left text-[11px] font-semibold uppercase tracking-[0.18em]">
-                          <SortButton
-                            label="Country"
-                            sortKey="country"
-                            activeSortKey={sortKey}
-                            direction={sortDirection}
-                            onClick={toggleSort}
-                          />
-                        </th>
-                        <th className="px-5 py-4 text-left text-[11px] font-semibold uppercase tracking-[0.18em]">
-                          <SortButton
-                            label="Status"
-                            sortKey="status"
-                            activeSortKey={sortKey}
-                            direction={sortDirection}
-                            onClick={toggleSort}
-                          />
-                        </th>
-                        <th className="px-5 py-4 text-left text-[11px] font-semibold uppercase tracking-[0.18em]">
-                          <SortButton
-                            label="Updated"
-                            sortKey="updated"
-                            activeSortKey={sortKey}
-                            direction={sortDirection}
-                            onClick={toggleSort}
-                          />
-                        </th>
-                        <th className="px-5 py-4 text-right text-[11px] font-semibold uppercase tracking-[0.18em] text-slate-500">
-                          Actions
-                        </th>
-                      </tr>
-                    </thead>
+              <tbody>
+                {filteredClients.map((client) => {
+                  const updatedAt = client.updated_at || client.created_at;
+                  const isRowActionRunning = activeActionId === client.id;
 
-                    <tbody>
-                      {filteredClients.map((client) => {
-                        const updatedAt = client.updated_at || client.created_at;
-                        const isRowActionRunning = activeActionId === client.id;
+                  return (
+                    <tr key={client.id} className="aixia-table-row">
+                      <AixiaTableTextCell
+                        width="xl"
+                        primary={getClientName(client)}
+                        secondary={
+                          client.name && client.name !== client.legal_name
+                            ? client.name
+                            : "Finance client"
+                        }
+                      />
 
-                        return (
-                          <tr
-                            key={client.id}
-                            className="border-b border-white/5 text-sm text-slate-300 transition hover:bg-white/[0.035]"
+                      <AixiaTableBadgeCell width="sm">
+                        <AixiaBadge tone="neutral">{getClientCode(client)}</AixiaBadge>
+                      </AixiaTableBadgeCell>
+
+                      <AixiaTableTextCell
+                        width="md"
+                        primary={getClientContact(client)}
+                      />
+
+                      <AixiaTableTextCell
+                        width="lg"
+                        primary={getClientEmail(client)}
+                      />
+
+                      <AixiaTableTextCell
+                        width="md"
+                        primary={getClientPhone(client)}
+                      />
+
+                      <AixiaTableTextCell
+                        width="sm"
+                        primary={client.country || "—"}
+                      />
+
+                      <AixiaTableBadgeCell width="sm">
+                        <AixiaStatusBadge value={client.status} />
+                      </AixiaTableBadgeCell>
+
+                      <AixiaTableDateCell width="sm">
+                        {formatDateLabel(updatedAt)}
+                      </AixiaTableDateCell>
+
+                      <AixiaTableActionsCell>
+                        <AixiaButton
+                          type="button"
+                          variant="primary"
+                          onClick={() =>
+                            navigate(`/finance/master-data/clients/${client.id}`)
+                          }
+                        >
+                          Open
+                          <ArrowRight className="h-3.5 w-3.5" />
+                        </AixiaButton>
+
+                        {permissionState.canDeleteArchive ? (
+                          <AixiaButton
+                            type="button"
+                            variant="danger"
+                            onClick={() => void handleArchiveClient(client.id)}
+                            disabled={isActionRunning}
                           >
-                            <td className="min-w-[260px] px-5 py-4">
-                              <div className="font-semibold text-white">
-                                {getClientName(client)}
-                              </div>
-                              <div className="mt-1 text-xs text-slate-500">
-                                {client.name && client.name !== client.legal_name
-                                  ? client.name
-                                  : "Finance client"}
-                              </div>
-                            </td>
+                            {isRowActionRunning && runningAction === "archive" ? (
+                              <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                            ) : (
+                              <Archive className="h-3.5 w-3.5" />
+                            )}
+                            Archive
+                          </AixiaButton>
+                        ) : null}
+                      </AixiaTableActionsCell>
+                    </tr>
+                  );
+                })}
+              </tbody>
+            </AixiaTableShell>
+          )}
+        </AixiaSection>
+      )}
 
-                            <td className="min-w-[130px] px-5 py-4">
-                              <span className="inline-flex rounded-full border border-white/10 bg-white/[0.04] px-3 py-1 text-xs font-semibold text-white">
-                                {getClientCode(client)}
-                              </span>
-                            </td>
+      <AixiaAlert tone="info">
+        <AixiaAlertText
+          title="Locked access rule"
+          description="This registry requires Client Read access. Create is controlled by Create access. Archive, Restore, and Permanent Delete are controlled by Delete/Archive access. Update/Edit is handled inside the client ID page."
+        />
+      </AixiaAlert>
 
-                            <td className="min-w-[190px] px-5 py-4">
-                              <div className="font-semibold text-white">
-                                {getClientContact(client)}
-                              </div>
-                            </td>
+      <AixiaModal
+        open={showArchive}
+        title="Archived Clients"
+        description="Archived clients can be opened, restored, or permanently deleted. There is no Deleted tab because this backend uses the archived lifecycle state."
+        onClose={closeArchiveModal}
+        badge={<AixiaBadge tone="rose">Archive</AixiaBadge>}
+        footer={
+          <AixiaButton type="button" variant="secondary" onClick={closeArchiveModal}>
+            Close
+          </AixiaButton>
+        }
+      >
+        <AixiaSearchField
+          width="full"
+          value={archiveSearch}
+          onChange={(event) => setArchiveSearch(event.target.value)}
+          placeholder="Search archived clients"
+        />
 
-                            <td className="min-w-[230px] px-5 py-4">
-                              <div className="flex items-start gap-2">
-                                <Mail className="mt-0.5 h-4 w-4 shrink-0 text-slate-500" />
-                                <span className="break-all text-slate-300">
-                                  {getClientEmail(client)}
-                                </span>
-                              </div>
-                            </td>
+        {isLoadingArchive ? (
+          <AixiaEmptyState
+            icon={Loader2}
+            title="Loading archived clients"
+            description="Archived client records are being loaded."
+          />
+        ) : filteredArchivedClients.length === 0 ? (
+          <AixiaEmptyState
+            icon={Archive}
+            title="No archived clients"
+            description="Archived finance clients will appear here after they are removed from active operational use."
+          />
+        ) : (
+          <AixiaTableShell minWidthClassName="min-w-[980px]" maxHeightClassName="max-h-[620px]">
+            <thead className="aixia-table-head">
+              <tr>
+                <th>Client</th>
+                <th>Code</th>
+                <th>Contact</th>
+                <th>Updated</th>
+                <th>Actions</th>
+              </tr>
+            </thead>
 
-                            <td className="min-w-[170px] px-5 py-4">
-                              <div className="flex items-start gap-2">
-                                <Phone className="mt-0.5 h-4 w-4 shrink-0 text-slate-500" />
-                                <span className="text-slate-300">
-                                  {getClientPhone(client)}
-                                </span>
-                              </div>
-                            </td>
+            <tbody>
+              {filteredArchivedClients.map((client) => {
+                const isRowActionRunning = activeActionId === client.id;
+                const updatedAt = client.updated_at || client.created_at;
 
-                            <td className="min-w-[150px] px-5 py-4">
-                              {client.country || "—"}
-                            </td>
+                return (
+                  <tr key={client.id} className="aixia-table-row">
+                    <AixiaTableTextCell
+                      width="xl"
+                      primary={getClientName(client)}
+                      secondary={client.country || "No country"}
+                    />
 
-                            <td className="min-w-[140px] px-5 py-4">
-                              <StatusBadge value={client.status} />
-                            </td>
+                    <AixiaTableBadgeCell width="sm">
+                      <AixiaBadge tone="neutral">{getClientCode(client)}</AixiaBadge>
+                    </AixiaTableBadgeCell>
 
-                            <td className="min-w-[150px] px-5 py-4">
-                              <div className="text-sm text-slate-300">
-                                {formatDateLabel(updatedAt)}
-                              </div>
-                            </td>
+                    <AixiaTableTextCell
+                      width="md"
+                      primary={getClientContact(client)}
+                    />
 
-                            <td className="px-5 py-4 text-right">
-                              <div className="flex justify-end gap-2">
-                                <button
-                                  type="button"
-                                  onClick={() =>
-                                    navigate(`/finance/master-data/clients/${client.id}`)
-                                  }
-                                  className="inline-flex h-9 items-center justify-center gap-2 rounded-full border border-cyan-400/20 bg-cyan-500/10 px-4 text-xs font-semibold uppercase tracking-[0.14em] text-cyan-100 transition hover:bg-cyan-500/15"
-                                >
-                                  Open
-                                  <ArrowRight className="h-3.5 w-3.5" />
-                                </button>
+                    <AixiaTableDateCell width="sm">
+                      {formatDateLabel(updatedAt)}
+                    </AixiaTableDateCell>
 
-                                {permissionState.canDeleteArchive ? (
-                                  <button
-                                    type="button"
-                                    onClick={() => void handleArchiveClient(client.id)}
-                                    disabled={isActionRunning}
-                                    className="inline-flex h-9 items-center justify-center gap-2 rounded-full border border-rose-400/20 bg-rose-500/10 px-4 text-xs font-semibold uppercase tracking-[0.14em] text-rose-100 transition hover:bg-rose-500/15 disabled:cursor-not-allowed disabled:opacity-50"
-                                  >
-                                    {isRowActionRunning && runningAction === "archive" ? (
-                                      <Loader2 className="h-3.5 w-3.5 animate-spin" />
-                                    ) : (
-                                      <Archive className="h-3.5 w-3.5" />
-                                    )}
-                                    Archive
-                                  </button>
-                                ) : null}
-                              </div>
-                            </td>
-                          </tr>
-                        );
-                      })}
-                    </tbody>
-                  </table>
-                </div>
-              </div>
-            )}
-          </SectionCard>
+                    <AixiaTableActionsCell>
+                      <AixiaButton
+                        type="button"
+                        variant="primary"
+                        onClick={() =>
+                          navigate(`/finance/master-data/clients/${client.id}`)
+                        }
+                      >
+                        Open
+                      </AixiaButton>
+
+                      <AixiaButton
+                        type="button"
+                        variant="secondary"
+                        onClick={() => void handleRestoreClient(client.id)}
+                        disabled={isActionRunning}
+                      >
+                        {isRowActionRunning && runningAction === "restore" ? (
+                          <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                        ) : (
+                          <RotateCcw className="h-3.5 w-3.5" />
+                        )}
+                        Restore
+                      </AixiaButton>
+
+                      <AixiaButton
+                        type="button"
+                        variant="danger"
+                        onClick={() => void handlePermanentDeleteClient(client.id)}
+                        disabled={isActionRunning}
+                      >
+                        {isRowActionRunning && runningAction === "hard-delete" ? (
+                          <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                        ) : (
+                          <Trash2 className="h-3.5 w-3.5" />
+                        )}
+                        Delete
+                      </AixiaButton>
+                    </AixiaTableActionsCell>
+                  </tr>
+                );
+              })}
+            </tbody>
+          </AixiaTableShell>
         )}
-
-        <div className="rounded-[24px] border border-cyan-400/20 bg-cyan-500/10 p-4 text-sm leading-6 text-cyan-100">
-          <div className="font-semibold text-white">Locked access rule</div>
-          <div className="mt-1">
-            This registry requires Client Read access. Create is controlled by Create access.
-            Archive, Restore, and Permanent Delete are controlled by Delete/Archive access.
-            Update/Edit is handled inside the client ID page.
-          </div>
-        </div>
-      </div>
-
-      {showArchive ? (
-        <div className="fixed inset-0 z-[120] flex items-center justify-center bg-black/70 p-4 backdrop-blur-sm">
-          <div className="flex max-h-[90vh] w-full max-w-6xl flex-col overflow-hidden rounded-[30px] border border-white/10 bg-[#05070d] shadow-2xl shadow-black/60">
-            <div className="flex items-start justify-between gap-4 border-b border-white/10 px-6 py-5">
-              <div>
-                <div className="text-lg font-semibold text-white">
-                  Archived Clients
-                </div>
-                <div className="mt-1 text-sm leading-6 text-slate-500">
-                  Archived clients can be opened, restored, or permanently deleted.
-                  There is no Deleted tab because this backend uses the archived lifecycle state.
-                </div>
-              </div>
-
-              <button
-                type="button"
-                onClick={closeArchiveModal}
-                className="inline-flex h-10 w-10 shrink-0 items-center justify-center rounded-full border border-white/10 bg-white/[0.05] text-slate-400 transition hover:bg-white/[0.08] hover:text-white"
-              >
-                <X className="h-4 w-4" />
-              </button>
-            </div>
-
-            <div className="border-b border-white/10 p-4">
-              <TextInput
-                value={archiveSearch}
-                onChange={setArchiveSearch}
-                placeholder="Search archived clients"
-              />
-            </div>
-
-            <div className="min-h-0 flex-1 overflow-y-auto p-4">
-              {isLoadingArchive ? (
-                <div className="rounded-[28px] border border-dashed border-white/10 bg-black/20 px-6 py-12 text-center">
-                  <Loader2 className="mx-auto h-8 w-8 animate-spin text-cyan-200" />
-                  <div className="mt-4 text-sm font-semibold text-white">
-                    Loading archived clients
-                  </div>
-                </div>
-              ) : filteredArchivedClients.length === 0 ? (
-                <EmptyState
-                  icon={Archive}
-                  title="No archived clients"
-                  description="Archived finance clients will appear here after they are removed from active operational use."
-                />
-              ) : (
-                <div className="overflow-x-auto rounded-[24px] border border-white/10 bg-black/20">
-                  <table className="w-full min-w-[980px] border-collapse">
-                    <thead className="sticky top-0 z-20 border-b border-white/10 bg-black/70 backdrop-blur-xl">
-                      <tr>
-                        <th className="px-5 py-4 text-left text-[11px] font-semibold uppercase tracking-[0.18em] text-slate-500">
-                          Client
-                        </th>
-                        <th className="px-5 py-4 text-left text-[11px] font-semibold uppercase tracking-[0.18em] text-slate-500">
-                          Code
-                        </th>
-                        <th className="px-5 py-4 text-left text-[11px] font-semibold uppercase tracking-[0.18em] text-slate-500">
-                          Contact
-                        </th>
-                        <th className="px-5 py-4 text-left text-[11px] font-semibold uppercase tracking-[0.18em] text-slate-500">
-                          Updated
-                        </th>
-                        <th className="px-5 py-4 text-right text-[11px] font-semibold uppercase tracking-[0.18em] text-slate-500">
-                          Actions
-                        </th>
-                      </tr>
-                    </thead>
-
-                    <tbody>
-                      {filteredArchivedClients.map((client) => {
-                        const isRowActionRunning = activeActionId === client.id;
-                        const updatedAt = client.updated_at || client.created_at;
-
-                        return (
-                          <tr
-                            key={client.id}
-                            className="border-b border-white/5 text-sm text-slate-300 transition hover:bg-white/[0.035]"
-                          >
-                            <td className="min-w-[260px] px-5 py-4">
-                              <div className="font-semibold text-white">
-                                {getClientName(client)}
-                              </div>
-                              <div className="mt-1 text-xs text-slate-500">
-                                {client.country || "No country"}
-                              </div>
-                            </td>
-
-                            <td className="min-w-[120px] px-5 py-4">
-                              <span className="inline-flex rounded-full border border-white/10 bg-white/[0.04] px-3 py-1 text-xs font-semibold text-white">
-                                {getClientCode(client)}
-                              </span>
-                            </td>
-
-                            <td className="min-w-[200px] px-5 py-4">
-                              {getClientContact(client)}
-                            </td>
-
-                            <td className="min-w-[150px] px-5 py-4">
-                              {formatDateLabel(updatedAt)}
-                            </td>
-
-                            <td className="px-5 py-4 text-right">
-                              <div className="flex justify-end gap-2">
-                                <button
-                                  type="button"
-                                  onClick={() =>
-                                    navigate(`/finance/master-data/clients/${client.id}`)
-                                  }
-                                  className="inline-flex h-9 items-center justify-center gap-2 rounded-full border border-cyan-400/20 bg-cyan-500/10 px-4 text-xs font-semibold uppercase tracking-[0.14em] text-cyan-100 transition hover:bg-cyan-500/15"
-                                >
-                                  Open
-                                </button>
-
-                                <button
-                                  type="button"
-                                  onClick={() => void handleRestoreClient(client.id)}
-                                  disabled={isActionRunning}
-                                  className="inline-flex h-9 items-center justify-center gap-2 rounded-full border border-emerald-400/20 bg-emerald-500/10 px-4 text-xs font-semibold uppercase tracking-[0.14em] text-emerald-100 transition hover:bg-emerald-500/15 disabled:cursor-not-allowed disabled:opacity-50"
-                                >
-                                  {isRowActionRunning && runningAction === "restore" ? (
-                                    <Loader2 className="h-3.5 w-3.5 animate-spin" />
-                                  ) : (
-                                    <RotateCcw className="h-3.5 w-3.5" />
-                                  )}
-                                  Restore
-                                </button>
-
-                                <button
-                                  type="button"
-                                  onClick={() => void handlePermanentDeleteClient(client.id)}
-                                  disabled={isActionRunning}
-                                  className="inline-flex h-9 items-center justify-center gap-2 rounded-full border border-rose-400/20 bg-rose-500/10 px-4 text-xs font-semibold uppercase tracking-[0.14em] text-rose-100 transition hover:bg-rose-500/15 disabled:cursor-not-allowed disabled:opacity-50"
-                                >
-                                  {isRowActionRunning &&
-                                  runningAction === "hard-delete" ? (
-                                    <Loader2 className="h-3.5 w-3.5 animate-spin" />
-                                  ) : (
-                                    <Trash2 className="h-3.5 w-3.5" />
-                                  )}
-                                  Delete
-                                </button>
-                              </div>
-                            </td>
-                          </tr>
-                        );
-                      })}
-                    </tbody>
-                  </table>
-                </div>
-              )}
-            </div>
-          </div>
-        </div>
-      ) : null}
-    </div>
+      </AixiaModal>
+    </AixiaPage>
   );
 }

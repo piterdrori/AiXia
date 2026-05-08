@@ -14,7 +14,7 @@ import {
 type AixiaSmartLayoutSidebar = "normal" | "wide" | "narrow";
 type AixiaSmartLayoutBalance = "normal" | "main" | "equal";
 type AixiaSmartLayoutBottomSpan = "auto" | "never" | "always";
-type AixiaSmartLayoutSideRebalance = "off" | "last";
+type AixiaSmartLayoutSideRebalance = "off" | "last" | "last-to-bottom";
 
 type AixiaSmartLayoutProps = HTMLAttributes<HTMLDivElement> & {
   main: ReactNode;
@@ -24,6 +24,7 @@ type AixiaSmartLayoutProps = HTMLAttributes<HTMLDivElement> & {
   matchColumns?: boolean;
   bottomSpan?: AixiaSmartLayoutBottomSpan;
   sideRebalance?: AixiaSmartLayoutSideRebalance;
+  mainTopCount?: number;
 };
 
 function flattenLayoutChildren(children: ReactNode): ReactNode[] {
@@ -64,11 +65,23 @@ function getColumnChildren(element: HTMLElement) {
   );
 }
 
+function shouldUseExplicitMainSplit(mainChildren: ReactNode[], mainTopCount?: number) {
+  if (typeof mainTopCount !== "number") return false;
+  if (!Number.isFinite(mainTopCount)) return false;
+
+  return mainTopCount > 0 && mainTopCount < mainChildren.length;
+}
+
 function shouldUseBottomSpan(
   mainChildren: ReactNode[],
   sideChildren: ReactNode[],
-  bottomSpan: AixiaSmartLayoutBottomSpan
+  bottomSpan: AixiaSmartLayoutBottomSpan,
+  mainTopCount?: number
 ) {
+  if (shouldUseExplicitMainSplit(mainChildren, mainTopCount)) {
+    return true;
+  }
+
   if (bottomSpan === "never") {
     return false;
   }
@@ -91,6 +104,40 @@ function shouldRebalanceSide(
   return sideChildren.length > 1;
 }
 
+function getMainColumnChildren(
+  mainChildren: ReactNode[],
+  sideChildren: ReactNode[],
+  bottomSpan: AixiaSmartLayoutBottomSpan,
+  mainTopCount?: number
+) {
+  if (shouldUseExplicitMainSplit(mainChildren, mainTopCount)) {
+    return mainChildren.slice(0, mainTopCount);
+  }
+
+  if (shouldUseBottomSpan(mainChildren, sideChildren, bottomSpan, mainTopCount)) {
+    return mainChildren.slice(0, -1);
+  }
+
+  return mainChildren;
+}
+
+function getBottomMainChildren(
+  mainChildren: ReactNode[],
+  sideChildren: ReactNode[],
+  bottomSpan: AixiaSmartLayoutBottomSpan,
+  mainTopCount?: number
+) {
+  if (shouldUseExplicitMainSplit(mainChildren, mainTopCount)) {
+    return mainChildren.slice(mainTopCount);
+  }
+
+  if (shouldUseBottomSpan(mainChildren, sideChildren, bottomSpan, mainTopCount)) {
+    return mainChildren.slice(-1);
+  }
+
+  return [];
+}
+
 export function AixiaSmartLayout({
   main,
   side,
@@ -99,6 +146,7 @@ export function AixiaSmartLayout({
   matchColumns = true,
   bottomSpan = "auto",
   sideRebalance = "off",
+  mainTopCount,
   className = "",
   ...props
 }: AixiaSmartLayoutProps) {
@@ -118,7 +166,8 @@ export function AixiaSmartLayout({
   const useBottomSpan = shouldUseBottomSpan(
     normalizedMainChildren,
     normalizedSideChildren,
-    bottomSpan
+    bottomSpan,
+    mainTopCount
   );
 
   const useSideRebalance = shouldRebalanceSide(
@@ -126,21 +175,36 @@ export function AixiaSmartLayout({
     sideRebalance
   );
 
-  const mainColumnChildren = useBottomSpan
-    ? normalizedMainChildren.slice(0, -1)
-    : normalizedMainChildren;
+  const mainColumnChildren = getMainColumnChildren(
+    normalizedMainChildren,
+    normalizedSideChildren,
+    bottomSpan,
+    mainTopCount
+  );
 
-  const bottomSpanChildren = useBottomSpan
-    ? normalizedMainChildren.slice(-1)
-    : [];
+  const bottomMainChildren = getBottomMainChildren(
+    normalizedMainChildren,
+    normalizedSideChildren,
+    bottomSpan,
+    mainTopCount
+  );
 
   const sideColumnChildren = useSideRebalance
     ? normalizedSideChildren.slice(0, -1)
     : normalizedSideChildren;
 
-  const rebalancedSideChildren = useSideRebalance
+  const rebalancedSideChildren = sideRebalance === "last"
     ? normalizedSideChildren.slice(-1)
     : [];
+
+  const bottomSideChildren = sideRebalance === "last-to-bottom"
+    ? normalizedSideChildren.slice(-1)
+    : [];
+
+  const bottomSpanChildren = [
+    ...bottomMainChildren,
+    ...bottomSideChildren,
+  ];
 
   useEffect(() => {
     if (!matchColumns) return;
@@ -233,8 +297,14 @@ export function AixiaSmartLayout({
       data-side-top-count={sideColumnChildren.length}
       data-side-rebalanced-count={rebalancedSideChildren.length}
       data-bottom-count={bottomSpanChildren.length}
-      data-has-bottom-span={useBottomSpan ? "true" : "false"}
+      data-main-split-count={mainTopCount}
+      data-has-bottom-span={bottomSpanChildren.length > 0 ? "true" : "false"}
       data-has-side-rebalance={useSideRebalance ? "true" : "false"}
+      data-has-explicit-main-split={
+        shouldUseExplicitMainSplit(normalizedMainChildren, mainTopCount)
+          ? "true"
+          : "false"
+      }
       style={style}
       {...props}
     >

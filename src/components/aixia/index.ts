@@ -30,6 +30,7 @@ export {
   AixiaFormField,
   AixiaFormFullWidth,
   AixiaFormGrid,
+  AixiaFormRowCard,
   AixiaInputField,
   AixiaSelectField,
   AixiaTextareaField,

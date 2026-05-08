@@ -895,7 +895,7 @@ export default function FinanceMasterDataCompaniesPage() {
               description="Create a company or adjust the search filter to find an internal legal entity record."
             />
           ) : (
-            <AixiaTableShell minWidthClassName="min-w-[1240px]">
+            <AixiaTableShell variant="registry">
               <thead className="aixia-table-head">
                 <tr>
                   <th>
@@ -1099,7 +1099,7 @@ export default function FinanceMasterDataCompaniesPage() {
             description="Archived internal legal entities will appear here after they are removed from active operational use."
           />
         ) : (
-          <AixiaTableShell minWidthClassName="min-w-[860px]" maxHeightClassName="max-h-[620px]">
+          <AixiaTableShell variant="archive">
             <thead className="aixia-table-head">
               <tr>
                 <th>Company</th>

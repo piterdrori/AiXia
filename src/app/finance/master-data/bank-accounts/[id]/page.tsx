@@ -961,6 +961,7 @@ export default function FinanceMasterDataBankAccountDetailPage() {
         sidebar="normal"
         balance="main"
         bottomSpan="never"
+        sideRebalance="last"
         main={
           <>
             <AixiaDetailSection

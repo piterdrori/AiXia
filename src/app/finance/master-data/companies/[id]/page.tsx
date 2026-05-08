@@ -1,40 +1,56 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
-import type {
-  InputHTMLAttributes,
-  ReactNode,
-  SelectHTMLAttributes,
-  TextareaHTMLAttributes,
-} from "react";
 import { useNavigate, useParams } from "react-router-dom";
 import type { LucideIcon } from "lucide-react";
 import {
-  AlertTriangle,
   Archive,
   ArrowRight,
   Banknote,
   Building2,
-  CheckCircle2,
   FileText,
   Globe,
   Landmark,
   Loader2,
   LockKeyhole,
-  Mail,
   MapPin,
   Pencil,
-  Phone,
   Plus,
   RotateCcw,
-  Save,
   ShieldCheck,
   Sparkles,
-  Trash2,
   Truck,
   UserRound,
   Users,
-  X,
 } from "lucide-react";
 
+import {
+  AixiaAccessDeniedState,
+  AixiaActionStack,
+  AixiaAlert,
+  AixiaAlertText,
+  AixiaButton,
+  AixiaCheckboxField,
+  AixiaDefaultBadge,
+  AixiaDetailSection,
+  AixiaDisplayBlock,
+  AixiaEmptyState,
+  AixiaFieldLabel,
+  AixiaFormField,
+  AixiaFormFullWidth,
+  AixiaFormGrid,
+  AixiaFormRowCard,
+  AixiaHero,
+  AixiaInputField,
+  AixiaLoadingState,
+  AixiaNotFoundState,
+  AixiaPage,
+  AixiaReviewBlock,
+  AixiaReviewGrid,
+  AixiaSection,
+  AixiaSelectField,
+  AixiaSmartLayout,
+  AixiaStatusBadge,
+  AixiaTextareaField,
+} from "@/components/aixia";
 import { archiveCompany, updateCompany } from "@/lib/finance/companies";
 import {
   getEffectivePermissions,
@@ -42,6 +58,8 @@ import {
   type Role,
 } from "@/lib/permissions";
 import { supabase } from "@/lib/supabase";
+
+type LoadMode = "initial" | "silent";
 
 type ProfilePermissionRow = {
   user_id: string;
@@ -188,17 +206,15 @@ type PermissionState = {
 type HeaderStatusCardData = {
   label: string;
   value: string;
-  detail: string;
+  description: string;
   icon: LucideIcon;
   tone: "emerald" | "cyan" | "amber" | "rose";
 };
 
-type SummaryCardData = {
+type SummaryItem = {
   label: string;
   value: string;
-  detail: string;
-  icon: LucideIcon;
-  tone: "cyan" | "emerald" | "amber" | "violet" | "rose";
+  description: string;
 };
 
 const EMPTY_PERMISSION_STATE: PermissionState = {
@@ -218,7 +234,7 @@ const EMPTY_OVERVIEW_DRAFT: OverviewDraft = {
 };
 
 const EMPTY_IDENTITY_DRAFT: IdentityDraft = {
-  currency_code: "USD",
+  currency_code: "",
   registration_number: "",
   tax_number: "",
   website: "",
@@ -297,7 +313,8 @@ function buildPermissionState(
 }
 
 async function loadBackendEffectivePermissions(
-  userId: string
+  userId: string,
+  mode: LoadMode
 ): Promise<Partial<Record<Permission, boolean>> | null> {
   try {
     const result = await supabase.rpc("finance_get_effective_permissions", {
@@ -305,16 +322,30 @@ async function loadBackendEffectivePermissions(
     });
 
     if (result.error) {
+      if (mode === "silent") {
+        throw result.error;
+      }
+
       console.warn("Company ID permission RPC fallback:", result.error.message);
       return null;
     }
 
     if (!result.data || typeof result.data !== "object") {
+      if (mode === "silent") {
+        throw new Error(
+          "Silent company ID permission refresh returned no effective permission payload."
+        );
+      }
+
       return null;
     }
 
     return result.data as Partial<Record<Permission, boolean>>;
   } catch (error) {
+    if (mode === "silent") {
+      throw error;
+    }
+
     console.warn("Company ID permission RPC failed:", error);
     return null;
   }
@@ -351,55 +382,6 @@ function formatStatus(value: string | null | undefined) {
     .filter(Boolean)
     .map((part) => part.charAt(0).toUpperCase() + part.slice(1))
     .join(" ");
-}
-
-function getStatusTone(status: string | null | undefined) {
-  switch (status) {
-    case "active":
-      return "border-emerald-400/20 bg-emerald-500/10 text-emerald-200";
-    case "inactive":
-      return "border-amber-400/20 bg-amber-500/10 text-amber-200";
-    case "archived":
-      return "border-rose-400/20 bg-rose-500/10 text-rose-200";
-    default:
-      return "border-white/10 bg-white/[0.06] text-slate-300";
-  }
-}
-
-function getToneClasses(tone: SummaryCardData["tone"]) {
-  switch (tone) {
-    case "emerald":
-      return {
-        card: "border-emerald-400/20 bg-emerald-500/10",
-        icon: "border-emerald-400/20 bg-emerald-500/10 text-emerald-200",
-        value: "text-emerald-100",
-      };
-    case "amber":
-      return {
-        card: "border-amber-400/20 bg-amber-500/10",
-        icon: "border-amber-400/20 bg-amber-500/10 text-amber-200",
-        value: "text-amber-100",
-      };
-    case "violet":
-      return {
-        card: "border-violet-400/20 bg-violet-500/10",
-        icon: "border-violet-400/20 bg-violet-500/10 text-violet-200",
-        value: "text-violet-100",
-      };
-    case "rose":
-      return {
-        card: "border-rose-400/20 bg-rose-500/10",
-        icon: "border-rose-400/20 bg-rose-500/10 text-rose-200",
-        value: "text-rose-100",
-      };
-    case "cyan":
-    default:
-      return {
-        card: "border-cyan-400/20 bg-cyan-500/10",
-        icon: "border-cyan-400/20 bg-cyan-500/10 text-cyan-200",
-        value: "text-cyan-100",
-      };
-  }
 }
 
 function getCompanyDisplayName(company: CompanyDetailRecord | null) {
@@ -468,378 +450,42 @@ function getBankIdentifierValue(account: BankAccountRow) {
   return "—";
 }
 
-function FieldLabel({
-  label,
-  required = false,
-}: {
-  label: string;
-  required?: boolean;
-}) {
-  return (
-    <label className="mb-2 block text-sm font-medium text-slate-300">
-      {label}
-      {required ? <span className="ml-1 text-rose-300">*</span> : null}
-    </label>
-  );
+function getCurrencyOptionLabel(currency: CurrencyOption) {
+  return `${currency.currency_code} — ${currency.currency_name}${
+    currency.currency_symbol ? ` (${currency.currency_symbol})` : ""
+  }${currency.is_base_currency ? " • Base" : ""}`;
 }
 
-function InputField({
-  className,
-  ...props
-}: InputHTMLAttributes<HTMLInputElement>) {
-  return (
-    <input
-      {...props}
-      className={`h-11 w-full rounded-2xl border border-white/10 bg-black/20 px-4 text-sm text-white outline-none transition placeholder:text-slate-600 focus:border-cyan-400/30 focus:bg-black/30 disabled:cursor-not-allowed disabled:opacity-60 ${
-        className || ""
-      }`}
-    />
-  );
+function mapPrimaryAddressToDraft(row: AddressRow): AddressDraftRow {
+  return {
+    id: row.id,
+    country: row.country || "",
+    city: row.city || "",
+    state_province: row.state_province || "",
+    postal_code: row.postal_code || "",
+    address_line_1: row.address_line_1 || "",
+    address_line_2: row.address_line_2 || "",
+  };
 }
 
-function SelectField({
-  className,
-  children,
-  ...props
-}: SelectHTMLAttributes<HTMLSelectElement> & {
-  children: ReactNode;
-}) {
-  return (
-    <select
-      {...props}
-      className={`h-11 w-full rounded-2xl border border-white/10 bg-black/20 px-4 text-sm text-white outline-none transition focus:border-cyan-400/30 focus:bg-black/30 disabled:cursor-not-allowed disabled:opacity-60 ${
-        className || ""
-      }`}
-    >
-      {children}
-    </select>
-  );
+function mapShippingAddressToDraft(row: AddressRow): ShippingDraftRow {
+  return {
+    id: row.id,
+    same_as_primary: row.is_same_as_primary,
+    source_address_id: "",
+    country: row.country || "",
+    city: row.city || "",
+    state_province: row.state_province || "",
+    postal_code: row.postal_code || "",
+    address_line_1: row.address_line_1 || "",
+    address_line_2: row.address_line_2 || "",
+  };
 }
 
-function TextareaField({
-  className,
-  ...props
-}: TextareaHTMLAttributes<HTMLTextAreaElement>) {
-  return (
-    <textarea
-      {...props}
-      className={`min-h-[132px] w-full rounded-2xl border border-white/10 bg-black/20 px-4 py-3 text-sm text-white outline-none transition placeholder:text-slate-600 focus:border-cyan-400/30 focus:bg-black/30 disabled:cursor-not-allowed disabled:opacity-60 ${
-        className || ""
-      }`}
-    />
-  );
-}
-
-function DisplayBlock({
-  label,
-  value,
-  detail,
-}: {
-  label: string;
-  value: ReactNode;
-  detail?: ReactNode;
-}) {
-  return (
-    <div className="rounded-[20px] border border-white/10 bg-black/20 px-4 py-3">
-      <div className="text-[11px] font-semibold uppercase tracking-[0.18em] text-slate-500">
-        {label}
-      </div>
-      <div className="mt-2 break-words text-sm font-semibold leading-6 text-white">
-        {value || "—"}
-      </div>
-      {detail ? (
-        <div className="mt-1 text-xs leading-5 text-slate-500">{detail}</div>
-      ) : null}
-    </div>
-  );
-}
-
-function StatusBadge({ status }: { status: string | null | undefined }) {
-  return (
-    <span
-      className={`inline-flex max-w-full items-center rounded-full border px-3 py-1 text-[11px] font-semibold uppercase tracking-[0.14em] ${getStatusTone(
-        status
-      )}`}
-    >
-      <span className="truncate">{formatStatus(status)}</span>
-    </span>
-  );
-}
-
-function DefaultBadge({ isDefault }: { isDefault: boolean | null | undefined }) {
-  if (!isDefault) {
-    return (
-      <span className="inline-flex rounded-full border border-white/10 bg-white/[0.04] px-3 py-1 text-[11px] font-semibold uppercase tracking-[0.14em] text-slate-500">
-        Standard
-      </span>
-    );
-  }
-
-  return (
-    <span className="inline-flex rounded-full border border-emerald-400/20 bg-emerald-500/10 px-3 py-1 text-[11px] font-semibold uppercase tracking-[0.14em] text-emerald-200">
-      Default
-    </span>
-  );
-}
-
-function HeaderStatusCard({ item }: { item: HeaderStatusCardData }) {
-  const Icon = item.icon;
-
-  const toneClasses = {
-    emerald: "border-emerald-400/20 bg-emerald-500/10 text-emerald-200",
-    cyan: "border-cyan-400/20 bg-cyan-500/10 text-cyan-200",
-    amber: "border-amber-400/20 bg-amber-500/10 text-amber-200",
-    rose: "border-rose-400/20 bg-rose-500/10 text-rose-200",
-  }[item.tone];
-
-  return (
-    <div className="min-h-[148px] rounded-[24px] border border-white/10 bg-black/20 p-4">
-      <div className="flex items-start justify-between gap-3">
-        <div className="min-w-0">
-          <div className="text-[11px] font-semibold uppercase tracking-[0.2em] text-slate-500">
-            {item.label}
-          </div>
-          <div className="mt-2 text-xl font-semibold leading-tight tracking-[-0.035em] text-white">
-            {item.value}
-          </div>
-        </div>
-
-        <div
-          className={`flex h-10 w-10 shrink-0 items-center justify-center rounded-2xl border ${toneClasses}`}
-        >
-          <Icon className="h-4 w-4" />
-        </div>
-      </div>
-
-      <div className="mt-3 text-xs leading-5 text-slate-500">{item.detail}</div>
-    </div>
-  );
-}
-
-function SummaryCard({ item }: { item: SummaryCardData }) {
-  const Icon = item.icon;
-  const tone = getToneClasses(item.tone);
-
-  return (
-    <div className={`rounded-[24px] border bg-black/20 p-4 ${tone.card}`}>
-      <div className="flex items-start justify-between gap-3">
-        <div className="min-w-0">
-          <div className="text-[11px] font-semibold uppercase tracking-[0.2em] text-slate-500">
-            {item.label}
-          </div>
-          <div className={`mt-2 text-lg font-semibold leading-6 ${tone.value}`}>
-            {item.value}
-          </div>
-        </div>
-
-        <div
-          className={`flex h-10 w-10 shrink-0 items-center justify-center rounded-2xl border ${tone.icon}`}
-        >
-          <Icon className="h-4 w-4" />
-        </div>
-      </div>
-
-      <div className="mt-3 text-xs leading-5 text-slate-500">{item.detail}</div>
-    </div>
-  );
-}
-
-function DetailSection({
-  title,
-  description,
-  icon: Icon,
-  isEditing,
-  canEdit,
-  onEdit,
-  onCancel,
-  onSave,
-  isSaving,
-  actions,
-  children,
-}: {
-  title: string;
-  description: string;
-  icon: LucideIcon;
-  isEditing: boolean;
-  canEdit: boolean;
-  onEdit?: () => void;
-  onCancel?: () => void;
-  onSave?: () => void;
-  isSaving?: boolean;
-  actions?: ReactNode;
-  children: ReactNode;
-}) {
-  return (
-    <section className="overflow-hidden rounded-[30px] border border-white/10 bg-white/[0.045] backdrop-blur-xl">
-      <div className="flex flex-col gap-4 border-b border-white/10 px-5 py-4 lg:flex-row lg:items-start lg:justify-between">
-        <div className="flex min-w-0 items-start gap-3">
-          <div className="rounded-2xl border border-cyan-400/15 bg-cyan-500/10 p-3 text-cyan-200">
-            <Icon className="h-4 w-4" />
-          </div>
-
-          <div className="min-w-0">
-            <h2 className="text-sm font-semibold uppercase tracking-[0.18em] text-slate-400">
-              {title}
-            </h2>
-            <p className="mt-1 text-xs leading-5 text-slate-500">{description}</p>
-          </div>
-        </div>
-
-        <div className="flex shrink-0 flex-wrap gap-2">
-          {actions}
-
-          {canEdit ? (
-            isEditing ? (
-              <>
-                <button
-                  type="button"
-                  onClick={onCancel}
-                  disabled={isSaving}
-                  className="inline-flex h-10 items-center justify-center gap-2 rounded-2xl border border-white/10 bg-white/[0.05] px-4 text-xs font-semibold uppercase tracking-[0.14em] text-slate-300 transition hover:bg-white/[0.08] disabled:cursor-not-allowed disabled:opacity-60"
-                >
-                  <X className="h-3.5 w-3.5" />
-                  Cancel
-                </button>
-
-                <button
-                  type="button"
-                  onClick={onSave}
-                  disabled={isSaving}
-                  className="inline-flex h-10 items-center justify-center gap-2 rounded-2xl border border-cyan-400/20 bg-cyan-500/10 px-4 text-xs font-semibold uppercase tracking-[0.14em] text-cyan-100 transition hover:bg-cyan-500/15 disabled:cursor-not-allowed disabled:opacity-60"
-                >
-                  {isSaving ? (
-                    <Loader2 className="h-3.5 w-3.5 animate-spin" />
-                  ) : (
-                    <Save className="h-3.5 w-3.5" />
-                  )}
-                  Save
-                </button>
-              </>
-            ) : (
-              <button
-                type="button"
-                onClick={onEdit}
-                className="inline-flex h-10 items-center justify-center gap-2 rounded-2xl border border-white/10 bg-white/[0.05] px-4 text-xs font-semibold uppercase tracking-[0.14em] text-slate-300 transition hover:bg-white/[0.08] hover:text-white"
-              >
-                <Pencil className="h-3.5 w-3.5" />
-                Edit
-              </button>
-            )
-          ) : null}
-        </div>
-      </div>
-
-      <div className="p-5">{children}</div>
-    </section>
-  );
-}
-
-function RowCard({
-  title,
-  description,
-  onRemove,
-  removeDisabled = false,
-  children,
-}: {
-  title: string;
-  description?: string;
-  onRemove?: () => void;
-  removeDisabled?: boolean;
-  children: ReactNode;
-}) {
-  return (
-    <div className="rounded-[24px] border border-white/10 bg-black/20 p-4">
-      <div className="mb-4 flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
-        <div className="min-w-0">
-          <div className="text-sm font-semibold text-white">{title}</div>
-          {description ? (
-            <div className="mt-1 text-xs leading-5 text-slate-500">
-              {description}
-            </div>
-          ) : null}
-        </div>
-
-        {onRemove ? (
-          <button
-            type="button"
-            onClick={onRemove}
-            disabled={removeDisabled}
-            className="inline-flex h-10 shrink-0 items-center justify-center gap-2 rounded-2xl border border-rose-400/20 bg-rose-500/10 px-3 text-xs font-semibold uppercase tracking-[0.14em] text-rose-100 transition hover:bg-rose-500/15 disabled:cursor-not-allowed disabled:opacity-50"
-          >
-            <Trash2 className="h-3.5 w-3.5" />
-            Remove
-          </button>
-        ) : null}
-      </div>
-
-      {children}
-    </div>
-  );
-}
-
-function AddRowButton({
-  label,
-  onClick,
-  disabled,
-}: {
-  label: string;
-  onClick: () => void;
-  disabled?: boolean;
-}) {
-  return (
-    <button
-      type="button"
-      onClick={onClick}
-      disabled={disabled}
-      className="inline-flex h-10 items-center justify-center gap-2 rounded-2xl border border-cyan-400/20 bg-cyan-500/10 px-4 text-xs font-semibold uppercase tracking-[0.14em] text-cyan-100 transition hover:bg-cyan-500/15 disabled:cursor-not-allowed disabled:opacity-60"
-    >
-      <Plus className="h-3.5 w-3.5" />
-      {label}
-    </button>
-  );
-}
-
-function LoadingState() {
-  return (
-    <div className="min-h-screen bg-[#05070d] px-4 py-4 text-white md:px-6 md:py-6">
-      <div className="mx-auto flex w-full max-w-[1600px] flex-col gap-6">
-        <section className="rounded-[34px] border border-white/10 bg-white/[0.045] p-12 text-center backdrop-blur-xl">
-          <Loader2 className="mx-auto h-8 w-8 animate-spin text-cyan-200" />
-          <div className="mt-4 text-sm font-semibold text-white">
-            Loading company detail
-          </div>
-          <p className="mt-2 text-sm leading-6 text-slate-500">
-            Company record and permission state are being checked.
-          </p>
-        </section>
-      </div>
-    </div>
-  );
-}
-
-function EmptyState({
-  icon: Icon,
-  title,
-  description,
-  action,
-}: {
-  icon: LucideIcon;
-  title: string;
-  description: string;
-  action?: ReactNode;
-}) {
-  return (
-    <section className="rounded-[30px] border border-white/10 bg-white/[0.045] p-10 text-center backdrop-blur-xl">
-      <div className="mx-auto flex h-14 w-14 items-center justify-center rounded-2xl border border-white/10 bg-black/20 text-slate-500">
-        <Icon className="h-6 w-6" />
-      </div>
-      <div className="mt-4 text-lg font-semibold text-white">{title}</div>
-      <p className="mx-auto mt-2 max-w-2xl text-sm leading-6 text-slate-500">
-        {description}
-      </p>
-      {action ? <div className="mt-6">{action}</div> : null}
-    </section>
-  );
+function isSamePrimarySummary(row: ShippingDraftRow) {
+  return row.same_as_primary
+    ? "Linked to a primary address."
+    : "Standalone shipping address.";
 }
 
 export default function FinanceMasterDataCompanyDetailPage() {
@@ -857,6 +503,7 @@ export default function FinanceMasterDataCompanyDetailPage() {
   const [currencyOptions, setCurrencyOptions] = useState<CurrencyOption[]>([]);
   const [isLoadingProfile, setIsLoadingProfile] = useState(true);
   const [isLoadingCompany, setIsLoadingCompany] = useState(true);
+  const [backgroundRefreshing, setBackgroundRefreshing] = useState(false);
   const [isSaving, setIsSaving] = useState(false);
   const [isLifecycleRunning, setIsLifecycleRunning] = useState(false);
   const [activeBankActionId, setActiveBankActionId] = useState<string | null>(null);
@@ -879,203 +526,242 @@ export default function FinanceMasterDataCompanyDetailPage() {
   ]);
   const [notesDraft, setNotesDraft] = useState("");
 
-  const loadCurrentProfile = useCallback(
-    async (mode: "initial" | "silent" = "initial") => {
-      if (mode === "initial") {
-        setIsLoadingProfile(true);
-      }
+  const loadCurrentProfile = useCallback(async (mode: LoadMode = "initial") => {
+    if (mode === "initial") {
+      setIsLoadingProfile(true);
+    } else {
+      setBackgroundRefreshing(true);
+    }
 
-      try {
-        const authResult = await supabase.auth.getUser();
-        if (authResult.error) throw authResult.error;
+    try {
+      const authResult = await supabase.auth.getUser();
+      if (authResult.error) throw authResult.error;
 
-        const authUserId = authResult.data.user?.id;
+      const authUserId = authResult.data.user?.id;
 
-        if (!authUserId) {
-          setProfile(null);
-          setEffectivePermissions(null);
-          return;
-        }
-
-        const profileResult = await supabase
-          .from("profiles")
-          .select("user_id, full_name, role, permissions")
-          .eq("user_id", authUserId)
-          .maybeSingle();
-
-        if (profileResult.error) throw profileResult.error;
-
-        const loadedProfile = (profileResult.data || null) as ProfilePermissionRow | null;
-        const backendPermissions = await loadBackendEffectivePermissions(authUserId);
-
-        setProfile(loadedProfile);
-
-        if (!loadedProfile?.role) {
-          setEffectivePermissions(null);
-          return;
-        }
-
-        const resolvedPermissions = getEffectivePermissions(
-          loadedProfile.role,
-          backendPermissions || loadedProfile.permissions || null
-        );
-
-        setEffectivePermissions(resolvedPermissions);
-      } catch (error) {
-        console.error("Failed to load company ID permissions:", error);
-
+      if (!authUserId) {
         if (mode === "initial") {
           setProfile(null);
           setEffectivePermissions(null);
-        }
-      } finally {
-        if (mode === "initial") {
-          setIsLoadingProfile(false);
-        }
-      }
-    },
-    []
-  );
-
-  const loadCompany = useCallback(
-    async (mode: "initial" | "silent" = "initial") => {
-      if (!id) return;
-
-      if (mode === "initial") {
-        setIsLoadingCompany(true);
-      }
-
-      try {
-        const [companyResult, personnelResult, addressResult, bankResult] =
-          await Promise.all([
-            supabase
-              .from("finance_companies")
-              .select(
-                `
-                  id,
-                  code,
-                  name,
-                  legal_name,
-                  contact_person,
-                  status,
-                  email,
-                  phone,
-                  company_code,
-                  currency_code,
-                  registration_number,
-                  tax_number,
-                  website,
-                  notes,
-                  created_at,
-                  updated_at
-                `
-              )
-              .eq("id", id)
-              .single(),
-            supabase
-              .from("finance_company_personnel")
-              .select(
-                `
-                  id,
-                  full_name,
-                  position,
-                  phone,
-                  email,
-                  sort_order,
-                  is_primary,
-                  status
-                `
-              )
-              .eq("company_id", id)
-              .order("sort_order", { ascending: true }),
-            supabase
-              .from("finance_company_addresses")
-              .select(
-                `
-                  id,
-                  address_type,
-                  country,
-                  city,
-                  state_province,
-                  postal_code,
-                  address_line_1,
-                  address_line_2,
-                  sort_order,
-                  is_primary,
-                  is_same_as_primary,
-                  status
-                `
-              )
-              .eq("company_id", id)
-              .order("address_type", { ascending: true })
-              .order("sort_order", { ascending: true }),
-            supabase
-              .from("finance_bank_accounts")
-              .select(
-                `
-                  id,
-                  bank_id,
-                  bank_name,
-                  beneficiary_name,
-                  account_number,
-                  account_identifier_type,
-                  account_identifier_value,
-                  currency_code,
-                  country,
-                  city,
-                  status,
-                  is_default,
-                  created_at,
-                  updated_at
-                `
-              )
-              .eq("company_id", id)
-              .order("is_default", { ascending: false })
-              .order("created_at", { ascending: false }),
-          ]);
-
-        if (companyResult.error) throw companyResult.error;
-        if (personnelResult.error) throw personnelResult.error;
-        if (addressResult.error) throw addressResult.error;
-        if (bankResult.error) throw bankResult.error;
-
-        const companyData = companyResult.data as CompanyDetailRecord;
-        const personnelData = (personnelResult.data ?? []) as PersonnelRow[];
-        const addressData = (addressResult.data ?? []) as AddressRow[];
-        const bankData = (bankResult.data ?? []) as BankAccountRow[];
-
-        setCompany(companyData);
-        setPersonnel(personnelData);
-        setAddresses(addressData.filter((row) => row.address_type === "primary"));
-        setShippingAddresses(
-          addressData.filter((row) => row.address_type === "shipping")
-        );
-        setBankAccounts(bankData);
-      } catch (error) {
-        console.error("Failed to load finance company details:", error);
-
-        if (mode === "initial") {
-          setCompany(null);
-          setPersonnel([]);
-          setAddresses([]);
-          setShippingAddresses([]);
-          setBankAccounts([]);
-          setPageError(
-            error instanceof Error
-              ? error.message
-              : "Failed to load finance company details."
+        } else {
+          console.warn(
+            "Silent company ID profile refresh returned no auth user; keeping current profile and permissions."
           );
         }
-      } finally {
-        if (mode === "initial") {
-          setIsLoadingCompany(false);
-        }
-      }
-    },
-    [id]
-  );
 
-  const loadCurrencyOptions = useCallback(async () => {
+        return;
+      }
+
+      const profileResult = await supabase
+        .from("profiles")
+        .select("user_id, full_name, role, permissions")
+        .eq("user_id", authUserId)
+        .maybeSingle();
+
+      if (profileResult.error) throw profileResult.error;
+
+      const loadedProfile = (profileResult.data || null) as ProfilePermissionRow | null;
+
+      if (!loadedProfile) {
+        if (mode === "initial") {
+          setProfile(null);
+          setEffectivePermissions(null);
+        } else {
+          console.warn(
+            "Silent company ID profile refresh returned no profile; keeping current profile and permissions."
+          );
+        }
+
+        return;
+      }
+
+      const backendPermissions = await loadBackendEffectivePermissions(authUserId, mode);
+
+      setProfile(loadedProfile);
+
+      if (!loadedProfile.role) {
+        if (mode === "initial") {
+          setEffectivePermissions(null);
+        } else {
+          console.warn(
+            "Silent company ID profile refresh returned no role; keeping current permissions."
+          );
+        }
+
+        return;
+      }
+
+      const resolvedPermissions = getEffectivePermissions(
+        loadedProfile.role,
+        backendPermissions || loadedProfile.permissions || null
+      );
+
+      setEffectivePermissions(resolvedPermissions);
+    } catch (error) {
+      console.error("Failed to load company ID permissions:", error);
+
+      if (mode === "initial") {
+        setProfile(null);
+        setEffectivePermissions(null);
+      }
+    } finally {
+      if (mode === "initial") {
+        setIsLoadingProfile(false);
+      } else {
+        setBackgroundRefreshing(false);
+      }
+    }
+  }, []);
+
+  const loadCompany = useCallback(async (mode: LoadMode = "initial") => {
+    if (!id) return;
+
+    if (mode === "initial") {
+      setIsLoadingCompany(true);
+      setPageError(null);
+    } else {
+      setBackgroundRefreshing(true);
+    }
+
+    try {
+      const [companyResult, personnelResult, addressResult, bankResult] =
+        await Promise.all([
+          supabase
+            .from("finance_companies")
+            .select(
+              `
+                id,
+                code,
+                name,
+                legal_name,
+                contact_person,
+                status,
+                email,
+                phone,
+                company_code,
+                currency_code,
+                registration_number,
+                tax_number,
+                website,
+                notes,
+                created_at,
+                updated_at
+              `
+            )
+            .eq("id", id)
+            .single(),
+          supabase
+            .from("finance_company_personnel")
+            .select(
+              `
+                id,
+                full_name,
+                position,
+                phone,
+                email,
+                sort_order,
+                is_primary,
+                status
+              `
+            )
+            .eq("company_id", id)
+            .order("sort_order", { ascending: true }),
+          supabase
+            .from("finance_company_addresses")
+            .select(
+              `
+                id,
+                address_type,
+                country,
+                city,
+                state_province,
+                postal_code,
+                address_line_1,
+                address_line_2,
+                sort_order,
+                is_primary,
+                is_same_as_primary,
+                status
+              `
+            )
+            .eq("company_id", id)
+            .order("address_type", { ascending: true })
+            .order("sort_order", { ascending: true }),
+          supabase
+            .from("finance_bank_accounts")
+            .select(
+              `
+                id,
+                bank_id,
+                bank_name,
+                beneficiary_name,
+                account_number,
+                account_identifier_type,
+                account_identifier_value,
+                currency_code,
+                country,
+                city,
+                status,
+                is_default,
+                created_at,
+                updated_at
+              `
+            )
+            .eq("company_id", id)
+            .order("is_default", { ascending: false })
+            .order("created_at", { ascending: false }),
+        ]);
+
+      if (companyResult.error) throw companyResult.error;
+      if (personnelResult.error) throw personnelResult.error;
+      if (addressResult.error) throw addressResult.error;
+      if (bankResult.error) throw bankResult.error;
+
+      const companyData = companyResult.data as CompanyDetailRecord;
+      const personnelData = (personnelResult.data ?? []) as PersonnelRow[];
+      const addressData = (addressResult.data ?? []) as AddressRow[];
+      const bankData = (bankResult.data ?? []) as BankAccountRow[];
+
+      setCompany(companyData);
+      setPersonnel(personnelData);
+      setAddresses(addressData.filter((row) => row.address_type === "primary"));
+      setShippingAddresses(
+        addressData.filter((row) => row.address_type === "shipping")
+      );
+      setBankAccounts(bankData);
+
+      if (mode === "initial") {
+        setPageError(null);
+      }
+    } catch (error) {
+      console.error("Failed to load finance company details:", error);
+
+      if (mode === "initial") {
+        setCompany(null);
+        setPersonnel([]);
+        setAddresses([]);
+        setShippingAddresses([]);
+        setBankAccounts([]);
+        setPageError(
+          error instanceof Error
+            ? error.message
+            : "Failed to load finance company details."
+        );
+      }
+    } finally {
+      if (mode === "initial") {
+        setIsLoadingCompany(false);
+      } else {
+        setBackgroundRefreshing(false);
+      }
+    }
+  }, [id]);
+
+  const loadCurrencyOptions = useCallback(async (mode: LoadMode = "initial") => {
+    if (mode === "silent") {
+      setBackgroundRefreshing(true);
+    }
+
     try {
       const { data, error } = await supabase
         .from("finance_currencies")
@@ -1098,7 +784,14 @@ export default function FinanceMasterDataCompanyDetailPage() {
       setCurrencyOptions((data ?? []) as CurrencyOption[]);
     } catch (error) {
       console.error("Failed to load currency master data:", error);
-      setCurrencyOptions([]);
+
+      if (mode === "initial") {
+        setCurrencyOptions([]);
+      }
+    } finally {
+      if (mode === "silent") {
+        setBackgroundRefreshing(false);
+      }
     }
   }, []);
 
@@ -1106,7 +799,7 @@ export default function FinanceMasterDataCompanyDetailPage() {
     void Promise.all([
       loadCurrentProfile("initial"),
       loadCompany("initial"),
-      loadCurrencyOptions(),
+      loadCurrencyOptions("initial"),
     ]);
   }, [loadCompany, loadCurrencyOptions, loadCurrentProfile]);
 
@@ -1156,7 +849,7 @@ export default function FinanceMasterDataCompanyDetailPage() {
       .on(
         "postgres_changes",
         { event: "*", schema: "public", table: "finance_currencies" },
-        () => void loadCurrencyOptions()
+        () => void loadCurrencyOptions("silent")
       )
       .subscribe();
 
@@ -1164,13 +857,13 @@ export default function FinanceMasterDataCompanyDetailPage() {
       void Promise.all([
         loadCurrentProfile("silent"),
         loadCompany("silent"),
-        loadCurrencyOptions(),
+        loadCurrencyOptions("silent"),
       ]);
     }, 60000);
 
     return () => {
       window.clearInterval(intervalId);
-      supabase.removeChannel(channel);
+      void supabase.removeChannel(channel);
     };
   }, [id, loadCompany, loadCurrencyOptions, loadCurrentProfile]);
 
@@ -1222,53 +915,60 @@ export default function FinanceMasterDataCompanyDetailPage() {
           : permissionState.canRead
             ? "Enabled"
             : "Locked",
-        detail: "Viewing this record requires Finance read access.",
+        description: "Viewing this record requires Finance read access.",
         icon: permissionState.canRead ? ShieldCheck : LockKeyhole,
         tone: permissionState.canRead ? "emerald" : "rose",
       },
       {
         label: "Edit Access",
         value: permissionState.canUpdate ? "Enabled" : "Read Only",
-        detail: "Section edits require Update access or Master Data admin access.",
+        description: "Section edits require Update access or Master Data admin access.",
         icon: permissionState.canUpdate ? Pencil : LockKeyhole,
         tone: permissionState.canUpdate ? "cyan" : "amber",
       },
+      {
+        label: "Lifecycle Access",
+        value: permissionState.canDeleteArchive ? "Archive Enabled" : "Locked",
+        description: backgroundRefreshing
+          ? "Silent refresh is updating data without disturbing the page."
+          : "Archive and Restore require Delete/Archive access.",
+        icon: permissionState.canDeleteArchive ? Archive : LockKeyhole,
+        tone: permissionState.canDeleteArchive ? "amber" : "rose",
+      },
     ];
-  }, [isLoadingProfile, permissionState.canRead, permissionState.canUpdate]);
+  }, [
+    backgroundRefreshing,
+    isLoadingProfile,
+    permissionState.canDeleteArchive,
+    permissionState.canRead,
+    permissionState.canUpdate,
+  ]);
 
-  const summaryCards = useMemo<SummaryCardData[]>(() => {
+  const summaryItems = useMemo<SummaryItem[]>(() => {
     return [
       {
         label: "Company",
         value: getCompanyDisplayName(company),
-        detail: company?.company_code || company?.code || "No company code",
-        icon: Building2,
-        tone: "cyan",
+        description: company?.company_code || company?.code || "No company code",
       },
       {
         label: "Contact",
         value: getCompanyContactLabel(company),
-        detail: `${getCompanyEmailLabel(company)} • ${getCompanyPhoneLabel(company)}`,
-        icon: UserRound,
-        tone: "emerald",
+        description: `${getCompanyEmailLabel(company)} • ${getCompanyPhoneLabel(company)}`,
       },
       {
         label: "Currency",
         value: company?.currency_code || "—",
-        detail: `${personnel.length} personnel row${
+        description: `${personnel.length} personnel row${
           personnel.length === 1 ? "" : "s"
         }`,
-        icon: Globe,
-        tone: "violet",
       },
       {
         label: "Bank Accounts",
         value: `${bankAccounts.length}`,
-        detail:
+        description:
           bankAccounts.find((account) => account.is_default)?.bank_name ||
           "No default bank account",
-        icon: Banknote,
-        tone: "amber",
       },
     ];
   }, [bankAccounts, company, personnel.length]);
@@ -1300,7 +1000,7 @@ export default function FinanceMasterDataCompanyDetailPage() {
     setPageError(null);
     setPageMessage(null);
     setIdentityDraft({
-      currency_code: company.currency_code || "USD",
+      currency_code: company.currency_code || "",
       registration_number: company.registration_number || "",
       tax_number: company.tax_number || "",
       website: company.website || "",
@@ -1334,15 +1034,7 @@ export default function FinanceMasterDataCompanyDetailPage() {
     setPageMessage(null);
     setAddressDraft(
       addresses.length > 0
-        ? addresses.map((row) => ({
-            id: row.id,
-            country: row.country || "",
-            city: row.city || "",
-            state_province: row.state_province || "",
-            postal_code: row.postal_code || "",
-            address_line_1: row.address_line_1 || "",
-            address_line_2: row.address_line_2 || "",
-          }))
+        ? addresses.map(mapPrimaryAddressToDraft)
         : [createEmptyAddressDraftRow()]
     );
     setEditingSection("primary-addresses");
@@ -1355,30 +1047,12 @@ export default function FinanceMasterDataCompanyDetailPage() {
     setPageMessage(null);
     setAddressDraft(
       addresses.length > 0
-        ? addresses.map((row) => ({
-            id: row.id,
-            country: row.country || "",
-            city: row.city || "",
-            state_province: row.state_province || "",
-            postal_code: row.postal_code || "",
-            address_line_1: row.address_line_1 || "",
-            address_line_2: row.address_line_2 || "",
-          }))
+        ? addresses.map(mapPrimaryAddressToDraft)
         : [createEmptyAddressDraftRow()]
     );
     setShippingDraft(
       shippingAddresses.length > 0
-        ? shippingAddresses.map((row) => ({
-            id: row.id,
-            same_as_primary: row.is_same_as_primary,
-            source_address_id: "",
-            country: row.country || "",
-            city: row.city || "",
-            state_province: row.state_province || "",
-            postal_code: row.postal_code || "",
-            address_line_1: row.address_line_1 || "",
-            address_line_2: row.address_line_2 || "",
-          }))
+        ? shippingAddresses.map(mapShippingAddressToDraft)
         : [createEmptyShippingDraftRow()]
     );
     setEditingSection("shipping-addresses");
@@ -1676,9 +1350,10 @@ export default function FinanceMasterDataCompanyDetailPage() {
       }
 
       setEditingSection(null);
-      setPageMessage("Company identity updated. Linked bank account currencies synchronized.");
+      setPageMessage(
+        "Company identity updated. Linked bank account currencies synchronized."
+      );
       await loadCompany("silent");
-      
     } catch (error) {
       console.error("Failed to save company identity:", error);
       setPageError(
@@ -1966,155 +1641,99 @@ export default function FinanceMasterDataCompanyDetailPage() {
   const isPageLoading = isLoadingProfile || isLoadingCompany;
 
   if (isPageLoading) {
-    return <LoadingState />;
+    return (
+      <AixiaLoadingState
+        title="Loading company detail"
+        description="Company record and permission state are being checked."
+      />
+    );
   }
 
   if (!company) {
     return (
-      <div className="min-h-screen bg-[#05070d] px-4 py-4 text-white md:px-6 md:py-6">
-        <div className="mx-auto flex w-full max-w-[1600px] flex-col gap-6">
-          <EmptyState
-            icon={Building2}
-            title="Company not found"
-            description="The company record could not be loaded or no longer exists."
-            action={
-              <button
-                type="button"
-                onClick={() => navigate("/finance/master-data/companies")}
-                className="inline-flex h-11 items-center justify-center gap-2 rounded-2xl border border-cyan-400/20 bg-cyan-500/10 px-5 text-sm font-semibold text-cyan-100 transition hover:bg-cyan-500/15"
-              >
-                <ArrowRight className="h-4 w-4 rotate-180" />
-                Companies
-              </button>
-            }
-          />
-        </div>
-      </div>
+      <AixiaPage>
+        <AixiaNotFoundState
+          title="Company not found"
+          description="The company record could not be loaded or no longer exists."
+          action={
+            <AixiaButton
+              type="button"
+              variant="secondary"
+              onClick={() => navigate("/finance/master-data/companies")}
+            >
+              <ArrowRight className="h-4 w-4 rotate-180" />
+              Companies
+            </AixiaButton>
+          }
+        />
+      </AixiaPage>
     );
   }
 
   if (!permissionState.canRead) {
     return (
-      <div className="min-h-screen bg-[#05070d] px-4 py-4 text-white md:px-6 md:py-6">
-        <div className="mx-auto flex w-full max-w-[1600px] flex-col gap-6">
-          <header className="relative overflow-hidden rounded-[34px] border border-white/10 bg-white/[0.045] p-6 shadow-2xl shadow-black/30 backdrop-blur-xl">
-            <div className="pointer-events-none absolute inset-0 bg-[radial-gradient(circle_at_top_left,rgba(6,182,212,0.16),transparent_38%),radial-gradient(circle_at_top_right,rgba(139,92,246,0.12),transparent_34%)]" />
+      <AixiaPage>
+        <AixiaHero
+          parentLabel="Companies"
+          parentPath="/finance/master-data/companies"
+          badges={[
+            { label: "Access Locked", tone: "rose" },
+            { label: "Permission protected", tone: "cyan" },
+          ]}
+          gradientTitle="Company"
+          title="Access Locked"
+          subtitle="Read Permission Required"
+          description="This page requires Finance read access or Master Data admin access."
+          statusCards={[
+            {
+              label: "Read Access",
+              value: "Locked",
+              description:
+                "Ask an Admin to assign a Finance role template or user-specific exception with Finance read access.",
+              icon: LockKeyhole,
+              tone: "rose",
+            },
+          ]}
+        />
 
-            <div className="relative">
-              <button
-                type="button"
-                onClick={() => navigate("/finance/master-data/companies")}
-                className="mb-5 inline-flex items-center justify-center gap-2 rounded-full border border-white/10 bg-white/[0.05] px-5 py-2 text-[11px] font-semibold uppercase tracking-[0.22em] text-slate-300 transition hover:border-white/20 hover:bg-white/[0.08] hover:text-white"
-              >
-                <ArrowRight className="h-3.5 w-3.5 rotate-180" />
-                Companies
-              </button>
-
-              <div className="inline-flex w-fit items-center gap-2 rounded-full border border-rose-400/20 bg-rose-500/10 px-3 py-1 text-[11px] font-semibold uppercase tracking-[0.22em] text-rose-200">
-                <LockKeyhole className="h-3.5 w-3.5" />
-                Access Locked
-              </div>
-
-              <h1 className="mt-4 text-3xl font-semibold tracking-[-0.035em] text-white md:text-5xl">
-                Company Access Locked
-              </h1>
-
-              <p className="mt-3 max-w-4xl text-sm leading-6 text-slate-400 md:text-base md:leading-7">
-                This page requires Finance read access or Master Data admin access.
-              </p>
-            </div>
-          </header>
-
-          <EmptyState
-            icon={LockKeyhole}
-            title="No company read access"
-            description="Ask an Admin to assign a Finance role template or user-specific exception with Finance read access."
-          />
-        </div>
-      </div>
+        <AixiaAccessDeniedState
+          title="No company read access"
+          description="Ask an Admin to assign a Finance role template or user-specific exception with Finance read access."
+        />
+      </AixiaPage>
     );
   }
 
   return (
-    <div className="min-h-screen bg-[#05070d] px-4 py-4 text-white md:px-6 md:py-6">
-      <div className="mx-auto flex w-full max-w-[1600px] flex-col gap-6">
-        <header className="relative overflow-hidden rounded-[34px] border border-white/10 bg-white/[0.045] p-6 shadow-2xl shadow-black/30 backdrop-blur-xl">
-          <div className="pointer-events-none absolute inset-0 bg-[radial-gradient(circle_at_top_left,rgba(6,182,212,0.16),transparent_38%),radial-gradient(circle_at_top_right,rgba(139,92,246,0.12),transparent_34%)]" />
+    <AixiaPage>
+      <AixiaHero
+        parentLabel="Companies"
+        parentPath="/finance/master-data/companies"
+        badges={[
+          { label: "Company Detail", tone: "cyan" },
+          { label: company.company_code || company.code || "No Company Code", tone: "neutral" },
+          { label: company.currency_code || "No Currency", tone: "emerald" },
+          { label: formatStatus(company.status), tone: "amber" },
+        ]}
+        gradientTitle={getCompanyDisplayName(company)}
+        title="Company"
+        subtitle="Internal Legal Entity Master Data"
+        description="Internal company record with same-place section editing, company identity, personnel, primary addresses, shipping addresses, linked bank accounts, notes, and lifecycle control."
+        statusCards={headerStatusCards}
+      />
 
-          <div className="relative grid gap-6 xl:grid-cols-[minmax(0,1fr)_520px] xl:items-end">
-            <div>
-              <button
-                type="button"
-                onClick={() => navigate("/finance/master-data/companies")}
-                className="mb-5 inline-flex items-center justify-center gap-2 rounded-full border border-white/10 bg-white/[0.05] px-5 py-2 text-[11px] font-semibold uppercase tracking-[0.22em] text-slate-300 transition hover:border-white/20 hover:bg-white/[0.08] hover:text-white"
-              >
-                <ArrowRight className="h-3.5 w-3.5 rotate-180" />
-                Companies
-              </button>
+      {pageError ? <AixiaAlert tone="error">{pageError}</AixiaAlert> : null}
+      {pageMessage ? <AixiaAlert tone="success">{pageMessage}</AixiaAlert> : null}
 
-              <div className="inline-flex w-fit items-center gap-2 rounded-full border border-cyan-400/20 bg-cyan-500/10 px-3 py-1 text-[11px] font-semibold uppercase tracking-[0.22em] text-cyan-200">
-                <Sparkles className="h-3.5 w-3.5" />
-                Company Detail
-              </div>
-
-              <h1 className="mt-4 text-3xl font-semibold tracking-[-0.035em] text-white md:text-5xl">
-                {getCompanyDisplayName(company)}
-              </h1>
-
-              <p className="mt-3 max-w-4xl text-sm leading-6 text-slate-400 md:text-base md:leading-7">
-                Internal company record with same-place section editing, company
-                identity, personnel, primary addresses, shipping addresses, bank
-                accounts, notes, and lifecycle control.
-              </p>
-
-              <div className="mt-5 flex flex-wrap gap-2">
-                <span className="rounded-full border border-white/10 bg-white/[0.05] px-3 py-1 text-[11px] font-semibold uppercase tracking-[0.16em] text-slate-300">
-                  {company.company_code || company.code || "No Company Code"}
-                </span>
-
-                <span className="rounded-full border border-white/10 bg-white/[0.05] px-3 py-1 text-[11px] font-semibold uppercase tracking-[0.16em] text-slate-300">
-                  {company.currency_code || "No Currency"}
-                </span>
-
-                <StatusBadge status={company.status} />
-              </div>
-            </div>
-
-            <div className="grid gap-3 sm:grid-cols-2">
-              {headerStatusCards.map((item) => (
-                <HeaderStatusCard key={item.label} item={item} />
-              ))}
-            </div>
-          </div>
-        </header>
-
-        {pageError ? (
-          <div className="rounded-[24px] border border-rose-400/20 bg-rose-500/10 p-4 text-sm leading-6 text-rose-100">
-            <div className="flex items-start gap-3">
-              <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0" />
-              <div>{pageError}</div>
-            </div>
-          </div>
-        ) : null}
-
-        {pageMessage ? (
-          <div className="rounded-[24px] border border-emerald-400/20 bg-emerald-500/10 p-4 text-sm leading-6 text-emerald-100">
-            <div className="flex items-start gap-3">
-              <CheckCircle2 className="mt-0.5 h-4 w-4 shrink-0" />
-              <div>{pageMessage}</div>
-            </div>
-          </div>
-        ) : null}
-
-        <section className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
-          {summaryCards.map((item) => (
-            <SummaryCard key={item.label} item={item} />
-          ))}
-        </section>
-
-        <section className="grid items-start gap-6 xl:grid-cols-[minmax(0,1fr)_420px]">
-          <div className="grid gap-6">
-            <DetailSection
+      <AixiaSmartLayout
+        sidebar="normal"
+        balance="main"
+        bottomSpan="never"
+        sideRebalance="last-to-bottom"
+        mainTopCount={3}
+        main={
+          <>
+            <AixiaDetailSection
               title="Company Overview"
               description="Legal identity, display name, primary contact, communication, and lifecycle status."
               icon={Building2}
@@ -2126,10 +1745,10 @@ export default function FinanceMasterDataCompanyDetailPage() {
               isSaving={isSaving}
             >
               {editingSection === "overview" ? (
-                <div className="grid gap-4 md:grid-cols-2">
-                  <div className="md:col-span-2">
-                    <FieldLabel label="Legal Name" required />
-                    <InputField
+                <AixiaFormGrid columns="two">
+                  <AixiaFormFullWidth>
+                    <AixiaFieldLabel label="Legal Name" required />
+                    <AixiaInputField
                       value={overviewDraft.legal_name}
                       disabled={isSaving}
                       onChange={(event) =>
@@ -2137,11 +1756,11 @@ export default function FinanceMasterDataCompanyDetailPage() {
                       }
                       placeholder="Legal company name"
                     />
-                  </div>
+                  </AixiaFormFullWidth>
 
-                  <div className="md:col-span-2">
-                    <FieldLabel label="Display Name" />
-                    <InputField
+                  <AixiaFormFullWidth>
+                    <AixiaFieldLabel label="Display Name" />
+                    <AixiaInputField
                       value={overviewDraft.display_name}
                       disabled={isSaving}
                       onChange={(event) =>
@@ -2149,11 +1768,11 @@ export default function FinanceMasterDataCompanyDetailPage() {
                       }
                       placeholder="Display name"
                     />
-                  </div>
+                  </AixiaFormFullWidth>
 
-                  <div>
-                    <FieldLabel label="Primary Contact" />
-                    <InputField
+                  <AixiaFormField>
+                    <AixiaFieldLabel label="Primary Contact" />
+                    <AixiaInputField
                       value={overviewDraft.contact_person}
                       disabled={isSaving}
                       onChange={(event) =>
@@ -2161,11 +1780,11 @@ export default function FinanceMasterDataCompanyDetailPage() {
                       }
                       placeholder="Primary contact"
                     />
-                  </div>
+                  </AixiaFormField>
 
-                  <div>
-                    <FieldLabel label="Email" />
-                    <InputField
+                  <AixiaFormField>
+                    <AixiaFieldLabel label="Email" />
+                    <AixiaInputField
                       type="email"
                       value={overviewDraft.email}
                       disabled={isSaving}
@@ -2174,11 +1793,11 @@ export default function FinanceMasterDataCompanyDetailPage() {
                       }
                       placeholder="company@email.com"
                     />
-                  </div>
+                  </AixiaFormField>
 
-                  <div>
-                    <FieldLabel label="Phone" />
-                    <InputField
+                  <AixiaFormField>
+                    <AixiaFieldLabel label="Phone" />
+                    <AixiaInputField
                       value={overviewDraft.phone}
                       disabled={isSaving}
                       onChange={(event) =>
@@ -2186,11 +1805,11 @@ export default function FinanceMasterDataCompanyDetailPage() {
                       }
                       placeholder="Company phone"
                     />
-                  </div>
+                  </AixiaFormField>
 
-                  <div>
-                    <FieldLabel label="Status" />
-                    <SelectField
+                  <AixiaFormField>
+                    <AixiaFieldLabel label="Status" />
+                    <AixiaSelectField
                       value={overviewDraft.status}
                       disabled={isSaving}
                       onChange={(event) =>
@@ -2206,50 +1825,34 @@ export default function FinanceMasterDataCompanyDetailPage() {
                       <option value="archived" className="bg-[#05070d]">
                         Archived
                       </option>
-                    </SelectField>
-                  </div>
-                </div>
+                    </AixiaSelectField>
+                  </AixiaFormField>
+                </AixiaFormGrid>
               ) : (
-                <div className="grid gap-3 md:grid-cols-2">
-                  <DisplayBlock label="Legal Name" value={getCompanyDisplayName(company)} />
-                  <DisplayBlock label="Display Name" value={company.name || "—"} />
-                  <DisplayBlock
+                <AixiaFormGrid columns="two">
+                  <AixiaDisplayBlock
+                    label="Legal Name"
+                    value={getCompanyDisplayName(company)}
+                  />
+                  <AixiaDisplayBlock
+                    label="Display Name"
+                    value={company.name || "—"}
+                  />
+                  <AixiaDisplayBlock
                     label="Primary Contact"
                     value={company.contact_person || "—"}
                   />
-                  <DisplayBlock
-                    label="Email"
-                    value={company.email || "—"}
-                    detail={
-                      company.email ? (
-                        <span className="inline-flex items-center gap-1">
-                          <Mail className="h-3.5 w-3.5" />
-                          Communication email
-                        </span>
-                      ) : null
-                    }
-                  />
-                  <DisplayBlock
-                    label="Phone"
-                    value={company.phone || "—"}
-                    detail={
-                      company.phone ? (
-                        <span className="inline-flex items-center gap-1">
-                          <Phone className="h-3.5 w-3.5" />
-                          Communication phone
-                        </span>
-                      ) : null
-                    }
-                  />
-                  <DisplayBlock
+                  <AixiaDisplayBlock label="Email" value={company.email || "—"} />
+                  <AixiaDisplayBlock label="Phone" value={company.phone || "—"} />
+                  <AixiaDisplayBlock
                     label="Lifecycle Status"
-                    value={<StatusBadge status={company.status} />}
+                    value={<AixiaStatusBadge value={company.status} />}
                   />
-                </div>
+                </AixiaFormGrid>
               )}
-            </DetailSection>
+            </AixiaDetailSection>
 
-                        <DetailSection
+            <AixiaDetailSection
               title="Company Identity"
               description="Internal legal and finance identity fields."
               icon={Landmark}
@@ -2261,40 +1864,43 @@ export default function FinanceMasterDataCompanyDetailPage() {
               isSaving={isSaving}
             >
               {editingSection === "identity" ? (
-                <div className="grid gap-4 md:grid-cols-2">
-                  <div>
-                    <FieldLabel label="Company Code" />
-                    <div className="flex h-11 items-center rounded-2xl border border-white/10 bg-black/20 px-4 text-sm text-slate-400">
-                      {company.company_code || company.code || "Auto-generated by system"}
-                    </div>
-                  </div>
+                <AixiaFormGrid columns="two">
+                  <AixiaDisplayBlock
+                    label="Company Code"
+                    value={company.company_code || company.code || "Auto-generated by system"}
+                    detail="System-assigned code."
+                  />
 
-                  <div>
-                    <FieldLabel label="Currency Code" />
-                    <SelectField
+                  <AixiaFormField>
+                    <AixiaFieldLabel label="Currency Code" />
+                    <AixiaSelectField
                       value={identityDraft.currency_code}
                       disabled={isSaving}
                       onChange={(event) =>
                         updateIdentityDraft("currency_code", event.target.value)
                       }
                     >
-                      {currencySelectOptions.map((currency) => (
-                        <option
-                          key={currency.id}
-                          value={currency.currency_code}
-                          className="bg-[#05070d]"
-                        >
-                          {currency.currency_code} — {currency.currency_name}
-                          {currency.currency_symbol ? ` (${currency.currency_symbol})` : ""}
-                          {currency.is_base_currency ? " • Base" : ""}
+                      {currencySelectOptions.length === 0 ? (
+                        <option value="" className="bg-[#05070d]">
+                          No active currencies available
                         </option>
-                      ))}
-                    </SelectField>
-                  </div>
+                      ) : (
+                        currencySelectOptions.map((currency) => (
+                          <option
+                            key={currency.id}
+                            value={currency.currency_code}
+                            className="bg-[#05070d]"
+                          >
+                            {getCurrencyOptionLabel(currency)}
+                          </option>
+                        ))
+                      )}
+                    </AixiaSelectField>
+                  </AixiaFormField>
 
-                  <div>
-                    <FieldLabel label="Registration Number" />
-                    <InputField
+                  <AixiaFormField>
+                    <AixiaFieldLabel label="Registration Number" />
+                    <AixiaInputField
                       value={identityDraft.registration_number}
                       disabled={isSaving}
                       onChange={(event) =>
@@ -2302,11 +1908,11 @@ export default function FinanceMasterDataCompanyDetailPage() {
                       }
                       placeholder="Registration number"
                     />
-                  </div>
+                  </AixiaFormField>
 
-                  <div>
-                    <FieldLabel label="Tax Number" />
-                    <InputField
+                  <AixiaFormField>
+                    <AixiaFieldLabel label="Tax Number" />
+                    <AixiaInputField
                       value={identityDraft.tax_number}
                       disabled={isSaving}
                       onChange={(event) =>
@@ -2314,11 +1920,11 @@ export default function FinanceMasterDataCompanyDetailPage() {
                       }
                       placeholder="Tax number"
                     />
-                  </div>
+                  </AixiaFormField>
 
-                  <div className="md:col-span-2">
-                    <FieldLabel label="Website" />
-                    <InputField
+                  <AixiaFormFullWidth>
+                    <AixiaFieldLabel label="Website" />
+                    <AixiaInputField
                       value={identityDraft.website}
                       disabled={isSaving}
                       onChange={(event) =>
@@ -2326,33 +1932,36 @@ export default function FinanceMasterDataCompanyDetailPage() {
                       }
                       placeholder="https://example.com"
                     />
-                  </div>
-                </div>
+                  </AixiaFormFullWidth>
+                </AixiaFormGrid>
               ) : (
-                <div className="grid gap-3 md:grid-cols-2">
-                  <DisplayBlock
+                <AixiaFormGrid columns="two">
+                  <AixiaDisplayBlock
                     label="Company Code"
                     value={company.company_code || company.code || "—"}
                   />
-                  <DisplayBlock
+                  <AixiaDisplayBlock
                     label="Currency Code"
                     value={company.currency_code || "—"}
                   />
-                  <DisplayBlock
+                  <AixiaDisplayBlock
                     label="Registration Number"
                     value={company.registration_number || "—"}
                   />
-                  <DisplayBlock label="Tax Number" value={company.tax_number || "—"} />
-                  <DisplayBlock label="Website" value={company.website || "—"} />
-                  <DisplayBlock
+                  <AixiaDisplayBlock
+                    label="Tax Number"
+                    value={company.tax_number || "—"}
+                  />
+                  <AixiaDisplayBlock label="Website" value={company.website || "—"} />
+                  <AixiaDisplayBlock
                     label="Created"
                     value={formatDateTimeLabel(company.created_at)}
                   />
-                </div>
+                </AixiaFormGrid>
               )}
-            </DetailSection>
+            </AixiaDetailSection>
 
-            <DetailSection
+            <AixiaDetailSection
               title="Personnel"
               description="People connected to this internal company."
               icon={Users}
@@ -2364,28 +1973,32 @@ export default function FinanceMasterDataCompanyDetailPage() {
               isSaving={isSaving}
             >
               {editingSection === "personnel" ? (
-                <div className="space-y-4">
-                  <div className="flex justify-end">
-                    <AddRowButton
-                      label="Add Person"
+                <>
+                  <AixiaActionStack>
+                    <AixiaButton
+                      type="button"
+                      variant="secondary"
                       onClick={addPersonnelDraftRow}
                       disabled={isSaving}
-                    />
-                  </div>
+                    >
+                      <Plus className="h-4 w-4" />
+                      Add Person
+                    </AixiaButton>
+                  </AixiaActionStack>
 
-                  <div className="max-h-[720px] space-y-4 overflow-y-auto pr-1">
+                  <div className="aixia-form-row-list">
                     {personnelDraft.map((row, index) => (
-                      <RowCard
+                      <AixiaFormRowCard
                         key={row.id}
                         title={`Person ${index + 1}`}
                         description={index === 0 ? "Primary personnel row." : undefined}
                         onRemove={() => removePersonnelDraftRow(row.id)}
                         removeDisabled={isSaving || personnelDraft.length === 1}
                       >
-                        <div className="grid gap-4 md:grid-cols-2">
-                          <div>
-                            <FieldLabel label="Name" />
-                            <InputField
+                        <AixiaFormGrid columns="two">
+                          <AixiaFormField>
+                            <AixiaFieldLabel label="Name" />
+                            <AixiaInputField
                               value={row.full_name}
                               disabled={isSaving}
                               onChange={(event) =>
@@ -2397,11 +2010,11 @@ export default function FinanceMasterDataCompanyDetailPage() {
                               }
                               placeholder="Person name"
                             />
-                          </div>
+                          </AixiaFormField>
 
-                          <div>
-                            <FieldLabel label="Position" />
-                            <InputField
+                          <AixiaFormField>
+                            <AixiaFieldLabel label="Position" />
+                            <AixiaInputField
                               value={row.position}
                               disabled={isSaving}
                               onChange={(event) =>
@@ -2413,11 +2026,11 @@ export default function FinanceMasterDataCompanyDetailPage() {
                               }
                               placeholder="Position"
                             />
-                          </div>
+                          </AixiaFormField>
 
-                          <div>
-                            <FieldLabel label="Phone" />
-                            <InputField
+                          <AixiaFormField>
+                            <AixiaFieldLabel label="Phone" />
+                            <AixiaInputField
                               value={row.phone}
                               disabled={isSaving}
                               onChange={(event) =>
@@ -2429,11 +2042,11 @@ export default function FinanceMasterDataCompanyDetailPage() {
                               }
                               placeholder="Phone"
                             />
-                          </div>
+                          </AixiaFormField>
 
-                          <div>
-                            <FieldLabel label="Email" />
-                            <InputField
+                          <AixiaFormField>
+                            <AixiaFieldLabel label="Email" />
+                            <AixiaInputField
                               type="email"
                               value={row.email}
                               disabled={isSaving}
@@ -2446,47 +2059,39 @@ export default function FinanceMasterDataCompanyDetailPage() {
                               }
                               placeholder="Email"
                             />
-                          </div>
-                        </div>
-                      </RowCard>
+                          </AixiaFormField>
+                        </AixiaFormGrid>
+                      </AixiaFormRowCard>
                     ))}
                   </div>
-                </div>
+                </>
               ) : personnel.length === 0 ? (
-                <div className="rounded-[20px] border border-dashed border-white/10 bg-black/20 px-4 py-8 text-center text-sm text-slate-500">
-                  No personnel added yet.
-                </div>
+                <AixiaEmptyState
+                  icon={UserRound}
+                  title="No personnel added yet"
+                  description="Company personnel records will appear here after they are added."
+                />
               ) : (
-                <div className="max-h-[720px] space-y-3 overflow-y-auto pr-1">
+                <div className="aixia-form-row-list">
                   {personnel.map((row, index) => (
-                    <div
+                    <AixiaFormRowCard
                       key={row.id}
-                      className="rounded-[24px] border border-white/10 bg-black/20 p-4"
+                      title={`Person ${index + 1}`}
+                      description={row.is_primary ? "Primary personnel row." : undefined}
                     >
-                      <div className="mb-3 flex items-center justify-between gap-3">
-                        <div className="text-sm font-semibold text-white">
-                          Person {index + 1}
-                        </div>
-                        {row.is_primary ? (
-                          <span className="rounded-full border border-cyan-400/20 bg-cyan-500/10 px-3 py-1 text-[11px] font-semibold uppercase tracking-[0.14em] text-cyan-100">
-                            Primary
-                          </span>
-                        ) : null}
-                      </div>
-
-                      <div className="grid gap-3 md:grid-cols-2">
-                        <DisplayBlock label="Name" value={row.full_name || "—"} />
-                        <DisplayBlock label="Position" value={row.position || "—"} />
-                        <DisplayBlock label="Phone" value={row.phone || "—"} />
-                        <DisplayBlock label="Email" value={row.email || "—"} />
-                      </div>
-                    </div>
+                      <AixiaFormGrid columns="two">
+                        <AixiaDisplayBlock label="Name" value={row.full_name || "—"} />
+                        <AixiaDisplayBlock label="Position" value={row.position || "—"} />
+                        <AixiaDisplayBlock label="Phone" value={row.phone || "—"} />
+                        <AixiaDisplayBlock label="Email" value={row.email || "—"} />
+                      </AixiaFormGrid>
+                    </AixiaFormRowCard>
                   ))}
                 </div>
               )}
-            </DetailSection>
+            </AixiaDetailSection>
 
-            <DetailSection
+            <AixiaDetailSection
               title="Primary Addresses"
               description="Primary legal and billing addresses."
               icon={MapPin}
@@ -2498,28 +2103,32 @@ export default function FinanceMasterDataCompanyDetailPage() {
               isSaving={isSaving}
             >
               {editingSection === "primary-addresses" ? (
-                <div className="space-y-4">
-                  <div className="flex justify-end">
-                    <AddRowButton
-                      label="Add Address"
+                <>
+                  <AixiaActionStack>
+                    <AixiaButton
+                      type="button"
+                      variant="secondary"
                       onClick={addAddressDraftRow}
                       disabled={isSaving}
-                    />
-                  </div>
+                    >
+                      <Plus className="h-4 w-4" />
+                      Add Address
+                    </AixiaButton>
+                  </AixiaActionStack>
 
-                  <div className="max-h-[720px] space-y-4 overflow-y-auto pr-1">
+                  <div className="aixia-form-row-list">
                     {addressDraft.map((row, index) => (
-                      <RowCard
+                      <AixiaFormRowCard
                         key={row.id}
                         title={`Address ${index + 1}`}
                         description={index === 0 ? "Primary address row." : undefined}
                         onRemove={() => removeAddressDraftRow(row.id)}
                         removeDisabled={isSaving || addressDraft.length === 1}
                       >
-                        <div className="grid gap-4 md:grid-cols-2">
-                          <div>
-                            <FieldLabel label="Country" />
-                            <InputField
+                        <AixiaFormGrid columns="two">
+                          <AixiaFormField>
+                            <AixiaFieldLabel label="Country" />
+                            <AixiaInputField
                               value={row.country}
                               disabled={isSaving}
                               onChange={(event) =>
@@ -2531,11 +2140,11 @@ export default function FinanceMasterDataCompanyDetailPage() {
                               }
                               placeholder="Country"
                             />
-                          </div>
+                          </AixiaFormField>
 
-                          <div>
-                            <FieldLabel label="City" />
-                            <InputField
+                          <AixiaFormField>
+                            <AixiaFieldLabel label="City" />
+                            <AixiaInputField
                               value={row.city}
                               disabled={isSaving}
                               onChange={(event) =>
@@ -2547,11 +2156,11 @@ export default function FinanceMasterDataCompanyDetailPage() {
                               }
                               placeholder="City"
                             />
-                          </div>
+                          </AixiaFormField>
 
-                          <div>
-                            <FieldLabel label="State / Province" />
-                            <InputField
+                          <AixiaFormField>
+                            <AixiaFieldLabel label="State / Province" />
+                            <AixiaInputField
                               value={row.state_province}
                               disabled={isSaving}
                               onChange={(event) =>
@@ -2563,11 +2172,11 @@ export default function FinanceMasterDataCompanyDetailPage() {
                               }
                               placeholder="State / Province"
                             />
-                          </div>
+                          </AixiaFormField>
 
-                          <div>
-                            <FieldLabel label="ZIP / Postal Code" />
-                            <InputField
+                          <AixiaFormField>
+                            <AixiaFieldLabel label="ZIP / Postal Code" />
+                            <AixiaInputField
                               value={row.postal_code}
                               disabled={isSaving}
                               onChange={(event) =>
@@ -2579,11 +2188,11 @@ export default function FinanceMasterDataCompanyDetailPage() {
                               }
                               placeholder="Postal code"
                             />
-                          </div>
+                          </AixiaFormField>
 
-                          <div className="md:col-span-2">
-                            <FieldLabel label="Address Line 1" />
-                            <InputField
+                          <AixiaFormFullWidth>
+                            <AixiaFieldLabel label="Address Line 1" />
+                            <AixiaInputField
                               value={row.address_line_1}
                               disabled={isSaving}
                               onChange={(event) =>
@@ -2595,11 +2204,11 @@ export default function FinanceMasterDataCompanyDetailPage() {
                               }
                               placeholder="Address line 1"
                             />
-                          </div>
+                          </AixiaFormFullWidth>
 
-                          <div className="md:col-span-2">
-                            <FieldLabel label="Address Line 2" />
-                            <InputField
+                          <AixiaFormFullWidth>
+                            <AixiaFieldLabel label="Address Line 2" />
+                            <AixiaInputField
                               value={row.address_line_2}
                               disabled={isSaving}
                               onChange={(event) =>
@@ -2611,61 +2220,53 @@ export default function FinanceMasterDataCompanyDetailPage() {
                               }
                               placeholder="Address line 2"
                             />
-                          </div>
-                        </div>
-                      </RowCard>
+                          </AixiaFormFullWidth>
+                        </AixiaFormGrid>
+                      </AixiaFormRowCard>
                     ))}
                   </div>
-                </div>
+                </>
               ) : addresses.length === 0 ? (
-                <div className="rounded-[20px] border border-dashed border-white/10 bg-black/20 px-4 py-8 text-center text-sm text-slate-500">
-                  No primary addresses added yet.
-                </div>
+                <AixiaEmptyState
+                  icon={MapPin}
+                  title="No primary addresses added yet"
+                  description="Primary legal and billing addresses will appear here after they are added."
+                />
               ) : (
-                <div className="max-h-[720px] space-y-3 overflow-y-auto pr-1">
+                <div className="aixia-form-row-list">
                   {addresses.map((row, index) => (
-                    <div
+                    <AixiaFormRowCard
                       key={row.id}
-                      className="rounded-[24px] border border-white/10 bg-black/20 p-4"
+                      title={`Address ${index + 1}`}
+                      description={row.is_primary ? "Primary address row." : undefined}
                     >
-                      <div className="mb-3 flex items-center justify-between gap-3">
-                        <div className="text-sm font-semibold text-white">
-                          Address {index + 1}
-                        </div>
-                        {row.is_primary ? (
-                          <span className="rounded-full border border-cyan-400/20 bg-cyan-500/10 px-3 py-1 text-[11px] font-semibold uppercase tracking-[0.14em] text-cyan-100">
-                            Primary
-                          </span>
-                        ) : null}
-                      </div>
-
-                      <div className="grid gap-3 md:grid-cols-2">
-                        <DisplayBlock label="Country" value={row.country || "—"} />
-                        <DisplayBlock label="City" value={row.city || "—"} />
-                        <DisplayBlock
+                      <AixiaFormGrid columns="two">
+                        <AixiaDisplayBlock label="Country" value={row.country || "—"} />
+                        <AixiaDisplayBlock label="City" value={row.city || "—"} />
+                        <AixiaDisplayBlock
                           label="State / Province"
                           value={row.state_province || "—"}
                         />
-                        <DisplayBlock
+                        <AixiaDisplayBlock
                           label="ZIP / Postal Code"
                           value={row.postal_code || "—"}
                         />
-                        <DisplayBlock
+                        <AixiaDisplayBlock
                           label="Address Line 1"
                           value={row.address_line_1 || "—"}
                         />
-                        <DisplayBlock
+                        <AixiaDisplayBlock
                           label="Address Line 2"
                           value={row.address_line_2 || "—"}
                         />
-                      </div>
-                    </div>
+                      </AixiaFormGrid>
+                    </AixiaFormRowCard>
                   ))}
                 </div>
               )}
-            </DetailSection>
+            </AixiaDetailSection>
 
-                        <DetailSection
+            <AixiaDetailSection
               title="Shipping Addresses"
               description="Shipping destinations for this internal company."
               icon={Truck}
@@ -2677,32 +2278,31 @@ export default function FinanceMasterDataCompanyDetailPage() {
               isSaving={isSaving}
             >
               {editingSection === "shipping-addresses" ? (
-                <div className="space-y-4">
-                  <div className="flex justify-end">
-                    <AddRowButton
-                      label="Add Shipping"
+                <>
+                  <AixiaActionStack>
+                    <AixiaButton
+                      type="button"
+                      variant="secondary"
                       onClick={addShippingDraftRow}
                       disabled={isSaving}
-                    />
-                  </div>
+                    >
+                      <Plus className="h-4 w-4" />
+                      Add Shipping
+                    </AixiaButton>
+                  </AixiaActionStack>
 
-                  <div className="max-h-[720px] space-y-4 overflow-y-auto pr-1">
+                  <div className="aixia-form-row-list">
                     {shippingDraft.map((row, index) => (
-                      <RowCard
+                      <AixiaFormRowCard
                         key={row.id}
                         title={`Shipping ${index + 1}`}
-                        description={
-                          row.same_as_primary
-                            ? "Linked to a primary address."
-                            : "Standalone shipping address."
-                        }
+                        description={isSamePrimarySummary(row)}
                         onRemove={() => removeShippingDraftRow(row.id)}
                         removeDisabled={isSaving || shippingDraft.length === 1}
                       >
-                        <div className="space-y-4">
-                          <label className="flex items-start gap-3 rounded-2xl border border-white/10 bg-black/20 px-4 py-3 text-sm text-slate-300">
-                            <input
-                              type="checkbox"
+                        <AixiaFormGrid columns="two">
+                          <AixiaFormFullWidth>
+                            <AixiaCheckboxField
                               checked={row.same_as_primary}
                               disabled={isSaving}
                               onChange={(event) =>
@@ -2712,23 +2312,15 @@ export default function FinanceMasterDataCompanyDetailPage() {
                                   event.target.checked
                                 )
                               }
-                              className="mt-1"
+                              label="Same as primary address"
+                              description="Select one primary address and copy its values into this shipping row."
                             />
-                            <span>
-                              <span className="block font-semibold text-white">
-                                Same as primary address
-                              </span>
-                              <span className="mt-1 block text-xs leading-5 text-slate-500">
-                                Select one primary address and copy its values into this
-                                shipping row.
-                              </span>
-                            </span>
-                          </label>
+                          </AixiaFormFullWidth>
 
                           {row.same_as_primary ? (
-                            <div>
-                              <FieldLabel label="Source Primary Address" />
-                              <SelectField
+                            <AixiaFormFullWidth>
+                              <AixiaFieldLabel label="Source Primary Address" />
+                              <AixiaSelectField
                                 value={row.source_address_id}
                                 disabled={isSaving}
                                 onChange={(event) =>
@@ -2751,13 +2343,13 @@ export default function FinanceMasterDataCompanyDetailPage() {
                                     {option.label}
                                   </option>
                                 ))}
-                              </SelectField>
-                            </div>
+                              </AixiaSelectField>
+                            </AixiaFormFullWidth>
                           ) : (
-                            <div className="grid gap-4 md:grid-cols-2">
-                              <div>
-                                <FieldLabel label="Country" />
-                                <InputField
+                            <>
+                              <AixiaFormField>
+                                <AixiaFieldLabel label="Country" />
+                                <AixiaInputField
                                   value={row.country}
                                   disabled={isSaving}
                                   onChange={(event) =>
@@ -2769,11 +2361,11 @@ export default function FinanceMasterDataCompanyDetailPage() {
                                   }
                                   placeholder="Country"
                                 />
-                              </div>
+                              </AixiaFormField>
 
-                              <div>
-                                <FieldLabel label="City" />
-                                <InputField
+                              <AixiaFormField>
+                                <AixiaFieldLabel label="City" />
+                                <AixiaInputField
                                   value={row.city}
                                   disabled={isSaving}
                                   onChange={(event) =>
@@ -2785,11 +2377,11 @@ export default function FinanceMasterDataCompanyDetailPage() {
                                   }
                                   placeholder="City"
                                 />
-                              </div>
+                              </AixiaFormField>
 
-                              <div>
-                                <FieldLabel label="State / Province" />
-                                <InputField
+                              <AixiaFormField>
+                                <AixiaFieldLabel label="State / Province" />
+                                <AixiaInputField
                                   value={row.state_province}
                                   disabled={isSaving}
                                   onChange={(event) =>
@@ -2801,11 +2393,11 @@ export default function FinanceMasterDataCompanyDetailPage() {
                                   }
                                   placeholder="State / Province"
                                 />
-                              </div>
+                              </AixiaFormField>
 
-                              <div>
-                                <FieldLabel label="ZIP / Postal Code" />
-                                <InputField
+                              <AixiaFormField>
+                                <AixiaFieldLabel label="ZIP / Postal Code" />
+                                <AixiaInputField
                                   value={row.postal_code}
                                   disabled={isSaving}
                                   onChange={(event) =>
@@ -2817,11 +2409,11 @@ export default function FinanceMasterDataCompanyDetailPage() {
                                   }
                                   placeholder="Postal code"
                                 />
-                              </div>
+                              </AixiaFormField>
 
-                              <div className="md:col-span-2">
-                                <FieldLabel label="Address Line 1" />
-                                <InputField
+                              <AixiaFormFullWidth>
+                                <AixiaFieldLabel label="Address Line 1" />
+                                <AixiaInputField
                                   value={row.address_line_1}
                                   disabled={isSaving}
                                   onChange={(event) =>
@@ -2833,11 +2425,11 @@ export default function FinanceMasterDataCompanyDetailPage() {
                                   }
                                   placeholder="Address line 1"
                                 />
-                              </div>
+                              </AixiaFormFullWidth>
 
-                              <div className="md:col-span-2">
-                                <FieldLabel label="Address Line 2" />
-                                <InputField
+                              <AixiaFormFullWidth>
+                                <AixiaFieldLabel label="Address Line 2" />
+                                <AixiaInputField
                                   value={row.address_line_2}
                                   disabled={isSaving}
                                   onChange={(event) =>
@@ -2849,69 +2441,68 @@ export default function FinanceMasterDataCompanyDetailPage() {
                                   }
                                   placeholder="Address line 2"
                                 />
-                              </div>
-                            </div>
+                              </AixiaFormFullWidth>
+                            </>
                           )}
-                        </div>
-                      </RowCard>
+                        </AixiaFormGrid>
+                      </AixiaFormRowCard>
                     ))}
                   </div>
-                </div>
+                </>
               ) : shippingAddresses.length === 0 ? (
-                <div className="rounded-[20px] border border-dashed border-white/10 bg-black/20 px-4 py-8 text-center text-sm text-slate-500">
-                  No shipping addresses added yet.
-                </div>
+                <AixiaEmptyState
+                  icon={Truck}
+                  title="No shipping addresses added yet"
+                  description="Shipping destination records will appear here after they are added."
+                />
               ) : (
-                <div className="max-h-[720px] space-y-3 overflow-y-auto pr-1">
+                <div className="aixia-form-row-list">
                   {shippingAddresses.map((row, index) => (
-                    <div
+                    <AixiaFormRowCard
                       key={row.id}
-                      className="rounded-[24px] border border-white/10 bg-black/20 p-4"
+                      title={`Shipping ${index + 1}`}
+                      description={
+                        row.is_same_as_primary
+                          ? "Same as primary address."
+                          : "Standalone shipping address."
+                      }
                     >
-                      <div className="mb-3 flex items-center justify-between gap-3">
-                        <div className="text-sm font-semibold text-white">
-                          Shipping {index + 1}
-                        </div>
-                        {row.is_same_as_primary ? (
-                          <span className="rounded-full border border-emerald-400/20 bg-emerald-500/10 px-3 py-1 text-[11px] font-semibold uppercase tracking-[0.14em] text-emerald-100">
-                            Same as primary
-                          </span>
-                        ) : null}
-                      </div>
-
                       {row.is_same_as_primary ? (
-                        <div className="rounded-[20px] border border-white/10 bg-white/[0.035] px-4 py-3 text-sm text-slate-300">
-                          Same as primary address.
-                        </div>
+                        <AixiaAlert tone="info">
+                          <AixiaAlertText
+                            title="Same as primary address"
+                            description="This shipping row is linked to the primary address."
+                          />
+                        </AixiaAlert>
                       ) : (
-                        <div className="grid gap-3 md:grid-cols-2">
-                          <DisplayBlock label="Country" value={row.country || "—"} />
-                          <DisplayBlock label="City" value={row.city || "—"} />
-                          <DisplayBlock
+                        <AixiaFormGrid columns="two">
+                          <AixiaDisplayBlock label="Country" value={row.country || "—"} />
+                          <AixiaDisplayBlock label="City" value={row.city || "—"} />
+                          <AixiaDisplayBlock
                             label="State / Province"
                             value={row.state_province || "—"}
                           />
-                          <DisplayBlock
+                          <AixiaDisplayBlock
                             label="ZIP / Postal Code"
                             value={row.postal_code || "—"}
                           />
-                          <DisplayBlock
+                          <AixiaDisplayBlock
                             label="Address Line 1"
                             value={row.address_line_1 || "—"}
                           />
-                          <DisplayBlock
+                          <AixiaDisplayBlock
                             label="Address Line 2"
                             value={row.address_line_2 || "—"}
                           />
-                        </div>
+                        </AixiaFormGrid>
                       )}
-                    </div>
+                    </AixiaFormRowCard>
                   ))}
                 </div>
               )}
-            </DetailSection>
+            </AixiaDetailSection>
 
-            <DetailSection
+            <AixiaDetailSection
               title="Notes"
               description="Internal finance notes for this company."
               icon={FileText}
@@ -2923,187 +2514,176 @@ export default function FinanceMasterDataCompanyDetailPage() {
               isSaving={isSaving}
             >
               {editingSection === "notes" ? (
-                <div>
-                  <FieldLabel label="Notes" />
-                  <TextareaField
+                <AixiaFormField>
+                  <AixiaFieldLabel label="Notes" />
+                  <AixiaTextareaField
                     value={notesDraft}
                     disabled={isSaving}
                     onChange={(event) => setNotesDraft(event.target.value)}
                     placeholder="Internal notes..."
                   />
-                </div>
+                </AixiaFormField>
               ) : (
-                <div className="rounded-[20px] border border-white/10 bg-black/20 px-4 py-4 text-sm leading-7 text-slate-300">
-                  {company.notes || "No notes added yet."}
-                </div>
+                <AixiaDisplayBlock
+                  label="Notes"
+                  value={company.notes || "No notes added yet."}
+                />
               )}
-            </DetailSection>
+            </AixiaDetailSection>
 
-            <DetailSection
+            <AixiaSection
               title="Bank Accounts"
               description="Company bank accounts linked to this internal entity."
               icon={Banknote}
-              isEditing={false}
-              canEdit={false}
               actions={
                 permissionState.canUpdate ? (
-                  <button
+                  <AixiaButton
                     type="button"
+                    variant="secondary"
                     onClick={() =>
                       navigate(`/finance/master-data/bank-accounts/new?company_id=${id}`)
                     }
-                    className="inline-flex h-10 items-center justify-center gap-2 rounded-2xl border border-cyan-400/20 bg-cyan-500/10 px-4 text-xs font-semibold uppercase tracking-[0.14em] text-cyan-100 transition hover:bg-cyan-500/15"
                   >
-                    <Plus className="h-3.5 w-3.5" />
+                    <Plus className="h-4 w-4" />
                     Add Bank Account
-                  </button>
+                  </AixiaButton>
                 ) : null
               }
             >
               {bankAccounts.length === 0 ? (
-                <div className="rounded-[20px] border border-dashed border-white/10 bg-black/20 px-4 py-8 text-center text-sm text-slate-500">
-                  No bank accounts added yet.
-                </div>
+                <AixiaEmptyState
+                  icon={Banknote}
+                  title="No bank accounts added yet"
+                  description="Company bank accounts will appear here after they are created."
+                />
               ) : (
-                <div className="max-h-[720px] space-y-3 overflow-y-auto pr-1">
+                <div className="aixia-form-row-list">
                   {bankAccounts.map((account, index) => {
                     const isBankActionRunning = activeBankActionId === account.id;
 
                     return (
-                      <div
+                      <AixiaFormRowCard
                         key={account.id}
-                        className={`rounded-[24px] border p-4 ${
-                          account.is_default
-                            ? "border-emerald-400/20 bg-emerald-500/10"
-                            : "border-white/10 bg-black/20"
-                        }`}
+                        title={`Account ${index + 1}`}
+                        description={account.bank_id || "No bank ID"}
                       >
-                        <div className="mb-4 flex flex-col gap-3 lg:flex-row lg:items-start lg:justify-between">
-                          <div className="min-w-0">
-                            <div className="flex flex-wrap items-center gap-2">
-                              <div className="text-sm font-semibold text-white">
-                                Account {index + 1}
-                              </div>
-                              <DefaultBadge isDefault={account.is_default} />
-                              <StatusBadge status={account.status} />
-                            </div>
-                            <div className="mt-1 text-xs leading-5 text-slate-500">
-                              {account.bank_id || "No bank ID"}
-                            </div>
-                          </div>
+                        <AixiaFormGrid columns="three">
+                          <AixiaDisplayBlock
+                            label="Default Status"
+                            value={<AixiaDefaultBadge isDefault={Boolean(account.is_default)} />}
+                          />
 
-                          <div className="flex shrink-0 flex-wrap gap-2">
-                            {!account.is_default && permissionState.canUpdate ? (
-                              <button
-                                type="button"
-                                onClick={() =>
-                                  void handleSetDefaultBankAccount(account.id)
-                                }
-                                disabled={Boolean(activeBankActionId)}
-                                className="inline-flex h-10 items-center justify-center gap-2 rounded-2xl border border-emerald-400/20 bg-emerald-500/10 px-4 text-xs font-semibold uppercase tracking-[0.14em] text-emerald-100 transition hover:bg-emerald-500/15 disabled:cursor-not-allowed disabled:opacity-60"
-                              >
-                                {isBankActionRunning ? (
-                                  <Loader2 className="h-3.5 w-3.5 animate-spin" />
-                                ) : (
-                                  <ShieldCheck className="h-3.5 w-3.5" />
-                                )}
-                                Set Default
-                              </button>
-                            ) : null}
+                          <AixiaDisplayBlock
+                            label="Lifecycle Status"
+                            value={<AixiaStatusBadge value={account.status || "unknown"} />}
+                          />
 
-                            <button
-                              type="button"
-                              onClick={() =>
-                                navigate(`/finance/master-data/bank-accounts/${account.id}`)
-                              }
-                              className="inline-flex h-10 items-center justify-center gap-2 rounded-2xl border border-cyan-400/20 bg-cyan-500/10 px-4 text-xs font-semibold uppercase tracking-[0.14em] text-cyan-100 transition hover:bg-cyan-500/15"
-                            >
-                              Open
-                              <ArrowRight className="h-3.5 w-3.5" />
-                            </button>
-                          </div>
-                        </div>
-
-                        <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-3">
-                          <DisplayBlock
+                          <AixiaDisplayBlock
                             label="Bank Name"
                             value={account.bank_name || "—"}
                           />
-                          <DisplayBlock
+
+                          <AixiaDisplayBlock
                             label="Beneficiary"
                             value={account.beneficiary_name || "—"}
                           />
-                          <DisplayBlock
+
+                          <AixiaDisplayBlock
                             label={getBankIdentifierLabel(account)}
                             value={getBankIdentifierValue(account)}
                           />
-                          <DisplayBlock
+
+                          <AixiaDisplayBlock
                             label="Currency"
                             value={company.currency_code || account.currency_code || "—"}
                             detail="Pulled from the company currency. Bank account currency follows the company."
                           />
-                          <DisplayBlock
+
+                          <AixiaDisplayBlock
                             label="Location"
                             value={
                               [account.city, account.country].filter(Boolean).join(", ") ||
                               "—"
                             }
                           />
-                          <DisplayBlock
+
+                          <AixiaDisplayBlock
                             label="Updated"
                             value={formatDateTimeLabel(
                               account.updated_at || account.created_at
                             )}
                           />
-                        </div>
-                      </div>
+                        </AixiaFormGrid>
+
+                        <AixiaActionStack>
+                          {!account.is_default && permissionState.canUpdate ? (
+                            <AixiaButton
+                              type="button"
+                              variant="secondary"
+                              onClick={() =>
+                                void handleSetDefaultBankAccount(account.id)
+                              }
+                              disabled={Boolean(activeBankActionId)}
+                            >
+                              {isBankActionRunning ? (
+                                <Loader2 className="h-4 w-4 animate-spin" />
+                              ) : (
+                                <ShieldCheck className="h-4 w-4" />
+                              )}
+                              Set Default
+                            </AixiaButton>
+                          ) : null}
+
+                          <AixiaButton
+                            type="button"
+                            variant="primary"
+                            onClick={() =>
+                              navigate(`/finance/master-data/bank-accounts/${account.id}`)
+                            }
+                          >
+                            Open
+                            <ArrowRight className="h-4 w-4" />
+                          </AixiaButton>
+                        </AixiaActionStack>
+                      </AixiaFormRowCard>
                     );
                   })}
                 </div>
               )}
-            </DetailSection>
-          </div>
-
-          <aside className="grid gap-6">
-            <section className="overflow-hidden rounded-[30px] border border-white/10 bg-white/[0.045] backdrop-blur-xl">
-              <div className="border-b border-white/10 px-5 py-4">
-                <div className="text-sm font-semibold uppercase tracking-[0.18em] text-slate-400">
-                  Record Summary
-                </div>
-                <p className="mt-1 text-xs leading-5 text-slate-500">
-                  Key company details and linked finance records.
-                </p>
-              </div>
-
-              <div className="grid gap-4 p-5">
-                {summaryCards.map((item) => (
-                  <SummaryCard key={item.label} item={item} />
+            </AixiaSection>
+          </>
+        }
+        side={
+          <>
+            <AixiaSection
+              title="Record Summary"
+              description="Key company details and linked finance records."
+              icon={Sparkles}
+            >
+              <AixiaReviewGrid>
+                {summaryItems.map((item) => (
+                  <AixiaReviewBlock
+                    key={item.label}
+                    label={item.label}
+                    value={item.value}
+                    description={item.description}
+                  />
                 ))}
-              </div>
-            </section>
+              </AixiaReviewGrid>
+            </AixiaSection>
 
-                        <section className="overflow-hidden rounded-[30px] border border-white/10 bg-white/[0.045] backdrop-blur-xl">
-              <div className="border-b border-white/10 px-5 py-4">
-                <div className="text-sm font-semibold uppercase tracking-[0.18em] text-slate-400">
-                  Lifecycle Actions
-                </div>
-                <p className="mt-1 text-xs leading-5 text-slate-500">
-                  Archive or restore this company. Permanent delete is only available
-                  from the registry archive modal.
-                </p>
-              </div>
-
-              <div className="grid gap-3 p-5">
+            <AixiaSection
+              title="Lifecycle Actions"
+              description="Archive or restore this company. Permanent delete is only available from the registry archive modal."
+              icon={Archive}
+            >
+              <AixiaActionStack>
                 {permissionState.canDeleteArchive ? (
-                  <button
+                  <AixiaButton
                     type="button"
+                    variant={company.status === "archived" ? "secondary" : "danger"}
                     onClick={() => void handleArchiveToggle()}
                     disabled={isLifecycleRunning}
-                    className={`inline-flex h-12 items-center justify-center gap-2 rounded-2xl border px-5 text-sm font-semibold transition disabled:cursor-not-allowed disabled:opacity-60 ${
-                      company.status === "archived"
-                        ? "border-emerald-400/20 bg-emerald-500/10 text-emerald-100 hover:bg-emerald-500/15"
-                        : "border-rose-400/20 bg-rose-500/10 text-rose-100 hover:bg-rose-500/15"
-                    }`}
                   >
                     {isLifecycleRunning ? (
                       <Loader2 className="h-4 w-4 animate-spin" />
@@ -3115,77 +2695,73 @@ export default function FinanceMasterDataCompanyDetailPage() {
                     {company.status === "archived"
                       ? "Restore Company"
                       : "Archive Company"}
-                  </button>
+                  </AixiaButton>
                 ) : (
-                  <div className="rounded-[20px] border border-amber-400/20 bg-amber-500/10 p-4 text-sm leading-6 text-amber-100">
-                    Delete/Archive access is not enabled for this user.
-                  </div>
+                  <AixiaAlert tone="info">
+                    <AixiaAlertText
+                      title="Lifecycle access locked"
+                      description="Delete/Archive access is not enabled for this user."
+                    />
+                  </AixiaAlert>
                 )}
 
-                <button
+                <AixiaButton
                   type="button"
+                  variant="secondary"
                   onClick={() => navigate("/finance/master-data/companies")}
-                  className="inline-flex h-12 items-center justify-center gap-2 rounded-2xl border border-white/10 bg-white/[0.05] px-5 text-sm font-semibold text-slate-300 transition hover:bg-white/[0.08]"
                 >
                   <ArrowRight className="h-4 w-4 rotate-180" />
                   Companies
-                </button>
-              </div>
-            </section>
+                </AixiaButton>
+              </AixiaActionStack>
+            </AixiaSection>
 
-            <section className="overflow-hidden rounded-[30px] border border-white/10 bg-white/[0.045] backdrop-blur-xl">
-              <div className="border-b border-white/10 px-5 py-4">
-                <div className="text-sm font-semibold uppercase tracking-[0.18em] text-slate-400">
-                  System Fields
-                </div>
-                <p className="mt-1 text-xs leading-5 text-slate-500">
-                  Read-only audit and system metadata.
-                </p>
-              </div>
-
-              <div className="grid gap-3 p-5">
-                <DisplayBlock
+            <AixiaSection
+              title="System Fields"
+              description="Read-only audit and system metadata."
+              icon={Landmark}
+            >
+              <AixiaReviewGrid>
+                <AixiaReviewBlock
                   label="Company Code"
                   value={company.company_code || company.code || "—"}
                 />
-                <DisplayBlock label="Record ID" value={company.id} />
-                <DisplayBlock
+                <AixiaReviewBlock label="Record ID" value={company.id} />
+                <AixiaReviewBlock
                   label="Created"
                   value={formatDateTimeLabel(company.created_at)}
                 />
-                <DisplayBlock
+                <AixiaReviewBlock
                   label="Updated"
                   value={formatDateTimeLabel(company.updated_at)}
                 />
-                <DisplayBlock
+                <AixiaReviewBlock
                   label="Primary Address"
                   value={getPrimaryAddressSummary(addresses)}
                 />
-                <DisplayBlock
+                <AixiaReviewBlock
                   label="Shipping"
                   value={getShippingSummary(shippingAddresses)}
                 />
-                <DisplayBlock
+                <AixiaReviewBlock
                   label="Default Bank"
                   value={
                     bankAccounts.find((account) => account.is_default)?.bank_name ||
                     "—"
                   }
                 />
-              </div>
-            </section>
+              </AixiaReviewGrid>
+            </AixiaSection>
 
-            <section className="rounded-[24px] border border-cyan-400/20 bg-cyan-500/10 p-4 text-sm leading-6 text-cyan-100">
-              <div className="font-semibold text-white">Locked detail rule</div>
-              <div className="mt-1">
-                This page requires Finance Read access. Section edits require Update
-                access. Archive and Restore require Delete/Archive access. Bank account
-                default updates are silent and must not jump the page or reset the UI.
-              </div>
-            </section>
-          </aside>
-        </section>
-      </div>
-    </div>
+            <AixiaAlert tone="info">
+              <AixiaAlertText
+                title="Locked detail rule"
+                description="This page requires Finance Read access. Section edits require Update access. Archive and Restore require Delete/Archive access. Bank account default updates and background refresh must not jump the page or reset the UI."
+              />
+            </AixiaAlert>
+          </>
+        }
+      />
+    </AixiaPage>
   );
 }

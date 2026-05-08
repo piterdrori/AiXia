@@ -27,8 +27,11 @@ import {
   AixiaMetricCard,
   AixiaPage,
   AixiaSection,
+  AixiaSmartGrid,
   AixiaSmartLayout,
+  AixiaStatusCard,
 } from "@/components/aixia";
+
 import { supabase } from "@/lib/supabase";
 import {
   getEffectivePermissions,
@@ -384,48 +387,6 @@ function AccessSummaryPanel({
           </div>
         </div>
       </div>
-    </div>
-  );
-}
-
-function HeaderStatusCard({
-  label,
-  value,
-  detail,
-  icon: Icon,
-  tone,
-}: {
-  label: string;
-  value: string;
-  detail: string;
-  icon: LucideIcon;
-  tone: "indigo" | "emerald" | "gold";
-}) {
-  const toneClass =
-    tone === "emerald"
-      ? "border-emerald-400/30 bg-emerald-500/15 text-emerald-200"
-      : tone === "gold"
-        ? "border-[#FBBF24]/30 bg-[#FBBF24]/15 text-[#FBBF24]"
-        : "border-[#6366F1]/30 bg-[#6366F1]/15 text-indigo-200";
-
-  return (
-    <div className="min-h-[148px] rounded-[24px] border border-white/10 bg-black/20 p-4">
-      <div className="flex items-start justify-between gap-3">
-        <div className="min-w-0">
-          <div className="aixia-summary-label">{label}</div>
-          <div className="mt-2 text-xl font-semibold leading-tight tracking-[-0.035em] text-white">
-            {value}
-          </div>
-        </div>
-
-        <div
-          className={`flex h-10 w-10 shrink-0 items-center justify-center rounded-2xl border ${toneClass}`}
-        >
-          <Icon className="h-4 w-4" />
-        </div>
-      </div>
-
-      <div className="mt-3 text-xs leading-5 text-white/40">{detail}</div>
     </div>
   );
 }
@@ -1194,32 +1155,28 @@ export default function FinanceMasterDataPage() {
             label: backgroundRefreshing ? "Updating silently" : "Live backend",
             tone: backgroundRefreshing ? "gold" : "emerald",
           },
+          { label: "Permission filtered", tone: "emerald" },
+          { label: "Silent refresh", tone: "neutral" },
         ]}
         gradientTitle="Master Data"
         title="Studio"
         subtitle="Finance Reference Layer"
         description="Permission-filtered finance reference layer for clients, vendors, companies, banking, commercial terms, tax codes, categories, units, items, projects, employees, and currency controls."
         rightContent={
-          <div className="aixia-adaptive-grid" data-card-size="small">
+          <AixiaSmartGrid mode="hero-stats">
             {headerStatusCards.map((card) => (
-              <HeaderStatusCard
+              <AixiaStatusCard
                 key={card.label}
                 label={card.label}
                 value={card.value}
-                detail={card.detail}
+                description={card.detail}
                 icon={card.icon}
                 tone={card.tone}
               />
             ))}
-          </div>
+          </AixiaSmartGrid>
         }
-      >
-        <div className="aixia-action-system" data-align="start" data-density="compact">
-          <AixiaBadge tone="emerald">Permission filtered</AixiaBadge>
-          <AixiaBadge tone="indigo">Supabase realtime</AixiaBadge>
-          <AixiaBadge tone="gold">60-second fallback</AixiaBadge>
-        </div>
-      </AixiaHero>
+      />
 
       <section className="aixia-adaptive-grid" data-card-size="small">
         {overviewCards.map((metric) => (

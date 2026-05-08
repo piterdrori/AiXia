@@ -570,6 +570,18 @@
   align-self: stretch;
 }
 
+.aixia-smart-main-rebalanced-side {
+  display: flex;
+  min-width: 0;
+  flex-direction: column;
+  gap: clamp(1rem, 1.5vw, 1.5rem);
+}
+
+.aixia-smart-main-rebalanced-side > * {
+  width: 100%;
+  min-width: 0;
+}
+
 .aixia-smart-fill {
   flex: 1 1 auto;
   min-height: 0;

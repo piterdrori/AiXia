@@ -14,6 +14,7 @@ import {
 type AixiaSmartLayoutSidebar = "normal" | "wide" | "narrow";
 type AixiaSmartLayoutBalance = "normal" | "main" | "equal";
 type AixiaSmartLayoutBottomSpan = "auto" | "never" | "always";
+type AixiaSmartLayoutSideRebalance = "off" | "last";
 
 type AixiaSmartLayoutProps = HTMLAttributes<HTMLDivElement> & {
   main: ReactNode;
@@ -22,6 +23,7 @@ type AixiaSmartLayoutProps = HTMLAttributes<HTMLDivElement> & {
   balance?: AixiaSmartLayoutBalance;
   matchColumns?: boolean;
   bottomSpan?: AixiaSmartLayoutBottomSpan;
+  sideRebalance?: AixiaSmartLayoutSideRebalance;
 };
 
 function flattenLayoutChildren(children: ReactNode): ReactNode[] {
@@ -78,6 +80,17 @@ function shouldUseBottomSpan(
   return mainChildren.length > 1 && sideChildren.length > 0;
 }
 
+function shouldRebalanceSide(
+  sideChildren: ReactNode[],
+  sideRebalance: AixiaSmartLayoutSideRebalance
+) {
+  if (sideRebalance === "off") {
+    return false;
+  }
+
+  return sideChildren.length > 1;
+}
+
 export function AixiaSmartLayout({
   main,
   side,
@@ -85,6 +98,7 @@ export function AixiaSmartLayout({
   balance = "normal",
   matchColumns = true,
   bottomSpan = "auto",
+  sideRebalance = "off",
   className = "",
   ...props
 }: AixiaSmartLayoutProps) {
@@ -107,12 +121,25 @@ export function AixiaSmartLayout({
     bottomSpan
   );
 
+  const useSideRebalance = shouldRebalanceSide(
+    normalizedSideChildren,
+    sideRebalance
+  );
+
   const mainColumnChildren = useBottomSpan
     ? normalizedMainChildren.slice(0, -1)
     : normalizedMainChildren;
 
   const bottomSpanChildren = useBottomSpan
     ? normalizedMainChildren.slice(-1)
+    : [];
+
+  const sideColumnChildren = useSideRebalance
+    ? normalizedSideChildren.slice(0, -1)
+    : normalizedSideChildren;
+
+  const rebalancedSideChildren = useSideRebalance
+    ? normalizedSideChildren.slice(-1)
     : [];
 
   useEffect(() => {
@@ -199,21 +226,31 @@ export function AixiaSmartLayout({
       data-balance={balance === "normal" ? undefined : balance}
       data-match-columns={matchColumns ? "true" : "false"}
       data-bottom-span-mode={bottomSpan}
+      data-side-rebalance={sideRebalance}
       data-main-count={getChildCount(main)}
       data-side-count={getChildCount(side)}
       data-main-top-count={mainColumnChildren.length}
+      data-side-top-count={sideColumnChildren.length}
+      data-side-rebalanced-count={rebalancedSideChildren.length}
       data-bottom-count={bottomSpanChildren.length}
       data-has-bottom-span={useBottomSpan ? "true" : "false"}
+      data-has-side-rebalance={useSideRebalance ? "true" : "false"}
       style={style}
       {...props}
     >
       <div ref={mainRef} className="aixia-smart-main">
         {mainColumnChildren}
+
+        {rebalancedSideChildren.length > 0 ? (
+          <div className="aixia-smart-main-rebalanced-side">
+            {rebalancedSideChildren}
+          </div>
+        ) : null}
       </div>
 
-      {side ? (
+      {sideColumnChildren.length > 0 ? (
         <div ref={sideRef} className="aixia-smart-side">
-          {normalizedSideChildren}
+          {sideColumnChildren}
         </div>
       ) : null}
 

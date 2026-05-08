@@ -925,7 +925,8 @@ export default function FinanceMasterDataClientCreatePage() {
             sidebar="normal"
             balance="main"
             bottomSpan="never"
-            sideRebalance="last"
+            sideRebalance="last-to-bottom"
+            mainTopCount={3}
             main={
               <>
                 <AixiaSection

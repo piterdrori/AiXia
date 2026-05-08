@@ -12,7 +12,6 @@ import {
   LockKeyhole,
   Pencil,
   RotateCcw,
-  Save,
   ShieldCheck,
   Sparkles,
   WalletCards,
@@ -26,6 +25,7 @@ import {
   AixiaButton,
   AixiaCheckboxField,
   AixiaDefaultBadge,
+  AixiaDetailSection,
   AixiaDisplayBlock,
   AixiaFieldLabel,
   AixiaFormField,
@@ -44,6 +44,7 @@ import {
   AixiaStatusBadge,
   AixiaTextareaField,
 } from "@/components/aixia";
+
 import {
   archiveBankAccount,
   getBankAccountById,

@@ -2,7 +2,6 @@ import { useCallback, useEffect, useMemo, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import type { LucideIcon } from "lucide-react";
 import {
-  AlertTriangle,
   ArrowRight,
   Archive,
   CheckCircle2,
@@ -18,12 +17,15 @@ import {
 } from "lucide-react";
 
 import {
+  AixiaAccessRule,
+  AixiaAlert,
   AixiaButton,
   AixiaCurrencyBadge,
   AixiaDefaultBadge,
+  AixiaEmptyState,
   AixiaHero,
-  AixiaInfoBlock,
   AixiaMetricCard,
+  AixiaMetricGrid,
   AixiaModal,
   AixiaPage,
   AixiaSearchField,
@@ -224,83 +226,6 @@ function getMetricTone(tone: MetricCard["tone"]) {
   if (tone === "amber") return "gold";
 
   return tone;
-}
-
-function MetricCardBlock({ metric }: { metric: MetricCard }) {
-  return (
-    <AixiaMetricCard
-      label={metric.title}
-      value={metric.value}
-      description={metric.subtitle}
-      icon={metric.icon}
-      tone={getMetricTone(metric.tone)}
-    />
-  );
-}
-
-function SortButton({
-  label,
-  sortKey,
-  activeSortKey,
-  direction,
-  onClick,
-}: {
-  label: string;
-  sortKey: SortKey;
-  activeSortKey: SortKey;
-  direction: SortDirection;
-  onClick: (sortKey: SortKey) => void;
-}) {
-  return (
-    <AixiaSortableHeader
-      label={label}
-      sortKey={sortKey}
-      activeSortKey={activeSortKey}
-      sortDirection={direction}
-      onSort={onClick}
-    />
-  );
-}
-
-function TextInput({
-  value,
-  onChange,
-  placeholder,
-}: {
-  value: string;
-  onChange: (value: string) => void;
-  placeholder: string;
-}) {
-  return (
-    <AixiaSearchField
-      value={value}
-      onChange={(event) => onChange(event.target.value)}
-      placeholder={placeholder}
-      width="full"
-    />
-  );
-}
-
-function EmptyState({
-  icon: Icon,
-  title,
-  description,
-}: {
-  icon: LucideIcon;
-  title: string;
-  description: string;
-}) {
-  return (
-    <div className="rounded-[28px] border border-dashed border-white/10 bg-black/20 px-6 py-12 text-center">
-      <div className="mx-auto flex h-14 w-14 items-center justify-center rounded-2xl border border-white/10 bg-white/[0.04] text-slate-500">
-        <Icon className="h-6 w-6" />
-      </div>
-      <div className="mt-4 text-sm font-semibold text-white">{title}</div>
-      <p className="mx-auto mt-2 max-w-xl text-sm leading-6 text-slate-500">
-        {description}
-      </p>
-    </div>
-  );
 }
 
 export default function FinanceMasterDataBankAccountsPage() {
@@ -834,29 +759,22 @@ export default function FinanceMasterDataBankAccountsPage() {
         }
       />
 
-      {pageError ? (
-        <div className="rounded-[24px] border border-rose-400/20 bg-rose-500/10 p-4 text-sm leading-6 text-rose-100">
-          <div className="flex items-start gap-3">
-            <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0" />
-            <div>{pageError}</div>
-          </div>
-        </div>
-      ) : null}
+      {pageError ? <AixiaAlert tone="error">{pageError}</AixiaAlert> : null}
 
-      {pageMessage ? (
-        <div className="rounded-[24px] border border-emerald-400/20 bg-emerald-500/10 p-4 text-sm leading-6 text-emerald-100">
-          <div className="flex items-start gap-3">
-            <CheckCircle2 className="mt-0.5 h-4 w-4 shrink-0" />
-            <div>{pageMessage}</div>
-          </div>
-        </div>
-      ) : null}
+      {pageMessage ? <AixiaAlert tone="success">{pageMessage}</AixiaAlert> : null}
 
-      <section className="aixia-smart-grid" data-mode="metrics">
+      <AixiaMetricGrid>
         {metricCards.map((metric) => (
-          <MetricCardBlock key={metric.key} metric={metric} />
+          <AixiaMetricCard
+            key={metric.key}
+            label={metric.title}
+            value={metric.value}
+            description={metric.subtitle}
+            icon={metric.icon}
+            tone={getMetricTone(metric.tone)}
+          />
         ))}
-      </section>
+      </AixiaMetricGrid>
 
       {!permissionState.canRead && !isPageLoading ? (
         <AixiaSection
@@ -864,7 +782,7 @@ export default function FinanceMasterDataBankAccountsPage() {
           description="The logged-in user does not have Bank Account read access."
           icon={LockKeyhole}
         >
-          <EmptyState
+          <AixiaEmptyState
             icon={LockKeyhole}
             title="No bank account access is enabled"
             description="Ask an Admin to assign a Finance role template or user-specific exception with Bank Account read access."
@@ -878,10 +796,11 @@ export default function FinanceMasterDataBankAccountsPage() {
           actions={
             <div className="aixia-control-cluster">
               <div className="aixia-control-field-wide">
-                <TextInput
+                <AixiaSearchField
                   value={search}
-                  onChange={setSearch}
+                  onChange={(event) => setSearch(event.target.value)}
                   placeholder="Search by company, bank, identifier, currency, location, or status"
+                  width="full"
                 />
               </div>
 
@@ -915,17 +834,13 @@ export default function FinanceMasterDataBankAccountsPage() {
           }
         >
           {isPageLoading ? (
-            <div className="rounded-[28px] border border-dashed border-white/10 bg-black/20 px-6 py-12 text-center">
-              <Loader2 className="mx-auto h-8 w-8 animate-spin text-cyan-200" />
-              <div className="mt-4 text-sm font-semibold text-white">
-                Loading bank accounts
-              </div>
-              <p className="mt-2 text-sm leading-6 text-slate-500">
-                Bank account records and permission state are being checked.
-              </p>
-            </div>
+            <AixiaEmptyState
+              icon={Loader2}
+              title="Loading bank accounts"
+              description="Bank account records and permission state are being checked."
+            />
           ) : filteredRows.length === 0 ? (
-            <EmptyState
+            <AixiaEmptyState
               icon={CreditCard}
               title="No visible bank accounts found"
               description="Create a bank account or adjust the search filter to find a company banking record."
@@ -934,72 +849,73 @@ export default function FinanceMasterDataBankAccountsPage() {
             <AixiaTableShell>
                   <thead className="aixia-table-head">
                     <tr>
-                      <th className="px-5 py-4 text-left text-[11px] font-semibold uppercase tracking-[0.18em]">
-                        <SortButton
+                      <th>
+                        <AixiaSortableHeader
                           label="Company"
                           sortKey="company"
                           activeSortKey={sortKey}
-                          direction={sortDirection}
-                          onClick={toggleSort}
+                          sortDirection={sortDirection}
+                          onSort={toggleSort}
                         />
                       </th>
-                      <th className="px-5 py-4 text-left text-[11px] font-semibold uppercase tracking-[0.18em]">
-                        <SortButton
+                      <th>
+                        <AixiaSortableHeader
                           label="Bank"
                           sortKey="bank"
                           activeSortKey={sortKey}
-                          direction={sortDirection}
-                          onClick={toggleSort}
+                          sortDirection={sortDirection}
+                          onSort={toggleSort}
                         />
                       </th>
-                      <th className="px-5 py-4 text-left text-[11px] font-semibold uppercase tracking-[0.18em]">
-                        <SortButton
+                      <th>
+                        <AixiaSortableHeader
                           label="Identifier"
                           sortKey="identifier"
                           activeSortKey={sortKey}
-                          direction={sortDirection}
-                          onClick={toggleSort}
+                          sortDirection={sortDirection}
+                          onSort={toggleSort}
                         />
                       </th>
-                      <th className="px-5 py-4 text-left text-[11px] font-semibold uppercase tracking-[0.18em]">
-                        <SortButton
+                      <th>
+                        <AixiaSortableHeader
                           label="Currency"
                           sortKey="currency"
                           activeSortKey={sortKey}
-                          direction={sortDirection}
-                          onClick={toggleSort}
+                          sortDirection={sortDirection}
+                          onSort={toggleSort}
+                          align="center"
                         />
                       </th>
-                      <th className="px-5 py-4 text-left text-[11px] font-semibold uppercase tracking-[0.18em]">
-                        <SortButton
+                      <th>
+                        <AixiaSortableHeader
                           label="Default"
                           sortKey="default"
                           activeSortKey={sortKey}
-                          direction={sortDirection}
-                          onClick={toggleSort}
+                          sortDirection={sortDirection}
+                          onSort={toggleSort}
+                          align="center"
                         />
                       </th>
-                      <th className="px-5 py-4 text-left text-[11px] font-semibold uppercase tracking-[0.18em]">
-                        <SortButton
+                      <th>
+                        <AixiaSortableHeader
                           label="Status"
                           sortKey="status"
                           activeSortKey={sortKey}
-                          direction={sortDirection}
-                          onClick={toggleSort}
+                          sortDirection={sortDirection}
+                          onSort={toggleSort}
+                          align="center"
                         />
                       </th>
-                      <th className="px-5 py-4 text-left text-[11px] font-semibold uppercase tracking-[0.18em]">
-                        <SortButton
+                      <th>
+                        <AixiaSortableHeader
                           label="Updated"
                           sortKey="updated"
                           activeSortKey={sortKey}
-                          direction={sortDirection}
-                          onClick={toggleSort}
+                          sortDirection={sortDirection}
+                          onSort={toggleSort}
                         />
                       </th>
-                      <th className="px-5 py-4 text-right text-[11px] font-semibold uppercase tracking-[0.18em] text-slate-500">
-                        Actions
-                      </th>
+                      <th>Actions</th>
                     </tr>
                   </thead>
 
@@ -1065,7 +981,6 @@ export default function FinanceMasterDataBankAccountsPage() {
                                 onClick={() =>
                                   navigate(`/finance/master-data/bank-accounts/${row.id}`)
                                 }
-                                className="h-9 min-h-9 px-4 text-xs uppercase tracking-[0.14em]"
                               >
                                 Open
                                 <ArrowRight className="h-3.5 w-3.5" />
@@ -1077,7 +992,6 @@ export default function FinanceMasterDataBankAccountsPage() {
                                   variant="danger"
                                   onClick={() => void handleArchive(row.id)}
                                   disabled={isActionRunning}
-                                  className="h-9 min-h-9 px-4 text-xs uppercase tracking-[0.14em]"
                                 >
                                   {isRowActionRunning && runningAction === "archive" ? (
                                     <Loader2 className="h-3.5 w-3.5 animate-spin" />
@@ -1098,15 +1012,9 @@ export default function FinanceMasterDataBankAccountsPage() {
         </AixiaSection>
       )}
 
-      <AixiaSection
-        title="Locked Access Rule"
-        description="This registry requires Bank Account Read access. Create is controlled by Create access. Archive, Restore, and Permanent Delete are controlled by Delete/Archive access. Update/Edit is handled inside the bank account ID page."
-        icon={ShieldCheck}
-      >
-        <AixiaInfoBlock tone="cyan" icon={ShieldCheck}>
-          Finance permissions remain enforced by the existing permission state and backend access model.
-        </AixiaInfoBlock>
-      </AixiaSection>
+      <AixiaAccessRule description="This registry requires Bank Account Read access. Create is controlled by Create access. Archive, Restore, and Permanent Delete are controlled by Delete/Archive access. Update/Edit is handled inside the bank account ID page.">
+        Finance permissions remain enforced by the existing permission state and backend access model.
+      </AixiaAccessRule>
 
       <AixiaModal
         open={showArchive}
@@ -1116,43 +1024,33 @@ export default function FinanceMasterDataBankAccountsPage() {
         maxWidthClassName="max-w-6xl"
       >
         <div className="space-y-4">
-          <TextInput
+          <AixiaSearchField
             value={archiveSearch}
-            onChange={setArchiveSearch}
+            onChange={(event) => setArchiveSearch(event.target.value)}
             placeholder="Search archived bank accounts"
+            width="full"
           />
               {isLoadingArchive ? (
-                <div className="rounded-[28px] border border-dashed border-white/10 bg-black/20 px-6 py-12 text-center">
-                  <Loader2 className="mx-auto h-8 w-8 animate-spin text-cyan-200" />
-                  <div className="mt-4 text-sm font-semibold text-white">
-                    Loading archived bank accounts
-                  </div>
-                </div>
+                <AixiaEmptyState
+                  icon={Loader2}
+                  title="Loading archived bank accounts"
+                  description="Archived bank account records are being checked."
+                />
               ) : filteredArchivedRows.length === 0 ? (
-                <EmptyState
+                <AixiaEmptyState
                   icon={Archive}
                   title="No archived bank accounts"
                   description="Archived company bank accounts will appear here after they are removed from active operational use."
                 />
               ) : (
-                <AixiaTableShell minWidthClassName="min-w-[980px]" maxHeightClassName="max-h-[620px]">
+                <AixiaTableShell maxHeightClassName="max-h-[620px]">
                     <thead className="aixia-table-head">
                       <tr>
-                        <th className="px-5 py-4 text-left text-[11px] font-semibold uppercase tracking-[0.18em] text-slate-500">
-                          Company
-                        </th>
-                        <th className="px-5 py-4 text-left text-[11px] font-semibold uppercase tracking-[0.18em] text-slate-500">
-                          Bank
-                        </th>
-                        <th className="px-5 py-4 text-left text-[11px] font-semibold uppercase tracking-[0.18em] text-slate-500">
-                          Currency
-                        </th>
-                        <th className="px-5 py-4 text-left text-[11px] font-semibold uppercase tracking-[0.18em] text-slate-500">
-                          Updated
-                        </th>
-                        <th className="px-5 py-4 text-right text-[11px] font-semibold uppercase tracking-[0.18em] text-slate-500">
-                          Actions
-                        </th>
+                        <th>Company</th>
+                        <th>Bank</th>
+                        <th>Currency</th>
+                        <th>Updated</th>
+                        <th>Actions</th>
                       </tr>
                     </thead>
 
@@ -1199,7 +1097,6 @@ export default function FinanceMasterDataBankAccountsPage() {
                                   onClick={() =>
                                     navigate(`/finance/master-data/bank-accounts/${row.id}`)
                                   }
-                                  className="h-9 min-h-9 px-4 text-xs uppercase tracking-[0.14em]"
                                 >
                                   Open
                                 </AixiaButton>
@@ -1209,7 +1106,6 @@ export default function FinanceMasterDataBankAccountsPage() {
                                   variant="secondary"
                                   onClick={() => void handleRestore(row.id)}
                                   disabled={isActionRunning}
-                                  className="h-9 min-h-9 px-4 text-xs uppercase tracking-[0.14em]"
                                 >
                                   {isRowActionRunning && runningAction === "restore" ? (
                                     <Loader2 className="h-3.5 w-3.5 animate-spin" />
@@ -1224,7 +1120,6 @@ export default function FinanceMasterDataBankAccountsPage() {
                                   variant="danger"
                                   onClick={() => void handlePermanentDelete(row.id)}
                                   disabled={isActionRunning}
-                                  className="h-9 min-h-9 px-4 text-xs uppercase tracking-[0.14em]"
                                 >
                                   {isRowActionRunning && runningAction === "hard-delete" ? (
                                     <Loader2 className="h-3.5 w-3.5 animate-spin" />

@@ -1370,6 +1370,18 @@
   table-layout: auto;
 }
 
+.aixia-table-wrap[data-table-variant="registry"] .aixia-table {
+  min-width: 1240px;
+}
+
+.aixia-table-wrap[data-table-variant="archive"] .aixia-table {
+  min-width: 860px;
+}
+
+.aixia-table-wrap[data-table-variant="archive"] .aixia-table-scroll {
+  max-height: 620px;
+}
+
 .aixia-table-head {
   position: sticky;
   top: 0;

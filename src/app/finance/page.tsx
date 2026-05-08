@@ -14,7 +14,6 @@ import {
   Receipt,
   Settings2,
   ShieldCheck,
-  Sparkles,
   TrendingDown,
   TrendingUp,
   UserRound,
@@ -39,6 +38,7 @@ import {
   AixiaValueBlock,
   AixiaWorkspaceCard,
 } from "@/components/aixia";
+
 import { supabase } from "@/lib/supabase";
 import {
   getEffectivePermissions,
@@ -1347,24 +1347,17 @@ export default function FinancePage() {
     <AixiaPage>
       <AixiaHero
         badges={[
-          {
-            label: (
-              <>
-                <Sparkles className="h-3.5 w-3.5" />
-                Finance Control Center
-              </>
-            ),
-            tone: "cyan",
-          },
+          { label: "Finance Control Center", tone: "indigo" },
           { label: "Live backend", tone: "emerald" },
           { label: "Permission filtered", tone: "cyan" },
-          { label: "Silent refresh", tone: "neutral" },
+          { label: "Realtime + 60s fallback", tone: "gold" },
         ]}
         gradientTitle="Finance"
         title="Studio"
+        subtitle="Finance Command Center"
         description="Permission-aware Finance command layer for Master Data, Transactions, Reports, Settings, and Finance Access Approvals. Each user sees only the areas enabled for their role and profile."
         rightContent={
-          <AixiaSmartGrid mode="hero-stats">
+          <>
             {headerStatusCards.map((card) => (
               <AixiaStatusCard
                 key={card.label}
@@ -1375,7 +1368,7 @@ export default function FinancePage() {
                 tone={card.tone}
               />
             ))}
-          </AixiaSmartGrid>
+          </>
         }
       />
 

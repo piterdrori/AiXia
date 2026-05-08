@@ -15,12 +15,12 @@ type AixiaSortableHeaderProps<TSortKey extends string> = {
   activeSortKey: TSortKey;
   sortDirection: SortDirection;
   onSort: (sortKey: TSortKey) => void;
-  align?: "left" | "right";
+  align?: "left" | "center" | "right";
 };
 
 export function AixiaTableShell({
   children,
-  minWidthClassName = "min-w-[1240px]",
+  minWidthClassName = "min-w-max",
   maxHeightClassName = "max-h-[690px]",
 }: AixiaTableShellProps) {
   return (
@@ -48,7 +48,13 @@ export function AixiaSortableHeader<TSortKey extends string>({
       onClick={() => onSort(sortKey)}
       className={`aixia-sortable-header ${
         isActive ? "is-active" : ""
-      } ${align === "right" ? "justify-end text-right" : "justify-start text-left"}`}
+      } ${
+        align === "right"
+          ? "justify-end text-right"
+          : align === "center"
+            ? "justify-center text-center"
+            : "justify-start text-left"
+      }`}
     >
       {label}
       <ArrowUpDown

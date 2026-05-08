@@ -21,6 +21,7 @@ import {
   AixiaAlertText,
   AixiaBadge,
   AixiaButton,
+  AixiaCurrencyBadge,
   AixiaEmptyState,
   AixiaHero,
   AixiaLoadingState,
@@ -1047,9 +1048,7 @@ export default function FinanceMasterDataCompaniesPage() {
                       />
 
                       <AixiaTableBadgeCell width="sm">
-                        <AixiaBadge tone="neutral">
-                          {company.currency_code || "—"}
-                        </AixiaBadge>
+                        <AixiaCurrencyBadge value={company.currency_code} />
                       </AixiaTableBadgeCell>
 
                       <AixiaTableBadgeCell width="sm">

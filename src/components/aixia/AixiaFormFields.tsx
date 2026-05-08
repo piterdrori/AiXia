@@ -166,3 +166,48 @@ export function AixiaFormFullWidth({
     </div>
   );
 }
+
+type AixiaFormRowCardProps = HTMLAttributes<HTMLDivElement> & {
+  title: ReactNode;
+  description?: ReactNode;
+  onRemove?: () => void;
+  removeDisabled?: boolean;
+  removeLabel?: ReactNode;
+};
+
+export function AixiaFormRowCard({
+  title,
+  description,
+  onRemove,
+  removeDisabled = false,
+  removeLabel = "Remove",
+  className = "",
+  children,
+  ...props
+}: AixiaFormRowCardProps) {
+  return (
+    <div {...props} className={`aixia-form-row-card ${className}`}>
+      <div className="aixia-form-row-card-header">
+        <div className="aixia-form-row-card-title-wrap">
+          <div className="aixia-form-row-card-title">{title}</div>
+          {description ? (
+            <div className="aixia-form-row-card-description">{description}</div>
+          ) : null}
+        </div>
+
+        {onRemove ? (
+          <button
+            type="button"
+            onClick={onRemove}
+            disabled={removeDisabled}
+            className="aixia-form-row-card-remove"
+          >
+            {removeLabel}
+          </button>
+        ) : null}
+      </div>
+
+      <div className="aixia-form-row-card-body">{children}</div>
+    </div>
+  );
+}

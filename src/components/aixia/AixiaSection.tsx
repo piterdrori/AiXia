@@ -5,6 +5,7 @@ type AixiaSectionProps = {
   title: string;
   description?: string;
   icon?: LucideIcon;
+  badge?: ReactNode;
   actions?: ReactNode;
   children: ReactNode;
   className?: string;
@@ -19,6 +20,7 @@ export function AixiaSection({
   title,
   description,
   icon: Icon,
+  badge,
   actions,
   children,
   className = "",
@@ -59,8 +61,12 @@ export function AixiaSection({
               </div>
             ) : null}
 
-            <div className="min-w-0">
-              <div className="aixia-label">{title}</div>
+            <div className="aixia-section-title-content">
+              <div className="aixia-section-title-row">
+                <div className="aixia-label">{title}</div>
+                {badge ? <div className="aixia-section-badge">{badge}</div> : null}
+              </div>
+
               {description ? (
                 <p className="aixia-caption mt-1 max-w-[680px]">{description}</p>
               ) : null}

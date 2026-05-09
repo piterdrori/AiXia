@@ -3171,10 +3171,59 @@
   background: rgba(255, 255, 255, 0.055);
 }
 
-.aixia-selectable-tile[data-selected="true"] {
-  border-color: rgba(34, 211, 238, 0.34);
-  background: rgba(6, 182, 212, 0.13);
-  box-shadow: 0 0 26px rgba(6, 182, 212, 0.14);
+.aixia-selectable-tile[data-tone="cyan"] {
+  border-color: rgba(34, 211, 238, 0.16);
+  background: rgba(6, 182, 212, 0.055);
+}
+
+.aixia-selectable-tile[data-tone="emerald"] {
+  border-color: rgba(52, 211, 153, 0.16);
+  background: rgba(16, 185, 129, 0.055);
+}
+
+.aixia-selectable-tile[data-tone="amber"] {
+  border-color: rgba(251, 191, 36, 0.16);
+  background: rgba(245, 158, 11, 0.055);
+}
+
+.aixia-selectable-tile[data-tone="violet"] {
+  border-color: rgba(168, 85, 247, 0.16);
+  background: rgba(139, 92, 246, 0.055);
+}
+
+.aixia-selectable-tile[data-tone="rose"] {
+  border-color: rgba(251, 113, 133, 0.16);
+  background: rgba(244, 63, 94, 0.055);
+}
+
+.aixia-selectable-tile[data-selected="true"][data-tone="cyan"] {
+  border-color: rgba(34, 211, 238, 0.38);
+  background: rgba(6, 182, 212, 0.16);
+  box-shadow: 0 0 26px rgba(6, 182, 212, 0.16);
+}
+
+.aixia-selectable-tile[data-selected="true"][data-tone="emerald"] {
+  border-color: rgba(52, 211, 153, 0.38);
+  background: rgba(16, 185, 129, 0.16);
+  box-shadow: 0 0 26px rgba(16, 185, 129, 0.16);
+}
+
+.aixia-selectable-tile[data-selected="true"][data-tone="amber"] {
+  border-color: rgba(251, 191, 36, 0.38);
+  background: rgba(245, 158, 11, 0.16);
+  box-shadow: 0 0 26px rgba(245, 158, 11, 0.16);
+}
+
+.aixia-selectable-tile[data-selected="true"][data-tone="violet"] {
+  border-color: rgba(168, 85, 247, 0.38);
+  background: rgba(139, 92, 246, 0.16);
+  box-shadow: 0 0 26px rgba(139, 92, 246, 0.16);
+}
+
+.aixia-selectable-tile[data-selected="true"][data-tone="rose"] {
+  border-color: rgba(251, 113, 133, 0.38);
+  background: rgba(244, 63, 94, 0.16);
+  box-shadow: 0 0 26px rgba(244, 63, 94, 0.16);
 }
 
 .aixia-selectable-tile-head {
@@ -3338,6 +3387,21 @@
   .aixia-entity-card-details {
     grid-template-columns: repeat(3, minmax(0, 1fr));
   }
+}
+
+.aixia-entity-card .aixia-display-block {
+  padding: 0.8rem 0.9rem;
+}
+
+.aixia-entity-card .aixia-display-block-value {
+  font-size: 0.8125rem;
+  line-height: 1.35;
+}
+
+.aixia-entity-card-footer .aixia-alert {
+  width: fit-content;
+  max-width: 100%;
+  padding: 0.8rem 1rem;
 }
 
 .aixia-entity-card-footer {
@@ -3534,5 +3598,42 @@
 @media (min-width: 1280px) {
   .aixia-history-row-actions {
     justify-content: flex-end;
+  }
+}
+
+.aixia-employee-registry-body {
+  min-height: 1320px;
+  max-height: 1320px;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  padding: clamp(1rem, 1.4vw, 1.5rem);
+}
+
+.aixia-employee-filter-grid {
+  min-width: 360px;
+}
+
+.aixia-employee-filter-grid[data-review-grid-variant="compact"] {
+  grid-template-columns: repeat(4, minmax(86px, 1fr));
+}
+
+.aixia-payroll-toggle-grid[data-review-grid-variant="compact"] {
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+}
+
+.aixia-payroll-toggle-grid + .aixia-alert {
+  margin-top: 0.85rem;
+}
+
+@media (min-width: 1280px) {
+  .aixia-payroll-toggle-row {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) minmax(360px, 0.8fr);
+    gap: 0.85rem;
+    align-items: stretch;
+  }
+
+  .aixia-payroll-toggle-row > .aixia-alert {
+    margin-top: 0;
   }
 }

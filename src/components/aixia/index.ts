@@ -23,6 +23,10 @@ export { AixiaSignalRow } from "./AixiaSignalRow";
 export { AixiaSideList, AixiaSideListRow } from "./AixiaSideList";
 export { AixiaValueBlock } from "./AixiaValueBlock";
 export { AixiaWorkspaceCard } from "./AixiaWorkspaceCard";
+export { AixiaSelectableTile } from "./AixiaSelectableTile";
+export { AixiaEntityCard } from "./AixiaEntityCard";
+export { AixiaProfileCard } from "./AixiaProfileCard";
+export { AixiaHistoryRow } from "./AixiaHistoryRow";
 export {
   AixiaCheckboxField,
   AixiaDisplayBlock,

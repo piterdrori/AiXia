@@ -762,6 +762,45 @@
   }
 }
 
+.aixia-registry-control-cluster {
+  display: grid;
+  width: 100%;
+  min-width: 0;
+  gap: 0.75rem;
+  align-items: center;
+  grid-template-columns: minmax(0, 1fr);
+}
+
+@media (min-width: 1024px) {
+  .aixia-registry-control-cluster {
+    grid-template-columns: minmax(360px, 520px) auto auto;
+    justify-content: end;
+  }
+}
+
+.aixia-registry-filter-grid {
+  min-width: 0;
+}
+
+.aixia-registry-filter-grid[data-review-grid-variant="compact"] {
+  grid-template-columns: repeat(4, minmax(86px, 1fr));
+}
+
+.aixia-registry-filter-grid .aixia-selectable-tile {
+  min-height: 3rem;
+  justify-content: center;
+  padding: 0.75rem 1rem;
+  text-align: center;
+}
+
+.aixia-registry-filter-grid .aixia-selectable-tile-head {
+  justify-content: center;
+}
+
+.aixia-registry-filter-grid .aixia-selectable-tile-title {
+  text-align: center;
+}
+
 .aixia-control-field,
 .aixia-control-field-wide {
   position: relative;

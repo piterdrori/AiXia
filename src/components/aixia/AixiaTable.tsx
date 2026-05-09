@@ -6,9 +6,9 @@ type AixiaTableShellVariant = "default" | "registry" | "archive";
 
 type AixiaTableShellProps = {
   children: ReactNode;
-  variant?: AixiaTableShellVariant;
   minWidthClassName?: string;
   maxHeightClassName?: string;
+  variant?: "registry" | "archive" | "default";
 };
 
 type AixiaSortableHeaderProps<TSortKey extends string> = {
@@ -22,19 +22,24 @@ type AixiaSortableHeaderProps<TSortKey extends string> = {
 
 export function AixiaTableShell({
   children,
+  minWidthClassName,
+  maxHeightClassName = "max-h-[690px]",
   variant = "default",
-  minWidthClassName = "",
-  maxHeightClassName = "",
 }: AixiaTableShellProps) {
+  const resolvedMinWidthClassName =
+    minWidthClassName ??
+    (variant === "registry"
+      ? "min-w-[1240px]"
+      : variant === "archive"
+        ? "min-w-full"
+        : "min-w-max");
+
   return (
-    <div
-      className="aixia-table-wrap aixia-scrollbar"
-      data-table-variant={variant}
-    >
-      <div
-        className={`aixia-table-scroll aixia-scrollbar ${maxHeightClassName}`}
-      >
-        <table className={`aixia-table ${minWidthClassName}`}>{children}</table>
+    <div className="aixia-table-wrap aixia-scrollbar" data-table-variant={variant}>
+      <div className={`aixia-table-scroll aixia-scrollbar ${maxHeightClassName}`}>
+        <table className={`aixia-table ${resolvedMinWidthClassName}`}>
+          {children}
+        </table>
       </div>
     </div>
   );

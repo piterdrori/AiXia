@@ -595,6 +595,8 @@ export default function FinanceExpenseCategoriesPage() {
   }, []);
 
   useEffect(() => {
+    window.scrollTo({ top: 0, left: 0, behavior: "auto" });
+
     void Promise.all([
       loadCurrentProfile("initial"),
       loadPageData("initial"),

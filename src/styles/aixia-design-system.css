@@ -3448,6 +3448,7 @@
   display: grid;
   min-width: 0;
   gap: 0.75rem;
+  align-items: stretch;
 }
 
 @media (min-width: 640px) {
@@ -3457,12 +3458,30 @@
 }
 
 .aixia-entity-card .aixia-display-block {
+  display: grid;
+  min-height: 104px;
+  grid-template-rows: 1.55rem 1fr auto;
+  align-content: start;
   padding: 0.8rem 0.9rem;
 }
 
+.aixia-entity-card .aixia-display-block-label {
+  min-height: 1.55rem;
+  line-height: 1.25;
+}
+
 .aixia-entity-card .aixia-display-block-value {
+  display: flex;
+  min-height: 2.75rem;
+  align-items: flex-start;
+  overflow: hidden;
+  overflow-wrap: anywhere;
   font-size: 0.8125rem;
   line-height: 1.35;
+}
+
+.aixia-entity-card .aixia-display-block-detail {
+  min-height: 1.25rem;
 }
 
 .aixia-entity-card-footer .aixia-alert {

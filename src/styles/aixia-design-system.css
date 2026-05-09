@@ -773,9 +773,9 @@
 }
 
 .aixia-registry-control-cluster > .aixia-search-field {
-  flex: 1 1 280px;
-  min-width: 260px;
-  max-width: 420px;
+  flex: 1 1 260px;
+  min-width: 220px;
+  max-width: 360px;
 }
 
 .aixia-registry-control-cluster > .aixia-registry-filter-grid {
@@ -848,7 +848,7 @@
 
 .aixia-section-header-layout:has(.aixia-registry-control-cluster) .aixia-section-title-content {
   min-width: 0;
-  max-width: 620px;
+  max-width: 520px;
 }
 
 .aixia-section-header-layout:has(.aixia-registry-control-cluster) .aixia-label {
@@ -857,7 +857,7 @@
 }
 
 .aixia-section-header-layout:has(.aixia-registry-control-cluster) .aixia-caption {
-  max-width: 560px;
+  max-width: 500px;
   overflow-wrap: normal;
   word-break: normal;
 }
@@ -1005,8 +1005,9 @@
   }
 
   .aixia-section-header-layout:has(.aixia-registry-control-cluster) {
-    grid-template-columns: minmax(360px, 0.28fr) minmax(0, 0.72fr);
+    grid-template-columns: minmax(430px, 520px) minmax(0, 1fr);
     align-items: center;
+    column-gap: 1.25rem;
   }
 
   .aixia-section-actions:has(.aixia-registry-control-cluster) {

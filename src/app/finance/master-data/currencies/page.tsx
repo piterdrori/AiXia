@@ -1437,13 +1437,15 @@ export default function FinanceMasterDataCurrenciesPage() {
         />
       ) : (
         <>
-          <AixiaReviewGrid>
+          <AixiaReviewGrid variant="metrics">
             {metricCards.map((metric) => (
               <AixiaReviewBlock
                 key={metric.label}
                 label={metric.label}
                 value={metric.value}
                 description={metric.description}
+                icon={metric.icon}
+                tone={metric.tone}
               />
             ))}
           </AixiaReviewGrid>

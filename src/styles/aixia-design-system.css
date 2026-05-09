@@ -773,8 +773,14 @@
 
 @media (min-width: 1024px) {
   .aixia-registry-control-cluster {
-    grid-template-columns: minmax(360px, 520px) minmax(380px, 420px) auto;
-    justify-content: end;
+    grid-template-columns: minmax(280px, 1fr) minmax(360px, 420px) auto;
+    justify-content: stretch;
+  }
+}
+
+@media (min-width: 1280px) {
+  .aixia-registry-control-cluster {
+    grid-template-columns: minmax(320px, 1fr) minmax(360px, 420px) auto;
   }
 }
 
@@ -804,6 +810,54 @@
 
 .aixia-registry-filter-grid .aixia-selectable-tile-title {
   text-align: center;
+}
+
+/* -------------------------------------------------------
+   GLOBAL REGISTRY HEADER STANDARD
+   Applies to every registry/list page that uses
+   AixiaSection + aixia-registry-control-cluster.
+   Prevents squeezed titles and oversized empty headers.
+------------------------------------------------------- */
+
+.aixia-section-header-layout:has(.aixia-registry-control-cluster) {
+  align-items: center;
+}
+
+.aixia-section-header-layout:has(.aixia-registry-control-cluster) .aixia-section-title-wrap {
+  min-width: 0;
+  align-items: center;
+}
+
+.aixia-section-header-layout:has(.aixia-registry-control-cluster) .aixia-section-title-content {
+  min-width: 0;
+  max-width: 560px;
+}
+
+.aixia-section-header-layout:has(.aixia-registry-control-cluster) .aixia-label {
+  overflow-wrap: normal;
+  word-break: normal;
+}
+
+.aixia-section-header-layout:has(.aixia-registry-control-cluster) .aixia-caption {
+  max-width: 520px;
+  overflow-wrap: normal;
+  word-break: normal;
+}
+
+.aixia-section-header-layout:has(.aixia-registry-control-cluster) .aixia-section-actions {
+  min-width: 0;
+}
+
+@media (min-width: 1024px) {
+  .aixia-section-header-layout:has(.aixia-registry-control-cluster) {
+    grid-template-columns: minmax(380px, 0.42fr) minmax(0, 0.58fr);
+  }
+}
+
+@media (min-width: 1536px) {
+  .aixia-section-header-layout:has(.aixia-registry-control-cluster) {
+    grid-template-columns: minmax(430px, 0.38fr) minmax(0, 0.62fr);
+  }
 }
 
 .aixia-control-field,
@@ -944,8 +998,14 @@
     justify-self: end;
   }
 
+  .aixia-section-header-layout:has(.aixia-registry-control-cluster) {
+    grid-template-columns: minmax(420px, 0.42fr) minmax(0, 0.58fr);
+    align-items: center;
+  }
+
   .aixia-section-actions:has(.aixia-registry-control-cluster) {
-    width: min(100%, 980px);
+    width: 100%;
+    justify-self: stretch;
   }
 }
 

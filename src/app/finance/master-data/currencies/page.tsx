@@ -1,12 +1,9 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import type { FormEvent } from "react";
-import { useNavigate } from "react-router-dom";
 import type { LucideIcon } from "lucide-react";
 import {
   Archive,
-  ArrowRight,
   Calculator,
-  CheckCircle2,
   Coins,
   Database,
   Globe2,
@@ -18,7 +15,6 @@ import {
   RefreshCcw,
   Save,
   ShieldCheck,
-  Sparkles,
   Trash2,
 } from "lucide-react";
 
@@ -32,7 +28,6 @@ import {
   AixiaCheckboxField,
   AixiaCurrencyBadge,
   AixiaDefaultBadge,
-  AixiaDisplayBlock,
   AixiaEmptyState,
   AixiaFieldLabel,
   AixiaFormField,
@@ -369,7 +364,6 @@ function makeRateResultFromStoredRate(row: FinanceExchangeRateRow): LiveConversi
 }
 
 export default function FinanceMasterDataCurrenciesPage() {
-  const navigate = useNavigate();
 
   const [profile, setProfile] = useState<ProfilePermissionRow | null>(null);
   const [effectivePermissions, setEffectivePermissions] =
@@ -1450,17 +1444,14 @@ export default function FinanceMasterDataCurrenciesPage() {
                 label={metric.label}
                 value={metric.value}
                 description={metric.description}
-                icon={metric.icon}
-                tone={metric.tone}
               />
             ))}
           </AixiaReviewGrid>
 
           <AixiaSection
             title="Live Currency Converter"
-            description="Convert active master-data currencies using live rates. This quick operational calculator does not save exchange-rate history."
+            description="Signature live tool. Convert active master-data currencies using live rates. This quick operational calculator does not save exchange-rate history."
             icon={Calculator}
-            badge={<AixiaBadge tone="cyan">Signature Live Tool</AixiaBadge>}
             actions={
               <AixiaReviewBlock
                 label="Current Pair"
@@ -1546,8 +1537,6 @@ export default function FinanceMasterDataCurrenciesPage() {
                     label="Converted Amount"
                     value={formatNumberLabel(conversionResult.convertedAmount, 6)}
                     description={convertTo}
-                    icon={Calculator}
-                    tone="emerald"
                   />
                   <AixiaReviewBlock
                     label="Live Rate"
@@ -1556,8 +1545,6 @@ export default function FinanceMasterDataCurrenciesPage() {
                       8
                     )} ${convertTo}`}
                     description={`Source: Frankfurter • Date: ${conversionResult.date}`}
-                    icon={Globe2}
-                    tone="cyan"
                   />
                 </>
               ) : (
@@ -1566,15 +1553,11 @@ export default function FinanceMasterDataCurrenciesPage() {
                     label="Result"
                     value="Ready to convert"
                     description="Select two active currencies and press Convert Live."
-                    icon={Calculator}
-                    tone="emerald"
                   />
                   <AixiaReviewBlock
                     label="History"
                     value="Not saved"
                     description="Use Stored Exchange Rates to create auditable snapshots."
-                    icon={Database}
-                    tone="violet"
                   />
                 </>
               )}
@@ -2265,8 +2248,6 @@ export default function FinanceMasterDataCurrenciesPage() {
                   label="Automatic Rate"
                   value="Calculating..."
                   description="Calculating live exchange rate."
-                  icon={Loader2}
-                  tone="emerald"
                 />
               ) : autoRate ? (
                 <AixiaReviewBlock
@@ -2276,16 +2257,12 @@ export default function FinanceMasterDataCurrenciesPage() {
                     autoRate.rate,
                     8
                   )} ${rateForm.to_currency_code} • Frankfurter • ${autoRate.date}`}
-                  icon={Calculator}
-                  tone="emerald"
                 />
               ) : (
                 <AixiaReviewBlock
                   label="Automatic Rate"
                   value="Not calculated"
                   description="Select two different currencies to calculate the live rate."
-                  icon={Calculator}
-                  tone="amber"
                 />
               )}
 

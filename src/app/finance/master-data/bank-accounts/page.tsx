@@ -19,6 +19,7 @@ import {
 import {
   AixiaAccessRule,
   AixiaAlert,
+  AixiaArchiveManagerModal,
   AixiaButton,
   AixiaCurrencyBadge,
   AixiaDefaultBadge,
@@ -26,8 +27,8 @@ import {
   AixiaHero,
   AixiaMetricCard,
   AixiaMetricGrid,
-  AixiaModal,
   AixiaPage,
+  AixiaRegistryToolbar,
   AixiaSearchField,
   AixiaSection,
   AixiaSortableHeader,
@@ -825,43 +826,45 @@ export default function FinanceMasterDataBankAccountsPage() {
           description="Active and inactive bank accounts. Archived records are managed only through the archive modal."
           icon={Landmark}
           actions={
-            <div className="aixia-control-cluster">
-              <div className="aixia-control-field-wide">
+            <AixiaRegistryToolbar
+              search={
                 <AixiaSearchField
                   value={search}
                   onChange={(event) => setSearch(event.target.value)}
                   placeholder="Search by company, bank, identifier, currency, location, or status"
-                  width="full"
+                  width="wide"
                 />
-              </div>
-
-              {permissionState.canCreate ? (
-                <AixiaButton
-                  type="button"
-                  variant="primary"
-                  onClick={() => navigate("/finance/master-data/bank-accounts/new")}
-                >
-                  <Plus className="h-4 w-4" />
-                  Create Bank Account
-                </AixiaButton>
-              ) : null}
-
-              {permissionState.canDeleteArchive ? (
-                <AixiaButton
-                  type="button"
-                  variant="danger"
-                  onClick={() => void openArchiveModal()}
-                  disabled={isActionRunning}
-                >
-                  {runningAction === "archive-modal" ? (
-                    <Loader2 className="h-4 w-4 animate-spin" />
-                  ) : (
-                    <Archive className="h-4 w-4" />
-                  )}
-                  Archive
-                </AixiaButton>
-              ) : null}
-            </div>
+              }
+              primaryAction={
+                permissionState.canCreate ? (
+                  <AixiaButton
+                    type="button"
+                    variant="primary"
+                    onClick={() => navigate("/finance/master-data/bank-accounts/new")}
+                  >
+                    <Plus className="h-4 w-4" />
+                    Create Bank Account
+                  </AixiaButton>
+                ) : null
+              }
+              archiveAction={
+                permissionState.canDeleteArchive ? (
+                  <AixiaButton
+                    type="button"
+                    variant="danger"
+                    onClick={() => void openArchiveModal()}
+                    disabled={isActionRunning}
+                  >
+                    {runningAction === "archive-modal" ? (
+                      <Loader2 className="h-4 w-4 animate-spin" />
+                    ) : (
+                      <Archive className="h-4 w-4" />
+                    )}
+                    Archive
+                  </AixiaButton>
+                ) : null
+              }
+            />
           }
         >
           {isPageLoading ? (
@@ -877,7 +880,7 @@ export default function FinanceMasterDataBankAccountsPage() {
               description="Create a bank account or adjust the search filter to find a company banking record."
             />
           ) : (
-            <AixiaTableShell>
+            <AixiaTableShell variant="registry">
                   <thead className="aixia-table-head">
                     <tr>
                       <th>
@@ -1032,12 +1035,12 @@ export default function FinanceMasterDataBankAccountsPage() {
         Finance permissions remain enforced by the existing permission state and backend access model.
       </AixiaAccessRule>
 
-      <AixiaModal
+      <AixiaArchiveManagerModal
         open={showArchive}
         title="Archived Company Bank Accounts"
         description="Archived records can be opened, restored, or permanently deleted. There is no Deleted tab because this backend uses only active, inactive, and archived lifecycle states."
+        archivedCount={archivedRows.length}
         onClose={closeArchiveModal}
-        maxWidthClassName="max-w-6xl"
       >
         <div className="space-y-4">
           <AixiaSearchField
@@ -1046,104 +1049,105 @@ export default function FinanceMasterDataBankAccountsPage() {
             placeholder="Search archived bank accounts"
             width="full"
           />
-              {isLoadingArchive ? (
-                <AixiaEmptyState
-                  icon={Loader2}
-                  title="Loading archived bank accounts"
-                  description="Archived bank account records are being checked."
-                />
-              ) : filteredArchivedRows.length === 0 ? (
-                <AixiaEmptyState
-                  icon={Archive}
-                  title="No archived bank accounts"
-                  description="Archived company bank accounts will appear here after they are removed from active operational use."
-                />
-              ) : (
-                <AixiaTableShell maxHeightClassName="max-h-[620px]">
-                    <thead className="aixia-table-head">
-                      <tr>
-                        <th>Company</th>
-                        <th>Bank</th>
-                        <th>Currency</th>
-                        <th>Updated</th>
-                        <th>Actions</th>
-                      </tr>
-                    </thead>
 
-                    <tbody>
-                      {filteredArchivedRows.map((row) => {
-                        const isRowActionRunning = activeActionId === row.id;
-                        const updatedAt = row.updated_at || row.created_at;
+          {isLoadingArchive ? (
+            <AixiaEmptyState
+              icon={Loader2}
+              title="Loading archived bank accounts"
+              description="Archived bank account records are being checked."
+            />
+          ) : filteredArchivedRows.length === 0 ? (
+            <AixiaEmptyState
+              icon={Archive}
+              title="No archived bank accounts"
+              description="Archived company bank accounts will appear here after they are removed from active operational use."
+            />
+          ) : (
+            <AixiaTableShell variant="archive">
+              <thead className="aixia-table-head">
+                <tr>
+                  <th>Company</th>
+                  <th>Bank</th>
+                  <th>Currency</th>
+                  <th>Updated</th>
+                  <th>Actions</th>
+                </tr>
+              </thead>
 
-                        return (
-                          <tr key={row.id} className="aixia-table-row">
-                            <AixiaTableTextCell
-                              width="xl"
-                              primary={getCompanyName(row)}
-                              secondary={row.company_code || "No company code"}
-                            />
+              <tbody>
+                {filteredArchivedRows.map((row) => {
+                  const isRowActionRunning = activeActionId === row.id;
+                  const updatedAt = row.updated_at || row.created_at;
 
-                            <AixiaTableTextCell
-                              width="lg"
-                              primary={getBankName(row)}
-                              secondary={getIdentifierLabel(row)}
-                            />
+                  return (
+                    <tr key={row.id} className="aixia-table-row">
+                      <AixiaTableTextCell
+                        width="xl"
+                        primary={getCompanyName(row)}
+                        secondary={row.company_code || "No company code"}
+                      />
 
-                            <AixiaTableBadgeCell>
-                              <AixiaCurrencyBadge
-                                value={getCorrelatedCurrencyLabel(row, companyCurrencyByCode)}
-                              />
-                            </AixiaTableBadgeCell>
+                      <AixiaTableTextCell
+                        width="lg"
+                        primary={getBankName(row)}
+                        secondary={getIdentifierLabel(row)}
+                      />
 
-                            <AixiaTableDateCell>{formatDateLabel(updatedAt)}</AixiaTableDateCell>
+                      <AixiaTableBadgeCell>
+                        <AixiaCurrencyBadge
+                          value={getCorrelatedCurrencyLabel(row, companyCurrencyByCode)}
+                        />
+                      </AixiaTableBadgeCell>
 
-                            <AixiaTableActionsCell>
-                              <AixiaButton
-                                type="button"
-                                variant="secondary"
-                                onClick={() =>
-                                  navigate(`/finance/master-data/bank-accounts/${row.id}`)
-                                }
-                              >
-                                Open
-                              </AixiaButton>
+                      <AixiaTableDateCell>{formatDateLabel(updatedAt)}</AixiaTableDateCell>
 
-                              <AixiaButton
-                                type="button"
-                                variant="secondary"
-                                onClick={() => void handleRestore(row.id)}
-                                disabled={isActionRunning}
-                              >
-                                {isRowActionRunning && runningAction === "restore" ? (
-                                  <Loader2 className="h-3.5 w-3.5 animate-spin" />
-                                ) : (
-                                  <RotateCcw className="h-3.5 w-3.5" />
-                                )}
-                                Restore
-                              </AixiaButton>
+                      <AixiaTableActionsCell>
+                        <AixiaButton
+                          type="button"
+                          variant="primary"
+                          onClick={() =>
+                            navigate(`/finance/master-data/bank-accounts/${row.id}`)
+                          }
+                        >
+                          Open
+                        </AixiaButton>
 
-                              <AixiaButton
-                                type="button"
-                                variant="danger"
-                                onClick={() => void handlePermanentDelete(row.id)}
-                                disabled={isActionRunning}
-                              >
-                                {isRowActionRunning && runningAction === "hard-delete" ? (
-                                  <Loader2 className="h-3.5 w-3.5 animate-spin" />
-                                ) : (
-                                  <Trash2 className="h-3.5 w-3.5" />
-                                )}
-                                Delete
-                              </AixiaButton>
-                            </AixiaTableActionsCell>
-                          </tr>
-                        );
-                      })}
-                    </tbody>
-                </AixiaTableShell>
-              )}
+                        <AixiaButton
+                          type="button"
+                          variant="secondary"
+                          onClick={() => void handleRestore(row.id)}
+                          disabled={isActionRunning}
+                        >
+                          {isRowActionRunning && runningAction === "restore" ? (
+                            <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                          ) : (
+                            <RotateCcw className="h-3.5 w-3.5" />
+                          )}
+                          Restore
+                        </AixiaButton>
+
+                        <AixiaButton
+                          type="button"
+                          variant="danger"
+                          onClick={() => void handlePermanentDelete(row.id)}
+                          disabled={isActionRunning}
+                        >
+                          {isRowActionRunning && runningAction === "hard-delete" ? (
+                            <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                          ) : (
+                            <Trash2 className="h-3.5 w-3.5" />
+                          )}
+                          Delete Permanently
+                        </AixiaButton>
+                      </AixiaTableActionsCell>
+                    </tr>
+                  );
+                })}
+              </tbody>
+            </AixiaTableShell>
+          )}
         </div>
-      </AixiaModal>
+      </AixiaArchiveManagerModal>
     </AixiaPage>
   );
 }

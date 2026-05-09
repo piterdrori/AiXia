@@ -96,7 +96,7 @@ type PermissionState = {
   isAdmin: boolean;
 };
 
-type StatusFilter = "all" | "active" | "inactive" | "archived";
+type StatusFilter = "all" | "active" | "inactive";
 type SortKey = "code" | "name" | "status" | "ledger" | "posted" | "updated_at";
 type SortDirection = "asc" | "desc";
 
@@ -154,15 +154,24 @@ function formatStatusLabel(value: string | null | undefined) {
     .replace(/\b\w/g, (character) => character.toUpperCase());
 }
 
-function compareStrings(first: string | null | undefined, second: string | null | undefined) {
+function compareStrings(
+  first: string | null | undefined,
+  second: string | null | undefined
+) {
   return (first || "").localeCompare(second || "");
 }
 
-function compareNumbers(first: number | boolean | null | undefined, second: number | boolean | null | undefined) {
+function compareNumbers(
+  first: number | boolean | null | undefined,
+  second: number | boolean | null | undefined
+) {
   return Number(first || 0) - Number(second || 0);
 }
 
-function compareDates(first: string | null | undefined, second: string | null | undefined) {
+function compareDates(
+  first: string | null | undefined,
+  second: string | null | undefined
+) {
   return new Date(first || 0).getTime() - new Date(second || 0).getTime();
 }
 
@@ -209,7 +218,11 @@ async function loadBackendEffectivePermissions(
 
     if (result.error) {
       if (mode === "silent") throw result.error;
-      console.warn("Expense categories permission RPC fallback:", result.error.message);
+
+      console.warn(
+        "Expense categories permission RPC fallback:",
+        result.error.message
+      );
       return null;
     }
 
@@ -226,15 +239,15 @@ async function loadBackendEffectivePermissions(
     return result.data as Partial<Record<Permission, boolean>>;
   } catch (error) {
     if (mode === "silent") throw error;
+
     console.warn("Expense categories permission RPC failed:", error);
     return null;
   }
 }
 
-function getStatusFilterTone(value: StatusFilter): "cyan" | "emerald" | "amber" | "rose" {
+function getStatusFilterTone(value: StatusFilter): "cyan" | "emerald" | "amber" {
   if (value === "active") return "emerald";
   if (value === "inactive") return "amber";
-  if (value === "archived") return "rose";
 
   return "cyan";
 }
@@ -282,7 +295,9 @@ function CategoryFormModal({
       badge={
         <>
           <AixiaBadge tone="cyan">Expense Category</AixiaBadge>
-          <AixiaBadge tone="emerald">{editingRow ? "Edit Mode" : "Create Mode"}</AixiaBadge>
+          <AixiaBadge tone="emerald">
+            {editingRow ? "Edit Mode" : "Create Mode"}
+          </AixiaBadge>
         </>
       }
       onClose={onClose}
@@ -324,7 +339,6 @@ function CategoryFormModal({
           title="Category Identity"
           description="Name, code, status, description, and internal finance notes."
           icon={Layers3}
-          badge={<AixiaBadge tone="cyan">Identity</AixiaBadge>}
         >
           <AixiaFormGrid columns="two">
             <AixiaFormField>
@@ -370,19 +384,13 @@ function CategoryFormModal({
             <AixiaFormFullWidth>
               <AixiaFieldLabel label="Status" required />
               <AixiaReviewGrid variant="compact">
-                {(["active", "inactive", "archived"] as FinanceExpenseCategoryStatus[]).map(
+                {(["active", "inactive"] as FinanceExpenseCategoryStatus[]).map(
                   (value) => (
                     <AixiaSelectableTile
                       key={value}
                       title={formatStatusLabel(value)}
                       selected={form.status === value}
-                      tone={
-                        value === "active"
-                          ? "emerald"
-                          : value === "inactive"
-                            ? "amber"
-                            : "rose"
-                      }
+                      tone={value === "active" ? "emerald" : "amber"}
                       disabled={saving}
                       onClick={() => onChange("status", value)}
                     />
@@ -397,7 +405,6 @@ function CategoryFormModal({
           title="Ledger Linkage"
           description="Optional chart-of-accounts link for accounting reports. Categories can exist before ledger mapping is finalized."
           icon={Landmark}
-          badge={<AixiaBadge tone="violet">Optional Accounting Link</AixiaBadge>}
         >
           <AixiaFormGrid columns="one">
             <AixiaFormField>
@@ -455,7 +462,10 @@ export default function FinanceExpenseCategoriesPage() {
   const [sortDirection, setSortDirection] = useState<SortDirection>("desc");
 
   const [dialogOpen, setDialogOpen] = useState(false);
-  const [editingRow, setEditingRow] = useState<FinanceExpenseCategoryRow | null>(null);
+  const [archiveOpen, setArchiveOpen] = useState(false);
+  const [editingRow, setEditingRow] = useState<FinanceExpenseCategoryRow | null>(
+    null
+  );
   const [form, setForm] = useState<FormState>(EMPTY_FORM);
   const [error, setError] = useState("");
   const [pageMessage, setPageMessage] = useState("");
@@ -509,7 +519,10 @@ export default function FinanceExpenseCategoriesPage() {
         return;
       }
 
-      const backendPermissions = await loadBackendEffectivePermissions(authUserId, mode);
+      const backendPermissions = await loadBackendEffectivePermissions(
+        authUserId,
+        mode
+      );
 
       setProfile(loadedProfile);
 
@@ -694,6 +707,8 @@ export default function FinanceExpenseCategoriesPage() {
     const query = search.trim().toLowerCase();
 
     return rows.filter((row) => {
+      if (row.status === "archived") return false;
+
       const matchesStatus =
         statusFilter === "all" ? true : row.status === statusFilter;
 
@@ -713,6 +728,12 @@ export default function FinanceExpenseCategoriesPage() {
       return matchesStatus && matchesSearch;
     });
   }, [ledgerAccounts, rows, search, statusFilter]);
+
+  const archivedRows = useMemo(() => {
+    return rows
+      .filter((row) => row.status === "archived")
+      .sort((first, second) => compareDates(second.updated_at, first.updated_at));
+  }, [rows]);
 
   const sortedRows = useMemo(() => {
     const sorted = [...filteredRows];
@@ -816,7 +837,7 @@ export default function FinanceExpenseCategoriesPage() {
         value: isLoadingData ? "—" : stats.archived,
         icon: Archive,
         tone: "rose",
-        description: "Hidden from active use",
+        description: "Managed in archive manager",
       },
       {
         label: "Ledger Linked",
@@ -1054,7 +1075,7 @@ export default function FinanceExpenseCategoriesPage() {
 
           <AixiaSection
             title="Expense Category Registry"
-            description="Search, sort, create, edit, archive, restore, and safely delete unused categories."
+            description="Search, sort, create, edit, and archive active expense categories. Archived records are managed in the archive manager."
             icon={Layers3}
             actions={
               <div className="aixia-registry-control-cluster">
@@ -1066,18 +1087,27 @@ export default function FinanceExpenseCategoriesPage() {
                 />
 
                 <AixiaReviewGrid variant="compact" className="aixia-registry-filter-grid">
-                  {(["all", "active", "inactive", "archived"] as StatusFilter[]).map(
-                    (value) => (
-                      <AixiaSelectableTile
-                        key={value}
-                        title={formatStatusLabel(value)}
-                        selected={statusFilter === value}
-                        tone={getStatusFilterTone(value)}
-                        onClick={() => setStatusFilter(value)}
-                      />
-                    )
-                  )}
+                  {(["all", "active", "inactive"] as StatusFilter[]).map((value) => (
+                    <AixiaSelectableTile
+                      key={value}
+                      title={formatStatusLabel(value)}
+                      selected={statusFilter === value}
+                      tone={getStatusFilterTone(value)}
+                      onClick={() => setStatusFilter(value)}
+                    />
+                  ))}
                 </AixiaReviewGrid>
+
+                {permissionState.canDeleteArchive ? (
+                  <AixiaButton
+                    type="button"
+                    variant="secondary"
+                    onClick={() => setArchiveOpen(true)}
+                  >
+                    <Archive className="h-4 w-4" />
+                    Archive
+                  </AixiaButton>
+                ) : null}
 
                 {permissionState.canCreate ? (
                   <AixiaButton
@@ -1095,8 +1125,8 @@ export default function FinanceExpenseCategoriesPage() {
             {sortedRows.length === 0 ? (
               <AixiaEmptyState
                 icon={Layers3}
-                title="No expense categories found"
-                description="Create an expense category or adjust the search and status filters."
+                title="No active expense categories found"
+                description="Create an expense category, adjust the search and status filters, or open the archive manager."
               />
             ) : (
               <AixiaTableShell variant="registry">
@@ -1163,10 +1193,7 @@ export default function FinanceExpenseCategoriesPage() {
                 <tbody>
                   {sortedRows.map((row) => (
                     <tr key={row.id} className="aixia-table-row">
-                      <AixiaTableTextCell
-                        width="sm"
-                        primary={row.code || "—"}
-                      />
+                      <AixiaTableTextCell width="sm" primary={row.code || "—"} />
 
                       <AixiaTableTextCell
                         width="xl"
@@ -1212,21 +1239,7 @@ export default function FinanceExpenseCategoriesPage() {
                           </AixiaButton>
                         ) : null}
 
-                        {permissionState.canDeleteArchive &&
-                        row.status === "archived" ? (
-                          <AixiaButton
-                            type="button"
-                            variant="secondary"
-                            onClick={() => void handleRestore(row)}
-                            disabled={saving}
-                          >
-                            <Undo2 className="h-3.5 w-3.5" />
-                            Restore
-                          </AixiaButton>
-                        ) : null}
-
-                        {permissionState.canDeleteArchive &&
-                        row.status !== "archived" ? (
+                        {permissionState.canDeleteArchive ? (
                           <AixiaButton
                             type="button"
                             variant="secondary"
@@ -1235,18 +1248,6 @@ export default function FinanceExpenseCategoriesPage() {
                           >
                             <Archive className="h-3.5 w-3.5" />
                             Archive
-                          </AixiaButton>
-                        ) : null}
-
-                        {permissionState.canDeleteArchive ? (
-                          <AixiaButton
-                            type="button"
-                            variant="danger"
-                            onClick={() => void handleHardDelete(row)}
-                            disabled={saving}
-                          >
-                            <Trash2 className="h-3.5 w-3.5" />
-                            Delete
                           </AixiaButton>
                         ) : null}
                       </AixiaTableActionsCell>
@@ -1260,11 +1261,100 @@ export default function FinanceExpenseCategoriesPage() {
           <AixiaAlert tone="info">
             <AixiaAlertText
               title="Locked expense category rule"
-              description="Expense categories are reusable finance master data. Ledger mapping remains optional and can be added when accounting setup is ready. Silent refresh must not reset search, filters, sorting, modal state, or visible rows."
+              description="Expense categories are reusable finance master data. Active registry actions are limited to edit and archive. Restore and permanent delete are only available inside the archive manager."
             />
           </AixiaAlert>
         </>
       )}
+
+      <AixiaModal
+        open={archiveOpen}
+        title="Expense Category Archive"
+        description="Manage archived expense categories. Restore archived records when they should return to active workflows. Permanent delete is only available from this archive manager."
+        badge={
+          <>
+            <AixiaBadge tone="rose">Archive Manager</AixiaBadge>
+            <AixiaBadge tone="neutral">{archivedRows.length} Archived</AixiaBadge>
+          </>
+        }
+        onClose={() => setArchiveOpen(false)}
+        maxWidthClassName="max-w-6xl"
+        footer={
+          <AixiaButton
+            type="button"
+            variant="secondary"
+            onClick={() => setArchiveOpen(false)}
+          >
+            Close
+          </AixiaButton>
+        }
+      >
+        {archivedRows.length === 0 ? (
+          <AixiaEmptyState
+            icon={Archive}
+            title="No archived expense categories"
+            description="Archived expense categories will appear here for restore or permanent delete actions."
+          />
+        ) : (
+          <AixiaTableShell variant="archive">
+            <thead className="aixia-table-head">
+              <tr>
+                <th>Code</th>
+                <th>Name</th>
+                <th>Ledger Link</th>
+                <th>Updated</th>
+                <th>Actions</th>
+              </tr>
+            </thead>
+
+            <tbody>
+              {archivedRows.map((row) => (
+                <tr key={row.id} className="aixia-table-row">
+                  <AixiaTableTextCell width="sm" primary={row.code || "—"} />
+
+                  <AixiaTableTextCell
+                    width="xl"
+                    primary={row.name}
+                    secondary={row.description?.trim() || "No description"}
+                  />
+
+                  <AixiaTableTextCell
+                    width="xl"
+                    primary={getLedgerLabel(row.ledger_account_id, ledgerAccounts)}
+                    secondary={row.ledger_account_id ? "Mapped account" : "Optional"}
+                  />
+
+                  <AixiaTableDateCell width="sm">
+                    {formatDateLabel(row.updated_at)}
+                  </AixiaTableDateCell>
+
+                  <AixiaTableActionsCell>
+                    <AixiaButton
+                      type="button"
+                      variant="secondary"
+                      onClick={() => void handleRestore(row)}
+                      disabled={saving}
+                    >
+                      <Undo2 className="h-3.5 w-3.5" />
+                      Restore
+                    </AixiaButton>
+
+                    <AixiaButton
+                      type="button"
+                      variant="danger"
+                      onClick={() => void handleHardDelete(row)}
+                      disabled={saving}
+                    >
+                      <Trash2 className="h-3.5 w-3.5" />
+                      Delete Permanently
+                    </AixiaButton>
+                  </AixiaTableActionsCell>
+                </tr>
+              ))}
+            </tbody>
+          </AixiaTableShell>
+        )}
+      </AixiaModal>
 
       <CategoryFormModal
         open={dialogOpen}

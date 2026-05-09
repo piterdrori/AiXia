@@ -2,13 +2,13 @@ import type { ReactNode } from "react";
 import { ArrowUpDown } from "lucide-react";
 
 type SortDirection = "asc" | "desc";
-type AixiaTableShellVariant = "default" | "registry" | "archive";
+type AixiaTableShellVariant = "registry" | "archive" | "default";
 
 type AixiaTableShellProps = {
   children: ReactNode;
   minWidthClassName?: string;
   maxHeightClassName?: string;
-  variant?: "registry" | "archive" | "default";
+  variant?: AixiaTableShellVariant;
 };
 
 type AixiaSortableHeaderProps<TSortKey extends string> = {

@@ -17,7 +17,6 @@ import {
 
 import {
   AixiaAccessDeniedState,
-  AixiaActionSystem,
   AixiaAlert,
   AixiaAlertText,
   AixiaBadge,
@@ -32,6 +31,7 @@ import {
   AixiaLoadingState,
   AixiaModal,
   AixiaPage,
+  AixiaRegistryToolbar,
   AixiaReviewBlock,
   AixiaReviewGrid,
   AixiaSearchField,
@@ -1045,7 +1045,7 @@ export default function FinanceExpenseCategoriesPage() {
         gradientTitle="Expense"
         title="Categories"
         subtitle="Finance Classification Layer"
-        description="Master classification for operating expenses, vendor bills, procurement lines, reporting, and optional ledger mapping. Keep categories clean so every finance workflow can classify spend consistently."
+        description="Master classification for operating expenses, vendor bills, purchase flows, reporting, and optional ledger mapping. Keep categories clean so every finance workflow can classify spend consistently."
         statusCards={headerStatusCards}
       />
 
@@ -1079,48 +1079,58 @@ export default function FinanceExpenseCategoriesPage() {
             description="Search, sort, create, edit, and archive active expense categories. Archived records are managed in the archive manager."
             icon={Layers3}
             actions={
-              <AixiaActionSystem className="aixia-registry-control-cluster">
-                <AixiaSearchField
-                  width="wide"
-                  value={search}
-                  onChange={(event) => setSearch(event.target.value)}
-                  placeholder="Search code, name, description, notes, or ledger account..."
-                />
-
-                <AixiaReviewGrid variant="compact" className="aixia-registry-filter-grid">
-                  {(["all", "active", "inactive"] as StatusFilter[]).map((value) => (
-                    <AixiaSelectableTile
-                      key={value}
-                      title={formatStatusLabel(value)}
-                      selected={statusFilter === value}
-                      tone={getStatusFilterTone(value)}
-                      onClick={() => setStatusFilter(value)}
-                    />
-                  ))}
-                </AixiaReviewGrid>
-
-                {permissionState.canCreate ? (
-                  <AixiaButton
-                    type="button"
-                    variant="primary"
-                    onClick={openCreateDialog}
+              <AixiaRegistryToolbar
+                search={
+                  <AixiaSearchField
+                    width="wide"
+                    value={search}
+                    onChange={(event) => setSearch(event.target.value)}
+                    placeholder="Search code, name, description, notes, or ledger account..."
+                  />
+                }
+                filters={
+                  <AixiaReviewGrid
+                    variant="compact"
+                    className="aixia-registry-filter-grid"
                   >
-                    <Plus className="h-4 w-4" />
-                    New Category
-                  </AixiaButton>
-                ) : null}
-
-                {permissionState.canDeleteArchive ? (
-                  <AixiaButton
-                    type="button"
-                    variant="danger"
-                    onClick={() => setArchiveOpen(true)}
-                  >
-                    <Archive className="h-4 w-4" />
-                    Archive
-                  </AixiaButton>
-                ) : null}
-              </AixiaActionSystem>
+                    {(["all", "active", "inactive"] as StatusFilter[]).map(
+                      (value) => (
+                        <AixiaSelectableTile
+                          key={value}
+                          title={formatStatusLabel(value)}
+                          selected={statusFilter === value}
+                          tone={getStatusFilterTone(value)}
+                          onClick={() => setStatusFilter(value)}
+                        />
+                      )
+                    )}
+                  </AixiaReviewGrid>
+                }
+                primaryAction={
+                  permissionState.canCreate ? (
+                    <AixiaButton
+                      type="button"
+                      variant="primary"
+                      onClick={openCreateDialog}
+                    >
+                      <Plus className="h-4 w-4" />
+                      New Category
+                    </AixiaButton>
+                  ) : null
+                }
+                archiveAction={
+                  permissionState.canDeleteArchive ? (
+                    <AixiaButton
+                      type="button"
+                      variant="danger"
+                      onClick={() => setArchiveOpen(true)}
+                    >
+                      <Archive className="h-4 w-4" />
+                      Archive
+                    </AixiaButton>
+                  ) : null
+                }
+              />
             }
           >
             {sortedRows.length === 0 ? (
@@ -1130,7 +1140,7 @@ export default function FinanceExpenseCategoriesPage() {
                 description="Create an expense category, adjust the search and status filters, or open the archive manager."
               />
             ) : (
-              <AixiaTableShell minWidthClassName="min-w-[1240px]">
+              <AixiaTableShell variant="registry">
                 <thead className="aixia-table-head">
                   <tr>
                     <th>
@@ -1228,31 +1238,29 @@ export default function FinanceExpenseCategoriesPage() {
                       </AixiaTableDateCell>
 
                       <AixiaTableActionsCell>
-                        <AixiaActionSystem density="compact">
-                          {permissionState.canUpdate ? (
-                            <AixiaButton
-                              type="button"
-                              variant="secondary"
-                              onClick={() => openEditDialog(row)}
-                              disabled={saving}
-                            >
-                              <Edit3 className="h-3.5 w-3.5" />
-                              Edit
-                            </AixiaButton>
-                          ) : null}
+                        {permissionState.canUpdate ? (
+                          <AixiaButton
+                            type="button"
+                            variant="secondary"
+                            onClick={() => openEditDialog(row)}
+                            disabled={saving}
+                          >
+                            <Edit3 className="h-3.5 w-3.5" />
+                            Edit
+                          </AixiaButton>
+                        ) : null}
 
-                          {permissionState.canDeleteArchive ? (
-                            <AixiaButton
-                              type="button"
-                              variant="danger"
-                              onClick={() => void handleArchive(row)}
-                              disabled={saving}
-                            >
-                              <Archive className="h-3.5 w-3.5" />
-                              Archive
-                            </AixiaButton>
-                          ) : null}
-                        </AixiaActionSystem>
+                        {permissionState.canDeleteArchive ? (
+                          <AixiaButton
+                            type="button"
+                            variant="danger"
+                            onClick={() => void handleArchive(row)}
+                            disabled={saving}
+                          >
+                            <Archive className="h-3.5 w-3.5" />
+                            Archive
+                          </AixiaButton>
+                        ) : null}
                       </AixiaTableActionsCell>
                     </tr>
                   ))}
@@ -1299,10 +1307,7 @@ export default function FinanceExpenseCategoriesPage() {
             description="Archived expense categories will appear here for restore or permanent delete actions."
           />
         ) : (
-          <AixiaTableShell
-            minWidthClassName="min-w-[980px]"
-            maxHeightClassName="max-h-[620px]"
-          >
+          <AixiaTableShell variant="archive">
             <thead className="aixia-table-head">
               <tr>
                 <th>Code</th>
@@ -1335,27 +1340,25 @@ export default function FinanceExpenseCategoriesPage() {
                   </AixiaTableDateCell>
 
                   <AixiaTableActionsCell>
-                    <AixiaActionSystem density="compact">
-                      <AixiaButton
-                        type="button"
-                        variant="secondary"
-                        onClick={() => void handleRestore(row)}
-                        disabled={saving}
-                      >
-                        <Undo2 className="h-3.5 w-3.5" />
-                        Restore
-                      </AixiaButton>
+                    <AixiaButton
+                      type="button"
+                      variant="secondary"
+                      onClick={() => void handleRestore(row)}
+                      disabled={saving}
+                    >
+                      <Undo2 className="h-3.5 w-3.5" />
+                      Restore
+                    </AixiaButton>
 
-                      <AixiaButton
-                        type="button"
-                        variant="danger"
-                        onClick={() => void handleHardDelete(row)}
-                        disabled={saving}
-                      >
-                        <Trash2 className="h-3.5 w-3.5" />
-                        Delete Permanently
-                      </AixiaButton>
-                    </AixiaActionSystem>
+                    <AixiaButton
+                      type="button"
+                      variant="danger"
+                      onClick={() => void handleHardDelete(row)}
+                      disabled={saving}
+                    >
+                      <Trash2 className="h-3.5 w-3.5" />
+                      Delete Permanently
+                    </AixiaButton>
                   </AixiaTableActionsCell>
                 </tr>
               ))}

@@ -2438,14 +2438,40 @@
 }
 
 .aixia-status-card {
-  display: flex !important;
+  display: grid !important;
   min-height: 148px !important;
-  flex-direction: column !important;
-  justify-content: space-between !important;
+  grid-template-rows: auto 1fr !important;
+  align-content: stretch !important;
+}
+
+.aixia-status-card-head {
+  display: grid !important;
+  min-width: 0 !important;
+  grid-template-columns: minmax(0, 1fr) 3rem !important;
+  align-items: start !important;
+  gap: 1rem !important;
+}
+
+.aixia-status-card-label {
+  display: flex !important;
+  min-height: 2.35rem !important;
+  align-items: flex-start !important;
+  line-height: 1.25 !important;
+}
+
+.aixia-status-card-value {
+  display: flex !important;
+  min-height: 2.35rem !important;
+  align-items: flex-start !important;
+  margin-top: 0.65rem !important;
+  line-height: 1.05 !important;
 }
 
 .aixia-status-card-description {
+  align-self: end !important;
+  min-height: 3.75rem !important;
   margin-top: 1rem !important;
+  line-height: 1.55 !important;
 }
 
 /* -------------------------------------------------------
@@ -3055,6 +3081,9 @@
 
 .aixia-review-grid[data-review-grid-variant="metrics"] .aixia-review-block {
   min-height: 116px;
+  display: grid;
+  grid-template-rows: auto 1fr;
+  align-content: stretch;
 }
 
 .aixia-review-grid[data-review-grid-variant="compact"] .aixia-review-block {
@@ -3147,6 +3176,7 @@
 }
 
 .aixia-review-grid[data-review-grid-variant="metrics"] .aixia-review-block-value {
+  min-height: 2.35rem;
   font-size: clamp(1.25rem, 1.45vw, 1.55rem);
   line-height: 1.15;
 }

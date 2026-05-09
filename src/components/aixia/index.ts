@@ -1,6 +1,7 @@
 export { AixiaAccessRule } from "./AixiaAccessRule";
 export { AixiaActionSystem } from "./AixiaActionSystem";
 export { AixiaAlert } from "./AixiaAlert";
+export { AixiaArchiveManagerModal } from "./AixiaArchiveManagerModal";
 export { AixiaBadge } from "./AixiaBadge";
 export { AixiaButton } from "./AixiaButton";
 export { AixiaCurrencyBadge } from "./AixiaCurrencyBadge";

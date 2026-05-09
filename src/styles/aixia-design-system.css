@@ -773,9 +773,9 @@
 }
 
 .aixia-registry-control-cluster > .aixia-search-field {
-  flex: 1 1 360px;
-  min-width: 320px;
-  max-width: 520px;
+  flex: 1 1 280px;
+  min-width: 260px;
+  max-width: 420px;
 }
 
 .aixia-registry-control-cluster > .aixia-registry-filter-grid {
@@ -786,7 +786,16 @@
 .aixia-registry-control-cluster > .aixia-btn-secondary,
 .aixia-registry-control-cluster > .aixia-btn-danger {
   flex: 0 0 auto;
+  min-height: 3rem;
+  padding-left: 1.25rem;
+  padding-right: 1.25rem;
   white-space: nowrap;
+}
+
+@media (min-width: 1280px) {
+  .aixia-registry-control-cluster {
+    flex-wrap: nowrap;
+  }
 }
 
 .aixia-registry-filter-grid {
@@ -797,13 +806,13 @@
 .aixia-registry-filter-grid[data-review-grid-variant="compact"] {
   display: grid;
   width: auto;
-  grid-template-columns: repeat(4, minmax(86px, 96px)) !important;
+  grid-template-columns: repeat(4, minmax(74px, 88px)) !important;
 }
 
 .aixia-registry-filter-grid .aixia-selectable-tile {
   min-height: 3rem;
   justify-content: center;
-  padding: 0.75rem 0.9rem;
+  padding: 0.75rem 0.75rem;
   text-align: center;
   white-space: nowrap;
 }
@@ -996,7 +1005,7 @@
   }
 
   .aixia-section-header-layout:has(.aixia-registry-control-cluster) {
-    grid-template-columns: minmax(420px, 0.34fr) minmax(0, 0.66fr);
+    grid-template-columns: minmax(360px, 0.28fr) minmax(0, 0.72fr);
     align-items: center;
   }
 

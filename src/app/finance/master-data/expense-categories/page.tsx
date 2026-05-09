@@ -19,6 +19,7 @@ import {
   AixiaAccessDeniedState,
   AixiaAlert,
   AixiaAlertText,
+  AixiaArchiveManagerModal,
   AixiaBadge,
   AixiaButton,
   AixiaEmptyState,
@@ -1278,27 +1279,12 @@ export default function FinanceExpenseCategoriesPage() {
         </>
       )}
 
-      <AixiaModal
+      <AixiaArchiveManagerModal
         open={archiveOpen}
         title="Expense Category Archive"
         description="Manage archived expense categories. Restore archived records when they should return to active workflows. Permanent delete is only available from this archive manager."
-        badge={
-          <>
-            <AixiaBadge tone="rose">Archive Manager</AixiaBadge>
-            <AixiaBadge tone="neutral">{archivedRows.length} Archived</AixiaBadge>
-          </>
-        }
+        archivedCount={archivedRows.length}
         onClose={() => setArchiveOpen(false)}
-        maxWidthClassName="max-w-6xl"
-        footer={
-          <AixiaButton
-            type="button"
-            variant="secondary"
-            onClick={() => setArchiveOpen(false)}
-          >
-            Close
-          </AixiaButton>
-        }
       >
         {archivedRows.length === 0 ? (
           <AixiaEmptyState
@@ -1365,7 +1351,7 @@ export default function FinanceExpenseCategoriesPage() {
             </tbody>
           </AixiaTableShell>
         )}
-      </AixiaModal>
+      </AixiaArchiveManagerModal>
 
       <CategoryFormModal
         open={dialogOpen}

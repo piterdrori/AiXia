@@ -705,25 +705,36 @@ function PayProfileForm({
               icon={Clock3}
               bodyClassName="p-5"
             >
-              <AixiaReviewGrid variant="compact">
-                <AixiaSelectableTile
-                  title="Not Enabled"
-                  description="Use the global paycheck amount only."
-                  selected={!form.hourlyEnabled}
-                  tone="neutral"
-                  disabled={saving}
-                  onClick={() => onChange("hourlyEnabled", false)}
-                />
+              <div className="aixia-payroll-toggle-row">
+                <AixiaReviewGrid variant="compact" className="aixia-payroll-toggle-grid">
+                  <AixiaSelectableTile
+                    title="Not Enabled"
+                    description="Use the global paycheck amount only."
+                    selected={!form.hourlyEnabled}
+                    tone="neutral"
+                    disabled={saving}
+                    onClick={() => onChange("hourlyEnabled", false)}
+                  />
 
-                <AixiaSelectableTile
-                  title="Enabled"
-                  description="Allow hourly rate and default-hours fields."
-                  selected={form.hourlyEnabled}
-                  tone="amber"
-                  disabled={saving}
-                  onClick={() => onChange("hourlyEnabled", true)}
-                />
-              </AixiaReviewGrid>
+                  <AixiaSelectableTile
+                    title="Enabled"
+                    description="Allow hourly rate and default-hours fields."
+                    selected={form.hourlyEnabled}
+                    tone="amber"
+                    disabled={saving}
+                    onClick={() => onChange("hourlyEnabled", true)}
+                  />
+                </AixiaReviewGrid>
+
+                {!form.hourlyEnabled ? (
+                  <AixiaAlert tone="info">
+                    <AixiaAlertText
+                      title="Hourly structure disabled"
+                      description="This profile will use the global paycheck amount only."
+                    />
+                  </AixiaAlert>
+                ) : null}
+              </div>
 
               {form.hourlyEnabled ? (
                 <AixiaFormGrid columns="two" className="mt-4">
@@ -753,14 +764,7 @@ function PayProfileForm({
                     />
                   </AixiaFormField>
                 </AixiaFormGrid>
-              ) : (
-                <AixiaAlert tone="info">
-                  <AixiaAlertText
-                    title="Hourly structure disabled"
-                    description="This profile will use the global paycheck amount only."
-                  />
-                </AixiaAlert>
-              )}
+              ) : null}
             </AixiaSection>
           </AixiaFormFullWidth>
         </AixiaFormGrid>
@@ -1609,6 +1613,7 @@ export default function FinanceMasterDataEmployeesPage() {
             title="Employee Reference Records"
             description="Search employee references and open each record to manage payroll defaults."
             icon={Users}
+            bodyClassName="aixia-employee-registry-body aixia-scrollbar"
             actions={
               <div className="aixia-control-cluster">
                 <AixiaSearchField
@@ -1618,14 +1623,22 @@ export default function FinanceMasterDataEmployeesPage() {
                   placeholder="Search employees, codes, email, job title, pay profile..."
                 />
 
-                <AixiaReviewGrid variant="compact">
+                <AixiaReviewGrid variant="compact" className="aixia-employee-filter-grid">
                   {(["all", "active", "inactive", "archived"] as FilterStatus[]).map(
                     (value) => (
                       <AixiaSelectableTile
                         key={value}
                         title={formatLabel(value)}
                         selected={statusFilter === value}
-                        tone={value === "archived" ? "rose" : value === "inactive" ? "amber" : "cyan"}
+                        tone={
+                          value === "archived"
+                            ? "rose"
+                            : value === "inactive"
+                              ? "amber"
+                              : value === "active"
+                                ? "emerald"
+                                : "cyan"
+                        }
                         onClick={() => setStatusFilter(value)}
                       />
                     )
@@ -1641,9 +1654,8 @@ export default function FinanceMasterDataEmployeesPage() {
                 description="Create or sync finance employee references before managing payroll defaults."
               />
             ) : (
-              <div className="aixia-form-row-list">
-                <AixiaReviewGrid variant="cards">
-                  {filteredRows.map((row) => {
+              <AixiaReviewGrid variant="cards">
+                {filteredRows.map((row) => {
                     const Icon = getRoleIcon(row.profile?.role || null);
                     const rowActiveProfile =
                       payProfiles.find(
@@ -1725,9 +1737,8 @@ export default function FinanceMasterDataEmployeesPage() {
                         }
                       />
                     );
-                  })}
-                </AixiaReviewGrid>
-              </div>
+                })}
+              </AixiaReviewGrid>
             )}
           </AixiaSection>
 

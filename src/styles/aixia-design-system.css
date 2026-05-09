@@ -1521,7 +1521,25 @@
 
 .aixia-table-wrap[data-table-variant="archive"] .aixia-table th:last-child,
 .aixia-table-wrap[data-table-variant="archive"] .aixia-table td:last-child {
-  width: 260px;
+  width: 390px;
+}
+
+.aixia-table-wrap[data-table-variant="archive"] .aixia-table-cell-actions,
+.aixia-table-wrap[data-table-variant="archive"] td:has(.aixia-btn-primary),
+.aixia-table-wrap[data-table-variant="archive"] td:has(.aixia-btn-secondary),
+.aixia-table-wrap[data-table-variant="archive"] td:has(.aixia-btn-danger) {
+  min-width: 390px;
+}
+
+.aixia-table-wrap[data-table-variant="archive"] .aixia-table-actions {
+  justify-content: flex-end;
+  flex-wrap: nowrap;
+}
+
+.aixia-table-wrap[data-table-variant="archive"] .aixia-btn-primary,
+.aixia-table-wrap[data-table-variant="archive"] .aixia-btn-secondary,
+.aixia-table-wrap[data-table-variant="archive"] .aixia-btn-danger {
+  flex: 0 0 auto;
 }
 
 .aixia-table-head {

@@ -13,6 +13,7 @@ export { AixiaModal } from "./AixiaModal";
 export { AixiaPage } from "./AixiaPage";
 export { AixiaEmptyState } from "./AixiaEmptyState";
 export { AixiaSearchField } from "./AixiaSearchField";
+export { AixiaRegistryToolbar } from "./AixiaRegistryToolbar";
 export { AixiaSection } from "./AixiaSection";
 export { AixiaSmartGrid } from "./AixiaSmartGrid";
 export { AixiaSmartLayout } from "./AixiaSmartLayout";

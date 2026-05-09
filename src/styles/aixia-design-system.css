@@ -773,17 +773,18 @@
 
 @media (min-width: 1024px) {
   .aixia-registry-control-cluster {
-    grid-template-columns: minmax(360px, 520px) auto auto;
+    grid-template-columns: minmax(360px, 520px) minmax(380px, 420px) auto;
     justify-content: end;
   }
 }
 
 .aixia-registry-filter-grid {
+  width: 100%;
   min-width: 0;
 }
 
 .aixia-registry-filter-grid[data-review-grid-variant="compact"] {
-  grid-template-columns: repeat(4, minmax(86px, 1fr));
+  grid-template-columns: repeat(4, minmax(84px, 1fr)) !important;
 }
 
 .aixia-registry-filter-grid .aixia-selectable-tile {
@@ -795,6 +796,10 @@
 
 .aixia-registry-filter-grid .aixia-selectable-tile-head {
   justify-content: center;
+}
+
+.aixia-registry-filter-grid .aixia-selectable-tile-copy {
+  place-items: center;
 }
 
 .aixia-registry-filter-grid .aixia-selectable-tile-title {
@@ -937,6 +942,10 @@
   .aixia-section-actions {
     width: auto;
     justify-self: end;
+  }
+
+  .aixia-section-actions:has(.aixia-registry-control-cluster) {
+    width: min(100%, 980px);
   }
 }
 

@@ -1056,7 +1056,7 @@ export default function FinanceExpenseCategoriesPage() {
             description="Search, sort, create, edit, archive, restore, and safely delete unused categories."
             icon={Layers3}
             actions={
-              <div className="aixia-control-cluster">
+              <div className="aixia-registry-control-cluster">
                 <AixiaSearchField
                   width="wide"
                   value={search}
@@ -1064,7 +1064,7 @@ export default function FinanceExpenseCategoriesPage() {
                   placeholder="Search code, name, description, notes, or ledger account..."
                 />
 
-                <AixiaReviewGrid variant="compact">
+                <AixiaReviewGrid variant="compact" className="aixia-registry-filter-grid">
                   {(["all", "active", "inactive", "archived"] as StatusFilter[]).map(
                     (value) => (
                       <AixiaSelectableTile

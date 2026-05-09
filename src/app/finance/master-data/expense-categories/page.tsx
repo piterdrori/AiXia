@@ -1,25 +1,52 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
-import { useNavigate } from "react-router-dom";
+import type { FormEvent } from "react";
+import type { LucideIcon } from "lucide-react";
 import {
   Archive,
-  ArrowLeft,
   CheckCircle2,
   Edit3,
   Landmark,
   Layers3,
+  Loader2,
   Plus,
-  Search,
+  Save,
   ShieldCheck,
   Trash2,
   Undo2,
-  X,
 } from "lucide-react";
 
-import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
-import { Badge } from "@/components/ui/badge";
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
-
+import {
+  AixiaAccessDeniedState,
+  AixiaActionStack,
+  AixiaAlert,
+  AixiaAlertText,
+  AixiaBadge,
+  AixiaButton,
+  AixiaEmptyState,
+  AixiaFieldLabel,
+  AixiaFormField,
+  AixiaFormFullWidth,
+  AixiaFormGrid,
+  AixiaHero,
+  AixiaInputField,
+  AixiaLoadingState,
+  AixiaModal,
+  AixiaPage,
+  AixiaReviewBlock,
+  AixiaReviewGrid,
+  AixiaSearchField,
+  AixiaSection,
+  AixiaSelectField,
+  AixiaSortableHeader,
+  AixiaStatusBadge,
+  AixiaTableActionsCell,
+  AixiaTableBadgeCell,
+  AixiaTableDateCell,
+  AixiaTableShell,
+  AixiaTableTextCell,
+  AixiaTextareaField,
+  AixiaSelectableTile,
+} from "@/components/aixia";
 import { supabase } from "@/lib/supabase";
 import {
   getEffectivePermissions,
@@ -37,9 +64,13 @@ import {
   type FinanceExpenseCategoryStatus,
 } from "@/lib/finance/expenseCategories";
 
+type LoadMode = "initial" | "silent";
+
 type ProfilePermissionRow = {
-  role: Role;
-  permissions?: Partial<Record<Permission, boolean>> | null;
+  user_id: string;
+  full_name: string | null;
+  role: Role | null;
+  permissions: Partial<Record<Permission, boolean>> | null;
 };
 
 type FinanceAccountOption = {
@@ -58,9 +89,33 @@ type FormState = {
   ledger_account_id: string;
 };
 
+type PermissionState = {
+  canRead: boolean;
+  canCreate: boolean;
+  canUpdate: boolean;
+  canDeleteArchive: boolean;
+  isAdmin: boolean;
+};
+
 type StatusFilter = "all" | "active" | "inactive" | "archived";
 type SortKey = "code" | "name" | "status" | "ledger" | "posted" | "updated_at";
 type SortDirection = "asc" | "desc";
+
+type HeaderStatusCardData = {
+  label: string;
+  value: string;
+  description: string;
+  icon: LucideIcon;
+  tone: "emerald" | "cyan" | "amber" | "rose";
+};
+
+type MetricCardData = {
+  label: string;
+  value: string | number;
+  description: string;
+  icon: LucideIcon;
+  tone: "cyan" | "emerald" | "amber" | "violet" | "rose" | "neutral";
+};
 
 const EMPTY_FORM: FormState = {
   code: "",
@@ -69,6 +124,14 @@ const EMPTY_FORM: FormState = {
   description: "",
   notes: "",
   ledger_account_id: "",
+};
+
+const EMPTY_PERMISSION_STATE: PermissionState = {
+  canRead: false,
+  canCreate: false,
+  canUpdate: false,
+  canDeleteArchive: false,
+  isAdmin: false,
 };
 
 function formatDateLabel(value: string | null | undefined) {
@@ -84,118 +147,109 @@ function formatDateLabel(value: string | null | undefined) {
   });
 }
 
-function formatStatusLabel(value: string) {
+function formatStatusLabel(value: string | null | undefined) {
+  if (!value) return "—";
+
   return value
     .replaceAll("_", " ")
     .replace(/\b\w/g, (character) => character.toUpperCase());
 }
 
-function inputClass() {
-  return "h-11 rounded-2xl border-white/10 bg-black/20 text-white placeholder:text-white/30 focus:border-cyan-400/30 focus:ring-cyan-400/10";
+function compareStrings(first: string | null | undefined, second: string | null | undefined) {
+  return (first || "").localeCompare(second || "");
 }
 
-function selectClass() {
-  return "h-11 w-full rounded-2xl border border-white/10 bg-black/20 px-4 text-sm text-white outline-none transition focus:border-cyan-400/30 focus:bg-black/30";
+function compareNumbers(first: number | boolean | null | undefined, second: number | boolean | null | undefined) {
+  return Number(first || 0) - Number(second || 0);
 }
 
-function textareaClass() {
-  return "min-h-[112px] w-full resize-none rounded-2xl border border-white/10 bg-black/20 px-4 py-3 text-sm text-white outline-none transition placeholder:text-white/30 focus:border-cyan-400/30 focus:bg-black/30";
+function compareDates(first: string | null | undefined, second: string | null | undefined) {
+  return new Date(first || 0).getTime() - new Date(second || 0).getTime();
 }
 
-function labelClass() {
-  return "text-sm font-medium text-slate-300";
+function hasPermission(
+  permissions: Record<Permission, boolean> | null,
+  permission: Permission
+) {
+  return Boolean(permissions?.[permission]);
 }
 
-function statusBadgeClass(status: FinanceExpenseCategoryStatus) {
-  if (status === "archived") {
-    return "rounded-full border border-rose-400/20 bg-rose-500/10 px-2.5 py-1 text-[11px] uppercase tracking-[0.16em] text-rose-200 shadow-none";
+function buildPermissionState(
+  profile: ProfilePermissionRow | null,
+  permissions: Record<Permission, boolean> | null
+): PermissionState {
+  if (!profile?.role || !permissions) {
+    return EMPTY_PERMISSION_STATE;
   }
 
-  if (status === "inactive") {
-    return "rounded-full border border-amber-400/20 bg-amber-500/10 px-2.5 py-1 text-[11px] uppercase tracking-[0.16em] text-amber-200 shadow-none";
-  }
+  const isAdmin = String(profile.role || "").toLowerCase() === "admin";
+  const canManageMasterData = hasPermission(permissions, "manageFinanceMasterData");
+  const canAccessFinance = hasPermission(permissions, "accessFinance");
+  const canViewFinance = hasPermission(permissions, "viewFinance");
 
-  return "rounded-full border border-emerald-400/20 bg-emerald-500/10 px-2.5 py-1 text-[11px] uppercase tracking-[0.16em] text-emerald-200 shadow-none";
+  return {
+    isAdmin,
+    canRead: canManageMasterData || canAccessFinance || canViewFinance,
+    canCreate:
+      canManageMasterData || hasPermission(permissions, "createFinanceRecords"),
+    canUpdate:
+      canManageMasterData || hasPermission(permissions, "editFinanceRecords"),
+    canDeleteArchive:
+      canManageMasterData || hasPermission(permissions, "archiveFinanceRecords"),
+  };
 }
 
-function SummaryTile({
-  label,
-  value,
-  icon: Icon,
-  tone = "cyan",
-  description,
-}: {
-  label: string;
-  value: string | number;
-  icon: typeof Layers3;
-  tone?: "cyan" | "emerald" | "amber" | "violet" | "rose";
-  description: string;
-}) {
-  const toneMap = {
-    cyan: {
-      shell:
-        "border-cyan-400/15 bg-[radial-gradient(circle_at_top_left,rgba(6,182,212,0.20),transparent_44%),linear-gradient(180deg,rgba(255,255,255,0.05),rgba(255,255,255,0.032))]",
-      icon: "border-cyan-400/20 bg-cyan-500/10 text-cyan-200",
-      label: "text-cyan-100/75",
-      dot: "bg-cyan-300",
-    },
-    emerald: {
-      shell:
-        "border-emerald-400/15 bg-[radial-gradient(circle_at_top_left,rgba(16,185,129,0.20),transparent_44%),linear-gradient(180deg,rgba(255,255,255,0.05),rgba(255,255,255,0.032))]",
-      icon: "border-emerald-400/20 bg-emerald-500/10 text-emerald-200",
-      label: "text-emerald-100/75",
-      dot: "bg-emerald-300",
-    },
-    amber: {
-      shell:
-        "border-amber-400/15 bg-[radial-gradient(circle_at_top_left,rgba(245,158,11,0.20),transparent_44%),linear-gradient(180deg,rgba(255,255,255,0.05),rgba(255,255,255,0.032))]",
-      icon: "border-amber-400/20 bg-amber-500/10 text-amber-200",
-      label: "text-amber-100/75",
-      dot: "bg-amber-300",
-    },
-    violet: {
-      shell:
-        "border-violet-400/15 bg-[radial-gradient(circle_at_top_left,rgba(139,92,246,0.20),transparent_44%),linear-gradient(180deg,rgba(255,255,255,0.05),rgba(255,255,255,0.032))]",
-      icon: "border-violet-400/20 bg-violet-500/10 text-violet-200",
-      label: "text-violet-100/75",
-      dot: "bg-violet-300",
-    },
-    rose: {
-      shell:
-        "border-rose-400/15 bg-[radial-gradient(circle_at_top_left,rgba(244,63,94,0.20),transparent_44%),linear-gradient(180deg,rgba(255,255,255,0.05),rgba(255,255,255,0.032))]",
-      icon: "border-rose-400/20 bg-rose-500/10 text-rose-200",
-      label: "text-rose-100/75",
-      dot: "bg-rose-300",
-    },
-  }[tone];
+async function loadBackendEffectivePermissions(
+  userId: string,
+  mode: LoadMode
+): Promise<Partial<Record<Permission, boolean>> | null> {
+  try {
+    const result = await supabase.rpc("finance_get_effective_permissions", {
+      target_user_id: userId,
+    });
 
-  return (
-    <Card className={`min-h-[156px] overflow-hidden rounded-[28px] border backdrop-blur-xl ${toneMap.shell}`}>
-      <CardContent className="relative flex h-full flex-col justify-between overflow-hidden p-5">
-        <div className="pointer-events-none absolute inset-0 bg-[radial-gradient(circle_at_bottom_right,rgba(255,255,255,0.06),transparent_30%)]" />
+    if (result.error) {
+      if (mode === "silent") throw result.error;
+      console.warn("Expense categories permission RPC fallback:", result.error.message);
+      return null;
+    }
 
-        <div className="relative flex items-start justify-between gap-4">
-          <div>
-            <div className={`text-xs uppercase tracking-[0.18em] ${toneMap.label}`}>
-              {label}
-            </div>
-            <div className="mt-4 text-4xl font-semibold tracking-tight text-white">
-              {value}
-            </div>
-          </div>
+    if (!result.data || typeof result.data !== "object") {
+      if (mode === "silent") {
+        throw new Error(
+          "Silent expense categories permission refresh returned no effective permission payload."
+        );
+      }
 
-          <div className={`flex h-12 w-12 items-center justify-center rounded-2xl border ${toneMap.icon}`}>
-            <Icon className="h-5 w-5" />
-          </div>
-        </div>
+      return null;
+    }
 
-        <div className="relative mt-6 flex items-center justify-between gap-4">
-          <div className="text-sm leading-5 text-slate-400">{description}</div>
-          <div className={`h-2.5 w-2.5 flex-none rounded-full ${toneMap.dot}`} />
-        </div>
-      </CardContent>
-    </Card>
-  );
+    return result.data as Partial<Record<Permission, boolean>>;
+  } catch (error) {
+    if (mode === "silent") throw error;
+    console.warn("Expense categories permission RPC failed:", error);
+    return null;
+  }
+}
+
+function getStatusFilterTone(value: StatusFilter): "cyan" | "emerald" | "amber" | "rose" {
+  if (value === "active") return "emerald";
+  if (value === "inactive") return "amber";
+  if (value === "archived") return "rose";
+
+  return "cyan";
+}
+
+function getLedgerLabel(
+  accountId: string | null | undefined,
+  ledgerAccounts: FinanceAccountOption[]
+) {
+  if (!accountId) return "No ledger account";
+
+  const match = ledgerAccounts.find((account) => account.id === accountId);
+  if (!match) return "Linked account";
+
+  return `${match.account_code} · ${match.name}`;
 }
 
 function CategoryFormModal({
@@ -221,218 +275,179 @@ function CategoryFormModal({
   onChange: <K extends keyof FormState>(key: K, value: FormState[K]) => void;
   onSave: () => void;
 }) {
-  if (!open) return null;
-
   return (
-    <div className="fixed inset-0 z-[120] flex items-center justify-center bg-black/70 p-4 backdrop-blur-sm">
-      <div className="flex max-h-[92vh] w-full max-w-4xl flex-col overflow-hidden rounded-[34px] border border-white/10 bg-[#0b111f] shadow-2xl shadow-black/40">
-        <div className="relative overflow-hidden border-b border-white/10 bg-white/[0.035] px-6 py-5">
-          <div className="pointer-events-none absolute inset-0 bg-[radial-gradient(circle_at_top_left,rgba(6,182,212,0.18),transparent_34%),radial-gradient(circle_at_top_right,rgba(139,92,246,0.14),transparent_34%)]" />
-
-          <div className="relative flex items-start justify-between gap-4">
-            <div>
-              <div className="flex flex-wrap items-center gap-2">
-                <Badge className="rounded-full border border-cyan-400/20 bg-cyan-500/10 px-3 py-1 text-[11px] uppercase tracking-[0.18em] text-cyan-200 shadow-none">
-                  Expense Category
-                </Badge>
-                <Badge className="rounded-full border border-emerald-400/20 bg-emerald-500/10 px-3 py-1 text-[11px] uppercase tracking-[0.18em] text-emerald-200 shadow-none">
-                  {editingRow ? "Edit Mode" : "Create Mode"}
-                </Badge>
-              </div>
-
-              <div className="mt-3 text-2xl font-semibold text-white">
-                {editingRow ? "Edit Expense Category" : "Create Expense Category"}
-              </div>
-              <p className="mt-2 max-w-3xl text-sm leading-6 text-slate-400">
-                Configure reusable classification for expenses, bills, procurement,
-                and reporting. Ledger account linkage is optional and can be connected
-                when accounting rules are ready.
-              </p>
-            </div>
-
-            <Button
-              type="button"
-              variant="outline"
-              onClick={onClose}
-              className="h-10 rounded-xl border-white/10 bg-black/20 px-3 text-white hover:bg-white/10"
-            >
-              <X className="h-4 w-4" />
-            </Button>
-          </div>
-        </div>
-
-        <div className="overflow-y-auto p-6">
-          <div className="grid gap-5">
-            <section className="rounded-[30px] border border-white/10 bg-white/[0.045] backdrop-blur-xl">
-              <div className="border-b border-white/10 px-5 py-4">
-                <div className="flex items-center gap-3">
-                  <div className="flex h-11 w-11 items-center justify-center rounded-2xl border border-cyan-400/20 bg-cyan-500/10 text-cyan-200">
-                    <Layers3 className="h-5 w-5" />
-                  </div>
-                  <div>
-                    <div className="text-sm font-semibold uppercase tracking-[0.18em] text-slate-400">
-                      Category Identity
-                    </div>
-                    <p className="mt-1 text-xs leading-5 text-slate-500">
-                      Name, code, status, and business description.
-                    </p>
-                  </div>
-                </div>
-              </div>
-
-              <div className="grid gap-4 p-5 md:grid-cols-2">
-                <label className="grid gap-2">
-                  <span className={labelClass()}>Code</span>
-                  <Input
-                    value={form.code}
-                    onChange={(event) => onChange("code", event.target.value)}
-                    placeholder="Optional code, for example TRAVEL"
-                    className={inputClass()}
-                  />
-                </label>
-
-                <label className="grid gap-2">
-                  <span className={labelClass()}>Name</span>
-                  <Input
-                    value={form.name}
-                    onChange={(event) => onChange("name", event.target.value)}
-                    placeholder="Category name"
-                    className={inputClass()}
-                  />
-                </label>
-
-                <label className="grid gap-2 md:col-span-2">
-                  <span className={labelClass()}>Description</span>
-                  <textarea
-                    value={form.description}
-                    onChange={(event) => onChange("description", event.target.value)}
-                    placeholder="Short description shown to users when selecting this category"
-                    className={textareaClass()}
-                  />
-                </label>
-
-                <label className="grid gap-2 md:col-span-2">
-                  <span className={labelClass()}>Internal Notes</span>
-                  <textarea
-                    value={form.notes}
-                    onChange={(event) => onChange("notes", event.target.value)}
-                    placeholder="Optional internal finance notes"
-                    className={textareaClass()}
-                  />
-                </label>
-
-                <div className="grid gap-2 md:col-span-2">
-                  <span className={labelClass()}>Status</span>
-                  <div className="flex flex-wrap gap-2">
-                    {(["active", "inactive", "archived"] as FinanceExpenseCategoryStatus[]).map(
-                      (value) => (
-                        <button
-                          key={value}
-                          type="button"
-                          onClick={() => onChange("status", value)}
-                          className={`h-10 rounded-2xl border px-4 text-sm font-semibold transition ${
-                            form.status === value
-                              ? value === "active"
-                                ? "border-emerald-400/30 bg-emerald-500/15 text-emerald-100"
-                                : value === "inactive"
-                                  ? "border-amber-400/30 bg-amber-500/15 text-amber-100"
-                                  : "border-rose-400/30 bg-rose-500/15 text-rose-100"
-                              : "border-white/10 bg-black/20 text-slate-400 hover:bg-white/[0.06] hover:text-white"
-                          }`}
-                        >
-                          {formatStatusLabel(value)}
-                        </button>
-                      )
-                    )}
-                  </div>
-                </div>
-              </div>
-            </section>
-
-            <section className="rounded-[30px] border border-white/10 bg-white/[0.045] backdrop-blur-xl">
-              <div className="border-b border-white/10 px-5 py-4">
-                <div className="flex items-center gap-3">
-                  <div className="flex h-11 w-11 items-center justify-center rounded-2xl border border-violet-400/20 bg-violet-500/10 text-violet-200">
-                    <Landmark className="h-5 w-5" />
-                  </div>
-                  <div>
-                    <div className="text-sm font-semibold uppercase tracking-[0.18em] text-slate-400">
-                      Ledger Linkage
-                    </div>
-                    <p className="mt-1 text-xs leading-5 text-slate-500">
-                      Optional chart-of-accounts link for accounting and reports.
-                    </p>
-                  </div>
-                </div>
-              </div>
-
-              <div className="grid gap-4 p-5">
-                <label className="grid gap-2">
-                  <span className={labelClass()}>Ledger Account Link</span>
-                  <select
-                    value={form.ledger_account_id}
-                    onChange={(event) => onChange("ledger_account_id", event.target.value)}
-                    className={selectClass()}
-                  >
-                    <option value="">No ledger account</option>
-                    {ledgerAccounts.map((account) => (
-                      <option key={account.id} value={account.id}>
-                        {account.account_code} · {account.name}
-                      </option>
-                    ))}
-                  </select>
-                </label>
-
-                <div className="rounded-[24px] border border-violet-400/15 bg-violet-500/10 p-4">
-                  <div className="text-[11px] font-semibold uppercase tracking-[0.18em] text-violet-200/70">
-                    Accounting Readiness
-                  </div>
-                  <p className="mt-2 text-sm leading-6 text-violet-100/70">
-                    Categories can be created before ledger mapping is finalized. Add the
-                    ledger link later when the chart of accounts is ready.
-                  </p>
-                </div>
-              </div>
-            </section>
-
-            {error ? (
-              <div className="rounded-[24px] border border-rose-400/20 bg-rose-500/10 px-5 py-4 text-sm text-rose-100">
-                {error}
-              </div>
-            ) : null}
-          </div>
-        </div>
-
-        <div className="flex flex-col gap-3 border-t border-white/10 bg-white/[0.025] px-6 py-5 sm:flex-row sm:justify-end">
-          <Button
+    <AixiaModal
+      open={open}
+      title={editingRow ? "Edit Expense Category" : "Create Expense Category"}
+      description="Configure reusable expense classification for operating expenses, vendor bills, procurement lines, reporting, and optional ledger mapping."
+      badge={
+        <>
+          <AixiaBadge tone="cyan">Expense Category</AixiaBadge>
+          <AixiaBadge tone="emerald">{editingRow ? "Edit Mode" : "Create Mode"}</AixiaBadge>
+        </>
+      }
+      onClose={onClose}
+      maxWidthClassName="max-w-4xl"
+      footer={
+        <>
+          <AixiaButton
             type="button"
-            variant="outline"
+            variant="secondary"
             onClick={onClose}
-            className="h-11 rounded-2xl border-white/10 bg-black/20 px-4 text-white hover:bg-white/10"
+            disabled={saving}
           >
             Cancel
-          </Button>
+          </AixiaButton>
 
-          <Button
+          <AixiaButton
             type="button"
+            variant="primary"
             onClick={onSave}
             disabled={saving || !canSave}
-            className="h-11 rounded-2xl border border-cyan-400/20 bg-cyan-500/10 px-5 text-cyan-100 hover:bg-cyan-500/15 disabled:cursor-not-allowed disabled:opacity-50"
           >
+            {saving ? (
+              <Loader2 className="h-4 w-4 animate-spin" />
+            ) : (
+              <Save className="h-4 w-4" />
+            )}
             {saving ? "Saving..." : editingRow ? "Save Changes" : "Create Category"}
-          </Button>
-        </div>
-      </div>
-    </div>
+          </AixiaButton>
+        </>
+      }
+    >
+      <form
+        onSubmit={(event: FormEvent<HTMLFormElement>) => {
+          event.preventDefault();
+          onSave();
+        }}
+      >
+        <AixiaSection
+          title="Category Identity"
+          description="Name, code, status, description, and internal finance notes."
+          icon={Layers3}
+          badge={<AixiaBadge tone="cyan">Identity</AixiaBadge>}
+        >
+          <AixiaFormGrid columns="two">
+            <AixiaFormField>
+              <AixiaFieldLabel label="Code" helper="Optional" />
+              <AixiaInputField
+                value={form.code}
+                onChange={(event) => onChange("code", event.target.value)}
+                placeholder="For example TRAVEL"
+                disabled={saving}
+              />
+            </AixiaFormField>
+
+            <AixiaFormField>
+              <AixiaFieldLabel label="Name" required />
+              <AixiaInputField
+                value={form.name}
+                onChange={(event) => onChange("name", event.target.value)}
+                placeholder="Category name"
+                disabled={saving}
+              />
+            </AixiaFormField>
+
+            <AixiaFormFullWidth>
+              <AixiaFieldLabel label="Description" />
+              <AixiaTextareaField
+                value={form.description}
+                onChange={(event) => onChange("description", event.target.value)}
+                placeholder="Short description shown to users when selecting this category"
+                disabled={saving}
+              />
+            </AixiaFormFullWidth>
+
+            <AixiaFormFullWidth>
+              <AixiaFieldLabel label="Internal Notes" />
+              <AixiaTextareaField
+                value={form.notes}
+                onChange={(event) => onChange("notes", event.target.value)}
+                placeholder="Optional internal finance notes"
+                disabled={saving}
+              />
+            </AixiaFormFullWidth>
+
+            <AixiaFormFullWidth>
+              <AixiaFieldLabel label="Status" required />
+              <AixiaReviewGrid variant="compact">
+                {(["active", "inactive", "archived"] as FinanceExpenseCategoryStatus[]).map(
+                  (value) => (
+                    <AixiaSelectableTile
+                      key={value}
+                      title={formatStatusLabel(value)}
+                      selected={form.status === value}
+                      tone={
+                        value === "active"
+                          ? "emerald"
+                          : value === "inactive"
+                            ? "amber"
+                            : "rose"
+                      }
+                      disabled={saving}
+                      onClick={() => onChange("status", value)}
+                    />
+                  )
+                )}
+              </AixiaReviewGrid>
+            </AixiaFormFullWidth>
+          </AixiaFormGrid>
+        </AixiaSection>
+
+        <AixiaSection
+          title="Ledger Linkage"
+          description="Optional chart-of-accounts link for accounting reports. Categories can exist before ledger mapping is finalized."
+          icon={Landmark}
+          badge={<AixiaBadge tone="violet">Optional Accounting Link</AixiaBadge>}
+        >
+          <AixiaFormGrid columns="one">
+            <AixiaFormField>
+              <AixiaFieldLabel label="Ledger Account Link" helper="Optional" />
+              <AixiaSelectField
+                value={form.ledger_account_id}
+                onChange={(event) => onChange("ledger_account_id", event.target.value)}
+                disabled={saving}
+              >
+                <option value="" className="bg-[#05070d]">
+                  No ledger account
+                </option>
+                {ledgerAccounts.map((account) => (
+                  <option
+                    key={account.id}
+                    value={account.id}
+                    className="bg-[#05070d]"
+                  >
+                    {account.account_code} · {account.name}
+                  </option>
+                ))}
+              </AixiaSelectField>
+            </AixiaFormField>
+
+            <AixiaAlert tone="info">
+              <AixiaAlertText
+                title="Accounting readiness"
+                description="Add the ledger link later when the chart of accounts is ready. This keeps category setup flexible without blocking spend classification."
+              />
+            </AixiaAlert>
+          </AixiaFormGrid>
+        </AixiaSection>
+
+        {error ? <AixiaAlert tone="error">{error}</AixiaAlert> : null}
+      </form>
+    </AixiaModal>
   );
 }
 
 export default function FinanceExpenseCategoriesPage() {
-  const navigate = useNavigate();
-
   const [rows, setRows] = useState<FinanceExpenseCategoryRow[]>([]);
   const [ledgerAccounts, setLedgerAccounts] = useState<FinanceAccountOption[]>([]);
-  const [loading, setLoading] = useState(true);
+  const [profile, setProfile] = useState<ProfilePermissionRow | null>(null);
+  const [effectivePermissions, setEffectivePermissions] =
+    useState<Record<Permission, boolean> | null>(null);
+
+  const [isLoadingProfile, setIsLoadingProfile] = useState(true);
+  const [isLoadingData, setIsLoadingData] = useState(true);
+  const [backgroundRefreshing, setBackgroundRefreshing] = useState(false);
   const [saving, setSaving] = useState(false);
 
   const [search, setSearch] = useState("");
@@ -440,38 +455,108 @@ export default function FinanceExpenseCategoriesPage() {
   const [sortKey, setSortKey] = useState<SortKey>("updated_at");
   const [sortDirection, setSortDirection] = useState<SortDirection>("desc");
 
-  const [role, setRole] = useState<Role | null>(null);
-  const [permissionOverrides, setPermissionOverrides] =
-    useState<Partial<Record<Permission, boolean>> | null>(null);
-
   const [dialogOpen, setDialogOpen] = useState(false);
   const [editingRow, setEditingRow] = useState<FinanceExpenseCategoryRow | null>(null);
   const [form, setForm] = useState<FormState>(EMPTY_FORM);
   const [error, setError] = useState("");
   const [pageMessage, setPageMessage] = useState("");
 
-  const loadPage = useCallback(async () => {
-    setLoading(true);
+  const loadCurrentProfile = useCallback(async (mode: LoadMode = "initial") => {
+    if (mode === "initial") {
+      setIsLoadingProfile(true);
+    } else {
+      setBackgroundRefreshing(true);
+    }
 
     try {
-      const {
-        data: { user },
-      } = await supabase.auth.getUser();
+      const authResult = await supabase.auth.getUser();
+      if (authResult.error) throw authResult.error;
 
-      if (user?.id) {
-        const { data: profile } = await supabase
-          .from("profiles")
-          .select("role, permissions")
-          .eq("user_id", user.id)
-          .maybeSingle();
+      const authUserId = authResult.data.user?.id;
 
-        if (profile) {
-          const typedProfile = profile as ProfilePermissionRow;
-          setRole(typedProfile.role);
-          setPermissionOverrides(typedProfile.permissions || null);
+      if (!authUserId) {
+        if (mode === "initial") {
+          setProfile(null);
+          setEffectivePermissions(null);
+        } else {
+          console.warn(
+            "Silent expense categories profile refresh returned no auth user; keeping current profile and permissions."
+          );
         }
+
+        return;
       }
 
+      const profileResult = await supabase
+        .from("profiles")
+        .select("user_id, full_name, role, permissions")
+        .eq("user_id", authUserId)
+        .maybeSingle();
+
+      if (profileResult.error) throw profileResult.error;
+
+      const loadedProfile = (profileResult.data || null) as ProfilePermissionRow | null;
+
+      if (!loadedProfile) {
+        if (mode === "initial") {
+          setProfile(null);
+          setEffectivePermissions(null);
+        } else {
+          console.warn(
+            "Silent expense categories profile refresh returned no profile; keeping current profile and permissions."
+          );
+        }
+
+        return;
+      }
+
+      const backendPermissions = await loadBackendEffectivePermissions(authUserId, mode);
+
+      setProfile(loadedProfile);
+
+      if (!loadedProfile.role) {
+        if (mode === "initial") {
+          setEffectivePermissions(null);
+        } else {
+          console.warn(
+            "Silent expense categories profile refresh returned no role; keeping current permissions."
+          );
+        }
+
+        return;
+      }
+
+      const resolvedPermissions = getEffectivePermissions(
+        loadedProfile.role,
+        backendPermissions || loadedProfile.permissions || null
+      );
+
+      setEffectivePermissions(resolvedPermissions);
+    } catch (loadError) {
+      console.error("Failed to load expense categories permissions:", loadError);
+
+      if (mode === "initial") {
+        setProfile(null);
+        setEffectivePermissions(null);
+      }
+    } finally {
+      if (mode === "initial") {
+        setIsLoadingProfile(false);
+      } else {
+        setBackgroundRefreshing(false);
+      }
+    }
+  }, []);
+
+  const loadPageData = useCallback(async (mode: LoadMode = "initial") => {
+    if (mode === "initial") {
+      setIsLoadingData(true);
+      setError("");
+    } else {
+      setBackgroundRefreshing(true);
+    }
+
+    try {
       const [categoryResult, accountsResult] = await Promise.all([
         supabase
           .from("finance_expense_categories")
@@ -491,21 +576,31 @@ export default function FinanceExpenseCategoriesPage() {
       setLedgerAccounts((accountsResult.data ?? []) as FinanceAccountOption[]);
     } catch (loadError) {
       console.error("Failed to load expense categories:", loadError);
-      setRows([]);
-      setLedgerAccounts([]);
-      setError(
-        loadError instanceof Error
-          ? loadError.message
-          : "Failed to load expense categories."
-      );
+
+      if (mode === "initial") {
+        setRows([]);
+        setLedgerAccounts([]);
+        setError(
+          loadError instanceof Error
+            ? loadError.message
+            : "Failed to load expense categories."
+        );
+      }
     } finally {
-      setLoading(false);
+      if (mode === "initial") {
+        setIsLoadingData(false);
+      } else {
+        setBackgroundRefreshing(false);
+      }
     }
   }, []);
 
   useEffect(() => {
-    void loadPage();
-  }, [loadPage]);
+    void Promise.all([
+      loadCurrentProfile("initial"),
+      loadPageData("initial"),
+    ]);
+  }, [loadCurrentProfile, loadPageData]);
 
   useEffect(() => {
     const channel = supabase
@@ -515,33 +610,74 @@ export default function FinanceExpenseCategoriesPage() {
         {
           event: "*",
           schema: "public",
+          table: "profiles",
+        },
+        () => {
+          void loadCurrentProfile("silent");
+        }
+      )
+      .on(
+        "postgres_changes",
+        {
+          event: "*",
+          schema: "public",
+          table: "finance_permission_templates",
+        },
+        () => {
+          void loadCurrentProfile("silent");
+        }
+      )
+      .on(
+        "postgres_changes",
+        {
+          event: "*",
+          schema: "public",
+          table: "finance_user_permission_templates",
+        },
+        () => {
+          void loadCurrentProfile("silent");
+        }
+      )
+      .on(
+        "postgres_changes",
+        {
+          event: "*",
+          schema: "public",
           table: "finance_expense_categories",
         },
         () => {
-          void loadPage();
+          void loadPageData("silent");
+        }
+      )
+      .on(
+        "postgres_changes",
+        {
+          event: "*",
+          schema: "public",
+          table: "finance_chart_of_accounts",
+        },
+        () => {
+          void loadPageData("silent");
         }
       )
       .subscribe();
 
     const intervalId = window.setInterval(() => {
-      void loadPage();
+      void Promise.all([
+        loadCurrentProfile("silent"),
+        loadPageData("silent"),
+      ]);
     }, 60000);
 
     return () => {
       window.clearInterval(intervalId);
       void supabase.removeChannel(channel);
     };
-  }, [loadPage]);
+  }, [loadCurrentProfile, loadPageData]);
 
-  const permissions = useMemo(() => {
-    if (!role) return null;
-    return getEffectivePermissions(role, permissionOverrides);
-  }, [permissionOverrides, role]);
-
-  const canCreate = !!permissions?.createFinanceRecords;
-  const canEdit = !!permissions?.editFinanceRecords;
-  const canArchive = !!permissions?.archiveFinanceRecords;
-  const canDelete = canArchive;
+  const permissionState = useMemo(() => {
+    return buildPermissionState(profile, effectivePermissions);
+  }, [effectivePermissions, profile]);
 
   const stats = useMemo(() => {
     return {
@@ -553,31 +689,25 @@ export default function FinanceExpenseCategoriesPage() {
     };
   }, [rows]);
 
-  function getLedgerLabel(accountId: string | null) {
-    if (!accountId) return "No ledger account";
-
-    const match = ledgerAccounts.find((account) => account.id === accountId);
-    if (!match) return "Linked account";
-
-    return `${match.account_code} · ${match.name}`;
-  }
-
   const filteredRows = useMemo(() => {
-    const q = search.trim().toLowerCase();
+    const query = search.trim().toLowerCase();
 
     return rows.filter((row) => {
       const matchesStatus =
         statusFilter === "all" ? true : row.status === statusFilter;
 
-      const ledgerLabel = getLedgerLabel(row.ledger_account_id).toLowerCase();
+      const ledgerLabel = getLedgerLabel(
+        row.ledger_account_id,
+        ledgerAccounts
+      ).toLowerCase();
 
       const matchesSearch =
-        !q ||
-        row.name.toLowerCase().includes(q) ||
-        (row.code ?? "").toLowerCase().includes(q) ||
-        (row.description ?? "").toLowerCase().includes(q) ||
-        (row.notes ?? "").toLowerCase().includes(q) ||
-        ledgerLabel.includes(q);
+        !query ||
+        row.name.toLowerCase().includes(query) ||
+        (row.code ?? "").toLowerCase().includes(query) ||
+        (row.description ?? "").toLowerCase().includes(query) ||
+        (row.notes ?? "").toLowerCase().includes(query) ||
+        ledgerLabel.includes(query);
 
       return matchesStatus && matchesSearch;
     });
@@ -586,34 +716,117 @@ export default function FinanceExpenseCategoriesPage() {
   const sortedRows = useMemo(() => {
     const sorted = [...filteredRows];
 
-    sorted.sort((a, b) => {
-      const direction = sortDirection === "asc" ? 1 : -1;
+    sorted.sort((first, second) => {
+      let comparison = 0;
 
       if (sortKey === "updated_at") {
-        return (
-          (new Date(a.updated_at).getTime() - new Date(b.updated_at).getTime()) *
-          direction
-        );
+        comparison = compareDates(first.updated_at, second.updated_at);
       }
 
       if (sortKey === "posted") {
-        return (Number(a.posted_to_ledger) - Number(b.posted_to_ledger)) * direction;
+        comparison = compareNumbers(
+          first.posted_to_ledger,
+          second.posted_to_ledger
+        );
       }
 
       if (sortKey === "ledger") {
-        return getLedgerLabel(a.ledger_account_id).localeCompare(
-          getLedgerLabel(b.ledger_account_id)
-        ) * direction;
+        comparison = compareStrings(
+          getLedgerLabel(first.ledger_account_id, ledgerAccounts),
+          getLedgerLabel(second.ledger_account_id, ledgerAccounts)
+        );
       }
 
-      const first = String(a[sortKey] ?? "");
-      const second = String(b[sortKey] ?? "");
+      if (sortKey === "code") {
+        comparison = compareStrings(first.code, second.code);
+      }
 
-      return first.localeCompare(second) * direction;
+      if (sortKey === "name") {
+        comparison = compareStrings(first.name, second.name);
+      }
+
+      if (sortKey === "status") {
+        comparison = compareStrings(first.status, second.status);
+      }
+
+      return sortDirection === "asc" ? comparison : -comparison;
     });
 
     return sorted;
-  }, [filteredRows, sortDirection, sortKey]);
+  }, [filteredRows, ledgerAccounts, sortDirection, sortKey]);
+
+  const headerStatusCards = useMemo<HeaderStatusCardData[]>(() => {
+    return [
+      {
+        label: "Classification Layer",
+        value: "Expense & AP",
+        description: "Used across expenses, bills, purchase flows, and reporting.",
+        icon: Layers3,
+        tone: "cyan",
+      },
+      {
+        label: "Accounting Link",
+        value: `${stats.ledgerLinked} Linked`,
+        description: "Optional chart-of-accounts mapping can be added when ready.",
+        icon: Landmark,
+        tone: "amber",
+      },
+      {
+        label: "Permission State",
+        value: permissionState.canRead ? "Enabled" : "Locked",
+        description: backgroundRefreshing
+          ? "Silent refresh is updating without disturbing the page."
+          : "Finance master-data permissions control create, edit, archive, and delete.",
+        icon: permissionState.canRead ? ShieldCheck : Archive,
+        tone: permissionState.canRead ? "emerald" : "rose",
+      },
+    ];
+  }, [
+    backgroundRefreshing,
+    permissionState.canRead,
+    stats.ledgerLinked,
+  ]);
+
+  const metricCards = useMemo<MetricCardData[]>(
+    () => [
+      {
+        label: "Total Categories",
+        value: isLoadingData ? "—" : stats.total,
+        icon: Layers3,
+        tone: "cyan",
+        description: "All configured categories",
+      },
+      {
+        label: "Active",
+        value: isLoadingData ? "—" : stats.active,
+        icon: CheckCircle2,
+        tone: "emerald",
+        description: "Available in workflows",
+      },
+      {
+        label: "Inactive",
+        value: isLoadingData ? "—" : stats.inactive,
+        icon: ShieldCheck,
+        tone: "amber",
+        description: "Kept but not preferred",
+      },
+      {
+        label: "Archived",
+        value: isLoadingData ? "—" : stats.archived,
+        icon: Archive,
+        tone: "rose",
+        description: "Hidden from active use",
+      },
+      {
+        label: "Ledger Linked",
+        value: isLoadingData ? "—" : stats.ledgerLinked,
+        icon: Landmark,
+        tone: "violet",
+        description: "Mapped to accounts",
+      },
+    ],
+    [isLoadingData, stats]
+  );
 
   function updateSort(nextKey: SortKey) {
     if (sortKey === nextKey) {
@@ -623,11 +836,6 @@ export default function FinanceExpenseCategoriesPage() {
 
     setSortKey(nextKey);
     setSortDirection(nextKey === "updated_at" ? "desc" : "asc");
-  }
-
-  function sortLabel(key: SortKey) {
-    if (sortKey !== key) return "";
-    return sortDirection === "asc" ? " ↑" : " ↓";
   }
 
   function updateForm<K extends keyof FormState>(key: K, value: FormState[K]) {
@@ -661,7 +869,9 @@ export default function FinanceExpenseCategoriesPage() {
   }
 
   async function handleSave() {
-    if (!(editingRow ? canEdit : canCreate)) return;
+    if (!(editingRow ? permissionState.canUpdate : permissionState.canCreate)) {
+      return;
+    }
 
     if (!form.name.trim()) {
       setError("Name is required.");
@@ -693,7 +903,7 @@ export default function FinanceExpenseCategoriesPage() {
       setDialogOpen(false);
       setForm(EMPTY_FORM);
       setEditingRow(null);
-      await loadPage();
+      await loadPageData("silent");
     } catch (saveError) {
       console.error("Failed to save expense category:", saveError);
       setError(
@@ -707,7 +917,7 @@ export default function FinanceExpenseCategoriesPage() {
   }
 
   async function handleArchive(row: FinanceExpenseCategoryRow) {
-    if (!canArchive) return;
+    if (!permissionState.canDeleteArchive) return;
 
     const confirmed = window.confirm(
       "Archive this expense category? It will be hidden from normal active workflows but can be restored later."
@@ -719,9 +929,10 @@ export default function FinanceExpenseCategoriesPage() {
       setSaving(true);
       setError("");
       setPageMessage("");
+
       await archiveExpenseCategory(row.id);
       setPageMessage("Expense category archived successfully.");
-      await loadPage();
+      await loadPageData("silent");
     } catch (actionError) {
       console.error("Failed to archive expense category:", actionError);
       setError(
@@ -735,15 +946,16 @@ export default function FinanceExpenseCategoriesPage() {
   }
 
   async function handleRestore(row: FinanceExpenseCategoryRow) {
-    if (!canArchive) return;
+    if (!permissionState.canDeleteArchive) return;
 
     try {
       setSaving(true);
       setError("");
       setPageMessage("");
+
       await restoreExpenseCategory(row.id);
       setPageMessage("Expense category restored successfully.");
-      await loadPage();
+      await loadPageData("silent");
     } catch (actionError) {
       console.error("Failed to restore expense category:", actionError);
       setError(
@@ -757,7 +969,7 @@ export default function FinanceExpenseCategoriesPage() {
   }
 
   async function handleHardDelete(row: FinanceExpenseCategoryRow) {
-    if (!canDelete) return;
+    if (!permissionState.canDeleteArchive) return;
 
     const confirmed = window.confirm(
       "Permanently delete this expense category? This action cannot be undone. If the category is used in finance records, deletion will be blocked."
@@ -769,9 +981,10 @@ export default function FinanceExpenseCategoriesPage() {
       setSaving(true);
       setError("");
       setPageMessage("");
+
       await permanentlyDeleteExpenseCategory(row.id);
       setPageMessage("Expense category permanently deleted.");
-      await loadPage();
+      await loadPageData("silent");
     } catch (actionError) {
       console.error("Failed to permanently delete expense category:", actionError);
       setError(
@@ -784,360 +997,273 @@ export default function FinanceExpenseCategoriesPage() {
     }
   }
 
-  const tableHeaders: Array<
-    | { key: SortKey; label: string; sortable: true }
-    | { key: "actions"; label: string; sortable: false }
-  > = [
-    { key: "code", label: "Code", sortable: true },
-    { key: "name", label: "Name", sortable: true },
-    { key: "ledger", label: "Ledger Link", sortable: true },
-    { key: "status", label: "Status", sortable: true },
-    { key: "posted", label: "Posted", sortable: true },
-    { key: "updated_at", label: "Updated", sortable: true },
-    { key: "actions", label: "Actions", sortable: false },
-  ];
+  const isPageLoading = isLoadingProfile || isLoadingData;
+
+  if (isPageLoading) {
+    return (
+      <AixiaLoadingState
+        title="Loading expense categories"
+        description="Expense categories, ledger accounts, and permission state are being checked."
+      />
+    );
+  }
 
   return (
-    <div className="min-h-screen bg-[#05070d] px-4 py-4 text-white md:px-6 md:py-6">
-      <div className="mx-auto flex w-full max-w-[1600px] flex-col gap-6">
-        <section className="relative overflow-hidden rounded-[34px] border border-white/10 bg-white/[0.045] p-6 shadow-2xl shadow-black/30 backdrop-blur-xl">
-          <div className="pointer-events-none absolute inset-0 bg-[radial-gradient(circle_at_top_left,rgba(6,182,212,0.16),transparent_38%),radial-gradient(circle_at_top_right,rgba(139,92,246,0.12),transparent_34%)]" />
+    <AixiaPage>
+      <AixiaHero
+        parentLabel="Master Data"
+        parentPath="/finance/master-data"
+        badges={[
+          { label: "Master Data", tone: "cyan" },
+          { label: "Expense Categories", tone: "emerald" },
+          { label: "Ledger Ready", tone: "violet" },
+          { label: "Silent refresh", tone: "neutral" },
+        ]}
+        gradientTitle="Expense"
+        title="Categories"
+        subtitle="Finance Classification Layer"
+        description="Master classification for operating expenses, vendor bills, procurement lines, reporting, and optional ledger mapping. Keep categories clean so every finance workflow can classify spend consistently."
+        statusCards={headerStatusCards}
+      />
 
-          <div className="relative">
-            <button
-              type="button"
-              onClick={() => navigate("/finance/master-data")}
-              className="mb-5 inline-flex items-center justify-center gap-2 rounded-full border border-white/10 bg-white/[0.05] px-5 py-2 text-[11px] font-semibold uppercase tracking-[0.22em] text-slate-300 transition hover:border-white/20 hover:bg-white/[0.08] hover:text-white"
-            >
-              <ArrowLeft className="h-3.5 w-3.5" />
-              Master Data
-            </button>
+      {error ? <AixiaAlert tone="error">{error}</AixiaAlert> : null}
+      {pageMessage ? (
+        <AixiaAlert tone="success">{pageMessage}</AixiaAlert>
+      ) : null}
 
-            <div className="flex flex-col gap-5 xl:flex-row xl:items-start xl:justify-between">
-              <div className="space-y-3">
-                <div className="flex flex-wrap items-center gap-2">
-                  <Badge className="rounded-full border border-white/10 bg-white/[0.07] px-3 py-1 text-[11px] uppercase tracking-[0.24em] text-slate-300 shadow-none">
-                    Master Data
-                  </Badge>
-                  <Badge className="rounded-full border border-cyan-400/20 bg-cyan-500/10 px-3 py-1 text-[11px] uppercase tracking-[0.22em] text-cyan-200 shadow-none">
-                    Expense Categories
-                  </Badge>
-                  <Badge className="rounded-full border border-emerald-400/20 bg-emerald-500/10 px-3 py-1 text-[11px] uppercase tracking-[0.22em] text-emerald-200 shadow-none">
-                    Ledger Ready
-                  </Badge>
-                </div>
+      {!permissionState.canRead ? (
+        <AixiaAccessDeniedState
+          title="No expense category access"
+          description="Ask an Admin to assign Finance read or Finance master-data access before managing expense categories."
+        />
+      ) : (
+        <>
+          <AixiaReviewGrid variant="metrics">
+            {metricCards.map((metric) => (
+              <AixiaReviewBlock
+                key={metric.label}
+                label={metric.label}
+                value={metric.value}
+                description={metric.description}
+                icon={metric.icon}
+                tone={metric.tone}
+              />
+            ))}
+          </AixiaReviewGrid>
 
-                <div>
-                  <h1 className="text-3xl font-semibold tracking-tight text-white md:text-5xl">
-                    Expense Categories
-                  </h1>
-                  <p className="mt-3 max-w-4xl text-sm leading-7 text-slate-400 md:text-base">
-                    Master classification for operating expenses, vendor bills,
-                    procurement lines, reporting, and optional ledger mapping. Keep
-                    categories clean so every finance workflow can classify spend
-                    consistently.
-                  </p>
-                </div>
-              </div>
+          <AixiaSection
+            title="Expense Category Registry"
+            description="Search, sort, create, edit, archive, restore, and safely delete unused categories."
+            icon={Layers3}
+            actions={
+              <div className="aixia-control-cluster">
+                <AixiaSearchField
+                  width="wide"
+                  value={search}
+                  onChange={(event) => setSearch(event.target.value)}
+                  placeholder="Search code, name, description, notes, or ledger account..."
+                />
 
-              <div className="grid gap-3 sm:grid-cols-2 xl:w-[440px]">
-                <div className="rounded-[24px] border border-cyan-400/15 bg-cyan-500/10 p-4">
-                  <div className="text-[11px] font-semibold uppercase tracking-[0.18em] text-cyan-200/70">
-                    Classification Layer
-                  </div>
-                  <div className="mt-2 text-sm font-semibold text-white">
-                    Expense & AP Usage
-                  </div>
-                  <p className="mt-1 text-xs leading-5 text-cyan-100/65">
-                    Used across expenses, bills, purchase flows, and reporting.
-                  </p>
-                </div>
-
-                <div className="rounded-[24px] border border-violet-400/15 bg-violet-500/10 p-4">
-                  <div className="text-[11px] font-semibold uppercase tracking-[0.18em] text-violet-200/70">
-                    Accounting Link
-                  </div>
-                  <div className="mt-2 text-sm font-semibold text-white">
-                    Optional Ledger Mapping
-                  </div>
-                  <p className="mt-1 text-xs leading-5 text-violet-100/65">
-                    Connect categories to the chart of accounts when ready.
-                  </p>
-                </div>
-              </div>
-            </div>
-          </div>
-        </section>
-
-        {error ? (
-          <div className="rounded-[24px] border border-rose-400/20 bg-rose-500/10 px-5 py-4 text-sm text-rose-100">
-            {error}
-          </div>
-        ) : null}
-
-        {pageMessage ? (
-          <div className="rounded-[24px] border border-emerald-400/20 bg-emerald-500/10 px-5 py-4 text-sm text-emerald-100">
-            {pageMessage}
-          </div>
-        ) : null}
-
-        <section>
-          <div className="grid grid-cols-1 gap-4 md:grid-cols-2 xl:grid-cols-5">
-            <SummaryTile
-              label="Total Categories"
-              value={loading ? "—" : stats.total}
-              icon={Layers3}
-              tone="cyan"
-              description="All configured categories"
-            />
-            <SummaryTile
-              label="Active"
-              value={loading ? "—" : stats.active}
-              icon={CheckCircle2}
-              tone="emerald"
-              description="Available in workflows"
-            />
-            <SummaryTile
-              label="Inactive"
-              value={loading ? "—" : stats.inactive}
-              icon={ShieldCheck}
-              tone="amber"
-              description="Kept but not preferred"
-            />
-            <SummaryTile
-              label="Archived"
-              value={loading ? "—" : stats.archived}
-              icon={Archive}
-              tone="rose"
-              description="Hidden from active use"
-            />
-            <SummaryTile
-              label="Ledger Linked"
-              value={loading ? "—" : stats.ledgerLinked}
-              icon={Landmark}
-              tone="violet"
-              description="Mapped to accounts"
-            />
-          </div>
-        </section>
-
-        <Card className="overflow-hidden rounded-[30px] border border-white/10 bg-white/[0.045] backdrop-blur-xl">
-          <CardHeader className="border-b border-white/10 px-5 py-4">
-            <div className="flex flex-col gap-4 lg:flex-row lg:items-end lg:justify-between">
-              <div className="space-y-2">
-                <Badge className="w-fit rounded-full border border-white/10 bg-white/[0.06] px-3 py-1 text-[11px] uppercase tracking-[0.22em] text-slate-400 shadow-none">
-                  Expense Category Registry
-                </Badge>
-                <CardTitle className="text-white">
-                  Category Master List
-                </CardTitle>
-                <CardDescription className="text-slate-500">
-                  Search, sort, create, edit, archive, and safely delete unused categories.
-                </CardDescription>
-              </div>
-
-              <div className="flex w-full flex-col gap-3 lg:max-w-[840px] lg:flex-row">
-                <div className="relative flex-1">
-                  <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-500" />
-                  <Input
-                    value={search}
-                    onChange={(event) => setSearch(event.target.value)}
-                    placeholder="Search code, name, description, notes, or ledger account..."
-                    className={`${inputClass()} pl-10`}
-                  />
-                </div>
-
-                <div className="flex gap-2 overflow-x-auto pb-1">
+                <AixiaReviewGrid variant="compact">
                   {(["all", "active", "inactive", "archived"] as StatusFilter[]).map(
                     (value) => (
-                      <Button
+                      <AixiaSelectableTile
                         key={value}
-                        type="button"
-                        variant="outline"
+                        title={formatStatusLabel(value)}
+                        selected={statusFilter === value}
+                        tone={getStatusFilterTone(value)}
                         onClick={() => setStatusFilter(value)}
-                        className={`h-11 rounded-2xl border-white/10 px-4 capitalize text-white ${
-                          statusFilter === value
-                            ? "bg-cyan-500/15 text-cyan-100"
-                            : "bg-black/20 hover:bg-white/[0.06]"
-                        }`}
-                      >
-                        {value}
-                      </Button>
+                      />
                     )
                   )}
-                </div>
+                </AixiaReviewGrid>
 
-                {canCreate ? (
-                  <Button
+                {permissionState.canCreate ? (
+                  <AixiaButton
                     type="button"
+                    variant="primary"
                     onClick={openCreateDialog}
-                    className="h-11 rounded-2xl border border-emerald-400/20 bg-emerald-500/10 px-4 text-emerald-100 hover:bg-emerald-500/15"
                   >
-                    <Plus className="mr-2 h-4 w-4" />
+                    <Plus className="h-4 w-4" />
                     New Category
-                  </Button>
+                  </AixiaButton>
                 ) : null}
               </div>
-            </div>
-          </CardHeader>
+            }
+          >
+            {sortedRows.length === 0 ? (
+              <AixiaEmptyState
+                icon={Layers3}
+                title="No expense categories found"
+                description="Create an expense category or adjust the search and status filters."
+              />
+            ) : (
+              <AixiaTableShell variant="registry">
+                <thead className="aixia-table-head">
+                  <tr>
+                    <th>
+                      <AixiaSortableHeader
+                        label="Code"
+                        sortKey="code"
+                        activeSortKey={sortKey}
+                        sortDirection={sortDirection}
+                        onSort={updateSort}
+                      />
+                    </th>
+                    <th>
+                      <AixiaSortableHeader
+                        label="Name"
+                        sortKey="name"
+                        activeSortKey={sortKey}
+                        sortDirection={sortDirection}
+                        onSort={updateSort}
+                      />
+                    </th>
+                    <th>
+                      <AixiaSortableHeader
+                        label="Ledger Link"
+                        sortKey="ledger"
+                        activeSortKey={sortKey}
+                        sortDirection={sortDirection}
+                        onSort={updateSort}
+                      />
+                    </th>
+                    <th>
+                      <AixiaSortableHeader
+                        label="Status"
+                        sortKey="status"
+                        activeSortKey={sortKey}
+                        sortDirection={sortDirection}
+                        onSort={updateSort}
+                      />
+                    </th>
+                    <th>
+                      <AixiaSortableHeader
+                        label="Posted"
+                        sortKey="posted"
+                        activeSortKey={sortKey}
+                        sortDirection={sortDirection}
+                        onSort={updateSort}
+                      />
+                    </th>
+                    <th>
+                      <AixiaSortableHeader
+                        label="Updated"
+                        sortKey="updated_at"
+                        activeSortKey={sortKey}
+                        sortDirection={sortDirection}
+                        onSort={updateSort}
+                      />
+                    </th>
+                    <th>Actions</th>
+                  </tr>
+                </thead>
 
-          <CardContent className="p-0">
-            <div className="overflow-x-auto">
-              <div className="max-h-[720px] overflow-y-auto">
-                <table className="w-full min-w-[1240px] border-collapse">
-                  <thead className="sticky top-0 z-10">
-                    <tr className="border-b border-white/10 bg-black/70 text-left">
-                      {tableHeaders.map((header) => (
-                        <th
-                          key={header.key}
-                          className="px-5 py-4 text-[11px] uppercase tracking-[0.18em] text-slate-500"
-                        >
-                          {header.sortable ? (
-                            <button
-                              type="button"
-                              onClick={() => updateSort(header.key)}
-                              className="transition hover:text-slate-300"
-                            >
-                              {header.label}
-                              {sortLabel(header.key)}
-                            </button>
-                          ) : (
-                            <span>{header.label}</span>
-                          )}
-                        </th>
-                      ))}
+                <tbody>
+                  {sortedRows.map((row) => (
+                    <tr key={row.id} className="aixia-table-row">
+                      <AixiaTableTextCell
+                        width="sm"
+                        primary={row.code || "—"}
+                      />
+
+                      <AixiaTableTextCell
+                        width="xl"
+                        primary={row.name}
+                        secondary={row.description?.trim() || "No description"}
+                      />
+
+                      <AixiaTableTextCell
+                        width="xl"
+                        primary={getLedgerLabel(
+                          row.ledger_account_id,
+                          ledgerAccounts
+                        )}
+                        secondary={row.ledger_account_id ? "Mapped account" : "Optional"}
+                      />
+
+                      <AixiaTableBadgeCell width="sm">
+                        <AixiaStatusBadge value={row.status} />
+                      </AixiaTableBadgeCell>
+
+                      <AixiaTableBadgeCell width="sm">
+                        {row.posted_to_ledger ? (
+                          <AixiaBadge tone="cyan">Posted</AixiaBadge>
+                        ) : (
+                          <AixiaBadge tone="neutral">Not Posted</AixiaBadge>
+                        )}
+                      </AixiaTableBadgeCell>
+
+                      <AixiaTableDateCell width="sm">
+                        {formatDateLabel(row.updated_at)}
+                      </AixiaTableDateCell>
+
+                      <AixiaTableActionsCell>
+                        {permissionState.canUpdate ? (
+                          <AixiaButton
+                            type="button"
+                            variant="secondary"
+                            onClick={() => openEditDialog(row)}
+                            disabled={saving}
+                          >
+                            <Edit3 className="h-3.5 w-3.5" />
+                            Edit
+                          </AixiaButton>
+                        ) : null}
+
+                        {permissionState.canDeleteArchive &&
+                        row.status === "archived" ? (
+                          <AixiaButton
+                            type="button"
+                            variant="secondary"
+                            onClick={() => void handleRestore(row)}
+                            disabled={saving}
+                          >
+                            <Undo2 className="h-3.5 w-3.5" />
+                            Restore
+                          </AixiaButton>
+                        ) : null}
+
+                        {permissionState.canDeleteArchive &&
+                        row.status !== "archived" ? (
+                          <AixiaButton
+                            type="button"
+                            variant="secondary"
+                            onClick={() => void handleArchive(row)}
+                            disabled={saving}
+                          >
+                            <Archive className="h-3.5 w-3.5" />
+                            Archive
+                          </AixiaButton>
+                        ) : null}
+
+                        {permissionState.canDeleteArchive ? (
+                          <AixiaButton
+                            type="button"
+                            variant="danger"
+                            onClick={() => void handleHardDelete(row)}
+                            disabled={saving}
+                          >
+                            <Trash2 className="h-3.5 w-3.5" />
+                            Delete
+                          </AixiaButton>
+                        ) : null}
+                      </AixiaTableActionsCell>
                     </tr>
-                  </thead>
+                  ))}
+                </tbody>
+              </AixiaTableShell>
+            )}
+          </AixiaSection>
 
-                  <tbody>
-                    {loading ? (
-                      <tr>
-                        <td colSpan={7} className="px-5 py-12 text-sm text-slate-400">
-                          Loading expense categories...
-                        </td>
-                      </tr>
-                    ) : sortedRows.length === 0 ? (
-                      <tr>
-                        <td colSpan={7} className="px-5 py-12 text-sm text-slate-400">
-                          No expense categories found.
-                        </td>
-                      </tr>
-                    ) : (
-                      sortedRows.map((row) => (
-                        <tr
-                          key={row.id}
-                          className="border-b border-white/10 text-sm text-slate-300 transition hover:bg-white/[0.035]"
-                        >
-                          <td className="px-5 py-4">
-                            <div className="font-semibold text-white">
-                              {row.code || "—"}
-                            </div>
-                          </td>
-
-                          <td className="px-5 py-4">
-                            <div className="font-semibold text-white">
-                              {row.name}
-                            </div>
-                            <div className="mt-1 max-w-[360px] truncate text-xs text-slate-500">
-                              {row.description?.trim() || "No description"}
-                            </div>
-                          </td>
-
-                          <td className="px-5 py-4">
-                            <div className="flex items-center gap-2">
-                              <div className="flex h-8 w-8 items-center justify-center rounded-xl border border-violet-400/15 bg-violet-500/10 text-violet-200">
-                                <Landmark className="h-4 w-4" />
-                              </div>
-                              <span className="max-w-[260px] truncate text-slate-300">
-                                {getLedgerLabel(row.ledger_account_id)}
-                              </span>
-                            </div>
-                          </td>
-
-                          <td className="px-5 py-4">
-                            <Badge className={statusBadgeClass(row.status)}>
-                              {formatStatusLabel(row.status)}
-                            </Badge>
-                          </td>
-
-                          <td className="px-5 py-4">
-                            {row.posted_to_ledger ? (
-                              <Badge className="rounded-full border border-cyan-400/20 bg-cyan-500/10 px-2.5 py-1 text-[11px] uppercase tracking-[0.16em] text-cyan-200 shadow-none">
-                                Posted
-                              </Badge>
-                            ) : (
-                              <span className="text-sm text-slate-500">Not posted</span>
-                            )}
-                          </td>
-
-                          <td className="px-5 py-4 text-slate-400">
-                            {formatDateLabel(row.updated_at)}
-                          </td>
-
-                          <td className="px-5 py-4">
-                            <div className="flex flex-wrap justify-end gap-2">
-                              {canEdit ? (
-                                <Button
-                                  type="button"
-                                  variant="outline"
-                                  onClick={() => openEditDialog(row)}
-                                  className="h-9 rounded-xl border-cyan-400/20 bg-cyan-500/10 px-3 text-xs text-cyan-100 hover:bg-cyan-500/15"
-                                >
-                                  <Edit3 className="mr-1.5 h-3.5 w-3.5" />
-                                  Edit
-                                </Button>
-                              ) : null}
-
-                              {canArchive && row.status === "archived" ? (
-                                <Button
-                                  type="button"
-                                  variant="outline"
-                                  onClick={() => void handleRestore(row)}
-                                  disabled={saving}
-                                  className="h-9 rounded-xl border-emerald-400/20 bg-emerald-500/10 px-3 text-xs text-emerald-100 hover:bg-emerald-500/15 disabled:opacity-50"
-                                >
-                                  <Undo2 className="mr-1.5 h-3.5 w-3.5" />
-                                  Restore
-                                </Button>
-                              ) : null}
-
-                              {canArchive && row.status !== "archived" ? (
-                                <Button
-                                  type="button"
-                                  variant="outline"
-                                  onClick={() => void handleArchive(row)}
-                                  disabled={saving}
-                                  className="h-9 rounded-xl border-amber-400/20 bg-amber-500/10 px-3 text-xs text-amber-100 hover:bg-amber-500/15 disabled:opacity-50"
-                                >
-                                  <Archive className="mr-1.5 h-3.5 w-3.5" />
-                                  Archive
-                                </Button>
-                              ) : null}
-
-                              {canDelete ? (
-                                <Button
-                                  type="button"
-                                  variant="outline"
-                                  onClick={() => void handleHardDelete(row)}
-                                  disabled={saving}
-                                  className="h-9 rounded-xl border-rose-400/20 bg-rose-500/10 px-3 text-xs text-rose-100 hover:bg-rose-500/15 disabled:opacity-50"
-                                >
-                                  <Trash2 className="mr-1.5 h-3.5 w-3.5" />
-                                  Delete
-                                </Button>
-                              ) : null}
-                            </div>
-                          </td>
-                        </tr>
-                      ))
-                    )}
-                  </tbody>
-                </table>
-              </div>
-            </div>
-          </CardContent>
-        </Card>
-      </div>
+          <AixiaAlert tone="info">
+            <AixiaAlertText
+              title="Locked expense category rule"
+              description="Expense categories are reusable finance master data. Ledger mapping remains optional and can be added when accounting setup is ready. Silent refresh must not reset search, filters, sorting, modal state, or visible rows."
+            />
+          </AixiaAlert>
+        </>
+      )}
 
       <CategoryFormModal
         open={dialogOpen}
@@ -1146,7 +1272,7 @@ export default function FinanceExpenseCategoriesPage() {
         ledgerAccounts={ledgerAccounts}
         saving={saving}
         error={error}
-        canSave={editingRow ? canEdit : canCreate}
+        canSave={editingRow ? permissionState.canUpdate : permissionState.canCreate}
         onClose={() => {
           setDialogOpen(false);
           setError("");
@@ -1154,6 +1280,6 @@ export default function FinanceExpenseCategoriesPage() {
         onChange={updateForm}
         onSave={() => void handleSave()}
       />
-    </div>
+    </AixiaPage>
   );
 }

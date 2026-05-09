@@ -763,41 +763,49 @@
 }
 
 .aixia-registry-control-cluster {
-  display: grid;
+  display: flex;
   width: 100%;
   min-width: 0;
-  gap: 0.75rem;
+  flex-wrap: wrap;
   align-items: center;
-  grid-template-columns: minmax(0, 1fr);
+  justify-content: flex-end;
+  gap: 0.75rem;
 }
 
-@media (min-width: 1024px) {
-  .aixia-registry-control-cluster {
-    grid-template-columns: minmax(280px, 1fr) minmax(360px, 420px) auto;
-    justify-content: stretch;
-  }
+.aixia-registry-control-cluster > .aixia-search-field {
+  flex: 1 1 360px;
+  min-width: 320px;
+  max-width: 520px;
 }
 
-@media (min-width: 1280px) {
-  .aixia-registry-control-cluster {
-    grid-template-columns: minmax(320px, 1fr) minmax(360px, 420px) auto;
-  }
+.aixia-registry-control-cluster > .aixia-registry-filter-grid {
+  flex: 0 0 auto;
+}
+
+.aixia-registry-control-cluster > .aixia-btn-primary,
+.aixia-registry-control-cluster > .aixia-btn-secondary,
+.aixia-registry-control-cluster > .aixia-btn-danger {
+  flex: 0 0 auto;
+  white-space: nowrap;
 }
 
 .aixia-registry-filter-grid {
-  width: 100%;
+  width: auto;
   min-width: 0;
 }
 
 .aixia-registry-filter-grid[data-review-grid-variant="compact"] {
-  grid-template-columns: repeat(4, minmax(84px, 1fr)) !important;
+  display: grid;
+  width: auto;
+  grid-template-columns: repeat(4, minmax(86px, 96px)) !important;
 }
 
 .aixia-registry-filter-grid .aixia-selectable-tile {
   min-height: 3rem;
   justify-content: center;
-  padding: 0.75rem 1rem;
+  padding: 0.75rem 0.9rem;
   text-align: center;
+  white-space: nowrap;
 }
 
 .aixia-registry-filter-grid .aixia-selectable-tile-head {
@@ -816,7 +824,8 @@
    GLOBAL REGISTRY HEADER STANDARD
    Applies to every registry/list page that uses
    AixiaSection + aixia-registry-control-cluster.
-   Prevents squeezed titles and oversized empty headers.
+   Controls may wrap, but must never overlap or squeeze
+   the section title into vertical broken text.
 ------------------------------------------------------- */
 
 .aixia-section-header-layout:has(.aixia-registry-control-cluster) {
@@ -830,7 +839,7 @@
 
 .aixia-section-header-layout:has(.aixia-registry-control-cluster) .aixia-section-title-content {
   min-width: 0;
-  max-width: 560px;
+  max-width: 620px;
 }
 
 .aixia-section-header-layout:has(.aixia-registry-control-cluster) .aixia-label {
@@ -839,25 +848,13 @@
 }
 
 .aixia-section-header-layout:has(.aixia-registry-control-cluster) .aixia-caption {
-  max-width: 520px;
+  max-width: 560px;
   overflow-wrap: normal;
   word-break: normal;
 }
 
 .aixia-section-header-layout:has(.aixia-registry-control-cluster) .aixia-section-actions {
   min-width: 0;
-}
-
-@media (min-width: 1024px) {
-  .aixia-section-header-layout:has(.aixia-registry-control-cluster) {
-    grid-template-columns: minmax(380px, 0.42fr) minmax(0, 0.58fr);
-  }
-}
-
-@media (min-width: 1536px) {
-  .aixia-section-header-layout:has(.aixia-registry-control-cluster) {
-    grid-template-columns: minmax(430px, 0.38fr) minmax(0, 0.62fr);
-  }
 }
 
 .aixia-control-field,
@@ -999,7 +996,7 @@
   }
 
   .aixia-section-header-layout:has(.aixia-registry-control-cluster) {
-    grid-template-columns: minmax(420px, 0.42fr) minmax(0, 0.58fr);
+    grid-template-columns: minmax(420px, 0.34fr) minmax(0, 0.66fr);
     align-items: center;
   }
 

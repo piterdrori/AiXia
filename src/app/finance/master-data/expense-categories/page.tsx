@@ -9,10 +9,10 @@ import {
   Layers3,
   Loader2,
   Plus,
+  RotateCcw,
   Save,
   ShieldCheck,
   Trash2,
-  Undo2,
 } from "lucide-react";
 
 import {
@@ -30,14 +30,16 @@ import {
   AixiaHero,
   AixiaInputField,
   AixiaLoadingState,
+  AixiaMetricCard,
+  AixiaMetricGrid,
   AixiaModal,
   AixiaPage,
   AixiaRegistryToolbar,
-  AixiaReviewBlock,
   AixiaReviewGrid,
   AixiaSearchField,
   AixiaSection,
   AixiaSelectField,
+  AixiaSelectableTile,
   AixiaSortableHeader,
   AixiaStatusBadge,
   AixiaTableActionsCell,
@@ -46,14 +48,16 @@ import {
   AixiaTableShell,
   AixiaTableTextCell,
   AixiaTextareaField,
-  AixiaSelectableTile,
 } from "@/components/aixia";
-import { supabase } from "@/lib/supabase";
+
+import { type Permission, type Role } from "@/lib/permissions";
+
 import {
-  getEffectivePermissions,
-  type Permission,
-  type Role,
-} from "@/lib/permissions";
+  fetchFinanceEffectivePermissions,
+  resolveFinancePagePermissionState,
+  type FinanceLoadMode,
+} from "@/lib/finance/pageAccess";
+
 import {
   archiveExpenseCategory,
   createExpenseCategory,
@@ -65,7 +69,9 @@ import {
   type FinanceExpenseCategoryStatus,
 } from "@/lib/finance/expenseCategories";
 
-type LoadMode = "initial" | "silent";
+import { supabase } from "@/lib/supabase";
+
+type LoadMode = FinanceLoadMode;
 
 type ProfilePermissionRow = {
   user_id: string;
@@ -90,17 +96,20 @@ type FormState = {
   ledger_account_id: string;
 };
 
-type PermissionState = {
-  canRead: boolean;
-  canCreate: boolean;
-  canUpdate: boolean;
-  canDeleteArchive: boolean;
-  isAdmin: boolean;
-};
-
 type StatusFilter = "all" | "active" | "inactive";
+
 type SortKey = "code" | "name" | "status" | "ledger" | "posted" | "updated_at";
+
 type SortDirection = "asc" | "desc";
+
+type PageAction =
+  | null
+  | "create"
+  | "edit"
+  | "archive"
+  | "archive-modal"
+  | "restore"
+  | "hard-delete";
 
 type HeaderStatusCardData = {
   label: string;
@@ -111,11 +120,12 @@ type HeaderStatusCardData = {
 };
 
 type MetricCardData = {
+  key: string;
   label: string;
   value: string | number;
   description: string;
   icon: LucideIcon;
-  tone: "cyan" | "emerald" | "amber" | "violet" | "rose" | "neutral";
+  tone: "cyan" | "emerald" | "amber" | "violet" | "rose";
 };
 
 const EMPTY_FORM: FormState = {
@@ -127,13 +137,14 @@ const EMPTY_FORM: FormState = {
   ledger_account_id: "",
 };
 
-const EMPTY_PERMISSION_STATE: PermissionState = {
-  canRead: false,
-  canCreate: false,
-  canUpdate: false,
-  canDeleteArchive: false,
-  isAdmin: false,
-};
+const EXPENSE_CATEGORY_ACCESS_CONFIG = {
+  sectionKey: "masterData",
+  adminPermissions: ["manageFinanceMasterData"],
+  readPermissions: ["accessFinance", "viewFinance"],
+  createPermissions: ["createFinanceRecords"],
+  updatePermissions: ["editFinanceRecords"],
+  deleteArchivePermissions: ["archiveFinanceRecords"],
+} as const;
 
 function formatDateLabel(value: string | null | undefined) {
   if (!value) return "—";
@@ -177,76 +188,6 @@ function compareDates(
   return new Date(first || 0).getTime() - new Date(second || 0).getTime();
 }
 
-function hasPermission(
-  permissions: Record<Permission, boolean> | null,
-  permission: Permission
-) {
-  return Boolean(permissions?.[permission]);
-}
-
-function buildPermissionState(
-  profile: ProfilePermissionRow | null,
-  permissions: Record<Permission, boolean> | null
-): PermissionState {
-  if (!profile?.role || !permissions) {
-    return EMPTY_PERMISSION_STATE;
-  }
-
-  const isAdmin = String(profile.role || "").toLowerCase() === "admin";
-  const canManageMasterData = hasPermission(permissions, "manageFinanceMasterData");
-  const canAccessFinance = hasPermission(permissions, "accessFinance");
-  const canViewFinance = hasPermission(permissions, "viewFinance");
-
-  return {
-    isAdmin,
-    canRead: canManageMasterData || canAccessFinance || canViewFinance,
-    canCreate:
-      canManageMasterData || hasPermission(permissions, "createFinanceRecords"),
-    canUpdate:
-      canManageMasterData || hasPermission(permissions, "editFinanceRecords"),
-    canDeleteArchive:
-      canManageMasterData || hasPermission(permissions, "archiveFinanceRecords"),
-  };
-}
-
-async function loadBackendEffectivePermissions(
-  userId: string,
-  mode: LoadMode
-): Promise<Partial<Record<Permission, boolean>> | null> {
-  try {
-    const result = await supabase.rpc("finance_get_effective_permissions", {
-      target_user_id: userId,
-    });
-
-    if (result.error) {
-      if (mode === "silent") throw result.error;
-
-      console.warn(
-        "Expense categories permission RPC fallback:",
-        result.error.message
-      );
-      return null;
-    }
-
-    if (!result.data || typeof result.data !== "object") {
-      if (mode === "silent") {
-        throw new Error(
-          "Silent expense categories permission refresh returned no effective permission payload."
-        );
-      }
-
-      return null;
-    }
-
-    return result.data as Partial<Record<Permission, boolean>>;
-  } catch (error) {
-    if (mode === "silent") throw error;
-
-    console.warn("Expense categories permission RPC failed:", error);
-    return null;
-  }
-}
-
 function getStatusFilterTone(value: StatusFilter): "cyan" | "emerald" | "amber" {
   if (value === "active") return "emerald";
   if (value === "inactive") return "amber";
@@ -264,6 +205,13 @@ function getLedgerLabel(
   if (!match) return "Linked account";
 
   return `${match.account_code} · ${match.name}`;
+}
+
+async function loadExpenseCategoryEffectivePermissions(
+  userId: string,
+  mode: LoadMode
+): Promise<Partial<Record<Permission, boolean>> | null> {
+  return fetchFinanceEffectivePermissions(userId, mode, "Expense Categories");
 }
 
 function CategoryFormModal({
@@ -459,6 +407,7 @@ export default function FinanceExpenseCategoriesPage() {
   const [saving, setSaving] = useState(false);
 
   const [search, setSearch] = useState("");
+  const [archiveSearch, setArchiveSearch] = useState("");
   const [statusFilter, setStatusFilter] = useState<StatusFilter>("all");
   const [sortKey, setSortKey] = useState<SortKey>("updated_at");
   const [sortDirection, setSortDirection] = useState<SortDirection>("desc");
@@ -471,6 +420,8 @@ export default function FinanceExpenseCategoriesPage() {
   const [form, setForm] = useState<FormState>(EMPTY_FORM);
   const [error, setError] = useState("");
   const [pageMessage, setPageMessage] = useState("");
+  const [runningAction, setRunningAction] = useState<PageAction>(null);
+  const [activeActionId, setActiveActionId] = useState<string | null>(null);
 
   const loadCurrentProfile = useCallback(async (mode: LoadMode = "initial") => {
     if (mode === "initial") {
@@ -521,7 +472,7 @@ export default function FinanceExpenseCategoriesPage() {
         return;
       }
 
-      const backendPermissions = await loadBackendEffectivePermissions(
+      const backendPermissions = await loadExpenseCategoryEffectivePermissions(
         authUserId,
         mode
       );
@@ -540,12 +491,18 @@ export default function FinanceExpenseCategoriesPage() {
         return;
       }
 
-      const resolvedPermissions = getEffectivePermissions(
-        loadedProfile.role,
-        backendPermissions || loadedProfile.permissions || null
-      );
+      const resolvedPermissions = backendPermissions || loadedProfile.permissions || null;
 
-      setEffectivePermissions(resolvedPermissions);
+      if (!resolvedPermissions && mode === "silent") {
+        console.warn(
+          "Silent expense categories permission refresh returned no permission payload; keeping current permissions."
+        );
+        return;
+      }
+
+      setEffectivePermissions(
+        resolvedPermissions as Record<Permission, boolean> | null
+      );
     } catch (loadError) {
       console.error("Failed to load expense categories permissions:", loadError);
 
@@ -588,6 +545,10 @@ export default function FinanceExpenseCategoriesPage() {
 
       setRows((categoryResult.data ?? []) as FinanceExpenseCategoryRow[]);
       setLedgerAccounts((accountsResult.data ?? []) as FinanceAccountOption[]);
+
+      if (mode === "initial") {
+        setError("");
+      }
     } catch (loadError) {
       console.error("Failed to load expense categories:", loadError);
 
@@ -610,8 +571,6 @@ export default function FinanceExpenseCategoriesPage() {
   }, []);
 
   useEffect(() => {
-    window.scrollTo({ top: 0, left: 0, behavior: "auto" });
-
     void Promise.all([
       loadCurrentProfile("initial"),
       loadPageData("initial"),
@@ -623,55 +582,35 @@ export default function FinanceExpenseCategoriesPage() {
       .channel("finance-expense-categories-master-data")
       .on(
         "postgres_changes",
-        {
-          event: "*",
-          schema: "public",
-          table: "profiles",
-        },
+        { event: "*", schema: "public", table: "profiles" },
         () => {
           void loadCurrentProfile("silent");
         }
       )
       .on(
         "postgres_changes",
-        {
-          event: "*",
-          schema: "public",
-          table: "finance_permission_templates",
-        },
+        { event: "*", schema: "public", table: "finance_permission_templates" },
         () => {
           void loadCurrentProfile("silent");
         }
       )
       .on(
         "postgres_changes",
-        {
-          event: "*",
-          schema: "public",
-          table: "finance_user_permission_templates",
-        },
+        { event: "*", schema: "public", table: "finance_user_permission_templates" },
         () => {
           void loadCurrentProfile("silent");
         }
       )
       .on(
         "postgres_changes",
-        {
-          event: "*",
-          schema: "public",
-          table: "finance_expense_categories",
-        },
+        { event: "*", schema: "public", table: "finance_expense_categories" },
         () => {
           void loadPageData("silent");
         }
       )
       .on(
         "postgres_changes",
-        {
-          event: "*",
-          schema: "public",
-          table: "finance_chart_of_accounts",
-        },
+        { event: "*", schema: "public", table: "finance_chart_of_accounts" },
         () => {
           void loadPageData("silent");
         }
@@ -692,7 +631,11 @@ export default function FinanceExpenseCategoriesPage() {
   }, [loadCurrentProfile, loadPageData]);
 
   const permissionState = useMemo(() => {
-    return buildPermissionState(profile, effectivePermissions);
+    return resolveFinancePagePermissionState({
+      profileRole: profile?.role,
+      permissions: effectivePermissions,
+      config: EXPENSE_CATEGORY_ACCESS_CONFIG,
+    });
   }, [effectivePermissions, profile]);
 
   const stats = useMemo(() => {
@@ -736,6 +679,26 @@ export default function FinanceExpenseCategoriesPage() {
       .filter((row) => row.status === "archived")
       .sort((first, second) => compareDates(second.updated_at, first.updated_at));
   }, [rows]);
+
+  const filteredArchivedRows = useMemo(() => {
+    const query = archiveSearch.trim().toLowerCase();
+
+    return archivedRows.filter((row) => {
+      if (!query) return true;
+
+      const ledgerLabel = getLedgerLabel(row.ledger_account_id, ledgerAccounts);
+
+      return [
+        row.code,
+        row.name,
+        row.description,
+        row.notes,
+        ledgerLabel,
+      ]
+        .filter(Boolean)
+        .some((value) => String(value).toLowerCase().includes(query));
+    });
+  }, [archiveSearch, archivedRows, ledgerAccounts]);
 
   const sortedRows = useMemo(() => {
     const sorted = [...filteredRows];
@@ -797,7 +760,11 @@ export default function FinanceExpenseCategoriesPage() {
       },
       {
         label: "Permission State",
-        value: permissionState.canRead ? "Enabled" : "Locked",
+        value: isLoadingProfile
+          ? "Checking"
+          : permissionState.canRead
+            ? "Enabled"
+            : "Locked",
         description: backgroundRefreshing
           ? "Silent refresh is updating without disturbing the page."
           : "Finance master-data permissions control create, edit, archive, and delete.",
@@ -807,6 +774,7 @@ export default function FinanceExpenseCategoriesPage() {
     ];
   }, [
     backgroundRefreshing,
+    isLoadingProfile,
     permissionState.canRead,
     stats.ledgerLinked,
   ]);
@@ -814,39 +782,44 @@ export default function FinanceExpenseCategoriesPage() {
   const metricCards = useMemo<MetricCardData[]>(
     () => [
       {
+        key: "total",
         label: "Total Categories",
         value: isLoadingData ? "—" : stats.total,
         icon: Layers3,
         tone: "cyan",
-        description: "All configured categories",
+        description: "All configured categories.",
       },
       {
+        key: "active",
         label: "Active",
         value: isLoadingData ? "—" : stats.active,
         icon: CheckCircle2,
         tone: "emerald",
-        description: "Available in workflows",
+        description: "Available in workflows.",
       },
       {
+        key: "inactive",
         label: "Inactive",
         value: isLoadingData ? "—" : stats.inactive,
         icon: ShieldCheck,
         tone: "amber",
-        description: "Kept but not preferred",
+        description: "Kept but not preferred.",
       },
       {
+        key: "archived",
         label: "Archived",
         value: isLoadingData ? "—" : stats.archived,
         icon: Archive,
         tone: "rose",
-        description: "Managed in archive manager",
+        description: "Managed in archive manager.",
       },
       {
+        key: "ledger",
         label: "Ledger Linked",
         value: isLoadingData ? "—" : stats.ledgerLinked,
         icon: Landmark,
         tone: "violet",
-        description: "Mapped to accounts",
+        description: "Mapped to accounts.",
       },
     ],
     [isLoadingData, stats]
@@ -870,6 +843,8 @@ export default function FinanceExpenseCategoriesPage() {
   }
 
   function openCreateDialog() {
+    if (!permissionState.canCreate) return;
+
     setEditingRow(null);
     setForm(EMPTY_FORM);
     setError("");
@@ -878,6 +853,8 @@ export default function FinanceExpenseCategoriesPage() {
   }
 
   function openEditDialog(row: FinanceExpenseCategoryRow) {
+    if (!permissionState.canUpdate) return;
+
     setEditingRow(row);
     setForm({
       code: row.code ?? "",
@@ -892,6 +869,13 @@ export default function FinanceExpenseCategoriesPage() {
     setDialogOpen(true);
   }
 
+  function closeDialog() {
+    setDialogOpen(false);
+    setEditingRow(null);
+    setForm(EMPTY_FORM);
+    setError("");
+  }
+
   async function handleSave() {
     if (!(editingRow ? permissionState.canUpdate : permissionState.canCreate)) {
       return;
@@ -904,6 +888,7 @@ export default function FinanceExpenseCategoriesPage() {
 
     try {
       setSaving(true);
+      setRunningAction(editingRow ? "edit" : "create");
       setError("");
       setPageMessage("");
 
@@ -937,11 +922,12 @@ export default function FinanceExpenseCategoriesPage() {
       );
     } finally {
       setSaving(false);
+      setRunningAction(null);
     }
   }
 
   async function handleArchive(row: FinanceExpenseCategoryRow) {
-    if (!permissionState.canDeleteArchive) return;
+    if (!permissionState.canDeleteArchive || saving) return;
 
     const confirmed = window.confirm(
       "Archive this expense category? It will be hidden from normal active workflows but can be restored later."
@@ -951,6 +937,8 @@ export default function FinanceExpenseCategoriesPage() {
 
     try {
       setSaving(true);
+      setRunningAction("archive");
+      setActiveActionId(row.id);
       setError("");
       setPageMessage("");
 
@@ -966,14 +954,18 @@ export default function FinanceExpenseCategoriesPage() {
       );
     } finally {
       setSaving(false);
+      setRunningAction(null);
+      setActiveActionId(null);
     }
   }
 
   async function handleRestore(row: FinanceExpenseCategoryRow) {
-    if (!permissionState.canDeleteArchive) return;
+    if (!permissionState.canDeleteArchive || saving) return;
 
     try {
       setSaving(true);
+      setRunningAction("restore");
+      setActiveActionId(row.id);
       setError("");
       setPageMessage("");
 
@@ -989,11 +981,13 @@ export default function FinanceExpenseCategoriesPage() {
       );
     } finally {
       setSaving(false);
+      setRunningAction(null);
+      setActiveActionId(null);
     }
   }
 
   async function handleHardDelete(row: FinanceExpenseCategoryRow) {
-    if (!permissionState.canDeleteArchive) return;
+    if (!permissionState.canDeleteArchive || saving) return;
 
     const confirmed = window.confirm(
       "Permanently delete this expense category? This action cannot be undone. If the category is used in finance records, deletion will be blocked."
@@ -1003,6 +997,8 @@ export default function FinanceExpenseCategoriesPage() {
 
     try {
       setSaving(true);
+      setRunningAction("hard-delete");
+      setActiveActionId(row.id);
       setError("");
       setPageMessage("");
 
@@ -1018,10 +1014,14 @@ export default function FinanceExpenseCategoriesPage() {
       );
     } finally {
       setSaving(false);
+      setRunningAction(null);
+      setActiveActionId(null);
     }
   }
 
   const isPageLoading = isLoadingProfile || isLoadingData;
+  const isArchiveActionRunning = runningAction === "archive-modal";
+  const isSavingAction = Boolean(runningAction);
 
   if (isPageLoading) {
     return (
@@ -1062,10 +1062,10 @@ export default function FinanceExpenseCategoriesPage() {
         />
       ) : (
         <>
-          <AixiaReviewGrid variant="metrics">
+          <AixiaMetricGrid>
             {metricCards.map((metric) => (
-              <AixiaReviewBlock
-                key={metric.label}
+              <AixiaMetricCard
+                key={metric.key}
                 label={metric.label}
                 value={metric.value}
                 description={metric.description}
@@ -1073,7 +1073,7 @@ export default function FinanceExpenseCategoriesPage() {
                 tone={metric.tone}
               />
             ))}
-          </AixiaReviewGrid>
+          </AixiaMetricGrid>
 
           <AixiaSection
             title="Expense Category Registry"
@@ -1090,22 +1090,24 @@ export default function FinanceExpenseCategoriesPage() {
                   />
                 }
                 filters={
-                  <AixiaReviewGrid
-                    variant="compact"
-                    className="aixia-registry-filter-grid"
+                  <AixiaSelectField
+                    value={statusFilter}
+                    onChange={(event) =>
+                      setStatusFilter(event.target.value as StatusFilter)
+                    }
                   >
                     {(["all", "active", "inactive"] as StatusFilter[]).map(
                       (value) => (
-                        <AixiaSelectableTile
+                        <option
                           key={value}
-                          title={formatStatusLabel(value)}
-                          selected={statusFilter === value}
-                          tone={getStatusFilterTone(value)}
-                          onClick={() => setStatusFilter(value)}
-                        />
+                          value={value}
+                          className="bg-[#05070d]"
+                        >
+                          {formatStatusLabel(value)}
+                        </option>
                       )
                     )}
-                  </AixiaReviewGrid>
+                  </AixiaSelectField>
                 }
                 primaryAction={
                   permissionState.canCreate ? (
@@ -1113,6 +1115,7 @@ export default function FinanceExpenseCategoriesPage() {
                       type="button"
                       variant="primary"
                       onClick={openCreateDialog}
+                      disabled={saving}
                     >
                       <Plus className="h-4 w-4" />
                       New Category
@@ -1124,9 +1127,18 @@ export default function FinanceExpenseCategoriesPage() {
                     <AixiaButton
                       type="button"
                       variant="danger"
-                      onClick={() => setArchiveOpen(true)}
+                      onClick={() => {
+                        setRunningAction("archive-modal");
+                        setArchiveOpen(true);
+                        setRunningAction(null);
+                      }}
+                      disabled={saving || isArchiveActionRunning}
                     >
-                      <Archive className="h-4 w-4" />
+                      {isArchiveActionRunning ? (
+                        <Loader2 className="h-4 w-4 animate-spin" />
+                      ) : (
+                        <Archive className="h-4 w-4" />
+                      )}
                       Archive
                     </AixiaButton>
                   ) : null
@@ -1203,7 +1215,131 @@ export default function FinanceExpenseCategoriesPage() {
                 </thead>
 
                 <tbody>
-                  {sortedRows.map((row) => (
+                  {sortedRows.map((row) => {
+                    const isRowActionRunning = activeActionId === row.id;
+
+                    return (
+                      <tr key={row.id} className="aixia-table-row">
+                        <AixiaTableTextCell width="sm" primary={row.code || "—"} />
+
+                        <AixiaTableTextCell
+                          width="xl"
+                          primary={row.name}
+                          secondary={row.description?.trim() || "No description"}
+                        />
+
+                        <AixiaTableTextCell
+                          width="xl"
+                          primary={getLedgerLabel(
+                            row.ledger_account_id,
+                            ledgerAccounts
+                          )}
+                          secondary={row.ledger_account_id ? "Mapped account" : "Optional"}
+                        />
+
+                        <AixiaTableBadgeCell width="sm">
+                          <AixiaStatusBadge value={row.status} />
+                        </AixiaTableBadgeCell>
+
+                        <AixiaTableBadgeCell width="sm">
+                          {row.posted_to_ledger ? (
+                            <AixiaBadge tone="cyan">Posted</AixiaBadge>
+                          ) : (
+                            <AixiaBadge tone="neutral">Not Posted</AixiaBadge>
+                          )}
+                        </AixiaTableBadgeCell>
+
+                        <AixiaTableDateCell width="sm">
+                          {formatDateLabel(row.updated_at)}
+                        </AixiaTableDateCell>
+
+                        <AixiaTableActionsCell>
+                          {permissionState.canUpdate ? (
+                            <AixiaButton
+                              type="button"
+                              variant="secondary"
+                              onClick={() => openEditDialog(row)}
+                              disabled={saving}
+                            >
+                              <Edit3 className="h-3.5 w-3.5" />
+                              Edit
+                            </AixiaButton>
+                          ) : null}
+
+                          {permissionState.canDeleteArchive ? (
+                            <AixiaButton
+                              type="button"
+                              variant="danger"
+                              onClick={() => void handleArchive(row)}
+                              disabled={isSavingAction}
+                            >
+                              {isRowActionRunning && runningAction === "archive" ? (
+                                <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                              ) : (
+                                <Archive className="h-3.5 w-3.5" />
+                              )}
+                              Archive
+                            </AixiaButton>
+                          ) : null}
+                        </AixiaTableActionsCell>
+                      </tr>
+                    );
+                  })}
+                </tbody>
+              </AixiaTableShell>
+            )}
+          </AixiaSection>
+
+          <AixiaAlert tone="info">
+            <AixiaAlertText
+              title="Locked expense category rule"
+              description="Expense categories are reusable finance master data. Active registry actions are limited to edit and archive. Restore and permanent delete are only available inside the archive manager. Refresh runs silently and must not clear visible data on background failure."
+            />
+          </AixiaAlert>
+        </>
+      )}
+
+      <AixiaArchiveManagerModal
+        open={archiveOpen}
+        title="Expense Category Archive"
+        description="Manage archived expense categories. Restore archived records when they should return to active workflows. Permanent delete is only available from this archive manager."
+        archivedCount={archivedRows.length}
+        onClose={() => {
+          setArchiveOpen(false);
+          setArchiveSearch("");
+        }}
+      >
+        <div className="space-y-4">
+          <AixiaSearchField
+            width="full"
+            value={archiveSearch}
+            onChange={(event) => setArchiveSearch(event.target.value)}
+            placeholder="Search archived categories"
+          />
+
+          {filteredArchivedRows.length === 0 ? (
+            <AixiaEmptyState
+              icon={Archive}
+              title="No archived expense categories"
+              description="Archived expense categories will appear here for restore or permanent delete actions."
+            />
+          ) : (
+            <AixiaTableShell variant="archive">
+              <thead className="aixia-table-head">
+                <tr>
+                  <th>Code</th>
+                  <th>Name</th>
+                  <th>Ledger Link</th>
+                  <th>Updated</th>
+                  <th>Actions</th>
+                </tr>
+              </thead>
+
+              <tbody>
+                {filteredArchivedRows.map((row) => {
+                  const isRowActionRunning = activeActionId === row.id;
+
+                  return (
                     <tr key={row.id} className="aixia-table-row">
                       <AixiaTableTextCell width="sm" primary={row.code || "—"} />
 
@@ -1215,142 +1351,50 @@ export default function FinanceExpenseCategoriesPage() {
 
                       <AixiaTableTextCell
                         width="xl"
-                        primary={getLedgerLabel(
-                          row.ledger_account_id,
-                          ledgerAccounts
-                        )}
+                        primary={getLedgerLabel(row.ledger_account_id, ledgerAccounts)}
                         secondary={row.ledger_account_id ? "Mapped account" : "Optional"}
                       />
-
-                      <AixiaTableBadgeCell width="sm">
-                        <AixiaStatusBadge value={row.status} />
-                      </AixiaTableBadgeCell>
-
-                      <AixiaTableBadgeCell width="sm">
-                        {row.posted_to_ledger ? (
-                          <AixiaBadge tone="cyan">Posted</AixiaBadge>
-                        ) : (
-                          <AixiaBadge tone="neutral">Not Posted</AixiaBadge>
-                        )}
-                      </AixiaTableBadgeCell>
 
                       <AixiaTableDateCell width="sm">
                         {formatDateLabel(row.updated_at)}
                       </AixiaTableDateCell>
 
                       <AixiaTableActionsCell>
-                        {permissionState.canUpdate ? (
-                          <AixiaButton
-                            type="button"
-                            variant="secondary"
-                            onClick={() => openEditDialog(row)}
-                            disabled={saving}
-                          >
-                            <Edit3 className="h-3.5 w-3.5" />
-                            Edit
-                          </AixiaButton>
-                        ) : null}
+                        <AixiaButton
+                          type="button"
+                          variant="secondary"
+                          onClick={() => void handleRestore(row)}
+                          disabled={saving}
+                        >
+                          {isRowActionRunning && runningAction === "restore" ? (
+                            <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                          ) : (
+                            <RotateCcw className="h-3.5 w-3.5" />
+                          )}
+                          Restore
+                        </AixiaButton>
 
-                        {permissionState.canDeleteArchive ? (
-                          <AixiaButton
-                            type="button"
-                            variant="danger"
-                            onClick={() => void handleArchive(row)}
-                            disabled={saving}
-                          >
-                            <Archive className="h-3.5 w-3.5" />
-                            Archive
-                          </AixiaButton>
-                        ) : null}
+                        <AixiaButton
+                          type="button"
+                          variant="danger"
+                          onClick={() => void handleHardDelete(row)}
+                          disabled={saving}
+                        >
+                          {isRowActionRunning && runningAction === "hard-delete" ? (
+                            <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                          ) : (
+                            <Trash2 className="h-3.5 w-3.5" />
+                          )}
+                          Delete Permanently
+                        </AixiaButton>
                       </AixiaTableActionsCell>
                     </tr>
-                  ))}
-                </tbody>
-              </AixiaTableShell>
-            )}
-          </AixiaSection>
-
-          <AixiaAlert tone="info">
-            <AixiaAlertText
-              title="Locked expense category rule"
-              description="Expense categories are reusable finance master data. Active registry actions are limited to edit and archive. Restore and permanent delete are only available inside the archive manager."
-            />
-          </AixiaAlert>
-        </>
-      )}
-
-      <AixiaArchiveManagerModal
-        open={archiveOpen}
-        title="Expense Category Archive"
-        description="Manage archived expense categories. Restore archived records when they should return to active workflows. Permanent delete is only available from this archive manager."
-        archivedCount={archivedRows.length}
-        onClose={() => setArchiveOpen(false)}
-      >
-        {archivedRows.length === 0 ? (
-          <AixiaEmptyState
-            icon={Archive}
-            title="No archived expense categories"
-            description="Archived expense categories will appear here for restore or permanent delete actions."
-          />
-        ) : (
-          <AixiaTableShell variant="archive">
-            <thead className="aixia-table-head">
-              <tr>
-                <th>Code</th>
-                <th>Name</th>
-                <th>Ledger Link</th>
-                <th>Updated</th>
-                <th>Actions</th>
-              </tr>
-            </thead>
-
-            <tbody>
-              {archivedRows.map((row) => (
-                <tr key={row.id} className="aixia-table-row">
-                  <AixiaTableTextCell width="sm" primary={row.code || "—"} />
-
-                  <AixiaTableTextCell
-                    width="xl"
-                    primary={row.name}
-                    secondary={row.description?.trim() || "No description"}
-                  />
-
-                  <AixiaTableTextCell
-                    width="xl"
-                    primary={getLedgerLabel(row.ledger_account_id, ledgerAccounts)}
-                    secondary={row.ledger_account_id ? "Mapped account" : "Optional"}
-                  />
-
-                  <AixiaTableDateCell width="sm">
-                    {formatDateLabel(row.updated_at)}
-                  </AixiaTableDateCell>
-
-                  <AixiaTableActionsCell>
-                    <AixiaButton
-                      type="button"
-                      variant="secondary"
-                      onClick={() => void handleRestore(row)}
-                      disabled={saving}
-                    >
-                      <Undo2 className="h-3.5 w-3.5" />
-                      Restore
-                    </AixiaButton>
-
-                    <AixiaButton
-                      type="button"
-                      variant="danger"
-                      onClick={() => void handleHardDelete(row)}
-                      disabled={saving}
-                    >
-                      <Trash2 className="h-3.5 w-3.5" />
-                      Delete Permanently
-                    </AixiaButton>
-                  </AixiaTableActionsCell>
-                </tr>
-              ))}
-            </tbody>
-          </AixiaTableShell>
-        )}
+                  );
+                })}
+              </tbody>
+            </AixiaTableShell>
+          )}
+        </div>
       </AixiaArchiveManagerModal>
 
       <CategoryFormModal
@@ -1361,10 +1405,7 @@ export default function FinanceExpenseCategoriesPage() {
         saving={saving}
         error={error}
         canSave={editingRow ? permissionState.canUpdate : permissionState.canCreate}
-        onClose={() => {
-          setDialogOpen(false);
-          setError("");
-        }}
+        onClose={closeDialog}
         onChange={updateForm}
         onSave={() => void handleSave()}
       />

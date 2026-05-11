@@ -1506,12 +1506,13 @@
 .aixia-table-wrap[data-table-variant="archive"] .aixia-table-scroll {
   width: 100%;
   max-height: 620px;
+  overflow-x: auto;
 }
 
 .aixia-table-wrap[data-table-variant="archive"] .aixia-table {
   width: 100%;
   min-width: 100%;
-  table-layout: fixed;
+  table-layout: auto;
 }
 
 .aixia-table-wrap[data-table-variant="archive"] .aixia-table th,
@@ -1521,19 +1522,27 @@
 
 .aixia-table-wrap[data-table-variant="archive"] .aixia-table th:last-child,
 .aixia-table-wrap[data-table-variant="archive"] .aixia-table td:last-child {
-  width: 390px;
+  width: 1%;
+  min-width: 220px;
+  white-space: nowrap;
 }
 
 .aixia-table-wrap[data-table-variant="archive"] .aixia-table-cell-actions,
 .aixia-table-wrap[data-table-variant="archive"] td:has(.aixia-btn-primary),
 .aixia-table-wrap[data-table-variant="archive"] td:has(.aixia-btn-secondary),
 .aixia-table-wrap[data-table-variant="archive"] td:has(.aixia-btn-danger) {
-  min-width: 390px;
+  width: 1%;
+  min-width: 220px;
+  white-space: nowrap;
 }
 
 .aixia-table-wrap[data-table-variant="archive"] .aixia-table-actions {
   justify-content: center;
   flex-wrap: nowrap;
+  width: max-content;
+  min-width: max-content;
+  margin-left: auto;
+  margin-right: auto;
 }
 
 .aixia-table-wrap[data-table-variant="archive"] .aixia-btn-primary,

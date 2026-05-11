@@ -44,14 +44,17 @@ import {
   getCompanyOptions,
   type CompanyOption,
 } from "@/lib/finance/bankAccounts";
+import { type Permission, type Role } from "@/lib/permissions";
+
 import {
-  getEffectivePermissions,
-  type Permission,
-  type Role,
-} from "@/lib/permissions";
+  fetchFinanceEffectivePermissions,
+  resolveFinancePagePermissionState,
+  type FinanceLoadMode,
+} from "@/lib/finance/pageAccess";
+
 import { supabase } from "@/lib/supabase";
 
-type LoadMode = "initial" | "silent";
+type LoadMode = FinanceLoadMode;
 
 type ProfilePermissionRow = {
   user_id: string;
@@ -80,12 +83,6 @@ type FormState = {
   is_default: boolean;
   status: BankAccountCreateStatus;
   notes: string;
-};
-
-type PermissionState = {
-  canRead: boolean;
-  canCreate: boolean;
-  isAdmin: boolean;
 };
 
 type HeaderStatusCardData = {
@@ -121,81 +118,20 @@ const EMPTY_FORM: FormState = {
   notes: "",
 };
 
-const EMPTY_PERMISSION_STATE: PermissionState = {
-  canRead: false,
-  canCreate: false,
-  isAdmin: false,
-};
+const BANK_ACCOUNT_CREATE_ACCESS_CONFIG = {
+  sectionKey: "masterData",
+  adminPermissions: ["manageFinanceMasterData"],
+  readPermissions: ["accessFinance", "viewFinance", "viewBankAccounts"],
+  createPermissions: ["createFinanceRecords"],
+  updatePermissions: ["editFinanceRecords"],
+  deleteArchivePermissions: ["archiveFinanceRecords"],
+} as const;
 
-function hasPermission(
-  permissions: Record<Permission, boolean> | null,
-  permission: Permission
-) {
-  return Boolean(permissions?.[permission]);
-}
-
-function buildPermissionState(
-  profile: ProfilePermissionRow | null,
-  permissions: Record<Permission, boolean> | null
-): PermissionState {
-  if (!profile?.role || !permissions) {
-    return EMPTY_PERMISSION_STATE;
-  }
-
-  const isAdmin = String(profile.role || "").toLowerCase() === "admin";
-  const canManageMasterData = hasPermission(permissions, "manageFinanceMasterData");
-
-  return {
-    isAdmin,
-    canRead:
-      canManageMasterData ||
-      hasPermission(permissions, "viewBankAccounts"),
-    canCreate:
-      canManageMasterData ||
-      hasPermission(permissions, "createFinanceRecords"),
-  };
-}
-
-async function loadBackendEffectivePermissions(
+async function loadBankAccountCreateEffectivePermissions(
   userId: string,
   mode: LoadMode
 ): Promise<Partial<Record<Permission, boolean>> | null> {
-  try {
-    const result = await supabase.rpc("finance_get_effective_permissions", {
-      target_user_id: userId,
-    });
-
-    if (result.error) {
-      if (mode === "silent") {
-        throw result.error;
-      }
-
-      console.warn(
-        "Create Bank Account permission RPC fallback:",
-        result.error.message
-      );
-      return null;
-    }
-
-    if (!result.data || typeof result.data !== "object") {
-      if (mode === "silent") {
-        throw new Error(
-          "Silent create bank account permission refresh returned no effective permission payload."
-        );
-      }
-
-      return null;
-    }
-
-    return result.data as Partial<Record<Permission, boolean>>;
-  } catch (error) {
-    if (mode === "silent") {
-      throw error;
-    }
-
-    console.warn("Create Bank Account permission RPC failed:", error);
-    return null;
-  }
+  return fetchFinanceEffectivePermissions(userId, mode, "Bank Accounts");
 }
 
 function normalizeIdentifierType(value: string): BankIdentifierType {
@@ -284,7 +220,10 @@ export default function FinanceMasterDataBankAccountCreatePage() {
         return;
       }
 
-      const backendPermissions = await loadBackendEffectivePermissions(authUserId, mode);
+      const backendPermissions = await loadBankAccountCreateEffectivePermissions(
+        authUserId,
+        mode
+      );
 
       setProfile(loadedProfile);
 
@@ -300,12 +239,18 @@ export default function FinanceMasterDataBankAccountCreatePage() {
         return;
       }
 
-      const resolvedPermissions = getEffectivePermissions(
-        loadedProfile.role,
-        backendPermissions || loadedProfile.permissions || null
-      );
+      const resolvedPermissions = backendPermissions || loadedProfile.permissions || null;
 
-      setEffectivePermissions(resolvedPermissions);
+      if (!resolvedPermissions && mode === "silent") {
+        console.warn(
+          "Silent create bank account permission refresh returned no permission payload; keeping current permissions."
+        );
+        return;
+      }
+
+      setEffectivePermissions(
+        resolvedPermissions as Record<Permission, boolean> | null
+      );
     } catch (error) {
       console.error("Failed to load create bank account permissions:", error);
 
@@ -415,7 +360,11 @@ export default function FinanceMasterDataBankAccountCreatePage() {
   }, [loadCompanies, loadCurrentProfile]);
 
   const permissionState = useMemo(() => {
-    return buildPermissionState(profile, effectivePermissions);
+    return resolveFinancePagePermissionState({
+      profileRole: profile?.role,
+      permissions: effectivePermissions,
+      config: BANK_ACCOUNT_CREATE_ACCESS_CONFIG,
+    });
   }, [effectivePermissions, profile]);
 
   const selectedCompany = useMemo(() => {

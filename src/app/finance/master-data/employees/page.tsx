@@ -409,9 +409,9 @@ function buildMetadata(
 
 async function loadEmployeeEffectivePermissions(
   userId: string,
-  mode: LoadMode
+  _mode: LoadMode
 ): Promise<Partial<Record<Permission, boolean>> | null> {
-  return fetchFinanceEffectivePermissions(userId, mode, "Employees");
+  return fetchFinanceEffectivePermissions(userId);
 }
 
 function getDefaultCurrencyCode(currencies: CurrencyRow[]) {

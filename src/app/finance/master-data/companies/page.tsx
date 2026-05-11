@@ -17,10 +17,10 @@ import {
 } from "lucide-react";
 
 import {
+  AixiaAccessDeniedState,
   AixiaAlert,
   AixiaAlertText,
   AixiaArchiveManagerModal,
-  AixiaBadge,
   AixiaButton,
   AixiaCurrencyBadge,
   AixiaEmptyState,
@@ -48,14 +48,18 @@ import {
   restoreCompany,
   type FinanceCompanyListRow,
 } from "@/lib/finance/companies";
+
+import { type Permission, type Role } from "@/lib/permissions";
+
 import {
-  getEffectivePermissions,
-  type Permission,
-  type Role,
-} from "@/lib/permissions";
+  fetchFinanceEffectivePermissions,
+  resolveFinancePagePermissionState,
+  type FinanceLoadMode,
+} from "@/lib/finance/pageAccess";
+
 import { supabase } from "@/lib/supabase";
 
-type LoadMode = "initial" | "silent";
+type LoadMode = FinanceLoadMode;
 
 type ProfilePermissionRow = {
   user_id: string;
@@ -93,14 +97,6 @@ type MetricCard = {
   tone: "cyan" | "emerald" | "amber" | "violet" | "rose";
 };
 
-type PermissionState = {
-  canRead: boolean;
-  canCreate: boolean;
-  canUpdate: boolean;
-  canDeleteArchive: boolean;
-  isAdmin: boolean;
-};
-
 type HeaderStatusCardData = {
   label: string;
   value: string;
@@ -109,13 +105,14 @@ type HeaderStatusCardData = {
   tone: "emerald" | "cyan" | "amber" | "rose";
 };
 
-const EMPTY_PERMISSION_STATE: PermissionState = {
-  canRead: false,
-  canCreate: false,
-  canUpdate: false,
-  canDeleteArchive: false,
-  isAdmin: false,
-};
+const COMPANY_ACCESS_CONFIG = {
+  sectionKey: "masterData",
+  adminPermissions: ["manageFinanceMasterData"],
+  readPermissions: ["accessFinance", "viewFinance"],
+  createPermissions: ["createFinanceRecords"],
+  updatePermissions: ["editFinanceRecords"],
+  deleteArchivePermissions: ["archiveFinanceRecords"],
+} as const;
 
 function formatCount(value: number) {
   return value.toLocaleString();
@@ -157,75 +154,6 @@ function getPhoneLabel(company: FinanceCompanyListRow) {
 function getLocationLabel(company: FinanceCompanyListRow) {
   const parts = [company.country, company.city].filter(Boolean);
   return parts.length > 0 ? parts.join(" / ") : "—";
-}
-
-function hasPermission(
-  permissions: Record<Permission, boolean> | null,
-  permission: Permission
-) {
-  return Boolean(permissions?.[permission]);
-}
-
-function buildPermissionState(
-  profile: ProfilePermissionRow | null,
-  permissions: Record<Permission, boolean> | null
-): PermissionState {
-  if (!profile?.role || !permissions) {
-    return EMPTY_PERMISSION_STATE;
-  }
-
-  const isAdmin = String(profile.role || "").toLowerCase() === "admin";
-  const canManageMasterData = hasPermission(permissions, "manageFinanceMasterData");
-  const canAccessFinance = hasPermission(permissions, "accessFinance");
-  const canViewFinance = hasPermission(permissions, "viewFinance");
-
-  return {
-    isAdmin,
-    canRead: canManageMasterData || canAccessFinance || canViewFinance,
-    canCreate: canManageMasterData || hasPermission(permissions, "createFinanceRecords"),
-    canUpdate: canManageMasterData || hasPermission(permissions, "editFinanceRecords"),
-    canDeleteArchive:
-      canManageMasterData || hasPermission(permissions, "archiveFinanceRecords"),
-  };
-}
-
-async function loadBackendEffectivePermissions(
-  userId: string,
-  mode: LoadMode
-): Promise<Partial<Record<Permission, boolean>> | null> {
-  try {
-    const result = await supabase.rpc("finance_get_effective_permissions", {
-      target_user_id: userId,
-    });
-
-    if (result.error) {
-      if (mode === "silent") {
-        throw result.error;
-      }
-
-      console.warn("Companies permission RPC fallback:", result.error.message);
-      return null;
-    }
-
-    if (!result.data || typeof result.data !== "object") {
-      if (mode === "silent") {
-        throw new Error(
-          "Silent companies permission refresh returned no effective permission payload."
-        );
-      }
-
-      return null;
-    }
-
-    return result.data as Partial<Record<Permission, boolean>>;
-  } catch (error) {
-    if (mode === "silent") {
-      throw error;
-    }
-
-    console.warn("Companies permission RPC failed:", error);
-    return null;
-  }
 }
 
 function compareStrings(first: string | null | undefined, second: string | null | undefined) {
@@ -309,7 +237,7 @@ export default function FinanceMasterDataCompaniesPage() {
         return;
       }
 
-      const backendPermissions = await loadBackendEffectivePermissions(authUserId, mode);
+      const backendPermissions = await fetchFinanceEffectivePermissions(authUserId, mode, "Companies");
 
       setProfile(loadedProfile);
 
@@ -325,12 +253,18 @@ export default function FinanceMasterDataCompaniesPage() {
         return;
       }
 
-      const resolvedPermissions = getEffectivePermissions(
-        loadedProfile.role,
-        backendPermissions || loadedProfile.permissions || null
-      );
+      const resolvedPermissions = backendPermissions || loadedProfile.permissions || null;
 
-      setEffectivePermissions(resolvedPermissions);
+      if (!resolvedPermissions && mode === "silent") {
+        console.warn(
+          "Silent companies profile refresh returned no permission payload; keeping current permissions."
+        );
+        return;
+      }
+
+      setEffectivePermissions(
+        resolvedPermissions as Record<Permission, boolean> | null
+      );
     } catch (error) {
       console.error("Failed to load companies profile permissions:", error);
 
@@ -467,7 +401,11 @@ export default function FinanceMasterDataCompaniesPage() {
   }, [loadArchivedCompanies, loadCompanies, loadCurrentProfile, showArchive]);
 
   const permissionState = useMemo(() => {
-    return buildPermissionState(profile, effectivePermissions);
+    return resolveFinancePagePermissionState(
+      profile,
+      effectivePermissions,
+      COMPANY_ACCESS_CONFIG
+    );
   }, [effectivePermissions, profile]);
 
   const visibleCompanies = useMemo(() => {
@@ -835,17 +773,10 @@ export default function FinanceMasterDataCompaniesPage() {
       </AixiaMetricGrid>
 
       {!permissionState.canRead ? (
-        <AixiaSection
-          title="Company Access Locked"
-          description="The logged-in user does not have Company / Finance read access."
-          icon={LockKeyhole}
-        >
-          <AixiaEmptyState
-            icon={LockKeyhole}
-            title="No company access is enabled"
-            description="Ask an Admin to assign a Finance role template or user-specific exception with Finance read or Master Data access."
-          />
-        </AixiaSection>
+        <AixiaAccessDeniedState
+          title="No company finance access"
+          description="Ask an Admin to assign a Finance role template or user-specific exception with Finance read or Master Data access."
+        />
       ) : (
         <AixiaSection
           title="Company Registry"

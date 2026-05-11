@@ -984,6 +984,16 @@ export default function FinanceMasterDataBankAccountsPage() {
                             />
                           </AixiaTableBadgeCell>
 
+                          <AixiaTableBadgeCell>
+                            <AixiaDefaultBadge isDefault={Boolean(row.is_default)} />
+                          </AixiaTableBadgeCell>
+
+                          <AixiaTableBadgeCell>
+                            <AixiaStatusBadge value={row.status} />
+                          </AixiaTableBadgeCell>
+
+                          <AixiaTableDateCell>{formatDateLabel(updatedAt)}</AixiaTableDateCell>
+
                           <AixiaTableActionsCell>
                             <AixiaButton
                               type="button"

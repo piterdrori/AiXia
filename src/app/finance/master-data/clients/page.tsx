@@ -17,6 +17,7 @@ import {
 } from "lucide-react";
 
 import {
+  AixiaAccessDeniedState,
   AixiaAlert,
   AixiaAlertText,
   AixiaArchiveManagerModal,
@@ -39,6 +40,7 @@ import {
   AixiaTableShell,
   AixiaTableTextCell,
 } from "@/components/aixia";
+
 import {
   archiveClient,
   getArchivedClients,
@@ -47,14 +49,18 @@ import {
   restoreClient,
   type FinanceClientListRow,
 } from "@/lib/finance/clients";
+
+import { type Permission, type Role } from "@/lib/permissions";
+
 import {
-  getEffectivePermissions,
-  type Permission,
-  type Role,
-} from "@/lib/permissions";
+  fetchFinanceEffectivePermissions,
+  resolveFinancePagePermissionState,
+  type FinanceLoadMode,
+} from "@/lib/finance/pageAccess";
+
 import { supabase } from "@/lib/supabase";
 
-type LoadMode = "initial" | "silent";
+type LoadMode = FinanceLoadMode;
 
 type ProfilePermissionRow = {
   user_id: string;
@@ -92,14 +98,6 @@ type MetricCard = {
   tone: "cyan" | "emerald" | "amber" | "violet" | "rose";
 };
 
-type PermissionState = {
-  canRead: boolean;
-  canCreate: boolean;
-  canUpdate: boolean;
-  canDeleteArchive: boolean;
-  isAdmin: boolean;
-};
-
 type HeaderStatusCardData = {
   label: string;
   value: string;
@@ -108,13 +106,14 @@ type HeaderStatusCardData = {
   tone: "emerald" | "cyan" | "amber" | "rose";
 };
 
-const EMPTY_PERMISSION_STATE: PermissionState = {
-  canRead: false,
-  canCreate: false,
-  canUpdate: false,
-  canDeleteArchive: false,
-  isAdmin: false,
-};
+const CLIENT_ACCESS_CONFIG = {
+  sectionKey: "masterData",
+  adminPermissions: ["manageFinanceMasterData"],
+  readPermissions: ["accessFinance", "viewFinance", "viewClients", "manageClients"],
+  createPermissions: ["createFinanceRecords", "manageClients"],
+  updatePermissions: ["editFinanceRecords", "manageClients"],
+  deleteArchivePermissions: ["archiveFinanceRecords", "manageClients"],
+} as const;
 
 function formatCount(value: number) {
   return value.toLocaleString();
@@ -153,82 +152,11 @@ function getClientPhone(client: FinanceClientListRow) {
   return client.company_phone || client.personnel_phone || "—";
 }
 
-function hasPermission(
-  permissions: Record<Permission, boolean> | null,
-  permission: Permission
-) {
-  return Boolean(permissions?.[permission]);
-}
-
-function buildPermissionState(
-  profile: ProfilePermissionRow | null,
-  permissions: Record<Permission, boolean> | null
-): PermissionState {
-  if (!profile?.role || !permissions) {
-    return EMPTY_PERMISSION_STATE;
-  }
-
-  const isAdmin = String(profile.role || "").toLowerCase() === "admin";
-  const canManageMasterData = hasPermission(permissions, "manageFinanceMasterData");
-
-  return {
-    isAdmin,
-    canRead:
-      canManageMasterData ||
-      hasPermission(permissions, "viewClients") ||
-      hasPermission(permissions, "manageClients"),
-    canCreate:
-      canManageMasterData ||
-      hasPermission(permissions, "manageClients") ||
-      hasPermission(permissions, "createFinanceRecords"),
-    canUpdate:
-      canManageMasterData ||
-      hasPermission(permissions, "manageClients") ||
-      hasPermission(permissions, "editFinanceRecords"),
-    canDeleteArchive:
-      canManageMasterData ||
-      hasPermission(permissions, "manageClients") ||
-      hasPermission(permissions, "archiveFinanceRecords"),
-  };
-}
-
-async function loadBackendEffectivePermissions(
+async function loadClientEffectivePermissions(
   userId: string,
   mode: LoadMode
 ): Promise<Partial<Record<Permission, boolean>> | null> {
-  try {
-    const result = await supabase.rpc("finance_get_effective_permissions", {
-      target_user_id: userId,
-    });
-
-    if (result.error) {
-      if (mode === "silent") {
-        throw result.error;
-      }
-
-      console.warn("Clients permission RPC fallback:", result.error.message);
-      return null;
-    }
-
-    if (!result.data || typeof result.data !== "object") {
-      if (mode === "silent") {
-        throw new Error(
-          "Silent clients permission refresh returned no effective permission payload."
-        );
-      }
-
-      return null;
-    }
-
-    return result.data as Partial<Record<Permission, boolean>>;
-  } catch (error) {
-    if (mode === "silent") {
-      throw error;
-    }
-
-    console.warn("Clients permission RPC failed:", error);
-    return null;
-  }
+  return fetchFinanceEffectivePermissions(userId, mode, "Clients");
 }
 
 function compareStrings(first: string | null | undefined, second: string | null | undefined) {
@@ -310,7 +238,7 @@ export default function FinanceMasterDataClientsPage() {
         return;
       }
 
-      const backendPermissions = await loadBackendEffectivePermissions(authUserId, mode);
+      const backendPermissions = await loadClientEffectivePermissions(authUserId, mode);
 
       setProfile(loadedProfile);
 
@@ -326,12 +254,18 @@ export default function FinanceMasterDataClientsPage() {
         return;
       }
 
-      const resolvedPermissions = getEffectivePermissions(
-        loadedProfile.role,
-        backendPermissions || loadedProfile.permissions || null
-      );
+      const resolvedPermissions = backendPermissions || loadedProfile.permissions || null;
 
-      setEffectivePermissions(resolvedPermissions);
+      if (!resolvedPermissions && mode === "silent") {
+        console.warn(
+          "Silent clients permission refresh returned no permission payload; keeping current permissions."
+        );
+        return;
+      }
+
+      setEffectivePermissions(
+        resolvedPermissions as Record<Permission, boolean> | null
+      );
     } catch (error) {
       console.error("Failed to load clients profile permissions:", error);
 
@@ -464,7 +398,11 @@ export default function FinanceMasterDataClientsPage() {
   }, [loadArchivedClients, loadClients, loadCurrentProfile, showArchive]);
 
   const permissionState = useMemo(() => {
-    return buildPermissionState(profile, effectivePermissions);
+    return resolveFinancePagePermissionState({
+      profileRole: profile?.role,
+      permissions: effectivePermissions,
+      config: CLIENT_ACCESS_CONFIG,
+    });
   }, [effectivePermissions, profile]);
 
   const visibleClients = useMemo(() => {
@@ -821,17 +759,10 @@ export default function FinanceMasterDataClientsPage() {
       </AixiaMetricGrid>
 
       {!permissionState.canRead ? (
-        <AixiaSection
-          title="Client Access Locked"
-          description="The logged-in user does not have Client read access."
-          icon={LockKeyhole}
-        >
-          <AixiaEmptyState
-            icon={LockKeyhole}
-            title="No client access is enabled"
-            description="Ask an Admin to assign a Finance role template or user-specific exception with Client read access."
-          />
-        </AixiaSection>
+        <AixiaAccessDeniedState
+          title="No client finance access"
+          description="Ask an Admin to assign a Finance role template or user-specific exception with Client read access."
+        />
       ) : (
         <AixiaSection
           title="Client Registry"

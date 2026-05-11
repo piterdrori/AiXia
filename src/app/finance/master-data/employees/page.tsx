@@ -1122,9 +1122,9 @@ export default function FinanceMasterDataEmployeesPage() {
 
   const permissionState = useMemo(() => {
     return resolveFinancePagePermissionState({
-      profile,
-      effectivePermissions,
-      accessConfig: EMPLOYEE_ACCESS_CONFIG,
+      profileRole: profile?.role,
+      permissions: effectivePermissions,
+      config: EMPLOYEE_ACCESS_CONFIG,
     });
   }, [effectivePermissions, profile]);
 

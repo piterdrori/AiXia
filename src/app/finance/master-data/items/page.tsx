@@ -1,9 +1,7 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
-import { useNavigate } from "react-router-dom";
 import type { LucideIcon } from "lucide-react";
 import {
   Archive,
-  ArrowRight,
   Boxes,
   CheckCircle2,
   Edit3,
@@ -22,7 +20,6 @@ import {
 
 import {
   AixiaAccessDeniedState,
-  AixiaActionStack,
   AixiaAlert,
   AixiaAlertText,
   AixiaArchiveManagerModal,
@@ -42,7 +39,6 @@ import {
   AixiaModal,
   AixiaPage,
   AixiaRegistryToolbar,
-  AixiaReviewBlock,
   AixiaReviewGrid,
   AixiaSearchField,
   AixiaSection,
@@ -702,7 +698,6 @@ function ItemFormModal({
 }
 
 export default function FinanceItemsPage() {
-  const navigate = useNavigate();
 
   const [profile, setProfile] = useState<ProfilePermissionRow | null>(null);
   const [effectivePermissions, setEffectivePermissions] =

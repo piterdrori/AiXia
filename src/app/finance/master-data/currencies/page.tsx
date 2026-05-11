@@ -77,14 +77,17 @@ import {
   type FinanceExchangeRateRow,
   type FinanceRecordStatus,
 } from "@/lib/finance/currencies";
+import { type Permission, type Role } from "@/lib/permissions";
+
 import {
-  getEffectivePermissions,
-  type Permission,
-  type Role,
-} from "@/lib/permissions";
+  fetchFinanceEffectivePermissions,
+  resolveFinancePagePermissionState,
+  type FinanceLoadMode,
+} from "@/lib/finance/pageAccess";
+
 import { supabase } from "@/lib/supabase";
 
-type LoadMode = "initial" | "silent";
+type LoadMode = FinanceLoadMode;
 
 type ProfilePermissionRow = {
   user_id: string;
@@ -118,14 +121,6 @@ type CurrencyPreset = {
   symbol: string;
   decimal_places: string;
   region: string;
-};
-
-type PermissionState = {
-  canRead: boolean;
-  canCreate: boolean;
-  canUpdate: boolean;
-  canDeleteArchive: boolean;
-  isAdmin: boolean;
 };
 
 type HeaderStatusCardData = {
@@ -167,13 +162,14 @@ type PageAction =
 
 const CUSTOM_CURRENCY_KEY = "__custom__";
 
-const EMPTY_PERMISSION_STATE: PermissionState = {
-  canRead: false,
-  canCreate: false,
-  canUpdate: false,
-  canDeleteArchive: false,
-  isAdmin: false,
-};
+const CURRENCY_ACCESS_CONFIG = {
+  sectionKey: "masterData",
+  adminPermissions: ["manageFinanceMasterData"],
+  readPermissions: ["accessFinance", "viewFinance"],
+  createPermissions: ["createFinanceRecords"],
+  updatePermissions: ["editFinanceRecords"],
+  deleteArchivePermissions: ["archiveFinanceRecords"],
+} as const;
 
 const EMPTY_CURRENCY_FORM: CurrencyFormState = {
   preset_key: "",
@@ -286,69 +282,11 @@ function getPresetSelectLabel(preset: CurrencyPreset) {
   return `${preset.code} — ${preset.name} • ${preset.region}`;
 }
 
-function hasPermission(
-  permissions: Record<Permission, boolean> | null,
-  permission: Permission
-) {
-  return Boolean(permissions?.[permission]);
-}
-
-function buildPermissionState(
-  profile: ProfilePermissionRow | null,
-  permissions: Record<Permission, boolean> | null
-): PermissionState {
-  if (!profile?.role || !permissions) {
-    return EMPTY_PERMISSION_STATE;
-  }
-
-  const isAdmin = String(profile.role || "").toLowerCase() === "admin";
-  const canManageMasterData = hasPermission(permissions, "manageFinanceMasterData");
-  const canAccessFinance = hasPermission(permissions, "accessFinance");
-  const canViewFinance = hasPermission(permissions, "viewFinance");
-
-  return {
-    isAdmin,
-    canRead: canManageMasterData || (canAccessFinance && canViewFinance),
-    canCreate:
-      canManageMasterData || hasPermission(permissions, "createFinanceRecords"),
-    canUpdate:
-      canManageMasterData || hasPermission(permissions, "editFinanceRecords"),
-    canDeleteArchive:
-      canManageMasterData || hasPermission(permissions, "archiveFinanceRecords"),
-  };
-}
-
-async function loadBackendEffectivePermissions(
+async function loadCurrencyEffectivePermissions(
   userId: string,
   mode: LoadMode
 ): Promise<Partial<Record<Permission, boolean>> | null> {
-  try {
-    const result = await supabase.rpc("finance_get_effective_permissions", {
-      target_user_id: userId,
-    });
-
-    if (result.error) {
-      if (mode === "silent") throw result.error;
-      console.warn("Currencies permission RPC fallback:", result.error.message);
-      return null;
-    }
-
-    if (!result.data || typeof result.data !== "object") {
-      if (mode === "silent") {
-        throw new Error(
-          "Silent currencies permission refresh returned no effective permission payload."
-        );
-      }
-
-      return null;
-    }
-
-    return result.data as Partial<Record<Permission, boolean>>;
-  } catch (error) {
-    if (mode === "silent") throw error;
-    console.warn("Currencies permission RPC failed:", error);
-    return null;
-  }
+  return fetchFinanceEffectivePermissions(userId, mode, "Rates / Currency");
 }
 
 function makeRateResultFromStoredRate(row: FinanceExchangeRateRow): LiveConversionResult {
@@ -472,7 +410,10 @@ export default function FinanceMasterDataCurrenciesPage() {
         return;
       }
 
-      const backendPermissions = await loadBackendEffectivePermissions(authUserId, mode);
+      const backendPermissions = await loadCurrencyEffectivePermissions(
+        authUserId,
+        mode
+      );
 
       setProfile(loadedProfile);
 
@@ -488,12 +429,18 @@ export default function FinanceMasterDataCurrenciesPage() {
         return;
       }
 
-          const resolvedPermissions = getEffectivePermissions(
-        loadedProfile.role,
-        backendPermissions || loadedProfile.permissions || null
-      );
+      const resolvedPermissions = backendPermissions || loadedProfile.permissions || null;
 
-      setEffectivePermissions(resolvedPermissions);
+      if (!resolvedPermissions && mode === "silent") {
+        console.warn(
+          "Silent currencies permission refresh returned no permission payload; keeping current permissions."
+        );
+        return;
+      }
+
+      setEffectivePermissions(
+        resolvedPermissions as Record<Permission, boolean> | null
+      );
     } catch (error) {
       console.error("Failed to load currencies profile permissions:", error);
 
@@ -652,7 +599,11 @@ export default function FinanceMasterDataCurrenciesPage() {
   ]);
 
   const permissionState = useMemo(() => {
-    return buildPermissionState(profile, effectivePermissions);
+    return resolveFinancePagePermissionState({
+      profileRole: profile?.role,
+      permissions: effectivePermissions,
+      config: CURRENCY_ACCESS_CONFIG,
+    });
   }, [effectivePermissions, profile]);
 
   const activeCurrencies = useMemo(

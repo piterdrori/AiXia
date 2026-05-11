@@ -401,11 +401,11 @@ export default function FinanceMasterDataCompaniesPage() {
   }, [loadArchivedCompanies, loadCompanies, loadCurrentProfile, showArchive]);
 
   const permissionState = useMemo(() => {
-    return resolveFinancePagePermissionState(
-      profile,
-      effectivePermissions,
-      COMPANY_ACCESS_CONFIG
-    );
+    return resolveFinancePagePermissionState({
+      profileRole: profile?.role,
+      permissions: effectivePermissions,
+      config: COMPANY_ACCESS_CONFIG,
+    });
   }, [effectivePermissions, profile]);
 
   const visibleCompanies = useMemo(() => {

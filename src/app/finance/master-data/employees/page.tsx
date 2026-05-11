@@ -63,11 +63,7 @@ import {
   AixiaTextareaField,
 } from "@/components/aixia";
 
-import {
-  getEffectivePermissions,
-  type Permission,
-  type Role,
-} from "@/lib/permissions";
+import { type Permission, type Role } from "@/lib/permissions";
 
 import {
   fetchFinanceEffectivePermissions,
@@ -859,12 +855,18 @@ export default function FinanceMasterDataEmployeesPage() {
         return;
       }
 
-      const resolvedPermissions = getEffectivePermissions(
-        loadedProfile.role,
-        backendPermissions || loadedProfile.permissions || null
-      );
+      const resolvedPermissions = backendPermissions || loadedProfile.permissions || null;
 
-      setEffectivePermissions(resolvedPermissions);
+      if (!resolvedPermissions && mode === "silent") {
+        console.warn(
+          "Silent employee permission refresh returned no permission payload; keeping current permissions."
+        );
+        return;
+      }
+
+      setEffectivePermissions(
+        resolvedPermissions as Record<Permission, boolean> | null
+      );
     } catch (error) {
       console.error("Failed to load employee page permissions:", error);
 

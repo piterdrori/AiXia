@@ -62,14 +62,21 @@ import {
   AixiaTableTextCell,
   AixiaTextareaField,
 } from "@/components/aixia";
+
 import {
   getEffectivePermissions,
   type Permission,
   type Role,
 } from "@/lib/permissions";
+
+import {
+  fetchFinanceEffectivePermissions,
+  resolveFinancePagePermissionState,
+  type FinanceLoadMode,
+} from "@/lib/finance/pageAccess";
 import { supabase } from "@/lib/supabase";
 
-type LoadMode = "initial" | "silent";
+type LoadMode = FinanceLoadMode;
 type FilterStatus = "all" | "active" | "inactive";
 type PayProfileStatus = "draft" | "active" | "inactive" | "archived";
 type DatabasePayType = "salary" | "hourly" | "contractor";
@@ -175,13 +182,14 @@ type PayProfileFormState = {
   notes: string;
 };
 
-type PermissionState = {
-  canRead: boolean;
-  canCreate: boolean;
-  canUpdate: boolean;
-  canDeleteArchive: boolean;
-  isAdmin: boolean;
-};
+const EMPLOYEE_ACCESS_CONFIG = {
+  sectionKey: "masterData",
+  adminPermissions: ["manageFinanceMasterData"],
+  readPermissions: ["accessFinance", "viewFinance"],
+  createPermissions: ["createFinanceRecords"],
+  updatePermissions: ["editFinanceRecords"],
+  deleteArchivePermissions: ["archiveFinanceRecords"],
+} as const;
 
 type HeaderStatusCardData = {
   label: string;
@@ -199,13 +207,6 @@ type MetricCardData = {
   tone: "cyan" | "emerald" | "amber" | "violet" | "rose" | "neutral";
 };
 
-const EMPTY_PERMISSION_STATE: PermissionState = {
-  canRead: false,
-  canCreate: false,
-  canUpdate: false,
-  canDeleteArchive: false,
-  isAdmin: false,
-};
 
 function todayDate() {
   return new Date().toISOString().slice(0, 10);
@@ -318,16 +319,6 @@ function getPrimaryGrossPay(profile: PayProfileRow | null | undefined) {
   return 0;
 }
 
-function getEmployeeDescription(row: FinanceEmployeeRow) {
-  return [
-    row.profile?.job_title || "No job title",
-    row.profile?.company || "No company",
-    row.profile?.member_type || "No member type",
-  ]
-    .filter(Boolean)
-    .join(" • ");
-}
-
 function buildEmployeeName(row: FinanceEmployeeRow | null) {
   if (!row) return "—";
   return row.profile?.full_name || row.profile?.email || `Employee ${row.code}`;
@@ -416,69 +407,11 @@ function buildMetadata(
   };
 }
 
-function hasPermission(
-  permissions: Record<Permission, boolean> | null,
-  permission: Permission
-) {
-  return Boolean(permissions?.[permission]);
-}
-
-function buildPermissionState(
-  profile: ProfilePermissionRow | null,
-  permissions: Record<Permission, boolean> | null
-): PermissionState {
-  if (!profile?.role || !permissions) {
-    return EMPTY_PERMISSION_STATE;
-  }
-
-  const isAdmin = String(profile.role || "").toLowerCase() === "admin";
-  const canManageMasterData = hasPermission(permissions, "manageFinanceMasterData");
-  const canAccessFinance = hasPermission(permissions, "accessFinance");
-  const canViewFinance = hasPermission(permissions, "viewFinance");
-
-  return {
-    isAdmin,
-    canRead: canManageMasterData || canAccessFinance || canViewFinance,
-    canCreate:
-      canManageMasterData || hasPermission(permissions, "createFinanceRecords"),
-    canUpdate:
-      canManageMasterData || hasPermission(permissions, "editFinanceRecords"),
-    canDeleteArchive:
-      canManageMasterData || hasPermission(permissions, "archiveFinanceRecords"),
-  };
-}
-
-async function loadBackendEffectivePermissions(
+async function loadEmployeeEffectivePermissions(
   userId: string,
   mode: LoadMode
 ): Promise<Partial<Record<Permission, boolean>> | null> {
-  try {
-    const result = await supabase.rpc("finance_get_effective_permissions", {
-      target_user_id: userId,
-    });
-
-    if (result.error) {
-      if (mode === "silent") throw result.error;
-      console.warn("Employees permission RPC fallback:", result.error.message);
-      return null;
-    }
-
-    if (!result.data || typeof result.data !== "object") {
-      if (mode === "silent") {
-        throw new Error(
-          "Silent employees permission refresh returned no effective permission payload."
-        );
-      }
-
-      return null;
-    }
-
-    return result.data as Partial<Record<Permission, boolean>>;
-  } catch (error) {
-    if (mode === "silent") throw error;
-    console.warn("Employees permission RPC failed:", error);
-    return null;
-  }
+  return fetchFinanceEffectivePermissions(userId, mode, "Employees");
 }
 
 function getDefaultCurrencyCode(currencies: CurrencyRow[]) {
@@ -511,16 +444,6 @@ function getEmployeeLocation(row: FinanceEmployeeRow) {
 
 function getEmployeeSubtitle(row: FinanceEmployeeRow) {
   return `${row.code} • ${row.profile?.email || "No email"}`;
-}
-
-function getEmployeeDescription(row: FinanceEmployeeRow) {
-  return [
-    row.profile?.job_title || "No job title",
-    row.profile?.company || "No company",
-    row.profile?.member_type || "No member type",
-  ]
-    .filter(Boolean)
-    .join(" • ");
 }
 
 function compareStrings(first: string | null | undefined, second: string | null | undefined) {
@@ -920,7 +843,7 @@ export default function FinanceMasterDataEmployeesPage() {
         return;
       }
 
-      const backendPermissions = await loadBackendEffectivePermissions(authUserId, mode);
+      const backendPermissions = await loadEmployeeEffectivePermissions(authUserId, mode);
 
       setProfile(loadedProfile);
 
@@ -1198,7 +1121,11 @@ export default function FinanceMasterDataEmployeesPage() {
   }, [currencies, selected]);
 
   const permissionState = useMemo(() => {
-    return buildPermissionState(profile, effectivePermissions);
+    return resolveFinancePagePermissionState(
+      profile,
+      effectivePermissions,
+      EMPLOYEE_ACCESS_CONFIG
+    );
   }, [effectivePermissions, profile]);
 
   const selectedPayProfiles = useMemo(() => {

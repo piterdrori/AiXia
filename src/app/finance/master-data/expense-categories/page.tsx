@@ -1250,7 +1250,7 @@ export default function FinanceExpenseCategoriesPage() {
                           {permissionState.canUpdate ? (
                             <AixiaButton
                               type="button"
-                              variant="secondary"
+                              variant="primary"
                               onClick={() => openEditDialog(row)}
                               disabled={saving}
                             >

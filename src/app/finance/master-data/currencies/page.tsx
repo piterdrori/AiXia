@@ -23,6 +23,7 @@ import {
   AixiaActionStack,
   AixiaAlert,
   AixiaAlertText,
+  AixiaArchiveManagerModal,
   AixiaBadge,
   AixiaButton,
   AixiaCheckboxField,
@@ -38,6 +39,7 @@ import {
   AixiaLoadingState,
   AixiaModal,
   AixiaPage,
+  AixiaRegistryToolbar,
   AixiaReviewBlock,
   AixiaReviewGrid,
   AixiaSearchField,
@@ -364,7 +366,6 @@ function makeRateResultFromStoredRate(row: FinanceExchangeRateRow): LiveConversi
 }
 
 export default function FinanceMasterDataCurrenciesPage() {
-
   const [profile, setProfile] = useState<ProfilePermissionRow | null>(null);
   const [effectivePermissions, setEffectivePermissions] =
     useState<Record<Permission, boolean> | null>(null);
@@ -487,7 +488,7 @@ export default function FinanceMasterDataCurrenciesPage() {
         return;
       }
 
-      const resolvedPermissions = getEffectivePermissions(
+          const resolvedPermissions = getEffectivePermissions(
         loadedProfile.role,
         backendPermissions || loadedProfile.permissions || null
       );
@@ -1398,6 +1399,11 @@ export default function FinanceMasterDataCurrenciesPage() {
     await loadArchivedCurrencies("initial");
   }
 
+  function closeArchiveModal() {
+    setArchiveDialogOpen(false);
+    setArchiveSearch("");
+  }
+
   const isPageLoading = isLoadingProfile || isLoadingData;
 
   if (isPageLoading) {
@@ -1571,40 +1577,41 @@ export default function FinanceMasterDataCurrenciesPage() {
             description="Allowed currencies for the finance engine. Create from major presets or add a manual currency."
             icon={Coins}
             actions={
-              <div className="aixia-control-cluster">
-                <AixiaSearchField
-                  width="wide"
-                  value={currencySearch}
-                  onChange={(event) => setCurrencySearch(event.target.value)}
-                  placeholder="Search currencies"
-                />
-
-                <AixiaBadge tone="neutral">
-                  {filteredCurrencies.length} Rows
-                </AixiaBadge>
-
-                {permissionState.canDeleteArchive ? (
-                  <AixiaButton
-                    type="button"
-                    variant="danger"
-                    onClick={() => void openArchiveModal()}
-                  >
-                    <Archive className="h-4 w-4" />
-                    Archive
-                  </AixiaButton>
-                ) : null}
-
-                {permissionState.canCreate ? (
-                  <AixiaButton
-                    type="button"
-                    variant="primary"
-                    onClick={openCreateCurrencyDialog}
-                  >
-                    <Plus className="h-4 w-4" />
-                    New Currency
-                  </AixiaButton>
-                ) : null}
-              </div>
+              <AixiaRegistryToolbar
+                search={
+                  <AixiaSearchField
+                    width="wide"
+                    value={currencySearch}
+                    onChange={(event) => setCurrencySearch(event.target.value)}
+                    placeholder="Search currencies"
+                  />
+                }
+                filters={<AixiaBadge tone="neutral">{filteredCurrencies.length} Rows</AixiaBadge>}
+                archiveAction={
+                  permissionState.canDeleteArchive ? (
+                    <AixiaButton
+                      type="button"
+                      variant="danger"
+                      onClick={() => void openArchiveModal()}
+                    >
+                      <Archive className="h-4 w-4" />
+                      Archive
+                    </AixiaButton>
+                  ) : null
+                }
+                primaryAction={
+                  permissionState.canCreate ? (
+                    <AixiaButton
+                      type="button"
+                      variant="primary"
+                      onClick={openCreateCurrencyDialog}
+                    >
+                      <Plus className="h-4 w-4" />
+                      New Currency
+                    </AixiaButton>
+                  ) : null
+                }
+              />
             }
           >
             {filteredCurrencies.length === 0 ? (
@@ -1761,29 +1768,29 @@ export default function FinanceMasterDataCurrenciesPage() {
             description="Create auditable exchange-rate records from automatic live conversion. Manual rate typing is not the normal workflow."
             icon={Database}
             actions={
-              <div className="aixia-control-cluster">
-                <AixiaSearchField
-                  width="wide"
-                  value={rateSearch}
-                  onChange={(event) => setRateSearch(event.target.value)}
-                  placeholder="Search exchange rates"
-                />
-
-                <AixiaBadge tone="neutral">
-                  {filteredExchangeRates.length} Rows
-                </AixiaBadge>
-
-                {permissionState.canCreate ? (
-                  <AixiaButton
-                    type="button"
-                    variant="primary"
-                    onClick={openCreateRateDialog}
-                  >
-                    <Plus className="h-4 w-4" />
-                    New Automatic Rate
-                  </AixiaButton>
-                ) : null}
-              </div>
+              <AixiaRegistryToolbar
+                search={
+                  <AixiaSearchField
+                    width="wide"
+                    value={rateSearch}
+                    onChange={(event) => setRateSearch(event.target.value)}
+                    placeholder="Search exchange rates"
+                  />
+                }
+                filters={<AixiaBadge tone="neutral">{filteredExchangeRates.length} Rows</AixiaBadge>}
+                primaryAction={
+                  permissionState.canCreate ? (
+                    <AixiaButton
+                      type="button"
+                      variant="primary"
+                      onClick={openCreateRateDialog}
+                    >
+                      <Plus className="h-4 w-4" />
+                      New Automatic Rate
+                    </AixiaButton>
+                  ) : null
+                }
+              />
             }
           >
             {filteredExchangeRates.length === 0 ? (
@@ -2318,229 +2325,216 @@ export default function FinanceMasterDataCurrenciesPage() {
         </AixiaFormGrid>
       </AixiaModal>
 
-      <AixiaModal
+      <AixiaArchiveManagerModal
         open={archiveDialogOpen}
         title="Archived Rates / Currency"
         description="Archived currencies and archived exchange rates can be restored or permanently deleted."
-        onClose={() => {
-          setArchiveDialogOpen(false);
-          setArchiveSearch("");
-        }}
-        badge={<AixiaBadge tone="rose">Archive</AixiaBadge>}
-        footer={
-          <AixiaButton
-            type="button"
-            variant="secondary"
-            onClick={() => {
-              setArchiveDialogOpen(false);
-              setArchiveSearch("");
-            }}
-          >
-            Close
-          </AixiaButton>
-        }
+        archivedCount={filteredArchivedCurrencies.length + filteredArchivedExchangeRates.length}
+        onClose={closeArchiveModal}
       >
-        <AixiaSearchField
-          width="full"
-          value={archiveSearch}
-          onChange={(event) => setArchiveSearch(event.target.value)}
-          placeholder="Search archived currencies and rates"
-        />
-
-        {isLoadingArchive ? (
-          <AixiaEmptyState
-            icon={Loader2}
-            title="Loading archived records"
-            description="Archived currency records are being loaded."
+        <div className="space-y-5">
+          <AixiaSearchField
+            width="full"
+            value={archiveSearch}
+            onChange={(event) => setArchiveSearch(event.target.value)}
+            placeholder="Search archived currencies and rates"
           />
-        ) : filteredArchivedCurrencies.length === 0 &&
-          filteredArchivedExchangeRates.length === 0 ? (
-          <AixiaEmptyState
-            icon={Archive}
-            title="No archived rates / currency"
-            description="Archived currencies and archived exchange rates will appear here after they are removed from active operational use."
-          />
-        ) : (
-          <>
-            {filteredArchivedCurrencies.length > 0 ? (
-              <AixiaSection
-                title="Archived Currencies"
-                description="Restore or permanently delete archived currencies."
-                icon={Coins}
-              >
-                <AixiaTableShell variant="archive">
-                  <thead className="aixia-table-head">
-                    <tr>
-                      <th>Code</th>
-                      <th>Name</th>
-                      <th>Symbol</th>
-                      <th>Updated</th>
-                      <th>Actions</th>
-                    </tr>
-                  </thead>
 
-                  <tbody>
-                    {filteredArchivedCurrencies.map((row) => (
-                      <tr key={row.id} className="aixia-table-row">
-                        <AixiaTableBadgeCell width="sm">
-                          <AixiaCurrencyBadge value={row.currency_code} />
-                        </AixiaTableBadgeCell>
+          {isLoadingArchive ? (
+            <AixiaEmptyState
+              icon={Loader2}
+              title="Loading archived records"
+              description="Archived currency records are being loaded."
+            />
+          ) : filteredArchivedCurrencies.length === 0 &&
+            filteredArchivedExchangeRates.length === 0 ? (
+            <AixiaEmptyState
+              icon={Archive}
+              title="No archived rates / currency"
+              description="Archived currencies and archived exchange rates will appear here after they are removed from active operational use."
+            />
+          ) : (
+            <>
+              {filteredArchivedCurrencies.length > 0 ? (
+                <AixiaSection
+                  title="Archived Currencies"
+                  description="Restore or permanently delete archived currencies."
+                  icon={Coins}
+                >
+                  <AixiaTableShell variant="archive">
+                    <thead className="aixia-table-head">
+                      <tr>
+                        <th>Code</th>
+                        <th>Name</th>
+                        <th>Symbol</th>
+                        <th>Updated</th>
+                        <th>Actions</th>
+                      </tr>
+                    </thead>
 
-                        <AixiaTableTextCell
-                          width="xl"
-                          primary={row.currency_name}
-                          secondary={row.notes || "Archived currency"}
-                        />
+                    <tbody>
+                      {filteredArchivedCurrencies.map((row) => (
+                        <tr key={row.id} className="aixia-table-row">
+                          <AixiaTableBadgeCell width="sm">
+                            <AixiaCurrencyBadge value={row.currency_code} />
+                          </AixiaTableBadgeCell>
 
-                        <AixiaTableTextCell
-                          width="sm"
-                          primary={row.currency_symbol || "—"}
-                        />
+                          <AixiaTableTextCell
+                            width="xl"
+                            primary={row.currency_name}
+                            secondary={row.notes || "Archived currency"}
+                          />
 
-                        <AixiaTableDateCell width="sm">
-                          {formatDateLabel(row.updated_at)}
-                        </AixiaTableDateCell>
+                          <AixiaTableTextCell
+                            width="sm"
+                            primary={row.currency_symbol || "—"}
+                          />
 
-                        <AixiaTableActionsCell>
-                          {permissionState.canUpdate ? (
+                          <AixiaTableDateCell width="sm">
+                            {formatDateLabel(row.updated_at)}
+                          </AixiaTableDateCell>
+
+                          <AixiaTableActionsCell>
+                            {permissionState.canUpdate ? (
+                              <AixiaButton
+                                type="button"
+                                variant="primary"
+                                onClick={() => openEditCurrencyDialog(row)}
+                              >
+                                <Pencil className="h-3.5 w-3.5" />
+                                Open
+                              </AixiaButton>
+                            ) : null}
+
                             <AixiaButton
                               type="button"
-                              variant="primary"
-                              onClick={() => openEditCurrencyDialog(row)}
+                              variant="secondary"
+                              onClick={() => void handleRestoreCurrency(row.id)}
+                              disabled={Boolean(runningActionId)}
                             >
-                              <Pencil className="h-3.5 w-3.5" />
-                              Open
+                              {runningActionId === row.id &&
+                              runningAction === "restore-currency" ? (
+                                <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                              ) : (
+                                <RefreshCcw className="h-3.5 w-3.5" />
+                              )}
+                              Restore
                             </AixiaButton>
-                          ) : null}
 
-                          <AixiaButton
-                            type="button"
-                            variant="secondary"
-                            onClick={() => void handleRestoreCurrency(row.id)}
-                            disabled={Boolean(runningActionId)}
-                          >
-                            {runningActionId === row.id &&
-                            runningAction === "restore-currency" ? (
-                              <Loader2 className="h-3.5 w-3.5 animate-spin" />
-                            ) : (
-                              <RefreshCcw className="h-3.5 w-3.5" />
-                            )}
-                            Restore
-                          </AixiaButton>
-
-                          <AixiaButton
-                            type="button"
-                            variant="danger"
-                            onClick={() => void handleHardDeleteCurrency(row.id)}
-                            disabled={Boolean(runningActionId)}
-                          >
-                            {runningActionId === row.id &&
-                            runningAction === "hard-delete-currency" ? (
-                              <Loader2 className="h-3.5 w-3.5 animate-spin" />
-                            ) : (
-                              <Trash2 className="h-3.5 w-3.5" />
-                            )}
-                            Delete
-                          </AixiaButton>
-                        </AixiaTableActionsCell>
-                      </tr>
-                    ))}
-                  </tbody>
-                </AixiaTableShell>
-              </AixiaSection>
-            ) : null}
-
-            {filteredArchivedExchangeRates.length > 0 ? (
-              <AixiaSection
-                title="Archived Exchange Rates"
-                description="Restore or permanently delete archived automatic rate snapshots."
-                icon={Database}
-              >
-                <AixiaTableShell variant="archive">
-                  <thead className="aixia-table-head">
-                    <tr>
-                      <th>Pair</th>
-                      <th>Rate</th>
-                      <th>Effective Date</th>
-                      <th>Updated</th>
-                      <th>Actions</th>
-                    </tr>
-                  </thead>
-
-                  <tbody>
-                    {filteredArchivedExchangeRates.map((row) => (
-                      <tr key={row.id} className="aixia-table-row">
-                        <AixiaTableTextCell
-                          width="md"
-                          primary={`${row.from_currency_code} → ${row.to_currency_code}`}
-                          secondary="Archived automatic snapshot"
-                        />
-
-                        <AixiaTableTextCell
-                          width="md"
-                          primary={formatNumberLabel(row.exchange_rate, 8)}
-                          secondary={`1 ${row.from_currency_code}`}
-                        />
-
-                        <AixiaTableDateCell width="sm">
-                          {formatDateLabel(row.effective_date)}
-                        </AixiaTableDateCell>
-
-                        <AixiaTableDateCell width="sm">
-                          {formatDateLabel(row.updated_at)}
-                        </AixiaTableDateCell>
-
-                        <AixiaTableActionsCell>
-                          {permissionState.canUpdate ? (
                             <AixiaButton
                               type="button"
-                              variant="primary"
-                              onClick={() => openEditRateDialog(row)}
+                              variant="danger"
+                              onClick={() => void handleHardDeleteCurrency(row.id)}
+                              disabled={Boolean(runningActionId)}
                             >
-                              <Pencil className="h-3.5 w-3.5" />
-                              Open
+                              {runningActionId === row.id &&
+                              runningAction === "hard-delete-currency" ? (
+                                <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                              ) : (
+                                <Trash2 className="h-3.5 w-3.5" />
+                              )}
+                              Delete Permanently
                             </AixiaButton>
-                          ) : null}
+                          </AixiaTableActionsCell>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </AixiaTableShell>
+                </AixiaSection>
+              ) : null}
 
-                          <AixiaButton
-                            type="button"
-                            variant="secondary"
-                            onClick={() => void handleRestoreRate(row)}
-                            disabled={Boolean(runningActionId)}
-                          >
-                            {runningActionId === row.id &&
-                            runningAction === "restore-rate" ? (
-                              <Loader2 className="h-3.5 w-3.5 animate-spin" />
-                            ) : (
-                              <RefreshCcw className="h-3.5 w-3.5" />
-                            )}
-                            Restore
-                          </AixiaButton>
-
-                          <AixiaButton
-                            type="button"
-                            variant="danger"
-                            onClick={() => void handleHardDeleteRate(row)}
-                            disabled={Boolean(runningActionId)}
-                          >
-                            {runningActionId === row.id &&
-                            runningAction === "hard-delete-rate" ? (
-                              <Loader2 className="h-3.5 w-3.5 animate-spin" />
-                            ) : (
-                              <Trash2 className="h-3.5 w-3.5" />
-                            )}
-                            Delete
-                          </AixiaButton>
-                        </AixiaTableActionsCell>
+              {filteredArchivedExchangeRates.length > 0 ? (
+                <AixiaSection
+                  title="Archived Exchange Rates"
+                  description="Restore or permanently delete archived automatic rate snapshots."
+                  icon={Database}
+                >
+                  <AixiaTableShell variant="archive">
+                    <thead className="aixia-table-head">
+                      <tr>
+                        <th>Pair</th>
+                        <th>Rate</th>
+                        <th>Effective Date</th>
+                        <th>Updated</th>
+                        <th>Actions</th>
                       </tr>
-                    ))}
-                  </tbody>
-                </AixiaTableShell>
-              </AixiaSection>
-            ) : null}
-          </>
-        )}
-      </AixiaModal>
+                    </thead>
+
+                    <tbody>
+                      {filteredArchivedExchangeRates.map((row) => (
+                        <tr key={row.id} className="aixia-table-row">
+                          <AixiaTableTextCell
+                            width="md"
+                            primary={`${row.from_currency_code} → ${row.to_currency_code}`}
+                            secondary="Archived automatic snapshot"
+                          />
+
+                          <AixiaTableTextCell
+                            width="md"
+                            primary={formatNumberLabel(row.exchange_rate, 8)}
+                            secondary={`1 ${row.from_currency_code}`}
+                          />
+
+                          <AixiaTableDateCell width="sm">
+                            {formatDateLabel(row.effective_date)}
+                          </AixiaTableDateCell>
+
+                          <AixiaTableDateCell width="sm">
+                            {formatDateLabel(row.updated_at)}
+                          </AixiaTableDateCell>
+
+                          <AixiaTableActionsCell>
+                            {permissionState.canUpdate ? (
+                              <AixiaButton
+                                type="button"
+                                variant="primary"
+                                onClick={() => openEditRateDialog(row)}
+                              >
+                                <Pencil className="h-3.5 w-3.5" />
+                                Open
+                              </AixiaButton>
+                            ) : null}
+
+                            <AixiaButton
+                              type="button"
+                              variant="secondary"
+                              onClick={() => void handleRestoreRate(row)}
+                              disabled={Boolean(runningActionId)}
+                            >
+                              {runningActionId === row.id &&
+                              runningAction === "restore-rate" ? (
+                                <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                              ) : (
+                                <RefreshCcw className="h-3.5 w-3.5" />
+                              )}
+                              Restore
+                            </AixiaButton>
+
+                            <AixiaButton
+                              type="button"
+                              variant="danger"
+                              onClick={() => void handleHardDeleteRate(row)}
+                              disabled={Boolean(runningActionId)}
+                            >
+                              {runningActionId === row.id &&
+                              runningAction === "hard-delete-rate" ? (
+                                <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                              ) : (
+                                <Trash2 className="h-3.5 w-3.5" />
+                              )}
+                              Delete Permanently
+                            </AixiaButton>
+                          </AixiaTableActionsCell>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </AixiaTableShell>
+                </AixiaSection>
+              ) : null}
+            </>
+          )}
+        </div>
+      </AixiaArchiveManagerModal>
     </AixiaPage>
   );
 }

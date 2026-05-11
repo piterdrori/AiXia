@@ -3,6 +3,7 @@ import type { FormEvent } from "react";
 import { useNavigate } from "react-router-dom";
 import type { LucideIcon } from "lucide-react";
 import {
+  Archive,
   BadgeDollarSign,
   Briefcase,
   CalendarDays,
@@ -13,6 +14,7 @@ import {
   Loader2,
   LockKeyhole,
   Plus,
+  RotateCcw,
   Save,
   Shield,
   ShieldCheck,
@@ -27,12 +29,12 @@ import {
   AixiaActionStack,
   AixiaAlert,
   AixiaAlertText,
+  AixiaArchiveManagerModal,
   AixiaBadge,
   AixiaButton,
   AixiaCurrencyBadge,
   AixiaDisplayBlock,
   AixiaEmptyState,
-  AixiaEntityCard,
   AixiaFieldLabel,
   AixiaFormField,
   AixiaFormFullWidth,
@@ -44,13 +46,20 @@ import {
   AixiaModal,
   AixiaPage,
   AixiaProfileCard,
+  AixiaRegistryToolbar,
   AixiaReviewBlock,
   AixiaReviewGrid,
   AixiaSearchField,
   AixiaSection,
   AixiaSelectField,
   AixiaSelectableTile,
+  AixiaSortableHeader,
   AixiaStatusBadge,
+  AixiaTableActionsCell,
+  AixiaTableBadgeCell,
+  AixiaTableDateCell,
+  AixiaTableShell,
+  AixiaTableTextCell,
   AixiaTextareaField,
 } from "@/components/aixia";
 import {
@@ -61,7 +70,7 @@ import {
 import { supabase } from "@/lib/supabase";
 
 type LoadMode = "initial" | "silent";
-type FilterStatus = "all" | "active" | "inactive" | "archived";
+type FilterStatus = "all" | "active" | "inactive";
 type PayProfileStatus = "draft" | "active" | "inactive" | "archived";
 type DatabasePayType = "salary" | "hourly" | "contractor";
 type PaycheckType = "salary" | "contractor" | "one_time_contractor";
@@ -72,6 +81,18 @@ type PaymentFrequency =
   | "monthly"
   | "one_time";
 type FormMode = "create" | "edit";
+type EmployeeSortKey =
+  | "employee"
+  | "code"
+  | "role"
+  | "jobTitle"
+  | "company"
+  | "location"
+  | "payProfile"
+  | "status"
+  | "updated";
+type SortDirection = "asc" | "desc";
+type PageAction = null | "archive-employee" | "restore-employee";
 
 type ProfilePermissionRow = {
   user_id: string;
@@ -498,6 +519,28 @@ function getEmployeeDescription(row: FinanceEmployeeRow) {
     .join(" • ");
 }
 
+function compareStrings(first: string | null | undefined, second: string | null | undefined) {
+  return (first || "").localeCompare(second || "");
+}
+
+function compareDates(first: string | null | undefined, second: string | null | undefined) {
+  return new Date(first || 0).getTime() - new Date(second || 0).getTime();
+}
+
+function getActivePayProfileForEmployee(
+  employee: FinanceEmployeeRow,
+  payProfiles: PayProfileRow[]
+) {
+  return (
+    payProfiles.find(
+      (payProfile) =>
+        payProfile.user_id === employee.user_id &&
+        payProfile.active &&
+        payProfile.status === "active"
+    ) || null
+  );
+}
+
 function getPayProfileBadges(profile: PayProfileRow) {
   const hourlyStructure = getHourlyStructure(profile);
 
@@ -629,7 +672,7 @@ function PayProfileForm({
             </AixiaSelectField>
           </AixiaFormField>
 
-          <AixiaFormField>
+                    <AixiaFormField>
             <AixiaFieldLabel label="Currency" required />
             <AixiaSelectField
               value={form.currencyCode}
@@ -801,8 +844,14 @@ export default function FinanceMasterDataEmployeesPage() {
   const [profileSaving, setProfileSaving] = useState(false);
 
   const [search, setSearch] = useState("");
+  const [archiveSearch, setArchiveSearch] = useState("");
   const [statusFilter, setStatusFilter] = useState<FilterStatus>("all");
   const [selected, setSelected] = useState<FinanceEmployeeRow | null>(null);
+  const [archiveModalOpen, setArchiveModalOpen] = useState(false);
+  const [runningAction, setRunningAction] = useState<PageAction>(null);
+  const [runningActionId, setRunningActionId] = useState<string | null>(null);
+  const [sortKey, setSortKey] = useState<EmployeeSortKey>("updated");
+  const [sortDirection, setSortDirection] = useState<SortDirection>("desc");
   const [showPayProfileForm, setShowPayProfileForm] = useState(false);
   const [payProfileFormMode, setPayProfileFormMode] =
     useState<FormMode>("create");
@@ -1086,7 +1135,8 @@ export default function FinanceMasterDataEmployeesPage() {
       )
       .on(
         "postgres_changes",
-        { event: "*", schema: "public", table: "finance_permission_templates" },
+
+                { event: "*", schema: "public", table: "finance_permission_templates" },
         () => void loadCurrentProfile("silent")
       )
       .on(
@@ -1167,44 +1217,137 @@ export default function FinanceMasterDataEmployeesPage() {
     );
   }, [selectedPayProfiles]);
 
+  const visibleRows = useMemo(() => {
+    return rows.filter((row) => row.status !== "archived");
+  }, [rows]);
+
+  const archivedRows = useMemo(() => {
+    return rows.filter((row) => row.status === "archived");
+  }, [rows]);
+
   const filteredRows = useMemo(() => {
     const query = search.trim().toLowerCase();
 
-    return rows.filter((row) => {
-      if (statusFilter !== "all" && row.status !== statusFilter) return false;
-      if (!query) return true;
+    return visibleRows
+      .filter((row) => {
+        if (statusFilter !== "all" && row.status !== statusFilter) return false;
+        if (!query) return true;
 
-      const employeePayProfiles = payProfiles.filter(
-        (payProfile) => payProfile.user_id === row.user_id
-      );
+        const employeePayProfiles = payProfiles.filter(
+          (payProfile) => payProfile.user_id === row.user_id
+        );
 
-      const source = [
-        row.code,
-        row.mark,
-        row.status,
-        row.profile?.full_name,
-        row.profile?.email,
-        row.profile?.company,
-        row.profile?.job_title,
-        ...employeePayProfiles.map((payProfile) =>
-          [
-            payProfile.profile_number,
-            getPaycheckTypeLabel(payProfile),
-            payProfile.payment_frequency,
-            payProfile.currency_code,
-            payProfile.status,
-          ]
-            .filter(Boolean)
-            .join(" ")
-        ),
-      ]
-        .filter(Boolean)
-        .join(" ")
-        .toLowerCase();
+        const source = [
+          row.code,
+          row.mark,
+          row.status,
+          row.profile?.full_name,
+          row.profile?.email,
+          row.profile?.company,
+          row.profile?.job_title,
+          ...employeePayProfiles.map((payProfile) =>
+            [
+              payProfile.profile_number,
+              getPaycheckTypeLabel(payProfile),
+              payProfile.payment_frequency,
+              payProfile.currency_code,
+              payProfile.status,
+            ]
+              .filter(Boolean)
+              .join(" ")
+          ),
+        ]
+          .filter(Boolean)
+          .join(" ")
+          .toLowerCase();
 
-      return source.includes(query);
-    });
-  }, [payProfiles, rows, search, statusFilter]);
+        return source.includes(query);
+      })
+      .sort((first, second) => {
+        let comparison = 0;
+
+        if (sortKey === "employee") {
+          comparison = compareStrings(buildEmployeeName(first), buildEmployeeName(second));
+        }
+
+        if (sortKey === "code") {
+          comparison = compareStrings(first.code, second.code);
+        }
+
+        if (sortKey === "role") {
+          comparison = compareStrings(first.profile?.role, second.profile?.role);
+        }
+
+        if (sortKey === "jobTitle") {
+          comparison = compareStrings(first.profile?.job_title, second.profile?.job_title);
+        }
+
+        if (sortKey === "company") {
+          comparison = compareStrings(first.profile?.company, second.profile?.company);
+        }
+
+        if (sortKey === "location") {
+          comparison = compareStrings(getEmployeeLocation(first), getEmployeeLocation(second));
+        }
+
+        if (sortKey === "payProfile") {
+          comparison = compareStrings(
+            buildPayProfileTitle(getActivePayProfileForEmployee(first, payProfiles)),
+            buildPayProfileTitle(getActivePayProfileForEmployee(second, payProfiles))
+          );
+        }
+
+        if (sortKey === "status") {
+          comparison = compareStrings(first.status, second.status);
+        }
+
+        if (sortKey === "updated") {
+          comparison = compareDates(first.updated_at, second.updated_at);
+        }
+
+        return sortDirection === "asc" ? comparison : -comparison;
+      });
+  }, [payProfiles, search, sortDirection, sortKey, statusFilter, visibleRows]);
+
+  const filteredArchivedRows = useMemo(() => {
+    const query = archiveSearch.trim().toLowerCase();
+
+    return archivedRows
+      .filter((row) => {
+        if (!query) return true;
+
+        const employeePayProfiles = payProfiles.filter(
+          (payProfile) => payProfile.user_id === row.user_id
+        );
+
+        const source = [
+          row.code,
+          row.mark,
+          row.status,
+          row.profile?.full_name,
+          row.profile?.email,
+          row.profile?.company,
+          row.profile?.job_title,
+          ...employeePayProfiles.map((payProfile) =>
+            [
+              payProfile.profile_number,
+              getPaycheckTypeLabel(payProfile),
+              payProfile.payment_frequency,
+              payProfile.currency_code,
+              payProfile.status,
+            ]
+              .filter(Boolean)
+              .join(" ")
+          ),
+        ]
+          .filter(Boolean)
+          .join(" ")
+          .toLowerCase();
+
+        return source.includes(query);
+      })
+      .sort((first, second) => -compareDates(first.updated_at, second.updated_at));
+  }, [archiveSearch, archivedRows, payProfiles]);
 
   const stats = useMemo(() => {
     const activeProfiles = payProfiles.filter(
@@ -1315,6 +1458,20 @@ export default function FinanceMasterDataEmployeesPage() {
     [isLoadingData, stats]
   );
 
+  function toggleSort(nextKey: EmployeeSortKey) {
+    setSortKey((currentKey) => {
+      if (currentKey !== nextKey) {
+        setSortDirection("asc");
+        return nextKey;
+      }
+
+      setSortDirection((currentDirection) =>
+        currentDirection === "asc" ? "desc" : "asc"
+      );
+      return currentKey;
+    });
+  }
+
   function updatePayProfileForm<K extends keyof PayProfileFormState>(
     key: K,
     value: PayProfileFormState[K]
@@ -1362,6 +1519,84 @@ export default function FinanceMasterDataEmployeesPage() {
     setPayProfileFormMode("create");
     setEditingPayProfileId(null);
     setPayProfileForm(buildDefaultPayProfileForm(defaultCurrency));
+  }
+
+  function openArchiveModal() {
+    if (!permissionState.canDeleteArchive) return;
+    setArchiveModalOpen(true);
+  }
+
+  function closeArchiveModal() {
+    setArchiveModalOpen(false);
+    setArchiveSearch("");
+  }
+
+  async function handleArchiveEmployee(row: FinanceEmployeeRow) {
+    if (!permissionState.canDeleteArchive || runningActionId) return;
+
+    setRunningAction("archive-employee");
+    setRunningActionId(row.id);
+    setActionError(null);
+    setActionMessage(null);
+
+    try {
+      const { error } = await supabase
+        .from("finance_employee_refs")
+        .update({
+          status: "archived",
+          updated_at: new Date().toISOString(),
+        })
+        .eq("id", row.id);
+
+      if (error) throw error;
+
+      if (selected?.id === row.id) {
+        setSelected(null);
+      }
+
+      setActionMessage("Employee reference archived.");
+      await loadData("silent");
+    } catch (error) {
+      console.error("Failed to archive employee reference:", error);
+      setActionError(
+        error instanceof Error ? error.message : "Failed to archive employee reference."
+      );
+    } finally {
+      setRunningAction(null);
+      setRunningActionId(null);
+    }
+  }
+
+  async function handleRestoreEmployee(row: FinanceEmployeeRow) {
+    if (!permissionState.canDeleteArchive || runningActionId) return;
+
+    setRunningAction("restore-employee");
+    setRunningActionId(row.id);
+    setActionError(null);
+    setActionMessage(null);
+
+    try {
+      const { error } = await supabase
+        .from("finance_employee_refs")
+        .update({
+          status: "active",
+          updated_at: new Date().toISOString(),
+        })
+        .eq("id", row.id);
+
+      if (error) throw error;
+
+      setActionMessage("Employee reference restored.");
+      await loadData("silent");
+    } catch (error) {
+      console.error("Failed to restore employee reference:", error);
+      setActionError(
+        error instanceof Error ? error.message : "Failed to restore employee reference."
+      );
+    } finally {
+      setRunningAction(null);
+      setRunningActionId(null);
+    }
   }
 
   function validatePayProfileForm() {
@@ -1556,6 +1791,7 @@ export default function FinanceMasterDataEmployeesPage() {
   }
 
   const isPageLoading = isLoadingProfile || isLoadingData;
+  const isActionRunning = Boolean(runningActionId);
 
   if (isPageLoading) {
     return (
@@ -1613,38 +1849,49 @@ export default function FinanceMasterDataEmployeesPage() {
             title="Employee Reference Records"
             description="Search employee references and open each record to manage payroll defaults."
             icon={Users}
-            bodyClassName="aixia-employee-registry-body aixia-scrollbar"
             actions={
-              <div className="aixia-control-cluster">
-                <AixiaSearchField
-                  width="wide"
-                  value={search}
-                  onChange={(event) => setSearch(event.target.value)}
-                  placeholder="Search employees, codes, email, job title, pay profile..."
-                />
-
-                <AixiaReviewGrid variant="compact" className="aixia-employee-filter-grid">
-                  {(["all", "active", "inactive", "archived"] as FilterStatus[]).map(
-                    (value) => (
+              <AixiaRegistryToolbar
+                search={
+                  <AixiaSearchField
+                    width="wide"
+                    value={search}
+                    onChange={(event) => setSearch(event.target.value)}
+                    placeholder="Search employees, codes, email, job title, pay profile..."
+                  />
+                }
+                filters={
+                  <AixiaReviewGrid variant="compact" className="aixia-filter-grid-wide">
+                    {(["all", "active", "inactive"] as FilterStatus[]).map((value) => (
                       <AixiaSelectableTile
                         key={value}
                         title={formatLabel(value)}
                         selected={statusFilter === value}
                         tone={
-                          value === "archived"
-                            ? "rose"
-                            : value === "inactive"
-                              ? "amber"
-                              : value === "active"
-                                ? "emerald"
-                                : "cyan"
+                          value === "inactive"
+                            ? "amber"
+                            : value === "active"
+                              ? "emerald"
+                              : "cyan"
                         }
                         onClick={() => setStatusFilter(value)}
                       />
-                    )
-                  )}
-                </AixiaReviewGrid>
-              </div>
+                    ))}
+                  </AixiaReviewGrid>
+                }
+                archiveAction={
+                  permissionState.canDeleteArchive ? (
+                    <AixiaButton
+                      type="button"
+                      variant="danger"
+                      onClick={openArchiveModal}
+                      disabled={isActionRunning}
+                    >
+                      <Archive className="h-4 w-4" />
+                      Archive
+                    </AixiaButton>
+                  ) : null
+                }
+              />
             }
           >
             {filteredRows.length === 0 ? (
@@ -1654,91 +1901,183 @@ export default function FinanceMasterDataEmployeesPage() {
                 description="Create or sync finance employee references before managing payroll defaults."
               />
             ) : (
-              <AixiaReviewGrid variant="cards">
-                {filteredRows.map((row) => {
-                    const Icon = getRoleIcon(row.profile?.role || null);
-                    const rowActiveProfile =
-                      payProfiles.find(
-                        (payProfile) =>
-                          payProfile.user_id === row.user_id &&
-                          payProfile.active &&
-                          payProfile.status === "active"
-                      ) || null;
-                    const rowHourlyStructure = getHourlyStructure(rowActiveProfile);
+              <AixiaTableShell variant="registry">
+                <thead className="aixia-table-head">
+                  <tr>
+                    <th>
+                      <AixiaSortableHeader
+                        label="Employee"
+                        sortKey="employee"
+                        activeSortKey={sortKey}
+                        sortDirection={sortDirection}
+                        onSort={toggleSort}
+                      />
+                    </th>
+                    <th>
+                      <AixiaSortableHeader
+                        label="Code"
+                        sortKey="code"
+                        activeSortKey={sortKey}
+                        sortDirection={sortDirection}
+                        onSort={toggleSort}
+                      />
+                    </th>
+                    <th>
+                      <AixiaSortableHeader
+                        label="Role"
+                        sortKey="role"
+                        activeSortKey={sortKey}
+                        sortDirection={sortDirection}
+                        onSort={toggleSort}
+                      />
+                    </th>
+                    <th>
+                      <AixiaSortableHeader
+                        label="Job Title"
+                        sortKey="jobTitle"
+                        activeSortKey={sortKey}
+                        sortDirection={sortDirection}
+                        onSort={toggleSort}
+                      />
+                    </th>
+                    <th>
+                      <AixiaSortableHeader
+                        label="Company"
+                        sortKey="company"
+                        activeSortKey={sortKey}
+                        sortDirection={sortDirection}
+                        onSort={toggleSort}
+                      />
+                    </th>
+                    <th>
+                      <AixiaSortableHeader
+                        label="Location"
+                        sortKey="location"
+                        activeSortKey={sortKey}
+                        sortDirection={sortDirection}
+                        onSort={toggleSort}
+                      />
+                    </th>
+                    <th>
+                      <AixiaSortableHeader
+                        label="Pay Profile"
+                        sortKey="payProfile"
+                        activeSortKey={sortKey}
+                        sortDirection={sortDirection}
+                        onSort={toggleSort}
+                      />
+                    </th>
+                    <th>
+                      <AixiaSortableHeader
+                        label="Status"
+                        sortKey="status"
+                        activeSortKey={sortKey}
+                        sortDirection={sortDirection}
+                        onSort={toggleSort}
+                      />
+                    </th>
+                    <th>
+                      <AixiaSortableHeader
+                        label="Updated"
+                        sortKey="updated"
+                        activeSortKey={sortKey}
+                        sortDirection={sortDirection}
+                        onSort={toggleSort}
+                      />
+                    </th>
+                    <th>Actions</th>
+                  </tr>
+                </thead>
+
+                <tbody>
+                  {filteredRows.map((row) => {
+                    const rowActiveProfile = getActivePayProfileForEmployee(row, payProfiles);
+                    const isRowActionRunning =
+                      runningActionId === row.id && runningAction === "archive-employee";
 
                     return (
-                      <AixiaEntityCard
-                        key={row.id}
-                        title={buildEmployeeName(row)}
-                        subtitle={getEmployeeSubtitle(row)}
-                        description={getEmployeeDescription(row)}
-                        icon={Icon}
-                        selected={selected?.id === row.id}
-                        tone={row.status === "archived" ? "rose" : "cyan"}
-                        onClick={() => setSelected(row)}
-                        badges={
-                          <>
-                            <AixiaStatusBadge value={row.status} />
-                            {row.mark ? <AixiaBadge tone="cyan">{row.mark}</AixiaBadge> : null}
-                          </>
-                        }
-                        details={
-                          <>
-                            <AixiaDisplayBlock
-                              label="Email"
-                              value={row.profile?.email || "—"}
-                            />
-                            <AixiaDisplayBlock
-                              label="Job Title"
-                              value={row.profile?.job_title || "—"}
-                            />
-                            <AixiaDisplayBlock
-                              label="Location"
-                              value={getEmployeeLocation(row)}
-                            />
-                          </>
-                        }
-                        footer={
-                          rowActiveProfile ? (
-                            <>
-                              <AixiaDisplayBlock
-                                label="Global Paycheck"
-                                value={formatMoney(
+                      <tr key={row.id} className="aixia-table-row">
+                        <AixiaTableTextCell
+                          width="xl"
+                          primary={buildEmployeeName(row)}
+                          secondary={getEmployeeSubtitle(row)}
+                        />
+
+                        <AixiaTableBadgeCell width="sm">
+                          <AixiaBadge tone="neutral">{row.code}</AixiaBadge>
+                        </AixiaTableBadgeCell>
+
+                        <AixiaTableTextCell
+                          width="sm"
+                          primary={formatLabel(row.profile?.role)}
+                        />
+
+                        <AixiaTableTextCell
+                          width="md"
+                          primary={row.profile?.job_title || "—"}
+                        />
+
+                        <AixiaTableTextCell
+                          width="md"
+                          primary={row.profile?.company || "—"}
+                        />
+
+                        <AixiaTableTextCell
+                          width="md"
+                          primary={getEmployeeLocation(row)}
+                        />
+
+                        <AixiaTableTextCell
+                          width="xl"
+                          primary={buildPayProfileTitle(rowActiveProfile)}
+                          secondary={
+                            rowActiveProfile
+                              ? formatMoney(
                                   getPrimaryGrossPay(rowActiveProfile),
                                   rowActiveProfile.currency_code
-                                )}
-                                detail={`${getPaycheckTypeLabel(
-                                  rowActiveProfile
-                                )} • ${formatLabel(rowActiveProfile.payment_frequency)}`}
-                              />
-                              <AixiaDisplayBlock
-                                label="Hourly Structure"
-                                value={
-                                  rowHourlyStructure.enabled
-                                    ? "Enabled"
-                                    : "Not Enabled"
-                                }
-                                detail={
-                                  rowHourlyStructure.enabled &&
-                                  rowHourlyStructure.hourly_rate
-                                    ? `${formatMoney(
-                                        rowHourlyStructure.hourly_rate,
-                                        rowActiveProfile.currency_code
-                                      )} / hour`
-                                    : "Optional only"
-                                }
-                              />
-                            </>
-                          ) : (
-                            <AixiaAlert tone="info">
-                              No active pay profile found.
-                            </AixiaAlert>
-                          )
-                        }
-                      />
+                                )
+                              : "No active pay profile"
+                          }
+                        />
+
+                        <AixiaTableBadgeCell width="sm">
+                          <AixiaStatusBadge value={row.status} />
+                        </AixiaTableBadgeCell>
+
+                        <AixiaTableDateCell width="sm">
+                          {formatDateLabel(row.updated_at)}
+                        </AixiaTableDateCell>
+
+                        <AixiaTableActionsCell>
+                          <AixiaButton
+                            type="button"
+                            variant="primary"
+                            onClick={() => setSelected(row)}
+                          >
+                            Open
+                          </AixiaButton>
+
+                          {permissionState.canDeleteArchive ? (
+                            <AixiaButton
+                              type="button"
+                              variant="danger"
+                              onClick={() => void handleArchiveEmployee(row)}
+                              disabled={isActionRunning}
+                            >
+                              {isRowActionRunning ? (
+                                <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                              ) : (
+                                <Archive className="h-3.5 w-3.5" />
+                              )}
+                              Archive
+                            </AixiaButton>
+                          ) : null}
+                        </AixiaTableActionsCell>
+                      </tr>
                     );
-                })}
-              </AixiaReviewGrid>
+                  })}
+                </tbody>
+              </AixiaTableShell>
             )}
           </AixiaSection>
 
@@ -1750,6 +2089,118 @@ export default function FinanceMasterDataEmployeesPage() {
           </AixiaAlert>
         </>
       )}
+
+      <AixiaArchiveManagerModal
+        open={archiveModalOpen}
+        title="Archived Employees"
+        description="Archived employee references can be restored. Employee references are not permanently deleted from this page."
+        archivedCount={archivedRows.length}
+        onClose={closeArchiveModal}
+      >
+        <div className="space-y-4">
+          <AixiaSearchField
+            width="full"
+            value={archiveSearch}
+            onChange={(event) => setArchiveSearch(event.target.value)}
+            placeholder="Search archived employees"
+          />
+
+          {filteredArchivedRows.length === 0 ? (
+            <AixiaEmptyState
+              icon={Archive}
+              title="No archived employees"
+              description="Archived employee references will appear here after they are removed from active operational use."
+            />
+          ) : (
+            <AixiaTableShell variant="archive">
+              <thead className="aixia-table-head">
+                <tr>
+                  <th>Employee</th>
+                  <th>Code</th>
+                  <th>Role</th>
+                  <th>Company</th>
+                  <th>Pay Profile</th>
+                  <th>Updated</th>
+                  <th>Actions</th>
+                </tr>
+              </thead>
+
+              <tbody>
+                {filteredArchivedRows.map((row) => {
+                  const rowActiveProfile = getActivePayProfileForEmployee(row, payProfiles);
+                  const isRowActionRunning =
+                    runningActionId === row.id && runningAction === "restore-employee";
+
+                  return (
+                    <tr key={row.id} className="aixia-table-row">
+                      <AixiaTableTextCell
+                        width="xl"
+                        primary={buildEmployeeName(row)}
+                        secondary={getEmployeeSubtitle(row)}
+                      />
+
+                      <AixiaTableBadgeCell width="sm">
+                        <AixiaBadge tone="neutral">{row.code}</AixiaBadge>
+                      </AixiaTableBadgeCell>
+
+                      <AixiaTableTextCell
+                        width="sm"
+                        primary={formatLabel(row.profile?.role)}
+                      />
+
+                      <AixiaTableTextCell
+                        width="md"
+                        primary={row.profile?.company || "—"}
+                      />
+
+                      <AixiaTableTextCell
+                        width="xl"
+                        primary={buildPayProfileTitle(rowActiveProfile)}
+                        secondary={
+                          rowActiveProfile
+                            ? formatMoney(
+                                getPrimaryGrossPay(rowActiveProfile),
+                                rowActiveProfile.currency_code
+                              )
+                            : "No active pay profile"
+                        }
+                      />
+
+                      <AixiaTableDateCell width="sm">
+                        {formatDateLabel(row.updated_at)}
+                      </AixiaTableDateCell>
+
+                      <AixiaTableActionsCell>
+                        <AixiaButton
+                          type="button"
+                          variant="primary"
+                          onClick={() => setSelected(row)}
+                        >
+                          Open
+                        </AixiaButton>
+
+                        <AixiaButton
+                          type="button"
+                          variant="secondary"
+                          onClick={() => void handleRestoreEmployee(row)}
+                          disabled={isRowActionRunning}
+                        >
+                          {isRowActionRunning ? (
+                            <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                          ) : (
+                            <RotateCcw className="h-3.5 w-3.5" />
+                          )}
+                          Restore
+                        </AixiaButton>
+                      </AixiaTableActionsCell>
+                    </tr>
+                  );
+                })}
+              </tbody>
+            </AixiaTableShell>
+          )}
+        </div>
+      </AixiaArchiveManagerModal>
 
       <AixiaModal
         open={Boolean(selected)}

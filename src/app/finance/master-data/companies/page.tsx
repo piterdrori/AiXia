@@ -237,7 +237,7 @@ export default function FinanceMasterDataCompaniesPage() {
         return;
       }
 
-      const backendPermissions = await fetchFinanceEffectivePermissions(authUserId, mode, "Companies");
+      const backendPermissions = await fetchFinanceEffectivePermissions(authUserId);
 
       setProfile(loadedProfile);
 

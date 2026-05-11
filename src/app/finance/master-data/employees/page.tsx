@@ -318,10 +318,14 @@ function getPrimaryGrossPay(profile: PayProfileRow | null | undefined) {
   return 0;
 }
 
-function getRoleIcon(role: string | null) {
-  if (role === "admin") return Shield;
-  if (role === "manager") return Users;
-  return User2;
+function getEmployeeDescription(row: FinanceEmployeeRow) {
+  return [
+    row.profile?.job_title || "No job title",
+    row.profile?.company || "No company",
+    row.profile?.member_type || "No member type",
+  ]
+    .filter(Boolean)
+    .join(" • ");
 }
 
 function buildEmployeeName(row: FinanceEmployeeRow | null) {
@@ -1860,23 +1864,20 @@ export default function FinanceMasterDataEmployeesPage() {
         />
       }
       filters={
-        <AixiaReviewGrid variant="compact" className="aixia-registry-filter-grid">
-          {(["all", "active", "inactive"] as FilterStatus[]).map((value) => (
-            <AixiaSelectableTile
-              key={value}
-              title={formatLabel(value)}
-              selected={statusFilter === value}
-              tone={
-                value === "inactive"
-                  ? "amber"
-                  : value === "active"
-                    ? "emerald"
-                    : "cyan"
-              }
-              onClick={() => setStatusFilter(value)}
-            />
-          ))}
-        </AixiaReviewGrid>
+        <AixiaSelectField
+          value={statusFilter}
+          onChange={(event) => setStatusFilter(event.target.value as FilterStatus)}
+        >
+          <option value="all" className="bg-[#05070d]">
+            All Statuses
+          </option>
+          <option value="active" className="bg-[#05070d]">
+            Active
+          </option>
+          <option value="inactive" className="bg-[#05070d]">
+            Inactive
+          </option>
+        </AixiaSelectField>
       }
       archiveAction={
         permissionState.canDeleteArchive ? (
@@ -1886,7 +1887,11 @@ export default function FinanceMasterDataEmployeesPage() {
             onClick={openArchiveModal}
             disabled={isActionRunning}
           >
-            <Archive className="h-4 w-4" />
+            {runningAction === "archive-employee" ? (
+              <Loader2 className="h-4 w-4 animate-spin" />
+            ) : (
+              <Archive className="h-4 w-4" />
+            )}
             Archive
           </AixiaButton>
         ) : null

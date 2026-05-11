@@ -19,6 +19,7 @@ import {
 import {
   AixiaAlert,
   AixiaAlertText,
+  AixiaArchiveManagerModal,
   AixiaBadge,
   AixiaButton,
   AixiaEmptyState,
@@ -26,8 +27,8 @@ import {
   AixiaLoadingState,
   AixiaMetricCard,
   AixiaMetricGrid,
-  AixiaModal,
   AixiaPage,
+  AixiaRegistryToolbar,
   AixiaSearchField,
   AixiaSection,
   AixiaSortableHeader,
@@ -837,41 +838,45 @@ export default function FinanceMasterDataClientsPage() {
           description="Active and inactive clients. Archived clients are managed only through the archive modal."
           icon={Users}
           actions={
-            <div className="aixia-control-cluster">
-              <AixiaSearchField
-                width="wide"
-                value={search}
-                onChange={(event) => setSearch(event.target.value)}
-                placeholder="Search clients"
-              />
-
-              {permissionState.canCreate ? (
-                <AixiaButton
-                  type="button"
-                  variant="primary"
-                  onClick={() => navigate("/finance/master-data/clients/new")}
-                >
-                  <Plus className="h-4 w-4" />
-                  Create Client
-                </AixiaButton>
-              ) : null}
-
-              {permissionState.canDeleteArchive ? (
-                <AixiaButton
-                  type="button"
-                  variant="danger"
-                  onClick={() => void openArchiveModal()}
-                  disabled={isActionRunning}
-                >
-                  {runningAction === "archive-modal" ? (
-                    <Loader2 className="h-4 w-4 animate-spin" />
-                  ) : (
-                    <Archive className="h-4 w-4" />
-                  )}
-                  Archive
-                </AixiaButton>
-              ) : null}
-            </div>
+            <AixiaRegistryToolbar
+              search={
+                <AixiaSearchField
+                  width="wide"
+                  value={search}
+                  onChange={(event) => setSearch(event.target.value)}
+                  placeholder="Search clients"
+                />
+              }
+              primaryAction={
+                permissionState.canCreate ? (
+                  <AixiaButton
+                    type="button"
+                    variant="primary"
+                    onClick={() => navigate("/finance/master-data/clients/new")}
+                  >
+                    <Plus className="h-4 w-4" />
+                    Create Client
+                  </AixiaButton>
+                ) : null
+              }
+              archiveAction={
+                permissionState.canDeleteArchive ? (
+                  <AixiaButton
+                    type="button"
+                    variant="danger"
+                    onClick={() => void openArchiveModal()}
+                    disabled={isActionRunning}
+                  >
+                    {runningAction === "archive-modal" ? (
+                      <Loader2 className="h-4 w-4 animate-spin" />
+                    ) : (
+                      <Archive className="h-4 w-4" />
+                    )}
+                    Archive
+                  </AixiaButton>
+                ) : null
+              }
+            />
           }
         >
           {filteredClients.length === 0 ? (
@@ -881,7 +886,7 @@ export default function FinanceMasterDataClientsPage() {
               description="Create a client or adjust the search filter to find a finance client record."
             />
           ) : (
-            <AixiaTableShell minWidthClassName="min-w-[1320px]">
+            <AixiaTableShell variant="registry">
               <thead className="aixia-table-head">
                 <tr>
                   <th>
@@ -1053,121 +1058,118 @@ export default function FinanceMasterDataClientsPage() {
         />
       </AixiaAlert>
 
-      <AixiaModal
+      <AixiaArchiveManagerModal
         open={showArchive}
         title="Archived Clients"
         description="Archived clients can be opened, restored, or permanently deleted. There is no Deleted tab because this backend uses the archived lifecycle state."
+        archivedCount={archivedClients.length}
         onClose={closeArchiveModal}
-        badge={<AixiaBadge tone="rose">Archive</AixiaBadge>}
-        footer={
-          <AixiaButton type="button" variant="secondary" onClick={closeArchiveModal}>
-            Close
-          </AixiaButton>
-        }
       >
-        <AixiaSearchField
-          width="full"
-          value={archiveSearch}
-          onChange={(event) => setArchiveSearch(event.target.value)}
-          placeholder="Search archived clients"
-        />
-
-        {isLoadingArchive ? (
-          <AixiaEmptyState
-            icon={Loader2}
-            title="Loading archived clients"
-            description="Archived client records are being loaded."
+        <div className="space-y-4">
+          <AixiaSearchField
+            width="full"
+            value={archiveSearch}
+            onChange={(event) => setArchiveSearch(event.target.value)}
+            placeholder="Search archived clients"
           />
-        ) : filteredArchivedClients.length === 0 ? (
-          <AixiaEmptyState
-            icon={Archive}
-            title="No archived clients"
-            description="Archived finance clients will appear here after they are removed from active operational use."
-          />
-        ) : (
-          <AixiaTableShell minWidthClassName="min-w-[980px]" maxHeightClassName="max-h-[620px]">
-            <thead className="aixia-table-head">
-              <tr>
-                <th>Client</th>
-                <th>Code</th>
-                <th>Contact</th>
-                <th>Updated</th>
-                <th>Actions</th>
-              </tr>
-            </thead>
 
-            <tbody>
-              {filteredArchivedClients.map((client) => {
-                const isRowActionRunning = activeActionId === client.id;
-                const updatedAt = client.updated_at || client.created_at;
+          {isLoadingArchive ? (
+            <AixiaEmptyState
+              icon={Loader2}
+              title="Loading archived clients"
+              description="Archived client records are being loaded."
+            />
+          ) : filteredArchivedClients.length === 0 ? (
+            <AixiaEmptyState
+              icon={Archive}
+              title="No archived clients"
+              description="Archived finance clients will appear here after they are removed from active operational use."
+            />
+          ) : (
+            <AixiaTableShell variant="archive">
+              <thead className="aixia-table-head">
+                <tr>
+                  <th>Client</th>
+                  <th>Code</th>
+                  <th>Contact</th>
+                  <th>Updated</th>
+                  <th>Actions</th>
+                </tr>
+              </thead>
 
-                return (
-                  <tr key={client.id} className="aixia-table-row">
-                    <AixiaTableTextCell
-                      width="xl"
-                      primary={getClientName(client)}
-                      secondary={client.country || "No country"}
-                    />
+              <tbody>
+                {filteredArchivedClients.map((client) => {
+                  const isRowActionRunning = activeActionId === client.id;
+                  const updatedAt = client.updated_at || client.created_at;
 
-                    <AixiaTableBadgeCell width="sm">
-                      <AixiaBadge tone="neutral">{getClientCode(client)}</AixiaBadge>
-                    </AixiaTableBadgeCell>
+                  return (
+                    <tr key={client.id} className="aixia-table-row">
+                      <AixiaTableTextCell
+                        width="xl"
+                        primary={getClientName(client)}
+                        secondary={client.country || "No country"}
+                      />
 
-                    <AixiaTableTextCell
-                      width="md"
-                      primary={getClientContact(client)}
-                    />
+                      <AixiaTableBadgeCell width="sm">
+                        <AixiaBadge tone="neutral">{getClientCode(client)}</AixiaBadge>
+                      </AixiaTableBadgeCell>
 
-                    <AixiaTableDateCell width="sm">
-                      {formatDateLabel(updatedAt)}
-                    </AixiaTableDateCell>
+                      <AixiaTableTextCell
+                        width="md"
+                        primary={getClientContact(client)}
+                      />
 
-                    <AixiaTableActionsCell>
-                      <AixiaButton
-                        type="button"
-                        variant="primary"
-                        onClick={() =>
-                          navigate(`/finance/master-data/clients/${client.id}`)
-                        }
-                      >
-                        Open
-                      </AixiaButton>
+                      <AixiaTableDateCell width="sm">
+                        {formatDateLabel(updatedAt)}
+                      </AixiaTableDateCell>
 
-                      <AixiaButton
-                        type="button"
-                        variant="secondary"
-                        onClick={() => void handleRestoreClient(client.id)}
-                        disabled={isActionRunning}
-                      >
-                        {isRowActionRunning && runningAction === "restore" ? (
-                          <Loader2 className="h-3.5 w-3.5 animate-spin" />
-                        ) : (
-                          <RotateCcw className="h-3.5 w-3.5" />
-                        )}
-                        Restore
-                      </AixiaButton>
+                      <AixiaTableActionsCell>
+                        <AixiaButton
+                          type="button"
+                          variant="primary"
+                          onClick={() =>
+                            navigate(`/finance/master-data/clients/${client.id}`)
+                          }
+                        >
+                          Open
+                        </AixiaButton>
 
-                      <AixiaButton
-                        type="button"
-                        variant="danger"
-                        onClick={() => void handlePermanentDeleteClient(client.id)}
-                        disabled={isActionRunning}
-                      >
-                        {isRowActionRunning && runningAction === "hard-delete" ? (
-                          <Loader2 className="h-3.5 w-3.5 animate-spin" />
-                        ) : (
-                          <Trash2 className="h-3.5 w-3.5" />
-                        )}
-                        Delete
-                      </AixiaButton>
-                    </AixiaTableActionsCell>
-                  </tr>
-                );
-              })}
-            </tbody>
-          </AixiaTableShell>
-        )}
-      </AixiaModal>
+                        <AixiaButton
+                          type="button"
+                          variant="secondary"
+                          onClick={() => void handleRestoreClient(client.id)}
+                          disabled={isActionRunning}
+                        >
+                          {isRowActionRunning && runningAction === "restore" ? (
+                            <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                          ) : (
+                            <RotateCcw className="h-3.5 w-3.5" />
+                          )}
+                          Restore
+                        </AixiaButton>
+
+                        <AixiaButton
+                          type="button"
+                          variant="danger"
+                          onClick={() => void handlePermanentDeleteClient(client.id)}
+                          disabled={isActionRunning}
+                        >
+                          {isRowActionRunning && runningAction === "hard-delete" ? (
+                            <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                          ) : (
+                            <Trash2 className="h-3.5 w-3.5" />
+                          )}
+                          Delete Permanently
+                        </AixiaButton>
+                      </AixiaTableActionsCell>
+                    </tr>
+                  );
+                })}
+              </tbody>
+            </AixiaTableShell>
+          )}
+        </div>
+      </AixiaArchiveManagerModal>
     </AixiaPage>
   );
 }

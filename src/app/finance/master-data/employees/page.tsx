@@ -2090,117 +2090,109 @@ export default function FinanceMasterDataEmployeesPage() {
         </>
       )}
 
-      <AixiaArchiveManagerModal
-        open={archiveModalOpen}
-        title="Archived Employees"
-        description="Archived employee references can be restored. Employee references are not permanently deleted from this page."
-        archivedCount={archivedRows.length}
-        onClose={closeArchiveModal}
-      >
-        <div className="space-y-4">
-          <AixiaSearchField
-            width="full"
-            value={archiveSearch}
-            onChange={(event) => setArchiveSearch(event.target.value)}
-            placeholder="Search archived employees"
-          />
+<AixiaArchiveManagerModal
+  open={archiveModalOpen}
+  title="Archived Employees"
+  description="Archived employee references can be opened or restored. Employee references are not permanently deleted from this page."
+  archivedCount={archivedRows.length}
+  onClose={closeArchiveModal}
+>
+  <div className="space-y-4">
+    <AixiaSearchField
+      width="full"
+      value={archiveSearch}
+      onChange={(event) => setArchiveSearch(event.target.value)}
+      placeholder="Search archived employees"
+    />
 
-          {filteredArchivedRows.length === 0 ? (
-            <AixiaEmptyState
-              icon={Archive}
-              title="No archived employees"
-              description="Archived employee references will appear here after they are removed from active operational use."
-            />
-          ) : (
-            <AixiaTableShell variant="archive">
-              <thead className="aixia-table-head">
-                <tr>
-                  <th>Employee</th>
-                  <th>Code</th>
-                  <th>Role</th>
-                  <th>Company</th>
-                  <th>Pay Profile</th>
-                  <th>Updated</th>
-                  <th>Actions</th>
-                </tr>
-              </thead>
+    {filteredArchivedRows.length === 0 ? (
+      <AixiaEmptyState
+        icon={Archive}
+        title="No archived employees"
+        description="Archived employee references will appear here after they are removed from active operational use."
+      />
+    ) : (
+      <AixiaTableShell variant="archive">
+        <thead className="aixia-table-head">
+          <tr>
+            <th>Employee</th>
+            <th>Source Details</th>
+            <th>Pay Profile</th>
+            <th>Updated</th>
+            <th>Actions</th>
+          </tr>
+        </thead>
 
-              <tbody>
-                {filteredArchivedRows.map((row) => {
-                  const rowActiveProfile = getActivePayProfileForEmployee(row, payProfiles);
-                  const isRowActionRunning =
-                    runningActionId === row.id && runningAction === "restore-employee";
+        <tbody>
+          {filteredArchivedRows.map((row) => {
+            const rowActiveProfile = getActivePayProfileForEmployee(row, payProfiles);
+            const isRowActionRunning =
+              runningActionId === row.id && runningAction === "restore-employee";
 
-                  return (
-                    <tr key={row.id} className="aixia-table-row">
-                      <AixiaTableTextCell
-                        width="xl"
-                        primary={buildEmployeeName(row)}
-                        secondary={getEmployeeSubtitle(row)}
-                      />
+            return (
+              <tr key={row.id} className="aixia-table-row">
+                <AixiaTableTextCell
+                  width="xl"
+                  primary={buildEmployeeName(row)}
+                  secondary={`${row.code} • ${row.profile?.email || "No email"}`}
+                />
 
-                      <AixiaTableBadgeCell width="sm">
-                        <AixiaBadge tone="neutral">{row.code}</AixiaBadge>
-                      </AixiaTableBadgeCell>
+                <AixiaTableTextCell
+                  width="xl"
+                  primary={row.profile?.company || "—"}
+                  secondary={`${formatLabel(row.profile?.role)} • ${
+                    row.profile?.job_title || "No job title"
+                  }`}
+                />
 
-                      <AixiaTableTextCell
-                        width="sm"
-                        primary={formatLabel(row.profile?.role)}
-                      />
+                <AixiaTableTextCell
+                  width="xl"
+                  primary={buildPayProfileTitle(rowActiveProfile)}
+                  secondary={
+                    rowActiveProfile
+                      ? formatMoney(
+                          getPrimaryGrossPay(rowActiveProfile),
+                          rowActiveProfile.currency_code
+                        )
+                      : "No active pay profile"
+                  }
+                />
 
-                      <AixiaTableTextCell
-                        width="md"
-                        primary={row.profile?.company || "—"}
-                      />
+                <AixiaTableDateCell width="sm">
+                  {formatDateLabel(row.updated_at)}
+                </AixiaTableDateCell>
 
-                      <AixiaTableTextCell
-                        width="xl"
-                        primary={buildPayProfileTitle(rowActiveProfile)}
-                        secondary={
-                          rowActiveProfile
-                            ? formatMoney(
-                                getPrimaryGrossPay(rowActiveProfile),
-                                rowActiveProfile.currency_code
-                              )
-                            : "No active pay profile"
-                        }
-                      />
+                <AixiaTableActionsCell>
+                  <AixiaButton
+                    type="button"
+                    variant="primary"
+                    onClick={() => setSelected(row)}
+                  >
+                    Open
+                  </AixiaButton>
 
-                      <AixiaTableDateCell width="sm">
-                        {formatDateLabel(row.updated_at)}
-                      </AixiaTableDateCell>
-
-                      <AixiaTableActionsCell>
-                        <AixiaButton
-                          type="button"
-                          variant="primary"
-                          onClick={() => setSelected(row)}
-                        >
-                          Open
-                        </AixiaButton>
-
-                        <AixiaButton
-                          type="button"
-                          variant="secondary"
-                          onClick={() => void handleRestoreEmployee(row)}
-                          disabled={isRowActionRunning}
-                        >
-                          {isRowActionRunning ? (
-                            <Loader2 className="h-3.5 w-3.5 animate-spin" />
-                          ) : (
-                            <RotateCcw className="h-3.5 w-3.5" />
-                          )}
-                          Restore
-                        </AixiaButton>
-                      </AixiaTableActionsCell>
-                    </tr>
-                  );
-                })}
-              </tbody>
-            </AixiaTableShell>
-          )}
-        </div>
-      </AixiaArchiveManagerModal>
+                  <AixiaButton
+                    type="button"
+                    variant="secondary"
+                    onClick={() => void handleRestoreEmployee(row)}
+                    disabled={isRowActionRunning}
+                  >
+                    {isRowActionRunning ? (
+                      <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                    ) : (
+                      <RotateCcw className="h-3.5 w-3.5" />
+                    )}
+                    Restore
+                  </AixiaButton>
+                </AixiaTableActionsCell>
+              </tr>
+            );
+          })}
+        </tbody>
+      </AixiaTableShell>
+    )}
+  </div>
+</AixiaArchiveManagerModal>
 
       <AixiaModal
         open={Boolean(selected)}

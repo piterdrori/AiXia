@@ -409,9 +409,9 @@ function buildMetadata(
 
 async function loadEmployeeEffectivePermissions(
   userId: string,
-  _mode: LoadMode
+  mode: LoadMode
 ): Promise<Partial<Record<Permission, boolean>> | null> {
-  return fetchFinanceEffectivePermissions(userId);
+  return fetchFinanceEffectivePermissions(userId, mode, "Employees");
 }
 
 function getDefaultCurrencyCode(currencies: CurrencyRow[]) {
@@ -1121,11 +1121,11 @@ export default function FinanceMasterDataEmployeesPage() {
   }, [currencies, selected]);
 
   const permissionState = useMemo(() => {
-    return resolveFinancePagePermissionState(
+    return resolveFinancePagePermissionState({
       profile,
       effectivePermissions,
-      EMPLOYEE_ACCESS_CONFIG
-    );
+      accessConfig: EMPLOYEE_ACCESS_CONFIG,
+    });
   }, [effectivePermissions, profile]);
 
   const selectedPayProfiles = useMemo(() => {

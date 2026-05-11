@@ -19,6 +19,7 @@ import {
 import {
   AixiaAlert,
   AixiaAlertText,
+  AixiaArchiveManagerModal,
   AixiaBadge,
   AixiaButton,
   AixiaCurrencyBadge,
@@ -27,8 +28,8 @@ import {
   AixiaLoadingState,
   AixiaMetricCard,
   AixiaMetricGrid,
-  AixiaModal,
   AixiaPage,
+  AixiaRegistryToolbar,
   AixiaSearchField,
   AixiaSection,
   AixiaSortableHeader,
@@ -851,41 +852,45 @@ export default function FinanceMasterDataCompaniesPage() {
           description="Active and inactive companies. Archived companies are managed only through the archive modal."
           icon={Building2}
           actions={
-            <div className="aixia-control-cluster">
-              <AixiaSearchField
-                width="wide"
-                value={search}
-                onChange={(event) => setSearch(event.target.value)}
-                placeholder="Search companies"
-              />
-
-              {permissionState.canCreate ? (
-                <AixiaButton
-                  type="button"
-                  variant="primary"
-                  onClick={() => navigate("/finance/master-data/companies/new")}
-                >
-                  <Plus className="h-4 w-4" />
-                  Create Company
-                </AixiaButton>
-              ) : null}
-
-              {permissionState.canDeleteArchive ? (
-                <AixiaButton
-                  type="button"
-                  variant="danger"
-                  onClick={() => void openArchiveModal()}
-                  disabled={isActionRunning}
-                >
-                  {runningAction === "archive-modal" ? (
-                    <Loader2 className="h-4 w-4 animate-spin" />
-                  ) : (
-                    <Archive className="h-4 w-4" />
-                  )}
-                  Archive
-                </AixiaButton>
-              ) : null}
-            </div>
+            <AixiaRegistryToolbar
+              search={
+                <AixiaSearchField
+                  width="wide"
+                  value={search}
+                  onChange={(event) => setSearch(event.target.value)}
+                  placeholder="Search companies"
+                />
+              }
+              primaryAction={
+                permissionState.canCreate ? (
+                  <AixiaButton
+                    type="button"
+                    variant="primary"
+                    onClick={() => navigate("/finance/master-data/companies/new")}
+                  >
+                    <Plus className="h-4 w-4" />
+                    Create Company
+                  </AixiaButton>
+                ) : null
+              }
+              archiveAction={
+                permissionState.canDeleteArchive ? (
+                  <AixiaButton
+                    type="button"
+                    variant="danger"
+                    onClick={() => void openArchiveModal()}
+                    disabled={isActionRunning}
+                  >
+                    {runningAction === "archive-modal" ? (
+                      <Loader2 className="h-4 w-4 animate-spin" />
+                    ) : (
+                      <Archive className="h-4 w-4" />
+                    )}
+                    Archive
+                  </AixiaButton>
+                ) : null
+              }
+            />
           }
         >
           {filteredCompanies.length === 0 ? (
@@ -1067,116 +1072,113 @@ export default function FinanceMasterDataCompaniesPage() {
         />
       </AixiaAlert>
 
-      <AixiaModal
+      <AixiaArchiveManagerModal
         open={showArchive}
         title="Archived Companies"
         description="Archived companies can be opened, restored, or permanently deleted. There is no Deleted tab because this backend uses the archived lifecycle state."
+        archivedCount={archivedCompanies.length}
         onClose={closeArchiveModal}
-        badge={<AixiaBadge tone="rose">Archive</AixiaBadge>}
-        footer={
-          <AixiaButton type="button" variant="secondary" onClick={closeArchiveModal}>
-            Close
-          </AixiaButton>
-        }
       >
-        <AixiaSearchField
-          width="full"
-          value={archiveSearch}
-          onChange={(event) => setArchiveSearch(event.target.value)}
-          placeholder="Search archived companies"
-        />
-
-        {isLoadingArchive ? (
-          <AixiaEmptyState
-            icon={Loader2}
-            title="Loading archived companies"
-            description="Archived company records are being loaded."
+        <div className="space-y-4">
+          <AixiaSearchField
+            width="full"
+            value={archiveSearch}
+            onChange={(event) => setArchiveSearch(event.target.value)}
+            placeholder="Search archived companies"
           />
-        ) : filteredArchivedCompanies.length === 0 ? (
-          <AixiaEmptyState
-            icon={Archive}
-            title="No archived companies"
-            description="Archived internal legal entities will appear here after they are removed from active operational use."
-          />
-        ) : (
-          <AixiaTableShell variant="archive">
-            <thead className="aixia-table-head">
-              <tr>
-                <th>Company</th>
-                <th>Contact</th>
-                <th>Updated</th>
-                <th>Actions</th>
-              </tr>
-            </thead>
 
-            <tbody>
-              {filteredArchivedCompanies.map((company) => {
-                const isRowActionRunning = activeActionId === company.id;
-                const updatedAt = company.updated_at || company.created_at;
+          {isLoadingArchive ? (
+            <AixiaEmptyState
+              icon={Loader2}
+              title="Loading archived companies"
+              description="Archived company records are being loaded."
+            />
+          ) : filteredArchivedCompanies.length === 0 ? (
+            <AixiaEmptyState
+              icon={Archive}
+              title="No archived companies"
+              description="Archived internal legal entities will appear here after they are removed from active operational use."
+            />
+          ) : (
+            <AixiaTableShell variant="archive">
+              <thead className="aixia-table-head">
+                <tr>
+                  <th>Company</th>
+                  <th>Contact</th>
+                  <th>Updated</th>
+                  <th>Actions</th>
+                </tr>
+              </thead>
 
-                return (
-                  <tr key={company.id} className="aixia-table-row">
-                    <AixiaTableTextCell
-                      width="xl"
-                      primary={getCompanyName(company)}
-                      secondary={`${getCompanyCode(company)} • ${getLocationLabel(company)}`}
-                    />
+              <tbody>
+                {filteredArchivedCompanies.map((company) => {
+                  const isRowActionRunning = activeActionId === company.id;
+                  const updatedAt = company.updated_at || company.created_at;
 
-                    <AixiaTableTextCell
-                      width="md"
-                      primary={getContactLabel(company)}
-                    />
+                  return (
+                    <tr key={company.id} className="aixia-table-row">
+                      <AixiaTableTextCell
+                        width="xl"
+                        primary={getCompanyName(company)}
+                        secondary={`${getCompanyCode(company)} • ${getLocationLabel(company)}`}
+                      />
 
-                    <AixiaTableDateCell width="sm">
-                      {formatDateLabel(updatedAt)}
-                    </AixiaTableDateCell>
+                      <AixiaTableTextCell
+                        width="md"
+                        primary={getContactLabel(company)}
+                      />
 
-                    <AixiaTableActionsCell>
-                      <AixiaButton
-                        type="button"
-                        variant="primary"
-                        onClick={() =>
-                          navigate(`/finance/master-data/companies/${company.id}`)
-                        }
-                      >
-                        Open
-                      </AixiaButton>
+                      <AixiaTableDateCell width="sm">
+                        {formatDateLabel(updatedAt)}
+                      </AixiaTableDateCell>
 
-                      <AixiaButton
-                        type="button"
-                        variant="secondary"
-                        onClick={() => void handleRestoreCompany(company.id)}
-                        disabled={isActionRunning}
-                      >
-                        {isRowActionRunning && runningAction === "restore" ? (
-                          <Loader2 className="h-3.5 w-3.5 animate-spin" />
-                        ) : (
-                          <RotateCcw className="h-3.5 w-3.5" />
-                        )}
-                        Restore
-                      </AixiaButton>
+                      <AixiaTableActionsCell>
+                        <AixiaButton
+                          type="button"
+                          variant="primary"
+                          onClick={() =>
+                            navigate(`/finance/master-data/companies/${company.id}`)
+                          }
+                        >
+                          Open
+                        </AixiaButton>
 
-                      <AixiaButton
-                        type="button"
-                        variant="danger"
-                        onClick={() => void handlePermanentDeleteCompany(company.id)}
-                        disabled={isActionRunning}
-                      >
-                        {isRowActionRunning && runningAction === "hard-delete" ? (
-                          <Loader2 className="h-3.5 w-3.5 animate-spin" />
-                        ) : (
-                          <Trash2 className="h-3.5 w-3.5" />
-                        )}
-                        Delete
-                      </AixiaButton>
-                    </AixiaTableActionsCell>
-                  </tr>
-                );
-              })}
-            </tbody>
-          </AixiaTableShell>
-        )}
-      </AixiaModal>
+                        <AixiaButton
+                          type="button"
+                          variant="secondary"
+                          onClick={() => void handleRestoreCompany(company.id)}
+                          disabled={isActionRunning}
+                        >
+                          {isRowActionRunning && runningAction === "restore" ? (
+                            <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                          ) : (
+                            <RotateCcw className="h-3.5 w-3.5" />
+                          )}
+                          Restore
+                        </AixiaButton>
+
+                        <AixiaButton
+                          type="button"
+                          variant="danger"
+                          onClick={() => void handlePermanentDeleteCompany(company.id)}
+                          disabled={isActionRunning}
+                        >
+                          {isRowActionRunning && runningAction === "hard-delete" ? (
+                            <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                          ) : (
+                            <Trash2 className="h-3.5 w-3.5" />
+                          )}
+                          Delete Permanently
+                        </AixiaButton>
+                      </AixiaTableActionsCell>
+                    </tr>
+                  );
+                })}
+              </tbody>
+            </AixiaTableShell>
+          )}
+        </div>
+      </AixiaArchiveManagerModal>
     </AixiaPage>
   );
 }

@@ -1845,55 +1845,55 @@ export default function FinanceMasterDataEmployeesPage() {
             ))}
           </AixiaReviewGrid>
 
-          <AixiaSection
-            title="Employee Reference Records"
-            description="Search employee references and open each record to manage payroll defaults."
-            icon={Users}
-            actions={
-              <AixiaRegistryToolbar
-                search={
-                  <AixiaSearchField
-                    width="wide"
-                    value={search}
-                    onChange={(event) => setSearch(event.target.value)}
-                    placeholder="Search employees, codes, email, job title, pay profile..."
-                  />
-                }
-                filters={
-                  <AixiaReviewGrid variant="compact" className="aixia-filter-grid-wide">
-                    {(["all", "active", "inactive"] as FilterStatus[]).map((value) => (
-                      <AixiaSelectableTile
-                        key={value}
-                        title={formatLabel(value)}
-                        selected={statusFilter === value}
-                        tone={
-                          value === "inactive"
-                            ? "amber"
-                            : value === "active"
-                              ? "emerald"
-                              : "cyan"
-                        }
-                        onClick={() => setStatusFilter(value)}
-                      />
-                    ))}
-                  </AixiaReviewGrid>
-                }
-                archiveAction={
-                  permissionState.canDeleteArchive ? (
-                    <AixiaButton
-                      type="button"
-                      variant="danger"
-                      onClick={openArchiveModal}
-                      disabled={isActionRunning}
-                    >
-                      <Archive className="h-4 w-4" />
-                      Archive
-                    </AixiaButton>
-                  ) : null
-                }
-              />
-            }
+<AixiaSection
+  title="Employee Reference Records"
+  description="Search employee references and open each record to manage payroll defaults."
+  icon={Users}
+  actions={
+    <AixiaRegistryToolbar
+      search={
+        <AixiaSearchField
+          width="wide"
+          value={search}
+          onChange={(event) => setSearch(event.target.value)}
+          placeholder="Search employees, codes, email, job title, pay profile..."
+        />
+      }
+      filters={
+        <AixiaReviewGrid variant="compact" className="aixia-registry-filter-grid">
+          {(["all", "active", "inactive"] as FilterStatus[]).map((value) => (
+            <AixiaSelectableTile
+              key={value}
+              title={formatLabel(value)}
+              selected={statusFilter === value}
+              tone={
+                value === "inactive"
+                  ? "amber"
+                  : value === "active"
+                    ? "emerald"
+                    : "cyan"
+              }
+              onClick={() => setStatusFilter(value)}
+            />
+          ))}
+        </AixiaReviewGrid>
+      }
+      archiveAction={
+        permissionState.canDeleteArchive ? (
+          <AixiaButton
+            type="button"
+            variant="danger"
+            onClick={openArchiveModal}
+            disabled={isActionRunning}
           >
+            <Archive className="h-4 w-4" />
+            Archive
+          </AixiaButton>
+        ) : null
+      }
+    />
+  }
+>
             {filteredRows.length === 0 ? (
               <AixiaEmptyState
                 icon={Users}

@@ -51,14 +51,17 @@ import {
   AixiaTextareaField,
 } from "@/components/aixia";
 import { archiveCompany, updateCompany } from "@/lib/finance/companies";
+import { type Permission, type Role } from "@/lib/permissions";
+
 import {
-  getEffectivePermissions,
-  type Permission,
-  type Role,
-} from "@/lib/permissions";
+  fetchFinanceEffectivePermissions,
+  resolveFinancePagePermissionState,
+  type FinanceLoadMode,
+} from "@/lib/finance/pageAccess";
+
 import { supabase } from "@/lib/supabase";
 
-type LoadMode = "initial" | "silent";
+type LoadMode = FinanceLoadMode;
 
 type ProfilePermissionRow = {
   user_id: string;
@@ -195,19 +198,13 @@ type ShippingDraftRow = {
   address_line_2: string;
 };
 
-type PermissionState = {
-  canRead: boolean;
-  canUpdate: boolean;
-  canDeleteArchive: boolean;
-  isAdmin: boolean;
-};
-
 type HeaderStatusCardData = {
   label: string;
   value: string;
   description: string;
   icon: LucideIcon;
   tone: "emerald" | "cyan" | "amber" | "rose";
+};
 };
 
 type SummaryItem = {
@@ -216,12 +213,14 @@ type SummaryItem = {
   description: string;
 };
 
-const EMPTY_PERMISSION_STATE: PermissionState = {
-  canRead: false,
-  canUpdate: false,
-  canDeleteArchive: false,
-  isAdmin: false,
-};
+const COMPANY_DETAIL_ACCESS_CONFIG = {
+  sectionKey: "masterData",
+  adminPermissions: ["manageFinanceMasterData"],
+  readPermissions: ["accessFinance", "viewFinance"],
+  createPermissions: ["createFinanceRecords"],
+  updatePermissions: ["editFinanceRecords"],
+  deleteArchivePermissions: ["archiveFinanceRecords"],
+} as const;
 
 const EMPTY_OVERVIEW_DRAFT: OverviewDraft = {
   legal_name: "",
@@ -279,75 +278,11 @@ function createEmptyShippingDraftRow(): ShippingDraftRow {
   };
 }
 
-function hasPermission(
-  permissions: Record<Permission, boolean> | null,
-  permission: Permission
-) {
-  return Boolean(permissions?.[permission]);
-}
-
-function buildPermissionState(
-  profile: ProfilePermissionRow | null,
-  permissions: Record<Permission, boolean> | null
-): PermissionState {
-  if (!profile?.role || !permissions) {
-    return EMPTY_PERMISSION_STATE;
-  }
-
-  const isAdmin = String(profile.role || "").toLowerCase() === "admin";
-  const canManageMasterData = hasPermission(permissions, "manageFinanceMasterData");
-  const canAccessFinance = hasPermission(permissions, "accessFinance");
-  const canViewFinance = hasPermission(permissions, "viewFinance");
-
-  return {
-    isAdmin,
-    canRead: canManageMasterData || canAccessFinance || canViewFinance,
-    canUpdate:
-      canManageMasterData ||
-      hasPermission(permissions, "editFinanceRecords"),
-    canDeleteArchive:
-      canManageMasterData ||
-      hasPermission(permissions, "archiveFinanceRecords"),
-  };
-}
-
-async function loadBackendEffectivePermissions(
+async function loadCompanyDetailEffectivePermissions(
   userId: string,
   mode: LoadMode
 ): Promise<Partial<Record<Permission, boolean>> | null> {
-  try {
-    const result = await supabase.rpc("finance_get_effective_permissions", {
-      target_user_id: userId,
-    });
-
-    if (result.error) {
-      if (mode === "silent") {
-        throw result.error;
-      }
-
-      console.warn("Company ID permission RPC fallback:", result.error.message);
-      return null;
-    }
-
-    if (!result.data || typeof result.data !== "object") {
-      if (mode === "silent") {
-        throw new Error(
-          "Silent company ID permission refresh returned no effective permission payload."
-        );
-      }
-
-      return null;
-    }
-
-    return result.data as Partial<Record<Permission, boolean>>;
-  } catch (error) {
-    if (mode === "silent") {
-      throw error;
-    }
-
-    console.warn("Company ID permission RPC failed:", error);
-    return null;
-  }
+  return fetchFinanceEffectivePermissions(userId, mode, "Companies");
 }
 
 function normalizeStatus(value: string): CompanyStatus {
@@ -574,7 +509,10 @@ export default function FinanceMasterDataCompanyDetailPage() {
         return;
       }
 
-      const backendPermissions = await loadBackendEffectivePermissions(authUserId, mode);
+      const backendPermissions = await loadCompanyDetailEffectivePermissions(
+        authUserId,
+        mode
+      );
 
       setProfile(loadedProfile);
 
@@ -590,12 +528,18 @@ export default function FinanceMasterDataCompanyDetailPage() {
         return;
       }
 
-      const resolvedPermissions = getEffectivePermissions(
-        loadedProfile.role,
-        backendPermissions || loadedProfile.permissions || null
-      );
+      const resolvedPermissions = backendPermissions || loadedProfile.permissions || null;
 
-      setEffectivePermissions(resolvedPermissions);
+      if (!resolvedPermissions && mode === "silent") {
+        console.warn(
+          "Silent company ID permission refresh returned no permission payload; keeping current permissions."
+        );
+        return;
+      }
+
+      setEffectivePermissions(
+        resolvedPermissions as Record<Permission, boolean> | null
+      );
     } catch (error) {
       console.error("Failed to load company ID permissions:", error);
 
@@ -867,7 +811,11 @@ export default function FinanceMasterDataCompanyDetailPage() {
   }, [id, loadCompany, loadCurrencyOptions, loadCurrentProfile]);
 
   const permissionState = useMemo(() => {
-    return buildPermissionState(profile, effectivePermissions);
+    return resolveFinancePagePermissionState({
+      profileRole: profile?.role,
+      permissions: effectivePermissions,
+      config: COMPANY_DETAIL_ACCESS_CONFIG,
+    });
   }, [effectivePermissions, profile]);
 
   const primaryAddressOptions = useMemo(() => {

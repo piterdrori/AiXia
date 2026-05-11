@@ -188,13 +188,6 @@ function compareDates(
   return new Date(first || 0).getTime() - new Date(second || 0).getTime();
 }
 
-function getStatusFilterTone(value: StatusFilter): "cyan" | "emerald" | "amber" {
-  if (value === "active") return "emerald";
-  if (value === "inactive") return "amber";
-
-  return "cyan";
-}
-
 function getLedgerLabel(
   accountId: string | null | undefined,
   ledgerAccounts: FinanceAccountOption[]

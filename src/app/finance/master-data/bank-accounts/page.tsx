@@ -33,7 +33,6 @@ import {
   AixiaSection,
   AixiaSortableHeader,
   AixiaStatusBadge,
-  AixiaStatusCard,
   AixiaTableActionsCell,
   AixiaTableBadgeCell,
   AixiaTableDateCell,
@@ -50,11 +49,12 @@ import {
   type FinanceBankAccountListRow,
 } from "@/lib/finance/bankAccounts";
 
+import { type Permission, type Role } from "@/lib/permissions";
 import {
-  getEffectivePermissions,
-  type Permission,
-  type Role,
-} from "@/lib/permissions";
+  fetchFinanceEffectivePermissions,
+  resolveFinancePagePermissionState,
+  type FinanceLoadMode,
+} from "@/lib/finance/pageAccess";
 
 import { supabase } from "@/lib/supabase";
 
@@ -93,14 +93,6 @@ type MetricCard = {
   tone: "cyan" | "emerald" | "amber" | "violet" | "rose";
 };
 
-type PermissionState = {
-  canRead: boolean;
-  canCreate: boolean;
-  canUpdate: boolean;
-  canDeleteArchive: boolean;
-  isAdmin: boolean;
-};
-
 type CompanyCurrencyReference = {
   id: string;
   code: string | null;
@@ -108,13 +100,14 @@ type CompanyCurrencyReference = {
   currency_code: string | null;
 };
 
-const EMPTY_PERMISSION_STATE: PermissionState = {
-  canRead: false,
-  canCreate: false,
-  canUpdate: false,
-  canDeleteArchive: false,
-  isAdmin: false,
-};
+const BANK_ACCOUNT_ACCESS_CONFIG = {
+  sectionKey: "masterData",
+  adminPermissions: ["manageFinanceMasterData"],
+  readPermissions: ["viewBankAccounts"],
+  createPermissions: ["createFinanceRecords"],
+  updatePermissions: ["editFinanceRecords"],
+  deleteArchivePermissions: ["archiveFinanceRecords"],
+} as const;
 
 function formatCount(value: number) {
   return value.toLocaleString();
@@ -161,63 +154,11 @@ function getCorrelatedCurrencyLabel(
   return companyCurrency || row.currency_code || "—";
 }
 
-function hasPermission(
-  permissions: Record<Permission, boolean> | null,
-  permission: Permission
-) {
-  return Boolean(permissions?.[permission]);
-}
-
-function buildPermissionState(
-  profile: ProfilePermissionRow | null,
-  permissions: Record<Permission, boolean> | null
-): PermissionState {
-  if (!profile?.role || !permissions) {
-    return EMPTY_PERMISSION_STATE;
-  }
-
-  const isAdmin = String(profile.role || "").toLowerCase() === "admin";
-  const canManageMasterData = hasPermission(permissions, "manageFinanceMasterData");
-
-  return {
-    isAdmin,
-    canRead:
-      canManageMasterData ||
-      hasPermission(permissions, "viewBankAccounts"),
-    canCreate:
-      canManageMasterData ||
-      hasPermission(permissions, "createFinanceRecords"),
-    canUpdate:
-      canManageMasterData ||
-      hasPermission(permissions, "editFinanceRecords"),
-    canDeleteArchive:
-      canManageMasterData ||
-      hasPermission(permissions, "archiveFinanceRecords"),
-  };
-}
-
-async function loadBackendEffectivePermissions(
-  userId: string
+async function loadBankAccountEffectivePermissions(
+  userId: string,
+  mode: FinanceLoadMode
 ): Promise<Partial<Record<Permission, boolean>> | null> {
-  try {
-    const result = await supabase.rpc("finance_get_effective_permissions", {
-      target_user_id: userId,
-    });
-
-    if (result.error) {
-      console.warn("Bank Accounts permission RPC fallback:", result.error.message);
-      return null;
-    }
-
-    if (!result.data || typeof result.data !== "object") {
-      return null;
-    }
-
-    return result.data as Partial<Record<Permission, boolean>>;
-  } catch (error) {
-    console.warn("Bank Accounts permission RPC failed:", error);
-    return null;
-  }
+  return fetchFinanceEffectivePermissions(userId, mode, "Bank Accounts");
 }
 
 function compareStrings(first: string | null | undefined, second: string | null | undefined) {
@@ -259,7 +200,7 @@ export default function FinanceMasterDataBankAccountsPage() {
   const [sortKey, setSortKey] = useState<SortKey>("updated");
   const [sortDirection, setSortDirection] = useState<SortDirection>("desc");
 
-  const loadCurrentProfile = useCallback(async (mode: "initial" | "silent" = "initial") => {
+  const loadCurrentProfile = useCallback(async (mode: FinanceLoadMode = "initial") => {
     if (mode === "initial") {
       setIsLoadingProfile(true);
     }
@@ -274,7 +215,12 @@ export default function FinanceMasterDataBankAccountsPage() {
         if (mode === "initial") {
           setProfile(null);
           setEffectivePermissions(null);
+        } else {
+          console.warn(
+            "Silent bank account profile refresh returned no auth user; keeping current profile and permissions."
+          );
         }
+
         return;
       }
 
@@ -287,21 +233,48 @@ export default function FinanceMasterDataBankAccountsPage() {
       if (profileResult.error) throw profileResult.error;
 
       const loadedProfile = (profileResult.data || null) as ProfilePermissionRow | null;
-      const backendPermissions = await loadBackendEffectivePermissions(authUserId);
 
-      setProfile(loadedProfile);
+      if (!loadedProfile) {
+        if (mode === "initial") {
+          setProfile(null);
+          setEffectivePermissions(null);
+        } else {
+          console.warn(
+            "Silent bank account profile refresh returned no profile; keeping current profile and permissions."
+          );
+        }
 
-      if (!loadedProfile?.role) {
-        setEffectivePermissions(null);
         return;
       }
 
-      const resolvedPermissions = getEffectivePermissions(
-        loadedProfile.role,
-        backendPermissions || loadedProfile.permissions || null
-      );
+      const backendPermissions = await loadBankAccountEffectivePermissions(authUserId, mode);
 
-      setEffectivePermissions(resolvedPermissions);
+      setProfile(loadedProfile);
+
+      if (!loadedProfile.role) {
+        if (mode === "initial") {
+          setEffectivePermissions(null);
+        } else {
+          console.warn(
+            "Silent bank account profile refresh returned no role; keeping current permissions."
+          );
+        }
+
+        return;
+      }
+
+      const resolvedPermissions = backendPermissions || loadedProfile.permissions || null;
+
+      if (!resolvedPermissions && mode === "silent") {
+        console.warn(
+          "Silent bank account profile refresh returned no permission payload; keeping current permissions."
+        );
+        return;
+      }
+
+      setEffectivePermissions(
+        resolvedPermissions as Record<Permission, boolean> | null
+      );
     } catch (error) {
       console.error("Failed to load bank account profile permissions:", error);
 
@@ -317,10 +290,14 @@ export default function FinanceMasterDataBankAccountsPage() {
   }, []);
 
   const permissionState = useMemo(() => {
-    return buildPermissionState(profile, effectivePermissions);
+    return resolveFinancePagePermissionState({
+      profileRole: profile?.role ?? null,
+      permissions: effectivePermissions,
+      config: BANK_ACCOUNT_ACCESS_CONFIG,
+    });
   }, [effectivePermissions, profile]);
 
-  const loadRows = useCallback(async (mode: "initial" | "silent" = "initial") => {
+  const loadRows = useCallback(async (mode: FinanceLoadMode = "initial") => {
     if (mode === "initial") {
       setIsLoadingRows(true);
       setPageError(null);
@@ -350,7 +327,7 @@ export default function FinanceMasterDataBankAccountsPage() {
   }, []);
 
   const loadCompanyCurrencyReferences = useCallback(
-    async (mode: "initial" | "silent" = "initial") => {
+    async (mode: FinanceLoadMode = "initial") => {
       try {
         const { data, error } = await supabase
           .from("finance_companies")
@@ -761,34 +738,28 @@ export default function FinanceMasterDataBankAccountsPage() {
         title="Accounts"
         subtitle="Treasury Reference Registry"
         description="Permission-filtered registry for company-linked bank accounts used by treasury, payment instructions, and finance document snapshots."
-      
-        rightContent={
-          <>
-            <AixiaStatusCard
-              label="Read Access"
-              value={
-                isLoadingProfile ? "Checking" : permissionState.canRead ? "Enabled" : "Locked"
-              }
-              description="This page requires Bank Account read access or Master Data admin access."
-              icon={permissionState.canRead ? ShieldCheck : LockKeyhole}
-              tone={permissionState.canRead ? "emerald" : "rose"}
-            />
-
-            <AixiaStatusCard
-              label="Lifecycle Access"
-              value={
-                permissionState.canDeleteArchive
-                  ? "Archive Enabled"
-                  : permissionState.canCreate
-                    ? "Create Enabled"
-                    : "Read Only"
-              }
-              description="Create and Delete/Archive actions follow the selected Finance template."
-              icon={permissionState.canDeleteArchive ? Archive : CreditCard}
-              tone={permissionState.canDeleteArchive ? "gold" : "indigo"}
-            />
-          </>
-        }
+        statusCards={[
+          {
+            label: "Read Access",
+            value: isLoadingProfile ? "Checking" : permissionState.canRead ? "Enabled" : "Locked",
+            description:
+              "This page requires Bank Account read access or Master Data admin access.",
+            icon: permissionState.canRead ? ShieldCheck : LockKeyhole,
+            tone: permissionState.canRead ? "emerald" : "rose",
+          },
+          {
+            label: "Lifecycle Access",
+            value: permissionState.canDeleteArchive
+              ? "Archive Enabled"
+              : permissionState.canCreate
+                ? "Create Enabled"
+                : "Read Only",
+            description:
+              "Create and Delete/Archive actions follow the selected Finance template.",
+            icon: permissionState.canDeleteArchive ? Archive : CreditCard,
+            tone: permissionState.canDeleteArchive ? "gold" : "indigo",
+          },
+        ]}
       />
 
       {pageError ? <AixiaAlert tone="error">{pageError}</AixiaAlert> : null}

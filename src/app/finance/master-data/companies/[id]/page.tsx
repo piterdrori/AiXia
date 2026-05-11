@@ -205,7 +205,6 @@ type HeaderStatusCardData = {
   icon: LucideIcon;
   tone: "emerald" | "cyan" | "amber" | "rose";
 };
-};
 
 type SummaryItem = {
   label: string;

@@ -49,14 +49,17 @@ import {
   AixiaTextareaField,
 } from "@/components/aixia";
 import { archiveClient, updateClient } from "@/lib/finance/clients";
+import { type Permission, type Role } from "@/lib/permissions";
+
 import {
-  getEffectivePermissions,
-  type Permission,
-  type Role,
-} from "@/lib/permissions";
+  fetchFinanceEffectivePermissions,
+  resolveFinancePagePermissionState,
+  type FinanceLoadMode,
+} from "@/lib/finance/pageAccess";
+
 import { supabase } from "@/lib/supabase";
 
-type LoadMode = "initial" | "silent";
+type LoadMode = FinanceLoadMode;
 
 type ProfilePermissionRow = {
   user_id: string;
@@ -158,13 +161,6 @@ type ShippingDraftRow = {
   address_line_2: string;
 };
 
-type PermissionState = {
-  canRead: boolean;
-  canUpdate: boolean;
-  canDeleteArchive: boolean;
-  isAdmin: boolean;
-};
-
 type HeaderStatusCardData = {
   label: string;
   value: string;
@@ -177,13 +173,6 @@ type SummaryItem = {
   label: string;
   value: string;
   description: string;
-};
-
-const EMPTY_PERMISSION_STATE: PermissionState = {
-  canRead: false,
-  canUpdate: false,
-  canDeleteArchive: false,
-  isAdmin: false,
 };
 
 const EMPTY_OVERVIEW_DRAFT: OverviewDraft = {
@@ -234,78 +223,20 @@ function createEmptyShippingDraftRow(): ShippingDraftRow {
   };
 }
 
-function hasPermission(
-  permissions: Record<Permission, boolean> | null,
-  permission: Permission
-) {
-  return Boolean(permissions?.[permission]);
-}
+const CLIENT_DETAIL_ACCESS_CONFIG = {
+  sectionKey: "masterData",
+  adminPermissions: ["manageFinanceMasterData"],
+  readPermissions: ["accessFinance", "viewFinance", "viewClients", "manageClients"],
+  createPermissions: ["createFinanceRecords", "manageClients"],
+  updatePermissions: ["editFinanceRecords", "manageClients"],
+  deleteArchivePermissions: ["archiveFinanceRecords", "manageClients"],
+} as const;
 
-function buildPermissionState(
-  profile: ProfilePermissionRow | null,
-  permissions: Record<Permission, boolean> | null
-): PermissionState {
-  if (!profile?.role || !permissions) {
-    return EMPTY_PERMISSION_STATE;
-  }
-
-  const isAdmin = String(profile.role || "").toLowerCase() === "admin";
-  const canManageMasterData = hasPermission(permissions, "manageFinanceMasterData");
-
-  return {
-    isAdmin,
-    canRead:
-      canManageMasterData ||
-      hasPermission(permissions, "viewClients") ||
-      hasPermission(permissions, "manageClients"),
-    canUpdate:
-      canManageMasterData ||
-      hasPermission(permissions, "manageClients") ||
-      hasPermission(permissions, "editFinanceRecords"),
-    canDeleteArchive:
-      canManageMasterData ||
-      hasPermission(permissions, "manageClients") ||
-      hasPermission(permissions, "archiveFinanceRecords"),
-  };
-}
-
-async function loadBackendEffectivePermissions(
+async function loadClientDetailEffectivePermissions(
   userId: string,
   mode: LoadMode
 ): Promise<Partial<Record<Permission, boolean>> | null> {
-  try {
-    const result = await supabase.rpc("finance_get_effective_permissions", {
-      target_user_id: userId,
-    });
-
-    if (result.error) {
-      if (mode === "silent") {
-        throw result.error;
-      }
-
-      console.warn("Client ID permission RPC fallback:", result.error.message);
-      return null;
-    }
-
-    if (!result.data || typeof result.data !== "object") {
-      if (mode === "silent") {
-        throw new Error(
-          "Silent client ID permission refresh returned no effective permission payload."
-        );
-      }
-
-      return null;
-    }
-
-    return result.data as Partial<Record<Permission, boolean>>;
-  } catch (error) {
-    if (mode === "silent") {
-      throw error;
-    }
-
-    console.warn("Client ID permission RPC failed:", error);
-    return null;
-  }
+  return fetchFinanceEffectivePermissions(userId, mode, "Clients");
 }
 
 function normalizeStatus(value: string): ClientStatus {
@@ -516,7 +447,7 @@ export default function FinanceMasterDataClientDetailPage() {
         return;
       }
 
-      const backendPermissions = await loadBackendEffectivePermissions(authUserId, mode);
+      const backendPermissions = await loadClientDetailEffectivePermissions(authUserId, mode);
 
       setProfile(loadedProfile);
 
@@ -532,12 +463,18 @@ export default function FinanceMasterDataClientDetailPage() {
         return;
       }
 
-      const resolvedPermissions = getEffectivePermissions(
-        loadedProfile.role,
-        backendPermissions || loadedProfile.permissions || null
-      );
+      const resolvedPermissions = backendPermissions || loadedProfile.permissions || null;
 
-      setEffectivePermissions(resolvedPermissions);
+      if (!resolvedPermissions && mode === "silent") {
+        console.warn(
+          "Silent client ID permission refresh returned no permission payload; keeping current permissions."
+        );
+        return;
+      }
+
+      setEffectivePermissions(
+        resolvedPermissions as Record<Permission, boolean> | null
+      );
     } catch (error) {
       console.error("Failed to load client ID permissions:", error);
 
@@ -726,7 +663,11 @@ export default function FinanceMasterDataClientDetailPage() {
   }, [loadClient, loadCurrentProfile]);
 
   const permissionState = useMemo(() => {
-    return buildPermissionState(profile, effectivePermissions);
+    return resolveFinancePagePermissionState({
+      profileRole: profile?.role,
+      permissions: effectivePermissions,
+      config: CLIENT_DETAIL_ACCESS_CONFIG,
+    });
   }, [effectivePermissions, profile]);
 
   const primaryAddressOptions = useMemo(() => {

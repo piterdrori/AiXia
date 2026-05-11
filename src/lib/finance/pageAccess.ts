@@ -19,12 +19,12 @@ export type FinancePagePermissionState = {
 
 export type FinancePageAccessConfig = {
   sectionKey: AccessApprovalSectionKey;
-  adminPermissions?: Permission[];
-  readPermissions?: Permission[];
-  createPermissions?: Permission[];
-  updatePermissions?: Permission[];
-  deleteArchivePermissions?: Permission[];
-  approveExecutePermissions?: Permission[];
+  adminPermissions?: readonly Permission[];
+  readPermissions?: readonly Permission[];
+  createPermissions?: readonly Permission[];
+  updatePermissions?: readonly Permission[];
+  deleteArchivePermissions?: readonly Permission[];
+  approveExecutePermissions?: readonly Permission[];
 };
 
 const EMPTY_FINANCE_PAGE_PERMISSION_STATE: FinancePagePermissionState = {
@@ -45,7 +45,7 @@ function hasPermission(
 
 function hasAnyPermission(
   permissions: Partial<Record<Permission, boolean>> | null | undefined,
-  permissionList: Permission[] | undefined
+  permissionList: readonly Permission[] | undefined
 ) {
   if (!permissionList || permissionList.length === 0) return false;
   return permissionList.some((permission) => hasPermission(permissions, permission));

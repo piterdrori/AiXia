@@ -56,14 +56,17 @@ import {
   type FinanceBankAccountStatus,
   type FinanceBankIdentifierType,
 } from "@/lib/finance/bankAccounts";
+import { type Permission, type Role } from "@/lib/permissions";
+
 import {
-  getEffectivePermissions,
-  type Permission,
-  type Role,
-} from "@/lib/permissions";
+  fetchFinanceEffectivePermissions,
+  resolveFinancePagePermissionState,
+  type FinanceLoadMode,
+} from "@/lib/finance/pageAccess";
+
 import { supabase } from "@/lib/supabase";
 
-type LoadMode = "initial" | "silent";
+type LoadMode = FinanceLoadMode;
 
 type ProfilePermissionRow = {
   user_id: string;
@@ -97,13 +100,6 @@ type ControlDraft = {
   status: FinanceBankAccountStatus;
 };
 
-type PermissionState = {
-  canRead: boolean;
-  canUpdate: boolean;
-  canDeleteArchive: boolean;
-  isAdmin: boolean;
-};
-
 type HeaderStatusCardData = {
   label: string;
   value: string;
@@ -118,12 +114,14 @@ type SummaryItem = {
   description: string;
 };
 
-const EMPTY_PERMISSION_STATE: PermissionState = {
-  canRead: false,
-  canUpdate: false,
-  canDeleteArchive: false,
-  isAdmin: false,
-};
+const BANK_ACCOUNT_DETAIL_ACCESS_CONFIG = {
+  sectionKey: "masterData",
+  adminPermissions: ["manageFinanceMasterData"],
+  readPermissions: ["accessFinance", "viewFinance", "viewBankAccounts"],
+  createPermissions: ["createFinanceRecords"],
+  updatePermissions: ["editFinanceRecords"],
+  deleteArchivePermissions: ["archiveFinanceRecords"],
+} as const;
 
 const EMPTY_OVERVIEW_DRAFT: OverviewDraft = {
   company_id: "",
@@ -148,78 +146,11 @@ const EMPTY_CONTROL_DRAFT: ControlDraft = {
   status: "active",
 };
 
-function hasPermission(
-  permissions: Record<Permission, boolean> | null,
-  permission: Permission
-) {
-  return Boolean(permissions?.[permission]);
-}
-
-function buildPermissionState(
-  profile: ProfilePermissionRow | null,
-  permissions: Record<Permission, boolean> | null
-): PermissionState {
-  if (!profile?.role || !permissions) {
-    return EMPTY_PERMISSION_STATE;
-  }
-
-  const isAdmin = String(profile.role || "").toLowerCase() === "admin";
-  const canManageMasterData = hasPermission(permissions, "manageFinanceMasterData");
-
-  return {
-    isAdmin,
-    canRead:
-      canManageMasterData ||
-      hasPermission(permissions, "viewBankAccounts"),
-    canUpdate:
-      canManageMasterData ||
-      hasPermission(permissions, "editFinanceRecords"),
-    canDeleteArchive:
-      canManageMasterData ||
-      hasPermission(permissions, "archiveFinanceRecords"),
-  };
-}
-
-async function loadBackendEffectivePermissions(
+async function loadBankAccountDetailEffectivePermissions(
   userId: string,
   mode: LoadMode
 ): Promise<Partial<Record<Permission, boolean>> | null> {
-  try {
-    const result = await supabase.rpc("finance_get_effective_permissions", {
-      target_user_id: userId,
-    });
-
-    if (result.error) {
-      if (mode === "silent") {
-        throw result.error;
-      }
-
-      console.warn(
-        "Bank Account ID permission RPC fallback:",
-        result.error.message
-      );
-      return null;
-    }
-
-    if (!result.data || typeof result.data !== "object") {
-      if (mode === "silent") {
-        throw new Error(
-          "Silent bank account ID permission refresh returned no effective permission payload."
-        );
-      }
-
-      return null;
-    }
-
-    return result.data as Partial<Record<Permission, boolean>>;
-  } catch (error) {
-    if (mode === "silent") {
-      throw error;
-    }
-
-    console.warn("Bank Account ID permission RPC failed:", error);
-    return null;
-  }
+  return fetchFinanceEffectivePermissions(userId, mode, "Bank Accounts");
 }
 
 function formatDateTimeLabel(value: string | null | undefined) {
@@ -377,7 +308,10 @@ export default function FinanceMasterDataBankAccountDetailPage() {
         return;
       }
 
-      const backendPermissions = await loadBackendEffectivePermissions(authUserId, mode);
+      const backendPermissions = await loadBankAccountDetailEffectivePermissions(
+        authUserId,
+        mode
+      );
 
       setProfile(loadedProfile);
 
@@ -393,12 +327,18 @@ export default function FinanceMasterDataBankAccountDetailPage() {
         return;
       }
 
-      const resolvedPermissions = getEffectivePermissions(
-        loadedProfile.role,
-        backendPermissions || loadedProfile.permissions || null
-      );
+      const resolvedPermissions = backendPermissions || loadedProfile.permissions || null;
 
-      setEffectivePermissions(resolvedPermissions);
+      if (!resolvedPermissions && mode === "silent") {
+        console.warn(
+          "Silent bank account ID permission refresh returned no permission payload; keeping current permissions."
+        );
+        return;
+      }
+
+      setEffectivePermissions(
+        resolvedPermissions as Record<Permission, boolean> | null
+      );
     } catch (error) {
       console.error("Failed to load bank account ID permissions:", error);
 
@@ -507,7 +447,11 @@ export default function FinanceMasterDataBankAccountDetailPage() {
   }, [loadCurrentProfile, loadRecord]);
 
   const permissionState = useMemo(() => {
-    return buildPermissionState(profile, effectivePermissions);
+    return resolveFinancePagePermissionState({
+      profileRole: profile?.role,
+      permissions: effectivePermissions,
+      config: BANK_ACCOUNT_DETAIL_ACCESS_CONFIG,
+    });
   }, [effectivePermissions, profile]);
 
   const selectedCompany = useMemo(() => {

@@ -44,14 +44,17 @@ import {
   AixiaTextareaField,
 } from "@/components/aixia";
 import { createCompany } from "@/lib/finance/companies";
+import { type Permission, type Role } from "@/lib/permissions";
+
 import {
-  getEffectivePermissions,
-  type Permission,
-  type Role,
-} from "@/lib/permissions";
+  fetchFinanceEffectivePermissions,
+  resolveFinancePagePermissionState,
+  type FinanceLoadMode,
+} from "@/lib/finance/pageAccess";
+
 import { supabase } from "@/lib/supabase";
 
-type LoadMode = "initial" | "silent";
+type LoadMode = FinanceLoadMode;
 
 type ProfilePermissionRow = {
   user_id: string;
@@ -109,12 +112,6 @@ type FormState = {
   notes: string;
 };
 
-type PermissionState = {
-  canRead: boolean;
-  canCreate: boolean;
-  isAdmin: boolean;
-};
-
 type HeaderStatusCardData = {
   label: string;
   value: string;
@@ -138,11 +135,14 @@ type CurrencyOption = {
   status: string;
 };
 
-const EMPTY_PERMISSION_STATE: PermissionState = {
-  canRead: false,
-  canCreate: false,
-  isAdmin: false,
-};
+const COMPANY_CREATE_ACCESS_CONFIG = {
+  sectionKey: "masterData",
+  adminPermissions: ["manageFinanceMasterData"],
+  readPermissions: ["accessFinance", "viewFinance"],
+  createPermissions: ["createFinanceRecords"],
+  updatePermissions: ["editFinanceRecords"],
+  deleteArchivePermissions: ["archiveFinanceRecords"],
+} as const;
 
 function makeId() {
   return `${Date.now()}-${Math.random().toString(36).slice(2, 10)}`;
@@ -203,75 +203,11 @@ function createEmptyForm(): FormState {
   };
 }
 
-function hasPermission(
-  permissions: Record<Permission, boolean> | null,
-  permission: Permission
-) {
-  return Boolean(permissions?.[permission]);
-}
-
-function buildPermissionState(
-  profile: ProfilePermissionRow | null,
-  permissions: Record<Permission, boolean> | null
-): PermissionState {
-  if (!profile?.role || !permissions) {
-    return EMPTY_PERMISSION_STATE;
-  }
-
-  const isAdmin = String(profile.role || "").toLowerCase() === "admin";
-  const canManageMasterData = hasPermission(permissions, "manageFinanceMasterData");
-  const canAccessFinance = hasPermission(permissions, "accessFinance");
-  const canViewFinance = hasPermission(permissions, "viewFinance");
-
-  return {
-    isAdmin,
-    canRead: canManageMasterData || canAccessFinance || canViewFinance,
-    canCreate:
-      canManageMasterData ||
-      hasPermission(permissions, "createFinanceRecords"),
-  };
-}
-
-async function loadBackendEffectivePermissions(
+async function loadCompanyCreateEffectivePermissions(
   userId: string,
   mode: LoadMode
 ): Promise<Partial<Record<Permission, boolean>> | null> {
-  try {
-    const result = await supabase.rpc("finance_get_effective_permissions", {
-      target_user_id: userId,
-    });
-
-    if (result.error) {
-      if (mode === "silent") {
-        throw result.error;
-      }
-
-      console.warn(
-        "Create Company permission RPC fallback:",
-        result.error.message
-      );
-      return null;
-    }
-
-    if (!result.data || typeof result.data !== "object") {
-      if (mode === "silent") {
-        throw new Error(
-          "Silent create company permission refresh returned no effective permission payload."
-        );
-      }
-
-      return null;
-    }
-
-    return result.data as Partial<Record<Permission, boolean>>;
-  } catch (error) {
-    if (mode === "silent") {
-      throw error;
-    }
-
-    console.warn("Create Company permission RPC failed:", error);
-    return null;
-  }
+  return fetchFinanceEffectivePermissions(userId, mode, "Companies");
 }
 
 function normalizeStatus(value: string): CompanyCreateStatus {
@@ -398,7 +334,10 @@ export default function FinanceMasterDataCompanyCreatePage() {
         return;
       }
 
-      const backendPermissions = await loadBackendEffectivePermissions(authUserId, mode);
+      const backendPermissions = await loadCompanyCreateEffectivePermissions(
+        authUserId,
+        mode
+      );
 
       setProfile(loadedProfile);
 
@@ -414,12 +353,18 @@ export default function FinanceMasterDataCompanyCreatePage() {
         return;
       }
 
-      const resolvedPermissions = getEffectivePermissions(
-        loadedProfile.role,
-        backendPermissions || loadedProfile.permissions || null
-      );
+      const resolvedPermissions = backendPermissions || loadedProfile.permissions || null;
 
-      setEffectivePermissions(resolvedPermissions);
+      if (!resolvedPermissions && mode === "silent") {
+        console.warn(
+          "Silent create company permission refresh returned no permission payload; keeping current permissions."
+        );
+        return;
+      }
+
+      setEffectivePermissions(
+        resolvedPermissions as Record<Permission, boolean> | null
+      );
     } catch (error) {
       console.error("Failed to load create company permissions:", error);
 
@@ -541,7 +486,11 @@ export default function FinanceMasterDataCompanyCreatePage() {
   }, [loadCurrencyOptions, loadCurrentProfile]);
 
   const permissionState = useMemo(() => {
-    return buildPermissionState(profile, effectivePermissions);
+    return resolveFinancePagePermissionState({
+      profileRole: profile?.role,
+      permissions: effectivePermissions,
+      config: COMPANY_CREATE_ACCESS_CONFIG,
+    });
   }, [effectivePermissions, profile]);
 
   const addressOptions = useMemo(() => {

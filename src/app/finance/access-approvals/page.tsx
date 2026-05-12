@@ -1,19 +1,14 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import {
   ArrowRight,
-  BarChart3,
-  Database,
   KeyRound,
   Loader2,
   RefreshCw,
-  Settings,
   ShieldCheck,
   Sparkles,
   UserRound,
   UsersRound,
-  ReceiptText,
 } from "lucide-react";
-import type { LucideIcon } from "lucide-react";
 import { useNavigate } from "react-router-dom";
 
 import {
@@ -161,13 +156,6 @@ const effectiveAccessToneMap: Record<AccessApprovalEffectiveLabel, AixiaTone> = 
   "Can Delete / Archive": "rose",
   "Can Approve / Execute": "emerald",
   "Admin Only": "rose",
-};
-
-const groupIconMap: Record<AccessApprovalGroupKey, LucideIcon> = {
-  masterData: Database,
-  transactions: ReceiptText,
-  reports: BarChart3,
-  settings: Settings,
 };
 
 function formatCount(value: number) {

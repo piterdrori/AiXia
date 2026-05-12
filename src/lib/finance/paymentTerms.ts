@@ -319,7 +319,9 @@ export async function permanentlyDeletePaymentTerm(
 
   if (readError) throw readError;
 
-  const { error } = await supabase.from(TABLE).delete().eq("id", id);
+  const { error } = await supabase.rpc("finance_permanently_delete_payment_term", {
+    p_payment_term_id: id,
+  });
 
   if (error) throw error;
 

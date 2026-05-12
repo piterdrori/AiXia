@@ -274,7 +274,9 @@ export async function permanentlyDeleteCurrency(id: string) {
 
   if (readError) throw readError;
 
-  const { error } = await supabase.from(CURRENCY_TABLE).delete().eq("id", id);
+  const { error } = await supabase.rpc("finance_permanently_delete_currency", {
+    p_currency_id: id,
+  });
 
   if (error) throw error;
 
@@ -321,7 +323,10 @@ export async function createExchangeRate(input: ExchangeRateUpsertInput) {
   return data as FinanceExchangeRateRow;
 }
 
-export async function updateExchangeRate(id: string, input: ExchangeRateUpsertInput) {
+export async function updateExchangeRate(
+  id: string,
+  input: ExchangeRateUpsertInput
+) {
   const userId = await getCurrentUserId();
 
   const payload = {
@@ -408,7 +413,12 @@ export async function permanentlyDeleteExchangeRate(id: string) {
 
   if (readError) throw readError;
 
-  const { error } = await supabase.from(RATE_TABLE).delete().eq("id", id);
+  const { error } = await supabase.rpc(
+    "finance_permanently_delete_exchange_rate",
+    {
+      p_exchange_rate_id: id,
+    },
+  );
 
   if (error) throw error;
 

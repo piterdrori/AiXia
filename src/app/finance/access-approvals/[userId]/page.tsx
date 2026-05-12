@@ -3,10 +3,8 @@ import type { ReactNode } from "react";
 import { useNavigate, useParams } from "react-router-dom";
 import type { LucideIcon } from "lucide-react";
 import {
-  AlertTriangle,
   ArrowRight,
   BarChart3,
-  CheckCircle2,
   Database,
   Eye,
   Info,
@@ -22,6 +20,21 @@ import {
   ReceiptText,
 } from "lucide-react";
 
+import {
+  AixiaAlert,
+  AixiaBadge,
+  AixiaButton,
+  AixiaHero,
+  AixiaInfoBlock,
+  AixiaLoadingState,
+  AixiaMetricCard,
+  AixiaMetricGrid,
+  AixiaNotFoundState,
+  AixiaPage,
+  AixiaSection,
+  AixiaStatusBadge,
+  AixiaValueBlock,
+} from "@/components/aixia";
 import {
   ACCESS_APPROVAL_GROUPS,
   ACCESS_APPROVAL_LEVEL_EXPLANATIONS,
@@ -42,12 +55,14 @@ import {
   type AccessApprovalSectionKey,
   type AccessLevelState,
 } from "@/lib/accessFinancialApprovalPermissions";
-import { supabase } from "@/lib/supabase";
 import {
-  getEffectivePermissions,
-  type Permission,
-  type Role,
-} from "@/lib/permissions";
+  fetchFinanceEffectivePermissions,
+  resolveFinancePagePermissionState,
+  type FinanceLoadMode,
+  type FinancePagePermissionState,
+} from "@/lib/finance/pageAccess";
+import { supabase } from "@/lib/supabase";
+import type { Permission, Role } from "@/lib/permissions";
 
 type ProfileStatus =
   | "pending_verification"
@@ -70,7 +85,6 @@ type ProfileRow = {
 
 type CurrentProfileRow = {
   role: Role;
-  permissions: Partial<Record<Permission, boolean>> | null;
 };
 
 type FinancePermissionTemplateRow = {
@@ -104,22 +118,45 @@ type GroupSummary = {
   highestAccessLabel: AccessApprovalEffectiveLabel;
 };
 
-const statusToneMap: Record<
-  string,
-  "cyan" | "emerald" | "amber" | "rose" | "violet" | "slate"
-> = {
-  active: "emerald",
-  pending_verification: "amber",
-  pending_profile: "amber",
-  pending_approval: "amber",
-  rejected: "rose",
+type HelpPanelData = {
+  key: string;
+  title: string;
+  meaningTitle: string;
+  meaningText: string;
+  chips?: string[];
+  permits: string[];
+  doesNotPermit: string[];
 };
+
+const PAGE_ACCESS_CONFIG = {
+  sectionKey: "accessApprovals",
+  adminPermissions: ["manageUsers"],
+  readPermissions: ["manageUsers"],
+  createPermissions: ["manageUsers"],
+  updatePermissions: ["manageUsers"],
+  deleteArchivePermissions: ["manageUsers"],
+  approveExecutePermissions: ["manageUsers"],
+} as const;
+
+const EMPTY_ACCESS_STATE = ACCESS_APPROVAL_SECTIONS.reduce(
+  (map, section) => {
+    map[section.key] = {
+      read: false,
+      create: false,
+      update: false,
+      deleteArchive: false,
+      approveExecute: false,
+    };
+    return map;
+  },
+  {} as Record<AccessApprovalSectionKey, AccessLevelState>
+);
 
 const effectiveAccessToneMap: Record<
   AccessApprovalEffectiveLabel,
-  "cyan" | "emerald" | "amber" | "rose" | "violet" | "slate"
+  "indigo" | "violet" | "gold" | "amber" | "emerald" | "cyan" | "rose" | "neutral"
 > = {
-  "No Company Access": "slate",
+  "No Company Access": "neutral",
   "Can Read Section": "cyan",
   "Can Create Records": "violet",
   "Can Update Records": "amber",
@@ -171,55 +208,17 @@ function coercePermissionMap(
   return value;
 }
 
-function getToneClasses(
-  tone: "cyan" | "emerald" | "amber" | "rose" | "violet" | "slate"
-) {
-  switch (tone) {
-    case "emerald":
-      return "border-emerald-400/20 bg-emerald-500/10 text-emerald-200";
-    case "amber":
-      return "border-amber-400/20 bg-amber-500/10 text-amber-200";
-    case "rose":
-      return "border-rose-400/20 bg-rose-500/10 text-rose-200";
-    case "violet":
-      return "border-violet-400/20 bg-violet-500/10 text-violet-200";
-    case "cyan":
-      return "border-cyan-400/20 bg-cyan-500/10 text-cyan-200";
-    case "slate":
-    default:
-      return "border-white/10 bg-white/[0.06] text-slate-300";
-  }
+function isAdminRole(role: Role | string | null | undefined) {
+  return String(role || "").toLowerCase() === "admin";
 }
 
-function StatusBadge({
+function FinanceAccessBadge({
   value,
-  tone,
 }: {
-  value: string | null | undefined;
-  tone?: "cyan" | "emerald" | "amber" | "rose" | "violet" | "slate";
+  value: AccessApprovalEffectiveLabel;
 }) {
-  const resolvedTone = tone || statusToneMap[value || ""] || "slate";
-
-  return (
-    <span
-      className={`inline-flex max-w-full items-center rounded-full border px-3 py-1 text-[11px] font-semibold uppercase tracking-[0.14em] ${getToneClasses(
-        resolvedTone
-      )}`}
-    >
-      <span className="truncate">{formatLabel(value)}</span>
-    </span>
-  );
+  return <AixiaBadge tone={effectiveAccessToneMap[value]}>{value}</AixiaBadge>;
 }
-
-type HelpPanelData = {
-  key: string;
-  title: string;
-  meaningTitle: string;
-  meaningText: string;
-  chips?: string[];
-  permits: string[];
-  doesNotPermit: string[];
-};
 
 function HelpButton({
   label,
@@ -232,21 +231,15 @@ function HelpButton({
   activeHelpKey: string | null;
   onToggle: (helpKey: string) => void;
 }) {
-  const isActive = activeHelpKey === helpKey;
-
   return (
-    <button
+    <AixiaButton
       type="button"
+      variant={activeHelpKey === helpKey ? "primary" : "secondary"}
       onClick={() => onToggle(helpKey)}
-      className={`inline-flex items-center gap-1.5 rounded-full border px-2.5 py-1 text-[10px] font-semibold uppercase tracking-[0.14em] transition ${
-        isActive
-          ? "border-cyan-400/30 bg-cyan-500/15 text-cyan-100"
-          : "border-white/10 bg-white/[0.04] text-slate-400 hover:border-cyan-400/20 hover:bg-cyan-500/10 hover:text-cyan-100"
-      }`}
     >
       {label}
-      <Info className="h-3 w-3" />
-    </button>
+      <Info className="h-3.5 w-3.5" />
+    </AixiaButton>
   );
 }
 
@@ -258,70 +251,60 @@ function HelpPanel({
   onClose: () => void;
 }) {
   return (
-    <div className="rounded-[24px] border border-cyan-400/20 bg-cyan-500/10 p-4">
-      <div className="flex items-start justify-between gap-4">
-        <div>
-          <div className="text-[11px] font-semibold uppercase tracking-[0.18em] text-cyan-200">
-            Permission explanation
-          </div>
-          <div className="mt-1 text-sm font-semibold text-white">{help.title}</div>
+    <AixiaInfoBlock
+      tone="cyan"
+      icon={Info}
+      title={`Permission explanation — ${help.title}`}
+    >
+      <div className="aixia-stack">
+        <AixiaValueBlock
+          label={help.meaningTitle}
+          value={help.meaningText}
+          detail={
+            help.chips?.length ? (
+              <div className="aixia-action-system" data-align="start" data-density="compact">
+                {help.chips.map((chip) => (
+                  <AixiaBadge key={chip} tone="neutral">
+                    {chip}
+                  </AixiaBadge>
+                ))}
+              </div>
+            ) : null
+          }
+        />
+
+        <div className="aixia-smart-grid" data-mode="cards">
+          <AixiaValueBlock
+            label="Permits"
+            value={
+              <ul>
+                {help.permits.map((item) => (
+                  <li key={item}>{item}</li>
+                ))}
+              </ul>
+            }
+          />
+
+          <AixiaValueBlock
+            label="Does not permit"
+            value={
+              <ul>
+                {help.doesNotPermit.map((item) => (
+                  <li key={item}>{item}</li>
+                ))}
+              </ul>
+            }
+          />
         </div>
 
-        <button
-          type="button"
-          onClick={onClose}
-          className="inline-flex h-8 w-8 shrink-0 items-center justify-center rounded-full border border-white/10 bg-black/20 text-slate-400 transition hover:bg-white/[0.06] hover:text-white"
-        >
-          <X className="h-4 w-4" />
-        </button>
-      </div>
-
-      <div className="mt-4 grid gap-4 xl:grid-cols-[240px_minmax(0,1fr)_minmax(0,1fr)]">
-        <div className="rounded-2xl border border-cyan-400/15 bg-black/20 p-3">
-          <div className="text-[11px] font-semibold uppercase tracking-[0.14em] text-cyan-200">
-            {help.meaningTitle}
-          </div>
-          <div className="mt-2 text-xs leading-5 text-slate-300">
-            {help.meaningText}
-          </div>
-
-          {help.chips?.length ? (
-            <div className="mt-3 flex flex-wrap gap-1.5">
-              {help.chips.map((chip) => (
-                <span
-                  key={chip}
-                  className="rounded-full border border-white/10 bg-white/[0.06] px-2 py-1 text-[10px] text-slate-300"
-                >
-                  {chip}
-                </span>
-              ))}
-            </div>
-          ) : null}
-        </div>
-
-        <div className="rounded-2xl border border-emerald-400/15 bg-emerald-500/10 p-3">
-          <div className="text-[11px] font-semibold uppercase tracking-[0.14em] text-emerald-200">
-            Permits
-          </div>
-          <ul className="mt-2 list-disc space-y-1 pl-4 text-xs leading-5 text-slate-300">
-            {help.permits.map((item) => (
-              <li key={item}>{item}</li>
-            ))}
-          </ul>
-        </div>
-
-        <div className="rounded-2xl border border-rose-400/15 bg-rose-500/10 p-3">
-          <div className="text-[11px] font-semibold uppercase tracking-[0.14em] text-rose-200">
-            Does not permit
-          </div>
-          <ul className="mt-2 list-disc space-y-1 pl-4 text-xs leading-5 text-slate-300">
-            {help.doesNotPermit.map((item) => (
-              <li key={item}>{item}</li>
-            ))}
-          </ul>
+        <div className="aixia-action-system" data-align="end" data-density="compact">
+          <AixiaButton type="button" variant="secondary" onClick={onClose}>
+            <X className="h-4 w-4" />
+            Close
+          </AixiaButton>
         </div>
       </div>
-    </div>
+    </AixiaInfoBlock>
   );
 }
 
@@ -350,55 +333,6 @@ function buildSectionHelp(section: AccessApprovalSection): HelpPanelData {
   };
 }
 
-function SectionCard({
-  title,
-  description,
-  icon: Icon,
-  children,
-}: {
-  title: string;
-  description: string;
-  icon: LucideIcon;
-  children: ReactNode;
-}) {
-  return (
-    <section className="overflow-hidden rounded-[30px] border border-white/10 bg-white/[0.045] backdrop-blur-xl">
-      <div className="flex items-start gap-4 border-b border-white/10 px-5 py-4">
-        <div className="rounded-2xl border border-cyan-400/15 bg-cyan-500/10 p-3 text-cyan-200">
-          <Icon className="h-4 w-4" />
-        </div>
-        <div>
-          <div className="text-sm font-semibold uppercase tracking-[0.18em] text-slate-400">
-            {title}
-          </div>
-          <p className="mt-1 text-xs leading-5 text-slate-500">{description}</p>
-        </div>
-      </div>
-      <div className="p-5">{children}</div>
-    </section>
-  );
-}
-
-function ValueBlock({
-  label,
-  value,
-  detail,
-}: {
-  label: string;
-  value: ReactNode;
-  detail?: ReactNode;
-}) {
-  return (
-    <div className="rounded-[24px] border border-white/10 bg-black/20 p-4">
-      <div className="text-[11px] font-semibold uppercase tracking-[0.2em] text-slate-500">
-        {label}
-      </div>
-      <div className="mt-2 text-sm font-semibold leading-6 text-white">{value}</div>
-      {detail ? <div className="mt-2 text-xs leading-5 text-slate-500">{detail}</div> : null}
-    </div>
-  );
-}
-
 function MatrixToggle({
   checked,
   disabled,
@@ -413,19 +347,15 @@ function MatrixToggle({
   const Icon = levelIconMap[level];
 
   return (
-    <button
+    <AixiaButton
       type="button"
+      variant={checked ? "primary" : "secondary"}
       disabled={disabled}
       onClick={onClick}
-      className={`inline-flex h-11 min-w-[104px] items-center justify-center gap-2 rounded-2xl border px-4 text-xs font-semibold uppercase tracking-[0.14em] transition disabled:cursor-not-allowed disabled:opacity-45 ${
-        checked
-          ? "border-emerald-400/20 bg-emerald-500/10 text-emerald-100 hover:bg-emerald-500/15"
-          : "border-white/10 bg-white/[0.04] text-slate-500 hover:bg-white/[0.07] hover:text-slate-200"
-      }`}
     >
       <Icon className="h-3.5 w-3.5" />
       {checked ? "On" : "Off"}
-    </button>
+    </AixiaButton>
   );
 }
 
@@ -449,54 +379,21 @@ function getHighestAccessLabel(
   return "No Company Access";
 }
 
-function isAdminRole(role: Role | string | null | undefined) {
-  return String(role || "").toLowerCase() === "admin";
-}
-
 function GroupSummaryCard({
   summary,
 }: {
   summary: GroupSummary;
 }) {
   const Icon = groupIconMap[summary.groupKey];
-  const tone = effectiveAccessToneMap[summary.highestAccessLabel];
-  const percent =
-    summary.totalLevels > 0 ? (summary.enabledLevels / summary.totalLevels) * 100 : 0;
 
   return (
-    <div className="min-h-[156px] rounded-[24px] border border-white/10 bg-black/20 p-4">
-      <div className="flex h-full flex-col justify-between gap-4">
-        <div className="flex items-start gap-3">
-          <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-2xl border border-cyan-400/15 bg-cyan-500/10 text-cyan-200">
-            <Icon className="h-5 w-5" />
-          </div>
-
-          <div className="min-w-0 flex-1">
-            <div className="flex flex-col gap-2 2xl:flex-row 2xl:items-start 2xl:justify-between">
-              <div className="min-w-0 pr-2">
-                <div className="break-words text-sm font-semibold leading-5 text-white">
-                  {summary.title}
-                </div>
-                <div className="mt-1 text-xs leading-5 text-slate-500">
-                  {summary.enabledLevels} of {summary.totalLevels} permissions enabled
-                </div>
-              </div>
-
-              <div className="shrink-0">
-                <StatusBadge value={summary.highestAccessLabel} tone={tone} />
-              </div>
-            </div>
-          </div>
-        </div>
-
-        <div className="h-2 overflow-hidden rounded-full border border-white/10 bg-black/30">
-          <div
-            className="h-full rounded-full bg-cyan-400/60"
-            style={{ width: `${Math.max(0, Math.min(100, percent))}%` }}
-          />
-        </div>
-      </div>
-    </div>
+    <AixiaMetricCard
+      label={summary.title}
+      value={`${summary.enabledLevels} / ${summary.totalLevels}`}
+      description={summary.highestAccessLabel}
+      icon={Icon}
+      tone={effectiveAccessToneMap[summary.highestAccessLabel]}
+    />
   );
 }
 
@@ -543,131 +440,108 @@ function GroupPermissionCard({
   }, []);
 
   return (
-    <section className="overflow-hidden rounded-[30px] border border-white/10 bg-white/[0.045] backdrop-blur-xl">
-      <div className="border-b border-white/10 bg-black/10 px-5 py-4">
-        <div className="flex flex-col gap-4 xl:flex-row xl:items-start xl:justify-between">
-          <div className="flex min-w-0 items-start gap-4">
-            <div className="rounded-2xl border border-cyan-400/15 bg-cyan-500/10 p-3 text-cyan-200">
-              <Icon className="h-5 w-5" />
-            </div>
-            <div>
-              <div className="text-sm font-semibold uppercase tracking-[0.18em] text-slate-400">
-                {group.title}
-              </div>
-              <p className="mt-1 max-w-4xl text-xs leading-5 text-slate-500">
-                {group.description}
-              </p>
-            </div>
-          </div>
-
-          <div className="flex flex-wrap gap-2">
-            {ACCESS_APPROVAL_LEVEL_ORDER.map((level) => (
-              <HelpButton
-                key={`${group.key}-${level}-label`}
-                label={formatLabel(level)}
-                helpKey={`level-${level}`}
-                activeHelpKey={activeHelpKey}
-                onToggle={toggleHelp}
-              />
-            ))}
-          </div>
+    <AixiaSection
+      title={group.title}
+      description={group.description}
+      icon={Icon}
+      actions={
+        <div className="aixia-action-system" data-align="end" data-density="compact">
+          {ACCESS_APPROVAL_LEVEL_ORDER.map((level) => (
+            <HelpButton
+              key={`${group.key}-${level}-label`}
+              label={formatLabel(level)}
+              helpKey={`level-${level}`}
+              activeHelpKey={activeHelpKey}
+              onToggle={toggleHelp}
+            />
+          ))}
         </div>
-
+      }
+    >
+      <div className="aixia-stack">
         {activeHelp ? (
-          <div className="mt-4">
-            <HelpPanel help={activeHelp} onClose={() => setActiveHelpKey(null)} />
-          </div>
+          <HelpPanel help={activeHelp} onClose={() => setActiveHelpKey(null)} />
         ) : null}
-      </div>
 
-      <div className="grid gap-4 p-5">
         {sections.map((section) => {
           const sectionState = accessStates[section.key];
           const effectiveLabel = getEffectiveAccessLabel(section, sectionState);
           const effectiveDescription = getEffectiveAccessDescription(section, sectionState);
-          const effectiveTone = effectiveAccessToneMap[effectiveLabel];
           const sectionDisabled =
             actionLocked ||
             !hasAdminAccess ||
             (section.adminOnly && !isTargetAdmin);
 
           return (
-            <div
+            <AixiaValueBlock
               key={section.key}
-              className="rounded-[24px] border border-white/10 bg-black/20 p-4"
-            >
-              <div className="grid gap-4 xl:grid-cols-[minmax(280px,1fr)_minmax(560px,auto)_260px] xl:items-center">
-                <div className="min-w-0">
-                  <div className="flex flex-wrap items-center gap-2">
-                    <div className="font-semibold text-white">{section.title}</div>
-                    <HelpButton
-                      label="Info"
-                      helpKey={`section-${section.key}`}
-                      activeHelpKey={activeHelpKey}
-                      onToggle={toggleHelp}
-                    />
-                  </div>
-                  <div className="mt-1 text-xs leading-5 text-slate-500">
-                    {section.scope}
-                  </div>
+              label={
+                <div className="aixia-action-system" data-align="start" data-density="compact">
+                  <span>{section.title}</span>
+                  <HelpButton
+                    label="Info"
+                    helpKey={`section-${section.key}`}
+                    activeHelpKey={activeHelpKey}
+                    onToggle={toggleHelp}
+                  />
+                </div>
+              }
+              value={
+                <div className="aixia-stack">
+                  <div className="aixia-caption">{section.scope}</div>
 
-                  <div className="mt-3 flex flex-wrap gap-1.5">
+                  <div className="aixia-action-system" data-align="start" data-density="compact">
                     {section.controls.slice(0, 6).map((item) => (
-                      <span
-                        key={item}
-                        className="rounded-full border border-white/10 bg-white/[0.04] px-2.5 py-1 text-[10px] text-slate-400"
-                      >
+                      <AixiaBadge key={item} tone="neutral">
                         {item}
-                      </span>
+                      </AixiaBadge>
                     ))}
                     {section.controls.length > 6 ? (
-                      <span className="rounded-full border border-white/10 bg-white/[0.04] px-2.5 py-1 text-[10px] text-slate-500">
+                      <AixiaBadge tone="neutral">
                         +{section.controls.length - 6} more
-                      </span>
+                      </AixiaBadge>
                     ) : null}
                   </div>
 
                   {section.defaultRule ? (
-                    <div className="mt-3 rounded-2xl border border-emerald-400/15 bg-emerald-500/10 px-3 py-2 text-xs leading-5 text-emerald-100">
-                      {section.defaultRule}
-                    </div>
+                    <AixiaInfoBlock tone="emerald">{section.defaultRule}</AixiaInfoBlock>
                   ) : null}
 
                   {section.adminOnly && !isTargetAdmin ? (
-                    <div className="mt-3 rounded-2xl border border-amber-400/15 bg-amber-500/10 px-3 py-2 text-xs leading-5 text-amber-100">
+                    <AixiaInfoBlock tone="gold">
                       Admin-only section. This user must have Admin role before this access can be enabled.
-                    </div>
+                    </AixiaInfoBlock>
                   ) : null}
-                </div>
 
-                <div className="grid gap-2 sm:grid-cols-2 xl:grid-cols-5">
-                  {ACCESS_APPROVAL_LEVEL_ORDER.map((level) => (
-                    <div key={`${section.key}-${level}`} className="grid gap-1.5">
-                      <div className="text-center text-[10px] font-semibold uppercase tracking-[0.14em] text-slate-500">
-                        {formatLabel(level)}
-                      </div>
-                      <MatrixToggle
-                        checked={sectionState[level]}
-                        disabled={sectionDisabled}
-                        level={level}
-                        onClick={() => onToggle(section, level)}
+                  <div className="aixia-smart-grid" data-mode="compact">
+                    {ACCESS_APPROVAL_LEVEL_ORDER.map((level) => (
+                      <AixiaValueBlock
+                        key={`${section.key}-${level}`}
+                        label={formatLabel(level)}
+                        value={
+                          <MatrixToggle
+                            checked={sectionState[level]}
+                            disabled={sectionDisabled}
+                            level={level}
+                            onClick={() => onToggle(section, level)}
+                          />
+                        }
                       />
-                    </div>
-                  ))}
-                </div>
-
-                <div className="rounded-2xl border border-white/10 bg-white/[0.025] p-3">
-                  <StatusBadge value={effectiveLabel} tone={effectiveTone} />
-                  <div className="mt-2 text-xs leading-5 text-slate-500">
-                    {effectiveDescription}
+                    ))}
                   </div>
                 </div>
-              </div>
-            </div>
+              }
+              detail={
+                <div className="aixia-stack">
+                  <FinanceAccessBadge value={effectiveLabel} />
+                  <div>{effectiveDescription}</div>
+                </div>
+              }
+            />
           );
         })}
       </div>
-    </section>
+    </AixiaSection>
   );
 }
 
@@ -678,7 +552,11 @@ export default function FinanceAccessApprovalUserDetailPage() {
 
   const [targetUser, setTargetUser] = useState<ProfileRow | null>(null);
   const [currentUser, setCurrentUser] = useState<CurrentProfileRow | null>(null);
+  const [currentPagePermissionState, setCurrentPagePermissionState] =
+    useState<FinancePagePermissionState | null>(null);
   const [permissions, setPermissions] = useState<Partial<Record<Permission, boolean>>>({});
+  const [targetEffectivePermissions, setTargetEffectivePermissions] =
+    useState<Partial<Record<Permission, boolean>> | null>(null);
   const [financeTemplates, setFinanceTemplates] = useState<FinancePermissionTemplateRow[]>([]);
   const [selectedFinanceTemplateId, setSelectedFinanceTemplateId] = useState<string>("");
   const [targetFinanceTemplate, setTargetFinanceTemplate] =
@@ -688,12 +566,15 @@ export default function FinanceAccessApprovalUserDetailPage() {
   const [runningAction, setRunningAction] = useState<RunningAction | null>(null);
   const [pageError, setPageError] = useState<string | null>(null);
   const [pageMessage, setPageMessage] = useState<string | null>(null);
+  const [accessDeniedReason, setAccessDeniedReason] = useState<string | null>(null);
 
   const loadUser = useCallback(
-    async (mode: "initial" | "silent" = "initial") => {
+    async (mode: FinanceLoadMode = "initial") => {
       if (!userId) {
-        setPageError("Missing user ID.");
-        setIsLoading(false);
+        if (mode === "initial") {
+          setPageError("Missing user ID.");
+          setIsLoading(false);
+        }
         return;
       }
 
@@ -703,7 +584,10 @@ export default function FinanceAccessApprovalUserDetailPage() {
         setIsRefreshing(true);
       }
 
-      setPageError(null);
+      if (mode === "initial") {
+        setPageError(null);
+        setAccessDeniedReason(null);
+      }
 
       try {
         const authResult = await supabase.auth.getUser();
@@ -712,8 +596,10 @@ export default function FinanceAccessApprovalUserDetailPage() {
         const authUserId = authResult.data.user?.id;
 
         if (!authUserId) {
-          setPageError("You must be logged in to manage Finance Access Approvals.");
-          setTargetUser(null);
+          if (mode === "initial") {
+            setAccessDeniedReason("You must be logged in to manage Finance Access Approvals.");
+            setTargetUser(null);
+          }
           return;
         }
 
@@ -722,10 +608,12 @@ export default function FinanceAccessApprovalUserDetailPage() {
           targetUserResult,
           templatesResult,
           targetTemplateResult,
+          currentEffectivePermissions,
+          loadedTargetEffectivePermissions,
         ] = await Promise.all([
           supabase
             .from("profiles")
-            .select("role, permissions")
+            .select("role")
             .eq("user_id", authUserId)
             .maybeSingle(),
 
@@ -750,6 +638,18 @@ export default function FinanceAccessApprovalUserDetailPage() {
             .select("user_id, template_id")
             .eq("user_id", userId)
             .maybeSingle(),
+
+          fetchFinanceEffectivePermissions(
+            authUserId,
+            mode,
+            "Finance Access Approval User Detail Current User"
+          ),
+
+          fetchFinanceEffectivePermissions(
+            userId,
+            mode,
+            "Finance Access Approval User Detail Target User"
+          ),
         ]);
 
         if (currentUserResult.error) throw currentUserResult.error;
@@ -765,29 +665,38 @@ export default function FinanceAccessApprovalUserDetailPage() {
           targetTemplateResult.data as FinanceUserPermissionTemplateRow | null;
 
         if (!currentProfile) {
-          setPageError("Current user profile was not found.");
-          setTargetUser(null);
+          if (mode === "initial") {
+            setPageError("Current user profile was not found.");
+            setTargetUser(null);
+          }
           return;
         }
 
-        const currentEffectivePermissions = getEffectivePermissions(
-          currentProfile.role,
-          currentProfile.permissions || null
-        );
+        const permissionState = resolveFinancePagePermissionState({
+          profileRole: currentProfile.role,
+          permissions: currentEffectivePermissions,
+          config: PAGE_ACCESS_CONFIG,
+        });
 
-        const isCurrentUserAdmin =
-          String(currentProfile.role || "").toLowerCase() === "admin";
-
-        if (!isCurrentUserAdmin || !currentEffectivePermissions.manageUsers) {
-          setPageError("Admin access is required to manage Finance Access Approvals.");
+        if (!permissionState.isAdmin || !permissionState.canRead) {
           setCurrentUser(currentProfile);
-          setTargetUser(null);
+          setCurrentPagePermissionState(permissionState);
+
+          if (mode === "initial") {
+            setAccessDeniedReason(
+              "Admin access is required to manage Finance Access Approvals."
+            );
+            setTargetUser(null);
+          }
+
           return;
         }
 
         if (!loadedTargetUser) {
-          setPageError("The selected user profile was not found.");
-          setTargetUser(null);
+          if (mode === "initial") {
+            setPageError("The selected user profile was not found.");
+            setTargetUser(null);
+          }
           return;
         }
 
@@ -799,17 +708,26 @@ export default function FinanceAccessApprovalUserDetailPage() {
           null;
 
         setCurrentUser(currentProfile);
+        setCurrentPagePermissionState(permissionState);
         setTargetUser(loadedTargetUser);
         setPermissions(loadedTargetUser.permissions || {});
+        setTargetEffectivePermissions(loadedTargetEffectivePermissions);
         setFinanceTemplates(loadedTemplates);
         setSelectedFinanceTemplateId(resolvedTemplate?.id || "");
         setTargetFinanceTemplate(resolvedTemplate);
+        setPageError(null);
+        setAccessDeniedReason(null);
       } catch (error) {
         console.error("Failed to load user finance access approval:", error);
-        setPageError(
-          error instanceof Error ? error.message : "Failed to load user finance access approval."
-        );
-        setTargetUser(null);
+
+        if (mode === "initial") {
+          setPageError(
+            error instanceof Error
+              ? error.message
+              : "Failed to load user finance access approval."
+          );
+          setTargetUser(null);
+        }
       } finally {
         setIsLoading(false);
         setIsRefreshing(false);
@@ -853,6 +771,19 @@ export default function FinanceAccessApprovalUserDetailPage() {
       )
       .subscribe();
 
+    const financeTemplatesChannel = supabase
+      .channel("finance-access-approval-user-finance-templates")
+      .on(
+        "postgres_changes",
+        {
+          event: "*",
+          schema: "public",
+          table: "finance_permission_templates",
+        },
+        () => void loadUser("silent")
+      )
+      .subscribe();
+
     const intervalId = window.setInterval(() => {
       void loadUser("silent");
     }, 60000);
@@ -861,6 +792,7 @@ export default function FinanceAccessApprovalUserDetailPage() {
       window.clearInterval(intervalId);
       supabase.removeChannel(profilesChannel);
       supabase.removeChannel(templateChannel);
+      supabase.removeChannel(financeTemplatesChannel);
     };
   }, [loadUser, userId]);
 
@@ -869,44 +801,25 @@ export default function FinanceAccessApprovalUserDetailPage() {
   }, [targetFinanceTemplate]);
 
   const roleDefaultPermissions = useMemo(() => {
-    if (!targetUser) return null;
-    return getEffectivePermissions(targetUser.role, templatePermissionOverrides);
-  }, [targetUser, templatePermissionOverrides]);
-
-  const effectivePermissions = useMemo(() => {
-    if (!targetUser) return null;
-
-    return getEffectivePermissions(targetUser.role, {
-      ...templatePermissionOverrides,
-      ...(permissions || {}),
-    });
-  }, [permissions, targetUser, templatePermissionOverrides]);
+    return templatePermissionOverrides as Record<Permission, boolean>;
+  }, [templatePermissionOverrides]);
 
   const accessStates = useMemo(() => {
-    if (!effectivePermissions) {
-      return ACCESS_APPROVAL_SECTIONS.reduce(
-        (map, section) => {
-          map[section.key] = {
-            read: false,
-            create: false,
-            update: false,
-            deleteArchive: false,
-            approveExecute: false,
-          };
-          return map;
-        },
-        {} as Record<AccessApprovalSectionKey, AccessLevelState>
-      );
+    if (!targetEffectivePermissions) {
+      return EMPTY_ACCESS_STATE;
     }
 
     return ACCESS_APPROVAL_SECTIONS.reduce(
       (map, section) => {
-        map[section.key] = getSectionLevelState(section, effectivePermissions);
+        map[section.key] = getSectionLevelState(
+          section,
+          targetEffectivePermissions as Record<Permission, boolean>
+        );
         return map;
       },
       {} as Record<AccessApprovalSectionKey, AccessLevelState>
     );
-  }, [effectivePermissions]);
+  }, [targetEffectivePermissions]);
 
   const highestAccessLabel = useMemo(() => {
     return getHighestAccessLabel(accessStates);
@@ -939,18 +852,9 @@ export default function FinanceAccessApprovalUserDetailPage() {
   }, [templatePermissionOverrides]);
 
   const hasAdminAccess = useMemo(() => {
-    if (!currentUser) return false;
-
-    const isCurrentUserAdmin =
-      String(currentUser.role || "").toLowerCase() === "admin";
-
-    const currentEffectivePermissions = getEffectivePermissions(
-      currentUser.role,
-      currentUser.permissions || null
-    );
-
-    return Boolean(isCurrentUserAdmin && currentEffectivePermissions.manageUsers);
-  }, [currentUser]);
+    if (!currentUser || !currentPagePermissionState) return false;
+    return Boolean(currentPagePermissionState.isAdmin && currentPagePermissionState.canRead);
+  }, [currentPagePermissionState, currentUser]);
 
   const userSummaryItems = useMemo<DetailItem[]>(() => {
     if (!targetUser) return [];
@@ -963,7 +867,7 @@ export default function FinanceAccessApprovalUserDetailPage() {
       },
       {
         label: "Base System Role",
-        value: <StatusBadge value={targetUser.role} tone="cyan" />,
+        value: <AixiaStatusBadge value={targetUser.role} />,
         detail:
           targetUser.requested_role && targetUser.requested_role !== targetUser.role
             ? `Requested role: ${formatLabel(targetUser.requested_role)}`
@@ -972,7 +876,7 @@ export default function FinanceAccessApprovalUserDetailPage() {
       {
         label: "Finance Template",
         value: targetFinanceTemplate ? (
-          <StatusBadge value={targetFinanceTemplate.template_name} tone="violet" />
+          <AixiaBadge tone="violet">{targetFinanceTemplate.template_name}</AixiaBadge>
         ) : (
           "—"
         ),
@@ -982,17 +886,12 @@ export default function FinanceAccessApprovalUserDetailPage() {
       },
       {
         label: "Status",
-        value: <StatusBadge value={targetUser.status} />,
+        value: <AixiaStatusBadge value={targetUser.status} />,
         detail: "Profile lifecycle status.",
       },
       {
         label: "Effective Access",
-        value: (
-          <StatusBadge
-            value={highestAccessLabel}
-            tone={effectiveAccessToneMap[highestAccessLabel]}
-          />
-        ),
+        value: <FinanceAccessBadge value={highestAccessLabel} />,
         detail: "Highest finance-level access currently enabled.",
       },
       {
@@ -1042,6 +941,7 @@ export default function FinanceAccessApprovalUserDetailPage() {
 
         setPermissions(nextPermissions);
         setPageMessage(successMessage);
+        await loadUser("silent");
       } catch (error) {
         console.error("Failed to update finance access approval:", error);
         setPageError(
@@ -1057,7 +957,7 @@ export default function FinanceAccessApprovalUserDetailPage() {
 
   const handleToggle = useCallback(
     async (section: AccessApprovalSection, level: AccessApprovalLevel) => {
-      if (!targetUser || !roleDefaultPermissions || !effectivePermissions) return;
+      if (!targetUser || !targetEffectivePermissions) return;
 
       if (section.adminOnly && !isAdminRole(targetUser.role)) {
         setPageError(
@@ -1066,7 +966,10 @@ export default function FinanceAccessApprovalUserDetailPage() {
         return;
       }
 
-      const currentState = getSectionLevelState(section, effectivePermissions);
+      const currentState = getSectionLevelState(
+        section,
+        targetEffectivePermissions as Record<Permission, boolean>
+      );
       const nextEnabled = !currentState[level];
 
       const nextPermissions = buildSectionToggleOverrides({
@@ -1082,7 +985,13 @@ export default function FinanceAccessApprovalUserDetailPage() {
         `${section.title} ${formatLabel(level)} turned ${nextEnabled ? "on" : "off"}.`
       );
     },
-    [effectivePermissions, permissions, roleDefaultPermissions, targetUser, updatePermissions]
+    [
+      permissions,
+      roleDefaultPermissions,
+      targetEffectivePermissions,
+      targetUser,
+      updatePermissions,
+    ]
   );
 
   const updateFinanceTemplate = useCallback(
@@ -1155,6 +1064,7 @@ export default function FinanceAccessApprovalUserDetailPage() {
       setPageMessage(
         "All custom finance access overrides were reset to the selected finance template baseline."
       );
+      await loadUser("silent");
     } catch (error) {
       console.error("Failed to reset finance access overrides:", error);
       setPageError(
@@ -1174,42 +1084,39 @@ export default function FinanceAccessApprovalUserDetailPage() {
 
   if (isLoading) {
     return (
-      <div className="min-h-screen bg-[#05070d] px-4 py-4 text-white md:px-6 md:py-6">
-        <div className="mx-auto flex w-full max-w-[1600px] flex-col gap-6">
-          <div className="rounded-[34px] border border-white/10 bg-white/[0.045] p-12 text-center backdrop-blur-xl">
-            <Loader2 className="mx-auto h-8 w-8 animate-spin text-cyan-200" />
-            <div className="mt-4 text-sm text-slate-400">
-              Loading user Finance Access Approval...
-            </div>
-          </div>
-        </div>
-      </div>
+      <AixiaLoadingState
+        title="Loading Finance Access Approval"
+        description="The user profile, Finance template, and effective permission state are being checked."
+        fullPage
+      />
     );
   }
 
   if (!targetUser) {
     return (
-      <div className="min-h-screen bg-[#05070d] px-4 py-4 text-white md:px-6 md:py-6">
-        <div className="mx-auto flex w-full max-w-[1600px] flex-col gap-6">
-          <div className="rounded-[34px] border border-rose-400/20 bg-rose-500/10 p-12 text-center">
-            <AlertTriangle className="mx-auto h-8 w-8 text-rose-200" />
-            <div className="mt-4 text-lg font-semibold text-white">
-              Finance access approval profile not available
-            </div>
-            <div className="mt-2 text-sm text-rose-100">
-              {pageError || "The selected user profile could not be loaded."}
-            </div>
-            <button
-              type="button"
-              onClick={() => navigate("/finance/access-approvals")}
-              className="mt-6 inline-flex h-11 items-center justify-center gap-2 rounded-2xl border border-white/10 bg-white/[0.05] px-5 text-sm font-semibold text-white transition hover:bg-white/[0.08]"
-            >
-              <ArrowRight className="h-4 w-4 rotate-180" />
-              Finance Access Approvals
-            </button>
-          </div>
-        </div>
-      </div>
+      <AixiaNotFoundState
+        title={
+          accessDeniedReason
+            ? "Finance access approval is restricted"
+            : "Finance access approval profile not available"
+        }
+        description={
+          accessDeniedReason ||
+          pageError ||
+          "The selected user profile could not be loaded."
+        }
+        fullPage
+        action={
+          <AixiaButton
+            type="button"
+            variant="secondary"
+            onClick={() => navigate("/finance/access-approvals")}
+          >
+            <ArrowRight className="h-4 w-4 rotate-180" />
+            Finance Access Approvals
+          </AixiaButton>
+        }
+      />
     );
   }
 
@@ -1217,315 +1124,227 @@ export default function FinanceAccessApprovalUserDetailPage() {
   const isTargetAdmin = isAdminRole(targetUser.role);
 
   return (
-    <div className="min-h-screen bg-[#05070d] px-4 py-4 text-white md:px-6 md:py-6">
-      <div className="mx-auto flex w-full max-w-[1600px] flex-col gap-6">
-        <header className="relative overflow-hidden rounded-[34px] border border-white/10 bg-white/[0.045] p-6 shadow-2xl shadow-black/30 backdrop-blur-xl">
-          <div className="pointer-events-none absolute inset-0 bg-[radial-gradient(circle_at_top_left,rgba(6,182,212,0.16),transparent_38%),radial-gradient(circle_at_top_right,rgba(139,92,246,0.12),transparent_34%)]" />
+    <AixiaPage>
+      <AixiaHero
+        parentLabel="Finance Access Approvals"
+        parentPath="/finance/access-approvals"
+        gradientTitle="User Finance"
+        title="Access Approval"
+        subtitle={targetUser.full_name || "Unnamed user"}
+        description="Assign a base system role and a Finance role template, then use the permission matrix only for user-specific exceptions."
+        badges={[
+          { label: "User Finance Access Approval", tone: "cyan" },
+          { label: formatLabel(targetUser.role), tone: "cyan" },
+          {
+            label: targetFinanceTemplate?.template_name || "No Finance Template",
+            tone: "violet",
+          },
+          { label: formatLabel(targetUser.status), tone: "neutral" },
+          ...(isRefreshing ? [{ label: "Silent Refresh", tone: "neutral" as const }] : []),
+        ]}
+        statusCards={[
+          {
+            label: "Base System Role",
+            value: formatLabel(targetUser.role),
+            description:
+              "Admin-only Finance controls still require the base system role to be Admin.",
+            icon: UserRound,
+            tone: "cyan",
+          },
+          {
+            label: "Current Power",
+            value: highestAccessLabel,
+            description:
+              "Highest effective Finance access after role, template, and overrides are combined.",
+            icon: ShieldCheck,
+            tone: effectiveAccessToneMap[highestAccessLabel],
+          },
+        ]}
+      >
+        <div className="aixia-action-system" data-align="start" data-density="compact">
+          <AixiaBadge tone="cyan">
+            <Sparkles className="h-3.5 w-3.5" />
+            Permission matrix
+          </AixiaBadge>
+        </div>
+      </AixiaHero>
 
-          <div className="relative grid gap-6 xl:grid-cols-[minmax(0,1fr)_520px] xl:items-end">
-            <div>
-              <button
-                type="button"
-                onClick={() => navigate("/finance/access-approvals")}
-                className="mb-5 inline-flex items-center justify-center gap-2 rounded-full border border-white/10 bg-white/[0.05] px-5 py-2 text-[11px] font-semibold uppercase tracking-[0.22em] text-slate-300 transition hover:border-white/20 hover:bg-white/[0.08] hover:text-white"
-              >
-                <ArrowRight className="h-3.5 w-3.5 rotate-180" />
-                Finance Access Approvals
-              </button>
+      {pageError ? <AixiaAlert tone="error">{pageError}</AixiaAlert> : null}
+      {pageMessage ? <AixiaAlert tone="success">{pageMessage}</AixiaAlert> : null}
 
-              <div className="inline-flex w-fit items-center gap-2 rounded-full border border-cyan-400/20 bg-cyan-500/10 px-3 py-1 text-[11px] font-semibold uppercase tracking-[0.22em] text-cyan-200">
-                <Sparkles className="h-3.5 w-3.5" />
-                User Finance Access Approval
-              </div>
+      {!hasAdminAccess ? (
+        <AixiaAlert tone="error">
+          Admin access is required to modify this page.
+        </AixiaAlert>
+      ) : null}
 
-              <h1 className="mt-4 text-3xl font-semibold tracking-[-0.035em] text-white md:text-5xl">
-                {targetUser.full_name || "Unnamed user"}
-              </h1>
+      <section className="aixia-smart-grid" data-mode="cards">
+        {userSummaryItems.map((item) => (
+          <AixiaValueBlock
+            key={item.label}
+            label={item.label}
+            value={item.value}
+            detail={item.detail}
+          />
+        ))}
+      </section>
 
-              <p className="mt-3 max-w-4xl text-sm leading-6 text-slate-400 md:text-base md:leading-7">
-                Assign a base system role and a Finance role template, then use the
-                permission matrix only for user-specific exceptions.
-              </p>
+      <AixiaMetricGrid>
+        {groupSummaries.map((summary) => (
+          <GroupSummaryCard key={summary.groupKey} summary={summary} />
+        ))}
+      </AixiaMetricGrid>
 
-              <div className="mt-5 flex flex-wrap gap-2">
-                <StatusBadge value={targetUser.role} tone="cyan" />
-                <StatusBadge
-                  value={targetFinanceTemplate?.template_name || "No Finance Template"}
-                  tone="violet"
-                />
-                <StatusBadge value={targetUser.status} />
-                {isRefreshing ? (
-                  <span className="rounded-full border border-white/10 bg-white/[0.06] px-3 py-1 text-[11px] font-semibold uppercase tracking-[0.14em] text-slate-300">
-                    Silent Refresh
-                  </span>
-                ) : null}
-              </div>
-            </div>
-
-                        <div className="grid gap-3 sm:grid-cols-2">
-              <div className="min-h-[148px] rounded-[24px] border border-white/10 bg-black/20 p-4">
-                <div className="flex items-start justify-between gap-3">
-                  <div>
-                    <div className="text-[11px] font-semibold uppercase tracking-[0.2em] text-slate-500">
-                      Base System Role
-                    </div>
-                    <div className="mt-2 text-xl font-semibold leading-tight tracking-[-0.035em] text-white">
-                      {formatLabel(targetUser.role)}
-                    </div>
-                  </div>
-                  <div className="rounded-2xl border border-cyan-400/20 bg-cyan-500/10 p-3 text-cyan-200">
-                    <UserRound className="h-4 w-4" />
-                  </div>
-                </div>
-                <div className="mt-3 text-xs leading-5 text-slate-500">
-                  Base app role remains admin, manager, employee, or guest. Admin-only
-                  Finance controls still require the base role to be Admin.
-                </div>
-              </div>
-
-              <div className="min-h-[148px] rounded-[24px] border border-white/10 bg-black/20 p-4">
-                <div className="flex items-start justify-between gap-3">
-                  <div>
-                    <div className="text-[11px] font-semibold uppercase tracking-[0.2em] text-slate-500">
-                      Current Power
-                    </div>
-                    <div className="mt-2 text-xl font-semibold leading-tight tracking-[-0.035em] text-white">
-                      {highestAccessLabel}
-                    </div>
-                  </div>
-                  <div className="rounded-2xl border border-emerald-400/20 bg-emerald-500/10 p-3 text-emerald-200">
-                    <ShieldCheck className="h-4 w-4" />
-                  </div>
-                </div>
-                <div className="mt-3 text-xs leading-5 text-slate-500">
-                  Highest effective Finance access after base role, selected template,
-                  and user-specific overrides are combined.
-                </div>
-              </div>
-            </div>
-          </div>
-        </header>
-
-        {pageError ? (
-          <div className="rounded-[24px] border border-rose-400/20 bg-rose-500/10 p-4 text-sm leading-6 text-rose-100">
-            <div className="flex items-start gap-3">
-              <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0" />
-              <div>{pageError}</div>
-            </div>
-          </div>
-        ) : null}
-
-        {pageMessage ? (
-          <div className="rounded-[24px] border border-emerald-400/20 bg-emerald-500/10 p-4 text-sm leading-6 text-emerald-100">
-            <div className="flex items-start gap-3">
-              <CheckCircle2 className="mt-0.5 h-4 w-4 shrink-0" />
-              <div>{pageMessage}</div>
-            </div>
-          </div>
-        ) : null}
-
-        {!hasAdminAccess ? (
-          <div className="rounded-[24px] border border-rose-400/20 bg-rose-500/10 p-4 text-sm leading-6 text-rose-100">
-            Admin access is required to modify this page.
-          </div>
-        ) : null}
-
-        <section className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
-          {userSummaryItems.map((item) => (
-            <ValueBlock
-              key={item.label}
-              label={item.label}
-              value={item.value}
-              detail={item.detail}
+      <AixiaSection
+        title="Base Role + Finance Role Template"
+        description="The base system role controls the general app identity. The Finance role template controls company-level Finance access. User overrides should only be exceptions."
+        icon={ShieldCheck}
+      >
+        <div className="aixia-stack">
+          <section className="aixia-smart-grid" data-mode="cards">
+            <AixiaValueBlock
+              label="Base System Role"
+              value={<AixiaStatusBadge value={targetUser.role} />}
+              detail="System role: admin, manager, employee, or guest."
             />
-          ))}
-        </section>
 
-        <section className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
-          {groupSummaries.map((summary) => (
-            <GroupSummaryCard key={summary.groupKey} summary={summary} />
-          ))}
-        </section>
+            <AixiaValueBlock
+              label="Current Finance Template"
+              value={
+                targetFinanceTemplate ? (
+                  <AixiaBadge tone="violet">{targetFinanceTemplate.template_name}</AixiaBadge>
+                ) : (
+                  "—"
+                )
+              }
+              detail={
+                targetFinanceTemplate?.description ||
+                "Finance role template assigned to this user."
+              }
+            />
 
-        <SectionCard
-          title="Base Role + Finance Role Template"
-          description="The base system role controls the general app identity. The Finance role template controls company-level Finance access. User overrides should only be exceptions."
-          icon={ShieldCheck}
-        >
-          <div className="grid gap-4 xl:grid-cols-[minmax(0,1fr)_minmax(360px,520px)] xl:items-start">
-            <div className="grid gap-4 md:grid-cols-2">
-              <ValueBlock
-                label="Base System Role"
-                value={<StatusBadge value={targetUser.role} tone="cyan" />}
-                detail="System role: admin, manager, employee, or guest."
-              />
+            <AixiaValueBlock
+              label="Template Baseline"
+              value={formatCount(templatePermissionCount)}
+              detail="Enabled permissions coming from the selected Finance role template."
+            />
 
-              <ValueBlock
-                label="Current Finance Template"
-                value={
-                  targetFinanceTemplate ? (
-                    <StatusBadge value={targetFinanceTemplate.template_name} tone="violet" />
-                  ) : (
-                    "—"
-                  )
-                }
-                detail={
-                  targetFinanceTemplate?.description ||
-                  "Finance role template assigned to this user."
-                }
-              />
+            <AixiaValueBlock
+              label="User Exceptions"
+              value={formatCount(overriddenPermissionCount)}
+              detail="Overrides stored directly on this user profile."
+            />
+          </section>
 
-              <ValueBlock
-                label="Template Baseline"
-                value={formatCount(templatePermissionCount)}
-                detail="Enabled permissions coming from the selected Finance role template."
-              />
-
-              <ValueBlock
-                label="User Exceptions"
-                value={formatCount(overriddenPermissionCount)}
-                detail="Overrides stored directly on this user profile."
-              />
-            </div>
-
-            <div className="rounded-[24px] border border-white/10 bg-black/20 p-4">
-              <label className="text-[11px] font-semibold uppercase tracking-[0.2em] text-slate-500">
-                Finance Role Template
-              </label>
-
+          <AixiaValueBlock
+            label="Finance Role Template"
+            value={
               <select
                 value={selectedFinanceTemplateId}
                 disabled={actionLocked || !hasAdminAccess}
                 onChange={(event) => void updateFinanceTemplate(event.target.value)}
-                className="mt-3 h-12 w-full rounded-2xl border border-white/10 bg-black/30 px-4 text-sm font-semibold text-white outline-none transition focus:border-cyan-400/30 disabled:cursor-not-allowed disabled:opacity-50"
+                className="aixia-select"
               >
                 {financeTemplates.map((template) => (
-                  <option key={template.id} value={template.id} className="bg-[#05070d]">
+                  <option key={template.id} value={template.id}>
                     {template.template_name}
                   </option>
                 ))}
               </select>
+            }
+            detail="Templates available: Finance Admin, Finance Manager, Finance Viewer, Procurement Operator, Expense Approver, Payroll Operator, Reports Viewer, and Custom."
+          />
 
-              <div className="mt-3 text-xs leading-5 text-slate-500">
-                Templates available: Finance Admin, Finance Manager, Finance Viewer,
-                Procurement Operator, Expense Approver, Payroll Operator, Reports Viewer,
-                and Custom. The matrix below stores only user-specific exceptions from
-                this selected template.
-              </div>
+          {targetFinanceTemplate?.template_key === "finance_admin" && !isTargetAdmin ? (
+            <AixiaInfoBlock tone="gold">
+              Finance Admin template is selected, but Admin-only access controls still require the base system role to be Admin.
+            </AixiaInfoBlock>
+          ) : null}
 
-              {targetFinanceTemplate?.template_key === "finance_admin" && !isTargetAdmin ? (
-                <div className="mt-3 rounded-2xl border border-amber-400/15 bg-amber-500/10 px-3 py-2 text-xs leading-5 text-amber-100">
-                  Finance Admin template is selected, but Admin-only access controls
-                  still require the base system role to be Admin.
-                </div>
-              ) : null}
-
-              {runningAction === "template" ? (
-                <div className="mt-3 inline-flex items-center gap-2 rounded-full border border-cyan-400/20 bg-cyan-500/10 px-3 py-1 text-[11px] font-semibold uppercase tracking-[0.14em] text-cyan-100">
-                  <Loader2 className="h-3.5 w-3.5 animate-spin" />
-                  Updating Template
-                </div>
-              ) : null}
-            </div>
-          </div>
-        </SectionCard>
-
-        <SectionCard
-          title="Finance Access Permission Editor"
-          description="Edit user-specific exceptions from the selected finance role template. The list page only shows summaries; this page controls the actual toggles."
-          icon={KeyRound}
-        >
-          <div className="mb-5 flex flex-col gap-3 rounded-[24px] border border-white/10 bg-black/20 p-4 lg:flex-row lg:items-center lg:justify-between">
-            <div>
-              <div className="text-sm font-semibold text-white">
-                Read / Create / Update / Delete-Archive / Approve-Execute Matrix
-              </div>
-              <div className="mt-1 text-xs leading-5 text-slate-500">
-                Higher levels include lower levels. Turning off a lower level also turns off higher
-                levels inside the same Finance section. These toggles save user-specific overrides
-                against the selected finance template.
-              </div>
-            </div>
-
-            <div className="flex flex-wrap gap-2">
-              <button
-                type="button"
-                onClick={() => void manualRefresh()}
-                disabled={actionLocked}
-                className="inline-flex h-11 items-center justify-center gap-2 rounded-2xl border border-white/10 bg-white/[0.05] px-4 text-sm font-semibold text-slate-300 transition hover:bg-white/[0.08] disabled:cursor-not-allowed disabled:opacity-50"
-              >
-                {runningAction === "refresh" ? (
-                  <Loader2 className="h-4 w-4 animate-spin" />
-                ) : (
-                  <RefreshCw className="h-4 w-4" />
-                )}
-                Refresh
-              </button>
-
-              <button
-                type="button"
-                onClick={() => void resetOverrides()}
-                disabled={actionLocked || overriddenPermissionCount === 0}
-                className="inline-flex h-11 items-center justify-center gap-2 rounded-2xl border border-rose-400/20 bg-rose-500/10 px-4 text-sm font-semibold text-rose-100 transition hover:bg-rose-500/15 disabled:cursor-not-allowed disabled:opacity-50"
-              >
-                {runningAction === "reset" ? (
-                  <Loader2 className="h-4 w-4 animate-spin" />
-                ) : (
-                  <X className="h-4 w-4" />
-                )}
-                Reset Overrides
-              </button>
-            </div>
-          </div>
-
-          <div className="grid gap-5">
-            {ACCESS_APPROVAL_GROUPS.map((group) => (
-              <GroupPermissionCard
-                key={group.key}
-                group={group}
-                accessStates={accessStates}
-                actionLocked={actionLocked}
-                hasAdminAccess={hasAdminAccess}
-                isTargetAdmin={isTargetAdmin}
-                onToggle={(section, level) => void handleToggle(section, level)}
-              />
-            ))}
-          </div>
-        </SectionCard>
-
-        <section className="grid gap-4 md:grid-cols-2 xl:grid-cols-5">
-          {ACCESS_APPROVAL_LEVEL_ORDER.map((level) => {
-            const explanation = ACCESS_APPROVAL_LEVEL_EXPLANATIONS[level];
-            const Icon = levelIconMap[level];
-
-            return (
-              <div
-                key={level}
-                className="rounded-[24px] border border-white/10 bg-white/[0.045] p-4"
-              >
-                <div className="flex items-center gap-3">
-                  <Icon className="h-4 w-4 text-cyan-200" />
-                  <div className="text-sm font-semibold text-white">
-                    {explanation.title}
-                  </div>
-                </div>
-                <p className="mt-2 text-xs leading-5 text-slate-500">
-                  {explanation.shortLabel}
-                </p>
-              </div>
-            );
-          })}
-        </section>
-
-        <div className="rounded-[24px] border border-cyan-400/20 bg-cyan-500/10 p-4 text-sm leading-6 text-cyan-100">
-          <div className="font-semibold text-white">Locked default rule</div>
-          <div className="mt-1">
-            Normal users can see, create, edit, submit, upload, and confirm their own expenses and
-            paycheck requests by default. This page only grants or removes additional company-level
-            Finance access through templates and user-specific exceptions.
-          </div>
+          {runningAction === "template" ? (
+            <AixiaInfoBlock tone="cyan" icon={Loader2}>
+              Updating Finance role template.
+            </AixiaInfoBlock>
+          ) : null}
         </div>
-      </div>
-    </div>
+      </AixiaSection>
+
+      <AixiaSection
+        title="Finance Access Permission Editor"
+        description="Edit user-specific exceptions from the selected finance role template. The list page only shows summaries; this page controls the actual toggles."
+        icon={KeyRound}
+        actions={
+          <div className="aixia-action-system" data-align="end" data-density="normal">
+            <AixiaButton
+              type="button"
+              variant="secondary"
+              onClick={() => void manualRefresh()}
+              disabled={actionLocked}
+            >
+              {runningAction === "refresh" ? (
+                <Loader2 className="h-4 w-4 animate-spin" />
+              ) : (
+                <RefreshCw className="h-4 w-4" />
+              )}
+              Refresh
+            </AixiaButton>
+
+            <AixiaButton
+              type="button"
+              variant="danger"
+              onClick={() => void resetOverrides()}
+              disabled={actionLocked || overriddenPermissionCount === 0}
+            >
+              {runningAction === "reset" ? (
+                <Loader2 className="h-4 w-4 animate-spin" />
+              ) : (
+                <X className="h-4 w-4" />
+              )}
+              Reset Overrides
+            </AixiaButton>
+          </div>
+        }
+      >
+        <div className="aixia-stack">
+          <AixiaInfoBlock tone="cyan">
+            Higher levels include lower levels. Turning off a lower level also turns off higher levels inside the same Finance section. These toggles save user-specific overrides against the selected finance template.
+          </AixiaInfoBlock>
+
+          {ACCESS_APPROVAL_GROUPS.map((group) => (
+            <GroupPermissionCard
+              key={group.key}
+              group={group}
+              accessStates={accessStates}
+              actionLocked={actionLocked}
+              hasAdminAccess={hasAdminAccess}
+              isTargetAdmin={isTargetAdmin}
+              onToggle={(section, level) => void handleToggle(section, level)}
+            />
+          ))}
+        </div>
+      </AixiaSection>
+
+      <AixiaMetricGrid>
+        {ACCESS_APPROVAL_LEVEL_ORDER.map((level) => {
+          const explanation = ACCESS_APPROVAL_LEVEL_EXPLANATIONS[level];
+          const Icon = levelIconMap[level];
+
+          return (
+            <AixiaMetricCard
+              key={level}
+              label={explanation.title}
+              value={formatLabel(level)}
+              description={explanation.shortLabel}
+              icon={Icon}
+              tone="cyan"
+            />
+          );
+        })}
+      </AixiaMetricGrid>
+
+      <AixiaInfoBlock tone="cyan" title="Locked default rule">
+        Normal users can see, create, edit, submit, upload, and confirm their own expenses and paycheck requests by default. This page only grants or removes additional company-level Finance access through templates and user-specific exceptions.
+      </AixiaInfoBlock>
+    </AixiaPage>
   );
 }

@@ -170,20 +170,6 @@ const groupIconMap: Record<AccessApprovalGroupKey, LucideIcon> = {
   settings: Settings,
 };
 
-function formatLabel(value: string | null | undefined) {
-  if (!value) return "—";
-
-  return value
-    .replace(/([a-z])([A-Z])/g, "$1 $2")
-    .replace(/[-/]/g, " ")
-    .split("_")
-    .join(" ")
-    .split(" ")
-    .filter(Boolean)
-    .map((part) => part.charAt(0).toUpperCase() + part.slice(1))
-    .join(" ");
-}
-
 function formatCount(value: number) {
   return value.toLocaleString();
 }

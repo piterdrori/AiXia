@@ -288,10 +288,14 @@ function inspectButtonMeaning(filePath, text) {
   for (const button of buttons) {
     const variant = getButtonVariant(button);
 
-    if (buttonHasVisibleWord(button, "Open") && variant === "secondary") {
+    if (
+      buttonHasVisibleWord(button, "Open") &&
+      variant === "secondary" &&
+      !/Open\s+Source\s+Record/i.test(button)
+    ) {
       addError(
         filePath,
-        "Open action buttons must use variant=\"primary\", not variant=\"secondary\"."
+        "Primary row Open action buttons must use variant=\"primary\", not variant=\"secondary\". Secondary context links like Open Source Record are allowed."
       );
     }
 

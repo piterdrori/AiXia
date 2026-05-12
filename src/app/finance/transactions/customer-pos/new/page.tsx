@@ -1,29 +1,43 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import { useNavigate, useSearchParams } from "react-router-dom";
 import {
-  ArrowRight,
+  CheckCircle,
   FileText,
+  Link2,
+  Paperclip,
   Plus,
   Save,
   SquarePen,
   Trash2,
-  Upload,
   Wallet,
-  X,
 } from "lucide-react";
 
 import { supabase } from "@/lib/supabase";
-import { Button } from "@/components/ui/button";
-import { Badge } from "@/components/ui/badge";
 import {
-  Card,
-  CardContent,
-  CardDescription,
-  CardHeader,
-  CardTitle,
-} from "@/components/ui/card";
+  AixiaAlert,
+  AixiaButton,
+  AixiaDocumentUploadPanel,
+  AixiaEmptyState,
+  AixiaFieldLabel,
+  AixiaFormField,
+  AixiaFormFullWidth,
+  AixiaFormGrid,
+  AixiaFormRowCard,
+  AixiaHero,
+  AixiaInputField,
+  AixiaLoadingState,
+  AixiaMetricCard,
+  AixiaMetricGrid,
+  AixiaPage,
+  AixiaReviewGrid,
+  AixiaSection,
+  AixiaSelectField,
+  AixiaSmartLayout,
+  AixiaTextareaField,
+  AixiaValueBlock,
+} from "@/components/aixia";
 
 type CustomerPoStatus = "draft" | "received";
 
@@ -162,13 +176,15 @@ type CustomerPoLineDraft = {
   revenue_category_id: string;
 };
 
+const todayIsoDate = new Date().toISOString().slice(0, 10);
+
 const EMPTY_FORM: CustomerPoFormState = {
   client_id: "",
   quotation_id: "",
   external_po_number: "",
   company_id: "",
-  po_date: new Date().toISOString().slice(0, 10),
-  received_date: new Date().toISOString().slice(0, 10),
+  po_date: todayIsoDate,
+  received_date: todayIsoDate,
   currency_id: "",
   currency_code: "",
   project_id: "",
@@ -233,10 +249,14 @@ async function getCurrentUserId() {
   return user?.id ?? null;
 }
 
+function getSelectedFileSizeLabel(file: File | null) {
+  if (!file) return "No file selected";
+  return `${(file.size / 1024 / 1024).toFixed(2)} MB`;
+}
+
 export default function FinanceNewCustomerPoPage() {
   const navigate = useNavigate();
   const [searchParams] = useSearchParams();
-  const fileInputRef = useRef<HTMLInputElement | null>(null);
 
   const [clients, setClients] = useState<ClientOption[]>([]);
   const [companies, setCompanies] = useState<CompanyOption[]>([]);
@@ -257,28 +277,11 @@ export default function FinanceNewCustomerPoPage() {
   const [lineDrafts, setLineDrafts] = useState<CustomerPoLineDraft[]>([
     createLineDraft(),
   ]);
-
   const [selectedFile, setSelectedFile] = useState<File | null>(null);
-  const [isDraggingFile, setIsDraggingFile] = useState(false);
+
   const [isLoadingLookups, setIsLoadingLookups] = useState(true);
   const [isSaving, setIsSaving] = useState(false);
   const [error, setError] = useState("");
-
-  const activeSectionClass =
-    "overflow-hidden rounded-[30px] border border-white/10 bg-white/[0.045] backdrop-blur-xl";
-
-  const summaryBlockClass =
-    "rounded-[24px] border border-white/10 bg-black/20 p-4";
-
-  const fieldShellClass =
-    "mt-2 h-10 w-full rounded-2xl border border-white/10 bg-black/20 px-3 text-sm text-white outline-none transition focus:border-cyan-400/30 focus:bg-black/30 disabled:cursor-not-allowed disabled:opacity-45";
-
-  const inputFieldClass =
-    "h-11 w-full rounded-2xl border border-white/10 bg-black/20 px-4 text-sm text-white outline-none transition placeholder:text-slate-600 focus:border-cyan-400/30 focus:bg-black/30 disabled:cursor-not-allowed disabled:opacity-45";
-
-  const labelClass = "text-[11px] uppercase tracking-[0.2em] text-slate-500";
-
-  const inputLabelClass = "text-sm font-medium text-slate-300";
 
   const loadLookups = useCallback(async () => {
     setIsLoadingLookups(true);
@@ -291,8 +294,7 @@ export default function FinanceNewCustomerPoPage() {
         currenciesResult,
         projectsResult,
         tasksResult,
-
-                quotationsResult,
+        quotationsResult,
         itemsResult,
         taxCodesResult,
         unitsResult,
@@ -397,23 +399,23 @@ export default function FinanceNewCustomerPoPage() {
     }
   }, []);
 
-useEffect(() => {
-  void loadLookups();
-}, [loadLookups]);
+  useEffect(() => {
+    void loadLookups();
+  }, [loadLookups]);
 
-useEffect(() => {
-  const quotationIdFromUrl = searchParams.get("quotation_id");
+  useEffect(() => {
+    const quotationIdFromUrl = searchParams.get("quotation_id");
 
-  if (!quotationIdFromUrl || isLoadingLookups || quotations.length === 0) return;
+    if (!quotationIdFromUrl || isLoadingLookups || quotations.length === 0) return;
 
-  const quotationExists = quotations.some(
-    (quotation) => quotation.id === quotationIdFromUrl
-  );
+    const quotationExists = quotations.some(
+      (quotation) => quotation.id === quotationIdFromUrl
+    );
 
-  if (!quotationExists) return;
+    if (!quotationExists) return;
 
-  void handleQuotationChange(quotationIdFromUrl);
-}, [isLoadingLookups, quotations, searchParams]);
+    void handleQuotationChange(quotationIdFromUrl);
+  }, [isLoadingLookups, quotations, searchParams]);
 
   const filteredQuotations = useMemo(() => {
     if (!form.client_id) return quotations;
@@ -486,6 +488,9 @@ useEffect(() => {
       total: Math.max(subtotal - discount + tax, 0),
     };
   }, [lineDrafts, taxCodes]);
+
+  const documentCurrencyCode =
+    form.currency_code || selectedCurrency?.currency_code || "USD";
 
   function handleClientChange(clientId: string) {
     setForm((current) => ({
@@ -625,13 +630,6 @@ useEffect(() => {
     });
   }
 
-  function handleDropFile(fileList: FileList | null) {
-    const file = fileList?.[0] || null;
-    if (!file) return;
-    setSelectedFile(file);
-    setError("");
-  }
-
   async function uploadCustomerPoFile(poId: string, file: File, userId: string) {
     const safeFileName = file.name.replace(/\s+/g, "-");
     const storagePath = `customer-po/${poId}/${Date.now()}-${safeFileName}`;
@@ -755,13 +753,15 @@ useEffect(() => {
         task_id: form.task_id || null,
         reference_number: form.external_po_number.trim() || null,
         posted_to_ledger: false,
-        company_name_snapshot: selectedCompany?.legal_name || selectedCompany?.name || null,
+        company_name_snapshot:
+          selectedCompany?.legal_name || selectedCompany?.name || null,
         company_legal_name_snapshot: selectedCompany?.legal_name || null,
         company_contact_person_snapshot: selectedCompany?.contact_person || null,
         company_email_snapshot: selectedCompany?.email || null,
         company_phone_snapshot: selectedCompany?.phone || null,
         company_address_snapshot: makeAddressSnapshot(selectedCompany),
-        client_name_snapshot: selectedClient?.legal_name || selectedClient?.name || null,
+        client_name_snapshot:
+          selectedClient?.legal_name || selectedClient?.name || null,
         client_legal_name_snapshot: selectedClient?.legal_name || null,
         client_contact_person_snapshot: selectedClient?.contact_person || null,
         client_email_snapshot:
@@ -791,29 +791,42 @@ useEffect(() => {
 
       if (insertError) throw insertError;
 
-      const linePayload = validLines.map((line, index) => ({
-        client_po_id: createdPo.id,
-        item_id: line.item_id || null,
-        description: line.description,
-        quantity: toNumber(line.quantity),
-        unit_price: toNumber(line.unit_price),
-        discount: toNumber(line.discount),
-        sort_order: index + 1,
-        unit_of_measure_id: line.unit_of_measure_id || null,
-        tax_code_id: line.tax_code_id || null,
-        revenue_category_id: line.revenue_category_id || null,
-        project_id: form.project_id || null,
-        task_id: form.task_id || null,
-        status: "active",
-        reference_number: form.external_po_number.trim() || null,
-        notes: null,
-        metadata: {
-          source: form.quotation_id ? "quotation_or_manual" : "manual",
-          quotation_id: form.quotation_id || null,
-        },
-        created_by: userId,
-        updated_by: userId,
-      }));
+      const linePayload = validLines.map((line, index) => {
+        const selectedTaxCode = taxCodes.find(
+          (taxCode) => taxCode.id === line.tax_code_id
+        );
+        const base = Math.max(
+          toNumber(line.quantity) * toNumber(line.unit_price) -
+            toNumber(line.discount),
+          0
+        );
+        const taxAmount = base * (toNumber(selectedTaxCode?.rate_percent) / 100);
+
+        return {
+          client_po_id: createdPo.id,
+          item_id: line.item_id || null,
+          description: line.description,
+          quantity: toNumber(line.quantity),
+          unit_price: toNumber(line.unit_price),
+          discount: toNumber(line.discount),
+          line_total: base + taxAmount,
+          sort_order: index + 1,
+          unit_of_measure_id: line.unit_of_measure_id || null,
+          tax_code_id: line.tax_code_id || null,
+          revenue_category_id: line.revenue_category_id || null,
+          project_id: form.project_id || null,
+          task_id: form.task_id || null,
+          status: "active",
+          reference_number: form.external_po_number.trim() || null,
+          notes: null,
+          metadata: {
+            source: form.quotation_id ? "quotation_or_manual" : "manual",
+            quotation_id: form.quotation_id || null,
+          },
+          created_by: userId,
+          updated_by: userId,
+        };
+      });
 
       const { error: lineInsertError } = await supabase
         .from("finance_client_purchase_order_line_items")
@@ -873,230 +886,114 @@ useEffect(() => {
 
   if (isLoadingLookups) {
     return (
-      <div className="min-h-screen bg-[#05070d] px-4 py-4 text-white md:px-6 md:py-6">
-        <div className="mx-auto flex w-full max-w-[1600px] flex-col gap-6">
-          <div className="rounded-[30px] border border-white/10 bg-white/[0.045] p-6 text-sm text-slate-400 backdrop-blur-xl">
-            Loading Customer PO sources...
-          </div>
-        </div>
-      </div>
+      <AixiaLoadingState
+        title="Loading Customer PO sources"
+        description="Clients, companies, currencies, quotations, items, units, tax codes, revenue categories, projects, and tasks are being loaded."
+      />
     );
   }
 
   return (
-    <div className="min-h-screen bg-[#05070d] px-4 py-4 text-white md:px-6 md:py-6">
-      <div className="mx-auto flex w-full max-w-[1600px] flex-col gap-6">
-        <header className="relative overflow-hidden rounded-[34px] border border-white/10 bg-white/[0.045] p-6 shadow-2xl shadow-black/30 backdrop-blur-xl">
-          <div className="pointer-events-none absolute inset-0 bg-[radial-gradient(circle_at_top_left,rgba(6,182,212,0.16),transparent_38%),radial-gradient(circle_at_top_right,rgba(139,92,246,0.12),transparent_34%)]" />
+    <AixiaPage>
+      <AixiaHero
+        parentLabel="Customer POs"
+        parentPath="/finance/transactions/customer-pos"
+        badges={[
+          { label: "New Customer PO", tone: "cyan" },
+          { label: "Document Required", tone: selectedFile ? "emerald" : "rose" },
+          { label: "Quotation Link Optional", tone: "violet" },
+          { label: "No Manual Refresh", tone: "neutral" },
+        ]}
+        gradientTitle="CREATE CUSTOMER PO"
+        title=""
+        subtitle={
+          selectedClient?.legal_name ||
+          selectedClient?.name ||
+          "Select customer"
+        }
+        description="Create a received customer purchase order, copy quotation lines when available, upload the customer PO document, and preserve the source snapshots for the transaction flow."
+        statusCards={[
+          {
+            label: "Client",
+            value: selectedClient?.legal_name || selectedClient?.name || "—",
+            description: "Customer selected for this incoming purchase order.",
+            icon: FileText,
+            tone: "cyan",
+          },
+          {
+            label: "Calculated Total",
+            value: formatMoney(totals.total, documentCurrencyCode),
+            description: "Total amount is calculated from Customer PO line items.",
+            icon: Wallet,
+            tone: "emerald",
+          },
+        ]}
+      />
 
-          <div className="relative">
-            <button
-              type="button"
-              onClick={() => navigate("/finance/transactions/customer-pos")}
-              className="mb-5 inline-flex items-center justify-center gap-2 rounded-full border border-white/10 bg-white/[0.05] px-5 py-2 text-[11px] font-semibold uppercase tracking-[0.22em] text-slate-300 transition hover:border-white/20 hover:bg-white/[0.08] hover:text-white"
+      {error ? <AixiaAlert tone="error">{error}</AixiaAlert> : null}
+
+      <div className="aixia-action-row">
+        <AixiaButton
+          type="button"
+          variant="primary"
+          onClick={() => void handleCreateCustomerPo()}
+          disabled={isSaving || isLoadingLookups}
+        >
+          <Save className="h-4 w-4" />
+          {isSaving ? "Creating..." : "Create Customer PO"}
+        </AixiaButton>
+      </div>
+
+      <AixiaMetricGrid>
+        <AixiaMetricCard
+          label="Subtotal"
+          value={formatMoney(totals.subtotal, documentCurrencyCode)}
+          description="Before discount and tax."
+          icon={FileText}
+          tone="cyan"
+        />
+        <AixiaMetricCard
+          label="Discount"
+          value={formatMoney(totals.discount, documentCurrencyCode)}
+          description="Customer PO discount."
+          icon={FileText}
+          tone="gold"
+        />
+        <AixiaMetricCard
+          label="Tax"
+          value={formatMoney(totals.tax, documentCurrencyCode)}
+          description="Based on tax codes."
+          icon={FileText}
+          tone="violet"
+        />
+        <AixiaMetricCard
+          label="Total"
+          value={formatMoney(totals.total, documentCurrencyCode)}
+          description="Customer PO value."
+          icon={CheckCircle}
+          tone="emerald"
+        />
+      </AixiaMetricGrid>
+
+      <AixiaSmartLayout
+        sidebar="normal"
+        balance="main"
+        bottomSpan="never"
+        sideRebalance="last-to-bottom"
+        main={
+          <>
+            <AixiaSection
+              title="Document Overview"
+              description="Client, linked quotation, company, dates, currency, project, and status."
+              icon={SquarePen}
             >
-              <ArrowRight className="h-3.5 w-3.5 rotate-180" />
-              Customer POs
-            </button>
-
-            <div className="grid gap-6 xl:grid-cols-[minmax(0,1fr)_520px]">
-              <div>
-                <Badge className="inline-flex w-fit rounded-full border border-cyan-400/20 bg-cyan-500/10 px-3 py-1 text-[11px] font-semibold uppercase tracking-[0.22em] text-cyan-200 shadow-none">
-                  New Customer PO
-                </Badge>
-
-                <h1 className="mt-4 text-3xl font-semibold tracking-[-0.035em] text-white md:text-5xl">
-                  Create Customer PO
-                </h1>
-
-                <p className="mt-3 max-w-4xl text-sm leading-6 text-slate-400 md:text-base md:leading-7">
-                  Create a received customer purchase order, copy quotation
-                  lines when available, upload the customer PO document, and
-                  preserve the source snapshots for the transaction flow.
-                </p>
-
-                <div className="mt-5 flex flex-wrap gap-2">
-                  <Badge className="rounded-full border border-cyan-400/20 bg-cyan-500/10 px-3 py-1 text-[11px] font-semibold uppercase tracking-[0.16em] text-cyan-200 shadow-none">
-                    Document required
-                  </Badge>
-                  <Badge className="rounded-full border border-emerald-400/20 bg-emerald-500/10 px-3 py-1 text-[11px] font-semibold uppercase tracking-[0.16em] text-emerald-200 shadow-none">
-                    Quotation link optional
-                  </Badge>
-                  <Badge className="rounded-full border border-white/10 bg-white/[0.05] px-3 py-1 text-[11px] font-semibold uppercase tracking-[0.16em] text-slate-300 shadow-none">
-                    No manual refresh
-                  </Badge>
-                </div>
-              </div>
-
-              <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-1">
-                <div className="min-h-[148px] rounded-[24px] border border-white/10 bg-black/20 p-4">
-                  <div className="flex items-start justify-between gap-3">
-                    <div>
-                      <p className="text-[11px] font-semibold uppercase tracking-[0.2em] text-slate-500">
-                        Client
-                      </p>
-                      <p className="mt-2 text-xl font-semibold tracking-[-0.035em] text-white">
-                        {selectedClient?.legal_name || selectedClient?.name || "—"}
-                      </p>
-                    </div>
-                    <div className="flex h-10 w-10 items-center justify-center rounded-2xl border border-cyan-400/20 bg-cyan-500/10 text-cyan-200">
-                      <FileText className="h-4 w-4" />
-                    </div>
-                  </div>
-                  <p className="mt-3 text-xs leading-5 text-slate-500">
-                    Customer selected for this incoming purchase order.
-                  </p>
-                </div>
-
-                <div className="min-h-[148px] rounded-[24px] border border-white/10 bg-black/20 p-4">
-                  <div className="flex items-start justify-between gap-3">
-                    <div>
-                      <p className="text-[11px] font-semibold uppercase tracking-[0.2em] text-slate-500">
-                        Calculated Total
-                      </p>
-                      <p className="mt-2 text-xl font-semibold tracking-[-0.035em] text-white">
-                        {formatMoney(totals.total, form.currency_code || "USD")}
-                      </p>
-                    </div>
-                    <div className="flex h-10 w-10 items-center justify-center rounded-2xl border border-emerald-400/20 bg-emerald-500/10 text-emerald-200">
-                      <Wallet className="h-4 w-4" />
-                    </div>
-                  </div>
-                  <p className="mt-3 text-xs leading-5 text-slate-500">
-                    Total amount is calculated from Customer PO line items.
-                  </p>
-                </div>
-              </div>
-            </div>
-
-            <div className="mt-6 flex flex-wrap gap-3">
-              <Button
-                onClick={() => void handleCreateCustomerPo()}
-                disabled={isSaving || isLoadingLookups}
-                className="h-11 rounded-2xl border border-cyan-400/20 bg-cyan-500 px-4 text-sm font-semibold text-slate-950 transition hover:bg-cyan-400 disabled:cursor-not-allowed disabled:opacity-40"
-              >
-                <Save className="mr-2 h-4 w-4" />
-                {isSaving ? "Creating..." : "Create Customer PO"}
-              </Button>
-
-              {error ? (
-                <div className="flex min-h-11 items-center rounded-2xl border border-rose-400/20 bg-rose-500/10 px-4 text-sm text-rose-200">
-                  {error}
-                </div>
-              ) : null}
-            </div>
-          </div>
-        </header>
-
-                <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
-          <div className="group relative min-h-[156px] overflow-hidden rounded-[28px] border border-white/10 bg-white/[0.045] p-5 backdrop-blur-xl transition hover:border-white/20 hover:bg-white/[0.055]">
-            <div className="pointer-events-none absolute inset-0 bg-gradient-to-br from-cyan-500/20 via-cyan-400/10 to-transparent opacity-70" />
-            <div className="relative flex items-start justify-between gap-4">
-              <div className="min-w-0">
-                <div className="text-[11px] font-semibold uppercase tracking-[0.2em] text-slate-500">
-                  Subtotal
-                </div>
-                <div className="mt-2 truncate text-3xl font-semibold tracking-[-0.035em] text-cyan-100">
-                  {formatMoney(totals.subtotal, form.currency_code || "USD")}
-                </div>
-                <div className="mt-2 truncate text-sm leading-6 text-slate-400">
-                  Before discount and tax.
-                </div>
-              </div>
-              <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-2xl border border-cyan-400/20 bg-cyan-500/10 text-cyan-200">
-                <span className="h-2 w-2 rounded-full bg-cyan-400" />
-              </div>
-            </div>
-          </div>
-
-          <div className="group relative min-h-[156px] overflow-hidden rounded-[28px] border border-white/10 bg-white/[0.045] p-5 backdrop-blur-xl transition hover:border-white/20 hover:bg-white/[0.055]">
-            <div className="pointer-events-none absolute inset-0 bg-gradient-to-br from-amber-500/20 via-amber-400/10 to-transparent opacity-70" />
-            <div className="relative flex items-start justify-between gap-4">
-              <div className="min-w-0">
-                <div className="text-[11px] font-semibold uppercase tracking-[0.2em] text-slate-500">
-                  Discount
-                </div>
-                <div className="mt-2 truncate text-3xl font-semibold tracking-[-0.035em] text-amber-100">
-                  {formatMoney(totals.discount, form.currency_code || "USD")}
-                </div>
-                <div className="mt-2 truncate text-sm leading-6 text-slate-400">
-                  Customer PO discount.
-                </div>
-              </div>
-              <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-2xl border border-amber-400/20 bg-amber-500/10 text-amber-200">
-                <span className="h-2 w-2 rounded-full bg-amber-400" />
-              </div>
-            </div>
-          </div>
-
-          <div className="group relative min-h-[156px] overflow-hidden rounded-[28px] border border-white/10 bg-white/[0.045] p-5 backdrop-blur-xl transition hover:border-white/20 hover:bg-white/[0.055]">
-            <div className="pointer-events-none absolute inset-0 bg-gradient-to-br from-violet-500/20 via-violet-400/10 to-transparent opacity-70" />
-            <div className="relative flex items-start justify-between gap-4">
-              <div className="min-w-0">
-                <div className="text-[11px] font-semibold uppercase tracking-[0.2em] text-slate-500">
-                  Tax
-                </div>
-                <div className="mt-2 truncate text-3xl font-semibold tracking-[-0.035em] text-violet-100">
-                  {formatMoney(totals.tax, form.currency_code || "USD")}
-                </div>
-                <div className="mt-2 truncate text-sm leading-6 text-slate-400">
-                  Based on tax codes.
-                </div>
-              </div>
-              <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-2xl border border-violet-400/20 bg-violet-500/10 text-violet-200">
-                <span className="h-2 w-2 rounded-full bg-violet-400" />
-              </div>
-            </div>
-          </div>
-
-          <div className="group relative min-h-[156px] overflow-hidden rounded-[28px] border border-white/10 bg-white/[0.045] p-5 backdrop-blur-xl transition hover:border-white/20 hover:bg-white/[0.055]">
-            <div className="pointer-events-none absolute inset-0 bg-gradient-to-br from-emerald-500/20 via-emerald-400/10 to-transparent opacity-70" />
-            <div className="relative flex items-start justify-between gap-4">
-              <div className="min-w-0">
-                <div className="text-[11px] font-semibold uppercase tracking-[0.2em] text-slate-500">
-                  Total
-                </div>
-                <div className="mt-2 truncate text-3xl font-semibold tracking-[-0.035em] text-emerald-100">
-                  {formatMoney(totals.total, form.currency_code || "USD")}
-                </div>
-                <div className="mt-2 truncate text-sm leading-6 text-slate-400">
-                  Customer PO value.
-                </div>
-              </div>
-              <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-2xl border border-emerald-400/20 bg-emerald-500/10 text-emerald-200">
-                <span className="h-2 w-2 rounded-full bg-emerald-400" />
-              </div>
-            </div>
-          </div>
-        </div>
-
-        <div className="grid grid-cols-1 gap-6 xl:grid-cols-[minmax(0,1.45fr)_420px]">
-          <div className="space-y-6">
-            <Card className={activeSectionClass}>
-              <CardHeader className="border-b border-white/10 px-5 py-4">
-                <div className="flex items-center gap-3">
-                  <div className="rounded-2xl border border-cyan-400/15 bg-cyan-500/10 p-3 text-cyan-200">
-                    <SquarePen className="h-4 w-4" />
-                  </div>
-                  <div>
-                    <CardTitle className="text-sm font-semibold uppercase tracking-[0.18em] text-slate-400">
-                      Document Overview
-                    </CardTitle>
-                    <CardDescription className="mt-1 text-xs text-slate-500">
-                      Client, linked quotation, company, dates, currency, project, and status.
-                    </CardDescription>
-                  </div>
-                </div>
-              </CardHeader>
-
-              <CardContent className="grid grid-cols-1 gap-4 p-5 md:grid-cols-3">
-                <div className={summaryBlockClass}>
-                  <div className={labelClass}>Client</div>
-                  <select
+              <AixiaFormGrid columns="three">
+                <AixiaFormField>
+                  <AixiaFieldLabel label="Client" required />
+                  <AixiaSelectField
                     value={form.client_id}
                     onChange={(event) => handleClientChange(event.target.value)}
                     disabled={isLoadingLookups}
-                    className={fieldShellClass}
                   >
                     <option value="">Select client</option>
                     {clients.map((client) => (
@@ -1104,16 +1001,15 @@ useEffect(() => {
                         {client.legal_name || client.name}
                       </option>
                     ))}
-                  </select>
-                </div>
+                  </AixiaSelectField>
+                </AixiaFormField>
 
-                <div className={summaryBlockClass}>
-                  <div className={labelClass}>Linked Quotation</div>
-                  <select
+                <AixiaFormField>
+                  <AixiaFieldLabel label="Linked Quotation" />
+                  <AixiaSelectField
                     value={form.quotation_id}
                     onChange={(event) => void handleQuotationChange(event.target.value)}
                     disabled={!form.client_id || isLoadingLookups}
-                    className={fieldShellClass}
                   >
                     <option value="">
                       {form.client_id ? "No linked quotation" : "Select client first"}
@@ -1121,15 +1017,18 @@ useEffect(() => {
                     {filteredQuotations.map((quotation) => (
                       <option key={quotation.id} value={quotation.id}>
                         {quotation.quotation_number || "Quotation"} —{" "}
-                        {formatMoney(quotation.total_amount, quotation.currency_code || "USD")}
+                        {formatMoney(
+                          quotation.total_amount,
+                          quotation.currency_code || documentCurrencyCode
+                        )}
                       </option>
                     ))}
-                  </select>
-                </div>
+                  </AixiaSelectField>
+                </AixiaFormField>
 
-                <div className={summaryBlockClass}>
-                  <div className={labelClass}>Customer PO No.</div>
-                  <input
+                <AixiaFormField>
+                  <AixiaFieldLabel label="Customer PO No." required />
+                  <AixiaInputField
                     value={form.external_po_number}
                     onChange={(event) =>
                       setForm((current) => ({
@@ -1137,14 +1036,13 @@ useEffect(() => {
                         external_po_number: event.target.value,
                       }))
                     }
-                    className={fieldShellClass}
                     placeholder="Customer document number"
                   />
-                </div>
+                </AixiaFormField>
 
-                <div className={summaryBlockClass}>
-                  <div className={labelClass}>Company</div>
-                  <select
+                <AixiaFormField>
+                  <AixiaFieldLabel label="Company" required />
+                  <AixiaSelectField
                     value={form.company_id}
                     onChange={(event) =>
                       setForm((current) => ({
@@ -1153,7 +1051,6 @@ useEffect(() => {
                       }))
                     }
                     disabled={isLoadingLookups}
-                    className={fieldShellClass}
                   >
                     <option value="">Select company</option>
                     {companies.map((company) => (
@@ -1161,12 +1058,12 @@ useEffect(() => {
                         {company.legal_name || company.name}
                       </option>
                     ))}
-                  </select>
-                </div>
+                  </AixiaSelectField>
+                </AixiaFormField>
 
-                <div className={summaryBlockClass}>
-                  <div className={labelClass}>PO Date</div>
-                  <input
+                <AixiaFormField>
+                  <AixiaFieldLabel label="PO Date" />
+                  <AixiaInputField
                     type="date"
                     value={form.po_date}
                     onChange={(event) =>
@@ -1175,13 +1072,12 @@ useEffect(() => {
                         po_date: event.target.value,
                       }))
                     }
-                    className={fieldShellClass}
                   />
-                </div>
+                </AixiaFormField>
 
-                <div className={summaryBlockClass}>
-                  <div className={labelClass}>Received Date</div>
-                  <input
+                <AixiaFormField>
+                  <AixiaFieldLabel label="Received Date" />
+                  <AixiaInputField
                     type="date"
                     value={form.received_date}
                     onChange={(event) =>
@@ -1190,17 +1086,15 @@ useEffect(() => {
                         received_date: event.target.value,
                       }))
                     }
-                    className={fieldShellClass}
                   />
-                </div>
+                </AixiaFormField>
 
-                <div className={summaryBlockClass}>
-                  <div className={labelClass}>Currency</div>
-                  <select
+                <AixiaFormField>
+                  <AixiaFieldLabel label="Currency" required />
+                  <AixiaSelectField
                     value={form.currency_id}
                     onChange={(event) => handleCurrencyChange(event.target.value)}
                     disabled={isLoadingLookups}
-                    className={fieldShellClass}
                   >
                     <option value="">Select currency</option>
                     {currencies.map((currency) => (
@@ -1208,12 +1102,12 @@ useEffect(() => {
                         {currency.currency_code} — {currency.currency_name || ""}
                       </option>
                     ))}
-                  </select>
-                </div>
+                  </AixiaSelectField>
+                </AixiaFormField>
 
-                <div className={summaryBlockClass}>
-                  <div className={labelClass}>Project</div>
-                  <select
+                <AixiaFormField>
+                  <AixiaFieldLabel label="Project" />
+                  <AixiaSelectField
                     value={form.project_id}
                     onChange={(event) =>
                       setForm((current) => ({
@@ -1223,7 +1117,6 @@ useEffect(() => {
                       }))
                     }
                     disabled={isLoadingLookups}
-                    className={fieldShellClass}
                   >
                     <option value="">No project</option>
                     {projects.map((project) => (
@@ -1231,12 +1124,12 @@ useEffect(() => {
                         {project.name}
                       </option>
                     ))}
-                  </select>
-                </div>
+                  </AixiaSelectField>
+                </AixiaFormField>
 
-                <div className={summaryBlockClass}>
-                  <div className={labelClass}>Task</div>
-                  <select
+                <AixiaFormField>
+                  <AixiaFieldLabel label="Task" />
+                  <AixiaSelectField
                     value={form.task_id}
                     onChange={(event) =>
                       setForm((current) => ({
@@ -1245,7 +1138,6 @@ useEffect(() => {
                       }))
                     }
                     disabled={isLoadingLookups}
-                    className={fieldShellClass}
                   >
                     <option value="">No task</option>
                     {filteredTasks.map((task) => (
@@ -1253,12 +1145,12 @@ useEffect(() => {
                         {task.title}
                       </option>
                     ))}
-                  </select>
-                </div>
+                  </AixiaSelectField>
+                </AixiaFormField>
 
-                <div className={summaryBlockClass}>
-                  <div className={labelClass}>Initial Status</div>
-                  <select
+                <AixiaFormField>
+                  <AixiaFieldLabel label="Initial Status" />
+                  <AixiaSelectField
                     value={form.status}
                     onChange={(event) =>
                       setForm((current) => ({
@@ -1266,16 +1158,15 @@ useEffect(() => {
                         status: event.target.value as CustomerPoStatus,
                       }))
                     }
-                    className={fieldShellClass}
                   >
                     <option value="received">Received</option>
                     <option value="draft">Draft</option>
-                  </select>
-                </div>
+                  </AixiaSelectField>
+                </AixiaFormField>
 
-                <div className="rounded-[24px] border border-white/10 bg-black/20 p-4 md:col-span-3">
-                  <div className={labelClass}>Notes</div>
-                  <textarea
+                <AixiaFormFullWidth>
+                  <AixiaFieldLabel label="Notes" />
+                  <AixiaTextareaField
                     value={form.notes}
                     onChange={(event) =>
                       setForm((current) => ({
@@ -1284,489 +1175,325 @@ useEffect(() => {
                       }))
                     }
                     rows={4}
-                    className="mt-2 w-full rounded-2xl border border-white/10 bg-black/20 px-4 py-3 text-sm leading-6 text-white outline-none transition placeholder:text-slate-600 focus:border-cyan-400/30 focus:bg-black/30"
                   />
-                </div>
-              </CardContent>
-            </Card>
+                </AixiaFormFullWidth>
+              </AixiaFormGrid>
+            </AixiaSection>
 
-                        <Card className={activeSectionClass}>
-              <CardHeader className="flex items-center justify-between border-b border-white/10 px-5 py-4">
-                <div>
-                  <div className="flex items-center gap-3">
-                    <div className="rounded-2xl border border-cyan-400/15 bg-cyan-500/10 p-3 text-cyan-200">
-                      <SquarePen className="h-4 w-4" />
-                    </div>
-                    <div>
-                      <CardTitle className="text-sm font-semibold uppercase tracking-[0.18em] text-slate-400">
-                        Customer PO Line Items
-                      </CardTitle>
-                      <CardDescription className="mt-1 text-xs text-slate-500">
-                        Add products or services using the locked new/create line-item card pattern.
-                      </CardDescription>
-                    </div>
-                  </div>
-                </div>
-
-                <Button
-                  variant="outline"
-                  onClick={addLine}
-                  className="h-9 rounded-2xl border-white/10 bg-white/[0.05] px-3 text-white hover:bg-white/[0.08]"
-                >
-                  <Plus className="mr-2 h-4 w-4" />
+            <AixiaSection
+              title="Customer PO Line Items"
+              description="Add products or services using the locked new/create line-item card pattern."
+              icon={SquarePen}
+              smartScroll
+              visibleCards={8}
+              actions={
+                <AixiaButton type="button" variant="primary" onClick={addLine}>
+                  <Plus className="h-4 w-4" />
                   Add Line
-                </Button>
-              </CardHeader>
+                </AixiaButton>
+              }
+            >
+              <div className="aixia-form-row-list">
+                {lineDrafts.map((line, index) => {
+                  const selectedItem = items.find(
+                    (item) => item.id === line.item_id
+                  );
+                  const selectedTaxCode = taxCodes.find(
+                    (entry) => entry.id === line.tax_code_id
+                  );
+                  const selectedUnit = unitsOfMeasure.find(
+                    (unit) => unit.id === line.unit_of_measure_id
+                  );
+                  const selectedRevenueCategory = revenueCategories.find(
+                    (category) => category.id === line.revenue_category_id
+                  );
 
-              <CardContent className="p-5">
-                <div className="max-h-[720px] space-y-3 overflow-y-auto pr-1">
-                  {lineDrafts.map((line, index) => {
-                    const selectedItem = items.find(
-                      (item) => item.id === line.item_id
-                    );
-                    const selectedTaxCode = taxCodes.find(
-                      (entry) => entry.id === line.tax_code_id
-                    );
-                    const selectedUnit = unitsOfMeasure.find(
-                      (unit) => unit.id === line.unit_of_measure_id
-                    );
-                    const selectedRevenueCategory = revenueCategories.find(
-                      (category) => category.id === line.revenue_category_id
-                    );
+                  const base = Math.max(
+                    toNumber(line.quantity) * toNumber(line.unit_price) -
+                      toNumber(line.discount),
+                    0
+                  );
+                  const lineTotal =
+                    base + base * (toNumber(selectedTaxCode?.rate_percent) / 100);
 
-                    const base = Math.max(
-                      toNumber(line.quantity) * toNumber(line.unit_price) -
-                        toNumber(line.discount),
-                      0
-                    );
-                    const lineTotal =
-                      base + base * (toNumber(selectedTaxCode?.rate_percent) / 100);
-
-                    return (
-                      <div
-                        key={line.localId}
-                        className="rounded-[24px] border border-white/10 bg-black/20 p-4"
-                      >
-                        <div className="mb-4 flex items-center justify-between gap-4">
-                          <div className="flex flex-wrap items-center gap-2">
-                            <div className="text-sm font-semibold text-white">
-                              Line {index + 1}
-                            </div>
-
-                            {selectedItem ? (
-                              <Badge className="rounded-full border border-violet-400/20 bg-violet-500/10 px-3 py-1 text-[10px] font-semibold uppercase tracking-[0.18em] text-violet-200 shadow-none">
-                                {selectedItem.name}
-                              </Badge>
-                            ) : null}
-                          </div>
-
-                          <Button
-                            variant="outline"
-                            onClick={() => removeLine(line.localId)}
-                            disabled={lineDrafts.length === 1}
-                            className="h-9 rounded-2xl border-white/10 bg-white/[0.05] px-3 text-white hover:bg-white/[0.08] disabled:cursor-not-allowed disabled:opacity-40"
+                  return (
+                    <AixiaFormRowCard
+                      key={line.localId}
+                      title={`Line ${index + 1}`}
+                      description={selectedItem?.name || "Manual / no item"}
+                      onRemove={() => removeLine(line.localId)}
+                      removeDisabled={lineDrafts.length === 1}
+                      removeLabel="Remove"
+                    >
+                      <AixiaFormGrid columns="three">
+                        <AixiaFormField>
+                          <AixiaFieldLabel label="Item" />
+                          <AixiaSelectField
+                            value={line.item_id}
+                            onChange={(event) =>
+                              applyItemToLine(line.localId, event.target.value)
+                            }
                           >
-                            <Trash2 className="h-4 w-4" />
-                          </Button>
-                        </div>
+                            <option value="">Manual / no item</option>
+                            {items.map((item) => (
+                              <option key={item.id} value={item.id}>
+                                {item.name}
+                              </option>
+                            ))}
+                          </AixiaSelectField>
+                        </AixiaFormField>
 
-                        <div className="grid grid-cols-1 gap-4 md:grid-cols-12">
-                          <label className="space-y-2 md:col-span-3">
-                            <div className={inputLabelClass}>Item</div>
-                            <select
-                              value={line.item_id}
-                              onChange={(event) =>
-                                applyItemToLine(line.localId, event.target.value)
-                              }
-                              className={inputFieldClass}
-                            >
-                              <option value="">Manual / no item</option>
-                              {items.map((item) => (
-                                <option key={item.id} value={item.id}>
-                                  {item.name}
-                                </option>
-                              ))}
-                            </select>
-                          </label>
+                        <AixiaFormField>
+                          <AixiaFieldLabel label="Description" />
+                          <AixiaInputField
+                            value={line.description}
+                            onChange={(event) =>
+                              updateLine(
+                                line.localId,
+                                "description",
+                                event.target.value
+                              )
+                            }
+                            placeholder="Description"
+                          />
+                        </AixiaFormField>
 
-                          <label className="space-y-2 md:col-span-4">
-                            <div className={inputLabelClass}>Description</div>
-                            <input
-                              value={line.description}
-                              onChange={(event) =>
-                                updateLine(
-                                  line.localId,
-                                  "description",
-                                  event.target.value
-                                )
-                              }
-                              placeholder="Description"
-                              className={inputFieldClass}
-                            />
-                          </label>
+                        <AixiaFormField>
+                          <AixiaFieldLabel label="Qty" />
+                          <AixiaInputField
+                            value={line.quantity}
+                            onChange={(event) =>
+                              updateLine(line.localId, "quantity", event.target.value)
+                            }
+                          />
+                        </AixiaFormField>
 
-                          <label className="space-y-2 md:col-span-1">
-                            <div className={inputLabelClass}>Qty</div>
-                            <input
-                              value={line.quantity}
-                              onChange={(event) =>
-                                updateLine(
-                                  line.localId,
-                                  "quantity",
-                                  event.target.value
-                                )
-                              }
-                              className={inputFieldClass}
-                            />
-                          </label>
+                        <AixiaFormField>
+                          <AixiaFieldLabel label="Unit" />
+                          <AixiaSelectField
+                            value={line.unit_of_measure_id}
+                            onChange={(event) =>
+                              updateLine(
+                                line.localId,
+                                "unit_of_measure_id",
+                                event.target.value
+                              )
+                            }
+                          >
+                            <option value="">No unit</option>
+                            {unitsOfMeasure.map((unit) => (
+                              <option key={unit.id} value={unit.id}>
+                                {unit.code} — {unit.name}
+                              </option>
+                            ))}
+                          </AixiaSelectField>
+                          {selectedUnit ? (
+                            <div className="aixia-helper-text">{selectedUnit.code}</div>
+                          ) : null}
+                        </AixiaFormField>
 
-                          <label className="space-y-2 md:col-span-2">
-                            <div className={inputLabelClass}>Unit</div>
-                            <select
-                              value={line.unit_of_measure_id}
-                              onChange={(event) =>
-                                updateLine(
-                                  line.localId,
-                                  "unit_of_measure_id",
-                                  event.target.value
-                                )
-                              }
-                              className={inputFieldClass}
-                            >
-                              <option value="">No unit</option>
-                              {unitsOfMeasure.map((unit) => (
-                                <option key={unit.id} value={unit.id}>
-                                  {unit.code} — {unit.name}
-                                </option>
-                              ))}
-                            </select>
-                            {selectedUnit ? (
-                              <div className="text-[11px] text-slate-500">
-                                {selectedUnit.code}
-                              </div>
-                            ) : null}
-                          </label>
+                        <AixiaFormField>
+                          <AixiaFieldLabel label="Unit Price" />
+                          <AixiaInputField
+                            value={line.unit_price}
+                            onChange={(event) =>
+                              updateLine(line.localId, "unit_price", event.target.value)
+                            }
+                          />
+                        </AixiaFormField>
 
-                          <label className="space-y-2 md:col-span-2">
-                            <div className={inputLabelClass}>Unit Price</div>
-                            <input
-                              value={line.unit_price}
-                              onChange={(event) =>
-                                updateLine(
-                                  line.localId,
-                                  "unit_price",
-                                  event.target.value
-                                )
-                              }
-                              className={inputFieldClass}
-                            />
-                          </label>
+                        <AixiaFormField>
+                          <AixiaFieldLabel label="Discount" />
+                          <AixiaInputField
+                            value={line.discount}
+                            onChange={(event) =>
+                              updateLine(line.localId, "discount", event.target.value)
+                            }
+                          />
+                        </AixiaFormField>
 
-                          <label className="space-y-2 md:col-span-2">
-                            <div className={inputLabelClass}>Discount</div>
-                            <input
-                              value={line.discount}
-                              onChange={(event) =>
-                                updateLine(
-                                  line.localId,
-                                  "discount",
-                                  event.target.value
-                                )
-                              }
-                              className={inputFieldClass}
-                            />
-                          </label>
+                        <AixiaFormField>
+                          <AixiaFieldLabel label="Tax Code" />
+                          <AixiaSelectField
+                            value={line.tax_code_id}
+                            onChange={(event) =>
+                              updateLine(line.localId, "tax_code_id", event.target.value)
+                            }
+                          >
+                            <option value="">No tax</option>
+                            {taxCodes.map((taxCode) => (
+                              <option key={taxCode.id} value={taxCode.id}>
+                                {taxCode.name}
+                              </option>
+                            ))}
+                          </AixiaSelectField>
+                        </AixiaFormField>
 
-                          <label className="space-y-2 md:col-span-2">
-                            <div className={inputLabelClass}>Tax Code</div>
-                            <select
-                              value={line.tax_code_id}
-                              onChange={(event) =>
-                                updateLine(
-                                  line.localId,
-                                  "tax_code_id",
-                                  event.target.value
-                                )
-                              }
-                              className={inputFieldClass}
-                            >
-                              <option value="">No tax</option>
-                              {taxCodes.map((taxCode) => (
-                                <option key={taxCode.id} value={taxCode.id}>
-                                  {taxCode.name}
-                                </option>
-                              ))}
-                            </select>
-                          </label>
-
-                          <label className="space-y-2 md:col-span-3">
-                            <div className={inputLabelClass}>
-                              Revenue Category
+                        <AixiaFormField>
+                          <AixiaFieldLabel label="Revenue Category" />
+                          <AixiaSelectField
+                            value={line.revenue_category_id}
+                            onChange={(event) =>
+                              updateLine(
+                                line.localId,
+                                "revenue_category_id",
+                                event.target.value
+                              )
+                            }
+                          >
+                            <option value="">No category</option>
+                            {revenueCategories.map((category) => (
+                              <option key={category.id} value={category.id}>
+                                {category.name}
+                              </option>
+                            ))}
+                          </AixiaSelectField>
+                          {selectedRevenueCategory?.code ? (
+                            <div className="aixia-helper-text">
+                              {selectedRevenueCategory.code}
                             </div>
-                            <select
-                              value={line.revenue_category_id}
-                              onChange={(event) =>
-                                updateLine(
-                                  line.localId,
-                                  "revenue_category_id",
-                                  event.target.value
-                                )
-                              }
-                              className={inputFieldClass}
-                            >
-                              <option value="">No category</option>
-                              {revenueCategories.map((category) => (
-                                <option key={category.id} value={category.id}>
-                                  {category.name}
-                                </option>
-                              ))}
-                            </select>
-                            {selectedRevenueCategory?.code ? (
-                              <div className="text-[11px] text-slate-500">
-                                {selectedRevenueCategory.code}
-                              </div>
-                            ) : null}
-                          </label>
+                          ) : null}
+                        </AixiaFormField>
 
-                          <div className="space-y-2 md:col-span-3">
-                            <div className={inputLabelClass}>Line Total</div>
-                            <div className="flex min-h-[44px] items-center rounded-2xl border border-cyan-400/15 bg-cyan-500/10 px-4 text-sm font-semibold text-cyan-100">
-                              {formatMoney(lineTotal, form.currency_code || "USD")}
-                            </div>
-                          </div>
-                        </div>
-                      </div>
-                    );
-                  })}
-                </div>
-              </CardContent>
-            </Card>
-          </div>
+                        <AixiaValueBlock
+                          label="Line Total"
+                          value={formatMoney(lineTotal, documentCurrencyCode)}
+                          detail="Quantity × unit price, less discount, plus tax"
+                        />
+                      </AixiaFormGrid>
+                    </AixiaFormRowCard>
+                  );
+                })}
+              </div>
+            </AixiaSection>
+          </>
+        }
+        side={
+          <>
+            <AixiaSection
+              title="Customer PO Document"
+              description="Upload the customer PO file. A document is required."
+              icon={Paperclip}
+            >
+              <AixiaDocumentUploadPanel
+                selectedFile={selectedFile}
+                attachments={[]}
+                required
+                disabled={isSaving}
+                uploading={isSaving}
+                accept=".pdf,.png,.jpg,.jpeg,.webp,.doc,.docx,.xls,.xlsx"
+                dropTitle="Drop Customer PO file here"
+                dropDescription="Attach the original customer purchase order document. PDF, image, Word, or Excel files are supported."
+                uploadLabel="Create Customer PO"
+                uploadingLabel="Creating..."
+                selectedFileLabel="Selected Customer PO document"
+                emptyTitle="No Customer PO document selected"
+                emptyDescription="Upload the original Customer PO document before creation."
+                requiredMessage="Customer PO document is required at creation."
+                onFileSelect={(file) => {
+                  setSelectedFile(file);
+                  setError("");
+                }}
+                onRemoveSelectedFile={() => setSelectedFile(null)}
+                onUpload={() => void handleCreateCustomerPo()}
+              />
 
-          <div className="space-y-6">
-            <Card className={activeSectionClass}>
-              <CardHeader className="border-b border-white/10 px-5 py-4">
-                <div className="flex items-center gap-3">
-                  <div className="rounded-2xl border border-cyan-400/15 bg-cyan-500/10 p-3 text-cyan-200">
-                    <Upload className="h-4 w-4" />
-                  </div>
-                  <div>
-                    <CardTitle className="text-sm font-semibold uppercase tracking-[0.18em] text-slate-400">
-                      Customer PO Document
-                    </CardTitle>
-                    <CardDescription className="mt-1 text-xs text-slate-500">
-                      Upload the customer PO file. A document is required.
-                    </CardDescription>
-                  </div>
-                </div>
-              </CardHeader>
+              <AixiaValueBlock
+                label="Selected File"
+                value={selectedFile?.name || "Required"}
+                detail={getSelectedFileSizeLabel(selectedFile)}
+              />
+            </AixiaSection>
 
-              <CardContent className="space-y-4 p-5">
-                <input
-                  ref={fileInputRef}
-                  type="file"
-                  className="hidden"
-                  onChange={(event) => handleDropFile(event.target.files)}
+            <AixiaSection
+              title="Customer PO Summary"
+              description="Live document context before creation."
+              icon={FileText}
+            >
+              <AixiaReviewGrid variant="cards">
+                <AixiaValueBlock
+                  label="Client"
+                  value={selectedClient?.legal_name || selectedClient?.name || "—"}
+                  detail={makeAddressSnapshot(selectedClient) || "No client address"}
                 />
 
-                <button
-                  type="button"
-                  onClick={() => fileInputRef.current?.click()}
-                  onDragEnter={(event) => {
-                    event.preventDefault();
-                    event.stopPropagation();
-                    setIsDraggingFile(true);
-                  }}
-                  onDragOver={(event) => {
-                    event.preventDefault();
-                    event.stopPropagation();
-                    setIsDraggingFile(true);
-                  }}
-                  onDragLeave={(event) => {
-                    event.preventDefault();
-                    event.stopPropagation();
-                    setIsDraggingFile(false);
-                  }}
-                  onDrop={(event) => {
-                    event.preventDefault();
-                    event.stopPropagation();
-                    setIsDraggingFile(false);
-                    handleDropFile(event.dataTransfer.files);
-                  }}
-                  className={`flex min-h-[220px] w-full flex-col items-center justify-center rounded-[26px] border border-dashed px-6 py-8 text-center transition ${
-                    isDraggingFile
-                      ? "border-cyan-300 bg-cyan-500/10"
-                      : "border-white/15 bg-black/20 hover:border-cyan-400/30 hover:bg-cyan-500/5"
-                  }`}
-                >
-                  <div className="flex h-14 w-14 items-center justify-center rounded-2xl border border-cyan-400/20 bg-cyan-500/10 text-cyan-200">
-                    <Upload className="h-6 w-6" />
-                  </div>
+                <AixiaValueBlock
+                  label="Company"
+                  value={selectedCompany?.legal_name || selectedCompany?.name || "—"}
+                  detail={makeAddressSnapshot(selectedCompany) || "No company address"}
+                />
 
-                  <div className="mt-4 text-sm font-semibold text-white">
-                    Drop Customer PO file here
-                  </div>
-                  <div className="mt-2 text-xs leading-5 text-slate-500">
-                    PDF, image, Word, or Excel. Click to browse.
-                  </div>
-                </button>
+                <AixiaValueBlock
+                  label="Linked Quotation"
+                  value={selectedQuotation?.quotation_number || "—"}
+                  detail={
+                    selectedQuotation
+                      ? formatMoney(
+                          selectedQuotation.total_amount,
+                          selectedQuotation.currency_code || documentCurrencyCode
+                        )
+                      : "No quotation selected"
+                  }
+                />
 
-                {selectedFile ? (
-                  <div className="rounded-[20px] border border-emerald-400/20 bg-emerald-500/10 px-4 py-3">
-                    <div className="flex items-center justify-between gap-4">
-                      <div className="min-w-0">
-                        <div className="truncate text-sm font-semibold text-emerald-100">
-                          {selectedFile.name}
-                        </div>
-                        <div className="mt-1 text-xs text-emerald-200/70">
-                          {(selectedFile.size / 1024 / 1024).toFixed(2)} MB
-                        </div>
-                      </div>
-
-                      <Button
-                        variant="outline"
-                        onClick={() => setSelectedFile(null)}
-                        className="h-9 rounded-2xl border-white/10 bg-white/[0.05] px-3 text-white hover:bg-white/[0.08]"
-                      >
-                        <X className="h-4 w-4" />
-                      </Button>
-                    </div>
-                  </div>
-                ) : null}
-
-                                <div className={summaryBlockClass}>
-                  <div className={labelClass}>Summary</div>
-
-                  <div className="mt-3 space-y-3">
-                    <div className="flex items-center justify-between text-sm">
-                      <span className="text-slate-400">Subtotal</span>
-                      <span className="font-semibold text-white">
-                        {formatMoney(totals.subtotal, form.currency_code || "USD")}
-                      </span>
-                    </div>
-
-                    <div className="flex items-center justify-between text-sm">
-                      <span className="text-slate-400">Discount</span>
-                      <span className="font-semibold text-white">
-                        {formatMoney(totals.discount, form.currency_code || "USD")}
-                      </span>
-                    </div>
-
-                    <div className="flex items-center justify-between text-sm">
-                      <span className="text-slate-400">Tax</span>
-                      <span className="font-semibold text-white">
-                        {formatMoney(totals.tax, form.currency_code || "USD")}
-                      </span>
-                    </div>
-
-                    <div className="border-t border-white/10 pt-3">
-                      <div className="flex items-center justify-between">
-                        <span className="text-sm font-medium text-slate-300">
-                          Total
-                        </span>
-                        <span className="text-lg font-semibold text-white">
-                          {formatMoney(totals.total, form.currency_code || "USD")}
-                        </span>
-                      </div>
-                    </div>
-                  </div>
-                </div>
-
-                <Button
-                  onClick={() => void handleCreateCustomerPo()}
-                  disabled={isSaving || isLoadingLookups}
-                  className="h-11 w-full rounded-2xl border border-cyan-400/20 bg-cyan-500 px-4 font-semibold text-slate-950 hover:bg-cyan-400 disabled:cursor-not-allowed disabled:opacity-40"
-                >
-                  <Save className="mr-2 h-4 w-4" />
-                  {isSaving ? "Creating..." : "Create Customer PO"}
-                </Button>
-
-                {error ? (
-                  <div className="rounded-[18px] border border-rose-400/20 bg-rose-500/10 px-4 py-3 text-sm text-rose-200">
-                    {error}
-                  </div>
-                ) : null}
-              </CardContent>
-            </Card>
-
-            <Card className={activeSectionClass}>
-              <CardHeader className="border-b border-white/10 px-5 py-4">
-                <CardTitle className="text-sm font-semibold uppercase tracking-[0.18em] text-slate-400">
-                  Customer PO Summary
-                </CardTitle>
-                <CardDescription className="mt-1 text-xs text-slate-500">
-                  Live document context before creation.
-                </CardDescription>
-              </CardHeader>
-
-              <CardContent className="space-y-3 p-5">
-                <div className={summaryBlockClass}>
-                  <div className={labelClass}>Client</div>
-                  <div className="mt-2 text-2xl font-semibold text-white">
-                    {selectedClient?.legal_name || selectedClient?.name || "—"}
-                  </div>
-                </div>
-
-                <div className={summaryBlockClass}>
-                  <div className={labelClass}>Company</div>
-                  <div className="mt-2 text-2xl font-semibold text-white">
-                    {selectedCompany?.legal_name || selectedCompany?.name || "—"}
-                  </div>
-                </div>
-
-                <div className={summaryBlockClass}>
-                  <div className={labelClass}>Linked Quotation</div>
-                  <div className="mt-2 text-2xl font-semibold text-white">
-                    {selectedQuotation?.quotation_number || "—"}
-                  </div>
-                </div>
-
-                <div className={summaryBlockClass}>
-                  <div className={labelClass}>Currency</div>
-                  <div className="mt-2 text-2xl font-semibold text-white">
-                    {selectedCurrency
+                <AixiaValueBlock
+                  label="Currency"
+                  value={
+                    selectedCurrency
                       ? `${selectedCurrency.currency_code} — ${
                           selectedCurrency.currency_name || ""
                         }`
-                      : form.currency_code || "—"}
-                  </div>
-                </div>
+                      : form.currency_code || "—"
+                  }
+                  detail="Selected from finance_currencies master data"
+                />
 
-                <div className={summaryBlockClass}>
-                  <div className={labelClass}>Project / Task</div>
-                  <div className="mt-2 text-2xl font-semibold text-white">
-                    {selectedProject?.name || "—"}
-                  </div>
-                  <div className="mt-2 text-sm leading-6 text-slate-400">
-                    {selectedTask?.title || "No task selected"}
-                  </div>
-                </div>
-              </CardContent>
-            </Card>
+                <AixiaValueBlock
+                  label="Project / Task"
+                  value={selectedProject?.name || "—"}
+                  detail={selectedTask?.title || "No task selected"}
+                />
 
-            <Card className={activeSectionClass}>
-              <CardHeader className="border-b border-white/10 px-5 py-4">
-                <CardTitle className="text-sm font-semibold uppercase tracking-[0.18em] text-slate-400">
-                  Creation Rules
-                </CardTitle>
-                <CardDescription className="mt-1 text-xs text-slate-500">
-                  Locked Customer PO creation behavior.
-                </CardDescription>
-              </CardHeader>
+                <AixiaValueBlock
+                  label="Total"
+                  value={formatMoney(totals.total, documentCurrencyCode)}
+                  detail="Calculated from Customer PO line items"
+                />
+              </AixiaReviewGrid>
+            </AixiaSection>
 
-              <CardContent className="space-y-2 p-5 text-sm leading-6 text-slate-400">
-                <div>• Internal CPO No. is generated automatically.</div>
-                <div>• Customer PO No. comes from the customer document.</div>
-                <div>• Linked quotation is filtered by selected client.</div>
-                <div>• Quotation lines can be copied and adjusted.</div>
-                <div>• Item lines come from Item Master or manual entry.</div>
-                <div>• Total amount is calculated from Customer PO line items.</div>
-                <div>• Customer PO document is required at creation.</div>
-              </CardContent>
-            </Card>
-          </div>
-        </div>
-      </div>
-    </div>
+            <AixiaSection
+              title="Creation Rules"
+              description="Locked Customer PO creation behavior."
+              icon={CheckCircle}
+            >
+              <div className="aixia-stack">
+                <AixiaAlert tone="info">
+                  Internal CPO No. is generated automatically.
+                </AixiaAlert>
+                <AixiaAlert tone="info">
+                  Customer PO No. comes from the customer document.
+                </AixiaAlert>
+                <AixiaAlert tone="info">
+                  Linked quotation is filtered by selected client.
+                </AixiaAlert>
+                <AixiaAlert tone="info">
+                  Quotation lines can be copied and adjusted.
+                </AixiaAlert>
+                <AixiaAlert tone="info">
+                  Item lines come from Item Master or manual entry.
+                </AixiaAlert>
+                <AixiaAlert tone="info">
+                  Total amount is calculated from Customer PO line items.
+                </AixiaAlert>
+                <AixiaAlert tone="info">
+                  Customer PO document is required at creation.
+                </AixiaAlert>
+              </div>
+            </AixiaSection>
+          </>
+        }
+      />
+    </AixiaPage>
   );
 }

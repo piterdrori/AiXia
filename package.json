@@ -3,10 +3,10 @@
   "private": true,
   "version": "0.0.0",
   "type": "module",
-  "scripts": {
+"scripts": {
   "dev": "vite",
   "prebuild": "node scripts/prepare-mediapipe-assets.cjs",
-  "build": "tsc -b && vite build",
+  "build": "node scripts/aixia-guardrails.mjs && tsc -b && vite build",
   "lint": "eslint .",
   "preview": "vite preview"
 },

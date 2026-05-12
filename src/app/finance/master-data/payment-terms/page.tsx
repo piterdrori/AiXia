@@ -23,11 +23,11 @@ import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
 
 import { supabase } from "@/lib/supabase";
+import { type Permission, type Role } from "@/lib/permissions";
 import {
-  getEffectivePermissions,
-  type Permission,
-  type Role,
-} from "@/lib/permissions";
+  fetchFinanceEffectivePermissions,
+  resolveFinancePagePermissionState,
+} from "@/lib/finance/pageAccess";
 import {
   archivePaymentTerm,
   createPaymentTerm,
@@ -106,6 +106,15 @@ const EMPTY_FORM: FormState = {
   status: "active",
   notes: "",
 };
+
+const PAYMENT_TERMS_ACCESS_CONFIG = {
+  sectionKey: "masterData",
+  adminPermissions: ["manageFinanceMasterData"],
+  readPermissions: ["accessFinance", "viewFinance"],
+  createPermissions: ["createFinanceRecords"],
+  updatePermissions: ["editFinanceRecords"],
+  deleteArchivePermissions: ["archiveFinanceRecords"],
+} as const;
 
 const TERM_TYPE_OPTIONS: Array<{
   value: FinancePaymentTermType;
@@ -1100,8 +1109,14 @@ export default function FinancePaymentTermsPage() {
 
         if (profile) {
           const typedProfile = profile as ProfilePermissionRow;
+          const backendPermissions = await fetchFinanceEffectivePermissions(
+            user.id,
+            silent ? "silent" : "initial",
+            "Payment Terms"
+          );
+
           setRole(typedProfile.role);
-          setPermissionOverrides(typedProfile.permissions || null);
+          setPermissionOverrides(backendPermissions || typedProfile.permissions || null);
         }
       }
 
@@ -1158,15 +1173,17 @@ export default function FinancePaymentTermsPage() {
     };
   }, [loadPage]);
 
-  const permissions = useMemo(() => {
-    if (!role) return null;
-
-    return getEffectivePermissions(role, permissionOverrides);
+  const permissionState = useMemo(() => {
+    return resolveFinancePagePermissionState({
+      profileRole: role,
+      permissions: permissionOverrides,
+      config: PAYMENT_TERMS_ACCESS_CONFIG,
+    });
   }, [permissionOverrides, role]);
 
-  const canCreate = !!permissions?.createFinanceRecords;
-  const canEdit = !!permissions?.editFinanceRecords;
-  const canArchive = !!permissions?.archiveFinanceRecords;
+  const canCreate = permissionState.canCreate;
+  const canEdit = permissionState.canUpdate;
+  const canArchive = permissionState.canDeleteArchive;
   const canDelete = canArchive;
 
   const activeRows = useMemo(() => {

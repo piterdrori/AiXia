@@ -2,20 +2,17 @@ import fs from "node:fs";
 import path from "node:path";
 
 const ROOT = process.cwd();
+const SRC_DIR = path.join(ROOT, "src");
 const FINANCE_APP_DIR = path.join(ROOT, "src", "app", "finance");
+const AIXIA_COMPONENT_DIR = path.join(ROOT, "src", "components", "aixia");
+const AIXIA_STYLE_FILE = path.join(ROOT, "src", "styles", "aixia-design-system.css");
+const AIXIA_STANDARD_FILE = path.join(ROOT, "src", "components", "aixia", "AIXIA_STANDARD.md");
+const PAGE_ACCESS_FILE = path.join(ROOT, "src", "lib", "finance", "pageAccess.ts");
+const FINANCE_LIB_DIR = path.join(ROOT, "src", "lib", "finance");
 
 const errors = [];
 const warnings = [];
 
-/**
- * These files existed before the guardrail was created and still contain legacy
- * permission/registry patterns. They are allowed to build for now, but the guard
- * still reports warnings so every future rewrite can remove them from this list.
- *
- * Rule:
- * - New or rewritten standardized pages must NOT be added here.
- * - Remove files from these lists when they are standardized.
- */
 const LEGACY_PERMISSION_PATTERN_EXEMPTIONS = new Set([
   "src/app/finance/access-approvals/[userId]/page.tsx",
   "src/app/finance/access-approvals/page.tsx",
@@ -51,6 +48,99 @@ const LEGACY_SECONDARY_EDIT_EXEMPTIONS = new Set([
   "src/app/finance/master-data/employees/page.tsx",
 ]);
 
+const REQUIRED_AIXIA_COMPONENT_FILES = [
+  "AIXIA_STANDARD.md",
+  "index.ts",
+  "AixiaAccessRule.tsx",
+  "AixiaActionSystem.tsx",
+  "AixiaAlert.tsx",
+  "AixiaArchiveManagerModal.tsx",
+  "AixiaBadge.tsx",
+  "AixiaButton.tsx",
+  "AixiaCurrencyBadge.tsx",
+  "AixiaDefaultBadge.tsx",
+  "AixiaDetailSection.tsx",
+  "AixiaEmptyState.tsx",
+  "AixiaFormFields.tsx",
+  "AixiaHero.tsx",
+  "AixiaMetricCard.tsx",
+  "AixiaMetricGrid.tsx",
+  "AixiaModal.tsx",
+  "AixiaPage.tsx",
+  "AixiaPageStates.tsx",
+  "AixiaRegistryToolbar.tsx",
+  "AixiaReviewBlocks.tsx",
+  "AixiaSearchField.tsx",
+  "AixiaSection.tsx",
+  "AixiaSmartGrid.tsx",
+  "AixiaSmartLayout.tsx",
+  "AixiaStatusBadge.tsx",
+  "AixiaStatusCard.tsx",
+  "AixiaTable.tsx",
+  "AixiaTableCells.tsx",
+  "AixiaValueBlock.tsx",
+];
+
+const REQUIRED_CSS_SELECTORS = [
+  ".aixia-page",
+  ".aixia-hero",
+  ".aixia-hero-status-grid",
+  ".aixia-section",
+  ".aixia-section-header-layout",
+  ".aixia-section-actions",
+  ".aixia-registry-control-cluster",
+  ".aixia-registry-filter-grid",
+  ".aixia-btn-primary",
+  ".aixia-btn-secondary",
+  ".aixia-btn-danger",
+  ".aixia-smart-layout",
+  ".aixia-smart-main",
+  ".aixia-smart-side",
+  ".aixia-smart-bottom-span",
+  ".aixia-table-wrap",
+  ".aixia-table-scroll",
+  ".aixia-table",
+  ".aixia-table-head",
+  ".aixia-table-row",
+  ".aixia-table-cell-text",
+  ".aixia-table-cell-badge",
+  ".aixia-table-cell-date",
+  ".aixia-table-cell-actions",
+  ".aixia-table-actions",
+  ".aixia-sortable-header",
+  ".aixia-form-row-list",
+  ".aixia-detail-section",
+  ".aixia-archive-manager-tabs",
+];
+
+const REQUIRED_INDEX_EXPORTS = [
+  "AixiaPage",
+  "AixiaHero",
+  "AixiaSection",
+  "AixiaDetailSection",
+  "AixiaMetricGrid",
+  "AixiaMetricCard",
+  "AixiaButton",
+  "AixiaSearchField",
+  "AixiaRegistryToolbar",
+  "AixiaArchiveManagerModal",
+  "AixiaSortableHeader",
+  "AixiaTableShell",
+  "AixiaTableActionsCell",
+  "AixiaTableBadgeCell",
+  "AixiaTableDateCell",
+  "AixiaTableTextCell",
+  "AixiaSmartLayout",
+  "AixiaStatusBadge",
+  "AixiaCurrencyBadge",
+  "AixiaDefaultBadge",
+  "AixiaAccessDeniedState",
+  "AixiaLoadingState",
+  "AixiaNotFoundState",
+  "AixiaAlert",
+  "AixiaAlertText",
+];
+
 function normalizePath(filePath) {
   return filePath.split(path.sep).join("/");
 }
@@ -61,6 +151,10 @@ function getRelativePath(filePath) {
   }
 
   return normalizePath(filePath);
+}
+
+function fileExists(filePath) {
+  return fs.existsSync(filePath) && fs.statSync(filePath).isFile();
 }
 
 function readText(filePath) {
@@ -86,29 +180,31 @@ function walkFiles(dir, extensions, output = []) {
   return output;
 }
 
-function addError(filePath, message) {
+function addError(filePath, message, scope = "AiXia guardrail") {
   errors.push({
     filePath: getRelativePath(filePath),
     message,
+    scope,
   });
 }
 
-function addWarning(filePath, message) {
+function addWarning(filePath, message, scope = "AiXia guardrail") {
   warnings.push({
     filePath: getRelativePath(filePath),
     message,
+    scope,
   });
 }
 
-function addLegacyWarningOrError(filePath, legacySet, message) {
+function addLegacyWarningOrError(filePath, legacySet, message, scope = "AiXia page rule") {
   const relativePath = getRelativePath(filePath);
 
   if (legacySet.has(relativePath)) {
-    addWarning(filePath, `Legacy baseline warning: ${message}`);
+    addWarning(filePath, `Legacy baseline warning: ${message}`, scope);
     return;
   }
 
-  addError(filePath, message);
+  addError(filePath, message, scope);
 }
 
 function stripComments(text) {
@@ -229,7 +325,7 @@ function inspectCallArguments(filePath, text, functionName, expectedCount, optio
     const closeParenIndex = findCallEnd(cleanText, openParenIndex);
 
     if (closeParenIndex === -1) {
-      addError(filePath, `${functionName} call is not closed correctly.`);
+      addError(filePath, `${functionName} call is not closed correctly.`, "AiXia helper signature rule");
       continue;
     }
 
@@ -239,14 +335,16 @@ function inspectCallArguments(filePath, text, functionName, expectedCount, optio
     if (argumentCount !== expectedCount) {
       addError(
         filePath,
-        `${functionName} must be called with exactly ${expectedCount} argument${expectedCount === 1 ? "" : "s"}. Found ${argumentCount}.`
+        `${functionName} must be called with exactly ${expectedCount} argument${expectedCount === 1 ? "" : "s"}. Found ${argumentCount}.`,
+        "AiXia helper signature rule"
       );
     }
 
     if (options.firstArgumentMustBeObject && !argumentText.trim().startsWith("{")) {
       addError(
         filePath,
-        `${functionName} must be called with one object argument: { profileRole, permissions, config }.`
+        `${functionName} must be called with one object argument: { profileRole, permissions, config }.`,
+        "AiXia helper signature rule"
       );
     }
 
@@ -281,6 +379,303 @@ function buttonHasVisibleWord(buttonBlock, word) {
   return new RegExp(`\\b${word}\\b`, "i").test(withoutTags);
 }
 
+function assertFileExists(filePath, scope) {
+  if (!fileExists(filePath)) {
+    addError(filePath, "Required AiXia source-of-truth file is missing.", scope);
+    return false;
+  }
+
+  return true;
+}
+
+function inspectSharedStandardDocument() {
+  if (!assertFileExists(AIXIA_STANDARD_FILE, "AiXia standard document rule")) return;
+
+  const text = readText(AIXIA_STANDARD_FILE);
+  const requiredPhrases = [
+    "Source of truth",
+    "Zero local design rule",
+    "Locked shared components",
+    "Registry toolbar standard",
+    "Archive manager standard",
+    "Button standard",
+    "Table standard",
+    "Silent refresh standard",
+    "Finance permission standard",
+  ];
+
+  for (const phrase of requiredPhrases) {
+    if (!text.includes(phrase)) {
+      addError(
+        AIXIA_STANDARD_FILE,
+        `AIXIA_STANDARD.md must include the locked section/phrase: ${phrase}`,
+        "AiXia standard document rule"
+      );
+    }
+  }
+}
+
+function inspectSharedCssSourceOfTruth() {
+  if (!assertFileExists(AIXIA_STYLE_FILE, "AiXia CSS source-of-truth rule")) return;
+
+  const text = readText(AIXIA_STYLE_FILE);
+
+  for (const selector of REQUIRED_CSS_SELECTORS) {
+    if (!text.includes(selector)) {
+      addError(
+        AIXIA_STYLE_FILE,
+        `Missing required shared CSS selector: ${selector}`,
+        "AiXia CSS source-of-truth rule"
+      );
+    }
+  }
+
+  const requiredSnippets = [
+    "repeat(6, minmax(0, 1fr))",
+    "aixia-section-header-layout:has(.aixia-registry-control-cluster)",
+    "data-table-variant=\"registry\"",
+    "data-table-variant=\"archive\"",
+    "position: sticky",
+    "overflow-x: auto",
+    "overflow-y: auto",
+  ];
+
+  for (const snippet of requiredSnippets) {
+    if (!text.includes(snippet)) {
+      addError(
+        AIXIA_STYLE_FILE,
+        `Missing locked shared CSS behavior/snippet: ${snippet}`,
+        "AiXia CSS source-of-truth rule"
+      );
+    }
+  }
+
+  const dangerPatterns = [
+    /\.aixia-registry-control-cluster\s*\{[\s\S]*?display\s*:\s*none/i,
+    /\.aixia-table-actions\s*\{[\s\S]*?display\s*:\s*none/i,
+    /\.aixia-table-wrap\s*\{[\s\S]*?overflow\s*:\s*hidden/i,
+    /\.aixia-section-actions\s*\{[\s\S]*?display\s*:\s*none/i,
+  ];
+
+  for (const pattern of dangerPatterns) {
+    if (pattern.test(text)) {
+      addError(
+        AIXIA_STYLE_FILE,
+        "Shared CSS hides or clips a locked registry/table/action container. Fix the shared CSS instead of page-level patches.",
+        "AiXia CSS source-of-truth rule"
+      );
+    }
+  }
+}
+
+function inspectSharedComponentSourceOfTruth() {
+  if (!assertFileExists(AIXIA_COMPONENT_DIR, "AiXia component source-of-truth rule")) return;
+
+  for (const fileName of REQUIRED_AIXIA_COMPONENT_FILES) {
+    assertFileExists(path.join(AIXIA_COMPONENT_DIR, fileName), "AiXia component source-of-truth rule");
+  }
+
+  const indexFile = path.join(AIXIA_COMPONENT_DIR, "index.ts");
+  if (fileExists(indexFile)) {
+    const indexText = readText(indexFile);
+    for (const exportName of REQUIRED_INDEX_EXPORTS) {
+      if (!new RegExp(`\\b${exportName}\\b`).test(indexText)) {
+        addError(indexFile, `src/components/aixia/index.ts must export ${exportName}.`, "AiXia component source-of-truth rule");
+      }
+    }
+  }
+
+  const registryToolbarFile = path.join(AIXIA_COMPONENT_DIR, "AixiaRegistryToolbar.tsx");
+  if (fileExists(registryToolbarFile)) {
+    const text = readText(registryToolbarFile);
+    if (!/export\s+function\s+AixiaRegistryToolbar/.test(text)) {
+      addError(registryToolbarFile, "AixiaRegistryToolbar must remain a shared exported function component.", "AiXia component source-of-truth rule");
+    }
+    if (!/aixia-registry-control-cluster/.test(text)) {
+      addError(registryToolbarFile, "AixiaRegistryToolbar must own the aixia-registry-control-cluster layout class.", "AiXia component source-of-truth rule");
+    }
+    if (!/search[\s\S]*filters[\s\S]*secondaryActions[\s\S]*primaryAction[\s\S]*archiveAction/.test(text)) {
+      addError(registryToolbarFile, "AixiaRegistryToolbar action order must remain: search, filters, secondaryActions, primaryAction, archiveAction.", "AiXia component source-of-truth rule");
+    }
+  }
+
+  const tableFile = path.join(AIXIA_COMPONENT_DIR, "AixiaTable.tsx");
+  if (fileExists(tableFile)) {
+    const text = readText(tableFile);
+    const required = [
+      "export function AixiaTableShell",
+      "export function AixiaSortableHeader",
+      "data-table-variant",
+      "variant === \"registry\"",
+      "min-w-[1240px]",
+      "variant === \"archive\"",
+      "aixia-table-wrap",
+      "aixia-table-scroll",
+      "aixia-table",
+      "aixia-sortable-header",
+    ];
+    for (const snippet of required) {
+      if (!text.includes(snippet)) {
+        addError(tableFile, `AixiaTable.tsx is missing locked table behavior/snippet: ${snippet}`, "AiXia component source-of-truth rule");
+      }
+    }
+  }
+
+  const tableCellsFile = path.join(AIXIA_COMPONENT_DIR, "AixiaTableCells.tsx");
+  if (fileExists(tableCellsFile)) {
+    const text = readText(tableCellsFile);
+    const required = [
+      "export function AixiaTableTextCell",
+      "export function AixiaTableBadgeCell",
+      "export function AixiaTableDateCell",
+      "export function AixiaTableActionsCell",
+      "aixia-table-cell-text",
+      "aixia-table-cell-badge",
+      "aixia-table-cell-date",
+      "aixia-table-cell-actions",
+      "aixia-table-actions",
+    ];
+    for (const snippet of required) {
+      if (!text.includes(snippet)) {
+        addError(tableCellsFile, `AixiaTableCells.tsx is missing locked cell/action behavior/snippet: ${snippet}`, "AiXia component source-of-truth rule");
+      }
+    }
+  }
+
+  const buttonFile = path.join(AIXIA_COMPONENT_DIR, "AixiaButton.tsx");
+  if (fileExists(buttonFile)) {
+    const text = readText(buttonFile);
+    for (const snippet of ["aixia-btn", "aixia-btn-primary", "aixia-btn-secondary", "aixia-btn-danger"]) {
+      if (!text.includes(snippet)) {
+        addError(buttonFile, `AixiaButton.tsx must preserve shared button class: ${snippet}`, "AiXia component source-of-truth rule");
+      }
+    }
+  }
+
+  const heroFile = path.join(AIXIA_COMPONENT_DIR, "AixiaHero.tsx");
+  if (fileExists(heroFile)) {
+    const text = readText(heroFile);
+    for (const snippet of ["statusCards", "parentLabel", "parentPath", "aixia-hero", "aixia-hero-status-grid"]) {
+      if (!text.includes(snippet)) {
+        addError(heroFile, `AixiaHero.tsx must preserve hero source-of-truth behavior/snippet: ${snippet}`, "AiXia component source-of-truth rule");
+      }
+    }
+  }
+
+  const smartLayoutFile = path.join(AIXIA_COMPONENT_DIR, "AixiaSmartLayout.tsx");
+  if (fileExists(smartLayoutFile)) {
+    const text = readText(smartLayoutFile);
+    for (const snippet of ["bottomSpan", "sideRebalance", "mainTopCount", "aixia-smart-layout", "aixia-smart-bottom-span"]) {
+      if (!text.includes(snippet)) {
+        addError(smartLayoutFile, `AixiaSmartLayout.tsx must preserve smart layout behavior/snippet: ${snippet}`, "AiXia component source-of-truth rule");
+      }
+    }
+  }
+
+  const archiveModalFile = path.join(AIXIA_COMPONENT_DIR, "AixiaArchiveManagerModal.tsx");
+  if (fileExists(archiveModalFile)) {
+    const text = readText(archiveModalFile);
+    for (const snippet of ["AixiaArchiveManagerModal", "archivedCount", "deletedCount", "activeTab", "onTabChange", "Archive Manager"]) {
+      if (!text.includes(snippet)) {
+        addError(archiveModalFile, `AixiaArchiveManagerModal.tsx must preserve archive modal behavior/snippet: ${snippet}`, "AiXia component source-of-truth rule");
+      }
+    }
+  }
+}
+
+function inspectFinancePermissionHelperSourceOfTruth() {
+  if (!assertFileExists(PAGE_ACCESS_FILE, "AiXia permission helper source-of-truth rule")) return;
+
+  const text = readText(PAGE_ACCESS_FILE);
+
+  const requiredSnippets = [
+    "export type FinanceLoadMode = \"initial\" | \"silent\"",
+    "export type FinancePagePermissionState",
+    "canRead: boolean",
+    "canCreate: boolean",
+    "canUpdate: boolean",
+    "canDeleteArchive: boolean",
+    "canApproveExecute: boolean",
+    "export type FinancePageAccessConfig",
+    "sectionKey: AccessApprovalSectionKey",
+    "export function resolveFinancePagePermissionState({",
+    "profileRole",
+    "permissions",
+    "config",
+    "canRead = rawRead || canCreate",
+    "export async function fetchFinanceEffectivePermissions(",
+    "userId: string",
+    "mode: FinanceLoadMode",
+    "logLabel: string",
+    "finance_get_effective_permissions",
+    "target_user_id: userId",
+  ];
+
+  for (const snippet of requiredSnippets) {
+    if (!text.includes(snippet)) {
+      addError(PAGE_ACCESS_FILE, `pageAccess.ts is missing locked permission behavior/snippet: ${snippet}`, "AiXia permission helper source-of-truth rule");
+    }
+  }
+
+  if (!/export\s+async\s+function\s+fetchFinanceEffectivePermissions\s*\(\s*userId\s*:\s*string\s*,\s*mode\s*:\s*FinanceLoadMode\s*,\s*logLabel\s*:\s*string\s*\)/.test(text)) {
+    addError(
+      PAGE_ACCESS_FILE,
+      "fetchFinanceEffectivePermissions signature must stay exactly: (userId: string, mode: FinanceLoadMode, logLabel: string).",
+      "AiXia permission helper source-of-truth rule"
+    );
+  }
+
+  if (!/export\s+function\s+resolveFinancePagePermissionState\s*\(\s*\{\s*profileRole\s*,\s*permissions\s*,\s*config\s*,\s*\}/.test(text)) {
+    addError(
+      PAGE_ACCESS_FILE,
+      "resolveFinancePagePermissionState must keep one object argument with { profileRole, permissions, config }.",
+      "AiXia permission helper source-of-truth rule"
+    );
+  }
+}
+
+function inspectFinanceLibSafetyRules() {
+  if (!fs.existsSync(FINANCE_LIB_DIR)) return;
+
+  const paymentMethodsFile = path.join(FINANCE_LIB_DIR, "paymentMethods.ts");
+  if (fileExists(paymentMethodsFile)) {
+    const text = readText(paymentMethodsFile);
+
+    if (!/finance_permanently_delete_payment_method/.test(text)) {
+      addError(
+        paymentMethodsFile,
+        "permanentlyDeletePaymentMethod must use the protected RPC finance_permanently_delete_payment_method.",
+        "AiXia finance lib safety rule"
+      );
+    }
+
+    const hardDeleteFunctionMatch = text.match(/export\s+async\s+function\s+permanentlyDeletePaymentMethod[\s\S]*?^}/m);
+    if (hardDeleteFunctionMatch && /\.delete\s*\(/.test(hardDeleteFunctionMatch[0])) {
+      addError(
+        paymentMethodsFile,
+        "permanentlyDeletePaymentMethod must not call .delete() directly. Use the protected RPC only.",
+        "AiXia finance lib safety rule"
+      );
+    }
+  }
+
+  const financeLibFiles = walkFiles(FINANCE_LIB_DIR, [".ts"]);
+  for (const filePath of financeLibFiles) {
+    const relativePath = getRelativePath(filePath);
+    const text = readText(filePath);
+
+    if (/permanentlyDelete|hardDelete|deletePermanently/i.test(text) && /\.delete\s*\(/.test(text)) {
+      if (relativePath !== "src/lib/finance/paymentMethods.ts") {
+        addWarning(
+          filePath,
+          "Finance lib contains direct .delete() inside a hard-delete related file/function. Verify backend dependency protection or RPC is used.",
+          "AiXia finance lib safety rule"
+        );
+      }
+    }
+  }
+}
+
 function inspectButtonMeaning(filePath, text) {
   const relativePath = getRelativePath(filePath);
   const buttons = getAixiaButtonBlocks(text);
@@ -295,7 +690,8 @@ function inspectButtonMeaning(filePath, text) {
     ) {
       addError(
         filePath,
-        "Primary row Open action buttons must use variant=\"primary\", not variant=\"secondary\". Secondary context links like Open Source Record are allowed."
+        "Primary row Open action buttons must use variant=\"primary\", not variant=\"secondary\". Secondary context links like Open Source Record are allowed.",
+        "AiXia button meaning rule"
       );
     }
 
@@ -303,45 +699,47 @@ function inspectButtonMeaning(filePath, text) {
       if (LEGACY_SECONDARY_EDIT_EXEMPTIONS.has(relativePath)) {
         addWarning(
           filePath,
-          "Legacy baseline warning: Edit button uses variant=\"secondary\". Standardized pages must use primary when Edit is the main section action."
+          "Legacy baseline warning: Edit button uses variant=\"secondary\". Standardized pages must use primary when Edit is the main section action.",
+          "AiXia button meaning rule"
         );
       } else {
         addError(
           filePath,
-          "Edit action buttons must not use variant=\"secondary\" unless explicitly approved. Use variant=\"primary\" for normal Edit actions."
+          "Edit action buttons must not use variant=\"secondary\" unless explicitly approved. Use variant=\"primary\" for normal Edit actions.",
+          "AiXia button meaning rule"
         );
       }
     }
 
     if (buttonHasVisibleWord(button, "Archive") && variant !== "danger") {
-      addError(filePath, "Archive action buttons must use variant=\"danger\".");
+      addError(filePath, "Archive action buttons must use variant=\"danger\".", "AiXia button meaning rule");
     }
 
     if (buttonHasVisibleWord(button, "Delete") && variant !== "danger") {
-      addError(filePath, "Delete / Delete Permanently action buttons must use variant=\"danger\".");
+      addError(filePath, "Delete / Delete Permanently action buttons must use variant=\"danger\".", "AiXia button meaning rule");
     }
 
     if (buttonHasVisibleWord(button, "Restore") && variant !== "secondary") {
-      addError(filePath, "Restore action buttons must use variant=\"secondary\".");
+      addError(filePath, "Restore action buttons must use variant=\"secondary\".", "AiXia button meaning rule");
     }
   }
 }
 
 function inspectUnusedPatternRisks(filePath, text) {
   if (/AixiaActionStack/.test(text) && !/<AixiaActionStack\b/.test(text)) {
-    addError(filePath, "AixiaActionStack is imported/mentioned but not rendered. Remove unused imports before build.");
+    addError(filePath, "AixiaActionStack is imported/mentioned but not rendered. Remove unused imports before build.", "AiXia compile safety rule");
   }
 
   if (/AixiaReviewBlock/.test(text) && !/<AixiaReviewBlock\b/.test(text)) {
-    addError(filePath, "AixiaReviewBlock is imported/mentioned but not rendered. Remove unused imports before build.");
+    addError(filePath, "AixiaReviewBlock is imported/mentioned but not rendered. Remove unused imports before build.", "AiXia compile safety rule");
   }
 
   if (/ArrowRight/.test(text) && !/<ArrowRight\b/.test(text)) {
-    addError(filePath, "ArrowRight is imported/mentioned but not rendered. Remove unused imports before build.");
+    addError(filePath, "ArrowRight is imported/mentioned but not rendered. Remove unused imports before build.", "AiXia compile safety rule");
   }
 
   if (/\bconst\s+navigate\s*=\s*useNavigate\(\)\s*;/.test(text) && !/navigate\(/.test(text)) {
-    addError(filePath, "navigate is declared but never used. Remove useNavigate/navigate before build.");
+    addError(filePath, "navigate is declared but never used. Remove useNavigate/navigate before build.", "AiXia compile safety rule");
   }
 
   const textWithoutGetStatusFilterToneDeclaration = text.replace(
@@ -353,7 +751,19 @@ function inspectUnusedPatternRisks(filePath, text) {
     /getStatusFilterTone/.test(text) &&
     !/getStatusFilterTone\(/.test(textWithoutGetStatusFilterToneDeclaration)
   ) {
-    addWarning(filePath, "getStatusFilterTone appears unused. TypeScript may fail with TS6133.");
+    addWarning(filePath, "getStatusFilterTone appears unused. TypeScript may fail with TS6133.", "AiXia compile safety rule");
+  }
+
+  const textWithoutFormatStatusLabelDeclaration = text.replace(
+    /function\s+formatStatusLabel[\s\S]*?\n}/,
+    ""
+  );
+
+  if (
+    /formatStatusLabel/.test(text) &&
+    !/formatStatusLabel\(/.test(textWithoutFormatStatusLabelDeclaration)
+  ) {
+    addWarning(filePath, "formatStatusLabel appears unused. TypeScript may fail with TS6133.", "AiXia compile safety rule");
   }
 }
 
@@ -362,7 +772,8 @@ function inspectPermissionPatterns(filePath, text) {
     addLegacyWarningOrError(
       filePath,
       LEGACY_PERMISSION_PATTERN_EXEMPTIONS,
-      "Finance pages must not use getEffectivePermissions after standardization. Use fetchFinanceEffectivePermissions + resolveFinancePagePermissionState from @/lib/finance/pageAccess."
+      "Finance pages must not use getEffectivePermissions after standardization. Use fetchFinanceEffectivePermissions + resolveFinancePagePermissionState from @/lib/finance/pageAccess.",
+      "AiXia page permission rule"
     );
   }
 
@@ -370,7 +781,8 @@ function inspectPermissionPatterns(filePath, text) {
     addLegacyWarningOrError(
       filePath,
       LEGACY_PERMISSION_PATTERN_EXEMPTIONS,
-      "Local buildPermissionState is banned after standardization. Use resolveFinancePagePermissionState from @/lib/finance/pageAccess."
+      "Local buildPermissionState is banned after standardization. Use resolveFinancePagePermissionState from @/lib/finance/pageAccess.",
+      "AiXia page permission rule"
     );
   }
 
@@ -378,7 +790,8 @@ function inspectPermissionPatterns(filePath, text) {
     addLegacyWarningOrError(
       filePath,
       LEGACY_PERMISSION_PATTERN_EXEMPTIONS,
-      "Local hasPermission is banned after standardization. Use resolveFinancePagePermissionState from @/lib/finance/pageAccess."
+      "Local hasPermission is banned after standardization. Use resolveFinancePagePermissionState from @/lib/finance/pageAccess.",
+      "AiXia page permission rule"
     );
   }
 
@@ -386,7 +799,8 @@ function inspectPermissionPatterns(filePath, text) {
     addLegacyWarningOrError(
       filePath,
       LEGACY_PERMISSION_PATTERN_EXEMPTIONS,
-      "Local loadBackendEffectivePermissions is banned after standardization. Use fetchFinanceEffectivePermissions(userId, mode, \"Page Label\")."
+      "Local loadBackendEffectivePermissions is banned after standardization. Use fetchFinanceEffectivePermissions(userId, mode, \"Page Label\").",
+      "AiXia page permission rule"
     );
   }
 
@@ -394,7 +808,8 @@ function inspectPermissionPatterns(filePath, text) {
     addLegacyWarningOrError(
       filePath,
       LEGACY_PERMISSION_PATTERN_EXEMPTIONS,
-      "Finance pages must not call finance_get_effective_permissions directly after standardization. Use fetchFinanceEffectivePermissions from @/lib/finance/pageAccess."
+      "Finance pages must not call finance_get_effective_permissions directly after standardization. Use fetchFinanceEffectivePermissions from @/lib/finance/pageAccess.",
+      "AiXia page permission rule"
     );
   }
 
@@ -420,25 +835,36 @@ function inspectRegistryStandards(filePath, text) {
     addLegacyWarningOrError(
       filePath,
       LEGACY_REGISTRY_ACCESS_RULE_EXEMPTIONS,
-      "Registry pages must include the locked access rule block or shared AixiaRegistryAccessRule component."
+      "Registry pages must include the locked access rule block or shared AixiaRegistryAccessRule component.",
+      "AiXia registry page rule"
     );
   }
 
   if (!/AixiaRegistryToolbar/.test(text)) {
-    addError(filePath, "Registry pages must use AixiaRegistryToolbar for search/filter/action controls.");
+    addError(filePath, "Registry pages must use AixiaRegistryToolbar for search/filter/action controls.", "AiXia registry page rule");
   }
 
   if (/className=["'][^"']*\bflex\b[^"']*["'][\s\S]{0,500}<AixiaRegistryToolbar/.test(text)) {
     addError(
       filePath,
-      "Do not wrap AixiaRegistryToolbar in local flex layout hacks. The shared toolbar/section must control registry layout."
+      "Do not wrap AixiaRegistryToolbar in local flex layout hacks. The shared toolbar/section must control registry layout.",
+      "AiXia registry page rule"
     );
   }
 
   if (/className=["'][^"']*\bgrid\b[^"']*["'][\s\S]{0,500}<AixiaRegistryToolbar/.test(text)) {
     addError(
       filePath,
-      "Do not wrap AixiaRegistryToolbar in local grid layout hacks. The shared toolbar/section must control registry layout."
+      "Do not wrap AixiaRegistryToolbar in local grid layout hacks. The shared toolbar/section must control registry layout.",
+      "AiXia registry page rule"
+    );
+  }
+
+  if (/AixiaTableActionsCell[\s\S]{0,120}<AixiaActionSystem/.test(text)) {
+    addError(
+      filePath,
+      "Do not wrap AixiaTableActionsCell with AixiaActionSystem. AixiaTableActionsCell owns table row action layout.",
+      "AiXia registry page rule"
     );
   }
 }
@@ -447,14 +873,15 @@ function inspectFinancePage(filePath) {
   const text = readText(filePath);
 
   if (/\btype\s+LoadMode\s*=\s*FinanceLoadMode\s*;[\s\S]*?\btype\s+LoadMode\s*=/.test(text)) {
-    addError(filePath, "Duplicate type LoadMode declaration found. Use only: type LoadMode = FinanceLoadMode;");
+    addError(filePath, "Duplicate type LoadMode declaration found. Use only: type LoadMode = FinanceLoadMode;", "AiXia page permission rule");
   }
 
   if (/\btype\s+LoadMode\s*=\s*["']initial["']\s*\|\s*["']silent["']\s*;/.test(text)) {
     addLegacyWarningOrError(
       filePath,
       LEGACY_PERMISSION_PATTERN_EXEMPTIONS,
-      "Do not locally define LoadMode as \"initial\" | \"silent\" after standardization. Import FinanceLoadMode and use: type LoadMode = FinanceLoadMode;"
+      "Do not locally define LoadMode as \"initial\" | \"silent\" after standardization. Import FinanceLoadMode and use: type LoadMode = FinanceLoadMode;",
+      "AiXia page permission rule"
     );
   }
 
@@ -465,6 +892,17 @@ function inspectFinancePage(filePath) {
 }
 
 function main() {
+  if (!fs.existsSync(SRC_DIR)) {
+    console.log("AiXia guardrails skipped: src directory not found.");
+    return;
+  }
+
+  inspectSharedStandardDocument();
+  inspectSharedCssSourceOfTruth();
+  inspectSharedComponentSourceOfTruth();
+  inspectFinancePermissionHelperSourceOfTruth();
+  inspectFinanceLibSafetyRules();
+
   const financeFiles = walkFiles(FINANCE_APP_DIR, [".tsx", ".ts"]);
 
   for (const filePath of financeFiles) {
@@ -474,7 +912,7 @@ function main() {
   if (warnings.length > 0) {
     console.warn("\nAiXia guardrail warnings:");
     for (const warning of warnings) {
-      console.warn(`- ${warning.filePath}: ${warning.message}`);
+      console.warn(`- [${warning.scope}] ${warning.filePath}: ${warning.message}`);
     }
   }
 
@@ -482,7 +920,7 @@ function main() {
     console.error("\nAiXia guardrail failed. Fix these issues before build:\n");
 
     for (const error of errors) {
-      console.error(`- ${error.filePath}: ${error.message}`);
+      console.error(`- [${error.scope}] ${error.filePath}: ${error.message}`);
     }
 
     console.error(

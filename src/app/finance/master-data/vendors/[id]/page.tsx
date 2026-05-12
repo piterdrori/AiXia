@@ -1,19 +1,9 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
-import type {
-  InputHTMLAttributes,
-  ReactNode,
-  SelectHTMLAttributes,
-  TextareaHTMLAttributes,
-} from "react";
 import { useNavigate, useParams } from "react-router-dom";
-import type { LucideIcon } from "lucide-react";
 import {
-  AlertTriangle,
   Archive,
-  ArrowRight,
   Banknote,
   Building2,
-  CheckCircle2,
   FileText,
   Loader2,
   LockKeyhole,
@@ -25,7 +15,6 @@ import {
   RotateCcw,
   Save,
   ShieldCheck,
-  Sparkles,
   Trash2,
   Truck,
   UserRound,
@@ -33,13 +22,43 @@ import {
   X,
 } from "lucide-react";
 
-import { archiveVendor, updateVendor } from "@/lib/finance/vendors";
 import {
-  getEffectivePermissions,
-  type Permission,
-  type Role,
-} from "@/lib/permissions";
+  AixiaAccessDeniedState,
+  AixiaAccessRule,
+  AixiaAlert,
+  AixiaBadge,
+  AixiaButton,
+  AixiaEmptyState,
+  AixiaFieldLabel,
+  AixiaFormField,
+  AixiaFormFullWidth,
+  AixiaFormGrid,
+  AixiaHero,
+  AixiaInputField,
+  AixiaLoadingState,
+  AixiaMetricCard,
+  AixiaMetricGrid,
+  AixiaPage,
+  AixiaReviewBlock,
+  AixiaReviewGrid,
+  AixiaSection,
+  AixiaSelectField,
+  AixiaSmartLayout,
+  AixiaStatusBadge,
+  AixiaTextareaField,
+  AixiaValueBlock,
+} from "@/components/aixia";
+
+import { archiveVendor, updateVendor } from "@/lib/finance/vendors";
+import type { Permission, Role } from "@/lib/permissions";
+import {
+  fetchFinanceEffectivePermissions,
+  resolveFinancePagePermissionState,
+  type FinanceLoadMode,
+} from "@/lib/finance/pageAccess";
 import { supabase } from "@/lib/supabase";
+
+type LoadMode = FinanceLoadMode;
 
 type ProfilePermissionRow = {
   user_id: string;
@@ -159,35 +178,34 @@ type ShippingDraftRow = {
   address_line_2: string;
 };
 
-type PermissionState = {
-  canRead: boolean;
-  canUpdate: boolean;
-  canDeleteArchive: boolean;
-  isAdmin: boolean;
-};
-
-type HeaderStatusCardData = {
-  label: string;
-  value: string;
-  detail: string;
-  icon: LucideIcon;
-  tone: "emerald" | "cyan" | "amber" | "rose";
-};
-
-type SummaryCardData = {
-  label: string;
-  value: string;
-  detail: string;
-  icon: LucideIcon;
-  tone: "cyan" | "emerald" | "amber" | "violet" | "rose";
-};
-
-const EMPTY_PERMISSION_STATE: PermissionState = {
-  canRead: false,
-  canUpdate: false,
-  canDeleteArchive: false,
-  isAdmin: false,
-};
+const VENDOR_DETAIL_ACCESS_CONFIG = {
+  sectionKey: "masterData",
+  adminPermissions: ["manageFinanceMasterData"],
+  readPermissions: [
+    "accessFinance",
+    "viewFinance",
+    "manageFinanceMasterData",
+    "viewVendors",
+    "manageVendors",
+    "accessPayables",
+    "viewPayables",
+  ],
+  createPermissions: [
+    "createFinanceRecords",
+    "manageFinanceMasterData",
+    "manageVendors",
+  ],
+  updatePermissions: [
+    "editFinanceRecords",
+    "manageFinanceMasterData",
+    "manageVendors",
+  ],
+  deleteArchivePermissions: [
+    "archiveFinanceRecords",
+    "manageFinanceMasterData",
+    "manageVendors",
+  ],
+} as const;
 
 const EMPTY_OVERVIEW_DRAFT: OverviewDraft = {
   legal_name: "",
@@ -238,80 +256,8 @@ function createEmptyShippingDraftRow(): ShippingDraftRow {
   };
 }
 
-function hasPermission(
-  permissions: Record<Permission, boolean> | null,
-  permission: Permission
-) {
-  return Boolean(permissions?.[permission]);
-}
-
-function buildPermissionState(
-  profile: ProfilePermissionRow | null,
-  permissions: Record<Permission, boolean> | null
-): PermissionState {
-  if (!profile?.role || !permissions) {
-    return EMPTY_PERMISSION_STATE;
-  }
-
-  const isAdmin = String(profile.role || "").toLowerCase() === "admin";
-  const canManageMasterData = hasPermission(permissions, "manageFinanceMasterData");
-  const canViewVendors = hasPermission(permissions, "viewVendors");
-  const canManageVendors = hasPermission(permissions, "manageVendors");
-  const canAccessPayables =
-    hasPermission(permissions, "accessPayables") ||
-    hasPermission(permissions, "viewPayables");
-  const canAccessFinance =
-    hasPermission(permissions, "accessFinance") ||
-    hasPermission(permissions, "viewFinance");
-
-  return {
-    isAdmin,
-    canRead:
-      canManageMasterData ||
-      canViewVendors ||
-      canManageVendors ||
-      canAccessPayables ||
-      canAccessFinance,
-    canUpdate:
-      canManageMasterData ||
-      canManageVendors ||
-      hasPermission(permissions, "editFinanceRecords"),
-    canDeleteArchive:
-      canManageMasterData ||
-      canManageVendors ||
-      hasPermission(permissions, "archiveFinanceRecords"),
-  };
-}
-
-async function loadBackendEffectivePermissions(
-  userId: string
-): Promise<Partial<Record<Permission, boolean>> | null> {
-  try {
-    const result = await supabase.rpc("finance_get_effective_permissions", {
-      target_user_id: userId,
-    });
-
-    if (result.error) {
-      console.warn("Vendor ID permission RPC fallback:", result.error.message);
-      return null;
-    }
-
-    if (!result.data || typeof result.data !== "object") {
-      return null;
-    }
-
-    return result.data as Partial<Record<Permission, boolean>>;
-  } catch (error) {
-    console.warn("Vendor ID permission RPC failed:", error);
-    return null;
-  }
-}
-
 function normalizeStatus(value: string): VendorStatus {
-  if (value === "inactive" || value === "archived") {
-    return value;
-  }
-
+  if (value === "inactive" || value === "archived") return value;
   return "active";
 }
 
@@ -328,65 +274,6 @@ function formatDateTimeLabel(value: string | null | undefined) {
     hour: "2-digit",
     minute: "2-digit",
   });
-}
-
-function formatStatus(value: string | null | undefined) {
-  if (!value) return "Unknown";
-
-  return value
-    .split("_")
-    .filter(Boolean)
-    .map((part) => part.charAt(0).toUpperCase() + part.slice(1))
-    .join(" ");
-}
-
-function getStatusTone(status: string | null | undefined) {
-  switch (status) {
-    case "active":
-      return "border-emerald-400/20 bg-emerald-500/10 text-emerald-200";
-    case "inactive":
-      return "border-amber-400/20 bg-amber-500/10 text-amber-200";
-    case "archived":
-      return "border-rose-400/20 bg-rose-500/10 text-rose-200";
-    default:
-      return "border-white/10 bg-white/[0.06] text-slate-300";
-  }
-}
-
-function getToneClasses(tone: SummaryCardData["tone"]) {
-  switch (tone) {
-    case "emerald":
-      return {
-        card: "border-emerald-400/20 bg-emerald-500/10",
-        icon: "border-emerald-400/20 bg-emerald-500/10 text-emerald-200",
-        value: "text-emerald-100",
-      };
-    case "amber":
-      return {
-        card: "border-amber-400/20 bg-amber-500/10",
-        icon: "border-amber-400/20 bg-amber-500/10 text-amber-200",
-        value: "text-amber-100",
-      };
-    case "violet":
-      return {
-        card: "border-violet-400/20 bg-violet-500/10",
-        icon: "border-violet-400/20 bg-violet-500/10 text-violet-200",
-        value: "text-violet-100",
-      };
-    case "rose":
-      return {
-        card: "border-rose-400/20 bg-rose-500/10",
-        icon: "border-rose-400/20 bg-rose-500/10 text-rose-200",
-        value: "text-rose-100",
-      };
-    case "cyan":
-    default:
-      return {
-        card: "border-cyan-400/20 bg-cyan-500/10",
-        icon: "border-cyan-400/20 bg-cyan-500/10 text-cyan-200",
-        value: "text-cyan-100",
-      };
-  }
 }
 
 function getVendorDisplayName(vendor: VendorDetailRecord | null) {
@@ -409,9 +296,7 @@ function getVendorPhoneLabel(vendor: VendorDetailRecord | null) {
 function getPrimaryAddressSummary(addresses: AddressRow[]) {
   const primary = addresses[0];
 
-  if (!primary) {
-    return "No primary address";
-  }
+  if (!primary) return "No primary address";
 
   const parts = [
     primary.address_line_1,
@@ -424,9 +309,7 @@ function getPrimaryAddressSummary(addresses: AddressRow[]) {
 }
 
 function getShippingSummary(shippingAddresses: AddressRow[]) {
-  if (shippingAddresses.length === 0) {
-    return "No shipping address";
-  }
+  if (shippingAddresses.length === 0) return "No shipping address";
 
   const sameAsPrimaryCount = shippingAddresses.filter(
     (row) => row.is_same_as_primary
@@ -455,377 +338,63 @@ function getBankIdentifierValue(account: VendorBankAccountRow) {
   return "—";
 }
 
-function FieldLabel({
-  label,
-  required = false,
+function getBankLocationLabel(account: VendorBankAccountRow) {
+  const parts = [account.city, account.country].filter(Boolean);
+  return parts.length > 0 ? parts.join(", ") : "—";
+}
+
+function SectionActions({
+  isEditing,
+  canEdit,
+  isSaving,
+  onEdit,
+  onCancel,
+  onSave,
 }: {
-  label: string;
-  required?: boolean;
+  isEditing: boolean;
+  canEdit: boolean;
+  isSaving: boolean;
+  onEdit?: () => void;
+  onCancel?: () => void;
+  onSave?: () => void;
 }) {
-  return (
-    <label className="mb-2 block text-sm font-medium text-slate-300">
-      {label}
-      {required ? <span className="ml-1 text-rose-300">*</span> : null}
-    </label>
-  );
-}
+  if (!canEdit) return null;
 
-function InputField({
-  className,
-  ...props
-}: InputHTMLAttributes<HTMLInputElement>) {
-  return (
-    <input
-      {...props}
-      className={`h-11 w-full rounded-2xl border border-white/10 bg-black/20 px-4 text-sm text-white outline-none transition placeholder:text-slate-600 focus:border-cyan-400/30 focus:bg-black/30 disabled:cursor-not-allowed disabled:opacity-60 ${
-        className || ""
-      }`}
-    />
-  );
-}
-
-function SelectField({
-  className,
-  children,
-  ...props
-}: SelectHTMLAttributes<HTMLSelectElement> & {
-  children: ReactNode;
-}) {
-  return (
-    <select
-      {...props}
-      className={`h-11 w-full rounded-2xl border border-white/10 bg-black/20 px-4 text-sm text-white outline-none transition focus:border-cyan-400/30 focus:bg-black/30 disabled:cursor-not-allowed disabled:opacity-60 ${
-        className || ""
-      }`}
-    >
-      {children}
-    </select>
-  );
-}
-
-function TextareaField({
-  className,
-  ...props
-}: TextareaHTMLAttributes<HTMLTextAreaElement>) {
-  return (
-    <textarea
-      {...props}
-      className={`min-h-[132px] w-full rounded-2xl border border-white/10 bg-black/20 px-4 py-3 text-sm text-white outline-none transition placeholder:text-slate-600 focus:border-cyan-400/30 focus:bg-black/30 disabled:cursor-not-allowed disabled:opacity-60 ${
-        className || ""
-      }`}
-    />
-  );
-}
-
-function DisplayBlock({
-  label,
-  value,
-  detail,
-}: {
-  label: string;
-  value: ReactNode;
-  detail?: ReactNode;
-}) {
-  return (
-    <div className="rounded-[20px] border border-white/10 bg-black/20 px-4 py-3">
-      <div className="text-[11px] font-semibold uppercase tracking-[0.18em] text-slate-500">
-        {label}
-      </div>
-      <div className="mt-2 break-words text-sm font-semibold leading-6 text-white">
-        {value || "—"}
-      </div>
-      {detail ? (
-        <div className="mt-1 text-xs leading-5 text-slate-500">{detail}</div>
-      ) : null}
-    </div>
-  );
-}
-
-function StatusBadge({ status }: { status: string | null | undefined }) {
-  return (
-    <span
-      className={`inline-flex max-w-full items-center rounded-full border px-3 py-1 text-[11px] font-semibold uppercase tracking-[0.14em] ${getStatusTone(
-        status
-      )}`}
-    >
-      <span className="truncate">{formatStatus(status)}</span>
-    </span>
-  );
-}
-
-function DefaultBadge({ isDefault }: { isDefault: boolean | null | undefined }) {
-  if (!isDefault) {
+  if (isEditing) {
     return (
-      <span className="inline-flex rounded-full border border-white/10 bg-white/[0.04] px-3 py-1 text-[11px] font-semibold uppercase tracking-[0.14em] text-slate-500">
-        Standard
-      </span>
+      <>
+        <AixiaButton
+          type="button"
+          variant="secondary"
+          onClick={onCancel}
+          disabled={isSaving}
+        >
+          <X className="h-3.5 w-3.5" />
+          Cancel
+        </AixiaButton>
+
+        <AixiaButton
+          type="button"
+          variant="primary"
+          onClick={onSave}
+          disabled={isSaving}
+        >
+          {isSaving ? (
+            <Loader2 className="h-3.5 w-3.5 animate-spin" />
+          ) : (
+            <Save className="h-3.5 w-3.5" />
+          )}
+          Save
+        </AixiaButton>
+      </>
     );
   }
 
   return (
-    <span className="inline-flex rounded-full border border-emerald-400/20 bg-emerald-500/10 px-3 py-1 text-[11px] font-semibold uppercase tracking-[0.14em] text-emerald-200">
-      Default
-    </span>
-  );
-}
-
-function HeaderStatusCard({ item }: { item: HeaderStatusCardData }) {
-  const Icon = item.icon;
-
-  const toneClasses = {
-    emerald: "border-emerald-400/20 bg-emerald-500/10 text-emerald-200",
-    cyan: "border-cyan-400/20 bg-cyan-500/10 text-cyan-200",
-    amber: "border-amber-400/20 bg-amber-500/10 text-amber-200",
-    rose: "border-rose-400/20 bg-rose-500/10 text-rose-200",
-  }[item.tone];
-
-  return (
-    <div className="min-h-[148px] rounded-[24px] border border-white/10 bg-black/20 p-4">
-      <div className="flex items-start justify-between gap-3">
-        <div className="min-w-0">
-          <div className="text-[11px] font-semibold uppercase tracking-[0.2em] text-slate-500">
-            {item.label}
-          </div>
-          <div className="mt-2 text-xl font-semibold leading-tight tracking-[-0.035em] text-white">
-            {item.value}
-          </div>
-        </div>
-
-        <div
-          className={`flex h-10 w-10 shrink-0 items-center justify-center rounded-2xl border ${toneClasses}`}
-        >
-          <Icon className="h-4 w-4" />
-        </div>
-      </div>
-
-      <div className="mt-3 text-xs leading-5 text-slate-500">{item.detail}</div>
-    </div>
-  );
-}
-
-function SummaryCard({ item }: { item: SummaryCardData }) {
-  const Icon = item.icon;
-  const tone = getToneClasses(item.tone);
-
-  return (
-    <div className={`rounded-[24px] border bg-black/20 p-4 ${tone.card}`}>
-      <div className="flex items-start justify-between gap-3">
-        <div className="min-w-0">
-          <div className="text-[11px] font-semibold uppercase tracking-[0.2em] text-slate-500">
-            {item.label}
-          </div>
-          <div className={`mt-2 text-lg font-semibold leading-6 ${tone.value}`}>
-            {item.value}
-          </div>
-        </div>
-
-        <div
-          className={`flex h-10 w-10 shrink-0 items-center justify-center rounded-2xl border ${tone.icon}`}
-        >
-          <Icon className="h-4 w-4" />
-        </div>
-      </div>
-
-      <div className="mt-3 text-xs leading-5 text-slate-500">{item.detail}</div>
-    </div>
-  );
-}
-
-function DetailSection({
-  title,
-  description,
-  icon: Icon,
-  isEditing,
-  canEdit,
-  onEdit,
-  onCancel,
-  onSave,
-  isSaving,
-  actions,
-  children,
-}: {
-  title: string;
-  description: string;
-  icon: LucideIcon;
-  isEditing: boolean;
-  canEdit: boolean;
-  onEdit?: () => void;
-  onCancel?: () => void;
-  onSave?: () => void;
-  isSaving?: boolean;
-  actions?: ReactNode;
-  children: ReactNode;
-}) {
-  return (
-    <section className="overflow-hidden rounded-[30px] border border-white/10 bg-white/[0.045] backdrop-blur-xl">
-      <div className="flex flex-col gap-4 border-b border-white/10 px-5 py-4 lg:flex-row lg:items-start lg:justify-between">
-        <div className="flex min-w-0 items-start gap-3">
-          <div className="rounded-2xl border border-cyan-400/15 bg-cyan-500/10 p-3 text-cyan-200">
-            <Icon className="h-4 w-4" />
-          </div>
-
-          <div className="min-w-0">
-            <h2 className="text-sm font-semibold uppercase tracking-[0.18em] text-slate-400">
-              {title}
-            </h2>
-            <p className="mt-1 text-xs leading-5 text-slate-500">{description}</p>
-          </div>
-        </div>
-
-        <div className="flex shrink-0 flex-wrap gap-2">
-          {actions}
-
-          {canEdit ? (
-            isEditing ? (
-              <>
-                <button
-                  type="button"
-                  onClick={onCancel}
-                  disabled={isSaving}
-                  className="inline-flex h-10 items-center justify-center gap-2 rounded-2xl border border-white/10 bg-white/[0.05] px-4 text-xs font-semibold uppercase tracking-[0.14em] text-slate-300 transition hover:bg-white/[0.08] disabled:cursor-not-allowed disabled:opacity-60"
-                >
-                  <X className="h-3.5 w-3.5" />
-                  Cancel
-                </button>
-
-                <button
-                  type="button"
-                  onClick={onSave}
-                  disabled={isSaving}
-                  className="inline-flex h-10 items-center justify-center gap-2 rounded-2xl border border-cyan-400/20 bg-cyan-500/10 px-4 text-xs font-semibold uppercase tracking-[0.14em] text-cyan-100 transition hover:bg-cyan-500/15 disabled:cursor-not-allowed disabled:opacity-60"
-                >
-                  {isSaving ? (
-                    <Loader2 className="h-3.5 w-3.5 animate-spin" />
-                  ) : (
-                    <Save className="h-3.5 w-3.5" />
-                  )}
-                  Save
-                </button>
-              </>
-            ) : (
-              <button
-                type="button"
-                onClick={onEdit}
-                className="inline-flex h-10 items-center justify-center gap-2 rounded-2xl border border-white/10 bg-white/[0.05] px-4 text-xs font-semibold uppercase tracking-[0.14em] text-slate-300 transition hover:bg-white/[0.08] hover:text-white"
-              >
-                <Pencil className="h-3.5 w-3.5" />
-                Edit
-              </button>
-            )
-          ) : null}
-        </div>
-      </div>
-
-      <div className="p-5">{children}</div>
-    </section>
-  );
-}
-
-function RowCard({
-  title,
-  description,
-  onRemove,
-  removeDisabled = false,
-  children,
-}: {
-  title: string;
-  description?: string;
-  onRemove?: () => void;
-  removeDisabled?: boolean;
-  children: ReactNode;
-}) {
-  return (
-    <div className="rounded-[24px] border border-white/10 bg-black/20 p-4">
-      <div className="mb-4 flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
-        <div className="min-w-0">
-          <div className="text-sm font-semibold text-white">{title}</div>
-          {description ? (
-            <div className="mt-1 text-xs leading-5 text-slate-500">
-              {description}
-            </div>
-          ) : null}
-        </div>
-
-        {onRemove ? (
-          <button
-            type="button"
-            onClick={onRemove}
-            disabled={removeDisabled}
-            className="inline-flex h-10 shrink-0 items-center justify-center gap-2 rounded-2xl border border-rose-400/20 bg-rose-500/10 px-3 text-xs font-semibold uppercase tracking-[0.14em] text-rose-100 transition hover:bg-rose-500/15 disabled:cursor-not-allowed disabled:opacity-50"
-          >
-            <Trash2 className="h-3.5 w-3.5" />
-            Remove
-          </button>
-        ) : null}
-      </div>
-
-      {children}
-    </div>
-  );
-}
-
-function AddRowButton({
-  label,
-  onClick,
-  disabled,
-}: {
-  label: string;
-  onClick: () => void;
-  disabled?: boolean;
-}) {
-  return (
-    <button
-      type="button"
-      onClick={onClick}
-      disabled={disabled}
-      className="inline-flex h-10 items-center justify-center gap-2 rounded-2xl border border-cyan-400/20 bg-cyan-500/10 px-4 text-xs font-semibold uppercase tracking-[0.14em] text-cyan-100 transition hover:bg-cyan-500/15 disabled:cursor-not-allowed disabled:opacity-60"
-    >
-      <Plus className="h-3.5 w-3.5" />
-      {label}
-    </button>
-  );
-}
-
-function LoadingState() {
-  return (
-    <div className="min-h-screen bg-[#05070d] px-4 py-4 text-white md:px-6 md:py-6">
-      <div className="mx-auto flex w-full max-w-[1600px] flex-col gap-6">
-        <section className="rounded-[34px] border border-white/10 bg-white/[0.045] p-12 text-center backdrop-blur-xl">
-          <Loader2 className="mx-auto h-8 w-8 animate-spin text-cyan-200" />
-          <div className="mt-4 text-sm font-semibold text-white">
-            Loading vendor detail
-          </div>
-          <p className="mt-2 text-sm leading-6 text-slate-500">
-            Vendor record and permission state are being checked.
-          </p>
-        </section>
-      </div>
-    </div>
-  );
-}
-
-function EmptyState({
-  icon: Icon,
-  title,
-  description,
-  action,
-}: {
-  icon: LucideIcon;
-  title: string;
-  description: string;
-  action?: ReactNode;
-}) {
-  return (
-    <section className="rounded-[30px] border border-white/10 bg-white/[0.045] p-10 text-center backdrop-blur-xl">
-      <div className="mx-auto flex h-14 w-14 items-center justify-center rounded-2xl border border-white/10 bg-black/20 text-slate-500">
-        <Icon className="h-6 w-6" />
-      </div>
-      <div className="mt-4 text-lg font-semibold text-white">{title}</div>
-      <p className="mx-auto mt-2 max-w-2xl text-sm leading-6 text-slate-500">
-        {description}
-      </p>
-      {action ? <div className="mt-6">{action}</div> : null}
-    </section>
+    <AixiaButton type="button" variant="primary" onClick={onEdit}>
+      <Pencil className="h-3.5 w-3.5" />
+      Edit
+    </AixiaButton>
   );
 }
 
@@ -835,7 +404,7 @@ export default function FinanceMasterDataVendorDetailPage() {
 
   const [profile, setProfile] = useState<ProfilePermissionRow | null>(null);
   const [effectivePermissions, setEffectivePermissions] =
-    useState<Record<Permission, boolean> | null>(null);
+    useState<Partial<Record<Permission, boolean>> | null>(null);
   const [vendor, setVendor] = useState<VendorDetailRecord | null>(null);
   const [personnel, setPersonnel] = useState<PersonnelRow[]>([]);
   const [addresses, setAddresses] = useState<AddressRow[]>([]);
@@ -843,11 +412,13 @@ export default function FinanceMasterDataVendorDetailPage() {
   const [vendorBankAccounts, setVendorBankAccounts] = useState<
     VendorBankAccountRow[]
   >([]);
+
   const [isLoadingProfile, setIsLoadingProfile] = useState(true);
   const [isLoadingVendor, setIsLoadingVendor] = useState(true);
   const [isSaving, setIsSaving] = useState(false);
   const [isLifecycleRunning, setIsLifecycleRunning] = useState(false);
   const [activeBankActionId, setActiveBankActionId] = useState<string | null>(null);
+
   const [editingSection, setEditingSection] = useState<EditSection>(null);
   const [pageError, setPageError] = useState<string | null>(null);
   const [pageMessage, setPageMessage] = useState<string | null>(null);
@@ -865,70 +436,78 @@ export default function FinanceMasterDataVendorDetailPage() {
   ]);
   const [notesDraft, setNotesDraft] = useState("");
 
-  const loadCurrentProfile = useCallback(
-    async (mode: "initial" | "silent" = "initial") => {
+  const loadCurrentProfile = useCallback(async (mode: LoadMode = "initial") => {
+    if (mode === "initial") setIsLoadingProfile(true);
+
+    try {
+      const authResult = await supabase.auth.getUser();
+      if (authResult.error) throw authResult.error;
+
+      const authUserId = authResult.data.user?.id;
+
+      if (!authUserId) {
+        if (mode === "initial") {
+          setProfile(null);
+          setEffectivePermissions(null);
+        } else {
+          console.warn(
+            "Silent vendor ID permission refresh returned no auth user; keeping current permission state."
+          );
+        }
+
+        return;
+      }
+
+      const profileResult = await supabase
+        .from("profiles")
+        .select("user_id, full_name, role, permissions")
+        .eq("user_id", authUserId)
+        .maybeSingle();
+
+      if (profileResult.error) throw profileResult.error;
+
+      const loadedProfile = (profileResult.data || null) as ProfilePermissionRow | null;
+
+      if (!loadedProfile) {
+        if (mode === "initial") {
+          setProfile(null);
+          setEffectivePermissions(null);
+        } else {
+          console.warn(
+            "Silent vendor ID profile refresh returned no profile; keeping current permission state."
+          );
+        }
+
+        return;
+      }
+
+      const backendPermissions = await fetchFinanceEffectivePermissions(
+        authUserId,
+        mode,
+        "Vendor Detail"
+      );
+
+      setProfile(loadedProfile);
+      setEffectivePermissions(backendPermissions || loadedProfile.permissions || null);
+    } catch (error) {
+      console.error("Failed to load vendor ID permissions:", error);
+
       if (mode === "initial") {
-        setIsLoadingProfile(true);
+        setProfile(null);
+        setEffectivePermissions(null);
       }
-
-      try {
-        const authResult = await supabase.auth.getUser();
-        if (authResult.error) throw authResult.error;
-
-        const authUserId = authResult.data.user?.id;
-
-        if (!authUserId) {
-          setProfile(null);
-          setEffectivePermissions(null);
-          return;
-        }
-
-        const profileResult = await supabase
-          .from("profiles")
-          .select("user_id, full_name, role, permissions")
-          .eq("user_id", authUserId)
-          .maybeSingle();
-
-        if (profileResult.error) throw profileResult.error;
-
-        const loadedProfile = (profileResult.data || null) as ProfilePermissionRow | null;
-        const backendPermissions = await loadBackendEffectivePermissions(authUserId);
-
-        setProfile(loadedProfile);
-
-        if (!loadedProfile?.role) {
-          setEffectivePermissions(null);
-          return;
-        }
-
-        const resolvedPermissions = getEffectivePermissions(
-          loadedProfile.role,
-          backendPermissions || loadedProfile.permissions || null
-        );
-
-        setEffectivePermissions(resolvedPermissions);
-      } catch (error) {
-        console.error("Failed to load vendor ID permissions:", error);
-
-        if (mode === "initial") {
-          setProfile(null);
-          setEffectivePermissions(null);
-        }
-      } finally {
-        if (mode === "initial") {
-          setIsLoadingProfile(false);
-        }
-      }
-    },
-    []
-  );
+    } finally {
+      if (mode === "initial") setIsLoadingProfile(false);
+    }
+  }, []);
 
   const loadVendor = useCallback(
-    async (mode: "initial" | "silent" = "initial") => {
+    async (mode: LoadMode = "initial") => {
       if (!id) return;
 
       if (mode === "initial") {
         setIsLoadingVendor(true);
+        setPageError(null);
       }
 
       try {
@@ -1057,19 +636,14 @@ export default function FinanceMasterDataVendorDetailPage() {
           );
         }
       } finally {
-        if (mode === "initial") {
-          setIsLoadingVendor(false);
-        }
+        if (mode === "initial") setIsLoadingVendor(false);
       }
     },
     [id]
   );
 
   useEffect(() => {
-    void Promise.all([
-      loadCurrentProfile("initial"),
-      loadVendor("initial"),
-    ]);
+    void Promise.all([loadCurrentProfile("initial"), loadVendor("initial")]);
   }, [loadCurrentProfile, loadVendor]);
 
   useEffect(() => {
@@ -1133,21 +707,22 @@ export default function FinanceMasterDataVendorDetailPage() {
       .subscribe();
 
     const intervalId = window.setInterval(() => {
-      void Promise.all([
-        loadCurrentProfile("silent"),
-        loadVendor("silent"),
-      ]);
+      void Promise.all([loadCurrentProfile("silent"), loadVendor("silent")]);
     }, 60000);
 
     return () => {
       window.clearInterval(intervalId);
-      supabase.removeChannel(channel);
+      void supabase.removeChannel(channel);
     };
   }, [id, loadCurrentProfile, loadVendor]);
 
   const permissionState = useMemo(() => {
-    return buildPermissionState(profile, effectivePermissions);
-  }, [effectivePermissions, profile]);
+    return resolveFinancePagePermissionState({
+      profileRole: profile?.role,
+      permissions: effectivePermissions,
+      config: VENDOR_DETAIL_ACCESS_CONFIG,
+    });
+  }, [effectivePermissions, profile?.role]);
 
   const primaryAddressOptions = useMemo(() => {
     return addressDraft.map((address, index) => ({
@@ -1161,65 +736,30 @@ export default function FinanceMasterDataVendorDetailPage() {
     }));
   }, [addressDraft]);
 
-  const headerStatusCards = useMemo<HeaderStatusCardData[]>(() => {
+  const headerStatusCards = useMemo(() => {
     return [
       {
         label: "Read Access",
         value: isLoadingProfile
           ? "Checking"
           : permissionState.canRead
-            ? "Enabled"
-            : "Locked",
-        detail: "Viewing this record requires Vendor, Payables, Finance, or Master Data read access.",
+          ? "Enabled"
+          : "Locked",
+        description:
+          "Viewing this record requires Vendor, Payables, Finance, or Master Data read access.",
         icon: permissionState.canRead ? ShieldCheck : LockKeyhole,
-        tone: permissionState.canRead ? "emerald" : "rose",
+        tone: permissionState.canRead ? ("emerald" as const) : ("rose" as const),
       },
       {
         label: "Edit Access",
         value: permissionState.canUpdate ? "Enabled" : "Read Only",
-        detail: "Section edits require Vendor update access or Master Data admin access.",
+        description:
+          "Section edits require Vendor update access or Master Data admin access.",
         icon: permissionState.canUpdate ? Pencil : LockKeyhole,
-        tone: permissionState.canUpdate ? "cyan" : "amber",
+        tone: permissionState.canUpdate ? ("cyan" as const) : ("gold" as const),
       },
     ];
   }, [isLoadingProfile, permissionState.canRead, permissionState.canUpdate]);
-
-  const summaryCards = useMemo<SummaryCardData[]>(() => {
-    return [
-      {
-        label: "Vendor",
-        value: getVendorDisplayName(vendor),
-        detail: vendor?.code || "No vendor code",
-        icon: Building2,
-        tone: "cyan",
-      },
-      {
-        label: "Contact",
-        value: getVendorContactLabel(vendor),
-        detail: `${getVendorEmailLabel(vendor)} • ${getVendorPhoneLabel(vendor)}`,
-        icon: UserRound,
-        tone: "emerald",
-      },
-      {
-        label: "Personnel",
-        value: `${personnel.length}`,
-        detail: `${addresses.length} primary address row${
-          addresses.length === 1 ? "" : "s"
-        }`,
-        icon: Users,
-        tone: "violet",
-      },
-      {
-        label: "Bank Accounts",
-        value: `${vendorBankAccounts.length}`,
-        detail:
-          vendorBankAccounts.find((account) => account.is_default)?.bank_name ||
-          "No default vendor bank account",
-        icon: Banknote,
-        tone: "amber",
-      },
-    ];
-  }, [addresses.length, personnel.length, vendor, vendorBankAccounts]);
 
   function cancelEditing() {
     setEditingSection(null);
@@ -1600,9 +1140,7 @@ export default function FinanceMasterDataVendorDetailPage() {
           is_primary: index === 0,
           status: "active",
         }))
-        .filter(
-          (row) => row.full_name || row.position || row.phone || row.email
-        );
+        .filter((row) => row.full_name || row.position || row.phone || row.email);
 
       if (payload.length > 0) {
         const { error } = await supabase
@@ -1864,171 +1402,153 @@ export default function FinanceMasterDataVendorDetailPage() {
   const isPageLoading = isLoadingProfile || isLoadingVendor;
 
   if (isPageLoading) {
-    return <LoadingState />;
+    return (
+      <AixiaLoadingState
+        title="Loading vendor detail"
+        description="Vendor record, linked records, and permission state are being checked."
+      />
+    );
   }
 
   if (!vendor) {
     return (
-      <div className="min-h-screen bg-[#05070d] px-4 py-4 text-white md:px-6 md:py-6">
-        <div className="mx-auto flex w-full max-w-[1600px] flex-col gap-6">
-          <EmptyState
+      <AixiaPage>
+        <AixiaSection
+          title="Vendor not found"
+          description="The vendor record could not be loaded or no longer exists."
+          icon={Building2}
+          actions={
+            <AixiaButton
+              type="button"
+              variant="primary"
+              onClick={() => navigate("/finance/master-data/vendors")}
+            >
+              Vendors
+            </AixiaButton>
+          }
+        >
+          <AixiaEmptyState
             icon={Building2}
             title="Vendor not found"
             description="The vendor record could not be loaded or no longer exists."
-            action={
-              <button
-                type="button"
-                onClick={() => navigate("/finance/master-data/vendors")}
-                className="inline-flex h-11 items-center justify-center gap-2 rounded-2xl border border-cyan-400/20 bg-cyan-500/10 px-5 text-sm font-semibold text-cyan-100 transition hover:bg-cyan-500/15"
-              >
-                <ArrowRight className="h-4 w-4 rotate-180" />
-                Vendors
-              </button>
-            }
           />
-        </div>
-      </div>
+        </AixiaSection>
+      </AixiaPage>
     );
   }
 
   if (!permissionState.canRead) {
     return (
-      <div className="min-h-screen bg-[#05070d] px-4 py-4 text-white md:px-6 md:py-6">
-        <div className="mx-auto flex w-full max-w-[1600px] flex-col gap-6">
-          <header className="relative overflow-hidden rounded-[34px] border border-white/10 bg-white/[0.045] p-6 shadow-2xl shadow-black/30 backdrop-blur-xl">
-            <div className="pointer-events-none absolute inset-0 bg-[radial-gradient(circle_at_top_left,rgba(6,182,212,0.16),transparent_38%),radial-gradient(circle_at_top_right,rgba(139,92,246,0.12),transparent_34%)]" />
+      <AixiaPage>
+        <AixiaHero
+          parentLabel="Vendors"
+          parentPath="/finance/master-data/vendors"
+          badges={[
+            { label: "Access Locked", tone: "rose" },
+            { label: "Vendor Detail", tone: "cyan" },
+          ]}
+          gradientTitle="Vendor"
+          title="Access Locked"
+          subtitle="Permission Protected Detail Page"
+          description="This page requires Vendor, Payables, Finance, or Master Data read access."
+          statusCards={headerStatusCards}
+        />
 
-            <div className="relative">
-              <button
-                type="button"
-                onClick={() => navigate("/finance/master-data/vendors")}
-                className="mb-5 inline-flex items-center justify-center gap-2 rounded-full border border-white/10 bg-white/[0.05] px-5 py-2 text-[11px] font-semibold uppercase tracking-[0.22em] text-slate-300 transition hover:border-white/20 hover:bg-white/[0.08] hover:text-white"
-              >
-                <ArrowRight className="h-3.5 w-3.5 rotate-180" />
-                Vendors
-              </button>
-
-              <div className="inline-flex w-fit items-center gap-2 rounded-full border border-rose-400/20 bg-rose-500/10 px-3 py-1 text-[11px] font-semibold uppercase tracking-[0.22em] text-rose-200">
-                <LockKeyhole className="h-3.5 w-3.5" />
-                Access Locked
-              </div>
-
-              <h1 className="mt-4 text-3xl font-semibold tracking-[-0.035em] text-white md:text-5xl">
-                Vendor Access Locked
-              </h1>
-
-              <p className="mt-3 max-w-4xl text-sm leading-6 text-slate-400 md:text-base md:leading-7">
-                This page requires Vendor, Payables, Finance, or Master Data read
-                access.
-              </p>
-            </div>
-          </header>
-
-          <EmptyState
-            icon={LockKeyhole}
-            title="No vendor read access"
-            description="Ask an Admin to assign a Finance role template or user-specific exception with Vendor, Payables, Finance, or Master Data read access."
-          />
-        </div>
-      </div>
+        <AixiaAccessDeniedState
+          title="No vendor read access"
+          description="Ask an Admin to assign a Finance role template or user-specific exception with Vendor, Payables, Finance, or Master Data read access."
+        />
+      </AixiaPage>
     );
   }
 
   return (
-    <div className="min-h-screen bg-[#05070d] px-4 py-4 text-white md:px-6 md:py-6">
-      <div className="mx-auto flex w-full max-w-[1600px] flex-col gap-6">
-        <header className="relative overflow-hidden rounded-[34px] border border-white/10 bg-white/[0.045] p-6 shadow-2xl shadow-black/30 backdrop-blur-xl">
-          <div className="pointer-events-none absolute inset-0 bg-[radial-gradient(circle_at_top_left,rgba(6,182,212,0.16),transparent_38%),radial-gradient(circle_at_top_right,rgba(139,92,246,0.12),transparent_34%)]" />
+    <AixiaPage>
+      <AixiaHero
+        parentLabel="Vendors"
+        parentPath="/finance/master-data/vendors"
+        badges={[
+          { label: "Vendor Detail", tone: "cyan" },
+          { label: vendor.code || "No Vendor Code", tone: "neutral" },
+          { label: vendor.country || "No Country", tone: "violet" },
+          { label: vendor.status, tone: vendor.status === "archived" ? "rose" : "emerald" },
+        ]}
+        gradientTitle={getVendorDisplayName(vendor)}
+        title="Vendor"
+        subtitle="External Vendor Master Data"
+        description="External vendor master-data record with same-place section editing, vendor identity, personnel, primary addresses, shipping addresses, vendor bank accounts, notes, and lifecycle control."
+        statusCards={headerStatusCards}
+      />
 
-          <div className="relative grid gap-6 xl:grid-cols-[minmax(0,1fr)_520px] xl:items-end">
-            <div>
-              <button
-                type="button"
-                onClick={() => navigate("/finance/master-data/vendors")}
-                className="mb-5 inline-flex items-center justify-center gap-2 rounded-full border border-white/10 bg-white/[0.05] px-5 py-2 text-[11px] font-semibold uppercase tracking-[0.22em] text-slate-300 transition hover:border-white/20 hover:bg-white/[0.08] hover:text-white"
-              >
-                <ArrowRight className="h-3.5 w-3.5 rotate-180" />
-                Vendors
-              </button>
+      {pageError ? <AixiaAlert tone="error">{pageError}</AixiaAlert> : null}
+      {pageMessage ? <AixiaAlert tone="success">{pageMessage}</AixiaAlert> : null}
 
-              <div className="inline-flex w-fit items-center gap-2 rounded-full border border-cyan-400/20 bg-cyan-500/10 px-3 py-1 text-[11px] font-semibold uppercase tracking-[0.22em] text-cyan-200">
-                <Sparkles className="h-3.5 w-3.5" />
-                Vendor Detail
-              </div>
+      <AixiaMetricGrid>
+        <AixiaMetricCard
+          label="Vendor"
+          value={getVendorDisplayName(vendor)}
+          description={vendor.code || "No vendor code"}
+          icon={Building2}
+          tone="cyan"
+        />
 
-              <h1 className="mt-4 text-3xl font-semibold tracking-[-0.035em] text-white md:text-5xl">
-                {getVendorDisplayName(vendor)}
-              </h1>
+        <AixiaMetricCard
+          label="Contact"
+          value={getVendorContactLabel(vendor)}
+          description={`${getVendorEmailLabel(vendor)} • ${getVendorPhoneLabel(vendor)}`}
+          icon={UserRound}
+          tone="emerald"
+        />
 
-              <p className="mt-3 max-w-4xl text-sm leading-6 text-slate-400 md:text-base md:leading-7">
-                External vendor master-data record with same-place section editing,
-                vendor identity, personnel, primary addresses, shipping addresses,
-                vendor bank accounts, notes, and lifecycle control.
-              </p>
+        <AixiaMetricCard
+          label="Personnel"
+          value={personnel.length}
+          description={`${addresses.length} primary address row${
+            addresses.length === 1 ? "" : "s"
+          }`}
+          icon={Users}
+          tone="violet"
+        />
 
-              <div className="mt-5 flex flex-wrap gap-2">
-                <span className="rounded-full border border-white/10 bg-white/[0.05] px-3 py-1 text-[11px] font-semibold uppercase tracking-[0.16em] text-slate-300">
-                  {vendor.code || "No Vendor Code"}
-                </span>
+        <AixiaMetricCard
+          label="Bank Accounts"
+          value={vendorBankAccounts.length}
+          description={
+            vendorBankAccounts.find((account) => account.is_default)?.bank_name ||
+            "No default vendor bank account"
+          }
+          icon={Banknote}
+          tone="gold"
+        />
+      </AixiaMetricGrid>
 
-                <span className="rounded-full border border-white/10 bg-white/[0.05] px-3 py-1 text-[11px] font-semibold uppercase tracking-[0.16em] text-slate-300">
-                  {vendor.country || "No Country"}
-                </span>
-
-                <StatusBadge status={vendor.status} />
-              </div>
-            </div>
-
-            <div className="grid gap-3 sm:grid-cols-2">
-              {headerStatusCards.map((item) => (
-                <HeaderStatusCard key={item.label} item={item} />
-              ))}
-            </div>
-          </div>
-        </header>
-
-        {pageError ? (
-          <div className="rounded-[24px] border border-rose-400/20 bg-rose-500/10 p-4 text-sm leading-6 text-rose-100">
-            <div className="flex items-start gap-3">
-              <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0" />
-              <div>{pageError}</div>
-            </div>
-          </div>
-        ) : null}
-
-        {pageMessage ? (
-          <div className="rounded-[24px] border border-emerald-400/20 bg-emerald-500/10 p-4 text-sm leading-6 text-emerald-100">
-            <div className="flex items-start gap-3">
-              <CheckCircle2 className="mt-0.5 h-4 w-4 shrink-0" />
-              <div>{pageMessage}</div>
-            </div>
-          </div>
-        ) : null}
-
-        <section className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
-          {summaryCards.map((item) => (
-            <SummaryCard key={item.label} item={item} />
-          ))}
-        </section>
-
-        <section className="grid items-start gap-6 xl:grid-cols-[minmax(0,1fr)_420px]">
-          <div className="grid gap-6">
-            <DetailSection
+      <AixiaSmartLayout
+        sidebar="wide"
+        balance="main"
+        matchColumns
+        bottomSpan="never"
+        main={
+          <>
+            <AixiaSection
               title="Vendor Overview"
               description="Legal identity, display name, primary contact, communication, and lifecycle status."
               icon={Building2}
-              isEditing={editingSection === "overview"}
-              canEdit={permissionState.canUpdate}
-              onEdit={openOverviewEditor}
-              onCancel={cancelEditing}
-              onSave={() => void saveOverviewSection()}
-              isSaving={isSaving}
+              actions={
+                <SectionActions
+                  isEditing={editingSection === "overview"}
+                  canEdit={permissionState.canUpdate}
+                  isSaving={isSaving}
+                  onEdit={openOverviewEditor}
+                  onCancel={cancelEditing}
+                  onSave={() => void saveOverviewSection()}
+                />
+              }
             >
               {editingSection === "overview" ? (
-                <div className="grid gap-4 md:grid-cols-2">
-                  <div className="md:col-span-2">
-                    <FieldLabel label="Legal Name" required />
-                    <InputField
+                <AixiaFormGrid columns="two">
+                  <AixiaFormFullWidth>
+                    <AixiaFieldLabel label="Legal Name" required />
+                    <AixiaInputField
                       value={overviewDraft.legal_name}
                       disabled={isSaving}
                       onChange={(event) =>
@@ -2036,11 +1556,11 @@ export default function FinanceMasterDataVendorDetailPage() {
                       }
                       placeholder="Legal vendor name"
                     />
-                  </div>
+                  </AixiaFormFullWidth>
 
-                  <div className="md:col-span-2">
-                    <FieldLabel label="Display Name" />
-                    <InputField
+                  <AixiaFormFullWidth>
+                    <AixiaFieldLabel label="Display Name" />
+                    <AixiaInputField
                       value={overviewDraft.display_name}
                       disabled={isSaving}
                       onChange={(event) =>
@@ -2048,11 +1568,11 @@ export default function FinanceMasterDataVendorDetailPage() {
                       }
                       placeholder="Display name"
                     />
-                  </div>
+                  </AixiaFormFullWidth>
 
-                  <div>
-                    <FieldLabel label="Primary Contact" />
-                    <InputField
+                  <AixiaFormField>
+                    <AixiaFieldLabel label="Primary Contact" />
+                    <AixiaInputField
                       value={overviewDraft.contact_person}
                       disabled={isSaving}
                       onChange={(event) =>
@@ -2060,11 +1580,11 @@ export default function FinanceMasterDataVendorDetailPage() {
                       }
                       placeholder="Primary contact"
                     />
-                  </div>
+                  </AixiaFormField>
 
-                  <div>
-                    <FieldLabel label="Email" />
-                    <InputField
+                  <AixiaFormField>
+                    <AixiaFieldLabel label="Email" />
+                    <AixiaInputField
                       type="email"
                       value={overviewDraft.company_email}
                       disabled={isSaving}
@@ -2073,11 +1593,11 @@ export default function FinanceMasterDataVendorDetailPage() {
                       }
                       placeholder="vendor@email.com"
                     />
-                  </div>
+                  </AixiaFormField>
 
-                  <div>
-                    <FieldLabel label="Phone" />
-                    <InputField
+                  <AixiaFormField>
+                    <AixiaFieldLabel label="Phone" />
+                    <AixiaInputField
                       value={overviewDraft.company_phone}
                       disabled={isSaving}
                       onChange={(event) =>
@@ -2085,38 +1605,38 @@ export default function FinanceMasterDataVendorDetailPage() {
                       }
                       placeholder="Vendor phone"
                     />
-                  </div>
+                  </AixiaFormField>
 
-                  <div>
-                    <FieldLabel label="Status" />
-                    <SelectField
+                  <AixiaFormField>
+                    <AixiaFieldLabel label="Status" />
+                    <AixiaSelectField
                       value={overviewDraft.status}
                       disabled={isSaving}
                       onChange={(event) =>
-                        updateOverviewDraft("status", normalizeStatus(event.target.value))
+                        updateOverviewDraft(
+                          "status",
+                          normalizeStatus(event.target.value)
+                        )
                       }
                     >
-                      <option value="active" className="bg-[#05070d]">
-                        Active
-                      </option>
-                      <option value="inactive" className="bg-[#05070d]">
-                        Inactive
-                      </option>
-                      <option value="archived" className="bg-[#05070d]">
-                        Archived
-                      </option>
-                    </SelectField>
-                  </div>
-                </div>
+                      <option value="active">Active</option>
+                      <option value="inactive">Inactive</option>
+                      <option value="archived">Archived</option>
+                    </AixiaSelectField>
+                  </AixiaFormField>
+                </AixiaFormGrid>
               ) : (
-                <div className="grid gap-3 md:grid-cols-2">
-                  <DisplayBlock label="Legal Name" value={getVendorDisplayName(vendor)} />
-                  <DisplayBlock label="Display Name" value={vendor.name || "—"} />
-                  <DisplayBlock
+                <AixiaReviewGrid variant="cards">
+                  <AixiaValueBlock
+                    label="Legal Name"
+                    value={getVendorDisplayName(vendor)}
+                  />
+                  <AixiaValueBlock label="Display Name" value={vendor.name || "—"} />
+                  <AixiaValueBlock
                     label="Primary Contact"
                     value={vendor.contact_person || "—"}
                   />
-                  <DisplayBlock
+                  <AixiaValueBlock
                     label="Email"
                     value={vendor.company_email || "—"}
                     detail={
@@ -2128,7 +1648,7 @@ export default function FinanceMasterDataVendorDetailPage() {
                       ) : null
                     }
                   />
-                  <DisplayBlock
+                  <AixiaValueBlock
                     label="Phone"
                     value={vendor.company_phone || "—"}
                     detail={
@@ -2140,768 +1660,760 @@ export default function FinanceMasterDataVendorDetailPage() {
                       ) : null
                     }
                   />
-                  <DisplayBlock
+                  <AixiaValueBlock
                     label="Lifecycle Status"
-                    value={<StatusBadge status={vendor.status} />}
+                    value={<AixiaStatusBadge value={vendor.status} />}
                   />
-                </div>
+                </AixiaReviewGrid>
               )}
-            </DetailSection>
+            </AixiaSection>
 
-            <DetailSection
+            <AixiaSection
               title="Personnel"
               description="People connected to this vendor."
               icon={Users}
-              isEditing={editingSection === "personnel"}
-              canEdit={permissionState.canUpdate}
-              onEdit={openPersonnelEditor}
-              onCancel={cancelEditing}
-              onSave={() => void savePersonnelSection()}
-              isSaving={isSaving}
+              smartScroll
+              visibleCards={8}
+              actions={
+                <SectionActions
+                  isEditing={editingSection === "personnel"}
+                  canEdit={permissionState.canUpdate}
+                  isSaving={isSaving}
+                  onEdit={openPersonnelEditor}
+                  onCancel={cancelEditing}
+                  onSave={() => void savePersonnelSection()}
+                />
+              }
             >
               {editingSection === "personnel" ? (
-                <div className="space-y-4">
-                  <div className="flex justify-end">
-                    <AddRowButton
-                      label="Add Person"
-                      onClick={addPersonnelDraftRow}
-                      disabled={isSaving}
-                    />
-                  </div>
+                <div className="aixia-stack">
+                  <AixiaButton
+                    type="button"
+                    variant="primary"
+                    onClick={addPersonnelDraftRow}
+                    disabled={isSaving}
+                  >
+                    <Plus className="h-3.5 w-3.5" />
+                    Add Person
+                  </AixiaButton>
 
-                  <div className="max-h-[720px] space-y-4 overflow-y-auto pr-1">
-                    {personnelDraft.map((row, index) => (
-                      <RowCard
-                        key={row.id}
-                        title={`Person ${index + 1}`}
-                        description={index === 0 ? "Primary personnel row." : undefined}
-                        onRemove={() => removePersonnelDraftRow(row.id)}
-                        removeDisabled={isSaving || personnelDraft.length === 1}
-                      >
-                        <div className="grid gap-4 md:grid-cols-2">
-                          <div>
-                            <FieldLabel label="Name" />
-                            <InputField
-                              value={row.full_name}
-                              disabled={isSaving}
-                              onChange={(event) =>
-                                updatePersonnelDraftRow(
-                                  row.id,
-                                  "full_name",
-                                  event.target.value
-                                )
-                              }
-                              placeholder="Person name"
-                            />
-                          </div>
-
-                          <div>
-                            <FieldLabel label="Position" />
-                            <InputField
-                              value={row.position}
-                              disabled={isSaving}
-                              onChange={(event) =>
-                                updatePersonnelDraftRow(
-                                  row.id,
-                                  "position",
-                                  event.target.value
-                                )
-                              }
-                              placeholder="Position"
-                            />
-                          </div>
-
-                          <div>
-                            <FieldLabel label="Phone" />
-                            <InputField
-                              value={row.phone}
-                              disabled={isSaving}
-                              onChange={(event) =>
-                                updatePersonnelDraftRow(
-                                  row.id,
-                                  "phone",
-                                  event.target.value
-                                )
-                              }
-                              placeholder="Phone"
-                            />
-                          </div>
-
-                          <div>
-                            <FieldLabel label="Email" />
-                            <InputField
-                              type="email"
-                              value={row.email}
-                              disabled={isSaving}
-                              onChange={(event) =>
-                                updatePersonnelDraftRow(
-                                  row.id,
-                                  "email",
-                                  event.target.value
-                                )
-                              }
-                              placeholder="Email"
-                            />
-                          </div>
-                        </div>
-                      </RowCard>
-                    ))}
-                  </div>
-                </div>
-              ) : personnel.length === 0 ? (
-                <div className="rounded-[20px] border border-dashed border-white/10 bg-black/20 px-4 py-8 text-center text-sm text-slate-500">
-                  No personnel added yet.
-                </div>
-              ) : (
-                <div className="max-h-[720px] space-y-3 overflow-y-auto pr-1">
-                  {personnel.map((row, index) => (
-                    <div
+                  {personnelDraft.map((row, index) => (
+                    <AixiaSection
                       key={row.id}
-                      className="rounded-[24px] border border-white/10 bg-black/20 p-4"
+                      title={`Person ${index + 1}`}
+                      description={index === 0 ? "Primary personnel row." : "Personnel row."}
+                      icon={UserRound}
+                      actions={
+                        <AixiaButton
+                          type="button"
+                          variant="danger"
+                          onClick={() => removePersonnelDraftRow(row.id)}
+                          disabled={isSaving || personnelDraft.length === 1}
+                        >
+                          <Trash2 className="h-3.5 w-3.5" />
+                          Remove
+                        </AixiaButton>
+                      }
                     >
-                      <div className="mb-3 flex items-center justify-between gap-3">
-                        <div className="text-sm font-semibold text-white">
-                          Person {index + 1}
-                        </div>
-                        {row.is_primary ? (
-                          <span className="rounded-full border border-cyan-400/20 bg-cyan-500/10 px-3 py-1 text-[11px] font-semibold uppercase tracking-[0.14em] text-cyan-100">
-                            Primary
-                          </span>
-                        ) : null}
-                      </div>
+                      <AixiaFormGrid columns="two">
+                        <AixiaFormField>
+                          <AixiaFieldLabel label="Name" />
+                          <AixiaInputField
+                            value={row.full_name}
+                            disabled={isSaving}
+                            onChange={(event) =>
+                              updatePersonnelDraftRow(
+                                row.id,
+                                "full_name",
+                                event.target.value
+                              )
+                            }
+                            placeholder="Person name"
+                          />
+                        </AixiaFormField>
 
-                      <div className="grid gap-3 md:grid-cols-2">
-                        <DisplayBlock label="Name" value={row.full_name || "—"} />
-                        <DisplayBlock label="Position" value={row.position || "—"} />
-                        <DisplayBlock label="Phone" value={row.phone || "—"} />
-                        <DisplayBlock label="Email" value={row.email || "—"} />
-                      </div>
-                    </div>
+                        <AixiaFormField>
+                          <AixiaFieldLabel label="Position" />
+                          <AixiaInputField
+                            value={row.position}
+                            disabled={isSaving}
+                            onChange={(event) =>
+                              updatePersonnelDraftRow(
+                                row.id,
+                                "position",
+                                event.target.value
+                              )
+                            }
+                            placeholder="Position"
+                          />
+                        </AixiaFormField>
+
+                        <AixiaFormField>
+                          <AixiaFieldLabel label="Phone" />
+                          <AixiaInputField
+                            value={row.phone}
+                            disabled={isSaving}
+                            onChange={(event) =>
+                              updatePersonnelDraftRow(
+                                row.id,
+                                "phone",
+                                event.target.value
+                              )
+                            }
+                            placeholder="Phone"
+                          />
+                        </AixiaFormField>
+
+                        <AixiaFormField>
+                          <AixiaFieldLabel label="Email" />
+                          <AixiaInputField
+                            type="email"
+                            value={row.email}
+                            disabled={isSaving}
+                            onChange={(event) =>
+                              updatePersonnelDraftRow(
+                                row.id,
+                                "email",
+                                event.target.value
+                              )
+                            }
+                            placeholder="Email"
+                          />
+                        </AixiaFormField>
+                      </AixiaFormGrid>
+                    </AixiaSection>
                   ))}
                 </div>
+              ) : personnel.length === 0 ? (
+                <AixiaEmptyState
+                  icon={Users}
+                  title="No personnel added yet"
+                  description="Vendor personnel rows will appear here after they are added."
+                />
+              ) : (
+                <AixiaReviewGrid variant="cards">
+                  {personnel.map((row, index) => (
+                    <AixiaValueBlock
+                      key={row.id}
+                      label={`Person ${index + 1}`}
+                      value={row.full_name || "—"}
+                      detail={`${row.position || "No position"} • ${
+                        row.email || "No email"
+                      } • ${row.phone || "No phone"}`}
+                    />
+                  ))}
+                </AixiaReviewGrid>
               )}
-            </DetailSection>
+            </AixiaSection>
 
-            <DetailSection
+                        <AixiaSection
               title="Primary Addresses"
               description="Primary vendor address records."
               icon={MapPin}
-              isEditing={editingSection === "primary-addresses"}
-              canEdit={permissionState.canUpdate}
-              onEdit={openPrimaryAddressEditor}
-              onCancel={cancelEditing}
-              onSave={() => void savePrimaryAddressSection()}
-              isSaving={isSaving}
+              smartScroll
+              visibleCards={8}
+              actions={
+                <SectionActions
+                  isEditing={editingSection === "primary-addresses"}
+                  canEdit={permissionState.canUpdate}
+                  isSaving={isSaving}
+                  onEdit={openPrimaryAddressEditor}
+                  onCancel={cancelEditing}
+                  onSave={() => void savePrimaryAddressSection()}
+                />
+              }
             >
               {editingSection === "primary-addresses" ? (
-                <div className="space-y-4">
-                  <div className="flex justify-end">
-                    <AddRowButton
-                      label="Add Address"
-                      onClick={addAddressDraftRow}
-                      disabled={isSaving}
-                    />
-                  </div>
+                <div className="aixia-stack">
+                  <AixiaButton
+                    type="button"
+                    variant="primary"
+                    onClick={addAddressDraftRow}
+                    disabled={isSaving}
+                  >
+                    <Plus className="h-3.5 w-3.5" />
+                    Add Address
+                  </AixiaButton>
 
-                  <div className="max-h-[720px] space-y-4 overflow-y-auto pr-1">
-                    {addressDraft.map((row, index) => (
-                      <RowCard
-                        key={row.id}
-                        title={`Address ${index + 1}`}
-                        description={index === 0 ? "Primary address row." : undefined}
-                        onRemove={() => removeAddressDraftRow(row.id)}
-                        removeDisabled={isSaving || addressDraft.length === 1}
-                      >
-                        <div className="grid gap-4 md:grid-cols-2">
-                          <div>
-                            <FieldLabel label="Country" />
-                            <InputField
-                              value={row.country}
-                              disabled={isSaving}
-                              onChange={(event) =>
-                                updateAddressDraftRow(
-                                  row.id,
-                                  "country",
-                                  event.target.value
-                                )
-                              }
-                              placeholder="Country"
-                            />
-                          </div>
-
-                          <div>
-                            <FieldLabel label="City" />
-                            <InputField
-                              value={row.city}
-                              disabled={isSaving}
-                              onChange={(event) =>
-                                updateAddressDraftRow(
-                                  row.id,
-                                  "city",
-                                  event.target.value
-                                )
-                              }
-                              placeholder="City"
-                            />
-                          </div>
-
-                          <div>
-                            <FieldLabel label="State / Province" />
-                            <InputField
-                              value={row.state_province}
-                              disabled={isSaving}
-                              onChange={(event) =>
-                                updateAddressDraftRow(
-                                  row.id,
-                                  "state_province",
-                                  event.target.value
-                                )
-                              }
-                              placeholder="State / Province"
-                            />
-                          </div>
-
-                          <div>
-                            <FieldLabel label="ZIP / Postal Code" />
-                            <InputField
-                              value={row.postal_code}
-                              disabled={isSaving}
-                              onChange={(event) =>
-                                updateAddressDraftRow(
-                                  row.id,
-                                  "postal_code",
-                                  event.target.value
-                                )
-                              }
-                              placeholder="Postal code"
-                            />
-                          </div>
-
-                          <div className="md:col-span-2">
-                            <FieldLabel label="Address Line 1" />
-                            <InputField
-                              value={row.address_line_1}
-                              disabled={isSaving}
-                              onChange={(event) =>
-                                updateAddressDraftRow(
-                                  row.id,
-                                  "address_line_1",
-                                  event.target.value
-                                )
-                              }
-                              placeholder="Address line 1"
-                            />
-                          </div>
-
-                          <div className="md:col-span-2">
-                            <FieldLabel label="Address Line 2" />
-                            <InputField
-                              value={row.address_line_2}
-                              disabled={isSaving}
-                              onChange={(event) =>
-                                updateAddressDraftRow(
-                                  row.id,
-                                  "address_line_2",
-                                  event.target.value
-                                )
-                              }
-                              placeholder="Address line 2"
-                            />
-                          </div>
-                        </div>
-                      </RowCard>
-                    ))}
-                  </div>
-                </div>
-              ) : addresses.length === 0 ? (
-                <div className="rounded-[20px] border border-dashed border-white/10 bg-black/20 px-4 py-8 text-center text-sm text-slate-500">
-                  No primary addresses added yet.
-                </div>
-              ) : (
-                <div className="max-h-[720px] space-y-3 overflow-y-auto pr-1">
-                  {addresses.map((row, index) => (
-                    <div
+                  {addressDraft.map((row, index) => (
+                    <AixiaSection
                       key={row.id}
-                      className="rounded-[24px] border border-white/10 bg-black/20 p-4"
+                      title={`Address ${index + 1}`}
+                      description={
+                        index === 0 ? "Primary address row." : "Additional primary address."
+                      }
+                      icon={MapPin}
+                      actions={
+                        <AixiaButton
+                          type="button"
+                          variant="danger"
+                          onClick={() => removeAddressDraftRow(row.id)}
+                          disabled={isSaving || addressDraft.length === 1}
+                        >
+                          <Trash2 className="h-3.5 w-3.5" />
+                          Remove
+                        </AixiaButton>
+                      }
                     >
-                      <div className="mb-3 flex items-center justify-between gap-3">
-                        <div className="text-sm font-semibold text-white">
-                          Address {index + 1}
-                        </div>
-                        {row.is_primary ? (
-                          <span className="rounded-full border border-cyan-400/20 bg-cyan-500/10 px-3 py-1 text-[11px] font-semibold uppercase tracking-[0.14em] text-cyan-100">
-                            Primary
-                          </span>
-                        ) : null}
-                      </div>
+                      <AixiaFormGrid columns="two">
+                        <AixiaFormField>
+                          <AixiaFieldLabel label="Country" />
+                          <AixiaInputField
+                            value={row.country}
+                            disabled={isSaving}
+                            onChange={(event) =>
+                              updateAddressDraftRow(
+                                row.id,
+                                "country",
+                                event.target.value
+                              )
+                            }
+                            placeholder="Country"
+                          />
+                        </AixiaFormField>
 
-                      <div className="grid gap-3 md:grid-cols-2">
-                        <DisplayBlock label="Country" value={row.country || "—"} />
-                        <DisplayBlock label="City" value={row.city || "—"} />
-                        <DisplayBlock
-                          label="State / Province"
-                          value={row.state_province || "—"}
-                        />
-                        <DisplayBlock
-                          label="ZIP / Postal Code"
-                          value={row.postal_code || "—"}
-                        />
-                        <DisplayBlock
-                          label="Address Line 1"
-                          value={row.address_line_1 || "—"}
-                        />
-                        <DisplayBlock
-                          label="Address Line 2"
-                          value={row.address_line_2 || "—"}
-                        />
-                      </div>
-                    </div>
+                        <AixiaFormField>
+                          <AixiaFieldLabel label="City" />
+                          <AixiaInputField
+                            value={row.city}
+                            disabled={isSaving}
+                            onChange={(event) =>
+                              updateAddressDraftRow(row.id, "city", event.target.value)
+                            }
+                            placeholder="City"
+                          />
+                        </AixiaFormField>
+
+                        <AixiaFormField>
+                          <AixiaFieldLabel label="State / Province" />
+                          <AixiaInputField
+                            value={row.state_province}
+                            disabled={isSaving}
+                            onChange={(event) =>
+                              updateAddressDraftRow(
+                                row.id,
+                                "state_province",
+                                event.target.value
+                              )
+                            }
+                            placeholder="State / Province"
+                          />
+                        </AixiaFormField>
+
+                        <AixiaFormField>
+                          <AixiaFieldLabel label="ZIP / Postal Code" />
+                          <AixiaInputField
+                            value={row.postal_code}
+                            disabled={isSaving}
+                            onChange={(event) =>
+                              updateAddressDraftRow(
+                                row.id,
+                                "postal_code",
+                                event.target.value
+                              )
+                            }
+                            placeholder="Postal code"
+                          />
+                        </AixiaFormField>
+
+                        <AixiaFormFullWidth>
+                          <AixiaFieldLabel label="Address Line 1" />
+                          <AixiaInputField
+                            value={row.address_line_1}
+                            disabled={isSaving}
+                            onChange={(event) =>
+                              updateAddressDraftRow(
+                                row.id,
+                                "address_line_1",
+                                event.target.value
+                              )
+                            }
+                            placeholder="Address line 1"
+                          />
+                        </AixiaFormFullWidth>
+
+                        <AixiaFormFullWidth>
+                          <AixiaFieldLabel label="Address Line 2" />
+                          <AixiaInputField
+                            value={row.address_line_2}
+                            disabled={isSaving}
+                            onChange={(event) =>
+                              updateAddressDraftRow(
+                                row.id,
+                                "address_line_2",
+                                event.target.value
+                              )
+                            }
+                            placeholder="Address line 2"
+                          />
+                        </AixiaFormFullWidth>
+                      </AixiaFormGrid>
+                    </AixiaSection>
                   ))}
                 </div>
+              ) : addresses.length === 0 ? (
+                <AixiaEmptyState
+                  icon={MapPin}
+                  title="No primary addresses added yet"
+                  description="Primary vendor addresses will appear here after they are added."
+                />
+              ) : (
+                <AixiaReviewGrid variant="cards">
+                  {addresses.map((row, index) => (
+                    <AixiaValueBlock
+                      key={row.id}
+                      label={`Address ${index + 1}`}
+                      value={
+                        row.address_line_1 ||
+                        row.city ||
+                        row.country ||
+                        "Primary address"
+                      }
+                      detail={[
+                        row.city,
+                        row.state_province,
+                        row.postal_code,
+                        row.country,
+                        row.address_line_2,
+                      ]
+                        .filter(Boolean)
+                        .join(" • ")}
+                    />
+                  ))}
+                </AixiaReviewGrid>
               )}
-            </DetailSection>
+            </AixiaSection>
 
-                        <DetailSection
+            <AixiaSection
               title="Shipping Addresses"
               description="Shipping destinations for this vendor."
               icon={Truck}
-              isEditing={editingSection === "shipping-addresses"}
-              canEdit={permissionState.canUpdate}
-              onEdit={openShippingAddressEditor}
-              onCancel={cancelEditing}
-              onSave={() => void saveShippingAddressSection()}
-              isSaving={isSaving}
+              smartScroll
+              visibleCards={8}
+              actions={
+                <SectionActions
+                  isEditing={editingSection === "shipping-addresses"}
+                  canEdit={permissionState.canUpdate}
+                  isSaving={isSaving}
+                  onEdit={openShippingAddressEditor}
+                  onCancel={cancelEditing}
+                  onSave={() => void saveShippingAddressSection()}
+                />
+              }
             >
               {editingSection === "shipping-addresses" ? (
-                <div className="space-y-4">
-                  <div className="flex justify-end">
-                    <AddRowButton
-                      label="Add Shipping"
-                      onClick={addShippingDraftRow}
-                      disabled={isSaving}
-                    />
-                  </div>
+                <div className="aixia-stack">
+                  <AixiaButton
+                    type="button"
+                    variant="primary"
+                    onClick={addShippingDraftRow}
+                    disabled={isSaving}
+                  >
+                    <Plus className="h-3.5 w-3.5" />
+                    Add Shipping
+                  </AixiaButton>
 
-                  <div className="max-h-[720px] space-y-4 overflow-y-auto pr-1">
-                    {shippingDraft.map((row, index) => (
-                      <RowCard
-                        key={row.id}
-                        title={`Shipping ${index + 1}`}
-                        description={
-                          row.same_as_primary
-                            ? "Linked to a primary address."
-                            : "Standalone shipping address."
-                        }
-                        onRemove={() => removeShippingDraftRow(row.id)}
-                        removeDisabled={isSaving || shippingDraft.length === 1}
-                      >
-                        <div className="space-y-4">
-                          <label className="flex items-start gap-3 rounded-2xl border border-white/10 bg-black/20 px-4 py-3 text-sm text-slate-300">
-                            <input
-                              type="checkbox"
-                              checked={row.same_as_primary}
+                  {shippingDraft.map((row, index) => (
+                    <AixiaSection
+                      key={row.id}
+                      title={`Shipping ${index + 1}`}
+                      description={
+                        row.same_as_primary
+                          ? "Linked to a primary address."
+                          : "Standalone shipping address."
+                      }
+                      icon={Truck}
+                      actions={
+                        <AixiaButton
+                          type="button"
+                          variant="danger"
+                          onClick={() => removeShippingDraftRow(row.id)}
+                          disabled={isSaving || shippingDraft.length === 1}
+                        >
+                          <Trash2 className="h-3.5 w-3.5" />
+                          Remove
+                        </AixiaButton>
+                      }
+                    >
+                      <div className="aixia-stack">
+                        <AixiaFormField>
+                          <AixiaFieldLabel label="Same as Primary Address" />
+                          <AixiaSelectField
+                            value={row.same_as_primary ? "yes" : "no"}
+                            disabled={isSaving}
+                            onChange={(event) =>
+                              updateShippingDraftRow(
+                                row.id,
+                                "same_as_primary",
+                                event.target.value === "yes"
+                              )
+                            }
+                          >
+                            <option value="no">No</option>
+                            <option value="yes">Yes</option>
+                          </AixiaSelectField>
+                        </AixiaFormField>
+
+                        {row.same_as_primary ? (
+                          <AixiaFormField>
+                            <AixiaFieldLabel label="Source Primary Address" />
+                            <AixiaSelectField
+                              value={row.source_address_id}
                               disabled={isSaving}
                               onChange={(event) =>
                                 updateShippingDraftRow(
                                   row.id,
-                                  "same_as_primary",
-                                  event.target.checked
+                                  "source_address_id",
+                                  event.target.value
                                 )
                               }
-                              className="mt-1"
-                            />
-                            <span>
-                              <span className="block font-semibold text-white">
-                                Same as primary address
-                              </span>
-                              <span className="mt-1 block text-xs leading-5 text-slate-500">
-                                Select one primary address and copy its values into this
-                                shipping row.
-                              </span>
-                            </span>
-                          </label>
-
-                          {row.same_as_primary ? (
-                            <div>
-                              <FieldLabel label="Source Primary Address" />
-                              <SelectField
-                                value={row.source_address_id}
+                            >
+                              <option value="">Select address</option>
+                              {primaryAddressOptions.map((option) => (
+                                <option key={option.id} value={option.id}>
+                                  {option.label}
+                                </option>
+                              ))}
+                            </AixiaSelectField>
+                          </AixiaFormField>
+                        ) : (
+                          <AixiaFormGrid columns="two">
+                            <AixiaFormField>
+                              <AixiaFieldLabel label="Country" />
+                              <AixiaInputField
+                                value={row.country}
                                 disabled={isSaving}
                                 onChange={(event) =>
                                   updateShippingDraftRow(
                                     row.id,
-                                    "source_address_id",
+                                    "country",
                                     event.target.value
                                   )
                                 }
-                              >
-                                <option value="" className="bg-[#05070d]">
-                                  Select address
-                                </option>
-                                {primaryAddressOptions.map((option) => (
-                                  <option
-                                    key={option.id}
-                                    value={option.id}
-                                    className="bg-[#05070d]"
-                                  >
-                                    {option.label}
-                                  </option>
-                                ))}
-                              </SelectField>
-                            </div>
-                          ) : (
-                            <div className="grid gap-4 md:grid-cols-2">
-                              <div>
-                                <FieldLabel label="Country" />
-                                <InputField
-                                  value={row.country}
-                                  disabled={isSaving}
-                                  onChange={(event) =>
-                                    updateShippingDraftRow(
-                                      row.id,
-                                      "country",
-                                      event.target.value
-                                    )
-                                  }
-                                  placeholder="Country"
-                                />
-                              </div>
+                                placeholder="Country"
+                              />
+                            </AixiaFormField>
 
-                              <div>
-                                <FieldLabel label="City" />
-                                <InputField
-                                  value={row.city}
-                                  disabled={isSaving}
-                                  onChange={(event) =>
-                                    updateShippingDraftRow(
-                                      row.id,
-                                      "city",
-                                      event.target.value
-                                    )
-                                  }
-                                  placeholder="City"
-                                />
-                              </div>
+                            <AixiaFormField>
+                              <AixiaFieldLabel label="City" />
+                              <AixiaInputField
+                                value={row.city}
+                                disabled={isSaving}
+                                onChange={(event) =>
+                                  updateShippingDraftRow(
+                                    row.id,
+                                    "city",
+                                    event.target.value
+                                  )
+                                }
+                                placeholder="City"
+                              />
+                            </AixiaFormField>
 
-                              <div>
-                                <FieldLabel label="State / Province" />
-                                <InputField
-                                  value={row.state_province}
-                                  disabled={isSaving}
-                                  onChange={(event) =>
-                                    updateShippingDraftRow(
-                                      row.id,
-                                      "state_province",
-                                      event.target.value
-                                    )
-                                  }
-                                  placeholder="State / Province"
-                                />
-                              </div>
+                            <AixiaFormField>
+                              <AixiaFieldLabel label="State / Province" />
+                              <AixiaInputField
+                                value={row.state_province}
+                                disabled={isSaving}
+                                onChange={(event) =>
+                                  updateShippingDraftRow(
+                                    row.id,
+                                    "state_province",
+                                    event.target.value
+                                  )
+                                }
+                                placeholder="State / Province"
+                              />
+                            </AixiaFormField>
 
-                              <div>
-                                <FieldLabel label="ZIP / Postal Code" />
-                                <InputField
-                                  value={row.postal_code}
-                                  disabled={isSaving}
-                                  onChange={(event) =>
-                                    updateShippingDraftRow(
-                                      row.id,
-                                      "postal_code",
-                                      event.target.value
-                                    )
-                                  }
-                                  placeholder="Postal code"
-                                />
-                              </div>
+                            <AixiaFormField>
+                              <AixiaFieldLabel label="ZIP / Postal Code" />
+                              <AixiaInputField
+                                value={row.postal_code}
+                                disabled={isSaving}
+                                onChange={(event) =>
+                                  updateShippingDraftRow(
+                                    row.id,
+                                    "postal_code",
+                                    event.target.value
+                                  )
+                                }
+                                placeholder="Postal code"
+                              />
+                            </AixiaFormField>
 
-                              <div className="md:col-span-2">
-                                <FieldLabel label="Address Line 1" />
-                                <InputField
-                                  value={row.address_line_1}
-                                  disabled={isSaving}
-                                  onChange={(event) =>
-                                    updateShippingDraftRow(
-                                      row.id,
-                                      "address_line_1",
-                                      event.target.value
-                                    )
-                                  }
-                                  placeholder="Address line 1"
-                                />
-                              </div>
+                            <AixiaFormFullWidth>
+                              <AixiaFieldLabel label="Address Line 1" />
+                              <AixiaInputField
+                                value={row.address_line_1}
+                                disabled={isSaving}
+                                onChange={(event) =>
+                                  updateShippingDraftRow(
+                                    row.id,
+                                    "address_line_1",
+                                    event.target.value
+                                  )
+                                }
+                                placeholder="Address line 1"
+                              />
+                            </AixiaFormFullWidth>
 
-                              <div className="md:col-span-2">
-                                <FieldLabel label="Address Line 2" />
-                                <InputField
-                                  value={row.address_line_2}
-                                  disabled={isSaving}
-                                  onChange={(event) =>
-                                    updateShippingDraftRow(
-                                      row.id,
-                                      "address_line_2",
-                                      event.target.value
-                                    )
-                                  }
-                                  placeholder="Address line 2"
-                                />
-                              </div>
-                            </div>
-                          )}
-                        </div>
-                      </RowCard>
-                    ))}
-                  </div>
-                </div>
-              ) : shippingAddresses.length === 0 ? (
-                <div className="rounded-[20px] border border-dashed border-white/10 bg-black/20 px-4 py-8 text-center text-sm text-slate-500">
-                  No shipping addresses added yet.
-                </div>
-              ) : (
-                <div className="max-h-[720px] space-y-3 overflow-y-auto pr-1">
-                  {shippingAddresses.map((row, index) => (
-                    <div
-                      key={row.id}
-                      className="rounded-[24px] border border-white/10 bg-black/20 p-4"
-                    >
-                      <div className="mb-3 flex items-center justify-between gap-3">
-                        <div className="text-sm font-semibold text-white">
-                          Shipping {index + 1}
-                        </div>
-                        {row.is_same_as_primary ? (
-                          <span className="rounded-full border border-emerald-400/20 bg-emerald-500/10 px-3 py-1 text-[11px] font-semibold uppercase tracking-[0.14em] text-emerald-100">
-                            Same as primary
-                          </span>
-                        ) : null}
+                            <AixiaFormFullWidth>
+                              <AixiaFieldLabel label="Address Line 2" />
+                              <AixiaInputField
+                                value={row.address_line_2}
+                                disabled={isSaving}
+                                onChange={(event) =>
+                                  updateShippingDraftRow(
+                                    row.id,
+                                    "address_line_2",
+                                    event.target.value
+                                  )
+                                }
+                                placeholder="Address line 2"
+                              />
+                            </AixiaFormFullWidth>
+                          </AixiaFormGrid>
+                        )}
                       </div>
-
-                      {row.is_same_as_primary ? (
-                        <div className="rounded-[20px] border border-white/10 bg-white/[0.035] px-4 py-3 text-sm text-slate-300">
-                          Same as primary address.
-                        </div>
-                      ) : (
-                        <div className="grid gap-3 md:grid-cols-2">
-                          <DisplayBlock label="Country" value={row.country || "—"} />
-                          <DisplayBlock label="City" value={row.city || "—"} />
-                          <DisplayBlock
-                            label="State / Province"
-                            value={row.state_province || "—"}
-                          />
-                          <DisplayBlock
-                            label="ZIP / Postal Code"
-                            value={row.postal_code || "—"}
-                          />
-                          <DisplayBlock
-                            label="Address Line 1"
-                            value={row.address_line_1 || "—"}
-                          />
-                          <DisplayBlock
-                            label="Address Line 2"
-                            value={row.address_line_2 || "—"}
-                          />
-                        </div>
-                      )}
-                    </div>
+                    </AixiaSection>
                   ))}
                 </div>
+              ) : shippingAddresses.length === 0 ? (
+                <AixiaEmptyState
+                  icon={Truck}
+                  title="No shipping addresses added yet"
+                  description="Shipping addresses will appear here after they are added."
+                />
+              ) : (
+                <AixiaReviewGrid variant="cards">
+                  {shippingAddresses.map((row, index) => (
+                    <AixiaValueBlock
+                      key={row.id}
+                      label={`Shipping ${index + 1}`}
+                      value={
+                        row.is_same_as_primary
+                          ? "Same as primary address"
+                          : row.address_line_1 || row.city || row.country || "Shipping address"
+                      }
+                      detail={
+                        row.is_same_as_primary
+                          ? "Linked to primary address"
+                          : [
+                              row.city,
+                              row.state_province,
+                              row.postal_code,
+                              row.country,
+                              row.address_line_2,
+                            ]
+                              .filter(Boolean)
+                              .join(" • ")
+                      }
+                    />
+                  ))}
+                </AixiaReviewGrid>
               )}
-            </DetailSection>
+            </AixiaSection>
 
-            <DetailSection
+            <AixiaSection
               title="Notes"
               description="Internal finance notes for this vendor."
               icon={FileText}
-              isEditing={editingSection === "notes"}
-              canEdit={permissionState.canUpdate}
-              onEdit={openNotesEditor}
-              onCancel={cancelEditing}
-              onSave={() => void saveNotesSection()}
-              isSaving={isSaving}
+              actions={
+                <SectionActions
+                  isEditing={editingSection === "notes"}
+                  canEdit={permissionState.canUpdate}
+                  isSaving={isSaving}
+                  onEdit={openNotesEditor}
+                  onCancel={cancelEditing}
+                  onSave={() => void saveNotesSection()}
+                />
+              }
             >
               {editingSection === "notes" ? (
-                <div>
-                  <FieldLabel label="Notes" />
-                  <TextareaField
+                <AixiaFormFullWidth>
+                  <AixiaFieldLabel label="Notes" />
+                  <AixiaTextareaField
                     value={notesDraft}
                     disabled={isSaving}
                     onChange={(event) => setNotesDraft(event.target.value)}
                     placeholder="Internal notes..."
                   />
-                </div>
+                </AixiaFormFullWidth>
               ) : (
-                <div className="rounded-[20px] border border-white/10 bg-black/20 px-4 py-4 text-sm leading-7 text-slate-300">
-                  {vendor.notes || "No notes added yet."}
-                </div>
+                <AixiaValueBlock
+                  label="Notes"
+                  value={vendor.notes || "No notes added yet."}
+                  detail="Internal finance notes for this vendor."
+                />
               )}
-            </DetailSection>
+            </AixiaSection>
 
-            <DetailSection
+            <AixiaSection
               title="Vendor Bank Accounts"
               description="Vendor payout bank accounts recorded from vendor-provided payment details."
               icon={Banknote}
-              isEditing={false}
-              canEdit={false}
+              smartScroll
+              visibleCards={8}
               actions={
                 permissionState.canUpdate ? (
-                  <button
+                  <AixiaButton
                     type="button"
+                    variant="primary"
                     onClick={() =>
                       navigate(`/finance/master-data/vendor-bank-accounts/new?vendor_id=${id}`)
                     }
-                    className="inline-flex h-10 items-center justify-center gap-2 rounded-2xl border border-cyan-400/20 bg-cyan-500/10 px-4 text-xs font-semibold uppercase tracking-[0.14em] text-cyan-100 transition hover:bg-cyan-500/15"
                   >
                     <Plus className="h-3.5 w-3.5" />
                     Add Bank Account
-                  </button>
+                  </AixiaButton>
                 ) : null
               }
             >
               {vendorBankAccounts.length === 0 ? (
-                <div className="rounded-[20px] border border-dashed border-white/10 bg-black/20 px-4 py-8 text-center text-sm text-slate-500">
-                  No vendor bank accounts added yet.
-                </div>
+                <AixiaEmptyState
+                  icon={Banknote}
+                  title="No vendor bank accounts added yet"
+                  description="Vendor payout bank accounts will appear here after they are created."
+                />
               ) : (
-                <div className="max-h-[720px] space-y-3 overflow-y-auto pr-1">
+                <AixiaReviewGrid variant="cards">
                   {vendorBankAccounts.map((account, index) => {
                     const isBankActionRunning = activeBankActionId === account.id;
 
                     return (
-                      <div
+                      <AixiaValueBlock
                         key={account.id}
-                        className={`rounded-[24px] border p-4 ${
-                          account.is_default
-                            ? "border-emerald-400/20 bg-emerald-500/10"
-                            : "border-white/10 bg-black/20"
-                        }`}
-                      >
-                        <div className="mb-4 flex flex-col gap-3 lg:flex-row lg:items-start lg:justify-between">
-                          <div className="min-w-0">
-                            <div className="flex flex-wrap items-center gap-2">
-                              <div className="text-sm font-semibold text-white">
-                                Vendor Account {index + 1}
-                              </div>
-                              <DefaultBadge isDefault={account.is_default} />
-                              <StatusBadge status={account.status} />
+                        label={`Vendor Account ${index + 1}`}
+                        value={account.bank_name || "Vendor Bank Account"}
+                        detail={
+                          <div className="aixia-stack">
+                            <div>
+                              {account.beneficiary_name || "No beneficiary"} •{" "}
+                              {account.currency_code || "No currency"} •{" "}
+                              {getBankIdentifierLabel(account)}:{" "}
+                              {getBankIdentifierValue(account)}
                             </div>
-                            <div className="mt-1 text-xs leading-5 text-slate-500">
-                              Vendor payout account
-                            </div>
-                          </div>
 
-                          <div className="flex shrink-0 flex-wrap gap-2">
-                            {!account.is_default && permissionState.canUpdate ? (
-                              <button
+                            <div>
+                              {getBankLocationLabel(account)} •{" "}
+                              {formatDateTimeLabel(
+                                account.updated_at || account.created_at
+                              )}
+                            </div>
+
+                            <div className="flex flex-wrap gap-2">
+                              {account.is_default ? (
+                                <AixiaBadge tone="emerald">Default</AixiaBadge>
+                              ) : (
+                                <AixiaBadge tone="neutral">Standard</AixiaBadge>
+                              )}
+
+                              <AixiaStatusBadge value={account.status || "active"} />
+                            </div>
+
+                            <div className="flex flex-wrap gap-2">
+                              {!account.is_default && permissionState.canUpdate ? (
+                                <AixiaButton
+                                  type="button"
+                                  variant="secondary"
+                                  onClick={() =>
+                                    void handleSetDefaultVendorBankAccount(account.id)
+                                  }
+                                  disabled={Boolean(activeBankActionId)}
+                                >
+                                  {isBankActionRunning ? (
+                                    <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                                  ) : (
+                                    <ShieldCheck className="h-3.5 w-3.5" />
+                                  )}
+                                  Set Default
+                                </AixiaButton>
+                              ) : null}
+
+                              <AixiaButton
                                 type="button"
+                                variant="primary"
                                 onClick={() =>
-                                  void handleSetDefaultVendorBankAccount(account.id)
+                                  navigate(
+                                    `/finance/master-data/vendor-bank-accounts/${account.id}`
+                                  )
                                 }
-                                disabled={Boolean(activeBankActionId)}
-                                className="inline-flex h-10 items-center justify-center gap-2 rounded-2xl border border-emerald-400/20 bg-emerald-500/10 px-4 text-xs font-semibold uppercase tracking-[0.14em] text-emerald-100 transition hover:bg-emerald-500/15 disabled:cursor-not-allowed disabled:opacity-60"
                               >
-                                {isBankActionRunning ? (
-                                  <Loader2 className="h-3.5 w-3.5 animate-spin" />
-                                ) : (
-                                  <ShieldCheck className="h-3.5 w-3.5" />
-                                )}
-                                Set Default
-                              </button>
-                            ) : null}
-
-                            <button
-                              type="button"
-                              onClick={() =>
-                                navigate(
-                                  `/finance/master-data/vendor-bank-accounts/${account.id}`
-                                )
-                              }
-                              className="inline-flex h-10 items-center justify-center gap-2 rounded-2xl border border-cyan-400/20 bg-cyan-500/10 px-4 text-xs font-semibold uppercase tracking-[0.14em] text-cyan-100 transition hover:bg-cyan-500/15"
-                            >
-                              Open
-                              <ArrowRight className="h-3.5 w-3.5" />
-                            </button>
+                                Open
+                              </AixiaButton>
+                            </div>
                           </div>
-                        </div>
-
-                        <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-3">
-                          <DisplayBlock
-                            label="Bank Name"
-                            value={account.bank_name || "—"}
-                          />
-                          <DisplayBlock
-                            label="Beneficiary"
-                            value={account.beneficiary_name || "—"}
-                          />
-                          <DisplayBlock
-                            label={getBankIdentifierLabel(account)}
-                            value={getBankIdentifierValue(account)}
-                          />
-                          <DisplayBlock
-                            label="Currency"
-                            value={account.currency_code || "—"}
-                            detail="Selected from the general currency master data according to vendor-provided payment details."
-                          />
-                          <DisplayBlock
-                            label="Location"
-                            value={
-                              [account.city, account.country].filter(Boolean).join(", ") ||
-                              "—"
-                            }
-                          />
-                          <DisplayBlock
-                            label="Updated"
-                            value={formatDateTimeLabel(
-                              account.updated_at || account.created_at
-                            )}
-                          />
-                        </div>
-                      </div>
+                        }
+                      />
                     );
                   })}
-                </div>
+                </AixiaReviewGrid>
               )}
-            </DetailSection>
-          </div>
+            </AixiaSection>
+          </>
+        }
+        side={
+          <>
+            <AixiaSection
+              title="Record Summary"
+              description="Key vendor details and linked finance records."
+              icon={Building2}
+            >
+              <AixiaReviewGrid variant="compact">
+                <AixiaReviewBlock
+                  label="Vendor Code"
+                  value={vendor.code || "—"}
+                  description="Vendor master-data code."
+                />
+                <AixiaReviewBlock
+                  label="Record ID"
+                  value={vendor.id}
+                  description="Database record identifier."
+                />
+                <AixiaReviewBlock
+                  label="Created"
+                  value={formatDateTimeLabel(vendor.created_at)}
+                  description="Audit timestamp."
+                />
+                <AixiaReviewBlock
+                  label="Updated"
+                  value={formatDateTimeLabel(vendor.updated_at)}
+                  description="Audit timestamp."
+                />
+                <AixiaReviewBlock
+                  label="Primary Address"
+                  value={getPrimaryAddressSummary(addresses)}
+                  description="Primary vendor address summary."
+                />
+                <AixiaReviewBlock
+                  label="Shipping"
+                  value={getShippingSummary(shippingAddresses)}
+                  description="Shipping-address summary."
+                />
+                <AixiaReviewBlock
+                  label="Default Vendor Bank"
+                  value={
+                    vendorBankAccounts.find((account) => account.is_default)
+                      ?.bank_name || "—"
+                  }
+                  description="Default payout account."
+                />
+              </AixiaReviewGrid>
+            </AixiaSection>
 
-          <aside className="grid gap-6">
-            <section className="overflow-hidden rounded-[30px] border border-white/10 bg-white/[0.045] backdrop-blur-xl">
-              <div className="border-b border-white/10 px-5 py-4">
-                <div className="text-sm font-semibold uppercase tracking-[0.18em] text-slate-400">
-                  Record Summary
-                </div>
-                <p className="mt-1 text-xs leading-5 text-slate-500">
-                  Key vendor details and linked finance records.
-                </p>
-              </div>
-
-              <div className="grid gap-4 p-5">
-                {summaryCards.map((item) => (
-                  <SummaryCard key={item.label} item={item} />
-                ))}
-              </div>
-            </section>
-
-            <section className="overflow-hidden rounded-[30px] border border-white/10 bg-white/[0.045] backdrop-blur-xl">
-              <div className="border-b border-white/10 px-5 py-4">
-                <div className="text-sm font-semibold uppercase tracking-[0.18em] text-slate-400">
-                  Lifecycle Actions
-                </div>
-                <p className="mt-1 text-xs leading-5 text-slate-500">
-                  Archive or restore this vendor. Permanent delete is only available
-                  from the registry archive modal.
-                </p>
-              </div>
-
-              <div className="grid gap-3 p-5">
+            <AixiaSection
+              title="Lifecycle Actions"
+              description="Archive or restore this vendor. Permanent delete is only available from the registry archive modal."
+              icon={Archive}
+            >
+              <div className="aixia-stack">
                 {permissionState.canDeleteArchive ? (
-                  <button
+                  <AixiaButton
                     type="button"
+                    variant={vendor.status === "archived" ? "secondary" : "danger"}
                     onClick={() => void handleArchiveToggle()}
                     disabled={isLifecycleRunning}
-                    className={`inline-flex h-12 items-center justify-center gap-2 rounded-2xl border px-5 text-sm font-semibold transition disabled:cursor-not-allowed disabled:opacity-60 ${
-                      vendor.status === "archived"
-                        ? "border-emerald-400/20 bg-emerald-500/10 text-emerald-100 hover:bg-emerald-500/15"
-                        : "border-rose-400/20 bg-rose-500/10 text-rose-100 hover:bg-rose-500/15"
-                    }`}
                   >
                     {isLifecycleRunning ? (
                       <Loader2 className="h-4 w-4 animate-spin" />
@@ -2910,78 +2422,36 @@ export default function FinanceMasterDataVendorDetailPage() {
                     ) : (
                       <Archive className="h-4 w-4" />
                     )}
-                    {vendor.status === "archived"
-                      ? "Restore Vendor"
-                      : "Archive Vendor"}
-                  </button>
+                    {vendor.status === "archived" ? "Restore Vendor" : "Archive Vendor"}
+                  </AixiaButton>
                 ) : (
-                  <div className="rounded-[20px] border border-amber-400/20 bg-amber-500/10 p-4 text-sm leading-6 text-amber-100">
+                  <AixiaAlert tone="info">
                     Delete/Archive access is not enabled for this user.
-                  </div>
+                  </AixiaAlert>
                 )}
 
-                <button
+                <AixiaButton
                   type="button"
+                  variant="secondary"
                   onClick={() => navigate("/finance/master-data/vendors")}
-                  className="inline-flex h-12 items-center justify-center gap-2 rounded-2xl border border-white/10 bg-white/[0.05] px-5 text-sm font-semibold text-slate-300 transition hover:bg-white/[0.08]"
                 >
-                  <ArrowRight className="h-4 w-4 rotate-180" />
                   Vendors
-                </button>
+                </AixiaButton>
               </div>
-            </section>
+            </AixiaSection>
 
-            <section className="overflow-hidden rounded-[30px] border border-white/10 bg-white/[0.045] backdrop-blur-xl">
-              <div className="border-b border-white/10 px-5 py-4">
-                <div className="text-sm font-semibold uppercase tracking-[0.18em] text-slate-400">
-                  System Fields
-                </div>
-                <p className="mt-1 text-xs leading-5 text-slate-500">
-                  Read-only audit and system metadata.
-                </p>
-              </div>
-
-              <div className="grid gap-3 p-5">
-                <DisplayBlock label="Vendor Code" value={vendor.code || "—"} />
-                <DisplayBlock label="Record ID" value={vendor.id} />
-                <DisplayBlock
-                  label="Created"
-                  value={formatDateTimeLabel(vendor.created_at)}
-                />
-                <DisplayBlock
-                  label="Updated"
-                  value={formatDateTimeLabel(vendor.updated_at)}
-                />
-                <DisplayBlock
-                  label="Primary Address"
-                  value={getPrimaryAddressSummary(addresses)}
-                />
-                <DisplayBlock
-                  label="Shipping"
-                  value={getShippingSummary(shippingAddresses)}
-                />
-                <DisplayBlock
-                  label="Default Vendor Bank"
-                  value={
-                    vendorBankAccounts.find((account) => account.is_default)
-                      ?.bank_name || "—"
-                  }
-                />
-              </div>
-            </section>
-
-            <section className="rounded-[24px] border border-cyan-400/20 bg-cyan-500/10 p-4 text-sm leading-6 text-cyan-100">
-              <div className="font-semibold text-white">Locked detail rule</div>
-              <div className="mt-1">
-                This page requires Vendor / Payables / Finance / Master Data read
-                access. Section edits require Update access. Archive and Restore
-                require Delete/Archive access. Vendor bank account default updates are
-                silent and must not jump the page or reset the UI.
-              </div>
-            </section>
-          </aside>
-        </section>
-      </div>
-    </div>
+            <AixiaAccessRule
+              title="Locked detail rule"
+              description="Finance detail pages must use shared AiXia source-of-truth components."
+            >
+              This page requires Vendor / Payables / Finance / Master Data read access.
+              Section edits require Update access. Archive and Restore require
+              Delete/Archive access. Vendor bank account default updates are silent and
+              must not jump the page or reset the UI.
+            </AixiaAccessRule>
+          </>
+        }
+      />
+    </AixiaPage>
   );
 }

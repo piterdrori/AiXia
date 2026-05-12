@@ -39,13 +39,14 @@ import {
 } from "@/components/aixia";
 
 import { supabase } from "@/lib/supabase";
+import type { Permission, Role } from "@/lib/permissions";
 import {
-  getEffectivePermissions,
-  type Permission,
-  type Role,
-} from "@/lib/permissions";
+  fetchFinanceEffectivePermissions,
+  resolveFinancePagePermissionState,
+  type FinanceLoadMode,
+} from "@/lib/finance/pageAccess";
 
-type LoadMode = "initial" | "silent";
+type LoadMode = FinanceLoadMode;
 
 type DashboardTone = "emerald" | "cyan" | "amber" | "violet" | "rose";
 
@@ -366,113 +367,236 @@ function getCount(result: CountResult) {
   return result.count ?? 0;
 }
 
-function hasPermission(
-  permissions: Record<Permission, boolean> | null,
-  permission: Permission
-) {
-  return Boolean(permissions?.[permission]);
-}
+const FINANCE_HOME_ACCESS_CONFIG = {
+  sectionKey: "financeHome",
+  adminPermissions: ["manageFinanceMasterData"],
+  readPermissions: ["accessFinance", "viewFinance"],
+  createPermissions: ["createFinanceRecords"],
+  updatePermissions: ["editFinanceRecords", "approveFinanceRecords"],
+  deleteArchivePermissions: ["archiveFinanceRecords"],
+} as const;
 
-function buildAccessFlags(profile: CurrentUserProfile | null): AccessFlags {
+const FINANCE_MASTER_DATA_ACCESS_CONFIG = {
+  sectionKey: "masterData",
+  adminPermissions: ["manageFinanceMasterData"],
+  readPermissions: [
+    "accessFinance",
+    "viewFinance",
+    "manageFinanceMasterData",
+    "viewClients",
+    "viewVendors",
+    "viewBankAccounts",
+    "viewItems",
+  ],
+  createPermissions: ["createFinanceRecords", "manageFinanceMasterData"],
+  updatePermissions: ["editFinanceRecords", "manageFinanceMasterData"],
+  deleteArchivePermissions: ["archiveFinanceRecords", "manageFinanceMasterData"],
+} as const;
+
+const FINANCE_INCOMING_ACCESS_CONFIG = {
+  sectionKey: "incomingMoney",
+  adminPermissions: ["manageFinanceMasterData"],
+  readPermissions: [
+    "accessFinance",
+    "viewFinance",
+    "accessReceivables",
+    "viewReceivables",
+  ],
+  createPermissions: ["createFinanceRecords"],
+  updatePermissions: ["editFinanceRecords", "viewInvoices", "viewReceivedPayments"],
+  deleteArchivePermissions: ["archiveFinanceRecords"],
+} as const;
+
+const FINANCE_PAYABLES_ACCESS_CONFIG = {
+  sectionKey: "supplierProcurement",
+  adminPermissions: ["manageFinanceMasterData"],
+  readPermissions: ["accessFinance", "viewFinance", "accessPayables", "viewPayables"],
+  createPermissions: ["createFinanceRecords"],
+  updatePermissions: [
+    "editFinanceRecords",
+    "viewBills",
+    "viewPaymentsMade",
+    "viewVendors",
+  ],
+  deleteArchivePermissions: ["archiveFinanceRecords"],
+} as const;
+
+const FINANCE_EXPENSE_ACCESS_CONFIG = {
+  sectionKey: "expenses",
+  adminPermissions: ["manageFinanceMasterData"],
+  readPermissions: [
+    "accessFinance",
+    "viewFinance",
+    "accessExpenses",
+    "viewOwnExpenses",
+    "viewTeamExpenses",
+    "createExpenses",
+    "createReimbursements",
+  ],
+  createPermissions: ["createExpenses", "createReimbursements", "createFinanceRecords"],
+  updatePermissions: [
+    "approveExpenses",
+    "issueReimbursements",
+    "recordReimbursementPayments",
+    "viewTeamExpenses",
+    "viewPaymentsMade",
+  ],
+  deleteArchivePermissions: ["archiveFinanceRecords"],
+} as const;
+
+const FINANCE_PAYROLL_ACCESS_CONFIG = {
+  sectionKey: "payroll",
+  adminPermissions: ["manageFinanceMasterData"],
+  readPermissions: [
+    "accessFinance",
+    "viewFinance",
+    "accessPayroll",
+    "viewOwnPaychecks",
+    "viewAllPaychecks",
+    "viewPayroll",
+  ],
+  createPermissions: ["createPayrollRuns"],
+  updatePermissions: [
+    "editPayrollRuns",
+    "approvePayroll",
+    "processPayrollPayments",
+    "viewAllPaychecks",
+    "viewPayroll",
+  ],
+  deleteArchivePermissions: ["archiveFinanceRecords"],
+} as const;
+
+const FINANCE_REPORTS_ACCESS_CONFIG = {
+  sectionKey: "reports",
+  adminPermissions: ["manageFinanceMasterData"],
+  readPermissions: [
+    "accessFinance",
+    "viewFinance",
+    "viewReports",
+    "exportFinanceReports",
+    "exportReceivables",
+    "exportPayables",
+    "exportExpenseReports",
+    "exportReimbursementReports",
+  ],
+  createPermissions: [],
+  updatePermissions: ["exportFinanceReports"],
+  deleteArchivePermissions: [],
+} as const;
+
+const FINANCE_SETTINGS_ACCESS_CONFIG = {
+  sectionKey: "settings",
+  adminPermissions: ["manageFinanceMasterData"],
+  readPermissions: [
+    "accessFinance",
+    "viewFinance",
+    "manageFinanceMasterData",
+    "editFinanceRecords",
+    "approveFinanceRecords",
+  ],
+  createPermissions: [],
+  updatePermissions: ["manageFinanceMasterData", "editFinanceRecords"],
+  deleteArchivePermissions: [],
+} as const;
+
+const FINANCE_ACCESS_APPROVALS_CONFIG = {
+  sectionKey: "accessApprovals",
+  adminPermissions: ["manageFinanceMasterData", "manageUsers"],
+  readPermissions: ["manageUsers"],
+  createPermissions: [],
+  updatePermissions: ["manageUsers"],
+  deleteArchivePermissions: [],
+} as const;
+
+function buildAccessFlags(
+  profile: CurrentUserProfile | null,
+  permissions: Partial<Record<Permission, boolean>> | null
+): AccessFlags {
   if (!profile?.role) {
     return EMPTY_ACCESS_FLAGS;
   }
 
-  const permissions = getEffectivePermissions(profile.role, profile.permissions || null);
   const isAdmin = String(profile.role || "").toLowerCase() === "admin";
 
-  const canSeeMasterData =
-    hasPermission(permissions, "manageFinanceMasterData") ||
-    hasPermission(permissions, "viewClients") ||
-    hasPermission(permissions, "viewVendors") ||
-    hasPermission(permissions, "viewBankAccounts") ||
-    hasPermission(permissions, "viewItems");
+  const financeHome = resolveFinancePagePermissionState({
+    profileRole: profile.role,
+    permissions,
+    config: FINANCE_HOME_ACCESS_CONFIG,
+  });
 
-  const canMonitorMasterData =
-    canSeeMasterData &&
-    (hasPermission(permissions, "viewReports") ||
-      hasPermission(permissions, "manageFinanceMasterData"));
+  const masterData = resolveFinancePagePermissionState({
+    profileRole: profile.role,
+    permissions,
+    config: FINANCE_MASTER_DATA_ACCESS_CONFIG,
+  });
 
-  const canSeeIncomingMoney =
-    hasPermission(permissions, "accessReceivables") &&
-    hasPermission(permissions, "viewReceivables");
+  const incomingMoney = resolveFinancePagePermissionState({
+    profileRole: profile.role,
+    permissions,
+    config: FINANCE_INCOMING_ACCESS_CONFIG,
+  });
 
-  const canMonitorIncomingMoney =
-    canSeeIncomingMoney &&
-    (hasPermission(permissions, "viewReports") ||
-      hasPermission(permissions, "viewInvoices") ||
-      hasPermission(permissions, "viewReceivedPayments"));
+  const supplierProcurement = resolveFinancePagePermissionState({
+    profileRole: profile.role,
+    permissions,
+    config: FINANCE_PAYABLES_ACCESS_CONFIG,
+  });
 
-  const canSeeSupplierProcurement =
-    hasPermission(permissions, "accessPayables") &&
-    hasPermission(permissions, "viewPayables");
+  const expenses = resolveFinancePagePermissionState({
+    profileRole: profile.role,
+    permissions,
+    config: FINANCE_EXPENSE_ACCESS_CONFIG,
+  });
 
+  const payroll = resolveFinancePagePermissionState({
+    profileRole: profile.role,
+    permissions,
+    config: FINANCE_PAYROLL_ACCESS_CONFIG,
+  });
+
+  const reports = resolveFinancePagePermissionState({
+    profileRole: profile.role,
+    permissions,
+    config: FINANCE_REPORTS_ACCESS_CONFIG,
+  });
+
+  const settings = resolveFinancePagePermissionState({
+    profileRole: profile.role,
+    permissions,
+    config: FINANCE_SETTINGS_ACCESS_CONFIG,
+  });
+
+  const accessApprovals = resolveFinancePagePermissionState({
+    profileRole: profile.role,
+    permissions,
+    config: FINANCE_ACCESS_APPROVALS_CONFIG,
+  });
+
+  const canSeeMasterData = masterData.canRead;
+  const canMonitorMasterData = masterData.canUpdate || reports.canRead;
+
+  const canSeeIncomingMoney = incomingMoney.canRead;
+  const canMonitorIncomingMoney = incomingMoney.canUpdate || reports.canRead;
+
+  const canSeeSupplierProcurement = supplierProcurement.canRead;
   const canMonitorSupplierProcurement =
-    canSeeSupplierProcurement &&
-    (hasPermission(permissions, "viewReports") ||
-      hasPermission(permissions, "viewBills") ||
-      hasPermission(permissions, "viewPaymentsMade") ||
-      hasPermission(permissions, "viewVendors"));
+    supplierProcurement.canUpdate || reports.canRead;
 
-  const canSeeOwnExpenses =
-    hasPermission(permissions, "accessExpenses") ||
-    hasPermission(permissions, "viewOwnExpenses") ||
-    hasPermission(permissions, "createExpenses") ||
-    hasPermission(permissions, "createReimbursements");
+  const canSeeOwnExpenses = expenses.canRead || expenses.canCreate;
+  const canSeeExpenseFunding = expenses.canUpdate;
+  const canMonitorExpenseFunding = expenses.canUpdate || reports.canRead;
 
-  const canSeeExpenseFunding =
-    hasPermission(permissions, "viewTeamExpenses") ||
-    hasPermission(permissions, "approveExpenses") ||
-    hasPermission(permissions, "issueReimbursements") ||
-    hasPermission(permissions, "recordReimbursementPayments");
+  const canSeeOwnPaychecks = payroll.canRead || payroll.canCreate;
+  const canSeePayrollBasket = payroll.canUpdate || payroll.canCreate;
+  const canMonitorPayrollBasket = payroll.canUpdate || reports.canRead;
 
-  const canMonitorExpenseFunding =
-    canSeeExpenseFunding &&
-    (hasPermission(permissions, "viewReports") ||
-      hasPermission(permissions, "viewTeamExpenses") ||
-      hasPermission(permissions, "viewPaymentsMade"));
+  const canSeeReports = reports.canRead;
+  const canMonitorReports = reports.canUpdate || reports.canRead;
 
-  const canSeeOwnPaychecks =
-    hasPermission(permissions, "accessPayroll") ||
-    hasPermission(permissions, "viewOwnPaychecks");
+  const canSeeSettings = settings.canRead;
+  const canChangeSettings = settings.canUpdate;
 
-  const canSeePayrollBasket =
-    hasPermission(permissions, "viewAllPaychecks") ||
-    hasPermission(permissions, "viewPayroll") ||
-    hasPermission(permissions, "createPayrollRuns") ||
-    hasPermission(permissions, "editPayrollRuns") ||
-    hasPermission(permissions, "approvePayroll") ||
-    hasPermission(permissions, "processPayrollPayments");
-
-  const canMonitorPayrollBasket =
-    canSeePayrollBasket &&
-    (hasPermission(permissions, "viewReports") ||
-      hasPermission(permissions, "viewAllPaychecks") ||
-      hasPermission(permissions, "viewPayroll"));
-
-  const canSeeReports =
-    hasPermission(permissions, "viewReports") ||
-    hasPermission(permissions, "exportFinanceReports") ||
-    hasPermission(permissions, "exportReceivables") ||
-    hasPermission(permissions, "exportPayables") ||
-    hasPermission(permissions, "exportExpenseReports") ||
-    hasPermission(permissions, "exportReimbursementReports");
-
-  const canMonitorReports =
-    canSeeReports &&
-    (hasPermission(permissions, "viewReports") ||
-      hasPermission(permissions, "exportFinanceReports"));
-
-  const canSeeSettings =
-    hasPermission(permissions, "manageFinanceMasterData") ||
-    hasPermission(permissions, "editFinanceRecords") ||
-    hasPermission(permissions, "approveFinanceRecords");
-
-  const canChangeSettings =
-    hasPermission(permissions, "manageFinanceMasterData") ||
-    hasPermission(permissions, "editFinanceRecords");
-
-  const canSeeAccessApprovals = isAdmin && hasPermission(permissions, "manageUsers");
+  const canSeeAccessApprovals = isAdmin && accessApprovals.canRead;
 
   const canSeeTransactions =
     canSeeIncomingMoney ||
@@ -493,7 +617,7 @@ function buildAccessFlags(profile: CurrentUserProfile | null): AccessFlags {
     canSeeAccessApprovals;
 
   const canOpenFinance =
-    hasPermission(permissions, "accessFinance") ||
+    financeHome.canRead ||
     canSeeTransactions ||
     canSeeMasterData ||
     canSeeReports ||
@@ -619,6 +743,8 @@ export default function FinancePage() {
   const [currentProfile, setCurrentProfile] = useState<CurrentUserProfile | null>(
     null
   );
+  const [effectivePermissions, setEffectivePermissions] =
+    useState<Partial<Record<Permission, boolean>> | null>(null);
   const [dashboardData, setDashboardData] =
     useState<DashboardData>(EMPTY_DASHBOARD_DATA);
   const [isLoadingProfile, setIsLoadingProfile] = useState(true);
@@ -627,8 +753,8 @@ export default function FinancePage() {
   const [isRefreshingDashboard, setIsRefreshingDashboard] = useState(false);
 
   const accessFlags = useMemo(() => {
-    return buildAccessFlags(currentProfile);
-  }, [currentProfile]);
+    return buildAccessFlags(currentProfile, effectivePermissions);
+  }, [currentProfile, effectivePermissions]);
 
   const isInitialLoading = isLoadingProfile || isLoadingDashboard;
   const isBackgroundRefreshing = isRefreshingProfile || isRefreshingDashboard;
@@ -649,9 +775,10 @@ export default function FinancePage() {
       if (!authUserId) {
         if (mode === "initial") {
           setCurrentProfile(null);
+          setEffectivePermissions(null);
         } else {
           console.warn(
-            "Silent finance profile refresh skipped because no authenticated user was returned."
+            "Silent finance profile refresh skipped because no authenticated user was returned. Keeping current profile and permissions."
           );
         }
 
@@ -666,20 +793,36 @@ export default function FinancePage() {
 
       if (profileResult.error) throw profileResult.error;
 
-      if (profileResult.data) {
-        setCurrentProfile(profileResult.data as CurrentUserProfile);
-      } else if (mode === "initial") {
-        setCurrentProfile(null);
-      } else {
-        console.warn(
-          "Silent finance profile refresh returned no profile; keeping current profile."
-        );
+      const loadedProfile =
+        (profileResult.data || null) as CurrentUserProfile | null;
+
+      if (!loadedProfile) {
+        if (mode === "initial") {
+          setCurrentProfile(null);
+          setEffectivePermissions(null);
+        } else {
+          console.warn(
+            "Silent finance profile refresh returned no profile; keeping current profile and permissions."
+          );
+        }
+
+        return;
       }
+
+      const backendPermissions = await fetchFinanceEffectivePermissions(
+        authUserId,
+        mode,
+        "Finance Studio"
+      );
+
+      setCurrentProfile(loadedProfile);
+      setEffectivePermissions(backendPermissions || loadedProfile.permissions || null);
     } catch (error) {
       console.error("Failed to load finance profile permissions:", error);
 
       if (mode === "initial") {
         setCurrentProfile(null);
+        setEffectivePermissions(null);
       }
     } finally {
       if (mode === "initial") {

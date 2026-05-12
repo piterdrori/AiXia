@@ -23,15 +23,15 @@ import { supabase } from "@/lib/supabase";
 import {
   AixiaAlert,
   AixiaBadge,
-  AixiaButton,
+  AixiaButton as AixiaBaseButton,
   AixiaDetailSection,
-  AixiaDisplayBlock,
+  AixiaDisplayBlock as AixiaBaseDisplayBlock,
   AixiaEmptyState,
   AixiaFieldLabel,
   AixiaFormField,
   AixiaFormFullWidth,
-  AixiaFormGrid,
-  AixiaFormRowCard,
+  AixiaFormGrid as AixiaBaseFormGrid,
+  AixiaFormRowCard as AixiaBaseFormRowCard,
   AixiaHero,
   AixiaInputField,
   AixiaLoadingState,
@@ -377,32 +377,119 @@ async function getCurrentUserId() {
   return user?.id ?? null;
 }
 
-function getDocumentStatusTone(status: CustomerPoStatus) {
-  if (status === "received" || status === "verified" || status === "closed") {
-    return "emerald" as const;
-  }
-
-  if (status === "linked_to_pi") {
-    return "violet" as const;
-  }
-
-  if (status === "archived" || status === "deleted" || status === "canceled") {
-    return "rose" as const;
-  }
-
-  return "gold" as const;
-}
-
-function getStatusLabel(status: CustomerPoStatus) {
-  return status
-    .split("_")
-    .map((part) => part.charAt(0).toUpperCase() + part.slice(1))
-    .join(" ");
-}
-
 function getFileSizeLabel(size: number | null | undefined) {
   if (!size) return "Unknown size";
   return `${(size / 1024 / 1024).toFixed(2)} MB`;
+}
+
+type AixiaButtonProps = React.ButtonHTMLAttributes<HTMLButtonElement> & {
+  children: React.ReactNode;
+  variant?: "primary" | "secondary" | "danger" | "icon";
+  fullWidth?: boolean;
+};
+
+function AixiaButton({
+  fullWidth = false,
+  className = "",
+  ...props
+}: AixiaButtonProps) {
+  return (
+    <AixiaBaseButton
+      {...props}
+      className={`${fullWidth ? "w-full" : ""} ${className}`.trim()}
+    />
+  );
+}
+
+type LocalDisplayBlockProps = {
+  children?: React.ReactNode;
+  label?: React.ReactNode;
+  value?: React.ReactNode;
+  detail?: React.ReactNode;
+  tone?: "cyan" | "emerald" | "gold" | "violet" | "rose" | "neutral" | string;
+  multiline?: boolean;
+};
+
+function AixiaDisplayBlock({
+  children,
+  label = "",
+  value,
+  detail,
+  tone,
+  multiline = false,
+}: LocalDisplayBlockProps) {
+  return (
+    <AixiaBaseDisplayBlock
+      label={label}
+      value={value ?? children ?? "—"}
+      detail={detail}
+      className={`${tone ? `aixia-display-block-${tone}` : ""} ${
+        multiline ? "aixia-display-block-multiline" : ""
+      }`.trim()}
+    />
+  );
+}
+
+type LocalFormGridProps = React.HTMLAttributes<HTMLDivElement> & {
+  columns?: "one" | "two" | "three" | "line";
+  children: React.ReactNode;
+};
+
+function AixiaFormGrid({
+  columns = "two",
+  children,
+  ...props
+}: LocalFormGridProps) {
+  return (
+    <AixiaBaseFormGrid
+      {...props}
+      columns={columns === "line" ? "three" : columns}
+    >
+      {children}
+    </AixiaBaseFormGrid>
+  );
+}
+
+type LocalFormRowCardProps = React.HTMLAttributes<HTMLDivElement> & {
+  title: React.ReactNode;
+  description?: React.ReactNode;
+  badge?: React.ReactNode;
+  actions?: React.ReactNode;
+  onRemove?: () => void;
+  removeDisabled?: boolean;
+  removeLabel?: React.ReactNode;
+  children: React.ReactNode;
+};
+
+function AixiaFormRowCard({
+  title,
+  description,
+  badge,
+  actions,
+  onRemove,
+  removeDisabled,
+  removeLabel,
+  children,
+  ...props
+}: LocalFormRowCardProps) {
+  return (
+    <AixiaBaseFormRowCard
+      {...props}
+      title={
+        <span className="inline-flex flex-wrap items-center gap-2">
+          <span>{title}</span>
+          {badge}
+        </span>
+      }
+      description={description}
+      onRemove={onRemove}
+      removeDisabled={removeDisabled}
+      removeLabel={removeLabel}
+    >
+      {actions ? <div className="aixia-action-row">{actions}</div> : null}
+      {children}
+    </AixiaBaseFormRowCard>
+  );
 }
 
 export default function FinanceCustomerPoDetailPage() {

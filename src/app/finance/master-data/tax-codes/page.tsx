@@ -13,7 +13,6 @@ import {
   ShieldCheck,
   Star,
   Trash2,
-  WalletCards,
 } from "lucide-react";
 
 import {

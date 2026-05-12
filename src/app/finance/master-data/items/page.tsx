@@ -20,6 +20,7 @@ import {
 
 import {
   AixiaAccessDeniedState,
+  AixiaAccessRule,
   AixiaAlert,
   AixiaAlertText,
   AixiaArchiveManagerModal,
@@ -1703,12 +1704,12 @@ export default function FinanceItemsPage() {
         </AixiaSection>
       )}
 
-      <AixiaAlert tone="info">
-        <AixiaAlertText
-          title="Locked item rule"
-          description="This registry shows active and inactive item records only. Archived records are managed from the archive modal. Edit uses primary styling, Restore uses secondary styling, and Archive/Delete Permanently use danger styling. Silent refresh must not reset filters, sorting, modals, or table position."
-        />
-      </AixiaAlert>
+      <AixiaAccessRule
+        title="Locked access rule"
+        description="Finance registry pages must show the shared Locked access rule block."
+      >
+        This registry shows active and inactive item records only. Archived records are managed from the archive modal. Edit uses primary styling, Restore uses secondary styling, and Archive/Delete Permanently use danger styling. Silent refresh must not reset filters, sorting, modals, or table position.
+      </AixiaAccessRule>
 
       <AixiaArchiveManagerModal
         open={archiveModalOpen}

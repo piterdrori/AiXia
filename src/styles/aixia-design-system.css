@@ -2059,8 +2059,20 @@
 
 .aixia-navigation-grid {
   display: grid;
+  width: 100%;
+  min-width: 0;
+  box-sizing: border-box;
   grid-template-columns: repeat(1, minmax(0, 1fr));
+  grid-auto-rows: 1fr;
+  align-items: stretch;
   gap: 1rem;
+  padding: 1rem;
+}
+
+.aixia-navigation-grid > * {
+  width: 100%;
+  min-width: 0;
+  height: 100%;
 }
 
 @media (min-width: 760px) {
@@ -2082,11 +2094,55 @@
 }
 
 .aixia-navigation-card-shell {
+  display: grid;
+  width: 100%;
   min-width: 0;
+  height: 100%;
+  min-height: 356px;
+  grid-template-rows: minmax(236px, 1fr) auto;
+  align-items: stretch;
+}
+
+.aixia-navigation-card-shell > .aixia-workspace-card {
+  height: 100%;
 }
 
 .aixia-navigation-card {
   min-height: 236px;
+  height: 100%;
+}
+
+.aixia-navigation-card .aixia-workspace-card-body {
+  display: grid;
+  min-height: 118px;
+  align-content: start;
+}
+
+.aixia-navigation-card .aixia-workspace-card-eyebrow {
+  min-height: 1rem;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.aixia-navigation-card .aixia-workspace-card-title {
+  display: -webkit-box;
+  min-height: 2.875rem;
+  overflow: hidden;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 2;
+}
+
+.aixia-navigation-card .aixia-workspace-card-description {
+  display: -webkit-box;
+  min-height: 4.35rem;
+  overflow: hidden;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 3;
+}
+
+.aixia-navigation-card .aixia-workspace-card-footer {
+  min-height: 4.5rem;
 }
 
 .aixia-navigation-card-meta-summary {
@@ -2103,11 +2159,21 @@
   margin-top: 0.75rem;
   display: grid;
   grid-template-columns: repeat(2, minmax(0, 1fr));
+  grid-auto-rows: 1fr;
+  align-items: stretch;
   gap: 0.625rem;
 }
 
+.aixia-navigation-card-meta > * {
+  height: 100%;
+}
+
 .aixia-navigation-card-meta-item {
+  display: grid;
   min-width: 0;
+  min-height: 96px;
+  grid-template-rows: 1.5rem 1.8rem 1fr;
+  align-content: start;
   border-radius: 1.125rem;
   border: 1px solid rgba(255, 255, 255, 0.1);
   background: rgba(0, 0, 0, 0.18);
@@ -2115,9 +2181,13 @@
 }
 
 .aixia-navigation-card-meta-label {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
   font-size: 0.625rem;
   font-weight: 800;
   letter-spacing: 0.16em;
+  line-height: 1.25;
   text-transform: uppercase;
   color: rgba(100, 116, 139, 0.95);
 }
@@ -2129,22 +2199,25 @@
   white-space: nowrap;
   font-size: 0.875rem;
   font-weight: 800;
+  line-height: 1.25;
   color: rgba(241, 245, 249, 0.92);
 }
 
 .aixia-navigation-card-meta-description {
   margin-top: 0.25rem;
+  display: -webkit-box;
   overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
   font-size: 0.75rem;
   line-height: 1.45;
   color: rgba(148, 163, 184, 0.78);
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 2;
 }
 
 .aixia-navigation-info-panel {
   position: relative;
   overflow: hidden;
+  box-sizing: border-box;
   border-radius: 1.75rem;
   border: 1px solid rgba(255, 255, 255, 0.1);
   background: rgba(255, 255, 255, 0.045);
@@ -2223,26 +2296,44 @@
 }
 
 .aixia-navigation-info-panel-title {
+  display: -webkit-box;
+  overflow: hidden;
   font-size: 0.95rem;
   font-weight: 900;
   line-height: 1.2;
   color: white;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 2;
 }
 
 .aixia-navigation-info-panel-description {
   margin-top: 0.375rem;
+  display: -webkit-box;
+  overflow: hidden;
   font-size: 0.8125rem;
   line-height: 1.55;
   color: rgba(148, 163, 184, 0.86);
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 3;
 }
 
 .aixia-navigation-info-panel-body {
   margin-top: 1rem;
 }
 
+.aixia-navigation-info-panel .aixia-navigation-stat-grid {
+  padding-left: 0;
+  padding-right: 0;
+}
+
 .aixia-navigation-stat-grid {
   display: grid;
+  width: 100%;
+  min-width: 0;
+  box-sizing: border-box;
   grid-template-columns: repeat(1, minmax(0, 1fr));
+  grid-auto-rows: 1fr;
+  align-items: stretch;
   gap: 0.625rem;
 }
 
@@ -2252,8 +2343,19 @@
   }
 }
 
-.aixia-navigation-stat-block {
+.aixia-navigation-stat-grid > * {
+  width: 100%;
   min-width: 0;
+  height: 100%;
+}
+
+.aixia-navigation-stat-block {
+  display: grid;
+  min-width: 0;
+  min-height: 112px;
+  height: 100%;
+  grid-template-rows: 1.5rem 2rem 1fr;
+  align-content: start;
   border-radius: 1.125rem;
   border: 1px solid rgba(255, 255, 255, 0.1);
   background: rgba(0, 0, 0, 0.18);
@@ -2289,19 +2391,37 @@
 }
 
 .aixia-navigation-stat-label {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
   font-size: 0.625rem;
   font-weight: 800;
   letter-spacing: 0.16em;
+  line-height: 1.25;
   text-transform: uppercase;
   color: rgba(100, 116, 139, 0.95);
 }
 
 .aixia-navigation-stat-value {
   margin-top: 0.3rem;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
   font-size: 1.125rem;
   font-weight: 900;
   line-height: 1.15;
   color: white;
+}
+
+.aixia-navigation-stat-description {
+  margin-top: 0.25rem;
+  display: -webkit-box;
+  overflow: hidden;
+  font-size: 0.75rem;
+  line-height: 1.45;
+  color: rgba(148, 163, 184, 0.78);
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 2;
 }
 
 .aixia-navigation-stat-description {

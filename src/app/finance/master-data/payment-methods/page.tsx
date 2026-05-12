@@ -1005,18 +1005,20 @@ export default function FinancePaymentMethodsPage() {
                 />
               }
               filters={
-                <div className="flex flex-wrap items-center gap-2">
-                  {(["all", "active", "inactive"] as StatusFilter[]).map((filter) => (
-                    <AixiaButton
-                      key={filter}
-                      type="button"
-                      variant={statusFilter === filter ? "primary" : "secondary"}
-                      onClick={() => setStatusFilter(filter)}
-                    >
-                      {filter === "all" ? "All" : formatStatusLabel(filter)}
-                    </AixiaButton>
-                  ))}
-                </div>
+                <AixiaSelectField
+                  value={statusFilter}
+                  onChange={(event) => setStatusFilter(event.target.value as StatusFilter)}
+                >
+                  <option value="all" className="bg-[#05070d]">
+                    All Statuses
+                  </option>
+                  <option value="active" className="bg-[#05070d]">
+                    Active
+                  </option>
+                  <option value="inactive" className="bg-[#05070d]">
+                    Inactive
+                  </option>
+                </AixiaSelectField>
               }
               primaryAction={
                 permissionState.canCreate ? (

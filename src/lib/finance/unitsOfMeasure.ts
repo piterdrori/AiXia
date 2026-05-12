@@ -196,10 +196,12 @@ export async function permanentlyDeleteUnitOfMeasure(
 
   if (readError) throw readError;
 
-  const { error } = await supabase
-    .from(TABLE)
-    .delete()
-    .eq("id", id);
+  const { error } = await supabase.rpc(
+    "finance_permanently_delete_unit_of_measure",
+    {
+      p_unit_of_measure_id: id,
+    }
+  );
 
   if (error) throw error;
 

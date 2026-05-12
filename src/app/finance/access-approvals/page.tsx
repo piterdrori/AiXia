@@ -849,136 +849,138 @@ export default function FinanceAccessApprovalsPage() {
           }
         />
 
-        {filteredRows.length === 0 ? (
-          <AixiaInfoBlock tone="cyan" title="No active users found" icon={UsersRound}>
-            Adjust the search or template filter to find the active user you want to review.
-          </AixiaInfoBlock>
-        ) : (
-          <AixiaTableShell
-            variant="registry"
-            minWidthClassName="min-w-[1180px]"
-            maxHeightClassName="max-h-[720px]"
-          >
-            <thead className="aixia-table-head">
-              <tr>
-                <th>
-                  <AixiaSortableHeader
-                    label="User"
-                    sortKey="name"
-                    activeSortKey={sortKey}
-                    sortDirection={sortDirection}
-                    onSort={toggleSort}
-                    align="left"
-                  />
-                </th>
-                <th>
-                  <AixiaSortableHeader
-                    label="Base Role"
-                    sortKey="role"
-                    activeSortKey={sortKey}
-                    sortDirection={sortDirection}
-                    onSort={toggleSort}
-                  />
-                </th>
-                <th>
-                  <AixiaSortableHeader
-                    label="Finance Template"
-                    sortKey="template"
-                    activeSortKey={sortKey}
-                    sortDirection={sortDirection}
-                    onSort={toggleSort}
-                  />
-                </th>
-                <th>
-                  <AixiaSortableHeader
-                    label="Effective Access"
-                    sortKey="effective"
-                    activeSortKey={sortKey}
-                    sortDirection={sortDirection}
-                    onSort={toggleSort}
-                  />
-                </th>
-                <th>
-                  <AixiaSortableHeader
-                    label="Overrides"
-                    sortKey="overrides"
-                    activeSortKey={sortKey}
-                    sortDirection={sortDirection}
-                    onSort={toggleSort}
-                  />
-                </th>
-                <th>
-                  <AixiaSortableHeader
-                    label="Updated"
-                    sortKey="updated"
-                    activeSortKey={sortKey}
-                    sortDirection={sortDirection}
-                    onSort={toggleSort}
-                  />
-                </th>
-                <th>Action</th>
-              </tr>
-            </thead>
-
-            <tbody>
-              {filteredRows.map((user) => {
-                const updatedAt = user.updated_at || user.created_at;
-
-                return (
-                  <tr key={user.user_id} className="aixia-table-row">
-                    <AixiaTableTextCell
-                      width="xl"
-                      primary={user.full_name || "Unnamed user"}
-                      secondary={user.user_id}
+        <div className="mt-4">
+          {filteredRows.length === 0 ? (
+            <AixiaInfoBlock tone="cyan" title="No active users found" icon={UsersRound}>
+              Adjust the search or template filter to find the active user you want to review.
+            </AixiaInfoBlock>
+          ) : (
+            <AixiaTableShell
+              variant="registry"
+              minWidthClassName="min-w-[1180px]"
+              maxHeightClassName="max-h-[720px]"
+            >
+              <thead className="aixia-table-head">
+                <tr>
+                  <th>
+                    <AixiaSortableHeader
+                      label="User"
+                      sortKey="name"
+                      activeSortKey={sortKey}
+                      sortDirection={sortDirection}
+                      onSort={toggleSort}
+                      align="left"
                     />
-
-                    <AixiaTableBadgeCell width="sm">
-                      <AixiaStatusBadge value={user.role} />
-                    </AixiaTableBadgeCell>
-
-                    <AixiaTableBadgeCell width="lg">
-                      <AixiaBadge tone="violet">
-                        {user.financeTemplate?.template_name || "Custom"}
-                      </AixiaBadge>
-                    </AixiaTableBadgeCell>
-
-                    <AixiaTableBadgeCell width="lg">
-                      <FinanceAccessBadge value={user.highestAccessLabel} />
-                      <div className="aixia-table-secondary-text">
-                        {user.approveExecuteSectionCount > 0
-                          ? `${formatCount(user.approveExecuteSectionCount)} approve / execute`
-                          : "No final-action access"}
-                      </div>
-                    </AixiaTableBadgeCell>
-
-                    <AixiaTableTextCell
-                      width="sm"
-                      primary={formatCount(user.userOverrideCount)}
-                      secondary={`Template ${formatCount(user.templatePermissionCount)}`}
+                  </th>
+                  <th>
+                    <AixiaSortableHeader
+                      label="Base Role"
+                      sortKey="role"
+                      activeSortKey={sortKey}
+                      sortDirection={sortDirection}
+                      onSort={toggleSort}
                     />
+                  </th>
+                  <th>
+                    <AixiaSortableHeader
+                      label="Finance Template"
+                      sortKey="template"
+                      activeSortKey={sortKey}
+                      sortDirection={sortDirection}
+                      onSort={toggleSort}
+                    />
+                  </th>
+                  <th>
+                    <AixiaSortableHeader
+                      label="Effective Access"
+                      sortKey="effective"
+                      activeSortKey={sortKey}
+                      sortDirection={sortDirection}
+                      onSort={toggleSort}
+                    />
+                  </th>
+                  <th>
+                    <AixiaSortableHeader
+                      label="Overrides"
+                      sortKey="overrides"
+                      activeSortKey={sortKey}
+                      sortDirection={sortDirection}
+                      onSort={toggleSort}
+                    />
+                  </th>
+                  <th>
+                    <AixiaSortableHeader
+                      label="Updated"
+                      sortKey="updated"
+                      activeSortKey={sortKey}
+                      sortDirection={sortDirection}
+                      onSort={toggleSort}
+                    />
+                  </th>
+                  <th>Action</th>
+                </tr>
+              </thead>
 
-                    <AixiaTableDateCell width="md">
-                      {formatDateTime(updatedAt)}
-                    </AixiaTableDateCell>
+              <tbody>
+                {filteredRows.map((user) => {
+                  const updatedAt = user.updated_at || user.created_at;
 
-                    <AixiaTableActionsCell>
-                      <AixiaButton
-                        type="button"
-                        variant="primary"
-                        onClick={() =>
-                          navigate(`/finance/access-approvals/${user.user_id}`)
-                        }
-                      >
-                        Open
-                        <ArrowRight className="h-3.5 w-3.5" />
-                      </AixiaButton>
-                    </AixiaTableActionsCell>
-                  </tr>
-                );
-              })}
-            </tbody>
-          </AixiaTableShell>
-        )}
+                  return (
+                    <tr key={user.user_id} className="aixia-table-row">
+                      <AixiaTableTextCell
+                        width="xl"
+                        primary={user.full_name || "Unnamed user"}
+                        secondary={user.user_id}
+                      />
+
+                      <AixiaTableBadgeCell width="sm">
+                        <AixiaStatusBadge value={user.role} />
+                      </AixiaTableBadgeCell>
+
+                      <AixiaTableBadgeCell width="lg">
+                        <AixiaBadge tone="violet">
+                          {user.financeTemplate?.template_name || "Custom"}
+                        </AixiaBadge>
+                      </AixiaTableBadgeCell>
+
+                      <AixiaTableBadgeCell width="lg">
+                        <FinanceAccessBadge value={user.highestAccessLabel} />
+                        <div className="aixia-table-secondary-text">
+                          {user.approveExecuteSectionCount > 0
+                            ? `${formatCount(user.approveExecuteSectionCount)} approve / execute`
+                            : "No final-action access"}
+                        </div>
+                      </AixiaTableBadgeCell>
+
+                      <AixiaTableTextCell
+                        width="sm"
+                        primary={formatCount(user.userOverrideCount)}
+                        secondary={`Template ${formatCount(user.templatePermissionCount)}`}
+                      />
+
+                      <AixiaTableDateCell width="md">
+                        {formatDateTime(updatedAt)}
+                      </AixiaTableDateCell>
+
+                      <AixiaTableActionsCell>
+                        <AixiaButton
+                          type="button"
+                          variant="primary"
+                          onClick={() =>
+                            navigate(`/finance/access-approvals/${user.user_id}`)
+                          }
+                        >
+                          Open
+                          <ArrowRight className="h-3.5 w-3.5" />
+                        </AixiaButton>
+                      </AixiaTableActionsCell>
+                    </tr>
+                  );
+                })}
+              </tbody>
+            </AixiaTableShell>
+          )}
+        </div>
       </AixiaSection>
 
       <AixiaAccessRule

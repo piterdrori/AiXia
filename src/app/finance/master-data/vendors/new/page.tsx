@@ -39,7 +39,6 @@ import {
   AixiaSelectField,
   AixiaSmartLayout,
   AixiaTextareaField,
-  AixiaValueBlock,
 } from "@/components/aixia";
 
 import { createVendor } from "@/lib/finance/vendors";

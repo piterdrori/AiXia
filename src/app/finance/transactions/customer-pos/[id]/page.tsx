@@ -8,7 +8,6 @@ import {
   Eye,
   FileText,
   Link2,
-  Loader2,
   Paperclip,
   Plus,
   RotateCcw,
@@ -2218,23 +2217,12 @@ export default function FinanceCustomerPoDetailPage() {
                       <AixiaFormRowCard
                         key={line.localId}
                         title={`Line ${index + 1}`}
-                        badge={
-                          selectedItem ? (
-                            <AixiaBadge tone="violet">{selectedItem.name}</AixiaBadge>
-                          ) : null
-                        }
-                        actions={
-                          <AixiaButton
-                            type="button"
-                            variant="danger"
-                            onClick={() => removeLine(line.localId)}
-                            disabled={lineDrafts.length === 1}
-                          >
-                            <Trash2 className="h-4 w-4" />
-                          </AixiaButton>
-                        }
+                        description={selectedItem?.name || "Manual / no item"}
+                        onRemove={() => removeLine(line.localId)}
+                        removeDisabled={lineDrafts.length === 1}
+                        removeLabel="Remove"
                       >
-                        <AixiaFormGrid columns="line">
+                        <AixiaFormGrid columns="three">
                           <AixiaFormField>
                             <AixiaFieldLabel label="Item" />
                             <AixiaSelectField
@@ -2257,11 +2245,7 @@ export default function FinanceCustomerPoDetailPage() {
                             <AixiaInputField
                               value={line.description}
                               onChange={(event) =>
-                                updateLine(
-                                  line.localId,
-                                  "description",
-                                  event.target.value
-                                )
+                                updateLine(line.localId, "description", event.target.value)
                               }
                               placeholder="Description"
                             />
@@ -2306,11 +2290,7 @@ export default function FinanceCustomerPoDetailPage() {
                             <AixiaInputField
                               value={line.unit_price}
                               onChange={(event) =>
-                                updateLine(
-                                  line.localId,
-                                  "unit_price",
-                                  event.target.value
-                                )
+                                updateLine(line.localId, "unit_price", event.target.value)
                               }
                             />
                           </AixiaFormField>
@@ -2330,11 +2310,7 @@ export default function FinanceCustomerPoDetailPage() {
                             <AixiaSelectField
                               value={line.tax_code_id}
                               onChange={(event) =>
-                                updateLine(
-                                  line.localId,
-                                  "tax_code_id",
-                                  event.target.value
-                                )
+                                updateLine(line.localId, "tax_code_id", event.target.value)
                               }
                             >
                               <option value="">No tax</option>
@@ -2372,12 +2348,10 @@ export default function FinanceCustomerPoDetailPage() {
                             ) : null}
                           </AixiaFormField>
 
-                          <AixiaFormField>
-                            <AixiaFieldLabel label="Line Total" />
-                            <AixiaDisplayBlock tone="cyan">
-                              {formatMoney(currentLineTotal, displayedCurrencyCode)}
-                            </AixiaDisplayBlock>
-                          </AixiaFormField>
+                          <AixiaDisplayBlock
+                            label="Line Total"
+                            value={formatMoney(currentLineTotal, displayedCurrencyCode)}
+                          />
 
                           <AixiaFormFullWidth>
                             <AixiaFieldLabel label="Notes" />
@@ -2421,59 +2395,60 @@ export default function FinanceCustomerPoDetailPage() {
                       <AixiaFormRowCard
                         key={line.id}
                         title={`Line ${line.sort_order ?? index + 1}`}
-                        badge={
-                          line.item?.name ? (
-                            <AixiaBadge tone="violet">{line.item.name}</AixiaBadge>
-                          ) : null
-                        }
+                        description={line.item?.name || "Manual / no item"}
                       >
-                        <AixiaFormGrid columns="line">
-                          <AixiaFormField>
-                            <AixiaFieldLabel label="Item" />
-                            <AixiaDisplayBlock>{line.item?.name || "—"}</AixiaDisplayBlock>
-                          </AixiaFormField>
-                          <AixiaFormField>
-                            <AixiaFieldLabel label="Description" />
-                            <AixiaDisplayBlock>{line.description || "—"}</AixiaDisplayBlock>
-                          </AixiaFormField>
-                          <AixiaFormField>
-                            <AixiaFieldLabel label="Qty" />
-                            <AixiaDisplayBlock>{toNumber(line.quantity)}</AixiaDisplayBlock>
-                          </AixiaFormField>
-                          <AixiaFormField>
-                            <AixiaFieldLabel label="Unit" />
-                            <AixiaDisplayBlock>{unitLabel}</AixiaDisplayBlock>
-                          </AixiaFormField>
-                          <AixiaFormField>
-                            <AixiaFieldLabel label="Unit Price" />
-                            <AixiaDisplayBlock>
-                              {formatMoney(line.unit_price, displayedCurrencyCode)}
-                            </AixiaDisplayBlock>
-                          </AixiaFormField>
-                          <AixiaFormField>
-                            <AixiaFieldLabel label="Discount" />
-                            <AixiaDisplayBlock>
-                              {formatMoney(line.discount, displayedCurrencyCode)}
-                            </AixiaDisplayBlock>
-                          </AixiaFormField>
-                          <AixiaFormField>
-                            <AixiaFieldLabel label="Tax Code" />
-                            <AixiaDisplayBlock>{taxLabel}</AixiaDisplayBlock>
-                          </AixiaFormField>
-                          <AixiaFormField>
-                            <AixiaFieldLabel label="Revenue Category" />
-                            <AixiaDisplayBlock>{revenueLabel}</AixiaDisplayBlock>
-                          </AixiaFormField>
-                          <AixiaFormField>
-                            <AixiaFieldLabel label="Line Total" />
-                            <AixiaDisplayBlock tone="cyan">
-                              {formatMoney(line.line_total, displayedCurrencyCode)}
-                            </AixiaDisplayBlock>
-                          </AixiaFormField>
+                        <AixiaFormGrid columns="three">
+                          <AixiaDisplayBlock
+                            label="Item"
+                            value={line.item?.name || "—"}
+                          />
+
+                          <AixiaDisplayBlock
+                            label="Description"
+                            value={line.description || "—"}
+                          />
+
+                          <AixiaDisplayBlock
+                            label="Qty"
+                            value={String(toNumber(line.quantity))}
+                          />
+
+                          <AixiaDisplayBlock
+                            label="Unit"
+                            value={unitLabel}
+                          />
+
+                          <AixiaDisplayBlock
+                            label="Unit Price"
+                            value={formatMoney(line.unit_price, displayedCurrencyCode)}
+                          />
+
+                          <AixiaDisplayBlock
+                            label="Discount"
+                            value={formatMoney(line.discount, displayedCurrencyCode)}
+                          />
+
+                          <AixiaDisplayBlock
+                            label="Tax Code"
+                            value={taxLabel}
+                          />
+
+                          <AixiaDisplayBlock
+                            label="Revenue Category"
+                            value={revenueLabel}
+                          />
+
+                          <AixiaDisplayBlock
+                            label="Line Total"
+                            value={formatMoney(line.line_total, displayedCurrencyCode)}
+                          />
+
                           {line.notes ? (
                             <AixiaFormFullWidth>
-                              <AixiaFieldLabel label="Notes" />
-                              <AixiaDisplayBlock multiline>{line.notes}</AixiaDisplayBlock>
+                              <AixiaDisplayBlock
+                                label="Notes"
+                                value={line.notes}
+                              />
                             </AixiaFormFullWidth>
                           ) : null}
                         </AixiaFormGrid>
@@ -2522,19 +2497,20 @@ export default function FinanceCustomerPoDetailPage() {
             >
               <AixiaFormGrid columns="two">
                 <AixiaFormField>
-                  <AixiaFieldLabel label="Linked Quotation" />
-                  <AixiaDisplayBlock>
-                    {quotation?.quotation_number || selectedQuotation?.quotation_number || "—"}
-                  </AixiaDisplayBlock>
-                  <div className="aixia-helper-text">
-                    {quotation || selectedQuotation
-                      ? `${(quotation || selectedQuotation)?.status || "—"} · ${formatMoney(
-                          (quotation || selectedQuotation)?.total_amount,
-                          (quotation || selectedQuotation)?.currency_code ||
-                            displayedCurrencyCode
-                        )}`
-                      : "No quotation linked."}
-                  </div>
+                  <AixiaDisplayBlock
+                    label="Linked Quotation"
+                    value={quotation?.quotation_number || selectedQuotation?.quotation_number || "—"}
+                    detail={
+                      quotation || selectedQuotation
+                        ? `${(quotation || selectedQuotation)?.status || "—"} · ${formatMoney(
+                            (quotation || selectedQuotation)?.total_amount,
+                            (quotation || selectedQuotation)?.currency_code ||
+                              displayedCurrencyCode
+                          )}`
+                        : "No quotation linked."
+                    }
+                  />
+
                   {quotation || selectedQuotation ? (
                     <AixiaButton
                       type="button"
@@ -2554,16 +2530,19 @@ export default function FinanceCustomerPoDetailPage() {
                 </AixiaFormField>
 
                 <AixiaFormField>
-                  <AixiaFieldLabel label="Linked Proforma Invoice" />
-                  <AixiaDisplayBlock>{proforma?.proforma_number || "—"}</AixiaDisplayBlock>
-                  <div className="aixia-helper-text">
-                    {proforma
-                      ? `${proforma.status || "—"} · ${formatMoney(
-                          proforma.total_amount,
-                          proforma.currency_code || displayedCurrencyCode
-                        )}`
-                      : "No proforma invoice linked yet."}
-                  </div>
+                  <AixiaDisplayBlock
+                    label="Linked Proforma Invoice"
+                    value={proforma?.proforma_number || "—"}
+                    detail={
+                      proforma
+                        ? `${proforma.status || "—"} · ${formatMoney(
+                            proforma.total_amount,
+                            proforma.currency_code || displayedCurrencyCode
+                          )}`
+                        : "No proforma invoice linked yet."
+                    }
+                  />
+
                   {proforma ? (
                     <AixiaButton
                       type="button"

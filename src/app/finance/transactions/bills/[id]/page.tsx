@@ -15,7 +15,6 @@ import {
   Save,
   SquarePen,
   Trash2,
-  Upload,
   Wallet,
   XCircle,
 } from "lucide-react";
@@ -24,6 +23,7 @@ import {
   AixiaAlert,
   AixiaBadge,
   AixiaButton,
+  AixiaDocumentUploadPanel,
   AixiaEmptyState,
   AixiaFieldLabel,
   AixiaFormField,
@@ -508,7 +508,6 @@ export default function FinanceBillDetailPage() {
 
   const [isOverviewEditMode, setIsOverviewEditMode] = useState(false);
   const [isLinesEditMode, setIsLinesEditMode] = useState(false);
-  const [isUploadPanelOpen, setIsUploadPanelOpen] = useState(false);
   const [uploadFile, setUploadFile] = useState<File | null>(null);
 
   const [overviewDraft, setOverviewDraft] = useState<OverviewDraft>({
@@ -1251,7 +1250,6 @@ export default function FinanceBillDetailPage() {
       await uploadVendorBillDocument(bill.id, uploadFile, user.id);
 
       setUploadFile(null);
-      setIsUploadPanelOpen(false);
       await loadBill(true);
     } catch (error) {
       console.error("Failed to upload vendor bill document:", error);
@@ -1345,7 +1343,6 @@ export default function FinanceBillDetailPage() {
           selectedVendor?.name ||
           "Unknown vendor"
         }
-        subtitle={bill.bill_number}
         description="Vendor PI / invoice received from the supplier. Verify the vendor document number, currency, original source document, line items, and approval state before creating a payment made record."
         statusCards={[
           {
@@ -1412,17 +1409,6 @@ export default function FinanceBillDetailPage() {
           >
             <CreditCard className="h-4 w-4" />
             Create Payment Made
-          </AixiaButton>
-        ) : null}
-
-        {canUploadDocument ? (
-          <AixiaButton
-            type="button"
-            variant="secondary"
-            onClick={() => setIsUploadPanelOpen((current) => !current)}
-          >
-            <Upload className="h-4 w-4" />
-            {attachments.length > 0 ? "Upload More" : "Upload Document"}
           </AixiaButton>
         ) : null}
       </div>
@@ -1993,114 +1979,57 @@ export default function FinanceBillDetailPage() {
               icon={Paperclip}
               smartScroll
               visibleCards={8}
-              actions={
-                canUploadDocument ? (
-                  <AixiaButton
-                    type="button"
-                    variant="secondary"
-                    onClick={() => setIsUploadPanelOpen((current) => !current)}
-                  >
-                    <Upload className="h-3.5 w-3.5" />
-                    Upload Document
-                  </AixiaButton>
-                ) : null
-              }
             >
-              {isUploadPanelOpen ? (
-                <AixiaSection
-                  title="Upload Vendor Document"
-                  description="Attach the original supplier PI / invoice document."
-                  icon={Upload}
-                >
-                  <AixiaFormGrid columns="two">
-                    <AixiaFormFullWidth>
-                      <AixiaFieldLabel label="File" required />
-                      <AixiaInputField
-                        type="file"
-                        onChange={(event) =>
-                          setUploadFile(event.target.files?.[0] ?? null)
-                        }
-                        disabled={isUploading}
-                      />
-                    </AixiaFormFullWidth>
+              <AixiaDocumentUploadPanel
+                selectedFile={uploadFile}
+                attachments={attachments.map((attachment) => ({
+                  id: attachment.id,
+                  fileName: attachment.file_name || "Vendor document",
+                  badge: formatDateTime(attachment.created_at),
+                  sizeLabel: formatFileSize(attachment.file_size),
+                  description: attachment.mime_type || "Unknown file type",
+                  openLabel: "Open File",
+                }))}
+                required
+                disabled={!canUploadDocument}
+                uploading={isUploading}
+                accept=".pdf,.png,.jpg,.jpeg,.webp,.doc,.docx,.xls,.xlsx"
+                dropTitle="Drop vendor PI / invoice document here"
+                dropDescription="Attach the original supplier PI / invoice document. PDF, image, Word, or Excel files are supported."
+                uploadLabel={attachments.length > 0 ? "Upload More" : "Upload Document"}
+                uploadingLabel="Uploading..."
+                selectedFileLabel="Selected vendor document"
+                emptyTitle="No source document attached"
+                emptyDescription="Attach the original vendor PI / invoice before approval."
+                requiredMessage="No source document attached. Approval is blocked until the vendor PI / invoice file is uploaded."
+                onFileSelect={setUploadFile}
+                onRemoveSelectedFile={() => setUploadFile(null)}
+                onUpload={() => void uploadDocument()}
+                onOpenAttachment={async (documentAttachment) => {
+                  const attachment = attachments.find(
+                    (item) => item.id === documentAttachment.id
+                  );
 
-                    <AixiaValueBlock
-                      label="Selected File"
-                      value={uploadFile?.name || "No file selected"}
-                      detail={
-                        uploadFile
-                          ? `${formatFileSize(uploadFile.size)} • ${resolveUploadMimeType(
-                              uploadFile
-                            )}`
-                          : "Select a PDF, image, or office document"
-                      }
-                    />
+                  if (!attachment?.file_path) {
+                    setErrorMessage("Vendor bill file path is missing.");
+                    return;
+                  }
 
-                    <AixiaButton
-                      type="button"
-                      variant="primary"
-                      onClick={() => void uploadDocument()}
-                      disabled={!uploadFile || isUploading}
-                    >
-                      {isUploading ? (
-                        <Loader2 className="h-4 w-4 animate-spin" />
-                      ) : (
-                        <Upload className="h-4 w-4" />
-                      )}
-                      Upload
-                    </AixiaButton>
-                  </AixiaFormGrid>
-                </AixiaSection>
-              ) : null}
+                  const { data, error } = await supabase.storage
+                    .from("finance-vendor-bill-documents")
+                    .createSignedUrl(attachment.file_path, 300);
 
-              {attachments.length === 0 ? (
-                <AixiaEmptyState
-                  icon={Paperclip}
-                  title="No source document attached"
-                  description="Attach the original vendor PI / invoice before approval."
-                />
-              ) : (
-                <AixiaReviewGrid variant="cards">
-                  {attachments.map((attachment) => (
-                    <AixiaValueBlock
-                      key={attachment.id}
-                      label={attachment.file_name || "Vendor document"}
-                      value={attachment.file_name || "Attached file"}
-                      detail={
-                        <div className="aixia-stack">
-                          <div>
-                            {attachment.mime_type || "Unknown file type"} •{" "}
-                            {formatFileSize(attachment.file_size)}
-                          </div>
-                          <div>Uploaded {formatDateTime(attachment.created_at)}</div>
-                          {attachment.file_path ? (
-                            <AixiaButton
-                              type="button"
-                              variant="primary"
-                              onClick={async () => {
-                                const { data } = await supabase.storage
-                                  .from("finance-vendor-bill-documents")
-                                  .createSignedUrl(attachment.file_path || "", 300);
+                  if (error) {
+                    console.error("Failed to open vendor bill document:", error);
+                    setErrorMessage("Failed to open vendor bill document.");
+                    return;
+                  }
 
-                                if (data?.signedUrl) {
-                                  window.open(
-                                    data.signedUrl,
-                                    "_blank",
-                                    "noopener,noreferrer"
-                                  );
-                                }
-                              }}
-                            >
-                              <Paperclip className="h-3.5 w-3.5" />
-                              Open File
-                            </AixiaButton>
-                          ) : null}
-                        </div>
-                      }
-                    />
-                  ))}
-                </AixiaReviewGrid>
-              )}
+                  if (data?.signedUrl) {
+                    window.open(data.signedUrl, "_blank", "noopener,noreferrer");
+                  }
+                }}
+              />
             </AixiaSection>
           </>
         }

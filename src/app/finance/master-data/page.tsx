@@ -2,7 +2,6 @@ import { useCallback, useEffect, useMemo, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import type { LucideIcon } from "lucide-react";
 import {
-  ArrowRight,
   Banknote,
   BriefcaseBusiness,
   Building2,
@@ -22,14 +21,15 @@ import {
 import {
   AixiaAccessDeniedState,
   AixiaAccessRule,
-  AixiaBadge,
-  AixiaButton,
   AixiaEmptyState,
   AixiaHero,
   AixiaLoadingState,
   AixiaMetricCard,
+  AixiaNavigationCard,
+  AixiaNavigationGrid,
+  AixiaNavigationInfoPanel,
+  AixiaNavigationStatBlock,
   AixiaPage,
-  AixiaReviewBlock,
   AixiaReviewGrid,
   AixiaSearchField,
   AixiaSection,
@@ -46,7 +46,15 @@ import {
 
 type LoadMode = FinanceLoadMode;
 
-type MasterDataMetricTone = "indigo" | "violet" | "gold" | "emerald" | "rose";
+type MasterDataTone =
+  | "indigo"
+  | "violet"
+  | "gold"
+  | "amber"
+  | "emerald"
+  | "cyan"
+  | "rose"
+  | "neutral";
 
 type MasterDataOverviewCard = {
   key: string;
@@ -54,7 +62,7 @@ type MasterDataOverviewCard = {
   value: string;
   subtitle: string;
   icon: LucideIcon;
-  tone: MasterDataMetricTone;
+  tone: "indigo" | "violet" | "gold" | "emerald" | "rose";
 };
 
 type MasterDataModuleKey =
@@ -320,7 +328,7 @@ async function safeCount(tableName: string): Promise<CountResult> {
   }
 }
 
-function getStatusTone(statusLabel: string) {
+function getStatusTone(statusLabel: string): MasterDataTone {
   const normalized = statusLabel.toLowerCase();
 
   if (normalized.includes("new")) return "gold";
@@ -585,10 +593,7 @@ export default function FinanceMasterDataPage() {
       }
 
       try {
-        await Promise.all([
-          loadCurrentProfile(mode),
-          loadMasterData(mode),
-        ]);
+        await Promise.all([loadCurrentProfile(mode), loadMasterData(mode)]);
       } finally {
         if (mode === "initial") {
           setInitialLoading(false);
@@ -1123,51 +1128,39 @@ export default function FinanceMasterDataPage() {
                     description="Adjust the search term to find a visible master-data domain."
                   />
                 ) : (
-                  <AixiaReviewGrid variant="cards">
-                    {filteredModuleCards.map((module) => {
-                      const Icon = module.icon;
-                      const statusTone = getStatusTone(module.statusLabel);
-
-                      return (
-                        <AixiaSection
-                          key={module.key}
-                          title={module.title}
-                          description={module.description}
-                          icon={Icon}
-                          badge={<AixiaBadge tone={statusTone}>{module.statusLabel}</AixiaBadge>}
-                          bodyClassName="p-5"
-                          actions={
-                            <AixiaButton
-                              type="button"
-                              variant="primary"
-                              onClick={() => openRoute(module.route)}
-                            >
-                              Open
-                              <ArrowRight className="h-3.5 w-3.5" />
-                            </AixiaButton>
-                          }
-                        >
-                          <AixiaReviewGrid variant="compact">
-                            <AixiaReviewBlock
-                              label="Required Access"
-                              value={module.requiredAccessLabel}
-                              description={module.groupLabel}
-                            />
-                            <AixiaReviewBlock
-                              label="Records"
-                              value={formatCount(module.count)}
-                              description="Configured records"
-                            />
-                            <AixiaReviewBlock
-                              label="Updated"
-                              value={module.lastUpdatedLabel}
-                              description="Backend reference"
-                            />
-                          </AixiaReviewGrid>
-                        </AixiaSection>
-                      );
-                    })}
-                  </AixiaReviewGrid>
+                  <AixiaNavigationGrid>
+                    {filteredModuleCards.map((module) => (
+                      <AixiaNavigationCard
+                        key={module.key}
+                        title={module.title}
+                        eyebrow={module.groupLabel}
+                        description={module.description}
+                        icon={module.icon}
+                        statusLabel={module.statusLabel}
+                        summary={`${formatCount(module.count)} records`}
+                        actionLabel="Open"
+                        tone={getStatusTone(module.statusLabel)}
+                        onClick={() => openRoute(module.route)}
+                        meta={[
+                          {
+                            label: "Records",
+                            value: formatCount(module.count),
+                            description: "Configured records",
+                          },
+                          {
+                            label: "Required Access",
+                            value: module.requiredAccessLabel,
+                            description: module.groupLabel,
+                          },
+                          {
+                            label: "Updated",
+                            value: module.lastUpdatedLabel,
+                            description: "Backend reference",
+                          },
+                        ]}
+                      />
+                    ))}
+                  </AixiaNavigationGrid>
                 )}
               </AixiaSection>
             </>
@@ -1186,55 +1179,58 @@ export default function FinanceMasterDataPage() {
                     description="Changes appear here only for master-data domains this user can read."
                   />
                 ) : (
-                  <AixiaReviewGrid variant="compact">
+                  <div className="aixia-stack">
                     {recentChanges.map((item) => (
-                      <AixiaSection
+                      <AixiaNavigationInfoPanel
                         key={item.id}
                         title={item.title}
                         description={item.subtitle}
                         icon={Receipt}
-                        badge={<AixiaBadge tone="indigo">{item.type}</AixiaBadge>}
-                        actions={
-                          item.route ? (
-                            <AixiaButton
-                              type="button"
-                              variant="primary"
-                              onClick={() => navigate(item.route as string)}
-                            >
-                              Open
-                              <ArrowRight className="h-3.5 w-3.5" />
-                            </AixiaButton>
-                          ) : null
-                        }
+                        tone="indigo"
                       >
-                        <AixiaReviewBlock
-                          label="Updated"
-                          value={formatDateLabel(item.createdAt)}
-                          description="Visible activity"
-                        />
-                      </AixiaSection>
+                        <div className="aixia-navigation-stat-grid">
+                          <AixiaNavigationStatBlock
+                            label="Type"
+                            value={item.type}
+                            description="Visible activity"
+                            tone="indigo"
+                          />
+
+                          <AixiaNavigationStatBlock
+                            label="Updated"
+                            value={formatDateLabel(item.createdAt)}
+                            description="Current snapshot"
+                            tone="cyan"
+                          />
+                        </div>
+                      </AixiaNavigationInfoPanel>
                     ))}
-                  </AixiaReviewGrid>
+                  </div>
                 )}
               </AixiaSection>
 
-              <AixiaSection
+              <AixiaNavigationInfoPanel
                 title="Master Data Readiness"
                 description="Visible readiness signals are based only on domains this user can access."
                 icon={Database}
+                tone="cyan"
               >
-                <AixiaReviewGrid variant="compact">
-                  <AixiaReviewBlock
+                <div className="aixia-navigation-stat-grid">
+                  <AixiaNavigationStatBlock
                     label="Visible Domains"
                     value={formatCount(moduleCards.length)}
                     description="Domains available after permission filtering."
+                    tone="cyan"
                   />
-                  <AixiaReviewBlock
+
+                  <AixiaNavigationStatBlock
                     label="Configured Domains"
                     value={formatCount(totalConfiguredDomains)}
                     description="Visible domains with at least one record."
+                    tone="emerald"
                   />
-                  <AixiaReviewBlock
+
+                  <AixiaNavigationStatBlock
                     label="Currency Source"
                     value={accessMap.rates ? data.rates.sourceLabel : "Hidden"}
                     description={
@@ -1242,33 +1238,40 @@ export default function FinanceMasterDataPage() {
                         ? data.rates.updatedAtLabel
                         : "Requires Finance read access."
                     }
+                    tone={accessMap.rates ? "gold" : "neutral"}
                   />
-                </AixiaReviewGrid>
-              </AixiaSection>
+                </div>
+              </AixiaNavigationInfoPanel>
 
-              <AixiaSection
+              <AixiaNavigationInfoPanel
                 title="Access Rule"
                 description="Finance template baseline plus user-specific exceptions."
                 icon={ShieldCheck}
+                tone="emerald"
               >
-                <AixiaReviewGrid variant="compact">
-                  <AixiaReviewBlock
+                <div className="aixia-navigation-stat-grid">
+                  <AixiaNavigationStatBlock
                     label="Current User"
                     value={currentProfile?.full_name || "Unknown"}
-                    description="The visible modules are calculated for the logged-in user."
+                    description="Visible modules are calculated for the logged-in user."
+                    tone="emerald"
                   />
-                  <AixiaReviewBlock
+
+                  <AixiaNavigationStatBlock
                     label="Permission Model"
                     value="Read Access"
-                    description="This page only opens master-data domains where the user has read-level finance access."
+                    description="This page only opens domains with read-level finance access."
+                    tone="cyan"
                   />
-                  <AixiaReviewBlock
+
+                  <AixiaNavigationStatBlock
                     label="Edit Rights"
-                    value="Handled inside modules"
-                    description="Create, Update, Delete/Archive, and Approve/Execute actions must be enforced inside each child page."
+                    value="Inside Modules"
+                    description="Create, update, archive, and execute rights are enforced in each child page."
+                    tone="violet"
                   />
-                </AixiaReviewGrid>
-              </AixiaSection>
+                </div>
+              </AixiaNavigationInfoPanel>
             </>
           }
         />

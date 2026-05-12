@@ -19,8 +19,8 @@ import {
 
 import {
   AixiaAccessDeniedState,
+  AixiaAccessRule,
   AixiaAlert,
-  AixiaAlertText,
   AixiaArchiveManagerModal,
   AixiaBadge,
   AixiaButton,
@@ -1170,12 +1170,21 @@ export default function FinancePaymentMethodsPage() {
         </AixiaSection>
       )}
 
-      <AixiaAlert tone="info">
-        <AixiaAlertText
-          title="Locked access rule"
-          description="This registry requires Finance / Master Data read access. Create is controlled by Create access. Edit is controlled by Update access. Archive, Restore, and Permanent Delete are controlled by Delete/Archive access. Permanent Delete must be blocked by the backend when a payment method is linked to finance records. Background refresh is silent and must not move the page or reset filters, search, sorting, modals, or visible rows."
-        />
-      </AixiaAlert>
+      <AixiaAccessRule
+        title="Locked access rule"
+        description="Payment method registry lifecycle and permission controls are locked to the shared AiXia registry standard."
+        icon={ShieldCheck}
+      >
+        This registry requires Finance / Master Data read access. Active and
+        inactive payment method records stay in the main registry. Archived
+        payment methods are managed only from the archive modal. Create is
+        controlled by Create access. Edit is controlled by Update access.
+        Archive, Restore, and Delete Permanently are controlled by
+        Delete/Archive access. Permanent Delete must be blocked by the backend
+        when a payment method is linked to finance records. Realtime and
+        60-second fallback refresh must stay silent and must not reset filters,
+        search, sorting, modals, or visible rows.
+      </AixiaAccessRule>
 
       <AixiaArchiveManagerModal
         open={showArchive}

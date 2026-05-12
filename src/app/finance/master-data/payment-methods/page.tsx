@@ -152,12 +152,6 @@ function formatDateLabel(value: string | null | undefined) {
   });
 }
 
-function formatStatusLabel(value: string) {
-  return value
-    .replaceAll("_", " ")
-    .replace(/\b\w/g, (character) => character.toUpperCase());
-}
-
 function getMethodCode(row: FinancePaymentMethodListRow) {
   return row.code || "—";
 }

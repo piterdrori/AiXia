@@ -2,6 +2,7 @@ import { useCallback, useEffect, useMemo, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import {
   Archive,
+  ArrowRight,
   CheckCircle2,
   Eye,
   FolderArchive,
@@ -695,6 +696,18 @@ export default function FinanceBillsPage() {
         and permanent delete actions separated by lifecycle state. Realtime and
         60-second refresh must stay silent and must not reset search, sorting,
         archive tabs, modal state, or visible records.
+      </AixiaAccessRule>
+
+      <AixiaAccessRule
+        title="Vendor PI / Invoice Registry Access Rule"
+        description="This registry follows the locked AiXia transaction registry rule for vendor PI / invoice records."
+        icon={ShieldCheck}
+      >
+        Active vendor PI / invoice records stay in the main registry. Archived
+        and deleted records are managed only from the archive panel, with restore
+        and permanent delete actions separated by lifecycle state. Realtime and
+        60-second fallback refresh must stay silent and must not reset search,
+        sorting, archive tabs, modal state, or visible records.
       </AixiaAccessRule>
 
       <AixiaAccessRule

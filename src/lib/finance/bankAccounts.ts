@@ -256,35 +256,34 @@ export async function createBankAccount(input: {
 }) {
   const userId = await getCurrentUserId();
 
-const normalizedBankName = normalizeNullable(input.bank_name);
-const normalizedBeneficiaryName = normalizeNullable(input.beneficiary_name);
+  const normalizedBankName = normalizeNullable(input.bank_name);
+  const normalizedBeneficiaryName = normalizeNullable(input.beneficiary_name);
 
-const payload = {
-  company_id: input.company_id,
-  name: normalizedBankName ?? normalizedBeneficiaryName ?? "Bank Account",
-  account_type: "bank",
-  institution_name: normalizedBankName,
-  beneficiary_name: normalizedBeneficiaryName,
-  bank_name: normalizedBankName,
-  country: normalizeNullable(input.country),
-  city: normalizeNullable(input.city),
-  postal_code: normalizeNullable(input.postal_code),
-  address_line_1: normalizeNullable(input.address_line_1),
-  address_line_2: normalizeNullable(input.address_line_2),
-  masked_account_number: normalizeNullable(input.account_number),
-  account_number: normalizeNullable(input.account_number),
-  account_identifier_type: normalizeIdentifierType(
-    input.account_identifier_type
-  ),
-  account_identifier_value: normalizeNullable(input.account_identifier_value),
-  currency_code:
-    normalizeNullable(input.currency_code)?.toUpperCase() ?? null,
-  is_default: Boolean(input.is_default),
-  status: normalizeStatus(input.status),
-  notes: normalizeNullable(input.notes),
-  created_by: userId,
-  updated_by: userId,
-};
+  const payload = {
+    company_id: input.company_id,
+    name: normalizedBankName ?? normalizedBeneficiaryName ?? "Bank Account",
+    account_type: "bank",
+    institution_name: normalizedBankName,
+    beneficiary_name: normalizedBeneficiaryName,
+    bank_name: normalizedBankName,
+    country: normalizeNullable(input.country),
+    city: normalizeNullable(input.city),
+    postal_code: normalizeNullable(input.postal_code),
+    address_line_1: normalizeNullable(input.address_line_1),
+    address_line_2: normalizeNullable(input.address_line_2),
+    masked_account_number: normalizeNullable(input.account_number),
+    account_number: normalizeNullable(input.account_number),
+    account_identifier_type: normalizeIdentifierType(
+      input.account_identifier_type
+    ),
+    account_identifier_value: normalizeNullable(input.account_identifier_value),
+    currency_code: normalizeNullable(input.currency_code)?.toUpperCase() ?? null,
+    is_default: Boolean(input.is_default),
+    status: normalizeStatus(input.status),
+    notes: normalizeNullable(input.notes),
+    created_by: userId,
+    updated_by: userId,
+  };
 
   const { data, error } = await supabase
     .from(TABLE)
@@ -295,21 +294,21 @@ const payload = {
   if (error) throw error;
 
   await logActivity({
-  actionType: "finance.bank_account.created",
-  entityType: "finance_bank_account",
-  entityId: data.id,
-  message: `Bank account created: ${data.bank_id}`,
-});
+    actionType: "finance.bank_account.created",
+    entityType: "finance_bank_account",
+    entityId: data.id,
+    message: `Bank account created: ${data.bank_id}`,
+  });
 
-const row = data as Record<string, unknown>;
+  const row = data as Record<string, unknown>;
 
-return {
-  ...(data as FinanceBankAccount),
-  account_number:
-    (row.account_number as string | null | undefined) ??
-    (row.masked_account_number as string | null | undefined) ??
-    null,
-} as FinanceBankAccount;
+  return {
+    ...(data as FinanceBankAccount),
+    account_number:
+      (row.account_number as string | null | undefined) ??
+      (row.masked_account_number as string | null | undefined) ??
+      null,
+  } as FinanceBankAccount;
 }
 
 /* ========================= UPDATE ========================= */
@@ -320,28 +319,25 @@ export async function updateBankAccount(
 ): Promise<FinanceBankAccount> {
   const userId = await getCurrentUserId();
 
-  // ensure only one default per company
-if (updates.is_default === true) {
-  const targetCompanyId =
-    updates.company_id ??
-    (await getBankAccountById(id)).company_id;
+  if (updates.is_default === true) {
+    const targetCompanyId =
+      updates.company_id ?? (await getBankAccountById(id)).company_id;
 
-  if (targetCompanyId) {
-    const { error: resetError } = await supabase
-      .from(TABLE)
-      .update({ is_default: false })
-      .eq("company_id", targetCompanyId);
+    if (targetCompanyId) {
+      const { error: resetError } = await supabase
+        .from(TABLE)
+        .update({ is_default: false })
+        .eq("company_id", targetCompanyId);
 
-    if (resetError) throw resetError;
+      if (resetError) throw resetError;
+    }
   }
-}
 
   const nextUpdates: Partial<FinanceBankAccount> = {
     ...updates,
     updated_by: userId,
   };
 
-  // normalization (critical parity with vendor system)
   if (typeof nextUpdates.beneficiary_name === "string") {
     nextUpdates.beneficiary_name = normalizeNullable(
       nextUpdates.beneficiary_name
@@ -377,10 +373,10 @@ if (updates.is_default === true) {
   }
 
   if (typeof nextUpdates.account_number === "string") {
-  (nextUpdates as Record<string, unknown>).masked_account_number =
-    normalizeNullable(nextUpdates.account_number);
-  delete (nextUpdates as Partial<FinanceBankAccount>).account_number;
-}
+    (nextUpdates as Record<string, unknown>).masked_account_number =
+      normalizeNullable(nextUpdates.account_number);
+    delete (nextUpdates as Partial<FinanceBankAccount>).account_number;
+  }
 
   if (typeof nextUpdates.account_identifier_type === "string") {
     nextUpdates.account_identifier_type = normalizeIdentifierType(
@@ -416,22 +412,22 @@ if (updates.is_default === true) {
 
   if (error) throw error;
 
-await logActivity({
-  actionType: "finance.bank_account.updated",
-  entityType: "finance_bank_account",
-  entityId: id,
-  message: `Bank account updated: ${data.bank_id}`,
-});
+  await logActivity({
+    actionType: "finance.bank_account.updated",
+    entityType: "finance_bank_account",
+    entityId: id,
+    message: `Bank account updated: ${data.bank_id}`,
+  });
 
-const row = data as Record<string, unknown>;
+  const row = data as Record<string, unknown>;
 
-return {
-  ...(data as FinanceBankAccount),
-  account_number:
-    (row.account_number as string | null | undefined) ??
-    (row.masked_account_number as string | null | undefined) ??
-    null,
-} as FinanceBankAccount;
+  return {
+    ...(data as FinanceBankAccount),
+    account_number:
+      (row.account_number as string | null | undefined) ??
+      (row.masked_account_number as string | null | undefined) ??
+      null,
+  } as FinanceBankAccount;
 }
 
 /* ========================= ARCHIVE ========================= */
@@ -499,7 +495,9 @@ export async function permanentlyDeleteBankAccount(
 ): Promise<void> {
   const existing = await getBankAccountById(id);
 
-  const { error } = await supabase.from(TABLE).delete().eq("id", id);
+  const { error } = await supabase.rpc("finance_permanently_delete_bank_account", {
+    p_bank_account_id: id,
+  });
 
   if (error) throw error;
 

@@ -122,9 +122,7 @@ export async function updateTaxCode(
   return data as FinanceTaxCodeRow;
 }
 
-export async function archiveTaxCode(
-  id: string
-): Promise<FinanceTaxCodeRow> {
+export async function archiveTaxCode(id: string): Promise<FinanceTaxCodeRow> {
   const userId = await getCurrentUserId();
 
   const { data, error } = await supabase
@@ -150,9 +148,7 @@ export async function archiveTaxCode(
   return data as FinanceTaxCodeRow;
 }
 
-export async function restoreTaxCode(
-  id: string
-): Promise<FinanceTaxCodeRow> {
+export async function restoreTaxCode(id: string): Promise<FinanceTaxCodeRow> {
   const userId = await getCurrentUserId();
 
   const { data, error } = await supabase
@@ -177,9 +173,7 @@ export async function restoreTaxCode(
   return data as FinanceTaxCodeRow;
 }
 
-export async function permanentlyDeleteTaxCode(
-  id: string
-): Promise<void> {
+export async function permanentlyDeleteTaxCode(id: string): Promise<void> {
   const { data: existing, error: readError } = await supabase
     .from(TABLE)
     .select("id, name")
@@ -188,10 +182,9 @@ export async function permanentlyDeleteTaxCode(
 
   if (readError) throw readError;
 
-  const { error } = await supabase
-    .from(TABLE)
-    .delete()
-    .eq("id", id);
+  const { error } = await supabase.rpc("finance_permanently_delete_tax_code", {
+    p_tax_code_id: id,
+  });
 
   if (error) throw error;
 

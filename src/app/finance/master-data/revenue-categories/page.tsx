@@ -45,7 +45,6 @@ import {
   AixiaTableShell,
   AixiaTableTextCell,
   AixiaTextareaField,
-  AixiaValueBlock,
 } from "@/components/aixia";
 
 import { supabase } from "@/lib/supabase";

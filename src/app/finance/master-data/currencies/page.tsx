@@ -20,6 +20,7 @@ import {
 
 import {
   AixiaAccessDeniedState,
+  AixiaAccessRule,
   AixiaActionStack,
   AixiaAlert,
   AixiaAlertText,
@@ -1867,12 +1868,12 @@ export default function FinanceMasterDataCurrenciesPage() {
             )}
           </AixiaSection>
 
-          <AixiaAlert tone="info">
-            <AixiaAlertText
-              title="Locked currency rule"
-              description="Currency master data is general master data. Dropdowns across company and bank account pages must use this source. Silent refresh must not wipe existing visible currency data or permission state on temporary failures."
-            />
-          </AixiaAlert>
+          <AixiaAccessRule
+            title="Locked access rule"
+            description="Finance registry pages must show the shared Locked access rule block."
+          >
+            Currency master data is general master data. Dropdowns across company and bank account pages must use this source. Silent refresh must not wipe existing visible currency data or permission state on temporary failures.
+          </AixiaAccessRule>
         </>
       )}
 

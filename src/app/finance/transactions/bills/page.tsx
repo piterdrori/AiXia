@@ -2,7 +2,6 @@ import { useCallback, useEffect, useMemo, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import {
   Archive,
-  ArrowRight,
   CheckCircle2,
   Eye,
   FolderArchive,
@@ -11,11 +10,13 @@ import {
   Receipt,
   RotateCcw,
   Search,
+  ShieldCheck,
   Trash2,
   Wallet,
 } from "lucide-react";
 
 import {
+  AixiaAccessRule,
   AixiaAlert,
   AixiaArchiveManagerModal,
   AixiaBadge,
@@ -38,6 +39,7 @@ import {
   AixiaTableTextCell,
 } from "@/components/aixia";
 
+import type { FinanceLoadMode } from "@/lib/finance/pageAccess";
 import { supabase } from "@/lib/supabase";
 
 type BillStatus =
@@ -99,7 +101,7 @@ type SortKey =
 
 type SortDirection = "asc" | "desc";
 type ArchiveTab = "archived" | "deleted";
-type LoadMode = "initial" | "silent";
+type LoadMode = FinanceLoadMode;
 type RunningAction =
   | "archive"
   | "delete"
@@ -678,10 +680,22 @@ export default function FinanceBillsPage() {
           label="Flow"
           value="03"
           description="Purchase Order → Vendor PI / Invoice."
-          icon={ArrowRight}
+          icon={Receipt}
           tone="gold"
         />
       </AixiaMetricGrid>
+
+      <AixiaAccessRule
+        title="Vendor PI / Invoice Registry Access Rule"
+        description="This registry follows the locked AiXia transaction page rule for vendor documents."
+        icon={ShieldCheck}
+      >
+        Active vendor PI / invoice records stay in the main registry. Archived
+        and deleted records are managed only from the archive panel, with restore
+        and permanent delete actions separated by lifecycle state. Realtime and
+        60-second refresh must stay silent and must not reset search, sorting,
+        archive tabs, modal state, or visible records.
+      </AixiaAccessRule>
 
       <AixiaSection
         title="Vendor PI / Invoice Registry"

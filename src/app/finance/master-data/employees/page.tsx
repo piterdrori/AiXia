@@ -26,6 +26,7 @@ import {
 
 import {
   AixiaAccessDeniedState,
+  AixiaAccessRule,
   AixiaActionStack,
   AixiaAlert,
   AixiaAlertText,
@@ -2015,12 +2016,12 @@ export default function FinanceMasterDataEmployeesPage() {
             )}
           </AixiaSection>
 
-          <AixiaAlert tone="info">
-            <AixiaAlertText
-              title="Locked payroll default rule"
-              description="The global paycheck profile is the default source for payroll and paycheck requests. Optional hourly structure is an add-on only. Silent refresh must not reset selected employee, modal state, filters, search, or visible rows."
-            />
-          </AixiaAlert>
+          <AixiaAccessRule
+            title="Locked access rule"
+            description="Finance registry pages must show the shared Locked access rule block."
+          >
+            The global paycheck profile is the default source for payroll and paycheck requests. Optional hourly structure is an add-on only. Silent refresh must not reset selected employee, modal state, filters, search, or visible rows.
+          </AixiaAccessRule>
         </>
       )}
 
@@ -2337,7 +2338,7 @@ export default function FinanceMasterDataEmployeesPage() {
                       {permissionState.canUpdate ? (
                         <AixiaButton
                           type="button"
-                          variant="secondary"
+                          variant="primary"
                           onClick={() => openEditPayProfile(selectedActivePayProfile)}
                           disabled={profileSaving}
                         >
@@ -2439,7 +2440,7 @@ export default function FinanceMasterDataEmployeesPage() {
                                 {permissionState.canUpdate ? (
                                   <AixiaButton
                                     type="button"
-                                    variant="secondary"
+                                    variant="primary"
                                     onClick={() => openEditPayProfile(payProfile)}
                                     disabled={profileSaving}
                                   >

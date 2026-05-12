@@ -153,7 +153,7 @@ export function AixiaDocumentUploadPanel({
       <AixiaButton
         type="button"
         variant="primary"
-        fullWidth
+        className="w-full"
         onClick={() => void onUpload()}
         disabled={disabled || uploading || !selectedFile}
       >

@@ -4645,3 +4645,608 @@
     grid-template-columns: minmax(0, 1.22fr) minmax(400px, 500px);
   }
 }
+
+/* -------------------------------------------------------
+   GLOBAL AIXIA DETAIL / DOCUMENT TYPOGRAPHY COMPACTION
+   Detail pages must use one shared readable scale. Large
+   oversized review/display values are reduced globally.
+------------------------------------------------------- */
+
+.aixia-page .aixia-display-block-value,
+.aixia-page .aixia-value-block-value,
+.aixia-page .aixia-review-block-value,
+.aixia-page .aixia-form-row-card-title,
+.aixia-page .aixia-detail-value {
+  font-size: clamp(0.95rem, 0.92vw, 1.18rem);
+  line-height: 1.22;
+  font-weight: 900;
+}
+
+.aixia-page .aixia-display-block-label,
+.aixia-page .aixia-value-block-label,
+.aixia-page .aixia-review-block-label,
+.aixia-page .aixia-field-label,
+.aixia-page .aixia-label {
+  font-size: 0.68rem;
+  line-height: 1.2;
+  font-weight: 900;
+  letter-spacing: 0.16em;
+  text-transform: uppercase;
+}
+
+.aixia-page .aixia-display-block-detail,
+.aixia-page .aixia-value-block-detail,
+.aixia-page .aixia-review-block-description,
+.aixia-page .aixia-caption,
+.aixia-page .aixia-helper-text {
+  font-size: 0.76rem;
+  line-height: 1.45;
+}
+
+/* -------------------------------------------------------
+   GLOBAL DOCUMENT UPLOAD PANEL — CARD CLICK STANDARD
+   Existing documents open by clicking the whole document
+   card. Upload-disabled state must not disable Open.
+------------------------------------------------------- */
+
+.aixia-document-upload-panel {
+  display: grid;
+  width: 100%;
+  min-width: 0;
+  gap: 0.9rem;
+}
+
+.aixia-document-upload-zone {
+  display: grid;
+  width: 100%;
+  min-width: 0;
+  cursor: pointer;
+  grid-template-columns: 2.75rem minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 0.95rem;
+  border-radius: 1.35rem;
+  border: 1px dashed rgba(34, 211, 238, 0.26);
+  background:
+    radial-gradient(circle at top left, rgba(6, 182, 212, 0.11), transparent 42%),
+    rgba(0, 0, 0, 0.22);
+  padding: 0.95rem;
+  text-align: left;
+  color: white;
+  transition:
+    border-color 220ms ease,
+    background-color 220ms ease,
+    box-shadow 220ms ease,
+    transform 220ms ease,
+    opacity 220ms ease;
+}
+
+.aixia-document-upload-zone:hover,
+.aixia-document-upload-zone.is-dragging {
+  transform: translateY(-0.05rem);
+  border-color: rgba(34, 211, 238, 0.48);
+  background:
+    radial-gradient(circle at top left, rgba(6, 182, 212, 0.16), transparent 46%),
+    rgba(255, 255, 255, 0.052);
+  box-shadow: 0 0 26px rgba(6, 182, 212, 0.13);
+}
+
+.aixia-document-upload-zone:disabled {
+  cursor: not-allowed;
+  opacity: 0.52;
+  transform: none;
+  box-shadow: none;
+}
+
+.aixia-document-upload-icon,
+.aixia-document-file-icon {
+  display: flex;
+  height: 2.75rem;
+  width: 2.75rem;
+  flex-shrink: 0;
+  align-items: center;
+  justify-content: center;
+  border-radius: 0.95rem;
+  border: 1px solid rgba(34, 211, 238, 0.22);
+  background: rgba(6, 182, 212, 0.1);
+  color: rgb(165, 243, 252);
+}
+
+.aixia-document-upload-copy,
+.aixia-document-file-copy {
+  display: grid;
+  min-width: 0;
+  gap: 0.25rem;
+}
+
+.aixia-document-upload-title,
+.aixia-document-file-name {
+  min-width: 0;
+  overflow-wrap: anywhere;
+  font-size: 0.88rem;
+  font-weight: 900;
+  line-height: 1.22;
+  color: white;
+}
+
+.aixia-document-upload-description,
+.aixia-document-file-meta {
+  min-width: 0;
+  overflow-wrap: anywhere;
+  font-size: 0.74rem;
+  line-height: 1.45;
+  color: rgba(148, 163, 184, 0.86);
+}
+
+.aixia-document-upload-browse,
+.aixia-document-open-pill {
+  display: inline-flex;
+  min-height: 2.25rem;
+  flex-shrink: 0;
+  align-items: center;
+  justify-content: center;
+  gap: 0.35rem;
+  border-radius: 999px;
+  border: 1px solid rgba(99, 102, 241, 0.38);
+  background: rgba(99, 102, 241, 0.88);
+  padding: 0.5rem 0.9rem;
+  font-size: 0.68rem;
+  font-weight: 900;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  color: white;
+  box-shadow: 0 0 20px rgba(99, 102, 241, 0.3);
+  white-space: nowrap;
+}
+
+.aixia-document-upload-action {
+  width: 100%;
+  min-height: 2.7rem;
+  justify-content: center;
+}
+
+.aixia-document-selected-file,
+.aixia-document-attachment-card {
+  display: grid;
+  width: 100%;
+  min-width: 0;
+  grid-template-columns: 2.75rem minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 0.95rem;
+  border-radius: 1.35rem;
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  background: rgba(0, 0, 0, 0.22);
+  padding: 0.95rem;
+  text-align: left;
+  color: white;
+}
+
+button.aixia-document-attachment-card {
+  cursor: pointer;
+  transition:
+    transform 220ms ease,
+    border-color 220ms ease,
+    background-color 220ms ease,
+    box-shadow 220ms ease,
+    opacity 220ms ease;
+}
+
+button.aixia-document-attachment-card:hover {
+  transform: translateY(-0.05rem);
+  border-color: rgba(99, 102, 241, 0.34);
+  background:
+    radial-gradient(circle at top right, rgba(99, 102, 241, 0.16), transparent 42%),
+    rgba(255, 255, 255, 0.045);
+  box-shadow: 0 0 24px rgba(99, 102, 241, 0.16);
+}
+
+button.aixia-document-attachment-card:disabled {
+  cursor: wait;
+  opacity: 0.62;
+  transform: none;
+  box-shadow: none;
+}
+
+.aixia-document-file-label {
+  font-size: 0.62rem;
+  font-weight: 900;
+  letter-spacing: 0.17em;
+  text-transform: uppercase;
+  color: rgba(100, 116, 139, 0.95);
+}
+
+.aixia-document-attachment-list {
+  display: grid;
+  min-width: 0;
+  gap: 0.7rem;
+}
+
+.aixia-document-attachment-meta {
+  display: flex;
+  min-width: 0;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.45rem;
+  font-size: 0.73rem;
+  color: rgba(148, 163, 184, 0.82);
+}
+
+.aixia-document-upload-panel .aixia-alert {
+  display: grid;
+  gap: 0.25rem;
+}
+
+.aixia-document-upload-panel .aixia-btn-primary,
+.aixia-document-upload-panel .aixia-btn-secondary,
+.aixia-document-upload-panel .aixia-btn-danger {
+  min-height: 2.5rem;
+  border-radius: 999px;
+  padding: 0.55rem 0.95rem;
+  font-size: 0.72rem;
+  line-height: 1.1;
+  white-space: nowrap;
+}
+
+@media (max-width: 767px) {
+  .aixia-document-upload-zone,
+  .aixia-document-selected-file,
+  .aixia-document-attachment-card {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .aixia-document-upload-icon,
+  .aixia-document-file-icon {
+    height: 2.65rem;
+    width: 2.65rem;
+  }
+
+  .aixia-document-upload-browse,
+  .aixia-document-open-pill,
+  .aixia-document-upload-panel .aixia-btn-primary,
+  .aixia-document-upload-panel .aixia-btn-secondary,
+  .aixia-document-upload-panel .aixia-btn-danger {
+    width: 100%;
+  }
+}
+
+/* -------------------------------------------------------
+   GLOBAL AIXIA FONT + DETAIL TYPOGRAPHY LOCK
+   All AiXia Finance pages must use the same font family,
+   font rendering, label scale, value scale, button scale,
+   and readable compact detail-card typography.
+------------------------------------------------------- */
+
+.aixia-page,
+.aixia-page *,
+.aixia-modal,
+.aixia-modal * {
+  font-family:
+    Inter,
+    ui-sans-serif,
+    system-ui,
+    -apple-system,
+    BlinkMacSystemFont,
+    "Segoe UI",
+    sans-serif !important;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+
+.aixia-page button,
+.aixia-page input,
+.aixia-page select,
+.aixia-page textarea,
+.aixia-modal button,
+.aixia-modal input,
+.aixia-modal select,
+.aixia-modal textarea {
+  font: inherit;
+}
+
+.aixia-page .aixia-label,
+.aixia-page .aixia-field-label,
+.aixia-page .aixia-display-block-label,
+.aixia-page .aixia-value-block-label,
+.aixia-page .aixia-review-block-label,
+.aixia-page .aixia-form-row-card-label,
+.aixia-page .aixia-navigation-stat-label,
+.aixia-page .aixia-navigation-card-meta-label {
+  font-size: 0.66rem !important;
+  line-height: 1.2 !important;
+  font-weight: 900 !important;
+  letter-spacing: 0.16em !important;
+  text-transform: uppercase !important;
+}
+
+.aixia-page .aixia-display-block-value,
+.aixia-page .aixia-value-block-value,
+.aixia-page .aixia-review-block-value,
+.aixia-page .aixia-form-row-card-title,
+.aixia-page .aixia-detail-value,
+.aixia-page .aixia-navigation-stat-value,
+.aixia-page .aixia-navigation-card-meta-value {
+  font-size: clamp(0.95rem, 0.86vw, 1.12rem) !important;
+  line-height: 1.22 !important;
+  font-weight: 900 !important;
+}
+
+.aixia-page .aixia-display-block-detail,
+.aixia-page .aixia-value-block-detail,
+.aixia-page .aixia-review-block-description,
+.aixia-page .aixia-form-row-card-description,
+.aixia-page .aixia-caption,
+.aixia-page .aixia-helper-text,
+.aixia-page .aixia-navigation-stat-description,
+.aixia-page .aixia-navigation-card-meta-description {
+  font-size: 0.74rem !important;
+  line-height: 1.45 !important;
+}
+
+.aixia-page .aixia-section-title,
+.aixia-page .aixia-detail-section-title,
+.aixia-page .aixia-navigation-info-panel-title {
+  font-size: clamp(0.9rem, 0.82vw, 1rem) !important;
+  line-height: 1.2 !important;
+  font-weight: 900 !important;
+}
+
+.aixia-page .aixia-btn-primary,
+.aixia-page .aixia-btn-secondary,
+.aixia-page .aixia-btn-danger,
+.aixia-page .aixia-btn-icon,
+.aixia-modal .aixia-btn-primary,
+.aixia-modal .aixia-btn-secondary,
+.aixia-modal .aixia-btn-danger,
+.aixia-modal .aixia-btn-icon {
+  font-size: 0.74rem !important;
+  line-height: 1.1 !important;
+  font-weight: 900 !important;
+}
+
+.aixia-page .aixia-badge,
+.aixia-page .aixia-status-badge,
+.aixia-modal .aixia-badge,
+.aixia-modal .aixia-status-badge {
+  font-size: 0.64rem !important;
+  line-height: 1.1 !important;
+  font-weight: 900 !important;
+}
+
+/* -------------------------------------------------------
+   GLOBAL AIXIA ACTION CARD + BUTTON SYMMETRY STANDARD
+   Right-side source links, related records, document links,
+   payment links, PO/quotation links, and attachment links
+   must use full clickable cards. Do not mix clickable cards
+   with detached oversized Open buttons in the same panel.
+------------------------------------------------------- */
+
+.aixia-action-card {
+  position: relative;
+  display: grid;
+  width: 100%;
+  min-width: 0;
+  grid-template-columns: 2.5rem minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 0.85rem;
+  overflow: hidden;
+  border-radius: 1.25rem;
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  background:
+    radial-gradient(circle at top left, rgba(99, 102, 241, 0.1), transparent 42%),
+    rgba(0, 0, 0, 0.2);
+  padding: 0.9rem;
+  text-align: left;
+  color: white;
+}
+
+button.aixia-action-card {
+  cursor: pointer;
+  transition:
+    transform 220ms ease,
+    border-color 220ms ease,
+    background-color 220ms ease,
+    box-shadow 220ms ease,
+    opacity 220ms ease;
+}
+
+button.aixia-action-card:hover {
+  transform: translateY(-0.05rem);
+  border-color: rgba(99, 102, 241, 0.36);
+  background:
+    radial-gradient(circle at top right, rgba(99, 102, 241, 0.16), transparent 42%),
+    rgba(255, 255, 255, 0.045);
+  box-shadow: 0 0 24px rgba(99, 102, 241, 0.14);
+}
+
+button.aixia-action-card:disabled {
+  cursor: not-allowed;
+  opacity: 0.55;
+  transform: none;
+  box-shadow: none;
+}
+
+.aixia-action-card-indigo {
+  border-color: rgba(99, 102, 241, 0.18);
+}
+
+.aixia-action-card-violet {
+  border-color: rgba(168, 85, 247, 0.18);
+}
+
+.aixia-action-card-cyan {
+  border-color: rgba(34, 211, 238, 0.18);
+}
+
+.aixia-action-card-emerald {
+  border-color: rgba(52, 211, 153, 0.18);
+}
+
+.aixia-action-card-amber {
+  border-color: rgba(251, 191, 36, 0.18);
+}
+
+.aixia-action-card-rose {
+  border-color: rgba(251, 113, 133, 0.18);
+}
+
+.aixia-action-card-neutral {
+  border-color: rgba(255, 255, 255, 0.12);
+}
+
+.aixia-action-card-icon {
+  display: flex;
+  height: 2.5rem;
+  width: 2.5rem;
+  flex-shrink: 0;
+  align-items: center;
+  justify-content: center;
+  border-radius: 0.9rem;
+  border: 1px solid rgba(99, 102, 241, 0.24);
+  background: rgba(99, 102, 241, 0.1);
+  color: rgb(199, 210, 254);
+}
+
+.aixia-action-card-copy {
+  display: grid;
+  min-width: 0;
+  gap: 0.22rem;
+}
+
+.aixia-action-card-label {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: 0.64rem;
+  font-weight: 900;
+  letter-spacing: 0.16em;
+  line-height: 1.15;
+  text-transform: uppercase;
+  color: rgba(148, 163, 184, 0.9);
+}
+
+.aixia-action-card-value {
+  display: -webkit-box;
+  overflow: hidden;
+  font-size: clamp(0.9rem, 0.82vw, 1.06rem);
+  font-weight: 900;
+  line-height: 1.22;
+  color: white;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 2;
+}
+
+.aixia-action-card-description {
+  display: -webkit-box;
+  overflow: hidden;
+  font-size: 0.72rem;
+  line-height: 1.42;
+  color: rgba(148, 163, 184, 0.82);
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 2;
+}
+
+.aixia-action-card-meta {
+  margin-top: 0.25rem;
+  display: flex;
+  min-width: 0;
+  flex-wrap: wrap;
+  gap: 0.45rem;
+}
+
+.aixia-action-card-meta-item {
+  display: inline-flex;
+  min-width: 0;
+  max-width: 100%;
+  align-items: center;
+  gap: 0.3rem;
+  border-radius: 999px;
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  background: rgba(255, 255, 255, 0.055);
+  padding: 0.28rem 0.55rem;
+}
+
+.aixia-action-card-meta-label,
+.aixia-action-card-meta-value {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: 0.62rem;
+  font-weight: 900;
+  line-height: 1.1;
+}
+
+.aixia-action-card-meta-label {
+  color: rgba(148, 163, 184, 0.78);
+}
+
+.aixia-action-card-meta-value {
+  color: rgba(241, 245, 249, 0.9);
+}
+
+.aixia-action-card-action {
+  display: inline-flex;
+  min-height: 2.2rem;
+  flex-shrink: 0;
+  align-items: center;
+  justify-content: center;
+  gap: 0.35rem;
+  border-radius: 999px;
+  border: 1px solid rgba(99, 102, 241, 0.36);
+  background: rgba(99, 102, 241, 0.78);
+  padding: 0.48rem 0.82rem;
+  font-size: 0.68rem;
+  font-weight: 900;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  color: white;
+  box-shadow: 0 0 18px rgba(99, 102, 241, 0.22);
+  white-space: nowrap;
+}
+
+/* Compact all generic action rows unless a shared component
+   intentionally overrides them. Prevent oversized loose pills. */
+
+.aixia-page .aixia-action-row {
+  align-items: center;
+  gap: 0.65rem;
+}
+
+.aixia-page .aixia-action-row .aixia-btn-primary,
+.aixia-page .aixia-action-row .aixia-btn-secondary,
+.aixia-page .aixia-action-row .aixia-btn-danger {
+  min-height: 2.45rem;
+  border-radius: 999px;
+  padding: 0.58rem 0.95rem;
+  font-size: 0.72rem;
+  line-height: 1.1;
+}
+
+.aixia-page .aixia-smart-side .aixia-action-row {
+  display: grid;
+  grid-template-columns: repeat(1, minmax(0, 1fr));
+  gap: 0.65rem;
+}
+
+.aixia-page .aixia-smart-side .aixia-action-row .aixia-btn-primary,
+.aixia-page .aixia-smart-side .aixia-action-row .aixia-btn-secondary,
+.aixia-page .aixia-smart-side .aixia-action-row .aixia-btn-danger {
+  width: 100%;
+  justify-content: center;
+}
+
+@media (max-width: 767px) {
+  .aixia-action-card {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .aixia-action-card-icon {
+    height: 2.4rem;
+    width: 2.4rem;
+  }
+
+  .aixia-action-card-action {
+    width: 100%;
+  }
+}
+
+
+

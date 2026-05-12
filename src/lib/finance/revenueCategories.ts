@@ -54,7 +54,9 @@ function buildCode(value?: string | null) {
   return trimmed ? normalizeCode(trimmed) : null;
 }
 
-export async function getRevenueCategories(): Promise<FinanceRevenueCategoryRow[]> {
+export async function getRevenueCategories(): Promise<
+  FinanceRevenueCategoryRow[]
+> {
   const { data, error } = await supabase
     .from(TABLE)
     .select("*")
@@ -214,7 +216,6 @@ export async function restoreRevenueCategory(
   return data as FinanceRevenueCategoryRow;
 }
 
-
 export async function permanentlyDeleteRevenueCategory(
   id: string
 ): Promise<void> {
@@ -226,10 +227,12 @@ export async function permanentlyDeleteRevenueCategory(
 
   if (readError) throw readError;
 
-  const { error } = await supabase
-    .from(TABLE)
-    .delete()
-    .eq("id", id);
+  const { error } = await supabase.rpc(
+    "finance_permanently_delete_revenue_category",
+    {
+      p_revenue_category_id: id,
+    }
+  );
 
   if (error) throw error;
 

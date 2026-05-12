@@ -273,7 +273,9 @@ export async function restoreClient(id: string): Promise<FinanceClient> {
 }
 
 export async function permanentlyDeleteClient(id: string): Promise<void> {
-  const { error } = await supabase.from(TABLE).delete().eq("id", id);
+  const { error } = await supabase.rpc("finance_permanently_delete_client", {
+    p_client_id: id,
+  });
 
   if (error) throw error;
 

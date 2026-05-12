@@ -18,8 +18,8 @@ import {
 
 import {
   AixiaAccessDeniedState,
+  AixiaAccessRule,
   AixiaAlert,
-  AixiaAlertText,
   AixiaArchiveManagerModal,
   AixiaBadge,
   AixiaButton,
@@ -982,12 +982,19 @@ export default function FinanceMasterDataClientsPage() {
         </AixiaSection>
       )}
 
-      <AixiaAlert tone="info">
-        <AixiaAlertText
-          title="Locked access rule"
-          description="This registry requires Client Read access. Create is controlled by Create access. Archive, Restore, and Permanent Delete are controlled by Delete/Archive access. Update/Edit is handled inside the client ID page."
-        />
-      </AixiaAlert>
+      <AixiaAccessRule
+        title="Locked access rule"
+        description="Client registry lifecycle and permission controls are locked to the shared AiXia registry standard."
+        icon={ShieldCheck}
+      >
+        This registry requires Client Read access. Active and inactive client
+        records stay in the main registry. Archived records are managed only from
+        the archive modal. Create is controlled by Create access. Archive,
+        Restore, and Delete Permanently are controlled by Delete/Archive access.
+        Update/Edit is handled inside the client ID page. Realtime and 60-second
+        fallback refresh must stay silent and must not reset search, sorting,
+        archive modal state, or visible records.
+      </AixiaAccessRule>
 
       <AixiaArchiveManagerModal
         open={showArchive}

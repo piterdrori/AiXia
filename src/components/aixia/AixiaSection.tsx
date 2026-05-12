@@ -14,6 +14,8 @@ type AixiaSectionProps = {
   fill?: boolean;
   visibleCards?: 8 | 10 | 12;
   matchOpposite?: boolean;
+  itemCount?: number;
+  forceSmartScroll?: boolean;
 };
 
 export function AixiaSection({
@@ -29,24 +31,32 @@ export function AixiaSection({
   fill = false,
   visibleCards = 8,
   matchOpposite = false,
+  itemCount,
+  forceSmartScroll = false,
 }: AixiaSectionProps) {
+  const shouldUseSmartScroll =
+    smartScroll &&
+    (forceSmartScroll ||
+      (typeof itemCount === "number" && itemCount > visibleCards));
+
   const resolvedClassName = [
     "aixia-section",
     "aixia-glass-hover",
-    smartScroll ? "aixia-section-smart-scroll" : "",
+    shouldUseSmartScroll ? "aixia-section-smart-scroll" : "",
     className,
   ]
     .filter(Boolean)
     .join(" ");
 
   const resolvedBodyClassName =
-    bodyClassName || (smartScroll ? "aixia-section-smart-scroll-body" : "p-6");
+    bodyClassName || (shouldUseSmartScroll ? "aixia-section-smart-scroll-body" : "p-6");
 
   return (
     <section
       className={resolvedClassName}
       data-fill={fill ? "true" : "false"}
-      data-visible-cards={smartScroll ? String(visibleCards) : undefined}
+      data-visible-cards={shouldUseSmartScroll ? String(visibleCards) : undefined}
+      data-smart-scroll-active={shouldUseSmartScroll ? "true" : "false"}
       data-match-opposite={matchOpposite ? "true" : "false"}
     >
       <div className="aixia-section-header">

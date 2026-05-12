@@ -1,4 +1,5 @@
 export { AixiaAccessRule } from "./AixiaAccessRule";
+export { AixiaActionCard } from "./AixiaActionCard";
 export { AixiaActionSystem } from "./AixiaActionSystem";
 export { AixiaAlert } from "./AixiaAlert";
 export { AixiaArchiveManagerModal } from "./AixiaArchiveManagerModal";

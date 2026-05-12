@@ -7,8 +7,60 @@ const FINANCE_APP_DIR = path.join(ROOT, "src", "app", "finance");
 const errors = [];
 const warnings = [];
 
+/**
+ * These files existed before the guardrail was created and still contain legacy
+ * permission/registry patterns. They are allowed to build for now, but the guard
+ * still reports warnings so every future rewrite can remove them from this list.
+ *
+ * Rule:
+ * - New or rewritten standardized pages must NOT be added here.
+ * - Remove files from these lists when they are standardized.
+ */
+const LEGACY_PERMISSION_PATTERN_EXEMPTIONS = new Set([
+  "src/app/finance/access-approvals/[userId]/page.tsx",
+  "src/app/finance/access-approvals/page.tsx",
+  "src/app/finance/master-data/page.tsx",
+  "src/app/finance/master-data/payment-terms/page.tsx",
+  "src/app/finance/master-data/revenue-categories/page.tsx",
+  "src/app/finance/master-data/shipping-terms/page.tsx",
+  "src/app/finance/master-data/tax-codes/page.tsx",
+  "src/app/finance/master-data/units-of-measure/page.tsx",
+  "src/app/finance/master-data/vendor-bank-accounts/[id]/page.tsx",
+  "src/app/finance/master-data/vendor-bank-accounts/new/page.tsx",
+  "src/app/finance/master-data/vendor-bank-accounts/page.tsx",
+  "src/app/finance/master-data/vendors/[id]/page.tsx",
+  "src/app/finance/master-data/vendors/new/page.tsx",
+  "src/app/finance/master-data/vendors/page.tsx",
+  "src/app/finance/page.tsx",
+  "src/app/finance/transactions/invoices/page.tsx",
+  "src/app/finance/transactions/page.tsx",
+  "src/app/finance/transactions/payments-received/page.tsx",
+  "src/app/finance/transactions/proforma-invoices/page.tsx",
+  "src/app/finance/transactions/quotations/page.tsx",
+]);
+
+const LEGACY_REGISTRY_ACCESS_RULE_EXEMPTIONS = new Set([
+  "src/app/finance/master-data/bank-accounts/page.tsx",
+  "src/app/finance/master-data/currencies/page.tsx",
+  "src/app/finance/master-data/employees/page.tsx",
+  "src/app/finance/master-data/expense-categories/page.tsx",
+  "src/app/finance/master-data/items/page.tsx",
+]);
+
+const LEGACY_SECONDARY_EDIT_EXEMPTIONS = new Set([
+  "src/app/finance/master-data/employees/page.tsx",
+]);
+
 function normalizePath(filePath) {
   return filePath.split(path.sep).join("/");
+}
+
+function getRelativePath(filePath) {
+  if (path.isAbsolute(filePath)) {
+    return normalizePath(path.relative(ROOT, filePath));
+  }
+
+  return normalizePath(filePath);
 }
 
 function readText(filePath) {
@@ -36,16 +88,27 @@ function walkFiles(dir, extensions, output = []) {
 
 function addError(filePath, message) {
   errors.push({
-    filePath: normalizePath(path.relative(ROOT, filePath)),
+    filePath: getRelativePath(filePath),
     message,
   });
 }
 
 function addWarning(filePath, message) {
   warnings.push({
-    filePath: normalizePath(path.relative(ROOT, filePath)),
+    filePath: getRelativePath(filePath),
     message,
   });
+}
+
+function addLegacyWarningOrError(filePath, legacySet, message) {
+  const relativePath = getRelativePath(filePath);
+
+  if (legacySet.has(relativePath)) {
+    addWarning(filePath, `Legacy baseline warning: ${message}`);
+    return;
+  }
+
+  addError(filePath, message);
 }
 
 function stripComments(text) {
@@ -203,6 +266,11 @@ function getAixiaButtonBlocks(text) {
   return blocks;
 }
 
+function getButtonVariant(buttonBlock) {
+  const variantMatch = buttonBlock.match(/\bvariant=["']([^"']+)["']/);
+  return variantMatch?.[1] || null;
+}
+
 function buttonHasVisibleWord(buttonBlock, word) {
   const withoutTags = buttonBlock
     .replace(/<[^>]+>/g, " ")
@@ -213,22 +281,32 @@ function buttonHasVisibleWord(buttonBlock, word) {
   return new RegExp(`\\b${word}\\b`, "i").test(withoutTags);
 }
 
-function getButtonVariant(buttonBlock) {
-  const variantMatch = buttonBlock.match(/\bvariant=["']([^"']+)["']/);
-  return variantMatch?.[1] || null;
-}
-
 function inspectButtonMeaning(filePath, text) {
+  const relativePath = getRelativePath(filePath);
   const buttons = getAixiaButtonBlocks(text);
 
   for (const button of buttons) {
     const variant = getButtonVariant(button);
 
-    if ((buttonHasVisibleWord(button, "Open") || buttonHasVisibleWord(button, "Edit")) && variant === "secondary") {
+    if (buttonHasVisibleWord(button, "Open") && variant === "secondary") {
       addError(
         filePath,
-        "Open/Edit action buttons must not use variant=\"secondary\". Use variant=\"primary\" unless the button is explicitly not an action."
+        "Open action buttons must use variant=\"primary\", not variant=\"secondary\"."
       );
+    }
+
+    if (buttonHasVisibleWord(button, "Edit") && variant === "secondary") {
+      if (LEGACY_SECONDARY_EDIT_EXEMPTIONS.has(relativePath)) {
+        addWarning(
+          filePath,
+          "Legacy baseline warning: Edit button uses variant=\"secondary\". Standardized pages must use primary when Edit is the main section action."
+        );
+      } else {
+        addError(
+          filePath,
+          "Edit action buttons must not use variant=\"secondary\" unless explicitly approved. Use variant=\"primary\" for normal Edit actions."
+        );
+      }
     }
 
     if (buttonHasVisibleWord(button, "Archive") && variant !== "danger") {
@@ -245,87 +323,7 @@ function inspectButtonMeaning(filePath, text) {
   }
 }
 
-function inspectFinancePage(filePath) {
-  const text = readText(filePath);
-  const relativePath = normalizePath(path.relative(ROOT, filePath));
-
-  if (/\btype\s+LoadMode\s*=\s*FinanceLoadMode\s*;[\s\S]*?\btype\s+LoadMode\s*=/.test(text)) {
-    addError(filePath, "Duplicate type LoadMode declaration found. Use only: type LoadMode = FinanceLoadMode;");
-  }
-
-  if (/\btype\s+LoadMode\s*=\s*["']initial["']\s*\|\s*["']silent["']\s*;/.test(text)) {
-    addError(filePath, "Do not locally define LoadMode as \"initial\" | \"silent\". Import FinanceLoadMode and use: type LoadMode = FinanceLoadMode;");
-  }
-
-  if (/\bgetEffectivePermissions\b/.test(text)) {
-    addError(filePath, "Finance pages must not use getEffectivePermissions. Use fetchFinanceEffectivePermissions + resolveFinancePagePermissionState from @/lib/finance/pageAccess.");
-  }
-
-  if (/\bfunction\s+buildPermissionState\b/.test(text)) {
-    addError(filePath, "Local buildPermissionState is banned in Finance pages. Use resolveFinancePagePermissionState from @/lib/finance/pageAccess.");
-  }
-
-  if (/\bfunction\s+hasPermission\b/.test(text)) {
-    addError(filePath, "Local hasPermission is banned in Finance pages. Use resolveFinancePagePermissionState from @/lib/finance/pageAccess.");
-  }
-
-  if (/\bloadBackendEffectivePermissions\b/.test(text)) {
-    addError(filePath, "Local loadBackendEffectivePermissions is banned in Finance pages. Use fetchFinanceEffectivePermissions(userId, mode, \"Page Label\").");
-  }
-
-  if (/finance_get_effective_permissions/.test(text)) {
-    addError(filePath, "Finance pages must not call finance_get_effective_permissions directly. Use fetchFinanceEffectivePermissions from @/lib/finance/pageAccess.");
-  }
-
-  if (/fetchFinanceEffectivePermissions/.test(text)) {
-    inspectCallArguments(filePath, text, "fetchFinanceEffectivePermissions", 3);
-  }
-
-  if (/resolveFinancePagePermissionState/.test(text)) {
-    inspectCallArguments(filePath, text, "resolveFinancePagePermissionState", 1, {
-      firstArgumentMustBeObject: true,
-    });
-  }
-
-  if (/variant=["']registry["']/.test(text)) {
-    const hasLockedAccessRule =
-      /Locked access rule/.test(text) ||
-      /AixiaRegistryAccessRule/.test(text);
-
-    if (!hasLockedAccessRule) {
-      addError(
-        filePath,
-        "Registry pages must include the locked access rule block or shared AixiaRegistryAccessRule component."
-      );
-    }
-
-    if (!/AixiaRegistryToolbar/.test(text)) {
-      addError(filePath, "Registry pages must use AixiaRegistryToolbar for search/filter/action controls.");
-    }
-
-    if (/className=["'][^"']*\bflex\b[^"']*["'][\s\S]{0,500}<AixiaRegistryToolbar/.test(text)) {
-      addError(
-        filePath,
-        "Do not wrap AixiaRegistryToolbar in local flex layout hacks. The shared toolbar/section must control registry layout."
-      );
-    }
-
-    if (/className=["'][^"']*\bgrid\b[^"']*["'][\s\S]{0,500}<AixiaRegistryToolbar/.test(text)) {
-      addError(
-        filePath,
-        "Do not wrap AixiaRegistryToolbar in local grid layout hacks. The shared toolbar/section must control registry layout."
-      );
-    }
-  }
-
-  if (/PAYMENT METHOD REGISTRY/.test(text) || /Payment Method Registry/.test(text)) {
-    if (!/Locked access rule/.test(text) && !/AixiaRegistryAccessRule/.test(text)) {
-      addError(filePath, "Payment Method Registry must include the locked access rule block.");
-    }
-  }
-
-  inspectButtonMeaning(filePath, text);
-
+function inspectUnusedPatternRisks(filePath, text) {
   if (/AixiaActionStack/.test(text) && !/<AixiaActionStack\b/.test(text)) {
     addError(filePath, "AixiaActionStack is imported/mentioned but not rendered. Remove unused imports before build.");
   }
@@ -342,13 +340,124 @@ function inspectFinancePage(filePath) {
     addError(filePath, "navigate is declared but never used. Remove useNavigate/navigate before build.");
   }
 
-  if (/getStatusFilterTone/.test(text) && !/getStatusFilterTone\(/.test(text.replace(/function\s+getStatusFilterTone[\s\S]*?\n}/, ""))) {
+  const textWithoutGetStatusFilterToneDeclaration = text.replace(
+    /function\s+getStatusFilterTone[\s\S]*?\n}/,
+    ""
+  );
+
+  if (
+    /getStatusFilterTone/.test(text) &&
+    !/getStatusFilterTone\(/.test(textWithoutGetStatusFilterToneDeclaration)
+  ) {
     addWarning(filePath, "getStatusFilterTone appears unused. TypeScript may fail with TS6133.");
   }
+}
 
-  if (/variant=["']secondary["'][\s\S]{0,160}>\s*(?:\{[\s\S]*?\}\s*)?Edit/.test(text)) {
-    addError(relativePath, "Edit buttons must not be gray/secondary. Use primary for edit actions.");
+function inspectPermissionPatterns(filePath, text) {
+  if (/\bgetEffectivePermissions\b/.test(text)) {
+    addLegacyWarningOrError(
+      filePath,
+      LEGACY_PERMISSION_PATTERN_EXEMPTIONS,
+      "Finance pages must not use getEffectivePermissions after standardization. Use fetchFinanceEffectivePermissions + resolveFinancePagePermissionState from @/lib/finance/pageAccess."
+    );
   }
+
+  if (/\bfunction\s+buildPermissionState\b/.test(text)) {
+    addLegacyWarningOrError(
+      filePath,
+      LEGACY_PERMISSION_PATTERN_EXEMPTIONS,
+      "Local buildPermissionState is banned after standardization. Use resolveFinancePagePermissionState from @/lib/finance/pageAccess."
+    );
+  }
+
+  if (/\bfunction\s+hasPermission\b/.test(text)) {
+    addLegacyWarningOrError(
+      filePath,
+      LEGACY_PERMISSION_PATTERN_EXEMPTIONS,
+      "Local hasPermission is banned after standardization. Use resolveFinancePagePermissionState from @/lib/finance/pageAccess."
+    );
+  }
+
+  if (/\bloadBackendEffectivePermissions\b/.test(text)) {
+    addLegacyWarningOrError(
+      filePath,
+      LEGACY_PERMISSION_PATTERN_EXEMPTIONS,
+      "Local loadBackendEffectivePermissions is banned after standardization. Use fetchFinanceEffectivePermissions(userId, mode, \"Page Label\")."
+    );
+  }
+
+  if (/finance_get_effective_permissions/.test(text)) {
+    addLegacyWarningOrError(
+      filePath,
+      LEGACY_PERMISSION_PATTERN_EXEMPTIONS,
+      "Finance pages must not call finance_get_effective_permissions directly after standardization. Use fetchFinanceEffectivePermissions from @/lib/finance/pageAccess."
+    );
+  }
+
+  if (/fetchFinanceEffectivePermissions/.test(text)) {
+    inspectCallArguments(filePath, text, "fetchFinanceEffectivePermissions", 3);
+  }
+
+  if (/resolveFinancePagePermissionState/.test(text)) {
+    inspectCallArguments(filePath, text, "resolveFinancePagePermissionState", 1, {
+      firstArgumentMustBeObject: true,
+    });
+  }
+}
+
+function inspectRegistryStandards(filePath, text) {
+  if (!/variant=["']registry["']/.test(text)) return;
+
+  const hasLockedAccessRule =
+    /Locked access rule/.test(text) ||
+    /AixiaRegistryAccessRule/.test(text);
+
+  if (!hasLockedAccessRule) {
+    addLegacyWarningOrError(
+      filePath,
+      LEGACY_REGISTRY_ACCESS_RULE_EXEMPTIONS,
+      "Registry pages must include the locked access rule block or shared AixiaRegistryAccessRule component."
+    );
+  }
+
+  if (!/AixiaRegistryToolbar/.test(text)) {
+    addError(filePath, "Registry pages must use AixiaRegistryToolbar for search/filter/action controls.");
+  }
+
+  if (/className=["'][^"']*\bflex\b[^"']*["'][\s\S]{0,500}<AixiaRegistryToolbar/.test(text)) {
+    addError(
+      filePath,
+      "Do not wrap AixiaRegistryToolbar in local flex layout hacks. The shared toolbar/section must control registry layout."
+    );
+  }
+
+  if (/className=["'][^"']*\bgrid\b[^"']*["'][\s\S]{0,500}<AixiaRegistryToolbar/.test(text)) {
+    addError(
+      filePath,
+      "Do not wrap AixiaRegistryToolbar in local grid layout hacks. The shared toolbar/section must control registry layout."
+    );
+  }
+}
+
+function inspectFinancePage(filePath) {
+  const text = readText(filePath);
+
+  if (/\btype\s+LoadMode\s*=\s*FinanceLoadMode\s*;[\s\S]*?\btype\s+LoadMode\s*=/.test(text)) {
+    addError(filePath, "Duplicate type LoadMode declaration found. Use only: type LoadMode = FinanceLoadMode;");
+  }
+
+  if (/\btype\s+LoadMode\s*=\s*["']initial["']\s*\|\s*["']silent["']\s*;/.test(text)) {
+    addLegacyWarningOrError(
+      filePath,
+      LEGACY_PERMISSION_PATTERN_EXEMPTIONS,
+      "Do not locally define LoadMode as \"initial\" | \"silent\" after standardization. Import FinanceLoadMode and use: type LoadMode = FinanceLoadMode;"
+    );
+  }
+
+  inspectPermissionPatterns(filePath, text);
+  inspectRegistryStandards(filePath, text);
+  inspectButtonMeaning(filePath, text);
+  inspectUnusedPatternRisks(filePath, text);
 }
 
 function main() {

@@ -12,13 +12,13 @@ import {
   RotateCcw,
   Save,
   Trash2,
-  Upload,
   Wallet,
 } from "lucide-react";
 
 import {
   AixiaAlert,
   AixiaButton,
+  AixiaDocumentUploadPanel,
   AixiaEmptyState,
   AixiaFieldLabel,
   AixiaFormField,
@@ -1169,27 +1169,27 @@ export default function FinanceNewBillPage() {
             <AixiaSection
               title="Vendor Document"
               description="Required. Store the original vendor PI / invoice file."
-              icon={Upload}
+              icon={Paperclip}
             >
-              <div className="aixia-stack">
-                <AixiaInputField
-                  type="file"
-                  disabled={isSaving}
-                  onChange={(event) =>
-                    setSelectedFile(event.target.files?.[0] || null)
-                  }
-                />
-
-                <AixiaValueBlock
-                  label="Selected File"
-                  value={selectedFile ? selectedFile.name : "Required"}
-                  detail={
-                    selectedFile
-                      ? resolveUploadMimeType(selectedFile)
-                      : "Vendor PI / invoice document is required."
-                  }
-                />
-              </div>
+              <AixiaDocumentUploadPanel
+                selectedFile={selectedFile}
+                attachments={[]}
+                required
+                disabled={isSaving}
+                uploading={isSaving}
+                accept=".pdf,.png,.jpg,.jpeg,.webp,.doc,.docx,.xls,.xlsx"
+                dropTitle="Drop vendor PI / invoice document here"
+                dropDescription="Attach the original supplier PI / invoice document. PDF, image, Word, or Excel files are supported."
+                uploadLabel="Save + Upload Document"
+                uploadingLabel="Saving..."
+                selectedFileLabel="Selected vendor document"
+                emptyTitle="No vendor document selected"
+                emptyDescription="Attach the original vendor PI / invoice document before saving."
+                requiredMessage="Vendor PI / invoice document is required before this record can be saved."
+                onFileSelect={setSelectedFile}
+                onRemoveSelectedFile={() => setSelectedFile(null)}
+                onUpload={() => void handleSave()}
+              />
             </AixiaSection>
 
             <AixiaSection

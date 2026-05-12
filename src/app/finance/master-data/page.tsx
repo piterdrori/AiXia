@@ -32,7 +32,6 @@ import {
   AixiaPage,
   AixiaReviewGrid,
   AixiaSearchField,
-  AixiaSection,
   AixiaSmartLayout,
 } from "@/components/aixia";
 
@@ -1165,10 +1164,11 @@ export default function FinanceMasterDataPage() {
           }
           side={
             <>
-              <AixiaSection
+              <AixiaNavigationInfoPanel
                 title="Recent Changes"
                 description="Recent movement across visible master-data domains."
                 icon={Receipt}
+                tone="indigo"
               >
                 {recentChanges.length === 0 ? (
                   <AixiaEmptyState
@@ -1205,7 +1205,7 @@ export default function FinanceMasterDataPage() {
                     ))}
                   </div>
                 )}
-              </AixiaSection>
+              </AixiaNavigationInfoPanel>
 
               <AixiaNavigationInfoPanel
                 title="Master Data Readiness"

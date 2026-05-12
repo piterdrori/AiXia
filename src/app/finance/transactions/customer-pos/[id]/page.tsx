@@ -4,11 +4,11 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useNavigate, useParams } from "react-router-dom";
 import {
   Archive,
-  ArrowRight,
   CheckCircle,
   Eye,
   FileText,
   Link2,
+  Loader2,
   Paperclip,
   Plus,
   RotateCcw,
@@ -20,15 +20,30 @@ import {
 } from "lucide-react";
 
 import { supabase } from "@/lib/supabase";
-import { Button } from "@/components/ui/button";
-import { Badge } from "@/components/ui/badge";
 import {
-  Card,
-  CardContent,
-  CardDescription,
-  CardHeader,
-  CardTitle,
-} from "@/components/ui/card";
+  AixiaAlert,
+  AixiaBadge,
+  AixiaButton,
+  AixiaDetailSection,
+  AixiaDisplayBlock,
+  AixiaEmptyState,
+  AixiaFieldLabel,
+  AixiaFormField,
+  AixiaFormFullWidth,
+  AixiaFormGrid,
+  AixiaFormRowCard,
+  AixiaHero,
+  AixiaInputField,
+  AixiaLoadingState,
+  AixiaMetricCard,
+  AixiaMetricGrid,
+  AixiaPage,
+  AixiaSection,
+  AixiaSelectField,
+  AixiaSmartLayout,
+  AixiaStatusBadge,
+  AixiaTextareaField,
+} from "@/components/aixia";
 
 type CustomerPoStatus =
   | "draft"
@@ -354,58 +369,40 @@ function makeAddressSnapshot(row: ClientOption | CompanyOption | null | undefine
   );
 }
 
-function getStatusLabel(status: CustomerPoStatus) {
-  switch (status) {
-    case "draft":
-      return "Draft";
-    case "received":
-      return "Received";
-    case "verified":
-      return "Verified";
-    case "linked_to_pi":
-      return "Linked to PI";
-    case "closed":
-      return "Closed";
-    case "canceled":
-      return "Canceled";
-    case "archived":
-      return "Archived";
-    case "deleted":
-      return "Deleted";
-    default:
-      return status;
-  }
-}
-
-function getStatusBadgeClasses(status: CustomerPoStatus) {
-  switch (status) {
-    case "draft":
-      return "border-slate-400/20 bg-white/[0.06] text-slate-300";
-    case "received":
-      return "border-cyan-400/20 bg-cyan-500/10 text-cyan-200";
-    case "verified":
-      return "border-emerald-400/20 bg-emerald-500/10 text-emerald-200";
-    case "linked_to_pi":
-      return "border-violet-400/20 bg-violet-500/10 text-violet-200";
-    case "closed":
-      return "border-slate-400/20 bg-slate-500/10 text-slate-200";
-    case "canceled":
-      return "border-rose-400/20 bg-rose-500/10 text-rose-200";
-    case "archived":
-      return "border-amber-400/20 bg-amber-500/10 text-amber-200";
-    case "deleted":
-      return "border-rose-500/30 bg-rose-500/10 text-rose-300";
-    default:
-      return "border-white/10 bg-white/10 text-white/75";
-  }
-}
-
 async function getCurrentUserId() {
   const {
     data: { user },
   } = await supabase.auth.getUser();
 
   return user?.id ?? null;
+}
+
+function getDocumentStatusTone(status: CustomerPoStatus) {
+  if (status === "received" || status === "verified" || status === "closed") {
+    return "emerald" as const;
+  }
+
+  if (status === "linked_to_pi") {
+    return "violet" as const;
+  }
+
+  if (status === "archived" || status === "deleted" || status === "canceled") {
+    return "rose" as const;
+  }
+
+  return "gold" as const;
+}
+
+function getStatusLabel(status: CustomerPoStatus) {
+  return status
+    .split("_")
+    .map((part) => part.charAt(0).toUpperCase() + part.slice(1))
+    .join(" ");
+}
+
+function getFileSizeLabel(size: number | null | undefined) {
+  if (!size) return "Unknown size";
+  return `${(size / 1024 / 1024).toFixed(2)} MB`;
 }
 
 export default function FinanceCustomerPoDetailPage() {
@@ -427,12 +424,8 @@ export default function FinanceCustomerPoDetailPage() {
   const [quotations, setQuotations] = useState<QuotationOption[]>([]);
   const [items, setItems] = useState<ItemOption[]>([]);
   const [taxCodes, setTaxCodes] = useState<TaxCodeOption[]>([]);
-  const [unitsOfMeasure, setUnitsOfMeasure] = useState<UnitOfMeasureOption[]>(
-    []
-  );
-  const [revenueCategories, setRevenueCategories] = useState<
-    RevenueCategoryOption[]
-  >([]);
+  const [unitsOfMeasure, setUnitsOfMeasure] = useState<UnitOfMeasureOption[]>([]);
+  const [revenueCategories, setRevenueCategories] = useState<RevenueCategoryOption[]>([]);
 
   const [selectedFile, setSelectedFile] = useState<File | null>(null);
   const [isDraggingFile, setIsDraggingFile] = useState(false);
@@ -462,25 +455,6 @@ export default function FinanceCustomerPoDetailPage() {
   const [isSaving, setIsSaving] = useState(false);
   const [isUploading, setIsUploading] = useState(false);
   const [error, setError] = useState("");
-
-  const activeSectionClass =
-    "overflow-hidden rounded-[30px] border border-white/10 bg-white/[0.045] backdrop-blur-xl";
-
-  const summaryBlockClass =
-    "rounded-[24px] border border-white/10 bg-black/20 p-4";
-
-  const fieldShellClass =
-    "mt-2 h-10 w-full rounded-2xl border border-white/10 bg-black/20 px-3 text-sm text-white outline-none transition focus:border-cyan-400/30 focus:bg-black/30 disabled:cursor-not-allowed disabled:opacity-45";
-
-  const inputFieldClass =
-    "h-11 w-full rounded-2xl border border-white/10 bg-black/20 px-4 text-sm text-white outline-none transition placeholder:text-slate-600 focus:border-cyan-400/30 focus:bg-black/30 disabled:cursor-not-allowed disabled:opacity-45";
-
-  const readOnlyFieldClass =
-    "flex min-h-[44px] items-center rounded-2xl border border-white/10 bg-black/20 px-4 text-sm leading-6 text-white/80";
-
-  const labelClass = "text-[11px] uppercase tracking-[0.2em] text-slate-500";
-
-  const inputLabelClass = "text-sm font-medium text-slate-300";
 
   const loadLookups = useCallback(async () => {
     setIsLoadingLookups(true);
@@ -514,17 +488,13 @@ export default function FinanceCustomerPoDetailPage() {
           .eq("status", "active")
           .order("name", { ascending: true }),
 
-
-                supabase
+        supabase
           .from("finance_currencies")
           .select("id, currency_code, currency_name")
           .eq("status", "active")
           .order("currency_code", { ascending: true }),
 
-        supabase
-          .from("projects")
-          .select("id, name")
-          .order("name", { ascending: true }),
+        supabase.from("projects").select("id, name").order("name", { ascending: true }),
 
         supabase
           .from("tasks")
@@ -587,9 +557,7 @@ export default function FinanceCustomerPoDetailPage() {
       setItems((itemsResult.data || []) as ItemOption[]);
       setTaxCodes((taxCodesResult.data || []) as TaxCodeOption[]);
       setUnitsOfMeasure((unitsResult.data || []) as UnitOfMeasureOption[]);
-      setRevenueCategories(
-        (revenueCategoriesResult.data || []) as RevenueCategoryOption[]
-      );
+      setRevenueCategories((revenueCategoriesResult.data || []) as RevenueCategoryOption[]);
     } catch (err) {
       console.error(err);
       setError("Failed to load Customer PO lookup data.");
@@ -670,7 +638,7 @@ export default function FinanceCustomerPoDetailPage() {
         setQuotation(null);
       }
 
-      if (typedPo?.proforma_invoice_id) {
+          if (typedPo?.proforma_invoice_id) {
         const { data: proformaData, error: proformaError } = await supabase
           .from("finance_proforma_invoices")
           .select("id, proforma_number, status, total_amount, currency_code")
@@ -685,7 +653,8 @@ export default function FinanceCustomerPoDetailPage() {
 
       const { data: attachmentData, error: attachmentError } = await supabase
         .from("finance_record_attachments")
-        .select(`
+        .select(
+          `
           id,
           entity_id,
           created_at,
@@ -695,30 +664,40 @@ export default function FinanceCustomerPoDetailPage() {
             file_size,
             mime_type
           )
-        `)
+        `
+        )
         .eq("entity_type", "finance_client_purchase_order")
         .eq("entity_id", id)
         .order("created_at", { ascending: false });
 
       if (attachmentError) throw attachmentError;
 
-      const mappedAttachments = ((attachmentData || []) as any[]).map(
-        (row) => ({
-          id: row.id,
-          entity_id: String(row.entity_id || ""),
-          created_at: row.created_at || null,
-          file_name: row.file_uploads?.file_name || null,
-          file_path: row.file_uploads?.file_path || null,
-          file_size: row.file_uploads?.file_size || null,
-          mime_type: row.file_uploads?.mime_type || null,
-        })
-      );
+      const mappedAttachments = ((attachmentData || []) as Array<{
+        id: string;
+        entity_id: string | number | null;
+        created_at: string | null;
+        file_uploads?: {
+          file_name?: string | null;
+          file_path?: string | null;
+          file_size?: number | null;
+          mime_type?: string | null;
+        } | null;
+      }>).map((row) => ({
+        id: row.id,
+        entity_id: String(row.entity_id || ""),
+        created_at: row.created_at || null,
+        file_name: row.file_uploads?.file_name || null,
+        file_path: row.file_uploads?.file_path || null,
+        file_size: row.file_uploads?.file_size || null,
+        mime_type: row.file_uploads?.mime_type || null,
+      }));
 
       setAttachments(mappedAttachments);
 
       const { data: lineItemData, error: lineItemError } = await supabase
         .from("finance_client_purchase_order_line_items")
-        .select(`
+        .select(
+          `
           id,
           client_po_id,
           item_id,
@@ -751,7 +730,8 @@ export default function FinanceCustomerPoDetailPage() {
             code,
             name
           )
-        `)
+        `
+        )
         .eq("client_po_id", id)
         .or("status.is.null,status.neq.deleted")
         .order("sort_order", { ascending: true });
@@ -787,7 +767,6 @@ export default function FinanceCustomerPoDetailPage() {
   useEffect(() => {
     void loadCustomerPo();
   }, [loadCustomerPo]);
-
 
   useEffect(() => {
     if (!id) return;
@@ -832,7 +811,7 @@ export default function FinanceCustomerPoDetailPage() {
 
     return () => {
       window.clearInterval(intervalId);
-      supabase.removeChannel(channel);
+      void supabase.removeChannel(channel);
     };
   }, [id, loadCustomerPo]);
 
@@ -925,8 +904,11 @@ export default function FinanceCustomerPoDetailPage() {
     : Math.max(lineTotal - (lineSubtotal - lineDiscount), 0);
 
   const canEditDetails =
-    customerPo?.status !== "archived" &&
-    customerPo?.status !== "deleted";
+    customerPo?.status !== "archived" && customerPo?.status !== "deleted";
+
+  const totalDisplayValue = isEditingLines
+    ? draftTotals.total
+    : customerPo?.total_amount || lineTotal;
 
   function resetEditDraft() {
     if (!customerPo) return;
@@ -1122,7 +1104,7 @@ export default function FinanceCustomerPoDetailPage() {
 
       if (fileUploadError) throw fileUploadError;
 
-          const { error: attachmentError } = await supabase
+      const { error: attachmentError } = await supabase
         .from("finance_record_attachments")
         .insert({
           entity_type: "finance_client_purchase_order",
@@ -1410,7 +1392,9 @@ export default function FinanceCustomerPoDetailPage() {
             customerPo.company_name_snapshot ||
             null,
           company_legal_name_snapshot:
-            selectedDraftCompany?.legal_name || customerPo.company_legal_name_snapshot || null,
+            selectedDraftCompany?.legal_name ||
+            customerPo.company_legal_name_snapshot ||
+            null,
           company_contact_person_snapshot:
             selectedDraftCompany?.contact_person ||
             customerPo.company_contact_person_snapshot ||
@@ -1558,7 +1542,7 @@ export default function FinanceCustomerPoDetailPage() {
         if (deleteError) throw deleteError;
       }
 
-          for (let index = 0; index < validLines.length; index += 1) {
+      for (let index = 0; index < validLines.length; index += 1) {
         const line = validLines[index];
         const taxCode = taxCodes.find((entry) => entry.id === line.tax_code_id);
         const base = Math.max(
@@ -1566,8 +1550,8 @@ export default function FinanceCustomerPoDetailPage() {
             toNumber(line.discount),
           0
         );
-        const lineTax = base * (toNumber(taxCode?.rate_percent) / 100);
-        const lineTotal = base + lineTax;
+        const lineTaxAmount = base * (toNumber(taxCode?.rate_percent) / 100);
+        const lineTotalAmount = base + lineTaxAmount;
 
         const payload = {
           client_po_id: customerPo.id,
@@ -1576,7 +1560,7 @@ export default function FinanceCustomerPoDetailPage() {
           quantity: toNumber(line.quantity),
           unit_price: toNumber(line.unit_price),
           discount: toNumber(line.discount),
-          line_total: lineTotal,
+          line_total: lineTotalAmount,
           sort_order: index + 1,
           unit_of_measure_id: line.unit_of_measure_id || null,
           tax_code_id: line.tax_code_id || null,
@@ -1706,372 +1690,252 @@ export default function FinanceCustomerPoDetailPage() {
 
   if (isLoading || isLoadingLookups) {
     return (
-      <div className="min-h-screen bg-[#05070d] px-4 py-4 text-white md:px-6 md:py-6">
-        <div className="mx-auto flex w-full max-w-[1600px] flex-col gap-6">
-          <div className="rounded-[30px] border border-white/10 bg-white/[0.045] p-6 text-slate-400">
-            Loading Customer PO...
-          </div>
-        </div>
-      </div>
+      <AixiaLoadingState
+        title="Loading Customer PO"
+        description="Customer PO record, lookup data, line items, linked documents, and attachments are being loaded."
+      />
     );
   }
 
   if (!customerPo) {
     return (
-      <div className="min-h-screen bg-[#05070d] px-4 py-4 text-white md:px-6 md:py-6">
-        <div className="mx-auto flex w-full max-w-[1600px] flex-col gap-6">
-          <div className="rounded-[30px] border border-white/10 bg-white/[0.045] p-6 text-slate-400">
-            Customer PO not found.
-          </div>
-        </div>
-      </div>
+      <AixiaEmptyState
+        icon={FileText}
+        title="Customer PO not found"
+        description="The selected Customer PO record could not be found or is no longer available."
+      />
     );
   }
 
-  const totalDisplayValue = isEditingLines ? draftTotals.total : customerPo.total_amount || lineTotal;
-
   return (
-    <div className="min-h-screen bg-[#05070d] px-4 py-4 text-white md:px-6 md:py-6">
-      <div className="mx-auto flex w-full max-w-[1600px] flex-col gap-6">
-        <header className="relative overflow-hidden rounded-[34px] border border-white/10 bg-white/[0.045] p-6 shadow-2xl shadow-black/30 backdrop-blur-xl">
-          <div className="pointer-events-none absolute inset-0 bg-[radial-gradient(circle_at_top_left,rgba(6,182,212,0.16),transparent_38%),radial-gradient(circle_at_top_right,rgba(139,92,246,0.12),transparent_34%)]" />
+    <AixiaPage>
+      <AixiaHero
+        parentLabel="Customer POs"
+        parentPath="/finance/transactions/customer-pos"
+        badges={[
+          { label: "Customer Commitment", tone: "emerald" },
+          { label: "Customer PO Detail", tone: "cyan" },
+          {
+            label: hasCustomerPoFile ? "Document Uploaded" : "Document Required",
+            tone: hasCustomerPoFile ? "emerald" : "rose",
+          },
+          { label: "Realtime + 60s", tone: "neutral" },
+        ]}
+        gradientTitle={customerPo.client_po_number || "Customer PO"}
+        title=""
+        subtitle="Customer Purchase Order"
+        description="Customer PO saved from a quotation or manual entry. The customer document must be uploaded before a proforma invoice can be created from this Customer PO."
+        statusCards={[
+          {
+            label: "Linked Quotation",
+            value: quotation?.quotation_number || selectedQuotation?.quotation_number || "—",
+            description: "Source quotation linked to this Customer PO.",
+            icon: Link2,
+            tone: "cyan",
+          },
+          {
+            label: "Linked PI",
+            value: proforma?.proforma_number || "—",
+            description: "Proforma invoice created from this Customer PO.",
+            icon: FileText,
+            tone: "violet",
+          },
+        ]}
+      />
 
-          <div className="relative">
-            <button
+      {error ? <AixiaAlert tone="error">{error}</AixiaAlert> : null}
+
+      <AixiaMetricGrid>
+        <AixiaMetricCard
+          label="Subtotal"
+          value={formatMoney(lineSubtotal, displayedCurrencyCode)}
+          description="Line value before discount and tax."
+          icon={FileText}
+          tone="cyan"
+        />
+        <AixiaMetricCard
+          label="Discount"
+          value={formatMoney(lineDiscount, displayedCurrencyCode)}
+          description="Customer PO discount value."
+          icon={FileText}
+          tone="gold"
+        />
+        <AixiaMetricCard
+          label="Tax"
+          value={formatMoney(lineTax, displayedCurrencyCode)}
+          description="Derived from customer PO lines."
+          icon={FileText}
+          tone="violet"
+        />
+        <AixiaMetricCard
+          label="Total"
+          value={formatMoney(totalDisplayValue, displayedCurrencyCode)}
+          description="Saved customer commitment value."
+          icon={CheckCircle}
+          tone="emerald"
+        />
+      </AixiaMetricGrid>
+
+      <AixiaSection
+        title="Lifecycle Actions"
+        description="Customer PO workflow actions follow the locked quotation-to-PI flow."
+        icon={CheckCircle}
+      >
+        <div className="aixia-action-row">
+          {customerPo.status === "draft" ? (
+            <AixiaButton
               type="button"
-              onClick={() => navigate("/finance/transactions/customer-pos")}
-              className="mb-5 inline-flex items-center justify-center gap-2 rounded-full border border-white/10 bg-white/[0.05] px-5 py-2 text-[11px] font-semibold uppercase tracking-[0.22em] text-slate-300 transition hover:border-white/20 hover:bg-white/[0.08] hover:text-white"
+              variant="primary"
+              onClick={() => void updateCustomerPoStatus("received")}
+              disabled={isSaving}
             >
-              <ArrowRight className="h-3.5 w-3.5 rotate-180" />
-              Customer POs
-            </button>
+              <CheckCircle className="h-4 w-4" />
+              Mark as Received
+            </AixiaButton>
+          ) : null}
 
-            <div className="grid gap-6 xl:grid-cols-[minmax(0,1fr)_620px]">
-              <div>
-                <Badge className="inline-flex w-fit rounded-full border border-emerald-400/20 bg-emerald-500/10 px-3 py-1 text-[11px] font-semibold uppercase tracking-[0.22em] text-emerald-200 shadow-none">
-                  Customer Commitment
-                </Badge>
+          {customerPo.status === "received" && !customerPo.proforma_invoice_id ? (
+            <AixiaButton
+              type="button"
+              variant="primary"
+              onClick={() => handleOpenNewProformaInvoiceFromCustomerPo()}
+              disabled={isSaving || !hasCustomerPoFile}
+              title={
+                hasCustomerPoFile
+                  ? "Create Proforma Invoice"
+                  : "Upload Customer PO document before creating a proforma invoice"
+              }
+            >
+              <FileText className="h-4 w-4" />
+              Create Proforma Invoice
+            </AixiaButton>
+          ) : null}
 
-                <div className="mt-4 flex flex-wrap items-center gap-3">
-                  <h1 className="text-3xl font-semibold tracking-[-0.035em] text-white md:text-5xl">
-                    {customerPo.client_po_number || "Customer PO"}
-                  </h1>
+          {customerPo.proforma_invoice_id ? (
+            <AixiaButton
+              type="button"
+              variant="primary"
+              onClick={() =>
+                navigate(
+                  `/finance/transactions/proforma-invoices/${customerPo.proforma_invoice_id}`
+                )
+              }
+            >
+              <FileText className="h-4 w-4" />
+              Open Proforma Invoice
+            </AixiaButton>
+          ) : null}
 
-                  <Badge
-                    className={`rounded-full border px-3 py-1 text-xs shadow-none ${getStatusBadgeClasses(
-                      customerPo.status
-                    )}`}
-                  >
-                    {getStatusLabel(customerPo.status)}
-                  </Badge>
+          {customerPo.status === "archived" || customerPo.status === "deleted" ? (
+            <AixiaButton
+              type="button"
+              variant="secondary"
+              onClick={() => void handleRestore()}
+              disabled={isSaving}
+            >
+              <RotateCcw className="h-4 w-4" />
+              Restore
+            </AixiaButton>
+          ) : null}
 
-                  <Badge
-                    className={`rounded-full border px-3 py-1 text-xs shadow-none ${
-                      hasCustomerPoFile
-                        ? "border-emerald-400/20 bg-emerald-500/10 text-emerald-200"
-                        : "border-rose-400/20 bg-rose-500/10 text-rose-200"
-                    }`}
-                  >
-                    {hasCustomerPoFile ? "Document uploaded" : "Document required"}
-                  </Badge>
-                </div>
+          {customerPo.status !== "archived" && customerPo.status !== "deleted" ? (
+            <AixiaButton
+              type="button"
+              variant="danger"
+              onClick={() => void updateCustomerPoStatus("archived")}
+              disabled={isSaving}
+            >
+              <Archive className="h-4 w-4" />
+              Archive
+            </AixiaButton>
+          ) : null}
 
-                <p className="mt-3 max-w-4xl text-sm leading-6 text-slate-400 md:text-base md:leading-7">
-                  Customer PO saved in the system from a quotation or manual entry.
-                  The customer document must be uploaded before the proforma invoice
-                  can be created from this Customer PO.
-                </p>
+          {customerPo.status !== "deleted" ? (
+            <AixiaButton
+              type="button"
+              variant="danger"
+              onClick={() => void updateCustomerPoStatus("deleted")}
+              disabled={isSaving}
+            >
+              <Trash2 className="h-4 w-4" />
+              Delete
+            </AixiaButton>
+          ) : null}
 
-                <div className="mt-5 flex flex-wrap gap-2">
-                  <Badge className="rounded-full border border-cyan-400/20 bg-cyan-500/10 px-3 py-1 text-[11px] font-semibold uppercase tracking-[0.16em] text-cyan-200 shadow-none">
-                    Customer PO No. {customerPo.external_po_number || "—"}
-                  </Badge>
-                  <Badge className="rounded-full border border-violet-400/20 bg-violet-500/10 px-3 py-1 text-[11px] font-semibold uppercase tracking-[0.16em] text-violet-200 shadow-none">
-                    {formatMoney(totalDisplayValue, displayedCurrencyCode)}
-                  </Badge>
-                  <Badge className="rounded-full border border-white/10 bg-white/[0.05] px-3 py-1 text-[11px] font-semibold uppercase tracking-[0.16em] text-slate-300 shadow-none">
-                    Auto-refresh enabled
-                  </Badge>
-                </div>
-              </div>
-
-              <div className="grid gap-4 sm:grid-cols-2">
-                <div className="min-h-[148px] rounded-[24px] border border-white/10 bg-black/20 p-4">
-                  <div className="flex items-start justify-between gap-3">
-                    <div>
-                      <p className="text-[11px] font-semibold uppercase tracking-[0.2em] text-slate-500">
-                        Linked Quotation
-                      </p>
-                      <p className="mt-2 text-xl font-semibold tracking-[-0.035em] text-white">
-                        {quotation?.quotation_number || selectedQuotation?.quotation_number || "—"}
-                      </p>
-                    </div>
-                    <div className="flex h-10 w-10 items-center justify-center rounded-2xl border border-cyan-400/20 bg-cyan-500/10 text-cyan-200">
-                      <Link2 className="h-4 w-4" />
-                    </div>
-                  </div>
-                  <p className="mt-3 text-xs leading-5 text-slate-500">
-                    Source quotation linked to this Customer PO.
-                  </p>
-                </div>
-
-                <div className="min-h-[148px] rounded-[24px] border border-white/10 bg-black/20 p-4">
-                  <div className="flex items-start justify-between gap-3">
-                    <div>
-                      <p className="text-[11px] font-semibold uppercase tracking-[0.2em] text-slate-500">
-                        Linked PI
-                      </p>
-                      <p className="mt-2 text-xl font-semibold tracking-[-0.035em] text-white">
-                        {proforma?.proforma_number || "—"}
-                      </p>
-                    </div>
-                    <div className="flex h-10 w-10 items-center justify-center rounded-2xl border border-violet-400/20 bg-violet-500/10 text-violet-200">
-                      <FileText className="h-4 w-4" />
-                    </div>
-                  </div>
-                  <p className="mt-3 text-xs leading-5 text-slate-500">
-                    Proforma invoice created from this Customer PO.
-                  </p>
-                </div>
-              </div>
-            </div>
-
-
-                        <div className="mt-6 flex flex-wrap gap-3">
-              {customerPo.status === "draft" ? (
-                <Button
-                  onClick={() => void updateCustomerPoStatus("received")}
-                  disabled={isSaving}
-                  className="h-11 rounded-2xl border border-cyan-400/20 bg-cyan-500 px-4 font-semibold text-slate-950 hover:bg-cyan-400 disabled:cursor-not-allowed disabled:opacity-40"
-                >
-                  <CheckCircle className="mr-2 h-4 w-4" />
-                  Mark as Received
-                </Button>
-              ) : null}
-
-              {customerPo.status === "received" && !customerPo.proforma_invoice_id ? (
-                <Button
-                  onClick={() => handleOpenNewProformaInvoiceFromCustomerPo()}
-                  disabled={isSaving || !hasCustomerPoFile}
-                  title={
-                    hasCustomerPoFile
-                      ? "Create Proforma Invoice"
-                      : "Upload Customer PO document before creating a proforma invoice"
-                  }
-                  className={`h-11 rounded-2xl border px-4 font-semibold ${
-                    hasCustomerPoFile
-                      ? "border-cyan-400/20 bg-cyan-500 text-slate-950 hover:bg-cyan-400"
-                      : "cursor-not-allowed border-white/10 bg-white/[0.05] text-slate-500 opacity-50"
-                  }`}
-                >
-                  <FileText className="mr-2 h-4 w-4" />
-                  Create Proforma Invoice
-                </Button>
-              ) : null}
-
-              {customerPo.proforma_invoice_id ? (
-                <Button
-                  onClick={() =>
-                    navigate(
-                      `/finance/transactions/proforma-invoices/${customerPo.proforma_invoice_id}`
-                    )
-                  }
-                  className="h-11 rounded-2xl border border-violet-400/20 bg-violet-500 px-4 font-semibold text-white hover:bg-violet-400"
-                >
-                  <FileText className="mr-2 h-4 w-4" />
-                  Open Proforma Invoice
-                </Button>
-              ) : null}
-
-              {customerPo.status === "archived" || customerPo.status === "deleted" ? (
-                <Button
-                  variant="outline"
-                  onClick={() => void handleRestore()}
-                  disabled={isSaving}
-                  className="h-11 rounded-2xl border-emerald-400/20 bg-emerald-500/10 px-4 text-emerald-200 hover:bg-emerald-500/20"
-                >
-                  <RotateCcw className="mr-2 h-4 w-4" />
-                  Restore
-                </Button>
-              ) : null}
-
-              {customerPo.status !== "archived" && customerPo.status !== "deleted" ? (
-                <Button
-                  variant="outline"
-                  onClick={() => void updateCustomerPoStatus("archived")}
-                  disabled={isSaving}
-                  className="h-11 rounded-2xl border-amber-400/20 bg-amber-500/10 px-4 text-amber-200 hover:bg-amber-500/20"
-                >
-                  <Archive className="mr-2 h-4 w-4" />
-                  Archive
-                </Button>
-              ) : null}
-
-              {customerPo.status !== "deleted" ? (
-                <Button
-                  variant="outline"
-                  onClick={() => void updateCustomerPoStatus("deleted")}
-                  disabled={isSaving}
-                  className="h-11 rounded-2xl border-rose-400/20 bg-rose-500/10 px-4 text-rose-200 hover:bg-rose-500/20"
-                >
-                  <Trash2 className="mr-2 h-4 w-4" />
-                  Delete
-                </Button>
-              ) : null}
-
-              {customerPo.status === "deleted" ? (
-                <Button
-                  variant="outline"
-                  onClick={() => void handleHardDelete()}
-                  disabled={isSaving}
-                  className="h-11 rounded-2xl border-rose-500/30 bg-rose-500/10 px-4 text-rose-200 hover:bg-rose-500/20"
-                >
-                  <Trash2 className="mr-2 h-4 w-4" />
-                  Hard Delete
-                </Button>
-              ) : null}
-            </div>
-          </div>
-        </header>
-
-        <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
-          <div className="group relative min-h-[156px] overflow-hidden rounded-[28px] border border-white/10 bg-white/[0.045] p-5 backdrop-blur-xl">
-            <div className="pointer-events-none absolute inset-0 bg-gradient-to-br from-cyan-500/20 via-cyan-400/10 to-transparent opacity-70" />
-            <div className="relative flex h-full flex-col justify-between gap-5">
-              <div>
-                <div className="text-[11px] font-semibold uppercase tracking-[0.2em] text-slate-500">
-                  Subtotal
-                </div>
-                <div className="mt-2 truncate text-3xl font-semibold tracking-[-0.035em] text-cyan-100">
-                  {formatMoney(lineSubtotal, displayedCurrencyCode)}
-                </div>
-              </div>
-              <div className="text-sm leading-6 text-slate-400">
-                Line value before discount and tax.
-              </div>
-            </div>
-          </div>
-
-          <div className="group relative min-h-[156px] overflow-hidden rounded-[28px] border border-white/10 bg-white/[0.045] p-5 backdrop-blur-xl">
-            <div className="pointer-events-none absolute inset-0 bg-gradient-to-br from-amber-500/20 via-amber-400/10 to-transparent opacity-70" />
-            <div className="relative flex h-full flex-col justify-between gap-5">
-              <div>
-                <div className="text-[11px] font-semibold uppercase tracking-[0.2em] text-slate-500">
-                  Discount
-                </div>
-                <div className="mt-2 truncate text-3xl font-semibold tracking-[-0.035em] text-amber-100">
-                  {formatMoney(lineDiscount, displayedCurrencyCode)}
-                </div>
-              </div>
-              <div className="text-sm leading-6 text-slate-400">
-                Customer PO discount value.
-              </div>
-            </div>
-          </div>
-
-          <div className="group relative min-h-[156px] overflow-hidden rounded-[28px] border border-white/10 bg-white/[0.045] p-5 backdrop-blur-xl">
-            <div className="pointer-events-none absolute inset-0 bg-gradient-to-br from-violet-500/20 via-violet-400/10 to-transparent opacity-70" />
-            <div className="relative flex h-full flex-col justify-between gap-5">
-              <div>
-                <div className="text-[11px] font-semibold uppercase tracking-[0.2em] text-slate-500">
-                  Tax
-                </div>
-                <div className="mt-2 truncate text-3xl font-semibold tracking-[-0.035em] text-violet-100">
-                  {formatMoney(lineTax, displayedCurrencyCode)}
-                </div>
-              </div>
-              <div className="text-sm leading-6 text-slate-400">
-                Derived from customer PO lines.
-              </div>
-            </div>
-          </div>
-
-          <div className="group relative min-h-[156px] overflow-hidden rounded-[28px] border border-white/10 bg-white/[0.045] p-5 backdrop-blur-xl">
-            <div className="pointer-events-none absolute inset-0 bg-gradient-to-br from-emerald-500/20 via-emerald-400/10 to-transparent opacity-70" />
-            <div className="relative flex h-full flex-col justify-between gap-5">
-              <div>
-                <div className="text-[11px] font-semibold uppercase tracking-[0.2em] text-slate-500">
-                  Total
-                </div>
-                <div className="mt-2 truncate text-3xl font-semibold tracking-[-0.035em] text-emerald-100">
-                  {formatMoney(totalDisplayValue, displayedCurrencyCode)}
-                </div>
-              </div>
-              <div className="text-sm leading-6 text-slate-400">
-                Saved customer commitment value.
-              </div>
-            </div>
-          </div>
+          {customerPo.status === "deleted" ? (
+            <AixiaButton
+              type="button"
+              variant="danger"
+              onClick={() => void handleHardDelete()}
+              disabled={isSaving}
+            >
+              <Trash2 className="h-4 w-4" />
+              Delete Permanently
+            </AixiaButton>
+          ) : null}
         </div>
+      </AixiaSection>
 
-        <div className="grid grid-cols-1 gap-6 xl:grid-cols-[minmax(0,1.45fr)_420px]">
-          <div className="space-y-6">
-            <Card className={activeSectionClass}>
-              <CardHeader className="flex flex-row items-center justify-between border-b border-white/10 px-5 py-4">
-                <div className="flex items-center gap-3">
-                  <div className="rounded-2xl border border-cyan-400/15 bg-cyan-500/10 p-3 text-cyan-200">
-                    <FileText className="h-4 w-4" />
-                  </div>
-                  <div>
-                    <CardTitle className="text-sm font-semibold uppercase tracking-[0.18em] text-slate-400">
-                      Document Overview
-                    </CardTitle>
-                    <CardDescription className="mt-1 text-xs text-slate-500">
-                      Customer PO identity, linked quotation, client, company, currency, dates, and notes.
-                    </CardDescription>
-                  </div>
-                </div>
-
-                {canEditDetails ? (
-                  <div className="flex items-center gap-2">
-                    {isEditingDetails ? (
-                      <>
-                        <Button
-                          onClick={() => void handleSaveDetailsEdit()}
-                          disabled={isSaving}
-                          className="h-9 rounded-2xl border border-cyan-400/20 bg-cyan-500 px-3 font-semibold text-slate-950 hover:bg-cyan-400"
-                        >
-                          <Save className="mr-2 h-4 w-4" />
-                          {isSaving ? "Saving..." : "Save"}
-                        </Button>
-
-                        <Button
-                          variant="outline"
-                          onClick={() => {
-                            setIsEditingDetails(false);
-                            resetEditDraft();
-                          }}
-                          className="h-9 rounded-2xl border-white/10 bg-white/[0.05] px-3 text-white hover:bg-white/[0.08]"
-                        >
-                          Cancel
-                        </Button>
-                      </>
-                    ) : (
-                      <Button
-                        variant="outline"
-                        onClick={() => setIsEditingDetails(true)}
-                        className="h-9 rounded-2xl border-white/10 bg-white/[0.05] px-3 text-white hover:bg-white/[0.08]"
+      <AixiaSmartLayout
+        sidebar="normal"
+        balance="main"
+        bottomSpan="never"
+        sideRebalance="last-to-bottom"
+        main={
+          <>
+            <AixiaDetailSection
+              title="Document Overview"
+              description="Customer PO identity, linked quotation, client, company, currency, dates, and notes."
+              icon={FileText}
+              actions={
+                canEditDetails ? (
+                  isEditingDetails ? (
+                    <>
+                      <AixiaButton
+                        type="button"
+                        variant="primary"
+                        onClick={() => void handleSaveDetailsEdit()}
+                        disabled={isSaving}
                       >
-                        <SquarePen className="mr-2 h-4 w-4" />
-                        Edit
-                      </Button>
-                    )}
-                  </div>
-                ) : null}
-              </CardHeader>
-
-              <CardContent className="grid grid-cols-1 gap-4 p-5 md:grid-cols-3">
-                <div className={summaryBlockClass}>
-                  <div className={labelClass}>Internal CPO No.</div>
-                  <div className="mt-2 text-2xl font-semibold text-white">
+                        <Save className="h-4 w-4" />
+                        {isSaving ? "Saving..." : "Save"}
+                      </AixiaButton>
+                      <AixiaButton
+                        type="button"
+                        variant="secondary"
+                        onClick={() => {
+                          setIsEditingDetails(false);
+                          resetEditDraft();
+                        }}
+                      >
+                        Cancel
+                      </AixiaButton>
+                    </>
+                  ) : (
+                    <AixiaButton
+                      type="button"
+                      variant="primary"
+                      onClick={() => setIsEditingDetails(true)}
+                    >
+                      <SquarePen className="h-4 w-4" />
+                      Edit
+                    </AixiaButton>
+                  )
+                ) : null
+              }
+            >
+              <AixiaFormGrid columns="three">
+                <AixiaFormField>
+                  <AixiaFieldLabel label="Internal CPO No." />
+                  <AixiaDisplayBlock>
                     {customerPo.client_po_number || "Pending"}
-                  </div>
-                </div>
+                  </AixiaDisplayBlock>
+                </AixiaFormField>
 
-                <div className={summaryBlockClass}>
-                  <div className={labelClass}>Customer PO No.</div>
+                <AixiaFormField>
+                  <AixiaFieldLabel label="Customer PO No." required={isEditingDetails} />
                   {isEditingDetails ? (
-                    <input
+                    <AixiaInputField
                       value={editDraft.external_po_number}
                       onChange={(event) =>
                         setEditDraft((current) => ({
@@ -2079,24 +1943,22 @@ export default function FinanceCustomerPoDetailPage() {
                           external_po_number: event.target.value,
                         }))
                       }
-                      className={fieldShellClass}
                     />
                   ) : (
-                    <div className="mt-2 text-2xl font-semibold text-white">
+                    <AixiaDisplayBlock>
                       {customerPo.external_po_number || "—"}
-                    </div>
+                    </AixiaDisplayBlock>
                   )}
-                </div>
+                </AixiaFormField>
 
-                <div className={summaryBlockClass}>
-                  <div className={labelClass}>Linked Quotation</div>
+                <AixiaFormField>
+                  <AixiaFieldLabel label="Linked Quotation" />
                   {isEditingDetails ? (
-                    <select
+                    <AixiaSelectField
                       value={editDraft.quotation_id}
                       onChange={(event) =>
                         void handleQuotationChange(event.target.value)
                       }
-                      className={fieldShellClass}
                     >
                       <option value="">No linked quotation</option>
                       {filteredQuotations.map((quotationItem) => (
@@ -2108,21 +1970,20 @@ export default function FinanceCustomerPoDetailPage() {
                           )}
                         </option>
                       ))}
-                    </select>
+                    </AixiaSelectField>
                   ) : (
-                    <div className="mt-2 text-2xl font-semibold text-white">
+                    <AixiaDisplayBlock>
                       {quotation?.quotation_number || "—"}
-                    </div>
+                    </AixiaDisplayBlock>
                   )}
-                </div>
+                </AixiaFormField>
 
-                <div className={summaryBlockClass}>
-                  <div className={labelClass}>Client</div>
+                <AixiaFormField>
+                  <AixiaFieldLabel label="Client" required={isEditingDetails} />
                   {isEditingDetails ? (
-                    <select
+                    <AixiaSelectField
                       value={editDraft.client_id}
                       onChange={(event) => handleClientChange(event.target.value)}
-                      className={fieldShellClass}
                     >
                       <option value="">Select client</option>
                       {clients.map((client) => (
@@ -2130,18 +1991,18 @@ export default function FinanceCustomerPoDetailPage() {
                           {client.legal_name || client.name}
                         </option>
                       ))}
-                    </select>
+                    </AixiaSelectField>
                   ) : (
-                    <div className="mt-2 text-2xl font-semibold text-white">
+                    <AixiaDisplayBlock>
                       {customerPo.client_name_snapshot || "—"}
-                    </div>
+                    </AixiaDisplayBlock>
                   )}
-                </div>
+                </AixiaFormField>
 
-                <div className={summaryBlockClass}>
-                  <div className={labelClass}>Issuing Company</div>
+                <AixiaFormField>
+                  <AixiaFieldLabel label="Issuing Company" required={isEditingDetails} />
                   {isEditingDetails ? (
-                    <select
+                    <AixiaSelectField
                       value={editDraft.company_id}
                       onChange={(event) =>
                         setEditDraft((current) => ({
@@ -2149,7 +2010,6 @@ export default function FinanceCustomerPoDetailPage() {
                           company_id: event.target.value,
                         }))
                       }
-                      className={fieldShellClass}
                     >
                       <option value="">Select company</option>
                       {companies.map((company) => (
@@ -2157,21 +2017,20 @@ export default function FinanceCustomerPoDetailPage() {
                           {company.legal_name || company.name}
                         </option>
                       ))}
-                    </select>
+                    </AixiaSelectField>
                   ) : (
-                    <div className="mt-2 text-2xl font-semibold text-white">
+                    <AixiaDisplayBlock>
                       {customerPo.company_name_snapshot || "—"}
-                    </div>
+                    </AixiaDisplayBlock>
                   )}
-                </div>
+                </AixiaFormField>
 
-                <div className={summaryBlockClass}>
-                  <div className={labelClass}>Currency</div>
+                <AixiaFormField>
+                  <AixiaFieldLabel label="Currency" required={isEditingDetails} />
                   {isEditingDetails ? (
-                    <select
+                    <AixiaSelectField
                       value={editDraft.currency_id}
                       onChange={(event) => handleCurrencyChange(event.target.value)}
-                      className={fieldShellClass}
                     >
                       <option value="">Select currency</option>
                       {currencies.map((currency) => (
@@ -2179,18 +2038,16 @@ export default function FinanceCustomerPoDetailPage() {
                           {currency.currency_code} — {currency.currency_name || ""}
                         </option>
                       ))}
-                    </select>
+                    </AixiaSelectField>
                   ) : (
-                    <div className="mt-2 text-2xl font-semibold text-white">
-                      {displayedCurrencyCode}
-                    </div>
+                    <AixiaDisplayBlock>{displayedCurrencyCode}</AixiaDisplayBlock>
                   )}
-                </div>
+                </AixiaFormField>
 
-                <div className={summaryBlockClass}>
-                  <div className={labelClass}>PO Date</div>
+                <AixiaFormField>
+                  <AixiaFieldLabel label="PO Date" />
                   {isEditingDetails ? (
-                    <input
+                    <AixiaInputField
                       type="date"
                       value={editDraft.po_date}
                       onChange={(event) =>
@@ -2199,19 +2056,16 @@ export default function FinanceCustomerPoDetailPage() {
                           po_date: event.target.value,
                         }))
                       }
-                      className={fieldShellClass}
                     />
                   ) : (
-                    <div className="mt-2 text-2xl font-semibold text-white">
-                      {formatDate(customerPo.po_date)}
-                    </div>
+                    <AixiaDisplayBlock>{formatDate(customerPo.po_date)}</AixiaDisplayBlock>
                   )}
-                </div>
+                </AixiaFormField>
 
-                <div className={summaryBlockClass}>
-                  <div className={labelClass}>Received</div>
+                <AixiaFormField>
+                  <AixiaFieldLabel label="Received" />
                   {isEditingDetails ? (
-                    <input
+                    <AixiaInputField
                       type="date"
                       value={editDraft.received_date}
                       onChange={(event) =>
@@ -2220,32 +2074,25 @@ export default function FinanceCustomerPoDetailPage() {
                           received_date: event.target.value,
                         }))
                       }
-                      className={fieldShellClass}
                     />
                   ) : (
-                    <div className="mt-2 text-2xl font-semibold text-white">
+                    <AixiaDisplayBlock>
                       {formatDate(customerPo.received_at)}
-                    </div>
+                    </AixiaDisplayBlock>
                   )}
-                </div>
+                </AixiaFormField>
 
-                <div className={summaryBlockClass}>
-                  <div className={labelClass}>Status</div>
-                  <div className="mt-2">
-                    <Badge
-                      className={`rounded-full border px-3 py-1 text-xs shadow-none ${getStatusBadgeClasses(
-                        customerPo.status
-                      )}`}
-                    >
-                      {getStatusLabel(customerPo.status)}
-                    </Badge>
-                  </div>
-                </div>
+                <AixiaFormField>
+                  <AixiaFieldLabel label="Status" />
+                  <AixiaDisplayBlock>
+                    <AixiaStatusBadge value={customerPo.status} />
+                  </AixiaDisplayBlock>
+                </AixiaFormField>
 
-                <div className={summaryBlockClass}>
-                  <div className={labelClass}>Project</div>
+                <AixiaFormField>
+                  <AixiaFieldLabel label="Project" />
                   {isEditingDetails ? (
-                    <select
+                    <AixiaSelectField
                       value={editDraft.project_id}
                       onChange={(event) =>
                         setEditDraft((current) => ({
@@ -2254,7 +2101,6 @@ export default function FinanceCustomerPoDetailPage() {
                           task_id: "",
                         }))
                       }
-                      className={fieldShellClass}
                     >
                       <option value="">No project</option>
                       {projects.map((project) => (
@@ -2262,19 +2108,19 @@ export default function FinanceCustomerPoDetailPage() {
                           {project.name}
                         </option>
                       ))}
-                    </select>
+                    </AixiaSelectField>
                   ) : (
-                    <div className="mt-2 text-2xl font-semibold text-white">
+                    <AixiaDisplayBlock>
                       {projects.find((project) => project.id === customerPo.project_id)
                         ?.name || "—"}
-                    </div>
+                    </AixiaDisplayBlock>
                   )}
-                </div>
+                </AixiaFormField>
 
-                <div className={summaryBlockClass}>
-                  <div className={labelClass}>Task</div>
+                <AixiaFormField>
+                  <AixiaFieldLabel label="Task" />
                   {isEditingDetails ? (
-                    <select
+                    <AixiaSelectField
                       value={editDraft.task_id}
                       onChange={(event) =>
                         setEditDraft((current) => ({
@@ -2282,7 +2128,6 @@ export default function FinanceCustomerPoDetailPage() {
                           task_id: event.target.value,
                         }))
                       }
-                      className={fieldShellClass}
                     >
                       <option value="">No task</option>
                       {filteredTasks.map((task) => (
@@ -2290,26 +2135,26 @@ export default function FinanceCustomerPoDetailPage() {
                           {task.title}
                         </option>
                       ))}
-                    </select>
+                    </AixiaSelectField>
                   ) : (
-                    <div className="mt-2 text-2xl font-semibold text-white">
+                    <AixiaDisplayBlock>
                       {tasks.find((task) => task.id === customerPo.task_id)?.title ||
                         "—"}
-                    </div>
+                    </AixiaDisplayBlock>
                   )}
-                </div>
+                </AixiaFormField>
 
-                <div className={summaryBlockClass}>
-                  <div className={labelClass}>Verified</div>
-                  <div className="mt-2 text-2xl font-semibold text-white">
+                <AixiaFormField>
+                  <AixiaFieldLabel label="Verified" />
+                  <AixiaDisplayBlock>
                     {formatDate(customerPo.verified_at)}
-                  </div>
-                </div>
+                  </AixiaDisplayBlock>
+                </AixiaFormField>
 
-                <div className="rounded-[24px] border border-white/10 bg-black/20 p-4 md:col-span-3">
-                  <div className={labelClass}>Notes</div>
+                <AixiaFormFullWidth>
+                  <AixiaFieldLabel label="Notes" />
                   {isEditingDetails ? (
-                    <textarea
+                    <AixiaTextareaField
                       value={editDraft.notes}
                       onChange={(event) =>
                         setEditDraft((current) => ({
@@ -2318,497 +2163,394 @@ export default function FinanceCustomerPoDetailPage() {
                         }))
                       }
                       rows={4}
-                      className="mt-2 w-full rounded-2xl border border-white/10 bg-black/20 px-3 py-3 text-sm text-white outline-none transition focus:border-cyan-400/30 focus:bg-black/30"
                     />
                   ) : (
-                    <div className="mt-2 text-sm leading-6 text-slate-300">
+                    <AixiaDisplayBlock multiline>
                       {customerPo.notes || "—"}
-                    </div>
+                    </AixiaDisplayBlock>
                   )}
-                </div>
-              </CardContent>
-            </Card>
+                </AixiaFormFullWidth>
+              </AixiaFormGrid>
+            </AixiaDetailSection>
 
-            <Card className={activeSectionClass}>
-              <CardHeader className="flex flex-row items-center justify-between border-b border-white/10 px-5 py-4">
-                <div className="flex items-center gap-3">
-                  <div className="rounded-2xl border border-cyan-400/15 bg-cyan-500/10 p-3 text-cyan-200">
-                    <SquarePen className="h-4 w-4" />
-                  </div>
-                  <div>
-                    <CardTitle className="text-sm font-semibold uppercase tracking-[0.18em] text-slate-400">
-                      Customer PO Line Items
-                    </CardTitle>
-                    <CardDescription className="mt-1 text-xs text-slate-500">
-                      Editable customer PO lines copied from quotation or entered manually.
-                    </CardDescription>
-                  </div>
-                </div>
-
-                <div className="flex items-center gap-2">
-                  {isEditingLines ? (
-                    <>
-                      <Button
-                        onClick={() => void handleSaveLineItems()}
-                        disabled={isSaving}
-                        className="h-9 rounded-2xl border border-cyan-400/20 bg-cyan-500 px-3 font-semibold text-slate-950 hover:bg-cyan-400"
-                      >
-                        <Save className="mr-2 h-4 w-4" />
-                        {isSaving ? "Saving..." : "Save"}
-                      </Button>
-
-                      <Button
-                        variant="outline"
-                        onClick={addLine}
-                        className="h-9 rounded-2xl border-white/10 bg-white/[0.05] px-3 text-white hover:bg-white/[0.08]"
-                      >
-                        <Plus className="mr-2 h-4 w-4" />
-                        Add Line
-                      </Button>
-
-                      <Button
-                        variant="outline"
-                        onClick={() => {
-                          setIsEditingLines(false);
-                          resetLineDrafts();
-                        }}
-                        className="h-9 rounded-2xl border-white/10 bg-white/[0.05] px-3 text-white hover:bg-white/[0.08]"
-                      >
-                        Cancel
-                      </Button>
-                    </>
-                  ) : canEditDetails ? (
-                    <Button
-                      variant="outline"
-                      onClick={() => setIsEditingLines(true)}
-                      className="h-9 rounded-2xl border-white/10 bg-white/[0.05] px-3 text-white hover:bg-white/[0.08]"
+            <AixiaDetailSection
+              title="Customer PO Line Items"
+              description="Editable customer PO lines copied from quotation or entered manually."
+              icon={SquarePen}
+              actions={
+                isEditingLines ? (
+                  <>
+                    <AixiaButton
+                      type="button"
+                      variant="primary"
+                      onClick={() => void handleSaveLineItems()}
+                      disabled={isSaving}
                     >
-                      <SquarePen className="mr-2 h-4 w-4" />
-                      Edit
-                    </Button>
-                  ) : null}
-                </div>
-              </CardHeader>
+                      <Save className="h-4 w-4" />
+                      {isSaving ? "Saving..." : "Save"}
+                    </AixiaButton>
+                    <AixiaButton type="button" variant="secondary" onClick={addLine}>
+                      <Plus className="h-4 w-4" />
+                      Add Line
+                    </AixiaButton>
+                    <AixiaButton
+                      type="button"
+                      variant="secondary"
+                      onClick={() => {
+                        setIsEditingLines(false);
+                        resetLineDrafts();
+                      }}
+                    >
+                      Cancel
+                    </AixiaButton>
+                  </>
+                ) : canEditDetails ? (
+                  <AixiaButton
+                    type="button"
+                    variant="primary"
+                    onClick={() => setIsEditingLines(true)}
+                  >
+                    <SquarePen className="h-4 w-4" />
+                    Edit
+                  </AixiaButton>
+                ) : null
+              }
+            >
+              {isEditingLines ? (
+                <div className="aixia-form-row-list">
+                  {lineDrafts.map((line, index) => {
+                    const selectedItem = items.find((item) => item.id === line.item_id);
+                    const selectedTaxCode = taxCodes.find(
+                      (entry) => entry.id === line.tax_code_id
+                    );
+                    const selectedUnit = unitsOfMeasure.find(
+                      (unit) => unit.id === line.unit_of_measure_id
+                    );
+                    const selectedRevenueCategory = revenueCategories.find(
+                      (category) => category.id === line.revenue_category_id
+                    );
 
-              <CardContent className="p-5">
-                {isEditingLines ? (
-                  <div className="max-h-[720px] space-y-3 overflow-y-auto pr-1">
-                    {lineDrafts.map((line, index) => {
-                      const selectedItem = items.find(
-                        (item) => item.id === line.item_id
-                      );
-                      const selectedTaxCode = taxCodes.find(
-                        (entry) => entry.id === line.tax_code_id
-                      );
-                      const selectedUnit = unitsOfMeasure.find(
-                        (unit) => unit.id === line.unit_of_measure_id
-                      );
-                      const selectedRevenueCategory = revenueCategories.find(
-                        (category) => category.id === line.revenue_category_id
-                      );
+                    const base = Math.max(
+                      toNumber(line.quantity) * toNumber(line.unit_price) -
+                        toNumber(line.discount),
+                      0
+                    );
+                    const currentLineTotal =
+                      base + base * (toNumber(selectedTaxCode?.rate_percent) / 100);
 
-                      const base = Math.max(
-                        toNumber(line.quantity) * toNumber(line.unit_price) -
-                          toNumber(line.discount),
-                        0
-                      );
-                      const currentLineTotal =
-                        base +
-                        base * (toNumber(selectedTaxCode?.rate_percent) / 100);
-
-                      return (
-                        <div
-                          key={line.localId}
-                          className="rounded-[24px] border border-white/10 bg-black/20 p-4"
-                        >
-                          <div className="mb-4 flex items-center justify-between gap-4">
-                            <div className="flex flex-wrap items-center gap-2">
-                              <div className="text-sm font-semibold text-white">
-                                Line {index + 1}
-                              </div>
-
-                              {selectedItem ? (
-                                <Badge className="rounded-full border border-violet-400/20 bg-violet-500/10 px-3 py-1 text-[10px] font-semibold uppercase tracking-[0.18em] text-violet-200 shadow-none">
-                                  {selectedItem.name}
-                                </Badge>
-                              ) : null}
-                            </div>
-
-                            <Button
-                              variant="outline"
-                              onClick={() => removeLine(line.localId)}
-                              disabled={lineDrafts.length === 1}
-                              className="h-9 rounded-2xl border-white/10 bg-white/[0.05] px-3 text-white hover:bg-white/[0.08] disabled:cursor-not-allowed disabled:opacity-40"
+                    return (
+                      <AixiaFormRowCard
+                        key={line.localId}
+                        title={`Line ${index + 1}`}
+                        badge={
+                          selectedItem ? (
+                            <AixiaBadge tone="violet">{selectedItem.name}</AixiaBadge>
+                          ) : null
+                        }
+                        actions={
+                          <AixiaButton
+                            type="button"
+                            variant="danger"
+                            onClick={() => removeLine(line.localId)}
+                            disabled={lineDrafts.length === 1}
+                          >
+                            <Trash2 className="h-4 w-4" />
+                          </AixiaButton>
+                        }
+                      >
+                        <AixiaFormGrid columns="line">
+                          <AixiaFormField>
+                            <AixiaFieldLabel label="Item" />
+                            <AixiaSelectField
+                              value={line.item_id}
+                              onChange={(event) =>
+                                applyItemToLine(line.localId, event.target.value)
+                              }
                             >
-                              <Trash2 className="h-4 w-4" />
-                            </Button>
-                          </div>
+                              <option value="">Manual / no item</option>
+                              {items.map((item) => (
+                                <option key={item.id} value={item.id}>
+                                  {item.name}
+                                </option>
+                              ))}
+                            </AixiaSelectField>
+                          </AixiaFormField>
 
-                          <div className="grid grid-cols-1 gap-4 md:grid-cols-12">
-                            <label className="space-y-2 md:col-span-3">
-                              <div className={inputLabelClass}>Item</div>
-                              <select
-                                value={line.item_id}
-                                onChange={(event) =>
-                                  applyItemToLine(line.localId, event.target.value)
-                                }
-                                className={inputFieldClass}
-                              >
-                                <option value="">Manual / no item</option>
-                                {items.map((item) => (
-                                  <option key={item.id} value={item.id}>
-                                    {item.name}
-                                  </option>
-                                ))}
-                              </select>
-                            </label>
+                          <AixiaFormField>
+                            <AixiaFieldLabel label="Description" />
+                            <AixiaInputField
+                              value={line.description}
+                              onChange={(event) =>
+                                updateLine(
+                                  line.localId,
+                                  "description",
+                                  event.target.value
+                                )
+                              }
+                              placeholder="Description"
+                            />
+                          </AixiaFormField>
 
-                            <label className="space-y-2 md:col-span-4">
-                              <div className={inputLabelClass}>Description</div>
-                              <input
-                                value={line.description}
-                                onChange={(event) =>
-                                  updateLine(
-                                    line.localId,
-                                    "description",
-                                    event.target.value
-                                  )
-                                }
-                                placeholder="Description"
-                                className={inputFieldClass}
-                              />
-                            </label>
+                          <AixiaFormField>
+                            <AixiaFieldLabel label="Qty" />
+                            <AixiaInputField
+                              value={line.quantity}
+                              onChange={(event) =>
+                                updateLine(line.localId, "quantity", event.target.value)
+                              }
+                            />
+                          </AixiaFormField>
 
-                            <label className="space-y-2 md:col-span-1">
-                              <div className={inputLabelClass}>Qty</div>
-                              <input
-                                value={line.quantity}
-                                onChange={(event) =>
-                                  updateLine(
-                                    line.localId,
-                                    "quantity",
-                                    event.target.value
-                                  )
-                                }
-                                className={inputFieldClass}
-                              />
-                            </label>
+                          <AixiaFormField>
+                            <AixiaFieldLabel label="Unit" />
+                            <AixiaSelectField
+                              value={line.unit_of_measure_id}
+                              onChange={(event) =>
+                                updateLine(
+                                  line.localId,
+                                  "unit_of_measure_id",
+                                  event.target.value
+                                )
+                              }
+                            >
+                              <option value="">No unit</option>
+                              {unitsOfMeasure.map((unit) => (
+                                <option key={unit.id} value={unit.id}>
+                                  {unit.code} — {unit.name}
+                                </option>
+                              ))}
+                            </AixiaSelectField>
+                            {selectedUnit ? (
+                              <div className="aixia-helper-text">{selectedUnit.code}</div>
+                            ) : null}
+                          </AixiaFormField>
 
-                            <label className="space-y-2 md:col-span-2">
-                              <div className={inputLabelClass}>Unit</div>
-                              <select
-                                value={line.unit_of_measure_id}
-                                onChange={(event) =>
-                                  updateLine(
-                                    line.localId,
-                                    "unit_of_measure_id",
-                                    event.target.value
-                                  )
-                                }
-                                className={inputFieldClass}
-                              >
-                                <option value="">No unit</option>
-                                {unitsOfMeasure.map((unit) => (
-                                  <option key={unit.id} value={unit.id}>
-                                    {unit.code} — {unit.name}
-                                  </option>
-                                ))}
-                              </select>
-                              {selectedUnit ? (
-                                <div className="text-[11px] text-slate-500">
-                                  {selectedUnit.code}
-                                </div>
-                              ) : null}
-                            </label>
+                          <AixiaFormField>
+                            <AixiaFieldLabel label="Unit Price" />
+                            <AixiaInputField
+                              value={line.unit_price}
+                              onChange={(event) =>
+                                updateLine(
+                                  line.localId,
+                                  "unit_price",
+                                  event.target.value
+                                )
+                              }
+                            />
+                          </AixiaFormField>
 
-                            <label className="space-y-2 md:col-span-2">
-                              <div className={inputLabelClass}>Unit Price</div>
-                              <input
-                                value={line.unit_price}
-                                onChange={(event) =>
-                                  updateLine(
-                                    line.localId,
-                                    "unit_price",
-                                    event.target.value
-                                  )
-                                }
-                                className={inputFieldClass}
-                              />
-                            </label>
+                          <AixiaFormField>
+                            <AixiaFieldLabel label="Discount" />
+                            <AixiaInputField
+                              value={line.discount}
+                              onChange={(event) =>
+                                updateLine(line.localId, "discount", event.target.value)
+                              }
+                            />
+                          </AixiaFormField>
 
-                            <label className="space-y-2 md:col-span-2">
-                              <div className={inputLabelClass}>Discount</div>
-                              <input
-                                value={line.discount}
-                                onChange={(event) =>
-                                  updateLine(
-                                    line.localId,
-                                    "discount",
-                                    event.target.value
-                                  )
-                                }
-                                className={inputFieldClass}
-                              />
-                            </label>
+                          <AixiaFormField>
+                            <AixiaFieldLabel label="Tax Code" />
+                            <AixiaSelectField
+                              value={line.tax_code_id}
+                              onChange={(event) =>
+                                updateLine(
+                                  line.localId,
+                                  "tax_code_id",
+                                  event.target.value
+                                )
+                              }
+                            >
+                              <option value="">No tax</option>
+                              {taxCodes.map((taxCode) => (
+                                <option key={taxCode.id} value={taxCode.id}>
+                                  {taxCode.name}
+                                </option>
+                              ))}
+                            </AixiaSelectField>
+                          </AixiaFormField>
 
-                            <label className="space-y-2 md:col-span-2">
-                              <div className={inputLabelClass}>Tax Code</div>
-                              <select
-                                value={line.tax_code_id}
-                                onChange={(event) =>
-                                  updateLine(
-                                    line.localId,
-                                    "tax_code_id",
-                                    event.target.value
-                                  )
-                                }
-                                className={inputFieldClass}
-                              >
-                                <option value="">No tax</option>
-                                {taxCodes.map((taxCode) => (
-                                  <option key={taxCode.id} value={taxCode.id}>
-                                    {taxCode.name}
-                                  </option>
-                                ))}
-                              </select>
-                            </label>
-
-                            <label className="space-y-2 md:col-span-3">
-                              <div className={inputLabelClass}>
-                                Revenue Category
-                              </div>
-                              <select
-                                value={line.revenue_category_id}
-                                onChange={(event) =>
-                                  updateLine(
-                                    line.localId,
-                                    "revenue_category_id",
-                                    event.target.value
-                                  )
-                                }
-                                className={inputFieldClass}
-                              >
-                                <option value="">No category</option>
-                                {revenueCategories.map((category) => (
-                                  <option key={category.id} value={category.id}>
-                                    {category.name}
-                                  </option>
-                                ))}
-                              </select>
-                              {selectedRevenueCategory?.code ? (
-                                <div className="text-[11px] text-slate-500">
-                                  {selectedRevenueCategory.code}
-                                </div>
-                              ) : null}
-                            </label>
-
-                            <div className="space-y-2 md:col-span-3">
-                              <div className={inputLabelClass}>Line Total</div>
-                              <div className="flex min-h-[44px] items-center rounded-2xl border border-cyan-400/15 bg-cyan-500/10 px-4 text-sm font-semibold text-cyan-100">
-                                {formatMoney(
-                                  currentLineTotal,
-                                  displayedCurrencyCode
-                                )}
-                              </div>
-                            </div>
-
-                            <label className="space-y-2 md:col-span-12">
-                              <div className={inputLabelClass}>Notes</div>
-                              <input
-                                value={line.notes}
-                                onChange={(event) =>
-                                  updateLine(
-                                    line.localId,
-                                    "notes",
-                                    event.target.value
-                                  )
-                                }
-                                className={inputFieldClass}
-                              />
-                            </label>
-                          </div>
-                        </div>
-                      );
-                    })}
-                  </div>
-      
-                ) : lineItems.length === 0 ? (
-                  <div className="rounded-[22px] border border-white/10 bg-black/20 px-4 py-6 text-sm text-slate-500">
-                    No Customer PO line items found.
-                  </div>
-                ) : (
-                  <div className="max-h-[720px] space-y-3 overflow-y-auto pr-1">
-                    {lineItems.map((line, index) => {
-                      const unitLabel =
-                        line.finance_units_of_measure?.code ||
-                        line.finance_units_of_measure?.name ||
-                        "—";
-
-                      const taxLabel =
-                        line.finance_tax_codes?.name ||
-                        line.finance_tax_codes?.code ||
-                        "—";
-
-                      const revenueLabel =
-                        line.finance_revenue_categories?.name ||
-                        line.finance_revenue_categories?.code ||
-                        "—";
-
-                      return (
-                        <div
-                          key={line.id}
-                          className="rounded-[24px] border border-white/10 bg-black/20 p-4"
-                        >
-                          <div className="mb-4 flex items-center justify-between gap-4">
-                            <div className="flex flex-wrap items-center gap-2">
-                              <div className="text-sm font-semibold text-white">
-                                Line {line.sort_order ?? index + 1}
-                              </div>
-
-                              {line.item?.name ? (
-                                <Badge className="rounded-full border border-violet-400/20 bg-violet-500/10 px-3 py-1 text-[10px] font-semibold uppercase tracking-[0.18em] text-violet-200 shadow-none">
-                                  {line.item.name}
-                                </Badge>
-                              ) : null}
-                            </div>
-                          </div>
-
-                          <div className="grid grid-cols-1 gap-4 md:grid-cols-12">
-                            <div className="space-y-2 md:col-span-3">
-                              <div className={inputLabelClass}>Item</div>
-                              <div className={readOnlyFieldClass}>
-                                {line.item?.name || "—"}
-                              </div>
-                            </div>
-
-                            <div className="space-y-2 md:col-span-4">
-                              <div className={inputLabelClass}>Description</div>
-                              <div className={readOnlyFieldClass}>
-                                {line.description || "—"}
-                              </div>
-                            </div>
-
-                            <div className="space-y-2 md:col-span-1">
-                              <div className={inputLabelClass}>Qty</div>
-                              <div className={readOnlyFieldClass}>
-                                {toNumber(line.quantity)}
-                              </div>
-                            </div>
-
-                            <div className="space-y-2 md:col-span-2">
-                              <div className={inputLabelClass}>Unit</div>
-                              <div className={readOnlyFieldClass}>{unitLabel}</div>
-                            </div>
-
-                            <div className="space-y-2 md:col-span-2">
-                              <div className={inputLabelClass}>Unit Price</div>
-                              <div className={readOnlyFieldClass}>
-                                {formatMoney(line.unit_price, displayedCurrencyCode)}
-                              </div>
-                            </div>
-
-                            <div className="space-y-2 md:col-span-2">
-                              <div className={inputLabelClass}>Discount</div>
-                              <div className={readOnlyFieldClass}>
-                                {formatMoney(line.discount, displayedCurrencyCode)}
-                              </div>
-                            </div>
-
-                            <div className="space-y-2 md:col-span-2">
-                              <div className={inputLabelClass}>Tax Code</div>
-                              <div className={readOnlyFieldClass}>{taxLabel}</div>
-                            </div>
-
-                            <div className="space-y-2 md:col-span-3">
-                              <div className={inputLabelClass}>
-                                Revenue Category
-                              </div>
-                              <div className={readOnlyFieldClass}>
-                                {revenueLabel}
-                              </div>
-                            </div>
-
-                            <div className="space-y-2 md:col-span-3">
-                              <div className={inputLabelClass}>Line Total</div>
-                              <div className="flex min-h-[44px] items-center rounded-2xl border border-cyan-400/15 bg-cyan-500/10 px-4 text-sm font-semibold text-cyan-100">
-                                {formatMoney(
-                                  line.line_total,
-                                  displayedCurrencyCode
-                                )}
-                              </div>
-                            </div>
-
-                            {line.notes ? (
-                              <div className="space-y-2 md:col-span-12">
-                                <div className={inputLabelClass}>Notes</div>
-                                <div className="rounded-2xl border border-white/10 bg-black/20 px-4 py-3 text-sm leading-6 text-slate-300">
-                                  {line.notes}
-                                </div>
+                          <AixiaFormField>
+                            <AixiaFieldLabel label="Revenue Category" />
+                            <AixiaSelectField
+                              value={line.revenue_category_id}
+                              onChange={(event) =>
+                                updateLine(
+                                  line.localId,
+                                  "revenue_category_id",
+                                  event.target.value
+                                )
+                              }
+                            >
+                              <option value="">No category</option>
+                              {revenueCategories.map((category) => (
+                                <option key={category.id} value={category.id}>
+                                  {category.name}
+                                </option>
+                              ))}
+                            </AixiaSelectField>
+                            {selectedRevenueCategory?.code ? (
+                              <div className="aixia-helper-text">
+                                {selectedRevenueCategory.code}
                               </div>
                             ) : null}
-                          </div>
-                        </div>
-                      );
-                    })}
-                  </div>
-                )}
+                          </AixiaFormField>
 
-                <div className="mt-5 grid grid-cols-1 gap-4 md:grid-cols-4">
-                  <div className={summaryBlockClass}>
-                    <div className={labelClass}>Subtotal</div>
-                    <div className="mt-2 text-2xl font-semibold text-white">
-                      {formatMoney(lineSubtotal, displayedCurrencyCode)}
-                    </div>
-                  </div>
+                          <AixiaFormField>
+                            <AixiaFieldLabel label="Line Total" />
+                            <AixiaDisplayBlock tone="cyan">
+                              {formatMoney(currentLineTotal, displayedCurrencyCode)}
+                            </AixiaDisplayBlock>
+                          </AixiaFormField>
 
-                  <div className={summaryBlockClass}>
-                    <div className={labelClass}>Discount</div>
-                    <div className="mt-2 text-2xl font-semibold text-white">
-                      {formatMoney(lineDiscount, displayedCurrencyCode)}
-                    </div>
-                  </div>
-
-                  <div className={summaryBlockClass}>
-                    <div className={labelClass}>Tax</div>
-                    <div className="mt-2 text-2xl font-semibold text-white">
-                      {formatMoney(lineTax, displayedCurrencyCode)}
-                    </div>
-                  </div>
-
-                  <div className="rounded-[24px] border border-cyan-400/15 bg-cyan-500/10 p-4">
-                    <div className={labelClass}>Total</div>
-                    <div className="mt-2 text-2xl font-semibold text-cyan-100">
-                      {formatMoney(lineTotal, displayedCurrencyCode)}
-                    </div>
-                  </div>
+                          <AixiaFormFullWidth>
+                            <AixiaFieldLabel label="Notes" />
+                            <AixiaInputField
+                              value={line.notes}
+                              onChange={(event) =>
+                                updateLine(line.localId, "notes", event.target.value)
+                              }
+                            />
+                          </AixiaFormFullWidth>
+                        </AixiaFormGrid>
+                      </AixiaFormRowCard>
+                    );
+                  })}
                 </div>
-              </CardContent>
-            </Card>
+              ) : lineItems.length === 0 ? (
+                <AixiaEmptyState
+                  icon={SquarePen}
+                  title="No Customer PO line items found"
+                  description="Line items copied from a quotation or entered manually will appear here."
+                />
+              ) : (
+                <div className="aixia-form-row-list">
+                  {lineItems.map((line, index) => {
+                    const unitLabel =
+                      line.finance_units_of_measure?.code ||
+                      line.finance_units_of_measure?.name ||
+                      "—";
 
-            <Card className={activeSectionClass}>
-              <CardHeader className="border-b border-white/10 px-5 py-4">
-                <div className="flex items-center gap-3">
-                  <div className="rounded-2xl border border-violet-400/15 bg-violet-500/10 p-3 text-violet-200">
-                    <Link2 className="h-4 w-4" />
-                  </div>
-                  <div>
-                    <CardTitle className="text-sm font-semibold uppercase tracking-[0.18em] text-slate-400">
-                      Linked Documents
-                    </CardTitle>
-                    <CardDescription className="mt-1 text-xs text-slate-500">
-                      Source quotation and downstream proforma invoice.
-                    </CardDescription>
-                  </div>
+                    const taxLabel =
+                      line.finance_tax_codes?.name ||
+                      line.finance_tax_codes?.code ||
+                      "—";
+
+                    const revenueLabel =
+                      line.finance_revenue_categories?.name ||
+                      line.finance_revenue_categories?.code ||
+                      "—";
+
+                    return (
+                      <AixiaFormRowCard
+                        key={line.id}
+                        title={`Line ${line.sort_order ?? index + 1}`}
+                        badge={
+                          line.item?.name ? (
+                            <AixiaBadge tone="violet">{line.item.name}</AixiaBadge>
+                          ) : null
+                        }
+                      >
+                        <AixiaFormGrid columns="line">
+                          <AixiaFormField>
+                            <AixiaFieldLabel label="Item" />
+                            <AixiaDisplayBlock>{line.item?.name || "—"}</AixiaDisplayBlock>
+                          </AixiaFormField>
+                          <AixiaFormField>
+                            <AixiaFieldLabel label="Description" />
+                            <AixiaDisplayBlock>{line.description || "—"}</AixiaDisplayBlock>
+                          </AixiaFormField>
+                          <AixiaFormField>
+                            <AixiaFieldLabel label="Qty" />
+                            <AixiaDisplayBlock>{toNumber(line.quantity)}</AixiaDisplayBlock>
+                          </AixiaFormField>
+                          <AixiaFormField>
+                            <AixiaFieldLabel label="Unit" />
+                            <AixiaDisplayBlock>{unitLabel}</AixiaDisplayBlock>
+                          </AixiaFormField>
+                          <AixiaFormField>
+                            <AixiaFieldLabel label="Unit Price" />
+                            <AixiaDisplayBlock>
+                              {formatMoney(line.unit_price, displayedCurrencyCode)}
+                            </AixiaDisplayBlock>
+                          </AixiaFormField>
+                          <AixiaFormField>
+                            <AixiaFieldLabel label="Discount" />
+                            <AixiaDisplayBlock>
+                              {formatMoney(line.discount, displayedCurrencyCode)}
+                            </AixiaDisplayBlock>
+                          </AixiaFormField>
+                          <AixiaFormField>
+                            <AixiaFieldLabel label="Tax Code" />
+                            <AixiaDisplayBlock>{taxLabel}</AixiaDisplayBlock>
+                          </AixiaFormField>
+                          <AixiaFormField>
+                            <AixiaFieldLabel label="Revenue Category" />
+                            <AixiaDisplayBlock>{revenueLabel}</AixiaDisplayBlock>
+                          </AixiaFormField>
+                          <AixiaFormField>
+                            <AixiaFieldLabel label="Line Total" />
+                            <AixiaDisplayBlock tone="cyan">
+                              {formatMoney(line.line_total, displayedCurrencyCode)}
+                            </AixiaDisplayBlock>
+                          </AixiaFormField>
+                          {line.notes ? (
+                            <AixiaFormFullWidth>
+                              <AixiaFieldLabel label="Notes" />
+                              <AixiaDisplayBlock multiline>{line.notes}</AixiaDisplayBlock>
+                            </AixiaFormFullWidth>
+                          ) : null}
+                        </AixiaFormGrid>
+                      </AixiaFormRowCard>
+                    );
+                  })}
                 </div>
-              </CardHeader>
+              )}
 
-              <CardContent className="grid grid-cols-1 gap-4 p-5 md:grid-cols-2">
-                <div className={summaryBlockClass}>
-                  <div className={labelClass}>Linked Quotation</div>
-                  <div className="mt-2 text-2xl font-semibold text-white">
+              <AixiaMetricGrid>
+                <AixiaMetricCard
+                  label="Subtotal"
+                  value={formatMoney(lineSubtotal, displayedCurrencyCode)}
+                  description="Line subtotal."
+                  icon={FileText}
+                  tone="cyan"
+                />
+                <AixiaMetricCard
+                  label="Discount"
+                  value={formatMoney(lineDiscount, displayedCurrencyCode)}
+                  description="Line discount."
+                  icon={FileText}
+                  tone="gold"
+                />
+                <AixiaMetricCard
+                  label="Tax"
+                  value={formatMoney(lineTax, displayedCurrencyCode)}
+                  description="Calculated tax."
+                  icon={FileText}
+                  tone="violet"
+                />
+                <AixiaMetricCard
+                  label="Total"
+                  value={formatMoney(lineTotal, displayedCurrencyCode)}
+                  description="Line total."
+                  icon={CheckCircle}
+                  tone="emerald"
+                />
+              </AixiaMetricGrid>
+            </AixiaDetailSection>
+
+            <AixiaSection
+              title="Linked Documents"
+              description="Source quotation and downstream proforma invoice."
+              icon={Link2}
+            >
+              <AixiaFormGrid columns="two">
+                <AixiaFormField>
+                  <AixiaFieldLabel label="Linked Quotation" />
+                  <AixiaDisplayBlock>
                     {quotation?.quotation_number || selectedQuotation?.quotation_number || "—"}
-                  </div>
-                  <div className="mt-2 text-sm leading-6 text-slate-400">
+                  </AixiaDisplayBlock>
+                  <div className="aixia-helper-text">
                     {quotation || selectedQuotation
                       ? `${(quotation || selectedQuotation)?.status || "—"} · ${formatMoney(
                           (quotation || selectedQuotation)?.total_amount,
@@ -2818,8 +2560,9 @@ export default function FinanceCustomerPoDetailPage() {
                       : "No quotation linked."}
                   </div>
                   {quotation || selectedQuotation ? (
-                    <Button
-                      variant="outline"
+                    <AixiaButton
+                      type="button"
+                      variant="primary"
                       onClick={() =>
                         navigate(
                           `/finance/transactions/quotations/${
@@ -2827,20 +2570,17 @@ export default function FinanceCustomerPoDetailPage() {
                           }`
                         )
                       }
-                      className="mt-4 h-9 rounded-2xl border-cyan-400/20 bg-cyan-500/10 px-3 text-cyan-200 hover:bg-cyan-500/20"
                     >
-                      <Eye className="mr-2 h-4 w-4" />
+                      <Eye className="h-4 w-4" />
                       Open
-                    </Button>
+                    </AixiaButton>
                   ) : null}
-                </div>
+                </AixiaFormField>
 
-                <div className={summaryBlockClass}>
-                  <div className={labelClass}>Linked Proforma Invoice</div>
-                  <div className="mt-2 text-2xl font-semibold text-white">
-                    {proforma?.proforma_number || "—"}
-                  </div>
-                  <div className="mt-2 text-sm leading-6 text-slate-400">
+                <AixiaFormField>
+                  <AixiaFieldLabel label="Linked Proforma Invoice" />
+                  <AixiaDisplayBlock>{proforma?.proforma_number || "—"}</AixiaDisplayBlock>
+                  <div className="aixia-helper-text">
                     {proforma
                       ? `${proforma.status || "—"} · ${formatMoney(
                           proforma.total_amount,
@@ -2849,194 +2589,160 @@ export default function FinanceCustomerPoDetailPage() {
                       : "No proforma invoice linked yet."}
                   </div>
                   {proforma ? (
-                    <Button
-                      variant="outline"
+                    <AixiaButton
+                      type="button"
+                      variant="primary"
                       onClick={() =>
                         navigate(
                           `/finance/transactions/proforma-invoices/${proforma.id}`
                         )
                       }
-                      className="mt-4 h-9 rounded-2xl border-violet-400/20 bg-violet-500/10 px-3 text-violet-200 hover:bg-violet-500/20"
                     >
-                      <Eye className="mr-2 h-4 w-4" />
+                      <Eye className="h-4 w-4" />
                       Open
-                    </Button>
+                    </AixiaButton>
                   ) : null}
-                </div>
-              </CardContent>
-            </Card>
-          </div>
+                </AixiaFormField>
+              </AixiaFormGrid>
+            </AixiaSection>
+          </>
+        }
+        side={
+          <>
+            <AixiaSection
+              title="Customer PO Document"
+              description="Upload or view the customer purchase order document."
+              icon={Paperclip}
+            >
+              <input
+                ref={fileInputRef}
+                type="file"
+                className="hidden"
+                onChange={(event) => handleDropFile(event.target.files)}
+              />
 
-          <div className="space-y-6">
-            <Card className={activeSectionClass}>
-              <CardHeader className="border-b border-white/10 px-5 py-4">
-                <div className="flex items-center gap-3">
-                  <div className="rounded-2xl border border-cyan-400/15 bg-cyan-500/10 p-3 text-cyan-200">
-                    <Paperclip className="h-4 w-4" />
-                  </div>
-                  <div>
-                    <CardTitle className="text-sm font-semibold uppercase tracking-[0.18em] text-slate-400">
-                      Customer PO Document
-                    </CardTitle>
-                    <CardDescription className="mt-1 text-xs text-slate-500">
-                      Upload or view the customer purchase order document.
-                    </CardDescription>
-                  </div>
-                </div>
-              </CardHeader>
+              <button
+                type="button"
+                onClick={() => fileInputRef.current?.click()}
+                onDragEnter={(event) => {
+                  event.preventDefault();
+                  event.stopPropagation();
+                  setIsDraggingFile(true);
+                }}
+                onDragOver={(event) => {
+                  event.preventDefault();
+                  event.stopPropagation();
+                  setIsDraggingFile(true);
+                }}
+                onDragLeave={(event) => {
+                  event.preventDefault();
+                  event.stopPropagation();
+                  setIsDraggingFile(false);
+                }}
+                onDrop={(event) => {
+                  event.preventDefault();
+                  event.stopPropagation();
+                  setIsDraggingFile(false);
+                  handleDropFile(event.dataTransfer.files);
+                }}
+                className={isDraggingFile ? "aixia-upload-zone is-dragging" : "aixia-upload-zone"}
+              >
+                <Upload className="h-6 w-6" />
+                <span>Drop Customer PO file here</span>
+                <small>PDF, image, Word, or Excel. Click to browse.</small>
+              </button>
 
-              <CardContent className="space-y-4 p-5">
-                <input
-                  ref={fileInputRef}
-                  type="file"
-                  className="hidden"
-                  onChange={(event) => handleDropFile(event.target.files)}
-                />
-
-                <button
-                  type="button"
-                  onClick={() => fileInputRef.current?.click()}
-                  onDragEnter={(event) => {
-                    event.preventDefault();
-                    event.stopPropagation();
-                    setIsDraggingFile(true);
-                  }}
-                  onDragOver={(event) => {
-                    event.preventDefault();
-                    event.stopPropagation();
-                    setIsDraggingFile(true);
-                  }}
-                  onDragLeave={(event) => {
-                    event.preventDefault();
-                    event.stopPropagation();
-                    setIsDraggingFile(false);
-                  }}
-                  onDrop={(event) => {
-                    event.preventDefault();
-                    event.stopPropagation();
-                    setIsDraggingFile(false);
-                    handleDropFile(event.dataTransfer.files);
-                  }}
-                  className={`flex min-h-[190px] w-full flex-col items-center justify-center rounded-[26px] border border-dashed px-6 py-8 text-center transition ${
-                    isDraggingFile
-                      ? "border-cyan-300 bg-cyan-500/10"
-                      : "border-white/15 bg-black/20 hover:border-cyan-400/30 hover:bg-cyan-500/5"
-                  }`}
-                >
-                  <div className="flex h-14 w-14 items-center justify-center rounded-2xl border border-cyan-400/20 bg-cyan-500/10 text-cyan-200">
-                    <Upload className="h-6 w-6" />
+              {selectedFile ? (
+                <AixiaFormRowCard title={selectedFile.name}>
+                  <div className="aixia-helper-text">
+                    {getFileSizeLabel(selectedFile.size)}
                   </div>
+                  <AixiaButton
+                    type="button"
+                    variant="secondary"
+                    onClick={() => setSelectedFile(null)}
+                  >
+                    <X className="h-4 w-4" />
+                    Remove
+                  </AixiaButton>
+                </AixiaFormRowCard>
+              ) : null}
 
-                  <div className="mt-4 text-sm font-semibold text-white">
-                    Drop Customer PO file here
-                  </div>
-                  <div className="mt-2 text-xs leading-5 text-slate-500">
-                    PDF, image, Word, or Excel. Click to browse.
-                  </div>
-                </button>
+              <AixiaButton
+                type="button"
+                variant="primary"
+                onClick={() => void handleUploadCustomerPoFile()}
+                disabled={!selectedFile || isUploading}
+                fullWidth
+              >
+                {isUploading ? (
+                  <Loader2 className="h-4 w-4 animate-spin" />
+                ) : (
+                  <Save className="h-4 w-4" />
+                )}
+                {isUploading ? "Uploading..." : "Upload Document"}
+              </AixiaButton>
 
-                {selectedFile ? (
-                  <div className="rounded-[20px] border border-emerald-400/20 bg-emerald-500/10 px-4 py-3">
-                    <div className="flex items-center justify-between gap-4">
-                      <div className="min-w-0">
-                        <div className="truncate text-sm font-semibold text-emerald-100">
-                          {selectedFile.name}
-                        </div>
-                        <div className="mt-1 text-xs text-emerald-200/70">
-                          {(selectedFile.size / 1024 / 1024).toFixed(2)} MB
-                        </div>
+              <div className="aixia-form-row-list">
+                {attachments.length === 0 ? (
+                  <AixiaAlert tone="error">
+                    No Customer PO document uploaded. PI creation is blocked.
+                  </AixiaAlert>
+                ) : (
+                  attachments.map((attachment) => (
+                    <AixiaFormRowCard
+                      key={attachment.id}
+                      title={attachment.file_name || "Customer PO document"}
+                      badge={<AixiaBadge tone="cyan">{formatDate(attachment.created_at)}</AixiaBadge>}
+                      actions={
+                        <AixiaButton
+                          type="button"
+                          variant="primary"
+                          onClick={() => void handleOpenCustomerPoFile(attachment)}
+                        >
+                          <Eye className="h-4 w-4" />
+                          Open
+                        </AixiaButton>
+                      }
+                    >
+                      <div className="aixia-helper-text">
+                        {getFileSizeLabel(attachment.file_size)}
                       </div>
-
-                      <Button
-                        variant="outline"
-                        onClick={() => setSelectedFile(null)}
-                        className="h-9 rounded-2xl border-white/10 bg-white/[0.05] px-3 text-white hover:bg-white/[0.08]"
-                      >
-                        <X className="h-4 w-4" />
-                      </Button>
-                    </div>
-                  </div>
-                ) : null}
-
-                <Button
-                  onClick={() => void handleUploadCustomerPoFile()}
-                  disabled={!selectedFile || isUploading}
-                  className="h-11 w-full rounded-2xl border border-cyan-400/20 bg-cyan-500 px-4 font-semibold text-slate-950 hover:bg-cyan-400 disabled:opacity-40"
-                >
-                  <Save className="mr-2 h-4 w-4" />
-                  {isUploading ? "Uploading..." : "Upload Document"}
-                </Button>
-
-                <div className="max-h-[520px] space-y-3 overflow-y-auto pr-1">
-                  {attachments.length === 0 ? (
-                    <div className="rounded-[18px] border border-rose-400/20 bg-rose-500/10 px-4 py-4 text-sm text-rose-200">
-                      No Customer PO document uploaded. PI creation is blocked.
-                    </div>
-                  ) : (
-                    attachments.map((attachment) => (
-                      <button
-                        key={attachment.id}
-                        type="button"
-                        onClick={() => void handleOpenCustomerPoFile(attachment)}
-                        className="flex w-full items-center justify-between gap-4 rounded-[18px] border border-white/10 bg-black/20 px-4 py-3 text-left transition hover:bg-white/[0.045]"
-                      >
-                        <div className="min-w-0">
-                          <div className="flex items-center gap-2 text-sm font-semibold text-white">
-                            <Paperclip className="h-4 w-4 text-cyan-200" />
-                            <span className="truncate">
-                              {attachment.file_name || "Customer PO document"}
-                            </span>
-                          </div>
-                          <div className="mt-1 text-xs text-white/45">
-                            {formatDate(attachment.created_at)}
-                          </div>
-                        </div>
-
-                        <ArrowRight className="h-4 w-4 shrink-0 text-white/35" />
-                      </button>
-                    ))
-                  )}
-                </div>
-              </CardContent>
-            </Card>
-
-            <Card className={activeSectionClass}>
-              <CardHeader className="border-b border-white/10 px-5 py-4">
-                <div className="flex items-center gap-3">
-                  <div className="rounded-2xl border border-emerald-400/15 bg-emerald-500/10 p-3 text-emerald-200">
-                    <CheckCircle className="h-4 w-4" />
-                  </div>
-                  <div>
-                    <CardTitle className="text-sm font-semibold uppercase tracking-[0.18em] text-slate-400">
-                      Workflow Rules
-                    </CardTitle>
-                    <CardDescription className="mt-1 text-xs text-slate-500">
-                      Locked Customer PO to proforma workflow.
-                    </CardDescription>
-                  </div>
-                </div>
-              </CardHeader>
-
-              <CardContent className="space-y-3 p-5 text-sm leading-6 text-slate-400">
-                <div>• Customer PO can be linked to a quotation or entered manually.</div>
-                <div>• Client, company, currency, quotation, and lines are editable before PI linking.</div>
-                <div>• Customer PO document is required before creating the PI.</div>
-                <div>• Draft records must be marked as received first.</div>
-                <div>• Create Proforma Invoice is available after received status and file upload.</div>
-                <div>• After PI exists, use Open Proforma Invoice.</div>
-                <div>• Archive keeps the record recoverable.</div>
-                <div>• Delete moves the record to deleted state.</div>
-              </CardContent>
-            </Card>
-
-            {error ? (
-              <div className="rounded-[18px] border border-rose-400/20 bg-rose-500/10 px-4 py-3 text-sm text-rose-200">
-                {error}
+                    </AixiaFormRowCard>
+                  ))
+                )}
               </div>
-            ) : null}
-          </div>
-        </div>
-      </div>
-    </div>
+            </AixiaSection>
+
+            <AixiaSection
+              title="Workflow Rules"
+              description="Locked Customer PO to proforma workflow."
+              icon={CheckCircle}
+            >
+              <div className="aixia-stack">
+                <AixiaAlert tone="info">
+                  Customer PO can be linked to a quotation or entered manually.
+                </AixiaAlert>
+                <AixiaAlert tone="info">
+                  Client, company, currency, quotation, and lines are editable before PI linking.
+                </AixiaAlert>
+                <AixiaAlert tone="info">
+                  Customer PO document is required before creating the PI.
+                </AixiaAlert>
+                <AixiaAlert tone="info">
+                  Draft records must be marked as received first.
+                </AixiaAlert>
+                <AixiaAlert tone="info">
+                  Create Proforma Invoice is available after received status and file upload.
+                </AixiaAlert>
+                <AixiaAlert tone="info">
+                  Archive keeps the record recoverable. Delete moves the record to deleted state.
+                </AixiaAlert>
+              </div>
+            </AixiaSection>
+          </>
+        }
+      />
+    </AixiaPage>
   );
 }

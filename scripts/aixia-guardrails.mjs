@@ -31,6 +31,7 @@ const REQUIRED_AIXIA_COMPONENT_FILES = [
   "AixiaMetricCard.tsx",
   "AixiaMetricGrid.tsx",
   "AixiaModal.tsx",
+  "AixiaNavigationCard.tsx",
   "AixiaPage.tsx",
   "AixiaPageStates.tsx",
   "AixiaRegistryToolbar.tsx",
@@ -58,6 +59,12 @@ const REQUIRED_CSS_SELECTORS = [
   ".aixia-btn-primary",
   ".aixia-btn-secondary",
   ".aixia-btn-danger",
+  ".aixia-navigation-grid",
+  ".aixia-navigation-card-shell",
+  ".aixia-navigation-card",
+  ".aixia-navigation-info-panel",
+  ".aixia-navigation-stat-grid",
+  ".aixia-navigation-stat-block",
   ".aixia-smart-layout",
   ".aixia-smart-main",
   ".aixia-smart-side",
@@ -85,6 +92,10 @@ const REQUIRED_INDEX_EXPORTS = [
   "AixiaDetailSection",
   "AixiaMetricGrid",
   "AixiaMetricCard",
+  "AixiaNavigationCard",
+  "AixiaNavigationGrid",
+  "AixiaNavigationInfoPanel",
+  "AixiaNavigationStatBlock",
   "AixiaButton",
   "AixiaSearchField",
   "AixiaRegistryToolbar",
@@ -107,6 +118,11 @@ const REQUIRED_INDEX_EXPORTS = [
 ];
 
 const ZERO_LOCAL_DESIGN_BANNED_PATTERNS = [
+  "MasterDataModuleButton",
+  "ModuleCard",
+  "NavigationCard",
+  "DomainCard",
+  "HubCard",
   "MetricCard",
   "StatusCard",
   "SectionCard",
@@ -497,6 +513,33 @@ function inspectSharedComponentSourceOfTruth() {
     for (const exportName of REQUIRED_INDEX_EXPORTS) {
       if (!new RegExp(`\\b${exportName}\\b`).test(indexText)) {
         addError(indexFile, `src/components/aixia/index.ts must export ${exportName}.`, "AiXia component source-of-truth rule");
+      }
+    }
+  }
+
+  const navigationCardFile = path.join(AIXIA_COMPONENT_DIR, "AixiaNavigationCard.tsx");
+  if (fileExists(navigationCardFile)) {
+    const text = readText(navigationCardFile);
+    const required = [
+      "export function AixiaNavigationGrid",
+      "export function AixiaNavigationCard",
+      "export function AixiaNavigationInfoPanel",
+      "export function AixiaNavigationStatBlock",
+      "AixiaWorkspaceCard",
+      "aixia-navigation-grid",
+      "aixia-navigation-card-shell",
+      "aixia-navigation-card",
+      "aixia-navigation-info-panel",
+      "aixia-navigation-stat-block",
+    ];
+
+    for (const snippet of required) {
+      if (!text.includes(snippet)) {
+        addError(
+          navigationCardFile,
+          `AixiaNavigationCard.tsx must preserve shared navigation-card behavior/snippet: ${snippet}`,
+          "AiXia component source-of-truth rule"
+        );
       }
     }
   }
@@ -1086,7 +1129,7 @@ function inspectZeroLocalDesign(filePath, text) {
     if (functionPattern.test(text) || constPattern.test(text)) {
       addError(
         filePath,
-        `Local visual component ${componentName} is banned in Finance pages. Use shared src/components/aixia source-of-truth components.`,
+        `Local visual component ${componentName} is banned in Finance pages. Use shared src/components/aixia source-of-truth components. Hub/module cards must use AixiaNavigationCard or AixiaWorkspaceCard.`,
         "AiXia zero local design rule"
       );
     }
@@ -1097,6 +1140,29 @@ function inspectZeroLocalDesign(filePath, text) {
       filePath,
       "Finance pages must not create local glass card visual systems with raw Tailwind classes. Use shared AiXia components/classes.",
       "AiXia zero local design rule"
+    );
+  }
+
+  if (
+    /modules?\.map|filteredModules?\.map|moduleCards?\.map|filteredModuleCards?\.map|domains?\.map/i.test(text) &&
+    /<AixiaSection\b[\s\S]{0,5000}modules?\.map|modules?\.map[\s\S]{0,5000}<AixiaSection\b|filteredModuleCards?\.map[\s\S]{0,5000}<AixiaSection\b/i.test(text)
+  ) {
+    addError(
+      filePath,
+      "Hub/module navigation lists must not render repeated AixiaSection cards. Use AixiaNavigationGrid + AixiaNavigationCard, or AixiaWorkspaceCard when a thinner wrapper is not needed.",
+      "AiXia navigation-card standard rule"
+    );
+  }
+
+  if (
+    /path\s*:\s*["']\/finance\//.test(text) &&
+    /(modules?|domains?|cards?)\s*=/.test(text) &&
+    !/AixiaNavigationCard|AixiaWorkspaceCard/.test(text)
+  ) {
+    addError(
+      filePath,
+      "Finance hub pages with route-based module cards must use the shared AixiaNavigationCard or AixiaWorkspaceCard pattern.",
+      "AiXia navigation-card standard rule"
     );
   }
 }
@@ -1167,7 +1233,7 @@ function main() {
     process.exit(1);
   }
 
-  console.log("AiXia guardrails completed.");
+  console.log("AiXia guardrails completed. Navigation-card source-of-truth rules are active.");
 }
 
 main();

@@ -193,18 +193,47 @@ export async function permanentlyDeletePaymentMethod(id: string) {
   if (readError) throw readError;
 
   const dependencyChecks = await Promise.all([
+    countPaymentMethodDependencies("finance_paychecks", "payment_method_id", id),
     countPaymentMethodDependencies("finance_payments_made", "payment_method_id", id),
+    countPaymentMethodDependencies("finance_payments_received", "payment_method_id", id),
+    countPaymentMethodDependencies("finance_payroll_payments", "payment_method_id", id),
+    countPaymentMethodDependencies("finance_purchase_orders", "payment_method_id", id),
     countPaymentMethodDependencies("finance_reimbursements", "payment_method_id", id),
   ]);
 
-  const [paymentsMadeCount, reimbursementsCount] = dependencyChecks;
+  const [
+    paychecksCount,
+    paymentsMadeCount,
+    paymentsReceivedCount,
+    payrollPaymentsCount,
+    purchaseOrdersCount,
+    reimbursementsCount,
+  ] = dependencyChecks;
 
   const dependencyMessages = [
+    paychecksCount > 0
+      ? `${paychecksCount} paycheck${paychecksCount === 1 ? "" : "s"}`
+      : null,
     paymentsMadeCount > 0
       ? `${paymentsMadeCount} payment${paymentsMadeCount === 1 ? "" : "s"} made`
       : null,
+    paymentsReceivedCount > 0
+      ? `${paymentsReceivedCount} payment${paymentsReceivedCount === 1 ? "" : "s"} received`
+      : null,
+    payrollPaymentsCount > 0
+      ? `${payrollPaymentsCount} payroll payment${
+          payrollPaymentsCount === 1 ? "" : "s"
+        }`
+      : null,
+    purchaseOrdersCount > 0
+      ? `${purchaseOrdersCount} purchase order${
+          purchaseOrdersCount === 1 ? "" : "s"
+        }`
+      : null,
     reimbursementsCount > 0
-      ? `${reimbursementsCount} reimbursement${reimbursementsCount === 1 ? "" : "s"}`
+      ? `${reimbursementsCount} reimbursement${
+          reimbursementsCount === 1 ? "" : "s"
+        }`
       : null,
   ].filter(Boolean);
 

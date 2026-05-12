@@ -17,6 +17,7 @@ const REQUIRED_AIXIA_COMPONENT_FILES = [
   "AIXIA_STANDARD.md",
   "index.ts",
   "AixiaAccessRule.tsx",
+  "AixiaActionCard.tsx",
   "AixiaActionSystem.tsx",
   "AixiaAlert.tsx",
   "AixiaArchiveManagerModal.tsx",
@@ -60,6 +61,8 @@ const REQUIRED_CSS_SELECTORS = [
   ".aixia-btn-primary",
   ".aixia-btn-secondary",
   ".aixia-btn-danger",
+  ".aixia-action-card",
+  ".aixia-action-card-action",
   ".aixia-navigation-grid",
   ".aixia-navigation-card-shell",
   ".aixia-navigation-card",
@@ -93,6 +96,7 @@ const REQUIRED_CSS_SELECTORS = [
 const REQUIRED_INDEX_EXPORTS = [
   "AixiaPage",
   "AixiaHero",
+  "AixiaActionCard",
   "AixiaSection",
   "AixiaDetailSection",
   "AixiaMetricGrid",
@@ -432,6 +436,10 @@ function inspectSharedStandardDocument() {
     "Table standard",
     "Silent refresh standard",
     "Finance permission standard",
+    "GLOBAL AIXIA FONT / TYPOGRAPHY RULE",
+    "All AiXia pages must use the same shared font and shared text-size scale",
+    "No page may create its own font family",
+    "Large hero titles may stay large",
   ];
 
   for (const phrase of requiredPhrases) {
@@ -469,9 +477,16 @@ function inspectSharedCssSourceOfTruth() {
     "overflow-x: auto",
     "overflow-y: auto",
     "GLOBAL AIXIA TYPOGRAPHY LOCK",
+    "GLOBAL AIXIA FONT + DETAIL TYPOGRAPHY LOCK",
+    "GLOBAL AIXIA ACTION CARD + BUTTON SYMMETRY STANDARD",
     "GLOBAL DOCUMENT UPLOAD PANEL STANDARD",
     "GLOBAL SMART DETAIL LAYOUT COMPACTION STANDARD",
     "font-family:",
+    "0.66rem",
+    "0.74rem",
+    "0.95rem",
+    "1.12rem",
+    "0.64rem",
     ".aixia-document-upload-panel",
     ".aixia-document-upload-zone",
   ];
@@ -536,6 +551,29 @@ function inspectSharedComponentSourceOfTruth() {
     for (const exportName of REQUIRED_INDEX_EXPORTS) {
       if (!new RegExp(`\\b${exportName}\\b`).test(indexText)) {
         addError(indexFile, `src/components/aixia/index.ts must export ${exportName}.`, "AiXia component source-of-truth rule");
+      }
+    }
+  }
+
+  const actionCardFile = path.join(AIXIA_COMPONENT_DIR, "AixiaActionCard.tsx");
+  if (fileExists(actionCardFile)) {
+    const text = readText(actionCardFile);
+    const required = [
+      "export function AixiaActionCard",
+      "aixia-action-card",
+      "aixia-action-card-action",
+      "onClick",
+      "actionLabel",
+      "ArrowRight",
+    ];
+
+    for (const snippet of required) {
+      if (!text.includes(snippet)) {
+        addError(
+          actionCardFile,
+          `AixiaActionCard.tsx must preserve shared action-card behavior/snippet: ${snippet}`,
+          "AiXia component source-of-truth rule"
+        );
       }
     }
   }
@@ -1351,6 +1389,65 @@ function inspectDocumentUploadAndLocalWrapperRules(filePath, text) {
   }
 }
 
+function inspectActionCardAndButtonSymmetryRules(filePath, text) {
+  const hasSourceOrLinkSection =
+    /title=["']Source Links["']|title=["']Linked Documents["']|title=["']Source Documents["']|title=["']Payment History["']|title=["']Customer PO Document["']|title=["']Vendor Bill Document["']/i.test(
+      text
+    );
+
+  const hasLooseOpenButton =
+    /<AixiaButton\b[\s\S]{0,400}>\s*[\s\S]{0,120}\bOpen\b[\s\S]{0,180}<\/AixiaButton>/i.test(
+      text
+    );
+
+  const usesActionCard = /<AixiaActionCard\b/.test(text);
+  const usesDocumentUploadPanel = /<AixiaDocumentUploadPanel\b/.test(text);
+
+  if (hasSourceOrLinkSection && hasLooseOpenButton && !usesActionCard && !usesDocumentUploadPanel) {
+    addError(
+      filePath,
+      "Source/link/payment/document sections must not use loose Open buttons. Use shared AixiaActionCard for full-card click behavior, or AixiaDocumentUploadPanel for file attachments.",
+      "AiXia action-card standard rule"
+    );
+  }
+
+  if (
+    /title=["']Source Links["'][\s\S]{0,4000}<AixiaButton\b[\s\S]{0,600}\bOpen\b/i.test(
+      text
+    ) &&
+    !usesActionCard
+  ) {
+    addError(
+      filePath,
+      "Source Links must use full clickable AixiaActionCard records. Do not place large detached Open PO / Open Quotation buttons below source cards.",
+      "AiXia action-card standard rule"
+    );
+  }
+
+  const oversizedButtonPatterns = [
+    /\bh-14\b/,
+    /\bh-16\b/,
+    /\bh-20\b/,
+    /\bpx-8\b/,
+    /\bpx-10\b/,
+    /\bpx-12\b/,
+    /\btext-lg\b/,
+    /\btext-xl\b/,
+    /\btext-2xl\b/,
+  ];
+
+  for (const pattern of oversizedButtonPatterns) {
+    if (pattern.test(text)) {
+      addError(
+        filePath,
+        "Finance pages must not create oversized local action buttons. Button size/symmetry belongs to AixiaButton and shared CSS.",
+        "AiXia button symmetry rule"
+      );
+      break;
+    }
+  }
+}
+
 function inspectFinancePage(filePath) {
   const text = readText(filePath);
 
@@ -1374,6 +1471,7 @@ function inspectFinancePage(filePath) {
   inspectBannedFinanceUiImports(filePath, text);
   inspectRegistryStandards(filePath, text);
   inspectButtonMeaning(filePath, text);
+  inspectActionCardAndButtonSymmetryRules(filePath, text);
   inspectUnusedPatternRisks(filePath, text);
   inspectZeroLocalDesign(filePath, text);
   inspectDocumentUploadAndLocalWrapperRules(filePath, text);
@@ -1419,7 +1517,7 @@ function main() {
     process.exit(1);
   }
 
-  console.log("AiXia guardrails completed. Navigation-card, document-upload, typography, and shared-wrapper source-of-truth rules are active.");
+  console.log("AiXia guardrails completed. Navigation-card, action-card, document-upload, typography, button-symmetry, and shared-wrapper source-of-truth rules are active.");
 }
 
 main();

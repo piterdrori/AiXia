@@ -1167,6 +1167,56 @@ function inspectZeroLocalDesign(filePath, text) {
   }
 }
 
+function inspectBannedFinanceUiImports(filePath, text) {
+  const bannedImports = [
+    "@/components/ui/",
+    "framer-motion",
+  ];
+
+  for (const bannedImport of bannedImports) {
+    if (text.includes(bannedImport)) {
+      addError(
+        filePath,
+        `Finance pages must not import from ${bannedImport}. Use shared "@/components/aixia" components only. If a primitive is needed, wrap it inside src/components/aixia first.`,
+        "AiXia banned Finance UI import rule"
+      );
+    }
+  }
+
+  if (/\bmotion\./.test(text) || /<motion\./.test(text) || /\bAnimatePresence\b/.test(text)) {
+    addError(
+      filePath,
+      "Finance pages must not use framer-motion directly. Animation belongs inside shared AiXia components only.",
+      "AiXia banned Finance UI import rule"
+    );
+  }
+
+  const bannedLocalStyleConstants = [
+    "pageShell",
+    "glassSurface",
+    "glassSurfaceHover",
+    "textGradient",
+    "badgeBase",
+    "premiumButton",
+    "inputGlass",
+    "selectGlass",
+    "textareaGlass",
+    "labelGlass",
+  ];
+
+  for (const constantName of bannedLocalStyleConstants) {
+    const constantPattern = new RegExp(`\\bconst\\s+${constantName}\\s*=`, "m");
+
+    if (constantPattern.test(text)) {
+      addError(
+        filePath,
+        `Finance pages must not define local style constant "${constantName}". Use shared AiXia components/CSS source-of-truth.`,
+        "AiXia zero local design rule"
+      );
+    }
+  }
+}
+
 function inspectFinancePage(filePath) {
   const text = readText(filePath);
 
@@ -1187,6 +1237,7 @@ function inspectFinancePage(filePath) {
   }
 
   inspectPermissionPatterns(filePath, text);
+  inspectBannedFinanceUiImports(filePath, text);
   inspectRegistryStandards(filePath, text);
   inspectButtonMeaning(filePath, text);
   inspectUnusedPatternRisks(filePath, text);

@@ -245,7 +245,9 @@ export async function permanentlyDeletePaymentMethod(id: string) {
     );
   }
 
-  const { error } = await supabase.from(TABLE).delete().eq("id", id);
+  const { error } = await supabase.rpc("finance_permanently_delete_payment_method", {
+    p_payment_method_id: id,
+  });
 
   if (error) throw error;
 

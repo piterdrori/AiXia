@@ -4344,3 +4344,52 @@
     margin-top: 0;
   }
 }
+
+/* -------------------------------------------------------
+   GLOBAL AIXIA TABLE FULL-WIDTH STANDARD
+   Registry/archive tables must always occupy the full
+   available section width. Content may still require
+   horizontal scroll, but the visible table surface must
+   never stop early and leave an empty right-side gap.
+------------------------------------------------------- */
+
+.aixia-section .aixia-table-wrap,
+.aixia-section .aixia-table-shell,
+.aixia-section .aixia-table-scroll {
+  width: 100%;
+  max-width: 100%;
+  min-width: 0;
+  box-sizing: border-box;
+}
+
+.aixia-section .aixia-table-wrap {
+  display: block;
+}
+
+.aixia-section .aixia-table-scroll {
+  display: block;
+  overflow-x: auto;
+}
+
+.aixia-section table,
+.aixia-table-wrap table,
+.aixia-table-scroll table {
+  width: 100%;
+  min-width: max(100%, var(--aixia-table-min-width, 1240px));
+  table-layout: auto;
+}
+
+.aixia-section .aixia-table-head,
+.aixia-section .aixia-table-row {
+  width: 100%;
+}
+
+.aixia-section .aixia-table-row > td,
+.aixia-section .aixia-table-head > tr > th {
+  min-width: 0;
+}
+
+.aixia-section .aixia-table-actions-cell,
+.aixia-section td:has(.aixia-table-actions-cell) {
+  white-space: nowrap;
+}

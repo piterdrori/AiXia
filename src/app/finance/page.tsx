@@ -368,7 +368,7 @@ function getCount(result: CountResult) {
 }
 
 const FINANCE_HOME_ACCESS_CONFIG = {
-  sectionKey: "financeHome",
+  sectionKey: "masterData",
   adminPermissions: ["manageFinanceMasterData"],
   readPermissions: ["accessFinance", "viewFinance"],
   createPermissions: ["createFinanceRecords"],
@@ -394,7 +394,7 @@ const FINANCE_MASTER_DATA_ACCESS_CONFIG = {
 } as const;
 
 const FINANCE_INCOMING_ACCESS_CONFIG = {
-  sectionKey: "incomingMoney",
+  sectionKey: "incomingMoneyFlow",
   adminPermissions: ["manageFinanceMasterData"],
   readPermissions: [
     "accessFinance",
@@ -408,7 +408,7 @@ const FINANCE_INCOMING_ACCESS_CONFIG = {
 } as const;
 
 const FINANCE_PAYABLES_ACCESS_CONFIG = {
-  sectionKey: "supplierProcurement",
+  sectionKey: "supplierProcurementFlow",
   adminPermissions: ["manageFinanceMasterData"],
   readPermissions: ["accessFinance", "viewFinance", "accessPayables", "viewPayables"],
   createPermissions: ["createFinanceRecords"],
@@ -422,7 +422,7 @@ const FINANCE_PAYABLES_ACCESS_CONFIG = {
 } as const;
 
 const FINANCE_EXPENSE_ACCESS_CONFIG = {
-  sectionKey: "expenses",
+  sectionKey: "expensesFundingPayment",
   adminPermissions: ["manageFinanceMasterData"],
   readPermissions: [
     "accessFinance",
@@ -445,7 +445,7 @@ const FINANCE_EXPENSE_ACCESS_CONFIG = {
 } as const;
 
 const FINANCE_PAYROLL_ACCESS_CONFIG = {
-  sectionKey: "payroll",
+  sectionKey: "payrollFundBasket",
   adminPermissions: ["manageFinanceMasterData"],
   readPermissions: [
     "accessFinance",
@@ -485,7 +485,7 @@ const FINANCE_REPORTS_ACCESS_CONFIG = {
 } as const;
 
 const FINANCE_SETTINGS_ACCESS_CONFIG = {
-  sectionKey: "settings",
+  sectionKey: "financeSettings",
   adminPermissions: ["manageFinanceMasterData"],
   readPermissions: [
     "accessFinance",

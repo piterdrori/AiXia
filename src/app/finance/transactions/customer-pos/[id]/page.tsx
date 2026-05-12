@@ -450,8 +450,11 @@ function AixiaFormGrid({
   );
 }
 
-type LocalFormRowCardProps = React.HTMLAttributes<HTMLDivElement> & {
-  title: React.ReactNode;
+type LocalFormRowCardProps = Omit<
+  React.HTMLAttributes<HTMLDivElement>,
+  "title"
+> & {
+  title: string;
   description?: React.ReactNode;
   badge?: React.ReactNode;
   actions?: React.ReactNode;
@@ -475,17 +478,13 @@ function AixiaFormRowCard({
   return (
     <AixiaBaseFormRowCard
       {...props}
-      title={
-        <span className="inline-flex flex-wrap items-center gap-2">
-          <span>{title}</span>
-          {badge}
-        </span>
-      }
+      title={title}
       description={description}
       onRemove={onRemove}
       removeDisabled={removeDisabled}
       removeLabel={removeLabel}
     >
+      {badge ? <div className="aixia-action-row">{badge}</div> : null}
       {actions ? <div className="aixia-action-row">{actions}</div> : null}
       {children}
     </AixiaBaseFormRowCard>

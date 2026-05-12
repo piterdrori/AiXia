@@ -1,26 +1,45 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { useNavigate, useSearchParams } from "react-router-dom";
 import {
-  ArrowRight,
+  Building2,
+  CreditCard,
   FileText,
   Link2,
+  Loader2,
+  Paperclip,
   Plus,
   Receipt,
+  RotateCcw,
   Save,
   Trash2,
   Upload,
+  Wallet,
 } from "lucide-react";
 
-import { supabase } from "@/lib/supabase";
-import { Badge } from "@/components/ui/badge";
-import { Button } from "@/components/ui/button";
 import {
-  Card,
-  CardContent,
-  CardDescription,
-  CardHeader,
-  CardTitle,
-} from "@/components/ui/card";
+  AixiaAlert,
+  AixiaButton,
+  AixiaEmptyState,
+  AixiaFieldLabel,
+  AixiaFormField,
+  AixiaFormFullWidth,
+  AixiaFormGrid,
+  AixiaHero,
+  AixiaInputField,
+  AixiaLoadingState,
+  AixiaMetricCard,
+  AixiaMetricGrid,
+  AixiaPage,
+  AixiaReviewBlock,
+  AixiaReviewGrid,
+  AixiaSection,
+  AixiaSelectField,
+  AixiaSmartLayout,
+  AixiaTextareaField,
+  AixiaValueBlock,
+} from "@/components/aixia";
+
+import { supabase } from "@/lib/supabase";
 
 type BillDocumentType = "vendor_pi" | "vendor_invoice";
 
@@ -157,6 +176,10 @@ function getDocumentTypeLabel(documentType: BillDocumentType) {
   return documentType === "vendor_pi" ? "Vendor PI" : "Vendor Invoice";
 }
 
+function getSourceModeLabel(sourceMode: "manual" | "purchase_order") {
+  return sourceMode === "purchase_order" ? "From Purchase Order" : "Manual";
+}
+
 function resolveUploadMimeType(file: File) {
   const currentType = file.type?.trim();
 
@@ -251,7 +274,6 @@ export default function FinanceNewBillPage() {
   const [purchaseOrderLines, setPurchaseOrderLines] = useState<
     PurchaseOrderLine[]
   >([]);
-  
   const [expenseCategories, setExpenseCategories] = useState<
     ExpenseCategoryOption[]
   >([]);
@@ -276,7 +298,6 @@ export default function FinanceNewBillPage() {
   );
   const [dueDate, setDueDate] = useState(new Date().toISOString().slice(0, 10));
   const [currencyCode, setCurrencyCode] = useState("");
-
   const [notes, setNotes] = useState("");
   const [selectedFile, setSelectedFile] = useState<File | null>(null);
   const [lines, setLines] = useState<BillLineDraft[]>([createEmptyLine()]);
@@ -287,6 +308,11 @@ export default function FinanceNewBillPage() {
         (purchaseOrder) => purchaseOrder.id === purchaseOrderId
       ) ?? null,
     [purchaseOrderId, purchaseOrders]
+  );
+
+  const selectedVendor = useMemo(
+    () => vendors.find((vendor) => vendor.id === vendorId) ?? null,
+    [vendorId, vendors]
   );
 
   const selectedCompany = useMemo(
@@ -308,7 +334,6 @@ export default function FinanceNewBillPage() {
           currenciesResult,
           itemsResult,
         ] = await Promise.all([
-          
           supabase
             .from("finance_vendors")
             .select("id, code, name, legal_name, currency_code")
@@ -342,7 +367,6 @@ export default function FinanceNewBillPage() {
             )
             .in("status", ["issued", "sent", "acknowledged"])
             .order("updated_at", { ascending: false }),
-         
           supabase
             .from("finance_expense_categories")
             .select("id, name")
@@ -392,15 +416,14 @@ export default function FinanceNewBillPage() {
           };
         });
 
-        setVendors((vendorsResult.data || []) as unknown as VendorOption[]);
-        setCompanies((companiesResult.data || []) as unknown as CompanyOption[]);
+        setVendors((vendorsResult.data || []) as VendorOption[]);
+        setCompanies((companiesResult.data || []) as CompanyOption[]);
         setPurchaseOrders(mappedPurchaseOrders);
-
         setExpenseCategories(
-          (expenseCategoriesResult.data || []) as unknown as ExpenseCategoryOption[]
+          (expenseCategoriesResult.data || []) as ExpenseCategoryOption[]
         );
-        setCurrencies((currenciesResult.data || []) as unknown as CurrencyOption[]);
-        setItems((itemsResult.data || []) as unknown as ItemOption[]);
+        setCurrencies((currenciesResult.data || []) as CurrencyOption[]);
+        setItems((itemsResult.data || []) as ItemOption[]);
       } catch (error) {
         console.error("Failed to load vendor bill form data:", error);
         setErrorMessage("Failed to load vendor PI / invoice form data.");
@@ -437,7 +460,7 @@ export default function FinanceNewBillPage() {
         return;
       }
 
-      const typedLines = (data || []) as unknown as PurchaseOrderLine[];
+      const typedLines = (data || []) as PurchaseOrderLine[];
       setPurchaseOrderLines(typedLines);
       setLines(
         typedLines.length > 0
@@ -449,7 +472,7 @@ export default function FinanceNewBillPage() {
     void applyPurchaseOrderSource();
   }, [selectedPurchaseOrder, sourceMode]);
 
-    useEffect(() => {
+  useEffect(() => {
     if (sourceMode === "purchase_order") return;
 
     const vendorCurrency =
@@ -458,13 +481,11 @@ export default function FinanceNewBillPage() {
     setCurrencyCode(vendorCurrency);
   }, [sourceMode, vendorId, vendors]);
 
-  
   const lineTotals = useMemo(() => {
     return lines.map((line) => {
       return (
-        Math.round(
-          toNumber(line.quantity) * toNumber(line.unit_price) * 100
-        ) / 100
+        Math.round(toNumber(line.quantity) * toNumber(line.unit_price) * 100) /
+        100
       );
     });
   }, [lines]);
@@ -508,6 +529,23 @@ export default function FinanceNewBillPage() {
       return current.filter((line) => line.localId !== localId);
     });
   }, []);
+
+  const resetForm = useCallback(() => {
+    setSourceMode(sourcePurchaseOrderId ? "purchase_order" : "manual");
+    setPurchaseOrderId(sourcePurchaseOrderId);
+    setVendorId("");
+    setCompanyId("");
+    setDocumentType("vendor_invoice");
+    setExternalDocumentNumber("");
+    setIssueDate(new Date().toISOString().slice(0, 10));
+    setDueDate(new Date().toISOString().slice(0, 10));
+    setCurrencyCode("");
+    setNotes("");
+    setSelectedFile(null);
+    setPurchaseOrderLines([]);
+    setLines([createEmptyLine()]);
+    setErrorMessage("");
+  }, [sourcePurchaseOrderId]);
 
   const validateForm = useCallback(() => {
     if (sourceMode === "purchase_order" && !purchaseOrderId) {
@@ -574,8 +612,7 @@ export default function FinanceNewBillPage() {
           {
             p_purchase_order_id: purchaseOrderId,
             p_document_type: documentType,
-            p_external_document_number:
-              externalDocumentNumber.trim() || null,
+            p_external_document_number: externalDocumentNumber.trim() || null,
             p_issue_date: issueDate,
             p_due_date: dueDate,
           }
@@ -607,14 +644,12 @@ export default function FinanceNewBillPage() {
           approval_status: "pending",
           document_type: documentType,
           currency_code: currencyCode,
-          external_document_number:
-            externalDocumentNumber.trim() || null,
+          external_document_number: externalDocumentNumber.trim() || null,
           reference_number: null,
           notes: notes.trim() || null,
           metadata: {
             source: "manual_vendor_bill_page",
-            expected_flow:
-              "vendor_bill_to_payment_made",
+            expected_flow: "vendor_bill_to_payment_made",
           },
           created_by: user.id,
           updated_by: user.id,
@@ -682,136 +717,114 @@ export default function FinanceNewBillPage() {
     vendorId,
   ]);
 
-  const fieldClass =
-    "h-11 w-full rounded-2xl border border-white/10 bg-black/20 px-4 text-sm text-white outline-none transition focus:border-violet-400/30 focus:bg-black/30";
-  const labelClass = "text-sm font-medium text-slate-300";
-  const sectionCardClass =
-    "overflow-hidden rounded-[30px] border border-white/10 bg-white/[0.045] backdrop-blur-xl";
-  const lineInputClass =
-    "h-11 w-full rounded-2xl border border-white/10 bg-black/20 px-4 text-sm text-white outline-none transition focus:border-violet-400/30 focus:bg-black/30";
-
   if (isLoading) {
     return (
-      <div className="min-h-screen bg-[#05070d] px-4 py-4 text-white md:px-6 md:py-6">
-        <div className="mx-auto flex w-full max-w-[1600px] flex-col gap-6">
-          <div className="rounded-[30px] border border-white/10 bg-white/[0.045] p-6 text-sm text-slate-400 backdrop-blur-xl">
-            Loading vendor PI / invoice form...
-          </div>
-        </div>
-      </div>
+      <AixiaLoadingState
+        title="Loading vendor PI / invoice form"
+        description="Vendor, company, purchase order, item, expense category, and currency master data are being loaded."
+      />
     );
   }
 
   return (
-    <div className="min-h-screen bg-[#05070d] px-4 py-4 text-white md:px-6 md:py-6">
-      <div className="mx-auto flex w-full max-w-[1600px] flex-col gap-6">
-        <header className="relative overflow-hidden rounded-[34px] border border-white/10 bg-white/[0.045] p-6 shadow-2xl shadow-black/30 backdrop-blur-xl">
-          <div className="pointer-events-none absolute inset-0 bg-[radial-gradient(circle_at_top_left,rgba(139,92,246,0.16),transparent_38%),radial-gradient(circle_at_top_right,rgba(6,182,212,0.12),transparent_34%)]" />
+    <AixiaPage>
+      <AixiaHero
+        parentLabel="Vendor PI / Invoices"
+        parentPath="/finance/transactions/bills"
+        badges={[
+          { label: "New Vendor PI / Invoice", tone: "violet" },
+          { label: "Supplier Procurement", tone: "cyan" },
+          { label: "Original Document Required", tone: "rose" },
+          { label: "Opens ID Page After Save", tone: "neutral" },
+        ]}
+        gradientTitle="Register Vendor"
+        title="Document"
+        subtitle="Vendor PI / Invoice Create Page"
+        description="Record a vendor PI or official vendor invoice received from the supplier, attach the original document, and prepare it for approval and outgoing payment."
+        statusCards={[
+          {
+            label: "Creation Mode",
+            value: getSourceModeLabel(sourceMode),
+            description:
+              sourceMode === "purchase_order"
+                ? "Document data and lines are pulled from the selected issued purchase order."
+                : "Vendor document is created manually from uploaded supplier details.",
+            icon: Link2,
+            tone: sourceMode === "purchase_order" ? "violet" : "cyan",
+          },
+          {
+            label: "Draft Value",
+            value: formatMoney(totalAmount, currencyCode || "USD"),
+            description: "Calculated from vendor document lines before saving.",
+            icon: Wallet,
+            tone: "gold",
+          },
+          {
+            label: "Source File",
+            value: selectedFile ? "Selected" : "Required",
+            description: selectedFile
+              ? selectedFile.name
+              : "Upload the original vendor PI / invoice document.",
+            icon: Paperclip,
+            tone: selectedFile ? "emerald" : "rose",
+          },
+        ]}
+      />
 
-          <div className="relative">
-            <button
-              type="button"
-              onClick={() => navigate("/finance/transactions/bills")}
-              className="mb-5 inline-flex items-center justify-center gap-2 rounded-full border border-white/10 bg-white/[0.05] px-5 py-2 text-[11px] font-semibold uppercase tracking-[0.22em] text-slate-300 transition hover:border-white/20 hover:bg-white/[0.08] hover:text-white"
+      {errorMessage ? <AixiaAlert tone="error">{errorMessage}</AixiaAlert> : null}
+
+      <AixiaMetricGrid>
+        <AixiaMetricCard
+          label="Document Type"
+          value={getDocumentTypeLabel(documentType)}
+          description="PI and vendor invoice share the same module and bucket."
+          icon={Receipt}
+          tone="violet"
+        />
+
+        <AixiaMetricCard
+          label="Vendor"
+          value={selectedVendor?.legal_name || selectedVendor?.name || "Required"}
+          description={selectedVendor?.code || "Vendor / issued from"}
+          icon={Building2}
+          tone={vendorId ? "emerald" : "gold"}
+        />
+
+        <AixiaMetricCard
+          label="Receiving Company"
+          value={selectedCompany?.legal_name || selectedCompany?.name || "Required"}
+          description="Issued-to internal company"
+          icon={CreditCard}
+          tone={companyId ? "cyan" : "gold"}
+        />
+
+        <AixiaMetricCard
+          label="Line Total"
+          value={formatMoney(totalAmount, currencyCode || "USD")}
+          description={`${lines.length} line${lines.length === 1 ? "" : "s"} in draft`}
+          icon={FileText}
+          tone="gold"
+        />
+      </AixiaMetricGrid>
+
+      <AixiaSmartLayout
+        sidebar="wide"
+        balance="main"
+        matchColumns
+        bottomSpan="never"
+        main={
+          <>
+            <AixiaSection
+              title="Source Relationship"
+              description="Create manually or from an issued / acknowledged purchase order."
+              icon={Link2}
             >
-              <ArrowRight className="h-3.5 w-3.5 rotate-180" />
-              Vendor PI / Invoices
-            </button>
-
-            <div className="grid gap-6 xl:grid-cols-[minmax(0,1fr)_420px]">
-              <div>
-                <div className="flex flex-wrap gap-2">
-                  <Badge className="w-fit rounded-full border border-violet-400/20 bg-violet-500/10 px-3 py-1 text-[11px] font-semibold uppercase tracking-[0.22em] text-violet-200 shadow-none">
-                    New Vendor PI / Invoice
-                  </Badge>
-
-                  <Badge className="w-fit rounded-full border border-cyan-400/20 bg-cyan-500/10 px-3 py-1 text-[11px] font-semibold uppercase tracking-[0.22em] text-cyan-200 shadow-none">
-                    Step 03
-                  </Badge>
-                </div>
-
-                <h1 className="mt-4 text-3xl font-semibold tracking-[-0.035em] text-white md:text-5xl">
-                  Register Vendor Document
-                </h1>
-
-                <p className="mt-3 max-w-4xl text-sm leading-6 text-slate-400 md:text-base md:leading-7">
-                  Record a vendor PI or official vendor invoice received from
-                  the supplier, attach the original document, and prepare it for
-                  approval and outgoing payment.
-                </p>
-
-                <div className="mt-5 flex flex-wrap gap-3">
-                  <Button
-                    onClick={() => void handleSave()}
-                    disabled={isSaving}
-                    className="h-11 rounded-2xl border border-violet-400/20 bg-violet-500 px-4 text-sm font-semibold text-white transition hover:bg-violet-400 disabled:cursor-not-allowed disabled:opacity-50"
-                  >
-                    <Save className="mr-2 h-4 w-4" />
-                    {isSaving ? "Saving..." : "Save Vendor Document"}
-                  </Button>
-
-                  {errorMessage ? (
-                    <div className="flex min-h-11 items-center rounded-2xl border border-rose-400/20 bg-rose-500/10 px-4 text-sm text-rose-200">
-                      {errorMessage}
-                    </div>
-                  ) : null}
-                </div>
-              </div>
-
-              <div className="grid gap-4">
-                <div className="min-h-[148px] rounded-[24px] border border-white/10 bg-black/20 p-4">
-                  <div className="text-[11px] font-semibold uppercase tracking-[0.2em] text-slate-500">
-                    Document Type
-                  </div>
-                  <div className="mt-2 text-xl font-semibold text-white">
-                    {getDocumentTypeLabel(documentType)}
-                  </div>
-                  <div className="mt-3 text-xs leading-5 text-slate-500">
-                    PI and vendor invoice share the same module and bucket.
-                  </div>
-                </div>
-
-                <div className="min-h-[148px] rounded-[24px] border border-white/10 bg-black/20 p-4">
-                  <div className="text-[11px] font-semibold uppercase tracking-[0.2em] text-slate-500">
-                    Draft Value
-                  </div>
-                  <div className="mt-2 text-xl font-semibold text-white">
-                    {formatMoney(totalAmount, currencyCode || "USD")}
-                  </div>
-                  <div className="mt-3 text-xs leading-5 text-slate-500">
-                    Calculated from vendor document lines.
-                  </div>
-                </div>
-              </div>
-            </div>
-          </div>
-        </header>
-
-        <div className="grid grid-cols-1 gap-6 xl:grid-cols-[minmax(0,1.45fr)_420px]">
-          <div className="space-y-6">
-            <Card className={sectionCardClass}>
-              <CardHeader className="border-b border-white/10 px-5 py-4">
-                <div className="flex items-center gap-3">
-                  <div className="rounded-2xl border border-violet-400/15 bg-violet-500/10 p-3 text-violet-200">
-                    <Link2 className="h-4 w-4" />
-                  </div>
-                  <div>
-                    <CardTitle className="text-sm font-semibold uppercase tracking-[0.18em] text-slate-400">
-                      Source Relationship
-                    </CardTitle>
-                    <CardDescription className="mt-1 text-xs text-slate-500">
-                      Create manually or from an issued / acknowledged purchase
-                      order.
-                    </CardDescription>
-                  </div>
-                </div>
-              </CardHeader>
-
-              <CardContent className="grid grid-cols-1 gap-4 p-5 md:grid-cols-2">
-                <label className="space-y-2">
-                  <div className={labelClass}>Creation Mode</div>
-                  <select
+              <AixiaFormGrid columns="two">
+                <AixiaFormField>
+                  <AixiaFieldLabel label="Creation Mode" />
+                  <AixiaSelectField
                     value={sourceMode}
+                    disabled={isSaving}
                     onChange={(event) => {
                       const nextMode = event.target.value as
                         | "manual"
@@ -826,20 +839,18 @@ export default function FinanceNewBillPage() {
                         setLines([createEmptyLine()]);
                       }
                     }}
-                    className={fieldClass}
                   >
                     <option value="manual">Manual Vendor Document</option>
                     <option value="purchase_order">From Purchase Order</option>
-                  </select>
-                </label>
+                  </AixiaSelectField>
+                </AixiaFormField>
 
-                <label className="space-y-2">
-                  <div className={labelClass}>Purchase Order</div>
-                  <select
+                <AixiaFormField>
+                  <AixiaFieldLabel label="Purchase Order" />
+                  <AixiaSelectField
                     value={purchaseOrderId}
+                    disabled={sourceMode !== "purchase_order" || isSaving}
                     onChange={(event) => setPurchaseOrderId(event.target.value)}
-                    disabled={sourceMode !== "purchase_order"}
-                    className={fieldClass}
                   >
                     <option value="">Select purchase order</option>
                     {purchaseOrders.map((purchaseOrder) => (
@@ -855,72 +866,57 @@ export default function FinanceNewBillPage() {
                         )}
                       </option>
                     ))}
-                  </select>
-                </label>
+                  </AixiaSelectField>
+                </AixiaFormField>
 
                 {selectedPurchaseOrder ? (
-                  <div className="rounded-[22px] border border-violet-400/15 bg-violet-500/10 p-4 md:col-span-2">
-                    <div className="text-[11px] uppercase tracking-[0.2em] text-violet-100/70">
-                      Source Purchase Order
-                    </div>
-                    <div className="mt-2 text-lg font-semibold text-white">
-                      {selectedPurchaseOrder.purchase_order_number}
-                    </div>
-                    <div className="mt-2 text-sm leading-6 text-slate-300">
-                      Status: {selectedPurchaseOrder.status} · Issued To:{" "}
-                      {selectedPurchaseOrder.company_legal_name ||
+                  <AixiaFormFullWidth>
+                    <AixiaValueBlock
+                      label="Source Purchase Order"
+                      value={selectedPurchaseOrder.purchase_order_number}
+                      detail={`Status: ${
+                        selectedPurchaseOrder.status
+                      } • Issued To: ${
+                        selectedPurchaseOrder.company_legal_name ||
                         selectedPurchaseOrder.company_name ||
                         selectedCompany?.legal_name ||
                         selectedCompany?.name ||
-                        "Company"}{" "}
-                      · PO Date: {formatDate(selectedPurchaseOrder.po_date)} ·
-                      Lines: {purchaseOrderLines.length}
-                    </div>
-                  </div>
+                        "Company"
+                      } • PO Date: ${formatDate(
+                        selectedPurchaseOrder.po_date
+                      )} • Lines: ${purchaseOrderLines.length}`}
+                    />
+                  </AixiaFormFullWidth>
                 ) : null}
-              </CardContent>
-            </Card>
+              </AixiaFormGrid>
+            </AixiaSection>
 
-            <Card className={sectionCardClass}>
-              <CardHeader className="border-b border-white/10 px-5 py-4">
-                <div className="flex items-center gap-3">
-                  <div className="rounded-2xl border border-cyan-400/15 bg-cyan-500/10 p-3 text-cyan-200">
-                    <Receipt className="h-4 w-4" />
-                  </div>
-                  <div>
-                    <CardTitle className="text-sm font-semibold uppercase tracking-[0.18em] text-slate-400">
-                      Document Overview
-                    </CardTitle>
-                    <CardDescription className="mt-1 text-xs text-slate-500">
-                      Vendor document type, supplier, receiving company, vendor
-                      document number, dates, and currency.
-                    </CardDescription>
-                  </div>
-                </div>
-              </CardHeader>
-
-              <CardContent className="grid grid-cols-1 gap-4 p-5 md:grid-cols-2">
-                <label className="space-y-2">
-                  <div className={labelClass}>Document Type</div>
-                  <select
+            <AixiaSection
+              title="Document Overview"
+              description="Vendor document type, supplier, receiving company, vendor document number, dates, and currency."
+              icon={Receipt}
+            >
+              <AixiaFormGrid columns="two">
+                <AixiaFormField>
+                  <AixiaFieldLabel label="Document Type" required />
+                  <AixiaSelectField
                     value={documentType}
+                    disabled={isSaving}
                     onChange={(event) =>
                       setDocumentType(event.target.value as BillDocumentType)
                     }
-                    className={fieldClass}
                   >
                     <option value="vendor_pi">Vendor PI</option>
                     <option value="vendor_invoice">Vendor Invoice</option>
-                  </select>
-                </label>
+                  </AixiaSelectField>
+                </AixiaFormField>
 
-                <label className="space-y-2">
-                  <div className={labelClass}>Vendor / Issued From</div>
-                  <select
+                <AixiaFormField>
+                  <AixiaFieldLabel label="Vendor / Issued From" required />
+                  <AixiaSelectField
                     value={vendorId}
+                    disabled={sourceMode === "purchase_order" || isSaving}
                     onChange={(event) => setVendorId(event.target.value)}
-                    disabled={sourceMode === "purchase_order"}
-                    className={fieldClass}
                   >
                     <option value="">Select vendor</option>
                     {vendors.map((vendor) => (
@@ -929,16 +925,15 @@ export default function FinanceNewBillPage() {
                         {vendor.code ? ` — ${vendor.code}` : ""}
                       </option>
                     ))}
-                  </select>
-                </label>
+                  </AixiaSelectField>
+                </AixiaFormField>
 
-                <label className="space-y-2">
-                  <div className={labelClass}>Issued To / Receiving Company</div>
-                  <select
+                <AixiaFormField>
+                  <AixiaFieldLabel label="Issued To / Receiving Company" required />
+                  <AixiaSelectField
                     value={companyId}
+                    disabled={sourceMode === "purchase_order" || isSaving}
                     onChange={(event) => setCompanyId(event.target.value)}
-                    disabled={sourceMode === "purchase_order"}
-                    className={`${fieldClass} disabled:opacity-70`}
                   >
                     <option value="">Select company</option>
                     {companies.map((company) => (
@@ -946,48 +941,47 @@ export default function FinanceNewBillPage() {
                         {company.legal_name || company.name}
                       </option>
                     ))}
-                  </select>
-                </label>
+                  </AixiaSelectField>
+                </AixiaFormField>
 
-                <label className="space-y-2">
-                  <div className={labelClass}>Vendor Document Number</div>
-                  <input
+                <AixiaFormField>
+                  <AixiaFieldLabel label="Vendor Document Number" />
+                  <AixiaInputField
                     value={externalDocumentNumber}
+                    disabled={isSaving}
                     onChange={(event) =>
                       setExternalDocumentNumber(event.target.value)
                     }
                     placeholder="Vendor PI / invoice number"
-                    className={fieldClass}
                   />
-                </label>
+                </AixiaFormField>
 
-                <label className="space-y-2">
-                  <div className={labelClass}>Issue Date</div>
-                  <input
+                <AixiaFormField>
+                  <AixiaFieldLabel label="Issue Date" required />
+                  <AixiaInputField
                     type="date"
                     value={issueDate}
+                    disabled={isSaving}
                     onChange={(event) => setIssueDate(event.target.value)}
-                    className={fieldClass}
                   />
-                </label>
+                </AixiaFormField>
 
-                <label className="space-y-2">
-                  <div className={labelClass}>Due Date</div>
-                  <input
+                <AixiaFormField>
+                  <AixiaFieldLabel label="Due Date" required />
+                  <AixiaInputField
                     type="date"
                     value={dueDate}
+                    disabled={isSaving}
                     onChange={(event) => setDueDate(event.target.value)}
-                    className={fieldClass}
                   />
-                </label>
+                </AixiaFormField>
 
-                <label className="space-y-2">
-                  <div className={labelClass}>Currency</div>
-                  <select
+                <AixiaFormField>
+                  <AixiaFieldLabel label="Currency" required />
+                  <AixiaSelectField
                     value={currencyCode}
+                    disabled={sourceMode === "purchase_order" || isSaving}
                     onChange={(event) => setCurrencyCode(event.target.value)}
-                    disabled={sourceMode === "purchase_order"}
-                    className={`${fieldClass} disabled:opacity-70`}
                   >
                     <option value="">Select currency</option>
                     {currencies.map((currency) => (
@@ -995,88 +989,74 @@ export default function FinanceNewBillPage() {
                         {currency.currency_code} — {currency.currency_name}
                       </option>
                     ))}
-                  </select>
-                </label>
+                  </AixiaSelectField>
+                </AixiaFormField>
 
-                <label className="space-y-2 md:col-span-2">
-                  <div className={labelClass}>Notes</div>
-                  <textarea
+                <AixiaFormFullWidth>
+                  <AixiaFieldLabel label="Notes" />
+                  <AixiaTextareaField
                     value={notes}
+                    disabled={sourceMode === "purchase_order" || isSaving}
                     onChange={(event) => setNotes(event.target.value)}
-                    disabled={sourceMode === "purchase_order"}
-                    rows={4}
-                    className="w-full rounded-2xl border border-white/10 bg-black/20 px-4 py-3 text-sm text-white outline-none transition focus:border-violet-400/30 focus:bg-black/30 disabled:opacity-70"
+                    placeholder="Internal document notes"
                   />
-                </label>
-              </CardContent>
-            </Card>
+                </AixiaFormFullWidth>
+              </AixiaFormGrid>
+            </AixiaSection>
 
-            <Card className={sectionCardClass}>
-              <CardHeader className="border-b border-white/10 px-5 py-4">
-                <div className="flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
-                  <div className="flex items-center gap-3">
-                    <div className="rounded-2xl border border-amber-400/15 bg-amber-500/10 p-3 text-amber-200">
-                      <FileText className="h-4 w-4" />
-                    </div>
-                    <div>
-                      <CardTitle className="text-sm font-semibold uppercase tracking-[0.18em] text-slate-400">
-                        Line Items
-                      </CardTitle>
-                      <CardDescription className="mt-1 text-xs text-slate-500">
-                        Manual lines are editable here. Purchase order source
-                        lines are locked preview lines created by the backend
-                        conversion.
-                      </CardDescription>
-                    </div>
-                  </div>
-
-                  {sourceMode === "manual" ? (
-                    <Button
-                      type="button"
-                      onClick={addLine}
-                      className="h-10 rounded-2xl border border-amber-400/20 bg-amber-500 px-4 text-sm font-semibold text-slate-950 transition hover:bg-amber-400"
-                    >
-                      <Plus className="mr-2 h-4 w-4" />
-                      Add Line
-                    </Button>
-                  ) : null}
-                </div>
-              </CardHeader>
-
-              <CardContent className="max-h-[720px] space-y-3 overflow-y-auto p-5 pr-2">
-                {lines.map((line, index) => (
-                  <div
-                    key={line.localId}
-                    className="rounded-[24px] border border-white/10 bg-black/20 p-4"
+            <AixiaSection
+              title="Line Items"
+              description="Manual lines are editable here. Purchase order source lines are locked preview lines created by backend conversion."
+              icon={FileText}
+              smartScroll
+              visibleCards={8}
+              actions={
+                sourceMode === "manual" ? (
+                  <AixiaButton
+                    type="button"
+                    variant="primary"
+                    onClick={addLine}
+                    disabled={isSaving}
                   >
-                    <div className="mb-4 flex items-center justify-between gap-3">
-                      <div className="text-sm font-semibold text-white">
-                        Line {index + 1}
-                      </div>
-
-                      {sourceMode === "manual" ? (
-                        <Button
+                    <Plus className="h-3.5 w-3.5" />
+                    Add Line
+                  </AixiaButton>
+                ) : null
+              }
+            >
+              <div className="aixia-stack">
+                {lines.map((line, index) => (
+                  <AixiaSection
+                    key={line.localId}
+                    title={`Line ${index + 1}`}
+                    description={`Line total: ${formatMoney(
+                      lineTotals[index] || 0,
+                      currencyCode || "USD"
+                    )}`}
+                    icon={FileText}
+                    actions={
+                      sourceMode === "manual" ? (
+                        <AixiaButton
                           type="button"
-                          variant="outline"
+                          variant="danger"
                           onClick={() => removeLine(line.localId)}
-                          disabled={lines.length <= 1}
-                          className="h-9 rounded-2xl border-rose-400/20 bg-rose-500/10 px-3 text-rose-200 hover:bg-rose-500/20 disabled:opacity-40"
+                          disabled={lines.length <= 1 || isSaving}
                         >
-                          <Trash2 className="h-4 w-4" />
-                        </Button>
-                      ) : null}
-                    </div>
-
-                    <div className="grid grid-cols-1 gap-4 lg:grid-cols-[1.1fr_1.5fr_0.6fr_0.75fr]">
-                      <label className="space-y-2">
-                        <div className={labelClass}>Item</div>
-                        <select
+                          <Trash2 className="h-3.5 w-3.5" />
+                          Remove
+                        </AixiaButton>
+                      ) : null
+                    }
+                  >
+                    <AixiaFormGrid columns="two">
+                      <AixiaFormField>
+                        <AixiaFieldLabel label="Item" />
+                        <AixiaSelectField
                           value={line.item_id}
+                          disabled={sourceMode === "purchase_order" || isSaving}
                           onChange={(event) =>
                             handleItemChange(line.localId, event.target.value)
                           }
-                          disabled={sourceMode === "purchase_order"}
-                          className={lineInputClass}
                         >
                           <option value="">Manual item</option>
                           {items.map((item) => (
@@ -1084,64 +1064,59 @@ export default function FinanceNewBillPage() {
                               {item.name}
                             </option>
                           ))}
-                        </select>
-                      </label>
+                        </AixiaSelectField>
+                      </AixiaFormField>
 
-                      <label className="space-y-2">
-                        <div className={labelClass}>Description</div>
-                        <input
+                      <AixiaFormFullWidth>
+                        <AixiaFieldLabel label="Description" required />
+                        <AixiaInputField
                           value={line.description}
+                          disabled={sourceMode === "purchase_order" || isSaving}
                           onChange={(event) =>
                             updateLine(line.localId, {
                               description: event.target.value,
                             })
                           }
-                          disabled={sourceMode === "purchase_order"}
-                          className={lineInputClass}
+                          placeholder="Line description"
                         />
-                      </label>
+                      </AixiaFormFullWidth>
 
-                      <label className="space-y-2">
-                        <div className={labelClass}>Qty</div>
-                        <input
+                      <AixiaFormField>
+                        <AixiaFieldLabel label="Qty" required />
+                        <AixiaInputField
                           value={line.quantity}
+                          disabled={sourceMode === "purchase_order" || isSaving}
                           onChange={(event) =>
                             updateLine(line.localId, {
                               quantity: event.target.value,
                             })
                           }
-                          disabled={sourceMode === "purchase_order"}
-                          className={lineInputClass}
                         />
-                      </label>
+                      </AixiaFormField>
 
-                      <label className="space-y-2">
-                        <div className={labelClass}>Unit Price</div>
-                        <input
+                      <AixiaFormField>
+                        <AixiaFieldLabel label="Unit Price" required />
+                        <AixiaInputField
                           value={line.unit_price}
+                          disabled={sourceMode === "purchase_order" || isSaving}
                           onChange={(event) =>
                             updateLine(line.localId, {
                               unit_price: event.target.value,
                             })
                           }
-                          disabled={sourceMode === "purchase_order"}
-                          className={lineInputClass}
                         />
-                      </label>
-                    </div>
+                      </AixiaFormField>
 
-                    <div className="mt-4 grid grid-cols-1 gap-4 lg:grid-cols-[1fr_1fr]">
-                      <label className="space-y-2">
-                        <div className={labelClass}>Expense Category</div>
-                        <select
+                      <AixiaFormField>
+                        <AixiaFieldLabel label="Expense Category" />
+                        <AixiaSelectField
                           value={line.expense_category_id}
+                          disabled={sourceMode === "purchase_order" || isSaving}
                           onChange={(event) =>
                             updateLine(line.localId, {
                               expense_category_id: event.target.value,
                             })
                           }
-                          disabled={sourceMode === "purchase_order"}
-                          className={lineInputClass}
                         >
                           <option value="">Select</option>
                           {expenseCategories.map((category) => (
@@ -1149,144 +1124,172 @@ export default function FinanceNewBillPage() {
                               {category.name}
                             </option>
                           ))}
-                        </select>
-                      </label>
+                        </AixiaSelectField>
+                      </AixiaFormField>
 
-                      <div className="space-y-2">
-                        <div className={labelClass}>Line Total</div>
-                        <div className="flex min-h-[44px] items-center rounded-2xl border border-violet-400/15 bg-violet-500/10 px-4 text-sm font-semibold text-violet-100">
-                          {formatMoney(lineTotals[index] || 0, currencyCode || "USD")}
-                        </div>
-                      </div>
-                    </div>
-
-                    <label className="mt-4 block space-y-2">
-                      <div className={labelClass}>Line Notes</div>
-                      <input
-                        value={line.notes}
-                        onChange={(event) =>
-                          updateLine(line.localId, {
-                            notes: event.target.value,
-                          })
-                        }
-                        disabled={sourceMode === "purchase_order"}
-                        className={lineInputClass}
+                      <AixiaValueBlock
+                        label="Line Total"
+                        value={formatMoney(
+                          lineTotals[index] || 0,
+                          currencyCode || "USD"
+                        )}
+                        detail="Quantity × unit price"
                       />
-                    </label>
-                  </div>
+
+                      <AixiaFormFullWidth>
+                        <AixiaFieldLabel label="Line Notes" />
+                        <AixiaInputField
+                          value={line.notes}
+                          disabled={sourceMode === "purchase_order" || isSaving}
+                          onChange={(event) =>
+                            updateLine(line.localId, {
+                              notes: event.target.value,
+                            })
+                          }
+                          placeholder="Line notes"
+                        />
+                      </AixiaFormFullWidth>
+                    </AixiaFormGrid>
+                  </AixiaSection>
                 ))}
-              </CardContent>
-            </Card>
-          </div>
 
-          <div className="space-y-6">
-            <Card className={sectionCardClass}>
-              <CardHeader className="border-b border-white/10 px-5 py-4">
-                <div className="flex items-center gap-3">
-                  <div className="rounded-2xl border border-violet-400/15 bg-violet-500/10 p-3 text-violet-200">
-                    <Upload className="h-4 w-4" />
-                  </div>
-                  <div>
-                    <CardTitle className="text-sm font-semibold uppercase tracking-[0.18em] text-slate-400">
-                      Vendor Document
-                    </CardTitle>
-                    <CardDescription className="mt-1 text-xs text-slate-500">
-                      Required. Store the original vendor PI / invoice file.
-                    </CardDescription>
-                  </div>
-                </div>
-              </CardHeader>
-
-              <CardContent className="space-y-4 p-5">
-                <input
+                {lines.length === 0 ? (
+                  <AixiaEmptyState
+                    icon={FileText}
+                    title="No line items"
+                    description="Add at least one vendor document line."
+                  />
+                ) : null}
+              </div>
+            </AixiaSection>
+          </>
+        }
+        side={
+          <>
+            <AixiaSection
+              title="Vendor Document"
+              description="Required. Store the original vendor PI / invoice file."
+              icon={Upload}
+            >
+              <div className="aixia-stack">
+                <AixiaInputField
                   type="file"
+                  disabled={isSaving}
                   onChange={(event) =>
                     setSelectedFile(event.target.files?.[0] || null)
                   }
-                  className="block w-full text-sm text-white file:mr-4 file:rounded-lg file:border-0 file:bg-white/10 file:px-4 file:py-2 file:text-white hover:file:bg-white/20"
                 />
 
-                {selectedFile ? (
-                  <div className="rounded-[18px] border border-emerald-400/20 bg-emerald-500/10 px-4 py-3 text-sm text-emerald-200">
-                    Selected file: {selectedFile.name}
-                  </div>
-                ) : (
-                  <div className="rounded-[18px] border border-rose-400/20 bg-rose-500/10 px-4 py-3 text-sm text-rose-200">
-                    Vendor PI / invoice document is required.
-                  </div>
-                )}
-              </CardContent>
-            </Card>
+                <AixiaValueBlock
+                  label="Selected File"
+                  value={selectedFile ? selectedFile.name : "Required"}
+                  detail={
+                    selectedFile
+                      ? resolveUploadMimeType(selectedFile)
+                      : "Vendor PI / invoice document is required."
+                  }
+                />
+              </div>
+            </AixiaSection>
 
-            <Card className={sectionCardClass}>
-              <CardHeader className="border-b border-white/10 px-5 py-4">
-                <CardTitle className="text-sm font-semibold uppercase tracking-[0.18em] text-slate-400">
-                  Financial Summary
-                </CardTitle>
-                <CardDescription className="mt-1 text-xs text-slate-500">
-                  Draft value before saving.
-                </CardDescription>
-              </CardHeader>
+            <AixiaSection
+              title="Financial Summary"
+              description="Draft value before saving."
+              icon={Wallet}
+            >
+              <AixiaReviewGrid variant="compact">
+                <AixiaReviewBlock
+                  label="Lines"
+                  value={String(lines.length)}
+                  description="Vendor document line items."
+                />
 
-              <CardContent className="space-y-3 p-5">
-                <div className="rounded-[24px] border border-white/10 bg-black/20 p-4">
-                  <div className="text-[11px] uppercase tracking-[0.2em] text-slate-500">
-                    Lines
-                  </div>
-                  <div className="mt-2 text-2xl font-semibold text-white">
-                    {lines.length}
-                  </div>
-                  <div className="mt-2 text-sm leading-6 text-slate-400">
-                    Vendor document line items.
-                  </div>
-                </div>
+                <AixiaReviewBlock
+                  label="Total"
+                  value={formatMoney(totalAmount, currencyCode || "USD")}
+                  description={`Source: ${getSourceModeLabel(sourceMode)}`}
+                />
 
-                <div className="rounded-[24px] border border-white/10 bg-black/20 p-4">
-                  <div className="text-[11px] uppercase tracking-[0.2em] text-slate-500">
-                    Total
-                  </div>
-                  <div className="mt-2 text-2xl font-semibold text-white">
-                    {formatMoney(totalAmount, currencyCode || "USD")}
-                  </div>
-                  <div className="mt-2 text-sm leading-6 text-slate-400">
-                    Source:{" "}
-                    {sourceMode === "purchase_order"
-                      ? "Purchase Order"
-                      : "Manual"}
-                  </div>
-                </div>
+                <AixiaReviewBlock
+                  label="Currency"
+                  value={currencyCode || "Required"}
+                  description="Saved on the vendor bill record."
+                />
 
-                <div className="rounded-[20px] border border-violet-400/15 bg-violet-500/10 px-4 py-3 text-sm leading-6 text-violet-100">
-                  After saving, this vendor document will be draft/pending. The ID
-                  page controls approval and payment-made creation.
-                </div>
+                <AixiaReviewBlock
+                  label="Document Number"
+                  value={externalDocumentNumber || "Not entered"}
+                  description="Supplier PI / invoice reference."
+                />
+              </AixiaReviewGrid>
+            </AixiaSection>
 
-                {errorMessage ? (
-                  <div className="rounded-[18px] border border-rose-400/20 bg-rose-500/10 px-4 py-3 text-sm text-rose-200">
-                    {errorMessage}
-                  </div>
-                ) : null}
-              </CardContent>
-            </Card>
+            <AixiaSection
+              title="Actions"
+              description="Save creates the draft/pending vendor document and opens the ID page."
+              icon={Save}
+            >
+              <div className="aixia-stack">
+                <AixiaButton
+                  type="button"
+                  variant="primary"
+                  onClick={() => void handleSave()}
+                  disabled={isSaving}
+                >
+                  {isSaving ? (
+                    <Loader2 className="h-4 w-4 animate-spin" />
+                  ) : (
+                    <Save className="h-4 w-4" />
+                  )}
+                  {isSaving ? "Saving..." : "Save Vendor Document"}
+                </AixiaButton>
 
-            <Card className={sectionCardClass}>
-              <CardHeader className="border-b border-white/10 px-5 py-4">
-                <CardTitle className="text-sm font-semibold uppercase tracking-[0.18em] text-slate-400">
-                  Reverse Flow Position
-                </CardTitle>
-              </CardHeader>
+                <AixiaButton
+                  type="button"
+                  variant="secondary"
+                  disabled={isSaving}
+                  onClick={resetForm}
+                >
+                  <RotateCcw className="h-4 w-4" />
+                  Reset Form
+                </AixiaButton>
+              </div>
+            </AixiaSection>
 
-              <CardContent className="space-y-2 p-5 text-sm leading-6 text-slate-400">
-                <div>• Purchase order sent to supplier.</div>
-                <div>• Vendor PI / invoice received from supplier.</div>
-                <div>• Original vendor document must be stored.</div>
-                <div>• Vendor document is approved before payment.</div>
-                <div>• Approved open balance continues to Payment Made.</div>
-              </CardContent>
-            </Card>
-          </div>
-        </div>
-      </div>
-    </div>
+            <AixiaSection
+              title="Reverse Flow Position"
+              description="Supplier procurement document flow."
+              icon={Receipt}
+            >
+              <AixiaReviewGrid variant="compact">
+                <AixiaReviewBlock
+                  label="Step 1"
+                  value="Purchase Order"
+                  description="Purchase order sent to supplier."
+                />
+
+                <AixiaReviewBlock
+                  label="Step 2"
+                  value="Vendor Document"
+                  description="Vendor PI / invoice received from supplier."
+                />
+
+                <AixiaReviewBlock
+                  label="Step 3"
+                  value="Approval"
+                  description="Vendor document is approved before payment."
+                />
+
+                <AixiaReviewBlock
+                  label="Step 4"
+                  value="Payment Made"
+                  description="Approved open balance continues to payment execution."
+                />
+              </AixiaReviewGrid>
+            </AixiaSection>
+          </>
+        }
+      />
+    </AixiaPage>
   );
 }

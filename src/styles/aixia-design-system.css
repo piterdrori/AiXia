@@ -4395,3 +4395,253 @@
 .aixia-section td:has(.aixia-table-actions-cell) {
   white-space: nowrap;
 }
+
+
+/* -------------------------------------------------------
+   GLOBAL AIXIA TYPOGRAPHY LOCK
+   Finance pages must inherit one shared font rhythm from
+   the AiXia source-of-truth layer. Pages must not create
+   local typography systems or wrapper components.
+------------------------------------------------------- */
+
+.aixia-page,
+.aixia-page *,
+.aixia-modal,
+.aixia-modal * {
+  font-family:
+    Inter,
+    ui-sans-serif,
+    system-ui,
+    -apple-system,
+    BlinkMacSystemFont,
+    "Segoe UI",
+    sans-serif;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+
+.aixia-page strong,
+.aixia-page b,
+.aixia-modal strong,
+.aixia-modal b {
+  font-weight: 900;
+}
+
+.aixia-page button,
+.aixia-page input,
+.aixia-page select,
+.aixia-page textarea,
+.aixia-modal button,
+.aixia-modal input,
+.aixia-modal select,
+.aixia-modal textarea {
+  font: inherit;
+}
+
+/* -------------------------------------------------------
+   GLOBAL DOCUMENT UPLOAD PANEL STANDARD
+   All Finance upload/document sections must use the shared
+   AixiaDocumentUploadPanel. Pages must not build manual
+   upload-zone/card/button/list systems locally.
+------------------------------------------------------- */
+
+.aixia-document-upload-panel {
+  display: grid;
+  min-width: 0;
+  gap: 1rem;
+}
+
+.aixia-document-upload-zone {
+  display: grid;
+  width: 100%;
+  min-width: 0;
+  cursor: pointer;
+  grid-template-columns: 3rem minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 1rem;
+  border-radius: 1.5rem;
+  border: 1px dashed rgba(34, 211, 238, 0.28);
+  background:
+    radial-gradient(circle at top left, rgba(6, 182, 212, 0.12), transparent 42%),
+    rgba(0, 0, 0, 0.22);
+  padding: 1rem;
+  text-align: left;
+  color: white;
+  transition:
+    border-color 240ms ease,
+    background-color 240ms ease,
+    box-shadow 240ms ease,
+    transform 240ms ease,
+    opacity 240ms ease;
+}
+
+.aixia-document-upload-zone:hover,
+.aixia-document-upload-zone.is-dragging {
+  transform: translateY(-0.075rem);
+  border-color: rgba(34, 211, 238, 0.52);
+  background:
+    radial-gradient(circle at top left, rgba(6, 182, 212, 0.18), transparent 46%),
+    rgba(255, 255, 255, 0.055);
+  box-shadow: 0 0 32px rgba(6, 182, 212, 0.16);
+}
+
+.aixia-document-upload-zone:disabled {
+  cursor: not-allowed;
+  opacity: 0.5;
+  transform: none;
+  box-shadow: none;
+}
+
+.aixia-document-upload-icon,
+.aixia-document-file-icon {
+  display: flex;
+  height: 3rem;
+  width: 3rem;
+  flex-shrink: 0;
+  align-items: center;
+  justify-content: center;
+  border-radius: 1rem;
+  border: 1px solid rgba(34, 211, 238, 0.22);
+  background: rgba(6, 182, 212, 0.1);
+  color: rgb(165, 243, 252);
+}
+
+.aixia-document-upload-copy,
+.aixia-document-file-copy {
+  display: grid;
+  min-width: 0;
+  gap: 0.25rem;
+}
+
+.aixia-document-upload-title,
+.aixia-document-file-name {
+  min-width: 0;
+  overflow-wrap: anywhere;
+  font-size: 0.95rem;
+  font-weight: 900;
+  line-height: 1.25;
+  color: white;
+}
+
+.aixia-document-upload-description,
+.aixia-document-file-meta {
+  min-width: 0;
+  overflow-wrap: anywhere;
+  font-size: 0.75rem;
+  line-height: 1.5;
+  color: rgba(148, 163, 184, 0.86);
+}
+
+.aixia-document-upload-browse {
+  display: inline-flex;
+  min-height: 2.35rem;
+  flex-shrink: 0;
+  align-items: center;
+  justify-content: center;
+  border-radius: 999px;
+  border: 1px solid rgba(99, 102, 241, 0.38);
+  background: rgba(99, 102, 241, 0.86);
+  padding: 0.55rem 1rem;
+  font-size: 0.6875rem;
+  font-weight: 900;
+  letter-spacing: 0.13em;
+  text-transform: uppercase;
+  color: white;
+  box-shadow: 0 0 22px rgba(99, 102, 241, 0.32);
+}
+
+.aixia-document-selected-file,
+.aixia-document-attachment-card {
+  display: grid;
+  min-width: 0;
+  grid-template-columns: 3rem minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 1rem;
+  border-radius: 1.5rem;
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  background: rgba(0, 0, 0, 0.22);
+  padding: 1rem;
+}
+
+.aixia-document-file-label {
+  font-size: 0.625rem;
+  font-weight: 900;
+  letter-spacing: 0.18em;
+  text-transform: uppercase;
+  color: rgba(100, 116, 139, 0.95);
+}
+
+.aixia-document-attachment-list {
+  display: grid;
+  min-width: 0;
+  gap: 0.75rem;
+}
+
+.aixia-document-attachment-meta {
+  display: flex;
+  min-width: 0;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.5rem;
+  font-size: 0.75rem;
+  color: rgba(148, 163, 184, 0.82);
+}
+
+.aixia-document-upload-panel .aixia-alert {
+  display: grid;
+  gap: 0.25rem;
+}
+
+@media (max-width: 767px) {
+  .aixia-document-upload-zone,
+  .aixia-document-selected-file,
+  .aixia-document-attachment-card {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .aixia-document-upload-icon,
+  .aixia-document-file-icon {
+    height: 2.75rem;
+    width: 2.75rem;
+  }
+
+  .aixia-document-upload-browse,
+  .aixia-document-selected-file .aixia-btn-primary,
+  .aixia-document-selected-file .aixia-btn-secondary,
+  .aixia-document-selected-file .aixia-btn-danger,
+  .aixia-document-attachment-card .aixia-btn-primary,
+  .aixia-document-attachment-card .aixia-btn-secondary,
+  .aixia-document-attachment-card .aixia-btn-danger {
+    width: 100%;
+  }
+}
+
+/* -------------------------------------------------------
+   GLOBAL SMART DETAIL LAYOUT COMPACTION STANDARD
+   Detail pages should not leave a large empty side column.
+   Side content remains compact unless the page explicitly
+   asks for matched full-height columns.
+------------------------------------------------------- */
+
+@media (min-width: 1280px) {
+  .aixia-smart-layout[data-match-columns="false"] > .aixia-smart-side {
+    align-self: start;
+  }
+
+  .aixia-smart-layout[data-match-columns="false"] > .aixia-smart-side > .aixia-section,
+  .aixia-smart-layout[data-match-columns="false"] > .aixia-smart-side > .aixia-detail-section {
+    flex: 0 0 auto;
+  }
+
+  .aixia-smart-layout[data-balance="main"][data-sidebar="normal"] {
+    grid-template-columns: minmax(0, 1.42fr) minmax(340px, 400px);
+  }
+
+  .aixia-smart-layout[data-balance="main"][data-sidebar="narrow"] {
+    grid-template-columns: minmax(0, 1.48fr) minmax(300px, 360px);
+  }
+
+  .aixia-smart-layout[data-balance="main"][data-sidebar="wide"] {
+    grid-template-columns: minmax(0, 1.22fr) minmax(400px, 500px);
+  }
+}

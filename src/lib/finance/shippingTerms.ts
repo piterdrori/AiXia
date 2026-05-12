@@ -191,10 +191,9 @@ export async function permanentlyDeleteShippingTerm(
 
   if (readError) throw readError;
 
-  const { error } = await supabase
-    .from(TABLE)
-    .delete()
-    .eq("id", id);
+  const { error } = await supabase.rpc("finance_permanently_delete_shipping_term", {
+    p_shipping_term_id: id,
+  });
 
   if (error) throw error;
 

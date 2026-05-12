@@ -701,7 +701,9 @@
 .aixia-section-smart-scroll-body {
   min-height: 0;
   flex: 1 1 auto;
-  overflow: hidden;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  padding: clamp(1rem, 1.4vw, 1.5rem);
 }
 
 .aixia-section-smart-scroll-area {
@@ -712,30 +714,30 @@
   padding: clamp(1rem, 1.4vw, 1.5rem);
 }
 
-.aixia-section-smart-scroll[data-visible-cards="8"] {
-  min-height: 1120px;
+.aixia-section-smart-scroll[data-smart-scroll-active="true"][data-visible-cards="8"] {
+  max-height: 1120px;
 }
 
-.aixia-section-smart-scroll[data-visible-cards="10"] {
-  min-height: 1340px;
+.aixia-section-smart-scroll[data-smart-scroll-active="true"][data-visible-cards="10"] {
+  max-height: 1340px;
 }
 
-.aixia-section-smart-scroll[data-visible-cards="12"] {
-  min-height: 1580px;
+.aixia-section-smart-scroll[data-smart-scroll-active="true"][data-visible-cards="12"] {
+  max-height: 1580px;
 }
 
-.aixia-section-smart-scroll[data-match-opposite="true"][data-fill="true"] {
+.aixia-section-smart-scroll[data-match-opposite="true"][data-fill="true"][data-smart-scroll-active="true"] {
   height: var(--aixia-smart-fill-height, auto);
   max-height: var(--aixia-smart-fill-height, none);
 }
 
-.aixia-section-smart-scroll[data-match-opposite="true"] .aixia-section-smart-scroll-area {
+.aixia-section-smart-scroll[data-match-opposite="true"][data-smart-scroll-active="true"] .aixia-section-smart-scroll-area {
   max-height: 100%;
 }
 
 @media (max-width: 767px) {
-  .aixia-section-smart-scroll[data-visible-cards="8"] {
-    min-height: min(760px, calc(8 * 84px + 88px));
+  .aixia-section-smart-scroll[data-smart-scroll-active="true"][data-visible-cards="8"] {
+    max-height: min(760px, calc(8 * 84px + 88px));
   }
 
   .aixia-section-smart-scroll[data-match-opposite="true"] {

@@ -1104,65 +1104,63 @@ export default function FinanceMasterDataPage() {
                 Finance template baseline or user-specific exception.
               </AixiaAccessRule>
 
-              <AixiaSection
+              <AixiaNavigationInfoPanel
                 title="Master Data Navigation"
                 description="Open each dedicated finance master-data domain available to this user."
                 icon={Database}
-                smartScroll
-                fill
-                visibleCards={8}
-                matchOpposite
-                actions={
+                tone="cyan"
+              >
+                <div className="aixia-stack">
                   <AixiaSearchField
                     width="wide"
                     value={moduleSearch}
                     onChange={(event) => setModuleSearch(event.target.value)}
                     placeholder="Search domains..."
                   />
-                }
-              >
-                {filteredModuleCards.length === 0 ? (
-                  <AixiaEmptyState
-                    icon={Database}
-                    title="No matching domains"
-                    description="Adjust the search term to find a visible master-data domain."
-                  />
-                ) : (
-                  <AixiaNavigationGrid>
-                    {filteredModuleCards.map((module) => (
-                      <AixiaNavigationCard
-                        key={module.key}
-                        title={module.title}
-                        eyebrow={module.groupLabel}
-                        description={module.description}
-                        icon={module.icon}
-                        statusLabel={module.statusLabel}
-                        summary={`${formatCount(module.count)} records`}
-                        actionLabel="Open"
-                        tone={getStatusTone(module.statusLabel)}
-                        onClick={() => openRoute(module.route)}
-                        meta={[
-                          {
-                            label: "Records",
-                            value: formatCount(module.count),
-                            description: "Configured records",
-                          },
-                          {
-                            label: "Required Access",
-                            value: module.requiredAccessLabel,
-                            description: module.groupLabel,
-                          },
-                          {
-                            label: "Updated",
-                            value: module.lastUpdatedLabel,
-                            description: "Backend reference",
-                          },
-                        ]}
-                      />
-                    ))}
-                  </AixiaNavigationGrid>
-                )}
-              </AixiaSection>
+
+                  {filteredModuleCards.length === 0 ? (
+                    <AixiaEmptyState
+                      icon={Database}
+                      title="No matching domains"
+                      description="Adjust the search term to find a visible master-data domain."
+                    />
+                  ) : (
+                    <AixiaNavigationGrid>
+                      {filteredModuleCards.map((module) => (
+                        <AixiaNavigationCard
+                          key={module.key}
+                          title={module.title}
+                          eyebrow={module.groupLabel}
+                          description={module.description}
+                          icon={module.icon}
+                          statusLabel={module.statusLabel}
+                          summary={`${formatCount(module.count)} records`}
+                          actionLabel="Open"
+                          tone={getStatusTone(module.statusLabel)}
+                          onClick={() => openRoute(module.route)}
+                          meta={[
+                            {
+                              label: "Records",
+                              value: formatCount(module.count),
+                              description: "Configured records",
+                            },
+                            {
+                              label: "Required Access",
+                              value: module.requiredAccessLabel,
+                              description: module.groupLabel,
+                            },
+                            {
+                              label: "Updated",
+                              value: module.lastUpdatedLabel,
+                              description: "Backend reference",
+                            },
+                          ]}
+                        />
+                      ))}
+                    </AixiaNavigationGrid>
+                  )}
+                </div>
+              </AixiaNavigationInfoPanel>
             </>
           }
           side={

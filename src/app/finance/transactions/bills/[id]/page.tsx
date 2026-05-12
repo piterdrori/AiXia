@@ -1338,9 +1338,13 @@ export default function FinanceBillDetailPage() {
             ? [{ label: "Syncing", tone: "neutral" as const }]
             : []),
         ]}
-        gradientTitle={bill.bill_number}
-        title="Vendor Bill"
-        subtitle="Vendor PI / Invoice Detail"
+        gradientTitle={getDocumentTypeLabel(bill.document_type).toUpperCase()}
+        title={
+          selectedVendor?.legal_name ||
+          selectedVendor?.name ||
+          "Unknown vendor"
+        }
+        subtitle={bill.bill_number}
         description="Vendor PI / invoice received from the supplier. Verify the vendor document number, currency, original source document, line items, and approval state before creating a payment made record."
         statusCards={[
           {

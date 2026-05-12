@@ -812,6 +812,7 @@ export default function FinanceAccessApprovalsPage() {
         title="Finance Access Approval Registry"
         description="Compact active-user registry. Open a user to change the Finance template or inspect detailed permissions."
         icon={KeyRound}
+        bodyClassName="px-7 pb-7 pt-6"
       >
         <AixiaRegistryToolbar
           search={
@@ -991,23 +992,6 @@ export default function FinanceAccessApprovalsPage() {
           </AixiaTableShell>
         )}
       </AixiaSection>
-
-      <AixiaMetricGrid>
-        {ACCESS_APPROVAL_GROUPS.map((group) => {
-          const Icon = groupIconMap[group.key];
-
-          return (
-            <AixiaMetricCard
-              key={group.key}
-              label={group.title}
-              value={group.shortTitle}
-              description={group.description}
-              icon={Icon}
-              tone="cyan"
-            />
-          );
-        })}
-      </AixiaMetricGrid>
 
       <AixiaAccessRule
         title="Locked access rule"

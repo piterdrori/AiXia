@@ -1,32 +1,61 @@
-import { useCallback, useEffect, useMemo, useState, type ReactNode } from "react";
-import { useNavigate } from "react-router-dom";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import {
   Archive,
-  ArrowLeft,
   CheckCircle2,
   Clock3,
   Edit3,
   FileText,
+  Loader2,
   Percent,
   Plus,
-  Search,
+  RotateCcw,
+  Save,
   ShieldCheck,
   Trash2,
-  Undo2,
   WalletCards,
-  X,
 } from "lucide-react";
-import { AnimatePresence, motion } from "framer-motion";
 
-import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
-import { Badge } from "@/components/ui/badge";
+import {
+  AixiaAccessDeniedState,
+  AixiaAccessRule,
+  AixiaAlert,
+  AixiaArchiveManagerModal,
+  AixiaBadge,
+  AixiaButton,
+  AixiaEmptyState,
+  AixiaFieldLabel,
+  AixiaFormField,
+  AixiaFormFullWidth,
+  AixiaFormGrid,
+  AixiaHero,
+  AixiaInputField,
+  AixiaLoadingState,
+  AixiaMetricCard,
+  AixiaMetricGrid,
+  AixiaModal,
+  AixiaPage,
+  AixiaRegistryToolbar,
+  AixiaReviewGrid,
+  AixiaSearchField,
+  AixiaSection,
+  AixiaSelectField,
+  AixiaSelectableTile,
+  AixiaSortableHeader,
+  AixiaStatusBadge,
+  AixiaTableActionsCell,
+  AixiaTableBadgeCell,
+  AixiaTableDateCell,
+  AixiaTableShell,
+  AixiaTableTextCell,
+  AixiaTextareaField,
+  AixiaValueBlock,
+} from "@/components/aixia";
 
-import { supabase } from "@/lib/supabase";
 import { type Permission, type Role } from "@/lib/permissions";
 import {
   fetchFinanceEffectivePermissions,
   resolveFinancePagePermissionState,
+  type FinanceLoadMode,
 } from "@/lib/finance/pageAccess";
 import {
   archivePaymentTerm,
@@ -44,13 +73,16 @@ import {
   type FinancePaymentTermStatus,
   type FinancePaymentTermType,
 } from "@/lib/finance/paymentTerms";
+import { supabase } from "@/lib/supabase";
+
+type LoadMode = FinanceLoadMode;
 
 type ProfilePermissionRow = {
-  role: Role;
+  role: Role | null;
   permissions?: Partial<Record<Permission, boolean>> | null;
 };
 
-type StatusFilter = "all" | FinancePaymentTermStatus;
+type StatusFilter = "all" | "active" | "inactive";
 
 type SortKey =
   | "code"
@@ -61,6 +93,15 @@ type SortKey =
   | "updated_at";
 
 type SortDirection = "asc" | "desc";
+
+type PageAction =
+  | null
+  | "create"
+  | "edit"
+  | "archive"
+  | "archive-modal"
+  | "restore"
+  | "hard-delete";
 
 type FormState = {
   term_type: FinancePaymentTermType;
@@ -152,51 +193,26 @@ const DEPOSIT_DUE_BASIS_OPTIONS: Array<{
   value: FinancePaymentTermDepositDueBasis;
   label: string;
 }> = [
-  {
-    value: "immediate",
-    label: "Immediately",
-  },
-  {
-    value: "before_production",
-    label: "Before Production",
-  },
-  {
-    value: "before_shipment",
-    label: "Before Shipment",
-  },
-  {
-    value: "before_delivery",
-    label: "Before Delivery",
-  },
+  { value: "immediate", label: "Immediately" },
+  { value: "before_production", label: "Before Production" },
+  { value: "before_shipment", label: "Before Shipment" },
+  { value: "before_delivery", label: "Before Delivery" },
 ];
 
 const BALANCE_DUE_BASIS_OPTIONS: Array<{
   value: FinancePaymentTermBalanceDueBasis;
   label: string;
 }> = [
-  {
-    value: "before_shipment",
-    label: "Before Shipment",
-  },
-  {
-    value: "delivery_date",
-    label: "On Delivery",
-  },
-  {
-    value: "shipment_date",
-    label: "On Shipment",
-  },
-  {
-    value: "invoice_date",
-    label: "On Invoice Date",
-  },
+  { value: "before_shipment", label: "Before Shipment" },
+  { value: "delivery_date", label: "On Delivery" },
+  { value: "shipment_date", label: "On Shipment" },
+  { value: "invoice_date", label: "On Invoice Date" },
 ];
 
 function formatDateLabel(value: string | null | undefined) {
   if (!value) return "—";
 
   const parsed = new Date(value);
-
   if (Number.isNaN(parsed.getTime())) return "—";
 
   return parsed.toLocaleDateString(undefined, {
@@ -206,7 +222,9 @@ function formatDateLabel(value: string | null | undefined) {
   });
 }
 
-function formatStatusLabel(value: string) {
+function formatStatusLabel(value: string | null | undefined) {
+  if (!value) return "—";
+
   return value
     .replaceAll("_", " ")
     .replace(/\b\w/g, (character) => character.toUpperCase());
@@ -239,18 +257,35 @@ function normalizeGeneratedCode(value: string) {
 
 function parseWholeNumber(value: string) {
   const parsed = Number(value);
-
   if (!Number.isInteger(parsed) || parsed < 0) return null;
-
   return parsed;
 }
 
 function parsePercentage(value: string) {
   const parsed = Number(value);
-
   if (!Number.isFinite(parsed) || parsed <= 0 || parsed >= 100) return null;
-
   return parsed;
+}
+
+function compareStrings(
+  first: string | null | undefined,
+  second: string | null | undefined
+) {
+  return (first || "").localeCompare(second || "");
+}
+
+function compareNumbers(
+  first: number | string | null | undefined,
+  second: number | string | null | undefined
+) {
+  return Number(first || 0) - Number(second || 0);
+}
+
+function compareDates(
+  first: string | null | undefined,
+  second: string | null | undefined
+) {
+  return new Date(first || 0).getTime() - new Date(second || 0).getTime();
 }
 
 function buildGeneratedTerm(form: FormState): GeneratedTerm {
@@ -331,310 +366,29 @@ function buildGeneratedTerm(form: FormState): GeneratedTerm {
   };
 }
 
-const pageShell =
-  "relative min-h-screen overflow-x-hidden bg-[#0F172A] px-4 py-6 text-white md:px-8 md:py-8";
-
-const glassSurface =
-  "relative overflow-hidden rounded-[32px] border border-white/10 bg-white/[0.08] shadow-[0_24px_80px_rgba(0,0,0,0.35)] backdrop-blur-xl";
-
-const glassSurfaceHover =
-  "transition-all duration-500 hover:border-white/20 hover:bg-white/[0.11] hover:shadow-[0_28px_100px_rgba(99,102,241,0.18)]";
-
-const textGradient =
-  "bg-gradient-to-r from-[#6366F1] via-[#A855F7] to-[#FBBF24] bg-clip-text text-transparent";
-
-const badgeBase =
-  "rounded-full border px-4 py-1.5 text-[10px] font-bold uppercase tracking-[0.2em] shadow-none backdrop-blur-md";
-
-const premiumButton =
-  "relative overflow-hidden rounded-full font-bold tracking-wide transition-all duration-300 before:absolute before:inset-0 before:-translate-x-full before:bg-gradient-to-r before:from-transparent before:via-white/25 before:to-transparent before:transition-transform before:duration-700 hover:before:translate-x-full";
-
-const inputGlass =
-  "h-12 w-full rounded-2xl border border-white/10 bg-white/[0.06] px-4 text-sm text-white outline-none transition-all duration-300 placeholder:text-white/35 focus:border-[#6366F1]/60 focus:bg-white/[0.09] focus:shadow-[0_0_28px_rgba(99,102,241,0.24)] focus:ring-1 focus:ring-[#6366F1]/40 disabled:cursor-not-allowed disabled:opacity-50";
-
-const selectGlass =
-  "h-12 w-full rounded-2xl border border-white/10 bg-white/[0.06] px-4 text-sm text-white outline-none transition-all duration-300 focus:border-[#6366F1]/60 focus:bg-white/[0.09] focus:shadow-[0_0_28px_rgba(99,102,241,0.24)] focus:ring-1 focus:ring-[#6366F1]/40 disabled:cursor-not-allowed disabled:opacity-50";
-
-const textareaGlass =
-  "min-h-[120px] w-full resize-none rounded-2xl border border-white/10 bg-white/[0.06] px-4 py-3 text-sm text-white outline-none transition-all duration-300 placeholder:text-white/35 focus:border-[#6366F1]/60 focus:bg-white/[0.09] focus:shadow-[0_0_28px_rgba(99,102,241,0.24)] focus:ring-1 focus:ring-[#6366F1]/40 disabled:cursor-not-allowed disabled:opacity-50";
-
-const labelGlass =
-  "text-xs font-bold uppercase tracking-[0.22em] text-white/60";
-
-function ambientOrb(
-  color: string,
-  top: string,
-  left: string,
-  size: string,
-  delay: number
-) {
-  return {
-    position: "absolute" as const,
-    top,
-    left,
-    width: size,
-    height: size,
-    borderRadius: "50%",
-    background: `radial-gradient(circle, ${color} 0%, transparent 68%)`,
-    filter: "blur(70px)",
-    opacity: 0.42,
-    animation: `paymentTermsFloatOrb ${8 + delay}s ease-in-out infinite alternate`,
-  };
-}
-
-function statusBadgeClass(status: FinancePaymentTermStatus) {
-  if (status === "archived") {
-    return `${badgeBase} border-rose-400/30 bg-rose-500/10 text-rose-200`;
-  }
-
-  if (status === "inactive") {
-    return `${badgeBase} border-[#FBBF24]/30 bg-[#FBBF24]/10 text-[#FBBF24]`;
-  }
-
-  return `${badgeBase} border-emerald-400/30 bg-emerald-500/10 text-emerald-200`;
-}
-
-function termTypeBadgeClass(type: FinancePaymentTermType) {
-  if (type === "immediate") {
-    return `${badgeBase} border-emerald-400/30 bg-emerald-500/10 text-emerald-200`;
-  }
-
-  if (type === "deposit_balance") {
-    return `${badgeBase} border-[#FBBF24]/30 bg-[#FBBF24]/10 text-[#FBBF24]`;
-  }
-
-  if (type === "custom") {
-    return `${badgeBase} border-[#A855F7]/30 bg-[#A855F7]/10 text-violet-200`;
-  }
-
-  return `${badgeBase} border-[#6366F1]/30 bg-[#6366F1]/10 text-indigo-200`;
-}
-
-function optionToneClass(
-  tone: "indigo" | "violet" | "gold" | "emerald",
-  active: boolean
-) {
-  const activeMap = {
-    indigo:
-      "border-[#6366F1]/50 bg-gradient-to-br from-[#6366F1]/25 to-[#6366F1]/5 text-indigo-100 shadow-[0_0_30px_rgba(99,102,241,0.2)]",
-    violet:
-      "border-[#A855F7]/50 bg-gradient-to-br from-[#A855F7]/25 to-[#A855F7]/5 text-violet-100 shadow-[0_0_30px_rgba(168,85,247,0.2)]",
-    gold:
-      "border-[#FBBF24]/50 bg-gradient-to-br from-[#FBBF24]/25 to-[#FBBF24]/5 text-amber-100 shadow-[0_0_30px_rgba(251,191,36,0.2)]",
-    emerald:
-      "border-emerald-400/50 bg-gradient-to-br from-emerald-500/25 to-emerald-500/5 text-emerald-100 shadow-[0_0_30px_rgba(16,185,129,0.2)]",
-  };
-
-  return active
-    ? activeMap[tone]
-    : "border-white/10 bg-white/[0.05] text-white/50 hover:border-white/20 hover:bg-white/[0.08] hover:text-white";
-}
-
-function SelectField<TValue extends string>({
+function PaymentTermTypePicker({
   value,
-  onChange,
-  options,
-}: {
-  value: TValue;
-  onChange: (value: TValue) => void;
-  options: Array<{ value: TValue; label: string }>;
-}) {
-  return (
-    <select
-      value={value}
-      onChange={(event) => onChange(event.target.value as TValue)}
-      className={selectGlass}
-    >
-      {options.map((option) => (
-        <option key={option.value} value={option.value} className="bg-[#0F172A]">
-          {option.label}
-        </option>
-      ))}
-    </select>
-  );
-}
-
-function PremiumButton({
-  children,
-  onClick,
-  disabled = false,
-  variant = "primary",
-  className = "",
-}: {
-  children: ReactNode;
-  onClick?: () => void;
-  disabled?: boolean;
-  variant?: "primary" | "secondary" | "danger";
-  className?: string;
-}) {
-  const variantClass = {
-    primary:
-      "border-[#6366F1]/40 bg-[#6366F1] text-white shadow-[0_0_28px_rgba(99,102,241,0.45)] hover:bg-[#6366F1]/90 hover:shadow-[0_0_38px_rgba(99,102,241,0.6)]",
-    secondary:
-      "border-white/10 bg-white/[0.08] text-white hover:bg-white/[0.12] hover:border-white/20",
-    danger:
-      "border-rose-400/30 bg-rose-500/15 text-rose-100 hover:bg-rose-500/25 hover:border-rose-400/50",
-  };
-
-  return (
-    <motion.button
-      type="button"
-      onClick={onClick}
-      disabled={disabled}
-      whileHover={{ scale: disabled ? 1 : 1.035, y: disabled ? 0 : -2 }}
-      whileTap={{ scale: disabled ? 1 : 0.965 }}
-      className={`${premiumButton} inline-flex h-12 items-center justify-center border px-7 text-sm disabled:cursor-not-allowed disabled:opacity-40 ${variantClass[variant]} ${className}`}
-    >
-      {children}
-    </motion.button>
-  );
-}
-
-function FloatingGlassCard({
-  children,
-  delay = 0,
-  className = "",
-}: {
-  children: ReactNode;
-  delay?: number;
-  className?: string;
-}) {
-  return (
-    <motion.div
-      initial={{ opacity: 0, y: 34, rotateX: 8 }}
-      animate={{ opacity: 1, y: 0, rotateX: 0 }}
-      transition={{
-        duration: 0.65,
-        delay,
-        type: "spring",
-        stiffness: 110,
-        damping: 20,
-      }}
-      whileHover={{
-        y: -8,
-        scale: 1.015,
-        transition: { duration: 0.25 },
-      }}
-      style={{
-        perspective: 1000,
-        transformStyle: "preserve-3d",
-      }}
-      className={`${glassSurface} ${glassSurfaceHover} ${className}`}
-    >
-      <div className="pointer-events-none absolute inset-0 rounded-[32px] bg-[linear-gradient(110deg,transparent_25%,rgba(255,255,255,0.07)_45%,transparent_65%)]" />
-      <div className="relative z-10">{children}</div>
-    </motion.div>
-  );
-}
-
-function ToggleCard({
-  checked,
-  title,
-  description,
-  tone,
+  disabled,
   onChange,
 }: {
-  checked: boolean;
-  title: string;
-  description: string;
-  tone: "indigo" | "emerald";
-  onChange: (checked: boolean) => void;
+  value: FinancePaymentTermType;
+  disabled: boolean;
+  onChange: (value: FinancePaymentTermType) => void;
 }) {
-  const activeClass =
-    tone === "emerald"
-      ? "border-emerald-400/40 bg-gradient-to-br from-emerald-500/20 to-emerald-500/5 shadow-[0_0_28px_rgba(16,185,129,0.18)]"
-      : "border-[#6366F1]/40 bg-gradient-to-br from-[#6366F1]/20 to-[#6366F1]/5 shadow-[0_0_28px_rgba(99,102,241,0.18)]";
-
-  const dotClass =
-    tone === "emerald"
-      ? checked
-        ? "border-emerald-300 bg-emerald-400 shadow-[0_0_14px_rgba(16,185,129,0.7)]"
-        : "border-white/25 bg-white/5"
-      : checked
-        ? "border-indigo-300 bg-[#6366F1] shadow-[0_0_14px_rgba(99,102,241,0.7)]"
-        : "border-white/25 bg-white/5";
-
   return (
-    <motion.button
-      type="button"
-      onClick={() => onChange(!checked)}
-      whileHover={{ y: -4, scale: 1.012 }}
-      whileTap={{ scale: 0.985 }}
-      transition={{ type: "spring", stiffness: 380, damping: 22 }}
-      className={`rounded-[24px] border p-5 text-left transition-all duration-500 ${
-        checked
-          ? activeClass
-          : "border-white/10 bg-white/[0.05] hover:border-white/20 hover:bg-white/[0.08]"
-      }`}
-    >
-      <div className="flex items-start gap-4">
-        <motion.span
-          animate={{ scale: checked ? 1.15 : 1 }}
-          transition={{ type: "spring", stiffness: 420, damping: 18 }}
-          className={`mt-1 block h-5 w-5 rounded-full border-2 transition-all duration-300 ${dotClass}`}
+    <AixiaReviewGrid variant="metrics">
+      {TERM_TYPE_OPTIONS.map((option) => (
+        <AixiaSelectableTile
+          key={option.value}
+          title={option.label}
+          description={option.description}
+          tone={option.tone}
+          selected={value === option.value}
+          disabled={disabled}
+          onClick={() => onChange(option.value)}
         />
-        <span>
-          <span className="block text-sm font-bold text-white">{title}</span>
-          <span className="mt-1 block text-xs leading-5 text-white/45">
-            {description}
-          </span>
-        </span>
-      </div>
-    </motion.button>
-  );
-}
-
-function SummaryCard({
-  label,
-  value,
-  description,
-  icon: Icon,
-  tone,
-  delay,
-}: {
-  label: string;
-  value: string | number;
-  description: string;
-  icon: typeof WalletCards;
-  tone: "indigo" | "violet" | "gold" | "emerald";
-  delay: number;
-}) {
-  const toneMap = {
-    indigo:
-      "border-[#6366F1]/30 bg-[#6366F1]/15 text-indigo-200 shadow-[0_0_28px_rgba(99,102,241,0.2)]",
-    violet:
-      "border-[#A855F7]/30 bg-[#A855F7]/15 text-violet-200 shadow-[0_0_28px_rgba(168,85,247,0.2)]",
-    gold:
-      "border-[#FBBF24]/30 bg-[#FBBF24]/15 text-[#FBBF24] shadow-[0_0_28px_rgba(251,191,36,0.2)]",
-    emerald:
-      "border-emerald-400/30 bg-emerald-500/15 text-emerald-200 shadow-[0_0_28px_rgba(16,185,129,0.2)]",
-  };
-
-  return (
-    <FloatingGlassCard delay={delay} className="min-h-[166px] p-6">
-      <div className="flex h-full flex-col justify-between">
-        <div className="flex items-start justify-between gap-4">
-          <div>
-            <div className="text-[11px] font-bold uppercase tracking-[0.22em] text-white/45">
-              {label}
-            </div>
-            <div className="mt-3 text-3xl font-black tracking-tight text-white drop-shadow-[0_0_18px_rgba(255,255,255,0.16)]">
-              {value}
-            </div>
-          </div>
-
-          <motion.div
-            whileHover={{ rotate: 12, scale: 1.1 }}
-            transition={{ type: "spring", stiffness: 300 }}
-            className={`flex h-12 w-12 shrink-0 items-center justify-center rounded-2xl border ${toneMap[tone]}`}
-          >
-            <Icon className="h-5 w-5" />
-          </motion.div>
-        </div>
-
-        <p className="mt-4 text-xs leading-5 text-white/45">{description}</p>
-      </div>
-    </FloatingGlassCard>
+      ))}
+    </AixiaReviewGrid>
   );
 }
 
@@ -665,403 +419,261 @@ function PaymentTermFormModal({
   const balancePercentage = Math.max(0, 100 - depositPercentage);
 
   return (
-    <AnimatePresence>
-      {open ? (
-        <motion.div
-          key="payment-term-modal-backdrop"
-          initial={{ opacity: 0 }}
-          animate={{ opacity: 1 }}
-          exit={{ opacity: 0 }}
-          transition={{ duration: 0.28 }}
-          className="fixed inset-0 z-[120] flex items-center justify-center bg-[#020617]/90 p-4 backdrop-blur-[44px]"
-          style={{ perspective: 1200 }}
-        >
-          <motion.div
-            key="payment-term-modal"
-            initial={{ opacity: 0, y: 60, rotateX: 8, scale: 0.92 }}
-            animate={{ opacity: 1, y: 0, rotateX: 0, scale: 1 }}
-            exit={{ opacity: 0, y: 40, rotateX: -4, scale: 0.95 }}
-            transition={{ type: "spring", stiffness: 210, damping: 25 }}
-            style={{ transformStyle: "preserve-3d" }}
-            className="flex max-h-[92vh] w-full max-w-6xl flex-col overflow-hidden rounded-[40px] border border-white/15 bg-[#0F172A] shadow-[0_28px_90px_rgba(0,0,0,0.78),0_0_0_1px_rgba(255,255,255,0.05)]"
+    <AixiaModal
+      open={open}
+      title={editingRow ? "Edit Payment Term" : "Create Payment Term"}
+      description="Create reusable commercial payment terms for quotations, proforma invoices, invoices, bills, and finance documents."
+      badge={
+        <>
+          <AixiaBadge tone="cyan">Payment Term</AixiaBadge>
+          <AixiaBadge tone="emerald">
+            {editingRow ? "Edit Mode" : "Create Mode"}
+          </AixiaBadge>
+        </>
+      }
+      onClose={onClose}
+      maxWidthClassName="max-w-6xl"
+      footer={
+        <>
+          <AixiaButton
+            type="button"
+            variant="secondary"
+            onClick={onClose}
+            disabled={saving}
           >
-            <div className="relative overflow-hidden border-b border-white/10 bg-white/[0.06] px-8 py-7">
-              <div className="pointer-events-none absolute inset-0">
-                <div className="absolute -left-20 -top-20 h-64 w-64 rounded-full bg-[#6366F1]/18 blur-[80px]" />
-                <div className="absolute -right-20 -top-20 h-64 w-64 rounded-full bg-[#A855F7]/18 blur-[80px]" />
-                <div className="absolute left-1/2 top-0 h-48 w-48 -translate-x-1/2 rounded-full bg-[#FBBF24]/10 blur-[80px]" />
-              </div>
+            Cancel
+          </AixiaButton>
 
-              <div className="relative flex items-start justify-between gap-4">
-                <div>
-                  <div className="flex flex-wrap items-center gap-3">
-                    <Badge className={`${badgeBase} border-[#6366F1]/30 bg-[#6366F1]/10 text-indigo-200`}>
-                      Payment Term
-                    </Badge>
-                    <Badge className={`${badgeBase} border-emerald-400/30 bg-emerald-500/10 text-emerald-200`}>
-                      {editingRow ? "Edit Mode" : "Create Mode"}
-                    </Badge>
-                  </div>
+          <AixiaButton
+            type="button"
+            variant="primary"
+            onClick={onSave}
+            disabled={saving || !canSave}
+          >
+            {saving ? (
+              <Loader2 className="h-4 w-4 animate-spin" />
+            ) : (
+              <Save className="h-4 w-4" />
+            )}
+            {saving ? "Saving..." : editingRow ? "Save Changes" : "Create Payment Term"}
+          </AixiaButton>
+        </>
+      }
+    >
+      <div className="aixia-stack">
+        {error ? <AixiaAlert tone="error">{error}</AixiaAlert> : null}
 
-                  <div className="mt-5 text-3xl font-black tracking-tight text-white">
-                    {editingRow ? "Edit Payment Term" : "Create Payment Term"}
-                  </div>
+        <AixiaSection
+          title="Payment Structure"
+          description="Choose the commercial structure and generate the controlled term."
+          icon={WalletCards}
+        >
+          <div className="aixia-stack">
+            <PaymentTermTypePicker
+              value={form.term_type}
+              disabled={saving}
+              onChange={(value) => onChange("term_type", value)}
+            />
 
-                  <p className="mt-3 max-w-3xl text-sm leading-6 text-white/50">
-                    Create reusable commercial payment terms for quotations, proforma invoices,
-                    invoices, bills, and finance documents.
-                  </p>
-                </div>
+            {form.term_type === "net" ? (
+              <AixiaFormGrid columns="two">
+                <AixiaFormField>
+                  <AixiaFieldLabel label="Net Days" required />
+                  <AixiaInputField
+                    type="number"
+                    min="0"
+                    step="1"
+                    value={form.net_days}
+                    onChange={(event) => onChange("net_days", event.target.value)}
+                    placeholder="Example: 30"
+                    disabled={saving}
+                  />
+                </AixiaFormField>
+              </AixiaFormGrid>
+            ) : null}
 
-                <motion.button
-                  type="button"
-                  onClick={onClose}
-                  whileHover={{ rotate: 90, scale: 1.05 }}
-                  whileTap={{ scale: 0.95 }}
-                  className="flex h-11 w-11 shrink-0 items-center justify-center rounded-2xl border border-white/10 bg-white/[0.08] text-white transition hover:border-white/20 hover:bg-white/[0.12]"
-                >
-                  <X className="h-5 w-5" />
-                </motion.button>
-              </div>
-            </div>
-
-            <div className="custom-scrollbar space-y-8 overflow-y-auto p-8">
-              <motion.section
-                initial={{ opacity: 0, y: 20 }}
-                animate={{ opacity: 1, y: 0 }}
-                transition={{ delay: 0.05 }}
-                className={`${glassSurface} ${glassSurfaceHover}`}
-              >
-                <div className="border-b border-white/10 px-6 py-5">
-                  <div className="flex items-center gap-4">
-                    <div className="flex h-12 w-12 items-center justify-center rounded-2xl border border-[#6366F1]/30 bg-[#6366F1]/12 text-indigo-200 shadow-[0_0_24px_rgba(99,102,241,0.2)]">
-                      <WalletCards className="h-5 w-5" />
-                    </div>
-                    <div>
-                      <div className="text-xs font-bold uppercase tracking-[0.22em] text-white/55">
-                        Payment Structure
-                      </div>
-                      <p className="mt-1 text-xs text-white/35">
-                        Choose the commercial structure and generate the controlled term.
-                      </p>
-                    </div>
-                  </div>
-                </div>
-
-                <div className="grid gap-6 p-6">
-                  <div className="grid gap-4 md:grid-cols-4">
-                    {TERM_TYPE_OPTIONS.map((option) => (
-                      <motion.button
-                        key={option.value}
-                        type="button"
-                        onClick={() => onChange("term_type", option.value)}
-                        whileHover={{ y: -6, scale: 1.02 }}
-                        whileTap={{ scale: 0.98 }}
-                        transition={{ type: "spring", stiffness: 360, damping: 22 }}
-                        className={`rounded-[24px] border p-6 text-left transition-all duration-500 ${optionToneClass(
-                          option.tone,
-                          form.term_type === option.value
-                        )}`}
-                      >
-                        <div className="text-base font-bold">{option.label}</div>
-                        <div className="mt-2 text-xs leading-5 opacity-70">
-                          {option.description}
-                        </div>
-                      </motion.button>
-                    ))}
-                  </div>
-
-                  <AnimatePresence mode="wait">
-                    {form.term_type === "net" ? (
-                      <motion.label
-                        key="net-fields"
-                        initial={{ opacity: 0, y: 12 }}
-                        animate={{ opacity: 1, y: 0 }}
-                        exit={{ opacity: 0, y: -12 }}
-                        className="grid gap-3"
-                      >
-                        <span className={labelGlass}>Net Days</span>
-                        <Input
-                          type="number"
-                          min="0"
-                          step="1"
-                          value={form.net_days}
-                          onChange={(event) => onChange("net_days", event.target.value)}
-                          placeholder="Example: 30"
-                          className={inputGlass}
-                        />
-                      </motion.label>
-                    ) : null}
-
-                    {form.term_type === "deposit_balance" ? (
-                      <motion.div
-                        key="deposit-fields"
-                        initial={{ opacity: 0, y: 12 }}
-                        animate={{ opacity: 1, y: 0 }}
-                        exit={{ opacity: 0, y: -12 }}
-                        className="grid gap-6"
-                      >
-                        <div className="grid gap-5 md:grid-cols-3">
-                          <label className="grid gap-3">
-                            <span className={labelGlass}>Deposit Percentage</span>
-                            <Input
-                              type="number"
-                              min="1"
-                              max="99"
-                              step="0.01"
-                              value={form.deposit_percentage}
-                              onChange={(event) =>
-                                onChange("deposit_percentage", event.target.value)
-                              }
-                              placeholder="Example: 30"
-                              className={inputGlass}
-                            />
-                          </label>
-
-                          <label className="grid gap-3">
-                            <span className={labelGlass}>Deposit Due</span>
-                            <SelectField
-                              value={form.deposit_due_basis}
-                              onChange={(value) => onChange("deposit_due_basis", value)}
-                              options={DEPOSIT_DUE_BASIS_OPTIONS}
-                            />
-                          </label>
-
-                          <label className="grid gap-3">
-                            <span className={labelGlass}>Balance Due</span>
-                            <SelectField
-                              value={form.balance_due_basis}
-                              onChange={(value) => onChange("balance_due_basis", value)}
-                              options={BALANCE_DUE_BASIS_OPTIONS}
-                            />
-                          </label>
-                        </div>
-
-                        <div className="rounded-[20px] border border-emerald-400/20 bg-gradient-to-r from-emerald-500/12 to-emerald-600/5 p-5 shadow-[0_0_24px_rgba(16,185,129,0.12)]">
-                          <div className="text-[11px] font-bold uppercase tracking-[0.22em] text-emerald-200/80">
-                            Balance Auto-Calculated
-                          </div>
-                          <p className="mt-2 text-sm leading-6 text-emerald-100/70">
-                            Deposit is {depositPercentage}%. Balance is {balancePercentage}%.
-                          </p>
-                        </div>
-                      </motion.div>
-                    ) : null}
-
-                    {form.term_type === "custom" ? (
-                      <motion.div
-                        key="custom-fields"
-                        initial={{ opacity: 0, y: 12 }}
-                        animate={{ opacity: 1, y: 0 }}
-                        exit={{ opacity: 0, y: -12 }}
-                        className="grid gap-5"
-                      >
-                        <label className="grid gap-3">
-                          <span className={labelGlass}>Custom Label</span>
-                          <Input
-                            value={form.custom_label}
-                            onChange={(event) =>
-                              onChange("custom_label", event.target.value)
-                            }
-                            placeholder="Example: 30/40/30 Milestone Payments"
-                            className={inputGlass}
-                          />
-                        </label>
-
-                        <label className="grid gap-3">
-                          <span className={labelGlass}>Custom Document Wording</span>
-                          <textarea
-                            value={form.custom_terms_text}
-                            onChange={(event) =>
-                              onChange("custom_terms_text", event.target.value)
-                            }
-                            placeholder="Example: 30% deposit, 40% before shipment, 30% after installation."
-                            className={textareaGlass}
-                          />
-                        </label>
-                      </motion.div>
-                    ) : null}
-                  </AnimatePresence>
-                </div>
-              </motion.section>
-
-                            <motion.section
-                initial={{ opacity: 0, y: 20 }}
-                animate={{ opacity: 1, y: 0 }}
-                transition={{ delay: 0.1 }}
-                className={`${glassSurface} ${glassSurfaceHover}`}
-              >
-                <div className="border-b border-white/10 px-6 py-5">
-                  <div className="flex items-center gap-4">
-                    <div className="flex h-12 w-12 items-center justify-center rounded-2xl border border-[#A855F7]/30 bg-[#A855F7]/12 text-violet-200 shadow-[0_0_24px_rgba(168,85,247,0.2)]">
-                      <FileText className="h-5 w-5" />
-                    </div>
-                    <div>
-                      <div className="text-xs font-bold uppercase tracking-[0.22em] text-white/55">
-                        Auto Preview
-                      </div>
-                      <p className="mt-1 text-xs text-white/35">
-                        Code, name, and document wording generated from the selected structure.
-                      </p>
-                    </div>
-                  </div>
-                </div>
-
-                <div className="grid gap-5 p-6 md:grid-cols-2">
-                  <motion.div
-                    layout
-                    className="rounded-[20px] border border-[#6366F1]/20 bg-[#6366F1]/10 p-5 shadow-[0_0_22px_rgba(99,102,241,0.1)]"
-                  >
-                    <div className="text-[11px] font-bold uppercase tracking-[0.22em] text-indigo-200/70">
-                      Generated Code
-                    </div>
-                    <div className="mt-3 break-words text-base font-bold text-indigo-100">
-                      {generatedTerm.code}
-                    </div>
-                  </motion.div>
-
-                  <motion.div
-                    layout
-                    className="rounded-[20px] border border-emerald-400/20 bg-emerald-500/10 p-5 shadow-[0_0_22px_rgba(16,185,129,0.1)]"
-                  >
-                    <div className="text-[11px] font-bold uppercase tracking-[0.22em] text-emerald-200/70">
-                      Generated Name
-                    </div>
-                    <div className="mt-3 break-words text-base font-bold text-white">
-                      {generatedTerm.name}
-                    </div>
-                  </motion.div>
-
-                  <motion.div
-                    layout
-                    className="rounded-[20px] border border-[#A855F7]/20 bg-[#A855F7]/10 p-5 shadow-[0_0_22px_rgba(168,85,247,0.1)] md:col-span-2"
-                  >
-                    <div className="text-[11px] font-bold uppercase tracking-[0.22em] text-violet-200/70">
-                      Document Wording
-                    </div>
-                    <p className="mt-3 text-sm leading-6 text-violet-100/75">
-                      {generatedTerm.documentTermsText}
-                    </p>
-                  </motion.div>
-                </div>
-              </motion.section>
-
-              <motion.section
-                initial={{ opacity: 0, y: 20 }}
-                animate={{ opacity: 1, y: 0 }}
-                transition={{ delay: 0.15 }}
-                className={`${glassSurface} ${glassSurfaceHover}`}
-              >
-                <div className="border-b border-white/10 px-6 py-5">
-                  <div className="flex items-center gap-4">
-                    <div className="flex h-12 w-12 items-center justify-center rounded-2xl border border-emerald-400/30 bg-emerald-500/12 text-emerald-200 shadow-[0_0_24px_rgba(16,185,129,0.2)]">
-                      <ShieldCheck className="h-5 w-5" />
-                    </div>
-                    <div>
-                      <div className="text-xs font-bold uppercase tracking-[0.22em] text-white/55">
-                        Term Controls
-                      </div>
-                      <p className="mt-1 text-xs text-white/35">
-                        Default behavior, partial payments, status, and internal notes.
-                      </p>
-                    </div>
-                  </div>
-                </div>
-
-                <div className="grid gap-6 p-6">
-                  <div className="grid gap-5 md:grid-cols-2">
-                    <ToggleCard
-                      checked={form.is_default}
-                      title="Default Term"
-                      description="Use this as the default option when no term is selected."
-                      tone="emerald"
-                      onChange={(checked) => onChange("is_default", checked)}
+            {form.term_type === "deposit_balance" ? (
+              <div className="aixia-stack">
+                <AixiaFormGrid columns="three">
+                  <AixiaFormField>
+                    <AixiaFieldLabel label="Deposit Percentage" required />
+                    <AixiaInputField
+                      type="number"
+                      min="1"
+                      max="99"
+                      step="0.01"
+                      value={form.deposit_percentage}
+                      onChange={(event) =>
+                        onChange("deposit_percentage", event.target.value)
+                      }
+                      placeholder="Example: 30"
+                      disabled={saving}
                     />
+                  </AixiaFormField>
 
-                    <ToggleCard
-                      checked={form.allow_partial_payments}
-                      title="Allow Partial Payments"
-                      description="Lets documents using this term receive partial payments."
-                      tone="indigo"
-                      onChange={(checked) => onChange("allow_partial_payments", checked)}
-                    />
-                  </div>
+                  <AixiaFormField>
+                    <AixiaFieldLabel label="Deposit Due" required />
+                    <AixiaSelectField
+                      value={form.deposit_due_basis}
+                      onChange={(event) =>
+                        onChange(
+                          "deposit_due_basis",
+                          event.target.value as FinancePaymentTermDepositDueBasis
+                        )
+                      }
+                      disabled={saving}
+                    >
+                      {DEPOSIT_DUE_BASIS_OPTIONS.map((option) => (
+                        <option key={option.value} value={option.value}>
+                          {option.label}
+                        </option>
+                      ))}
+                    </AixiaSelectField>
+                  </AixiaFormField>
 
-                  <div className="grid gap-5 md:grid-cols-2">
-                    <label className="grid gap-3">
-                      <span className={labelGlass}>Internal Notes</span>
-                      <Input
-                        value={form.notes}
-                        onChange={(event) => onChange("notes", event.target.value)}
-                        placeholder="Optional internal notes"
-                        className={inputGlass}
-                      />
-                    </label>
+                  <AixiaFormField>
+                    <AixiaFieldLabel label="Balance Due" required />
+                    <AixiaSelectField
+                      value={form.balance_due_basis}
+                      onChange={(event) =>
+                        onChange(
+                          "balance_due_basis",
+                          event.target.value as FinancePaymentTermBalanceDueBasis
+                        )
+                      }
+                      disabled={saving}
+                    >
+                      {BALANCE_DUE_BASIS_OPTIONS.map((option) => (
+                        <option key={option.value} value={option.value}>
+                          {option.label}
+                        </option>
+                      ))}
+                    </AixiaSelectField>
+                  </AixiaFormField>
+                </AixiaFormGrid>
 
-                    <label className="grid gap-3">
-                      <span className={labelGlass}>Status</span>
-                      <SelectField
-                        value={form.status}
-                        onChange={(value) => onChange("status", value)}
-                        options={[
-                          {
-                            value: "active",
-                            label: "Active",
-                          },
-                          {
-                            value: "inactive",
-                            label: "Inactive",
-                          },
-                          {
-                            value: "archived",
-                            label: "Archived",
-                          },
-                        ]}
-                      />
-                    </label>
-                  </div>
-                </div>
-              </motion.section>
+                <AixiaValueBlock
+                  label="Balance Auto-Calculated"
+                  value={`${depositPercentage}% deposit / ${balancePercentage}% balance`}
+                  detail="The balance percentage is calculated automatically from the deposit percentage."
+                />
+              </div>
+            ) : null}
 
-              <AnimatePresence>
-                {error ? (
-                  <motion.div
-                    key="modal-error"
-                    initial={{ opacity: 0, y: 8 }}
-                    animate={{ opacity: 1, y: 0 }}
-                    exit={{ opacity: 0, y: -8 }}
-                    className="rounded-[22px] border border-rose-400/25 bg-rose-500/10 px-5 py-4 text-sm text-rose-100 shadow-[0_0_26px_rgba(244,63,94,0.12)]"
-                  >
-                    {error}
-                  </motion.div>
-                ) : null}
-              </AnimatePresence>
-            </div>
+            {form.term_type === "custom" ? (
+              <AixiaFormGrid columns="one">
+                <AixiaFormField>
+                  <AixiaFieldLabel label="Custom Label" required />
+                  <AixiaInputField
+                    value={form.custom_label}
+                    onChange={(event) => onChange("custom_label", event.target.value)}
+                    placeholder="Example: 30/40/30 Milestone Payments"
+                    disabled={saving}
+                  />
+                </AixiaFormField>
 
-            <div className="flex flex-col gap-3 border-t border-white/10 bg-white/[0.04] px-8 py-6 sm:flex-row sm:justify-end">
-              <PremiumButton onClick={onClose} variant="secondary">
-                Cancel
-              </PremiumButton>
+                <AixiaFormFullWidth>
+                  <AixiaFieldLabel label="Custom Document Wording" required />
+                  <AixiaTextareaField
+                    value={form.custom_terms_text}
+                    onChange={(event) =>
+                      onChange("custom_terms_text", event.target.value)
+                    }
+                    placeholder="Example: 30% deposit, 40% before shipment, 30% after installation."
+                    disabled={saving}
+                  />
+                </AixiaFormFullWidth>
+              </AixiaFormGrid>
+            ) : null}
+          </div>
+        </AixiaSection>
 
-              <PremiumButton
-                onClick={onSave}
-                disabled={saving || !canSave}
-                variant="primary"
-                className={saving ? "opacity-70" : ""}
+        <AixiaSection
+          title="Auto Preview"
+          description="Code, name, and document wording generated from the selected structure."
+          icon={FileText}
+        >
+          <AixiaReviewGrid variant="cards">
+            <AixiaValueBlock
+              label="Generated Code"
+              value={generatedTerm.code}
+              detail="Stored master-data code."
+            />
+
+            <AixiaValueBlock
+              label="Generated Name"
+              value={generatedTerm.name}
+              detail="Visible payment term name."
+            />
+
+            <AixiaValueBlock
+              label="Document Wording"
+              value={generatedTerm.documentTermsText}
+              detail="Text used by finance documents."
+            />
+          </AixiaReviewGrid>
+        </AixiaSection>
+
+        <AixiaSection
+          title="Term Controls"
+          description="Default behavior, partial payments, status, and internal notes."
+          icon={ShieldCheck}
+        >
+          <AixiaReviewGrid variant="cards">
+            <AixiaSelectableTile
+              title="Default Term"
+              description="Use this as the default option when no term is selected."
+              tone="emerald"
+              selected={form.is_default}
+              disabled={saving}
+              onClick={() => onChange("is_default", !form.is_default)}
+            />
+
+            <AixiaSelectableTile
+              title="Allow Partial Payments"
+              description="Lets documents using this term receive partial payments."
+              tone="indigo"
+              selected={form.allow_partial_payments}
+              disabled={saving}
+              onClick={() =>
+                onChange("allow_partial_payments", !form.allow_partial_payments)
+              }
+            />
+          </AixiaReviewGrid>
+
+          <AixiaFormGrid columns="two" className="mt-5">
+            <AixiaFormField>
+              <AixiaFieldLabel label="Internal Notes" />
+              <AixiaInputField
+                value={form.notes}
+                onChange={(event) => onChange("notes", event.target.value)}
+                placeholder="Optional internal notes"
+                disabled={saving}
+              />
+            </AixiaFormField>
+
+            <AixiaFormField>
+              <AixiaFieldLabel label="Status" required />
+              <AixiaSelectField
+                value={form.status}
+                onChange={(event) =>
+                  onChange("status", event.target.value as FinancePaymentTermStatus)
+                }
+                disabled={saving}
               >
-                {saving ? "Saving..." : editingRow ? "Save Changes" : "Create Payment Term"}
-              </PremiumButton>
-            </div>
-          </motion.div>
-        </motion.div>
-      ) : null}
-    </AnimatePresence>
+                <option value="active">Active</option>
+                <option value="inactive">Inactive</option>
+                <option value="archived">Archived</option>
+              </AixiaSelectField>
+            </AixiaFormField>
+          </AixiaFormGrid>
+        </AixiaSection>
+      </div>
+    </AixiaModal>
   );
 }
 
 export default function FinancePaymentTermsPage() {
-  const navigate = useNavigate();
-
   const [rows, setRows] = useState<FinancePaymentTermRow[]>([]);
   const [initialLoading, setInitialLoading] = useState(true);
   const [backgroundRefreshing, setBackgroundRefreshing] = useState(false);
@@ -1069,6 +681,7 @@ export default function FinancePaymentTermsPage() {
   const [saving, setSaving] = useState(false);
 
   const [search, setSearch] = useState("");
+  const [archiveSearch, setArchiveSearch] = useState("");
   const [statusFilter, setStatusFilter] = useState<StatusFilter>("all");
   const [sortKey, setSortKey] = useState<SortKey>("updated_at");
   const [sortDirection, setSortDirection] = useState<SortDirection>("desc");
@@ -1083,59 +696,70 @@ export default function FinancePaymentTermsPage() {
   const [form, setForm] = useState<FormState>(EMPTY_FORM);
   const [error, setError] = useState("");
   const [pageMessage, setPageMessage] = useState("");
+  const [runningAction, setRunningAction] = useState<PageAction>(null);
 
   const generatedTerm = useMemo(() => buildGeneratedTerm(form), [form]);
 
-  const loadPage = useCallback(async (options?: { silent?: boolean }) => {
-    const silent = options?.silent === true;
-
-    if (silent) {
+  const loadPage = useCallback(async (mode: LoadMode = "initial") => {
+    if (mode === "silent") {
       setBackgroundRefreshing(true);
     } else {
       setInitialLoading(true);
+      setError("");
     }
 
     try {
       const {
         data: { user },
+        error: userError,
       } = await supabase.auth.getUser();
 
+      if (userError) throw userError;
+
       if (user?.id) {
-        const { data: profile } = await supabase
+        const { data: profile, error: profileError } = await supabase
           .from("profiles")
           .select("role, permissions")
           .eq("user_id", user.id)
           .maybeSingle();
 
+        if (profileError) throw profileError;
+
         if (profile) {
           const typedProfile = profile as ProfilePermissionRow;
           const backendPermissions = await fetchFinanceEffectivePermissions(
             user.id,
-            silent ? "silent" : "initial",
+            mode,
             "Payment Terms"
           );
 
           setRole(typedProfile.role);
           setPermissionOverrides(backendPermissions || typedProfile.permissions || null);
         }
+      } else if (mode === "initial") {
+        setRole(null);
+        setPermissionOverrides(null);
       }
 
       const paymentTerms = await getPaymentTerms();
       setRows(paymentTerms);
+
+      if (mode === "initial") {
+        setError("");
+      }
     } catch (loadError) {
       console.error("Failed to load payment terms:", loadError);
 
-      if (!silent) {
+      if (mode === "initial") {
         setRows([]);
+        setError(
+          loadError instanceof Error
+            ? loadError.message
+            : "Failed to load payment terms."
+        );
       }
-
-      setError(
-        loadError instanceof Error
-          ? loadError.message
-          : "Failed to load payment terms."
-      );
     } finally {
-      if (silent) {
+      if (mode === "silent") {
         setBackgroundRefreshing(false);
       } else {
         setInitialLoading(false);
@@ -1144,7 +768,7 @@ export default function FinancePaymentTermsPage() {
   }, []);
 
   useEffect(() => {
-    void loadPage();
+    void loadPage("initial");
   }, [loadPage]);
 
   useEffect(() => {
@@ -1152,19 +776,28 @@ export default function FinancePaymentTermsPage() {
       .channel("finance-payment-terms-master-data")
       .on(
         "postgres_changes",
-        {
-          event: "*",
-          schema: "public",
-          table: "finance_payment_terms",
-        },
-        () => {
-          void loadPage({ silent: true });
-        }
+        { event: "*", schema: "public", table: "profiles" },
+        () => void loadPage("silent")
+      )
+      .on(
+        "postgres_changes",
+        { event: "*", schema: "public", table: "finance_permission_templates" },
+        () => void loadPage("silent")
+      )
+      .on(
+        "postgres_changes",
+        { event: "*", schema: "public", table: "finance_user_permission_templates" },
+        () => void loadPage("silent")
+      )
+      .on(
+        "postgres_changes",
+        { event: "*", schema: "public", table: "finance_payment_terms" },
+        () => void loadPage("silent")
       )
       .subscribe();
 
     const intervalId = window.setInterval(() => {
-      void loadPage({ silent: true });
+      void loadPage("silent");
     }, 60000);
 
     return () => {
@@ -1193,6 +826,25 @@ export default function FinancePaymentTermsPage() {
   const archivedRows = useMemo(() => {
     return rows.filter((row) => row.status === "archived");
   }, [rows]);
+
+  const filteredArchivedRows = useMemo(() => {
+    const query = archiveSearch.trim().toLowerCase();
+
+    return archivedRows.filter((row) => {
+      if (!query) return true;
+
+      return [
+        row.code,
+        row.name,
+        row.term_type,
+        row.document_label,
+        row.document_terms_text,
+        row.notes,
+      ]
+        .filter(Boolean)
+        .some((value) => String(value).toLowerCase().includes(query));
+    });
+  }, [archiveSearch, archivedRows]);
 
   const defaultRow = useMemo(() => {
     return rows.find((row) => row.is_default && row.status === "active") ?? null;
@@ -1230,26 +882,34 @@ export default function FinancePaymentTermsPage() {
   const sortedRows = useMemo(() => {
     const sorted = [...filteredRows];
 
-    sorted.sort((a, b) => {
-      const direction = sortDirection === "asc" ? 1 : -1;
+    sorted.sort((first, second) => {
+      let comparison = 0;
 
       if (sortKey === "updated_at") {
-        const firstDate = new Date(a.updated_at ?? "").getTime();
-        const secondDate = new Date(b.updated_at ?? "").getTime();
-        const normalizedFirstDate = Number.isNaN(firstDate) ? 0 : firstDate;
-        const normalizedSecondDate = Number.isNaN(secondDate) ? 0 : secondDate;
-
-        return (normalizedFirstDate - normalizedSecondDate) * direction;
+        comparison = compareDates(first.updated_at, second.updated_at);
       }
 
       if (sortKey === "due_days") {
-        return (a.due_days - b.due_days) * direction;
+        comparison = compareNumbers(first.due_days, second.due_days);
       }
 
-      const first = String(a[sortKey] ?? "");
-      const second = String(b[sortKey] ?? "");
+      if (sortKey === "code") {
+        comparison = compareStrings(first.code, second.code);
+      }
 
-      return first.localeCompare(second) * direction;
+      if (sortKey === "name") {
+        comparison = compareStrings(first.name, second.name);
+      }
+
+      if (sortKey === "term_type") {
+        comparison = compareStrings(first.term_type, second.term_type);
+      }
+
+      if (sortKey === "status") {
+        comparison = compareStrings(first.status, second.status);
+      }
+
+      return sortDirection === "asc" ? comparison : -comparison;
     });
 
     return sorted;
@@ -1265,12 +925,6 @@ export default function FinancePaymentTermsPage() {
     setSortDirection(nextKey === "updated_at" ? "desc" : "asc");
   }
 
-  function sortLabel(key: SortKey) {
-    if (sortKey !== key) return "";
-
-    return sortDirection === "asc" ? " ↑" : " ↓";
-  }
-
   function updateForm<K extends keyof FormState>(key: K, value: FormState[K]) {
     setForm((current) => ({
       ...current,
@@ -1279,6 +933,8 @@ export default function FinancePaymentTermsPage() {
   }
 
   function openCreateDialog() {
+    if (!canCreate) return;
+
     setEditingRow(null);
     setForm(EMPTY_FORM);
     setError("");
@@ -1287,6 +943,8 @@ export default function FinancePaymentTermsPage() {
   }
 
   function openEditDialog(row: FinancePaymentTermRow) {
+    if (!canEdit) return;
+
     setEditingRow(row);
 
     if (row.term_type === "immediate") {
@@ -1368,6 +1026,7 @@ export default function FinancePaymentTermsPage() {
 
     try {
       setSaving(true);
+      setRunningAction(editingRow ? "edit" : "create");
       setError("");
       setPageMessage("");
 
@@ -1404,19 +1063,25 @@ export default function FinancePaymentTermsPage() {
       }
 
       setDialogOpen(false);
-      void loadPage({ silent: true });
-    } catch (err) {
-      console.error("Save failed:", err);
-      setError(err instanceof Error ? err.message : "Failed to save payment term.");
+      await loadPage("silent");
+    } catch (saveError) {
+      console.error("Payment term save failed:", saveError);
+      setError(
+        saveError instanceof Error
+          ? saveError.message
+          : "Failed to save payment term."
+      );
     } finally {
       setSaving(false);
+      setRunningAction(null);
     }
   }
 
   async function handleArchive(row: FinancePaymentTermRow) {
-    if (!canArchive) return;
+    if (!canArchive || runningAction) return;
 
     try {
+      setRunningAction("archive");
       setActionLoadingId(row.id);
       setPageMessage("");
       setError("");
@@ -1424,19 +1089,25 @@ export default function FinancePaymentTermsPage() {
       await archivePaymentTerm(row.id);
 
       setPageMessage("Payment term archived successfully.");
-      void loadPage({ silent: true });
-    } catch (err) {
-      console.error("Archive failed:", err);
-      setError(err instanceof Error ? err.message : "Failed to archive payment term.");
+      await loadPage("silent");
+    } catch (archiveError) {
+      console.error("Payment term archive failed:", archiveError);
+      setError(
+        archiveError instanceof Error
+          ? archiveError.message
+          : "Failed to archive payment term."
+      );
     } finally {
       setActionLoadingId(null);
+      setRunningAction(null);
     }
   }
 
   async function handleRestore(row: FinancePaymentTermRow) {
-    if (!canArchive) return;
+    if (!canArchive || runningAction) return;
 
     try {
+      setRunningAction("restore");
       setActionLoadingId(row.id);
       setPageMessage("");
       setError("");
@@ -1444,19 +1115,25 @@ export default function FinancePaymentTermsPage() {
       await restorePaymentTerm(row.id);
 
       setPageMessage("Payment term restored successfully.");
-      void loadPage({ silent: true });
-    } catch (err) {
-      console.error("Restore failed:", err);
-      setError(err instanceof Error ? err.message : "Failed to restore payment term.");
+      await loadPage("silent");
+    } catch (restoreError) {
+      console.error("Payment term restore failed:", restoreError);
+      setError(
+        restoreError instanceof Error
+          ? restoreError.message
+          : "Failed to restore payment term."
+      );
     } finally {
       setActionLoadingId(null);
+      setRunningAction(null);
     }
   }
 
   async function handlePermanentDelete(row: FinancePaymentTermRow) {
-    if (!canDelete) return;
+    if (!canDelete || runningAction) return;
 
     try {
+      setRunningAction("hard-delete");
       setActionLoadingId(row.id);
       setPageMessage("");
       setError("");
@@ -1464,727 +1141,451 @@ export default function FinancePaymentTermsPage() {
       await permanentlyDeletePaymentTerm(row.id);
 
       setPageMessage("Payment term permanently deleted.");
-      void loadPage({ silent: true });
-    } catch (err) {
-      console.error("Permanent delete failed:", err);
+      await loadPage("silent");
+    } catch (deleteError) {
+      console.error("Payment term permanent delete failed:", deleteError);
       setError(
-        err instanceof Error
-          ? err.message
+        deleteError instanceof Error
+          ? deleteError.message
           : "Failed to permanently delete payment term."
       );
     } finally {
       setActionLoadingId(null);
+      setRunningAction(null);
     }
   }
 
   function closeDialog() {
     setDialogOpen(false);
+    setEditingRow(null);
+    setForm(EMPTY_FORM);
+    setError("");
+  }
+
+  if (initialLoading) {
+    return (
+      <AixiaLoadingState
+        title="Loading payment terms"
+        description="Payment terms, archive state, and permission state are being checked."
+      />
+    );
   }
 
   return (
-    <div className={pageShell}>
-      <div className="pointer-events-none fixed inset-0 z-0 overflow-hidden">
-        <div style={ambientOrb("rgba(99,102,241,0.42)", "8%", "8%", "520px", 0)} />
-        <div style={ambientOrb("rgba(168,85,247,0.36)", "58%", "68%", "620px", 2)} />
-        <div style={ambientOrb("rgba(251,191,36,0.24)", "28%", "78%", "420px", 4)} />
-        <div className="absolute inset-0 bg-[radial-gradient(circle_at_10%_20%,rgba(99,102,241,0.08),transparent_22%),radial-gradient(circle_at_90%_80%,rgba(168,85,247,0.08),transparent_22%)]" />
-      </div>
+    <AixiaPage>
+      <AixiaHero
+        parentLabel="Master Data"
+        parentPath="/finance/master-data"
+        badges={[
+          { label: "Finance Master Data", tone: "cyan" },
+          { label: "Payment Terms", tone: "violet" },
+          { label: "Document Wording", tone: "emerald" },
+          {
+            label: backgroundRefreshing ? "Updating Silently" : "Realtime + 60s",
+            tone: backgroundRefreshing ? "gold" : "neutral",
+          },
+        ]}
+        gradientTitle="Payment"
+        title="Terms"
+        subtitle="Controlled Finance Document Terms"
+        description="Manage reusable payment terms used across finance documents. Terms control document wording, due logic, deposit rules, default selection, and partial payment behavior."
+        statusCards={[
+          {
+            label: "Read Access",
+            value: permissionState.canRead ? "Enabled" : "Locked",
+            description:
+              "This registry requires Finance read access or Master Data admin access.",
+            icon: permissionState.canRead ? ShieldCheck : Archive,
+            tone: permissionState.canRead ? "emerald" : "rose",
+          },
+          {
+            label: "Lifecycle Access",
+            value: canArchive ? "Archive Enabled" : canCreate ? "Create Enabled" : "Read Only",
+            description:
+              "Create, Edit, Archive, Restore, and Permanent Delete follow Finance permissions.",
+            icon: canArchive ? Archive : WalletCards,
+            tone: canArchive ? "amber" : "cyan",
+          },
+        ]}
+      />
 
-      <style>{`
-        @keyframes paymentTermsFloatOrb {
-          0% { transform: translate(0, 0) scale(1); }
-          100% { transform: translate(32px, -32px) scale(1.08); }
-        }
+      {error ? <AixiaAlert tone="error">{error}</AixiaAlert> : null}
+      {pageMessage ? <AixiaAlert tone="success">{pageMessage}</AixiaAlert> : null}
 
-        .payment-terms-scrollbar::-webkit-scrollbar {
-          width: 7px;
-          height: 7px;
-        }
+      {!permissionState.canRead ? (
+        <AixiaAccessDeniedState
+          title="No payment terms access"
+          description="Ask an Admin to assign Finance read or Finance master-data access before managing payment terms."
+        />
+      ) : (
+        <>
+          <AixiaMetricGrid>
+            <AixiaMetricCard
+              label="Active Terms"
+              value={stats.active}
+              description="Available payment terms that can be selected on finance documents."
+              icon={CheckCircle2}
+              tone="emerald"
+            />
 
-        .payment-terms-scrollbar::-webkit-scrollbar-track {
-          background: transparent;
-        }
+            <AixiaMetricCard
+              label="Deposit Terms"
+              value={stats.deposit}
+              description="Terms that require a deposit before the remaining balance."
+              icon={Percent}
+              tone="gold"
+            />
 
-        .payment-terms-scrollbar::-webkit-scrollbar-thumb {
-          background: rgba(255,255,255,0.14);
-          border-radius: 999px;
-        }
+            <AixiaMetricCard
+              label="Default Term"
+              value={stats.defaultTerm}
+              description="The active default payment term for document creation."
+              icon={WalletCards}
+              tone="indigo"
+            />
 
-        .payment-terms-scrollbar::-webkit-scrollbar-thumb:hover {
-          background: rgba(255,255,255,0.24);
-        }
-      `}</style>
+            <AixiaMetricCard
+              label="Archived"
+              value={stats.archived}
+              description="Inactive historical terms stored in the archive area."
+              icon={Archive}
+              tone="violet"
+            />
+          </AixiaMetricGrid>
 
-      <motion.div
-        initial={{ opacity: 0 }}
-        animate={{ opacity: 1 }}
-        transition={{ duration: 0.55 }}
-        className="relative z-10 mx-auto flex w-full max-w-[1600px] flex-col gap-8"
-      >
-        <motion.section
-          initial={{ opacity: 0, y: 34, rotateX: 8 }}
-          animate={{ opacity: 1, y: 0, rotateX: 0 }}
-          transition={{
-            duration: 0.72,
-            type: "spring",
-            stiffness: 90,
-            damping: 20,
-          }}
-          style={{
-            perspective: 1000,
-          }}
-          className={`${glassSurface} ${glassSurfaceHover} p-8`}
-        >
-          <div className="pointer-events-none absolute inset-0 rounded-[32px] bg-[radial-gradient(circle_at_20%_50%,rgba(99,102,241,0.14),transparent_46%),radial-gradient(circle_at_80%_50%,rgba(168,85,247,0.12),transparent_46%),radial-gradient(circle_at_50%_0%,rgba(251,191,36,0.08),transparent_40%)]" />
-
-          <div className="relative">
-            <motion.button
-              type="button"
-              onClick={() => navigate("/finance/master-data")}
-              whileHover={{ x: -4, scale: 1.02 }}
-              whileTap={{ scale: 0.98 }}
-              className="mb-6 inline-flex items-center gap-2 rounded-full border border-white/10 bg-white/[0.08] px-5 py-2.5 text-[11px] font-bold uppercase tracking-[0.2em] text-white/65 transition hover:border-white/20 hover:bg-white/[0.12] hover:text-white"
-            >
-              <ArrowLeft className="h-3.5 w-3.5" />
-              Master Data
-            </motion.button>
-
-            <div className="flex flex-col gap-6 lg:flex-row lg:items-end lg:justify-between">
-              <div>
-                <div className="flex flex-wrap items-center gap-3">
-                  <Badge className={`${badgeBase} border-[#6366F1]/30 bg-[#6366F1]/10 text-indigo-200`}>
-                    Finance Master Data
-                  </Badge>
-
-                  <Badge className={`${badgeBase} border-[#A855F7]/30 bg-[#A855F7]/10 text-violet-200`}>
-                    Payment Terms
-                  </Badge>
-
-                  <AnimatePresence>
-                    {backgroundRefreshing ? (
-                      <motion.div
-                        key="background-refreshing"
-                        initial={{ opacity: 0, scale: 0.9 }}
-                        animate={{ opacity: 1, scale: 1 }}
-                        exit={{ opacity: 0, scale: 0.9 }}
-                      >
-                        <Badge className={`${badgeBase} border-emerald-400/30 bg-emerald-500/10 text-emerald-200`}>
-                          <span className="mr-2 inline-block h-1.5 w-1.5 animate-pulse rounded-full bg-emerald-400" />
-                          Updating Silently
-                        </Badge>
-                      </motion.div>
-                    ) : null}
-                  </AnimatePresence>
-                </div>
-
-                <div className="mt-6">
-                  <h1 className="text-[clamp(2.8rem,6vw,5.6rem)] font-black leading-none tracking-tight">
-                    <span className={textGradient}>Payment</span>
-                    <span className="text-white"> Terms</span>
-                  </h1>
-
-                  <h2 className="mt-3 text-[clamp(1.2rem,2.8vw,2.2rem)] font-bold uppercase tracking-[0.06em] text-white/90">
-                    Designed for controlled finance documents
-                  </h2>
-                </div>
-
-                <p className="mt-5 max-w-3xl text-sm leading-7 text-white/55 md:text-base">
-                  Manage reusable payment terms used across finance documents. Terms control
-                  document wording, due logic, deposit rules, default selection, and partial
-                  payment behavior.
-                </p>
-              </div>
-
-              <div className="flex flex-wrap gap-3">
-                <PremiumButton onClick={() => setArchiveOpen(true)} variant="secondary">
-                  <Archive className="mr-2 h-4 w-4" />
-                  Archive
-                </PremiumButton>
-
-                <PremiumButton
-                  onClick={openCreateDialog}
-                  disabled={!canCreate}
-                  variant="primary"
-                >
-                  <Plus className="mr-2 h-4 w-4" />
-                  New Payment Term
-                </PremiumButton>
-              </div>
-            </div>
-          </div>
-        </motion.section>
-
-        <div className="grid gap-5 md:grid-cols-2 xl:grid-cols-4">
-          <SummaryCard
-            label="Active Terms"
-            value={stats.active}
-            description="Available payment terms that can be selected on finance documents."
-            icon={CheckCircle2}
-            tone="emerald"
-            delay={0.05}
-          />
-
-          <SummaryCard
-            label="Deposit Terms"
-            value={stats.deposit}
-            description="Terms that require a deposit before the remaining balance."
-            icon={Percent}
-            tone="gold"
-            delay={0.1}
-          />
-
-          <SummaryCard
-            label="Default Term"
-            value={stats.defaultTerm}
-            description="The active default payment term for document creation."
+          <AixiaSection
+            title="Payment Terms Registry"
+            description="Active and inactive terms. Archived records are managed from the archive manager."
             icon={WalletCards}
-            tone="indigo"
-            delay={0.15}
-          />
-
-          <SummaryCard
-            label="Archived"
-            value={stats.archived}
-            description="Inactive historical terms stored in the archive area."
-            icon={Archive}
-            tone="violet"
-            delay={0.2}
-          />
-        </div>
-
-        <AnimatePresence mode="wait">
-          {pageMessage ? (
-            <motion.div
-              key="page-message"
-              initial={{ opacity: 0, y: 12, scale: 0.98 }}
-              animate={{ opacity: 1, y: 0, scale: 1 }}
-              exit={{ opacity: 0, y: -12, scale: 0.98 }}
-              className={`${glassSurface} border-emerald-400/25 bg-emerald-500/10 px-6 py-4 text-sm text-emerald-100 shadow-[0_0_32px_rgba(16,185,129,0.16)]`}
-            >
-              {pageMessage}
-            </motion.div>
-          ) : null}
-
-          {error && !pageMessage ? (
-            <motion.div
-              key="page-error"
-              initial={{ opacity: 0, y: 12, scale: 0.98 }}
-              animate={{ opacity: 1, y: 0, scale: 1 }}
-              exit={{ opacity: 0, y: -12, scale: 0.98 }}
-              className={`${glassSurface} border-rose-400/25 bg-rose-500/10 px-6 py-4 text-sm text-rose-100 shadow-[0_0_32px_rgba(244,63,94,0.16)]`}
-            >
-              {error}
-            </motion.div>
-          ) : null}
-        </AnimatePresence>
-
-                <motion.section
-          initial={{ opacity: 0, y: 30 }}
-          animate={{ opacity: 1, y: 0 }}
-          transition={{
-            delay: 0.2,
-            duration: 0.58,
-          }}
-          className={`${glassSurface} ${glassSurfaceHover}`}
-        >
-          <div className="border-b border-white/10 px-6 py-5">
-            <div className="flex flex-col gap-5 xl:flex-row xl:items-center xl:justify-between">
-              <div>
-                <div className="text-xs font-bold uppercase tracking-[0.22em] text-white/55">
-                  Payment Terms Registry
-                </div>
-                <p className="mt-1 text-xs text-white/35">
-                  Active and inactive terms. Archived records are managed from the archive.
-                </p>
-              </div>
-
-              <div className="flex flex-col gap-3 md:flex-row md:items-center">
-                <div className="group relative">
-                  <Search className="pointer-events-none absolute left-4 top-1/2 h-4 w-4 -translate-y-1/2 text-white/35 transition group-focus-within:text-[#6366F1]" />
-                  <Input
+            actions={
+              <AixiaRegistryToolbar
+                search={
+                  <AixiaSearchField
+                    width="wide"
                     value={search}
                     onChange={(event) => setSearch(event.target.value)}
-                    placeholder="Search payment terms..."
-                    className={`${inputGlass} pl-11 md:w-[320px]`}
+                    placeholder="Search code, name, type, wording, or notes..."
                   />
-                </div>
-
-                <select
-                  value={statusFilter}
-                  onChange={(event) => setStatusFilter(event.target.value as StatusFilter)}
-                  className={selectGlass}
-                >
-                  <option value="all" className="bg-[#0F172A]">
-                    All Statuses
-                  </option>
-                  <option value="active" className="bg-[#0F172A]">
-                    Active
-                  </option>
-                  <option value="inactive" className="bg-[#0F172A]">
-                    Inactive
-                  </option>
-                </select>
-              </div>
-            </div>
-          </div>
-
-          <div className="payment-terms-scrollbar overflow-x-auto">
-            <div className="payment-terms-scrollbar max-h-[720px] overflow-y-auto">
-              <table className="w-full min-w-[1240px] border-collapse">
-                <thead className="sticky top-0 z-10 border-b border-white/10 bg-[#0F172A]/85 text-left text-[10px] font-bold uppercase tracking-[0.2em] text-white/40 backdrop-blur-xl">
+                }
+                filters={
+                  <AixiaSelectField
+                    value={statusFilter}
+                    onChange={(event) =>
+                      setStatusFilter(event.target.value as StatusFilter)
+                    }
+                  >
+                    <option value="all">All Statuses</option>
+                    <option value="active">Active</option>
+                    <option value="inactive">Inactive</option>
+                  </AixiaSelectField>
+                }
+                primaryAction={
+                  canCreate ? (
+                    <AixiaButton
+                      type="button"
+                      variant="primary"
+                      onClick={openCreateDialog}
+                      disabled={saving}
+                    >
+                      <Plus className="h-4 w-4" />
+                      New Payment Term
+                    </AixiaButton>
+                  ) : null
+                }
+                archiveAction={
+                  canArchive ? (
+                    <AixiaButton
+                      type="button"
+                      variant="danger"
+                      onClick={() => {
+                        setRunningAction("archive-modal");
+                        setArchiveOpen(true);
+                        setRunningAction(null);
+                      }}
+                      disabled={saving || runningAction === "archive-modal"}
+                    >
+                      {runningAction === "archive-modal" ? (
+                        <Loader2 className="h-4 w-4 animate-spin" />
+                      ) : (
+                        <Archive className="h-4 w-4" />
+                      )}
+                      Archive
+                    </AixiaButton>
+                  ) : null
+                }
+              />
+            }
+          >
+            {sortedRows.length === 0 ? (
+              <AixiaEmptyState
+                icon={WalletCards}
+                title="No payment terms found"
+                description="Create a payment term or adjust the search and status filters."
+              />
+            ) : (
+              <AixiaTableShell variant="registry" minWidthClassName="min-w-[1240px]">
+                <thead className="aixia-table-head">
                   <tr>
-                    <th className="px-5 py-4">
-                      <button
-                        type="button"
-                        onClick={() => updateSort("code")}
-                        className="transition hover:text-white"
-                      >
-                        Code
-                        <span className="text-[#FBBF24]">{sortLabel("code")}</span>
-                      </button>
+                    <th>
+                      <AixiaSortableHeader
+                        label="Code"
+                        sortKey="code"
+                        activeSortKey={sortKey}
+                        sortDirection={sortDirection}
+                        onSort={updateSort}
+                      />
                     </th>
-
-                    <th className="px-5 py-4">
-                      <button
-                        type="button"
-                        onClick={() => updateSort("name")}
-                        className="transition hover:text-white"
-                      >
-                        Name
-                        <span className="text-[#FBBF24]">{sortLabel("name")}</span>
-                      </button>
+                    <th>
+                      <AixiaSortableHeader
+                        label="Name"
+                        sortKey="name"
+                        activeSortKey={sortKey}
+                        sortDirection={sortDirection}
+                        onSort={updateSort}
+                      />
                     </th>
-
-                    <th className="px-5 py-4">
-                      <button
-                        type="button"
-                        onClick={() => updateSort("term_type")}
-                        className="transition hover:text-white"
-                      >
-                        Type
-                        <span className="text-[#FBBF24]">
-                          {sortLabel("term_type")}
-                        </span>
-                      </button>
+                    <th>
+                      <AixiaSortableHeader
+                        label="Type"
+                        sortKey="term_type"
+                        activeSortKey={sortKey}
+                        sortDirection={sortDirection}
+                        onSort={updateSort}
+                      />
                     </th>
-
-                    <th className="px-5 py-4">
-                      <button
-                        type="button"
-                        onClick={() => updateSort("due_days")}
-                        className="transition hover:text-white"
-                      >
-                        Due Days
-                        <span className="text-[#FBBF24]">
-                          {sortLabel("due_days")}
-                        </span>
-                      </button>
+                    <th>
+                      <AixiaSortableHeader
+                        label="Due Days"
+                        sortKey="due_days"
+                        activeSortKey={sortKey}
+                        sortDirection={sortDirection}
+                        onSort={updateSort}
+                      />
                     </th>
-
-                    <th className="px-5 py-4">Deposit</th>
-                    <th className="px-5 py-4">Document Wording</th>
-
-                    <th className="px-5 py-4">
-                      <button
-                        type="button"
-                        onClick={() => updateSort("status")}
-                        className="transition hover:text-white"
-                      >
-                        Status
-                        <span className="text-[#FBBF24]">{sortLabel("status")}</span>
-                      </button>
+                    <th>Deposit</th>
+                    <th>Document Wording</th>
+                    <th>
+                      <AixiaSortableHeader
+                        label="Status"
+                        sortKey="status"
+                        activeSortKey={sortKey}
+                        sortDirection={sortDirection}
+                        onSort={updateSort}
+                      />
                     </th>
-
-                    <th className="px-5 py-4">
-                      <button
-                        type="button"
-                        onClick={() => updateSort("updated_at")}
-                        className="transition hover:text-white"
-                      >
-                        Updated
-                        <span className="text-[#FBBF24]">
-                          {sortLabel("updated_at")}
-                        </span>
-                      </button>
+                    <th>
+                      <AixiaSortableHeader
+                        label="Updated"
+                        sortKey="updated_at"
+                        activeSortKey={sortKey}
+                        sortDirection={sortDirection}
+                        onSort={updateSort}
+                      />
                     </th>
-
-                    <th className="px-5 py-4 text-right">Actions</th>
+                    <th>Actions</th>
                   </tr>
                 </thead>
 
                 <tbody>
-                  {initialLoading ? (
-                    <tr>
-                      <td colSpan={9} className="px-5 py-16 text-center">
-                        <div className="flex flex-col items-center gap-3">
-                          <div className="h-9 w-9 animate-spin rounded-full border-2 border-[#6366F1]/20 border-t-[#6366F1]" />
-                          <span className="text-sm text-white/40">
-                            Loading payment terms...
-                          </span>
-                        </div>
-                      </td>
-                    </tr>
-                  ) : sortedRows.length === 0 ? (
-                    <tr>
-                      <td
-                        colSpan={9}
-                        className="px-5 py-16 text-center text-sm text-white/40"
-                      >
-                        No payment terms match the current filters.
-                      </td>
-                    </tr>
-                  ) : (
-                    sortedRows.map((row, index) => (
-                      <motion.tr
-                        key={row.id}
-                        layout
-                        initial={{
-                          opacity: 0,
-                          y: 12,
-                        }}
-                        animate={{
-                          opacity: 1,
-                          y: 0,
-                        }}
-                        exit={{
-                          opacity: 0,
-                          y: -12,
-                        }}
-                        transition={{
-                          delay: index * 0.025,
-                          duration: 0.28,
-                        }}
-                        whileHover={{
-                          scale: 1.003,
-                          backgroundColor: "rgba(255,255,255,0.045)",
-                        }}
-                        className="group border-b border-white/[0.045] text-sm text-white/70 transition-colors duration-300"
-                      >
-                        <td className="px-5 py-4">
-                          <div className="font-mono text-xs font-bold tracking-wider text-indigo-200">
-                            {row.code}
-                          </div>
-                        </td>
+                  {sortedRows.map((row) => {
+                    const isRowActionRunning = actionLoadingId === row.id;
 
-                        <td className="px-5 py-4">
-                          <div className="font-bold text-white">{row.name}</div>
-                          {row.is_default ? (
-                            <div className="mt-1.5 inline-flex items-center gap-1.5 rounded-full border border-emerald-400/25 bg-emerald-500/10 px-2.5 py-0.5 text-[10px] font-bold uppercase tracking-wider text-emerald-200">
-                              <CheckCircle2 className="h-3 w-3" />
-                              Default
-                            </div>
-                          ) : null}
-                        </td>
+                    return (
+                      <tr key={row.id} className="aixia-table-row">
+                        <AixiaTableTextCell width="md" primary={row.code} />
 
-                        <td className="px-5 py-4">
-                          <Badge className={termTypeBadgeClass(row.term_type)}>
+                        <AixiaTableTextCell
+                          width="lg"
+                          primary={row.name}
+                          secondary={row.is_default ? "Default term" : "Payment term"}
+                        />
+
+                        <AixiaTableBadgeCell width="md">
+                          <AixiaBadge tone={row.term_type === "deposit_balance" ? "gold" : "cyan"}>
                             {formatTermType(row.term_type)}
-                          </Badge>
-                        </td>
+                          </AixiaBadge>
+                        </AixiaTableBadgeCell>
 
-                        <td className="px-5 py-4">
-                          <div className="flex items-center gap-2 text-white/55">
-                            <Clock3 className="h-4 w-4 text-white/30" />
-                            <span className="font-mono text-sm">{row.due_days}</span>
-                          </div>
-                        </td>
+                        <AixiaTableTextCell
+                          width="sm"
+                          primary={String(row.due_days)}
+                          secondary="days"
+                        />
 
-                        <td className="px-5 py-4">
-                          {row.requires_deposit ? (
-                            <div>
-                              <div className="text-sm font-bold text-[#FBBF24]">
-                                {row.deposit_percentage ?? 0}%
-                              </div>
-                              <div className="mt-1 text-[11px] text-white/35">
-                                {formatBasisLabel(row.deposit_due_basis)}
-                              </div>
-                            </div>
-                          ) : (
-                            <span className="text-xs text-white/25">No deposit</span>
-                          )}
-                        </td>
+                        <AixiaTableTextCell
+                          width="md"
+                          primary={
+                            row.requires_deposit
+                              ? `${row.deposit_percentage ?? 0}%`
+                              : "No deposit"
+                          }
+                          secondary={
+                            row.requires_deposit
+                              ? formatBasisLabel(row.deposit_due_basis)
+                              : "Full balance"
+                          }
+                        />
 
-                        <td className="max-w-[360px] px-5 py-4">
-                          <p className="line-clamp-2 text-sm leading-6 text-white/45 transition-colors group-hover:text-white/60">
-                            {row.document_terms_text || row.document_label || "—"}
-                          </p>
-                        </td>
+                        <AixiaTableTextCell
+                          width="xl"
+                          primary={row.document_terms_text || row.document_label || "—"}
+                          secondary={row.document_label || "Document wording"}
+                        />
 
-                        <td className="px-5 py-4">
-                          <Badge className={statusBadgeClass(row.status)}>
-                            {formatStatusLabel(row.status)}
-                          </Badge>
-                        </td>
+                        <AixiaTableBadgeCell width="sm">
+                          <AixiaStatusBadge value={row.status} />
+                        </AixiaTableBadgeCell>
 
-                        <td className="px-5 py-4 font-mono text-xs text-white/35">
+                        <AixiaTableDateCell width="sm">
                           {formatDateLabel(row.updated_at)}
-                        </td>
+                        </AixiaTableDateCell>
 
-                        <td className="px-5 py-4">
-                          <div className="flex justify-end gap-2 opacity-85 transition-opacity group-hover:opacity-100">
-                            <motion.div
-                              whileHover={{ scale: 1.05 }}
-                              whileTap={{ scale: 0.95 }}
+                        <AixiaTableActionsCell>
+                          {canEdit ? (
+                            <AixiaButton
+                              type="button"
+                              variant="primary"
+                              onClick={() => openEditDialog(row)}
+                              disabled={saving}
                             >
-                              <Button
-                                type="button"
-                                variant="outline"
-                                onClick={() => openEditDialog(row)}
-                                disabled={!canEdit}
-                                className="h-9 rounded-xl border-white/10 bg-white/[0.06] px-3 text-xs text-white hover:border-white/20 hover:bg-white/[0.1] disabled:cursor-not-allowed disabled:opacity-40"
-                              >
-                                <Edit3 className="mr-2 h-3.5 w-3.5" />
-                                Edit
-                              </Button>
-                            </motion.div>
+                              <Edit3 className="h-3.5 w-3.5" />
+                              Edit
+                            </AixiaButton>
+                          ) : null}
 
-                            <motion.div
-                              whileHover={{ scale: 1.05 }}
-                              whileTap={{ scale: 0.95 }}
+                          {canArchive ? (
+                            <AixiaButton
+                              type="button"
+                              variant="danger"
+                              onClick={() => void handleArchive(row)}
+                              disabled={saving || isRowActionRunning}
                             >
-                              <Button
-                                type="button"
-                                variant="outline"
-                                onClick={() => handleArchive(row)}
-                                disabled={!canArchive || actionLoadingId === row.id}
-                                className="h-9 rounded-xl border-[#FBBF24]/20 bg-[#FBBF24]/10 px-3 text-xs text-[#FBBF24] hover:border-[#FBBF24]/35 hover:bg-[#FBBF24]/15 disabled:cursor-not-allowed disabled:opacity-40"
-                              >
-                                <Archive className="mr-2 h-3.5 w-3.5" />
-                                Archive
-                              </Button>
-                            </motion.div>
-                          </div>
-                        </td>
-                      </motion.tr>
-                    ))
-                  )}
-                </tbody>
-              </table>
-            </div>
-          </div>
-        </motion.section>
-      </motion.div>
-
-            <AnimatePresence>
-        {archiveOpen ? (
-          <motion.div
-            key="archive-backdrop"
-            initial={{
-              opacity: 0,
-            }}
-            animate={{
-              opacity: 1,
-            }}
-            exit={{
-              opacity: 0,
-            }}
-            transition={{
-              duration: 0.28,
-            }}
-            className="fixed inset-0 z-[110] flex items-center justify-center bg-[#020617]/90 p-4 backdrop-blur-[44px]"
-            style={{
-              perspective: 1200,
-            }}
-          >
-            <motion.div
-              key="archive-modal"
-              initial={{
-                opacity: 0,
-                y: 60,
-                rotateX: 8,
-                scale: 0.92,
-              }}
-              animate={{
-                opacity: 1,
-                y: 0,
-                rotateX: 0,
-                scale: 1,
-              }}
-              exit={{
-                opacity: 0,
-                y: 40,
-                rotateX: -4,
-                scale: 0.95,
-              }}
-              transition={{
-                type: "spring",
-                stiffness: 210,
-                damping: 25,
-              }}
-              style={{
-                transformStyle: "preserve-3d",
-              }}
-              className="flex max-h-[88vh] w-full max-w-6xl flex-col overflow-hidden rounded-[40px] border border-white/15 bg-[#0F172A] shadow-[0_28px_90px_rgba(0,0,0,0.78),0_0_0_1px_rgba(255,255,255,0.05)]"
-            >
-              <div className="relative overflow-hidden border-b border-white/10 bg-white/[0.06] px-8 py-7">
-                <div className="pointer-events-none absolute inset-0">
-                  <div className="absolute -left-20 -top-20 h-64 w-64 rounded-full bg-[#6366F1]/18 blur-[80px]" />
-                  <div className="absolute -right-20 -top-20 h-64 w-64 rounded-full bg-[#A855F7]/18 blur-[80px]" />
-                  <div className="absolute left-1/2 top-0 h-48 w-48 -translate-x-1/2 rounded-full bg-[#FBBF24]/10 blur-[80px]" />
-                </div>
-
-                <div className="relative flex items-start justify-between gap-4">
-                  <div>
-                    <Badge className={`${badgeBase} border-[#A855F7]/30 bg-[#A855F7]/10 text-violet-200`}>
-                      Archive
-                    </Badge>
-
-                    <h2 className="mt-5 text-3xl font-black tracking-tight text-white">
-                      Archived Payment Terms
-                    </h2>
-
-                    <p className="mt-3 max-w-3xl text-sm leading-6 text-white/50">
-                      Restore archived payment terms or permanently delete records when allowed.
-                    </p>
-                  </div>
-
-                  <motion.button
-                    type="button"
-                    onClick={() => setArchiveOpen(false)}
-                    whileHover={{
-                      rotate: 90,
-                      scale: 1.05,
-                    }}
-                    whileTap={{
-                      scale: 0.95,
-                    }}
-                    className="flex h-11 w-11 shrink-0 items-center justify-center rounded-2xl border border-white/10 bg-white/[0.08] text-white transition hover:border-white/20 hover:bg-white/[0.12]"
-                  >
-                    <X className="h-5 w-5" />
-                  </motion.button>
-                </div>
-              </div>
-
-              <div className="border-b border-white/10 px-6 py-4">
-                <Badge className={`${badgeBase} border-[#A855F7]/30 bg-[#A855F7]/10 text-violet-200`}>
-                  Archived
-                </Badge>
-              </div>
-
-              <div className="payment-terms-scrollbar overflow-x-auto">
-                <div className="payment-terms-scrollbar max-h-[620px] overflow-y-auto">
-                  <table className="w-full min-w-[980px] border-collapse">
-                    <thead className="sticky top-0 z-10 border-b border-white/10 bg-[#0F172A]/85 text-left text-[10px] font-bold uppercase tracking-[0.2em] text-white/40 backdrop-blur-xl">
-                      <tr>
-                        <th className="px-5 py-4">Code</th>
-                        <th className="px-5 py-4">Name</th>
-                        <th className="px-5 py-4">Type</th>
-                        <th className="px-5 py-4">Updated</th>
-                        <th className="px-5 py-4 text-right">Actions</th>
+                              {isRowActionRunning && runningAction === "archive" ? (
+                                <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                              ) : (
+                                <Archive className="h-3.5 w-3.5" />
+                              )}
+                              Archive
+                            </AixiaButton>
+                          ) : null}
+                        </AixiaTableActionsCell>
                       </tr>
-                    </thead>
+                    );
+                  })}
+                </tbody>
+              </AixiaTableShell>
+            )}
+          </AixiaSection>
 
-                    <tbody>
-                      {archivedRows.length === 0 ? (
-                        <tr>
-                          <td
-                            colSpan={5}
-                            className="px-5 py-16 text-center text-sm text-white/40"
-                          >
-                            No archived payment terms.
-                          </td>
-                        </tr>
-                      ) : (
-                        archivedRows.map((row, index) => (
-                          <motion.tr
-                            key={row.id}
-                            layout
-                            initial={{
-                              opacity: 0,
-                              y: 12,
-                            }}
-                            animate={{
-                              opacity: 1,
-                              y: 0,
-                            }}
-                            exit={{
-                              opacity: 0,
-                              y: -12,
-                            }}
-                            transition={{
-                              delay: index * 0.025,
-                              duration: 0.28,
-                            }}
-                            whileHover={{
-                              scale: 1.003,
-                              backgroundColor: "rgba(255,255,255,0.045)",
-                            }}
-                            className="group border-b border-white/[0.045] text-sm text-white/70 transition-colors duration-300"
-                          >
-                            <td className="px-5 py-4">
-                              <span className="font-mono text-xs font-bold tracking-wider text-indigo-200">
-                                {row.code}
-                              </span>
-                            </td>
+          <AixiaAccessRule
+            title="Locked access rule"
+            description="Finance registry pages must show the shared Locked access rule block."
+          >
+            This registry shows active and inactive payment terms only. Archived records are
+            managed from the archive manager. Edit uses primary styling, Restore uses secondary
+            styling, and Archive/Delete Permanently use danger styling. Silent refresh must not
+            reset filters, sorting, modals, or table position.
+          </AixiaAccessRule>
+        </>
+      )}
 
-                            <td className="px-5 py-4">
-                              <div className="font-bold text-white">{row.name}</div>
-                            </td>
+      <AixiaArchiveManagerModal
+        open={archiveOpen}
+        title="Payment Terms Archive"
+        description="Restore archived payment terms or permanently delete records when allowed."
+        archivedCount={archivedRows.length}
+        onClose={() => {
+          setArchiveOpen(false);
+          setArchiveSearch("");
+        }}
+      >
+        <div className="aixia-stack">
+          <AixiaSearchField
+            width="full"
+            value={archiveSearch}
+            onChange={(event) => setArchiveSearch(event.target.value)}
+            placeholder="Search archived payment terms"
+          />
 
-                            <td className="px-5 py-4">
-                              <Badge className={termTypeBadgeClass(row.term_type)}>
-                                {formatTermType(row.term_type)}
-                              </Badge>
-                            </td>
+          {filteredArchivedRows.length === 0 ? (
+            <AixiaEmptyState
+              icon={Archive}
+              title="No archived payment terms"
+              description="Archived payment terms will appear here for restore or permanent delete actions."
+            />
+          ) : (
+            <AixiaTableShell variant="archive" minWidthClassName="min-w-[980px]">
+              <thead className="aixia-table-head">
+                <tr>
+                  <th>Code</th>
+                  <th>Name</th>
+                  <th>Type</th>
+                  <th>Updated</th>
+                  <th>Actions</th>
+                </tr>
+              </thead>
 
-                            <td className="px-5 py-4 font-mono text-xs text-white/35">
-                              {formatDateLabel(row.updated_at)}
-                            </td>
+              <tbody>
+                {filteredArchivedRows.map((row) => {
+                  const isRowActionRunning = actionLoadingId === row.id;
 
-                            <td className="px-5 py-4">
-                              <div className="flex justify-end gap-2 opacity-85 transition-opacity group-hover:opacity-100">
-                                <motion.div
-                                  whileHover={{
-                                    scale: 1.05,
-                                  }}
-                                  whileTap={{
-                                    scale: 0.95,
-                                  }}
-                                >
-                                  <Button
-                                    type="button"
-                                    variant="outline"
-                                    onClick={() => handleRestore(row)}
-                                    disabled={!canArchive || actionLoadingId === row.id}
-                                    className="h-9 rounded-xl border-emerald-400/25 bg-emerald-500/10 px-3 text-xs text-emerald-100 hover:border-emerald-400/40 hover:bg-emerald-500/15 disabled:cursor-not-allowed disabled:opacity-40"
-                                  >
-                                    <Undo2 className="mr-2 h-3.5 w-3.5" />
-                                    Restore
-                                  </Button>
-                                </motion.div>
+                  return (
+                    <tr key={row.id} className="aixia-table-row">
+                      <AixiaTableTextCell width="md" primary={row.code} />
 
-                                <motion.div
-                                  whileHover={{
-                                    scale: 1.05,
-                                  }}
-                                  whileTap={{
-                                    scale: 0.95,
-                                  }}
-                                >
-                                  <Button
-                                    type="button"
-                                    variant="outline"
-                                    onClick={() => handlePermanentDelete(row)}
-                                    disabled={!canDelete || actionLoadingId === row.id}
-                                    className="h-9 rounded-xl border-rose-400/25 bg-rose-500/10 px-3 text-xs text-rose-100 hover:border-rose-400/40 hover:bg-rose-500/15 disabled:cursor-not-allowed disabled:opacity-40"
-                                  >
-                                    <Trash2 className="mr-2 h-3.5 w-3.5" />
-                                    Hard Delete
-                                  </Button>
-                                </motion.div>
-                              </div>
-                            </td>
-                          </motion.tr>
-                        ))
-                      )}
-                    </tbody>
-                  </table>
-                </div>
-              </div>
-            </motion.div>
-          </motion.div>
-        ) : null}
-      </AnimatePresence>
+                      <AixiaTableTextCell
+                        width="xl"
+                        primary={row.name}
+                        secondary={row.document_label || row.document_terms_text || "Archived term"}
+                      />
+
+                      <AixiaTableBadgeCell width="md">
+                        <AixiaBadge tone={row.term_type === "deposit_balance" ? "gold" : "cyan"}>
+                          {formatTermType(row.term_type)}
+                        </AixiaBadge>
+                      </AixiaTableBadgeCell>
+
+                      <AixiaTableDateCell width="sm">
+                        {formatDateLabel(row.updated_at)}
+                      </AixiaTableDateCell>
+
+                      <AixiaTableActionsCell>
+                        <AixiaButton
+                          type="button"
+                          variant="secondary"
+                          onClick={() => void handleRestore(row)}
+                          disabled={!canArchive || saving || isRowActionRunning}
+                        >
+                          {isRowActionRunning && runningAction === "restore" ? (
+                            <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                          ) : (
+                            <RotateCcw className="h-3.5 w-3.5" />
+                          )}
+                          Restore
+                        </AixiaButton>
+
+                        <AixiaButton
+                          type="button"
+                          variant="danger"
+                          onClick={() => void handlePermanentDelete(row)}
+                          disabled={!canDelete || saving || isRowActionRunning}
+                        >
+                          {isRowActionRunning && runningAction === "hard-delete" ? (
+                            <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                          ) : (
+                            <Trash2 className="h-3.5 w-3.5" />
+                          )}
+                          Delete Permanently
+                        </AixiaButton>
+                      </AixiaTableActionsCell>
+                    </tr>
+                  );
+                })}
+              </tbody>
+            </AixiaTableShell>
+          )}
+        </div>
+      </AixiaArchiveManagerModal>
 
       <PaymentTermFormModal
         open={dialogOpen}
@@ -2196,8 +1597,8 @@ export default function FinancePaymentTermsPage() {
         canSave={!!(editingRow ? canEdit : canCreate)}
         onClose={closeDialog}
         onChange={updateForm}
-        onSave={handleSave}
+        onSave={() => void handleSave()}
       />
-    </div>
+    </AixiaPage>
   );
 }

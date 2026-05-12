@@ -1002,7 +1002,10 @@ export default function FinanceMasterDataBankAccountsPage() {
         </AixiaSection>
       )}
 
-      <AixiaAccessRule description="This registry requires Bank Account Read access. Create is controlled by Create access. Archive, Restore, and Permanent Delete are controlled by Delete/Archive access. Update/Edit is handled inside the bank account ID page.">
+      <AixiaAccessRule
+        title="Locked access rule"
+        description="This registry requires Bank Account Read access. Create is controlled by Create access. Archive, Restore, and Permanent Delete are controlled by Delete/Archive access. Update/Edit is handled inside the bank account ID page."
+      >
         Finance permissions remain enforced by the existing permission state and backend access model.
       </AixiaAccessRule>
 

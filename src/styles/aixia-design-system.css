@@ -910,6 +910,30 @@
   min-width: 0;
 }
 
+/* -------------------------------------------------------
+   GLOBAL REGISTRY TOOLBAR / TABLE GAP STANDARD
+   Every registry/list section must keep a clear breathing
+   gap between the toolbar row and the table/list body.
+   This prevents the search/filter/action row from visually
+   touching the table header on Finance pages.
+------------------------------------------------------- */
+
+.aixia-section:has(.aixia-registry-control-cluster) .aixia-section-header {
+  padding-bottom: clamp(1.15rem, 1.45vw, 1.55rem);
+}
+
+.aixia-section:has(.aixia-registry-control-cluster) .aixia-table-wrap {
+  margin-top: clamp(0.9rem, 1.15vw, 1.25rem);
+}
+
+.aixia-section:has(.aixia-registry-control-cluster) .aixia-empty-state {
+  margin-top: clamp(0.9rem, 1.15vw, 1.25rem);
+}
+
+.aixia-section:has(.aixia-registry-control-cluster) .aixia-table-scroll {
+  scroll-margin-top: clamp(0.9rem, 1.15vw, 1.25rem);
+}
+
 .aixia-control-field,
 .aixia-control-field-wide {
   position: relative;

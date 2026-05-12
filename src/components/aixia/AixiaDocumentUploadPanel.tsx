@@ -64,6 +64,8 @@ export function AixiaDocumentUploadPanel({
   const [isDragging, setIsDragging] = useState(false);
 
   const hasAttachments = attachments.length > 0;
+  const uploadDisabled = disabled || uploading;
+  const canUploadSelectedFile = !disabled && !uploading && Boolean(selectedFile);
 
   function handleInputChange(event: ChangeEvent<HTMLInputElement>) {
     onFileSelect(event.target.files?.[0] || null);
@@ -75,7 +77,7 @@ export function AixiaDocumentUploadPanel({
     event.stopPropagation();
     setIsDragging(false);
 
-    if (disabled || uploading) return;
+    if (uploadDisabled) return;
 
     onFileSelect(event.dataTransfer.files?.[0] || null);
   }
@@ -84,9 +86,14 @@ export function AixiaDocumentUploadPanel({
     event.preventDefault();
     event.stopPropagation();
 
-    if (disabled || uploading) return;
+    if (uploadDisabled) return;
 
     setIsDragging(nextDragging);
+  }
+
+  function openAttachment(attachment: AixiaDocumentUploadAttachment) {
+    if (!onOpenAttachment || uploading) return;
+    void onOpenAttachment(attachment);
   }
 
   return (
@@ -96,13 +103,13 @@ export function AixiaDocumentUploadPanel({
         type="file"
         accept={accept}
         className="hidden"
-        disabled={disabled || uploading}
+        disabled={uploadDisabled}
         onChange={handleInputChange}
       />
 
       <button
         type="button"
-        disabled={disabled || uploading}
+        disabled={uploadDisabled}
         onClick={() => inputRef.current?.click()}
         onDragEnter={(event) => handleDrag(event, true)}
         onDragOver={(event) => handleDrag(event, true)}
@@ -115,7 +122,7 @@ export function AixiaDocumentUploadPanel({
         }
       >
         <span className="aixia-document-upload-icon">
-          <Upload className="h-6 w-6" />
+          <Upload className="h-5 w-5" />
         </span>
 
         <span className="aixia-document-upload-copy">
@@ -142,7 +149,7 @@ export function AixiaDocumentUploadPanel({
             type="button"
             variant="secondary"
             onClick={onRemoveSelectedFile || (() => onFileSelect(null))}
-            disabled={disabled || uploading}
+            disabled={uploadDisabled}
           >
             <X className="h-4 w-4" />
             Remove
@@ -153,9 +160,9 @@ export function AixiaDocumentUploadPanel({
       <AixiaButton
         type="button"
         variant="primary"
-        className="w-full"
+        className="aixia-document-upload-action"
         onClick={() => void onUpload()}
-        disabled={disabled || uploading || !selectedFile}
+        disabled={!canUploadSelectedFile}
       >
         {uploading ? (
           <Loader2 className="h-4 w-4 animate-spin" />
@@ -172,44 +179,70 @@ export function AixiaDocumentUploadPanel({
             <span>{required ? requiredMessage : emptyDescription}</span>
           </AixiaAlert>
         ) : (
-          attachments.map((attachment) => (
-            <div key={attachment.id} className="aixia-document-attachment-card">
-              <div className="aixia-document-file-icon">
-                <FileText className="h-5 w-5" />
-              </div>
+          attachments.map((attachment) => {
+            const clickable = Boolean(onOpenAttachment);
 
-              <div className="aixia-document-file-copy">
-                <div className="aixia-document-file-name">{attachment.fileName}</div>
+            if (clickable) {
+              return (
+                <button
+                  key={attachment.id}
+                  type="button"
+                  className="aixia-document-attachment-card is-clickable"
+                  disabled={uploading}
+                  onClick={() => openAttachment(attachment)}
+                >
+                  <span className="aixia-document-file-icon">
+                    <FileText className="h-5 w-5" />
+                  </span>
 
-                <div className="aixia-document-attachment-meta">
-                  {attachment.badge ? (
-                    <AixiaBadge tone="cyan">{attachment.badge}</AixiaBadge>
-                  ) : null}
-                  {attachment.sizeLabel ? (
-                    <span>{attachment.sizeLabel}</span>
-                  ) : null}
+                  <span className="aixia-document-file-copy">
+                    <span className="aixia-document-file-name">{attachment.fileName}</span>
+
+                    <span className="aixia-document-attachment-meta">
+                      {attachment.badge ? (
+                        <AixiaBadge tone="cyan">{attachment.badge}</AixiaBadge>
+                      ) : null}
+                      {attachment.sizeLabel ? <span>{attachment.sizeLabel}</span> : null}
+                    </span>
+
+                    {attachment.description ? (
+                      <span className="aixia-document-file-meta">
+                        {attachment.description}
+                      </span>
+                    ) : null}
+                  </span>
+
+                  <span className="aixia-document-open-pill">
+                    <Eye className="h-4 w-4" />
+                    {attachment.openLabel || "Open"}
+                  </span>
+                </button>
+              );
+            }
+
+            return (
+              <div key={attachment.id} className="aixia-document-attachment-card">
+                <div className="aixia-document-file-icon">
+                  <FileText className="h-5 w-5" />
                 </div>
 
-                {attachment.description ? (
-                  <div className="aixia-document-file-meta">
-                    {attachment.description}
-                  </div>
-                ) : null}
-              </div>
+                <div className="aixia-document-file-copy">
+                  <div className="aixia-document-file-name">{attachment.fileName}</div>
 
-              {onOpenAttachment ? (
-                <AixiaButton
-                  type="button"
-                  variant="primary"
-                  onClick={() => void onOpenAttachment(attachment)}
-                  disabled={disabled || uploading}
-                >
-                  <Eye className="h-4 w-4" />
-                  {attachment.openLabel || "Open"}
-                </AixiaButton>
-              ) : null}
-            </div>
-          ))
+                  <div className="aixia-document-attachment-meta">
+                    {attachment.badge ? (
+                      <AixiaBadge tone="cyan">{attachment.badge}</AixiaBadge>
+                    ) : null}
+                    {attachment.sizeLabel ? <span>{attachment.sizeLabel}</span> : null}
+                  </div>
+
+                  {attachment.description ? (
+                    <div className="aixia-document-file-meta">{attachment.description}</div>
+                  ) : null}
+                </div>
+              </div>
+            );
+          })
         )}
       </div>
     </div>

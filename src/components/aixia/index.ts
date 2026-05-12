@@ -6,6 +6,10 @@ export { AixiaBadge } from "./AixiaBadge";
 export { AixiaButton } from "./AixiaButton";
 export { AixiaCurrencyBadge } from "./AixiaCurrencyBadge";
 export { AixiaDefaultBadge } from "./AixiaDefaultBadge";
+export {
+  AixiaDocumentUploadPanel,
+  type AixiaDocumentUploadAttachment,
+} from "./AixiaDocumentUploadPanel";
 export { AixiaHero } from "./AixiaHero";
 export { AixiaInfoBlock } from "./AixiaInfoBlock";
 export { AixiaMetricCard } from "./AixiaMetricCard";

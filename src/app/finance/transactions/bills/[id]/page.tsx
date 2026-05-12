@@ -2,7 +2,6 @@ import { useCallback, useEffect, useMemo, useState } from "react";
 import { useNavigate, useParams } from "react-router-dom";
 import {
   Archive,
-  ArrowRight,
   CheckCircle,
   CreditCard,
   FileText,
@@ -20,6 +19,7 @@ import {
 } from "lucide-react";
 
 import {
+  AixiaActionCard,
   AixiaAlert,
   AixiaBadge,
   AixiaButton,
@@ -2040,10 +2040,10 @@ export default function FinanceBillDetailPage() {
               description="Purchase order, vendor quotation, and conversion source records."
               icon={Link2}
             >
-              <AixiaReviewGrid variant="compact">
-                <AixiaReviewBlock
+              <div className="aixia-stack">
+                <AixiaActionCard
                   label="Purchase Order"
-                  value={purchaseOrderLink?.purchase_order_number || "—"}
+                  value={purchaseOrderLink?.purchase_order_number || "No purchase order linked"}
                   description={
                     purchaseOrderLink
                       ? `${normalizeStatusLabel(
@@ -2052,16 +2052,40 @@ export default function FinanceBillDetailPage() {
                           purchaseOrderLink.total_amount,
                           purchaseOrderLink.currency_code || billCurrencyCode
                         )}`
-                      : "No purchase order linked"
+                      : "This vendor PI / invoice was not created from a purchase order."
                   }
+                  icon={Receipt}
+                  tone={purchaseOrderLink ? "cyan" : "neutral"}
+                  actionLabel="Open PO"
+                  disabled={!purchaseOrderLink}
+                  onClick={
+                    purchaseOrderLink
+                      ? () =>
+                          navigate(
+                            `/finance/transactions/purchase-orders/${purchaseOrderLink.id}`
+                          )
+                      : undefined
+                  }
+                  meta={[
+                    {
+                      label: "PO Date",
+                      value: purchaseOrderLink
+                        ? formatDate(purchaseOrderLink.po_date)
+                        : "—",
+                    },
+                    {
+                      label: "Currency",
+                      value: purchaseOrderLink?.currency_code || billCurrencyCode,
+                    },
+                  ]}
                 />
 
-                <AixiaReviewBlock
+                <AixiaActionCard
                   label="Vendor Quotation"
                   value={
                     vendorQuotationLink?.vendor_quotation_number ||
                     vendorQuotationLink?.external_quotation_number ||
-                    "—"
+                    "No vendor quotation linked"
                   }
                   description={
                     vendorQuotationLink
@@ -2071,53 +2095,49 @@ export default function FinanceBillDetailPage() {
                           vendorQuotationLink.total_amount,
                           vendorQuotationLink.currency_code || billCurrencyCode
                         )}`
-                      : "No vendor quotation linked"
+                      : "No supplier quotation is linked to this vendor document."
                   }
+                  icon={FileText}
+                  tone={vendorQuotationLink ? "violet" : "neutral"}
+                  actionLabel="Open Quotation"
+                  disabled={!vendorQuotationLink}
+                  onClick={
+                    vendorQuotationLink
+                      ? () =>
+                          navigate(
+                            `/finance/transactions/vendor-quotations/${vendorQuotationLink.id}`
+                          )
+                      : undefined
+                  }
+                  meta={[
+                    {
+                      label: "External Ref",
+                      value: vendorQuotationLink?.external_quotation_number || "—",
+                    },
+                    {
+                      label: "Currency",
+                      value: vendorQuotationLink?.currency_code || billCurrencyCode,
+                    },
+                  ]}
                 />
 
-                <AixiaReviewBlock
+                <AixiaActionCard
                   label="Reference"
-                  value={bill.reference_number || "—"}
+                  value={bill.reference_number || "No reference"}
                   description="Document reference number"
+                  icon={Link2}
+                  tone="neutral"
+                  meta={[
+                    {
+                      label: "Project",
+                      value: bill.project_id || "—",
+                    },
+                    {
+                      label: "Task",
+                      value: bill.task_id || "No task linked",
+                    },
+                  ]}
                 />
-
-                <AixiaReviewBlock
-                  label="Project / Task"
-                  value={bill.project_id || "—"}
-                  description={bill.task_id || "No task linked"}
-                />
-              </AixiaReviewGrid>
-
-              <div className="aixia-action-row">
-                {purchaseOrderLink ? (
-                  <AixiaButton
-                    type="button"
-                    variant="primary"
-                    onClick={() =>
-                      navigate(
-                        `/finance/transactions/purchase-orders/${purchaseOrderLink.id}`
-                      )
-                    }
-                  >
-                    Open PO
-                    <ArrowRight className="h-3.5 w-3.5" />
-                  </AixiaButton>
-                ) : null}
-
-                {vendorQuotationLink ? (
-                  <AixiaButton
-                    type="button"
-                    variant="primary"
-                    onClick={() =>
-                      navigate(
-                        `/finance/transactions/vendor-quotations/${vendorQuotationLink.id}`
-                      )
-                    }
-                  >
-                    Open Quotation
-                    <ArrowRight className="h-3.5 w-3.5" />
-                  </AixiaButton>
-                ) : null}
               </div>
             </AixiaSection>
 

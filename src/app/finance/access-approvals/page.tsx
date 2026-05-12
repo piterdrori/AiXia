@@ -3,7 +3,6 @@ import {
   ArrowRight,
   BarChart3,
   Database,
-  Filter,
   KeyRound,
   Loader2,
   RefreshCw,
@@ -19,6 +18,7 @@ import { useNavigate } from "react-router-dom";
 
 import {
   AixiaAccessDeniedState,
+  AixiaAccessRule,
   AixiaAlert,
   AixiaBadge,
   AixiaButton,
@@ -823,27 +823,25 @@ export default function FinanceAccessApprovalsPage() {
             />
           }
           filters={
-            <label className="aixia-filter-control">
-              <Filter className="h-4 w-4" />
-              <select
-                value={templateFilter}
-                onChange={(event) => setTemplateFilter(event.target.value)}
-                className="aixia-select"
-              >
-                {templateOptions.map((templateId) => {
-                  const template =
-                    templateId === "all" ? null : templateById[templateId];
+            <select
+              value={templateFilter}
+              onChange={(event) => setTemplateFilter(event.target.value)}
+              className="aixia-select"
+              aria-label="Finance template filter"
+            >
+              {templateOptions.map((templateId) => {
+                const template =
+                  templateId === "all" ? null : templateById[templateId];
 
-                  return (
-                    <option key={templateId} value={templateId}>
-                      {templateId === "all"
-                        ? "All finance templates"
-                        : template?.template_name || "Unknown template"}
-                    </option>
-                  );
-                })}
-              </select>
-            </label>
+                return (
+                  <option key={templateId} value={templateId}>
+                    {templateId === "all"
+                      ? "All finance templates"
+                      : template?.template_name || "Unknown template"}
+                  </option>
+                );
+              })}
+            </select>
           }
           secondaryActions={
             <AixiaButton
@@ -1011,12 +1009,15 @@ export default function FinanceAccessApprovalsPage() {
         })}
       </AixiaMetricGrid>
 
-      <AixiaInfoBlock tone="cyan" title="Locked access model">
+      <AixiaAccessRule
+        title="Locked access model"
+        description="Finance registry pages must show the shared locked access rule block."
+      >
         Base system role remains admin, manager, employee, or guest. Finance role template
         controls the company-level Finance baseline. User overrides should only be used for
         exceptions. This registry only shows active profiles; detailed analysis belongs in the
         user ID page.
-      </AixiaInfoBlock>
+      </AixiaAccessRule>
     </AixiaPage>
   );
 }

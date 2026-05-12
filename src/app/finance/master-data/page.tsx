@@ -10,11 +10,9 @@ import {
   Database,
   FolderKanban,
   Landmark,
-  Loader2,
   LockKeyhole,
   Package2,
   Receipt,
-  Search,
   ShieldCheck,
   UserRound,
   Users,
@@ -22,22 +20,31 @@ import {
 } from "lucide-react";
 
 import {
+  AixiaAccessDeniedState,
+  AixiaAccessRule,
   AixiaBadge,
+  AixiaButton,
+  AixiaEmptyState,
   AixiaHero,
+  AixiaLoadingState,
   AixiaMetricCard,
   AixiaPage,
+  AixiaReviewBlock,
+  AixiaReviewGrid,
+  AixiaSearchField,
   AixiaSection,
   AixiaSmartLayout,
 } from "@/components/aixia";
 
 import { supabase } from "@/lib/supabase";
+import type { Permission, Role } from "@/lib/permissions";
 import {
-  getEffectivePermissions,
-  type Permission,
-  type Role,
-} from "@/lib/permissions";
+  fetchFinanceEffectivePermissions,
+  resolveFinancePagePermissionState,
+  type FinanceLoadMode,
+} from "@/lib/finance/pageAccess";
 
-type LoadMode = "initial" | "silent";
+type LoadMode = FinanceLoadMode;
 
 type MasterDataMetricTone = "indigo" | "violet" | "gold" | "emerald" | "rose";
 
@@ -129,6 +136,15 @@ type CurrentUserProfile = {
 
 type MasterDataAccessMap = Record<MasterDataModuleKey, boolean>;
 
+const MASTER_DATA_ACCESS_CONFIG = {
+  sectionKey: "masterData",
+  adminPermissions: ["manageFinanceMasterData"],
+  readPermissions: ["accessFinance", "viewFinance", "manageFinanceMasterData"],
+  createPermissions: ["createFinanceRecords", "manageFinanceMasterData"],
+  updatePermissions: ["editFinanceRecords", "manageFinanceMasterData"],
+  deleteArchivePermissions: ["archiveFinanceRecords", "manageFinanceMasterData"],
+} as const;
+
 const EMPTY_MASTER_DATA: MasterDataPageData = {
   counts: {
     clients: 0,
@@ -195,86 +211,90 @@ function getCount(result: CountResult) {
   return result.count ?? 0;
 }
 
-function hasPermission(
-  permissions: Record<Permission, boolean> | null,
+function getPermissionValue(
+  permissions: Partial<Record<Permission, boolean>> | null,
   permission: Permission
 ) {
   return Boolean(permissions?.[permission]);
 }
 
 function getMasterDataAccessMap(
-  permissions: Record<Permission, boolean> | null
+  permissions: Partial<Record<Permission, boolean>> | null
 ): MasterDataAccessMap {
   if (!permissions) {
     return EMPTY_MASTER_DATA_ACCESS;
   }
 
-  const canManageMasterData = hasPermission(permissions, "manageFinanceMasterData");
-  const canViewFinance = hasPermission(permissions, "viewFinance");
-  const canAccessFinance = hasPermission(permissions, "accessFinance");
+  const canManageMasterData = getPermissionValue(
+    permissions,
+    "manageFinanceMasterData"
+  );
+  const canViewFinance = getPermissionValue(permissions, "viewFinance");
+  const canAccessFinance = getPermissionValue(permissions, "accessFinance");
 
   const canUseFinance = canViewFinance || canAccessFinance || canManageMasterData;
 
   const canUsePayroll =
-    hasPermission(permissions, "accessPayroll") ||
-    hasPermission(permissions, "viewPayroll") ||
-    hasPermission(permissions, "viewAllPaychecks") ||
-    hasPermission(permissions, "managePayProfiles");
+    getPermissionValue(permissions, "accessPayroll") ||
+    getPermissionValue(permissions, "viewPayroll") ||
+    getPermissionValue(permissions, "viewAllPaychecks") ||
+    getPermissionValue(permissions, "managePayProfiles");
 
   const canUseExpenses =
-    hasPermission(permissions, "accessExpenses") ||
-    hasPermission(permissions, "viewExpenses") ||
-    hasPermission(permissions, "viewOwnExpenses") ||
-    hasPermission(permissions, "viewTeamExpenses") ||
-    hasPermission(permissions, "approveExpenses");
+    getPermissionValue(permissions, "accessExpenses") ||
+    getPermissionValue(permissions, "viewExpenses") ||
+    getPermissionValue(permissions, "viewOwnExpenses") ||
+    getPermissionValue(permissions, "viewTeamExpenses") ||
+    getPermissionValue(permissions, "approveExpenses");
 
   return {
     clients:
       canManageMasterData ||
-      hasPermission(permissions, "viewClients") ||
-      hasPermission(permissions, "manageClients"),
+      getPermissionValue(permissions, "viewClients") ||
+      getPermissionValue(permissions, "manageClients"),
 
     vendors:
       canManageMasterData ||
-      hasPermission(permissions, "viewVendors") ||
-      hasPermission(permissions, "manageVendors"),
+      getPermissionValue(permissions, "viewVendors") ||
+      getPermissionValue(permissions, "manageVendors"),
 
     companies: canManageMasterData,
 
     "vendor-bank-accounts":
       canManageMasterData ||
-      hasPermission(permissions, "viewVendors") ||
-      hasPermission(permissions, "manageVendors") ||
-      hasPermission(permissions, "accessPayables") ||
-      hasPermission(permissions, "viewPayables"),
+      getPermissionValue(permissions, "viewVendors") ||
+      getPermissionValue(permissions, "manageVendors") ||
+      getPermissionValue(permissions, "accessPayables") ||
+      getPermissionValue(permissions, "viewPayables"),
 
     "bank-accounts":
-      canManageMasterData || hasPermission(permissions, "viewBankAccounts"),
+      canManageMasterData || getPermissionValue(permissions, "viewBankAccounts"),
 
     "payment-methods":
-      canManageMasterData || hasPermission(permissions, "viewPaymentMethods"),
+      canManageMasterData || getPermissionValue(permissions, "viewPaymentMethods"),
 
     "payment-terms":
-      canManageMasterData || hasPermission(permissions, "viewPaymentTerms"),
+      canManageMasterData || getPermissionValue(permissions, "viewPaymentTerms"),
 
     "shipping-terms":
-      canManageMasterData || hasPermission(permissions, "viewShippingTerms"),
+      canManageMasterData || getPermissionValue(permissions, "viewShippingTerms"),
 
     "tax-codes":
-      canManageMasterData || hasPermission(permissions, "viewTaxCodes"),
+      canManageMasterData || getPermissionValue(permissions, "viewTaxCodes"),
 
     "expense-categories":
       canManageMasterData ||
-      hasPermission(permissions, "viewExpenseCategories") ||
+      getPermissionValue(permissions, "viewExpenseCategories") ||
       canUseExpenses,
 
     "revenue-categories":
-      canManageMasterData || hasPermission(permissions, "viewRevenueCategories"),
+      canManageMasterData ||
+      getPermissionValue(permissions, "viewRevenueCategories"),
 
     "units-of-measure":
-      canManageMasterData || hasPermission(permissions, "viewUnitsOfMeasure"),
+      canManageMasterData || getPermissionValue(permissions, "viewUnitsOfMeasure"),
 
-    items: canManageMasterData || hasPermission(permissions, "viewItems"),
+    items: canManageMasterData || getPermissionValue(permissions, "viewItems"),
 
     projects: canUseFinance,
 
@@ -300,30 +320,6 @@ async function safeCount(tableName: string): Promise<CountResult> {
   }
 }
 
-async function loadBackendEffectivePermissions(
-  userId: string
-): Promise<Partial<Record<Permission, boolean>> | null> {
-  try {
-    const result = await supabase.rpc("finance_get_effective_permissions", {
-      target_user_id: userId,
-    });
-
-    if (result.error) {
-      console.warn("Master Data permission RPC fallback:", result.error.message);
-      return null;
-    }
-
-    if (!result.data || typeof result.data !== "object") {
-      return null;
-    }
-
-    return result.data as Partial<Record<Permission, boolean>>;
-  } catch (error) {
-    console.warn("Master Data permission RPC failed:", error);
-    return null;
-  }
-}
-
 function getStatusTone(statusLabel: string) {
   const normalized = statusLabel.toLowerCase();
 
@@ -335,148 +331,26 @@ function getStatusTone(statusLabel: string) {
   return "emerald";
 }
 
-function AccessSummaryPanel({
-  visibleCount,
-  totalCount,
-  hasAccess,
-}: {
-  visibleCount: number;
-  totalCount: number;
-  hasAccess: boolean;
-}) {
-  if (!hasAccess) {
-    return (
-      <div className="aixia-glass rounded-[32px] border-rose-400/20 bg-rose-500/10 p-6">
-        <div className="flex items-start gap-4">
-          <div className="rounded-2xl border border-rose-400/20 bg-rose-500/10 p-3 text-rose-200">
-            <LockKeyhole className="h-5 w-5" />
-          </div>
-
-          <div>
-            <div className="text-lg font-semibold text-white">
-              No master-data access is enabled
-            </div>
-            <div className="mt-2 text-sm leading-6 text-rose-100">
-              This user can open Finance only if another permitted Finance area is available.
-              Master Data domains are hidden until a Finance template or user-specific
-              exception grants the required read access.
-            </div>
-          </div>
-        </div>
-      </div>
-    );
-  }
-
-  return (
-    <div className="aixia-glass rounded-[32px] border-[#6366F1]/25 bg-[radial-gradient(circle_at_top_left,rgba(99,102,241,0.18),rgba(255,255,255,0.08)_48%)] p-6">
-      <div className="flex flex-col gap-4 md:flex-row md:items-center">
-        <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-2xl border border-[#6366F1]/30 bg-[#6366F1]/15 text-indigo-200">
-          <ShieldCheck className="h-5 w-5" />
-        </div>
-
-        <div>
-          <div className="text-lg font-semibold text-white">
-            Master-data access is permission filtered
-          </div>
-          <div className="mt-2 max-w-3xl text-sm leading-6 text-white/55">
-            Showing {formatCount(visibleCount)} of {formatCount(totalCount)} master-data
-            domains for this user. Hidden domains require the correct Finance template
-            baseline or user-specific exception.
-          </div>
-        </div>
-      </div>
-    </div>
-  );
-}
-
-function ReadinessBlock({
-  label,
-  value,
-  detail,
-}: {
-  label: string;
-  value: string;
-  detail?: string;
-}) {
-  return (
-    <div className="rounded-[24px] border border-white/10 bg-black/20 p-4">
-      <div className="aixia-summary-label">{label}</div>
-      <div className="mt-2 text-2xl font-semibold text-white">{value}</div>
-      {detail ? (
-        <div className="mt-2 text-sm leading-6 text-white/45">{detail}</div>
-      ) : null}
-    </div>
-  );
-}
-
-function MasterDataModuleButton({
-  module,
-  onOpen,
-}: {
-  module: MasterDataModuleCard;
-  onOpen: (route: string) => void;
-}) {
-  const Icon = module.icon;
-  const statusTone = getStatusTone(module.statusLabel);
-
-  return (
-    <button
-      type="button"
-      onClick={() => onOpen(module.route)}
-      className="aixia-glass aixia-glass-hover group min-h-[248px] rounded-[32px] p-6 text-left"
-    >
-      <div className="pointer-events-none absolute -right-16 -top-16 h-40 w-40 rounded-full bg-[#6366F1]/12 blur-3xl transition group-hover:bg-[#6366F1]/20" />
-      <div className="pointer-events-none absolute -bottom-20 left-10 h-36 w-36 rounded-full bg-[#A855F7]/10 blur-3xl" />
-
-      <div className="relative flex h-full flex-col justify-between gap-6">
-        <div className="flex items-start justify-between gap-4">
-          <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-2xl border border-[#6366F1]/25 bg-[#6366F1]/12 text-indigo-200 shadow-lg shadow-[#6366F1]/10">
-            <Icon className="h-5 w-5" />
-          </div>
-
-          <div className="flex shrink-0 items-center gap-2">
-            <AixiaBadge tone={statusTone}>{module.statusLabel}</AixiaBadge>
-            <ArrowRight className="h-4 w-4 text-white/30 transition group-hover:translate-x-1 group-hover:text-[#FBBF24]" />
-          </div>
-        </div>
-
-        <div>
-          <div className="aixia-label">{module.requiredAccessLabel}</div>
-          <div className="mt-3 text-xl font-semibold tracking-[-0.025em] text-white">
-            {module.title}
-          </div>
-          <div className="mt-3 min-h-[58px] text-sm leading-6 text-white/50">
-            {module.description}
-          </div>
-        </div>
-
-        <div className="flex items-end justify-between gap-4 border-t border-white/10 pt-4">
-          <div className="min-w-0">
-            <div className="aixia-summary-label">Records</div>
-            <div className="mt-1 text-sm font-semibold text-white">
-              {formatCount(module.count)} configured
-            </div>
-          </div>
-
-          <span className="inline-flex h-10 shrink-0 items-center justify-center rounded-full border border-[#FBBF24]/25 bg-[#FBBF24]/10 px-5 text-xs font-bold uppercase tracking-[0.16em] text-[#FBBF24] transition group-hover:bg-[#FBBF24]/15">
-            Open
-          </span>
-        </div>
-      </div>
-    </button>
-  );
-}
-
 export default function FinanceMasterDataPage() {
   const navigate = useNavigate();
 
   const [data, setData] = useState<MasterDataPageData>(EMPTY_MASTER_DATA);
-  const [currentProfile, setCurrentProfile] = useState<CurrentUserProfile | null>(null);
+  const [currentProfile, setCurrentProfile] = useState<CurrentUserProfile | null>(
+    null
+  );
   const [effectivePermissions, setEffectivePermissions] =
-    useState<Record<Permission, boolean> | null>(null);
+    useState<Partial<Record<Permission, boolean>> | null>(null);
   const [initialLoading, setInitialLoading] = useState(true);
   const [backgroundRefreshing, setBackgroundRefreshing] = useState(false);
   const [moduleSearch, setModuleSearch] = useState("");
+
+  const permissionState = useMemo(() => {
+    return resolveFinancePagePermissionState({
+      profileRole: currentProfile?.role,
+      permissions: effectivePermissions,
+      config: MASTER_DATA_ACCESS_CONFIG,
+    });
+  }, [currentProfile, effectivePermissions]);
 
   const loadCurrentProfile = useCallback(async (mode: LoadMode = "initial") => {
     try {
@@ -486,8 +360,15 @@ export default function FinanceMasterDataPage() {
       const authUserId = authResult.data.user?.id;
 
       if (!authUserId) {
-        setCurrentProfile(null);
-        setEffectivePermissions(null);
+        if (mode === "initial") {
+          setCurrentProfile(null);
+          setEffectivePermissions(null);
+        } else {
+          console.warn(
+            "Silent master-data profile refresh returned no auth user; keeping current profile and permissions."
+          );
+        }
+
         return;
       }
 
@@ -500,21 +381,28 @@ export default function FinanceMasterDataPage() {
       if (profileResult.error) throw profileResult.error;
 
       const profile = (profileResult.data || null) as CurrentUserProfile | null;
-      const backendPermissions = await loadBackendEffectivePermissions(authUserId);
 
-      setCurrentProfile(profile);
+      if (!profile) {
+        if (mode === "initial") {
+          setCurrentProfile(null);
+          setEffectivePermissions(null);
+        } else {
+          console.warn(
+            "Silent master-data profile refresh returned no profile; keeping current profile and permissions."
+          );
+        }
 
-      if (!profile?.role) {
-        setEffectivePermissions(null);
         return;
       }
 
-      const resolvedPermissions = getEffectivePermissions(
-        profile.role,
-        backendPermissions || profile.permissions || null
+      const backendPermissions = await fetchFinanceEffectivePermissions(
+        authUserId,
+        mode,
+        "Master Data"
       );
 
-      setEffectivePermissions(resolvedPermissions);
+      setCurrentProfile(profile);
+      setEffectivePermissions(backendPermissions || profile.permissions || null);
     } catch (error) {
       console.error("Failed to load master-data profile permissions:", error);
 
@@ -525,7 +413,7 @@ export default function FinanceMasterDataPage() {
     }
   }, []);
 
-  const loadMasterData = useCallback(async () => {
+  const loadMasterData = useCallback(async (mode: LoadMode = "initial") => {
     try {
       const [
         clients,
@@ -681,7 +569,10 @@ export default function FinanceMasterDataPage() {
       });
     } catch (error) {
       console.error("Failed to load master data:", error);
-      setData(EMPTY_MASTER_DATA);
+
+      if (mode === "initial") {
+        setData(EMPTY_MASTER_DATA);
+      }
     }
   }, []);
 
@@ -696,7 +587,7 @@ export default function FinanceMasterDataPage() {
       try {
         await Promise.all([
           loadCurrentProfile(mode),
-          loadMasterData(),
+          loadMasterData(mode),
         ]);
       } finally {
         if (mode === "initial") {
@@ -1110,21 +1001,21 @@ export default function FinanceMasterDataPage() {
       {
         label: "System Status",
         value: initialLoading ? "Loading" : "Live",
-        detail: "Master data refreshes silently without resetting page state.",
+        description: "Master data refreshes silently without resetting page state.",
         icon: ShieldCheck,
         tone: "emerald" as const,
       },
       {
         label: "Visible Domains",
         value: formatCount(moduleCards.length),
-        detail: "Domains visible to this user after permission filtering.",
+        description: "Domains visible to this user after permission filtering.",
         icon: Database,
         tone: "indigo" as const,
       },
       {
         label: "Access Model",
         value: hasMasterDataAccess ? "Filtered" : "Locked",
-        detail: "Visibility follows Finance templates and user-specific exceptions.",
+        description: "Visibility follows Finance templates and user-specific exceptions.",
         icon: hasMasterDataAccess ? UserRound : LockKeyhole,
         tone: "gold" as const,
       },
@@ -1141,6 +1032,15 @@ export default function FinanceMasterDataPage() {
     },
     [navigate]
   );
+
+  if (initialLoading) {
+    return (
+      <AixiaLoadingState
+        title="Loading Master Data"
+        description="Finance templates, permissions, and visible master-data domains are being checked."
+      />
+    );
+  }
 
   return (
     <AixiaPage>
@@ -1160,16 +1060,10 @@ export default function FinanceMasterDataPage() {
         title="Studio"
         subtitle="Finance Reference Layer"
         description="Permission-filtered finance reference layer for clients, vendors, companies, banking, commercial terms, tax codes, categories, units, items, projects, employees, and currency controls."
-        statusCards={headerStatusCards.map((card) => ({
-          label: card.label,
-          value: card.value,
-          description: card.detail,
-          icon: card.icon,
-          tone: card.tone,
-        }))}
+        statusCards={headerStatusCards}
       />
 
-      <section className="aixia-adaptive-grid" data-card-size="small">
+      <AixiaReviewGrid variant="metrics">
         {overviewCards.map((metric) => (
           <AixiaMetricCard
             key={metric.key}
@@ -1180,212 +1074,205 @@ export default function FinanceMasterDataPage() {
             tone={metric.tone}
           />
         ))}
-      </section>
+      </AixiaReviewGrid>
 
-      <AixiaSmartLayout
-        sidebar="wide"
-        balance="main"
-        matchColumns
-        bottomSpan="never"
-        main={
-          <>
-          <AccessSummaryPanel
-            visibleCount={moduleCards.length}
-            totalCount={Object.keys(EMPTY_MASTER_DATA_ACCESS).length}
-            hasAccess={hasMasterDataAccess}
-          />
+      {!permissionState.canRead || !hasMasterDataAccess ? (
+        <AixiaAccessDeniedState
+          title="No master-data access is enabled"
+          description="Master Data domains are hidden until a Finance template or user-specific exception grants the required read access."
+        />
+      ) : (
+        <AixiaSmartLayout
+          sidebar="wide"
+          balance="main"
+          matchColumns
+          bottomSpan="never"
+          main={
+            <>
+              <AixiaAccessRule
+                title="Locked access rule"
+                description="Finance master-data visibility is permission filtered."
+              >
+                Showing {formatCount(moduleCards.length)} of{" "}
+                {formatCount(Object.keys(EMPTY_MASTER_DATA_ACCESS).length)}{" "}
+                master-data domains for this user. Hidden domains require the correct
+                Finance template baseline or user-specific exception.
+              </AixiaAccessRule>
 
-          <AixiaSection
-            title="Master Data Navigation"
-            description="Open each dedicated finance master-data domain available to this user."
-            icon={Database}
-            smartScroll
-            fill
-            visibleCards={8}
-            matchOpposite
-            actions={
-              <div className="aixia-control-cluster">
-                <div className="aixia-control-field-wide">
-                  <Search className="pointer-events-none absolute left-4 top-1/2 h-4 w-4 -translate-y-1/2 text-white/30" />
-                  <input
+              <AixiaSection
+                title="Master Data Navigation"
+                description="Open each dedicated finance master-data domain available to this user."
+                icon={Database}
+                smartScroll
+                fill
+                visibleCards={8}
+                matchOpposite
+                actions={
+                  <AixiaSearchField
+                    width="wide"
                     value={moduleSearch}
                     onChange={(event) => setModuleSearch(event.target.value)}
                     placeholder="Search domains..."
-                    className="aixia-input pl-11"
                   />
-                </div>
-              </div>
-            }
-          >
-            <div className="aixia-section-smart-scroll-area aixia-scrollbar">
-              {initialLoading ? (
-                <div className="rounded-[28px] border border-dashed border-white/10 bg-black/20 px-6 py-12 text-center">
-                  <Loader2 className="mx-auto h-8 w-8 animate-spin text-indigo-200" />
-                  <div className="mt-4 text-sm font-medium text-white">
-                    Loading master-data access
-                  </div>
-                  <p className="mt-2 text-sm leading-6 text-white/45">
-                    Finance templates and master-data permissions are being checked.
-                  </p>
-                </div>
-              ) : moduleCards.length === 0 ? (
-                <div className="rounded-[28px] border border-dashed border-white/10 bg-black/20 px-6 py-12 text-center">
-                  <LockKeyhole className="mx-auto h-8 w-8 text-white/30" />
-                  <div className="mt-4 text-sm font-medium text-white">
-                    No master-data domains available
-                  </div>
-                  <p className="mt-2 text-sm leading-6 text-white/45">
-                    Ask an Admin to assign a Finance role template or user-specific
-                    exception with Master Data read access.
-                  </p>
-                </div>
-              ) : filteredModuleCards.length === 0 ? (
-                <div className="rounded-[28px] border border-dashed border-white/10 bg-black/20 px-6 py-12 text-center">
-                  <Search className="mx-auto h-8 w-8 text-white/30" />
-                  <div className="mt-4 text-sm font-medium text-white">
-                    No matching domains
-                  </div>
-                  <p className="mt-2 text-sm leading-6 text-white/45">
-                    Adjust the search term to find a visible master-data domain.
-                  </p>
-                </div>
-              ) : (
-                <div className="aixia-adaptive-grid" data-card-size="large">
-                  {filteredModuleCards.map((module) => (
-                    <MasterDataModuleButton
-                      key={module.key}
-                      module={module}
-                      onOpen={openRoute}
-                    />
-                  ))}
-                </div>
-              )}
-            </div>
-          </AixiaSection>
-          </>
-        }
-        side={
-          <>
-          <AixiaSection
-            title="Recent Changes"
-            description="Recent movement across visible master-data domains."
-            icon={Receipt}
-          >
-            {recentChanges.length === 0 ? (
-              <div className="rounded-[28px] border border-dashed border-white/10 bg-black/20 px-6 py-12 text-center">
-                <div className="text-sm font-medium text-white">
-                  No visible recent master-data changes
-                </div>
-                <p className="mt-2 text-sm leading-6 text-white/45">
-                  Changes appear here only for master-data domains this user can read.
-                </p>
-              </div>
-            ) : (
-              <div className="aixia-side-card-list">
-                <div className="divide-y divide-white/5">
-                  {recentChanges.map((item) => (
-                    <button
-                      key={item.id}
-                      type="button"
-                      onClick={() => {
-                        if (!item.route) return;
-                        navigate(item.route);
-                      }}
-                      className="aixia-side-list-row"
-                    >
-                      <div className="min-w-0">
-                        <div className="flex min-w-0 flex-wrap items-center gap-2">
-                          <AixiaBadge tone="indigo">{item.type}</AixiaBadge>
-                          <span className="min-w-0 truncate text-sm font-semibold text-white">
-                            {item.title}
-                          </span>
-                        </div>
-
-                        <div className="mt-2 line-clamp-1 text-sm text-white/45">
-                          {item.subtitle}
-                        </div>
-                      </div>
-
-                      <div className="flex shrink-0 items-center gap-3">
-                        <div className="whitespace-nowrap text-xs text-white/25">
-                          {formatDateLabel(item.createdAt)}
-                        </div>
-                        <ArrowRight className="h-4 w-4 text-white/30 transition group-hover:translate-x-1 group-hover:text-[#FBBF24]" />
-                      </div>
-                    </button>
-                  ))}
-                </div>
-              </div>
-            )}
-          </AixiaSection>
-
-          <div className="aixia-glass overflow-hidden rounded-[32px] border-[#6366F1]/20 bg-[radial-gradient(circle_at_top,rgba(99,102,241,0.18),rgba(3,7,18,0.94)_58%)]">
-            <div className="flex items-start justify-between gap-4 border-b border-white/10 px-6 py-5">
-              <div>
-                <div className="aixia-label text-indigo-200">Master Data Readiness</div>
-                <p className="mt-1 text-xs leading-5 text-white/45">
-                  Visible readiness signals are based only on domains this user can access.
-                </p>
-              </div>
-
-              <div className="rounded-2xl border border-[#6366F1]/25 bg-[#6366F1]/12 p-3 text-indigo-200">
-                <Database className="h-5 w-5" />
-              </div>
-            </div>
-
-            <div className="grid gap-4 p-6">
-              <ReadinessBlock
-                label="Visible Domains"
-                value={formatCount(moduleCards.length)}
-                detail="Domains available after permission filtering."
-              />
-
-              <ReadinessBlock
-                label="Configured Domains"
-                value={formatCount(totalConfiguredDomains)}
-                detail="Visible domains with at least one record."
-              />
-
-              <ReadinessBlock
-                label="Currency Source"
-                value={accessMap.rates ? data.rates.sourceLabel : "Hidden"}
-                detail={
-                  accessMap.rates
-                    ? data.rates.updatedAtLabel
-                    : "Requires Finance read access."
                 }
-              />
-            </div>
-          </div>
+              >
+                {filteredModuleCards.length === 0 ? (
+                  <AixiaEmptyState
+                    icon={Database}
+                    title="No matching domains"
+                    description="Adjust the search term to find a visible master-data domain."
+                  />
+                ) : (
+                  <AixiaReviewGrid variant="cards">
+                    {filteredModuleCards.map((module) => {
+                      const Icon = module.icon;
+                      const statusTone = getStatusTone(module.statusLabel);
 
-          <AixiaSection
-            title="Access Rule"
-            description="Finance template baseline plus user-specific exceptions."
-            icon={ShieldCheck}
-          >
-            <div className="space-y-4">
-              <ReadinessBlock
-                label="Current User"
-                value={currentProfile?.full_name || "Unknown"}
-                detail="The visible modules are calculated for the logged-in user."
-              />
+                      return (
+                        <AixiaSection
+                          key={module.key}
+                          title={module.title}
+                          description={module.description}
+                          icon={Icon}
+                          badge={<AixiaBadge tone={statusTone}>{module.statusLabel}</AixiaBadge>}
+                          bodyClassName="p-5"
+                          actions={
+                            <AixiaButton
+                              type="button"
+                              variant="primary"
+                              onClick={() => openRoute(module.route)}
+                            >
+                              Open
+                              <ArrowRight className="h-3.5 w-3.5" />
+                            </AixiaButton>
+                          }
+                        >
+                          <AixiaReviewGrid variant="compact">
+                            <AixiaReviewBlock
+                              label="Required Access"
+                              value={module.requiredAccessLabel}
+                              description={module.groupLabel}
+                            />
+                            <AixiaReviewBlock
+                              label="Records"
+                              value={formatCount(module.count)}
+                              description="Configured records"
+                            />
+                            <AixiaReviewBlock
+                              label="Updated"
+                              value={module.lastUpdatedLabel}
+                              description="Backend reference"
+                            />
+                          </AixiaReviewGrid>
+                        </AixiaSection>
+                      );
+                    })}
+                  </AixiaReviewGrid>
+                )}
+              </AixiaSection>
+            </>
+          }
+          side={
+            <>
+              <AixiaSection
+                title="Recent Changes"
+                description="Recent movement across visible master-data domains."
+                icon={Receipt}
+              >
+                {recentChanges.length === 0 ? (
+                  <AixiaEmptyState
+                    icon={Receipt}
+                    title="No visible recent master-data changes"
+                    description="Changes appear here only for master-data domains this user can read."
+                  />
+                ) : (
+                  <AixiaReviewGrid variant="compact">
+                    {recentChanges.map((item) => (
+                      <AixiaSection
+                        key={item.id}
+                        title={item.title}
+                        description={item.subtitle}
+                        icon={Receipt}
+                        badge={<AixiaBadge tone="indigo">{item.type}</AixiaBadge>}
+                        actions={
+                          item.route ? (
+                            <AixiaButton
+                              type="button"
+                              variant="primary"
+                              onClick={() => navigate(item.route as string)}
+                            >
+                              Open
+                              <ArrowRight className="h-3.5 w-3.5" />
+                            </AixiaButton>
+                          ) : null
+                        }
+                      >
+                        <AixiaReviewBlock
+                          label="Updated"
+                          value={formatDateLabel(item.createdAt)}
+                          description="Visible activity"
+                        />
+                      </AixiaSection>
+                    ))}
+                  </AixiaReviewGrid>
+                )}
+              </AixiaSection>
 
-              <ReadinessBlock
-                label="Permission Model"
-                value="Read Access"
-                detail="This page only opens master-data domains where the user has read-level finance access."
-              />
+              <AixiaSection
+                title="Master Data Readiness"
+                description="Visible readiness signals are based only on domains this user can access."
+                icon={Database}
+              >
+                <AixiaReviewGrid variant="compact">
+                  <AixiaReviewBlock
+                    label="Visible Domains"
+                    value={formatCount(moduleCards.length)}
+                    description="Domains available after permission filtering."
+                  />
+                  <AixiaReviewBlock
+                    label="Configured Domains"
+                    value={formatCount(totalConfiguredDomains)}
+                    description="Visible domains with at least one record."
+                  />
+                  <AixiaReviewBlock
+                    label="Currency Source"
+                    value={accessMap.rates ? data.rates.sourceLabel : "Hidden"}
+                    description={
+                      accessMap.rates
+                        ? data.rates.updatedAtLabel
+                        : "Requires Finance read access."
+                    }
+                  />
+                </AixiaReviewGrid>
+              </AixiaSection>
 
-              <ReadinessBlock
-                label="Edit Rights"
-                value="Handled inside modules"
-                detail="Create, Update, Delete/Archive, and Approve/Execute actions must be enforced inside each child page."
-              />
-            </div>
-          </AixiaSection>
-          </>
-        }
-      />
+              <AixiaSection
+                title="Access Rule"
+                description="Finance template baseline plus user-specific exceptions."
+                icon={ShieldCheck}
+              >
+                <AixiaReviewGrid variant="compact">
+                  <AixiaReviewBlock
+                    label="Current User"
+                    value={currentProfile?.full_name || "Unknown"}
+                    description="The visible modules are calculated for the logged-in user."
+                  />
+                  <AixiaReviewBlock
+                    label="Permission Model"
+                    value="Read Access"
+                    description="This page only opens master-data domains where the user has read-level finance access."
+                  />
+                  <AixiaReviewBlock
+                    label="Edit Rights"
+                    value="Handled inside modules"
+                    description="Create, Update, Delete/Archive, and Approve/Execute actions must be enforced inside each child page."
+                  />
+                </AixiaReviewGrid>
+              </AixiaSection>
+            </>
+          }
+        />
+      )}
     </AixiaPage>
   );
 }

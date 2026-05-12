@@ -1339,7 +1339,8 @@ export default function FinanceBillDetailPage() {
             : []),
         ]}
         gradientTitle={getDocumentTypeLabel(bill.document_type).toUpperCase()}
-        title={
+        title=""
+        subtitle={
           selectedVendor?.legal_name ||
           selectedVendor?.name ||
           "Unknown vendor"

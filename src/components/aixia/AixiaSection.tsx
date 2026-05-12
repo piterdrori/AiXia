@@ -81,3 +81,5 @@ export function AixiaSection({
     </section>
   );
 }
+
+export { AixiaDetailSection } from "./AixiaDetailSection";

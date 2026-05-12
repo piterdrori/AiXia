@@ -797,7 +797,7 @@ export default function FinanceAccessApprovalsPage() {
         />
       </AixiaMetricGrid>
 
-      <section className="aixia-smart-grid" data-mode="cards">
+      <AixiaMetricGrid>
         {overviewItems.map((item) => (
           <AixiaValueBlock
             key={item.label}
@@ -806,7 +806,7 @@ export default function FinanceAccessApprovalsPage() {
             detail={item.detail}
           />
         ))}
-      </section>
+      </AixiaMetricGrid>
 
       <AixiaSection
         title="Finance Access Approval Registry"
@@ -1010,8 +1010,8 @@ export default function FinanceAccessApprovalsPage() {
       </AixiaMetricGrid>
 
       <AixiaAccessRule
-        title="Locked access model"
-        description="Finance registry pages must show the shared locked access rule block."
+        title="Locked access rule"
+        description="Finance registry pages must show the shared Locked access rule block."
       >
         Base system role remains admin, manager, employee, or guest. Finance role template
         controls the company-level Finance baseline. User overrides should only be used for

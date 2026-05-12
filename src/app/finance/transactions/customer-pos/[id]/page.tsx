@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import { useNavigate, useParams } from "react-router-dom";
 import {
   Archive,
@@ -15,23 +15,21 @@ import {
   Save,
   SquarePen,
   Trash2,
-  Upload,
-  X,
 } from "lucide-react";
 
 import { supabase } from "@/lib/supabase";
 import {
   AixiaAlert,
-  AixiaBadge,
-  AixiaButton as AixiaBaseButton,
+  AixiaButton,
   AixiaDetailSection,
-  AixiaDisplayBlock as AixiaBaseDisplayBlock,
+  AixiaDisplayBlock,
+  AixiaDocumentUploadPanel,
   AixiaEmptyState,
   AixiaFieldLabel,
   AixiaFormField,
   AixiaFormFullWidth,
-  AixiaFormGrid as AixiaBaseFormGrid,
-  AixiaFormRowCard as AixiaBaseFormRowCard,
+  AixiaFormGrid,
+  AixiaFormRowCard,
   AixiaHero,
   AixiaInputField,
   AixiaLoadingState,
@@ -377,124 +375,9 @@ async function getCurrentUserId() {
   return user?.id ?? null;
 }
 
-function getFileSizeLabel(size: number | null | undefined) {
-  if (!size) return "Unknown size";
-  return `${(size / 1024 / 1024).toFixed(2)} MB`;
-}
-
-type AixiaButtonProps = React.ButtonHTMLAttributes<HTMLButtonElement> & {
-  children: React.ReactNode;
-  variant?: "primary" | "secondary" | "danger" | "icon";
-  fullWidth?: boolean;
-};
-
-function AixiaButton({
-  fullWidth = false,
-  className = "",
-  ...props
-}: AixiaButtonProps) {
-  return (
-    <AixiaBaseButton
-      {...props}
-      className={`${fullWidth ? "w-full" : ""} ${className}`.trim()}
-    />
-  );
-}
-
-type LocalDisplayBlockProps = {
-  children?: React.ReactNode;
-  label?: React.ReactNode;
-  value?: React.ReactNode;
-  detail?: React.ReactNode;
-  tone?: "cyan" | "emerald" | "gold" | "violet" | "rose" | "neutral" | string;
-  multiline?: boolean;
-};
-
-function AixiaDisplayBlock({
-  children,
-  label = "",
-  value,
-  detail,
-  tone,
-  multiline = false,
-}: LocalDisplayBlockProps) {
-  return (
-    <AixiaBaseDisplayBlock
-      label={label}
-      value={value ?? children ?? "—"}
-      detail={detail}
-      className={`${tone ? `aixia-display-block-${tone}` : ""} ${
-        multiline ? "aixia-display-block-multiline" : ""
-      }`.trim()}
-    />
-  );
-}
-
-type LocalFormGridProps = React.HTMLAttributes<HTMLDivElement> & {
-  columns?: "one" | "two" | "three" | "line";
-  children: React.ReactNode;
-};
-
-function AixiaFormGrid({
-  columns = "two",
-  children,
-  ...props
-}: LocalFormGridProps) {
-  return (
-    <AixiaBaseFormGrid
-      {...props}
-      columns={columns === "line" ? "three" : columns}
-    >
-      {children}
-    </AixiaBaseFormGrid>
-  );
-}
-
-type LocalFormRowCardProps = Omit<
-  React.HTMLAttributes<HTMLDivElement>,
-  "title"
-> & {
-  title: string;
-  description?: React.ReactNode;
-  badge?: React.ReactNode;
-  actions?: React.ReactNode;
-  onRemove?: () => void;
-  removeDisabled?: boolean;
-  removeLabel?: React.ReactNode;
-  children: React.ReactNode;
-};
-
-function AixiaFormRowCard({
-  title,
-  description,
-  badge,
-  actions,
-  onRemove,
-  removeDisabled,
-  removeLabel,
-  children,
-  ...props
-}: LocalFormRowCardProps) {
-  return (
-    <AixiaBaseFormRowCard
-      {...props}
-      title={title}
-      description={description}
-      onRemove={onRemove}
-      removeDisabled={removeDisabled}
-      removeLabel={removeLabel}
-    >
-      {badge ? <div className="aixia-action-row">{badge}</div> : null}
-      {actions ? <div className="aixia-action-row">{actions}</div> : null}
-      {children}
-    </AixiaBaseFormRowCard>
-  );
-}
-
 export default function FinanceCustomerPoDetailPage() {
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
-  const fileInputRef = useRef<HTMLInputElement | null>(null);
 
   const [customerPo, setCustomerPo] = useState<CustomerPoRow | null>(null);
   const [quotation, setQuotation] = useState<QuotationOption | null>(null);
@@ -514,7 +397,6 @@ export default function FinanceCustomerPoDetailPage() {
   const [revenueCategories, setRevenueCategories] = useState<RevenueCategoryOption[]>([]);
 
   const [selectedFile, setSelectedFile] = useState<File | null>(null);
-  const [isDraggingFile, setIsDraggingFile] = useState(false);
   const [isEditingDetails, setIsEditingDetails] = useState(false);
   const [isEditingLines, setIsEditingLines] = useState(false);
 
@@ -1139,13 +1021,6 @@ export default function FinanceCustomerPoDetailPage() {
       if (current.length === 1) return current;
       return current.filter((row) => row.localId !== localId);
     });
-  }
-
-  function handleDropFile(fileList: FileList | null) {
-    const file = fileList?.[0] || null;
-    if (!file) return;
-    setSelectedFile(file);
-    setError("");
   }
 
   async function handleUploadCustomerPoFile() {
@@ -2017,12 +1892,10 @@ export default function FinanceCustomerPoDetailPage() {
               }
             >
               <AixiaFormGrid columns="three">
-                <AixiaFormField>
-                  <AixiaFieldLabel label="Internal CPO No." />
-                  <AixiaDisplayBlock>
-                    {customerPo.client_po_number || "Pending"}
-                  </AixiaDisplayBlock>
-                </AixiaFormField>
+                <AixiaDisplayBlock
+                  label="Internal CPO No."
+                  value={customerPo.client_po_number || "Pending"}
+                />
 
                 <AixiaFormField>
                   <AixiaFieldLabel label="Customer PO No." required={isEditingDetails} />
@@ -2037,9 +1910,10 @@ export default function FinanceCustomerPoDetailPage() {
                       }
                     />
                   ) : (
-                    <AixiaDisplayBlock>
-                      {customerPo.external_po_number || "—"}
-                    </AixiaDisplayBlock>
+                    <AixiaDisplayBlock
+                      label="Customer PO No."
+                      value={customerPo.external_po_number || "—"}
+                    />
                   )}
                 </AixiaFormField>
 
@@ -2064,9 +1938,10 @@ export default function FinanceCustomerPoDetailPage() {
                       ))}
                     </AixiaSelectField>
                   ) : (
-                    <AixiaDisplayBlock>
-                      {quotation?.quotation_number || "—"}
-                    </AixiaDisplayBlock>
+                    <AixiaDisplayBlock
+                      label="Linked Quotation"
+                      value={quotation?.quotation_number || "—"}
+                    />
                   )}
                 </AixiaFormField>
 
@@ -2085,9 +1960,10 @@ export default function FinanceCustomerPoDetailPage() {
                       ))}
                     </AixiaSelectField>
                   ) : (
-                    <AixiaDisplayBlock>
-                      {customerPo.client_name_snapshot || "—"}
-                    </AixiaDisplayBlock>
+                    <AixiaDisplayBlock
+                      label="Client"
+                      value={customerPo.client_name_snapshot || "—"}
+                    />
                   )}
                 </AixiaFormField>
 
@@ -2111,9 +1987,10 @@ export default function FinanceCustomerPoDetailPage() {
                       ))}
                     </AixiaSelectField>
                   ) : (
-                    <AixiaDisplayBlock>
-                      {customerPo.company_name_snapshot || "—"}
-                    </AixiaDisplayBlock>
+                    <AixiaDisplayBlock
+                      label="Issuing Company"
+                      value={customerPo.company_name_snapshot || "—"}
+                    />
                   )}
                 </AixiaFormField>
 
@@ -2132,7 +2009,7 @@ export default function FinanceCustomerPoDetailPage() {
                       ))}
                     </AixiaSelectField>
                   ) : (
-                    <AixiaDisplayBlock>{displayedCurrencyCode}</AixiaDisplayBlock>
+                    <AixiaDisplayBlock label="Currency" value={displayedCurrencyCode} />
                   )}
                 </AixiaFormField>
 
@@ -2150,7 +2027,10 @@ export default function FinanceCustomerPoDetailPage() {
                       }
                     />
                   ) : (
-                    <AixiaDisplayBlock>{formatDate(customerPo.po_date)}</AixiaDisplayBlock>
+                    <AixiaDisplayBlock
+                      label="PO Date"
+                      value={formatDate(customerPo.po_date)}
+                    />
                   )}
                 </AixiaFormField>
 
@@ -2168,18 +2048,17 @@ export default function FinanceCustomerPoDetailPage() {
                       }
                     />
                   ) : (
-                    <AixiaDisplayBlock>
-                      {formatDate(customerPo.received_at)}
-                    </AixiaDisplayBlock>
+                    <AixiaDisplayBlock
+                      label="Received"
+                      value={formatDate(customerPo.received_at)}
+                    />
                   )}
                 </AixiaFormField>
 
-                <AixiaFormField>
-                  <AixiaFieldLabel label="Status" />
-                  <AixiaDisplayBlock>
-                    <AixiaStatusBadge value={customerPo.status} />
-                  </AixiaDisplayBlock>
-                </AixiaFormField>
+                <AixiaDisplayBlock
+                  label="Status"
+                  value={<AixiaStatusBadge value={customerPo.status} />}
+                />
 
                 <AixiaFormField>
                   <AixiaFieldLabel label="Project" />
@@ -2202,10 +2081,13 @@ export default function FinanceCustomerPoDetailPage() {
                       ))}
                     </AixiaSelectField>
                   ) : (
-                    <AixiaDisplayBlock>
-                      {projects.find((project) => project.id === customerPo.project_id)
-                        ?.name || "—"}
-                    </AixiaDisplayBlock>
+                    <AixiaDisplayBlock
+                      label="Project"
+                      value={
+                        projects.find((project) => project.id === customerPo.project_id)
+                          ?.name || "—"
+                      }
+                    />
                   )}
                 </AixiaFormField>
 
@@ -2229,19 +2111,20 @@ export default function FinanceCustomerPoDetailPage() {
                       ))}
                     </AixiaSelectField>
                   ) : (
-                    <AixiaDisplayBlock>
-                      {tasks.find((task) => task.id === customerPo.task_id)?.title ||
-                        "—"}
-                    </AixiaDisplayBlock>
+                    <AixiaDisplayBlock
+                      label="Task"
+                      value={
+                        tasks.find((task) => task.id === customerPo.task_id)?.title ||
+                        "—"
+                      }
+                    />
                   )}
                 </AixiaFormField>
 
-                <AixiaFormField>
-                  <AixiaFieldLabel label="Verified" />
-                  <AixiaDisplayBlock>
-                    {formatDate(customerPo.verified_at)}
-                  </AixiaDisplayBlock>
-                </AixiaFormField>
+                <AixiaDisplayBlock
+                  label="Verified"
+                  value={formatDate(customerPo.verified_at)}
+                />
 
                 <AixiaFormFullWidth>
                   <AixiaFieldLabel label="Notes" />
@@ -2257,9 +2140,10 @@ export default function FinanceCustomerPoDetailPage() {
                       rows={4}
                     />
                   ) : (
-                    <AixiaDisplayBlock multiline>
-                      {customerPo.notes || "—"}
-                    </AixiaDisplayBlock>
+                    <AixiaDisplayBlock
+                      label="Notes"
+                      value={customerPo.notes || "—"}
+                    />
                   )}
                 </AixiaFormFullWidth>
               </AixiaFormGrid>
@@ -2706,104 +2590,49 @@ export default function FinanceCustomerPoDetailPage() {
               description="Upload or view the customer purchase order document."
               icon={Paperclip}
             >
-              <input
-                ref={fileInputRef}
-                type="file"
-                className="hidden"
-                onChange={(event) => handleDropFile(event.target.files)}
+              <AixiaDocumentUploadPanel
+                selectedFile={selectedFile}
+                attachments={attachments.map((attachment) => ({
+                  id: attachment.id,
+                  fileName: attachment.file_name || "Customer PO document",
+                  badge: formatDate(attachment.created_at),
+                  sizeLabel: attachment.file_size
+                    ? `${(attachment.file_size / 1024 / 1024).toFixed(2)} MB`
+                    : "Unknown size",
+                  description: attachment.mime_type || "Unknown file type",
+                  openLabel: "Open",
+                }))}
+                required
+                disabled={!canEditDetails}
+                uploading={isUploading}
+                accept=".pdf,.png,.jpg,.jpeg,.webp,.doc,.docx,.xls,.xlsx"
+                dropTitle="Drop Customer PO file here"
+                dropDescription="Attach the original customer purchase order document. PDF, image, Word, or Excel files are supported."
+                uploadLabel="Upload Document"
+                uploadingLabel="Uploading..."
+                selectedFileLabel="Selected Customer PO document"
+                emptyTitle="No Customer PO document uploaded"
+                emptyDescription="Upload the original Customer PO document before creating the PI."
+                requiredMessage="No Customer PO document uploaded. PI creation is blocked."
+                onFileSelect={(file) => {
+                  setSelectedFile(file);
+                  setError("");
+                }}
+                onRemoveSelectedFile={() => setSelectedFile(null)}
+                onUpload={() => void handleUploadCustomerPoFile()}
+                onOpenAttachment={async (documentAttachment) => {
+                  const attachment = attachments.find(
+                    (item) => item.id === documentAttachment.id
+                  );
+
+                  if (!attachment) {
+                    setError("Customer PO attachment was not found.");
+                    return;
+                  }
+
+                  await handleOpenCustomerPoFile(attachment);
+                }}
               />
-
-              <button
-                type="button"
-                onClick={() => fileInputRef.current?.click()}
-                onDragEnter={(event) => {
-                  event.preventDefault();
-                  event.stopPropagation();
-                  setIsDraggingFile(true);
-                }}
-                onDragOver={(event) => {
-                  event.preventDefault();
-                  event.stopPropagation();
-                  setIsDraggingFile(true);
-                }}
-                onDragLeave={(event) => {
-                  event.preventDefault();
-                  event.stopPropagation();
-                  setIsDraggingFile(false);
-                }}
-                onDrop={(event) => {
-                  event.preventDefault();
-                  event.stopPropagation();
-                  setIsDraggingFile(false);
-                  handleDropFile(event.dataTransfer.files);
-                }}
-                className={isDraggingFile ? "aixia-upload-zone is-dragging" : "aixia-upload-zone"}
-              >
-                <Upload className="h-6 w-6" />
-                <span>Drop Customer PO file here</span>
-                <small>PDF, image, Word, or Excel. Click to browse.</small>
-              </button>
-
-              {selectedFile ? (
-                <AixiaFormRowCard title={selectedFile.name}>
-                  <div className="aixia-helper-text">
-                    {getFileSizeLabel(selectedFile.size)}
-                  </div>
-                  <AixiaButton
-                    type="button"
-                    variant="secondary"
-                    onClick={() => setSelectedFile(null)}
-                  >
-                    <X className="h-4 w-4" />
-                    Remove
-                  </AixiaButton>
-                </AixiaFormRowCard>
-              ) : null}
-
-              <AixiaButton
-                type="button"
-                variant="primary"
-                onClick={() => void handleUploadCustomerPoFile()}
-                disabled={!selectedFile || isUploading}
-                fullWidth
-              >
-                {isUploading ? (
-                  <Loader2 className="h-4 w-4 animate-spin" />
-                ) : (
-                  <Save className="h-4 w-4" />
-                )}
-                {isUploading ? "Uploading..." : "Upload Document"}
-              </AixiaButton>
-
-              <div className="aixia-form-row-list">
-                {attachments.length === 0 ? (
-                  <AixiaAlert tone="error">
-                    No Customer PO document uploaded. PI creation is blocked.
-                  </AixiaAlert>
-                ) : (
-                  attachments.map((attachment) => (
-                    <AixiaFormRowCard
-                      key={attachment.id}
-                      title={attachment.file_name || "Customer PO document"}
-                      badge={<AixiaBadge tone="cyan">{formatDate(attachment.created_at)}</AixiaBadge>}
-                      actions={
-                        <AixiaButton
-                          type="button"
-                          variant="primary"
-                          onClick={() => void handleOpenCustomerPoFile(attachment)}
-                        >
-                          <Eye className="h-4 w-4" />
-                          Open
-                        </AixiaButton>
-                      }
-                    >
-                      <div className="aixia-helper-text">
-                        {getFileSizeLabel(attachment.file_size)}
-                      </div>
-                    </AixiaFormRowCard>
-                  ))
-                )}
-              </div>
             </AixiaSection>
 
             <AixiaSection

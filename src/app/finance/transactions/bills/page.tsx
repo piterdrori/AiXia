@@ -754,6 +754,16 @@ export default function FinanceBillsPage() {
               <tr>
                 <th>
                   <AixiaSortableHeader
+                    label="Vendor"
+                    sortKey="vendor_name"
+                    activeSortKey={sortKey}
+                    sortDirection={sortDirection}
+                    onSort={toggleSort}
+                  />
+                </th>
+
+                <th>
+                  <AixiaSortableHeader
                     label="Document"
                     sortKey="bill_number"
                     activeSortKey={sortKey}
@@ -766,16 +776,6 @@ export default function FinanceBillsPage() {
                   <AixiaSortableHeader
                     label="Type"
                     sortKey="document_type"
-                    activeSortKey={sortKey}
-                    sortDirection={sortDirection}
-                    onSort={toggleSort}
-                  />
-                </th>
-
-                <th>
-                  <AixiaSortableHeader
-                    label="Vendor"
-                    sortKey="vendor_name"
                     activeSortKey={sortKey}
                     sortDirection={sortDirection}
                     onSort={toggleSort}

@@ -25,6 +25,7 @@ import {
   AixiaFormGrid,
   AixiaHero,
   AixiaInputField,
+  AixiaLoadingState,
   AixiaMetricCard,
   AixiaMetricGrid,
   AixiaModal,
@@ -62,12 +63,15 @@ import {
 
 type ProfilePermissionRow = {
   role: Role | null;
+  permissions: Partial<Record<Permission, boolean>> | null;
 };
 
 type PaymentMethodEditableStatus = "active" | "inactive";
+type PaymentMethodLifecycleStatus = "active" | "inactive" | "archived";
 type StatusFilter = "all" | PaymentMethodEditableStatus;
 type SortKey = "code" | "name" | "status" | "updated_at";
 type SortDirection = "asc" | "desc";
+type RunningAction = "archive" | "restore" | "delete-permanently" | null;
 
 type FormState = {
   code: string;
@@ -75,6 +79,12 @@ type FormState = {
   status: PaymentMethodEditableStatus;
   description: string;
   notes: string;
+};
+
+type PaymentMethodRealtimePayload = {
+  eventType: string;
+  new: unknown;
+  old: unknown;
 };
 
 const EMPTY_FORM: FormState = {
@@ -88,7 +98,12 @@ const EMPTY_FORM: FormState = {
 const PAGE_ACCESS_CONFIG: FinancePageAccessConfig = {
   sectionKey: "masterData",
   adminPermissions: ["manageFinanceMasterData"],
-  readPermissions: ["accessFinance", "viewFinance", "manageFinanceMasterData"],
+  readPermissions: [
+    "accessFinance",
+    "viewFinance",
+    "viewPaymentMethods",
+    "manageFinanceMasterData",
+  ],
   createPermissions: ["createFinanceRecords", "manageFinanceMasterData"],
   updatePermissions: ["editFinanceRecords", "manageFinanceMasterData"],
   deleteArchivePermissions: ["archiveFinanceRecords", "manageFinanceMasterData"],
@@ -109,6 +124,124 @@ function formatDateLabel(value: string | null | undefined) {
 
 function getErrorMessage(error: unknown, fallback: string) {
   return error instanceof Error ? error.message : fallback;
+}
+
+function isObjectRecord(value: unknown): value is Record<string, unknown> {
+  return typeof value === "object" && value !== null;
+}
+
+function isPaymentMethodLifecycleStatus(
+  value: unknown
+): value is PaymentMethodLifecycleStatus {
+  return value === "active" || value === "inactive" || value === "archived";
+}
+
+function toOptionalString(value: unknown) {
+  return typeof value === "string" ? value : null;
+}
+
+function toPaymentMethodRow(
+  value: unknown
+): FinancePaymentMethodListRow | null {
+  if (!isObjectRecord(value)) return null;
+
+  const id = toOptionalString(value.id);
+  const name = toOptionalString(value.name);
+  const status = value.status;
+  const createdAt = toOptionalString(value.created_at);
+  const updatedAt = toOptionalString(value.updated_at);
+
+  if (
+    !id ||
+    !name ||
+    !isPaymentMethodLifecycleStatus(status) ||
+    !createdAt ||
+    !updatedAt
+  ) {
+    return null;
+  }
+
+  return {
+    id,
+    code: toOptionalString(value.code),
+    name,
+    status,
+    description: toOptionalString(value.description),
+    notes: toOptionalString(value.notes),
+    created_at: createdAt,
+    updated_at: updatedAt,
+  } as FinancePaymentMethodListRow;
+}
+
+function getRealtimeRowId(value: unknown) {
+  if (!isObjectRecord(value)) return null;
+  return toOptionalString(value.id);
+}
+
+function isSamePaymentMethodRow(
+  first: FinancePaymentMethodListRow,
+  second: FinancePaymentMethodListRow
+) {
+  return (
+    first.id === second.id &&
+    first.code === second.code &&
+    first.name === second.name &&
+    first.status === second.status &&
+    first.description === second.description &&
+    first.notes === second.notes &&
+    first.created_at === second.created_at &&
+    first.updated_at === second.updated_at
+  );
+}
+
+function reconcilePaymentMethodRows(
+  currentRows: FinancePaymentMethodListRow[],
+  nextRows: FinancePaymentMethodListRow[]
+) {
+  const currentById = new Map(currentRows.map((row) => [row.id, row]));
+  let changed = currentRows.length !== nextRows.length;
+
+  const reconciledRows = nextRows.map((nextRow) => {
+    const currentRow = currentById.get(nextRow.id);
+
+    if (currentRow && isSamePaymentMethodRow(currentRow, nextRow)) {
+      return currentRow;
+    }
+
+    changed = true;
+    return nextRow;
+  });
+
+  if (!changed) return currentRows;
+
+  return reconciledRows;
+}
+
+function upsertPaymentMethodRow(
+  currentRows: FinancePaymentMethodListRow[],
+  nextRow: FinancePaymentMethodListRow
+) {
+  const existingIndex = currentRows.findIndex((row) => row.id === nextRow.id);
+
+  if (existingIndex === -1) {
+    return [nextRow, ...currentRows];
+  }
+
+  const existingRow = currentRows[existingIndex];
+
+  if (isSamePaymentMethodRow(existingRow, nextRow)) {
+    return currentRows;
+  }
+
+  return currentRows.map((row) => (row.id === nextRow.id ? nextRow : row));
+}
+
+function removePaymentMethodRow(
+  currentRows: FinancePaymentMethodListRow[],
+  rowId: string
+) {
+  const nextRows = currentRows.filter((row) => row.id !== rowId);
+  return nextRows.length === currentRows.length ? currentRows : nextRows;
 }
 
 function sortPaymentMethodRows(
@@ -173,6 +306,8 @@ function PaymentMethodFormModal({
   onChange: <K extends keyof FormState>(key: K, value: FormState[K]) => void;
   onSave: () => void;
 }) {
+  const hasRequiredFields = Boolean(form.code.trim() && form.name.trim());
+
   return (
     <AixiaModal
       open={open}
@@ -190,7 +325,12 @@ function PaymentMethodFormModal({
       maxWidthClassName="max-w-4xl"
       footer={
         <>
-          <AixiaButton type="button" variant="secondary" onClick={onClose}>
+          <AixiaButton
+            type="button"
+            variant="secondary"
+            onClick={onClose}
+            disabled={saving}
+          >
             Cancel
           </AixiaButton>
 
@@ -198,7 +338,7 @@ function PaymentMethodFormModal({
             type="button"
             variant="primary"
             onClick={onSave}
-            disabled={saving || !canSave}
+            disabled={saving || !canSave || !hasRequiredFields}
           >
             {saving
               ? "Saving..."
@@ -222,6 +362,7 @@ function PaymentMethodFormModal({
                 value={form.code}
                 onChange={(event) => onChange("code", event.target.value)}
                 placeholder="For example BANK_TRANSFER"
+                disabled={saving}
               />
             </AixiaFormField>
 
@@ -231,6 +372,7 @@ function PaymentMethodFormModal({
                 value={form.name}
                 onChange={(event) => onChange("name", event.target.value)}
                 placeholder="Payment method name"
+                disabled={saving}
               />
             </AixiaFormField>
 
@@ -239,8 +381,12 @@ function PaymentMethodFormModal({
               <AixiaSelectField
                 value={form.status}
                 onChange={(event) =>
-                  onChange("status", event.target.value as PaymentMethodEditableStatus)
+                  onChange(
+                    "status",
+                    event.target.value as PaymentMethodEditableStatus
+                  )
                 }
+                disabled={saving}
               >
                 <option value="active">Active</option>
                 <option value="inactive">Inactive</option>
@@ -253,6 +399,7 @@ function PaymentMethodFormModal({
                 value={form.description}
                 onChange={(event) => onChange("description", event.target.value)}
                 placeholder="Short explanation shown to finance users"
+                disabled={saving}
               />
             </AixiaFormFullWidth>
 
@@ -262,6 +409,7 @@ function PaymentMethodFormModal({
                 value={form.notes}
                 onChange={(event) => onChange("notes", event.target.value)}
                 placeholder="Optional internal notes"
+                disabled={saving}
               />
             </AixiaFormFullWidth>
           </AixiaFormGrid>
@@ -276,8 +424,9 @@ function PaymentMethodFormModal({
 export default function FinancePaymentMethodsPage() {
   const [rows, setRows] = useState<FinancePaymentMethodListRow[]>([]);
   const [loading, setLoading] = useState(true);
-  const [backgroundRefreshing, setBackgroundRefreshing] = useState(false);
   const [saving, setSaving] = useState(false);
+  const [runningAction, setRunningAction] = useState<RunningAction>(null);
+  const [activeActionId, setActiveActionId] = useState<string | null>(null);
 
   const [search, setSearch] = useState("");
   const [archiveSearch, setArchiveSearch] = useState("");
@@ -307,8 +456,6 @@ export default function FinancePaymentMethodsPage() {
     if (mode === "initial") {
       setLoading(true);
       setPageError("");
-    } else {
-      setBackgroundRefreshing(true);
     }
 
     try {
@@ -320,21 +467,35 @@ export default function FinancePaymentMethodsPage() {
       if (authError) throw authError;
       if (!user?.id) throw new Error("You must be signed in to view payment methods.");
 
-      const [profileResult, nextPermissions, nextRows] = await Promise.all([
-        supabase
-          .from("profiles")
-          .select("role")
-          .eq("user_id", user.id)
-          .maybeSingle(),
-        fetchFinanceEffectivePermissions(user.id, mode, "Payment Methods"),
-        getPaymentMethods(),
-      ]);
+      const [profileResult, permissionPayload, paymentMethodRows] =
+        await Promise.all([
+          supabase
+            .from("profiles")
+            .select("role, permissions")
+            .eq("user_id", user.id)
+            .maybeSingle(),
+          fetchFinanceEffectivePermissions(user.id, mode, "Payment Methods"),
+          getPaymentMethods(),
+        ]);
 
       if (profileResult.error) throw profileResult.error;
 
-      setProfile((profileResult.data ?? null) as ProfilePermissionRow | null);
-      setEffectivePermissions(nextPermissions);
-      setRows(nextRows);
+      const loadedProfile = (profileResult.data ?? null) as ProfilePermissionRow | null;
+      const resolvedPermissions =
+        permissionPayload ?? loadedProfile?.permissions ?? null;
+
+      if (mode === "silent" && !resolvedPermissions) {
+        console.warn(
+          "Payment Methods silent permission refresh returned no permissions; keeping existing page state."
+        );
+        return;
+      }
+
+      setProfile(loadedProfile);
+      setEffectivePermissions(resolvedPermissions);
+      setRows((currentRows) =>
+        reconcilePaymentMethodRows(currentRows, paymentMethodRows)
+      );
     } catch (loadError) {
       console.error("Failed to load payment methods:", loadError);
 
@@ -349,11 +510,35 @@ export default function FinancePaymentMethodsPage() {
     } finally {
       if (mode === "initial") {
         setLoading(false);
-      } else {
-        setBackgroundRefreshing(false);
       }
     }
   }, []);
+
+  const handlePaymentMethodRealtime = useCallback(
+    (payload: PaymentMethodRealtimePayload) => {
+      if (payload.eventType === "DELETE") {
+        const deletedId = getRealtimeRowId(payload.old);
+
+        if (!deletedId) {
+          void loadPage("silent");
+          return;
+        }
+
+        setRows((currentRows) => removePaymentMethodRow(currentRows, deletedId));
+        return;
+      }
+
+      const nextRow = toPaymentMethodRow(payload.new);
+
+      if (!nextRow) {
+        void loadPage("silent");
+        return;
+      }
+
+      setRows((currentRows) => upsertPaymentMethodRow(currentRows, nextRow));
+    },
+    [loadPage]
+  );
 
   useEffect(() => {
     void loadPage("initial");
@@ -402,8 +587,8 @@ export default function FinancePaymentMethodsPage() {
           schema: "public",
           table: "finance_payment_methods",
         },
-        () => {
-          void loadPage("silent");
+        (payload) => {
+          handlePaymentMethodRealtime(payload as PaymentMethodRealtimePayload);
         }
       )
       .subscribe();
@@ -416,7 +601,7 @@ export default function FinancePaymentMethodsPage() {
       window.clearInterval(intervalId);
       void supabase.removeChannel(channel);
     };
-  }, [loadPage]);
+  }, [handlePaymentMethodRealtime, loadPage]);
 
   const permissionState = useMemo(() => {
     return resolveFinancePagePermissionState({
@@ -430,6 +615,13 @@ export default function FinancePaymentMethodsPage() {
   const canEdit = permissionState.canUpdate;
   const canArchive = permissionState.canDeleteArchive;
   const canDeletePermanently = permissionState.canDeleteArchive;
+  const actionRunning = runningAction !== null;
+
+  useEffect(() => {
+    if (!canArchive && archiveOpen) {
+      setArchiveOpen(false);
+    }
+  }, [archiveOpen, canArchive]);
 
   const activeRows = useMemo(() => {
     return rows.filter((row) => row.status !== "archived");
@@ -476,6 +668,10 @@ export default function FinancePaymentMethodsPage() {
     );
   }, [archiveSortDirection, archiveSortKey, filteredArchivedRows]);
 
+  const canSaveForm = Boolean(
+    (editingRow ? canEdit : canCreate) && form.code.trim() && form.name.trim()
+  );
+
   function updateSort(nextKey: SortKey) {
     if (sortKey === nextKey) {
       setSortDirection((current) => (current === "asc" ? "desc" : "asc"));
@@ -504,6 +700,8 @@ export default function FinancePaymentMethodsPage() {
   }
 
   function openCreateDialog() {
+    if (!canCreate || saving || actionRunning) return;
+
     setEditingRow(null);
     setForm(EMPTY_FORM);
     setFormError("");
@@ -512,6 +710,8 @@ export default function FinancePaymentMethodsPage() {
   }
 
   function openEditDialog(row: FinancePaymentMethodListRow) {
+    if (!canEdit || saving || actionRunning) return;
+
     setEditingRow(row);
     setForm({
       code: row.code ?? "",
@@ -526,10 +726,11 @@ export default function FinancePaymentMethodsPage() {
   }
 
   async function handleSave() {
-    if (!(editingRow ? canEdit : canCreate)) return;
+    if (!canSaveForm || saving) {
+      if (!form.code.trim() || !form.name.trim()) {
+        setFormError("Code and name are required.");
+      }
 
-    if (!form.code.trim() || !form.name.trim()) {
-      setFormError("Code and name are required.");
       return;
     }
 
@@ -553,16 +754,14 @@ export default function FinancePaymentMethodsPage() {
       await loadPage("silent");
     } catch (saveError) {
       console.error("Failed to save payment method:", saveError);
-      setFormError(
-        getErrorMessage(saveError, "Failed to save payment method.")
-      );
+      setFormError(getErrorMessage(saveError, "Failed to save payment method."));
     } finally {
       setSaving(false);
     }
   }
 
   async function handleArchive(row: FinancePaymentMethodListRow) {
-    if (!canArchive) return;
+    if (!canArchive || actionRunning || saving) return;
 
     const confirmed = window.confirm(
       "Archive this payment method? It will be hidden from active selections but can be restored later."
@@ -571,7 +770,8 @@ export default function FinancePaymentMethodsPage() {
     if (!confirmed) return;
 
     try {
-      setSaving(true);
+      setRunningAction("archive");
+      setActiveActionId(row.id);
       setPageError("");
       setPageMessage("");
       await archivePaymentMethod(row.id);
@@ -583,15 +783,17 @@ export default function FinancePaymentMethodsPage() {
         getErrorMessage(actionError, "Failed to archive payment method.")
       );
     } finally {
-      setSaving(false);
+      setRunningAction(null);
+      setActiveActionId(null);
     }
   }
 
   async function handleRestore(row: FinancePaymentMethodListRow) {
-    if (!canArchive) return;
+    if (!canArchive || actionRunning || saving) return;
 
     try {
-      setSaving(true);
+      setRunningAction("restore");
+      setActiveActionId(row.id);
       setPageError("");
       setPageMessage("");
       await restorePaymentMethod(row.id);
@@ -603,21 +805,23 @@ export default function FinancePaymentMethodsPage() {
         getErrorMessage(actionError, "Failed to restore payment method.")
       );
     } finally {
-      setSaving(false);
+      setRunningAction(null);
+      setActiveActionId(null);
     }
   }
 
   async function handleDeletePermanently(row: FinancePaymentMethodListRow) {
-    if (!canDeletePermanently) return;
+    if (!canDeletePermanently || actionRunning || saving) return;
 
     const confirmed = window.confirm(
-      "Delete Permanently this payment method? This action cannot be undone. If the method is used in payments made or reimbursements, deletion will be blocked."
+      "Delete Permanently this payment method? This action cannot be undone. If the method is used in paychecks, payments made, payments received, payroll payments, purchase orders, or reimbursements, deletion will be blocked."
     );
 
     if (!confirmed) return;
 
     try {
-      setSaving(true);
+      setRunningAction("delete-permanently");
+      setActiveActionId(row.id);
       setPageError("");
       setPageMessage("");
       await permanentlyDeletePaymentMethod(row.id);
@@ -626,10 +830,14 @@ export default function FinancePaymentMethodsPage() {
     } catch (actionError) {
       console.error("Failed to permanently delete payment method:", actionError);
       setPageError(
-        getErrorMessage(actionError, "Failed to permanently delete payment method.")
+        getErrorMessage(
+          actionError,
+          "Failed to permanently delete payment method."
+        )
       );
     } finally {
-      setSaving(false);
+      setRunningAction(null);
+      setActiveActionId(null);
     }
   }
 
@@ -678,48 +886,52 @@ export default function FinancePaymentMethodsPage() {
       </thead>
 
       <tbody>
-        {sortedRows.map((row) => (
-          <tr key={row.id} className="aixia-table-row">
-            <AixiaTableTextCell primary={row.code || "—"} width="md" />
+        {sortedRows.map((row) => {
+          const isArchiving =
+            activeActionId === row.id && runningAction === "archive";
 
-            <AixiaTableTextCell
-              primary={row.name}
-              secondary={row.description?.trim() || "No description"}
-              width="xl"
-            />
+          return (
+            <tr key={row.id} className="aixia-table-row">
+              <AixiaTableTextCell primary={row.code || "—"} width="md" />
 
-            <AixiaTableBadgeCell>
-              <AixiaStatusBadge value={row.status} />
-            </AixiaTableBadgeCell>
+              <AixiaTableTextCell
+                primary={row.name}
+                secondary={row.description?.trim() || "No description"}
+                width="xl"
+              />
 
-            <AixiaTableDateCell>{formatDateLabel(row.updated_at)}</AixiaTableDateCell>
+              <AixiaTableBadgeCell>
+                <AixiaStatusBadge value={row.status} />
+              </AixiaTableBadgeCell>
 
-            <AixiaTableActionsCell>
-              {canEdit ? (
+              <AixiaTableDateCell>
+                {formatDateLabel(row.updated_at)}
+              </AixiaTableDateCell>
+
+              <AixiaTableActionsCell>
                 <AixiaButton
                   type="button"
                   variant="primary"
                   onClick={() => openEditDialog(row)}
+                  disabled={!canEdit || saving || actionRunning}
                 >
                   <Edit3 className="h-3.5 w-3.5" />
                   Edit
                 </AixiaButton>
-              ) : null}
 
-              {canArchive ? (
                 <AixiaButton
                   type="button"
                   variant="danger"
                   onClick={() => void handleArchive(row)}
-                  disabled={saving}
+                  disabled={!canArchive || saving || actionRunning}
                 >
                   <Archive className="h-3.5 w-3.5" />
-                  Archive
+                  {isArchiving ? "Archiving..." : "Archive"}
                 </AixiaButton>
-              ) : null}
-            </AixiaTableActionsCell>
-          </tr>
-        ))}
+              </AixiaTableActionsCell>
+            </tr>
+          );
+        })}
       </tbody>
     </AixiaTableShell>
   );
@@ -760,77 +972,61 @@ export default function FinancePaymentMethodsPage() {
       </thead>
 
       <tbody>
-        {sortedArchivedRows.map((row) => (
-          <tr key={row.id} className="aixia-table-row">
-            <AixiaTableTextCell primary={row.code || "—"} width="md" />
+        {sortedArchivedRows.map((row) => {
+          const isRestoring =
+            activeActionId === row.id && runningAction === "restore";
+          const isDeleting =
+            activeActionId === row.id &&
+            runningAction === "delete-permanently";
 
-            <AixiaTableTextCell
-              primary={row.name}
-              secondary={row.description?.trim() || "No description"}
-              width="xl"
-            />
+          return (
+            <tr key={row.id} className="aixia-table-row">
+              <AixiaTableTextCell primary={row.code || "—"} width="md" />
 
-            <AixiaTableDateCell>{formatDateLabel(row.updated_at)}</AixiaTableDateCell>
+              <AixiaTableTextCell
+                primary={row.name}
+                secondary={row.description?.trim() || "No description"}
+                width="xl"
+              />
 
-            <AixiaTableActionsCell>
-              {canArchive ? (
+              <AixiaTableDateCell>
+                {formatDateLabel(row.updated_at)}
+              </AixiaTableDateCell>
+
+              <AixiaTableActionsCell>
                 <AixiaButton
                   type="button"
                   variant="secondary"
                   onClick={() => void handleRestore(row)}
-                  disabled={saving}
+                  disabled={!canArchive || saving || actionRunning}
                 >
                   <Undo2 className="h-3.5 w-3.5" />
-                  Restore
+                  {isRestoring ? "Restoring..." : "Restore"}
                 </AixiaButton>
-              ) : null}
 
-              {canDeletePermanently ? (
                 <AixiaButton
                   type="button"
                   variant="danger"
                   onClick={() => void handleDeletePermanently(row)}
-                  disabled={saving}
+                  disabled={!canDeletePermanently || saving || actionRunning}
                 >
                   <Trash2 className="h-3.5 w-3.5" />
-                  Delete Permanently
+                  {isDeleting ? "Deleting..." : "Delete Permanently"}
                 </AixiaButton>
-              ) : null}
-            </AixiaTableActionsCell>
-          </tr>
-        ))}
+              </AixiaTableActionsCell>
+            </tr>
+          );
+        })}
       </tbody>
     </AixiaTableShell>
   );
 
   if (loading) {
     return (
-      <AixiaPage>
-        <AixiaHero
-          parentLabel="Master Data"
-          parentPath="/finance/master-data"
-          badges={[
-            { label: "Master Data", tone: "neutral" },
-            { label: "Payment Methods", tone: "cyan" },
-            { label: "Controlled Options", tone: "emerald" },
-          ]}
-          gradientTitle="Payment"
-          title="Methods"
-          subtitle="Controlled finance payment options"
-          description="Loading payment methods, permission state, and controlled finance records."
-        />
-        <AixiaSection
-          title="Loading"
-          description="Payment method master data is being prepared."
-          icon={WalletCards}
-        >
-          <AixiaEmptyState
-            icon={WalletCards}
-            title="Loading payment methods"
-            description="The page is checking your permission state and loading the payment method registry."
-          />
-        </AixiaSection>
-      </AixiaPage>
+      <AixiaLoadingState
+        title="Loading payment methods"
+        description="The payment methods registry, permission state, and archive state are being checked."
+      />
     );
   }
 
@@ -850,6 +1046,7 @@ export default function FinancePaymentMethodsPage() {
           subtitle="Controlled finance payment options"
           description="This master-data registry requires Finance master-data access."
         />
+
         <AixiaAccessDeniedState
           title="Payment methods access denied"
           description="You do not have permission to view or manage payment method master data."
@@ -893,10 +1090,6 @@ export default function FinancePaymentMethodsPage() {
       {pageError ? <AixiaAlert tone="error">{pageError}</AixiaAlert> : null}
 
       {pageMessage ? <AixiaAlert tone="success">{pageMessage}</AixiaAlert> : null}
-
-      {backgroundRefreshing ? (
-        <AixiaAlert tone="info">Refreshing payment method data silently.</AixiaAlert>
-      ) : null}
 
       <AixiaMetricGrid>
         <AixiaMetricCard
@@ -959,6 +1152,7 @@ export default function FinancePaymentMethodsPage() {
                     type="button"
                     variant={statusFilter === value ? "primary" : "secondary"}
                     onClick={() => setStatusFilter(value)}
+                    disabled={saving || actionRunning}
                   >
                     {value === "all"
                       ? "All"
@@ -969,21 +1163,29 @@ export default function FinancePaymentMethodsPage() {
             }
             primaryAction={
               canCreate ? (
-                <AixiaButton type="button" variant="primary" onClick={openCreateDialog}>
+                <AixiaButton
+                  type="button"
+                  variant="primary"
+                  onClick={openCreateDialog}
+                  disabled={saving || actionRunning}
+                >
                   <Plus className="h-4 w-4" />
                   New Method
                 </AixiaButton>
               ) : null
             }
             archiveAction={
-              <AixiaButton
-                type="button"
-                variant="secondary"
-                onClick={() => setArchiveOpen(true)}
-              >
-                <Archive className="h-4 w-4" />
-                Archive ({archivedRows.length})
-              </AixiaButton>
+              canArchive ? (
+                <AixiaButton
+                  type="button"
+                  variant="danger"
+                  onClick={() => setArchiveOpen(true)}
+                  disabled={saving || actionRunning}
+                >
+                  <Archive className="h-4 w-4" />
+                  Archive ({archivedRows.length})
+                </AixiaButton>
+              ) : null
             }
           />
         }
@@ -1008,7 +1210,7 @@ export default function FinancePaymentMethodsPage() {
         form={form}
         saving={saving}
         error={formError}
-        canSave={editingRow ? canEdit : canCreate}
+        canSave={canSaveForm}
         onClose={() => {
           setDialogOpen(false);
           setFormError("");

@@ -142,7 +142,7 @@ export async function createCompany(input: {
   const normalizedLegalName = input.legal_name.trim();
   const normalizedName = input.name?.trim() || normalizedLegalName;
 
-   const payload = {
+  const payload = {
     name: normalizedName,
     legal_name: normalizedLegalName,
     contact_person: input.contact_person?.trim() || null,
@@ -182,6 +182,7 @@ export async function createCompany(input: {
 
   return data as FinanceCompany;
 }
+
 export async function updateCompany(
   id: string,
   updates: Partial<FinanceCompany>
@@ -242,7 +243,7 @@ export async function updateCompany(
     nextUpdates.address_line_2 = nextUpdates.address_line_2.trim();
   }
 
-    if (typeof nextUpdates.currency_code === "string") {
+  if (typeof nextUpdates.currency_code === "string") {
     nextUpdates.currency_code = nextUpdates.currency_code.trim().toUpperCase();
   }
 
@@ -336,7 +337,9 @@ export async function restoreCompany(id: string): Promise<FinanceCompany> {
 }
 
 export async function permanentlyDeleteCompany(id: string): Promise<void> {
-  const { error } = await supabase.from(TABLE).delete().eq("id", id);
+  const { error } = await supabase.rpc("finance_permanently_delete_company", {
+    p_company_id: id,
+  });
 
   if (error) throw error;
 

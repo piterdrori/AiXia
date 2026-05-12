@@ -216,9 +216,7 @@ export async function updateItem(
   return data as FinanceItemRow;
 }
 
-export async function archiveItem(
-  id: string
-): Promise<FinanceItemRow> {
+export async function archiveItem(id: string): Promise<FinanceItemRow> {
   const userId = await getCurrentUserId();
 
   const { data, error } = await supabase
@@ -237,15 +235,13 @@ export async function archiveItem(
     actionType: "finance.item.archived",
     entityType: "finance_item",
     entityId: id,
-    message: `Item archived`,
+    message: "Item archived",
   });
 
   return data as FinanceItemRow;
 }
 
-export async function restoreItem(
-  id: string
-): Promise<FinanceItemRow> {
+export async function restoreItem(id: string): Promise<FinanceItemRow> {
   const userId = await getCurrentUserId();
 
   const { data, error } = await supabase
@@ -264,15 +260,13 @@ export async function restoreItem(
     actionType: "finance.item.restored",
     entityType: "finance_item",
     entityId: id,
-    message: `Item restored`,
+    message: "Item restored",
   });
 
   return data as FinanceItemRow;
 }
 
-export async function permanentlyDeleteItem(
-  id: string
-): Promise<void> {
+export async function permanentlyDeleteItem(id: string): Promise<void> {
   const { data: existing, error: readError } = await supabase
     .from(TABLE)
     .select("id, name")
@@ -281,10 +275,9 @@ export async function permanentlyDeleteItem(
 
   if (readError) throw readError;
 
-  const { error } = await supabase
-    .from(TABLE)
-    .delete()
-    .eq("id", id);
+  const { error } = await supabase.rpc("finance_permanently_delete_item", {
+    p_item_id: id,
+  });
 
   if (error) throw error;
 

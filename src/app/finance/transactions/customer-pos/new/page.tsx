@@ -5,12 +5,10 @@ import { useNavigate, useSearchParams } from "react-router-dom";
 import {
   CheckCircle,
   FileText,
-  Link2,
   Paperclip,
   Plus,
   Save,
   SquarePen,
-  Trash2,
   Wallet,
 } from "lucide-react";
 
@@ -19,7 +17,6 @@ import {
   AixiaAlert,
   AixiaButton,
   AixiaDocumentUploadPanel,
-  AixiaEmptyState,
   AixiaFieldLabel,
   AixiaFormField,
   AixiaFormFullWidth,

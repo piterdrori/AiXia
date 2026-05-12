@@ -19,7 +19,6 @@ import {
   AixiaAccessDeniedState,
   AixiaAccessRule,
   AixiaAlert,
-  AixiaBadge,
   AixiaButton,
   AixiaFieldLabel,
   AixiaFormField,

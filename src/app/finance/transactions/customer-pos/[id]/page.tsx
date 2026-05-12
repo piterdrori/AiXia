@@ -1808,14 +1808,14 @@ export default function FinanceCustomerPoDetailPage() {
           { label: "Realtime + 60s", tone: "neutral" },
         ]}
         gradientTitle="CUSTOMER PURCHASE ORDER"
-        title={
+        title=""
+        subtitle={
           customerPo.client_legal_name_snapshot ||
           customerPo.client_name_snapshot ||
           customerPo.counterparty_legal_name_snapshot ||
           customerPo.counterparty_name_snapshot ||
           "Customer"
         }
-        subtitle={customerPo.client_po_number || "Customer PO"}
         description="Customer PO saved from a quotation or manual entry. The customer document must be uploaded before a proforma invoice can be created from this Customer PO."
         statusCards={[
           {

@@ -25,6 +25,7 @@ const REQUIRED_AIXIA_COMPONENT_FILES = [
   "AixiaCurrencyBadge.tsx",
   "AixiaDefaultBadge.tsx",
   "AixiaDetailSection.tsx",
+  "AixiaDocumentUploadPanel.tsx",
   "AixiaEmptyState.tsx",
   "AixiaFormFields.tsx",
   "AixiaHero.tsx",
@@ -82,6 +83,10 @@ const REQUIRED_CSS_SELECTORS = [
   ".aixia-sortable-header",
   ".aixia-form-row-list",
   ".aixia-detail-section",
+  ".aixia-document-upload-panel",
+  ".aixia-document-upload-zone",
+  ".aixia-document-selected-file",
+  ".aixia-document-attachment-card",
   ".aixia-archive-manager-tabs",
 ];
 
@@ -92,6 +97,7 @@ const REQUIRED_INDEX_EXPORTS = [
   "AixiaDetailSection",
   "AixiaMetricGrid",
   "AixiaMetricCard",
+  "AixiaDocumentUploadPanel",
   "AixiaNavigationCard",
   "AixiaNavigationGrid",
   "AixiaNavigationInfoPanel",
@@ -136,6 +142,17 @@ const ZERO_LOCAL_DESIGN_BANNED_PATTERNS = [
   "TableShell",
   "TableActionCell",
   "AccessRule",
+  "DocumentUploadPanel",
+  "UploadPanel",
+  "UploadZone",
+  "FileUploadPanel",
+  "AttachmentPanel",
+  "AttachmentCard",
+  "FloatingUploadCard",
+  "AixiaButton",
+  "AixiaDisplayBlock",
+  "AixiaFormGrid",
+  "AixiaFormRowCard",
 ];
 
 function normalizePath(filePath) {
@@ -451,6 +468,12 @@ function inspectSharedCssSourceOfTruth() {
     "position: sticky",
     "overflow-x: auto",
     "overflow-y: auto",
+    "GLOBAL AIXIA TYPOGRAPHY LOCK",
+    "GLOBAL DOCUMENT UPLOAD PANEL STANDARD",
+    "GLOBAL SMART DETAIL LAYOUT COMPACTION STANDARD",
+    "font-family:",
+    ".aixia-document-upload-panel",
+    ".aixia-document-upload-zone",
   ];
 
   for (const snippet of requiredSnippets) {
@@ -513,6 +536,35 @@ function inspectSharedComponentSourceOfTruth() {
     for (const exportName of REQUIRED_INDEX_EXPORTS) {
       if (!new RegExp(`\\b${exportName}\\b`).test(indexText)) {
         addError(indexFile, `src/components/aixia/index.ts must export ${exportName}.`, "AiXia component source-of-truth rule");
+      }
+    }
+  }
+
+  const documentUploadPanelFile = path.join(
+    AIXIA_COMPONENT_DIR,
+    "AixiaDocumentUploadPanel.tsx"
+  );
+  if (fileExists(documentUploadPanelFile)) {
+    const text = readText(documentUploadPanelFile);
+    const required = [
+      "export function AixiaDocumentUploadPanel",
+      "export type AixiaDocumentUploadAttachment",
+      "aixia-document-upload-panel",
+      "aixia-document-upload-zone",
+      "aixia-document-selected-file",
+      "aixia-document-attachment-card",
+      "onFileSelect",
+      "onUpload",
+      "onOpenAttachment",
+    ];
+
+    for (const snippet of required) {
+      if (!text.includes(snippet)) {
+        addError(
+          documentUploadPanelFile,
+          `AixiaDocumentUploadPanel.tsx must preserve shared upload behavior/snippet: ${snippet}`,
+          "AiXia component source-of-truth rule"
+        );
       }
     }
   }
@@ -1233,6 +1285,72 @@ function inspectBannedFinanceUiImports(filePath, text) {
   }
 }
 
+function inspectDocumentUploadAndLocalWrapperRules(filePath, text) {
+  const localSharedWrapperPatterns = [
+    "function AixiaButton(",
+    "function AixiaDisplayBlock(",
+    "function AixiaFormGrid(",
+    "function AixiaFormRowCard(",
+    "const AixiaButton =",
+    "const AixiaDisplayBlock =",
+    "const AixiaFormGrid =",
+    "const AixiaFormRowCard =",
+  ];
+
+  for (const snippet of localSharedWrapperPatterns) {
+    if (text.includes(snippet)) {
+      addError(
+        filePath,
+        `Finance pages must not create local wrapper component "${snippet.replace("function ", "").replace("const ", "").replace("(", "").replace(" =", "")}". Use the shared component directly or update src/components/aixia source-of-truth.`,
+        "AiXia zero local wrapper rule"
+      );
+    }
+  }
+
+  const hasManualUploadUi =
+    /aixia-upload-zone|aixia-document-upload-zone|Drop .*file here|Click to browse|selectedFile|fileInputRef|onDragEnter|onDrop|handleDropFile/i.test(
+      text
+    );
+
+  const usesSharedUploadPanel = /AixiaDocumentUploadPanel/.test(text);
+
+  if (hasManualUploadUi && !usesSharedUploadPanel) {
+    addError(
+      filePath,
+      "Finance pages must not build manual upload/drop-zone/attachment UI. Use shared AixiaDocumentUploadPanel from @/components/aixia.",
+      "AiXia document upload standard rule"
+    );
+  }
+
+  if (/className=["'][^"']*aixia-upload-zone[^"']*["']/.test(text)) {
+    addError(
+      filePath,
+      "Legacy aixia-upload-zone is banned in Finance pages. Use AixiaDocumentUploadPanel and aixia-document-upload-zone from the shared source-of-truth.",
+      "AiXia document upload standard rule"
+    );
+  }
+
+  const localTypographyPatterns = [
+    /\btext-\[[^\]]+\]/,
+    /\bfont-\[(?:[^\]]+)\]/,
+    /\bleading-\[[^\]]+\]/,
+    /\btracking-\[[^\]]+\]/,
+    /\bfontFamily\s*:/,
+    /\bfont-family\s*:/,
+  ];
+
+  for (const pattern of localTypographyPatterns) {
+    if (pattern.test(text)) {
+      addError(
+        filePath,
+        "Finance pages must not create local typography sizing/family systems. Typography belongs in src/styles/aixia-design-system.css and shared AiXia components.",
+        "AiXia typography standard rule"
+      );
+      break;
+    }
+  }
+}
+
 function inspectFinancePage(filePath) {
   const text = readText(filePath);
 
@@ -1258,6 +1376,7 @@ function inspectFinancePage(filePath) {
   inspectButtonMeaning(filePath, text);
   inspectUnusedPatternRisks(filePath, text);
   inspectZeroLocalDesign(filePath, text);
+  inspectDocumentUploadAndLocalWrapperRules(filePath, text);
 }
 
 function main() {
@@ -1300,7 +1419,7 @@ function main() {
     process.exit(1);
   }
 
-  console.log("AiXia guardrails completed. Navigation-card source-of-truth rules are active.");
+  console.log("AiXia guardrails completed. Navigation-card, document-upload, typography, and shared-wrapper source-of-truth rules are active.");
 }
 
 main();

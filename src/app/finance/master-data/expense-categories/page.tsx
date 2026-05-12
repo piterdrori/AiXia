@@ -17,6 +17,7 @@ import {
 
 import {
   AixiaAccessDeniedState,
+  AixiaAccessRule,
   AixiaAlert,
   AixiaAlertText,
   AixiaArchiveManagerModal,
@@ -1283,12 +1284,12 @@ export default function FinanceExpenseCategoriesPage() {
             )}
           </AixiaSection>
 
-          <AixiaAlert tone="info">
-            <AixiaAlertText
-              title="Locked expense category rule"
-              description="Expense categories are reusable finance master data. Active registry actions are limited to edit and archive. Restore and permanent delete are only available inside the archive manager. Refresh runs silently and must not clear visible data on background failure."
-            />
-          </AixiaAlert>
+          <AixiaAccessRule
+            title="Locked access rule"
+            description="Finance registry pages must show the shared Locked access rule block."
+          >
+            Expense categories are reusable finance master data. Active registry actions are limited to edit and archive. Restore and permanent delete are only available inside the archive manager. Refresh runs silently and must not clear visible data on background failure.
+          </AixiaAccessRule>
         </>
       )}
 

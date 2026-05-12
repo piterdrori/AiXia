@@ -160,7 +160,7 @@ const TERM_TYPE_OPTIONS: Array<{
   value: FinancePaymentTermType;
   label: string;
   description: string;
-  tone: "cyan" | "violet" | "gold" | "emerald";
+  tone: "cyan" | "violet" | "amber" | "emerald";
 }> = [
   {
     value: "immediate",
@@ -178,7 +178,7 @@ const TERM_TYPE_OPTIONS: Array<{
     value: "deposit_balance",
     label: "Deposit + Balance",
     description: "Deposit first, balance later.",
-    tone: "gold",
+    tone: "amber",
   },
   {
     value: "custom",

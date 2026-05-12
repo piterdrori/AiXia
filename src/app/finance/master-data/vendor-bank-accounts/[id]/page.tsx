@@ -3,10 +3,8 @@ import { useNavigate, useParams } from "react-router-dom";
 import {
   Archive,
   Building2,
-  CheckCircle2,
   CreditCard,
   FileText,
-  Landmark,
   Loader2,
   LockKeyhole,
   Pencil,
@@ -908,11 +906,11 @@ export default function FinanceMasterDataVendorBankAccountDetailPage() {
   if (!record) {
     return (
       <AixiaPage>
-        <AixiaEmptyState
-          icon={CreditCard}
+        <AixiaSection
           title="Vendor bank account not found"
           description="The vendor bank-account record could not be loaded or no longer exists."
-          action={
+          icon={CreditCard}
+          actions={
             <AixiaButton
               type="button"
               variant="primary"
@@ -921,7 +919,13 @@ export default function FinanceMasterDataVendorBankAccountDetailPage() {
               Vendor Bank Accounts
             </AixiaButton>
           }
-        />
+        >
+          <AixiaEmptyState
+            icon={CreditCard}
+            title="Vendor bank account not found"
+            description="The vendor bank-account record could not be loaded or no longer exists."
+          />
+        </AixiaSection>
       </AixiaPage>
     );
   }
@@ -1461,7 +1465,7 @@ export default function FinanceMasterDataVendorBankAccountDetailPage() {
                     {record.status === "archived" ? "Restore Account" : "Archive Account"}
                   </AixiaButton>
                 ) : (
-                  <AixiaAlert tone="warning">
+                  <AixiaAlert tone="info">
                     Delete/Archive access is not enabled for this user.
                   </AixiaAlert>
                 )}

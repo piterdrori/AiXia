@@ -2,7 +2,6 @@ import { useCallback, useEffect, useMemo, useState } from "react";
 import {
   Archive,
   CheckCircle2,
-  Clock3,
   Edit3,
   FileText,
   Loader2,
@@ -161,7 +160,7 @@ const TERM_TYPE_OPTIONS: Array<{
   value: FinancePaymentTermType;
   label: string;
   description: string;
-  tone: "indigo" | "violet" | "gold" | "emerald";
+  tone: "cyan" | "violet" | "gold" | "emerald";
 }> = [
   {
     value: "immediate",
@@ -173,7 +172,7 @@ const TERM_TYPE_OPTIONS: Array<{
     value: "net",
     label: "Net Terms",
     description: "Full payment is due after fixed days.",
-    tone: "indigo",
+    tone: "cyan",
   },
   {
     value: "deposit_balance",
@@ -220,14 +219,6 @@ function formatDateLabel(value: string | null | undefined) {
     month: "short",
     day: "numeric",
   });
-}
-
-function formatStatusLabel(value: string | null | undefined) {
-  if (!value) return "—";
-
-  return value
-    .replaceAll("_", " ")
-    .replace(/\b\w/g, (character) => character.toUpperCase());
 }
 
 function formatTermType(value: FinancePaymentTermType) {
@@ -632,7 +623,7 @@ function PaymentTermFormModal({
             <AixiaSelectableTile
               title="Allow Partial Payments"
               description="Lets documents using this term receive partial payments."
-              tone="indigo"
+              tone="cyan"
               selected={form.allow_partial_payments}
               disabled={saving}
               onClick={() =>

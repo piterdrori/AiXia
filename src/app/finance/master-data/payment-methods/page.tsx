@@ -19,7 +19,6 @@ import {
 
 import {
   AixiaAccessDeniedState,
-  AixiaActionStack,
   AixiaAlert,
   AixiaAlertText,
   AixiaArchiveManagerModal,
@@ -80,7 +79,6 @@ type ProfilePermissionRow = {
   permissions: Partial<Record<Permission, boolean>> | null;
 };
 
-type PaymentMethodStatus = "active" | "inactive" | "archived";
 type EditablePaymentMethodStatus = "active" | "inactive";
 type StatusFilter = "all" | EditablePaymentMethodStatus;
 

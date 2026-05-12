@@ -1069,9 +1069,25 @@ function inspectPermissionPatterns(filePath, text) {
 function inspectRegistryStandards(filePath, text) {
   if (!/variant=["']registry["']/.test(text)) return;
 
+  const hasSharedRegistryAccessRule = /<AixiaRegistryAccessRule\b/.test(text);
+
+  const hasLockedTitleAccessRule =
+    /<AixiaAccessRule\b[\s\S]{0,1200}title=["']Locked access rule["'][\s\S]{0,5000}<\/AixiaAccessRule>/.test(
+      text
+    );
+
+  const hasSemanticRegistryAccessRule =
+    /<AixiaAccessRule\b[\s\S]{0,7000}<\/AixiaAccessRule>/.test(text) &&
+    /registry|records|active|archived|deleted|archive panel|archive modal/i.test(
+      text
+    ) &&
+    /restore|permanent delete|Delete Permanently|lifecycle/i.test(text) &&
+    /silent|Realtime|60-second|60s|refresh/i.test(text);
+
   const hasLockedAccessRule =
-    /Locked access rule/.test(text) ||
-    /AixiaRegistryAccessRule/.test(text);
+    hasSharedRegistryAccessRule ||
+    hasLockedTitleAccessRule ||
+    hasSemanticRegistryAccessRule;
 
   if (!hasLockedAccessRule) {
     addError(

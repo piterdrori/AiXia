@@ -96,7 +96,9 @@ export async function getVendorOptions(): Promise<VendorOption[]> {
   return (data ?? []) as VendorOption[];
 }
 
-export async function getVendorBankAccounts(): Promise<FinanceVendorBankAccountListRow[]> {
+export async function getVendorBankAccounts(): Promise<
+  FinanceVendorBankAccountListRow[]
+> {
   const { data, error } = await supabase
     .from(TABLE)
     .select(
@@ -322,8 +324,7 @@ export async function updateVendorBankAccount(
 
   if (updates.is_default === true) {
     const targetVendorId =
-      updates.vendor_id ??
-      (await getVendorBankAccountById(id)).vendor_id;
+      updates.vendor_id ?? (await getVendorBankAccountById(id)).vendor_id;
 
     if (targetVendorId) {
       const { error: resetError } = await supabase
@@ -477,7 +478,12 @@ export async function permanentlyDeleteVendorBankAccount(
 ): Promise<void> {
   const existing = await getVendorBankAccountById(id);
 
-  const { error } = await supabase.from(TABLE).delete().eq("id", id);
+  const { error } = await supabase.rpc(
+    "finance_permanently_delete_vendor_bank_account",
+    {
+      p_vendor_bank_account_id: id,
+    }
+  );
 
   if (error) throw error;
 

@@ -1,11 +1,9 @@
+"use client";
+
 import { useCallback, useEffect, useMemo, useState } from "react";
-import type { ReactNode } from "react";
-import type { LucideIcon } from "lucide-react";
 import { useNavigate, useParams } from "react-router-dom";
 import {
-  AlertTriangle,
   Archive,
-  ArrowRight,
   Banknote,
   Building2,
   CalendarDays,
@@ -24,6 +22,32 @@ import {
   X,
 } from "lucide-react";
 
+import {
+  AixiaAccessRule,
+  AixiaActionCard,
+  AixiaAlert,
+  AixiaButton,
+  AixiaDocumentUploadPanel,
+  type AixiaDocumentUploadAttachment,
+  AixiaFieldLabel,
+  AixiaFormField,
+  AixiaFormFullWidth,
+  AixiaFormGrid,
+  AixiaHero,
+  AixiaInputField,
+  AixiaLoadingState,
+  AixiaMetricCard,
+  AixiaMetricGrid,
+  AixiaNotFoundState,
+  AixiaPage,
+  AixiaReviewGrid,
+  AixiaSection,
+  AixiaSelectField,
+  AixiaSmartLayout,
+  AixiaStatusBadge,
+  AixiaTextareaField,
+  AixiaValueBlock,
+} from "@/components/aixia";
 import { supabase } from "@/lib/supabase";
 
 type FundingBatchRow = {
@@ -138,30 +162,13 @@ type RunningAction =
   | "upload_proof"
   | "open_payment_tool";
 
-const statusToneMap: Record<
-  string,
-  "cyan" | "emerald" | "amber" | "rose" | "violet" | "slate"
-> = {
-  draft: "slate",
-  allocated: "emerald",
-  confirmed: "emerald",
-  cancelled: "rose",
-  archived: "amber",
-  deleted: "rose",
-  missing: "rose",
-  uploaded: "cyan",
-  linked: "cyan",
-  files_and_links: "cyan",
-  verified: "emerald",
-  issue_found: "rose",
-};
-
 function getTodayIsoDate() {
   return new Date().toISOString().slice(0, 10);
 }
 
 function toNumber(value: number | string | null | undefined) {
-  return Number(value ?? 0);
+  const parsed = Number(value ?? 0);
+  return Number.isFinite(parsed) ? parsed : 0;
 }
 
 function normalizeCurrencyCode(value: string | null | undefined) {
@@ -211,60 +218,6 @@ function formatDateTime(value: string | null | undefined) {
   });
 }
 
-function formatLabel(value: string | null | undefined) {
-  if (!value) return "—";
-
-  return value
-    .split("_")
-    .filter(Boolean)
-    .map((part) => part.charAt(0).toUpperCase() + part.slice(1))
-    .join(" ");
-}
-
-function inputClass() {
-  return "h-11 w-full rounded-2xl border border-white/10 bg-black/20 px-4 text-sm text-white outline-none transition placeholder:text-slate-600 focus:border-cyan-400/30 focus:bg-black/30";
-}
-
-function textareaClass() {
-  return "min-h-[132px] w-full rounded-2xl border border-white/10 bg-black/20 px-4 py-3 text-sm text-white outline-none transition placeholder:text-slate-600 focus:border-cyan-400/30 focus:bg-black/30";
-}
-
-function labelClass() {
-  return "text-sm font-medium text-slate-300";
-}
-
-function getStatusToneClasses(value: string | null | undefined) {
-  const tone = statusToneMap[value ?? ""] ?? "slate";
-
-  switch (tone) {
-    case "emerald":
-      return "border-emerald-400/20 bg-emerald-500/10 text-emerald-200";
-    case "amber":
-      return "border-amber-400/20 bg-amber-500/10 text-amber-200";
-    case "rose":
-      return "border-rose-400/20 bg-rose-500/10 text-rose-200";
-    case "violet":
-      return "border-violet-400/20 bg-violet-500/10 text-violet-200";
-    case "cyan":
-      return "border-cyan-400/20 bg-cyan-500/10 text-cyan-200";
-    case "slate":
-    default:
-      return "border-white/10 bg-white/[0.06] text-slate-300";
-  }
-}
-
-function StatusBadge({ value }: { value: string | null | undefined }) {
-  return (
-    <span
-      className={`inline-flex max-w-full items-center rounded-full border px-3 py-1 text-[11px] font-semibold uppercase tracking-[0.14em] ${getStatusToneClasses(
-        value
-      )}`}
-    >
-      <span className="truncate">{formatLabel(value)}</span>
-    </span>
-  );
-}
-
 function getBankLabel(bank: BankAccountRow | null | undefined) {
   if (!bank) return "—";
 
@@ -307,145 +260,9 @@ function resolveMimeType(file: File) {
   }
 }
 
-function SummaryBlock({
-  title,
-  value,
-  subtitle,
-}: {
-  title: string;
-  value: string;
-  subtitle: string;
-}) {
-  return (
-    <div className="min-h-[148px] rounded-[24px] border border-white/10 bg-black/20 p-4">
-      <div className="text-[11px] font-semibold uppercase tracking-[0.2em] text-slate-500">
-        {title}
-      </div>
-      <div className="mt-3 text-2xl font-semibold tracking-[-0.03em] text-white">
-        {value}
-      </div>
-      <div className="mt-3 text-sm leading-6 text-slate-400">{subtitle}</div>
-    </div>
-  );
-}
-
-function ValueBlock({
-  label,
-  value,
-  detail,
-}: {
-  label: string;
-  value: ReactNode;
-  detail?: ReactNode;
-}) {
-  return (
-    <div className="rounded-[24px] border border-white/10 bg-black/20 p-4">
-      <div className="text-[11px] font-semibold uppercase tracking-[0.2em] text-slate-500">
-        {label}
-      </div>
-      <div className="mt-2 text-sm font-semibold leading-6 text-white">{value}</div>
-      {detail ? <div className="mt-2 text-xs leading-5 text-slate-500">{detail}</div> : null}
-    </div>
-  );
-}
-
-function SectionCard({
-  title,
-  description,
-  icon: Icon,
-  children,
-}: {
-  title: string;
-  description: string;
-  icon: LucideIcon;
-  children: ReactNode;
-}) {
-  return (
-    <section className="overflow-hidden rounded-[30px] border border-white/10 bg-white/[0.045] backdrop-blur-xl">
-      <div className="flex items-start gap-4 border-b border-white/10 px-5 py-4">
-        <div className="rounded-2xl border border-violet-400/15 bg-violet-500/10 p-3 text-violet-200">
-          <Icon className="h-4 w-4" />
-        </div>
-        <div>
-          <div className="text-sm font-semibold uppercase tracking-[0.18em] text-slate-400">
-            {title}
-          </div>
-          <p className="mt-1 text-xs leading-5 text-slate-500">{description}</p>
-        </div>
-      </div>
-      <div className="p-5">{children}</div>
-    </section>
-  );
-}
-
-function ActionButton({
-  label,
-  loadingLabel,
-  icon: Icon,
-  tone,
-  disabled,
-  isRunning,
-  onClick,
-}: {
-  label: string;
-  loadingLabel?: string;
-  icon: LucideIcon;
-  tone: "cyan" | "emerald" | "amber" | "rose" | "violet" | "slate";
-  disabled?: boolean;
-  isRunning?: boolean;
-  onClick: () => void;
-}) {
-  const toneClass = {
-    cyan: "border-cyan-400/20 bg-cyan-500/10 text-cyan-100 hover:bg-cyan-500/15",
-    emerald:
-      "border-emerald-400/20 bg-emerald-500/10 text-emerald-100 hover:bg-emerald-500/15",
-    amber:
-      "border-amber-400/20 bg-amber-500/10 text-amber-100 hover:bg-amber-500/15",
-    rose: "border-rose-400/20 bg-rose-500/10 text-rose-100 hover:bg-rose-500/15",
-    violet:
-      "border-violet-400/20 bg-violet-500/10 text-violet-100 hover:bg-violet-500/15",
-    slate: "border-white/10 bg-white/[0.05] text-slate-300 hover:bg-white/[0.08]",
-  }[tone];
-
-  return (
-    <button
-      type="button"
-      disabled={disabled || isRunning}
-      onClick={onClick}
-      className={`inline-flex h-11 items-center justify-center gap-2 rounded-2xl border px-4 text-sm font-semibold transition disabled:cursor-not-allowed disabled:opacity-50 ${toneClass}`}
-    >
-      {isRunning ? (
-        <Loader2 className="h-4 w-4 shrink-0 animate-spin" />
-      ) : (
-        <Icon className="h-4 w-4 shrink-0" />
-      )}
-      {isRunning ? loadingLabel || "Working..." : label}
-    </button>
-  );
-}
-
-function InfoCard({
-  icon: Icon,
-  title,
-  children,
-}: {
-  icon: LucideIcon;
-  title: string;
-  children: string;
-}) {
-  return (
-    <section className="overflow-hidden rounded-[30px] border border-white/10 bg-white/[0.045] p-5 backdrop-blur-xl">
-      <div className="flex items-start gap-3">
-        <div className="rounded-2xl border border-violet-400/15 bg-violet-500/10 p-3 text-violet-200">
-          <Icon className="h-4 w-4" />
-        </div>
-        <div>
-          <div className="text-sm font-semibold text-white">{title}</div>
-          <div className="mt-2 text-xs leading-5 text-slate-500">{children}</div>
-        </div>
-      </div>
-    </section>
-  );
+function getAttachmentSizeLabel(size: number | null | undefined) {
+  if (!size) return "Size not saved";
+  return `${(size / 1024 / 1024).toFixed(2)} MB`;
 }
 
 export default function FinanceExpenseFundingBatchDetailPage() {
@@ -458,7 +275,9 @@ export default function FinanceExpenseFundingBatchDetailPage() {
   const [bankAccounts, setBankAccounts] = useState<BankAccountRow[]>([]);
   const [currencies, setCurrencies] = useState<CurrencyRow[]>([]);
   const [attachments, setAttachments] = useState<AttachmentWithFile[]>([]);
-  const [confirmedPoolPayments, setConfirmedPoolPayments] = useState<ConfirmedPoolPaymentRow[]>([]);
+  const [confirmedPoolPayments, setConfirmedPoolPayments] = useState<
+    ConfirmedPoolPaymentRow[]
+  >([]);
   const [editForm, setEditForm] = useState<EditFormState | null>(null);
   const [fundingProofFile, setFundingProofFile] = useState<File | null>(null);
   const [isLoading, setIsLoading] = useState(true);
@@ -502,7 +321,9 @@ export default function FinanceExpenseFundingBatchDetailPage() {
       );
 
       if (paymentCurrencyCode && paymentCurrencyCode === fundingCurrencyCode) {
-        return sum + toNumber(payment.metadata?.payment_currency_amount || payment.converted_amount);
+        return sum + toNumber(
+          payment.metadata?.payment_currency_amount || payment.converted_amount
+        );
       }
 
       return sum;
@@ -526,12 +347,17 @@ export default function FinanceExpenseFundingBatchDetailPage() {
       ? `${formatDate(fundingPeriodFrom)} → ${formatDate(fundingPeriodTo)}`
       : "Not saved";
 
-  const fundingCompany = batch ? companyMap.get(batch.funding_company_id) || null : null;
-  const fundingBankAccount =
-    batch?.funding_bank_account_id ? bankAccountMap.get(batch.funding_bank_account_id) || null : null;
+  const fundingCompany = batch
+    ? companyMap.get(batch.funding_company_id) || null
+    : null;
+  const fundingBankAccount = batch?.funding_bank_account_id
+    ? bankAccountMap.get(batch.funding_bank_account_id) || null
+    : null;
 
   const isArchivedOrDeleted =
-    batch?.status === "archived" || batch?.status === "deleted" || batch?.status === "cancelled";
+    batch?.status === "archived" ||
+    batch?.status === "deleted" ||
+    batch?.status === "cancelled";
   const isDraftPool = batch?.status === "draft";
   const isConfirmedPool = batch?.status === "allocated" || batch?.status === "confirmed";
   const canVerifyProof =
@@ -545,6 +371,17 @@ export default function FinanceExpenseFundingBatchDetailPage() {
     if (!editForm?.fundingCompanyId) return [];
     return bankAccounts.filter((bank) => bank.company_id === editForm.fundingCompanyId);
   }, [bankAccounts, editForm?.fundingCompanyId]);
+
+  const documentAttachments = useMemo<AixiaDocumentUploadAttachment[]>(() => {
+    return attachments.map((attachment) => ({
+      id: attachment.id,
+      fileName: attachment.fileUpload?.file_name || "Funding proof",
+      badge: <AixiaStatusBadge value={attachment.fileUpload?.mime_type || "file"} />,
+      sizeLabel: getAttachmentSizeLabel(attachment.fileUpload?.file_size),
+      description: `Uploaded ${formatDateTime(attachment.created_at)}`,
+      openLabel: "Proof Saved",
+    }));
+  }, [attachments]);
 
   const buildEditForm = useCallback((nextBatch: FundingBatchRow): EditFormState => {
     return {
@@ -573,7 +410,9 @@ export default function FinanceExpenseFundingBatchDetailPage() {
         setIsRefreshing(true);
       }
 
-      setPageError(null);
+      if (mode === "initial") {
+        setPageError(null);
+      }
 
       try {
         const batchResult = await supabase
@@ -655,20 +494,9 @@ export default function FinanceExpenseFundingBatchDetailPage() {
         if (attachmentsResult.error) throw attachmentsResult.error;
         if (confirmedPaymentsResult.error) throw confirmedPaymentsResult.error;
 
-        setBatch(loadedBatch);
-        setCompanies((companiesResult.data || []) as CompanyRow[]);
-        setBankAccounts((bankAccountsResult.data || []) as BankAccountRow[]);
-        setCurrencies((currenciesResult.data || []) as unknown as CurrencyRow[]);
-        setConfirmedPoolPayments(
-          (confirmedPaymentsResult.data || []) as unknown as ConfirmedPoolPaymentRow[]
-        );
-
-        if (!isEditing) {
-          setEditForm(buildEditForm(loadedBatch));
-        }
-
         const attachmentRows = (attachmentsResult.data || []) as AttachmentRow[];
         const fileUploadIds = attachmentRows.map((attachment) => attachment.file_upload_id);
+        let nextAttachments: AttachmentWithFile[] = [];
 
         if (fileUploadIds.length > 0) {
           const fileUploadsResult = await supabase
@@ -685,21 +513,35 @@ export default function FinanceExpenseFundingBatchDetailPage() {
             ])
           );
 
-          setAttachments(
-            attachmentRows.map((attachment) => ({
-              ...attachment,
-              fileUpload: fileMap.get(attachment.file_upload_id) || null,
-            }))
-          );
-        } else {
-          setAttachments([]);
+          nextAttachments = attachmentRows.map((attachment) => ({
+            ...attachment,
+            fileUpload: fileMap.get(attachment.file_upload_id) || null,
+          }));
+        }
+
+        setBatch(loadedBatch);
+        setCompanies((companiesResult.data || []) as CompanyRow[]);
+        setBankAccounts((bankAccountsResult.data || []) as BankAccountRow[]);
+        setCurrencies((currenciesResult.data || []) as unknown as CurrencyRow[]);
+        setConfirmedPoolPayments(
+          (confirmedPaymentsResult.data || []) as unknown as ConfirmedPoolPaymentRow[]
+        );
+        setAttachments(nextAttachments);
+
+        if (!isEditing) {
+          setEditForm(buildEditForm(loadedBatch));
         }
 
         setHasLoadedOnce(true);
       } catch (error) {
         console.error("Failed to load funding pool:", error);
-        setPageError(error instanceof Error ? error.message : "Failed to load funding pool.");
-        if (!hasLoadedOnce) setBatch(null);
+
+        if (mode === "initial" || !hasLoadedOnce) {
+          setPageError(
+            error instanceof Error ? error.message : "Failed to load funding pool."
+          );
+          setBatch(null);
+        }
       } finally {
         setIsLoading(false);
         setIsRefreshing(false);
@@ -755,7 +597,7 @@ export default function FinanceExpenseFundingBatchDetailPage() {
 
     return () => {
       window.clearInterval(intervalId);
-      supabase.removeChannel(channel);
+      void supabase.removeChannel(channel);
     };
   }, [batchId, loadBatch]);
 
@@ -897,7 +739,9 @@ export default function FinanceExpenseFundingBatchDetailPage() {
       await loadBatch("silent");
     } catch (error) {
       console.error("Failed to update funding pool:", error);
-      setPageError(error instanceof Error ? error.message : "Failed to update funding pool.");
+      setPageError(
+        error instanceof Error ? error.message : "Failed to update funding pool."
+      );
     } finally {
       setRunningAction(null);
     }
@@ -1036,7 +880,9 @@ export default function FinanceExpenseFundingBatchDetailPage() {
       await loadBatch("silent");
     } catch (error) {
       console.error("Failed to upload funding pool proof:", error);
-      setPageError(error instanceof Error ? error.message : "Failed to upload funding pool proof.");
+      setPageError(
+        error instanceof Error ? error.message : "Failed to upload funding pool proof."
+      );
     } finally {
       setRunningAction(null);
     }
@@ -1046,191 +892,185 @@ export default function FinanceExpenseFundingBatchDetailPage() {
     if (!batch || runningAction) return;
 
     setRunningAction("open_payment_tool");
-    navigate(`/finance/transactions/expenses-payments-made/new?source=batch&batchId=${batch.id}`);
+    navigate(
+      `/finance/transactions/expenses-payments-made/new?source=batch&batchId=${batch.id}`
+    );
   }, [batch, navigate, runningAction]);
 
   if (isLoading) {
     return (
-      <div className="min-h-screen bg-[#05070d] px-4 py-4 text-white md:px-6 md:py-6">
-        <div className="mx-auto flex w-full max-w-[1600px] flex-col gap-6">
-          <div className="rounded-[34px] border border-white/10 bg-white/[0.045] p-12 text-center backdrop-blur-xl">
-            <Loader2 className="mx-auto h-8 w-8 animate-spin text-violet-200" />
-            <div className="mt-4 text-sm text-slate-400">Loading funding pool...</div>
-          </div>
-        </div>
-      </div>
+      <AixiaLoadingState
+        title="Loading funding pool"
+        description="Funding pool, companies, bank accounts, currencies, proof files, and confirmed usage are being loaded."
+      />
     );
   }
 
   if (!batch) {
     return (
-      <div className="min-h-screen bg-[#05070d] px-4 py-4 text-white md:px-6 md:py-6">
-        <div className="mx-auto flex w-full max-w-[1600px] flex-col gap-6">
-          <div className="rounded-[34px] border border-rose-400/20 bg-rose-500/10 p-12 text-center">
-            <AlertTriangle className="mx-auto h-8 w-8 text-rose-200" />
-            <div className="mt-4 text-lg font-semibold text-white">
-              Funding pool not found
-            </div>
-            <div className="mt-2 text-sm text-rose-100">
-              {pageError || "The requested funding pool could not be loaded."}
-            </div>
-            <button
-              type="button"
-              onClick={() => navigate("/finance/transactions/expenses-payments-made")}
-              className="mt-6 inline-flex h-11 items-center justify-center gap-2 rounded-2xl border border-white/10 bg-white/[0.05] px-5 text-sm font-semibold text-white transition hover:bg-white/[0.08]"
-            >
-              <ArrowRight className="h-4 w-4 rotate-180" />
-              Payment Control
-            </button>
-          </div>
-        </div>
-      </div>
+      <AixiaNotFoundState
+        fullPage
+        title="Funding pool not found"
+        description={pageError || "The requested funding pool could not be loaded."}
+        action={
+          <AixiaButton
+            type="button"
+            variant="secondary"
+            onClick={() => navigate("/finance/transactions/expenses-payments-made")}
+          >
+            Payment Control
+          </AixiaButton>
+        }
+      />
     );
   }
 
   const editableForm = editForm || buildEditForm(batch);
 
   return (
-    <div className="min-h-screen bg-[#05070d] px-4 py-4 text-white md:px-6 md:py-6">
-      <div className="mx-auto flex w-full max-w-[1600px] flex-col gap-6">
-        <header className="relative overflow-hidden rounded-[34px] border border-white/10 bg-white/[0.045] p-6 shadow-2xl shadow-black/30 backdrop-blur-xl">
-          <div className="pointer-events-none absolute inset-0 bg-[radial-gradient(circle_at_top_left,rgba(139,92,246,0.16),transparent_38%),radial-gradient(circle_at_top_right,rgba(6,182,212,0.12),transparent_34%)]" />
+    <AixiaPage>
+      <AixiaHero
+        parentLabel="Payment Control"
+        parentPath="/finance/transactions/expenses-payments-made"
+        badges={[
+          { label: "Funding Pool Detail", tone: "violet" },
+          { label: isRefreshing ? "Silent Refresh" : "Realtime + 60s", tone: isRefreshing ? "gold" : "neutral" },
+          { label: "Reserve Only", tone: "cyan" },
+        ]}
+        gradientTitle="FUNDING POOL"
+        title=""
+        subtitle={batch.batch_number}
+        description="This is a period-based Finance reserve only. Expense matching and money distribution happen later in the separate Expense Payments tool."
+        statusCards={[
+          {
+            label: "Funding Pool Total",
+            value: `${currencyCode} ${formatMoney(fundingPoolAmount)}`,
+            description: "Original amount reserved by Finance.",
+            icon: Coins,
+            tone: "violet",
+          },
+          {
+            label: "Confirmed Used",
+            value: `${currencyCode} ${formatMoney(confirmedPoolUsedAmount)}`,
+            description: "Confirmed payment distributions already used from this pool.",
+            icon: WalletCards,
+            tone: "cyan",
+          },
+          {
+            label: "Remaining Balance",
+            value: `${currencyCode} ${formatMoney(remainingFundingPoolAmount)}`,
+            description: "Available balance for future distributions.",
+            icon: Banknote,
+            tone: remainingFundingPoolAmount > 0 ? "emerald" : "neutral",
+          },
+        ]}
+      />
 
-          <div className="relative">
-            <button
-              type="button"
-              onClick={() => navigate("/finance/transactions/expenses-payments-made")}
-              className="mb-5 inline-flex items-center justify-center gap-2 rounded-full border border-white/10 bg-white/[0.05] px-5 py-2 text-[11px] font-semibold uppercase tracking-[0.22em] text-slate-300 transition hover:border-white/20 hover:bg-white/[0.08] hover:text-white"
-            >
-              <ArrowRight className="h-3.5 w-3.5 rotate-180" />
-              Payment Control
-            </button>
+      {pageError ? <AixiaAlert tone="error">{pageError}</AixiaAlert> : null}
+      {pageMessage ? <AixiaAlert tone="success">{pageMessage}</AixiaAlert> : null}
 
-            <div className="grid gap-6 xl:grid-cols-[minmax(0,1fr)_520px] xl:items-end">
-              <div>
-                <div className="inline-flex w-fit items-center gap-2 rounded-full border border-violet-400/20 bg-violet-500/10 px-3 py-1 text-[11px] font-semibold uppercase tracking-[0.22em] text-violet-200">
-                  <Sparkles className="h-3.5 w-3.5" />
-                  Funding Pool Detail
-                </div>
+      <AixiaMetricGrid>
+        <AixiaMetricCard
+          label="Funding Period"
+          value={fundingPeriodLabel}
+          description="The operating-expense period this pool should cover."
+          icon={CalendarDays}
+          tone="gold"
+        />
+        <AixiaMetricCard
+          label="Funding Company"
+          value={fundingCompany?.name || "—"}
+          description="Company that owns the reserve."
+          icon={Building2}
+          tone={fundingCompany ? "cyan" : "neutral"}
+        />
+        <AixiaMetricCard
+          label="Funding Bank"
+          value={fundingBankAccount ? getBankLabel(fundingBankAccount) : "—"}
+          description="Optional source bank account."
+          icon={Banknote}
+          tone={fundingBankAccount ? "emerald" : "neutral"}
+        />
+        <AixiaMetricCard
+          label="Pool Status"
+          value={<AixiaStatusBadge value={batch.status} />}
+          description={`Documentation: ${batch.documentation_status || "missing"}`}
+          icon={ShieldCheck}
+          tone={isArchivedOrDeleted ? "rose" : "violet"}
+        />
+      </AixiaMetricGrid>
 
-                <h1 className="mt-4 text-3xl font-semibold tracking-[-0.035em] text-white md:text-5xl">
-                  {batch.batch_number}
-                </h1>
+      <AixiaAccessRule
+        title="Locked access rule"
+        description="Funding pool detail pages use shared AiXia source-of-truth components only."
+        icon={ShieldCheck}
+      >
+        This page edits the funding pool reserve only. It must use shared AiXia
+        sections, value blocks, buttons, alerts, document upload panel, hero, and
+        form fields. Local SectionCard, ValueBlock, oversized buttons, local glass
+        cards, and local typography systems are not allowed.
+      </AixiaAccessRule>
 
-                <p className="mt-3 max-w-4xl text-sm leading-6 text-slate-400 md:text-base md:leading-7">
-                  This is a period-based Finance reserve only. Expense matching and money
-                  distribution happen later in the separate Expense Payments tool.
-                </p>
-
-                <div className="mt-5 flex flex-wrap gap-2">
-                  <StatusBadge value={batch.status} />
-                  <StatusBadge value={batch.documentation_status} />
-                  {isRefreshing ? (
-                    <span className="inline-flex rounded-full border border-white/10 bg-white/[0.06] px-3 py-1 text-[11px] font-semibold uppercase tracking-[0.14em] text-slate-300">
-                      Silent Refresh
-                    </span>
-                  ) : null}
-                </div>
-              </div>
-
-              <div className="grid gap-3 sm:grid-cols-2">
-                <SummaryBlock
-                  title="Funding Pool Total"
-                  value={`${currencyCode} ${formatMoney(fundingPoolAmount)}`}
-                  subtitle="Original amount reserved by Finance."
-                />
-                <SummaryBlock
-                  title="Confirmed Used"
-                  value={`${currencyCode} ${formatMoney(confirmedPoolUsedAmount)}`}
-                  subtitle="Confirmed payment distributions already used from this pool."
-                />
-                <SummaryBlock
-                  title="Remaining Balance"
-                  value={`${currencyCode} ${formatMoney(remainingFundingPoolAmount)}`}
-                  subtitle="Available funding pool balance for future distributions."
-                />
-                <SummaryBlock
-                  title="Funding Period"
-                  value={fundingPeriodLabel}
-                  subtitle="The operating-expense period this pool should cover."
-                />
-              </div>
-            </div>
-          </div>
-        </header>
-
-        {pageError ? (
-          <div className="rounded-[24px] border border-rose-400/20 bg-rose-500/10 p-4 text-sm leading-6 text-rose-100">
-            {pageError}
-          </div>
-        ) : null}
-
-        {pageMessage ? (
-          <div className="rounded-[24px] border border-emerald-400/20 bg-emerald-500/10 p-4 text-sm leading-6 text-emerald-100">
-            {pageMessage}
-          </div>
-        ) : null}
-
-        <div className="grid items-start gap-6 xl:grid-cols-[minmax(0,1fr)_430px]">
-          <div className="grid gap-6">
-            <SectionCard
+      <AixiaSmartLayout
+        sidebar="normal"
+        balance="main"
+        bottomSpan="auto"
+        sideRebalance="last-to-bottom"
+        main={
+          <>
+            <AixiaSection
               title="Funding Pool Overview"
               description="Funding source, period, pool amount, and audit context."
               icon={Archive}
+              actions={
+                isEditing ? (
+                  <div className="aixia-action-row">
+                    <AixiaButton
+                      type="button"
+                      variant="primary"
+                      disabled={actionLocked}
+                      onClick={() => void saveEdit()}
+                    >
+                      {runningAction === "save_edit" ? (
+                        <Loader2 className="h-4 w-4 animate-spin" />
+                      ) : (
+                        <Save className="h-4 w-4" />
+                      )}
+                      {runningAction === "save_edit" ? "Saving..." : "Save Changes"}
+                    </AixiaButton>
+                    <AixiaButton
+                      type="button"
+                      variant="secondary"
+                      disabled={actionLocked}
+                      onClick={cancelEditing}
+                    >
+                      <X className="h-4 w-4" />
+                      Cancel
+                    </AixiaButton>
+                  </div>
+                ) : (
+                  <AixiaButton
+                    type="button"
+                    variant="secondary"
+                    disabled={actionLocked || isArchivedOrDeleted}
+                    onClick={startEditing}
+                  >
+                    <Edit3 className="h-4 w-4" />
+                    Edit
+                  </AixiaButton>
+                )
+              }
             >
-              <div className="mb-5 flex flex-col gap-3 rounded-[24px] border border-white/10 bg-black/20 p-4 md:flex-row md:items-center md:justify-between">
-                <div>
-                  <div className="text-sm font-semibold text-white">
-                    {isEditing ? "Editing funding pool" : "Funding pool details"}
-                  </div>
-                  <div className="mt-1 text-xs leading-5 text-slate-500">
-                    This page edits the funding pool only. It does not select or pay expenses.
-                  </div>
-                </div>
-
-                <div className="flex flex-wrap gap-2">
-                  {isEditing ? (
-                    <>
-                      <ActionButton
-                        label="Save Changes"
-                        loadingLabel="Saving..."
-                        icon={Save}
-                        tone="emerald"
-                        disabled={actionLocked}
-                        isRunning={runningAction === "save_edit"}
-                        onClick={() => void saveEdit()}
-                      />
-                      <ActionButton
-                        label="Cancel"
-                        icon={X}
-                        tone="slate"
-                        disabled={actionLocked}
-                        onClick={cancelEditing}
-                      />
-                    </>
-                  ) : (
-                    <ActionButton
-                      label="Edit"
-                      icon={Edit3}
-                      tone="cyan"
-                      disabled={actionLocked || isArchivedOrDeleted}
-                      onClick={startEditing}
-                    />
-                  )}
-                </div>
-              </div>
-
               {isEditing ? (
-                <div className="grid gap-4 md:grid-cols-3">
-                  <label className="grid gap-2">
-                    <span className={labelClass()}>Funding Company</span>
-                    <select
+                <AixiaFormGrid columns="three">
+                  <AixiaFormField>
+                    <AixiaFieldLabel label="Funding Company" required />
+                    <AixiaSelectField
                       value={editableForm.fundingCompanyId}
                       onChange={(event) =>
                         updateEditField("fundingCompanyId", event.target.value)
                       }
                       disabled={actionLocked}
-                      className={inputClass()}
                     >
                       <option value="">Select company</option>
                       {companies.map((company) => (
@@ -1238,18 +1078,17 @@ export default function FinanceExpenseFundingBatchDetailPage() {
                           {company.name || "Unnamed company"}
                         </option>
                       ))}
-                    </select>
-                  </label>
+                    </AixiaSelectField>
+                  </AixiaFormField>
 
-                  <label className="grid gap-2">
-                    <span className={labelClass()}>Funding Bank Account</span>
-                    <select
+                  <AixiaFormField>
+                    <AixiaFieldLabel label="Funding Bank Account" />
+                    <AixiaSelectField
                       value={editableForm.fundingBankAccountId}
                       onChange={(event) =>
                         updateEditField("fundingBankAccountId", event.target.value)
                       }
                       disabled={!editableForm.fundingCompanyId || actionLocked}
-                      className={inputClass()}
                     >
                       <option value="">No bank selected</option>
                       {availableEditBankAccounts.map((bank) => (
@@ -1257,55 +1096,53 @@ export default function FinanceExpenseFundingBatchDetailPage() {
                           {getBankLabel(bank)}
                         </option>
                       ))}
-                    </select>
-                  </label>
+                    </AixiaSelectField>
+                  </AixiaFormField>
 
-                  <label className="grid gap-2">
-                    <span className={labelClass()}>Allocation Date</span>
-                    <input
+                  <AixiaFormField>
+                    <AixiaFieldLabel label="Allocation Date" required />
+                    <AixiaInputField
                       type="date"
                       value={editableForm.allocationDate}
                       onChange={(event) =>
                         updateEditField("allocationDate", event.target.value)
                       }
                       disabled={actionLocked}
-                      className={inputClass()}
                     />
-                  </label>
+                  </AixiaFormField>
 
-                  <label className="grid gap-2">
-                    <span className={labelClass()}>Funding Period From</span>
-                    <input
+                  <AixiaFormField>
+                    <AixiaFieldLabel label="Funding Period From" required />
+                    <AixiaInputField
                       type="date"
                       value={editableForm.fundingPeriodFrom}
                       onChange={(event) =>
                         updateEditField("fundingPeriodFrom", event.target.value)
                       }
                       disabled={actionLocked}
-                      className={inputClass()}
                     />
-                  </label>
+                  </AixiaFormField>
 
-                  <label className="grid gap-2">
-                    <span className={labelClass()}>Funding Period To</span>
-                    <input
+                  <AixiaFormField>
+                    <AixiaFieldLabel label="Funding Period To" required />
+                    <AixiaInputField
                       type="date"
                       value={editableForm.fundingPeriodTo}
                       onChange={(event) =>
                         updateEditField("fundingPeriodTo", event.target.value)
                       }
                       disabled={actionLocked}
-                      className={inputClass()}
                     />
-                  </label>
+                  </AixiaFormField>
 
-                  <label className="grid gap-2">
-                    <span className={labelClass()}>Funding Currency</span>
-                    <select
+                  <AixiaFormField>
+                    <AixiaFieldLabel label="Funding Currency" required />
+                    <AixiaSelectField
                       value={editableForm.currencyCode}
-                      onChange={(event) => updateEditField("currencyCode", event.target.value)}
+                      onChange={(event) =>
+                        updateEditField("currencyCode", event.target.value)
+                      }
                       disabled={actionLocked}
-                      className={inputClass()}
                     >
                       <option value="">Select currency</option>
                       {currencyOptions.map((currency) => (
@@ -1313,12 +1150,12 @@ export default function FinanceExpenseFundingBatchDetailPage() {
                           {currency.currency_code} — {currency.currency_name}
                         </option>
                       ))}
-                    </select>
-                  </label>
+                    </AixiaSelectField>
+                  </AixiaFormField>
 
-                  <label className="grid gap-2">
-                    <span className={labelClass()}>Funding Pool Amount</span>
-                    <input
+                  <AixiaFormField>
+                    <AixiaFieldLabel label="Funding Pool Amount" required />
+                    <AixiaInputField
                       value={editableForm.fundingPoolAmount}
                       onChange={(event) =>
                         updateEditField("fundingPoolAmount", event.target.value)
@@ -1326,290 +1163,286 @@ export default function FinanceExpenseFundingBatchDetailPage() {
                       disabled={actionLocked}
                       inputMode="decimal"
                       placeholder="0.00"
-                      className={inputClass()}
                     />
-                    <span className="text-xs leading-5 text-slate-500">
-                      Total amount reserved by Finance.
-                    </span>
-                  </label>
+                  </AixiaFormField>
 
-                  <div className="grid gap-2 md:col-span-2">
-                    <span className={labelClass()}>Pool Meaning</span>
-                    <div className="flex min-h-[44px] items-center rounded-2xl border border-emerald-400/15 bg-emerald-500/10 px-4 text-sm font-semibold text-emerald-100">
-                      Reserve only — no expense selection and no money distribution on this page
-                    </div>
-                    <span className="text-xs leading-5 text-slate-500">
-                      Expense matching and disbursement happen later from Expense Payments.
-                    </span>
-                  </div>
+                  <AixiaFormFullWidth>
+                    <AixiaValueBlock
+                      label="Pool Meaning"
+                      value="Reserve only — no expense selection and no money distribution"
+                      detail="Expense matching and disbursement happen later from Expense Payments."
+                    />
+                  </AixiaFormFullWidth>
 
-                  <label className="grid gap-2 md:col-span-3">
-                    <span className={labelClass()}>Funding Notes</span>
-                    <textarea
+                  <AixiaFormFullWidth>
+                    <AixiaFieldLabel label="Funding Notes" />
+                    <AixiaTextareaField
                       value={editableForm.notes}
                       onChange={(event) => updateEditField("notes", event.target.value)}
                       disabled={actionLocked}
-                      className={textareaClass()}
                       placeholder="Internal funding pool notes"
                     />
-                  </label>
-                </div>
+                  </AixiaFormFullWidth>
+                </AixiaFormGrid>
               ) : (
-                <div className="grid gap-4 md:grid-cols-3">
-                  <ValueBlock label="Funding Pool Number" value={batch.batch_number} />
-                  <ValueBlock
+                <AixiaReviewGrid variant="cards">
+                  <AixiaValueBlock label="Funding Pool Number" value={batch.batch_number} />
+                  <AixiaValueBlock
                     label="Funding Pool Total"
                     value={`${currencyCode} ${formatMoney(fundingPoolAmount)}`}
                     detail="Original amount reserved by Finance."
                   />
-                  <ValueBlock
+                  <AixiaValueBlock
                     label="Confirmed Used"
                     value={`${currencyCode} ${formatMoney(confirmedPoolUsedAmount)}`}
                     detail="Only confirmed expense payment distributions count as used."
                   />
-                  <ValueBlock
+                  <AixiaValueBlock
                     label="Remaining Balance"
                     value={`${currencyCode} ${formatMoney(remainingFundingPoolAmount)}`}
                     detail={`${formatMoney(fundingPoolUsagePercent)}% of this funding pool has been used.`}
                   />
-                  <ValueBlock label="Funding Period" value={fundingPeriodLabel} />
-                  <ValueBlock label="Allocation Date" value={formatDate(batch.allocation_date)} />
-                  <ValueBlock label="Funding Company" value={fundingCompany?.name || "—"} />
-                  <ValueBlock label="Funding Bank" value={getBankLabel(fundingBankAccount)} />
-                  <ValueBlock label="Currency" value={batch.currency_code || "—"} />
-                  <ValueBlock label="Status" value={<StatusBadge value={batch.status} />} />
-                  <ValueBlock
-                    label="Documentation"
-                    value={<StatusBadge value={batch.documentation_status} />}
+                  <AixiaValueBlock label="Funding Period" value={fundingPeriodLabel} />
+                  <AixiaValueBlock
+                    label="Allocation Date"
+                    value={formatDate(batch.allocation_date)}
                   />
-                  <ValueBlock
+                  <AixiaValueBlock
+                    label="Funding Company"
+                    value={fundingCompany?.name || "—"}
+                  />
+                  <AixiaValueBlock
+                    label="Funding Bank"
+                    value={getBankLabel(fundingBankAccount)}
+                  />
+                  <AixiaValueBlock label="Currency" value={batch.currency_code || "—"} />
+                  <AixiaValueBlock
+                    label="Status"
+                    value={<AixiaStatusBadge value={batch.status} />}
+                  />
+                  <AixiaValueBlock
+                    label="Documentation"
+                    value={<AixiaStatusBadge value={batch.documentation_status} />}
+                  />
+                  <AixiaValueBlock
                     label="Created"
                     value={formatDateTime(batch.created_at)}
                     detail={`Updated ${formatDateTime(batch.updated_at)}`}
                   />
-                  <ValueBlock
+                  <AixiaValueBlock
                     label="Pool Meaning"
                     value="Reserve only — no expense distribution"
                     detail="Expense matching and payment distribution happen later."
                   />
-                  <ValueBlock
+                  <AixiaValueBlock
                     label="Confirmed By"
                     value={batch.allocated_by ? "Recorded" : "Not confirmed yet"}
                   />
-                  <ValueBlock
+                  <AixiaValueBlock
                     label="Proof"
                     value={attachments.length > 0 ? "Attached" : "Not attached"}
                     detail="Proof is required before confirming the funding pool."
                   />
-                  {batch.notes ? (
-                    <div className="md:col-span-3">
-                      <ValueBlock label="Notes" value={batch.notes} />
-                    </div>
-                  ) : null}
-                </div>
+                  {batch.notes ? <AixiaValueBlock label="Notes" value={batch.notes} /> : null}
+                </AixiaReviewGrid>
               )}
-            </SectionCard>
+            </AixiaSection>
 
-            <SectionCard
+            <AixiaSection
               title="Funding Proof"
               description="Files uploaded as proof that this funding pool was approved, reserved, or transferred."
               icon={UploadCloud}
             >
-              {attachments.length === 0 ? (
-                <div className="rounded-[24px] border border-dashed border-white/10 bg-black/20 px-6 py-12 text-center">
-                  <FileText className="mx-auto h-8 w-8 text-slate-500" />
-                  <div className="mt-4 text-sm font-semibold text-white">
-                    No funding proof uploaded
-                  </div>
-                  <div className="mt-2 text-sm leading-6 text-slate-500">
-                    Upload bank confirmation, internal approval, funding report, or reserve
-                    document.
-                  </div>
-                </div>
-              ) : (
-                <div className="divide-y divide-white/5 overflow-hidden rounded-[24px] border border-white/10 bg-black/20">
-                  {attachments.map((attachment) => (
-                    <div
-                      key={attachment.id}
-                      className="flex items-center justify-between gap-4 px-4 py-3"
-                    >
-                      <div className="min-w-0">
-                        <div className="truncate text-sm font-medium text-white">
-                          {attachment.fileUpload?.file_name || "File"}
-                        </div>
-                        <div className="mt-1 text-xs text-slate-500">
-                          {attachment.fileUpload?.mime_type || "Unknown type"} •{" "}
-                          {formatDateTime(attachment.created_at)}
-                        </div>
-                      </div>
-                      <FileText className="h-4 w-4 shrink-0 text-violet-200" />
-                    </div>
-                  ))}
-                </div>
-              )}
-            </SectionCard>
-          </div>
-
-          <aside className="sticky top-6 grid gap-6">
-            <SectionCard
+              <AixiaDocumentUploadPanel
+                selectedFile={fundingProofFile}
+                attachments={documentAttachments}
+                required={isDraftPool}
+                disabled={actionLocked || isArchivedOrDeleted}
+                uploading={runningAction === "upload_proof"}
+                accept=".pdf,.png,.jpg,.jpeg,.webp,.doc,.docx,.xls,.xlsx"
+                dropTitle="Drop funding proof here"
+                dropDescription="Attach bank confirmation, internal approval, funding report, reserve document, or Finance proof."
+                uploadLabel="Upload Proof"
+                uploadingLabel="Uploading Proof..."
+                selectedFileLabel="Selected funding proof"
+                emptyTitle="No funding proof uploaded"
+                emptyDescription="Upload proof before confirming this funding pool."
+                requiredMessage="Funding proof is required before confirming a draft funding pool."
+                onFileSelect={(file) => {
+                  setFundingProofFile(file);
+                  setPageError(null);
+                  setPageMessage(null);
+                }}
+                onRemoveSelectedFile={() => setFundingProofFile(null)}
+                onUpload={() => void uploadFundingProof()}
+              />
+            </AixiaSection>
+          </>
+        }
+        side={
+          <>
+            <AixiaSection
               title="Funding Pool Actions"
               description="Confirm the pool, verify proof, or open the separate payment distribution tool."
               icon={ShieldCheck}
             >
-              <div className="grid gap-3">
+              <div className="aixia-stack">
                 {isArchivedOrDeleted ? (
-                  <div className="rounded-[24px] border border-rose-400/20 bg-rose-500/10 p-4 text-sm leading-6 text-rose-100">
+                  <AixiaAlert tone="error">
                     This funding pool is archived, deleted, or cancelled. Normal actions are hidden.
-                  </div>
+                  </AixiaAlert>
                 ) : null}
 
                 {isDraftPool ? (
-                  <ActionButton
-                    label="Confirm Funding Pool"
-                    loadingLabel="Confirming..."
-                    icon={CheckCircle2}
-                    tone="emerald"
+                  <AixiaButton
+                    type="button"
+                    variant="primary"
                     disabled={actionLocked || !canConfirmPool}
-                    isRunning={runningAction === "confirm_pool"}
                     onClick={() => void confirmFundingPool()}
-                  />
+                  >
+                    {runningAction === "confirm_pool" ? (
+                      <Loader2 className="h-4 w-4 animate-spin" />
+                    ) : (
+                      <CheckCircle2 className="h-4 w-4" />
+                    )}
+                    {runningAction === "confirm_pool"
+                      ? "Confirming..."
+                      : "Confirm Funding Pool"}
+                  </AixiaButton>
                 ) : null}
 
                 {!isDraftPool && isConfirmedPool ? (
-                  <div className="rounded-[24px] border border-emerald-400/20 bg-emerald-500/10 p-4 text-sm leading-6 text-emerald-100">
-                    This funding pool is confirmed. It can now be used by the separate Expense
-                    Payments tool to distribute money across verified expenses.
-                  </div>
+                  <AixiaAlert tone="success">
+                    This funding pool is confirmed. It can now be used by the separate
+                    Expense Payments tool to distribute money across verified expenses.
+                  </AixiaAlert>
                 ) : null}
 
                 {canVerifyProof ? (
-                  <ActionButton
-                    label="Verify Proof"
-                    loadingLabel="Verifying..."
-                    icon={FileCheck2}
-                    tone="violet"
+                  <AixiaButton
+                    type="button"
+                    variant="secondary"
                     disabled={actionLocked}
-                    isRunning={runningAction === "verify_proof"}
                     onClick={() => void verifyProof()}
-                  />
+                  >
+                    {runningAction === "verify_proof" ? (
+                      <Loader2 className="h-4 w-4 animate-spin" />
+                    ) : (
+                      <FileCheck2 className="h-4 w-4" />
+                    )}
+                    {runningAction === "verify_proof" ? "Verifying..." : "Verify Proof"}
+                  </AixiaButton>
                 ) : null}
 
                 {isConfirmedPool && !isArchivedOrDeleted ? (
-                  <ActionButton
-                    label="Open Expense Payments Tool"
-                    loadingLabel="Opening..."
-                    icon={WalletCards}
-                    tone="cyan"
+                  <AixiaButton
+                    type="button"
+                    variant="primary"
                     disabled={actionLocked}
-                    isRunning={runningAction === "open_payment_tool"}
                     onClick={openExpensePaymentsTool}
-                  />
+                  >
+                    {runningAction === "open_payment_tool" ? (
+                      <Loader2 className="h-4 w-4 animate-spin" />
+                    ) : (
+                      <WalletCards className="h-4 w-4" />
+                    )}
+                    {runningAction === "open_payment_tool"
+                      ? "Opening..."
+                      : "Open Expense Payments Tool"}
+                  </AixiaButton>
                 ) : null}
 
                 {!isArchivedOrDeleted && isDraftPool && attachments.length === 0 ? (
-                  <div className="rounded-[24px] border border-amber-400/20 bg-amber-500/10 p-4 text-xs leading-5 text-amber-100">
+                  <AixiaAlert tone="info">
                     Upload funding proof before confirming this funding pool.
-                  </div>
+                  </AixiaAlert>
                 ) : null}
               </div>
-            </SectionCard>
+            </AixiaSection>
 
-            <SectionCard
-              title="Upload Funding Proof"
-              description="Attach proof for this funding pool."
-              icon={UploadCloud}
-            >
-              <div className="rounded-[24px] border border-dashed border-white/15 bg-black/20 p-4">
-                <input
-                  type="file"
-                  accept=".pdf,.png,.jpg,.jpeg,.webp,.doc,.docx,.xls,.xlsx"
-                  disabled={actionLocked || isArchivedOrDeleted}
-                  onChange={(event) => setFundingProofFile(event.target.files?.[0] ?? null)}
-                  className="block w-full text-sm text-slate-400 file:mr-4 file:rounded-full file:border-0 file:bg-violet-500/10 file:px-4 file:py-2 file:text-sm file:font-semibold file:text-violet-100 disabled:cursor-not-allowed disabled:opacity-50"
-                />
-
-                {fundingProofFile ? (
-                  <div className="mt-3 rounded-2xl border border-violet-400/15 bg-violet-500/10 px-4 py-3 text-sm text-violet-100">
-                    {fundingProofFile.name}
-                  </div>
-                ) : null}
-
-                <button
-                  type="button"
-                  disabled={actionLocked || !fundingProofFile || isArchivedOrDeleted}
-                  onClick={() => void uploadFundingProof()}
-                  className="mt-4 inline-flex h-11 w-full items-center justify-center gap-2 rounded-2xl border border-violet-400/20 bg-violet-500/10 px-4 text-sm font-semibold text-violet-100 transition hover:bg-violet-500/15 disabled:cursor-not-allowed disabled:opacity-50"
-                >
-                  {runningAction === "upload_proof" ? (
-                    <Loader2 className="h-4 w-4 animate-spin" />
-                  ) : (
-                    <UploadCloud className="h-4 w-4" />
-                  )}
-                  {runningAction === "upload_proof" ? "Uploading Proof..." : "Upload Proof"}
-                </button>
-              </div>
-            </SectionCard>
-
-            <SectionCard
+            <AixiaSection
               title="Status Summary"
               description="Current funding pool state."
               icon={Clock3}
             >
-              <div className="grid gap-3">
-                <ValueBlock label="Pool Status" value={<StatusBadge value={batch.status} />} />
-                <ValueBlock
-                  label="Documentation"
-                  value={<StatusBadge value={batch.documentation_status} />}
+              <AixiaReviewGrid variant="cards">
+                <AixiaValueBlock
+                  label="Pool Status"
+                  value={<AixiaStatusBadge value={batch.status} />}
                 />
-                <ValueBlock
+                <AixiaValueBlock
+                  label="Documentation"
+                  value={<AixiaStatusBadge value={batch.documentation_status} />}
+                />
+                <AixiaValueBlock
                   label="Funding Pool Total"
                   value={`${currencyCode} ${formatMoney(fundingPoolAmount)}`}
                   detail="Period-based money reserve."
                 />
-                <ValueBlock
+                <AixiaValueBlock
                   label="Confirmed Used"
                   value={`${currencyCode} ${formatMoney(confirmedPoolUsedAmount)}`}
                   detail="Confirmed expense payment distributions only."
                 />
-                <ValueBlock
+                <AixiaValueBlock
                   label="Remaining Balance"
                   value={`${currencyCode} ${formatMoney(remainingFundingPoolAmount)}`}
                   detail="Available for future expense payment distributions."
                 />
-                <ValueBlock
+                <AixiaValueBlock
                   label="Funding Period"
                   value={fundingPeriodLabel}
                   detail="Stored in metadata."
                 />
+              </AixiaReviewGrid>
+            </AixiaSection>
+
+            <AixiaSection
+              title="Funding Workflow Notes"
+              description="Clean split between reserve and distribution."
+              icon={Sparkles}
+            >
+              <div className="aixia-stack">
+                <AixiaActionCard
+                  label="Funding Pool"
+                  value="Period-based reserve"
+                  description="This record reserves a money pool from one company and optional bank account."
+                  icon={Coins}
+                  tone="violet"
+                />
+                <AixiaActionCard
+                  label="Expense Payments"
+                  value="Distribution tool"
+                  description="Actual distribution across verified expenses happens only on the Expense Payments page."
+                  icon={WalletCards}
+                  tone="cyan"
+                />
+                <AixiaActionCard
+                  label="No Expense Selection"
+                  value="Reserve page only"
+                  description="This page does not select, match, or distribute money to individual expenses."
+                  icon={Building2}
+                  tone="neutral"
+                />
+                <AixiaActionCard
+                  label="Funding Period"
+                  value="Metadata controlled"
+                  description="Funding Period From/To is stored in metadata so Finance can group monthly or custom-period reserves."
+                  icon={CalendarDays}
+                  tone="gold"
+                />
+                <AixiaActionCard
+                  label="Clean Split"
+                  value="Reserve then distribute"
+                  description="Funding Pool reserves money. Expense Payments distributes that money across verified expenses."
+                  icon={Banknote}
+                  tone="emerald"
+                />
               </div>
-            </SectionCard>
-
-            <InfoCard icon={Coins} title="Funding Pool">
-              This record reserves a period-based money pool from one company and optional bank
-              account.
-            </InfoCard>
-
-            <InfoCard icon={WalletCards} title="Expense Payments">
-              Actual distribution across verified expenses happens only on the Expense Payments
-              page.
-            </InfoCard>
-
-            <InfoCard icon={Building2} title="No Expense Selection">
-              This page does not select, match, or distribute money to individual expenses.
-            </InfoCard>
-
-            <InfoCard icon={CalendarDays} title="Funding Period">
-              Funding Period From/To is stored in metadata so Finance can group monthly or
-              custom-period reserves.
-            </InfoCard>
-
-            <InfoCard icon={Banknote} title="Clean Split">
-              Funding Pool reserves money. Expense Payments distributes that money across verified
-              expenses.
-            </InfoCard>
-          </aside>
-        </div>
-      </div>
-    </div>
+            </AixiaSection>
+          </>
+        }
+      />
+    </AixiaPage>
   );
 }

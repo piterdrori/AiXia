@@ -5697,8 +5697,9 @@ button.aixia-action-card:disabled {
 }
 
 .aixia-child-allocation-registry .aixia-table {
-  min-width: 1560px !important;
-  table-layout: fixed !important;
+  width: max-content !important;
+  min-width: max(100%, var(--aixia-child-allocation-table-min-width, 1560px)) !important;
+  table-layout: auto !important;
 }
 
 .aixia-child-allocation-registry .aixia-table-head {
@@ -5764,22 +5765,26 @@ button.aixia-action-card:disabled {
   min-width: 0 !important;
 }
 
-.aixia-child-allocation-registry .aixia-table-cell-actions {
+.aixia-child-allocation-registry .aixia-table-cell-actions,
+.aixia-child-allocation-registry .aixia-table th:last-child,
+.aixia-child-allocation-registry .aixia-table td:last-child {
   width: 1% !important;
-  min-width: 300px !important;
+  min-width: max-content !important;
   white-space: nowrap !important;
+  overflow: visible !important;
 }
 
 /* Keep child allocation row actions identical to global registry tables.
    Do not restyle .aixia-btn-primary / .aixia-btn-secondary / .aixia-btn-danger here. */
 .aixia-child-allocation-registry .aixia-table-actions {
-  display: flex !important;
+  display: inline-flex !important;
   align-items: center !important;
   justify-content: center !important;
   flex-wrap: nowrap !important;
   gap: 0.5rem !important;
   width: max-content !important;
   min-width: max-content !important;
+  max-width: none !important;
   margin-left: auto !important;
   margin-right: auto !important;
 }

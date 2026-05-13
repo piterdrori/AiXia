@@ -729,6 +729,8 @@ function inspectSharedComponentSourceOfTruth() {
     for (const snippet of [
       "bottomSpan",
       "sideRebalance",
+      "sideRebalance === \"last-to-bottom\"",
+      "shouldForceBottomSpanForRebalancedSide",
       "mainTopCount",
       "aixia-smart-layout",
       "aixia-smart-bottom-span",

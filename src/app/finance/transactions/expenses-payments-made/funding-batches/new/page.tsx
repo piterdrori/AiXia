@@ -1,9 +1,9 @@
+"use client";
+
 import { useCallback, useEffect, useMemo, useState } from "react";
-import type { LucideIcon } from "lucide-react";
 import { useNavigate } from "react-router-dom";
 import {
   Archive,
-  ArrowRight,
   Banknote,
   Building2,
   CalendarDays,
@@ -18,6 +18,29 @@ import {
   WalletCards,
 } from "lucide-react";
 
+import {
+  AixiaAccessRule,
+  AixiaActionCard,
+  AixiaAlert,
+  AixiaButton,
+  AixiaDocumentUploadPanel,
+  AixiaFieldLabel,
+  AixiaFormField,
+  AixiaFormFullWidth,
+  AixiaFormGrid,
+  AixiaHero,
+  AixiaInputField,
+  AixiaLoadingState,
+  AixiaMetricCard,
+  AixiaMetricGrid,
+  AixiaPage,
+  AixiaReviewGrid,
+  AixiaSection,
+  AixiaSelectField,
+  AixiaSmartLayout,
+  AixiaTextareaField,
+  AixiaValueBlock,
+} from "@/components/aixia";
 import { supabase } from "@/lib/supabase";
 
 type SaveMode = "draft" | "allocated";
@@ -70,7 +93,9 @@ function getCurrentMonthStartIsoDate() {
 
 function getCurrentMonthEndIsoDate() {
   const today = new Date();
-  return new Date(today.getFullYear(), today.getMonth() + 1, 0).toISOString().slice(0, 10);
+  return new Date(today.getFullYear(), today.getMonth() + 1, 0)
+    .toISOString()
+    .slice(0, 10);
 }
 
 const initialFormState: FormState = {
@@ -85,7 +110,8 @@ const initialFormState: FormState = {
 };
 
 function toNumber(value: number | string | null | undefined) {
-  return Number(value ?? 0);
+  const parsed = Number(value ?? 0);
+  return Number.isFinite(parsed) ? parsed : 0;
 }
 
 function normalizeCurrencyCode(value: string | null | undefined) {
@@ -112,18 +138,6 @@ function formatDate(value: string | null | undefined) {
   });
 }
 
-function inputClass() {
-  return "h-11 w-full rounded-2xl border border-white/10 bg-black/20 px-4 text-sm text-white outline-none transition placeholder:text-slate-600 focus:border-cyan-400/30 focus:bg-black/30";
-}
-
-function textareaClass() {
-  return "min-h-[132px] w-full rounded-2xl border border-white/10 bg-black/20 px-4 py-3 text-sm text-white outline-none transition placeholder:text-slate-600 focus:border-cyan-400/30 focus:bg-black/30";
-}
-
-function labelClass() {
-  return "text-sm font-medium text-slate-300";
-}
-
 function getBankLabel(bank: BankAccountRow | null | undefined) {
   if (!bank) return "—";
 
@@ -134,6 +148,12 @@ function getBankLabel(bank: BankAccountRow | null | undefined) {
   ]
     .filter(Boolean)
     .join(" • ");
+}
+
+function getCurrencyOptionLabel(currency: CurrencyRow) {
+  const symbol = currency.currency_symbol ? ` (${currency.currency_symbol})` : "";
+  const base = currency.is_base_currency ? " • Base" : "";
+  return `${currency.currency_code} — ${currency.currency_name}${symbol}${base}`;
 }
 
 function resolveMimeType(file: File) {
@@ -164,52 +184,6 @@ function resolveMimeType(file: File) {
     default:
       return file.type || "application/octet-stream";
   }
-}
-
-function SummaryBlock({
-  title,
-  value,
-  subtitle,
-}: {
-  title: string;
-  value: string;
-  subtitle: string;
-}) {
-  return (
-    <div className="min-h-[148px] rounded-[24px] border border-white/10 bg-black/20 p-4">
-      <div className="text-[11px] font-semibold uppercase tracking-[0.2em] text-slate-500">
-        {title}
-      </div>
-      <div className="mt-3 text-2xl font-semibold tracking-[-0.03em] text-white">
-        {value}
-      </div>
-      <div className="mt-3 text-sm leading-6 text-slate-400">{subtitle}</div>
-    </div>
-  );
-}
-
-function InfoCard({
-  icon: Icon,
-  title,
-  children,
-}: {
-  icon: LucideIcon;
-  title: string;
-  children: string;
-}) {
-  return (
-    <section className="overflow-hidden rounded-[30px] border border-white/10 bg-white/[0.045] p-5 backdrop-blur-xl">
-      <div className="flex items-start gap-3">
-        <div className="rounded-2xl border border-violet-400/15 bg-violet-500/10 p-3 text-violet-200">
-          <Icon className="h-4 w-4" />
-        </div>
-        <div>
-          <div className="text-sm font-semibold text-white">{title}</div>
-          <div className="mt-2 text-xs leading-5 text-slate-500">{children}</div>
-        </div>
-      </div>
-    </section>
-  );
 }
 
 export default function FinanceExpenseFundingBatchNewPage() {
@@ -255,6 +229,9 @@ export default function FinanceExpenseFundingBatchNewPage() {
     form.fundingPeriodFrom && form.fundingPeriodTo
       ? `${formatDate(form.fundingPeriodFrom)} → ${formatDate(form.fundingPeriodTo)}`
       : "Not selected";
+
+  const proofStatusLabel = fundingProofFile ? "Attached" : "Not Attached";
+  const actionLocked = isLoading || isSaving;
 
   const updateField = useCallback(
     <Key extends keyof FormState>(key: Key, value: FormState[Key]) => {
@@ -342,7 +319,9 @@ export default function FinanceExpenseFundingBatchNewPage() {
       }));
     } catch (error) {
       console.error("Failed to load funding pool setup:", error);
-      setPageError(error instanceof Error ? error.message : "Failed to load funding pool setup.");
+      setPageError(
+        error instanceof Error ? error.message : "Failed to load funding pool setup."
+      );
     } finally {
       setIsLoading(false);
     }
@@ -481,8 +460,8 @@ export default function FinanceExpenseFundingBatchNewPage() {
           form.notes.trim() || null,
           `Funding pool amount: ${selectedCurrency} ${formatMoney(fundingPoolAmount)}`,
           `Funding period: ${form.fundingPeriodFrom} to ${form.fundingPeriodTo}`,
-          `Funding pool type: monthly_or_period_reserve`,
-          `Control rule: no expense distribution on funding pool creation`,
+          "Funding pool type: monthly_or_period_reserve",
+          "Control rule: no expense distribution on funding pool creation",
         ]
           .filter(Boolean)
           .join("\n");
@@ -567,93 +546,121 @@ export default function FinanceExpenseFundingBatchNewPage() {
     ]
   );
 
+  if (isLoading) {
+    return (
+      <AixiaLoadingState
+        title="Loading funding pool setup"
+        description="Companies, bank accounts, and currency master data are being loaded."
+      />
+    );
+  }
+
   return (
-    <div className="min-h-screen bg-[#05070d] px-4 py-4 text-white md:px-6 md:py-6">
-      <div className="mx-auto flex w-full max-w-[1600px] flex-col gap-6">
-        <header className="relative overflow-hidden rounded-[34px] border border-white/10 bg-white/[0.045] p-6 shadow-2xl shadow-black/30 backdrop-blur-xl">
-          <div className="pointer-events-none absolute inset-0 bg-[radial-gradient(circle_at_top_left,rgba(6,182,212,0.16),transparent_38%),radial-gradient(circle_at_top_right,rgba(139,92,246,0.12),transparent_34%)]" />
+    <AixiaPage>
+      <AixiaHero
+        parentLabel="Payment Control"
+        parentPath="/finance/transactions/expenses-payments-made"
+        badges={[
+          { label: "Funding Pool", tone: "cyan" },
+          { label: "No Expense Selection", tone: "violet" },
+          {
+            label: fundingProofFile ? "Proof Ready" : "Proof Pending",
+            tone: fundingProofFile ? "emerald" : "gold",
+          },
+        ]}
+        gradientTitle="NEW FUNDING POOL"
+        title=""
+        subtitle="Create monthly or period funding pool"
+        description="Reserve a pool of company money for a selected period. This page does not select expenses, distribute money, or connect this pool to one specific expense."
+        statusCards={[
+          {
+            label: "Funding Pool",
+            value: `${selectedCurrency} ${formatMoney(fundingPoolAmount)}`,
+            description: "Total money Finance is reserving for the selected period.",
+            icon: Coins,
+            tone: fundingPoolAmount > 0 ? "emerald" : "neutral",
+          },
+          {
+            label: "Funding Period",
+            value: fundingPeriodLabel,
+            description: "The operating-expense period this pool is intended to cover.",
+            icon: CalendarDays,
+            tone: form.fundingPeriodFrom && form.fundingPeriodTo ? "cyan" : "neutral",
+          },
+          {
+            label: "Funding Proof",
+            value: proofStatusLabel,
+            description: "Proof is optional for draft and required before confirming.",
+            icon: UploadCloud,
+            tone: fundingProofFile ? "emerald" : "gold",
+          },
+        ]}
+      />
 
-          <div className="relative">
-            <button
-              type="button"
-              onClick={() => navigate("/finance/transactions/expenses-payments-made")}
-              className="mb-5 inline-flex items-center justify-center gap-2 rounded-full border border-white/10 bg-white/[0.05] px-5 py-2 text-[11px] font-semibold uppercase tracking-[0.22em] text-slate-300 transition hover:border-white/20 hover:bg-white/[0.08] hover:text-white"
+      {pageError ? <AixiaAlert tone="error">{pageError}</AixiaAlert> : null}
+      {pageMessage ? <AixiaAlert tone="success">{pageMessage}</AixiaAlert> : null}
+
+      <AixiaMetricGrid>
+        <AixiaMetricCard
+          label="Funding Company"
+          value={selectedCompanyName}
+          description="The company reserving money."
+          icon={Building2}
+          tone={form.fundingCompanyId ? "cyan" : "neutral"}
+        />
+        <AixiaMetricCard
+          label="Funding Bank"
+          value={selectedBankLabel}
+          description="Optional funding account reference."
+          icon={Banknote}
+          tone={form.fundingBankAccountId ? "violet" : "neutral"}
+        />
+        <AixiaMetricCard
+          label="Funding Period"
+          value={fundingPeriodLabel}
+          description="The expense period this pool should cover."
+          icon={CalendarDays}
+          tone="gold"
+        />
+        <AixiaMetricCard
+          label="Funding Pool"
+          value={`${selectedCurrency} ${formatMoney(fundingPoolAmount)}`}
+          description="Total internal money reserved."
+          icon={WalletCards}
+          tone={fundingPoolAmount > 0 ? "emerald" : "neutral"}
+        />
+      </AixiaMetricGrid>
+
+      <AixiaAccessRule
+        title="Locked funding pool creation rule"
+        description="Funding pool creation must stay separate from expense selection and payment distribution."
+        icon={ShieldCheck}
+      >
+        This page creates a period-based funding reserve only. Expense matching and
+        payment distribution happen later from the Expense Payments tool. Draft can
+        be saved without proof. Create Funding Pool requires proof and confirms the
+        funding batch through the protected backend RPC.
+      </AixiaAccessRule>
+
+      <AixiaSmartLayout
+        sidebar="normal"
+        balance="main"
+        bottomSpan="never"
+        sideRebalance="last-to-bottom"
+        main={
+          <>
+            <AixiaSection
+              title="Funding Pool Setup"
+              description="Create a Finance reserve for a period. Expense matching and disbursement happen later on the Expense Payments page."
+              icon={Archive}
             >
-              <ArrowRight className="h-3.5 w-3.5 rotate-180" />
-              Payment Control
-            </button>
-
-            <div className="grid gap-6 xl:grid-cols-[minmax(0,1fr)_520px] xl:items-end">
-              <div>
-                <div className="inline-flex w-fit items-center gap-2 rounded-full border border-violet-400/20 bg-violet-500/10 px-3 py-1 text-[11px] font-semibold uppercase tracking-[0.22em] text-violet-200">
-                  <Sparkles className="h-3.5 w-3.5" />
-                  New Funding Pool
-                </div>
-
-                <h1 className="mt-4 text-3xl font-semibold tracking-[-0.035em] text-white md:text-5xl">
-                  Create Monthly Funding Pool
-                </h1>
-
-                <p className="mt-3 max-w-4xl text-sm leading-6 text-slate-400 md:text-base md:leading-7">
-                  Reserve a pool of company money for a selected period. This page does not select
-                  expenses, distribute money, or connect this pool to one specific expense.
-                </p>
-              </div>
-
-              <div className="grid gap-3 sm:grid-cols-2">
-                <SummaryBlock
-                  title="Funding Pool"
-                  value={`${selectedCurrency} ${formatMoney(fundingPoolAmount)}`}
-                  subtitle="Total money Finance is reserving for the selected period."
-                />
-                <SummaryBlock
-                  title="Funding Period"
-                  value={fundingPeriodLabel}
-                  subtitle="The operating-expense period this pool is intended to cover."
-                />
-              </div>
-            </div>
-          </div>
-        </header>
-
-        {pageError ? (
-          <div className="rounded-[24px] border border-rose-400/20 bg-rose-500/10 p-4 text-sm leading-6 text-rose-100">
-            {pageError}
-          </div>
-        ) : null}
-
-        {pageMessage ? (
-          <div className="rounded-[24px] border border-emerald-400/20 bg-emerald-500/10 p-4 text-sm leading-6 text-emerald-100">
-            {pageMessage}
-          </div>
-        ) : null}
-
-        <div className="grid items-start gap-6 xl:grid-cols-[minmax(0,1fr)_430px]">
-          <div className="grid gap-6">
-            <section className="overflow-hidden rounded-[30px] border border-white/10 bg-white/[0.045] backdrop-blur-xl">
-              <div className="flex items-start gap-4 border-b border-white/10 px-5 py-4">
-                <div className="rounded-2xl border border-violet-400/15 bg-violet-500/10 p-3 text-violet-200">
-                  <Archive className="h-4 w-4" />
-                </div>
-                <div>
-                  <div className="text-sm font-semibold uppercase tracking-[0.18em] text-slate-400">
-                    Funding Pool Setup
-                  </div>
-                  <p className="mt-1 text-xs leading-5 text-slate-500">
-                    Create a Finance reserve for a period. Expense matching and disbursement happen
-                    later on the Expense Payments page.
-                  </p>
-                </div>
-              </div>
-
-              <div className="grid gap-4 p-5 md:grid-cols-3">
-                <label className="grid gap-2">
-                  <span className={labelClass()}>Funding Company</span>
-                  <select
+              <AixiaFormGrid columns="three">
+                <AixiaFormField>
+                  <AixiaFieldLabel label="Funding Company" />
+                  <AixiaSelectField
                     value={form.fundingCompanyId}
                     onChange={(event) => updateField("fundingCompanyId", event.target.value)}
-                    className={inputClass()}
-                    disabled={isLoading || isSaving}
+                    disabled={actionLocked}
                   >
                     <option value="">Select company</option>
                     {companies.map((company) => (
@@ -661,16 +668,17 @@ export default function FinanceExpenseFundingBatchNewPage() {
                         {company.name || "Unnamed company"}
                       </option>
                     ))}
-                  </select>
-                </label>
+                  </AixiaSelectField>
+                </AixiaFormField>
 
-                <label className="grid gap-2">
-                  <span className={labelClass()}>Funding Bank Account</span>
-                  <select
+                <AixiaFormField>
+                  <AixiaFieldLabel label="Funding Bank Account" />
+                  <AixiaSelectField
                     value={form.fundingBankAccountId}
-                    onChange={(event) => updateField("fundingBankAccountId", event.target.value)}
-                    disabled={!form.fundingCompanyId || isLoading || isSaving}
-                    className={inputClass()}
+                    onChange={(event) =>
+                      updateField("fundingBankAccountId", event.target.value)
+                    }
+                    disabled={!form.fundingCompanyId || actionLocked}
                   >
                     <option value="">No bank selected</option>
                     {availableBankAccounts.map((bank) => (
@@ -678,215 +686,190 @@ export default function FinanceExpenseFundingBatchNewPage() {
                         {getBankLabel(bank)}
                       </option>
                     ))}
-                  </select>
-                </label>
+                  </AixiaSelectField>
+                </AixiaFormField>
 
-                <label className="grid gap-2">
-                  <span className={labelClass()}>Allocation Date</span>
-                  <input
+                <AixiaFormField>
+                  <AixiaFieldLabel label="Allocation Date" />
+                  <AixiaInputField
                     type="date"
                     value={form.allocationDate}
                     onChange={(event) => updateField("allocationDate", event.target.value)}
-                    className={inputClass()}
-                    disabled={isLoading || isSaving}
+                    disabled={actionLocked}
                   />
-                  <span className="text-xs leading-5 text-slate-500">
+                  <div className="aixia-helper-text">
                     The date Finance creates or approves this reserve.
-                  </span>
-                </label>
+                  </div>
+                </AixiaFormField>
 
-                <label className="grid gap-2">
-                  <span className={labelClass()}>Funding Period From</span>
-                  <input
+                <AixiaFormField>
+                  <AixiaFieldLabel label="Funding Period From" />
+                  <AixiaInputField
                     type="date"
                     value={form.fundingPeriodFrom}
-                    onChange={(event) => updateField("fundingPeriodFrom", event.target.value)}
-                    className={inputClass()}
-                    disabled={isLoading || isSaving}
+                    onChange={(event) =>
+                      updateField("fundingPeriodFrom", event.target.value)
+                    }
+                    disabled={actionLocked}
                   />
-                </label>
+                </AixiaFormField>
 
-                <label className="grid gap-2">
-                  <span className={labelClass()}>Funding Period To</span>
-                  <input
+                <AixiaFormField>
+                  <AixiaFieldLabel label="Funding Period To" />
+                  <AixiaInputField
                     type="date"
                     value={form.fundingPeriodTo}
                     onChange={(event) => updateField("fundingPeriodTo", event.target.value)}
-                    className={inputClass()}
-                    disabled={isLoading || isSaving}
+                    disabled={actionLocked}
                   />
-                </label>
+                </AixiaFormField>
 
-                <label className="grid gap-2">
-                  <span className={labelClass()}>Funding Currency</span>
-                  <select
+                <AixiaFormField>
+                  <AixiaFieldLabel label="Funding Currency" />
+                  <AixiaSelectField
                     value={selectedCurrency}
                     onChange={(event) => updateField("currencyCode", event.target.value)}
-                    className={inputClass()}
-                    disabled={isLoading || isSaving}
+                    disabled={actionLocked}
                   >
                     <option value="">Select currency</option>
                     {currencyOptions.map((currency) => (
                       <option key={currency.id} value={currency.currency_code}>
-                        {currency.currency_code} — {currency.currency_name}
+                        {getCurrencyOptionLabel(currency)}
                       </option>
                     ))}
-                  </select>
-                </label>
+                  </AixiaSelectField>
+                </AixiaFormField>
 
-                <label className="grid gap-2">
-                  <span className={labelClass()}>Funding Pool Amount</span>
-                  <input
+                <AixiaFormField>
+                  <AixiaFieldLabel label="Funding Pool Amount" />
+                  <AixiaInputField
                     value={form.fundingPoolAmount}
-                    onChange={(event) => updateField("fundingPoolAmount", event.target.value)}
+                    onChange={(event) =>
+                      updateField("fundingPoolAmount", event.target.value)
+                    }
                     inputMode="decimal"
                     placeholder="0.00"
-                    className={inputClass()}
-                    disabled={isLoading || isSaving}
+                    disabled={actionLocked}
                   />
-                  <span className="text-xs leading-5 text-slate-500">
+                  <div className="aixia-helper-text">
                     Total money reserved for this period.
-                  </span>
-                </label>
-
-                <div className="grid gap-2 md:col-span-2">
-                  <span className={labelClass()}>Pool Meaning</span>
-                  <div className="flex min-h-[44px] items-center rounded-2xl border border-emerald-400/15 bg-emerald-500/10 px-4 text-sm font-semibold text-emerald-100">
-                    Reserve only — no expense selection and no money distribution on this page
                   </div>
-                  <span className="text-xs leading-5 text-slate-500">
-                    This pool is used later by Expense Payments to reimburse or pay many verified
-                    expenses.
-                  </span>
-                </div>
+                </AixiaFormField>
 
-                <label className="grid gap-2 md:col-span-3">
-                  <span className={labelClass()}>Funding Notes</span>
-                  <textarea
+                <AixiaFormFullWidth>
+                  <AixiaValueBlock
+                    label="Pool Meaning"
+                    value="Reserve only — no expense selection and no money distribution on this page"
+                    detail="This pool is used later by Expense Payments to reimburse or pay many verified expenses."
+                  />
+                </AixiaFormFullWidth>
+
+                <AixiaFormFullWidth>
+                  <AixiaFieldLabel label="Funding Notes" />
+                  <AixiaTextareaField
                     value={form.notes}
                     onChange={(event) => updateField("notes", event.target.value)}
-                    className={textareaClass()}
                     placeholder="Internal funding notes, monthly context, approval reference, or reserve explanation"
-                    disabled={isLoading || isSaving}
+                    disabled={actionLocked}
                   />
-                </label>
-              </div>
-            </section>
+                </AixiaFormFullWidth>
+              </AixiaFormGrid>
+            </AixiaSection>
 
-            <section className="overflow-hidden rounded-[30px] border border-white/10 bg-white/[0.045] backdrop-blur-xl">
-              <div className="flex items-start gap-4 border-b border-white/10 px-5 py-4">
-                <div className="rounded-2xl border border-amber-400/15 bg-amber-500/10 p-3 text-amber-200">
-                  <UploadCloud className="h-4 w-4" />
-                </div>
-                <div>
-                  <div className="text-sm font-semibold uppercase tracking-[0.18em] text-slate-400">
-                    Funding Proof
-                  </div>
-                  <p className="mt-1 text-xs leading-5 text-slate-500">
-                    Upload proof that this money pool was approved, reserved, or transferred.
-                    Required before creating a confirmed funding pool.
-                  </p>
-                </div>
-              </div>
-
-              <div className="grid gap-4 p-5 lg:grid-cols-[minmax(0,1fr)_320px] lg:items-stretch">
-                <div className="rounded-[24px] border border-dashed border-white/15 bg-black/20 p-5">
-                  <input
-                    type="file"
-                    accept=".pdf,.png,.jpg,.jpeg,.webp,.doc,.docx,.xls,.xlsx"
-                    disabled={isLoading || isSaving}
-                    onChange={(event) => setFundingProofFile(event.target.files?.[0] ?? null)}
-                    className="block w-full text-sm text-slate-400 file:mr-4 file:rounded-full file:border-0 file:bg-violet-500/10 file:px-4 file:py-2 file:text-sm file:font-semibold file:text-violet-100 disabled:cursor-not-allowed disabled:opacity-50"
-                  />
-
-                  {fundingProofFile ? (
-                    <div className="mt-4 rounded-2xl border border-violet-400/15 bg-violet-500/10 px-4 py-3 text-sm text-violet-100">
-                      {fundingProofFile.name}
-                    </div>
-                  ) : (
-                    <div className="mt-4 rounded-2xl border border-amber-400/15 bg-amber-500/10 px-4 py-3 text-sm text-amber-100">
-                      Proof is optional for draft and required for Create Funding Pool.
-                    </div>
-                  )}
-                </div>
-
-                <div className="rounded-[24px] border border-white/10 bg-black/20 p-5">
-                  <div className="text-[11px] font-semibold uppercase tracking-[0.2em] text-slate-500">
-                    Document Purpose
-                  </div>
-                  <div className="mt-3 text-sm font-semibold leading-6 text-white">
-                    Proof of internal funding pool approval or reserve
-                  </div>
-                  <div className="mt-3 text-sm leading-6 text-slate-400">
-                    This can be a bank confirmation, internal approval, Finance allocation report,
-                    signed reserve document, or management approval.
-                  </div>
-                </div>
-              </div>
-            </section>
-          </div>
-
-          <aside className="sticky top-6 grid gap-6">
-            <section className="overflow-hidden rounded-[30px] border border-white/10 bg-white/[0.045] backdrop-blur-xl">
-              <div className="border-b border-white/10 px-5 py-4">
-                <div className="text-sm font-semibold uppercase tracking-[0.18em] text-slate-400">
-                  Funding Pool Summary
-                </div>
-                <p className="mt-1 text-xs leading-5 text-slate-500">
-                  Review the reserved money pool before saving.
-                </p>
-              </div>
-
-              <div className="grid gap-3 p-5">
-                <SummaryBlock
-                  title="Funding Company"
+            <AixiaSection
+              title="Funding Proof"
+              description="Upload proof that this money pool was approved, reserved, or transferred. Required before creating a confirmed funding pool."
+              icon={UploadCloud}
+            >
+              <AixiaDocumentUploadPanel
+                selectedFile={fundingProofFile}
+                attachments={[]}
+                required
+                disabled={actionLocked}
+                uploading={savingMode === "allocated"}
+                accept=".pdf,.png,.jpg,.jpeg,.webp,.doc,.docx,.xls,.xlsx"
+                dropTitle="Drop funding proof here"
+                dropDescription="Attach bank confirmation, internal approval, Finance allocation report, signed reserve document, or management approval."
+                uploadLabel="Create Funding Pool"
+                uploadingLabel="Creating Funding Pool..."
+                selectedFileLabel="Selected funding proof"
+                emptyTitle="No funding proof selected"
+                emptyDescription="Proof is optional for draft and required for Create Funding Pool."
+                requiredMessage="Funding proof is required before creating a confirmed funding pool."
+                onFileSelect={(file) => {
+                  setFundingProofFile(file);
+                  setPageError(null);
+                  setPageMessage(null);
+                }}
+                onRemoveSelectedFile={() => setFundingProofFile(null)}
+                onUpload={() => void saveFundingBatch("allocated")}
+              />
+            </AixiaSection>
+          </>
+        }
+        side={
+          <>
+            <AixiaSection
+              title="Funding Pool Summary"
+              description="Review the reserved money pool before saving."
+              icon={Sparkles}
+            >
+              <AixiaReviewGrid variant="cards">
+                <AixiaValueBlock
+                  label="Funding Company"
                   value={selectedCompanyName}
-                  subtitle="The company reserving money."
+                  detail="The company reserving money."
                 />
-                <SummaryBlock
-                  title="Bank Account"
+                <AixiaValueBlock
+                  label="Bank Account"
                   value={selectedBankLabel}
-                  subtitle="Optional funding account reference."
+                  detail="Optional funding account reference."
                 />
-                <SummaryBlock
-                  title="Funding Period"
+                <AixiaValueBlock
+                  label="Funding Period"
                   value={fundingPeriodLabel}
-                  subtitle="The expense period this pool should cover."
+                  detail="The expense period this pool should cover."
                 />
-                <SummaryBlock
-                  title="Funding Pool"
+                <AixiaValueBlock
+                  label="Funding Pool"
                   value={`${selectedCurrency} ${formatMoney(fundingPoolAmount)}`}
-                  subtitle="Total internal money reserved."
+                  detail="Total internal money reserved."
                 />
-                <SummaryBlock
-                  title="Proof Status"
-                  value={fundingProofFile ? "Attached" : "Not Attached"}
-                  subtitle="Required before Create Funding Pool."
+                <AixiaValueBlock
+                  label="Proof Status"
+                  value={proofStatusLabel}
+                  detail="Required before Create Funding Pool."
                 />
-              </div>
-            </section>
+              </AixiaReviewGrid>
+            </AixiaSection>
 
-            <section className="overflow-hidden rounded-[30px] border border-white/10 bg-white/[0.045] p-5 backdrop-blur-xl">
-              <div className="grid gap-3">
-                <button
+            <AixiaSection
+              title="Save Actions"
+              description="Create the funding pool as a draft or create and confirm it with proof."
+              icon={CheckCircle2}
+            >
+              <div className="aixia-stack">
+                <AixiaButton
                   type="button"
-                  disabled={isSaving || isLoading}
+                  variant="primary"
+                  disabled={actionLocked}
                   onClick={() => void saveFundingBatch("allocated")}
-                  className="inline-flex h-12 items-center justify-center gap-2 rounded-2xl border border-emerald-400/20 bg-emerald-500/10 px-5 text-sm font-semibold text-emerald-100 transition hover:bg-emerald-500/15 disabled:cursor-not-allowed disabled:opacity-50"
                 >
                   {savingMode === "allocated" ? (
                     <Loader2 className="h-4 w-4 animate-spin" />
                   ) : (
                     <CheckCircle2 className="h-4 w-4" />
                   )}
-                  {savingMode === "allocated" ? "Creating Funding Pool..." : "Create Funding Pool"}
-                </button>
+                  {savingMode === "allocated"
+                    ? "Creating Funding Pool..."
+                    : "Create Funding Pool"}
+                </AixiaButton>
 
-                <button
+                <AixiaButton
                   type="button"
-                  disabled={isSaving || isLoading}
+                  variant="secondary"
+                  disabled={actionLocked}
                   onClick={() => void saveFundingBatch("draft")}
-                  className="inline-flex h-12 items-center justify-center gap-2 rounded-2xl border border-white/10 bg-white/[0.05] px-5 text-sm font-semibold text-slate-300 transition hover:bg-white/[0.08] hover:text-white disabled:cursor-not-allowed disabled:opacity-50"
                 >
                   {savingMode === "draft" ? (
                     <Loader2 className="h-4 w-4 animate-spin" />
@@ -894,49 +877,68 @@ export default function FinanceExpenseFundingBatchNewPage() {
                     <Save className="h-4 w-4" />
                   )}
                   {savingMode === "draft" ? "Saving Draft..." : "Save Draft"}
-                </button>
+                </AixiaButton>
+
+                <AixiaAlert tone="info">
+                  This creates a funding pool only. Expense matching and payment
+                  distribution happen later from Expense Payments.
+                </AixiaAlert>
               </div>
+            </AixiaSection>
 
-              <div className="mt-4 rounded-[24px] border border-white/10 bg-black/20 p-4 text-xs leading-5 text-slate-500">
-                This creates a funding pool only. Expense matching and payment distribution happen
-                later from Expense Payments.
+            <AixiaSection
+              title="Operating Rules"
+              description="Funding pool creation follows the clean split between reserve and payment distribution."
+              icon={FileCheck2}
+            >
+              <div className="aixia-stack">
+                <AixiaActionCard
+                  label="Funding Pool"
+                  value="Period-based reserve"
+                  description="Reserve money from one company and optional bank account."
+                  icon={Coins}
+                  tone="cyan"
+                />
+                <AixiaActionCard
+                  label="Expense Payments"
+                  value="Distribution happens later"
+                  description="Actual distribution across verified expenses happens later on the Expense Payments page."
+                  icon={WalletCards}
+                  tone="violet"
+                />
+                <AixiaActionCard
+                  label="Control Rule"
+                  value="Proof required for confirmation"
+                  description="Draft can be saved without proof. Create Funding Pool requires proof."
+                  icon={ShieldCheck}
+                  tone="emerald"
+                />
+                <AixiaActionCard
+                  label="No Expense Selection"
+                  value="No matching on this page"
+                  description="This page does not select, match, or distribute money to individual expenses."
+                  icon={Building2}
+                  tone="gold"
+                />
+                <AixiaActionCard
+                  label="Funding Period"
+                  value="Metadata controlled"
+                  description="Funding Period From/To is stored in metadata for monthly or custom-period reserves."
+                  icon={CalendarDays}
+                  tone="neutral"
+                />
+                <AixiaActionCard
+                  label="Backend"
+                  value="RPC controlled"
+                  description="Uses funding batch creation, proof documentation, mark allocated RPC, and period metadata."
+                  icon={Banknote}
+                  tone="neutral"
+                />
               </div>
-            </section>
-
-            <InfoCard icon={Coins} title="Funding Pool">
-              Reserve a period-based money pool from one company and optional bank account.
-            </InfoCard>
-
-            <InfoCard icon={WalletCards} title="Expense Payments">
-              Actual distribution across verified expenses happens later on the Expense Payments
-              page.
-            </InfoCard>
-
-            <InfoCard icon={ShieldCheck} title="Control Rule">
-              Draft can be saved without proof. Create Funding Pool requires proof.
-            </InfoCard>
-
-            <InfoCard icon={Building2} title="No Expense Selection">
-              This page does not select, match, or distribute money to individual expenses.
-            </InfoCard>
-
-            <InfoCard icon={CalendarDays} title="Funding Period">
-              Funding Period From/To is stored in metadata for now so Finance can group monthly or
-              custom-period reserves.
-            </InfoCard>
-
-            <InfoCard icon={Banknote} title="Backend">
-              Uses funding batch creation, proof documentation, mark allocated RPC, and metadata for
-              the period.
-            </InfoCard>
-
-            <InfoCard icon={FileCheck2} title="Clean Split">
-              Funding Pool reserves money. Expense Payments distributes that money across verified
-              expenses.
-            </InfoCard>
-          </aside>
-        </div>
-      </div>
-    </div>
+            </AixiaSection>
+          </>
+        }
+      />
+    </AixiaPage>
   );
 }

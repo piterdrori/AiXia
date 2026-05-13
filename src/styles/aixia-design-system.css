@@ -5632,3 +5632,22 @@ button.aixia-action-card:disabled {
     margin-top: 0 !important;
   }
 }
+
+/* -------------------------------------------------------
+   GLOBAL AIXIA SMART DETAIL LAYOUT COMPACTION STANDARD
+   Compatibility source-of-truth marker for the guardrail.
+   This standard is enforced by the newer smart layout
+   max-expansion, vertical compaction, and strong vertical
+   compaction rules below/above in this shared CSS file.
+------------------------------------------------------- */
+
+@media (min-width: 1280px) {
+  .aixia-smart-layout[data-match-columns="false"] > .aixia-smart-side {
+    align-self: start;
+  }
+
+  .aixia-smart-layout[data-match-columns="false"] > .aixia-smart-side > .aixia-section,
+  .aixia-smart-layout[data-match-columns="false"] > .aixia-smart-side > .aixia-detail-section {
+    flex: 0 0 auto;
+  }
+}

@@ -43,6 +43,12 @@ import {
   AixiaTextareaField,
   AixiaValueBlock,
 } from "@/components/aixia";
+import {
+  getFinanceEmployeePrimaryName,
+  getFinanceEmployeeReferenceLabel,
+  getFinanceEmployeeSecondaryLabel,
+  type FinanceEmployeeIdentity,
+} from "@/lib/finance/employeeIdentity";
 import { supabase } from "@/lib/supabase";
 
 type CompanyRow = {
@@ -63,16 +69,6 @@ type EmployeeRefRow = {
     source_role?: string | null;
     source_status?: string | null;
   } | null;
-};
-
-type ProfileRow = {
-  user_id: string;
-  full_name: string | null;
-  display_name: string | null;
-  email: string | null;
-  company: string | null;
-  job_title: string | null;
-  member_type: string | null;
 };
 
 type CurrencyRow = {
@@ -236,7 +232,7 @@ type FormState = {
 type CachedOptionsPayload = {
   companies: CompanyRow[];
   employees: EmployeeRefRow[];
-  profiles: ProfileRow[];
+  employeeIdentities: FinanceEmployeeIdentity[];
   currencies: CurrencyRow[];
   cachedAt: number;
 };
@@ -430,7 +426,7 @@ const CARD_BRANDS: SelectOption[] = [
   { value: "other", label: "Other" },
 ];
 
-const OPTIONS_CACHE_KEY = "aixia.finance.expenses.new.options.v4";
+const OPTIONS_CACHE_KEY = "aixia.finance.expenses.new.options.v5";
 const OPTIONS_CACHE_TTL_MS = 1000 * 60 * 5;
 
 function buildCardId() {
@@ -853,30 +849,44 @@ function buildGeneratedExpenseIdentity(form: FormState) {
   };
 }
 
+function getEmployeeIdentity(
+  employee: EmployeeRefRow | null | undefined,
+  identityMap: Map<string, FinanceEmployeeIdentity>
+) {
+  if (!employee) return null;
+
+  return (
+    identityMap.get(employee.id) ||
+    (employee.user_id ? identityMap.get(employee.user_id) : null) ||
+    null
+  );
+}
+
 function formatEmployeeLabel(
   employee: EmployeeRefRow,
-  profileMap: Map<string, ProfileRow>
+  identityMap: Map<string, FinanceEmployeeIdentity>
 ) {
-  const profile = employee.user_id ? profileMap.get(employee.user_id) : null;
+  const identity = getEmployeeIdentity(employee, identityMap);
 
-  const employeeName =
-    profile?.full_name?.trim() ||
-    profile?.display_name?.trim() ||
-    profile?.email?.trim() ||
-    employee.code?.trim() ||
-    "Employee";
+  if (identity) {
+    const primary = getFinanceEmployeePrimaryName(identity);
+    const secondary = getFinanceEmployeeSecondaryLabel(identity);
+    const reference = getFinanceEmployeeReferenceLabel(identity);
 
-  const role =
-    profile?.job_title?.trim() ||
+    return [primary, secondary, reference ? `Ref: ${reference}` : ""]
+      .filter(Boolean)
+      .join(" • ");
+  }
+
+  const fallbackRole =
     employee.metadata?.job_title?.trim() ||
     employee.metadata?.source_role?.trim() ||
     employee.mark?.trim() ||
-    null;
+    "No role/company saved";
 
-  const company =
-    profile?.company?.trim() || employee.metadata?.company?.trim() || null;
-
-  return [employeeName, role, company].filter(Boolean).join(" • ");
+  return [fallbackRole, employee.code ? `Ref: ${employee.code}` : ""]
+    .filter(Boolean)
+    .join(" • ");
 }
 
 function normalizeLast4(value: string) {
@@ -924,7 +934,9 @@ export default function FinanceNewExpensePage() {
 
   const [companies, setCompanies] = useState<CompanyRow[]>([]);
   const [employees, setEmployees] = useState<EmployeeRefRow[]>([]);
-  const [profiles, setProfiles] = useState<ProfileRow[]>([]);
+  const [employeeIdentities, setEmployeeIdentities] = useState<
+    FinanceEmployeeIdentity[]
+  >([]);
   const [currencies, setCurrencies] = useState<CurrencyRow[]>([]);
   const [form, setForm] = useState<FormState>(initialFormState);
   const [documentationFile, setDocumentationFile] = useState<File | null>(null);
@@ -951,12 +963,26 @@ export default function FinanceNewExpensePage() {
     return employees.find((employee) => employee.id === form.employeeRefId) ?? null;
   }, [employees, form.employeeRefId]);
 
-  const profileMap = useMemo(() => {
-    return new Map(profiles.map((profile) => [profile.user_id, profile]));
-  }, [profiles]);
+  const employeeIdentityMap = useMemo(() => {
+    const entries: Array<[string, FinanceEmployeeIdentity]> = [];
+
+    employeeIdentities.forEach((identity) => {
+      const employeeRefId = identity.employee_ref_id || identity.id;
+      const userId = identity.user_id;
+
+      if (employeeRefId) entries.push([employeeRefId, identity]);
+      if (userId) entries.push([userId, identity]);
+    });
+
+    return new Map(entries);
+  }, [employeeIdentities]);
+
+  const selectedEmployeeIdentity = useMemo(() => {
+    return getEmployeeIdentity(selectedEmployee, employeeIdentityMap);
+  }, [employeeIdentityMap, selectedEmployee]);
 
   const selectedEmployeeLabel = selectedEmployee
-    ? formatEmployeeLabel(selectedEmployee, profileMap)
+    ? formatEmployeeLabel(selectedEmployee, employeeIdentityMap)
     : "";
 
   const documentationStatus = useMemo(() => {
@@ -1090,7 +1116,7 @@ export default function FinanceNewExpensePage() {
     (payload: Omit<CachedOptionsPayload, "cachedAt">) => {
       setCompanies(payload.companies);
       setEmployees(payload.employees);
-      setProfiles(payload.profiles);
+      setEmployeeIdentities(payload.employeeIdentities);
       setCurrencies(payload.currencies);
 
       setForm((current) => {
@@ -1126,38 +1152,38 @@ export default function FinanceNewExpensePage() {
       }
 
       try {
-        const [companiesResult, employeesResult, profilesResult, currenciesResult] =
-          await Promise.all([
-            supabase.from("finance_companies").select("id, name").order("name"),
-            supabase
-              .from("finance_employee_refs")
-              .select("id, user_id, code, status, mark, metadata")
-              .order("code"),
-            supabase
-              .from("profiles")
-              .select(
-                "user_id, full_name, display_name, email, company, job_title, member_type"
-              )
-              .order("full_name"),
-            supabase
-              .from("finance_currencies")
-              .select(
-                "id, currency_code, currency_name, currency_symbol, decimal_places, is_base_currency, status"
-              )
-              .eq("status", "active")
-              .order("is_base_currency", { ascending: false })
-              .order("currency_code"),
-          ]);
+        const [
+          companiesResult,
+          employeesResult,
+          employeeIdentitiesResult,
+          currenciesResult,
+        ] = await Promise.all([
+          supabase.from("finance_companies").select("id, name").order("name"),
+          supabase
+            .from("finance_employee_refs")
+            .select("id, user_id, code, status, mark, metadata")
+            .order("code"),
+          supabase.from("finance_employee_identity_v").select("*"),
+          supabase
+            .from("finance_currencies")
+            .select(
+              "id, currency_code, currency_name, currency_symbol, decimal_places, is_base_currency, status"
+            )
+            .eq("status", "active")
+            .order("is_base_currency", { ascending: false })
+            .order("currency_code"),
+        ]);
 
         if (companiesResult.error) throw companiesResult.error;
         if (employeesResult.error) throw employeesResult.error;
-        if (profilesResult.error) throw profilesResult.error;
+        if (employeeIdentitiesResult.error) throw employeeIdentitiesResult.error;
         if (currenciesResult.error) throw currenciesResult.error;
 
         const nextPayload = {
           companies: (companiesResult.data || []) as CompanyRow[],
           employees: (employeesResult.data || []) as EmployeeRefRow[],
-          profiles: (profilesResult.data || []) as ProfileRow[],
+          employeeIdentities: (employeeIdentitiesResult.data ||
+            []) as FinanceEmployeeIdentity[],
           currencies: (currenciesResult.data || []) as CurrencyRow[],
         };
 
@@ -1167,10 +1193,10 @@ export default function FinanceNewExpensePage() {
         console.error("Failed to load expense request options:", error);
 
         if (!hasUsableOptions) {
-          setFormError("Failed to load companies, employees, or currencies.");
+          setFormError("Failed to load companies, employee identities, or currencies.");
           setCompanies([]);
           setEmployees([]);
-          setProfiles([]);
+          setEmployeeIdentities([]);
           setCurrencies([]);
         }
       } finally {
@@ -2022,8 +2048,15 @@ export default function FinanceNewExpensePage() {
             : null,
           documentation_link: form.externalDocumentationLink.trim() || null,
           selected_company_name: selectedCompany?.name ?? null,
-          selected_employee_code: selectedEmployee?.code ?? null,
-          selected_employee_name: selectedEmployeeLabel || null,
+          selected_employee_code: selectedEmployeeIdentity
+            ? getFinanceEmployeeReferenceLabel(selectedEmployeeIdentity) || null
+            : selectedEmployee?.code ?? null,
+          selected_employee_name: selectedEmployeeIdentity
+            ? getFinanceEmployeePrimaryName(selectedEmployeeIdentity)
+            : selectedEmployeeLabel || null,
+          selected_employee_secondary: selectedEmployeeIdentity
+            ? getFinanceEmployeeSecondaryLabel(selectedEmployeeIdentity)
+            : null,
           intake_context: "expenses_tab_public_request",
         };
 
@@ -2153,6 +2186,7 @@ export default function FinanceNewExpensePage() {
       selectedCompany?.name,
       selectedCurrency,
       selectedEmployee?.code,
+      selectedEmployeeIdentity,
       selectedEmployeeLabel,
       uploadDocumentation,
       validateForm,
@@ -3349,7 +3383,7 @@ export default function FinanceNewExpensePage() {
     return (
       <AixiaLoadingState
         title="Loading expense request options"
-        description="Companies, employees, profiles, and currency master data are being loaded."
+        description="Companies, employee identity records, and currency master data are being loaded."
       />
     );
   }
@@ -3555,7 +3589,7 @@ export default function FinanceNewExpensePage() {
                       </option>
                       {employees.map((employee) => (
                         <option key={employee.id} value={employee.id}>
-                          {formatEmployeeLabel(employee, profileMap)}
+                          {formatEmployeeLabel(employee, employeeIdentityMap)}
                         </option>
                       ))}
                     </AixiaSelectField>

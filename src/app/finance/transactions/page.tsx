@@ -30,7 +30,6 @@ import {
   AixiaNavigationStatBlock,
   AixiaPage,
   AixiaReviewGrid,
-  AixiaSection,
   AixiaSideList,
   AixiaSideListRow,
   AixiaSmartLayout,
@@ -1347,11 +1346,14 @@ export default function FinanceTransactionsPage() {
             )}
 
             {accessFlags.canMonitorAnyCompanyFinance ? (
-              <AixiaSection
-                title="Transaction Readiness"
-                description="Company-level monitoring appears only for enabled Access Approval sections."
-                icon={Receipt}
-              >
+              <div className="aixia-stack">
+                <AixiaNavigationInfoPanel
+                  tone="cyan"
+                  icon={Receipt}
+                  title="Transaction Readiness"
+                  description="Company-level monitoring appears only for enabled Access Approval sections."
+                />
+
                 <AixiaReviewGrid variant="cards">
                   {accessFlags.canMonitorIncomingMoney ? (
                     <AixiaValueBlock
@@ -1377,21 +1379,21 @@ export default function FinanceTransactionsPage() {
                     />
                   ) : null}
                 </AixiaReviewGrid>
-              </AixiaSection>
+              </div>
             ) : null}
           </>
         }
         side={
           <>
             {accessFlags.canMonitorAnyCompanyFinance ? (
-              <AixiaSection
-                title="Control Signals"
-                description="Visible only for company-level monitoring permissions."
-                icon={BadgeAlert}
-                smartScroll
-                visibleCards={8}
-                itemCount={3}
-              >
+              <div className="aixia-stack">
+                <AixiaNavigationInfoPanel
+                  tone="amber"
+                  icon={BadgeAlert}
+                  title="Control Signals"
+                  description="Visible only for company-level monitoring permissions."
+                />
+
                 <AixiaReviewGrid variant="cards">
                   {accessFlags.canMonitorIncomingMoney ? (
                     <AixiaValueBlock
@@ -1417,18 +1419,18 @@ export default function FinanceTransactionsPage() {
                     />
                   ) : null}
                 </AixiaReviewGrid>
-              </AixiaSection>
+              </div>
             ) : null}
 
             {accessFlags.canMonitorAnyCompanyFinance ? (
-              <AixiaSection
-                title="Recent Activity"
-                description="Latest movement across permitted company transaction objects."
-                icon={Receipt}
-                smartScroll
-                visibleCards={8}
-                itemCount={recentActivity.length}
-              >
+              <div className="aixia-stack">
+                <AixiaNavigationInfoPanel
+                  tone="cyan"
+                  icon={Receipt}
+                  title="Recent Activity"
+                  description="Latest movement across permitted company transaction objects."
+                />
+
                 {recentActivity.length === 0 ? (
                   <AixiaEmptyState
                     icon={Receipt}
@@ -1452,15 +1454,18 @@ export default function FinanceTransactionsPage() {
                     ))}
                   </AixiaSideList>
                 )}
-              </AixiaSection>
+              </div>
             ) : null}
 
             {!accessFlags.canMonitorAnyCompanyFinance ? (
-              <AixiaSection
-                title="Personal Access"
-                description="Default employee finance access."
-                icon={UserRound}
-              >
+              <div className="aixia-stack">
+                <AixiaNavigationInfoPanel
+                  tone="cyan"
+                  icon={UserRound}
+                  title="Personal Access"
+                  description="Default employee finance access."
+                />
+
                 <AixiaReviewGrid variant="cards">
                   <AixiaNavigationStatBlock
                     label="Own Expenses"
@@ -1475,7 +1480,7 @@ export default function FinanceTransactionsPage() {
                     tone="violet"
                   />
                 </AixiaReviewGrid>
-              </AixiaSection>
+              </div>
             ) : null}
           </>
         }

@@ -3,6 +3,7 @@ import { useNavigate, useParams } from "react-router-dom";
 import {
   AlertTriangle,
   ArrowRight,
+  Archive,
   Building2,
   CalendarClock,
   CheckCircle2,
@@ -12,13 +13,51 @@ import {
   Landmark,
   Loader2,
   Receipt,
+  RotateCcw,
+  Search,
   ShieldCheck,
   ShoppingCart,
+  Trash2,
   WalletCards,
   Wrench,
   XCircle,
+  type LucideIcon,
 } from "lucide-react";
 
+import {
+  AixiaAccessRule,
+  AixiaAlert,
+  AixiaArchiveManagerModal,
+  AixiaButton,
+  AixiaChildAllocationRegistry,
+  AixiaEmployeeIdentityCell,
+  AixiaEmptyState,
+  AixiaFieldLabel,
+  AixiaFormField,
+  AixiaHero,
+  AixiaLoadingState,
+  AixiaMetricCard,
+  AixiaMetricGrid,
+  AixiaPage,
+  AixiaRegistryToolbar,
+  AixiaReviewGrid,
+  AixiaSection,
+  AixiaSortableHeader,
+  AixiaStatusBadge,
+  AixiaTableActionsCell,
+  AixiaTableBadgeCell,
+  AixiaTableDateCell,
+  AixiaTableShell,
+  AixiaTableTextCell,
+  AixiaTextareaField,
+  AixiaValueBlock,
+} from "@/components/aixia";
+import {
+  getFinanceEmployeePrimaryName,
+  getFinanceEmployeeReferenceLabel,
+  getFinanceEmployeeSecondaryLabel,
+  type FinanceEmployeeIdentity,
+} from "@/lib/finance/employeeIdentity";
 import { supabase } from "@/lib/supabase";
 
 type ExpenseRow = {
@@ -94,16 +133,6 @@ type EmployeeRefRow = {
   } | null;
 };
 
-type ProfileRow = {
-  user_id: string;
-  full_name: string | null;
-  display_name: string | null;
-  email: string | null;
-  company: string | null;
-  job_title: string | null;
-  member_type: string | null;
-};
-
 type AllocationRow = {
   id: string;
   payment_made_id: string;
@@ -120,7 +149,10 @@ type AllocationRow = {
   recipient_confirmation_status: string | null;
   recipient_confirmation_notes: string | null;
   recipient_dispute_reason: string | null;
+  lifecycle_status: string | null;
+  metadata: Record<string, unknown> | null;
   created_at: string;
+  updated_at: string;
 };
 
 type PaymentMadeRow = {
@@ -134,6 +166,7 @@ type PaymentMadeRow = {
   paid_from_company_id: string | null;
   paid_from_bank_account_id: string | null;
   created_at: string;
+  updated_at: string;
 };
 
 type FundingBatchRow = {
@@ -146,6 +179,8 @@ type FundingBatchRow = {
   allocated_amount: number | string | null;
   status: string;
   documentation_status: string | null;
+  created_at: string;
+  updated_at: string;
 };
 
 type BankAccountRow = {
@@ -188,6 +223,17 @@ type AttachmentWithFile = AttachmentRow & {
   fileUpload: FileUploadRow | null;
 };
 
+type EnrichedAllocation = AllocationRow & {
+  payment: PaymentMadeRow | null;
+  fundingBatch: FundingBatchRow | null;
+  fundingCompanyName: string;
+  bankLabel: string;
+  recipientIdentity: FinanceEmployeeIdentity | null;
+  recipientPrimary: string;
+  recipientSecondary: string;
+  recipientReference: string;
+};
+
 type ActionKey =
   | "approve"
   | "more_info"
@@ -198,59 +244,27 @@ type ActionKey =
   | "online_issue"
   | "online_cancelled";
 
+type AllocationLifecycleAction = "archive" | "delete" | "restore" | "hard_delete";
+type AllocationArchiveTab = "archived" | "deleted";
+type AllocationSortDirection = "asc" | "desc";
+type AllocationSortKey =
+  | "payment"
+  | "funding_company"
+  | "recipient"
+  | "amount"
+  | "recipient_status"
+  | "lifecycle"
+  | "updated_at";
+
 type DetailItem = {
   label: string;
   value: ReactNode;
   detail?: ReactNode;
 };
 
-const statusToneMap: Record<
-  string,
-  "cyan" | "emerald" | "amber" | "rose" | "violet" | "slate"
-> = {
-  draft: "slate",
-  submitted: "cyan",
-  requested: "cyan",
-  approved: "emerald",
-  rejected: "rose",
-  approved_to_spend: "emerald",
-  rejected_before_spend: "rose",
-  expense_made: "amber",
-  documentation_submitted: "cyan",
-  documentation_issue: "rose",
-  verified_for_payment: "emerald",
-  missing: "rose",
-  uploaded: "cyan",
-  linked: "cyan",
-  files_and_links: "cyan",
-  verified: "emerald",
-  issue_found: "rose",
-  pending_review: "amber",
-  approved_for_payment: "emerald",
-  needs_correction: "amber",
-  not_allocated: "slate",
-  partially_allocated: "amber",
-  allocated: "emerald",
-  allocation_cancelled: "rose",
-  not_covered: "slate",
-  partially_covered: "amber",
-  covered: "emerald",
-  not_paid_yet: "slate",
-  pending_confirmation: "amber",
-  received_confirmed: "emerald",
-  not_received: "rose",
-  disputed: "rose",
-  admin_closed: "violet",
-  not_applicable: "slate",
-  not_confirmed: "amber",
-  confirmed: "emerald",
-  cancelled_refunded: "rose",
-  archived: "amber",
-  deleted: "rose",
-};
-
 function toNumber(value: number | string | null | undefined) {
-  return Number(value ?? 0);
+  const parsed = Number(value ?? 0);
+  return Number.isFinite(parsed) ? parsed : 0;
 }
 
 function formatMoney(value: number | string | null | undefined) {
@@ -316,181 +330,17 @@ function getMetadataBoolean(value: unknown) {
   return typeof value === "boolean" ? value : false;
 }
 
-function getStatusToneClasses(value: string | null | undefined) {
-  const tone = statusToneMap[value ?? ""] ?? "slate";
-
-  switch (tone) {
-    case "emerald":
-      return "border-emerald-400/20 bg-emerald-500/10 text-emerald-200";
-    case "amber":
-      return "border-amber-400/20 bg-amber-500/10 text-amber-200";
-    case "rose":
-      return "border-rose-400/20 bg-rose-500/10 text-rose-200";
-    case "violet":
-      return "border-violet-400/20 bg-violet-500/10 text-violet-200";
-    case "cyan":
-      return "border-cyan-400/20 bg-cyan-500/10 text-cyan-200";
-    case "slate":
-    default:
-      return "border-white/10 bg-white/[0.06] text-slate-300";
-  }
+function isActiveAllocation(allocation: AllocationRow) {
+  const lifecycle = allocation.lifecycle_status || "active";
+  return lifecycle !== "archived" && lifecycle !== "deleted";
 }
 
-function StatusBadge({ value }: { value: string | null | undefined }) {
-  return (
-    <span
-      className={`inline-flex max-w-full items-center rounded-full border px-3 py-1 text-[11px] font-semibold uppercase tracking-[0.14em] ${getStatusToneClasses(
-        value
-      )}`}
-    >
-      <span className="truncate">{formatLabel(value)}</span>
-    </span>
-  );
+function isArchivedAllocation(allocation: AllocationRow) {
+  return allocation.lifecycle_status === "archived";
 }
 
-function ValueBlock({
-  label,
-  value,
-  detail,
-}: {
-  label: string;
-  value: ReactNode;
-  detail?: ReactNode;
-}) {
-  return (
-    <div className="rounded-[24px] border border-white/10 bg-black/20 p-4">
-      <div className="text-[11px] font-semibold uppercase tracking-[0.2em] text-slate-500">
-        {label}
-      </div>
-      <div className="mt-2 text-sm font-semibold leading-6 text-white">{value || "—"}</div>
-      {detail ? <div className="mt-2 text-xs leading-5 text-slate-500">{detail}</div> : null}
-    </div>
-  );
-}
-
-function SectionCard({
-  title,
-  description,
-  icon: Icon,
-  children,
-}: {
-  title: string;
-  description: string;
-  icon: typeof Receipt;
-  children: ReactNode;
-}) {
-  return (
-    <section className="overflow-hidden rounded-[30px] border border-white/10 bg-white/[0.045] backdrop-blur-xl">
-      <div className="flex items-start gap-4 border-b border-white/10 px-5 py-4">
-        <div className="rounded-2xl border border-cyan-400/15 bg-cyan-500/10 p-3 text-cyan-200">
-          <Icon className="h-4 w-4" />
-        </div>
-        <div>
-          <div className="text-sm font-semibold uppercase tracking-[0.18em] text-slate-400">
-            {title}
-          </div>
-          <p className="mt-1 text-xs leading-5 text-slate-500">{description}</p>
-        </div>
-      </div>
-      <div className="p-5">{children}</div>
-    </section>
-  );
-}
-
-function ActionButton({
-  label,
-  icon: Icon,
-  tone,
-  disabled,
-  isRunning,
-  onClick,
-}: {
-  label: string;
-  icon: typeof CheckCircle2;
-  tone: "cyan" | "emerald" | "amber" | "rose" | "violet" | "slate";
-  disabled?: boolean;
-  isRunning?: boolean;
-  onClick: () => void;
-}) {
-  const toneClass = {
-    cyan: "border-cyan-400/20 bg-cyan-500/10 text-cyan-100 hover:bg-cyan-500/15",
-    emerald:
-      "border-emerald-400/20 bg-emerald-500/10 text-emerald-100 hover:bg-emerald-500/15",
-    amber:
-      "border-amber-400/20 bg-amber-500/10 text-amber-100 hover:bg-amber-500/15",
-    rose: "border-rose-400/20 bg-rose-500/10 text-rose-100 hover:bg-rose-500/15",
-    violet:
-      "border-violet-400/20 bg-violet-500/10 text-violet-100 hover:bg-violet-500/15",
-    slate: "border-white/10 bg-white/[0.05] text-slate-300 hover:bg-white/[0.08]",
-  }[tone];
-
-  return (
-    <button
-      type="button"
-      disabled={disabled || isRunning}
-      onClick={onClick}
-      className={`inline-flex h-11 items-center justify-center gap-2 rounded-2xl border px-4 text-sm font-semibold transition disabled:cursor-not-allowed disabled:opacity-50 ${toneClass}`}
-    >
-      {isRunning ? (
-        <Loader2 className="h-4 w-4 shrink-0 animate-spin" />
-      ) : (
-        <Icon className="h-4 w-4 shrink-0" />
-      )}
-      {isRunning ? "Processing..." : label}
-    </button>
-  );
-}
-
-function TextareaField({
-  label,
-  value,
-  onChange,
-  placeholder,
-}: {
-  label: string;
-  value: string;
-  onChange: (value: string) => void;
-  placeholder: string;
-}) {
-  return (
-    <label className="grid gap-2">
-      <span className="text-sm font-medium text-slate-300">{label}</span>
-      <textarea
-        value={value}
-        onChange={(event) => onChange(event.target.value)}
-        className="min-h-[112px] w-full rounded-2xl border border-white/10 bg-black/20 px-4 py-3 text-sm text-white outline-none transition placeholder:text-slate-600 focus:border-cyan-400/30 focus:bg-black/30"
-        placeholder={placeholder}
-      />
-    </label>
-  );
-}
-
-function getEmployeeLabel(
-  employee: EmployeeRefRow | null | undefined,
-  profileMap?: Map<string, ProfileRow>
-) {
-  if (!employee) return "—";
-
-  const profile = employee.user_id && profileMap ? profileMap.get(employee.user_id) : null;
-
-  const employeeName =
-    profile?.full_name?.trim() ||
-    profile?.display_name?.trim() ||
-    profile?.email?.trim() ||
-    employee.metadata?.member_type?.trim() ||
-    employee.code?.trim() ||
-    "Employee";
-
-  const role =
-    profile?.job_title?.trim() ||
-    employee.metadata?.job_title?.trim() ||
-    employee.metadata?.source_role?.trim() ||
-    employee.mark?.trim() ||
-    null;
-
-  const company = profile?.company?.trim() || employee.metadata?.company?.trim() || null;
-
-  return [employeeName, role, company].filter(Boolean).join(" • ");
+function isDeletedAllocation(allocation: AllocationRow) {
+  return allocation.lifecycle_status === "deleted";
 }
 
 function getBankLabel(bank: BankAccountRow | null | undefined) {
@@ -505,16 +355,47 @@ function getBankLabel(bank: BankAccountRow | null | undefined) {
     .join(" • ");
 }
 
-function getExpenseMadeByLabel(
+function getEmployeeIdentity(
+  employee: EmployeeRefRow | null | undefined,
+  identityMap: Map<string, FinanceEmployeeIdentity>
+) {
+  if (!employee) return null;
+
+  return (
+    identityMap.get(employee.id) ||
+    (employee.user_id ? identityMap.get(employee.user_id) : null) ||
+    null
+  );
+}
+
+function getEmployeeIdentityByRef(
+  employeeRefId: string | null | undefined,
+  employeeMap: Map<string, EmployeeRefRow>,
+  identityMap: Map<string, FinanceEmployeeIdentity>
+) {
+  if (!employeeRefId) return null;
+
+  return getEmployeeIdentity(employeeMap.get(employeeRefId), identityMap) || null;
+}
+
+function getExpenseMadeByPrimaryLabel(
   expense: ExpenseRow,
   employee: EmployeeRefRow | null,
-  profileMap: Map<string, ProfileRow>
+  identityMap: Map<string, FinanceEmployeeIdentity>
 ) {
-  if (expense.expense_made_by_type === "employee") return getEmployeeLabel(employee, profileMap);
+  if (expense.expense_made_by_type === "employee") {
+    const identity = getEmployeeIdentity(employee, identityMap);
+    return identity
+      ? getFinanceEmployeePrimaryName(identity, expense.responsible_person_name)
+      : "Unresolved employee";
+  }
+
   if (expense.expense_made_by_type === "owner_management") {
     return expense.responsible_person_name || "Owner / Management";
   }
+
   if (expense.expense_made_by_type === "company_direct") return "Company Direct";
+
   if (expense.expense_made_by_type === "other") {
     return expense.other_made_by_explanation || "Other";
   }
@@ -522,34 +403,54 @@ function getExpenseMadeByLabel(
   return "—";
 }
 
-function DetailGrid({ items }: { items: DetailItem[] }) {
-  const visibleItems = items.filter((item) => {
-    if (item.value === null || item.value === undefined) return false;
-    if (typeof item.value === "string" && !item.value.trim()) return false;
-    return true;
-  });
-
-  if (visibleItems.length === 0) {
-    return (
-      <div className="rounded-[24px] border border-dashed border-white/10 bg-black/20 px-6 py-10 text-center text-sm text-slate-500">
-        No additional details saved for this section.
-      </div>
-    );
+function getExpenseMadeBySecondaryLabel(
+  expense: ExpenseRow,
+  employee: EmployeeRefRow | null,
+  identityMap: Map<string, FinanceEmployeeIdentity>
+) {
+  if (expense.expense_made_by_type === "employee") {
+    const identity = getEmployeeIdentity(employee, identityMap);
+    return identity ? getFinanceEmployeeSecondaryLabel(identity) : "No role/company saved";
   }
 
-  return (
-    <div className="grid gap-4 md:grid-cols-2">
-      {visibleItems.map((item) => (
-        <ValueBlock key={item.label} label={item.label} value={item.value} detail={item.detail} />
-      ))}
-    </div>
-  );
+  return formatLabel(expense.expense_made_by_type);
+}
+
+function getExpenseMadeByReferenceLabel(
+  employee: EmployeeRefRow | null,
+  identityMap: Map<string, FinanceEmployeeIdentity>
+) {
+  const identity = getEmployeeIdentity(employee, identityMap);
+  return identity ? getFinanceEmployeeReferenceLabel(identity) : employee?.code || "";
+}
+
+function getAllocationSortValue(
+  allocation: EnrichedAllocation,
+  sortKey: AllocationSortKey
+) {
+  switch (sortKey) {
+    case "payment":
+      return allocation.payment?.reference_number || allocation.payment_made_id;
+    case "funding_company":
+      return allocation.fundingCompanyName;
+    case "recipient":
+      return `${allocation.recipientPrimary} ${allocation.recipientSecondary} ${allocation.recipientReference}`;
+    case "amount":
+      return toNumber(allocation.converted_amount || allocation.allocated_amount);
+    case "recipient_status":
+      return allocation.recipient_confirmation_status || "";
+    case "lifecycle":
+      return allocation.lifecycle_status || "active";
+    case "updated_at":
+    default:
+      return allocation.updated_at || allocation.created_at || "";
+  }
 }
 
 function buildExpenseTypeDetails(expense: ExpenseRow): {
   title: string;
   description: string;
-  icon: typeof Receipt;
+  icon: LucideIcon;
   items: DetailItem[];
 } {
   const metadata = expense.metadata || {};
@@ -579,18 +480,9 @@ function buildExpenseTypeDetails(expense: ExpenseRow): {
       description: "Office support context from the expense request.",
       icon: Building2,
       items: [
-        {
-          label: "Supplier / Shop Type",
-          value: getMetadataString(officeSupport.supplier_type_label),
-        },
-        {
-          label: "Office / Location",
-          value: getMetadataString(officeSupport.location_type_label),
-        },
-        {
-          label: "Purchase Purpose",
-          value: getMetadataString(officeSupport.purchase_purpose),
-        },
+        { label: "Supplier / Shop Type", value: getMetadataString(officeSupport.supplier_type_label) },
+        { label: "Office / Location", value: getMetadataString(officeSupport.location_type_label) },
+        { label: "Purchase Purpose", value: getMetadataString(officeSupport.purchase_purpose) },
       ],
     };
   }
@@ -601,26 +493,11 @@ function buildExpenseTypeDetails(expense: ExpenseRow): {
       description: "Utility provider, bill period, and account reference.",
       icon: Receipt,
       items: [
-        {
-          label: "Utility Provider",
-          value: getMetadataString(utilities.provider_name),
-        },
-        {
-          label: "Utility Type",
-          value: getMetadataString(utilities.utility_type_label),
-        },
-        {
-          label: "Bill Period From",
-          value: formatDate(getMetadataString(utilities.period_from)),
-        },
-        {
-          label: "Bill Period To",
-          value: formatDate(getMetadataString(utilities.period_to)),
-        },
-        {
-          label: "Account / Contract Number",
-          value: getMetadataString(utilities.account_reference),
-        },
+        { label: "Utility Provider", value: getMetadataString(utilities.provider_name) },
+        { label: "Utility Type", value: getMetadataString(utilities.utility_type_label) },
+        { label: "Bill Period From", value: formatDate(getMetadataString(utilities.period_from)) },
+        { label: "Bill Period To", value: formatDate(getMetadataString(utilities.period_to)) },
+        { label: "Account / Contract Number", value: getMetadataString(utilities.account_reference) },
       ],
     };
   }
@@ -635,41 +512,17 @@ function buildExpenseTypeDetails(expense: ExpenseRow): {
           label: "Provider / Service",
           value: getMetadataString(subscription.provider_name) || expense.expense_source_name || "—",
         },
-        {
-          label: "Billing Frequency",
-          value: getMetadataString(subscription.billing_frequency_label),
-        },
-        {
-          label: "Amount Basis",
-          value: getMetadataString(subscription.amount_basis_label),
-        },
-        {
-          label: "Account / Contract Reference",
-          value: getMetadataString(subscription.account_reference),
-        },
-        {
-          label: "Subscription Start",
-          value: formatDate(getMetadataString(subscription.start_date)),
-        },
+        { label: "Billing Frequency", value: getMetadataString(subscription.billing_frequency_label) },
+        { label: "Amount Basis", value: getMetadataString(subscription.amount_basis_label) },
+        { label: "Account / Contract Reference", value: getMetadataString(subscription.account_reference) },
+        { label: "Subscription Start", value: formatDate(getMetadataString(subscription.start_date)) },
         {
           label: "End / Renewal Date",
-          value: formatDate(
-            getMetadataString(subscription.renewal_date) ||
-              getMetadataString(subscription.end_date)
-          ),
+          value: formatDate(getMetadataString(subscription.renewal_date) || getMetadataString(subscription.end_date)),
         },
-        {
-          label: "Auto Create Future Expenses",
-          value: getMetadataBoolean(subscription.auto_create_future_expenses) ? "Yes" : "No",
-        },
-        {
-          label: "Renewal Reminder",
-          value: getMetadataBoolean(subscription.renewal_reminder) ? "Yes" : "No",
-        },
-        {
-          label: "Payment Method",
-          value: getMetadataString(subscription.payment_method_label),
-        },
+        { label: "Auto Create Future Expenses", value: getMetadataBoolean(subscription.auto_create_future_expenses) ? "Yes" : "No" },
+        { label: "Renewal Reminder", value: getMetadataBoolean(subscription.renewal_reminder) ? "Yes" : "No" },
+        { label: "Payment Method", value: getMetadataString(subscription.payment_method_label) },
         {
           label: "Masked Cards",
           value:
@@ -691,10 +544,7 @@ function buildExpenseTypeDetails(expense: ExpenseRow): {
               : "No card saved",
           detail: "Full card numbers are not stored on this page.",
         },
-        {
-          label: "Admin Notes",
-          value: getMetadataString(subscription.admin_notes),
-        },
+        { label: "Admin Notes", value: getMetadataString(subscription.admin_notes) },
       ],
     };
   }
@@ -712,35 +562,19 @@ function buildExpenseTypeDetails(expense: ExpenseRow): {
             getMetadataString(onlineShopping.platform) ||
             getMetadataString(onlineShopping.platform_key),
         },
-        {
-          label: "Order Number",
-          value: expense.online_order_number || getMetadataString(onlineShopping.order_number),
-        },
-        {
-          label: "Order Date",
-          value: formatDate(
-            expense.online_order_date || getMetadataString(onlineShopping.order_date)
-          ),
-        },
+        { label: "Order Number", value: expense.online_order_number || getMetadataString(onlineShopping.order_number) },
+        { label: "Order Date", value: formatDate(expense.online_order_date || getMetadataString(onlineShopping.order_date)) },
         {
           label: "Order URL",
-          value:
-            expense.online_order_url || getMetadataString(onlineShopping.order_url) ? (
-              <span className="break-all text-cyan-200">
-                {expense.online_order_url || getMetadataString(onlineShopping.order_url)}
-              </span>
-            ) : (
-              ""
-            ),
+          value: expense.online_order_url || getMetadataString(onlineShopping.order_url) || "",
         },
         {
           label: "Tracking Number",
-          value:
-            expense.online_tracking_number || getMetadataString(onlineShopping.tracking_number),
+          value: expense.online_tracking_number || getMetadataString(onlineShopping.tracking_number),
         },
         {
           label: "Online Confirmation",
-          value: <StatusBadge value={expense.online_confirmation_status} />,
+          value: <AixiaStatusBadge value={expense.online_confirmation_status} />,
           detail: expense.online_confirmation_notes || undefined,
         },
       ],
@@ -753,30 +587,12 @@ function buildExpenseTypeDetails(expense: ExpenseRow): {
       description: "Travel type, route, date, business reason, and related context.",
       icon: CalendarClock,
       items: [
-        {
-          label: "Travel Type",
-          value: getMetadataString(travel.travel_type_label),
-        },
-        {
-          label: "From",
-          value: getMetadataString(travel.from),
-        },
-        {
-          label: "To",
-          value: getMetadataString(travel.to),
-        },
-        {
-          label: "Travel Date",
-          value: formatDate(getMetadataString(travel.travel_date) || expense.expense_date),
-        },
-        {
-          label: "Related Project / Client",
-          value: getMetadataString(travel.related_project),
-        },
-        {
-          label: "Business Reason",
-          value: getMetadataString(travel.reason),
-        },
+        { label: "Travel Type", value: getMetadataString(travel.travel_type_label) },
+        { label: "From", value: getMetadataString(travel.from) },
+        { label: "To", value: getMetadataString(travel.to) },
+        { label: "Travel Date", value: formatDate(getMetadataString(travel.travel_date) || expense.expense_date) },
+        { label: "Related Project / Client", value: getMetadataString(travel.related_project) },
+        { label: "Business Reason", value: getMetadataString(travel.reason) },
       ],
     };
   }
@@ -787,26 +603,11 @@ function buildExpenseTypeDetails(expense: ExpenseRow): {
       description: "Restaurant/vendor, meal type, attendees, and business purpose.",
       icon: Receipt,
       items: [
-        {
-          label: "Restaurant / Vendor",
-          value: getMetadataString(meals.vendor_name),
-        },
-        {
-          label: "Meal Type",
-          value: getMetadataString(meals.meal_type_label),
-        },
-        {
-          label: "Meal Date",
-          value: formatDate(getMetadataString(meals.meal_date) || expense.expense_date),
-        },
-        {
-          label: "Attendees",
-          value: getMetadataString(meals.attendees),
-        },
-        {
-          label: "Business Purpose",
-          value: getMetadataString(meals.business_purpose),
-        },
+        { label: "Restaurant / Vendor", value: getMetadataString(meals.vendor_name) },
+        { label: "Meal Type", value: getMetadataString(meals.meal_type_label) },
+        { label: "Meal Date", value: formatDate(getMetadataString(meals.meal_date) || expense.expense_date) },
+        { label: "Attendees", value: getMetadataString(meals.attendees) },
+        { label: "Business Purpose", value: getMetadataString(meals.business_purpose) },
       ],
     };
   }
@@ -817,30 +618,12 @@ function buildExpenseTypeDetails(expense: ExpenseRow): {
       description: "Bank fee type, reference, period, and bank context.",
       icon: Landmark,
       items: [
-        {
-          label: "Bank Name",
-          value: getMetadataString(bankCharges.bank_name),
-        },
-        {
-          label: "Fee Type",
-          value: getMetadataString(bankCharges.fee_type_label),
-        },
-        {
-          label: "Account Reference",
-          value: getMetadataString(bankCharges.account_reference),
-        },
-        {
-          label: "Transaction Reference",
-          value: getMetadataString(bankCharges.transaction_reference),
-        },
-        {
-          label: "Fee Period From",
-          value: formatDate(getMetadataString(bankCharges.fee_period_from)),
-        },
-        {
-          label: "Fee Period To",
-          value: formatDate(getMetadataString(bankCharges.fee_period_to)),
-        },
+        { label: "Bank Name", value: getMetadataString(bankCharges.bank_name) },
+        { label: "Fee Type", value: getMetadataString(bankCharges.fee_type_label) },
+        { label: "Account Reference", value: getMetadataString(bankCharges.account_reference) },
+        { label: "Transaction Reference", value: getMetadataString(bankCharges.transaction_reference) },
+        { label: "Fee Period From", value: formatDate(getMetadataString(bankCharges.fee_period_from)) },
+        { label: "Fee Period To", value: formatDate(getMetadataString(bankCharges.fee_period_to)) },
       ],
     };
   }
@@ -851,26 +634,11 @@ function buildExpenseTypeDetails(expense: ExpenseRow): {
       description: "Service provider, service period, and matter reference.",
       icon: Receipt,
       items: [
-        {
-          label: "Service Provider",
-          value: getMetadataString(legalAccounting.provider_name),
-        },
-        {
-          label: "Service Type",
-          value: getMetadataString(legalAccounting.service_type_label),
-        },
-        {
-          label: "Service Period From",
-          value: formatDate(getMetadataString(legalAccounting.period_from)),
-        },
-        {
-          label: "Service Period To",
-          value: formatDate(getMetadataString(legalAccounting.period_to)),
-        },
-        {
-          label: "Matter / Case / Project Reference",
-          value: getMetadataString(legalAccounting.matter_reference),
-        },
+        { label: "Service Provider", value: getMetadataString(legalAccounting.provider_name) },
+        { label: "Service Type", value: getMetadataString(legalAccounting.service_type_label) },
+        { label: "Service Period From", value: formatDate(getMetadataString(legalAccounting.period_from)) },
+        { label: "Service Period To", value: formatDate(getMetadataString(legalAccounting.period_to)) },
+        { label: "Matter / Case / Project Reference", value: getMetadataString(legalAccounting.matter_reference) },
       ],
     };
   }
@@ -881,32 +649,11 @@ function buildExpenseTypeDetails(expense: ExpenseRow): {
       description: "Authority, official fee type, reference number, and due date.",
       icon: Landmark,
       items: [
-        {
-          label: "Government Authority",
-          value: getMetadataString(governmentFee.authority_name),
-        },
-        {
-          label: "Fee Type",
-          value: getMetadataString(governmentFee.fee_type_label),
-        },
-        {
-          label: "Reference Number",
-          value: getMetadataString(governmentFee.reference_number),
-        },
-        {
-          label: "Due Date",
-          value: formatDate(getMetadataString(governmentFee.due_date)),
-        },
-        {
-          label: "Payment Link",
-          value: getMetadataString(governmentFee.payment_link) ? (
-            <span className="break-all text-cyan-200">
-              {getMetadataString(governmentFee.payment_link)}
-            </span>
-          ) : (
-            ""
-          ),
-        },
+        { label: "Government Authority", value: getMetadataString(governmentFee.authority_name) },
+        { label: "Fee Type", value: getMetadataString(governmentFee.fee_type_label) },
+        { label: "Reference Number", value: getMetadataString(governmentFee.reference_number) },
+        { label: "Due Date", value: formatDate(getMetadataString(governmentFee.due_date)) },
+        { label: "Payment Link", value: getMetadataString(governmentFee.payment_link) },
       ],
     };
   }
@@ -917,30 +664,12 @@ function buildExpenseTypeDetails(expense: ExpenseRow): {
       description: "Provider, asset, service date, issue, and service result.",
       icon: Wrench,
       items: [
-        {
-          label: "Service Provider",
-          value: getMetadataString(repairService.provider_name),
-        },
-        {
-          label: "Service Type",
-          value: getMetadataString(repairService.service_type_label),
-        },
-        {
-          label: "Asset / Equipment",
-          value: getMetadataString(repairService.asset_name),
-        },
-        {
-          label: "Service Date",
-          value: formatDate(getMetadataString(repairService.service_date) || expense.expense_date),
-        },
-        {
-          label: "Issue Description",
-          value: getMetadataString(repairService.issue_description),
-        },
-        {
-          label: "Service Result",
-          value: getMetadataString(repairService.service_result),
-        },
+        { label: "Service Provider", value: getMetadataString(repairService.provider_name) },
+        { label: "Service Type", value: getMetadataString(repairService.service_type_label) },
+        { label: "Asset / Equipment", value: getMetadataString(repairService.asset_name) },
+        { label: "Service Date", value: formatDate(getMetadataString(repairService.service_date) || expense.expense_date) },
+        { label: "Issue Description", value: getMetadataString(repairService.issue_description) },
+        { label: "Service Result", value: getMetadataString(repairService.service_result) },
       ],
     };
   }
@@ -951,26 +680,11 @@ function buildExpenseTypeDetails(expense: ExpenseRow): {
       description: "Support type, recipient, reason, and optional support period.",
       icon: Building2,
       items: [
-        {
-          label: "Support Type",
-          value: getMetadataString(companySupport.support_type_label),
-        },
-        {
-          label: "Receiving Person / Company",
-          value: getMetadataString(companySupport.recipient),
-        },
-        {
-          label: "Support Period From",
-          value: formatDate(getMetadataString(companySupport.period_from)),
-        },
-        {
-          label: "Support Period To",
-          value: formatDate(getMetadataString(companySupport.period_to)),
-        },
-        {
-          label: "Support Reason",
-          value: getMetadataString(companySupport.reason),
-        },
+        { label: "Support Type", value: getMetadataString(companySupport.support_type_label) },
+        { label: "Receiving Person / Company", value: getMetadataString(companySupport.recipient) },
+        { label: "Support Period From", value: formatDate(getMetadataString(companySupport.period_from)) },
+        { label: "Support Period To", value: formatDate(getMetadataString(companySupport.period_to)) },
+        { label: "Support Reason", value: getMetadataString(companySupport.reason) },
       ],
     };
   }
@@ -980,16 +694,44 @@ function buildExpenseTypeDetails(expense: ExpenseRow): {
     description: "Manual category and explanation for non-standard expenses.",
     icon: Receipt,
     items: [
-      {
-        label: "Other Category",
-        value: getMetadataString(otherExpense.category_label),
-      },
+      { label: "Other Category", value: getMetadataString(otherExpense.category_label) },
       {
         label: "Explanation",
         value: expense.other_expense_explanation || getMetadataString(otherExpense.explanation),
       },
     ],
   };
+}
+
+function renderDetailGrid(items: DetailItem[]) {
+  const visibleItems = items.filter((item) => {
+    if (item.value === null || item.value === undefined) return false;
+    if (typeof item.value === "string" && !item.value.trim()) return false;
+    return true;
+  });
+
+  if (visibleItems.length === 0) {
+    return (
+      <AixiaEmptyState
+        icon={Receipt}
+        title="No additional details saved"
+        description="No additional details were saved for this section."
+      />
+    );
+  }
+
+  return (
+    <AixiaReviewGrid variant="cards">
+      {visibleItems.map((item) => (
+        <AixiaValueBlock
+          key={item.label}
+          label={item.label}
+          value={item.value}
+          detail={item.detail}
+        />
+      ))}
+    </AixiaReviewGrid>
+  );
 }
 
 export default function FinanceExpenseReviewPage() {
@@ -1000,14 +742,28 @@ export default function FinanceExpenseReviewPage() {
   const [expense, setExpense] = useState<ExpenseRow | null>(null);
   const [company, setCompany] = useState<CompanyRow | null>(null);
   const [employee, setEmployee] = useState<EmployeeRefRow | null>(null);
-  const [profiles, setProfiles] = useState<ProfileRow[]>([]);
+  const [employeeIdentities, setEmployeeIdentities] = useState<
+    FinanceEmployeeIdentity[]
+  >([]);
   const [allocations, setAllocations] = useState<AllocationRow[]>([]);
   const [payments, setPayments] = useState<PaymentMadeRow[]>([]);
   const [fundingBatches, setFundingBatches] = useState<FundingBatchRow[]>([]);
   const [companies, setCompanies] = useState<CompanyRow[]>([]);
+  const [employees, setEmployees] = useState<EmployeeRefRow[]>([]);
   const [bankAccounts, setBankAccounts] = useState<BankAccountRow[]>([]);
   const [attachments, setAttachments] = useState<AttachmentWithFile[]>([]);
   const [financeNotes, setFinanceNotes] = useState("");
+  const [allocationArchiveOpen, setAllocationArchiveOpen] = useState(false);
+  const [allocationArchiveTab, setAllocationArchiveTab] =
+    useState<AllocationArchiveTab>("archived");
+  const [allocationSortKey, setAllocationSortKey] =
+    useState<AllocationSortKey>("updated_at");
+  const [allocationSortDirection, setAllocationSortDirection] =
+    useState<AllocationSortDirection>("desc");
+  const [runningAllocationAction, setRunningAllocationAction] =
+    useState<AllocationLifecycleAction | null>(null);
+  const [runningAllocationActionId, setRunningAllocationActionId] =
+    useState<string | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [isRefreshing, setIsRefreshing] = useState(false);
   const [hasLoadedOnce, setHasLoadedOnce] = useState(false);
@@ -1018,6 +774,24 @@ export default function FinanceExpenseReviewPage() {
   const companyMap = useMemo(() => {
     return new Map(companies.map((item) => [item.id, item]));
   }, [companies]);
+
+  const employeeMap = useMemo(() => {
+    return new Map(employees.map((item) => [item.id, item]));
+  }, [employees]);
+
+  const employeeIdentityMap = useMemo(() => {
+    const entries: Array<[string, FinanceEmployeeIdentity]> = [];
+
+    employeeIdentities.forEach((identity) => {
+      const employeeRefId = identity.employee_ref_id || identity.id;
+      const userId = identity.user_id;
+
+      if (employeeRefId) entries.push([employeeRefId, identity]);
+      if (userId) entries.push([userId, identity]);
+    });
+
+    return new Map(entries);
+  }, [employeeIdentities]);
 
   const bankAccountMap = useMemo(() => {
     return new Map(bankAccounts.map((item) => [item.id, item]));
@@ -1031,13 +805,16 @@ export default function FinanceExpenseReviewPage() {
     return new Map(fundingBatches.map((item) => [item.id, item]));
   }, [fundingBatches]);
 
-  const profileMap = useMemo(() => {
-    return new Map(profiles.map((item) => [item.user_id, item]));
-  }, [profiles]);
+  const employeeIdentity = useMemo(() => {
+    return getEmployeeIdentity(employee, employeeIdentityMap);
+  }, [employee, employeeIdentityMap]);
 
   const expenseAmount = useMemo(() => {
     return toNumber(
-      expense?.final_amount || expense?.approved_amount || expense?.requested_amount || expense?.amount
+      expense?.final_amount ||
+        expense?.approved_amount ||
+        expense?.requested_amount ||
+        expense?.amount
     );
   }, [expense]);
 
@@ -1049,11 +826,27 @@ export default function FinanceExpenseReviewPage() {
     );
   }, [payments]);
 
+  const activeAllocations = useMemo(() => {
+    return allocations.filter(isActiveAllocation);
+  }, [allocations]);
+
+  const archivedAllocations = useMemo(() => {
+    return allocations.filter(isArchivedAllocation);
+  }, [allocations]);
+
+  const deletedAllocations = useMemo(() => {
+    return allocations.filter(isDeletedAllocation);
+  }, [allocations]);
+
+  const allocationArchiveRows = useMemo(() => {
+    return allocationArchiveTab === "archived" ? archivedAllocations : deletedAllocations;
+  }, [allocationArchiveTab, archivedAllocations, deletedAllocations]);
+
   const confirmedAllocations = useMemo(() => {
-    return allocations.filter((allocation) =>
+    return activeAllocations.filter((allocation) =>
       confirmedPaymentIdSet.has(allocation.payment_made_id)
     );
-  }, [allocations, confirmedPaymentIdSet]);
+  }, [activeAllocations, confirmedPaymentIdSet]);
 
   const coveredAmount = useMemo(() => {
     return confirmedAllocations.reduce(
@@ -1062,12 +855,102 @@ export default function FinanceExpenseReviewPage() {
     );
   }, [confirmedAllocations]);
 
+  const enrichedAllocations = useMemo<EnrichedAllocation[]>(() => {
+    return allocations.map((allocation) => {
+      const payment = paymentMap.get(allocation.payment_made_id) || null;
+      const fundingBatch = allocation.funding_batch_id
+        ? fundingBatchMap.get(allocation.funding_batch_id) || null
+        : null;
+      const fundingCompany = allocation.funding_company_id
+        ? companyMap.get(allocation.funding_company_id) || null
+        : fundingBatch?.funding_company_id
+          ? companyMap.get(fundingBatch.funding_company_id) || null
+          : null;
+      const bank = allocation.paid_from_bank_account_id
+        ? bankAccountMap.get(allocation.paid_from_bank_account_id) || null
+        : fundingBatch?.funding_bank_account_id
+          ? bankAccountMap.get(fundingBatch.funding_bank_account_id) || null
+          : null;
+      const recipientIdentity = getEmployeeIdentityByRef(
+        allocation.recipient_employee_ref_id,
+        employeeMap,
+        employeeIdentityMap
+      );
+      const recipientReference = recipientIdentity
+        ? getFinanceEmployeeReferenceLabel(recipientIdentity)
+        : "";
+      const recipientSecondary = recipientIdentity
+        ? getFinanceEmployeeSecondaryLabel(recipientIdentity)
+        : "No role/company saved";
+      const recipientPrimary = recipientIdentity
+        ? getFinanceEmployeePrimaryName(recipientIdentity, allocation.recipient_person_name)
+        : allocation.recipient_person_name?.trim() || "Unresolved employee";
+
+      return {
+        ...allocation,
+        payment,
+        fundingBatch,
+        fundingCompanyName: fundingCompany?.name || "—",
+        bankLabel: getBankLabel(bank),
+        recipientIdentity,
+        recipientPrimary,
+        recipientSecondary,
+        recipientReference,
+      };
+    });
+  }, [allocations, bankAccountMap, companyMap, employeeIdentityMap, employeeMap, fundingBatchMap, paymentMap]);
+
+  const activeEnrichedAllocations = useMemo(() => {
+    return enrichedAllocations.filter(isActiveAllocation);
+  }, [enrichedAllocations]);
+
+  const archiveEnrichedAllocations = useMemo(() => {
+    return enrichedAllocations.filter((allocation) => {
+      return allocationArchiveTab === "archived"
+        ? isArchivedAllocation(allocation)
+        : isDeletedAllocation(allocation);
+    });
+  }, [allocationArchiveTab, enrichedAllocations]);
+
+  const sortedActiveAllocations = useMemo(() => {
+    return [...activeEnrichedAllocations].sort((a, b) => {
+      const valueA = getAllocationSortValue(a, allocationSortKey);
+      const valueB = getAllocationSortValue(b, allocationSortKey);
+
+      if (typeof valueA === "number" && typeof valueB === "number") {
+        return allocationSortDirection === "asc" ? valueA - valueB : valueB - valueA;
+      }
+
+      return allocationSortDirection === "asc"
+        ? String(valueA).localeCompare(String(valueB))
+        : String(valueB).localeCompare(String(valueA));
+    });
+  }, [activeEnrichedAllocations, allocationSortDirection, allocationSortKey]);
+
+  const sortedArchiveAllocations = useMemo(() => {
+    return [...archiveEnrichedAllocations].sort((a, b) =>
+      String(b.updated_at || b.created_at || "").localeCompare(
+        String(a.updated_at || a.created_at || "")
+      )
+    );
+  }, [archiveEnrichedAllocations]);
+
   const remainingAmount = Math.max(expenseAmount - coveredAmount, 0);
   const currencyCode = expense?.currency_code || "USD";
-  const expenseMadeByLabel = useMemo(() => {
+
+  const expenseMadeByPrimary = useMemo(() => {
     if (!expense) return "—";
-    return getExpenseMadeByLabel(expense, employee, profileMap);
-  }, [employee, expense, profileMap]);
+    return getExpenseMadeByPrimaryLabel(expense, employee, employeeIdentityMap);
+  }, [employee, employeeIdentityMap, expense]);
+
+  const expenseMadeBySecondary = useMemo(() => {
+    if (!expense) return "—";
+    return getExpenseMadeBySecondaryLabel(expense, employee, employeeIdentityMap);
+  }, [employee, employeeIdentityMap, expense]);
+
+  const expenseMadeByReference = useMemo(() => {
+    return getExpenseMadeByReferenceLabel(employee, employeeIdentityMap);
+  }, [employee, employeeIdentityMap]);
 
   const expenseTypeDetails = useMemo(() => {
     if (!expense) return null;
@@ -1148,6 +1031,19 @@ export default function FinanceExpenseReviewPage() {
     ];
   }, [coveredAmount, currencyCode, expense]);
 
+  const handleAllocationSort = useCallback(
+    (nextSortKey: AllocationSortKey) => {
+      if (nextSortKey === allocationSortKey) {
+        setAllocationSortDirection((current) => (current === "asc" ? "desc" : "asc"));
+        return;
+      }
+
+      setAllocationSortKey(nextSortKey);
+      setAllocationSortDirection(nextSortKey === "updated_at" ? "desc" : "asc");
+    },
+    [allocationSortKey]
+  );
+
   const loadExpense = useCallback(
     async (mode: "initial" | "silent" = "initial") => {
       if (!expenseId) {
@@ -1162,7 +1058,7 @@ export default function FinanceExpenseReviewPage() {
         setIsRefreshing(true);
       }
 
-      setPageError(null);
+      if (mode === "initial") setPageError(null);
 
       try {
         const expenseResult = await supabase
@@ -1232,7 +1128,8 @@ export default function FinanceExpenseReviewPage() {
         const [
           companyResult,
           employeeResult,
-          profilesResult,
+          employeesResult,
+          employeeIdentitiesResult,
           allocationsResult,
           attachmentsResult,
           companiesResult,
@@ -1255,9 +1152,11 @@ export default function FinanceExpenseReviewPage() {
             : Promise.resolve({ data: null, error: null }),
 
           supabase
-            .from("profiles")
-            .select("user_id, full_name, display_name, email, company, job_title, member_type")
-            .order("full_name"),
+            .from("finance_employee_refs")
+            .select("id, user_id, code, status, mark, metadata")
+            .order("code"),
+
+          supabase.from("finance_employee_identity_v").select("*"),
 
           supabase
             .from("finance_payment_made_expense_allocations")
@@ -1278,7 +1177,10 @@ export default function FinanceExpenseReviewPage() {
                 "recipient_confirmation_status",
                 "recipient_confirmation_notes",
                 "recipient_dispute_reason",
+                "lifecycle_status",
+                "metadata",
                 "created_at",
+                "updated_at",
               ].join(", ")
             )
             .eq("expense_id", loadedExpense.id)
@@ -1305,7 +1207,8 @@ export default function FinanceExpenseReviewPage() {
 
         if (companyResult.error) throw companyResult.error;
         if (employeeResult.error) throw employeeResult.error;
-        if (profilesResult.error) throw profilesResult.error;
+        if (employeesResult.error) throw employeesResult.error;
+        if (employeeIdentitiesResult.error) throw employeeIdentitiesResult.error;
         if (allocationsResult.error) throw allocationsResult.error;
         if (attachmentsResult.error) throw attachmentsResult.error;
         if (companiesResult.error) throw companiesResult.error;
@@ -1314,7 +1217,10 @@ export default function FinanceExpenseReviewPage() {
         const loadedAllocations = (allocationsResult.data || []) as unknown as AllocationRow[];
         setCompany((companyResult.data || null) as CompanyRow | null);
         setEmployee((employeeResult.data || null) as EmployeeRefRow | null);
-        setProfiles((profilesResult.data || []) as ProfileRow[]);
+        setEmployees((employeesResult.data || []) as EmployeeRefRow[]);
+        setEmployeeIdentities(
+          (employeeIdentitiesResult.data || []) as FinanceEmployeeIdentity[]
+        );
         setAllocations(loadedAllocations);
         setCompanies((companiesResult.data || []) as CompanyRow[]);
         setBankAccounts((bankAccountsResult.data || []) as BankAccountRow[]);
@@ -1335,7 +1241,7 @@ export default function FinanceExpenseReviewPage() {
           const paymentsResult = await supabase
             .from("finance_payments_made")
             .select(
-              "id, amount, payment_date, status, reference_number, payment_source_type, recipient_confirmation_status, paid_from_company_id, paid_from_bank_account_id, created_at"
+              "id, amount, payment_date, status, reference_number, payment_source_type, recipient_confirmation_status, paid_from_company_id, paid_from_bank_account_id, created_at, updated_at"
             )
             .in("id", paymentIds);
 
@@ -1349,7 +1255,7 @@ export default function FinanceExpenseReviewPage() {
           const batchesResult = await supabase
             .from("finance_expense_funding_batches")
             .select(
-              "id, batch_number, funding_company_id, funding_bank_account_id, allocation_date, currency_code, allocated_amount, status, documentation_status"
+              "id, batch_number, funding_company_id, funding_bank_account_id, allocation_date, currency_code, allocated_amount, status, documentation_status, created_at, updated_at"
             )
             .in("id", batchIds);
 
@@ -1436,16 +1342,12 @@ export default function FinanceExpenseReviewPage() {
 
     return () => {
       window.clearInterval(intervalId);
-      supabase.removeChannel(channel);
+      void supabase.removeChannel(channel);
     };
   }, [expenseId, loadExpense]);
 
   const runAction = useCallback(
-    async (
-      key: ActionKey,
-      action: () => Promise<void>,
-      successMessage: string
-    ) => {
+    async (key: ActionKey, action: () => Promise<void>, successMessage: string) => {
       if (runningAction) return;
 
       setRunningAction(key);
@@ -1465,6 +1367,40 @@ export default function FinanceExpenseReviewPage() {
       }
     },
     [loadExpense, runningAction]
+  );
+
+  const runAllocationLifecycleAction = useCallback(
+    async (
+      action: AllocationLifecycleAction,
+      allocationId: string,
+      rpcName: string,
+      successMessage: string
+    ) => {
+      if (runningAllocationActionId) return;
+
+      setRunningAllocationAction(action);
+      setRunningAllocationActionId(allocationId);
+      setPageError(null);
+      setPageMessage(null);
+
+      try {
+        const result = await supabase.rpc(rpcName, {
+          p_allocation_id: allocationId,
+        });
+
+        if (result.error) throw result.error;
+
+        setPageMessage(successMessage);
+        await loadExpense("silent");
+      } catch (error) {
+        console.error(`Failed to run ${rpcName}:`, error);
+        setPageError(error instanceof Error ? error.message : "Allocation action failed.");
+      } finally {
+        setRunningAllocationAction(null);
+        setRunningAllocationActionId(null);
+      }
+    },
+    [loadExpense, runningAllocationActionId]
   );
 
   const approveExpense = useCallback(() => {
@@ -1588,55 +1524,45 @@ export default function FinanceExpenseReviewPage() {
 
     if (isArchivedOrDeleted) {
       return (
-        <div className="rounded-[24px] border border-rose-400/20 bg-rose-500/10 p-4 text-sm leading-6 text-rose-100">
+        <AixiaAlert tone="error">
           This record is archived, deleted, or cancelled. Normal Finance workflow actions are hidden.
-        </div>
+        </AixiaAlert>
       );
     }
 
-    if (isApprovedMissingDocs) {
+    if (isApprovedMissingDocs || isExpenseMadeMissingDocs) {
       return (
-        <div className="rounded-[24px] border border-amber-400/20 bg-amber-500/10 p-4 text-sm leading-6 text-amber-100">
+        <AixiaAlert tone="info">
           Waiting for user to spend and upload proof. Finance cannot verify this expense until a
           receipt, screenshot, invoice, document, or link is submitted from the requester expense
           detail page.
-        </div>
-      );
-    }
-
-    if (isExpenseMadeMissingDocs) {
-      return (
-        <div className="rounded-[24px] border border-amber-400/20 bg-amber-500/10 p-4 text-sm leading-6 text-amber-100">
-          Expense was marked as made, but proof is still missing. The user must upload proof before
-          Finance can verify documentation.
-        </div>
+        </AixiaAlert>
       );
     }
 
     if (isDocumentationIssue) {
       return (
-        <div className="rounded-[24px] border border-rose-400/20 bg-rose-500/10 p-4 text-sm leading-6 text-rose-100">
+        <AixiaAlert tone="error">
           Documentation issue is open. Waiting for the user to upload corrected proof before Finance
           can verify it again.
-        </div>
+        </AixiaAlert>
       );
     }
 
     if (isVerifiedForPayment) {
       return (
-        <div className="rounded-[24px] border border-emerald-400/20 bg-emerald-500/10 p-4 text-sm leading-6 text-emerald-100">
-          This expense is verified and ready to be included in the monthly payment cycle. No
-          single-expense payment action is needed here. Finance will allocate funds and distribute
-          payments later from the separate Payment Execution Tools.
-        </div>
+        <AixiaAlert tone="success">
+          This expense is verified and ready to be included in the monthly payment cycle. Finance
+          will allocate funds and distribute payments later from the separate Payment Execution Tools.
+        </AixiaAlert>
       );
     }
 
     if (hasPaymentCoverage) {
       return (
-        <div className="rounded-[24px] border border-violet-400/20 bg-violet-500/10 p-4 text-sm leading-6 text-violet-100">
+        <AixiaAlert tone="info">
           Payment coverage exists. Track final recipient confirmation after the payment is made.
-        </div>
+        </AixiaAlert>
       );
     }
 
@@ -1648,54 +1574,82 @@ export default function FinanceExpenseReviewPage() {
 
     if (isInitialReviewStage) {
       return (
-        <div className="grid gap-3">
-          <ActionButton
-            label="Approve To Spend"
-            icon={CheckCircle2}
-            tone="emerald"
+        <div className="aixia-action-stack">
+          <AixiaButton
+            type="button"
+            variant="primary"
             disabled={actionLocked}
-            isRunning={runningAction === "approve"}
             onClick={approveExpense}
-          />
-          <ActionButton
-            label="Request More Info"
-            icon={AlertTriangle}
-            tone="amber"
+          >
+            {runningAction === "approve" ? (
+              <Loader2 className="h-4 w-4 animate-spin" />
+            ) : (
+              <CheckCircle2 className="h-4 w-4" />
+            )}
+            Approve To Spend
+          </AixiaButton>
+
+          <AixiaButton
+            type="button"
+            variant="secondary"
             disabled={actionLocked}
-            isRunning={runningAction === "more_info"}
             onClick={requestMoreInfo}
-          />
-          <ActionButton
-            label="Reject Expense"
-            icon={XCircle}
-            tone="rose"
+          >
+            {runningAction === "more_info" ? (
+              <Loader2 className="h-4 w-4 animate-spin" />
+            ) : (
+              <AlertTriangle className="h-4 w-4" />
+            )}
+            Request More Info
+          </AixiaButton>
+
+          <AixiaButton
+            type="button"
+            variant="danger"
             disabled={actionLocked}
-            isRunning={runningAction === "reject"}
             onClick={rejectExpense}
-          />
+          >
+            {runningAction === "reject" ? (
+              <Loader2 className="h-4 w-4 animate-spin" />
+            ) : (
+              <XCircle className="h-4 w-4" />
+            )}
+            Reject Expense
+          </AixiaButton>
         </div>
       );
     }
 
     if (isDocumentationSubmitted) {
       return (
-        <div className="grid gap-3">
-          <ActionButton
-            label="Verify Documentation"
-            icon={FileCheck2}
-            tone="emerald"
+        <div className="aixia-action-stack">
+          <AixiaButton
+            type="button"
+            variant="primary"
             disabled={actionLocked}
-            isRunning={runningAction === "verify_docs"}
             onClick={verifyDocumentation}
-          />
-          <ActionButton
-            label="Mark Documentation Issue"
-            icon={AlertTriangle}
-            tone="rose"
+          >
+            {runningAction === "verify_docs" ? (
+              <Loader2 className="h-4 w-4 animate-spin" />
+            ) : (
+              <FileCheck2 className="h-4 w-4" />
+            )}
+            Verify Documentation
+          </AixiaButton>
+
+          <AixiaButton
+            type="button"
+            variant="danger"
             disabled={actionLocked}
-            isRunning={runningAction === "docs_issue"}
             onClick={markDocumentationIssue}
-          />
+          >
+            {runningAction === "docs_issue" ? (
+              <Loader2 className="h-4 w-4 animate-spin" />
+            ) : (
+              <AlertTriangle className="h-4 w-4" />
+            )}
+            Mark Documentation Issue
+          </AixiaButton>
         </div>
       );
     }
@@ -1707,562 +1661,706 @@ export default function FinanceExpenseReviewPage() {
     if (!expense || !canReviewOnlineShopping || isArchivedOrDeleted) return null;
 
     return (
-      <div className="grid gap-3">
-        <ActionButton
-          label="Online Order Confirmed"
-          icon={CheckCircle2}
-          tone="emerald"
+      <div className="aixia-action-stack">
+        <AixiaButton
+          type="button"
+          variant="primary"
           disabled={actionLocked}
-          isRunning={runningAction === "online_confirmed"}
           onClick={() => confirmOnlineShopping("confirmed")}
-        />
-        <ActionButton
-          label="Online Order Issue"
-          icon={AlertTriangle}
-          tone="amber"
+        >
+          {runningAction === "online_confirmed" ? (
+            <Loader2 className="h-4 w-4 animate-spin" />
+          ) : (
+            <CheckCircle2 className="h-4 w-4" />
+          )}
+          Online Order Confirmed
+        </AixiaButton>
+
+        <AixiaButton
+          type="button"
+          variant="secondary"
           disabled={actionLocked}
-          isRunning={runningAction === "online_issue"}
           onClick={() => confirmOnlineShopping("issue_found")}
-        />
-        <ActionButton
-          label="Cancelled / Refunded"
-          icon={XCircle}
-          tone="rose"
+        >
+          {runningAction === "online_issue" ? (
+            <Loader2 className="h-4 w-4 animate-spin" />
+          ) : (
+            <AlertTriangle className="h-4 w-4" />
+          )}
+          Online Order Issue
+        </AixiaButton>
+
+        <AixiaButton
+          type="button"
+          variant="danger"
           disabled={actionLocked}
-          isRunning={runningAction === "online_cancelled"}
           onClick={() => confirmOnlineShopping("cancelled_refunded")}
-        />
+        >
+          {runningAction === "online_cancelled" ? (
+            <Loader2 className="h-4 w-4 animate-spin" />
+          ) : (
+            <XCircle className="h-4 w-4" />
+          )}
+          Cancelled / Refunded
+        </AixiaButton>
       </div>
     );
   };
 
+  const renderAllocationRows = (
+    rows: EnrichedAllocation[],
+    mode: "active" | "archive"
+  ) => {
+    if (rows.length === 0) {
+      return (
+        <tr>
+          <td colSpan={8}>
+            <AixiaEmptyState
+              icon={Receipt}
+              title="No payment allocations yet"
+              description="Once verified, this expense can be included in a funding allocation or Expense Payment record."
+            />
+          </td>
+        </tr>
+      );
+    }
+
+    return rows.map((allocation) => {
+      const isActionRunning = allocation.id === runningAllocationActionId;
+
+      return (
+        <tr key={allocation.id} className="aixia-table-row">
+          <AixiaTableTextCell
+            width="xl"
+            primary={allocation.payment?.reference_number || "Expense Payment Distribution"}
+            secondary={allocation.payment ? formatDate(allocation.payment.payment_date) : "—"}
+          />
+
+          <AixiaTableTextCell
+            width="lg"
+            primary={allocation.fundingCompanyName}
+            secondary="Funding company"
+          />
+
+          <AixiaTableTextCell width="lg" primary={allocation.bankLabel} secondary="Bank account" />
+
+          <AixiaTableTextCell
+            width="lg"
+            primary={allocation.fundingBatch?.batch_number || "—"}
+            secondary={allocation.fundingBatch ? formatDate(allocation.fundingBatch.allocation_date) : "Funding pool"}
+          />
+
+          <AixiaTableTextCell
+            width="md"
+            primary={`${allocation.currency_code || currencyCode} ${formatMoney(
+              allocation.converted_amount || allocation.allocated_amount
+            )}`}
+            secondary={`${allocation.payment_currency_code || "—"} ${formatMoney(allocation.converted_amount)}`}
+          />
+
+          <AixiaEmployeeIdentityCell
+            width="lg"
+            identity={allocation.recipientIdentity}
+            primary={allocation.recipientPrimary}
+            secondary={allocation.recipientSecondary}
+            reference={allocation.recipientReference}
+          />
+
+          <AixiaTableBadgeCell width="sm">
+            <AixiaStatusBadge value={allocation.recipient_confirmation_status} />
+          </AixiaTableBadgeCell>
+
+          <AixiaTableDateCell width="sm">
+            {formatDate(allocation.updated_at || allocation.created_at)}
+          </AixiaTableDateCell>
+
+          <AixiaTableActionsCell>
+            <AixiaButton
+              type="button"
+              variant="primary"
+              onClick={() =>
+                navigate(
+                  `/finance/transactions/expenses-payments-made/${allocation.payment_made_id}`
+                )
+              }
+            >
+              <ExternalLink className="h-3.5 w-3.5" />
+              Open Payment
+            </AixiaButton>
+
+            {mode === "active" ? (
+              <>
+                <AixiaButton
+                  type="button"
+                  variant="danger"
+                  disabled={Boolean(runningAllocationActionId)}
+                  onClick={() =>
+                    void runAllocationLifecycleAction(
+                      "archive",
+                      allocation.id,
+                      "finance_archive_payment_made_expense_allocation",
+                      "Allocation archived."
+                    )
+                  }
+                >
+                  {isActionRunning && runningAllocationAction === "archive" ? (
+                    <RotateCcw className="h-3.5 w-3.5 animate-spin" />
+                  ) : (
+                    <Archive className="h-3.5 w-3.5" />
+                  )}
+                  Archive
+                </AixiaButton>
+
+                <AixiaButton
+                  type="button"
+                  variant="danger"
+                  disabled={Boolean(runningAllocationActionId)}
+                  onClick={() =>
+                    void runAllocationLifecycleAction(
+                      "delete",
+                      allocation.id,
+                      "finance_soft_delete_payment_made_expense_allocation",
+                      "Allocation moved to deleted."
+                    )
+                  }
+                >
+                  <Trash2 className="h-3.5 w-3.5" />
+                  Delete
+                </AixiaButton>
+              </>
+            ) : (
+              <>
+                <AixiaButton
+                  type="button"
+                  variant="secondary"
+                  disabled={Boolean(runningAllocationActionId)}
+                  onClick={() =>
+                    void runAllocationLifecycleAction(
+                      "restore",
+                      allocation.id,
+                      "finance_restore_payment_made_expense_allocation",
+                      "Allocation restored."
+                    )
+                  }
+                >
+                  <RotateCcw className="h-3.5 w-3.5" />
+                  Restore
+                </AixiaButton>
+
+                {allocationArchiveTab === "deleted" ? (
+                  <AixiaButton
+                    type="button"
+                    variant="danger"
+                    disabled={Boolean(runningAllocationActionId)}
+                    onClick={() =>
+                      void runAllocationLifecycleAction(
+                        "hard_delete",
+                        allocation.id,
+                        "finance_permanently_delete_payment_made_expense_allocation",
+                        "Allocation permanently deleted."
+                      )
+                    }
+                  >
+                    <Trash2 className="h-3.5 w-3.5" />
+                    Delete Permanently
+                  </AixiaButton>
+                ) : null}
+              </>
+            )}
+          </AixiaTableActionsCell>
+        </tr>
+      );
+    });
+  };
+
   if (isLoading) {
     return (
-      <div className="min-h-screen bg-[#05070d] px-4 py-4 text-white md:px-6 md:py-6">
-        <div className="mx-auto flex w-full max-w-[1600px] flex-col gap-6">
-          <div className="rounded-[34px] border border-white/10 bg-white/[0.045] p-12 text-center backdrop-blur-xl">
-            <Loader2 className="mx-auto h-8 w-8 animate-spin text-cyan-200" />
-            <div className="mt-4 text-sm text-slate-400">Loading finance expense review...</div>
-          </div>
-        </div>
-      </div>
+      <AixiaLoadingState
+        title="Loading finance expense review"
+        description="Expense review, employee identity, payment allocation lifecycle, and documentation records are being loaded."
+      />
     );
   }
 
   if (!expense) {
     return (
-      <div className="min-h-screen bg-[#05070d] px-4 py-4 text-white md:px-6 md:py-6">
-        <div className="mx-auto flex w-full max-w-[1600px] flex-col gap-6">
-          <div className="rounded-[34px] border border-rose-400/20 bg-rose-500/10 p-12 text-center">
-            <AlertTriangle className="mx-auto h-8 w-8 text-rose-200" />
-            <div className="mt-4 text-lg font-semibold text-white">Expense review not found</div>
-            <div className="mt-2 text-sm text-rose-100">
-              {pageError || "The requested expense review could not be loaded."}
-            </div>
-            <button
-              type="button"
-              onClick={() => navigate("/finance/transactions/expenses-payments-made")}
-              className="mt-6 inline-flex h-11 items-center justify-center gap-2 rounded-2xl border border-white/10 bg-white/[0.05] px-5 text-sm font-semibold text-white transition hover:bg-white/[0.08]"
-            >
-              <ArrowRight className="h-4 w-4 rotate-180" />
-              Expense Payment Control
-            </button>
-          </div>
-        </div>
-      </div>
+      <AixiaPage>
+        <AixiaEmptyState
+          icon={AlertTriangle}
+          title="Expense review not found"
+          description={pageError || "The requested expense review could not be loaded."}
+        />
+        <AixiaButton
+          type="button"
+          variant="primary"
+          onClick={() => navigate("/finance/transactions/expenses-payments-made")}
+        >
+          <ArrowRight className="h-4 w-4 rotate-180" />
+          Expense Payment Control
+        </AixiaButton>
+      </AixiaPage>
     );
   }
 
   return (
-    <div className="min-h-screen bg-[#05070d] px-4 py-4 text-white md:px-6 md:py-6">
-      <div className="mx-auto flex w-full max-w-[1600px] flex-col gap-6">
-        <header className="relative overflow-hidden rounded-[34px] border border-white/10 bg-white/[0.045] p-6 shadow-2xl shadow-black/30 backdrop-blur-xl">
-          <div className="pointer-events-none absolute inset-0 bg-[radial-gradient(circle_at_top_left,rgba(6,182,212,0.16),transparent_38%),radial-gradient(circle_at_top_right,rgba(139,92,246,0.12),transparent_34%)]" />
+    <AixiaPage>
+      <AixiaHero
+        parentLabel="Payment Control"
+        parentPath="/finance/transactions/expenses-payments-made"
+        badges={[
+          { label: "Finance Expense Review", tone: "cyan" },
+          { label: formatLabel(expense.request_status || expense.status), tone: "violet" },
+          { label: isRefreshing ? "Silent Refresh" : "Realtime + 60s", tone: isRefreshing ? "gold" : "neutral" },
+        ]}
+        gradientTitle={expense.expense_number || "Expense Review"}
+        title={expense.title || "Expense Request"}
+        subtitle="Finance/Admin review before monthly payment execution"
+        description={expense.description || "No description / reason entered for this expense."}
+        statusCards={[
+          {
+            label: "Amount",
+            value: `${currencyCode} ${formatMoney(expenseAmount)}`,
+            description: "Requested/approved/final amount.",
+            icon: Receipt,
+            tone: "cyan",
+          },
+          {
+            label: "Covered",
+            value: `${currencyCode} ${formatMoney(coveredAmount)}`,
+            description: "Confirmed active payment allocations.",
+            icon: WalletCards,
+            tone: "emerald",
+          },
+          {
+            label: "Remaining",
+            value: `${currencyCode} ${formatMoney(remainingAmount)}`,
+            description: "Uncovered amount.",
+            icon: AlertTriangle,
+            tone: remainingAmount > 0 ? "gold" : "emerald",
+          },
+        ]}
+      />
 
-          <div className="relative">
-            <button
-              type="button"
-              onClick={() => navigate("/finance/transactions/expenses-payments-made")}
-              className="mb-5 inline-flex items-center justify-center gap-2 rounded-full border border-white/10 bg-white/[0.05] px-5 py-2 text-[11px] font-semibold uppercase tracking-[0.22em] text-slate-300 transition hover:border-white/20 hover:bg-white/[0.08] hover:text-white"
-            >
-              <ArrowRight className="h-3.5 w-3.5 rotate-180" />
-              Payment Control
-            </button>
+      {pageError ? <AixiaAlert tone="error">{pageError}</AixiaAlert> : null}
+      {pageMessage ? <AixiaAlert tone="success">{pageMessage}</AixiaAlert> : null}
 
-            <div className="grid gap-6 xl:grid-cols-[minmax(0,1fr)_520px] xl:items-end">
-              <div>
-                <div className="inline-flex w-fit items-center gap-2 rounded-full border border-cyan-400/20 bg-cyan-500/10 px-3 py-1 text-[11px] font-semibold uppercase tracking-[0.22em] text-cyan-200">
-                  <ShieldCheck className="h-3.5 w-3.5" />
-                  Finance Expense Review
-                </div>
+      <AixiaAccessRule
+        title="Locked expense review rule"
+        description="Finance expense review must preserve workflow logic while using shared identity, registry, table, and lifecycle components."
+        icon={ShieldCheck}
+      >
+        This page loads finance_employee_refs together with finance_employee_identity_v,
+        uses global employee identity helpers, renders allocation rows with AixiaChildAllocationRegistry,
+        uses AixiaSortableHeader and AixiaTableActionsCell, and protects allocation lifecycle actions
+        through backend RPCs.
+      </AixiaAccessRule>
 
-                <div className="mt-4 text-[11px] font-semibold uppercase tracking-[0.22em] text-slate-500">
-                  {expense.expense_number || "Expense Review"}
-                </div>
+      <AixiaMetricGrid>
+        {timelineItems.map((item) => (
+          <AixiaMetricCard
+            key={item.label}
+            label={item.label}
+            value={item.value}
+            description={item.detail}
+            icon={ClockIconForTimeline(item.label)}
+            tone="cyan"
+          />
+        ))}
+      </AixiaMetricGrid>
 
-                <h1 className="mt-2 text-3xl font-semibold tracking-[-0.035em] text-white md:text-5xl">
-                  {expense.title || "Expense Request"}
-                </h1>
-
-                <p className="mt-3 max-w-4xl text-sm leading-6 text-slate-400 md:text-base md:leading-7">
-                  {expense.description || "No description / reason entered for this expense."}
-                </p>
-
-                <div className="mt-5 flex flex-wrap gap-2">
-                  <StatusBadge value={expense.request_status || expense.status} />
-                  <StatusBadge value={expense.documentation_status} />
-                  <StatusBadge value={expense.finance_review_status} />
-                  <StatusBadge value={expense.coverage_status} />
-                  {isRefreshing ? (
-                    <span className="inline-flex rounded-full border border-white/10 bg-white/[0.06] px-3 py-1 text-[11px] font-semibold uppercase tracking-[0.14em] text-slate-300">
-                      Silent Refresh
-                    </span>
-                  ) : null}
-                </div>
-              </div>
-
-              <div className="grid gap-3 sm:grid-cols-3">
-                <ValueBlock
-                  label="Amount"
-                  value={`${currencyCode} ${formatMoney(expenseAmount)}`}
-                  detail="Requested/approved/final amount."
+      <div className="aixia-smart-layout aixia-smart-layout-main-wide">
+        <div className="aixia-stack">
+          <AixiaSection
+            title="Expense Overview"
+            description="Full requester expense context for Finance/Admin review."
+            icon={Building2}
+          >
+            <AixiaReviewGrid variant="cards">
+              <AixiaValueBlock label="Expense Company" value={company?.name || "—"} />
+              {expense.expense_made_by_type === "employee" ? (
+                <AixiaEmployeeIdentityCell
+                  identity={employeeIdentity}
+                  primary={expenseMadeByPrimary}
+                  secondary={expenseMadeBySecondary}
+                  reference={expenseMadeByReference}
                 />
-                <ValueBlock
-                  label="Covered"
-                  value={`${currencyCode} ${formatMoney(coveredAmount)}`}
-                  detail="Confirmed payment allocations."
-                />
-                <ValueBlock
-                  label="Remaining"
-                  value={`${currencyCode} ${formatMoney(remainingAmount)}`}
-                  detail="Uncovered amount."
-                />
-              </div>
-            </div>
-          </div>
-        </header>
-
-        {pageError ? (
-          <div className="rounded-[24px] border border-rose-400/20 bg-rose-500/10 p-4 text-sm leading-6 text-rose-100">
-            {pageError}
-          </div>
-        ) : null}
-
-        {pageMessage ? (
-          <div className="rounded-[24px] border border-emerald-400/20 bg-emerald-500/10 p-4 text-sm leading-6 text-emerald-100">
-            {pageMessage}
-          </div>
-        ) : null}
-
-        <section className="grid gap-4 md:grid-cols-2 xl:grid-cols-5">
-          {timelineItems.map((item) => (
-            <div
-              key={item.label}
-              className="min-h-[156px] rounded-[28px] border border-white/10 bg-white/[0.045] p-5 backdrop-blur-xl"
-            >
-              <div
-                className={`inline-flex rounded-full border px-3 py-1 text-[11px] font-semibold uppercase tracking-[0.16em] ${getStatusToneClasses(
-                  item.raw
-                )}`}
-              >
-                {item.label}
-              </div>
-              <div className="mt-4 text-lg font-semibold text-white">{item.value}</div>
-              <div className="mt-2 text-xs leading-5 text-slate-500">{item.detail}</div>
-            </div>
-          ))}
-        </section>
-
-        <div className="grid items-start gap-6 xl:grid-cols-[minmax(0,1fr)_430px]">
-          <div className="grid gap-6">
-            <SectionCard
-              title="Expense Overview"
-              description="Full requester expense context for Finance/Admin review."
-              icon={Building2}
-            >
-              <div className="grid gap-4 md:grid-cols-2">
-                <ValueBlock label="Expense Company" value={company?.name || "—"} />
-                <ValueBlock label="Expense Made By" value={expenseMadeByLabel} />
-                <ValueBlock label="Expense Type" value={formatLabel(expense.expense_type)} />
-                <ValueBlock
-                  label="Expense"
-                  value={expense.title || "—"}
-                  detail={expense.expense_source_name || undefined}
-                />
-                <ValueBlock label="Expense Date" value={formatDate(expense.expense_date)} />
-                <ValueBlock label="Currency" value={currencyCode} />
-                <ValueBlock
-                  label="Description"
-                  value={expense.description || "—"}
-                  detail={expense.notes || undefined}
-                />
-                <ValueBlock
-                  label="Retroactive"
-                  value={expense.is_retroactive ? "Yes" : "No"}
-                  detail={expense.retroactive_reason || undefined}
-                />
-                {expense.other_expense_explanation ? (
-                  <ValueBlock
-                    label="Other Expense Explanation"
-                    value={expense.other_expense_explanation}
-                  />
-                ) : null}
-                {expense.rejection_reason ? (
-                  <ValueBlock label="Rejection Reason" value={expense.rejection_reason} />
-                ) : null}
-              </div>
-            </SectionCard>
-
-            {expenseTypeDetails ? (
-              <SectionCard
-                title={expenseTypeDetails.title}
-                description={expenseTypeDetails.description}
-                icon={expenseTypeDetails.icon}
-              >
-                <DetailGrid items={expenseTypeDetails.items} />
-              </SectionCard>
-            ) : null}
-
-            <SectionCard
-              title="Documentation Review"
-              description="Finance/Admin checks uploaded proof before payment handling."
-              icon={FileCheck2}
-            >
-              <div className="grid gap-4">
-                {isApprovedMissingDocs || isExpenseMadeMissingDocs ? (
-                  <div className="rounded-[28px] border border-amber-400/20 bg-amber-500/10 p-5">
-                    <div className="inline-flex rounded-full border border-amber-400/20 bg-amber-500/10 px-3 py-1 text-[11px] font-semibold uppercase tracking-[0.18em] text-amber-200">
-                      Proof Missing
-                    </div>
-                    <h3 className="mt-4 text-xl font-semibold text-white">
-                      Waiting for user to spend and upload proof
-                    </h3>
-                    <p className="mt-2 max-w-3xl text-sm leading-6 text-amber-100/75">
-                      The next action belongs to the user on the requester expense ID page. Finance
-                      verification is hidden until proof is submitted.
-                    </p>
-                  </div>
-                ) : null}
-
-                {isDocumentationSubmitted ? (
-                  <div className="rounded-[28px] border border-cyan-400/20 bg-cyan-500/10 p-5">
-                    <div className="inline-flex rounded-full border border-cyan-400/20 bg-cyan-500/10 px-3 py-1 text-[11px] font-semibold uppercase tracking-[0.18em] text-cyan-200">
-                      Ready For Review
-                    </div>
-                    <h3 className="mt-4 text-xl font-semibold text-white">
-                      Proof submitted for Finance review
-                    </h3>
-                    <p className="mt-2 max-w-3xl text-sm leading-6 text-cyan-100/75">
-                      Review the uploaded file/link. If correct, verify documentation. If not,
-                      mark a documentation issue so the user can submit corrected proof.
-                    </p>
-                  </div>
-                ) : null}
-
-                {isDocumentationIssue ? (
-                  <div className="rounded-[28px] border border-rose-400/20 bg-rose-500/10 p-5">
-                    <div className="inline-flex rounded-full border border-rose-400/20 bg-rose-500/10 px-3 py-1 text-[11px] font-semibold uppercase tracking-[0.18em] text-rose-200">
-                      Waiting For Correction
-                    </div>
-                    <h3 className="mt-4 text-xl font-semibold text-white">
-                      Documentation issue is open
-                    </h3>
-                    <p className="mt-2 max-w-3xl text-sm leading-6 text-rose-100/75">
-                      Finance is waiting for the user to upload corrected proof.
-                    </p>
-                    {expense.verification_notes ? (
-                      <div className="mt-4 rounded-[22px] border border-white/10 bg-black/20 p-4 text-sm leading-6 text-rose-100">
-                        {expense.verification_notes}
-                      </div>
-                    ) : null}
-                  </div>
-                ) : null}
-
-                <div className="grid gap-4 md:grid-cols-2">
-                  <ValueBlock
-                    label="Document Status"
-                    value={<StatusBadge value={expense.documentation_status} />}
-                    detail={
-                      expense.documentation_submitted_at
-                        ? `Submitted ${formatDateTime(expense.documentation_submitted_at)}`
-                        : undefined
-                    }
-                  />
-                  <ValueBlock
-                    label="Documentation Link"
-                    value={
-                      documentationLink ? (
-                        <span className="break-all text-cyan-200">{documentationLink}</span>
-                      ) : (
-                        "—"
-                      )
-                    }
-                  />
-                </div>
-
-                <div className="overflow-hidden rounded-[24px] border border-white/10 bg-black/20">
-                  <div className="border-b border-white/10 px-4 py-3 text-[11px] font-semibold uppercase tracking-[0.18em] text-slate-500">
-                    Uploaded Files
-                  </div>
-                  {attachments.length === 0 ? (
-                    <div className="px-4 py-8 text-center text-sm text-slate-500">
-                      No uploaded documentation files yet.
-                    </div>
-                  ) : (
-                    <div className="divide-y divide-white/5">
-                      {attachments.map((attachment) => (
-                        <div
-                          key={attachment.id}
-                          className="flex items-center justify-between gap-4 px-4 py-3"
-                        >
-                          <div className="min-w-0">
-                            <div className="truncate text-sm font-medium text-white">
-                              {attachment.fileUpload?.file_name || "File"}
-                            </div>
-                            <div className="mt-1 text-xs text-slate-500">
-                              {attachment.fileUpload?.mime_type || "Unknown type"} •{" "}
-                              {formatDateTime(attachment.created_at)}
-                            </div>
-                          </div>
-                          <FileText className="h-4 w-4 shrink-0 text-cyan-200" />
-                        </div>
-                      ))}
-                    </div>
-                  )}
-                </div>
-              </div>
-            </SectionCard>
-
-            <SectionCard
-              title="Funding & Payment Coverage"
-              description="Shows Funding Pool usage and Expense Payment Distribution records covering this expense."
-              icon={WalletCards}
-            >
-              {allocations.length === 0 ? (
-                <div className="rounded-[24px] border border-dashed border-white/10 bg-black/20 px-6 py-12 text-center">
-                  <WalletCards className="mx-auto h-8 w-8 text-slate-500" />
-                  <div className="mt-4 text-sm font-semibold text-white">
-                    No payment allocations yet
-                  </div>
-                  <p className="mt-2 text-sm leading-6 text-slate-500">
-                    Once verified, this expense can be included in a funding allocation or Expense
-                    Payment record.
-                  </p>
-                </div>
               ) : (
-                <div className="overflow-x-auto rounded-[24px] border border-white/10 bg-black/20">
-                  <table className="w-full min-w-[1100px] border-collapse">
-                    <thead className="border-b border-white/10 bg-black/30">
+                <AixiaValueBlock
+                  label="Expense Made By"
+                  value={expenseMadeByPrimary}
+                  detail={expenseMadeBySecondary}
+                />
+              )}
+              <AixiaValueBlock label="Expense Type" value={formatLabel(expense.expense_type)} />
+              <AixiaValueBlock
+                label="Expense"
+                value={expense.title || "—"}
+                detail={expense.expense_source_name || undefined}
+              />
+              <AixiaValueBlock label="Expense Date" value={formatDate(expense.expense_date)} />
+              <AixiaValueBlock label="Currency" value={currencyCode} />
+              <AixiaValueBlock
+                label="Description"
+                value={expense.description || "—"}
+                detail={expense.notes || undefined}
+              />
+              <AixiaValueBlock
+                label="Retroactive"
+                value={expense.is_retroactive ? "Yes" : "No"}
+                detail={expense.retroactive_reason || undefined}
+              />
+              {expense.other_expense_explanation ? (
+                <AixiaValueBlock
+                  label="Other Expense Explanation"
+                  value={expense.other_expense_explanation}
+                />
+              ) : null}
+              {expense.rejection_reason ? (
+                <AixiaValueBlock label="Rejection Reason" value={expense.rejection_reason} />
+              ) : null}
+            </AixiaReviewGrid>
+          </AixiaSection>
+
+          {expenseTypeDetails ? (
+            <AixiaSection
+              title={expenseTypeDetails.title}
+              description={expenseTypeDetails.description}
+              icon={expenseTypeDetails.icon}
+            >
+              {renderDetailGrid(expenseTypeDetails.items)}
+            </AixiaSection>
+          ) : null}
+
+          <AixiaSection
+            title="Documentation Review"
+            description="Finance/Admin checks uploaded proof before payment handling."
+            icon={FileCheck2}
+          >
+            <div className="aixia-stack">
+              {renderStageGuidance()}
+
+              <AixiaReviewGrid variant="cards">
+                <AixiaValueBlock
+                  label="Document Status"
+                  value={<AixiaStatusBadge value={expense.documentation_status} />}
+                  detail={
+                    expense.documentation_submitted_at
+                      ? `Submitted ${formatDateTime(expense.documentation_submitted_at)}`
+                      : undefined
+                  }
+                />
+                <AixiaValueBlock
+                  label="Documentation Link"
+                  value={documentationLink || "—"}
+                />
+              </AixiaReviewGrid>
+
+              <AixiaSection
+                title="Uploaded Files"
+                description="Uploaded documentation files linked to this expense."
+                icon={FileText}
+              >
+                {attachments.length === 0 ? (
+                  <AixiaEmptyState
+                    icon={FileText}
+                    title="No uploaded documentation files yet"
+                    description="Uploaded proof files will appear here."
+                  />
+                ) : (
+                  <AixiaTableShell variant="registry" minWidthClassName="min-w-[780px]">
+                    <thead className="aixia-table-head">
                       <tr>
-                        <th className="px-5 py-4 text-left text-[11px] font-semibold uppercase tracking-[0.18em] text-slate-500">
-                          Expense Payment Distribution
-                        </th>
-                        <th className="px-5 py-4 text-left text-[11px] font-semibold uppercase tracking-[0.18em] text-slate-500">
-                          Funding Company
-                        </th>
-                        <th className="px-5 py-4 text-left text-[11px] font-semibold uppercase tracking-[0.18em] text-slate-500">
-                          Bank Account
-                        </th>
-                        <th className="px-5 py-4 text-left text-[11px] font-semibold uppercase tracking-[0.18em] text-slate-500">
-                          Funding Pool
-                        </th>
-                        <th className="px-5 py-4 text-right text-[11px] font-semibold uppercase tracking-[0.18em] text-slate-500">
-                          Allocated
-                        </th>
-                        <th className="px-5 py-4 text-left text-[11px] font-semibold uppercase tracking-[0.18em] text-slate-500">
-                          Recipient
-                        </th>
+                        <th>File</th>
+                        <th>Type</th>
+                        <th>Uploaded</th>
                       </tr>
                     </thead>
                     <tbody>
-                      {allocations.map((allocation) => {
-                        const payment = paymentMap.get(allocation.payment_made_id) || null;
-                        const fundingCompany = allocation.funding_company_id
-                          ? companyMap.get(allocation.funding_company_id)
-                          : null;
-                        const bank = allocation.paid_from_bank_account_id
-                          ? bankAccountMap.get(allocation.paid_from_bank_account_id) ?? null
-                          : null;
-                        const batch = allocation.funding_batch_id
-                          ? fundingBatchMap.get(allocation.funding_batch_id)
-                          : null;
-
-                        return (
-                          <tr
-                            key={allocation.id}
-                            className="border-b border-white/5 text-sm text-slate-300"
-                          >
-                            <td className="px-5 py-4">
-                              <button
-                                type="button"
-                                onClick={() =>
-                                  navigate(
-                                    `/finance/transactions/expenses-payments-made/${allocation.payment_made_id}`
-                                  )
-                                }
-                                className="font-semibold text-cyan-200 transition hover:text-cyan-100"
-                              >
-                                {payment?.reference_number || "Expense Payment Distribution"}
-                              </button>
-                              <div className="mt-1 flex flex-wrap items-center gap-2 text-xs text-slate-500">
-                                <span>{payment ? formatDate(payment.payment_date) : "—"}</span>
-                                <StatusBadge value={payment?.status} />
-                              </div>
-                            </td>
-                            <td className="px-5 py-4">{fundingCompany?.name || "—"}</td>
-                            <td className="px-5 py-4">{getBankLabel(bank)}</td>
-                            <td className="px-5 py-4">
-                              {batch?.batch_number || "—"}
-                              {batch ? (
-                                <div className="mt-1 text-xs text-slate-500">
-                                  {formatDate(batch.allocation_date)}
-                                </div>
-                              ) : null}
-                            </td>
-                            <td className="px-5 py-4 text-right font-semibold text-white">
-                              {allocation.currency_code || currencyCode}{" "}
-                              {formatMoney(
-                                allocation.converted_amount || allocation.allocated_amount
-                              )}
-                            </td>
-                            <td className="px-5 py-4">
-                              <StatusBadge value={allocation.recipient_confirmation_status} />
-                            </td>
-                          </tr>
-                        );
-                      })}
+                      {attachments.map((attachment) => (
+                        <tr key={attachment.id} className="aixia-table-row">
+                          <AixiaTableTextCell
+                            width="xl"
+                            primary={attachment.fileUpload?.file_name || "File"}
+                            secondary={attachment.notes || "Documentation proof"}
+                          />
+                          <AixiaTableTextCell
+                            width="md"
+                            primary={attachment.fileUpload?.mime_type || "Unknown type"}
+                            secondary={attachment.metadata?.resolved_mime_type || "Saved file"}
+                          />
+                          <AixiaTableDateCell width="sm">
+                            {formatDateTime(attachment.created_at)}
+                          </AixiaTableDateCell>
+                        </tr>
+                      ))}
                     </tbody>
-                  </table>
-                </div>
-              )}
-            </SectionCard>
-          </div>
+                  </AixiaTableShell>
+                )}
+              </AixiaSection>
+            </div>
+          </AixiaSection>
 
-          <aside className="sticky top-6 grid gap-6">
-            <SectionCard
-              title="Finance Decision"
-              description="This page controls only the expense review flow, not monthly fund allocation or payment distribution."
-              icon={ShieldCheck}
-            >
-              <div className="grid gap-4">
-                {renderStageGuidance()}
+          <AixiaChildAllocationRegistry
+            title="Funding & Payment Coverage"
+            description="Funding Pool usage and Expense Payment Distribution records covering this expense."
+            icon={WalletCards}
+            search={null}
+            archiveAction={
+              <AixiaButton
+                type="button"
+                variant="danger"
+                onClick={() => setAllocationArchiveOpen(true)}
+              >
+                <Archive className="h-4 w-4" />
+                Allocation Archive
+              </AixiaButton>
+            }
+          >
+            <AixiaTableShell variant="registry" minWidthClassName="min-w-[1480px]">
+              <thead className="aixia-table-head">
+                <tr>
+                  <th>
+                    <AixiaSortableHeader
+                      label="Payment"
+                      sortKey="payment"
+                      activeSortKey={allocationSortKey}
+                      sortDirection={allocationSortDirection}
+                      onSort={handleAllocationSort}
+                    />
+                  </th>
+                  <th>
+                    <AixiaSortableHeader
+                      label="Funding Company"
+                      sortKey="funding_company"
+                      activeSortKey={allocationSortKey}
+                      sortDirection={allocationSortDirection}
+                      onSort={handleAllocationSort}
+                    />
+                  </th>
+                  <th>Bank</th>
+                  <th>Funding Pool</th>
+                  <th>
+                    <AixiaSortableHeader
+                      label="Amount"
+                      sortKey="amount"
+                      activeSortKey={allocationSortKey}
+                      sortDirection={allocationSortDirection}
+                      onSort={handleAllocationSort}
+                    />
+                  </th>
+                  <th>
+                    <AixiaSortableHeader
+                      label="Recipient"
+                      sortKey="recipient"
+                      activeSortKey={allocationSortKey}
+                      sortDirection={allocationSortDirection}
+                      onSort={handleAllocationSort}
+                    />
+                  </th>
+                  <th>
+                    <AixiaSortableHeader
+                      label="Recipient Status"
+                      sortKey="recipient_status"
+                      activeSortKey={allocationSortKey}
+                      sortDirection={allocationSortDirection}
+                      onSort={handleAllocationSort}
+                    />
+                  </th>
+                  <th>
+                    <AixiaSortableHeader
+                      label="Updated"
+                      sortKey="updated_at"
+                      activeSortKey={allocationSortKey}
+                      sortDirection={allocationSortDirection}
+                      onSort={handleAllocationSort}
+                    />
+                  </th>
+                  <th>Actions</th>
+                </tr>
+              </thead>
+              <tbody>{renderAllocationRows(sortedActiveAllocations, "active")}</tbody>
+            </AixiaTableShell>
+          </AixiaChildAllocationRegistry>
+        </div>
 
-                {isInitialReviewStage || isDocumentationSubmitted ? (
-                  <TextareaField
-                    label="Finance Notes / Reason"
+        <aside className="aixia-stack">
+          <AixiaSection
+            title="Finance Decision"
+            description="This page controls only the expense review flow, not monthly fund allocation or payment distribution."
+            icon={ShieldCheck}
+          >
+            <div className="aixia-stack">
+              {renderStageGuidance()}
+
+              {isInitialReviewStage || isDocumentationSubmitted ? (
+                <AixiaFormField>
+                  <AixiaFieldLabel label="Finance Notes / Reason" />
+                  <AixiaTextareaField
                     value={financeNotes}
-                    onChange={setFinanceNotes}
+                    onChange={(event) => setFinanceNotes(event.target.value)}
                     placeholder="Write approval notes, rejection reason, or document review issue."
                   />
-                ) : null}
+                </AixiaFormField>
+              ) : null}
 
-                {renderFinanceActions()}
+              {renderFinanceActions()}
 
-                {isVerifiedForPayment ? (
-                  <div className="rounded-[24px] border border-cyan-400/20 bg-cyan-500/10 p-4 text-sm leading-6 text-cyan-100">
-                    <div className="text-[11px] font-semibold uppercase tracking-[0.18em] text-cyan-200">
-                      Ready To Pay
-                    </div>
-                    <div className="mt-3 font-semibold text-white">
-                      This expense is complete from the review side.
-                    </div>
-                    <div className="mt-2 text-sm leading-6 text-cyan-100/75">
-                      It will wait in the monthly Finance payment cycle until Finance allocates a
-                      pool of money and distributes payments across verified expenses. The only
-                      later connection back to this expense is recipient confirmation after payment.
-                    </div>
-                  </div>
-                ) : null}
+              {isVerifiedForPayment ? (
+                <AixiaAlert tone="info">
+                  This expense is complete from the review side and waits in the monthly Finance
+                  payment cycle.
+                </AixiaAlert>
+              ) : null}
 
-                {!renderFinanceActions() && !isVerifiedForPayment && !renderStageGuidance() ? (
-                  <div className="rounded-[24px] border border-white/10 bg-black/20 p-4 text-xs leading-5 text-slate-500">
-                    No Finance action is required for the current status.
-                  </div>
-                ) : null}
-              </div>
-            </SectionCard>
+              {!renderFinanceActions() && !isVerifiedForPayment && !renderStageGuidance() ? (
+                <AixiaEmptyState
+                  icon={ShieldCheck}
+                  title="No Finance action required"
+                  description="No Finance action is required for the current status."
+                />
+              ) : null}
+            </div>
+          </AixiaSection>
 
-            {expense.expense_type === "online_shopping" ? (
-              <SectionCard
-                title="Online Shopping Review"
-                description="Finance/Admin confirms the online order state when relevant."
-                icon={ShoppingCart}
-              >
-                <div className="grid gap-4">
-                  <ValueBlock
-                    label="Online Confirmation"
-                    value={<StatusBadge value={expense.online_confirmation_status} />}
-                    detail={expense.online_confirmation_notes || undefined}
+          {expense.expense_type === "online_shopping" ? (
+            <AixiaSection
+              title="Online Shopping Review"
+              description="Finance/Admin confirms the online order state when relevant."
+              icon={ShoppingCart}
+            >
+              <div className="aixia-stack">
+                <AixiaValueBlock
+                  label="Online Confirmation"
+                  value={<AixiaStatusBadge value={expense.online_confirmation_status} />}
+                  detail={expense.online_confirmation_notes || undefined}
+                />
+                {renderOnlineActions() || (
+                  <AixiaEmptyState
+                    icon={ShoppingCart}
+                    title="No online review action required"
+                    description="No online shopping confirmation action is currently required."
                   />
-                  {renderOnlineActions() || (
-                    <div className="rounded-[24px] border border-white/10 bg-black/20 p-4 text-xs leading-5 text-slate-500">
-                      No online shopping confirmation action is currently required.
-                    </div>
-                  )}
-                </div>
-              </SectionCard>
-            ) : null}
-
-            <SectionCard
-              title="Finance Status"
-              description="Read-only workflow status summary."
-              icon={ShieldCheck}
-            >
-              <div className="grid gap-3">
-                <ValueBlock
-                  label="Request Status"
-                  value={<StatusBadge value={expense.request_status || expense.status} />}
-                />
-                <ValueBlock
-                  label="Documentation"
-                  value={<StatusBadge value={expense.documentation_status} />}
-                />
-                <ValueBlock
-                  label="Finance Review"
-                  value={<StatusBadge value={expense.finance_review_status} />}
-                />
-                <ValueBlock
-                  label="Funding"
-                  value={<StatusBadge value={expense.funding_status} />}
-                />
-                <ValueBlock
-                  label="Coverage"
-                  value={<StatusBadge value={expense.coverage_status} />}
-                />
-                <ValueBlock
-                  label="Recipient Confirmation"
-                  value={<StatusBadge value={expense.recipient_confirmation_status} />}
-                />
+                )}
               </div>
-            </SectionCard>
+            </AixiaSection>
+          ) : null}
 
-            <SectionCard
-              title="Quick Links"
-              description="Open related pages without changing this review record."
-              icon={ExternalLink}
-            >
-              <div className="grid gap-3">
-                <button
-                  type="button"
-                  onClick={() => navigate(`/finance/transactions/expenses/${expense.id}`)}
-                  className="inline-flex h-11 items-center justify-center gap-2 rounded-2xl border border-cyan-400/20 bg-cyan-500/10 px-4 text-sm font-semibold text-cyan-100 transition hover:bg-cyan-500/15"
-                >
-                  <ExternalLink className="h-4 w-4" />
-                  Requester Expense Page
-                </button>
-                <button
-                  type="button"
-                  onClick={() => navigate("/finance/transactions/expenses-payments-made")}
-                  className="inline-flex h-11 items-center justify-center gap-2 rounded-2xl border border-white/10 bg-white/[0.05] px-4 text-sm font-semibold text-slate-300 transition hover:bg-white/[0.08] hover:text-white"
-                >
-                  <ArrowRight className="h-4 w-4 rotate-180" />
-                  Payment Control
-                </button>
-              </div>
-            </SectionCard>
-          </aside>
-        </div>
+          <AixiaSection
+            title="Finance Status"
+            description="Read-only workflow status summary."
+            icon={ShieldCheck}
+          >
+            <AixiaReviewGrid variant="cards">
+              <AixiaValueBlock
+                label="Request Status"
+                value={<AixiaStatusBadge value={expense.request_status || expense.status} />}
+              />
+              <AixiaValueBlock
+                label="Documentation"
+                value={<AixiaStatusBadge value={expense.documentation_status} />}
+              />
+              <AixiaValueBlock
+                label="Finance Review"
+                value={<AixiaStatusBadge value={expense.finance_review_status} />}
+              />
+              <AixiaValueBlock
+                label="Funding"
+                value={<AixiaStatusBadge value={expense.funding_status} />}
+              />
+              <AixiaValueBlock
+                label="Coverage"
+                value={<AixiaStatusBadge value={expense.coverage_status} />}
+              />
+              <AixiaValueBlock
+                label="Recipient Confirmation"
+                value={<AixiaStatusBadge value={expense.recipient_confirmation_status} />}
+              />
+            </AixiaReviewGrid>
+          </AixiaSection>
+
+          <AixiaSection
+            title="Quick Links"
+            description="Open related pages without changing this review record."
+            icon={ExternalLink}
+          >
+            <div className="aixia-action-stack">
+              <AixiaButton
+                type="button"
+                variant="primary"
+                onClick={() => navigate(`/finance/transactions/expenses/${expense.id}`)}
+              >
+                <ExternalLink className="h-4 w-4" />
+                Requester Expense Page
+              </AixiaButton>
+              <AixiaButton
+                type="button"
+                variant="secondary"
+                onClick={() => navigate("/finance/transactions/expenses-payments-made")}
+              >
+                <ArrowRight className="h-4 w-4 rotate-180" />
+                Payment Control
+              </AixiaButton>
+            </div>
+          </AixiaSection>
+        </aside>
       </div>
-    </div>
+
+      <AixiaArchiveManagerModal
+        open={allocationArchiveOpen}
+        title="Linked Expense Allocations Archive"
+        description="Archived allocation rows can be restored. Deleted allocation rows can be restored or permanently deleted."
+        archivedCount={archivedAllocations.length}
+        onClose={() => setAllocationArchiveOpen(false)}
+      >
+        <div className="aixia-stack">
+          <AixiaRegistryToolbar
+            search={null}
+            secondaryActions={
+              <AixiaButton
+                type="button"
+                variant={allocationArchiveTab === "archived" ? "primary" : "secondary"}
+                onClick={() => setAllocationArchiveTab("archived")}
+              >
+                Archived ({archivedAllocations.length})
+              </AixiaButton>
+            }
+            archiveAction={
+              <AixiaButton
+                type="button"
+                variant={allocationArchiveTab === "deleted" ? "danger" : "secondary"}
+                onClick={() => setAllocationArchiveTab("deleted")}
+              >
+                Deleted ({deletedAllocations.length})
+              </AixiaButton>
+            }
+          />
+
+          <AixiaTableShell variant="archive" minWidthClassName="min-w-[1480px]">
+            <thead className="aixia-table-head">
+              <tr>
+                <th>Payment</th>
+                <th>Funding Company</th>
+                <th>Bank</th>
+                <th>Funding Pool</th>
+                <th>Amount</th>
+                <th>Recipient</th>
+                <th>Recipient Status</th>
+                <th>Updated</th>
+                <th>Actions</th>
+              </tr>
+            </thead>
+            <tbody>{renderAllocationRows(sortedArchiveAllocations, "archive")}</tbody>
+          </AixiaTableShell>
+        </div>
+      </AixiaArchiveManagerModal>
+    </AixiaPage>
   );
+}
+
+function ClockIconForTimeline(label: string): LucideIcon {
+  if (label === "Request") return CalendarClock;
+  if (label === "Docs") return FileText;
+  if (label === "Review") return FileCheck2;
+  if (label === "Coverage") return WalletCards;
+  return CheckCircle2;
 }

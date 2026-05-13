@@ -275,7 +275,7 @@ export function AixiaSmartLayout({
   ];
 
   useEffect(() => {
-    if (!matchColumns) return;
+    if (!matchColumns && !hasExplicitMainSplit) return;
 
     const layoutElement = layoutRef.current;
     const mainElement = mainRef.current;

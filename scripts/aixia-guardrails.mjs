@@ -481,7 +481,11 @@ function inspectSharedCssSourceOfTruth() {
     "GLOBAL AIXIA ACTION CARD + BUTTON SYMMETRY STANDARD",
     "GLOBAL AIXIA HERO AUTO-REFLOW STANDARD",
     "GLOBAL DOCUMENT UPLOAD PANEL STANDARD",
-    "GLOBAL SMART DETAIL LAYOUT COMPACTION STANDARD",
+    "GLOBAL AIXIA SMART DETAIL LAYOUT COMPACTION STANDARD",
+    "GLOBAL AIXIA SMART LAYOUT MAX-EXPANSION STANDARD",
+    "data-has-bottom-span=\"true\"",
+    ".aixia-smart-layout[data-has-bottom-span=\"true\"] > .aixia-smart-side > :last-child",
+    "grid-column: 1 / -1",
     "font-family:",
     "0.66rem",
     "0.74rem",
@@ -1525,7 +1529,7 @@ function main() {
     process.exit(1);
   }
 
-  console.log("AiXia guardrails completed. Navigation-card, action-card, document-upload, typography, button-symmetry, and shared-wrapper source-of-truth rules are active.");
+  console.log("AiXia guardrails completed. Navigation-card, action-card, document-upload, typography, button-symmetry, smart-layout max-expansion, and shared-wrapper source-of-truth rules are active.");
 }
 
 main();

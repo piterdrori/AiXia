@@ -20,7 +20,7 @@ import {
 import {
   AixiaAccessRule,
   AixiaAlert,
-  AixiaBadge,
+  AixiaArchiveManagerModal,
   AixiaButton,
   AixiaChildAllocationRegistry,
   AixiaEmployeeIdentityCell,
@@ -35,7 +35,6 @@ import {
   AixiaMetricCard,
   AixiaMetricGrid,
   AixiaPage,
-  AixiaRegistryToolbar,
   AixiaReviewGrid,
   AixiaSearchField,
   AixiaSection,
@@ -721,6 +720,10 @@ export default function FinanceExpensesPaymentsMadeNewPage() {
   const [fundingUsagePreview, setFundingUsagePreview] =
     useState<FundingUsagePreview | null>(null);
   const [searchQuery, setSearchQuery] = useState("");
+  const [allocationArchiveOpen, setAllocationArchiveOpen] = useState(false);
+  const [allocationArchiveTab, setAllocationArchiveTab] = useState<
+    "archived" | "deleted"
+  >("archived");
   const [sortKey, setSortKey] = useState<ExpenseSortKey>("updated_at");
   const [sortDirection, setSortDirection] = useState<SortDirection>("desc");
   const [isLoading, setIsLoading] = useState(true);
@@ -797,6 +800,24 @@ export default function FinanceExpensesPaymentsMadeNewPage() {
   const activeExistingAllocations = useMemo(() => {
     return existingAllocations.filter(isActiveAllocation);
   }, [existingAllocations]);
+
+  const archivedExistingAllocations = useMemo(() => {
+    return existingAllocations.filter(
+      (allocation) => allocation.lifecycle_status === "archived"
+    );
+  }, [existingAllocations]);
+
+  const deletedExistingAllocations = useMemo(() => {
+    return existingAllocations.filter(
+      (allocation) => allocation.lifecycle_status === "deleted"
+    );
+  }, [existingAllocations]);
+
+  const allocationArchiveRows = useMemo(() => {
+    return allocationArchiveTab === "archived"
+      ? archivedExistingAllocations
+      : deletedExistingAllocations;
+  }, [allocationArchiveTab, archivedExistingAllocations, deletedExistingAllocations]);
 
   const confirmedExistingAllocations = useMemo(() => {
     return activeExistingAllocations.filter((allocation) =>
@@ -2007,6 +2028,16 @@ export default function FinanceExpensesPaymentsMadeNewPage() {
                   placeholder="Search expenses..."
                 />
               }
+              archiveAction={
+                <AixiaButton
+                  type="button"
+                  variant="danger"
+                  onClick={() => setAllocationArchiveOpen(true)}
+                >
+                  <Archive className="h-4 w-4" />
+                  Allocation Archive
+                </AixiaButton>
+              }
             >
               {sortedFilteredExpenses.length === 0 ? (
                 <AixiaEmptyState
@@ -2431,6 +2462,145 @@ export default function FinanceExpensesPaymentsMadeNewPage() {
           </>
         }
       />
+
+      <AixiaArchiveManagerModal
+        open={allocationArchiveOpen}
+        title="Linked Expense Allocations Archive"
+        description="Archived allocation rows can be restored. Deleted allocation rows can be restored or permanently deleted."
+        archivedCount={archivedExistingAllocations.length}
+        onClose={() => setAllocationArchiveOpen(false)}
+      >
+        <div className="aixia-stack">
+          <div className="aixia-action-row">
+            <AixiaButton
+              type="button"
+              variant={allocationArchiveTab === "archived" ? "primary" : "secondary"}
+              onClick={() => setAllocationArchiveTab("archived")}
+            >
+              Archived ({archivedExistingAllocations.length})
+            </AixiaButton>
+
+            <AixiaButton
+              type="button"
+              variant={allocationArchiveTab === "deleted" ? "danger" : "secondary"}
+              onClick={() => setAllocationArchiveTab("deleted")}
+            >
+              Deleted ({deletedExistingAllocations.length})
+            </AixiaButton>
+          </div>
+
+          {allocationArchiveRows.length === 0 ? (
+            <AixiaEmptyState
+              icon={Archive}
+              title={`No ${allocationArchiveTab} allocation records`}
+              description={`No ${allocationArchiveTab} linked expense allocation records were found.`}
+            />
+          ) : (
+            <AixiaTableShell variant="archive" minWidthClassName="min-w-[980px]">
+              <thead className="aixia-table-head">
+                <tr>
+                  <th>Expense</th>
+                  <th>Payment</th>
+                  <th>Amount</th>
+                  <th>Status</th>
+                  <th>Actions</th>
+                </tr>
+              </thead>
+
+              <tbody>
+                {allocationArchiveRows.map((allocation) => {
+                  const expense = enrichedExpenses.find(
+                    (item) => item.id === allocation.expense_id
+                  );
+                  const isAllocationActionRunning =
+                    allocation.id === runningAllocationActionId;
+
+                  return (
+                    <tr key={allocation.id} className="aixia-table-row">
+                      <AixiaTableTextCell
+                        width="xl"
+                        primary={
+                          expense?.expensePrimaryLabel ||
+                          allocation.metadata?.expense_title ||
+                          "Expense allocation"
+                        }
+                        secondary={
+                          expense?.expenseSecondaryLabel ||
+                          allocation.metadata?.expense_number ||
+                          "Archived allocation record"
+                        }
+                      />
+
+                      <AixiaTableTextCell
+                        width="md"
+                        primary={allocation.payment_made_id}
+                        secondary="Payment made reference"
+                      />
+
+                      <AixiaTableTextCell
+                        width="md"
+                        primary={`${allocation.currency_code || "—"} ${formatMoney(
+                          allocation.allocated_amount
+                        )}`}
+                        secondary={`${allocation.payment_currency_code || "—"} ${formatMoney(
+                          allocation.converted_amount
+                        )}`}
+                      />
+
+                      <AixiaTableBadgeCell width="sm">
+                        <AixiaStatusBadge value={allocation.lifecycle_status} />
+                      </AixiaTableBadgeCell>
+
+                      <AixiaTableActionsCell>
+                        <AixiaButton
+                          type="button"
+                          variant="secondary"
+                          disabled={Boolean(runningAllocationActionId)}
+                          onClick={() =>
+                            void runAllocationLifecycleAction(
+                              "restore",
+                              allocation.id,
+                              "finance_restore_payment_made_expense_allocation",
+                              "Allocation restored."
+                            )
+                          }
+                        >
+                          {isAllocationActionRunning &&
+                          runningAllocationAction === "restore" ? (
+                            <RotateCcw className="h-3.5 w-3.5 animate-spin" />
+                          ) : (
+                            <RotateCcw className="h-3.5 w-3.5" />
+                          )}
+                          Restore
+                        </AixiaButton>
+
+                        {allocationArchiveTab === "deleted" ? (
+                          <AixiaButton
+                            type="button"
+                            variant="danger"
+                            disabled={Boolean(runningAllocationActionId)}
+                            onClick={() =>
+                              void runAllocationLifecycleAction(
+                                "hard_delete",
+                                allocation.id,
+                                "finance_permanently_delete_payment_made_expense_allocation",
+                                "Allocation permanently deleted."
+                              )
+                            }
+                          >
+                            <Trash2 className="h-3.5 w-3.5" />
+                            Delete Permanently
+                          </AixiaButton>
+                        ) : null}
+                      </AixiaTableActionsCell>
+                    </tr>
+                  );
+                })}
+              </tbody>
+            </AixiaTableShell>
+          )}
+        </div>
+      </AixiaArchiveManagerModal>
     </AixiaPage>
   );
 }

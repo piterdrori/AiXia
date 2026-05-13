@@ -492,12 +492,16 @@ function inspectSharedCssSourceOfTruth() {
     "GLOBAL DOCUMENT UPLOAD PANEL STANDARD",
     "GLOBAL AIXIA SMART DETAIL LAYOUT COMPACTION STANDARD",
     "GLOBAL AIXIA SMART LAYOUT MAX-EXPANSION STANDARD",
-    "GLOBAL AIXIA SMART LAYOUT VERTICAL COMPACTION STANDARD",
-    "GLOBAL AIXIA SMART LAYOUT STRONG VERTICAL COMPACTION",
+    "GLOBAL AIXIA FINAL SMART SPLIT + FORM FEEDBACK FIX",
     "data-has-bottom-span=\"true\"",
-    ".aixia-smart-layout[data-has-bottom-span=\"true\"] > .aixia-smart-side > :last-child",
-    ".aixia-smart-layout[data-has-bottom-span=\"true\"] .aixia-table-scroll",
-    "max-height: min(430px, 44vh)",
+    "data-has-explicit-main-split=\"true\"",
+    ".aixia-smart-layout[data-has-explicit-main-split=\"true\"][data-has-bottom-span=\"true\"]",
+    ".aixia-smart-layout[data-has-explicit-main-split=\"true\"][data-has-bottom-span=\"true\"] > .aixia-smart-main",
+    ".aixia-smart-layout[data-has-explicit-main-split=\"true\"][data-has-bottom-span=\"true\"] > .aixia-smart-side",
+    ".aixia-smart-layout[data-has-explicit-main-split=\"true\"][data-has-bottom-span=\"true\"] > .aixia-smart-main > .aixia-smart-main-top-tail",
+    ".aixia-section .aixia-alert + .aixia-form-grid",
+    ".aixia-section .aixia-alert + .aixia-form-field",
+    ".aixia-section .aixia-alert + .aixia-form-full",
     "grid-column: 1 / -1",
     "font-family:",
     "0.66rem",
@@ -507,9 +511,6 @@ function inspectSharedCssSourceOfTruth() {
     "0.64rem",
     ".aixia-hero-main[data-has-side=\"true\"]",
     ".aixia-hero-side",
-    "GLOBAL AIXIA HERO TITLE / SIDE-CARD BALANCE STANDARD",
-    "minmax(720px, 1.24fr)",
-    "padding-top: clamp(5.5rem, 7vw, 8rem)",
     "overflow-wrap: normal",
     "hyphens: none",
     ".aixia-document-upload-panel",
@@ -524,6 +525,50 @@ function inspectSharedCssSourceOfTruth() {
         "AiXia CSS source-of-truth rule"
       );
     }
+  }
+
+  const bannedOldSmartLayoutSnippets = [
+    "GLOBAL AIXIA SMART LAYOUT VERTICAL COMPACTION STANDARD",
+    "GLOBAL AIXIA SMART LAYOUT STRONG VERTICAL COMPACTION",
+    "GLOBAL AIXIA HERO TITLE / SIDE-CARD BALANCE STANDARD",
+    "minmax(720px, 1.24fr)",
+    "padding-top: clamp(5.5rem, 7vw, 8rem)",
+  ];
+
+  for (const snippet of bannedOldSmartLayoutSnippets) {
+    if (text.includes(snippet)) {
+      addError(
+        AIXIA_STYLE_FILE,
+        `Old conflicting shared CSS snippet must be removed because it can override the final smart split/layout standard: ${snippet}`,
+        "AiXia CSS smart-layout conflict rule"
+      );
+    }
+  }
+
+  if (
+    /\.aixia-smart-layout\[data-match-columns=["']false["']\]\s*>\s*\.aixia-smart-side/.test(
+      text
+    ) &&
+    !/\.aixia-smart-layout\[data-match-columns=["']false["']\]:not\(\[data-has-bottom-span=["']true["']\]\)\s*>\s*\.aixia-smart-side/.test(
+      text
+    )
+  ) {
+    addError(
+      AIXIA_STYLE_FILE,
+      'CSS rules for .aixia-smart-layout[data-match-columns="false"] > .aixia-smart-side must exclude bottom-span layouts with :not([data-has-bottom-span="true"]). Otherwise they override explicit main split alignment.',
+      "AiXia CSS smart-layout conflict rule"
+    );
+  }
+
+  if (
+    /\.aixia-document-upload-panel\s+\.aixia-alert/.test(text) &&
+    !/\.aixia-section\s+\.aixia-alert\s*\+\s*\.aixia-form-grid/.test(text)
+  ) {
+    addError(
+      AIXIA_STYLE_FILE,
+      "Alert spacing must not only target .aixia-document-upload-panel .aixia-alert. Pages often render AixiaAlert before AixiaFormGrid, so shared CSS must support .aixia-section .aixia-alert + .aixia-form-grid.",
+      "AiXia alert spacing DOM rule"
+    );
   }
 
   const protectedSelectorChecks = [
@@ -798,8 +843,13 @@ function inspectSharedComponentSourceOfTruth() {
       "sideRebalance === \"last-to-bottom\"",
       "mainChildren.length > 3",
       "sideChildren.length > 1",
+      "hasExplicitMainSplit",
       "aixia-smart-layout",
       "aixia-smart-bottom-span",
+      "data-has-explicit-main-split",
+      "data-has-bottom-span",
+      "aixia-smart-main-top-tail",
+      "--aixia-smart-main-tail-height",
     ]) {
       if (!text.includes(snippet)) {
         addError(
@@ -808,6 +858,30 @@ function inspectSharedComponentSourceOfTruth() {
           "AiXia component source-of-truth rule"
         );
       }
+    }
+
+    if (/if\s*\(\s*!matchColumns\s*\)\s*return\s*;/.test(text)) {
+      addError(
+        smartLayoutFile,
+        'AixiaSmartLayout measurement must not exit with if (!matchColumns) return;. Explicit main split layouts using mainTopCount must still measure even when matchColumns={false}. Use: if (!matchColumns && !hasExplicitMainSplit) return;',
+        "AiXia SmartLayout explicit split rule"
+      );
+    }
+
+    if (!/if\s*\(\s*!matchColumns\s*&&\s*!hasExplicitMainSplit\s*\)\s*return\s*;/.test(text)) {
+      addError(
+        smartLayoutFile,
+        'AixiaSmartLayout must preserve explicit split measurement with: if (!matchColumns && !hasExplicitMainSplit) return;',
+        "AiXia SmartLayout explicit split rule"
+      );
+    }
+
+    if (/hasExplicitMainSplit/.test(text) && !/mainTopCount/.test(text)) {
+      addError(
+        smartLayoutFile,
+        "AixiaSmartLayout explicit split behavior must stay connected to mainTopCount. Do not separate hasExplicitMainSplit from mainTopCount logic.",
+        "AiXia SmartLayout explicit split rule"
+      );
     }
   }
 

@@ -1,37 +1,57 @@
+import {
+  getFinanceEmployeePrimaryName,
+  getFinanceEmployeeReferenceLabel,
+  getFinanceEmployeeSecondaryLabel,
+  isPollutedEmployeeDisplay,
+  type FinanceEmployeeIdentity,
+} from "@/lib/finance/employeeIdentity";
+
 import { AixiaTableTextCell } from "./AixiaTableCells";
 
 type AixiaEmployeeIdentityCellProps = {
-  primary: string;
-  secondary?: string;
-  reference?: string;
+  identity?: FinanceEmployeeIdentity | null;
+  primary?: string | null;
+  secondary?: string | null;
+  reference?: string | null;
   width?: "sm" | "md" | "lg" | "xl";
 };
 
-function isBadPrimary(value: string) {
-  return (
-    /^EMP-[0-9]+/i.test(value.trim()) ||
-    /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(
-      value.trim()
-    )
-  );
+function cleanText(value: string | null | undefined) {
+  return (value || "").trim();
 }
 
 export function AixiaEmployeeIdentityCell({
+  identity,
   primary,
   secondary,
   reference,
   width = "lg",
 }: AixiaEmployeeIdentityCellProps) {
-  const cleanPrimary = primary && !isBadPrimary(primary) ? primary : "Unresolved employee";
+  const resolvedPrimary = identity
+    ? getFinanceEmployeePrimaryName(identity, primary)
+    : cleanText(primary) && !isPollutedEmployeeDisplay(primary)
+      ? cleanText(primary)
+      : "Unresolved employee";
 
-  const cleanSecondary = [secondary, reference ? `Ref: ${reference}` : ""]
+  const resolvedSecondary = identity
+    ? getFinanceEmployeeSecondaryLabel(identity)
+    : cleanText(secondary) || "No role/company saved";
+
+  const resolvedReference = identity
+    ? getFinanceEmployeeReferenceLabel(identity)
+    : cleanText(reference);
+
+  const cleanSecondary = [
+    resolvedSecondary,
+    resolvedReference ? `Ref: ${resolvedReference}` : "",
+  ]
     .filter(Boolean)
     .join(" • ");
 
   return (
     <AixiaTableTextCell
       width={width}
-      primary={cleanPrimary}
+      primary={resolvedPrimary}
       secondary={cleanSecondary || "No role/company saved"}
     />
   );

@@ -5416,3 +5416,60 @@ button.aixia-action-card:disabled {
   min-width: 0 !important;
   max-width: 100% !important;
 }
+
+/* -------------------------------------------------------
+   GLOBAL AIXIA SMART LAYOUT MAX-EXPANSION STANDARD
+   Side cards must not stretch into huge empty panels.
+   If a two-column detail layout creates too much empty
+   expansion on the side, the side cards shrink to content
+   height and lower cards use the full-width bottom span.
+------------------------------------------------------- */
+
+@media (min-width: 1280px) {
+  .aixia-smart-layout[data-has-bottom-span="true"] {
+    align-items: start !important;
+  }
+
+  .aixia-smart-layout[data-has-bottom-span="true"] > .aixia-smart-main {
+    height: auto !important;
+    align-self: start !important;
+  }
+
+  .aixia-smart-layout[data-has-bottom-span="true"] > .aixia-smart-side {
+    height: auto !important;
+    align-self: start !important;
+  }
+
+  .aixia-smart-layout[data-has-bottom-span="true"] > .aixia-smart-side > * {
+    flex: 0 0 auto !important;
+    min-height: 0 !important;
+  }
+
+  .aixia-smart-layout[data-has-bottom-span="true"] > .aixia-smart-side > :last-child {
+    flex: 0 0 auto !important;
+    min-height: 0 !important;
+    max-height: none !important;
+  }
+
+  .aixia-smart-layout[data-has-bottom-span="true"] > .aixia-smart-side > :last-child.aixia-section {
+    display: block !important;
+  }
+
+  .aixia-smart-layout[data-has-bottom-span="true"] > .aixia-smart-side > :last-child.aixia-section > .p-6,
+  .aixia-smart-layout[data-has-bottom-span="true"] > .aixia-smart-side > :last-child.aixia-section > .aixia-section-smart-scroll-body {
+    flex: 0 0 auto !important;
+    min-height: 0 !important;
+  }
+
+  .aixia-smart-layout[data-has-bottom-span="true"] > .aixia-smart-bottom-span {
+    grid-column: 1 / -1 !important;
+    width: 100% !important;
+    min-width: 0 !important;
+    align-self: start !important;
+  }
+
+  .aixia-smart-layout[data-has-bottom-span="true"] > .aixia-smart-bottom-span > * {
+    width: 100% !important;
+    max-width: 100% !important;
+  }
+}

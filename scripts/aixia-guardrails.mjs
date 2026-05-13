@@ -733,9 +733,11 @@ function inspectSharedComponentSourceOfTruth() {
     for (const snippet of [
       "bottomSpan",
       "sideRebalance",
-      "sideRebalance === \"last-to-bottom\"",
-      "shouldForceBottomSpanForRebalancedSide",
       "mainTopCount",
+      "getResolvedMainTopCount",
+      "sideRebalance === \"last-to-bottom\"",
+      "mainChildren.length > 3",
+      "sideChildren.length > 1",
       "aixia-smart-layout",
       "aixia-smart-bottom-span",
     ]) {
@@ -1535,7 +1537,7 @@ function main() {
     process.exit(1);
   }
 
-  console.log("AiXia guardrails completed. Navigation-card, action-card, document-upload, typography, button-symmetry, smart-layout max-expansion, and shared-wrapper source-of-truth rules are active.");
+  console.log("AiXia guardrails completed. Navigation-card, action-card, document-upload, typography, button-symmetry, smart-layout auto-split/max-expansion, and shared-wrapper source-of-truth rules are active.");
 }
 
 main();

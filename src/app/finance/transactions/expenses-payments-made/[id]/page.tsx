@@ -30,6 +30,7 @@ import {
   AixiaBadge,
   AixiaButton,
   AixiaChildAllocationRegistry,
+  AixiaEmployeeIdentityCell,
   AixiaEmptyState,
   AixiaHero,
   AixiaLoadingState,
@@ -48,6 +49,11 @@ import {
   AixiaTableTextCell,
   AixiaValueBlock,
 } from "@/components/aixia";
+import {
+  getFinanceEmployeePrimaryName,
+  getFinanceEmployeeSecondaryLabel,
+  type FinanceEmployeeIdentity,
+} from "@/lib/finance/employeeIdentity";
 import { supabase } from "@/lib/supabase";
 
 type PaymentMetadata = {
@@ -237,26 +243,6 @@ type EmployeeRefRow = {
   } | null;
 };
 
-type EmployeeIdentityRow = {
-  employee_ref_id?: string | null;
-  id?: string | null;
-  user_id?: string | null;
-  employee_code?: string | null;
-  code?: string | null;
-  full_name?: string | null;
-  display_name?: string | null;
-  employee_name?: string | null;
-  email?: string | null;
-  job_title?: string | null;
-  role?: string | null;
-  department?: string | null;
-  company?: string | null;
-  company_name?: string | null;
-  member_type?: string | null;
-  status?: string | null;
-  [key: string]: unknown;
-};
-
 type FundingPoolRow = {
   id: string;
   batch_number: string;
@@ -276,6 +262,7 @@ type EnrichedAllocation = AllocationRow & {
   expenseCompanyName: string;
   fundingCompanyName: string;
   bankLabel: string;
+  recipientIdentity: FinanceEmployeeIdentity | null;
   recipientPrimaryName: string;
   recipientSecondaryLabel: string;
   paymentCurrencyAmount: number;
@@ -404,49 +391,6 @@ function getBankLabel(bank: BankAccountRow | null | undefined) {
     .join(" • ");
 }
 
-function getFinanceEmployeePrimaryName(
-  identity: EmployeeIdentityRow | null | undefined,
-  employee: EmployeeRefRow | null | undefined
-) {
-  return (
-    identity?.full_name?.trim() ||
-    identity?.display_name?.trim() ||
-    identity?.employee_name?.trim() ||
-    identity?.email?.trim() ||
-    employee?.metadata?.member_type?.trim() ||
-    "Recipient"
-  );
-}
-
-function getFinanceEmployeeSecondaryLabel(
-  identity: EmployeeIdentityRow | null | undefined,
-  employee: EmployeeRefRow | null | undefined,
-  fallbackCompany: string
-) {
-  const role =
-    identity?.job_title?.trim() ||
-    identity?.role?.trim() ||
-    employee?.metadata?.job_title?.trim() ||
-    employee?.metadata?.source_role?.trim() ||
-    employee?.mark?.trim() ||
-    "";
-
-  const company =
-    identity?.company_name?.trim() ||
-    identity?.company?.trim() ||
-    employee?.metadata?.company?.trim() ||
-    fallbackCompany ||
-    "";
-
-  const code =
-    identity?.employee_code?.trim() ||
-    identity?.code?.trim() ||
-    employee?.code?.trim() ||
-    "";
-
-  return [role, company, code ? `Ref ${code}` : ""].filter(Boolean).join(" • ");
-}
-
 function getExpenseCurrency(expense: ExpenseRow | null, fallback: string) {
   return normalizeCurrencyCode(expense?.currency_code || fallback);
 }
@@ -536,7 +480,13 @@ function getChildAllocationExpenseSecondaryLabel(allocation: EnrichedAllocation)
 function getChildAllocationRecipientPrimaryLabel(allocation: EnrichedAllocation) {
   const expenseRecord = allocation.expense;
 
-  const resolvedEmployeeName = allocation.recipientPrimaryName?.trim();
+  if (allocation.recipientIdentity) {
+    return getFinanceEmployeePrimaryName(
+      allocation.recipientIdentity,
+      allocation.recipient_person_name
+    );
+  }
+
   const responsiblePersonName = readAllocationTextField(
     expenseRecord,
     ALLOCATION_RESPONSIBLE_PERSON_FIELD
@@ -546,21 +496,18 @@ function getChildAllocationRecipientPrimaryLabel(allocation: EnrichedAllocation)
     ALLOCATION_OTHER_MADE_BY_FIELD
   );
 
-  return resolvedEmployeeName || responsiblePersonName || otherPersonName || "Recipient";
+  return responsiblePersonName || otherPersonName || "Unresolved employee";
 }
 
-function getChildAllocationRecipientSecondaryLabel(allocation: EnrichedAllocation) {
-  const expenseRecord = allocation.expense;
-
-  const resolvedIdentityLabel = allocation.recipientSecondaryLabel?.trim();
-  const expenseCompanyName = allocation.expenseCompanyName?.trim();
-  const madeByType = formatLabel(
-    readAllocationTextField(expenseRecord, ALLOCATION_EXPENSE_MADE_BY_FIELD)
-  );
-
-  return [resolvedIdentityLabel, expenseCompanyName, madeByType]
-    .filter((item) => item && item !== "—")
-    .join(" • ");
+function getChildAllocationRecipientSortLabel(allocation: EnrichedAllocation) {
+  return [
+    getChildAllocationRecipientPrimaryLabel(allocation),
+    allocation.recipientIdentity
+      ? getFinanceEmployeeSecondaryLabel(allocation.recipientIdentity)
+      : allocation.expenseCompanyName,
+  ]
+    .filter(Boolean)
+    .join(" ");
 }
 
 function getAllocationSortValue(
@@ -583,9 +530,7 @@ function getAllocationSortValue(
         ALLOCATION_EXPENSE_TYPE_FIELD
       )}`;
     case "recipient":
-      return `${getChildAllocationRecipientPrimaryLabel(
-        allocation
-      )} ${getChildAllocationRecipientSecondaryLabel(allocation)}`;
+      return getChildAllocationRecipientSortLabel(allocation);
     case "payment_amount":
       return allocation.paymentCurrencyAmount;
     case "expense_coverage":
@@ -616,7 +561,7 @@ export default function FinanceExpensesPaymentsMadeDetailPage() {
   const [bankAccounts, setBankAccounts] = useState<BankAccountRow[]>([]);
   const [employees, setEmployees] = useState<EmployeeRefRow[]>([]);
   const [employeeIdentities, setEmployeeIdentities] = useState<
-    EmployeeIdentityRow[]
+    FinanceEmployeeIdentity[]
   >([]);
   const [fundingPool, setFundingPool] = useState<FundingPoolRow | null>(null);
 
@@ -653,7 +598,7 @@ export default function FinanceExpensesPaymentsMadeDetailPage() {
   }, [employees]);
 
   const employeeIdentityMap = useMemo(() => {
-    const entries: Array<[string, EmployeeIdentityRow]> = [];
+    const entries: Array<[string, FinanceEmployeeIdentity]> = [];
 
     employeeIdentities.forEach((identity) => {
       const employeeRefId = identity.employee_ref_id || identity.id;
@@ -782,20 +727,20 @@ export default function FinanceExpensesPaymentsMadeDetailPage() {
         bankLabel: allocation.paid_from_bank_account_id
           ? getBankLabel(bankAccountMap.get(allocation.paid_from_bank_account_id))
           : payment?.metadata?.paid_from_bank_label || "No bank account",
+        recipientIdentity: recipientIdentity || null,
         recipientPrimaryName:
           allocation.recipient_employee_ref_id && recipientIdentity
-            ? getFinanceEmployeePrimaryName(recipientIdentity, recipientEmployee)
+            ? getFinanceEmployeePrimaryName(
+                recipientIdentity,
+                allocation.recipient_person_name
+              )
             : expense?.responsible_person_name?.trim() ||
               expense?.other_made_by_explanation?.trim() ||
               allocation.recipient_person_name?.trim() ||
-              "Recipient",
+              "Unresolved employee",
         recipientSecondaryLabel:
           allocation.recipient_employee_ref_id && recipientIdentity
-            ? getFinanceEmployeeSecondaryLabel(
-                recipientIdentity,
-                recipientEmployee,
-                fallbackCompanyName
-              )
+            ? getFinanceEmployeeSecondaryLabel(recipientIdentity)
             : fallbackCompanyName,
         paymentCurrencyAmount: toNumber(
           allocation.metadata?.payment_currency_amount ||
@@ -1152,7 +1097,7 @@ export default function FinanceExpensesPaymentsMadeDetailPage() {
         setBankAccounts((bankAccountsResult.data || []) as BankAccountRow[]);
         setEmployees((employeesResult.data || []) as EmployeeRefRow[]);
         setEmployeeIdentities(
-          (employeeIdentitiesResult.data || []) as EmployeeIdentityRow[]
+          (employeeIdentitiesResult.data || []) as FinanceEmployeeIdentity[]
         );
         setFundingPool((fundingPoolResult.data || null) as FundingPoolRow | null);
         setExpenses(loadedExpenses);
@@ -1330,17 +1275,13 @@ export default function FinanceExpensesPaymentsMadeDetailPage() {
     payment?.recipient_employee_ref_id && paymentRecipientIdentity
       ? getFinanceEmployeePrimaryName(
           paymentRecipientIdentity,
-          paymentRecipientEmployee
+          payment.recipient_person_name
         )
       : payment?.recipient_person_name?.trim() || "Multiple recipients";
 
   const paymentRecipientSecondaryLabel =
     payment?.recipient_employee_ref_id && paymentRecipientIdentity
-      ? getFinanceEmployeeSecondaryLabel(
-          paymentRecipientIdentity,
-          paymentRecipientEmployee,
-          "Payment recipient"
-        )
+      ? getFinanceEmployeeSecondaryLabel(paymentRecipientIdentity)
       : "Recipient confirmation owner";
 
   if (isLoading) {
@@ -1923,10 +1864,11 @@ export default function FinanceExpensesPaymentsMadeDetailPage() {
                             }
                           />
 
-                          <AixiaTableTextCell
+                          <AixiaEmployeeIdentityCell
                             width="lg"
+                            identity={allocation.recipientIdentity}
                             primary={getChildAllocationRecipientPrimaryLabel(allocation)}
-                            secondary={getChildAllocationRecipientSecondaryLabel(allocation)}
+                            secondary={allocation.recipientSecondaryLabel}
                           />
 
                           <AixiaTableTextCell
@@ -2123,8 +2065,7 @@ export default function FinanceExpensesPaymentsMadeDetailPage() {
             </AixiaSection>
           </>
         }
-
-              side={
+        side={
           <>
             <AixiaSection
               title="Action Center"
@@ -2405,10 +2346,11 @@ export default function FinanceExpensesPaymentsMadeDetailPage() {
                           secondary={getChildAllocationExpenseSecondaryLabel(allocation)}
                         />
 
-                        <AixiaTableTextCell
+                        <AixiaEmployeeIdentityCell
                           width="lg"
+                          identity={allocation.recipientIdentity}
                           primary={getChildAllocationRecipientPrimaryLabel(allocation)}
-                          secondary={getChildAllocationRecipientSecondaryLabel(allocation)}
+                          secondary={allocation.recipientSecondaryLabel}
                         />
 
                         <AixiaTableTextCell

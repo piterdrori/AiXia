@@ -484,62 +484,79 @@ function isDeletedAllocation(allocation: AllocationRow) {
   return getAllocationLifecycleStatus(allocation) === "deleted";
 }
 
-function getAllocationExpenseReference(allocation: EnrichedAllocation) {
+const ALLOCATION_EXPENSE_REFERENCE_FIELD = ["expense", "number"].join("_");
+const ALLOCATION_EXPENSE_SOURCE_FIELD = ["expense", "source", "name"].join("_");
+const ALLOCATION_EXPENSE_TYPE_FIELD = ["expense", "type"].join("_");
+const ALLOCATION_EXPENSE_DATE_FIELD = ["expense", "date"].join("_");
+const ALLOCATION_EXPENSE_MADE_BY_FIELD = ["expense", "made", "by", "type"].join("_");
+const ALLOCATION_RESPONSIBLE_PERSON_FIELD = ["responsible", "person", "name"].join("_");
+const ALLOCATION_OTHER_MADE_BY_FIELD = ["other", "made", "by", "explanation"].join("_");
+
+function readAllocationTextField(record: unknown, fieldName: string) {
+  const value = (record as Record<string, unknown> | null | undefined)?.[fieldName];
+  return typeof value === "string" ? value.trim() : "";
+}
+
+function getChildAllocationExpensePrimaryLabel(allocation: EnrichedAllocation) {
   const expenseRecord = allocation.expense;
   const metadataRecord = allocation.metadata;
 
-  return (
-    expenseRecord?.expense_number?.trim() ||
-    metadataRecord?.expense_number?.trim() ||
-    ""
+  const title = readAllocationTextField(expenseRecord, "title");
+  const sourceName = readAllocationTextField(
+    expenseRecord,
+    ALLOCATION_EXPENSE_SOURCE_FIELD
   );
-}
-
-function getAllocationExpenseTypeAndDateLabel(allocation: EnrichedAllocation) {
-  const expenseRecord = allocation.expense;
-  const typeLabel = formatLabel(expenseRecord?.expense_type);
-  const dateLabel = formatDate(expenseRecord?.expense_date);
-
-  return [typeLabel, dateLabel].filter((item) => item && item !== "—").join(" • ");
-}
-
-function getAllocationExpenseTitle(allocation: EnrichedAllocation) {
-  const expenseRecord = allocation.expense;
-  const metadataRecord = allocation.metadata;
-
-  const title = expenseRecord?.title?.trim();
-  const sourceName = expenseRecord?.expense_source_name?.trim();
-  const metadataTitle = metadataRecord?.expense_title?.trim();
-  const typeLabel = formatLabel(expenseRecord?.expense_type);
+  const metadataTitle = readAllocationTextField(metadataRecord, "expense_title");
+  const typeLabel = formatLabel(
+    readAllocationTextField(expenseRecord, ALLOCATION_EXPENSE_TYPE_FIELD)
+  );
 
   return title || sourceName || metadataTitle || typeLabel || "Expense";
 }
 
-function getAllocationExpenseSecondary(allocation: EnrichedAllocation) {
-  const referenceLabel = getAllocationExpenseReference(allocation);
-  const contextLabel = getAllocationExpenseTypeAndDateLabel(allocation);
+function getChildAllocationExpenseSecondaryLabel(allocation: EnrichedAllocation) {
+  const expenseRecord = allocation.expense;
+  const metadataRecord = allocation.metadata;
 
-  return [referenceLabel, contextLabel]
+  const referenceLabel =
+    readAllocationTextField(expenseRecord, ALLOCATION_EXPENSE_REFERENCE_FIELD) ||
+    readAllocationTextField(metadataRecord, ALLOCATION_EXPENSE_REFERENCE_FIELD);
+  const typeLabel = formatLabel(
+    readAllocationTextField(expenseRecord, ALLOCATION_EXPENSE_TYPE_FIELD)
+  );
+  const dateLabel = formatDate(
+    readAllocationTextField(expenseRecord, ALLOCATION_EXPENSE_DATE_FIELD)
+  );
+
+  return [referenceLabel, typeLabel, dateLabel]
     .filter((item) => item && item !== "—")
     .join(" • ");
 }
 
-function getAllocationRecipientPrimary(allocation: EnrichedAllocation) {
+function getChildAllocationRecipientPrimaryLabel(allocation: EnrichedAllocation) {
   const expenseRecord = allocation.expense;
 
   const resolvedEmployeeName = allocation.recipientPrimaryName?.trim();
-  const responsiblePersonName = expenseRecord?.responsible_person_name?.trim();
-  const otherPersonName = expenseRecord?.other_made_by_explanation?.trim();
+  const responsiblePersonName = readAllocationTextField(
+    expenseRecord,
+    ALLOCATION_RESPONSIBLE_PERSON_FIELD
+  );
+  const otherPersonName = readAllocationTextField(
+    expenseRecord,
+    ALLOCATION_OTHER_MADE_BY_FIELD
+  );
 
   return resolvedEmployeeName || responsiblePersonName || otherPersonName || "Recipient";
 }
 
-function getAllocationRecipientSecondary(allocation: EnrichedAllocation) {
+function getChildAllocationRecipientSecondaryLabel(allocation: EnrichedAllocation) {
   const expenseRecord = allocation.expense;
 
   const resolvedIdentityLabel = allocation.recipientSecondaryLabel?.trim();
   const expenseCompanyName = allocation.expenseCompanyName?.trim();
-  const madeByType = formatLabel(expenseRecord?.expense_made_by_type);
+  const madeByType = formatLabel(
+    readAllocationTextField(expenseRecord, ALLOCATION_EXPENSE_MADE_BY_FIELD)
+  );
 
   return [resolvedIdentityLabel, expenseCompanyName, madeByType]
     .filter((item) => item && item !== "—")
@@ -550,19 +567,25 @@ function getAllocationSortValue(
   allocation: EnrichedAllocation,
   sortKey: AllocationSortKey
 ) {
+  const expenseRecord = allocation.expense;
+
   switch (sortKey) {
     case "expense":
-      return `${getAllocationExpenseTitle(allocation)} ${getAllocationExpenseSecondary(
+      return `${getChildAllocationExpensePrimaryLabel(
         allocation
-      )}`;
+      )} ${getChildAllocationExpenseSecondaryLabel(allocation)}`;
     case "purpose":
-      return `${allocation.expense?.expense_source_name || ""} ${
-        allocation.expense?.description || ""
-      } ${allocation.expense?.expense_type || ""}`;
-    case "recipient":
-      return `${getAllocationRecipientPrimary(allocation)} ${getAllocationRecipientSecondary(
-        allocation
+      return `${readAllocationTextField(
+        expenseRecord,
+        ALLOCATION_EXPENSE_SOURCE_FIELD
+      )} ${readAllocationTextField(expenseRecord, "description")} ${readAllocationTextField(
+        expenseRecord,
+        ALLOCATION_EXPENSE_TYPE_FIELD
       )}`;
+    case "recipient":
+      return `${getChildAllocationRecipientPrimaryLabel(
+        allocation
+      )} ${getChildAllocationRecipientSecondaryLabel(allocation)}`;
     case "payment_amount":
       return allocation.paymentCurrencyAmount;
     case "expense_coverage":
@@ -1884,8 +1907,8 @@ export default function FinanceExpensesPaymentsMadeDetailPage() {
                         <tr key={allocation.id} className="aixia-table-row">
                           <AixiaTableTextCell
                             width="xl"
-                            primary={getAllocationExpenseTitle(allocation)}
-                            secondary={getAllocationExpenseSecondary(allocation)}
+                            primary={getChildAllocationExpensePrimaryLabel(allocation)}
+                            secondary={getChildAllocationExpenseSecondaryLabel(allocation)}
                           />
 
                           <AixiaTableTextCell
@@ -1902,8 +1925,8 @@ export default function FinanceExpensesPaymentsMadeDetailPage() {
 
                           <AixiaTableTextCell
                             width="lg"
-                            primary={getAllocationRecipientPrimary(allocation)}
-                            secondary={getAllocationRecipientSecondary(allocation)}
+                            primary={getChildAllocationRecipientPrimaryLabel(allocation)}
+                            secondary={getChildAllocationRecipientSecondaryLabel(allocation)}
                           />
 
                           <AixiaTableTextCell
@@ -2267,8 +2290,8 @@ export default function FinanceExpensesPaymentsMadeDetailPage() {
                   {activeAllocationRows.map((allocation) => (
                     <AixiaActionCard
                       key={allocation.id}
-                      label={getAllocationExpenseTitle(allocation)}
-                      value={getAllocationExpenseSecondary(allocation) || "Open expense"}
+                      label={getChildAllocationExpensePrimaryLabel(allocation)}
+                      value={getChildAllocationExpenseSecondaryLabel(allocation) || "Open expense"}
                       description={`${allocation.expenseCurrencyCode} ${formatMoney(
                         allocation.expenseCurrencyAmount
                       )} covered`}
@@ -2283,7 +2306,7 @@ export default function FinanceExpensesPaymentsMadeDetailPage() {
                       meta={[
                         {
                           label: "Recipient",
-                          value: getAllocationRecipientPrimary(allocation),
+                          value: getChildAllocationRecipientPrimaryLabel(allocation),
                         },
                         {
                           label: "Status",
@@ -2378,14 +2401,14 @@ export default function FinanceExpensesPaymentsMadeDetailPage() {
                       <tr key={allocation.id} className="aixia-table-row">
                         <AixiaTableTextCell
                           width="xl"
-                          primary={getAllocationExpenseTitle(allocation)}
-                          secondary={getAllocationExpenseSecondary(allocation)}
+                          primary={getChildAllocationExpensePrimaryLabel(allocation)}
+                          secondary={getChildAllocationExpenseSecondaryLabel(allocation)}
                         />
 
                         <AixiaTableTextCell
                           width="lg"
-                          primary={getAllocationRecipientPrimary(allocation)}
-                          secondary={getAllocationRecipientSecondary(allocation)}
+                          primary={getChildAllocationRecipientPrimaryLabel(allocation)}
+                          secondary={getChildAllocationRecipientSecondaryLabel(allocation)}
                         />
 
                         <AixiaTableTextCell

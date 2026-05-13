@@ -1,21 +1,79 @@
+"use client";
+
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { useNavigate, useSearchParams } from "react-router-dom";
 import {
-  ArrowRight,
+  Archive,
   CheckCircle2,
+  Eye,
   Loader2,
+  Plus,
   Receipt,
+  RotateCcw,
   Save,
   Search,
-  Sparkles,
+  ShieldCheck,
+  Trash2,
   WalletCards,
 } from "lucide-react";
 
+import {
+  AixiaAccessRule,
+  AixiaAlert,
+  AixiaBadge,
+  AixiaButton,
+  AixiaChildAllocationRegistry,
+  AixiaEmployeeIdentityCell,
+  AixiaEmptyState,
+  AixiaFieldLabel,
+  AixiaFormField,
+  AixiaFormFullWidth,
+  AixiaFormGrid,
+  AixiaHero,
+  AixiaInputField,
+  AixiaLoadingState,
+  AixiaMetricCard,
+  AixiaMetricGrid,
+  AixiaPage,
+  AixiaRegistryToolbar,
+  AixiaReviewGrid,
+  AixiaSearchField,
+  AixiaSection,
+  AixiaSelectField,
+  AixiaSmartLayout,
+  AixiaSortableHeader,
+  AixiaStatusBadge,
+  AixiaTableActionsCell,
+  AixiaTableBadgeCell,
+  AixiaTableShell,
+  AixiaTableTextCell,
+  AixiaTextareaField,
+  AixiaValueBlock,
+} from "@/components/aixia";
+import {
+  getFinanceEmployeePrimaryName,
+  getFinanceEmployeeReferenceLabel,
+  getFinanceEmployeeSecondaryLabel,
+  type FinanceEmployeeIdentity,
+} from "@/lib/finance/employeeIdentity";
 import { convertCurrencyAtDate } from "@/lib/integrations/frankfurter";
 import { supabase } from "@/lib/supabase";
 
 type PaymentMode = "operating_expense";
 type SaveMode = "draft" | "confirm";
+type SortDirection = "asc" | "desc";
+type AllocationLifecycleAction = "archive" | "delete" | "restore" | "hard_delete";
+
+type ExpenseSortKey =
+  | "expense"
+  | "company"
+  | "made_by"
+  | "documentation_status"
+  | "coverage_status"
+  | "target_amount"
+  | "covered_amount"
+  | "remaining_amount"
+  | "updated_at";
 
 type ExpenseRow = {
   id: string;
@@ -110,6 +168,9 @@ type ExistingExpenseAllocationRow = {
   currency_code: string | null;
   payment_currency_code: string | null;
   converted_amount: number | string | null;
+  recipient_employee_ref_id: string | null;
+  recipient_person_name: string | null;
+  lifecycle_status: string | null;
   metadata: Record<string, unknown> | null;
 };
 
@@ -127,10 +188,16 @@ type ExpenseAllocationDraft = {
 
 type EnrichedExpense = ExpenseRow & {
   companyName: string;
-  madeByLabel: string;
+  madeByIdentity: FinanceEmployeeIdentity | null;
+  madeByPrimary: string;
+  madeBySecondary: string;
+  madeByReference: string;
+  expensePrimaryLabel: string;
+  expenseSecondaryLabel: string;
   targetAmount: number;
   existingCoveredAmount: number;
   remainingAmount: number;
+  activeAllocation: ExistingExpenseAllocationRow | null;
 };
 
 type ConversionPreview = {
@@ -176,31 +243,7 @@ const initialFormState: FormState = {
   notes: "",
 };
 
-const statusToneMap: Record<
-  string,
-  "cyan" | "emerald" | "amber" | "rose" | "violet" | "slate"
-> = {
-  verified_for_payment: "emerald",
-  approved_for_payment: "emerald",
-  verified: "emerald",
-  uploaded: "cyan",
-  linked: "cyan",
-  files_and_links: "cyan",
-  missing: "rose",
-  issue_found: "rose",
-  not_allocated: "slate",
-  partially_allocated: "amber",
-  allocated: "emerald",
-  not_covered: "slate",
-  partially_covered: "amber",
-  covered: "emerald",
-  not_paid_yet: "slate",
-  pending_confirmation: "amber",
-  received_confirmed: "emerald",
-  not_received: "rose",
-  disputed: "rose",
-  draft: "slate",
-};
+const FX_ROUNDING_TOLERANCE = 0.05;
 
 function buildReferenceNumber() {
   const datePart = new Date().toISOString().slice(0, 10).replaceAll("-", "");
@@ -219,33 +262,6 @@ function toNumber(value: number | string | null | undefined) {
 
 function roundMoney(value: number) {
   return Math.round((value + Number.EPSILON) * 100) / 100;
-}
-
-const FX_ROUNDING_TOLERANCE = 0.05;
-
-function isFxRoundingDifference(
-  preview: ConversionPreview | null | undefined,
-  remainingAmount: number
-) {
-  if (!preview || preview.expenseCurrencyAmount === null) return false;
-  if (preview.source === "same_currency") return false;
-
-  const difference = roundMoney(preview.expenseCurrencyAmount - remainingAmount);
-
-  return difference > 0 && difference <= FX_ROUNDING_TOLERANCE;
-}
-
-function getCappedExpenseCoverageAmount(
-  preview: ConversionPreview | null | undefined,
-  remainingAmount: number
-) {
-  if (!preview || preview.expenseCurrencyAmount === null) return null;
-
-  if (isFxRoundingDifference(preview, remainingAmount)) {
-    return roundMoney(remainingAmount);
-  }
-
-  return roundMoney(preview.expenseCurrencyAmount);
 }
 
 function normalizeCurrencyCode(value: string | null | undefined) {
@@ -288,9 +304,7 @@ function getMetadataNumber(
 ) {
   const value = metadata?.[key];
 
-  if (typeof value === "number" && Number.isFinite(value)) {
-    return value;
-  }
+  if (typeof value === "number" && Number.isFinite(value)) return value;
 
   if (typeof value === "string") {
     const parsed = Number(value);
@@ -298,59 +312,6 @@ function getMetadataNumber(
   }
 
   return null;
-}
-
-function getStatusToneClasses(value: string | null | undefined) {
-  const tone = statusToneMap[value ?? ""] ?? "slate";
-
-  switch (tone) {
-    case "emerald":
-      return "border-emerald-400/20 bg-emerald-500/10 text-emerald-200";
-    case "amber":
-      return "border-amber-400/20 bg-amber-500/10 text-amber-200";
-    case "rose":
-      return "border-rose-400/20 bg-rose-500/10 text-rose-200";
-    case "violet":
-      return "border-violet-400/20 bg-violet-500/10 text-violet-200";
-    case "cyan":
-      return "border-cyan-400/20 bg-cyan-500/10 text-cyan-200";
-    case "slate":
-    default:
-      return "border-white/10 bg-white/[0.06] text-slate-300";
-  }
-}
-
-function StatusBadge({ value }: { value: string | null | undefined }) {
-  return (
-    <span
-      className={`inline-flex max-w-full items-center rounded-full border px-3 py-1 text-[11px] font-semibold uppercase tracking-[0.14em] ${getStatusToneClasses(
-        value
-      )}`}
-    >
-      <span className="truncate">{formatLabel(value)}</span>
-    </span>
-  );
-}
-
-function inputClass() {
-  return "h-11 w-full rounded-2xl border border-white/10 bg-black/20 px-4 text-sm text-white outline-none transition placeholder:text-slate-600 focus:border-cyan-400/30 focus:bg-black/30 disabled:cursor-not-allowed disabled:opacity-50";
-}
-
-function textareaClass() {
-  return "min-h-[120px] w-full rounded-2xl border border-white/10 bg-black/20 px-4 py-3 text-sm text-white outline-none transition placeholder:text-slate-600 focus:border-cyan-400/30 focus:bg-black/30";
-}
-
-function labelClass() {
-  return "text-sm font-medium text-slate-300";
-}
-
-function getEmployeeLabel(employee: EmployeeRefRow | null | undefined) {
-  if (!employee) return "—";
-
-  const role = employee.metadata?.job_title || employee.metadata?.source_role || employee.mark;
-  const company = employee.metadata?.company;
-
-  return [employee.code || "Employee", role, company].filter(Boolean).join(" • ");
 }
 
 function getBankLabel(bank: BankAccountRow | null | undefined) {
@@ -365,27 +326,125 @@ function getBankLabel(bank: BankAccountRow | null | undefined) {
     .join(" • ");
 }
 
-function getExpenseMadeByLabel(
-  expense: ExpenseRow,
-  employeeMap: Map<string, EmployeeRefRow>
+function getCurrencyOptionLabel(currency: CurrencyRow) {
+  const symbol = currency.currency_symbol ? ` (${currency.currency_symbol})` : "";
+  const base = currency.is_base_currency ? " • Base" : "";
+  return `${currency.currency_code} — ${currency.currency_name}${symbol}${base}`;
+}
+
+function isActiveAllocation(allocation: ExistingExpenseAllocationRow) {
+  return allocation.lifecycle_status !== "archived" && allocation.lifecycle_status !== "deleted";
+}
+
+function isFxRoundingDifference(
+  preview: ConversionPreview | null | undefined,
+  remainingAmount: number
 ) {
-  if (expense.expense_made_by_type === "employee" && expense.employee_ref_id) {
-    return getEmployeeLabel(employeeMap.get(expense.employee_ref_id));
+  if (!preview || preview.expenseCurrencyAmount === null) return false;
+  if (preview.source === "same_currency") return false;
+
+  const difference = roundMoney(preview.expenseCurrencyAmount - remainingAmount);
+
+  return difference > 0 && difference <= FX_ROUNDING_TOLERANCE;
+}
+
+function getCappedExpenseCoverageAmount(
+  preview: ConversionPreview | null | undefined,
+  remainingAmount: number
+) {
+  if (!preview || preview.expenseCurrencyAmount === null) return null;
+
+  if (isFxRoundingDifference(preview, remainingAmount)) {
+    return roundMoney(remainingAmount);
+  }
+
+  return roundMoney(preview.expenseCurrencyAmount);
+}
+
+function getEmployeeIdentity(
+  employeeRefId: string | null | undefined,
+  employeeMap: Map<string, EmployeeRefRow>,
+  identityMap: Map<string, FinanceEmployeeIdentity>
+) {
+  if (!employeeRefId) return null;
+
+  const employee = employeeMap.get(employeeRefId);
+
+  return (
+    identityMap.get(employeeRefId) ||
+    (employee?.user_id ? identityMap.get(employee.user_id) : null) ||
+    null
+  );
+}
+
+function getExpenseMadeByPrimaryLabel(
+  expense: ExpenseRow,
+  employeeMap: Map<string, EmployeeRefRow>,
+  identityMap: Map<string, FinanceEmployeeIdentity>
+) {
+  if (expense.expense_made_by_type === "employee") {
+    const identity = getEmployeeIdentity(expense.employee_ref_id, employeeMap, identityMap);
+    return identity
+      ? getFinanceEmployeePrimaryName(identity, expense.responsible_person_name)
+      : "Unresolved employee";
   }
 
   if (expense.expense_made_by_type === "owner_management") {
     return expense.responsible_person_name || "Owner / Management";
   }
 
-  if (expense.expense_made_by_type === "company_direct") {
-    return "Company Direct";
-  }
+  if (expense.expense_made_by_type === "company_direct") return "Company Direct";
 
   if (expense.expense_made_by_type === "other") {
     return expense.other_made_by_explanation || "Other";
   }
 
   return "—";
+}
+
+function getExpenseMadeBySecondaryLabel(
+  expense: ExpenseRow,
+  employeeMap: Map<string, EmployeeRefRow>,
+  identityMap: Map<string, FinanceEmployeeIdentity>
+) {
+  if (expense.expense_made_by_type === "employee") {
+    const identity = getEmployeeIdentity(expense.employee_ref_id, employeeMap, identityMap);
+    return identity
+      ? getFinanceEmployeeSecondaryLabel(identity)
+      : formatLabel(expense.expense_made_by_type);
+  }
+
+  return formatLabel(expense.expense_made_by_type);
+}
+
+function getExpenseMadeByReferenceLabel(
+  expense: ExpenseRow,
+  employeeMap: Map<string, EmployeeRefRow>,
+  identityMap: Map<string, FinanceEmployeeIdentity>
+) {
+  const identity = getEmployeeIdentity(expense.employee_ref_id, employeeMap, identityMap);
+  return identity ? getFinanceEmployeeReferenceLabel(identity) : "";
+}
+
+function getExpensePrimaryLabel(expense: ExpenseRow) {
+  return (
+    expense.title?.trim() ||
+    expense.expense_source_name?.trim() ||
+    formatLabel(expense.expense_type) ||
+    "Expense"
+  );
+}
+
+function getExpenseSecondaryLabel(expense: ExpenseRow) {
+  return [
+    expense.expense_number,
+    formatDate(expense.expense_date),
+    formatLabel(expense.expense_type),
+    expense.online_platform,
+    expense.online_order_number,
+  ]
+    .filter(Boolean)
+    .join(" • ");
 }
 
 function getExpenseTargetAmount(expense: ExpenseRow) {
@@ -406,9 +465,7 @@ function getFundingCurrencyUsedFromAllocation(
     "funding_currency_amount_used_for_line"
   );
 
-  if (metadataFundingUsage !== null) {
-    return metadataFundingUsage;
-  }
+  if (metadataFundingUsage !== null) return metadataFundingUsage;
 
   const allocationPaymentCurrency = normalizeCurrencyCode(allocation.payment_currency_code);
   const allocationExpenseCurrency = normalizeCurrencyCode(allocation.currency_code);
@@ -425,26 +482,28 @@ function getFundingCurrencyUsedFromAllocation(
   return 0;
 }
 
-function SummaryBlock({
-  title,
-  value,
-  subtitle,
-}: {
-  title: string;
-  value: string;
-  subtitle: string;
-}) {
-  return (
-    <div className="min-h-[148px] rounded-[24px] border border-white/10 bg-black/20 p-4">
-      <div className="text-[11px] font-semibold uppercase tracking-[0.2em] text-slate-500">
-        {title}
-      </div>
-      <div className="mt-3 text-2xl font-semibold tracking-[-0.03em] text-white">
-        {value}
-      </div>
-      <div className="mt-3 text-sm leading-6 text-slate-400">{subtitle}</div>
-    </div>
-  );
+function getSortValue(row: EnrichedExpense, sortKey: ExpenseSortKey) {
+  switch (sortKey) {
+    case "expense":
+      return `${row.expensePrimaryLabel} ${row.expenseSecondaryLabel}`;
+    case "company":
+      return row.companyName;
+    case "made_by":
+      return `${row.madeByPrimary} ${row.madeBySecondary} ${row.madeByReference}`;
+    case "documentation_status":
+      return row.documentation_status || "";
+    case "coverage_status":
+      return row.coverage_status || "";
+    case "target_amount":
+      return row.targetAmount;
+    case "covered_amount":
+      return row.existingCoveredAmount;
+    case "remaining_amount":
+      return row.remainingAmount;
+    case "updated_at":
+    default:
+      return row.updated_at || "";
+  }
 }
 
 async function buildPaymentDateConversionPreview(
@@ -646,6 +705,7 @@ export default function FinanceExpensesPaymentsMadeNewPage() {
   const [expenses, setExpenses] = useState<ExpenseRow[]>([]);
   const [companies, setCompanies] = useState<CompanyRow[]>([]);
   const [employees, setEmployees] = useState<EmployeeRefRow[]>([]);
+  const [employeeIdentities, setEmployeeIdentities] = useState<FinanceEmployeeIdentity[]>([]);
   const [bankAccounts, setBankAccounts] = useState<BankAccountRow[]>([]);
   const [currencies, setCurrencies] = useState<CurrencyRow[]>([]);
   const [fundingPools, setFundingPools] = useState<FundingPoolRow[]>([]);
@@ -661,9 +721,16 @@ export default function FinanceExpensesPaymentsMadeNewPage() {
   const [fundingUsagePreview, setFundingUsagePreview] =
     useState<FundingUsagePreview | null>(null);
   const [searchQuery, setSearchQuery] = useState("");
+  const [sortKey, setSortKey] = useState<ExpenseSortKey>("updated_at");
+  const [sortDirection, setSortDirection] = useState<SortDirection>("desc");
   const [isLoading, setIsLoading] = useState(true);
   const [isConverting, setIsConverting] = useState(false);
   const [savingMode, setSavingMode] = useState<SaveMode | null>(null);
+  const [runningAllocationActionId, setRunningAllocationActionId] = useState<string | null>(
+    null
+  );
+  const [runningAllocationAction, setRunningAllocationAction] =
+    useState<AllocationLifecycleAction | null>(null);
   const [pageError, setPageError] = useState<string | null>(null);
   const [pageMessage, setPageMessage] = useState<string | null>(null);
 
@@ -674,6 +741,20 @@ export default function FinanceExpensesPaymentsMadeNewPage() {
   const employeeMap = useMemo(() => {
     return new Map(employees.map((employee) => [employee.id, employee]));
   }, [employees]);
+
+  const employeeIdentityMap = useMemo(() => {
+    const entries: Array<[string, FinanceEmployeeIdentity]> = [];
+
+    employeeIdentities.forEach((identity) => {
+      const employeeRefId = identity.employee_ref_id || identity.id;
+      const userId = identity.user_id;
+
+      if (employeeRefId) entries.push([employeeRefId, identity]);
+      if (userId) entries.push([userId, identity]);
+    });
+
+    return new Map(entries);
+  }, [employeeIdentities]);
 
   const bankAccountMap = useMemo(() => {
     return new Map(bankAccounts.map((bank) => [bank.id, bank]));
@@ -713,11 +794,15 @@ export default function FinanceExpensesPaymentsMadeNewPage() {
     );
   }, [existingPayments]);
 
+  const activeExistingAllocations = useMemo(() => {
+    return existingAllocations.filter(isActiveAllocation);
+  }, [existingAllocations]);
+
   const confirmedExistingAllocations = useMemo(() => {
-    return existingAllocations.filter((allocation) =>
+    return activeExistingAllocations.filter((allocation) =>
       confirmedPaymentIdSet.has(allocation.payment_made_id)
     );
-  }, [confirmedPaymentIdSet, existingAllocations]);
+  }, [activeExistingAllocations, confirmedPaymentIdSet]);
 
   const existingExpenseCoverageMap = useMemo(() => {
     const map = new Map<string, number>();
@@ -731,6 +816,18 @@ export default function FinanceExpensesPaymentsMadeNewPage() {
 
     return map;
   }, [confirmedExistingAllocations]);
+
+  const latestActiveAllocationByExpenseId = useMemo(() => {
+    const map = new Map<string, ExistingExpenseAllocationRow>();
+
+    for (const allocation of activeExistingAllocations) {
+      if (!map.has(allocation.expense_id)) {
+        map.set(allocation.expense_id, allocation);
+      }
+    }
+
+    return map;
+  }, [activeExistingAllocations]);
 
   const previousFundingPoolUsage = useMemo(() => {
     if (!selectedFundingPool) return 0;
@@ -755,19 +852,52 @@ export default function FinanceExpensesPaymentsMadeNewPage() {
       const targetAmount = getExpenseTargetAmount(expense);
       const existingCoveredAmount = existingExpenseCoverageMap.get(expense.id) || 0;
       const remainingAmount = roundMoney(Math.max(targetAmount - existingCoveredAmount, 0));
+      const madeByIdentity = getEmployeeIdentity(
+        expense.employee_ref_id,
+        employeeMap,
+        employeeIdentityMap
+      );
+      const madeByPrimary = getExpenseMadeByPrimaryLabel(
+        expense,
+        employeeMap,
+        employeeIdentityMap
+      );
+      const madeBySecondary = getExpenseMadeBySecondaryLabel(
+        expense,
+        employeeMap,
+        employeeIdentityMap
+      );
+      const madeByReference = getExpenseMadeByReferenceLabel(
+        expense,
+        employeeMap,
+        employeeIdentityMap
+      );
 
       return {
         ...expense,
         companyName: expense.company_id
           ? companyMap.get(expense.company_id)?.name || "Unknown company"
           : "No company",
-        madeByLabel: getExpenseMadeByLabel(expense, employeeMap),
+        madeByIdentity,
+        madeByPrimary,
+        madeBySecondary,
+        madeByReference,
+        expensePrimaryLabel: getExpensePrimaryLabel(expense),
+        expenseSecondaryLabel: getExpenseSecondaryLabel(expense),
         targetAmount,
         existingCoveredAmount,
         remainingAmount,
+        activeAllocation: latestActiveAllocationByExpenseId.get(expense.id) || null,
       };
     });
-  }, [companyMap, employeeMap, existingExpenseCoverageMap, expenses]);
+  }, [
+    companyMap,
+    employeeIdentityMap,
+    employeeMap,
+    existingExpenseCoverageMap,
+    expenses,
+    latestActiveAllocationByExpenseId,
+  ]);
 
   const normalizedSearch = searchQuery.trim().toLowerCase();
 
@@ -788,7 +918,9 @@ export default function FinanceExpensesPaymentsMadeNewPage() {
         expense.expense_number,
         expense.title,
         expense.companyName,
-        expense.madeByLabel,
+        expense.madeByPrimary,
+        expense.madeBySecondary,
+        expense.madeByReference,
         expense.expense_type,
         expense.expense_source_name,
         expense.documentation_status,
@@ -804,6 +936,21 @@ export default function FinanceExpensesPaymentsMadeNewPage() {
       return content.includes(normalizedSearch);
     });
   }, [enrichedExpenses, normalizedSearch]);
+
+  const sortedFilteredExpenses = useMemo(() => {
+    return [...filteredExpenses].sort((a, b) => {
+      const valueA = getSortValue(a, sortKey);
+      const valueB = getSortValue(b, sortKey);
+
+      if (typeof valueA === "number" && typeof valueB === "number") {
+        return sortDirection === "asc" ? valueA - valueB : valueB - valueA;
+      }
+
+      return sortDirection === "asc"
+        ? String(valueA).localeCompare(String(valueB))
+        : String(valueB).localeCompare(String(valueA));
+    });
+  }, [filteredExpenses, sortDirection, sortKey]);
 
   const selectedExpenses = useMemo(() => {
     return enrichedExpenses.filter((expense) => selectedExpenseIds.includes(expense.id));
@@ -879,6 +1026,7 @@ export default function FinanceExpensesPaymentsMadeNewPage() {
         expensesResult,
         companiesResult,
         employeesResult,
+        employeeIdentitiesResult,
         bankAccountsResult,
         currenciesResult,
         fundingPoolsResult,
@@ -927,6 +1075,8 @@ export default function FinanceExpensesPaymentsMadeNewPage() {
           .select("id, user_id, code, status, mark, metadata")
           .order("code"),
 
+        supabase.from("finance_employee_identity_v").select("*"),
+
         supabase
           .from("finance_bank_accounts")
           .select(
@@ -954,7 +1104,7 @@ export default function FinanceExpensesPaymentsMadeNewPage() {
         supabase
           .from("finance_payment_made_expense_allocations")
           .select(
-            "id, expense_id, payment_made_id, funding_batch_id, allocated_amount, currency_code, payment_currency_code, converted_amount, metadata"
+            "id, expense_id, payment_made_id, funding_batch_id, allocated_amount, currency_code, payment_currency_code, converted_amount, recipient_employee_ref_id, recipient_person_name, lifecycle_status, metadata"
           )
           .not("expense_id", "is", null),
 
@@ -968,6 +1118,7 @@ export default function FinanceExpensesPaymentsMadeNewPage() {
       if (expensesResult.error) throw expensesResult.error;
       if (companiesResult.error) throw companiesResult.error;
       if (employeesResult.error) throw employeesResult.error;
+      if (employeeIdentitiesResult.error) throw employeeIdentitiesResult.error;
       if (bankAccountsResult.error) throw bankAccountsResult.error;
       if (currenciesResult.error) throw currenciesResult.error;
       if (fundingPoolsResult.error) throw fundingPoolsResult.error;
@@ -985,6 +1136,9 @@ export default function FinanceExpensesPaymentsMadeNewPage() {
       setExpenses(loadedExpenses);
       setCompanies((companiesResult.data || []) as CompanyRow[]);
       setEmployees((employeesResult.data || []) as EmployeeRefRow[]);
+      setEmployeeIdentities(
+        (employeeIdentitiesResult.data || []) as FinanceEmployeeIdentity[]
+      );
       setBankAccounts((bankAccountsResult.data || []) as BankAccountRow[]);
       setCurrencies(loadedCurrencies);
       setFundingPools(loadedPools);
@@ -1163,6 +1317,19 @@ export default function FinanceExpensesPaymentsMadeNewPage() {
     selectedExpenses,
   ]);
 
+  const handleSort = useCallback(
+    (key: ExpenseSortKey) => {
+      if (key === sortKey) {
+        setSortDirection((current) => (current === "asc" ? "desc" : "asc"));
+        return;
+      }
+
+      setSortKey(key);
+      setSortDirection(key === "updated_at" ? "desc" : "asc");
+    },
+    [sortKey]
+  );
+
   const toggleExpense = useCallback((expense: EnrichedExpense) => {
     setSelectedExpenseIds((current) => {
       if (current.includes(expense.id)) {
@@ -1195,9 +1362,7 @@ export default function FinanceExpensesPaymentsMadeNewPage() {
       setAllocationDrafts((current) => {
         const exists = current.some((draft) => draft.expenseId === expenseId);
 
-        if (!exists) {
-          return [...current, { expenseId, paymentCurrencyAmount }];
-        }
+        if (!exists) return [...current, { expenseId, paymentCurrencyAmount }];
 
         return current.map((draft) =>
           draft.expenseId === expenseId ? { ...draft, paymentCurrencyAmount } : draft
@@ -1208,6 +1373,42 @@ export default function FinanceExpensesPaymentsMadeNewPage() {
       setPageMessage(null);
     },
     []
+  );
+
+  const runAllocationLifecycleAction = useCallback(
+    async (
+      action: AllocationLifecycleAction,
+      allocationId: string,
+      rpcName: string,
+      successMessage: string
+    ) => {
+      if (runningAllocationActionId) return;
+
+      setRunningAllocationAction(action);
+      setRunningAllocationActionId(allocationId);
+      setPageError(null);
+      setPageMessage(null);
+
+      try {
+        const result = await supabase.rpc(rpcName, {
+          p_allocation_id: allocationId,
+        });
+
+        if (result.error) throw result.error;
+
+        setPageMessage(successMessage);
+        await loadOptions();
+      } catch (error) {
+        console.error(`Failed to run ${rpcName}:`, error);
+        setPageError(
+          error instanceof Error ? error.message : "Failed to update allocation."
+        );
+      } finally {
+        setRunningAllocationAction(null);
+        setRunningAllocationActionId(null);
+      }
+    },
+    [loadOptions, runningAllocationActionId]
   );
 
   const validateForm = useCallback(() => {
@@ -1238,9 +1439,7 @@ export default function FinanceExpensesPaymentsMadeNewPage() {
       .filter((draft) => selectedExpenseIds.includes(draft.expenseId))
       .find((draft) => toNumber(draft.paymentCurrencyAmount) <= 0);
 
-    if (invalidAllocation) {
-      return "Every selected expense must have a payment distribution amount.";
-    }
+    if (invalidAllocation) return "Every selected expense must have a payment distribution amount.";
 
     const missingExpenseConversion = selectedExpenseIds.some((expenseId) => {
       const preview = conversionPreviews[expenseId];
@@ -1256,14 +1455,13 @@ export default function FinanceExpensesPaymentsMadeNewPage() {
 
       if (!preview || preview.expenseCurrencyAmount === null) return false;
 
-      return (
-        preview.expenseCurrencyAmount >
-        expense.remainingAmount + FX_ROUNDING_TOLERANCE
-      );
+      return preview.expenseCurrencyAmount > expense.remainingAmount + FX_ROUNDING_TOLERANCE;
     });
 
     if (overpaidExpense) {
-      return `Payment would over-cover ${overpaidExpense.expense_number || overpaidExpense.title}.`;
+      return `Payment would over-cover ${
+        overpaidExpense.expense_number || overpaidExpense.title
+      }.`;
     }
 
     if (fundingCurrencyRemainingAfterPayment < -0.01) {
@@ -1311,18 +1509,17 @@ export default function FinanceExpensesPaymentsMadeNewPage() {
 
         const userId = authResult.data.user?.id ?? null;
         const referenceNumber = form.referenceNumber.trim() || buildReferenceNumber();
-
         const selectedBank = selectedFundingPool.funding_bank_account_id
           ? bankAccountMap.get(selectedFundingPool.funding_bank_account_id)
           : null;
 
-        const recipientNames = selectedExpenses
-          .map((expense) => expense.madeByLabel)
-          .filter(Boolean);
+        const recipientNames = selectedExpenses.map((expense) => expense.madeByPrimary).filter(Boolean);
 
         const freshDuplicateCheckResult = await supabase
           .from("finance_payment_made_expense_allocations")
-          .select("id, expense_id, payment_made_id, allocated_amount, currency_code")
+          .select(
+            "id, expense_id, payment_made_id, allocated_amount, currency_code, lifecycle_status"
+          )
           .in("expense_id", selectedExpenseIds);
 
         if (freshDuplicateCheckResult.error) throw freshDuplicateCheckResult.error;
@@ -1333,10 +1530,17 @@ export default function FinanceExpensesPaymentsMadeNewPage() {
           payment_made_id: string;
           allocated_amount: number | string | null;
           currency_code: string | null;
+          lifecycle_status: string | null;
         }>;
 
+        const activeFreshAllocationRows = freshAllocationRows.filter(
+          (allocation) =>
+            allocation.lifecycle_status !== "archived" &&
+            allocation.lifecycle_status !== "deleted"
+        );
+
         const freshPaymentIds = Array.from(
-          new Set(freshAllocationRows.map((allocation) => allocation.payment_made_id))
+          new Set(activeFreshAllocationRows.map((allocation) => allocation.payment_made_id))
         );
 
         const freshConfirmedPaymentIdSet = new Set<string>();
@@ -1350,18 +1554,14 @@ export default function FinanceExpensesPaymentsMadeNewPage() {
           if (freshPaymentsResult.error) throw freshPaymentsResult.error;
 
           for (const payment of freshPaymentsResult.data || []) {
-            if (payment.status === "confirmed") {
-              freshConfirmedPaymentIdSet.add(payment.id);
-            }
+            if (payment.status === "confirmed") freshConfirmedPaymentIdSet.add(payment.id);
           }
         }
 
         const freshCoverageMap = new Map<string, number>();
 
-        for (const allocationRow of freshAllocationRows) {
-          if (!freshConfirmedPaymentIdSet.has(allocationRow.payment_made_id)) {
-            continue;
-          }
+        for (const allocationRow of activeFreshAllocationRows) {
+          if (!freshConfirmedPaymentIdSet.has(allocationRow.payment_made_id)) continue;
 
           freshCoverageMap.set(
             allocationRow.expense_id,
@@ -1375,9 +1575,7 @@ export default function FinanceExpensesPaymentsMadeNewPage() {
         for (const expense of selectedExpenses) {
           const preview = conversionPreviews[expense.id];
           const alreadyCoveredNow = freshCoverageMap.get(expense.id) || 0;
-          const remainingNow = roundMoney(
-            Math.max(expense.targetAmount - alreadyCoveredNow, 0)
-          );
+          const remainingNow = roundMoney(Math.max(expense.targetAmount - alreadyCoveredNow, 0));
 
           if (!preview || preview.expenseCurrencyAmount === null) {
             throw new Error("Missing conversion preview during final validation.");
@@ -1385,7 +1583,9 @@ export default function FinanceExpensesPaymentsMadeNewPage() {
 
           if (preview.expenseCurrencyAmount > remainingNow + FX_ROUNDING_TOLERANCE) {
             throw new Error(
-              `Payment would over-cover ${expense.expense_number || expense.title}. Reload and review the remaining balance.`
+              `Payment would over-cover ${
+                expense.expense_number || expense.title
+              }. Reload and review the remaining balance.`
             );
           }
         }
@@ -1438,7 +1638,7 @@ export default function FinanceExpensesPaymentsMadeNewPage() {
               selectedExpenses.length === 1 ? selectedExpenses[0]?.employee_ref_id || null : null,
             recipient_person_name:
               selectedExpenses.length === 1
-                ? selectedExpenses[0]?.madeByLabel || null
+                ? selectedExpenses[0]?.madeByPrimary || null
                 : `Multiple recipients (${recipientNames.length})`,
             recipient_confirmation_status:
               saveMode === "confirm" ? "pending_confirmation" : "not_required",
@@ -1467,9 +1667,7 @@ export default function FinanceExpensesPaymentsMadeNewPage() {
             const expense = selectedExpenses.find((item) => item.id === draft.expenseId);
             const preview = conversionPreviews[draft.expenseId];
 
-            if (!expense) {
-              throw new Error("Selected expense was not found.");
-            }
+            if (!expense) throw new Error("Selected expense was not found.");
 
             if (!preview || preview.expenseCurrencyAmount === null || preview.exchangeRate === null) {
               throw new Error("Selected expense conversion preview was not found.");
@@ -1502,11 +1700,12 @@ export default function FinanceExpensesPaymentsMadeNewPage() {
               funding_company_id: selectedFundingPool.funding_company_id,
               paid_from_bank_account_id: selectedFundingPool.funding_bank_account_id,
               recipient_employee_ref_id: expense.employee_ref_id,
-              recipient_person_name: expense.madeByLabel,
+              recipient_person_name: expense.madeByPrimary,
               allocated_amount: cappedExpenseCurrencyAmount,
               currency_code: expenseCurrencyCode,
               payment_currency_code: paymentCurrencyCode,
               converted_amount: paymentCurrencyAmount,
+              lifecycle_status: "active",
               recipient_confirmation_status:
                 saveMode === "confirm" ? "pending_confirmation" : "not_required",
               metadata: {
@@ -1522,7 +1721,8 @@ export default function FinanceExpensesPaymentsMadeNewPage() {
                 payment_currency_code: paymentCurrencyCode,
                 expense_currency_amount: cappedExpenseCurrencyAmount,
                 raw_converted_expense_currency_amount: preview.expenseCurrencyAmount,
-                fx_rounding_adjustment_applied: cappedExpenseCurrencyAmount !== preview.expenseCurrencyAmount,
+                fx_rounding_adjustment_applied:
+                  cappedExpenseCurrencyAmount !== preview.expenseCurrencyAmount,
                 expense_currency_code: expenseCurrencyCode,
                 exchange_rate: preview.exchangeRate,
                 conversion_source: preview.source,
@@ -1600,529 +1800,574 @@ export default function FinanceExpensesPaymentsMadeNewPage() {
     ]
   );
 
+  if (isLoading) {
+    return (
+      <AixiaLoadingState
+        title="Loading expense payment distribution"
+        description="Verified expenses, funding pools, employee identities, currency master data, and existing allocation lifecycle records are being loaded."
+      />
+    );
+  }
+
   return (
-    <div className="min-h-screen bg-[#05070d] px-4 py-4 text-white md:px-6 md:py-6">
-      <div className="mx-auto flex w-full max-w-[1600px] flex-col gap-6">
-        <header className="relative overflow-hidden rounded-[34px] border border-white/10 bg-white/[0.045] p-6 shadow-2xl shadow-black/30 backdrop-blur-xl">
-          <div className="pointer-events-none absolute inset-0 bg-[radial-gradient(circle_at_top_left,rgba(6,182,212,0.16),transparent_38%),radial-gradient(circle_at_top_right,rgba(139,92,246,0.12),transparent_34%)]" />
+    <AixiaPage>
+      <AixiaHero
+        parentLabel="Payment Control"
+        parentPath="/finance/transactions/expenses-payments-made"
+        badges={[
+          { label: "Expense Payment Distribution", tone: "cyan" },
+          { label: "Funding Pool Required", tone: selectedFundingPool ? "emerald" : "rose" },
+          { label: isConverting ? "Converting" : "Payment-Date FX", tone: isConverting ? "gold" : "violet" },
+        ]}
+        gradientTitle="Expense Payment Distribution"
+        title=""
+        subtitle="Distribute reserved funding pool money across verified expenses"
+        description="Use a confirmed Funding Pool to distribute reserved company money across verified operating expenses. Currency conversion uses the selected payment date and allocation lifecycle data is loaded from the backend."
+        statusCards={[
+          {
+            label: "Funding Pool Total",
+            value: `${fundingCurrencyCode} ${formatMoney(fundingPoolTotal)}`,
+            description: "Original reserved money in the selected pool currency.",
+            icon: WalletCards,
+            tone: "cyan",
+          },
+          {
+            label: "Already Used",
+            value: `${fundingCurrencyCode} ${formatMoney(previousFundingPoolUsage)}`,
+            description: "Confirmed previous usage from active allocation records.",
+            icon: Receipt,
+            tone: "violet",
+          },
+          {
+            label: "This Payment Uses",
+            value: `${fundingCurrencyCode} ${formatMoney(currentFundingCurrencyUsed)}`,
+            description: "Current draft distribution converted into funding pool currency.",
+            icon: CheckCircle2,
+            tone: "emerald",
+          },
+        ]}
+      />
 
-          <div className="relative">
-            <button
-              type="button"
-              onClick={() => navigate("/finance/transactions/expenses-payments-made")}
-              className="mb-5 inline-flex items-center justify-center gap-2 rounded-full border border-white/10 bg-white/[0.05] px-5 py-2 text-[11px] font-semibold uppercase tracking-[0.22em] text-slate-300 transition hover:border-white/20 hover:bg-white/[0.08] hover:text-white"
+      {pageError ? <AixiaAlert tone="error">{pageError}</AixiaAlert> : null}
+      {pageMessage ? <AixiaAlert tone="success">{pageMessage}</AixiaAlert> : null}
+
+      <AixiaAccessRule
+        title="Locked allocation lifecycle rule"
+        description="Expense payment distributions must use backend lifecycle status, shared allocation registry components, and protected allocation lifecycle RPCs."
+        icon={ShieldCheck}
+      >
+        This page loads finance_employee_refs together with finance_employee_identity_v,
+        uses AixiaEmployeeIdentityCell for person display, uses AixiaChildAllocationRegistry
+        with AixiaSortableHeader and AixiaTableActionsCell, filters active allocation
+        lifecycle records from the backend, and uses finance_archive_payment_made_expense_allocation,
+        finance_restore_payment_made_expense_allocation, finance_soft_delete_payment_made_expense_allocation,
+        and finance_permanently_delete_payment_made_expense_allocation for allocation lifecycle actions.
+      </AixiaAccessRule>
+
+      <AixiaMetricGrid>
+        <AixiaMetricCard
+          label="Remaining Before"
+          value={`${fundingCurrencyCode} ${formatMoney(fundingPoolRemainingBeforePayment)}`}
+          description="Available pool balance before this distribution."
+          icon={WalletCards}
+          tone="cyan"
+        />
+        <AixiaMetricCard
+          label="Payment Amount"
+          value={`${paymentCurrencyCode} ${formatMoney(totalPaymentCurrencyAllocated)}`}
+          description="Total entered in payment currency."
+          icon={Receipt}
+          tone="emerald"
+        />
+        <AixiaMetricCard
+          label="Remaining After"
+          value={`${fundingCurrencyCode} ${formatMoney(fundingCurrencyRemainingAfterPayment)}`}
+          description="Funding pool balance after this distribution."
+          icon={CheckCircle2}
+          tone={fundingCurrencyRemainingAfterPayment < 0 ? "rose" : "violet"}
+        />
+        <AixiaMetricCard
+          label="Selected Expenses"
+          value={selectedExpenseIds.length.toLocaleString()}
+          description="Verified expenses selected for this payment distribution."
+          icon={Plus}
+          tone={selectedExpenseIds.length > 0 ? "gold" : "neutral"}
+        />
+      </AixiaMetricGrid>
+
+      <AixiaSmartLayout
+        sidebar="normal"
+        balance="main"
+        bottomSpan="never"
+        sideRebalance="last-to-bottom"
+        main={
+          <>
+            <AixiaSection
+              title="Payment Distribution Setup"
+              description="Funding company and bank come from the selected Funding Pool. Payment currency comes from active Currency Master Data."
+              icon={WalletCards}
             >
-              <ArrowRight className="h-3.5 w-3.5 rotate-180" />
-              Payment Control
-            </button>
+              <AixiaFormGrid columns="two">
+                <AixiaFormField>
+                  <AixiaFieldLabel label="Payment Type" />
+                  <AixiaValueBlock
+                    label="Locked Mode"
+                    value="Operating Expense Distribution"
+                    detail="This page only distributes funding pool money to verified operating expenses."
+                  />
+                </AixiaFormField>
 
-            <div className="grid gap-6 xl:grid-cols-[minmax(0,1fr)_520px] xl:items-end">
-              <div>
-                <div className="inline-flex w-fit items-center gap-2 rounded-full border border-cyan-400/20 bg-cyan-500/10 px-3 py-1 text-[11px] font-semibold uppercase tracking-[0.22em] text-cyan-200">
-                  <Sparkles className="h-3.5 w-3.5" />
-                  Expense Payment Distribution
-                </div>
-
-                <h1 className="mt-4 text-3xl font-semibold tracking-[-0.035em] text-white md:text-5xl">
-                  Distribute Expense Payments
-                </h1>
-
-                <p className="mt-3 max-w-4xl text-sm leading-6 text-slate-400 md:text-base md:leading-7">
-                  Use a confirmed Funding Pool to distribute reserved money across verified
-                  operating expenses. All currencies come from Finance Currency Master Data, and
-                  conversions use the payment date.
-                </p>
-              </div>
-
-              <div className="grid gap-3 sm:grid-cols-2">
-                <SummaryBlock
-                  title="Funding Pool Total"
-                  value={`${fundingCurrencyCode} ${formatMoney(fundingPoolTotal)}`}
-                  subtitle="Original reserved money in the selected pool currency."
-                />
-                <SummaryBlock
-                  title="Already Used"
-                  value={`${fundingCurrencyCode} ${formatMoney(previousFundingPoolUsage)}`}
-                  subtitle="Confirmed previous usage from this pool."
-                />
-                <SummaryBlock
-                  title="This Payment Uses"
-                  value={`${fundingCurrencyCode} ${formatMoney(currentFundingCurrencyUsed)}`}
-                  subtitle="Current distribution converted into funding pool currency."
-                />
-                <SummaryBlock
-                  title="Remaining After"
-                  value={`${fundingCurrencyCode} ${formatMoney(fundingCurrencyRemainingAfterPayment)}`}
-                  subtitle="Remaining pool balance after this distribution."
-                />
-              </div>
-            </div>
-          </div>
-        </header>
-
-        {pageError ? (
-          <div className="rounded-[24px] border border-rose-400/20 bg-rose-500/10 p-4 text-sm leading-6 text-rose-100">
-            {pageError}
-          </div>
-        ) : null}
-
-        {pageMessage ? (
-          <div className="rounded-[24px] border border-emerald-400/20 bg-emerald-500/10 p-4 text-sm leading-6 text-emerald-100">
-            {pageMessage}
-          </div>
-        ) : null}
-
-        <div className="grid items-start gap-6 xl:grid-cols-[minmax(0,1fr)_430px]">
-          <div className="grid gap-6">
-            <section className="overflow-hidden rounded-[30px] border border-white/10 bg-white/[0.045] backdrop-blur-xl">
-              <div className="flex items-start gap-4 border-b border-white/10 px-5 py-4">
-                <div className="rounded-2xl border border-cyan-400/15 bg-cyan-500/10 p-3 text-cyan-200">
-                  <WalletCards className="h-4 w-4" />
-                </div>
-                <div>
-                  <div className="text-sm font-semibold uppercase tracking-[0.18em] text-slate-400">
-                    Payment Distribution Setup
-                  </div>
-                  <p className="mt-1 text-xs leading-5 text-slate-500">
-                    Funding company and bank come from the selected Funding Pool. Payment currency
-                    comes from active Currency Master Data.
-                  </p>
-                </div>
-              </div>
-
-              <div className="grid gap-4 p-5 md:grid-cols-2">
-                <div className="grid gap-2">
-                  <span className={labelClass()}>Payment Type</span>
-                  <div className="flex h-11 items-center rounded-2xl border border-cyan-400/15 bg-cyan-500/10 px-4 text-sm font-semibold text-cyan-100">
-                    Operating Expense Distribution
-                  </div>
-                </div>
-
-                <label className="grid gap-2">
-                  <span className={labelClass()}>Payment Date</span>
-                  <input
+                <AixiaFormField>
+                  <AixiaFieldLabel label="Payment Date" />
+                  <AixiaInputField
                     type="date"
                     value={form.paymentDate}
                     onChange={(event) => updateField("paymentDate", event.target.value)}
-                    className={inputClass()}
                   />
-                  <span className="text-xs leading-5 text-slate-500">
-                    Currency conversion uses this date.
-                  </span>
-                </label>
+                  <div className="aixia-helper-text">Currency conversion uses this date.</div>
+                </AixiaFormField>
 
-                <label className="grid gap-2 md:col-span-2">
-                  <span className={labelClass()}>Funding Pool</span>
-                  <select
+                <AixiaFormFullWidth>
+                  <AixiaFieldLabel label="Funding Pool" />
+                  <AixiaSelectField
                     value={form.fundingPoolId}
                     onChange={(event) => applyFundingPoolToForm(event.target.value, fundingPools)}
-                    className={inputClass()}
                   >
                     <option value="">Select confirmed funding pool</option>
                     {fundingPools.map((pool) => (
                       <option key={pool.id} value={pool.id}>
-                        {pool.batch_number} •{" "}
-                        {companyMap.get(pool.funding_company_id)?.name || "Company"} •{" "}
-                        {pool.currency_code || "USD"} {formatMoney(pool.allocated_amount)}
+                        {pool.batch_number} • {companyMap.get(pool.funding_company_id)?.name || "Company"} • {pool.currency_code || "USD"} {formatMoney(pool.allocated_amount)}
                       </option>
                     ))}
-                  </select>
-                </label>
+                  </AixiaSelectField>
+                </AixiaFormFullWidth>
 
-                <div className="grid gap-2">
-                  <span className={labelClass()}>Funding Company</span>
-                  <div className="flex h-11 items-center rounded-2xl border border-white/10 bg-black/20 px-4 text-sm font-semibold text-white">
-                    {fundingCompany?.name || "Select funding pool first"}
-                  </div>
-                </div>
+                <AixiaValueBlock
+                  label="Funding Company"
+                  value={fundingCompany?.name || "Select funding pool first"}
+                  detail="Derived from selected funding pool."
+                />
 
-                <div className="grid gap-2">
-                  <span className={labelClass()}>Paid From Bank Account</span>
-                  <div className="flex h-11 items-center rounded-2xl border border-white/10 bg-black/20 px-4 text-sm font-semibold text-white">
-                    {getBankLabel(paidFromBankAccount)}
-                  </div>
-                </div>
+                <AixiaValueBlock
+                  label="Paid From Bank Account"
+                  value={getBankLabel(paidFromBankAccount)}
+                  detail="Derived from selected funding pool."
+                />
 
-                <label className="grid gap-2">
-                  <span className={labelClass()}>Payment Currency</span>
-                  <select
+                <AixiaFormField>
+                  <AixiaFieldLabel label="Payment Currency" />
+                  <AixiaSelectField
                     value={paymentCurrencyCode}
                     onChange={(event) => updateField("paymentCurrencyCode", event.target.value)}
-                    className={inputClass()}
                   >
                     <option value="">Select currency</option>
                     {currencyOptions.map((currency) => (
                       <option key={currency.id} value={currency.currency_code}>
-                        {currency.currency_code} — {currency.currency_name}
+                        {getCurrencyOptionLabel(currency)}
                       </option>
                     ))}
-                  </select>
-                </label>
+                  </AixiaSelectField>
+                </AixiaFormField>
 
-                <div className="grid gap-2">
-                  <span className={labelClass()}>Funding Pool Currency</span>
-                  <div className="flex h-11 items-center rounded-2xl border border-violet-400/15 bg-violet-500/10 px-4 text-sm font-semibold text-violet-100">
-                    {fundingCurrencyCode}
-                  </div>
-                </div>
+                <AixiaValueBlock
+                  label="Funding Pool Currency"
+                  value={fundingCurrencyCode}
+                  detail="Selected funding pool currency."
+                />
 
-                <label className="grid gap-2 md:col-span-2">
-                  <span className={labelClass()}>Reference Number</span>
-                  <input
+                <AixiaFormFullWidth>
+                  <AixiaFieldLabel label="Reference Number" />
+                  <AixiaInputField
                     value={form.referenceNumber}
                     onChange={(event) => updateField("referenceNumber", event.target.value)}
-                    className={inputClass()}
                     placeholder="Payment reference number"
                   />
-                </label>
+                </AixiaFormFullWidth>
 
-                <label className="grid gap-2 md:col-span-2">
-                  <span className={labelClass()}>Payment Notes</span>
-                  <textarea
+                <AixiaFormFullWidth>
+                  <AixiaFieldLabel label="Payment Notes" />
+                  <AixiaTextareaField
                     value={form.notes}
                     onChange={(event) => updateField("notes", event.target.value)}
-                    className={textareaClass()}
                     placeholder="Internal payment notes"
                   />
-                </label>
-              </div>
-            </section>
+                </AixiaFormFullWidth>
+              </AixiaFormGrid>
+            </AixiaSection>
 
-            <section className="overflow-hidden rounded-[30px] border border-white/10 bg-white/[0.045] backdrop-blur-xl">
-              <div className="flex flex-col gap-4 border-b border-white/10 px-5 py-4 lg:flex-row lg:items-center lg:justify-between">
-                <div className="flex items-start gap-4">
-                  <div className="rounded-2xl border border-emerald-400/15 bg-emerald-500/10 p-3 text-emerald-200">
-                    <Receipt className="h-4 w-4" />
-                  </div>
-                  <div>
-                    <div className="text-sm font-semibold uppercase tracking-[0.18em] text-slate-400">
-                      Select Verified Expenses
-                    </div>
-                    <p className="mt-1 text-xs leading-5 text-slate-500">
-                      Partially covered expenses remain available until fully covered. Enter payment
-                      amounts in the selected payment currency.
-                    </p>
-                  </div>
-                </div>
+            <AixiaChildAllocationRegistry
+              title="Linked Expense Allocations"
+              description="Select verified expenses, enter payment-currency amounts, and review payment-date conversion before creating backend allocation records."
+              icon={Receipt}
+              search={
+                <AixiaSearchField
+                  width="wide"
+                  value={searchQuery}
+                  onChange={(event) => setSearchQuery(event.target.value)}
+                  placeholder="Search expenses..."
+                />
+              }
+            >
+              {sortedFilteredExpenses.length === 0 ? (
+                <AixiaEmptyState
+                  icon={Search}
+                  title="No payable verified expenses found"
+                  description="Expenses must be verified and still have a remaining balance."
+                />
+              ) : (
+                <AixiaTableShell variant="registry" minWidthClassName="min-w-[1780px]">
+                  <thead className="aixia-table-head">
+                    <tr>
+                      <th>Select</th>
+                      <th>
+                        <AixiaSortableHeader
+                          label="Expense"
+                          sortKey="expense"
+                          activeSortKey={sortKey}
+                          sortDirection={sortDirection}
+                          onSort={handleSort}
+                        />
+                      </th>
+                      <th>
+                        <AixiaSortableHeader
+                          label="Company"
+                          sortKey="company"
+                          activeSortKey={sortKey}
+                          sortDirection={sortDirection}
+                          onSort={handleSort}
+                        />
+                      </th>
+                      <th>
+                        <AixiaSortableHeader
+                          label="Made By"
+                          sortKey="made_by"
+                          activeSortKey={sortKey}
+                          sortDirection={sortDirection}
+                          onSort={handleSort}
+                        />
+                      </th>
+                      <th>
+                        <AixiaSortableHeader
+                          label="Docs"
+                          sortKey="documentation_status"
+                          activeSortKey={sortKey}
+                          sortDirection={sortDirection}
+                          onSort={handleSort}
+                        />
+                      </th>
+                      <th>
+                        <AixiaSortableHeader
+                          label="Coverage"
+                          sortKey="coverage_status"
+                          activeSortKey={sortKey}
+                          sortDirection={sortDirection}
+                          onSort={handleSort}
+                        />
+                      </th>
+                      <th>
+                        <AixiaSortableHeader
+                          label="Expense Total"
+                          sortKey="target_amount"
+                          activeSortKey={sortKey}
+                          sortDirection={sortDirection}
+                          onSort={handleSort}
+                        />
+                      </th>
+                      <th>
+                        <AixiaSortableHeader
+                          label="Already Covered"
+                          sortKey="covered_amount"
+                          activeSortKey={sortKey}
+                          sortDirection={sortDirection}
+                          onSort={handleSort}
+                        />
+                      </th>
+                      <th>
+                        <AixiaSortableHeader
+                          label="Remaining"
+                          sortKey="remaining_amount"
+                          activeSortKey={sortKey}
+                          sortDirection={sortDirection}
+                          onSort={handleSort}
+                        />
+                      </th>
+                      <th>Pay In {paymentCurrencyCode}</th>
+                      <th>Covers In Expense Currency</th>
+                      <th>Actions</th>
+                    </tr>
+                  </thead>
 
-                <div className="relative">
-                  <Search className="pointer-events-none absolute left-4 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-500" />
-                  <input
-                    value={searchQuery}
-                    onChange={(event) => setSearchQuery(event.target.value)}
-                    className="h-11 w-full rounded-2xl border border-white/10 bg-black/20 pl-11 pr-4 text-sm text-white outline-none transition placeholder:text-slate-600 focus:border-cyan-400/30 focus:bg-black/30 lg:w-[340px]"
-                    placeholder="Search expenses..."
-                  />
-                </div>
-              </div>
+                  <tbody>
+                    {sortedFilteredExpenses.map((expense) => {
+                      const isSelected = selectedExpenseIds.includes(expense.id);
+                      const allocationValue =
+                        allocationDrafts.find((draft) => draft.expenseId === expense.id)
+                          ?.paymentCurrencyAmount || "";
+                      const expenseCurrency = normalizeCurrencyCode(
+                        expense.currency_code || paymentCurrencyCode
+                      );
+                      const preview = conversionPreviews[expense.id];
+                      const displayedExpenseCoverageAmount = getCappedExpenseCoverageAmount(
+                        preview,
+                        expense.remainingAmount
+                      );
+                      const hasFxRoundingDifference = isFxRoundingDifference(
+                        preview,
+                        expense.remainingAmount
+                      );
+                      const overCovers =
+                        isSelected &&
+                        preview?.expenseCurrencyAmount !== null &&
+                        preview?.expenseCurrencyAmount !== undefined &&
+                        preview.expenseCurrencyAmount >
+                          expense.remainingAmount + FX_ROUNDING_TOLERANCE;
+                      const activeAllocation = expense.activeAllocation;
+                      const isAllocationActionRunning =
+                        activeAllocation?.id === runningAllocationActionId;
 
-              <div className="p-5">
-                {isLoading ? (
-                  <div className="rounded-[24px] border border-white/10 bg-black/20 px-6 py-12 text-center">
-                    <Loader2 className="mx-auto h-8 w-8 animate-spin text-cyan-200" />
-                    <div className="mt-4 text-sm text-slate-400">
-                      Loading verified expenses...
-                    </div>
-                  </div>
-                ) : filteredExpenses.length === 0 ? (
-                  <div className="rounded-[24px] border border-dashed border-white/10 bg-black/20 px-6 py-12 text-center">
-                    <Receipt className="mx-auto h-8 w-8 text-slate-500" />
-                    <div className="mt-4 text-sm font-semibold text-white">
-                      No payable verified expenses found
-                    </div>
-                    <div className="mt-2 text-sm leading-6 text-slate-500">
-                      Expenses must be verified and still have a remaining balance.
-                    </div>
-                  </div>
-                ) : (
-                  <div className="overflow-x-auto rounded-[24px] border border-white/10 bg-black/20">
-                    <div className="max-h-[720px] overflow-y-auto">
-                      <table className="w-full min-w-[1780px] border-collapse">
-                        <thead className="sticky top-0 z-20 border-b border-white/10 bg-black/70 backdrop-blur-xl">
-                          <tr>
-                            <th className="px-5 py-4 text-left text-[11px] font-semibold uppercase tracking-[0.18em] text-slate-500">
-                              Select
-                            </th>
-                            <th className="px-5 py-4 text-left text-[11px] font-semibold uppercase tracking-[0.18em] text-slate-500">
-                              Expense
-                            </th>
-                            <th className="px-5 py-4 text-left text-[11px] font-semibold uppercase tracking-[0.18em] text-slate-500">
-                              Company
-                            </th>
-                            <th className="px-5 py-4 text-left text-[11px] font-semibold uppercase tracking-[0.18em] text-slate-500">
-                              Made By
-                            </th>
-                            <th className="px-5 py-4 text-left text-[11px] font-semibold uppercase tracking-[0.18em] text-slate-500">
-                              Docs
-                            </th>
-                            <th className="px-5 py-4 text-left text-[11px] font-semibold uppercase tracking-[0.18em] text-slate-500">
-                              Coverage
-                            </th>
-                            <th className="px-5 py-4 text-right text-[11px] font-semibold uppercase tracking-[0.18em] text-slate-500">
-                              Expense Total
-                            </th>
-                            <th className="px-5 py-4 text-right text-[11px] font-semibold uppercase tracking-[0.18em] text-slate-500">
-                              Already Covered
-                            </th>
-                            <th className="px-5 py-4 text-right text-[11px] font-semibold uppercase tracking-[0.18em] text-slate-500">
-                              Remaining
-                            </th>
-                            <th className="px-5 py-4 text-right text-[11px] font-semibold uppercase tracking-[0.18em] text-slate-500">
-                              Pay In {paymentCurrencyCode}
-                            </th>
-                            <th className="px-5 py-4 text-right text-[11px] font-semibold uppercase tracking-[0.18em] text-slate-500">
-                              Covers In Expense Currency
-                            </th>
-                          </tr>
-                        </thead>
+                      return (
+                        <tr key={expense.id} className="aixia-table-row">
+                          <td>
+                            <input
+                              type="checkbox"
+                              checked={isSelected}
+                              onChange={() => toggleExpense(expense)}
+                            />
+                          </td>
 
-                        <tbody>
-                          {filteredExpenses.map((expense) => {
-                            const isSelected = selectedExpenseIds.includes(expense.id);
-                            const allocationValue =
-                              allocationDrafts.find(
-                                (draft) => draft.expenseId === expense.id
-                              )?.paymentCurrencyAmount || "";
-                            const expenseCurrency = normalizeCurrencyCode(
-                              expense.currency_code || paymentCurrencyCode
-                            );
-                            const preview = conversionPreviews[expense.id];
-                            const displayedExpenseCoverageAmount =
-                              getCappedExpenseCoverageAmount(preview, expense.remainingAmount);
-                            const hasFxRoundingDifference = isFxRoundingDifference(
-                              preview,
-                              expense.remainingAmount
-                            );
-                            const overCovers =
-                              isSelected &&
-                              preview?.expenseCurrencyAmount !== null &&
-                              preview?.expenseCurrencyAmount !== undefined &&
-                              preview.expenseCurrencyAmount >
-                                expense.remainingAmount + FX_ROUNDING_TOLERANCE;
+                          <AixiaTableTextCell
+                            width="xl"
+                            primary={expense.expensePrimaryLabel}
+                            secondary={expense.expenseSecondaryLabel}
+                          />
 
-                            return (
-                              <tr
-                                key={expense.id}
-                                className="border-b border-white/5 text-sm text-slate-300 transition hover:bg-white/[0.035]"
-                              >
-                                <td className="px-5 py-4">
-                                  <input
-                                    type="checkbox"
-                                    checked={isSelected}
-                                    onChange={() => toggleExpense(expense)}
-                                    className="h-4 w-4 rounded border-white/20 bg-black/20"
-                                  />
-                                </td>
+                          <AixiaTableTextCell
+                            width="md"
+                            primary={expense.companyName}
+                            secondary={formatDate(expense.expense_date)}
+                          />
 
-                                <td className="min-w-[240px] px-5 py-4">
-                                  <button
-                                    type="button"
-                                    onClick={() =>
-                                      navigate(`/finance/transactions/expenses/${expense.id}`)
-                                    }
-                                    className="text-left font-semibold text-cyan-200 transition hover:text-cyan-100"
-                                  >
-                                    {expense.expense_number || "Expense"}
-                                  </button>
-                                  <div className="mt-1 text-xs text-white">
-                                    {expense.title}
-                                  </div>
-                                  <div className="mt-1 text-xs text-slate-500">
-                                    {formatDate(expense.expense_date)}
-                                  </div>
-                                </td>
+                          <AixiaEmployeeIdentityCell
+                            width="xl"
+                            identity={expense.madeByIdentity}
+                            primary={expense.madeByPrimary}
+                            secondary={expense.madeBySecondary}
+                            reference={expense.madeByReference}
+                          />
 
-                                <td className="min-w-[180px] px-5 py-4">
-                                  {expense.companyName}
-                                </td>
+                          <AixiaTableBadgeCell width="sm">
+                            <AixiaStatusBadge value={expense.documentation_status} />
+                          </AixiaTableBadgeCell>
 
-                                <td className="min-w-[220px] px-5 py-4">
-                                  <div className="font-medium text-slate-200">
-                                    {expense.madeByLabel}
-                                  </div>
-                                  <div className="mt-1 text-xs text-slate-500">
-                                    {formatLabel(expense.expense_made_by_type)}
-                                  </div>
-                                </td>
+                          <AixiaTableBadgeCell width="sm">
+                            <AixiaStatusBadge value={expense.coverage_status} />
+                          </AixiaTableBadgeCell>
 
-                                <td className="whitespace-nowrap px-5 py-4">
-                                  <StatusBadge value={expense.documentation_status} />
-                                </td>
+                          <AixiaTableTextCell
+                            width="md"
+                            primary={`${expenseCurrency} ${formatMoney(expense.targetAmount)}`}
+                            secondary="Expense total"
+                          />
 
-                                <td className="whitespace-nowrap px-5 py-4">
-                                  <StatusBadge value={expense.coverage_status} />
-                                </td>
+                          <AixiaTableTextCell
+                            width="md"
+                            primary={`${expenseCurrency} ${formatMoney(expense.existingCoveredAmount)}`}
+                            secondary="Confirmed active allocations"
+                          />
 
-                                <td className="whitespace-nowrap px-5 py-4 text-right font-semibold text-white">
-                                  {expenseCurrency} {formatMoney(expense.targetAmount)}
-                                </td>
+                          <AixiaTableTextCell
+                            width="md"
+                            primary={`${expenseCurrency} ${formatMoney(expense.remainingAmount)}`}
+                            secondary="Remaining balance"
+                          />
 
-                                <td className="whitespace-nowrap px-5 py-4 text-right font-semibold text-slate-300">
-                                  {expenseCurrency} {formatMoney(expense.existingCoveredAmount)}
-                                </td>
+                          <td>
+                            <AixiaInputField
+                              value={allocationValue}
+                              onChange={(event) =>
+                                updateAllocationAmount(expense.id, event.target.value)
+                              }
+                              disabled={!isSelected}
+                              inputMode="decimal"
+                              placeholder="0.00"
+                            />
+                          </td>
 
-                                <td className="whitespace-nowrap px-5 py-4 text-right font-semibold text-amber-100">
-                                  {expenseCurrency} {formatMoney(expense.remainingAmount)}
-                                </td>
+                          <AixiaTableTextCell
+                            width="md"
+                            primary={
+                              !isSelected
+                                ? "Not selected"
+                                : isConverting
+                                  ? "Converting..."
+                                  : !preview ||
+                                      preview.expenseCurrencyAmount === null ||
+                                      preview.exchangeRate === null
+                                    ? "Missing conversion"
+                                    : `${expenseCurrency} ${formatMoney(
+                                        displayedExpenseCoverageAmount
+                                      )}`
+                            }
+                            secondary={
+                              !isSelected
+                                ? "Select to convert"
+                                : overCovers
+                                  ? "Over remaining balance"
+                                  : hasFxRoundingDifference
+                                    ? "Full remaining balance covered"
+                                    : preview?.source === "same_currency"
+                                      ? "Same currency"
+                                      : `Rate date ${preview?.conversionDate || form.paymentDate}`
+                            }
+                          />
 
-                                <td className="whitespace-nowrap px-5 py-4 text-right">
-                                  <input
-                                    value={allocationValue}
-                                    onChange={(event) =>
-                                      updateAllocationAmount(expense.id, event.target.value)
-                                    }
-                                    disabled={!isSelected}
-                                    inputMode="decimal"
-                                    placeholder="0.00"
-                                    className="h-10 w-[150px] rounded-2xl border border-white/10 bg-black/20 px-4 text-right text-sm text-white outline-none transition disabled:cursor-not-allowed disabled:opacity-40 focus:border-cyan-400/30 focus:bg-black/30"
-                                  />
-                                </td>
+                          <AixiaTableActionsCell>
+                            <AixiaButton
+                              type="button"
+                              variant="primary"
+                              onClick={() => navigate(`/finance/transactions/expenses/${expense.id}`)}
+                            >
+                              <Eye className="h-3.5 w-3.5" />
+                              Open
+                            </AixiaButton>
 
-                                <td className="whitespace-nowrap px-5 py-4 text-right">
-                                  {!isSelected ? (
-                                    <div>
-                                      <div className="font-semibold text-slate-400">
-                                        Not selected
-                                      </div>
-                                      <div className="mt-1 text-[11px] text-slate-600">
-                                        Select to convert
-                                      </div>
-                                    </div>
-                                  ) : isConverting ? (
-                                    <div>
-                                      <div className="font-semibold text-cyan-200">
-                                        Converting...
-                                      </div>
-                                      <div className="mt-1 text-[11px] text-slate-500">
-                                        {paymentCurrencyCode} → {expenseCurrency}
-                                      </div>
-                                    </div>
-                                  ) : !preview ||
-                                    preview.expenseCurrencyAmount === null ||
-                                    preview.exchangeRate === null ? (
-                                    <div>
-                                      <div className="font-semibold text-rose-200">
-                                        Missing conversion
-                                      </div>
-                                      <div className="mt-1 text-[11px] text-slate-500">
-                                        {paymentCurrencyCode} → {expenseCurrency}
-                                      </div>
-                                    </div>
+                            <AixiaButton
+                              type="button"
+                              variant={isSelected ? "secondary" : "primary"}
+                              onClick={() => toggleExpense(expense)}
+                            >
+                              {isSelected ? "Remove" : "Select"}
+                            </AixiaButton>
+
+                            {activeAllocation ? (
+                              <>
+                                <AixiaButton
+                                  type="button"
+                                  variant="danger"
+                                  disabled={Boolean(runningAllocationActionId)}
+                                  onClick={() =>
+                                    void runAllocationLifecycleAction(
+                                      "archive",
+                                      activeAllocation.id,
+                                      "finance_archive_payment_made_expense_allocation",
+                                      "Allocation archived."
+                                    )
+                                  }
+                                >
+                                  {isAllocationActionRunning && runningAllocationAction === "archive" ? (
+                                    <RotateCcw className="h-3.5 w-3.5 animate-spin" />
                                   ) : (
-                                    <div>
-                                      <div
-                                        className={`font-semibold ${
-                                          overCovers ? "text-rose-200" : "text-emerald-100"
-                                        }`}
-                                      >
-                                        {expenseCurrency}{" "}
-                                        {formatMoney(displayedExpenseCoverageAmount)}
-                                      </div>
-                                      <div className="mt-1 text-[11px] text-slate-500">
-                                        {preview.source === "same_currency"
-                                          ? "Same currency"
-                                          : `Rate date ${preview.conversionDate}`}
-                                      </div>
-                                      {overCovers ? (
-                                        <div className="mt-1 text-[11px] text-rose-200">
-                                          Over remaining balance
-                                        </div>
-                                      ) : hasFxRoundingDifference ? (
-                                        <div className="mt-1 text-[11px] text-emerald-200">
-                                          Full remaining balance covered
-                                        </div>
-                                      ) : null}
-                                    </div>
+                                    <Archive className="h-3.5 w-3.5" />
                                   )}
-                                </td>
-                              </tr>
-                            );
-                          })}
-                        </tbody>
-                      </table>
-                    </div>
-                  </div>
-                )}
-              </div>
-            </section>
-          </div>
+                                  Archive
+                                </AixiaButton>
 
-          <aside className="sticky top-6 grid gap-6">
-            <section className="overflow-hidden rounded-[30px] border border-white/10 bg-white/[0.045] backdrop-blur-xl">
-              <div className="border-b border-white/10 px-5 py-4">
-                <div className="text-sm font-semibold uppercase tracking-[0.18em] text-slate-400">
-                  Distribution Summary
-                </div>
-                <p className="mt-1 text-xs leading-5 text-slate-500">
-                  Review funding pool usage before saving or confirming.
-                </p>
-              </div>
-
-              <div className="grid gap-3 p-5">
-                <SummaryBlock
-                  title="Funding Pool"
+                                <AixiaButton
+                                  type="button"
+                                  variant="danger"
+                                  disabled={Boolean(runningAllocationActionId)}
+                                  onClick={() =>
+                                    void runAllocationLifecycleAction(
+                                      "delete",
+                                      activeAllocation.id,
+                                      "finance_soft_delete_payment_made_expense_allocation",
+                                      "Allocation moved to deleted."
+                                    )
+                                  }
+                                >
+                                  <Trash2 className="h-3.5 w-3.5" />
+                                  Delete
+                                </AixiaButton>
+                              </>
+                            ) : null}
+                          </AixiaTableActionsCell>
+                        </tr>
+                      );
+                    })}
+                  </tbody>
+                </AixiaTableShell>
+              )}
+            </AixiaChildAllocationRegistry>
+          </>
+        }
+        side={
+          <>
+            <AixiaSection
+              title="Distribution Summary"
+              description="Review funding pool usage before saving or confirming."
+              icon={WalletCards}
+            >
+              <AixiaReviewGrid variant="cards">
+                <AixiaValueBlock
+                  label="Funding Pool"
                   value={selectedFundingPool?.batch_number || "Not selected"}
-                  subtitle="Confirmed funding pool used as payment source."
+                  detail="Confirmed funding pool used as payment source."
                 />
-                <SummaryBlock
-                  title="Funding Company"
+                <AixiaValueBlock
+                  label="Funding Company"
                   value={fundingCompany?.name || "Not selected"}
-                  subtitle="Derived from selected funding pool."
+                  detail="Derived from selected funding pool."
                 />
-                <SummaryBlock
-                  title="Bank Account"
+                <AixiaValueBlock
+                  label="Bank Account"
                   value={getBankLabel(paidFromBankAccount)}
-                  subtitle="Derived from selected funding pool."
+                  detail="Derived from selected funding pool."
                 />
-                <SummaryBlock
-                  title="Pool Total"
+                <AixiaValueBlock
+                  label="Pool Total"
                   value={`${fundingCurrencyCode} ${formatMoney(fundingPoolTotal)}`}
-                  subtitle="Original funding pool amount."
+                  detail="Original funding pool amount."
                 />
-                <SummaryBlock
-                  title="Already Used"
+                <AixiaValueBlock
+                  label="Already Used"
                   value={`${fundingCurrencyCode} ${formatMoney(previousFundingPoolUsage)}`}
-                  subtitle="Previous confirmed usage from this pool."
+                  detail="Previous confirmed usage from active lifecycle allocations."
                 />
-                <SummaryBlock
-                  title="Remaining Before"
+                <AixiaValueBlock
+                  label="Remaining Before"
                   value={`${fundingCurrencyCode} ${formatMoney(fundingPoolRemainingBeforePayment)}`}
-                  subtitle="Available before this distribution."
+                  detail="Available before this distribution."
                 />
-                <SummaryBlock
-                  title="Payment Amount"
+                <AixiaValueBlock
+                  label="Payment Amount"
                   value={`${paymentCurrencyCode} ${formatMoney(totalPaymentCurrencyAllocated)}`}
-                  subtitle="Total entered in payment currency."
+                  detail="Total entered in payment currency."
                 />
-                <SummaryBlock
-                  title="Funding Used"
+                <AixiaValueBlock
+                  label="Funding Used"
                   value={`${fundingCurrencyCode} ${formatMoney(currentFundingCurrencyUsed)}`}
-                  subtitle={
+                  detail={
                     fundingUsagePreview?.source === "same_currency"
                       ? "Same as funding pool currency."
-                      : `Converted using payment date ${fundingUsagePreview?.conversionDate || form.paymentDate}.`
+                      : `Converted using payment date ${
+                          fundingUsagePreview?.conversionDate || form.paymentDate
+                        }.`
                   }
                 />
-                <SummaryBlock
-                  title="Remaining After"
+                <AixiaValueBlock
+                  label="Remaining After"
                   value={`${fundingCurrencyCode} ${formatMoney(fundingCurrencyRemainingAfterPayment)}`}
-                  subtitle="Funding pool balance after this distribution."
+                  detail="Funding pool balance after this distribution."
                 />
-                <SummaryBlock
-                  title="Expense Coverage"
+                <AixiaValueBlock
+                  label="Expense Coverage"
                   value={formatMoney(totalExpenseCurrencyCovered)}
-                  subtitle="Combined converted coverage preview across selected expense currencies."
+                  detail="Combined converted coverage preview across selected expense currencies."
                 />
-              </div>
-            </section>
+              </AixiaReviewGrid>
+            </AixiaSection>
 
-            <section className="overflow-hidden rounded-[30px] border border-white/10 bg-white/[0.045] p-5 backdrop-blur-xl">
-              <div className="grid gap-3">
-                <button
+            <AixiaSection
+              title="Distribution Actions"
+              description="Create a draft or create and confirm the distribution."
+              icon={CheckCircle2}
+            >
+              <div className="aixia-action-row">
+                <AixiaButton
                   type="button"
+                  variant="primary"
                   disabled={Boolean(savingMode) || isConverting}
                   onClick={() => void savePayment("confirm")}
-                  className="inline-flex h-12 items-center justify-center gap-2 rounded-2xl border border-emerald-400/20 bg-emerald-500/10 px-5 text-sm font-semibold text-emerald-100 transition hover:bg-emerald-500/15 disabled:cursor-not-allowed disabled:opacity-50"
                 >
                   {savingMode === "confirm" ? (
                     <Loader2 className="h-4 w-4 animate-spin" />
@@ -2132,13 +2377,13 @@ export default function FinanceExpensesPaymentsMadeNewPage() {
                   {savingMode === "confirm"
                     ? "Creating Distribution..."
                     : "Create & Confirm Distribution"}
-                </button>
+                </AixiaButton>
 
-                <button
+                <AixiaButton
                   type="button"
+                  variant="secondary"
                   disabled={Boolean(savingMode) || isConverting}
                   onClick={() => void savePayment("draft")}
-                  className="inline-flex h-12 items-center justify-center gap-2 rounded-2xl border border-white/10 bg-white/[0.05] px-5 text-sm font-semibold text-slate-300 transition hover:bg-white/[0.08] hover:text-white disabled:cursor-not-allowed disabled:opacity-50"
                 >
                   {savingMode === "draft" ? (
                     <Loader2 className="h-4 w-4 animate-spin" />
@@ -2146,18 +2391,46 @@ export default function FinanceExpensesPaymentsMadeNewPage() {
                     <Save className="h-4 w-4" />
                   )}
                   {savingMode === "draft" ? "Saving Draft..." : "Save Draft"}
-                </button>
+                </AixiaButton>
               </div>
 
-              <div className="mt-4 rounded-[24px] border border-white/10 bg-black/20 p-4 text-xs leading-5 text-slate-500">
+              <AixiaAlert tone="info">
                 This distributes reserved Funding Pool money across selected verified expenses.
-                Currency conversion uses active Finance Currency Master Data codes and the selected
-                payment date.
-              </div>
-            </section>
-          </aside>
-        </div>
-      </div>
-    </div>
+                Currency conversion uses active Finance Currency Master Data codes and the selected payment date.
+              </AixiaAlert>
+            </AixiaSection>
+
+            <AixiaSection
+              title="Lifecycle Tools"
+              description="Protected backend RPCs are available for existing allocation lifecycle records."
+              icon={ShieldCheck}
+            >
+              <AixiaReviewGrid variant="cards">
+                <AixiaValueBlock
+                  label="Archive RPC"
+                  value="finance_archive_payment_made_expense_allocation"
+                  detail="Moves an allocation to archived lifecycle status."
+                />
+                <AixiaValueBlock
+                  label="Restore RPC"
+                  value="finance_restore_payment_made_expense_allocation"
+                  detail="Restores archived or deleted allocation records to active."
+                />
+                <AixiaValueBlock
+                  label="Soft Delete RPC"
+                  value="finance_soft_delete_payment_made_expense_allocation"
+                  detail="Moves an allocation to deleted lifecycle status."
+                />
+                <AixiaValueBlock
+                  label="Permanent Delete RPC"
+                  value="finance_permanently_delete_payment_made_expense_allocation"
+                  detail="Protected hard delete after backend checks."
+                />
+              </AixiaReviewGrid>
+            </AixiaSection>
+          </>
+        }
+      />
+    </AixiaPage>
   );
 }

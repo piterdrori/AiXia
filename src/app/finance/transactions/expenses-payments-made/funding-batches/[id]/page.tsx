@@ -12,7 +12,6 @@ import {
   Coins,
   Edit3,
   FileCheck2,
-  FileText,
   Loader2,
   Save,
   ShieldCheck,
@@ -1051,7 +1050,7 @@ export default function FinanceExpenseFundingBatchDetailPage() {
                 ) : (
                   <AixiaButton
                     type="button"
-                    variant="secondary"
+                    variant="primary"
                     disabled={actionLocked || isArchivedOrDeleted}
                     onClick={startEditing}
                   >

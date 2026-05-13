@@ -490,6 +490,11 @@ function inspectSharedCssSourceOfTruth() {
     "0.64rem",
     ".aixia-hero-main[data-has-side=\"true\"]",
     ".aixia-hero-side",
+    "GLOBAL AIXIA HERO TITLE / SIDE-CARD BALANCE STANDARD",
+    "minmax(720px, 1.24fr)",
+    "padding-top: clamp(5.5rem, 7vw, 8rem)",
+    "overflow-wrap: normal",
+    "hyphens: none",
     ".aixia-document-upload-panel",
     ".aixia-document-upload-zone",
   ];

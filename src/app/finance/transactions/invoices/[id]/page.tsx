@@ -4,28 +4,48 @@ import { useCallback, useEffect, useMemo, useState } from "react";
 import { useNavigate, useParams } from "react-router-dom";
 import {
   Archive,
-  ArrowRight,
   CheckCircle,
+  CreditCard,
   FileText,
   Link2,
   Printer,
+  Receipt,
   RotateCcw,
   Save,
   SquarePen,
   Trash2,
+  WalletCards,
 } from "lucide-react";
 
-import { supabase } from "@/lib/supabase";
-import { Button } from "@/components/ui/button";
-import { Badge } from "@/components/ui/badge";
 import {
-  Card,
-  CardContent,
-  CardDescription,
-  CardHeader,
-  CardTitle,
-} from "@/components/ui/card";
-
+  AixiaActionCard,
+  AixiaAlert,
+  AixiaArchiveManagerModal,
+  AixiaButton,
+  AixiaEmptyState,
+  AixiaFieldLabel,
+  AixiaFormField,
+  AixiaFormFullWidth,
+  AixiaFormGrid,
+  AixiaFormRowCard,
+  AixiaHero,
+  AixiaInputField,
+  AixiaLoadingState,
+  AixiaMetricCard,
+  AixiaMetricGrid,
+  AixiaPage,
+  AixiaReviewGrid,
+  AixiaSection,
+  AixiaSelectField,
+  AixiaSmartLayout,
+  AixiaStatusBadge,
+  AixiaTableActionsCell,
+  AixiaTableBadgeCell,
+  AixiaTableShell,
+  AixiaTableTextCell,
+  AixiaTextareaField,
+  AixiaValueBlock,
+} from "@/components/aixia";
 import {
   formatFinanceDate,
   formatFinanceMoney,
@@ -35,6 +55,7 @@ import {
   getIssuedInvoiceStatusLabel,
   type InvoicePostingStatus,
 } from "@/lib/finance/invoicesIssued";
+import { supabase } from "@/lib/supabase";
 import InvoicePrintDocument from "./InvoicePrintDocument";
 
 type InvoiceRecord = {
@@ -334,20 +355,14 @@ function buildClientAddress(client: ClientOption | null) {
 function buildBankIdentifierLine(account: BankAccountOption | null) {
   if (!account) return "";
 
-  if (account.iban) {
-    return `IBAN: ${account.iban}`;
-  }
-
-  if (account.swift_code) {
-    return `SWIFT: ${account.swift_code}`;
-  }
+  if (account.iban) return `IBAN: ${account.iban}`;
+  if (account.swift_code) return `SWIFT: ${account.swift_code}`;
 
   if (account.account_identifier_value) {
     const normalizedType = (account.account_identifier_type || "").toLowerCase();
-
-    return `${
-      normalizedType === "swift" ? "SWIFT" : "Identifier"
-    }: ${account.account_identifier_value}`;
+    return `${normalizedType === "swift" ? "SWIFT" : "Identifier"}: ${
+      account.account_identifier_value
+    }`;
   }
 
   return "";
@@ -355,10 +370,7 @@ function buildBankIdentifierLine(account: BankAccountOption | null) {
 
 function buildBankAddressFromAccount(account: BankAccountOption | null) {
   if (!account) return "";
-
-  if (account.bank_address) {
-    return account.bank_address;
-  }
+  if (account.bank_address) return account.bank_address;
 
   return [
     account.address_line_1,
@@ -375,8 +387,7 @@ function buildBankDetailsLinesFromAccount(account: BankAccountOption | null) {
   if (!account) return [];
 
   const resolvedBankName = account.bank_name || account.institution_name || "";
-  const resolvedAccountNumber =
-    account.account_number || account.masked_account_number || "";
+  const resolvedAccountNumber = account.account_number || account.masked_account_number || "";
   const resolvedIdentifierLine = buildBankIdentifierLine(account);
   const resolvedBankAddress = buildBankAddressFromAccount(account);
 
@@ -411,62 +422,6 @@ function buildBankDetailsLinesFromSnapshot(snapshot: string | null | undefined) 
     });
 }
 
-function getDocumentStatusBadgeClasses(status: InvoiceRecord["status"]) {
-  if (status === "issued") {
-    return "border-sky-400/20 bg-sky-500/10 text-sky-200";
-  }
-
-  if (status === "draft") {
-    return "border-white/10 bg-white/10 text-white/75";
-  }
-
-  if (status === "partially_paid") {
-    return "border-amber-400/20 bg-amber-500/10 text-amber-200";
-  }
-
-  if (status === "paid") {
-    return "border-emerald-400/20 bg-emerald-500/10 text-emerald-200";
-  }
-
-  if (status === "archived") {
-    return "border-white/20 bg-white/5 text-white/60";
-  }
-
-  if (status === "deleted") {
-    return "border-rose-500/30 bg-rose-500/10 text-rose-300";
-  }
-
-  return "border-white/10 bg-white/10 text-white/75";
-}
-
-function getPaymentStatusBadgeClasses(status: InvoiceRecord["payment_status"]) {
-  if (status === "paid") {
-    return "border-emerald-400/20 bg-emerald-500/10 text-emerald-200";
-  }
-
-  if (status === "partial") {
-    return "border-amber-400/20 bg-amber-500/10 text-amber-200";
-  }
-
-  return "border-rose-400/20 bg-rose-500/10 text-rose-200";
-}
-
-function getPostingStatusBadgeClasses(status: InvoicePostingStatus) {
-  if (status === "posted") {
-    return "border-violet-400/20 bg-violet-500/10 text-violet-200";
-  }
-
-  return "border-white/10 bg-white/10 text-white/75";
-}
-
-function getPostingStatusLabel(status: InvoicePostingStatus) {
-  return status === "posted" ? "Posted" : "Not posted";
-}
-
-function getOverdueBadgeClasses() {
-  return "border-rose-400/20 bg-rose-500/10 text-rose-200";
-}
-
 function getPaymentTermLabel(term: PaymentTermOption | null) {
   if (!term) return "—";
   return term.document_label || term.name || term.code || "—";
@@ -477,6 +432,10 @@ function getShippingTermLabel(term: ShippingTermOption | null) {
   return term.description?.trim()
     ? `${term.name} — ${term.description.trim()}`
     : term.name || term.code || "—";
+}
+
+function getPostingStatusLabel(status: InvoicePostingStatus) {
+  return status === "posted" ? "Posted" : "Not posted";
 }
 
 export default function FinanceInvoiceDetailPage() {
@@ -507,26 +466,17 @@ export default function FinanceInvoiceDetailPage() {
   const [shippingTerms, setShippingTerms] = useState<ShippingTermOption[]>([]);
   const [bankAccounts, setBankAccounts] = useState<BankAccountOption[]>([]);
   const [currencies, setCurrencies] = useState<CurrencyOption[]>([]);
-  const [paymentMethods, setPaymentMethods] = useState<PaymentMethodOption[]>(
-    []
-  );
+  const [paymentMethods, setPaymentMethods] = useState<PaymentMethodOption[]>([]);
   const [items, setItems] = useState<ItemOption[]>([]);
   const [taxCodes, setTaxCodes] = useState<TaxCodeOption[]>([]);
-  const [unitsOfMeasure, setUnitsOfMeasure] = useState<UnitOfMeasureOption[]>(
-    []
-  );
-  const [revenueCategories, setRevenueCategories] = useState<
-    RevenueCategoryOption[]
-  >([]);
+  const [unitsOfMeasure, setUnitsOfMeasure] = useState<UnitOfMeasureOption[]>([]);
+  const [revenueCategories, setRevenueCategories] = useState<RevenueCategoryOption[]>([]);
 
   const [showArchivePopup, setShowArchivePopup] = useState(false);
-  const [archiveTab, setArchiveTab] = useState<"archived" | "deleted">(
-    "archived"
-  );
+  const [archiveTab, setArchiveTab] = useState<"archived" | "deleted">("archived");
 
   const [editingOverview, setEditingOverview] = useState(false);
-  const [editingFinancialSettings, setEditingFinancialSettings] =
-    useState(false);
+  const [editingFinancialSettings, setEditingFinancialSettings] = useState(false);
   const [editingDocumentDetails, setEditingDocumentDetails] = useState(false);
   const [editingLines, setEditingLines] = useState(false);
 
@@ -560,7 +510,6 @@ export default function FinanceInvoiceDetailPage() {
     setEditingLines(false);
   }, []);
 
-
   const loadArchiveItems = useCallback(async () => {
     const { data, error } = await supabase
       .from("finance_invoices_issued")
@@ -583,11 +532,8 @@ export default function FinanceInvoiceDetailPage() {
     async (refreshOnly = false) => {
       if (!id) return;
 
-      if (refreshOnly) {
-        setIsRefreshing(true);
-      } else {
-        setIsLoading(true);
-      }
+      if (refreshOnly) setIsRefreshing(true);
+      else setIsLoading(true);
 
       setError("");
 
@@ -611,16 +557,8 @@ export default function FinanceInvoiceDetailPage() {
             loadArchiveItems(),
           ]);
 
-        if (paymentsResult.error) {
-          throw paymentsResult.error;
-        }
-
-        if (projectResult.error) {
-          console.warn(
-            "Failed to load linked project/task for invoice:",
-            projectResult.error
-          );
-        }
+        if (paymentsResult.error) throw paymentsResult.error;
+        if (projectResult.error) console.warn("Failed to load linked project/task:", projectResult.error);
 
         const typedInvoice = invoice as unknown as InvoiceRecord & {
           proforma_invoice_id?: string | null;
@@ -629,7 +567,6 @@ export default function FinanceInvoiceDetailPage() {
         const typedPayments = (paymentsResult.data || []) as PaymentRow[];
         const linkedProject = (projectResult.data as any)?.project ?? null;
         const linkedTask = (projectResult.data as any)?.task ?? null;
-
         const resolvedProformaInvoiceId =
           typedInvoice.proforma_invoice_id ||
           (typedInvoice.metadata?.proforma_invoice_id as string | undefined) ||
@@ -646,12 +583,8 @@ export default function FinanceInvoiceDetailPage() {
             .eq("id", resolvedProformaInvoiceId)
             .maybeSingle();
 
-          if (proformaError) {
-            console.warn("Failed to load linked proforma invoice:", proformaError);
-          }
-
-          linkedProformaRow =
-            (proformaData || null) as ProformaInvoiceLinkRow | null;
+          if (proformaError) console.warn("Failed to load linked proforma invoice:", proformaError);
+          linkedProformaRow = (proformaData || null) as ProformaInvoiceLinkRow | null;
         }
 
         setInvoice(typedInvoice);
@@ -660,14 +593,10 @@ export default function FinanceInvoiceDetailPage() {
         setLinkedProformaInvoice(linkedProformaRow);
         setProject(linkedProject);
         setTask(linkedTask);
-
         setIssueDateDraft(typedInvoice.issue_date || "");
         setDueDateDraft(typedInvoice.due_date || "");
         setNotesDraft(typedInvoice.notes || "");
-        setTermsAndConditionsDraft(
-          typedInvoice.terms_and_conditions_snapshot || ""
-        );
-
+        setTermsAndConditionsDraft(typedInvoice.terms_and_conditions_snapshot || "");
         setClientIdDraft(
           typedInvoice.counterparty_type === "company"
             ? `company:${typedInvoice.counterparty_company_id || ""}`
@@ -685,7 +614,6 @@ export default function FinanceInvoiceDetailPage() {
         setPaymentMethodIdDraft(
           (typedInvoice.metadata?.preferred_payment_method_id as string) || ""
         );
-
         setLineItemsDraft(
           typedLineItems.map((row) => ({
             id: row.id,
@@ -703,11 +631,8 @@ export default function FinanceInvoiceDetailPage() {
         console.error(err);
         setError("Failed to load invoice.");
       } finally {
-        if (refreshOnly) {
-          setIsRefreshing(false);
-        } else {
-          setIsLoading(false);
-        }
+        if (refreshOnly) setIsRefreshing(false);
+        else setIsLoading(false);
       }
     },
     [id, loadArchiveItems]
@@ -744,19 +669,11 @@ export default function FinanceInvoiceDetailPage() {
           )
           .eq("status", "active")
           .order("name", { ascending: true }),
-        supabase
-          .from("projects")
-          .select("id, name")
-          .order("name", { ascending: true }),
-        supabase
-          .from("tasks")
-          .select("id, title, project_id")
-          .order("created_at", { ascending: false }),
+        supabase.from("projects").select("id, name").order("name", { ascending: true }),
+        supabase.from("tasks").select("id, title, project_id").order("created_at", { ascending: false }),
         supabase
           .from("finance_payment_terms")
-          .select(
-            "id, code, name, due_days, is_default, document_label, document_terms_text"
-          )
+          .select("id, code, name, due_days, is_default, document_label, document_terms_text")
           .eq("status", "active")
           .order("name", { ascending: true }),
         supabase
@@ -828,17 +745,11 @@ export default function FinanceInvoiceDetailPage() {
       setShippingTerms((shippingTermsResult.data || []) as ShippingTermOption[]);
       setBankAccounts((bankAccountsResult.data || []) as BankAccountOption[]);
       setCurrencies((currenciesResult.data || []) as CurrencyOption[]);
-      setPaymentMethods(
-        (paymentMethodsResult.data || []) as PaymentMethodOption[]
-      );
+      setPaymentMethods((paymentMethodsResult.data || []) as PaymentMethodOption[]);
       setItems((itemsResult.data || []) as ItemOption[]);
       setTaxCodes((taxCodesResult.data || []) as TaxCodeOption[]);
-      setUnitsOfMeasure(
-        (unitsOfMeasureResult.data || []) as UnitOfMeasureOption[]
-      );
-      setRevenueCategories(
-        (revenueCategoriesResult.data || []) as RevenueCategoryOption[]
-      );
+      setUnitsOfMeasure((unitsOfMeasureResult.data || []) as UnitOfMeasureOption[]);
+      setRevenueCategories((revenueCategoriesResult.data || []) as RevenueCategoryOption[]);
     } catch (err) {
       console.error("Failed to load invoice master data:", err);
     }
@@ -910,34 +821,24 @@ export default function FinanceInvoiceDetailPage() {
   );
 
   const selectedDraftPaymentMethod = useMemo(
-    () =>
-      paymentMethods.find((entry) => entry.id === paymentMethodIdDraft) ?? null,
+    () => paymentMethods.find((entry) => entry.id === paymentMethodIdDraft) ?? null,
     [paymentMethodIdDraft, paymentMethods]
   );
 
   const filteredDraftTasks = useMemo(() => {
-    if (!projectIdDraft) {
-      return tasks;
-    }
-
+    if (!projectIdDraft) return tasks;
     return tasks.filter((task) => task.project_id === projectIdDraft);
   }, [projectIdDraft, tasks]);
 
   const filteredDraftBankAccounts = useMemo(() => {
-    if (!companyIdDraft) {
-      return bankAccounts;
-    }
-
+    if (!companyIdDraft) return bankAccounts;
     return bankAccounts.filter(
       (account) => !account.company_id || account.company_id === companyIdDraft
     );
   }, [bankAccounts, companyIdDraft]);
 
   const selectedDraftBankAccount = useMemo(
-    () =>
-      filteredDraftBankAccounts.find(
-        (account) => account.id === bankAccountIdDraft
-      ) ?? null,
+    () => filteredDraftBankAccounts.find((account) => account.id === bankAccountIdDraft) ?? null,
     [bankAccountIdDraft, filteredDraftBankAccounts]
   );
 
@@ -957,10 +858,7 @@ export default function FinanceInvoiceDetailPage() {
   );
 
   const resolvedDraftRecipientAddress = useMemo(() => {
-    if (selectedDraftClient) {
-      return buildClientAddress(selectedDraftClient);
-    }
-
+    if (selectedDraftClient) return buildClientAddress(selectedDraftClient);
     return buildCompanyAddress(selectedDraftRecipientCompany);
   }, [selectedDraftClient, selectedDraftRecipientCompany]);
 
@@ -983,16 +881,12 @@ export default function FinanceInvoiceDetailPage() {
   );
 
   const resolvedDraftRecipientContact = useMemo(
-    () =>
-      selectedDraftClient?.contact_person ||
-      selectedDraftRecipientCompany?.contact_person ||
-      "",
+    () => selectedDraftClient?.contact_person || selectedDraftRecipientCompany?.contact_person || "",
     [selectedDraftClient, selectedDraftRecipientCompany]
   );
 
   const resolvedIssuedRecipientName = useMemo(() => {
     if (!invoice) return "";
-
     return (
       invoice.counterparty_legal_name_snapshot ||
       invoice.counterparty_name_snapshot ||
@@ -1003,41 +897,22 @@ export default function FinanceInvoiceDetailPage() {
 
   const resolvedIssuedRecipientEmail = useMemo(() => {
     if (!invoice) return "";
-
-    return (
-      invoice.client_email_snapshot ||
-      invoice.counterparty_email_snapshot ||
-      ""
-    );
+    return invoice.client_email_snapshot || invoice.counterparty_email_snapshot || "";
   }, [invoice]);
 
   const resolvedIssuedRecipientPhone = useMemo(() => {
     if (!invoice) return "";
-
-    return (
-      invoice.client_phone_snapshot ||
-      invoice.counterparty_phone_snapshot ||
-      ""
-    );
+    return invoice.client_phone_snapshot || invoice.counterparty_phone_snapshot || "";
   }, [invoice]);
 
   const resolvedIssuedRecipientContact = useMemo(() => {
     if (!invoice) return "";
-
-    return (
-      invoice.client_contact_person_snapshot ||
-      invoice.counterparty_contact_person_snapshot ||
-      ""
-    );
+    return invoice.client_contact_person_snapshot || invoice.counterparty_contact_person_snapshot || "";
   }, [invoice]);
 
   const resolvedBankDetailsLines = useMemo(() => {
     if (!invoice) return [];
-
-    if (invoice.status === "draft") {
-      return buildBankDetailsLinesFromAccount(selectedDraftBankAccount);
-    }
-
+    if (invoice.status === "draft") return buildBankDetailsLinesFromAccount(selectedDraftBankAccount);
     return buildBankDetailsLinesFromSnapshot(invoice.bank_details_snapshot);
   }, [invoice, selectedDraftBankAccount]);
 
@@ -1046,33 +921,19 @@ export default function FinanceInvoiceDetailPage() {
       (sum, row) => sum + toNumber(row.quantity) * toNumber(row.unit_price),
       0
     );
-
-    const discount = lineItemsDraft.reduce(
-      (sum, row) => sum + toNumber(row.discount),
-      0
-    );
-
+    const discount = lineItemsDraft.reduce((sum, row) => sum + toNumber(row.discount), 0);
     const tax = lineItemsDraft.reduce((sum, row) => {
       const qty = toNumber(row.quantity);
       const price = toNumber(row.unit_price);
       const rowDiscount = toNumber(row.discount);
       const base = Math.max(qty * price - rowDiscount, 0);
-
       const taxCode = taxCodes.find((t) => t.id === row.tax_code_id);
       if (!taxCode) return sum;
-
-      const rate = toNumber(taxCode.rate_percent) / 100;
-      return sum + base * rate;
+      return sum + base * (toNumber(taxCode.rate_percent) / 100);
     }, 0);
-
     const total = Math.max(subtotal - discount + tax, 0);
 
-    return {
-      subtotal,
-      discount,
-      tax,
-      total,
-    };
+    return { subtotal, discount, tax, total };
   }, [lineItemsDraft, taxCodes]);
 
   const financialSummary = useMemo(() => {
@@ -1080,15 +941,13 @@ export default function FinanceInvoiceDetailPage() {
 
     if (invoice.status === "draft") {
       const paid = totals.paid;
-      const balance = draftTotals.total - paid;
-
       return {
         subtotal: draftTotals.subtotal,
         discount: draftTotals.discount,
         tax: draftTotals.tax,
         total: draftTotals.total,
         paid,
-        balance,
+        balance: draftTotals.total - paid,
       };
     }
 
@@ -1106,17 +965,12 @@ export default function FinanceInvoiceDetailPage() {
       const matchedCurrency = currencies.find(
         (currency) => currency.currency_code === selectedDraftClient.currency_code
       );
-
-      if (matchedCurrency) {
-        setCurrencyIdDraft(matchedCurrency.id);
-      }
+      if (matchedCurrency) setCurrencyIdDraft(matchedCurrency.id);
     }
 
     if (!dueDateDraft) {
       const days = selectedDraftClient.payment_terms_days ?? 14;
-      const base = new Date(
-        issueDateDraft || new Date().toISOString().slice(0, 10)
-      );
+      const base = new Date(issueDateDraft || new Date().toISOString().slice(0, 10));
       base.setDate(base.getDate() + days);
       setDueDateDraft(base.toISOString().slice(0, 10));
     }
@@ -1146,30 +1000,21 @@ export default function FinanceInvoiceDetailPage() {
 
     const selectedBankStillBelongsToCompany =
       !bankAccountIdDraft ||
-      filteredDraftBankAccounts.some(
-        (account) => account.id === bankAccountIdDraft
-      );
+      filteredDraftBankAccounts.some((account) => account.id === bankAccountIdDraft);
 
-    if (!selectedBankStillBelongsToCompany) {
-      setBankAccountIdDraft("");
-    }
+    if (!selectedBankStillBelongsToCompany) setBankAccountIdDraft("");
 
     const defaultBank =
       filteredDraftBankAccounts.find((account) => account.is_default) ??
       filteredDraftBankAccounts[0];
 
-    if (defaultBank && !bankAccountIdDraft) {
-      setBankAccountIdDraft(defaultBank.id);
-    }
+    if (defaultBank && !bankAccountIdDraft) setBankAccountIdDraft(defaultBank.id);
 
     if (!currencyIdDraft && selectedDraftCompany?.currency_code) {
       const matchedCurrency = currencies.find(
         (currency) => currency.currency_code === selectedDraftCompany.currency_code
       );
-
-      if (matchedCurrency) {
-        setCurrencyIdDraft(matchedCurrency.id);
-      }
+      if (matchedCurrency) setCurrencyIdDraft(matchedCurrency.id);
     }
   }, [
     bankAccountIdDraft,
@@ -1183,14 +1028,8 @@ export default function FinanceInvoiceDetailPage() {
 
   useEffect(() => {
     if (!invoice || invoice.status !== "draft") return;
-
-    const taskStillValid = filteredDraftTasks.some(
-      (entry) => entry.id === taskIdDraft
-    );
-
-    if (taskIdDraft && !taskStillValid) {
-      setTaskIdDraft("");
-    }
+    const taskStillValid = filteredDraftTasks.some((entry) => entry.id === taskIdDraft);
+    if (taskIdDraft && !taskStillValid) setTaskIdDraft("");
   }, [filteredDraftTasks, invoice, taskIdDraft]);
 
   const canEditDraft = invoice?.status === "draft";
@@ -1201,8 +1040,7 @@ export default function FinanceInvoiceDetailPage() {
     ["issued", "partially_paid"].includes(invoice.status) &&
     toNumber(invoice.balance_due) > 0;
   const canArchive =
-    !!invoice &&
-    ["draft", "issued", "partially_paid", "paid"].includes(invoice.status);
+    !!invoice && ["draft", "issued", "partially_paid", "paid"].includes(invoice.status);
 
   const handleIssue = useCallback(async () => {
     if (!invoice || !id) return;
@@ -1213,48 +1051,27 @@ export default function FinanceInvoiceDetailPage() {
     try {
       if (!lineItemsDraft.length) {
         setError("Invoice must have at least one line item.");
-        setIsIssuing(false);
         return;
       }
 
       if (!clientIdDraft) {
         setError("Invoice must have a recipient.");
-        setIsIssuing(false);
         return;
       }
 
       if (!selectedDraftBankAccount) {
         setError("Bank account is required before issuing.");
-        setIsIssuing(false);
         return;
       }
 
-      const selectedPaymentMethod = paymentMethods.find(
-        (method) => method.id === paymentMethodIdDraft
-      );
-
-      const selectedCurrency = currencies.find(
-        (currency) => currency.id === currencyIdDraft
-      );
-
-      const selectedPaymentTerm = paymentTerms.find(
-        (term) => term.id === paymentTermsIdDraft
-      );
-
-      const selectedShippingTerm = shippingTerms.find(
-        (term) => term.id === shippingTermIdDraft
-      );
-
+      const selectedPaymentMethod = paymentMethods.find((method) => method.id === paymentMethodIdDraft);
+      const selectedCurrency = currencies.find((currency) => currency.id === currencyIdDraft);
+      const selectedPaymentTerm = paymentTerms.find((term) => term.id === paymentTermsIdDraft);
+      const selectedShippingTerm = shippingTerms.find((term) => term.id === shippingTermIdDraft);
       const isCompany = clientIdDraft.startsWith("company:");
       const isClient = clientIdDraft.startsWith("client:");
-
-      const resolvedClientId = isClient
-        ? clientIdDraft.replace("client:", "")
-        : null;
-
-      const resolvedCompanyId = isCompany
-        ? clientIdDraft.replace("company:", "")
-        : null;
+      const resolvedClientId = isClient ? clientIdDraft.replace("client:", "") : null;
+      const resolvedCompanyId = isCompany ? clientIdDraft.replace("company:", "") : null;
 
       const { error: snapshotError } = await supabase
         .from("finance_invoices_issued")
@@ -1269,50 +1086,34 @@ export default function FinanceInvoiceDetailPage() {
           shipping_term_id: shippingTermIdDraft || null,
           bank_account_id: bankAccountIdDraft || null,
           currency_id: currencyIdDraft || null,
-          currency_code:
-            selectedCurrency?.currency_code || invoice.currency_code || "USD",
+          currency_code: selectedCurrency?.currency_code || invoice.currency_code || "USD",
           issue_date: issueDateDraft,
           due_date: dueDateDraft,
           notes: notesDraft || null,
-          company_name_snapshot:
-            selectedDraftCompany?.legal_name ||
-            selectedDraftCompany?.name ||
-            null,
-          company_contact_person_snapshot:
-            selectedDraftCompany?.contact_person || null,
+          company_name_snapshot: selectedDraftCompany?.legal_name || selectedDraftCompany?.name || null,
+          company_contact_person_snapshot: selectedDraftCompany?.contact_person || null,
           company_address_snapshot: resolvedDraftCompanyAddress || null,
           company_email_snapshot: selectedDraftCompany?.email || null,
           company_phone_snapshot: selectedDraftCompany?.phone || null,
           counterparty_name_snapshot: resolvedDraftRecipientName || null,
           counterparty_legal_name_snapshot: resolvedDraftRecipientName || null,
-          counterparty_contact_person_snapshot:
-            resolvedDraftRecipientContact || null,
+          counterparty_contact_person_snapshot: resolvedDraftRecipientContact || null,
           counterparty_email_snapshot: resolvedDraftRecipientEmail || null,
           counterparty_phone_snapshot: resolvedDraftRecipientPhone || null,
-          client_name_snapshot:
-            selectedDraftClient?.legal_name || selectedDraftClient?.name || null,
-          client_contact_person_snapshot:
-            selectedDraftClient?.contact_person || null,
+          client_name_snapshot: selectedDraftClient?.legal_name || selectedDraftClient?.name || null,
+          client_contact_person_snapshot: selectedDraftClient?.contact_person || null,
           client_email_snapshot:
-            selectedDraftClient?.company_email ||
-            selectedDraftClient?.personnel_email ||
-            null,
+            selectedDraftClient?.company_email || selectedDraftClient?.personnel_email || null,
           client_phone_snapshot:
-            selectedDraftClient?.company_phone ||
-            selectedDraftClient?.personnel_phone ||
-            null,
+            selectedDraftClient?.company_phone || selectedDraftClient?.personnel_phone || null,
           billing_address_snapshot: resolvedDraftRecipientAddress || null,
           payment_terms_snapshot:
-            selectedPaymentTerm?.document_label ||
-            selectedPaymentTerm?.name ||
-            null,
-          shipping_terms_snapshot:
-            selectedShippingTerm?.description?.trim()
-              ? `${selectedShippingTerm.name} — ${selectedShippingTerm.description.trim()}`
-              : selectedShippingTerm?.name || selectedShippingTerm?.code || null,
+            selectedPaymentTerm?.document_label || selectedPaymentTerm?.name || null,
+          shipping_terms_snapshot: selectedShippingTerm?.description?.trim()
+            ? `${selectedShippingTerm.name} — ${selectedShippingTerm.description.trim()}`
+            : selectedShippingTerm?.name || selectedShippingTerm?.code || null,
           terms_and_conditions_snapshot: termsAndConditionsDraft || null,
-          bank_details_snapshot:
-            buildBankDetailsSnapshotFromAccount(selectedDraftBankAccount),
+          bank_details_snapshot: buildBankDetailsSnapshotFromAccount(selectedDraftBankAccount),
           metadata: {
             ...(invoice.metadata || {}),
             preferred_payment_method_id: paymentMethodIdDraft || null,
@@ -1325,26 +1126,20 @@ export default function FinanceInvoiceDetailPage() {
               selectedDraftBankAccount?.institution_name ||
               null,
             beneficiary_name: selectedDraftBankAccount?.beneficiary_name || null,
-            bank_address_snapshot:
-              buildBankAddressFromAccount(selectedDraftBankAccount) || null,
+            bank_address_snapshot: buildBankAddressFromAccount(selectedDraftBankAccount) || null,
             iban: selectedDraftBankAccount?.iban || null,
             swift_code:
               selectedDraftBankAccount?.swift_code ||
-              (selectedDraftBankAccount?.account_identifier_type?.toLowerCase() ===
-              "swift"
+              (selectedDraftBankAccount?.account_identifier_type?.toLowerCase() === "swift"
                 ? selectedDraftBankAccount?.account_identifier_value
                 : null),
-            bank_identifier_type:
-              selectedDraftBankAccount?.account_identifier_type || null,
-
-                        bank_identifier_value:
-              selectedDraftBankAccount?.account_identifier_value || null,
+            bank_identifier_type: selectedDraftBankAccount?.account_identifier_type || null,
+            bank_identifier_value: selectedDraftBankAccount?.account_identifier_value || null,
             account_number:
               selectedDraftBankAccount?.account_number ||
               selectedDraftBankAccount?.masked_account_number ||
               null,
-            bank_account_currency_code:
-              selectedDraftBankAccount?.currency_code || null,
+            bank_account_currency_code: selectedDraftBankAccount?.currency_code || null,
           },
         })
         .eq("id", id)
@@ -1357,7 +1152,6 @@ export default function FinanceInvoiceDetailPage() {
       });
 
       if (error) throw error;
-
       await loadInvoice(true);
     } catch (err) {
       console.error(err);
@@ -1408,9 +1202,7 @@ export default function FinanceInvoiceDetailPage() {
       const { error } = await supabase.rpc("finance_archive_invoice_issued", {
         p_invoice_id: id,
       });
-
       if (error) throw error;
-
       closeAllEditors();
       await loadInvoice(true);
       await loadArchiveItems();
@@ -1432,13 +1224,8 @@ export default function FinanceInvoiceDetailPage() {
         const { error } = await supabase.rpc("finance_restore_invoice_issued", {
           p_invoice_id: invoiceId,
         });
-
         if (error) throw error;
-
-        if (invoiceId === id) {
-          await loadInvoice(true);
-        }
-
+        if (invoiceId === id) await loadInvoice(true);
         await loadArchiveItems();
       } catch (err: any) {
         console.error(err);
@@ -1461,27 +1248,18 @@ export default function FinanceInvoiceDetailPage() {
           .select("id")
           .eq("invoice_id", invoiceId)
           .eq("status", "confirmed");
-
         if (paymentsError) throw paymentsError;
-
-        if (payments && payments.length > 0) {
-          throw new Error("Cannot delete invoice with existing payments.");
-        }
+        if (payments && payments.length > 0) throw new Error("Cannot delete invoice with existing payments.");
 
         const { error: invoiceError } = await supabase.rpc(
           "finance_hard_delete_invoice_issued",
-          {
-            p_invoice_id: invoiceId,
-          }
+          { p_invoice_id: invoiceId }
         );
-
         if (invoiceError) throw invoiceError;
-
         if (invoiceId === id) {
           navigate("/finance/transactions/invoices");
           return;
         }
-
         await loadArchiveItems();
       } catch (err: any) {
         console.error(err);
@@ -1503,9 +1281,7 @@ export default function FinanceInvoiceDetailPage() {
       const { error } = await supabase.rpc("finance_delete_invoice_issued", {
         p_invoice_id: id,
       });
-
       if (error) throw error;
-
       await loadInvoice(true);
       await loadArchiveItems();
       setShowArchivePopup(true);
@@ -1524,14 +1300,7 @@ export default function FinanceInvoiceDetailPage() {
       setLineItemsDraft((current) =>
         current.map((entry) => {
           if (entry.id !== lineId) return entry;
-
-          if (!selectedItem) {
-            return {
-              ...entry,
-              item_id: "",
-            };
-          }
-
+          if (!selectedItem) return { ...entry, item_id: "" };
           return {
             ...entry,
             item_id: selectedItem.id,
@@ -1550,30 +1319,17 @@ export default function FinanceInvoiceDetailPage() {
   const addDraftLineItem = useCallback(() => {
     setLineItemsDraft((current) => {
       const last = current[current.length - 1];
-
-      if (!last) {
-        return [createEditableDraftLineItem()];
-      }
-
+      if (!last) return [createEditableDraftLineItem()];
       const isLastEmpty =
-        !last.description.trim() &&
-        toNumber(last.quantity) === 0 &&
-        toNumber(last.unit_price) === 0;
-
-      if (isLastEmpty) {
-        return current;
-      }
-
+        !last.description.trim() && toNumber(last.quantity) === 0 && toNumber(last.unit_price) === 0;
+      if (isLastEmpty) return current;
       return [...current, createEditableDraftLineItem()];
     });
   }, []);
 
   const removeDraftLineItem = useCallback((lineId: string) => {
     setLineItemsDraft((current) => {
-      if (current.length === 1) {
-        return current;
-      }
-
+      if (current.length === 1) return current;
       return current.filter((entry) => entry.id !== lineId);
     });
   }, []);
@@ -1588,10 +1344,7 @@ export default function FinanceInvoiceDetailPage() {
       const {
         data: { user },
       } = await supabase.auth.getUser();
-
-      if (!user?.id) {
-        throw new Error("User not authenticated");
-      }
+      if (!user?.id) throw new Error("User not authenticated");
 
       const { error: invoiceError } = await supabase
         .from("finance_invoices_issued")
@@ -1603,18 +1356,12 @@ export default function FinanceInvoiceDetailPage() {
         })
         .eq("id", id)
         .eq("status", "issued");
-
       if (invoiceError) throw invoiceError;
-
       setEditingOverview(false);
       await loadInvoice(true);
     } catch (err: any) {
       console.error(err);
-      setError(
-        err?.message ||
-          err?.details ||
-          "Failed to save issued invoice overview changes."
-      );
+      setError(err?.message || err?.details || "Failed to save issued invoice overview changes.");
     } finally {
       setIsSavingDraft(false);
     }
@@ -1630,10 +1377,7 @@ export default function FinanceInvoiceDetailPage() {
       const {
         data: { user },
       } = await supabase.auth.getUser();
-
-      if (!user?.id) {
-        throw new Error("User not authenticated");
-      }
+      if (!user?.id) throw new Error("User not authenticated");
 
       const { error: invoiceError } = await supabase
         .from("finance_invoices_issued")
@@ -1643,9 +1387,7 @@ export default function FinanceInvoiceDetailPage() {
         })
         .eq("id", id)
         .eq("status", "issued");
-
       if (invoiceError) throw invoiceError;
-
       setEditingDocumentDetails(false);
       await loadInvoice(true);
     } catch (err) {
@@ -1668,10 +1410,7 @@ export default function FinanceInvoiceDetailPage() {
     }));
 
     const hasAtLeastOneValidLine = cleanedLineItems.some(
-      (row) =>
-        row.description &&
-        toNumber(row.quantity) > 0 &&
-        toNumber(row.unit_price) >= 0
+      (row) => row.description && toNumber(row.quantity) > 0 && toNumber(row.unit_price) >= 0
     );
 
     if (!hasAtLeastOneValidLine) {
@@ -1681,10 +1420,7 @@ export default function FinanceInvoiceDetailPage() {
     }
 
     const hasInvalidLine = cleanedLineItems.some(
-      (row) =>
-        !row.description ||
-        toNumber(row.quantity) <= 0 ||
-        toNumber(row.unit_price) < 0
+      (row) => !row.description || toNumber(row.quantity) <= 0 || toNumber(row.unit_price) < 0
     );
 
     if (hasInvalidLine) {
@@ -1699,26 +1435,19 @@ export default function FinanceInvoiceDetailPage() {
       const {
         data: { user },
       } = await supabase.auth.getUser();
-
-      if (!user?.id) {
-        throw new Error("User not authenticated");
-      }
+      if (!user?.id) throw new Error("User not authenticated");
 
       const existingIds = lineItems.map((entry) => entry.id);
       const draftIds = cleanedLineItems
         .filter((entry) => !entry.id.startsWith("new_"))
         .map((entry) => entry.id);
-
-      const idsToDelete = existingIds.filter(
-        (entryId) => !draftIds.includes(entryId)
-      );
+      const idsToDelete = existingIds.filter((entryId) => !draftIds.includes(entryId));
 
       if (idsToDelete.length > 0) {
         const { error: deleteError } = await supabase
           .from("finance_invoice_issued_line_items")
           .delete()
           .in("id", idsToDelete);
-
         if (deleteError) throw deleteError;
       }
 
@@ -1745,7 +1474,6 @@ export default function FinanceInvoiceDetailPage() {
               created_by: user.id,
               updated_by: user.id,
             });
-
           if (insertError) throw insertError;
         } else {
           const { error: lineError } = await supabase
@@ -1762,23 +1490,17 @@ export default function FinanceInvoiceDetailPage() {
               sort_order: index + 1,
               updated_by: user.id,
             })
-
-                    .eq("id", row.id)
+            .eq("id", row.id)
             .eq("invoice_id", id);
-
           if (lineError) throw lineError;
         }
       }
 
       const { error: recalcError } = await supabase.rpc(
         "finance_recalculate_invoice_issued_totals",
-        {
-          p_invoice_id: id,
-        }
+        { p_invoice_id: id }
       );
-
       if (recalcError) throw recalcError;
-
       setEditingLines(false);
       await loadInvoice(true);
     } catch (err) {
@@ -1801,10 +1523,7 @@ export default function FinanceInvoiceDetailPage() {
     }));
 
     const hasAtLeastOneValidLine = cleanedLineItems.some(
-      (row) =>
-        row.description &&
-        toNumber(row.quantity) > 0 &&
-        toNumber(row.unit_price) >= 0
+      (row) => row.description && toNumber(row.quantity) > 0 && toNumber(row.unit_price) >= 0
     );
 
     if (!hasAtLeastOneValidLine) {
@@ -1814,10 +1533,7 @@ export default function FinanceInvoiceDetailPage() {
     }
 
     const hasInvalidLine = cleanedLineItems.some(
-      (row) =>
-        !row.description ||
-        toNumber(row.quantity) <= 0 ||
-        toNumber(row.unit_price) < 0
+      (row) => !row.description || toNumber(row.quantity) <= 0 || toNumber(row.unit_price) < 0
     );
 
     if (hasInvalidLine) {
@@ -1832,37 +1548,16 @@ export default function FinanceInvoiceDetailPage() {
       const {
         data: { user },
       } = await supabase.auth.getUser();
-
-      if (!user?.id) {
-        throw new Error("User not authenticated");
-      }
+      if (!user?.id) throw new Error("User not authenticated");
 
       const isCompany = clientIdDraft.startsWith("company:");
       const isClient = clientIdDraft.startsWith("client:");
-
-      const resolvedClientId = isClient
-        ? clientIdDraft.replace("client:", "")
-        : null;
-
-      const resolvedCompanyId = isCompany
-        ? clientIdDraft.replace("company:", "")
-        : null;
-
-      const selectedPaymentMethod = paymentMethods.find(
-        (method) => method.id === paymentMethodIdDraft
-      );
-
-      const selectedCurrency = currencies.find(
-        (currency) => currency.id === currencyIdDraft
-      );
-
-      const selectedPaymentTerm = paymentTerms.find(
-        (term) => term.id === paymentTermsIdDraft
-      );
-
-      const selectedShippingTerm = shippingTerms.find(
-        (term) => term.id === shippingTermIdDraft
-      );
+      const resolvedClientId = isClient ? clientIdDraft.replace("client:", "") : null;
+      const resolvedCompanyId = isCompany ? clientIdDraft.replace("company:", "") : null;
+      const selectedPaymentMethod = paymentMethods.find((method) => method.id === paymentMethodIdDraft);
+      const selectedCurrency = currencies.find((currency) => currency.id === currencyIdDraft);
+      const selectedPaymentTerm = paymentTerms.find((term) => term.id === paymentTermsIdDraft);
+      const selectedShippingTerm = shippingTerms.find((term) => term.id === shippingTermIdDraft);
 
       const { error: invoiceError } = await supabase
         .from("finance_invoices_issued")
@@ -1877,50 +1572,34 @@ export default function FinanceInvoiceDetailPage() {
           shipping_term_id: shippingTermIdDraft || null,
           bank_account_id: bankAccountIdDraft || null,
           currency_id: currencyIdDraft || null,
-          currency_code:
-            selectedCurrency?.currency_code || invoice.currency_code || "USD",
+          currency_code: selectedCurrency?.currency_code || invoice.currency_code || "USD",
           issue_date: issueDateDraft,
           due_date: dueDateDraft,
           notes: notesDraft || null,
-          company_name_snapshot:
-            selectedDraftCompany?.legal_name ||
-            selectedDraftCompany?.name ||
-            null,
-          company_contact_person_snapshot:
-            selectedDraftCompany?.contact_person || null,
+          company_name_snapshot: selectedDraftCompany?.legal_name || selectedDraftCompany?.name || null,
+          company_contact_person_snapshot: selectedDraftCompany?.contact_person || null,
           company_address_snapshot: resolvedDraftCompanyAddress || null,
           company_email_snapshot: selectedDraftCompany?.email || null,
           company_phone_snapshot: selectedDraftCompany?.phone || null,
           counterparty_name_snapshot: resolvedDraftRecipientName || null,
           counterparty_legal_name_snapshot: resolvedDraftRecipientName || null,
-          counterparty_contact_person_snapshot:
-            resolvedDraftRecipientContact || null,
+          counterparty_contact_person_snapshot: resolvedDraftRecipientContact || null,
           counterparty_email_snapshot: resolvedDraftRecipientEmail || null,
           counterparty_phone_snapshot: resolvedDraftRecipientPhone || null,
-          client_name_snapshot:
-            selectedDraftClient?.legal_name || selectedDraftClient?.name || null,
-          client_contact_person_snapshot:
-            selectedDraftClient?.contact_person || null,
+          client_name_snapshot: selectedDraftClient?.legal_name || selectedDraftClient?.name || null,
+          client_contact_person_snapshot: selectedDraftClient?.contact_person || null,
           client_email_snapshot:
-            selectedDraftClient?.company_email ||
-            selectedDraftClient?.personnel_email ||
-            null,
+            selectedDraftClient?.company_email || selectedDraftClient?.personnel_email || null,
           client_phone_snapshot:
-            selectedDraftClient?.company_phone ||
-            selectedDraftClient?.personnel_phone ||
-            null,
+            selectedDraftClient?.company_phone || selectedDraftClient?.personnel_phone || null,
           billing_address_snapshot: resolvedDraftRecipientAddress || null,
           payment_terms_snapshot:
-            selectedPaymentTerm?.document_label ||
-            selectedPaymentTerm?.name ||
-            null,
-          shipping_terms_snapshot:
-            selectedShippingTerm?.description?.trim()
-              ? `${selectedShippingTerm.name} — ${selectedShippingTerm.description.trim()}`
-              : selectedShippingTerm?.name || selectedShippingTerm?.code || null,
+            selectedPaymentTerm?.document_label || selectedPaymentTerm?.name || null,
+          shipping_terms_snapshot: selectedShippingTerm?.description?.trim()
+            ? `${selectedShippingTerm.name} — ${selectedShippingTerm.description.trim()}`
+            : selectedShippingTerm?.name || selectedShippingTerm?.code || null,
           terms_and_conditions_snapshot: termsAndConditionsDraft || null,
-          bank_details_snapshot:
-            buildBankDetailsSnapshotFromAccount(selectedDraftBankAccount),
+          bank_details_snapshot: buildBankDetailsSnapshotFromAccount(selectedDraftBankAccount),
           updated_by: user.id,
           metadata: {
             ...(invoice.metadata || {}),
@@ -1934,53 +1613,42 @@ export default function FinanceInvoiceDetailPage() {
               selectedDraftBankAccount?.institution_name ||
               null,
             beneficiary_name: selectedDraftBankAccount?.beneficiary_name || null,
-            bank_address_snapshot:
-              buildBankAddressFromAccount(selectedDraftBankAccount) || null,
+            bank_address_snapshot: buildBankAddressFromAccount(selectedDraftBankAccount) || null,
             iban: selectedDraftBankAccount?.iban || null,
             swift_code:
               selectedDraftBankAccount?.swift_code ||
-              (selectedDraftBankAccount?.account_identifier_type?.toLowerCase() ===
-              "swift"
+              (selectedDraftBankAccount?.account_identifier_type?.toLowerCase() === "swift"
                 ? selectedDraftBankAccount?.account_identifier_value
                 : null),
-            bank_identifier_type:
-              selectedDraftBankAccount?.account_identifier_type || null,
-            bank_identifier_value:
-              selectedDraftBankAccount?.account_identifier_value || null,
+            bank_identifier_type: selectedDraftBankAccount?.account_identifier_type || null,
+            bank_identifier_value: selectedDraftBankAccount?.account_identifier_value || null,
             account_number:
               selectedDraftBankAccount?.account_number ||
               selectedDraftBankAccount?.masked_account_number ||
               null,
-            bank_account_currency_code:
-              selectedDraftBankAccount?.currency_code || null,
+            bank_account_currency_code: selectedDraftBankAccount?.currency_code || null,
           },
         })
         .eq("id", id)
         .eq("status", "draft");
-
       if (invoiceError) throw invoiceError;
 
       const existingIds = lineItems.map((entry) => entry.id);
       const draftIds = cleanedLineItems
         .filter((entry) => !entry.id.startsWith("new_"))
         .map((entry) => entry.id);
-
-      const idsToDelete = existingIds.filter(
-        (entryId) => !draftIds.includes(entryId)
-      );
+      const idsToDelete = existingIds.filter((entryId) => !draftIds.includes(entryId));
 
       if (idsToDelete.length > 0) {
         const { error: deleteError } = await supabase
           .from("finance_invoice_issued_line_items")
           .delete()
           .in("id", idsToDelete);
-
         if (deleteError) throw deleteError;
       }
 
       for (let index = 0; index < cleanedLineItems.length; index += 1) {
         const row = cleanedLineItems[index];
-
         if (row.id.startsWith("new_")) {
           const { error: insertError } = await supabase
             .from("finance_invoice_issued_line_items")
@@ -2001,7 +1669,6 @@ export default function FinanceInvoiceDetailPage() {
               created_by: user.id,
               updated_by: user.id,
             });
-
           if (insertError) throw insertError;
         } else {
           const { error: lineError } = await supabase
@@ -2020,20 +1687,15 @@ export default function FinanceInvoiceDetailPage() {
             })
             .eq("id", row.id)
             .eq("invoice_id", id);
-
           if (lineError) throw lineError;
         }
       }
 
       const { error: recalcError } = await supabase.rpc(
         "finance_recalculate_invoice_issued_totals",
-        {
-          p_invoice_id: id,
-        }
+        { p_invoice_id: id }
       );
-
       if (recalcError) throw recalcError;
-
       closeAllEditors();
       await loadInvoice(true);
     } catch (err) {
@@ -2084,23 +1746,18 @@ export default function FinanceInvoiceDetailPage() {
     const resolvedPaymentTerm =
       selectedDraftPaymentTerm ||
       paymentTerms.find(
-        (entry) =>
-          entry.id === paymentTermsIdDraft ||
-          entry.id === invoice.payment_terms_id
+        (entry) => entry.id === paymentTermsIdDraft || entry.id === invoice.payment_terms_id
       ) ||
       null;
-
     const resolvedShippingTerms =
       selectedDraftShippingTermsLabel !== "—"
         ? selectedDraftShippingTermsLabel
         : invoice.shipping_terms_snapshot;
-
     const resolvedPaymentTermsLabel =
       resolvedPaymentTerm?.document_label ||
       resolvedPaymentTerm?.name ||
       invoice.payment_terms_snapshot ||
       "—";
-
     const resolvedPaymentTermsText =
       resolvedPaymentTerm?.document_terms_text ||
       (invoice as any).payment_terms_document_text ||
@@ -2114,44 +1771,29 @@ export default function FinanceInvoiceDetailPage() {
         payment_terms_snapshot: resolvedPaymentTermsLabel,
         payment_terms_document_text: resolvedPaymentTermsText,
         shipping_terms_snapshot: resolvedShippingTerms,
-        terms_and_conditions_snapshot:
-          termsAndConditionsDraft || invoice.terms_and_conditions_snapshot,
+        terms_and_conditions_snapshot: termsAndConditionsDraft || invoice.terms_and_conditions_snapshot,
         currency_code: invoice.currency_code || "USD",
       };
     }
 
     const draftBankDetails =
-      buildBankDetailsSnapshotFromAccount(selectedDraftBankAccount) ||
-      invoice.bank_details_snapshot;
+      buildBankDetailsSnapshotFromAccount(selectedDraftBankAccount) || invoice.bank_details_snapshot;
 
     return {
       ...invoice,
       company_name_snapshot:
-        selectedDraftCompany?.legal_name ||
-        selectedDraftCompany?.name ||
-        invoice.company_name_snapshot,
+        selectedDraftCompany?.legal_name || selectedDraftCompany?.name || invoice.company_name_snapshot,
       company_contact_person_snapshot:
-        selectedDraftCompany?.contact_person ||
-        invoice.company_contact_person_snapshot,
-      company_address_snapshot:
-        resolvedDraftCompanyAddress || invoice.company_address_snapshot,
-      company_email_snapshot:
-        selectedDraftCompany?.email || invoice.company_email_snapshot,
-      company_phone_snapshot:
-        selectedDraftCompany?.phone || invoice.company_phone_snapshot,
-
-
-            counterparty_name_snapshot:
-        resolvedDraftRecipientName ||
-        invoice.counterparty_name_snapshot ||
-        invoice.client_name_snapshot,
+        selectedDraftCompany?.contact_person || invoice.company_contact_person_snapshot,
+      company_address_snapshot: resolvedDraftCompanyAddress || invoice.company_address_snapshot,
+      company_email_snapshot: selectedDraftCompany?.email || invoice.company_email_snapshot,
+      company_phone_snapshot: selectedDraftCompany?.phone || invoice.company_phone_snapshot,
+      counterparty_name_snapshot:
+        resolvedDraftRecipientName || invoice.counterparty_name_snapshot || invoice.client_name_snapshot,
       client_name_snapshot:
-        selectedDraftClient?.legal_name ||
-        selectedDraftClient?.name ||
-        invoice.client_name_snapshot,
+        selectedDraftClient?.legal_name || selectedDraftClient?.name || invoice.client_name_snapshot,
       client_contact_person_snapshot:
-        selectedDraftClient?.contact_person ||
-        invoice.client_contact_person_snapshot,
+        selectedDraftClient?.contact_person || invoice.client_contact_person_snapshot,
       client_email_snapshot:
         selectedDraftClient?.company_email ||
         selectedDraftClient?.personnel_email ||
@@ -2160,16 +1802,13 @@ export default function FinanceInvoiceDetailPage() {
         selectedDraftClient?.company_phone ||
         selectedDraftClient?.personnel_phone ||
         invoice.client_phone_snapshot,
-      billing_address_snapshot:
-        resolvedDraftRecipientAddress || invoice.billing_address_snapshot,
+      billing_address_snapshot: resolvedDraftRecipientAddress || invoice.billing_address_snapshot,
       payment_terms_snapshot: resolvedPaymentTermsLabel,
       payment_terms_document_text: resolvedPaymentTermsText,
       shipping_terms_snapshot: resolvedShippingTerms,
-      terms_and_conditions_snapshot:
-        termsAndConditionsDraft || invoice.terms_and_conditions_snapshot,
+      terms_and_conditions_snapshot: termsAndConditionsDraft || invoice.terms_and_conditions_snapshot,
       bank_details_snapshot: draftBankDetails,
-      currency_code:
-        selectedDraftCurrency?.currency_code || invoice.currency_code || "USD",
+      currency_code: selectedDraftCurrency?.currency_code || invoice.currency_code || "USD",
     };
   }, [
     invoice,
@@ -2188,45 +1827,29 @@ export default function FinanceInvoiceDetailPage() {
   ]);
 
   if (isLoading) {
-    return (
-      <div className="min-h-screen bg-[#05070d] px-4 py-4 text-white md:px-6 md:py-6">
-        <div className="mx-auto flex w-full max-w-[1600px] flex-col gap-6">
-          <div className="rounded-[30px] border border-white/10 bg-white/[0.045] p-6 text-sm text-slate-400 backdrop-blur-xl">
-            Loading invoice...
-          </div>
-        </div>
-      </div>
-    );
+    return <AixiaLoadingState title="Loading invoice" description="Invoice document data is loading." />;
   }
 
   if (!invoice || !totals) {
     return (
-      <div className="min-h-screen bg-[#05070d] px-4 py-4 text-white md:px-6 md:py-6">
-        <div className="mx-auto flex w-full max-w-[1600px] flex-col gap-6">
-          <div className="rounded-[30px] border border-white/10 bg-white/[0.045] p-6 text-sm text-slate-400 backdrop-blur-xl">
-            Invoice not found.
-          </div>
-        </div>
-      </div>
+      <AixiaPage>
+        <AixiaEmptyState
+          icon={FileText}
+          title="Invoice not found"
+          description="The requested invoice could not be loaded."
+        />
+      </AixiaPage>
     );
   }
 
   const displayState = getInvoiceDisplayState(invoice as any);
-
-  const visibleArchiveItems = archiveItems.filter(
-    (item) => item.status === archiveTab
-  );
-
+  const visibleArchiveItems = archiveItems.filter((item) => item.status === archiveTab);
   const paymentProgressPercent = (() => {
     const total = Number(invoice.total_amount || 0);
     const paid = Number(invoice.paid_amount || 0);
-
     if (total <= 0) return 0;
-
-    const percent = (paid / total) * 100;
-    return Math.max(0, Math.min(percent, 100));
+    return Math.max(0, Math.min((paid / total) * 100, 100));
   })();
-
   const printableLineItems = lineItems.map((row) => ({
     id: row.id,
     description: row.description || "—",
@@ -2235,44 +1858,18 @@ export default function FinanceInvoiceDetailPage() {
     discount: toNumber(row.discount),
     lineTotal: toNumber(row.line_total),
   }));
-
-  const currentCurrencyCode =
-    selectedDraftCurrency?.currency_code || invoice.currency_code || "USD";
-
-  const sectionCardClass =
-    "overflow-hidden rounded-[30px] border border-white/10 bg-white/[0.045] backdrop-blur-xl";
-
-  const innerPanelClass =
-    "rounded-[24px] border border-white/10 bg-black/20 p-4";
-
-  const fieldShellClass =
-    "h-10 w-full rounded-2xl border border-white/10 bg-black/20 px-3 text-sm text-white outline-none transition focus:border-cyan-400/30 focus:bg-black/30";
-
-  const inputFieldClass =
-    "h-11 w-full rounded-2xl border border-white/10 bg-black/20 px-4 text-sm text-white outline-none transition placeholder:text-slate-600 focus:border-cyan-400/30 focus:bg-black/30";
-
-  const readOnlyFieldClass =
-    "flex min-h-[44px] items-center rounded-2xl border border-white/10 bg-black/20 px-4 text-sm leading-6 text-white/80";
-
-  const labelClass = "text-sm font-medium text-slate-300";
-
-  const eyebrowClass = "text-[11px] uppercase tracking-[0.2em] text-slate-500";
+  const currentCurrencyCode = selectedDraftCurrency?.currency_code || invoice.currency_code || "USD";
 
   const handleSaveOverview = () => {
     if (canEditDraft) {
       void handleSaveDraftChanges();
       return;
     }
-
-    if (canEditIssuedOverview) {
-      void handleSaveIssuedOverviewChanges();
-    }
+    if (canEditIssuedOverview) void handleSaveIssuedOverviewChanges();
   };
 
   const handleSaveFinancialSettings = () => {
-    if (canEditDraft) {
-      void handleSaveDraftChanges();
-    }
+    if (canEditDraft) void handleSaveDraftChanges();
   };
 
   const handleSaveDocumentDetails = () => {
@@ -2280,10 +1877,7 @@ export default function FinanceInvoiceDetailPage() {
       void handleSaveDraftChanges();
       return;
     }
-
-    if (canEditIssuedDetails) {
-      void handleSaveIssuedDocumentDetailsChanges();
-    }
+    if (canEditIssuedDetails) void handleSaveIssuedDocumentDetailsChanges();
   };
 
   const handleSaveLines = () => {
@@ -2291,370 +1885,199 @@ export default function FinanceInvoiceDetailPage() {
       void handleSaveDraftChanges();
       return;
     }
-
-    if (invoice.status === "issued") {
-      void handleSaveIssuedLineChanges();
-    }
+    if (invoice.status === "issued") void handleSaveIssuedLineChanges();
   };
 
   return (
     <>
-      <div className="min-h-screen bg-[#05070d] px-4 py-4 text-white md:px-6 md:py-6">
-        <div className="mx-auto flex w-full max-w-[1600px] flex-col gap-6">
-          <header className="relative overflow-hidden rounded-[34px] border border-white/10 bg-white/[0.045] p-6 shadow-2xl shadow-black/30 backdrop-blur-xl">
-            <div className="pointer-events-none absolute inset-0 bg-[radial-gradient(circle_at_top_left,rgba(6,182,212,0.16),transparent_38%),radial-gradient(circle_at_top_right,rgba(139,92,246,0.12),transparent_34%)]" />
-
-            <div className="relative">
-              <button
-                type="button"
-                onClick={() => navigate("/finance/transactions/invoices")}
-                className="mb-5 inline-flex items-center justify-center gap-2 rounded-full border border-white/10 bg-white/[0.05] px-5 py-2 text-[11px] font-semibold uppercase tracking-[0.22em] text-slate-300 transition hover:border-white/20 hover:bg-white/[0.08] hover:text-white"
-              >
-                <ArrowRight className="h-3.5 w-3.5 rotate-180" />
-                Invoices
-              </button>
-
-              <div className="grid gap-6 xl:grid-cols-[minmax(0,1fr)_620px]">
-                <div>
-                  <div className="flex flex-wrap gap-2">
-                    <Badge className="inline-flex w-fit rounded-full border border-cyan-400/20 bg-cyan-500/10 px-3 py-1 text-[11px] font-semibold uppercase tracking-[0.22em] text-cyan-200 shadow-none">
-                      Invoice Workspace
-                    </Badge>
-
-                    <Badge
-                      className={`inline-flex w-fit rounded-full border px-3 py-1 text-[11px] font-semibold uppercase tracking-[0.22em] shadow-none ${getDocumentStatusBadgeClasses(
-                        invoice.status
-                      )}`}
-                    >
-                      {getIssuedInvoiceStatusLabel(invoice.status)}
-                    </Badge>
-
-                    <Badge
-                      className={`inline-flex w-fit rounded-full border px-3 py-1 text-[11px] font-semibold uppercase tracking-[0.22em] shadow-none ${getPaymentStatusBadgeClasses(
-                        invoice.payment_status
-                      )}`}
-                    >
-                      {getIssuedInvoicePaymentStatusLabel(invoice.payment_status)}
-                    </Badge>
-
-                    <Badge
-                      className={`inline-flex w-fit rounded-full border px-3 py-1 text-[11px] font-semibold uppercase tracking-[0.22em] shadow-none ${getPostingStatusBadgeClasses(
-                        displayState.postingStatus
-                      )}`}
-                    >
-                      {getPostingStatusLabel(displayState.postingStatus)}
-                    </Badge>
-
-                    {displayState.isOverdue ? (
-                      <Badge
-                        className={`inline-flex w-fit rounded-full border px-3 py-1 text-[11px] font-semibold uppercase tracking-[0.22em] shadow-none ${getOverdueBadgeClasses()}`}
-                      >
-                        Overdue
-                      </Badge>
-                    ) : null}
-                  </div>
-
-                  <h1 className="mt-4 text-3xl font-semibold tracking-[-0.035em] text-white md:text-5xl">
-                    {invoice.invoice_number ||
-                      (invoice.status === "draft"
-                        ? "Draft Invoice"
-                        : "Invoice")}
-                  </h1>
-
-                  <p className="mt-3 max-w-4xl text-sm leading-6 text-slate-400 md:text-base md:leading-7">
-                    Final outbound receivable document issued by your company to
-                    the recipient. Drafts remain editable; issued records keep
-                    frozen commercial snapshots.
-                  </p>
-
-                  <div className="mt-5 flex flex-wrap gap-2">
-                    <span className="rounded-full border border-cyan-400/20 bg-cyan-500/10 px-3 py-1 text-[11px] font-semibold uppercase tracking-[0.16em] text-cyan-200">
-                      Draft → Issued → Paid
-                    </span>
-                    <span className="rounded-full border border-emerald-400/20 bg-emerald-500/10 px-3 py-1 text-[11px] font-semibold uppercase tracking-[0.16em] text-emerald-200">
-                      Payment tracking enabled
-                    </span>
-                    <span className="rounded-full border border-white/10 bg-white/[0.05] px-3 py-1 text-[11px] font-semibold uppercase tracking-[0.16em] text-slate-300">
-                      Auto-refresh enabled
-                    </span>
-                  </div>
-                </div>
-
-                <div className="grid gap-4 sm:grid-cols-2">
-                  <div className="min-h-[148px] rounded-[24px] border border-white/10 bg-black/20 p-4">
-                    <div className="flex items-start justify-between gap-3">
-                      <div>
-                        <p className="text-[11px] font-semibold uppercase tracking-[0.2em] text-slate-500">
-                          Recipient
-                        </p>
-                        <p className="mt-2 text-xl font-semibold tracking-[-0.035em] text-white">
-                          {invoice.status === "draft"
-                            ? resolvedDraftRecipientName || "—"
-                            : resolvedIssuedRecipientName || "—"}
-                        </p>
-                      </div>
-                      <div className="flex h-10 w-10 items-center justify-center rounded-2xl border border-cyan-400/20 bg-cyan-500/10 text-cyan-200">
-                        <CheckCircle className="h-4 w-4" />
-                      </div>
-                    </div>
-                    <p className="mt-3 text-xs leading-5 text-slate-500">
-                      Recipient selected for this invoice.
-                    </p>
-                  </div>
-
-                  <div className="min-h-[148px] rounded-[24px] border border-white/10 bg-black/20 p-4">
-                    <div className="flex items-start justify-between gap-3">
-                      <div>
-                        <p className="text-[11px] font-semibold uppercase tracking-[0.2em] text-slate-500">
-                          Balance Due
-                        </p>
-                        <p className="mt-2 text-xl font-semibold tracking-[-0.035em] text-white">
-                          {formatFinanceMoney(
-                            financialSummary?.balance ?? 0,
-                            currentCurrencyCode
-                          )}
-                        </p>
-                      </div>
-                      <div className="flex h-10 w-10 items-center justify-center rounded-2xl border border-amber-400/20 bg-amber-500/10 text-amber-200">
-                        <span className="h-2 w-2 rounded-full bg-amber-400" />
-                      </div>
-                    </div>
-                    <p className="mt-3 text-xs leading-5 text-slate-500">
-                      Remaining amount after confirmed payments.
-                    </p>
-                  </div>
-                </div>
-              </div>
-
-              <div className="mt-6 flex flex-wrap gap-3">
-                {canRecordPayment ? (
-                  <Button
-                    onClick={() =>
-                      navigate(
-                        `/finance/transactions/payments-received/new?invoice_id=${invoice.id}`
-                      )
-                    }
-                    className="h-11 rounded-2xl border border-emerald-400/20 bg-emerald-500 px-4 text-sm font-semibold text-white transition hover:bg-emerald-400"
-                  >
-                    <CheckCircle className="mr-2 h-4 w-4" />
-                    Record Payment
-                  </Button>
-                ) : null}
-
-                                <Button
-                  variant="outline"
-                  onClick={handlePrint}
-                  className="h-11 rounded-2xl border-white/10 bg-white/[0.05] px-4 text-white hover:bg-white/[0.08]"
+      <AixiaPage>
+        <AixiaHero
+          parentLabel="Invoices"
+          parentPath="/finance/transactions/invoices"
+          badges={[
+            { label: "Invoice Workspace", tone: "cyan" },
+            { label: getIssuedInvoiceStatusLabel(invoice.status), tone: "violet" },
+            { label: getIssuedInvoicePaymentStatusLabel(invoice.payment_status), tone: "emerald" },
+            { label: getPostingStatusLabel(displayState.postingStatus), tone: "neutral" },
+            ...(displayState.isOverdue ? [{ label: "Overdue", tone: "rose" as const }] : []),
+          ]}
+          gradientTitle={invoice.invoice_number || "Invoice"}
+          title=""
+          subtitle="Outbound receivable document"
+          description="Final outbound receivable document issued by your company to the recipient. Drafts remain editable; issued records keep frozen commercial snapshots."
+          statusCards={[
+            {
+              label: "Recipient",
+              value:
+                invoice.status === "draft"
+                  ? resolvedDraftRecipientName || "—"
+                  : resolvedIssuedRecipientName || "—",
+              description: "Recipient selected for this invoice.",
+              icon: CheckCircle,
+              tone: "cyan",
+            },
+            {
+              label: "Balance Due",
+              value: formatFinanceMoney(financialSummary?.balance ?? 0, currentCurrencyCode),
+              description: "Remaining amount after confirmed payments.",
+              icon: WalletCards,
+              tone: "amber",
+            },
+            {
+              label: "Payment Progress",
+              value: `${Math.round(paymentProgressPercent)}%`,
+              description: "Confirmed payments against invoice total.",
+              icon: CreditCard,
+              tone: "emerald",
+            },
+          ]}
+          actions={
+            <>
+              {canRecordPayment ? (
+                <AixiaButton
+                  type="button"
+                  variant="primary"
+                  onClick={() =>
+                    navigate(`/finance/transactions/payments-received/new?invoice_id=${invoice.id}`)
+                  }
                 >
-                  <Printer className="mr-2 h-4 w-4" />
-                  Print
-                </Button>
+                  <CheckCircle className="h-4 w-4" />
+                  Record Payment
+                </AixiaButton>
+              ) : null}
 
-                {invoice.status === "draft" ? (
-                  <Button
-                    onClick={() => void handleIssue()}
-                    disabled={isIssuing || isSavingDraft}
-                    className="h-11 rounded-2xl border border-cyan-400/20 bg-cyan-500 px-4 text-sm font-semibold text-slate-950 transition hover:bg-cyan-400 disabled:cursor-not-allowed disabled:opacity-40"
-                  >
-                    <CheckCircle className="mr-2 h-4 w-4" />
-                    {isIssuing ? "Issuing..." : "Issue Invoice"}
-                  </Button>
-                ) : null}
+              <AixiaButton type="button" variant="secondary" onClick={handlePrint}>
+                <Printer className="h-4 w-4" />
+                Print
+              </AixiaButton>
 
-                {canArchive ? (
-                  <Button
-                    variant="outline"
-                    onClick={() => void handleArchive()}
-                    disabled={isArchiving}
-                    className="h-11 rounded-2xl border-amber-400/20 bg-amber-500/10 px-4 text-amber-200 hover:bg-amber-500/20 disabled:cursor-not-allowed disabled:opacity-40"
-                  >
-                    <Archive className="mr-2 h-4 w-4" />
-                    {isArchiving ? "Archiving..." : "Archive"}
-                  </Button>
-                ) : null}
+              {invoice.status === "draft" ? (
+                <AixiaButton
+                  type="button"
+                  variant="primary"
+                  disabled={isIssuing || isSavingDraft}
+                  onClick={() => void handleIssue()}
+                >
+                  <CheckCircle className="h-4 w-4" />
+                  {isIssuing ? "Issuing..." : "Issue Invoice"}
+                </AixiaButton>
+              ) : null}
 
-                {invoice.status !== "deleted" &&
-                invoice.status !== "archived" ? (
-                  <Button
-                    variant="outline"
-                    onClick={() => void handleDelete()}
-                    disabled={isDeleting}
-                    className="h-11 rounded-2xl border-rose-400/20 bg-rose-500/10 px-4 text-rose-200 hover:bg-rose-500/20 disabled:cursor-not-allowed disabled:opacity-40"
-                  >
-                    <Trash2 className="mr-2 h-4 w-4" />
-                    {isDeleting ? "Deleting..." : "Delete"}
-                  </Button>
-                ) : null}
-              </div>
-            </div>
-          </header>
+              {canArchive ? (
+                <AixiaButton
+                  type="button"
+                  variant="danger"
+                  disabled={isArchiving}
+                  onClick={() => void handleArchive()}
+                >
+                  <Archive className="h-4 w-4" />
+                  {isArchiving ? "Archiving..." : "Archive"}
+                </AixiaButton>
+              ) : null}
 
-          <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
-            <div className="group relative min-h-[156px] overflow-hidden rounded-[28px] border border-white/10 bg-white/[0.045] p-5 backdrop-blur-xl transition hover:border-white/20 hover:bg-white/[0.055]">
-              <div className="pointer-events-none absolute inset-0 bg-gradient-to-br from-cyan-500/20 via-cyan-400/10 to-transparent opacity-70" />
-              <div className="relative flex h-full flex-col justify-between gap-5">
-                <div className="flex items-start justify-between gap-4">
-                  <div className="min-w-0">
-                    <div className="text-[11px] font-semibold uppercase tracking-[0.2em] text-slate-500">
-                      Subtotal
-                    </div>
-                    <div className="mt-2 truncate text-3xl font-semibold tracking-[-0.035em] text-cyan-100">
-                      {formatFinanceMoney(
-                        financialSummary?.subtotal ?? 0,
-                        currentCurrencyCode
-                      )}
-                    </div>
-                  </div>
-                  <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-2xl border border-cyan-400/20 bg-cyan-500/10 text-cyan-200">
-                    <span className="h-2 w-2 rounded-full bg-cyan-400" />
-                  </div>
-                </div>
-                <div className="text-sm leading-6 text-slate-400">
-                  Before discount and tax.
-                </div>
-              </div>
-            </div>
+              {invoice.status !== "deleted" && invoice.status !== "archived" ? (
+                <AixiaButton
+                  type="button"
+                  variant="danger"
+                  disabled={isDeleting}
+                  onClick={() => void handleDelete()}
+                >
+                  <Trash2 className="h-4 w-4" />
+                  {isDeleting ? "Deleting..." : "Delete"}
+                </AixiaButton>
+              ) : null}
+            </>
+          }
+        />
 
-            <div className="group relative min-h-[156px] overflow-hidden rounded-[28px] border border-white/10 bg-white/[0.045] p-5 backdrop-blur-xl transition hover:border-white/20 hover:bg-white/[0.055]">
-              <div className="pointer-events-none absolute inset-0 bg-gradient-to-br from-amber-500/20 via-amber-400/10 to-transparent opacity-70" />
-              <div className="relative flex h-full flex-col justify-between gap-5">
-                <div className="flex items-start justify-between gap-4">
-                  <div className="min-w-0">
-                    <div className="text-[11px] font-semibold uppercase tracking-[0.2em] text-slate-500">
-                      Discount
-                    </div>
-                    <div className="mt-2 truncate text-3xl font-semibold tracking-[-0.035em] text-amber-100">
-                      {formatFinanceMoney(
-                        financialSummary?.discount ?? 0,
-                        currentCurrencyCode
-                      )}
-                    </div>
-                  </div>
-                  <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-2xl border border-amber-400/20 bg-amber-500/10 text-amber-200">
-                    <span className="h-2 w-2 rounded-full bg-amber-400" />
-                  </div>
-                </div>
-                <div className="text-sm leading-6 text-slate-400">
-                  Commercial discount.
-                </div>
-              </div>
-            </div>
+        {error ? <AixiaAlert tone="error">{error}</AixiaAlert> : null}
 
-            <div className="group relative min-h-[156px] overflow-hidden rounded-[28px] border border-white/10 bg-white/[0.045] p-5 backdrop-blur-xl transition hover:border-white/20 hover:bg-white/[0.055]">
-              <div className="pointer-events-none absolute inset-0 bg-gradient-to-br from-violet-500/20 via-violet-400/10 to-transparent opacity-70" />
-              <div className="relative flex h-full flex-col justify-between gap-5">
-                <div className="flex items-start justify-between gap-4">
-                  <div className="min-w-0">
-                    <div className="text-[11px] font-semibold uppercase tracking-[0.2em] text-slate-500">
-                      Tax
-                    </div>
-                    <div className="mt-2 truncate text-3xl font-semibold tracking-[-0.035em] text-violet-100">
-                      {formatFinanceMoney(
-                        financialSummary?.tax ?? 0,
-                        currentCurrencyCode
-                      )}
-                    </div>
-                  </div>
-                  <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-2xl border border-violet-400/20 bg-violet-500/10 text-violet-200">
-                    <span className="h-2 w-2 rounded-full bg-violet-400" />
-                  </div>
-                </div>
-                <div className="text-sm leading-6 text-slate-400">
-                  Based on selected tax codes.
-                </div>
-              </div>
-            </div>
+        <AixiaMetricGrid>
+          <AixiaMetricCard
+            label="Subtotal"
+            value={formatFinanceMoney(financialSummary?.subtotal ?? 0, currentCurrencyCode)}
+            description="Before discount and tax."
+            icon={Receipt}
+            tone="cyan"
+          />
+          <AixiaMetricCard
+            label="Discount"
+            value={formatFinanceMoney(financialSummary?.discount ?? 0, currentCurrencyCode)}
+            description="Commercial discount."
+            icon={Receipt}
+            tone="amber"
+          />
+          <AixiaMetricCard
+            label="Tax"
+            value={formatFinanceMoney(financialSummary?.tax ?? 0, currentCurrencyCode)}
+            description="Based on selected tax codes."
+            icon={Receipt}
+            tone="violet"
+          />
+          <AixiaMetricCard
+            label="Total"
+            value={formatFinanceMoney(financialSummary?.total ?? 0, currentCurrencyCode)}
+            description="Invoice value."
+            icon={CheckCircle}
+            tone="emerald"
+          />
+        </AixiaMetricGrid>
 
-            <div className="group relative min-h-[156px] overflow-hidden rounded-[28px] border border-white/10 bg-white/[0.045] p-5 backdrop-blur-xl transition hover:border-white/20 hover:bg-white/[0.055]">
-              <div className="pointer-events-none absolute inset-0 bg-gradient-to-br from-emerald-500/20 via-emerald-400/10 to-transparent opacity-70" />
-              <div className="relative flex h-full flex-col justify-between gap-5">
-                <div className="flex items-start justify-between gap-4">
-                  <div className="min-w-0">
-                    <div className="text-[11px] font-semibold uppercase tracking-[0.2em] text-slate-500">
-                      Total
-                    </div>
-                    <div className="mt-2 truncate text-3xl font-semibold tracking-[-0.035em] text-emerald-100">
-                      {formatFinanceMoney(
-                        financialSummary?.total ?? 0,
-                        currentCurrencyCode
-                      )}
-                    </div>
-                  </div>
-                  <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-2xl border border-emerald-400/20 bg-emerald-500/10 text-emerald-200">
-                    <span className="h-2 w-2 rounded-full bg-emerald-400" />
-                  </div>
-                </div>
-                <div className="text-sm leading-6 text-slate-400">
-                  Invoice value.
-                </div>
-              </div>
-            </div>
-          </div>
-
-          <div className="grid grid-cols-1 gap-6 xl:grid-cols-[minmax(0,1.45fr)_420px]">
-            <div className="space-y-6">
-              <Card className={sectionCardClass}>
-                <CardHeader className="flex flex-row items-center justify-between border-b border-white/10 px-5 py-4">
-                  <div className="flex items-center gap-3">
-                    <div className="rounded-2xl border border-cyan-400/15 bg-cyan-500/10 p-3 text-cyan-200">
-                      <FileText className="h-4 w-4" />
-                    </div>
-                    <div>
-                      <CardTitle className="text-sm font-semibold uppercase tracking-[0.18em] text-slate-400">
-                        Document Overview
-                      </CardTitle>
-                      <CardDescription className="mt-1 text-xs text-slate-500">
-                        Recipient, issuing company, dates, currency, and project context.
-                      </CardDescription>
-                    </div>
-                  </div>
-
-                  {canEditDraft || canEditIssuedOverview ? (
-                    <div className="flex items-center gap-2">
-                      {editingOverview ? (
-                        <>
-                          <Button
-                            onClick={handleSaveOverview}
-                            disabled={isSavingDraft}
-                            className="h-9 rounded-2xl border border-cyan-400/20 bg-cyan-500 px-3 font-semibold text-slate-950 hover:bg-cyan-400"
-                          >
-                            <Save className="mr-2 h-4 w-4" />
-                            {isSavingDraft ? "Saving..." : "Save"}
-                          </Button>
-
-                          <Button
-                            variant="outline"
-                            onClick={() => {
-                              setEditingOverview(false);
-                              void loadInvoice(true);
-                            }}
-                            className="h-9 rounded-2xl border-white/10 bg-white/[0.05] px-3 text-white hover:bg-white/[0.08]"
-                          >
-                            Cancel
-                          </Button>
-                        </>
-                      ) : (
-                        <Button
-                          variant="outline"
-                          onClick={() => setEditingOverview(true)}
-                          className="h-9 rounded-2xl border-white/10 bg-white/[0.05] px-3 text-white hover:bg-white/[0.08]"
+        <AixiaSmartLayout
+          sidebar="normal"
+          balance="main"
+          bottomSpan="never"
+          sideRebalance="last-to-bottom"
+          main={
+            <>
+              <AixiaSection
+                title="Document Overview"
+                description="Recipient, issuing company, dates, currency, and project context."
+                icon={FileText}
+                actions={
+                  canEditDraft || canEditIssuedOverview ? (
+                    editingOverview ? (
+                      <>
+                        <AixiaButton
+                          type="button"
+                          variant="primary"
+                          disabled={isSavingDraft}
+                          onClick={handleSaveOverview}
                         >
-                          <SquarePen className="mr-2 h-4 w-4" />
-                          Edit
-                        </Button>
-                      )}
-                    </div>
-                  ) : null}
-                </CardHeader>
-
-                <CardContent className="grid grid-cols-1 gap-4 p-5 md:grid-cols-3">
-                  <div className={innerPanelClass}>
-                    <div className={eyebrowClass}>Recipient</div>
+                          <Save className="h-4 w-4" />
+                          {isSavingDraft ? "Saving..." : "Save"}
+                        </AixiaButton>
+                        <AixiaButton
+                          type="button"
+                          variant="secondary"
+                          onClick={() => {
+                            setEditingOverview(false);
+                            void loadInvoice(true);
+                          }}
+                        >
+                          Cancel
+                        </AixiaButton>
+                      </>
+                    ) : (
+                      <AixiaButton
+                        type="button"
+                        variant="primary"
+                        onClick={() => setEditingOverview(true)}
+                      >
+                        <SquarePen className="h-4 w-4" />
+                        Edit
+                      </AixiaButton>
+                    )
+                  ) : null
+                }
+              >
+                <AixiaFormGrid columns="three">
+                  <AixiaFormField>
+                    <AixiaFieldLabel label="Recipient" />
                     {editingOverview && invoice.status === "draft" ? (
-                      <select
+                      <AixiaSelectField
                         value={clientIdDraft}
                         onChange={(event) => setClientIdDraft(event.target.value)}
-                        className={`mt-2 ${fieldShellClass}`}
                       >
                         <option value="">Select recipient</option>
                         <optgroup label="Clients">
@@ -2668,32 +2091,30 @@ export default function FinanceInvoiceDetailPage() {
                           {companies
                             .filter((company) => company.id !== companyIdDraft)
                             .map((company) => (
-                              <option
-                                key={company.id}
-                                value={`company:${company.id}`}
-                              >
+                              <option key={company.id} value={`company:${company.id}`}>
                                 {company.legal_name || company.name}
                               </option>
                             ))}
                         </optgroup>
-                      </select>
+                      </AixiaSelectField>
                     ) : (
-                      <div className="mt-2 text-2xl font-semibold text-white">
-                        {invoice.status === "draft"
-                          ? resolvedDraftRecipientName || "—"
-                          : resolvedIssuedRecipientName || "—"}
-                      </div>
+                      <AixiaValueBlock
+                        label="Recipient"
+                        value={
+                          invoice.status === "draft"
+                            ? resolvedDraftRecipientName || "—"
+                            : resolvedIssuedRecipientName || "—"
+                        }
+                      />
                     )}
-                  </div>
+                  </AixiaFormField>
 
-                  <div className={innerPanelClass}>
-                    <div className={eyebrowClass}>Issuing Company</div>
+                  <AixiaFormField>
+                    <AixiaFieldLabel label="Issuing Company" />
                     {editingOverview && invoice.status === "draft" ? (
-                      <select
-
-                                                value={companyIdDraft}
+                      <AixiaSelectField
+                        value={companyIdDraft}
                         onChange={(event) => setCompanyIdDraft(event.target.value)}
-                        className={`mt-2 ${fieldShellClass}`}
                       >
                         <option value="">Select company</option>
                         {companies.map((company) => (
@@ -2701,74 +2122,70 @@ export default function FinanceInvoiceDetailPage() {
                             {company.legal_name || company.name}
                           </option>
                         ))}
-                      </select>
+                      </AixiaSelectField>
                     ) : (
-                      <div className="mt-2 text-2xl font-semibold text-white">
-                        {invoice.status === "draft"
-                          ? selectedDraftCompany?.legal_name ||
-                            selectedDraftCompany?.name ||
-                            "—"
-                          : invoice.company_name_snapshot || "—"}
-                      </div>
+                      <AixiaValueBlock
+                        label="Issuing Company"
+                        value={
+                          invoice.status === "draft"
+                            ? selectedDraftCompany?.legal_name || selectedDraftCompany?.name || "—"
+                            : invoice.company_name_snapshot || "—"
+                        }
+                      />
                     )}
-                  </div>
+                  </AixiaFormField>
 
-                  <div className={innerPanelClass}>
-                    <div className={eyebrowClass}>Invoice Status</div>
-                    <div className="mt-2">
-                      <Badge
-                        className={`rounded-full border px-3 py-1 text-xs shadow-none ${getDocumentStatusBadgeClasses(
-                          invoice.status
-                        )}`}
-                      >
-                        {getIssuedInvoiceStatusLabel(invoice.status)}
-                      </Badge>
-                    </div>
-                  </div>
+                  <AixiaValueBlock
+                    label="Invoice Status"
+                    value={<AixiaStatusBadge value={invoice.status} />}
+                  />
 
-                  <div className={innerPanelClass}>
-                    <div className={eyebrowClass}>Issue Date</div>
+                  <AixiaFormField>
+                    <AixiaFieldLabel label="Issue Date" />
                     {editingOverview ? (
-                      <input
+                      <AixiaInputField
                         type="date"
                         value={issueDateDraft}
                         onChange={(event) => setIssueDateDraft(event.target.value)}
-                        className={`mt-2 ${fieldShellClass}`}
                       />
                     ) : (
-                      <div className="mt-2 text-2xl font-semibold text-white">
-                        {invoice.status === "draft"
-                          ? formatFinanceDate(issueDateDraft)
-                          : formatFinanceDate(invoice.issue_date)}
-                      </div>
+                      <AixiaValueBlock
+                        label="Issue Date"
+                        value={
+                          invoice.status === "draft"
+                            ? formatFinanceDate(issueDateDraft)
+                            : formatFinanceDate(invoice.issue_date)
+                        }
+                      />
                     )}
-                  </div>
+                  </AixiaFormField>
 
-                  <div className={innerPanelClass}>
-                    <div className={eyebrowClass}>Due Date</div>
+                  <AixiaFormField>
+                    <AixiaFieldLabel label="Due Date" />
                     {editingOverview ? (
-                      <input
+                      <AixiaInputField
                         type="date"
                         value={dueDateDraft}
                         onChange={(event) => setDueDateDraft(event.target.value)}
-                        className={`mt-2 ${fieldShellClass}`}
                       />
                     ) : (
-                      <div className="mt-2 text-2xl font-semibold text-white">
-                        {invoice.status === "draft"
-                          ? formatFinanceDate(dueDateDraft)
-                          : formatFinanceDate(invoice.due_date)}
-                      </div>
+                      <AixiaValueBlock
+                        label="Due Date"
+                        value={
+                          invoice.status === "draft"
+                            ? formatFinanceDate(dueDateDraft)
+                            : formatFinanceDate(invoice.due_date)
+                        }
+                      />
                     )}
-                  </div>
+                  </AixiaFormField>
 
-                  <div className={innerPanelClass}>
-                    <div className={eyebrowClass}>Currency</div>
+                  <AixiaFormField>
+                    <AixiaFieldLabel label="Currency" />
                     {editingOverview && invoice.status === "draft" ? (
-                      <select
+                      <AixiaSelectField
                         value={currencyIdDraft}
                         onChange={(event) => setCurrencyIdDraft(event.target.value)}
-                        className={`mt-2 ${fieldShellClass}`}
                       >
                         <option value="">Select currency</option>
                         {currencies.map((currency) => (
@@ -2776,24 +2193,21 @@ export default function FinanceInvoiceDetailPage() {
                             {currency.currency_code} — {currency.currency_name}
                           </option>
                         ))}
-                      </select>
+                      </AixiaSelectField>
                     ) : (
-                      <div className="mt-2 text-2xl font-semibold text-white">
-                        {currentCurrencyCode}
-                      </div>
+                      <AixiaValueBlock label="Currency" value={currentCurrencyCode} />
                     )}
-                  </div>
+                  </AixiaFormField>
 
-                  <div className={innerPanelClass}>
-                    <div className={eyebrowClass}>Project</div>
+                  <AixiaFormField>
+                    <AixiaFieldLabel label="Project" />
                     {editingOverview && invoice.status === "draft" ? (
-                      <select
+                      <AixiaSelectField
                         value={projectIdDraft}
                         onChange={(event) => {
                           setProjectIdDraft(event.target.value);
                           setTaskIdDraft("");
                         }}
-                        className={`mt-2 ${fieldShellClass}`}
                       >
                         <option value="">No project</option>
                         {projects.map((projectItem) => (
@@ -2801,23 +2215,25 @@ export default function FinanceInvoiceDetailPage() {
                             {projectItem.name}
                           </option>
                         ))}
-                      </select>
+                      </AixiaSelectField>
                     ) : (
-                      <div className="mt-2 text-2xl font-semibold text-white">
-                        {invoice.status === "draft"
-                          ? selectedDraftProject?.name || "—"
-                          : project?.name || "—"}
-                      </div>
+                      <AixiaValueBlock
+                        label="Project"
+                        value={
+                          invoice.status === "draft"
+                            ? selectedDraftProject?.name || "—"
+                            : project?.name || "—"
+                        }
+                      />
                     )}
-                  </div>
+                  </AixiaFormField>
 
-                  <div className={innerPanelClass}>
-                    <div className={eyebrowClass}>Task</div>
+                  <AixiaFormField>
+                    <AixiaFieldLabel label="Task" />
                     {editingOverview && invoice.status === "draft" ? (
-                      <select
+                      <AixiaSelectField
                         value={taskIdDraft}
                         onChange={(event) => setTaskIdDraft(event.target.value)}
-                        className={`mt-2 ${fieldShellClass}`}
                       >
                         <option value="">No task</option>
                         {filteredDraftTasks.map((taskItem) => (
@@ -2825,107 +2241,90 @@ export default function FinanceInvoiceDetailPage() {
                             {taskItem.title}
                           </option>
                         ))}
-                      </select>
+                      </AixiaSelectField>
                     ) : (
-                      <div className="mt-2 text-2xl font-semibold text-white">
-                        {invoice.status === "draft"
-                          ? selectedDraftTask?.title || "—"
-                          : task?.title || "—"}
-                      </div>
+                      <AixiaValueBlock
+                        label="Task"
+                        value={
+                          invoice.status === "draft"
+                            ? selectedDraftTask?.title || "—"
+                            : task?.title || "—"
+                        }
+                      />
                     )}
-                  </div>
+                  </AixiaFormField>
 
-                  <div className={innerPanelClass}>
-                    <div className={eyebrowClass}>Posted To Ledger</div>
-                    <div className="mt-2 text-2xl font-semibold text-white">
-                      {invoice.posted_to_ledger ? "Posted" : "Not Posted"}
-                    </div>
-                  </div>
+                  <AixiaValueBlock
+                    label="Posted To Ledger"
+                    value={invoice.posted_to_ledger ? "Posted" : "Not Posted"}
+                  />
 
-                  <div className="rounded-[24px] border border-white/10 bg-black/20 p-4 md:col-span-3">
-                    <div className={eyebrowClass}>Notes</div>
+                  <AixiaFormFullWidth>
+                    <AixiaFieldLabel label="Notes" />
                     {editingOverview ? (
-                      <textarea
+                      <AixiaTextareaField
                         value={notesDraft}
                         onChange={(event) => setNotesDraft(event.target.value)}
                         rows={4}
-                        className="mt-3 w-full rounded-2xl border border-white/10 bg-black/20 px-4 py-3 text-sm leading-6 text-white outline-none transition placeholder:text-slate-600 focus:border-cyan-400/30 focus:bg-black/30"
                       />
                     ) : (
-                      <div className="mt-3 whitespace-pre-line text-sm leading-6 text-slate-300">
-                        {invoice.status === "draft"
-                          ? notesDraft || "—"
-                          : invoice.notes || "—"}
-                      </div>
+                      <AixiaValueBlock
+                        label="Notes"
+                        value={invoice.status === "draft" ? notesDraft || "—" : invoice.notes || "—"}
+                      />
                     )}
-                  </div>
-                </CardContent>
-              </Card>
+                  </AixiaFormFullWidth>
+                </AixiaFormGrid>
+              </AixiaSection>
 
-              <Card className={sectionCardClass}>
-                <CardHeader className="flex flex-row items-center justify-between border-b border-white/10 px-5 py-4">
-                  <div className="flex items-center gap-3">
-                    <div className="rounded-2xl border border-emerald-400/15 bg-emerald-500/10 p-3 text-emerald-200">
-                      <CheckCircle className="h-4 w-4" />
-                    </div>
-                    <div>
-                      <CardTitle className="text-sm font-semibold uppercase tracking-[0.18em] text-slate-400">
-                        Financial Settings
-                      </CardTitle>
-                      <CardDescription className="mt-1 text-xs text-slate-500">
-                        Payment terms, shipping terms, bank account, and payment method.
-                      </CardDescription>
-                    </div>
-                  </div>
-
-                  {canEditDraft ? (
-                    <div className="flex items-center gap-2">
-                      {editingFinancialSettings ? (
-                        <>
-                          <Button
-                            onClick={handleSaveFinancialSettings}
-                            disabled={isSavingDraft}
-                            className="h-9 rounded-2xl border border-cyan-400/20 bg-cyan-500 px-3 font-semibold text-slate-950 hover:bg-cyan-400"
-                          >
-                            <Save className="mr-2 h-4 w-4" />
-                            {isSavingDraft ? "Saving..." : "Save"}
-                          </Button>
-
-                          <Button
-                            variant="outline"
-                            onClick={() => {
-                              setEditingFinancialSettings(false);
-                              void loadInvoice(true);
-                            }}
-                            className="h-9 rounded-2xl border-white/10 bg-white/[0.05] px-3 text-white hover:bg-white/[0.08]"
-                          >
-                            Cancel
-                          </Button>
-                        </>
-                      ) : (
-                        <Button
-                          variant="outline"
-                          onClick={() => setEditingFinancialSettings(true)}
-                          className="h-9 rounded-2xl border-white/10 bg-white/[0.05] px-3 text-white hover:bg-white/[0.08]"
+              <AixiaSection
+                title="Financial Settings"
+                description="Payment terms, shipping terms, bank account, and payment method."
+                icon={CheckCircle}
+                actions={
+                  canEditDraft ? (
+                    editingFinancialSettings ? (
+                      <>
+                        <AixiaButton
+                          type="button"
+                          variant="primary"
+                          disabled={isSavingDraft}
+                          onClick={handleSaveFinancialSettings}
                         >
-                          <SquarePen className="mr-2 h-4 w-4" />
-                          Edit
-                        </Button>
-                      )}
-                    </div>
-                  ) : null}
-                </CardHeader>
-
-                <CardContent className="grid grid-cols-1 gap-4 p-5 md:grid-cols-2">
-                  <div className={innerPanelClass}>
-                    <div className={eyebrowClass}>Payment Terms</div>
+                          <Save className="h-4 w-4" />
+                          {isSavingDraft ? "Saving..." : "Save"}
+                        </AixiaButton>
+                        <AixiaButton
+                          type="button"
+                          variant="secondary"
+                          onClick={() => {
+                            setEditingFinancialSettings(false);
+                            void loadInvoice(true);
+                          }}
+                        >
+                          Cancel
+                        </AixiaButton>
+                      </>
+                    ) : (
+                      <AixiaButton
+                        type="button"
+                        variant="primary"
+                        onClick={() => setEditingFinancialSettings(true)}
+                      >
+                        <SquarePen className="h-4 w-4" />
+                        Edit
+                      </AixiaButton>
+                    )
+                  ) : null
+                }
+              >
+                <AixiaFormGrid columns="two">
+                  <AixiaFormField>
+                    <AixiaFieldLabel label="Payment Terms" />
                     {editingFinancialSettings && canEditDraft ? (
-                      <select
+                      <AixiaSelectField
                         value={paymentTermsIdDraft}
-                        onChange={(event) =>
-                          setPaymentTermsIdDraft(event.target.value)
-                        }
-                        className={`mt-2 ${fieldShellClass}`}
+                        onChange={(event) => setPaymentTermsIdDraft(event.target.value)}
                       >
                         <option value="">Select payment terms</option>
                         {paymentTerms.map((term) => (
@@ -2933,25 +2332,25 @@ export default function FinanceInvoiceDetailPage() {
                             {term.code} | {term.name}
                           </option>
                         ))}
-                      </select>
+                      </AixiaSelectField>
                     ) : (
-                      <div className="mt-2 text-2xl font-semibold text-white">
-                        {invoice.status === "draft"
-                          ? getPaymentTermLabel(selectedDraftPaymentTerm)
-                          : invoice.payment_terms_snapshot || "—"}
-                      </div>
-                    )}
-                  </div>
-
-                  <div className={innerPanelClass}>
-                    <div className={eyebrowClass}>Shipping Terms</div>
-                    {editingFinancialSettings && canEditDraft ? (
-                      <select
-                        value={shippingTermIdDraft}
-                        onChange={(event) =>
-                          setShippingTermIdDraft(event.target.value)
+                      <AixiaValueBlock
+                        label="Payment Terms"
+                        value={
+                          invoice.status === "draft"
+                            ? getPaymentTermLabel(selectedDraftPaymentTerm)
+                            : invoice.payment_terms_snapshot || "—"
                         }
-                        className={`mt-2 ${fieldShellClass}`}
+                      />
+                    )}
+                  </AixiaFormField>
+
+                  <AixiaFormField>
+                    <AixiaFieldLabel label="Shipping Terms" />
+                    {editingFinancialSettings && canEditDraft ? (
+                      <AixiaSelectField
+                        value={shippingTermIdDraft}
+                        onChange={(event) => setShippingTermIdDraft(event.target.value)}
                       >
                         <option value="">Select shipping terms</option>
                         {shippingTerms.map((term) => (
@@ -2959,25 +2358,25 @@ export default function FinanceInvoiceDetailPage() {
                             {term.code} | {term.name}
                           </option>
                         ))}
-                      </select>
+                      </AixiaSelectField>
                     ) : (
-                      <div className="mt-2 text-2xl font-semibold text-white">
-                        {invoice.status === "draft"
-                          ? selectedDraftShippingTermsLabel
-                          : invoice.shipping_terms_snapshot || "—"}
-                      </div>
-                    )}
-                  </div>
-
-                  <div className={innerPanelClass}>
-                    <div className={eyebrowClass}>Bank Account</div>
-                    {editingFinancialSettings && canEditDraft ? (
-                      <select
-                        value={bankAccountIdDraft}
-                        onChange={(event) =>
-                          setBankAccountIdDraft(event.target.value)
+                      <AixiaValueBlock
+                        label="Shipping Terms"
+                        value={
+                          invoice.status === "draft"
+                            ? selectedDraftShippingTermsLabel
+                            : invoice.shipping_terms_snapshot || "—"
                         }
-                        className={`mt-2 ${fieldShellClass}`}
+                      />
+                    )}
+                  </AixiaFormField>
+
+                  <AixiaFormField>
+                    <AixiaFieldLabel label="Bank Account" />
+                    {editingFinancialSettings && canEditDraft ? (
+                      <AixiaSelectField
+                        value={bankAccountIdDraft}
+                        onChange={(event) => setBankAccountIdDraft(event.target.value)}
                       >
                         <option value="">Select bank account</option>
                         {filteredDraftBankAccounts.map((account) => (
@@ -2985,26 +2384,25 @@ export default function FinanceInvoiceDetailPage() {
                             {account.name}
                           </option>
                         ))}
-                      </select>
+                      </AixiaSelectField>
                     ) : (
-                      <div className="mt-2 text-2xl font-semibold text-white">
-                        {invoice.status === "draft"
-                          ? selectedDraftBankAccount?.name || "—"
-                          : ((invoice.metadata?.bank_account_name as string) ||
-                              "—")}
-                      </div>
-                    )}
-                  </div>
-
-                  <div className={innerPanelClass}>
-                    <div className={eyebrowClass}>Preferred Payment Method</div>
-                    {editingFinancialSettings && canEditDraft ? (
-                      <select
-                        value={paymentMethodIdDraft}
-                        onChange={(event) =>
-                          setPaymentMethodIdDraft(event.target.value)
+                      <AixiaValueBlock
+                        label="Bank Account"
+                        value={
+                          invoice.status === "draft"
+                            ? selectedDraftBankAccount?.name || "—"
+                            : ((invoice.metadata?.bank_account_name as string) || "—")
                         }
-                        className={`mt-2 ${fieldShellClass}`}
+                      />
+                    )}
+                  </AixiaFormField>
+
+                  <AixiaFormField>
+                    <AixiaFieldLabel label="Preferred Payment Method" />
+                    {editingFinancialSettings && canEditDraft ? (
+                      <AixiaSelectField
+                        value={paymentMethodIdDraft}
+                        onChange={(event) => setPaymentMethodIdDraft(event.target.value)}
                       >
                         <option value="">Select payment method</option>
                         {paymentMethods.map((method) => (
@@ -3012,278 +2410,224 @@ export default function FinanceInvoiceDetailPage() {
                             {method.name}
                           </option>
                         ))}
-                      </select>
+                      </AixiaSelectField>
                     ) : (
-                      <div className="mt-2 text-2xl font-semibold text-white">
-                        {invoice.status === "draft"
-                          ? selectedDraftPaymentMethod?.name || "—"
-                          : ((invoice.metadata
-                              ?.preferred_payment_method_name as string) ||
-                              ((invoice.metadata
-                                ?.preferred_payment_method_id as string) &&
-                                paymentMethods.find(
-                                  (method) =>
-                                    method.id ===
-                                    (invoice.metadata
-                                      ?.preferred_payment_method_id as string)
-                                )?.name) ||
-                              "—")}
-                      </div>
-                    )}
-                  </div>
-
-                  <div className="rounded-[24px] border border-white/10 bg-black/20 p-4 md:col-span-2">
-                    <div className={eyebrowClass}>Bank Details</div>
-                    <div className="mt-3 whitespace-pre-line text-sm leading-6 text-slate-300">
-                      {resolvedBankDetailsLines.length > 0
-                        ? resolvedBankDetailsLines.join("\n")
-                        : "—"}
-                    </div>
-                  </div>
-                </CardContent>
-              </Card>
-
-                            <Card className={sectionCardClass}>
-                <CardHeader className="flex flex-row items-center justify-between border-b border-white/10 px-5 py-4">
-                  <div className="flex items-center gap-3">
-                    <div className="rounded-2xl border border-violet-400/15 bg-violet-500/10 p-3 text-violet-200">
-                      <FileText className="h-4 w-4" />
-                    </div>
-                    <div>
-                      <CardTitle className="text-sm font-semibold uppercase tracking-[0.18em] text-slate-400">
-                        Document Details
-                      </CardTitle>
-                      <CardDescription className="mt-1 text-xs text-slate-500">
-                        Document snapshots for print, parties, payment, shipping, notes, and terms.
-                      </CardDescription>
-                    </div>
-                  </div>
-
-                  {canEditDraft || canEditIssuedDetails ? (
-                    <div className="flex items-center gap-2">
-                      {editingDocumentDetails ? (
-                        <>
-                          <Button
-                            onClick={handleSaveDocumentDetails}
-                            disabled={isSavingDraft}
-                            className="h-9 rounded-2xl border border-cyan-400/20 bg-cyan-500 px-3 font-semibold text-slate-950 hover:bg-cyan-400"
-                          >
-                            <Save className="mr-2 h-4 w-4" />
-                            {isSavingDraft ? "Saving..." : "Save"}
-                          </Button>
-
-                          <Button
-                            variant="outline"
-                            onClick={() => {
-                              setEditingDocumentDetails(false);
-                              void loadInvoice(true);
-                            }}
-                            className="h-9 rounded-2xl border-white/10 bg-white/[0.05] px-3 text-white hover:bg-white/[0.08]"
-                          >
-                            Cancel
-                          </Button>
-                        </>
-                      ) : (
-                        <Button
-                          variant="outline"
-                          onClick={() => setEditingDocumentDetails(true)}
-                          className="h-9 rounded-2xl border-white/10 bg-white/[0.05] px-3 text-white hover:bg-white/[0.08]"
-                        >
-                          <SquarePen className="mr-2 h-4 w-4" />
-                          Edit Terms
-                        </Button>
-                      )}
-                    </div>
-                  ) : null}
-                </CardHeader>
-
-                <CardContent className="grid grid-cols-1 gap-4 p-5 md:grid-cols-2">
-                  <div className={innerPanelClass}>
-                    <div className={eyebrowClass}>Issuing Company</div>
-                    <div className="mt-3 text-xl font-semibold leading-tight text-white">
-                      {invoice.status === "draft"
-                        ? selectedDraftCompany?.legal_name ||
-                          selectedDraftCompany?.name ||
-                          "—"
-                        : invoice.company_name_snapshot || "—"}
-                    </div>
-
-                    <div className="mt-4 space-y-2 text-sm leading-6 text-slate-300">
-                      <div>
-                        {invoice.status === "draft"
-                          ? selectedDraftCompany?.contact_person || "—"
-                          : invoice.company_contact_person_snapshot || "—"}
-                      </div>
-                      <div>
-                        {invoice.status === "draft"
-                          ? selectedDraftCompany?.email || "—"
-                          : invoice.company_email_snapshot || "—"}
-                      </div>
-                      <div>
-                        {invoice.status === "draft"
-                          ? selectedDraftCompany?.phone || "—"
-                          : invoice.company_phone_snapshot || "—"}
-                      </div>
-                      <div>
-                        {invoice.status === "draft"
-                          ? resolvedDraftCompanyAddress || "—"
-                          : invoice.company_address_snapshot || "—"}
-                      </div>
-                    </div>
-                  </div>
-
-                  <div className={innerPanelClass}>
-                    <div className={eyebrowClass}>Recipient</div>
-                    <div className="mt-3 text-xl font-semibold leading-tight text-white">
-                      {invoice.status === "draft"
-                        ? resolvedDraftRecipientName || "—"
-                        : resolvedIssuedRecipientName || "—"}
-                    </div>
-
-                    <div className="mt-4 space-y-2 text-sm leading-6 text-slate-300">
-                      <div>
-                        {invoice.status === "draft"
-                          ? resolvedDraftRecipientContact || "—"
-                          : resolvedIssuedRecipientContact || "—"}
-                      </div>
-                      <div>
-                        {invoice.status === "draft"
-                          ? resolvedDraftRecipientEmail || "—"
-                          : resolvedIssuedRecipientEmail || "—"}
-                      </div>
-                      <div>
-                        {invoice.status === "draft"
-                          ? resolvedDraftRecipientPhone || "—"
-                          : resolvedIssuedRecipientPhone || "—"}
-                      </div>
-                      <div>
-                        {invoice.status === "draft"
-                          ? resolvedDraftRecipientAddress || "—"
-                          : invoice.billing_address_snapshot || "—"}
-                      </div>
-                    </div>
-                  </div>
-
-                  <div className="rounded-[24px] border border-white/10 bg-black/20 p-4 md:col-span-2">
-                    <div className="grid grid-cols-1 gap-4 md:grid-cols-4">
-                      <div>
-                        <div className={eyebrowClass}>Payment Terms</div>
-                        <div className="mt-2 text-sm font-semibold text-white">
-                          {invoice.status === "draft"
-                            ? getPaymentTermLabel(selectedDraftPaymentTerm)
-                            : invoice.payment_terms_snapshot || "—"}
-                        </div>
-                      </div>
-
-                      <div>
-                        <div className={eyebrowClass}>Shipping Terms</div>
-                        <div className="mt-2 text-sm font-semibold text-white">
-                          {invoice.status === "draft"
-                            ? selectedDraftShippingTermsLabel
-                            : invoice.shipping_terms_snapshot || "—"}
-                        </div>
-                      </div>
-
-                      <div>
-                        <div className={eyebrowClass}>Currency</div>
-                        <div className="mt-2 text-sm font-semibold text-white">
-                          {currentCurrencyCode}
-                        </div>
-                      </div>
-
-                      <div>
-                        <div className={eyebrowClass}>Project / Task</div>
-                        <div className="mt-2 text-sm font-semibold text-white">
-                          {invoice.status === "draft"
-                            ? [selectedDraftProject?.name, selectedDraftTask?.title]
-                                .filter(Boolean)
-                                .join(" / ") || "—"
-                            : [project?.name, task?.title].filter(Boolean).join(" / ") ||
-                              "—"}
-                        </div>
-                      </div>
-                    </div>
-                  </div>
-
-                  <div className="rounded-[24px] border border-white/10 bg-black/20 p-4 md:col-span-2">
-                    <div className={eyebrowClass}>Terms &amp; Conditions</div>
-                    {editingDocumentDetails ? (
-                      <textarea
-                        value={termsAndConditionsDraft}
-                        onChange={(event) =>
-                          setTermsAndConditionsDraft(event.target.value)
+                      <AixiaValueBlock
+                        label="Preferred Payment Method"
+                        value={
+                          invoice.status === "draft"
+                            ? selectedDraftPaymentMethod?.name || "—"
+                            : ((invoice.metadata?.preferred_payment_method_name as string) ||
+                                ((invoice.metadata?.preferred_payment_method_id as string) &&
+                                  paymentMethods.find(
+                                    (method) =>
+                                      method.id ===
+                                      (invoice.metadata?.preferred_payment_method_id as string)
+                                  )?.name) ||
+                                "—")
                         }
-                        rows={7}
-                        className="mt-3 w-full rounded-2xl border border-white/10 bg-black/20 px-4 py-3 text-sm text-white outline-none transition focus:border-cyan-400/30 focus:bg-black/30"
                       />
-                    ) : (
-                      <div className="mt-3 whitespace-pre-line text-sm leading-6 text-slate-300">
-                        {termsAndConditionsDraft ||
-                          invoice.terms_and_conditions_snapshot ||
-                          "—"}
-                      </div>
                     )}
-                  </div>
-                </CardContent>
-              </Card>
+                  </AixiaFormField>
 
-              <Card className={sectionCardClass}>
-                <CardHeader className="flex flex-row items-center justify-between border-b border-white/10 px-5 py-4">
-                  <div className="flex items-center gap-3">
-                    <div className="rounded-2xl border border-cyan-400/15 bg-cyan-500/10 p-3 text-cyan-200">
-                      <SquarePen className="h-4 w-4" />
-                    </div>
-                    <div>
-                      <CardTitle className="text-sm font-semibold uppercase tracking-[0.18em] text-slate-400">
-                        Line Items
-                      </CardTitle>
-                      <CardDescription className="mt-1 text-xs text-slate-500">
-                        Products and services included in this invoice.
-                      </CardDescription>
-                    </div>
-                  </div>
+                  <AixiaFormFullWidth>
+                    <AixiaValueBlock
+                      label="Bank Details"
+                      value={resolvedBankDetailsLines.length > 0 ? resolvedBankDetailsLines.join("\n") : "—"}
+                    />
+                  </AixiaFormFullWidth>
+                </AixiaFormGrid>
+              </AixiaSection>
 
-                  <div className="flex items-center gap-2">
-                    {editingLines ? (
-                      <Button
-                        onClick={handleSaveLines}
-                        disabled={isSavingDraft}
-                        className="h-9 rounded-2xl border border-cyan-400/20 bg-cyan-500 px-3 text-sm font-semibold text-slate-950 transition hover:bg-cyan-400"
+              <AixiaSection
+                title="Document Details"
+                description="Document snapshots for print, parties, payment, shipping, notes, and terms."
+                icon={FileText}
+                actions={
+                  canEditDraft || canEditIssuedDetails ? (
+                    editingDocumentDetails ? (
+                      <>
+                        <AixiaButton
+                          type="button"
+                          variant="primary"
+                          disabled={isSavingDraft}
+                          onClick={handleSaveDocumentDetails}
+                        >
+                          <Save className="h-4 w-4" />
+                          {isSavingDraft ? "Saving..." : "Save"}
+                        </AixiaButton>
+                        <AixiaButton
+                          type="button"
+                          variant="secondary"
+                          onClick={() => {
+                            setEditingDocumentDetails(false);
+                            void loadInvoice(true);
+                          }}
+                        >
+                          Cancel
+                        </AixiaButton>
+                      </>
+                    ) : (
+                      <AixiaButton
+                        type="button"
+                        variant="primary"
+                        onClick={() => setEditingDocumentDetails(true)}
                       >
-                        <Save className="mr-2 h-4 w-4" />
+                        <SquarePen className="h-4 w-4" />
+                        Edit Terms
+                      </AixiaButton>
+                    )
+                  ) : null
+                }
+              >
+                <AixiaReviewGrid variant="cards">
+                  <AixiaValueBlock
+                    label="Issuing Company"
+                    value={
+                      invoice.status === "draft"
+                        ? selectedDraftCompany?.legal_name || selectedDraftCompany?.name || "—"
+                        : invoice.company_name_snapshot || "—"
+                    }
+                    detail={
+                      invoice.status === "draft"
+                        ? [
+                            selectedDraftCompany?.contact_person,
+                            selectedDraftCompany?.email,
+                            selectedDraftCompany?.phone,
+                            resolvedDraftCompanyAddress,
+                          ]
+                            .filter(Boolean)
+                            .join(" • ") || "—"
+                        : [
+                            invoice.company_contact_person_snapshot,
+                            invoice.company_email_snapshot,
+                            invoice.company_phone_snapshot,
+                            invoice.company_address_snapshot,
+                          ]
+                            .filter(Boolean)
+                            .join(" • ") || "—"
+                    }
+                  />
+                  <AixiaValueBlock
+                    label="Recipient"
+                    value={
+                      invoice.status === "draft"
+                        ? resolvedDraftRecipientName || "—"
+                        : resolvedIssuedRecipientName || "—"
+                    }
+                    detail={
+                      invoice.status === "draft"
+                        ? [
+                            resolvedDraftRecipientContact,
+                            resolvedDraftRecipientEmail,
+                            resolvedDraftRecipientPhone,
+                            resolvedDraftRecipientAddress,
+                          ]
+                            .filter(Boolean)
+                            .join(" • ") || "—"
+                        : [
+                            resolvedIssuedRecipientContact,
+                            resolvedIssuedRecipientEmail,
+                            resolvedIssuedRecipientPhone,
+                            invoice.billing_address_snapshot,
+                          ]
+                            .filter(Boolean)
+                            .join(" • ") || "—"
+                    }
+                  />
+                  <AixiaValueBlock
+                    label="Payment Terms"
+                    value={
+                      invoice.status === "draft"
+                        ? getPaymentTermLabel(selectedDraftPaymentTerm)
+                        : invoice.payment_terms_snapshot || "—"
+                    }
+                  />
+                  <AixiaValueBlock
+                    label="Shipping Terms"
+                    value={
+                      invoice.status === "draft"
+                        ? selectedDraftShippingTermsLabel
+                        : invoice.shipping_terms_snapshot || "—"
+                    }
+                  />
+                  <AixiaValueBlock label="Currency" value={currentCurrencyCode} />
+                  <AixiaValueBlock
+                    label="Project / Task"
+                    value={
+                      invoice.status === "draft"
+                        ? [selectedDraftProject?.name, selectedDraftTask?.title]
+                            .filter(Boolean)
+                            .join(" / ") || "—"
+                        : [project?.name, task?.title].filter(Boolean).join(" / ") || "—"
+                    }
+                  />
+                </AixiaReviewGrid>
+
+                <div className="aixia-stack">
+                  <AixiaFieldLabel label="Terms & Conditions" />
+                  {editingDocumentDetails ? (
+                    <AixiaTextareaField
+                      value={termsAndConditionsDraft}
+                      onChange={(event) => setTermsAndConditionsDraft(event.target.value)}
+                      rows={7}
+                    />
+                  ) : (
+                    <AixiaValueBlock
+                      label="Terms & Conditions"
+                      value={
+                        termsAndConditionsDraft || invoice.terms_and_conditions_snapshot || "—"
+                      }
+                    />
+                  )}
+                </div>
+              </AixiaSection>
+
+              <AixiaSection
+                title="Line Items"
+                description="Products and services included in this invoice."
+                icon={SquarePen}
+                smartScroll
+                visibleCards={8}
+                itemCount={(editingLines ? lineItemsDraft : lineItems).length}
+                actions={
+                  <>
+                    {editingLines ? (
+                      <AixiaButton
+                        type="button"
+                        variant="primary"
+                        disabled={isSavingDraft}
+                        onClick={handleSaveLines}
+                      >
+                        <Save className="h-4 w-4" />
                         {isSavingDraft ? "Saving..." : "Save"}
-                      </Button>
+                      </AixiaButton>
                     ) : null}
 
                     {editingLines && canEditDraft ? (
-                      <Button
-                        variant="outline"
-                        onClick={addDraftLineItem}
-                        className="h-9 rounded-2xl border-white/10 bg-white/[0.05] px-3 text-white hover:bg-white/[0.08]"
-                      >
+                      <AixiaButton type="button" variant="secondary" onClick={addDraftLineItem}>
                         Add Row
-                      </Button>
+                      </AixiaButton>
                     ) : null}
 
                     {canEditDraft || invoice.status === "issued" ? (
-                      <Button
-                        variant="outline"
+                      <AixiaButton
+                        type="button"
+                        variant="primary"
                         onClick={() => setEditingLines((current) => !current)}
-                        className="h-9 rounded-2xl border-white/10 bg-white/[0.05] px-3 text-white hover:bg-white/[0.08]"
                       >
-                        <SquarePen className="mr-2 h-4 w-4" />
+                        <SquarePen className="h-4 w-4" />
                         {editingLines ? "Close" : "Edit"}
-                      </Button>
+                      </AixiaButton>
                     ) : null}
-                  </div>
-                </CardHeader>
-
-                <CardContent className="max-h-[720px] space-y-3 overflow-y-auto p-5 pr-4">
+                  </>
+                }
+              >
+                <div className="aixia-stack">
                   {(editingLines ? lineItemsDraft : lineItems).map((row, index) => {
                     const editable = editingLines;
                     const editableRow = row as EditableLineItem;
                     const readOnlyRow = row as LineItemRow;
-
                     const rowQuantity = editable
                       ? toNumber(editableRow.quantity)
                       : toNumber(readOnlyRow.quantity);
@@ -3293,55 +2637,33 @@ export default function FinanceInvoiceDetailPage() {
                     const rowDiscount = editable
                       ? toNumber(editableRow.discount)
                       : toNumber(readOnlyRow.discount);
-                    const rowTaxCodeId = editable
-                      ? editableRow.tax_code_id
-                      : readOnlyRow.tax_code_id || "";
-                    const rowTaxRate =
-                      taxCodes.find((taxCode) => taxCode.id === rowTaxCodeId)
-                        ?.rate_percent ?? 0;
-                    const taxableBase = Math.max(
-                      rowQuantity * rowUnitPrice - rowDiscount,
-                      0
-                    );
+                    const rowTaxCodeId = editable ? editableRow.tax_code_id : readOnlyRow.tax_code_id || "";
+                    const rowTaxRate = taxCodes.find((taxCode) => taxCode.id === rowTaxCodeId)?.rate_percent ?? 0;
+                    const taxableBase = Math.max(rowQuantity * rowUnitPrice - rowDiscount, 0);
                     const rowTotal = editable
                       ? taxableBase + taxableBase * (toNumber(rowTaxRate) / 100)
                       : toNumber(readOnlyRow.line_total);
 
                     return (
-                      <div
+                      <AixiaFormRowCard
                         key={(row as EditableLineItem | LineItemRow).id}
-                        className="rounded-[24px] border border-white/10 bg-black/20 p-4"
+                        title={`Line ${index + 1}`}
+                        onRemove={
+                          editable && canEditDraft
+                            ? () => removeDraftLineItem(editableRow.id)
+                            : undefined
+                        }
+                        removeDisabled={lineItemsDraft.length === 1}
                       >
-                        <div className="mb-4 flex items-center justify-between gap-4">
-                          <div className="text-sm font-semibold text-white">
-                            Line {index + 1}
-                          </div>
-
-                          {editable && canEditDraft ? (
-                            <Button
-                              variant="outline"
-                              onClick={() => removeDraftLineItem(editableRow.id)}
-                              disabled={lineItemsDraft.length === 1}
-                              className="h-9 rounded-2xl border-white/10 bg-white/[0.05] px-3 text-white hover:bg-white/[0.08] disabled:cursor-not-allowed disabled:opacity-40"
-                            >
-                              <Trash2 className="h-4 w-4" />
-                            </Button>
-                          ) : null}
-                        </div>
-
-                        <div className="grid grid-cols-1 gap-4 md:grid-cols-12">
-                          <label className="space-y-2 md:col-span-3">
-                            <div className={labelClass}>Item</div>
+                        <AixiaFormGrid columns="three">
+                          <AixiaFormField>
+                            <AixiaFieldLabel label="Item" />
                             {editable ? (
-                              <select
+                              <AixiaSelectField
                                 value={editableRow.item_id}
                                 onChange={(event) =>
-                                  applyDraftItemSelection(
-                                    editableRow.id,
-                                    event.target.value
-                                  )
+                                  applyDraftItemSelection(editableRow.id, event.target.value)
                                 }
-                                className={inputFieldClass}
                               >
                                 <option value="">Select item</option>
                                 {items.map((item) => (
@@ -3349,88 +2671,69 @@ export default function FinanceInvoiceDetailPage() {
                                     {item.name}
                                   </option>
                                 ))}
-                              </select>
+                              </AixiaSelectField>
                             ) : (
-                              <div className={readOnlyFieldClass}>
-                                {items.find(
-                                  (item) => item.id === readOnlyRow.item_id
-                                )?.name || "—"}
-                              </div>
+                              <AixiaValueBlock
+                                label="Item"
+                                value={items.find((item) => item.id === readOnlyRow.item_id)?.name || "—"}
+                              />
                             )}
-                          </label>
+                          </AixiaFormField>
 
-                          <label className="space-y-2 md:col-span-4">
-                            <div className={labelClass}>Description</div>
+                          <AixiaFormField>
+                            <AixiaFieldLabel label="Description" />
                             {editable ? (
-                              <input
+                              <AixiaInputField
                                 value={editableRow.description}
                                 onChange={(event) =>
                                   setLineItemsDraft((draft) =>
                                     draft.map((entry) =>
-
-                                                                                    entry.id === editableRow.id
-                                        ? {
-                                            ...entry,
-                                            description: event.target.value,
-                                          }
+                                      entry.id === editableRow.id
+                                        ? { ...entry, description: event.target.value }
                                         : entry
                                     )
                                   )
                                 }
-                                className={inputFieldClass}
                               />
                             ) : (
-                              <div className={readOnlyFieldClass}>
-                                {readOnlyRow.description || "—"}
-                              </div>
+                              <AixiaValueBlock label="Description" value={readOnlyRow.description || "—"} />
                             )}
-                          </label>
+                          </AixiaFormField>
 
-                          <label className="space-y-2 md:col-span-1">
-                            <div className={labelClass}>Qty</div>
+                          <AixiaFormField>
+                            <AixiaFieldLabel label="Qty" />
                             {editable ? (
-                              <input
+                              <AixiaInputField
                                 value={String(editableRow.quantity ?? "")}
                                 onChange={(event) =>
                                   setLineItemsDraft((draft) =>
                                     draft.map((entry) =>
                                       entry.id === editableRow.id
-                                        ? {
-                                            ...entry,
-                                            quantity: event.target.value,
-                                          }
+                                        ? { ...entry, quantity: event.target.value }
                                         : entry
                                     )
                                   )
                                 }
-                                className={inputFieldClass}
                               />
                             ) : (
-                              <div className={readOnlyFieldClass}>
-                                {rowQuantity}
-                              </div>
+                              <AixiaValueBlock label="Qty" value={rowQuantity} />
                             )}
-                          </label>
+                          </AixiaFormField>
 
-                          <label className="space-y-2 md:col-span-2">
-                            <div className={labelClass}>Unit</div>
+                          <AixiaFormField>
+                            <AixiaFieldLabel label="Unit" />
                             {editable ? (
-                              <select
+                              <AixiaSelectField
                                 value={editableRow.unit_of_measure_id}
                                 onChange={(event) =>
                                   setLineItemsDraft((draft) =>
                                     draft.map((entry) =>
                                       entry.id === editableRow.id
-                                        ? {
-                                            ...entry,
-                                            unit_of_measure_id:
-                                              event.target.value,
-                                          }
+                                        ? { ...entry, unit_of_measure_id: event.target.value }
                                         : entry
                                     )
                                   )
                                 }
-                                className={inputFieldClass}
                               >
                                 <option value="">Select unit</option>
                                 {unitsOfMeasure.map((unit) => (
@@ -3438,93 +2741,77 @@ export default function FinanceInvoiceDetailPage() {
                                     {unit.name}
                                   </option>
                                 ))}
-                              </select>
+                              </AixiaSelectField>
                             ) : (
-                              <div className={readOnlyFieldClass}>
-                                {unitsOfMeasure.find(
-                                  (unit) =>
-                                    unit.id === readOnlyRow.unit_of_measure_id
-                                )?.name || "—"}
-                              </div>
+                              <AixiaValueBlock
+                                label="Unit"
+                                value={
+                                  unitsOfMeasure.find((unit) => unit.id === readOnlyRow.unit_of_measure_id)?.name || "—"
+                                }
+                              />
                             )}
-                          </label>
+                          </AixiaFormField>
 
-                          <label className="space-y-2 md:col-span-2">
-                            <div className={labelClass}>Unit Price</div>
+                          <AixiaFormField>
+                            <AixiaFieldLabel label="Unit Price" />
                             {editable ? (
-                              <input
+                              <AixiaInputField
                                 value={String(editableRow.unit_price ?? "")}
                                 onChange={(event) =>
                                   setLineItemsDraft((draft) =>
                                     draft.map((entry) =>
                                       entry.id === editableRow.id
-                                        ? {
-                                            ...entry,
-                                            unit_price: event.target.value,
-                                          }
+                                        ? { ...entry, unit_price: event.target.value }
                                         : entry
                                     )
                                   )
                                 }
-                                className={inputFieldClass}
                               />
                             ) : (
-                              <div className={readOnlyFieldClass}>
-                                {formatFinanceMoney(
-                                  rowUnitPrice,
-                                  currentCurrencyCode
-                                )}
-                              </div>
+                              <AixiaValueBlock
+                                label="Unit Price"
+                                value={formatFinanceMoney(rowUnitPrice, currentCurrencyCode)}
+                              />
                             )}
-                          </label>
+                          </AixiaFormField>
 
-                          <label className="space-y-2 md:col-span-2">
-                            <div className={labelClass}>Discount</div>
+                          <AixiaFormField>
+                            <AixiaFieldLabel label="Discount" />
                             {editable ? (
-                              <input
+                              <AixiaInputField
                                 value={String(editableRow.discount ?? "")}
                                 onChange={(event) =>
                                   setLineItemsDraft((draft) =>
                                     draft.map((entry) =>
                                       entry.id === editableRow.id
-                                        ? {
-                                            ...entry,
-                                            discount: event.target.value,
-                                          }
+                                        ? { ...entry, discount: event.target.value }
                                         : entry
                                     )
                                   )
                                 }
-                                className={inputFieldClass}
                               />
                             ) : (
-                              <div className={readOnlyFieldClass}>
-                                {formatFinanceMoney(
-                                  rowDiscount,
-                                  currentCurrencyCode
-                                )}
-                              </div>
+                              <AixiaValueBlock
+                                label="Discount"
+                                value={formatFinanceMoney(rowDiscount, currentCurrencyCode)}
+                              />
                             )}
-                          </label>
+                          </AixiaFormField>
 
-                          <label className="space-y-2 md:col-span-2">
-                            <div className={labelClass}>Tax Code</div>
+                          <AixiaFormField>
+                            <AixiaFieldLabel label="Tax Code" />
                             {editable ? (
-                              <select
+                              <AixiaSelectField
                                 value={editableRow.tax_code_id}
                                 onChange={(event) =>
                                   setLineItemsDraft((draft) =>
                                     draft.map((entry) =>
                                       entry.id === editableRow.id
-                                        ? {
-                                            ...entry,
-                                            tax_code_id: event.target.value,
-                                          }
+                                        ? { ...entry, tax_code_id: event.target.value }
                                         : entry
                                     )
                                   )
                                 }
-                                className={inputFieldClass}
                               >
                                 <option value="">Select tax</option>
                                 {taxCodes.map((taxCode) => (
@@ -3532,36 +2819,29 @@ export default function FinanceInvoiceDetailPage() {
                                     {taxCode.name}
                                   </option>
                                 ))}
-                              </select>
+                              </AixiaSelectField>
                             ) : (
-                              <div className={readOnlyFieldClass}>
-                                {taxCodes.find(
-                                  (taxCode) =>
-                                    taxCode.id === readOnlyRow.tax_code_id
-                                )?.name || "—"}
-                              </div>
+                              <AixiaValueBlock
+                                label="Tax Code"
+                                value={taxCodes.find((taxCode) => taxCode.id === readOnlyRow.tax_code_id)?.name || "—"}
+                              />
                             )}
-                          </label>
+                          </AixiaFormField>
 
-                          <label className="space-y-2 md:col-span-3">
-                            <div className={labelClass}>Revenue Category</div>
+                          <AixiaFormField>
+                            <AixiaFieldLabel label="Revenue Category" />
                             {editable ? (
-                              <select
+                              <AixiaSelectField
                                 value={editableRow.revenue_category_id}
                                 onChange={(event) =>
                                   setLineItemsDraft((draft) =>
                                     draft.map((entry) =>
                                       entry.id === editableRow.id
-                                        ? {
-                                            ...entry,
-                                            revenue_category_id:
-                                              event.target.value,
-                                          }
+                                        ? { ...entry, revenue_category_id: event.target.value }
                                         : entry
                                     )
                                   )
                                 }
-                                className={inputFieldClass}
                               >
                                 <option value="">Select category</option>
                                 {revenueCategories.map((category) => (
@@ -3569,405 +2849,263 @@ export default function FinanceInvoiceDetailPage() {
                                     {category.name}
                                   </option>
                                 ))}
-                              </select>
+                              </AixiaSelectField>
                             ) : (
-                              <div className={readOnlyFieldClass}>
-                                {revenueCategories.find(
-                                  (category) =>
-                                    category.id ===
-                                    readOnlyRow.revenue_category_id
-                                )?.name || "—"}
-                              </div>
+                              <AixiaValueBlock
+                                label="Revenue Category"
+                                value={
+                                  revenueCategories.find(
+                                    (category) => category.id === readOnlyRow.revenue_category_id
+                                  )?.name || "—"
+                                }
+                              />
                             )}
-                          </label>
+                          </AixiaFormField>
 
-                          <div className="space-y-2 md:col-span-3">
-                            <div className={labelClass}>Line Total</div>
-                            <div className="flex min-h-[44px] items-center rounded-2xl border border-cyan-400/15 bg-cyan-500/10 px-4 text-sm font-semibold text-cyan-100">
-                              {formatFinanceMoney(
-                                rowTotal,
-                                currentCurrencyCode
-                              )}
-                            </div>
-                          </div>
-                        </div>
-                      </div>
+                          <AixiaValueBlock
+                            label="Line Total"
+                            value={formatFinanceMoney(rowTotal, currentCurrencyCode)}
+                          />
+                        </AixiaFormGrid>
+                      </AixiaFormRowCard>
                     );
                   })}
-                </CardContent>
-              </Card>
-            </div>
-
-            <div className="space-y-6">
-              <Card className={sectionCardClass}>
-                <CardHeader className="border-b border-white/10 px-5 py-4">
-                  <CardTitle className="text-sm font-semibold uppercase tracking-[0.18em] text-slate-400">
-                    Financial Summary
-                  </CardTitle>
-                  <CardDescription className="mt-1 text-xs text-slate-500">
-                    Live totals, collection state, and remaining balance.
-                  </CardDescription>
-                </CardHeader>
-
-                <CardContent className="space-y-3 p-5">
-                  <div className={innerPanelClass}>
-                    <div className={eyebrowClass}>Subtotal</div>
-                    <div className="mt-2 text-2xl font-semibold text-white">
-                      {formatFinanceMoney(
-                        financialSummary?.subtotal ?? 0,
-                        currentCurrencyCode
-                      )}
-                    </div>
-                  </div>
-
-                  <div className={innerPanelClass}>
-                    <div className={eyebrowClass}>Discount</div>
-                    <div className="mt-2 text-2xl font-semibold text-white">
-                      {formatFinanceMoney(
-                        financialSummary?.discount ?? 0,
-                        currentCurrencyCode
-                      )}
-                    </div>
-                  </div>
-
-                  <div className={innerPanelClass}>
-                    <div className={eyebrowClass}>Tax</div>
-                    <div className="mt-2 text-2xl font-semibold text-white">
-                      {formatFinanceMoney(
-                        financialSummary?.tax ?? 0,
-                        currentCurrencyCode
-                      )}
-                    </div>
-                  </div>
-
-                  <div className="rounded-[24px] border border-cyan-400/20 bg-cyan-500/10 p-4">
-                    <div className="text-[11px] uppercase tracking-[0.2em] text-cyan-200/80">
-                      Total
-                    </div>
-                    <div className="mt-2 text-2xl font-semibold text-white">
-                      {formatFinanceMoney(
-                        financialSummary?.total ?? 0,
-                        currentCurrencyCode
-                      )}
-                    </div>
-                  </div>
-
-                  <div className={innerPanelClass}>
-                    <div className={eyebrowClass}>Paid</div>
-                    <div className="mt-2 text-2xl font-semibold text-white">
-                      {formatFinanceMoney(
-                        financialSummary?.paid ?? 0,
-                        currentCurrencyCode
-                      )}
-                    </div>
-                  </div>
-
-                  <div className="rounded-[24px] border border-amber-400/20 bg-amber-500/10 p-4">
-                    <div className="text-[11px] uppercase tracking-[0.2em] text-amber-200/80">
-                      Balance Due
-                    </div>
-                    <div className="mt-2 text-2xl font-semibold text-white">
-                      {formatFinanceMoney(
-                        financialSummary?.balance ?? 0,
-                        currentCurrencyCode
-                      )}
-                    </div>
-                  </div>
-                </CardContent>
-              </Card>
-
-              <Card className={sectionCardClass}>
-                <CardHeader className="border-b border-white/10 px-5 py-4">
-                  <CardTitle className="text-sm font-semibold uppercase tracking-[0.18em] text-slate-400">
-                    Linked Documents
-                  </CardTitle>
-                  <CardDescription className="mt-1 text-xs text-slate-500">
-                    Payments and related receivable records.
-                  </CardDescription>
-                </CardHeader>
-
-                <CardContent className="space-y-3 p-5">
-                  <div className={innerPanelClass}>
-                    <div className="flex items-start justify-between gap-3">
-                      <div>
-                        <div className={eyebrowClass}>Source Proforma Invoice</div>
-                        <div className="mt-2 text-lg font-semibold text-white">
-                          {linkedProformaInvoice?.proforma_number || "—"}
-                        </div>
-                        <div className="mt-2 text-sm leading-6 text-slate-400">
-                          {linkedProformaInvoice
-                            ? `${linkedProformaInvoice.status} · ${formatFinanceMoney(
-                                toNumber(linkedProformaInvoice.total_amount),
-                                linkedProformaInvoice.currency_code ||
-                                  currentCurrencyCode
-                              )}`
-                            : "This invoice was created manually or has no PI source."}
-                        </div>
-                      </div>
-
-                      <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-2xl border border-violet-400/20 bg-violet-500/10 text-violet-200">
-                        <Link2 className="h-4 w-4" />
-                      </div>
-                    </div>
-
-                    {linkedProformaInvoice ? (
-                      <Button
-                        variant="outline"
-                        onClick={() =>
-                          navigate(
-                            `/finance/transactions/proforma-invoices/${linkedProformaInvoice.id}`
-                          )
-                        }
-                        className="mt-4 h-9 rounded-2xl border-violet-400/20 bg-violet-500/10 px-3 text-violet-200 hover:bg-violet-500/20"
-                      >
-                        Open Proforma Invoice
-                      </Button>
-                    ) : null}
-                  </div>
-
-                  <div className={innerPanelClass}>
-                    <div className="flex items-start justify-between gap-3">
-                      <div>
-                        <div className={eyebrowClass}>Payment Progress</div>
-                        <div className="mt-2 text-lg font-semibold text-white">
-                          {formatFinanceMoney(
-                            toNumber(invoice.paid_amount),
-                            currentCurrencyCode
-                          )}{" "}
-                          paid
-                        </div>
-                        <div className="mt-2 text-sm leading-6 text-slate-400">
-                          {formatFinanceMoney(
-                            toNumber(invoice.balance_due),
-                            currentCurrencyCode
-                          )}{" "}
-                          remaining from{" "}
-                          {formatFinanceMoney(
-                            toNumber(invoice.total_amount),
-                            currentCurrencyCode
-                          )}
-                        </div>
-                      </div>
-
-                      <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-2xl border border-emerald-400/20 bg-emerald-500/10 text-emerald-200">
-                        <Link2 className="h-4 w-4" />
-                      </div>
-                    </div>
-
-                    <div className="mt-4 h-2 w-full overflow-hidden rounded-full bg-white/10">
-                      <div
-                        className="h-full bg-emerald-500 transition-all"
-                        style={{ width: `${paymentProgressPercent}%` }}
-                      />
-                    </div>
-                  </div>
-
-                  <div className={innerPanelClass}>
-                    <div className="flex items-start justify-between gap-3">
-                      <div>
-                        <div className={eyebrowClass}>Payments Received</div>
-                        <div className="mt-2 text-lg font-semibold text-white">
-                          {payments.length}
-                        </div>
-                        <div className="mt-2 text-sm leading-6 text-slate-400">
-                          Confirmed payments linked to this invoice.
-                        </div>
-                      </div>
-
-                      <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-2xl border border-violet-400/20 bg-violet-500/10 text-violet-200">
-                        <FileText className="h-4 w-4" />
-                      </div>
-                    </div>
-                  </div>
-
-                  {payments.length === 0 ? (
-                    <div className="rounded-[18px] border border-white/10 bg-black/20 px-4 py-6 text-center text-sm text-slate-500">
-                      No payments yet.
-                    </div>
-                  ) : (
-                    <div className="max-h-[430px] space-y-3 overflow-y-auto pr-1">
-                      {payments.map((payment) => (
-                        <div
-                          key={payment.id}
-                          onClick={() =>
-                            navigate(
-                              `/finance/transactions/payments-received/${payment.id}`
-                            )
-                          }
-                          className="cursor-pointer rounded-[20px] border border-white/10 bg-black/20 p-4 transition hover:bg-white/[0.04]"
-                        >
-
-                                                    <div className="flex items-center justify-between gap-4">
-                            <div>
-                              <div className="text-sm font-medium text-white">
-                                {payment.reference_number || payment.id}
-                              </div>
-                              <div className="mt-1 text-xs text-slate-500">
-                                {formatFinanceDate(payment.payment_date)}
-                              </div>
-                            </div>
-
-                            <div className="text-right">
-                              <div className="text-sm font-semibold text-white">
-                                {formatFinanceMoney(
-                                  toNumber(payment.amount),
-                                  payment.payment_currency_code ||
-                                    currentCurrencyCode
-                                )}
-                              </div>
-                              <Badge className="mt-1 rounded-full border border-emerald-400/20 bg-emerald-500/10 text-[10px] text-emerald-300 shadow-none">
-                                {payment.status}
-                              </Badge>
-                            </div>
-                          </div>
-                        </div>
-                      ))}
-                    </div>
-                  )}
-                </CardContent>
-              </Card>
-
-              <Card className={sectionCardClass}>
-                <CardHeader className="border-b border-white/10 px-5 py-4">
-                  <div className="flex items-center justify-between gap-4">
-                    <div>
-                      <CardTitle className="text-sm font-semibold uppercase tracking-[0.18em] text-slate-400">
-                        Archive
-                      </CardTitle>
-                      <CardDescription className="mt-1 text-xs text-slate-500">
-                        Soft-delete, archive, restore, and hard-delete controls.
-                      </CardDescription>
-                    </div>
-
-                    <Button
-                      variant="outline"
-                      onClick={() => {
-                        setShowArchivePopup((current) => {
-                          const next = !current;
-
-                          if (next) {
-                            setArchiveTab("archived");
-                            void loadArchiveItems();
-                          }
-
-                          return next;
-                        });
-                      }}
-                      className="h-9 rounded-2xl border-white/10 bg-white/[0.05] px-3 text-white hover:bg-white/[0.08]"
-                    >
-                      {showArchivePopup ? "Close" : "Open Archive"}
-                    </Button>
-                  </div>
-                </CardHeader>
-
-                <CardContent className="space-y-3 p-5">
-                  <div className="rounded-[18px] border border-white/10 bg-black/20 px-4 py-4 text-sm leading-6 text-slate-400">
-                    Archive moves the invoice to archived. Delete moves the
-                    invoice to deleted. Hard delete is available only from the
-                    deleted tab.
-                  </div>
-
-                  {showArchivePopup ? (
-                    <div className="space-y-4 rounded-[22px] border border-white/10 bg-black/20 p-4">
-                      <div className="flex items-center gap-2">
-                        <button
-                          type="button"
-                          onClick={() => setArchiveTab("archived")}
-                          className={`rounded-xl px-4 py-2 text-sm transition ${
-                            archiveTab === "archived"
-                              ? "bg-white/10 text-white"
-                              : "text-slate-500 hover:bg-white/[0.05] hover:text-white"
-                          }`}
-                        >
-                          Archived
-                        </button>
-
-                        <button
-                          type="button"
-                          onClick={() => setArchiveTab("deleted")}
-                          className={`rounded-xl px-4 py-2 text-sm transition ${
-                            archiveTab === "deleted"
-                              ? "bg-rose-500/15 text-rose-200"
-                              : "text-slate-500 hover:bg-white/[0.05] hover:text-white"
-                          }`}
-                        >
-                          Deleted
-                        </button>
-                      </div>
-
-                      {visibleArchiveItems.length === 0 ? (
-                        <div className="text-sm text-slate-500">
-                          No {archiveTab} invoices.
-                        </div>
-                      ) : (
-                        <div className="max-h-[430px] space-y-3 overflow-y-auto pr-1">
-                          {visibleArchiveItems.map((item) => (
-                            <div
-                              key={item.id}
-                              className="rounded-[18px] border border-white/10 bg-black/20 px-4 py-3"
-                            >
-                              <div className="flex items-start justify-between gap-4">
-                                <div>
-                                  <div className="text-sm font-medium text-white">
-                                    {item.invoice_number || "Invoice"}
-                                  </div>
-                                  <div className="mt-1 text-xs text-slate-500">
-                                    {item.counterparty_name_snapshot ||
-                                      item.client_name_snapshot ||
-                                      "—"}{" "}
-                                    • {formatFinanceDate(item.updated_at || null)}
-                                  </div>
-                                </div>
-
-                                <div className="flex items-center gap-2">
-                                  <div className="text-sm text-slate-400">
-                                    {formatFinanceMoney(
-                                      toNumber(item.total_amount),
-                                      currentCurrencyCode
-                                    )}
-                                  </div>
-
-                                  <Button
-                                    variant="outline"
-                                    onClick={() => void handleRestore(item.id)}
-                                    disabled={isDeleting}
-                                    className="h-9 rounded-2xl border-emerald-400/20 bg-emerald-500/10 px-3 text-emerald-200 hover:bg-emerald-500/20"
-                                  >
-                                    <RotateCcw className="h-4 w-4" />
-                                  </Button>
-
-                                  {archiveTab === "deleted" ? (
-                                    <Button
-                                      variant="outline"
-                                      onClick={() =>
-                                        void handleHardDelete(item.id)
-                                      }
-                                      disabled={isDeleting}
-                                      className="h-9 rounded-2xl border-rose-400/20 bg-rose-500/10 px-3 text-rose-200 hover:bg-rose-500/20"
-                                    >
-                                      <Trash2 className="h-4 w-4" />
-                                    </Button>
-                                  ) : null}
-                                </div>
-                              </div>
-                            </div>
-                          ))}
-                        </div>
-                      )}
-                    </div>
-                  ) : null}
-                </CardContent>
-              </Card>
-
-              {error ? (
-                <div className="rounded-[18px] border border-rose-400/20 bg-rose-500/10 px-4 py-3 text-sm text-rose-200">
-                  {error}
                 </div>
-              ) : null}
-            </div>
-          </div>
-        </div>
-      </div>
+              </AixiaSection>
+            </>
+          }
+          side={
+            <>
+              <AixiaSection
+                title="Financial Summary"
+                description="Live totals, collection state, and remaining balance."
+                icon={WalletCards}
+              >
+                <AixiaReviewGrid variant="cards">
+                  <AixiaValueBlock
+                    label="Subtotal"
+                    value={formatFinanceMoney(financialSummary?.subtotal ?? 0, currentCurrencyCode)}
+                  />
+                  <AixiaValueBlock
+                    label="Discount"
+                    value={formatFinanceMoney(financialSummary?.discount ?? 0, currentCurrencyCode)}
+                  />
+                  <AixiaValueBlock
+                    label="Tax"
+                    value={formatFinanceMoney(financialSummary?.tax ?? 0, currentCurrencyCode)}
+                  />
+                  <AixiaValueBlock
+                    label="Total"
+                    value={formatFinanceMoney(financialSummary?.total ?? 0, currentCurrencyCode)}
+                  />
+                  <AixiaValueBlock
+                    label="Paid"
+                    value={formatFinanceMoney(financialSummary?.paid ?? 0, currentCurrencyCode)}
+                  />
+                  <AixiaValueBlock
+                    label="Balance Due"
+                    value={formatFinanceMoney(financialSummary?.balance ?? 0, currentCurrencyCode)}
+                  />
+                </AixiaReviewGrid>
+              </AixiaSection>
+
+              <AixiaSection
+                title="Linked Documents"
+                description="Payments and related receivable records."
+                icon={Link2}
+              >
+                <AixiaReviewGrid variant="cards">
+                  <AixiaActionCard
+                    label="Source Proforma Invoice"
+                    value={linkedProformaInvoice?.proforma_number || "—"}
+                    description={
+                      linkedProformaInvoice
+                        ? `${linkedProformaInvoice.status} · ${formatFinanceMoney(
+                            toNumber(linkedProformaInvoice.total_amount),
+                            linkedProformaInvoice.currency_code || currentCurrencyCode
+                          )}`
+                        : "This invoice was created manually or has no PI source."
+                    }
+                    icon={Link2}
+                    tone="violet"
+                    actionLabel="Open"
+                    onClick={
+                      linkedProformaInvoice
+                        ? () =>
+                            navigate(
+                              `/finance/transactions/proforma-invoices/${linkedProformaInvoice.id}`
+                            )
+                        : undefined
+                    }
+                  />
+                  <AixiaValueBlock
+                    label="Payment Progress"
+                    value={`${Math.round(paymentProgressPercent)}%`}
+                    detail={`${formatFinanceMoney(toNumber(invoice.paid_amount), currentCurrencyCode)} paid · ${formatFinanceMoney(toNumber(invoice.balance_due), currentCurrencyCode)} remaining`}
+                  />
+                  <AixiaValueBlock
+                    label="Payments Received"
+                    value={payments.length}
+                    detail="Confirmed payments linked to this invoice."
+                  />
+                </AixiaReviewGrid>
+
+                {payments.length === 0 ? (
+                  <AixiaEmptyState
+                    icon={FileText}
+                    title="No payments yet"
+                    description="Confirmed payments linked to this invoice will appear here."
+                  />
+                ) : (
+                  <AixiaTableShell variant="default" minWidthClassName="min-w-[680px]">
+                    <thead className="aixia-table-head">
+                      <tr>
+                        <th>Payment</th>
+                        <th>Amount</th>
+                        <th>Status</th>
+                        <th>Actions</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {payments.map((payment) => (
+                        <tr key={payment.id} className="aixia-table-row">
+                          <AixiaTableTextCell
+                            width="md"
+                            primary={payment.reference_number || payment.id}
+                            secondary={formatFinanceDate(payment.payment_date)}
+                          />
+                          <AixiaTableTextCell
+                            width="sm"
+                            primary={formatFinanceMoney(
+                              toNumber(payment.amount),
+                              payment.payment_currency_code || currentCurrencyCode
+                            )}
+                            secondary={payment.invoice_currency_code}
+                          />
+                          <AixiaTableBadgeCell width="sm">
+                            <AixiaStatusBadge value={payment.status} />
+                          </AixiaTableBadgeCell>
+                          <AixiaTableActionsCell>
+                            <AixiaButton
+                              type="button"
+                              variant="primary"
+                              onClick={() =>
+                                navigate(`/finance/transactions/payments-received/${payment.id}`)
+                              }
+                            >
+                              Open
+                            </AixiaButton>
+                          </AixiaTableActionsCell>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </AixiaTableShell>
+                )}
+              </AixiaSection>
+
+              <AixiaSection
+                title="Archive"
+                description="Soft-delete, archive, restore, and hard-delete controls."
+                icon={Archive}
+                actions={
+                  <AixiaButton
+                    type="button"
+                    variant="danger"
+                    onClick={() => {
+                      setShowArchivePopup(true);
+                      setArchiveTab("archived");
+                      void loadArchiveItems();
+                    }}
+                  >
+                    Open Archive
+                  </AixiaButton>
+                }
+              >
+                <AixiaAlert tone="info">
+                  Archive moves the invoice to archived. Delete moves the invoice to deleted. Hard
+                  delete is available only from the deleted tab.
+                </AixiaAlert>
+              </AixiaSection>
+            </>
+          }
+        />
+
+        <AixiaArchiveManagerModal
+          open={showArchivePopup}
+          title="Invoice Archive"
+          description="Restore archived invoices or permanently delete records from the deleted tab."
+          archivedCount={archiveItems.filter((item) => item.status === "archived").length}
+          deletedCount={archiveItems.filter((item) => item.status === "deleted").length}
+          activeTab={archiveTab}
+          onTabChange={setArchiveTab}
+          onClose={() => setShowArchivePopup(false)}
+        >
+          {visibleArchiveItems.length === 0 ? (
+            <AixiaEmptyState
+              icon={Archive}
+              title={`No ${archiveTab} invoices`}
+              description={`No ${archiveTab} invoices were found.`}
+            />
+          ) : (
+            <AixiaTableShell variant="archive" minWidthClassName="min-w-[880px]">
+              <thead className="aixia-table-head">
+                <tr>
+                  <th>Invoice</th>
+                  <th>Recipient</th>
+                  <th>Total</th>
+                  <th>Updated</th>
+                  <th>Actions</th>
+                </tr>
+              </thead>
+              <tbody>
+                {visibleArchiveItems.map((item) => (
+                  <tr key={item.id} className="aixia-table-row">
+                    <AixiaTableTextCell
+                      width="md"
+                      primary={item.invoice_number || "Invoice"}
+                      secondary={item.status}
+                    />
+                    <AixiaTableTextCell
+                      width="lg"
+                      primary={item.counterparty_name_snapshot || item.client_name_snapshot || "—"}
+                    />
+                    <AixiaTableTextCell
+                      width="sm"
+                      primary={formatFinanceMoney(toNumber(item.total_amount), currentCurrencyCode)}
+                    />
+                    <AixiaTableTextCell
+                      width="sm"
+                      primary={formatFinanceDate(item.updated_at || null)}
+                    />
+                    <AixiaTableActionsCell>
+                      <AixiaButton
+                        type="button"
+                        variant="secondary"
+                        disabled={isDeleting}
+                        onClick={() => void handleRestore(item.id)}
+                      >
+                        <RotateCcw className="h-4 w-4" />
+                        Restore
+                      </AixiaButton>
+                      {archiveTab === "deleted" ? (
+                        <AixiaButton
+                          type="button"
+                          variant="danger"
+                          disabled={isDeleting}
+                          onClick={() => void handleHardDelete(item.id)}
+                        >
+                          <Trash2 className="h-4 w-4" />
+                          Delete Permanently
+                        </AixiaButton>
+                      ) : null}
+                    </AixiaTableActionsCell>
+                  </tr>
+                ))}
+              </tbody>
+            </AixiaTableShell>
+          )}
+        </AixiaArchiveManagerModal>
+      </AixiaPage>
 
       <InvoicePrintDocument
         invoice={printableInvoice}

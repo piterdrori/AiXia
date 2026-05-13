@@ -1558,30 +1558,47 @@ function inspectActionCardAndButtonSymmetryRules(filePath, text) {
 
 function inspectEmployeeIdentityGlobalRules(filePath, text) {
   const touchesEmployeeRefs =
-    /finance_employee_refs|employee_ref_id|recipient_employee_ref_id|employee_code|recipient_person_name|getEmployeeLabel|getAllocationRecipientPrimary|getAllocationRecipientSecondary/i.test(
+    /finance_employee_refs|employee_ref_id|recipient_employee_ref_id|employee_code|recipient_person_name|getEmployeeLabel|getAllocationRecipientPrimary|getAllocationRecipientSecondary|getChildAllocationRecipientPrimaryLabel|getChildAllocationRecipientSecondaryLabel/i.test(
       text
     );
 
   if (!touchesEmployeeRefs) return;
 
+  const importsGlobalIdentityHelper = /@\/lib\/finance\/employeeIdentity/.test(text);
+  const usesEmployeeIdentityCell = /AixiaEmployeeIdentityCell/.test(text);
+  const loadsEmployeeIdentityView = /finance_employee_identity_v/.test(text);
+  const definesLocalEmployeeIdentityHelper =
+    /function\s+getFinanceEmployeePrimaryName\s*\(/.test(text) ||
+    /function\s+getFinanceEmployeeSecondaryLabel\s*\(/.test(text) ||
+    /function\s+getFinanceEmployeeReferenceLabel\s*\(/.test(text) ||
+    /type\s+EmployeeIdentityRow\s*=/.test(text);
+
+  if (definesLocalEmployeeIdentityHelper) {
+    addError(
+      filePath,
+      "Finance pages must not define local EmployeeIdentityRow/getFinanceEmployeePrimaryName/getFinanceEmployeeSecondaryLabel helpers. Import FinanceEmployeeIdentity helpers from src/lib/finance/employeeIdentity and render person cells with AixiaEmployeeIdentityCell so primary is real person name, secondary is role/company, and employee code is optional reference only.",
+      "AiXia employee identity source-of-truth rule"
+    );
+  }
+
   if (
     /finance_employee_refs[\s\S]*?select\(["'][^"']*\bcode\b[^"']*\buser_id\b[^"']*["']\)/m.test(text) &&
-    !/finance_employee_identity_v|FinanceEmployeeIdentity|getFinanceEmployeePrimaryName|AixiaEmployeeIdentityCell/.test(text)
+    !(loadsEmployeeIdentityView && (importsGlobalIdentityHelper || usesEmployeeIdentityCell))
   ) {
     addError(
       filePath,
-      "Pages that load finance_employee_refs for display must resolve real person identity globally. Use finance_employee_identity_v plus employeeIdentity.ts helpers or AixiaEmployeeIdentityCell. Employee code is only an optional reference, not the person name.",
+      "Pages that load finance_employee_refs for display must resolve real person identity globally. Load finance_employee_identity_v and use employeeIdentity.ts helpers or AixiaEmployeeIdentityCell. Employee code is only an optional reference, not the person name.",
       "AiXia employee identity source-of-truth rule"
     );
   }
 
   if (
     /finance_employee_refs[\s\S]*?select\(["'][^"']*\buser_id\b[^"']*\bcode\b[^"']*["']\)/m.test(text) &&
-    !/finance_employee_identity_v|FinanceEmployeeIdentity|getFinanceEmployeePrimaryName|AixiaEmployeeIdentityCell/.test(text)
+    !(loadsEmployeeIdentityView && (importsGlobalIdentityHelper || usesEmployeeIdentityCell))
   ) {
     addError(
       filePath,
-      "Pages that load finance_employee_refs for display must also load/use finance_employee_identity_v or the global employee identity helper/component.",
+      "Pages that load finance_employee_refs for display must also load/use finance_employee_identity_v plus the global employee identity helper/component.",
       "AiXia employee identity source-of-truth rule"
     );
   }
@@ -1589,7 +1606,7 @@ function inspectEmployeeIdentityGlobalRules(filePath, text) {
   if (/recipient_person_name\s*\|\|\s*getEmployeeLabel/.test(text)) {
     addError(
       filePath,
-      "Do not use recipient_person_name || getEmployeeLabel for primary recipient/person display. recipient_person_name may contain EMP-code formatting. Resolve through finance_employee_identity_v.",
+      "Do not use recipient_person_name || getEmployeeLabel for primary recipient/person display. recipient_person_name may contain EMP-code or role formatting. Resolve through finance_employee_identity_v and global employeeIdentity.ts helpers.",
       "AiXia employee identity source-of-truth rule"
     );
   }
@@ -1599,14 +1616,14 @@ function inspectEmployeeIdentityGlobalRules(filePath, text) {
   ) {
     addError(
       filePath,
-      "getEmployeeLabel must not build display labels with employee code first. Use getFinanceEmployeePrimaryName for primary and getFinanceEmployeeSecondaryLabel for secondary.",
+      "getEmployeeLabel must not build display labels with employee code first. Use getFinanceEmployeePrimaryName for primary, getFinanceEmployeeSecondaryLabel for secondary, and getFinanceEmployeeReferenceLabel for optional EMP reference.",
       "AiXia employee identity source-of-truth rule"
     );
   }
 
   if (
     /function\s+\w*(?:Employee|Recipient|Person)\w*Primary[\s\S]*?recipient_person_name[\s\S]*?\}/m.test(text) &&
-    !/getFinanceEmployeePrimaryName|AixiaEmployeeIdentityCell|finance_employee_identity_v/.test(text)
+    !(importsGlobalIdentityHelper || usesEmployeeIdentityCell)
   ) {
     addError(
       filePath,
@@ -1622,7 +1639,7 @@ function inspectEmployeeIdentityGlobalRules(filePath, text) {
   ) {
     addError(
       filePath,
-      "Employee code or recipient_employee_ref_id must never be used as primary business text. Primary must be the resolved real person name.",
+      "Employee code or recipient_employee_ref_id must never be used as primary business text. Primary must be the resolved real person name from finance_employee_identity_v.",
       "AiXia employee identity source-of-truth rule"
     );
   }
@@ -1634,20 +1651,39 @@ function inspectEmployeeIdentityGlobalRules(filePath, text) {
   ) {
     addError(
       filePath,
-      "Raw employee_ref_id / recipient_employee_ref_id UUIDs must never be shown in table secondary text. Use employee code only as optional readable reference.",
+      "Raw employee_ref_id / recipient_employee_ref_id UUIDs must never be shown in table secondary text. Use employee code only as optional readable reference through getFinanceEmployeeReferenceLabel.",
       "AiXia employee identity source-of-truth rule"
     );
   }
 
   if (
-    /AixiaTableTextCell[\s\S]{0,900}primary=\{getAllocationRecipientPrimary\(allocation\)\}[\s\S]{0,900}secondary=\{getAllocationRecipientSecondary\(allocation\)\}/m.test(
+    /AixiaTableTextCell[\s\S]{0,900}primary=\{get(?:Child)?AllocationRecipientPrimary\w*\(allocation\)\}[\s\S]{0,900}secondary=\{get(?:Child)?AllocationRecipientSecondary\w*\(allocation\)\}/m.test(
       text
-    ) &&
-    !/AixiaEmployeeIdentityCell|getFinanceEmployeePrimaryName|finance_employee_identity_v/.test(text)
+    )
   ) {
     addError(
       filePath,
-      "Allocation recipient cells must use resolved employee identity. Use AixiaEmployeeIdentityCell or getFinanceEmployeePrimaryName/getFinanceEmployeeSecondaryLabel from employeeIdentity.ts.",
+      "Allocation recipient table cells must not use AixiaTableTextCell with local recipient primary/secondary helpers. Use AixiaEmployeeIdentityCell with FinanceEmployeeIdentity data so primary is real person name, secondary is role/company, and EMP code is optional reference only.",
+      "AiXia employee identity source-of-truth rule"
+    );
+  }
+
+  if (
+    /function\s+get(?:Child)?AllocationRecipientSecondary\w*\s*\([\s\S]*?return\s*\[[\s\S]*?resolvedIdentityLabel[\s\S]*?expenseCompanyName[\s\S]*?madeByType[\s\S]*?\.join\(" • "\)/m.test(
+      text
+    )
+  ) {
+    addError(
+      filePath,
+      "Child allocation recipient secondary text must not combine resolvedIdentityLabel + expenseCompanyName + madeByType. This duplicates role/company information under different names. Use getFinanceEmployeeSecondaryLabel(identity) and optional getFinanceEmployeeReferenceLabel(identity) only.",
+      "AiXia employee identity source-of-truth rule"
+    );
+  }
+
+  if (/operations?_manager/.test(text) && /recipientPrimaryName|getFinanceEmployeePrimaryName|person_name/.test(text)) {
+    addError(
+      filePath,
+      "operations_manager or role-like values must never be accepted as primary recipient/person name. Primary must come from finance_employee_identity_v.person_name/profile_full_name/profile_display_name/profile_email before any fallback.",
       "AiXia employee identity source-of-truth rule"
     );
   }

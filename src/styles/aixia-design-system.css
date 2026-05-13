@@ -1571,18 +1571,26 @@
 
 .aixia-table-wrap[data-table-variant="archive"] {
   width: 100%;
+  max-width: 100%;
+  min-width: 0;
+  overflow-x: auto !important;
+  overflow-y: hidden;
 }
 
 .aixia-table-wrap[data-table-variant="archive"] .aixia-table-scroll {
   width: 100%;
+  max-width: 100%;
+  min-width: 0;
   max-height: 620px;
-  overflow-x: auto;
+  overflow-x: auto !important;
+  overflow-y: auto;
+  overscroll-behavior: contain;
 }
 
 .aixia-table-wrap[data-table-variant="archive"] .aixia-table {
-  width: 100%;
-  min-width: 100%;
-  table-layout: auto;
+  width: max-content !important;
+  min-width: max(100%, var(--aixia-archive-table-min-width, 1480px)) !important;
+  table-layout: auto !important;
 }
 
 .aixia-table-wrap[data-table-variant="archive"] .aixia-table th,
@@ -1591,34 +1599,39 @@
 }
 
 .aixia-table-wrap[data-table-variant="archive"] .aixia-table th:last-child,
-.aixia-table-wrap[data-table-variant="archive"] .aixia-table td:last-child {
-  width: 1%;
-  min-width: 220px;
-  white-space: nowrap;
-}
-
+.aixia-table-wrap[data-table-variant="archive"] .aixia-table td:last-child,
 .aixia-table-wrap[data-table-variant="archive"] .aixia-table-cell-actions,
+.aixia-table-wrap[data-table-variant="archive"] td:has(.aixia-table-actions),
 .aixia-table-wrap[data-table-variant="archive"] td:has(.aixia-btn-primary),
 .aixia-table-wrap[data-table-variant="archive"] td:has(.aixia-btn-secondary),
 .aixia-table-wrap[data-table-variant="archive"] td:has(.aixia-btn-danger) {
-  width: 1%;
-  min-width: 220px;
-  white-space: nowrap;
+  width: 1% !important;
+  min-width: max-content !important;
+  white-space: nowrap !important;
+  overflow: visible !important;
 }
 
-.aixia-table-wrap[data-table-variant="archive"] .aixia-table-actions {
-  justify-content: center;
-  flex-wrap: nowrap;
-  width: max-content;
-  min-width: max-content;
-  margin-left: auto;
-  margin-right: auto;
+.aixia-table-wrap[data-table-variant="archive"] .aixia-table-actions,
+.aixia-table-wrap[data-table-variant="archive"] td:has(.aixia-btn-primary) > div,
+.aixia-table-wrap[data-table-variant="archive"] td:has(.aixia-btn-secondary) > div,
+.aixia-table-wrap[data-table-variant="archive"] td:has(.aixia-btn-danger) > div {
+  display: inline-flex !important;
+  align-items: center !important;
+  justify-content: center !important;
+  flex-wrap: nowrap !important;
+  gap: 0.5rem !important;
+  width: max-content !important;
+  min-width: max-content !important;
+  max-width: none !important;
+  margin-left: auto !important;
+  margin-right: auto !important;
 }
 
 .aixia-table-wrap[data-table-variant="archive"] .aixia-btn-primary,
 .aixia-table-wrap[data-table-variant="archive"] .aixia-btn-secondary,
 .aixia-table-wrap[data-table-variant="archive"] .aixia-btn-danger {
-  flex: 0 0 auto;
+  flex: 0 0 auto !important;
+  white-space: nowrap !important;
 }
 
 .aixia-archive-manager-tabs {

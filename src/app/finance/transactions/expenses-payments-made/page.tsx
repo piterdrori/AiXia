@@ -1,24 +1,52 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
-import type { ReactNode } from "react";
 import { useNavigate } from "react-router-dom";
 import {
   Archive,
-  ArrowRight,
   CheckCircle2,
   Clock3,
   Eye,
   FileText,
-  Loader2,
+  FolderArchive,
+  Plus,
   Receipt,
   RotateCcw,
   Search,
   ShieldCheck,
-  Sparkles,
   Trash2,
   WalletCards,
-  X,
 } from "lucide-react";
 
+import {
+  AixiaAccessRule,
+  AixiaAlert,
+  AixiaArchiveManagerModal,
+  AixiaBadge,
+  AixiaButton,
+  AixiaChildAllocationRegistry,
+  AixiaEmployeeIdentityCell,
+  AixiaEmptyState,
+  AixiaHero,
+  AixiaLoadingState,
+  AixiaMetricCard,
+  AixiaMetricGrid,
+  AixiaPage,
+  AixiaRegistryToolbar,
+  AixiaSearchField,
+  AixiaSection,
+  AixiaSortableHeader,
+  AixiaStatusBadge,
+  AixiaTableActionsCell,
+  AixiaTableBadgeCell,
+  AixiaTableDateCell,
+  AixiaTableShell,
+  AixiaTableTextCell,
+} from "@/components/aixia";
+import {
+  getFinanceEmployeePrimaryName,
+  getFinanceEmployeeReferenceLabel,
+  getFinanceEmployeeSecondaryLabel,
+  type FinanceEmployeeIdentity,
+} from "@/lib/finance/employeeIdentity";
 import { supabase } from "@/lib/supabase";
 
 type WorkbenchTab =
@@ -28,10 +56,12 @@ type WorkbenchTab =
   | "verified_for_payment"
   | "recipient_tracking"
   | "funding_batches"
-  | "payments";
+  | "payments"
+  | "allocations";
 
-type ArchiveScope = "workflow" | "execution";
+type ArchiveScope = "workflow" | "execution" | "allocations";
 type ArchiveTab = "archived" | "deleted";
+type SortDirection = "asc" | "desc";
 
 type ExpenseRow = {
   id: string;
@@ -91,16 +121,6 @@ type EmployeeRefRow = {
     source_role?: string | null;
     source_status?: string | null;
   } | null;
-};
-
-type ProfileRow = {
-  user_id: string;
-  full_name: string | null;
-  display_name: string | null;
-  email: string | null;
-  company: string | null;
-  job_title: string | null;
-  member_type: string | null;
 };
 
 type BankAccountRow = {
@@ -173,14 +193,22 @@ type ExpenseAllocationRow = {
   recipient_person_name: string | null;
   allocated_amount: number | string | null;
   currency_code: string | null;
+  payment_currency_code: string | null;
   converted_amount: number | string | null;
   recipient_confirmation_status: string | null;
+  lifecycle_status: string | null;
+  metadata: Record<string, unknown> | null;
   created_at: string;
+  updated_at: string;
 };
 
 type EnrichedExpense = ExpenseRow & {
   companyName: string;
-  madeByLabel: string;
+  madeByIdentity: FinanceEmployeeIdentity | null;
+  madeByPrimary: string;
+  madeBySecondary: string;
+  madeByReference: string;
+  madeByFallback: string;
   targetAmount: number;
   allocatedAmount: number;
   calculatedCoverageStatus: string;
@@ -200,58 +228,33 @@ type EnrichedPaymentMade = PaymentMadeRow & {
   bankLabel: string;
   linkedExpenseCount: number;
   linkedExpenseAmount: number;
+  recipientIdentity: FinanceEmployeeIdentity | null;
   recordType: "payment_made";
+};
+
+type EnrichedAllocation = ExpenseAllocationRow & {
+  expense: EnrichedExpense | null;
+  payment: EnrichedPaymentMade | null;
+  fundingBatch: EnrichedFundingBatch | null;
+  recipientIdentity: FinanceEmployeeIdentity | null;
+  expensePrimaryLabel: string;
+  expenseSecondaryLabel: string;
+  recipientPrimaryLabel: string;
+  recipientSecondaryLabel: string;
 };
 
 type ExecutionRecord = EnrichedFundingBatch | EnrichedPaymentMade;
 
-const statusToneMap: Record<
-  string,
-  "cyan" | "emerald" | "amber" | "rose" | "violet" | "slate"
-> = {
-  draft: "slate",
-  submitted: "cyan",
-  requested: "cyan",
-  approved_to_spend: "emerald",
-  rejected_before_spend: "rose",
-  expense_made: "amber",
-  documentation_submitted: "cyan",
-  documentation_issue: "rose",
-  verified_for_payment: "emerald",
-  missing: "rose",
-  uploaded: "cyan",
-  linked: "cyan",
-  files_and_links: "cyan",
-  verified: "emerald",
-  issue_found: "rose",
-  pending_review: "amber",
-  approved_for_payment: "emerald",
-  rejected: "rose",
-  needs_correction: "amber",
-  not_allocated: "slate",
-  partially_allocated: "amber",
-  allocated: "emerald",
-  not_covered: "slate",
-  partially_covered: "amber",
-  covered: "emerald",
-  not_paid_yet: "slate",
-  pending_confirmation: "amber",
-  received_confirmed: "emerald",
-  not_received: "rose",
-  disputed: "rose",
-  admin_closed: "violet",
-  not_applicable: "slate",
-  not_confirmed: "amber",
-  confirmed: "emerald",
-  cancelled_refunded: "rose",
-  operating_expense: "cyan",
-  reimbursement: "emerald",
-  funding_batch: "violet",
-  payment_made: "cyan",
-  manual: "slate",
-  archived: "amber",
-  deleted: "rose",
-};
+type AllocationSortKey =
+  | "expense"
+  | "payment"
+  | "recipient"
+  | "amount"
+  | "recipient_status"
+  | "lifecycle"
+  | "updated_at";
+
+type AllocationAction = "archive" | "delete" | "restore" | "hard_delete";
 
 const mainWorkflowTabs: Array<{
   key: WorkbenchTab;
@@ -307,12 +310,23 @@ const executionTabs: Array<{
     description:
       "Monthly Finance tool: distribute allocated money across verified expenses and track recipient confirmation.",
   },
+  {
+    key: "allocations",
+    label: "Linked Allocations",
+    description:
+      "Backend allocation rows linking payments, funding pools, recipients, and covered expenses.",
+  },
 ];
 
 const allTabs = [...mainWorkflowTabs, ...executionTabs];
 
 function toNumber(value: number | string | null | undefined) {
-  return Number(value ?? 0);
+  const parsed = Number(value ?? 0);
+  return Number.isFinite(parsed) ? parsed : 0;
+}
+
+function roundMoney(value: number) {
+  return Math.round((value + Number.EPSILON) * 100) / 100;
 }
 
 function formatMoney(value: number | string | null | undefined) {
@@ -345,169 +359,6 @@ function formatLabel(value: string | null | undefined) {
     .join(" ");
 }
 
-function getStatusToneClasses(value: string | null | undefined) {
-  const tone = statusToneMap[value ?? ""] ?? "slate";
-
-  switch (tone) {
-    case "emerald":
-      return "border-emerald-400/20 bg-emerald-500/10 text-emerald-200";
-    case "amber":
-      return "border-amber-400/20 bg-amber-500/10 text-amber-200";
-    case "rose":
-      return "border-rose-400/20 bg-rose-500/10 text-rose-200";
-    case "violet":
-      return "border-violet-400/20 bg-violet-500/10 text-violet-200";
-    case "cyan":
-      return "border-cyan-400/20 bg-cyan-500/10 text-cyan-200";
-    case "slate":
-    default:
-      return "border-white/10 bg-white/[0.06] text-slate-300";
-  }
-}
-
-function StatusBadge({ value }: { value: string | null | undefined }) {
-  return (
-    <span
-      className={`inline-flex max-w-full items-center rounded-full border px-3 py-1 text-[11px] font-semibold uppercase tracking-[0.14em] ${getStatusToneClasses(
-        value
-      )}`}
-    >
-      <span className="truncate">{formatLabel(value)}</span>
-    </span>
-  );
-}
-
-function getSoftBadgeToneClasses(
-  tone: "cyan" | "emerald" | "amber" | "rose" | "violet" | "slate"
-) {
-  switch (tone) {
-    case "emerald":
-      return "border-emerald-400/20 bg-emerald-500/10 text-emerald-200";
-    case "amber":
-      return "border-amber-400/20 bg-amber-500/10 text-amber-200";
-    case "rose":
-      return "border-rose-400/20 bg-rose-500/10 text-rose-200";
-    case "violet":
-      return "border-violet-400/20 bg-violet-500/10 text-violet-200";
-    case "cyan":
-      return "border-cyan-400/20 bg-cyan-500/10 text-cyan-200";
-    case "slate":
-    default:
-      return "border-white/10 bg-white/[0.06] text-slate-300";
-  }
-}
-
-function SoftBadge({
-  value,
-  tone,
-}: {
-  value: string;
-  tone: "cyan" | "emerald" | "amber" | "rose" | "violet" | "slate";
-}) {
-  return (
-    <span
-      className={`inline-flex max-w-[320px] items-center rounded-full border px-3 py-1 text-[11px] font-semibold uppercase tracking-[0.12em] ${getSoftBadgeToneClasses(
-        tone
-      )}`}
-    >
-      <span className="truncate">{value}</span>
-    </span>
-  );
-}
-
-function IconButton({
-  label,
-  icon: Icon,
-  tone,
-  disabled,
-  onClick,
-}: {
-  label: string;
-  icon: typeof Eye;
-  tone: "cyan" | "emerald" | "amber" | "rose";
-  disabled?: boolean;
-  onClick: () => void;
-}) {
-  const toneClass = {
-    cyan: "border-cyan-400/20 bg-cyan-500/10 text-cyan-200 hover:bg-cyan-500/15",
-    emerald:
-      "border-emerald-400/20 bg-emerald-500/10 text-emerald-200 hover:bg-emerald-500/15",
-    amber:
-      "border-amber-400/20 bg-amber-500/10 text-amber-200 hover:bg-amber-500/15",
-    rose: "border-rose-400/20 bg-rose-500/10 text-rose-200 hover:bg-rose-500/15",
-  }[tone];
-
-  return (
-    <button
-      type="button"
-      title={label}
-      aria-label={label}
-      disabled={disabled}
-      onClick={onClick}
-      className={`inline-flex h-9 w-9 items-center justify-center rounded-full border transition disabled:cursor-not-allowed disabled:opacity-40 ${toneClass}`}
-    >
-      <Icon className="h-4 w-4" />
-    </button>
-  );
-}
-
-function SummaryCard({
-  title,
-  value,
-  detail,
-  icon: Icon,
-}: {
-  title: string;
-  value: ReactNode;
-  detail: string;
-  icon: typeof Receipt;
-}) {
-  return (
-    <div className="min-h-[156px] rounded-[28px] border border-white/10 bg-white/[0.045] p-5 backdrop-blur-xl">
-      <div className="flex items-start justify-between gap-4">
-        <div>
-          <div className="text-[11px] font-semibold uppercase tracking-[0.2em] text-slate-500">
-            {title}
-          </div>
-          <div className="mt-3 text-3xl font-semibold text-white">{value}</div>
-        </div>
-        <div className="rounded-2xl border border-cyan-400/15 bg-cyan-500/10 p-3 text-cyan-200">
-          <Icon className="h-5 w-5" />
-        </div>
-      </div>
-      <div className="mt-4 text-xs leading-5 text-slate-500">{detail}</div>
-    </div>
-  );
-}
-
-function getEmployeeLabel(
-  employee: EmployeeRefRow | null | undefined,
-  profileMap?: Map<string, ProfileRow>
-) {
-  if (!employee) return "—";
-
-  const profile = employee.user_id && profileMap ? profileMap.get(employee.user_id) : null;
-
-  const employeeName =
-    profile?.full_name?.trim() ||
-    profile?.display_name?.trim() ||
-    profile?.email?.trim() ||
-    employee.metadata?.member_type?.trim() ||
-    employee.code?.trim() ||
-    "Employee";
-
-  const role =
-    profile?.job_title?.trim() ||
-    employee.metadata?.job_title?.trim() ||
-    employee.metadata?.source_role?.trim() ||
-    employee.mark?.trim() ||
-    null;
-
-  const company = profile?.company?.trim() || employee.metadata?.company?.trim() || null;
-
-  return [employeeName, role, company].filter(Boolean).join(" • ");
-}
-
 function getBankLabel(bank: BankAccountRow | null | undefined) {
   if (!bank) return "—";
 
@@ -520,33 +371,12 @@ function getBankLabel(bank: BankAccountRow | null | undefined) {
     .join(" • ");
 }
 
-function getExpenseMadeByLabel(
-  expense: ExpenseRow,
-  employeeMap: Map<string, EmployeeRefRow>,
-  profileMap: Map<string, ProfileRow>
-) {
-  if (expense.expense_made_by_type === "employee" && expense.employee_ref_id) {
-    return getEmployeeLabel(employeeMap.get(expense.employee_ref_id), profileMap);
-  }
-
-  if (expense.expense_made_by_type === "owner_management") {
-    return expense.responsible_person_name || "Owner / Management";
-  }
-
-  if (expense.expense_made_by_type === "company_direct") {
-    return "Company Direct";
-  }
-
-  if (expense.expense_made_by_type === "other") {
-    return expense.other_made_by_explanation || "Other";
-  }
-
-  return "—";
-}
-
 function getTargetAmount(expense: ExpenseRow) {
   return toNumber(
-    expense.final_amount || expense.approved_amount || expense.requested_amount || expense.amount
+    expense.final_amount ||
+      expense.approved_amount ||
+      expense.requested_amount ||
+      expense.amount
   );
 }
 
@@ -576,6 +406,19 @@ function isExecutionDeleted(record: FundingBatchRow | PaymentMadeRow) {
 
 function isExecutionActive(record: FundingBatchRow | PaymentMadeRow) {
   return !isExecutionArchived(record) && !isExecutionDeleted(record);
+}
+
+function isActiveAllocation(allocation: ExpenseAllocationRow) {
+  const lifecycle = allocation.lifecycle_status || "active";
+  return lifecycle !== "archived" && lifecycle !== "deleted";
+}
+
+function isArchivedAllocation(allocation: ExpenseAllocationRow) {
+  return allocation.lifecycle_status === "archived";
+}
+
+function isDeletedAllocation(allocation: ExpenseAllocationRow) {
+  return allocation.lifecycle_status === "deleted";
 }
 
 function getNextStep(expense: ExpenseRow): {
@@ -643,6 +486,86 @@ function getNextStep(expense: ExpenseRow): {
   };
 }
 
+function getEmployeeIdentityByRef(
+  employeeRefId: string | null | undefined,
+  identityMap: Map<string, FinanceEmployeeIdentity>
+) {
+  if (!employeeRefId) return null;
+  return identityMap.get(employeeRefId) || null;
+}
+
+function getEmployeeIdentityFromEmployee(
+  employee: EmployeeRefRow | null | undefined,
+  identityMap: Map<string, FinanceEmployeeIdentity>
+) {
+  if (!employee) return null;
+  return (
+    identityMap.get(employee.id) ||
+    (employee.user_id ? identityMap.get(employee.user_id) : null) ||
+    null
+  );
+}
+
+function getEmployeeReferenceFallback(employee: EmployeeRefRow | null | undefined) {
+  return employee?.code?.trim() || "";
+}
+
+function getExpenseMadeByFallback(expense: ExpenseRow) {
+  if (expense.expense_made_by_type === "owner_management") {
+    return expense.responsible_person_name || "Owner / Management";
+  }
+
+  if (expense.expense_made_by_type === "company_direct") return "Company Direct";
+
+  if (expense.expense_made_by_type === "other") {
+    return expense.other_made_by_explanation || "Other";
+  }
+
+  return "Unresolved employee";
+}
+
+function getExpensePrimaryLabel(expense: ExpenseRow) {
+  return (
+    expense.title?.trim() ||
+    expense.expense_source_name?.trim() ||
+    formatLabel(expense.expense_type) ||
+    "Expense"
+  );
+}
+
+function getExpenseSecondaryLabel(expense: ExpenseRow) {
+  return [
+    expense.expense_number,
+    expense.expense_source_name,
+    formatDate(expense.expense_date),
+  ]
+    .filter((item) => item && item !== "—")
+    .join(" • ");
+}
+
+function getAllocationSortValue(
+  allocation: EnrichedAllocation,
+  sortKey: AllocationSortKey
+) {
+  switch (sortKey) {
+    case "expense":
+      return `${allocation.expensePrimaryLabel} ${allocation.expenseSecondaryLabel}`;
+    case "payment":
+      return allocation.payment?.reference_number || allocation.payment_made_id;
+    case "recipient":
+      return `${allocation.recipientPrimaryLabel} ${allocation.recipientSecondaryLabel}`;
+    case "amount":
+      return toNumber(allocation.allocated_amount);
+    case "recipient_status":
+      return allocation.recipient_confirmation_status || "";
+    case "lifecycle":
+      return allocation.lifecycle_status || "active";
+    case "updated_at":
+    default:
+      return allocation.updated_at || allocation.created_at || "";
+  }
+}
+
 export default function FinanceExpensesPaymentsMadePage() {
   const navigate = useNavigate();
 
@@ -650,7 +573,9 @@ export default function FinanceExpensesPaymentsMadePage() {
   const [expenses, setExpenses] = useState<ExpenseRow[]>([]);
   const [companies, setCompanies] = useState<CompanyRow[]>([]);
   const [employees, setEmployees] = useState<EmployeeRefRow[]>([]);
-  const [profiles, setProfiles] = useState<ProfileRow[]>([]);
+  const [employeeIdentities, setEmployeeIdentities] = useState<
+    FinanceEmployeeIdentity[]
+  >([]);
   const [bankAccounts, setBankAccounts] = useState<BankAccountRow[]>([]);
   const [fundingBatches, setFundingBatches] = useState<FundingBatchRow[]>([]);
   const [fundingBatchLines, setFundingBatchLines] = useState<FundingBatchLineRow[]>([]);
@@ -660,6 +585,17 @@ export default function FinanceExpensesPaymentsMadePage() {
   const [archiveScope, setArchiveScope] = useState<ArchiveScope>("workflow");
   const [archiveTab, setArchiveTab] = useState<ArchiveTab>("archived");
   const [archiveModalOpen, setArchiveModalOpen] = useState(false);
+  const [allocationSortKey, setAllocationSortKey] =
+    useState<AllocationSortKey>("updated_at");
+  const [allocationSortDirection, setAllocationSortDirection] =
+    useState<SortDirection>("desc");
+  const [allocationArchiveOpen, setAllocationArchiveOpen] = useState(false);
+  const [allocationArchiveTab, setAllocationArchiveTab] =
+    useState<ArchiveTab>("archived");
+  const [runningAllocationAction, setRunningAllocationAction] =
+    useState<AllocationAction | null>(null);
+  const [runningAllocationActionId, setRunningAllocationActionId] =
+    useState<string | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [isRefreshing, setIsRefreshing] = useState(false);
   const [hasLoadedOnce, setHasLoadedOnce] = useState(false);
@@ -675,9 +611,19 @@ export default function FinanceExpensesPaymentsMadePage() {
     return new Map(employees.map((employee) => [employee.id, employee]));
   }, [employees]);
 
-  const profileMap = useMemo(() => {
-    return new Map(profiles.map((profile) => [profile.user_id, profile]));
-  }, [profiles]);
+  const employeeIdentityMap = useMemo(() => {
+    const entries: Array<[string, FinanceEmployeeIdentity]> = [];
+
+    employeeIdentities.forEach((identity) => {
+      const employeeRefId = identity.employee_ref_id || identity.id;
+      const userId = identity.user_id;
+
+      if (employeeRefId) entries.push([employeeRefId, identity]);
+      if (userId) entries.push([userId, identity]);
+    });
+
+    return new Map(entries);
+  }, [employeeIdentities]);
 
   const bankAccountMap = useMemo(() => {
     return new Map(bankAccounts.map((bank) => [bank.id, bank]));
@@ -691,11 +637,15 @@ export default function FinanceExpensesPaymentsMadePage() {
     );
   }, [payments]);
 
+  const activeExpenseAllocations = useMemo(() => {
+    return expenseAllocations.filter(isActiveAllocation);
+  }, [expenseAllocations]);
+
   const confirmedExpenseAllocations = useMemo(() => {
-    return expenseAllocations.filter((allocation) =>
+    return activeExpenseAllocations.filter((allocation) =>
       confirmedPaymentIdSet.has(allocation.payment_made_id)
     );
-  }, [confirmedPaymentIdSet, expenseAllocations]);
+  }, [activeExpenseAllocations, confirmedPaymentIdSet]);
 
   const enrichedExpenses = useMemo<EnrichedExpense[]>(() => {
     return expenses.map((expense) => {
@@ -705,8 +655,8 @@ export default function FinanceExpensesPaymentsMadePage() {
         .filter((allocation) => allocation.expense_id === expense.id)
         .reduce((sum, allocation) => sum + toNumber(allocation.allocated_amount), 0);
 
-      const roundedAllocationTotal = Math.round((allocationTotal + Number.EPSILON) * 100) / 100;
-      const remainingAmount = Math.round((targetAmount - roundedAllocationTotal + Number.EPSILON) * 100) / 100;
+      const roundedAllocationTotal = roundMoney(allocationTotal);
+      const remainingAmount = roundMoney(targetAmount - roundedAllocationTotal);
 
       const calculatedCoverageStatus =
         roundedAllocationTotal <= 0
@@ -720,12 +670,35 @@ export default function FinanceExpensesPaymentsMadePage() {
         coverage_status: calculatedCoverageStatus,
       });
 
+      const employee = expense.employee_ref_id
+        ? employeeMap.get(expense.employee_ref_id) || null
+        : null;
+      const identity =
+        getEmployeeIdentityByRef(expense.employee_ref_id, employeeIdentityMap) ||
+        getEmployeeIdentityFromEmployee(employee, employeeIdentityMap);
+      const referenceFallback = getEmployeeReferenceFallback(employee);
+      const employeeReference = identity
+        ? getFinanceEmployeeReferenceLabel(identity)
+        : referenceFallback;
+      const employeeSecondary = identity
+        ? getFinanceEmployeeSecondaryLabel(identity)
+        : referenceFallback
+          ? `Ref: ${referenceFallback}`
+          : "No role/company saved";
+      const employeePrimary = identity
+        ? getFinanceEmployeePrimaryName(identity)
+        : getExpenseMadeByFallback(expense);
+
       return {
         ...expense,
         companyName: expense.company_id
           ? companyMap.get(expense.company_id)?.name || "Unknown company"
           : "No company",
-        madeByLabel: getExpenseMadeByLabel(expense, employeeMap, profileMap),
+        madeByIdentity: identity,
+        madeByPrimary: employeePrimary,
+        madeBySecondary: employeeSecondary,
+        madeByReference: employeeReference,
+        madeByFallback: getExpenseMadeByFallback(expense),
         targetAmount,
         allocatedAmount: roundedAllocationTotal,
         calculatedCoverageStatus,
@@ -733,7 +706,11 @@ export default function FinanceExpensesPaymentsMadePage() {
         nextStepTone: nextStep.tone,
       };
     });
-  }, [companyMap, confirmedExpenseAllocations, employeeMap, expenses, profileMap]);
+  }, [companyMap, confirmedExpenseAllocations, employeeIdentityMap, employeeMap, expenses]);
+
+  const expenseMap = useMemo(() => {
+    return new Map(enrichedExpenses.map((expense) => [expense.id, expense]));
+  }, [enrichedExpenses]);
 
   const enrichedFundingBatches = useMemo<EnrichedFundingBatch[]>(() => {
     return fundingBatches.map((batch) => ({
@@ -749,10 +726,18 @@ export default function FinanceExpensesPaymentsMadePage() {
     }));
   }, [bankAccountMap, companyMap, fundingBatchLines, fundingBatches]);
 
+  const fundingBatchMap = useMemo(() => {
+    return new Map(enrichedFundingBatches.map((batch) => [batch.id, batch]));
+  }, [enrichedFundingBatches]);
+
   const enrichedPayments = useMemo<EnrichedPaymentMade[]>(() => {
     return payments.map((payment) => {
-      const linkedAllocations = expenseAllocations.filter(
+      const linkedAllocations = activeExpenseAllocations.filter(
         (allocation) => allocation.payment_made_id === payment.id
+      );
+      const recipientIdentity = getEmployeeIdentityByRef(
+        payment.recipient_employee_ref_id,
+        employeeIdentityMap
       );
 
       return {
@@ -769,9 +754,101 @@ export default function FinanceExpensesPaymentsMadePage() {
           (sum, allocation) => sum + toNumber(allocation.allocated_amount),
           0
         ),
+        recipientIdentity,
       };
     });
-  }, [bankAccountMap, companyMap, expenseAllocations, payments]);
+  }, [activeExpenseAllocations, bankAccountMap, companyMap, employeeIdentityMap, payments]);
+
+  const paymentMap = useMemo(() => {
+    return new Map(enrichedPayments.map((payment) => [payment.id, payment]));
+  }, [enrichedPayments]);
+
+  const enrichedAllocations = useMemo<EnrichedAllocation[]>(() => {
+    return expenseAllocations.map((allocation) => {
+      const expense = expenseMap.get(allocation.expense_id) || null;
+      const payment = paymentMap.get(allocation.payment_made_id) || null;
+      const fundingBatch = allocation.funding_batch_id
+        ? fundingBatchMap.get(allocation.funding_batch_id) || null
+        : null;
+      const recipientIdentity = getEmployeeIdentityByRef(
+        allocation.recipient_employee_ref_id,
+        employeeIdentityMap
+      );
+      const recipientPrimaryLabel = recipientIdentity
+        ? getFinanceEmployeePrimaryName(recipientIdentity, allocation.recipient_person_name)
+        : allocation.recipient_person_name?.trim() || "Unresolved employee";
+      const recipientSecondaryLabel = recipientIdentity
+        ? [
+            getFinanceEmployeeSecondaryLabel(recipientIdentity),
+            getFinanceEmployeeReferenceLabel(recipientIdentity)
+              ? `Ref: ${getFinanceEmployeeReferenceLabel(recipientIdentity)}`
+              : "",
+          ]
+            .filter(Boolean)
+            .join(" • ")
+        : "No role/company saved";
+
+      return {
+        ...allocation,
+        expense,
+        payment,
+        fundingBatch,
+        recipientIdentity,
+        expensePrimaryLabel: expense ? getExpensePrimaryLabel(expense) : "Expense allocation",
+        expenseSecondaryLabel: expense
+          ? getExpenseSecondaryLabel(expense)
+          : "Linked expense record",
+        recipientPrimaryLabel,
+        recipientSecondaryLabel,
+      };
+    });
+  }, [employeeIdentityMap, expenseAllocations, expenseMap, fundingBatchMap, paymentMap]);
+
+  const activeAllocationRows = useMemo(() => {
+    return enrichedAllocations.filter(isActiveAllocation);
+  }, [enrichedAllocations]);
+
+  const archivedAllocationRows = useMemo(() => {
+    return enrichedAllocations.filter(isArchivedAllocation);
+  }, [enrichedAllocations]);
+
+  const deletedAllocationRows = useMemo(() => {
+    return enrichedAllocations.filter(isDeletedAllocation);
+  }, [enrichedAllocations]);
+
+  const archiveAllocationRows = useMemo(() => {
+    return allocationArchiveTab === "archived"
+      ? archivedAllocationRows
+      : deletedAllocationRows;
+  }, [allocationArchiveTab, archivedAllocationRows, deletedAllocationRows]);
+
+  const sortedActiveAllocationRows = useMemo(() => {
+    return [...activeAllocationRows].sort((a, b) => {
+      const valueA = getAllocationSortValue(a, allocationSortKey);
+      const valueB = getAllocationSortValue(b, allocationSortKey);
+
+      if (typeof valueA === "number" && typeof valueB === "number") {
+        return allocationSortDirection === "asc" ? valueA - valueB : valueB - valueA;
+      }
+
+      return allocationSortDirection === "asc"
+        ? String(valueA).localeCompare(String(valueB))
+        : String(valueB).localeCompare(String(valueA));
+    });
+  }, [activeAllocationRows, allocationSortDirection, allocationSortKey]);
+
+  const handleAllocationSort = useCallback(
+    (nextSortKey: AllocationSortKey) => {
+      if (nextSortKey === allocationSortKey) {
+        setAllocationSortDirection((current) => (current === "asc" ? "desc" : "asc"));
+        return;
+      }
+
+      setAllocationSortKey(nextSortKey);
+      setAllocationSortDirection(nextSortKey === "updated_at" ? "desc" : "asc");
+    },
+    [allocationSortKey]
+  );
 
   const enrichedExecutionRecords = useMemo<ExecutionRecord[]>(() => {
     return [...enrichedFundingBatches, ...enrichedPayments].sort((a, b) =>
@@ -790,7 +867,9 @@ export default function FinanceExpensesPaymentsMadePage() {
         expense.title,
         expense.description,
         expense.companyName,
-        expense.madeByLabel,
+        expense.madeByPrimary,
+        expense.madeBySecondary,
+        expense.madeByReference,
         expense.expense_type,
         expense.expense_source_name,
         expense.request_status,
@@ -949,13 +1028,19 @@ export default function FinanceExpensesPaymentsMadePage() {
       workflowDeleted: deletedExpenseRows.length,
       executionArchived: archivedExecutionRows.length,
       executionDeleted: deletedExecutionRows.length,
+      allocationActive: activeAllocationRows.length,
+      allocationArchived: archivedAllocationRows.length,
+      allocationDeleted: deletedAllocationRows.length,
     };
   }, [
+    activeAllocationRows.length,
     activeBatchRows.length,
     activeExpenseRows,
     activePaymentRows,
+    archivedAllocationRows.length,
     archivedExpenseRows.length,
     archivedExecutionRows.length,
+    deletedAllocationRows.length,
     deletedExpenseRows.length,
     deletedExecutionRows.length,
     documentationRows.length,
@@ -973,14 +1058,16 @@ export default function FinanceExpensesPaymentsMadePage() {
         setIsRefreshing(true);
       }
 
-      setPageError(null);
+      if (mode === "initial") {
+        setPageError(null);
+      }
 
       try {
         const [
           expensesResult,
           companiesResult,
           employeesResult,
-          profilesResult,
+          employeeIdentitiesResult,
           bankAccountsResult,
           fundingBatchesResult,
           fundingBatchLinesResult,
@@ -1037,10 +1124,7 @@ export default function FinanceExpensesPaymentsMadePage() {
             .select("id, user_id, code, status, mark, metadata")
             .order("code"),
 
-          supabase
-            .from("profiles")
-            .select("user_id, full_name, display_name, email, company, job_title, member_type")
-            .order("full_name"),
+          supabase.from("finance_employee_identity_v").select("*"),
 
           supabase
             .from("finance_bank_accounts")
@@ -1108,9 +1192,13 @@ export default function FinanceExpensesPaymentsMadePage() {
                 "recipient_person_name",
                 "allocated_amount",
                 "currency_code",
+                "payment_currency_code",
                 "converted_amount",
                 "recipient_confirmation_status",
+                "lifecycle_status",
+                "metadata",
                 "created_at",
+                "updated_at",
               ].join(", ")
             )
             .limit(1000),
@@ -1119,7 +1207,7 @@ export default function FinanceExpensesPaymentsMadePage() {
         if (expensesResult.error) throw expensesResult.error;
         if (companiesResult.error) throw companiesResult.error;
         if (employeesResult.error) throw employeesResult.error;
-        if (profilesResult.error) throw profilesResult.error;
+        if (employeeIdentitiesResult.error) throw employeeIdentitiesResult.error;
         if (bankAccountsResult.error) throw bankAccountsResult.error;
         if (fundingBatchesResult.error) throw fundingBatchesResult.error;
         if (fundingBatchLinesResult.error) throw fundingBatchLinesResult.error;
@@ -1129,7 +1217,9 @@ export default function FinanceExpensesPaymentsMadePage() {
         setExpenses((expensesResult.data || []) as unknown as ExpenseRow[]);
         setCompanies((companiesResult.data || []) as CompanyRow[]);
         setEmployees((employeesResult.data || []) as EmployeeRefRow[]);
-        setProfiles((profilesResult.data || []) as ProfileRow[]);
+        setEmployeeIdentities(
+          (employeeIdentitiesResult.data || []) as FinanceEmployeeIdentity[]
+        );
         setBankAccounts((bankAccountsResult.data || []) as BankAccountRow[]);
         setFundingBatches((fundingBatchesResult.data || []) as FundingBatchRow[]);
         setFundingBatchLines((fundingBatchLinesResult.data || []) as FundingBatchLineRow[]);
@@ -1205,16 +1295,12 @@ export default function FinanceExpensesPaymentsMadePage() {
 
     return () => {
       window.clearInterval(intervalId);
-      supabase.removeChannel(channel);
+      void supabase.removeChannel(channel);
     };
   }, [loadWorkbench]);
 
   const runRpcAction = useCallback(
-    async (
-      rpcName: string,
-      args: Record<string, string>,
-      successMessage: string
-    ) => {
+    async (rpcName: string, args: Record<string, string>, successMessage: string) => {
       setIsRunningAction(true);
       setPageError(null);
       setPageMessage(null);
@@ -1236,10 +1322,7 @@ export default function FinanceExpensesPaymentsMadePage() {
   );
 
   const runWorkflowAction = useCallback(
-    async (
-      action: "archive" | "delete" | "restore" | "hard_delete",
-      expenseId: string
-    ) => {
+    async (action: "archive" | "delete" | "restore" | "hard_delete", expenseId: string) => {
       const rpcMap = {
         archive: "finance_archive_expense",
         delete: "finance_delete_expense",
@@ -1254,11 +1337,7 @@ export default function FinanceExpensesPaymentsMadePage() {
         hard_delete: "Expense permanently deleted.",
       };
 
-      await runRpcAction(
-        rpcMap[action],
-        { p_expense_id: expenseId },
-        messageMap[action]
-      );
+      await runRpcAction(rpcMap[action], { p_expense_id: expenseId }, messageMap[action]);
     },
     [runRpcAction]
   );
@@ -1296,9 +1375,7 @@ export default function FinanceExpensesPaymentsMadePage() {
         delete: isBatch
           ? "Funding allocation moved to Deleted Payment Execution records."
           : "Expense payment moved to Deleted Payment Execution records.",
-        restore: isBatch
-          ? "Funding allocation restored."
-          : "Expense payment restored.",
+        restore: isBatch ? "Funding allocation restored." : "Expense payment restored.",
         hard_delete: isBatch
           ? "Funding allocation permanently deleted."
           : "Expense payment permanently deleted.",
@@ -1309,22 +1386,62 @@ export default function FinanceExpensesPaymentsMadePage() {
     [runRpcAction]
   );
 
+  const runAllocationLifecycleAction = useCallback(
+    async (
+      action: AllocationAction,
+      allocationId: string,
+      rpcName: string,
+      successMessage: string
+    ) => {
+      setRunningAllocationAction(action);
+      setRunningAllocationActionId(allocationId);
+      setPageError(null);
+      setPageMessage(null);
+
+      try {
+        const result = await supabase.rpc(rpcName, {
+          p_allocation_id: allocationId,
+        });
+
+        if (result.error) throw result.error;
+
+        setPageMessage(successMessage);
+        await loadWorkbench("silent");
+      } catch (error) {
+        console.error(`Failed to run ${rpcName}:`, error);
+        setPageError(error instanceof Error ? error.message : "Allocation action failed.");
+      } finally {
+        setRunningAllocationAction(null);
+        setRunningAllocationActionId(null);
+      }
+    },
+    [loadWorkbench]
+  );
+
   const openArchiveModal = useCallback((scope: ArchiveScope) => {
     setArchiveScope(scope);
     setArchiveTab("archived");
     setArchiveModalOpen(true);
   }, []);
 
+  const workflowArchiveRows =
+    archiveTab === "archived" ? archivedExpenseRows : deletedExpenseRows;
+  const executionArchiveRows =
+    archiveTab === "archived" ? archivedExecutionRows : deletedExecutionRows;
+  const allocationArchiveRows =
+    allocationArchiveTab === "archived" ? archivedAllocationRows : deletedAllocationRows;
+
   const renderExpenseRows = useCallback(
     (rows: EnrichedExpense[], mode: "active" | "archive") => {
       if (rows.length === 0) {
         return (
           <tr>
-            <td colSpan={10} className="px-5 py-12 text-center">
-              <div className="text-sm font-medium text-white">No expense records found</div>
-              <div className="mt-2 text-sm text-slate-500">
-                Matching expense workflow records will appear here.
-              </div>
+            <td colSpan={10}>
+              <AixiaEmptyState
+                icon={Receipt}
+                title="No expense records found"
+                description="Matching expense workflow records will appear here."
+              />
             </td>
           </tr>
         );
@@ -1332,129 +1449,135 @@ export default function FinanceExpensesPaymentsMadePage() {
 
       return rows.map((expense) => {
         const reviewRoute = `/finance/transactions/expenses-payments-made/review/${expense.id}`;
+        const rowActionDisabled = isRunningAction;
 
         return (
-          <tr
-            key={expense.id}
-            className="border-b border-white/5 text-sm text-slate-300 transition hover:bg-white/[0.035]"
-          >
-            <td className="min-w-[260px] px-5 py-4">
-              <button
+          <tr key={expense.id} className="aixia-table-row">
+            <AixiaTableTextCell
+              width="xl"
+              primary={expense.expense_number || "Expense"}
+              secondary={`${expense.title} • ${formatDate(expense.expense_date)} • ${expense.companyName}`}
+            />
+
+            {expense.expense_made_by_type === "employee" ? (
+              <AixiaEmployeeIdentityCell
+                width="lg"
+                identity={expense.madeByIdentity}
+                primary={expense.madeByPrimary}
+                secondary={expense.madeBySecondary}
+                reference={expense.madeByReference}
+              />
+            ) : (
+              <AixiaTableTextCell
+                width="lg"
+                primary={expense.madeByFallback}
+                secondary={formatLabel(expense.expense_made_by_type)}
+              />
+            )}
+
+            <AixiaTableTextCell
+              width="md"
+              primary={formatLabel(expense.expense_type)}
+              secondary={expense.expense_source_name || "—"}
+            />
+
+            <AixiaTableTextCell
+              width="md"
+              primary={`${expense.currency_code || "USD"} ${formatMoney(expense.targetAmount)}`}
+              secondary={`Covered ${expense.currency_code || "USD"} ${formatMoney(
+                expense.allocatedAmount
+              )}`}
+            />
+
+            <AixiaTableBadgeCell width="sm">
+              <AixiaStatusBadge value={expense.documentation_status} />
+            </AixiaTableBadgeCell>
+
+            <AixiaTableBadgeCell width="sm">
+              <AixiaStatusBadge value={expense.finance_review_status} />
+            </AixiaTableBadgeCell>
+
+            <AixiaTableBadgeCell width="sm">
+              <AixiaStatusBadge value={expense.calculatedCoverageStatus} />
+            </AixiaTableBadgeCell>
+
+            <AixiaTableBadgeCell width="sm">
+              <AixiaStatusBadge value={expense.recipient_confirmation_status} />
+            </AixiaTableBadgeCell>
+
+            <AixiaTableTextCell
+              width="xl"
+              primary={expense.nextStepLabel}
+              secondary={formatLabel(expense.request_status || expense.status)}
+            />
+
+            <AixiaTableActionsCell>
+              <AixiaButton
                 type="button"
+                variant="primary"
+                disabled={rowActionDisabled}
                 onClick={() => navigate(reviewRoute)}
-                className="text-left font-semibold text-cyan-200 transition hover:text-cyan-100"
               >
-                {expense.expense_number || "Expense"}
-              </button>
-              <div className="mt-1 line-clamp-1 text-xs text-white">{expense.title}</div>
-              <div className="mt-1 text-xs text-slate-500">
-                {formatDate(expense.expense_date)} • {expense.companyName}
-              </div>
-            </td>
+                <Eye className="h-3.5 w-3.5" />
+                Open
+              </AixiaButton>
 
-            <td className="min-w-[220px] px-5 py-4">
-              <div className="line-clamp-1 font-medium text-slate-200">
-                {expense.madeByLabel}
-              </div>
-              <div className="mt-1 text-xs text-slate-500">
-                {formatLabel(expense.expense_made_by_type)}
-              </div>
-            </td>
+              {mode === "active" ? (
+                <>
+                  <AixiaButton
+                    type="button"
+                    variant="danger"
+                    disabled={rowActionDisabled}
+                    onClick={() => void runWorkflowAction("archive", expense.id)}
+                  >
+                    <Archive className="h-3.5 w-3.5" />
+                    Archive
+                  </AixiaButton>
 
-            <td className="min-w-[180px] px-5 py-4">
-              <div className="font-medium text-slate-200">
-                {formatLabel(expense.expense_type)}
-              </div>
-              <div className="mt-1 line-clamp-1 text-xs text-slate-500">
-                {expense.expense_source_name || "—"}
-              </div>
-            </td>
-
-            <td className="whitespace-nowrap px-5 py-4 text-right font-semibold text-white">
-              {expense.currency_code || "USD"} {formatMoney(expense.targetAmount)}
-              <div className="mt-1 text-xs text-slate-500">
-                Covered {expense.currency_code || "USD"} {formatMoney(expense.allocatedAmount)}
-              </div>
-            </td>
-
-            <td className="whitespace-nowrap px-5 py-4">
-              <StatusBadge value={expense.documentation_status} />
-            </td>
-
-            <td className="whitespace-nowrap px-5 py-4">
-              <StatusBadge value={expense.finance_review_status} />
-            </td>
-
-            <td className="whitespace-nowrap px-5 py-4">
-              <StatusBadge value={expense.calculatedCoverageStatus} />
-            </td>
-
-            <td className="whitespace-nowrap px-5 py-4">
-              <StatusBadge value={expense.recipient_confirmation_status} />
-            </td>
-
-            <td className="min-w-[300px] px-5 py-4">
-              <SoftBadge value={expense.nextStepLabel} tone={expense.nextStepTone} />
-              <div className="mt-2 text-xs text-slate-500">
-                {formatLabel(expense.request_status || expense.status)}
-              </div>
-            </td>
-
-            <td className="sticky right-0 bg-[#05070d]/95 px-4 py-4 shadow-[-18px_0_24px_rgba(0,0,0,0.35)] backdrop-blur-xl">
-              <div className="flex items-center justify-end gap-2">
-                <IconButton
-                  label="Open Finance review"
-                  icon={Eye}
-                  tone="cyan"
-                  disabled={isRunningAction}
-                  onClick={() => navigate(reviewRoute)}
-                />
-
-                {mode === "active" ? (
-                  <>
-                    <IconButton
-                      label="Archive expense"
-                      icon={Archive}
-                      tone="amber"
-                      disabled={isRunningAction}
-                      onClick={() => void runWorkflowAction("archive", expense.id)}
-                    />
-                    <IconButton
-                      label="Delete expense"
-                      icon={Trash2}
-                      tone="rose"
-                      disabled={isRunningAction}
-                      onClick={() => void runWorkflowAction("delete", expense.id)}
-                    />
-                  </>
-                ) : archiveTab === "archived" ? (
-                  <IconButton
-                    label="Restore expense"
-                    icon={RotateCcw}
-                    tone="emerald"
-                    disabled={isRunningAction}
+                  <AixiaButton
+                    type="button"
+                    variant="danger"
+                    disabled={rowActionDisabled}
+                    onClick={() => void runWorkflowAction("delete", expense.id)}
+                  >
+                    <Trash2 className="h-3.5 w-3.5" />
+                    Delete
+                  </AixiaButton>
+                </>
+              ) : archiveTab === "archived" ? (
+                <AixiaButton
+                  type="button"
+                  variant="secondary"
+                  disabled={rowActionDisabled}
+                  onClick={() => void runWorkflowAction("restore", expense.id)}
+                >
+                  <RotateCcw className="h-3.5 w-3.5" />
+                  Restore
+                </AixiaButton>
+              ) : (
+                <>
+                  <AixiaButton
+                    type="button"
+                    variant="secondary"
+                    disabled={rowActionDisabled}
                     onClick={() => void runWorkflowAction("restore", expense.id)}
-                  />
-                ) : (
-                  <>
-                    <IconButton
-                      label="Restore expense"
-                      icon={RotateCcw}
-                      tone="emerald"
-                      disabled={isRunningAction}
-                      onClick={() => void runWorkflowAction("restore", expense.id)}
-                    />
-                    <IconButton
-                      label="Hard delete expense"
-                      icon={Trash2}
-                      tone="rose"
-                      disabled={isRunningAction}
-                      onClick={() => void runWorkflowAction("hard_delete", expense.id)}
-                    />
-                  </>
-                )}
-              </div>
-            </td>
+                  >
+                    <RotateCcw className="h-3.5 w-3.5" />
+                    Restore
+                  </AixiaButton>
+
+                  <AixiaButton
+                    type="button"
+                    variant="danger"
+                    disabled={rowActionDisabled}
+                    onClick={() => void runWorkflowAction("hard_delete", expense.id)}
+                  >
+                    <Trash2 className="h-3.5 w-3.5" />
+                    Delete Permanently
+                  </AixiaButton>
+                </>
+              )}
+            </AixiaTableActionsCell>
           </tr>
         );
       });
@@ -1465,48 +1588,24 @@ export default function FinanceExpensesPaymentsMadePage() {
   const renderExpenseTable = useCallback(
     (rows: EnrichedExpense[], mode: "active" | "archive" = "active") => {
       return (
-        <div className="overflow-x-auto rounded-[24px] border border-white/10 bg-black/20">
-          <div className="max-h-[720px] overflow-y-auto">
-            <table className="w-full min-w-[1500px] border-collapse">
-              <thead className="sticky top-0 z-20 border-b border-white/10 bg-black/70 backdrop-blur-xl">
-                <tr>
-                  <th className="px-5 py-4 text-left text-[11px] font-semibold uppercase tracking-[0.18em] text-slate-500">
-                    Expense
-                  </th>
-                  <th className="px-5 py-4 text-left text-[11px] font-semibold uppercase tracking-[0.18em] text-slate-500">
-                    Made By
-                  </th>
-                  <th className="px-5 py-4 text-left text-[11px] font-semibold uppercase tracking-[0.18em] text-slate-500">
-                    Type
-                  </th>
-                  <th className="px-5 py-4 text-right text-[11px] font-semibold uppercase tracking-[0.18em] text-slate-500">
-                    Amount
-                  </th>
-                  <th className="px-5 py-4 text-left text-[11px] font-semibold uppercase tracking-[0.18em] text-slate-500">
-                    Docs
-                  </th>
-                  <th className="px-5 py-4 text-left text-[11px] font-semibold uppercase tracking-[0.18em] text-slate-500">
-                    Review
-                  </th>
-                  <th className="px-5 py-4 text-left text-[11px] font-semibold uppercase tracking-[0.18em] text-slate-500">
-                    Coverage
-                  </th>
-                  <th className="px-5 py-4 text-left text-[11px] font-semibold uppercase tracking-[0.18em] text-slate-500">
-                    Recipient
-                  </th>
-                  <th className="px-5 py-4 text-left text-[11px] font-semibold uppercase tracking-[0.18em] text-slate-500">
-                    Next Step
-                  </th>
-                  <th className="sticky right-0 bg-black/70 px-4 py-4 text-right text-[11px] font-semibold uppercase tracking-[0.18em] text-slate-500 shadow-[-18px_0_24px_rgba(0,0,0,0.35)] backdrop-blur-xl">
-                    Actions
-                  </th>
-                </tr>
-              </thead>
+        <AixiaTableShell variant={mode === "archive" ? "archive" : "registry"}>
+          <thead className="aixia-table-head">
+            <tr>
+              <th>Expense</th>
+              <th>Made By</th>
+              <th>Type</th>
+              <th>Amount</th>
+              <th>Docs</th>
+              <th>Review</th>
+              <th>Coverage</th>
+              <th>Recipient</th>
+              <th>Next Step</th>
+              <th>Actions</th>
+            </tr>
+          </thead>
 
-              <tbody>{renderExpenseRows(rows, mode)}</tbody>
-            </table>
-          </div>
-        </div>
+          <tbody>{renderExpenseRows(rows, mode)}</tbody>
+        </AixiaTableShell>
       );
     },
     [renderExpenseRows]
@@ -1517,13 +1616,12 @@ export default function FinanceExpensesPaymentsMadePage() {
       if (rows.length === 0) {
         return (
           <tr>
-            <td colSpan={8} className="px-5 py-12 text-center">
-              <div className="text-sm font-medium text-white">
-                No payment execution records found
-              </div>
-              <div className="mt-2 text-sm text-slate-500">
-                Funding allocations and expense payments will appear here.
-              </div>
+            <td colSpan={8}>
+              <AixiaEmptyState
+                icon={WalletCards}
+                title="No payment execution records found"
+                description="Funding allocations and expense payments will appear here."
+              />
             </td>
           </tr>
         );
@@ -1531,137 +1629,124 @@ export default function FinanceExpensesPaymentsMadePage() {
 
       return rows.map((record) => {
         const isBatch = record.recordType === "funding_batch";
-        const title = isBatch ? record.batch_number : record.reference_number || "Expense Payment";
+        const title = isBatch
+          ? record.batch_number
+          : record.reference_number || "Expense Payment";
         const route = isBatch
           ? `/finance/transactions/expenses-payments-made/funding-batches/${record.id}`
           : `/finance/transactions/expenses-payments-made/${record.id}`;
-        const amount = isBatch
-          ? record.allocated_amount
-          : record.converted_amount || record.amount;
-        const currency = isBatch
-          ? record.currency_code || "USD"
-          : record.payment_currency_code || "USD";
+        const amount = isBatch ? record.allocated_amount : record.converted_amount || record.amount;
+        const currency = isBatch ? record.currency_code || "USD" : record.payment_currency_code || "USD";
 
         return (
-          <tr
-            key={`${record.recordType}-${record.id}`}
-            className="border-b border-white/5 text-sm text-slate-300 transition hover:bg-white/[0.035]"
-          >
-            <td className="min-w-[230px] px-5 py-4">
-              <button
+          <tr key={`${record.recordType}-${record.id}`} className="aixia-table-row">
+            <AixiaTableTextCell
+              width="lg"
+              primary={title}
+              secondary={isBatch ? formatDate(record.allocation_date) : formatDate(record.payment_date)}
+            />
+
+            <AixiaTableBadgeCell width="sm">
+              <AixiaBadge tone={isBatch ? "violet" : "cyan"}>
+                {isBatch ? "Funding Pool" : "Expense Payment"}
+              </AixiaBadge>
+            </AixiaTableBadgeCell>
+
+            <AixiaTableTextCell
+              width="lg"
+              primary={record.companyName}
+              secondary={record.bankLabel}
+            />
+
+            <AixiaTableTextCell
+              width="md"
+              primary={`${currency} ${formatMoney(amount)}`}
+              secondary={isBatch ? "Reserved pool" : "Paid amount"}
+            />
+
+            <AixiaTableTextCell
+              width="sm"
+              primary={isBatch ? record.lineCount : record.linkedExpenseCount}
+              secondary={isBatch ? "Allocated expenses" : `Paid ${formatMoney(record.linkedExpenseAmount)}`}
+            />
+
+            <AixiaTableBadgeCell width="sm">
+              <AixiaStatusBadge value={record.status} />
+            </AixiaTableBadgeCell>
+
+            <AixiaTableBadgeCell width="sm">
+              <AixiaStatusBadge
+                value={isBatch ? record.documentation_status : record.recipient_confirmation_status}
+              />
+            </AixiaTableBadgeCell>
+
+            <AixiaTableActionsCell>
+              <AixiaButton
                 type="button"
+                variant="primary"
+                disabled={isRunningAction}
                 onClick={() => navigate(route)}
-                className="text-left font-semibold text-cyan-200 transition hover:text-cyan-100"
               >
-                {title}
-              </button>
-              <div className="mt-1 text-xs text-slate-500">
-                {isBatch ? formatDate(record.allocation_date) : formatDate(record.payment_date)}
-              </div>
-            </td>
+                <Eye className="h-3.5 w-3.5" />
+                Open
+              </AixiaButton>
 
-            <td className="px-5 py-4">
-              {isBatch ? (
-                <SoftBadge value="Funding Pool" tone="violet" />
-              ) : (
-                <SoftBadge value="Expense Payment" tone="cyan" />
-              )}
-            </td>
+              {mode === "active" ? (
+                <>
+                  <AixiaButton
+                    type="button"
+                    variant="danger"
+                    disabled={isRunningAction}
+                    onClick={() => void runExecutionAction("archive", record)}
+                  >
+                    <Archive className="h-3.5 w-3.5" />
+                    Archive
+                  </AixiaButton>
 
-            <td className="min-w-[220px] px-5 py-4">
-              <div className="font-medium text-slate-200">{record.companyName}</div>
-              <div className="mt-1 line-clamp-1 text-xs text-slate-500">
-                {record.bankLabel}
-              </div>
-            </td>
-
-            <td className="px-5 py-4 text-right font-semibold text-white">
-              {currency} {formatMoney(amount)}
-            </td>
-
-            <td className="px-5 py-4">
-              {isBatch ? (
-                <div>
-                  <div className="font-medium text-white">{record.lineCount}</div>
-                  <div className="mt-1 text-xs text-slate-500">Allocated expenses</div>
-                </div>
-              ) : (
-                <div>
-                  <div className="font-medium text-white">{record.linkedExpenseCount}</div>
-                  <div className="mt-1 text-xs text-slate-500">
-                    Paid {formatMoney(record.linkedExpenseAmount)}
-                  </div>
-                </div>
-              )}
-            </td>
-
-            <td className="px-5 py-4">
-              <StatusBadge value={record.status} />
-            </td>
-
-            <td className="px-5 py-4">
-              {isBatch ? (
-                <StatusBadge value={record.documentation_status} />
-              ) : (
-                <StatusBadge value={record.recipient_confirmation_status} />
-              )}
-            </td>
-
-            <td className="sticky right-0 bg-[#05070d]/95 px-4 py-4 shadow-[-18px_0_24px_rgba(0,0,0,0.35)] backdrop-blur-xl">
-              <div className="flex items-center justify-end gap-2">
-                <IconButton
-                  label="Open record"
-                  icon={Eye}
-                  tone="cyan"
+                  <AixiaButton
+                    type="button"
+                    variant="danger"
+                    disabled={isRunningAction}
+                    onClick={() => void runExecutionAction("delete", record)}
+                  >
+                    <Trash2 className="h-3.5 w-3.5" />
+                    Delete
+                  </AixiaButton>
+                </>
+              ) : archiveTab === "archived" ? (
+                <AixiaButton
+                  type="button"
+                  variant="secondary"
                   disabled={isRunningAction}
-                  onClick={() => navigate(route)}
-                />
-
-                {mode === "active" ? (
-                  <>
-                    <IconButton
-                      label="Archive record"
-                      icon={Archive}
-                      tone="amber"
-                      disabled={isRunningAction}
-                      onClick={() => void runExecutionAction("archive", record)}
-                    />
-                    <IconButton
-                      label="Delete record"
-                      icon={Trash2}
-                      tone="rose"
-                      disabled={isRunningAction}
-                      onClick={() => void runExecutionAction("delete", record)}
-                    />
-                  </>
-                ) : archiveTab === "archived" ? (
-                  <IconButton
-                    label="Restore record"
-                    icon={RotateCcw}
-                    tone="emerald"
+                  onClick={() => void runExecutionAction("restore", record)}
+                >
+                  <RotateCcw className="h-3.5 w-3.5" />
+                  Restore
+                </AixiaButton>
+              ) : (
+                <>
+                  <AixiaButton
+                    type="button"
+                    variant="secondary"
                     disabled={isRunningAction}
                     onClick={() => void runExecutionAction("restore", record)}
-                  />
-                ) : (
-                  <>
-                    <IconButton
-                      label="Restore record"
-                      icon={RotateCcw}
-                      tone="emerald"
-                      disabled={isRunningAction}
-                      onClick={() => void runExecutionAction("restore", record)}
-                    />
-                    <IconButton
-                      label="Hard delete record"
-                      icon={Trash2}
-                      tone="rose"
-                      disabled={isRunningAction}
-                      onClick={() => void runExecutionAction("hard_delete", record)}
-                    />
-                  </>
-                )}
-              </div>
-            </td>
+                  >
+                    <RotateCcw className="h-3.5 w-3.5" />
+                    Restore
+                  </AixiaButton>
+
+                  <AixiaButton
+                    type="button"
+                    variant="danger"
+                    disabled={isRunningAction}
+                    onClick={() => void runExecutionAction("hard_delete", record)}
+                  >
+                    <Trash2 className="h-3.5 w-3.5" />
+                    Delete Permanently
+                  </AixiaButton>
+                </>
+              )}
+            </AixiaTableActionsCell>
           </tr>
         );
       });
@@ -1672,469 +1757,558 @@ export default function FinanceExpensesPaymentsMadePage() {
   const renderExecutionTable = useCallback(
     (rows: ExecutionRecord[], mode: "active" | "archive" = "active") => {
       return (
-        <div className="overflow-x-auto rounded-[24px] border border-white/10 bg-black/20">
-          <div className="max-h-[720px] overflow-y-auto">
-            <table className="w-full min-w-[1240px] border-collapse">
-              <thead className="sticky top-0 z-20 border-b border-white/10 bg-black/70 backdrop-blur-xl">
-                <tr>
-                  <th className="px-5 py-4 text-left text-[11px] font-semibold uppercase tracking-[0.18em] text-slate-500">
-                    Record
-                  </th>
-                  <th className="px-5 py-4 text-left text-[11px] font-semibold uppercase tracking-[0.18em] text-slate-500">
-                    Type
-                  </th>
-                  <th className="px-5 py-4 text-left text-[11px] font-semibold uppercase tracking-[0.18em] text-slate-500">
-                    Company / Bank
-                  </th>
-                  <th className="px-5 py-4 text-right text-[11px] font-semibold uppercase tracking-[0.18em] text-slate-500">
-                    Amount
-                  </th>
-                  <th className="px-5 py-4 text-left text-[11px] font-semibold uppercase tracking-[0.18em] text-slate-500">
-                    Lines
-                  </th>
-                  <th className="px-5 py-4 text-left text-[11px] font-semibold uppercase tracking-[0.18em] text-slate-500">
-                    Status
-                  </th>
-                  <th className="px-5 py-4 text-left text-[11px] font-semibold uppercase tracking-[0.18em] text-slate-500">
-                    Docs / Recipient
-                  </th>
-                  <th className="sticky right-0 bg-black/70 px-4 py-4 text-right text-[11px] font-semibold uppercase tracking-[0.18em] text-slate-500 shadow-[-18px_0_24px_rgba(0,0,0,0.35)] backdrop-blur-xl">
-                    Actions
-                  </th>
-                </tr>
-              </thead>
+        <AixiaTableShell variant={mode === "archive" ? "archive" : "registry"}>
+          <thead className="aixia-table-head">
+            <tr>
+              <th>Record</th>
+              <th>Type</th>
+              <th>Company / Bank</th>
+              <th>Amount</th>
+              <th>Lines</th>
+              <th>Status</th>
+              <th>Docs / Recipient</th>
+              <th>Actions</th>
+            </tr>
+          </thead>
 
-              <tbody>{renderExecutionRows(rows, mode)}</tbody>
-            </table>
-          </div>
-        </div>
+          <tbody>{renderExecutionRows(rows, mode)}</tbody>
+        </AixiaTableShell>
       );
     },
     [renderExecutionRows]
   );
 
-  const workflowArchiveRows = archiveTab === "archived" ? archivedExpenseRows : deletedExpenseRows;
-  const executionArchiveRows =
-    archiveTab === "archived" ? archivedExecutionRows : deletedExecutionRows;
+  const renderAllocationRows = useCallback(
+    (rows: EnrichedAllocation[], mode: "active" | "archive") => {
+      if (rows.length === 0) {
+        return (
+          <tr>
+            <td colSpan={7}>
+              <AixiaEmptyState
+                icon={Receipt}
+                title="No allocation records found"
+                description="Linked expense allocation rows will appear here."
+              />
+            </td>
+          </tr>
+        );
+      }
+
+      return rows.map((allocation) => {
+        const isActionRunning = runningAllocationActionId === allocation.id;
+        const paymentRoute = allocation.payment
+          ? `/finance/transactions/expenses-payments-made/${allocation.payment.id}`
+          : "/finance/transactions/expenses-payments-made";
+        const expenseRoute = allocation.expense
+          ? `/finance/transactions/expenses/${allocation.expense.id}`
+          : "/finance/transactions/expenses";
+
+        return (
+          <tr key={allocation.id} className="aixia-table-row">
+            <AixiaTableTextCell
+              width="xl"
+              primary={allocation.expensePrimaryLabel}
+              secondary={allocation.expenseSecondaryLabel}
+            />
+
+            <AixiaTableTextCell
+              width="lg"
+              primary={allocation.payment?.reference_number || allocation.payment_made_id}
+              secondary={allocation.fundingBatch?.batch_number || "No funding pool"}
+            />
+
+            <AixiaEmployeeIdentityCell
+              width="lg"
+              identity={allocation.recipientIdentity}
+              primary={allocation.recipientPrimaryLabel}
+              secondary={allocation.recipientSecondaryLabel}
+            />
+
+            <AixiaTableTextCell
+              width="md"
+              primary={`${allocation.currency_code || "—"} ${formatMoney(allocation.allocated_amount)}`}
+              secondary={`${allocation.payment_currency_code || "—"} ${formatMoney(allocation.converted_amount)}`}
+            />
+
+            <AixiaTableBadgeCell width="sm">
+              <AixiaStatusBadge value={allocation.recipient_confirmation_status} />
+            </AixiaTableBadgeCell>
+
+            <AixiaTableDateCell width="sm">
+              {formatDate(allocation.updated_at || allocation.created_at)}
+            </AixiaTableDateCell>
+
+            <AixiaTableActionsCell>
+              <AixiaButton
+                type="button"
+                variant="primary"
+                onClick={() => navigate(paymentRoute)}
+              >
+                <Eye className="h-3.5 w-3.5" />
+                Payment
+              </AixiaButton>
+
+              <AixiaButton
+                type="button"
+                variant="secondary"
+                onClick={() => navigate(expenseRoute)}
+              >
+                <Receipt className="h-3.5 w-3.5" />
+                Expense
+              </AixiaButton>
+
+              {mode === "active" ? (
+                <>
+                  <AixiaButton
+                    type="button"
+                    variant="danger"
+                    disabled={Boolean(runningAllocationActionId)}
+                    onClick={() =>
+                      void runAllocationLifecycleAction(
+                        "archive",
+                        allocation.id,
+                        "finance_archive_payment_made_expense_allocation",
+                        "Allocation archived."
+                      )
+                    }
+                  >
+                    {isActionRunning && runningAllocationAction === "archive" ? (
+                      <RotateCcw className="h-3.5 w-3.5 animate-spin" />
+                    ) : (
+                      <Archive className="h-3.5 w-3.5" />
+                    )}
+                    Archive
+                  </AixiaButton>
+
+                  <AixiaButton
+                    type="button"
+                    variant="danger"
+                    disabled={Boolean(runningAllocationActionId)}
+                    onClick={() =>
+                      void runAllocationLifecycleAction(
+                        "delete",
+                        allocation.id,
+                        "finance_soft_delete_payment_made_expense_allocation",
+                        "Allocation moved to deleted."
+                      )
+                    }
+                  >
+                    <Trash2 className="h-3.5 w-3.5" />
+                    Delete
+                  </AixiaButton>
+                </>
+              ) : (
+                <>
+                  <AixiaButton
+                    type="button"
+                    variant="secondary"
+                    disabled={Boolean(runningAllocationActionId)}
+                    onClick={() =>
+                      void runAllocationLifecycleAction(
+                        "restore",
+                        allocation.id,
+                        "finance_restore_payment_made_expense_allocation",
+                        "Allocation restored."
+                      )
+                    }
+                  >
+                    <RotateCcw className="h-3.5 w-3.5" />
+                    Restore
+                  </AixiaButton>
+
+                  {allocationArchiveTab === "deleted" ? (
+                    <AixiaButton
+                      type="button"
+                      variant="danger"
+                      disabled={Boolean(runningAllocationActionId)}
+                      onClick={() =>
+                        void runAllocationLifecycleAction(
+                          "hard_delete",
+                          allocation.id,
+                          "finance_permanently_delete_payment_made_expense_allocation",
+                          "Allocation permanently deleted."
+                        )
+                      }
+                    >
+                      <Trash2 className="h-3.5 w-3.5" />
+                      Delete Permanently
+                    </AixiaButton>
+                  ) : null}
+                </>
+              )}
+            </AixiaTableActionsCell>
+          </tr>
+        );
+      });
+    },
+    [
+      allocationArchiveTab,
+      navigate,
+      runAllocationLifecycleAction,
+      runningAllocationAction,
+      runningAllocationActionId,
+    ]
+  );
+
+  if (isLoading) {
+    return (
+      <AixiaLoadingState
+        title="Loading expense payment control"
+        description="Expense workflow, employee identities, funding pools, payments, and child allocation lifecycle data are being loaded."
+      />
+    );
+  }
 
   return (
-    <div className="min-h-screen bg-[#05070d] px-4 py-4 text-white md:px-6 md:py-6">
-      <div className="mx-auto flex w-full max-w-[1600px] flex-col gap-6">
-        <header className="relative overflow-hidden rounded-[34px] border border-white/10 bg-white/[0.045] p-6 shadow-2xl shadow-black/30 backdrop-blur-xl">
-          <div className="pointer-events-none absolute inset-0 bg-[radial-gradient(circle_at_top_left,rgba(6,182,212,0.16),transparent_38%),radial-gradient(circle_at_top_right,rgba(139,92,246,0.12),transparent_34%)]" />
+    <AixiaPage>
+      <AixiaHero
+        parentLabel="Transactions"
+        parentPath="/finance/transactions"
+        badges={[
+          { label: "Main Workflow", tone: "cyan" },
+          { label: "Payment Execution", tone: "violet" },
+          { label: "Child Allocation Registry", tone: "emerald" },
+          {
+            label: isRefreshing ? "Silent Refresh" : "Realtime + 60s",
+            tone: isRefreshing ? "gold" : "neutral",
+          },
+        ]}
+        gradientTitle="Operating Expense Control"
+        title=""
+        subtitle="Expense workflow and payment execution"
+        description="Two separate functions in one control page: the uninterrupted expense workflow, and the monthly Finance payment execution tools. Funding allocation and expense payments do not interrupt the expense review process."
+        statusCards={[
+          {
+            label: "Ready to Pay",
+            value: metrics.readyForPayment.toLocaleString(),
+            description: "Verified expenses waiting for the monthly Finance payment cycle.",
+            icon: CheckCircle2,
+            tone: "emerald",
+          },
+          {
+            label: "Payment Records",
+            value: enrichedExecutionRecords.length.toLocaleString(),
+            description: "Funding allocations plus expense payment records.",
+            icon: WalletCards,
+            tone: "cyan",
+          },
+        ]}
+      />
 
-          <div className="relative">
-            <button
+      <AixiaMetricGrid>
+        <AixiaMetricCard
+          label="Spend Approval"
+          value={metrics.pendingRequests.toLocaleString()}
+          description="New expense requests waiting for Finance/Admin decision."
+          icon={Clock3}
+          tone="cyan"
+        />
+        <AixiaMetricCard
+          label="Document Review"
+          value={metrics.documentation.toLocaleString()}
+          description="Approved expenses waiting for proof or document review."
+          icon={FileText}
+          tone="gold"
+        />
+        <AixiaMetricCard
+          label="Funding Allocation"
+          value={metrics.openBatches.toLocaleString()}
+          description="Monthly money pools reserved by Finance."
+          icon={Archive}
+          tone="violet"
+        />
+        <AixiaMetricCard
+          label="Allocation Rows"
+          value={metrics.allocationActive.toLocaleString()}
+          description="Active backend child allocation rows."
+          icon={Receipt}
+          tone="emerald"
+        />
+      </AixiaMetricGrid>
+
+      {pageError ? <AixiaAlert tone="error">{pageError}</AixiaAlert> : null}
+      {pageMessage ? <AixiaAlert tone="success">{pageMessage}</AixiaAlert> : null}
+
+      <AixiaAccessRule
+        title="Locked access rule"
+        description="Expense workflow, payment execution, and child allocation lifecycle management must remain separate and backend protected."
+        icon={ShieldCheck}
+      >
+        Employee/person display uses finance_employee_identity_v and shared employee identity helpers.
+        Linked expense allocations load lifecycle_status from the backend and use protected lifecycle RPCs.
+      </AixiaAccessRule>
+
+      <AixiaSection
+        title={activeTabMeta.label}
+        description={activeTabMeta.description}
+        icon={WalletCards}
+      >
+        <AixiaRegistryToolbar
+          search={
+            <AixiaSearchField
+              width="wide"
+              value={searchQuery}
+              onChange={(event) => setSearchQuery(event.target.value)}
+              placeholder="Search workflow, payment execution, or allocations..."
+            />
+          }
+          secondaryActions={
+            <>
+              <AixiaButton
+                type="button"
+                variant="secondary"
+                onClick={() => openArchiveModal("workflow")}
+              >
+                <Archive className="h-4 w-4" />
+                Workflow Archive
+              </AixiaButton>
+              <AixiaButton
+                type="button"
+                variant="secondary"
+                onClick={() => openArchiveModal("execution")}
+              >
+                <WalletCards className="h-4 w-4" />
+                Execution Archive
+              </AixiaButton>
+            </>
+          }
+          primaryAction={
+            <AixiaButton
               type="button"
-              onClick={() => navigate("/finance/transactions")}
-              className="mb-5 inline-flex items-center justify-center gap-2 rounded-full border border-white/10 bg-white/[0.05] px-5 py-2 text-[11px] font-semibold uppercase tracking-[0.22em] text-slate-300 transition hover:border-white/20 hover:bg-white/[0.08] hover:text-white"
+              variant="primary"
+              onClick={() => navigate("/finance/transactions/expenses-payments-made/new")}
             >
-              <ArrowRight className="h-3.5 w-3.5 rotate-180" />
-              Transactions
-            </button>
+              <WalletCards className="h-4 w-4" />
+              Disburse Funds
+            </AixiaButton>
+          }
+          archiveAction={
+            <AixiaButton
+              type="button"
+              variant="danger"
+              onClick={() => setAllocationArchiveOpen(true)}
+            >
+              <FolderArchive className="h-4 w-4" />
+              Allocation Archive
+            </AixiaButton>
+          }
+        />
 
-            <div className="grid gap-6 xl:grid-cols-[minmax(0,1fr)_520px] xl:items-end">
-              <div>
-                <div className="inline-flex w-fit items-center gap-2 rounded-full border border-cyan-400/20 bg-cyan-500/10 px-3 py-1 text-[11px] font-semibold uppercase tracking-[0.22em] text-cyan-200">
-                  <Sparkles className="h-3.5 w-3.5" />
-                  Operating Expense Control
-                </div>
-
-                <h1 className="mt-4 text-3xl font-semibold tracking-[-0.035em] text-white md:text-5xl">
-                  Expense Workflow & Payment Execution
-                </h1>
-
-                <p className="mt-3 max-w-4xl text-sm leading-6 text-slate-400 md:text-base md:leading-7">
-                  Two separate functions in one control page: the uninterrupted expense workflow,
-                  and the monthly Finance payment execution tools. Funding allocation and expense
-                  payments do not interrupt the expense review process.
-                </p>
-
-                <div className="mt-5 flex flex-wrap gap-2">
-                  <div className="rounded-full border border-cyan-400/20 bg-cyan-500/10 px-3 py-1 text-[11px] font-semibold uppercase tracking-[0.16em] text-cyan-200">
-                    Main Workflow
-                  </div>
-                  <div className="rounded-full border border-violet-400/20 bg-violet-500/10 px-3 py-1 text-[11px] font-semibold uppercase tracking-[0.16em] text-violet-200">
-                    Payment Execution Tools
-                  </div>
-                  {isRefreshing ? (
-                    <div className="rounded-full border border-white/10 bg-white/[0.05] px-3 py-1 text-[11px] font-semibold uppercase tracking-[0.16em] text-slate-400">
-                      Silent Refresh
-                    </div>
-                  ) : null}
-                </div>
-              </div>
-
-              <div className="grid gap-3 sm:grid-cols-2">
-                <div className="min-h-[148px] rounded-[24px] border border-white/10 bg-black/20 p-4">
-                  <div className="flex items-start justify-between gap-3">
-                    <div>
-                      <div className="text-[11px] font-semibold uppercase tracking-[0.2em] text-slate-500">
-                        Ready to Pay
-                      </div>
-                      <div className="mt-2 text-3xl font-semibold text-emerald-100">
-                        {isLoading ? "—" : metrics.readyForPayment}
-                      </div>
-                    </div>
-                    <CheckCircle2 className="h-5 w-5 text-emerald-200" />
-                  </div>
-                  <div className="mt-3 text-xs leading-5 text-slate-500">
-                    Verified expenses waiting for the monthly Finance payment cycle.
-                  </div>
-                </div>
-
-                <div className="min-h-[148px] rounded-[24px] border border-white/10 bg-black/20 p-4">
-                  <div className="flex items-start justify-between gap-3">
-                    <div>
-                      <div className="text-[11px] font-semibold uppercase tracking-[0.2em] text-slate-500">
-                        Payment Records
-                      </div>
-                      <div className="mt-2 text-3xl font-semibold text-white">
-                        {isLoading ? "—" : enrichedExecutionRecords.length}
-                      </div>
-                    </div>
-                    <WalletCards className="h-5 w-5 text-cyan-200" />
-                  </div>
-                  <div className="mt-3 text-xs leading-5 text-slate-500">
-                    Funding allocations plus expense payment records.
-                  </div>
-                </div>
-              </div>
-            </div>
-          </div>
-        </header>
-
-        <section className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
-          <SummaryCard
-            title="Spend Approval"
-            value={isLoading ? "—" : metrics.pendingRequests}
-            detail="New expense requests waiting for Finance/Admin decision."
-            icon={Clock3}
-          />
-          <SummaryCard
-            title="Document Review"
-            value={isLoading ? "—" : metrics.documentation}
-            detail="Approved expenses waiting for proof or document review."
-            icon={FileText}
-          />
-          <SummaryCard
-            title="Funding Allocation"
-            value={isLoading ? "—" : metrics.openBatches}
-            detail="Monthly money pools reserved by Finance. Separate from expense review."
-            icon={Archive}
-          />
-          <SummaryCard
-            title="Recipient Pending"
-            value={isLoading ? "—" : metrics.recipientPending}
-            detail="People waiting to confirm received payment."
-            icon={ShieldCheck}
-          />
-        </section>
-
-        {pageError ? (
-          <div className="rounded-[24px] border border-rose-400/20 bg-rose-500/10 p-4 text-sm leading-6 text-rose-100">
-            {pageError}
-          </div>
-        ) : null}
-
-        {pageMessage ? (
-          <div className="rounded-[24px] border border-emerald-400/20 bg-emerald-500/10 p-4 text-sm leading-6 text-emerald-100">
-            {pageMessage}
-          </div>
-        ) : null}
-
-        <section className="overflow-hidden rounded-[30px] border border-white/10 bg-white/[0.045] backdrop-blur-xl">
-          <div className="flex flex-col gap-4 border-b border-white/10 px-5 py-4 xl:flex-row xl:items-center xl:justify-between">
-            <div>
-              <div className="text-sm font-semibold uppercase tracking-[0.18em] text-slate-400">
-                {activeTabMeta.label}
-              </div>
-              <p className="mt-1 text-xs leading-5 text-slate-500">
-                {activeTabMeta.description}
-              </p>
-            </div>
-
-            <div className="flex flex-col gap-3 xl:items-end">
-              <div className="flex flex-col gap-3 sm:flex-row sm:items-center">
-                <div className="relative">
-                  <Search className="pointer-events-none absolute left-4 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-500" />
-                  <input
-                    value={searchQuery}
-                    onChange={(event) => setSearchQuery(event.target.value)}
-                    placeholder="Search workflow or payment execution..."
-                    className="h-11 w-full rounded-2xl border border-white/10 bg-black/20 pl-11 pr-4 text-sm text-white outline-none transition placeholder:text-slate-600 focus:border-cyan-400/30 focus:bg-black/30 sm:w-[360px]"
-                  />
-                </div>
-
-                <button
-                  type="button"
-                  onClick={() => openArchiveModal("workflow")}
-                  className="inline-flex h-11 items-center justify-center gap-2 rounded-2xl border border-white/10 bg-white/[0.05] px-4 text-sm font-semibold text-slate-300 transition hover:border-white/20 hover:bg-white/[0.08] hover:text-white"
-                >
-                  <Archive className="h-4 w-4" />
-                  Workflow Archive
-                </button>
-
-                <button
-                  type="button"
-                  onClick={() => openArchiveModal("execution")}
-                  className="inline-flex h-11 items-center justify-center gap-2 rounded-2xl border border-violet-400/20 bg-violet-500/10 px-4 text-sm font-semibold text-violet-100 transition hover:bg-violet-500/15"
-                >
-                  <WalletCards className="h-4 w-4" />
-                  Execution Archive
-                </button>
-              </div>
-
-              <div className="flex flex-col gap-3 sm:flex-row sm:items-center">
-                <button
-                  type="button"
-                  onClick={() =>
-                    navigate("/finance/transactions/expenses-payments-made/funding-batches/new")
-                  }
-                  className="inline-flex h-11 items-center justify-center gap-2 rounded-2xl border border-violet-400/20 bg-violet-500/10 px-4 text-sm font-semibold text-violet-100 transition hover:bg-violet-500/15"
-                >
-                  <Archive className="h-4 w-4" />
-                  Allocate New Funds
-                </button>
-
-                <button
-                  type="button"
-                  onClick={() => navigate("/finance/transactions/expenses-payments-made/new")}
-                  className="inline-flex h-11 items-center justify-center gap-2 rounded-2xl border border-emerald-400/20 bg-emerald-500/10 px-4 text-sm font-semibold text-emerald-100 transition hover:bg-emerald-500/15"
-                >
-                  <WalletCards className="h-4 w-4" />
-                  Disburse Funds Across Expenses
-                </button>
-              </div>
-            </div>
-          </div>
-
-          <div className="border-b border-white/10 px-5 py-4">
-            <div className="mb-3 text-[11px] font-semibold uppercase tracking-[0.2em] text-slate-500">
-              Main Expense Workflow
-            </div>
-            <div className="flex gap-2 overflow-x-auto [scrollbar-width:thin]">
-              {mainWorkflowTabs.map((tab) => (
-                <button
-                  key={tab.key}
-                  type="button"
-                  onClick={() => setActiveTab(tab.key)}
-                  className={`shrink-0 rounded-full border px-4 py-2 text-xs font-semibold uppercase tracking-[0.16em] transition ${
-                    activeTab === tab.key
-                      ? "border-cyan-400/20 bg-cyan-500/10 text-cyan-200"
-                      : "border-white/10 bg-white/[0.04] text-slate-400 hover:bg-white/[0.07] hover:text-white"
-                  }`}
-                >
-                  {tab.label}
-                </button>
-              ))}
-            </div>
-
-            <div className="mt-5 mb-3 text-[11px] font-semibold uppercase tracking-[0.2em] text-slate-500">
-              Payment Execution Tools
-            </div>
-            <div className="flex gap-2 overflow-x-auto [scrollbar-width:thin]">
-              {executionTabs.map((tab) => (
-                <button
-                  key={tab.key}
-                  type="button"
-                  onClick={() => setActiveTab(tab.key)}
-                  className={`shrink-0 rounded-full border px-4 py-2 text-xs font-semibold uppercase tracking-[0.16em] transition ${
-                    activeTab === tab.key
-                      ? "border-violet-400/20 bg-violet-500/10 text-violet-200"
-                      : "border-white/10 bg-white/[0.04] text-slate-400 hover:bg-white/[0.07] hover:text-white"
-                  }`}
-                >
-                  {tab.label}
-                </button>
-              ))}
-            </div>
-          </div>
-
-          <div className="p-5">
-            {isLoading ? (
-              <div className="rounded-[24px] border border-white/10 bg-black/20 px-6 py-12 text-center">
-                <Loader2 className="mx-auto h-8 w-8 animate-spin text-cyan-200" />
-                <div className="mt-4 text-sm text-slate-400">
-                  Loading operating expense control...
-                </div>
-              </div>
-            ) : null}
-
-            {!isLoading && activeTab === "permission_requests"
-              ? renderExpenseTable(pendingPermissionRows)
-              : null}
-
-            {!isLoading && activeTab === "approved_to_spend"
-              ? renderExpenseTable(approvedToSpendRows)
-              : null}
-
-            {!isLoading && activeTab === "documentation"
-              ? renderExpenseTable(documentationRows)
-              : null}
-
-            {!isLoading && activeTab === "verified_for_payment"
-              ? renderExpenseTable(verifiedRows)
-              : null}
-
-            {!isLoading && activeTab === "recipient_tracking"
-              ? renderExpenseTable(recipientTrackingRows)
-              : null}
-
-            {!isLoading && activeTab === "funding_batches"
-              ? renderExecutionTable(activeBatchRows)
-              : null}
-
-            {!isLoading && activeTab === "payments"
-              ? renderExecutionTable(activePaymentRows)
-              : null}
-          </div>
-        </section>
-      </div>
-
-      {archiveModalOpen ? (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 px-4 py-6 backdrop-blur-xl">
-          <div className="flex max-h-[90vh] w-full max-w-[1320px] flex-col overflow-hidden rounded-[34px] border border-white/10 bg-[#080b12] shadow-2xl shadow-black/50">
-            <div className="flex items-start justify-between gap-4 border-b border-white/10 p-5">
-              <div>
-                <div className="inline-flex w-fit items-center gap-2 rounded-full border border-amber-400/20 bg-amber-500/10 px-3 py-1 text-[11px] font-semibold uppercase tracking-[0.22em] text-amber-200">
-                  <Archive className="h-3.5 w-3.5" />
-                  {archiveScope === "workflow"
-                    ? "Expense Workflow Archive"
-                    : "Payment Execution Archive"}
-                </div>
-                <h2 className="mt-3 text-2xl font-semibold text-white">
-                  {archiveScope === "workflow"
-                    ? "Archived & Deleted Expense Workflow Records"
-                    : "Archived & Deleted Payment Execution Records"}
-                </h2>
-                <p className="mt-2 text-sm leading-6 text-slate-400">
-                  {archiveScope === "workflow"
-                    ? "Workflow archive contains expense request records only."
-                    : "Payment execution archive contains funding allocations and expense payment records only."}
-                </p>
-              </div>
-
-              <button
-                type="button"
-                onClick={() => setArchiveModalOpen(false)}
-                className="inline-flex h-10 w-10 items-center justify-center rounded-full border border-white/10 bg-white/[0.05] text-slate-300 transition hover:bg-white/[0.08] hover:text-white"
-              >
-                <X className="h-4 w-4" />
-              </button>
-            </div>
-
-            <div className="flex gap-2 border-b border-white/10 px-5 py-4">
-              <button
-                type="button"
-                onClick={() => setArchiveTab("archived")}
-                className={`rounded-full border px-4 py-2 text-xs font-semibold uppercase tracking-[0.18em] transition ${
-                  archiveTab === "archived"
-                    ? "border-amber-400/20 bg-amber-500/10 text-amber-200"
-                    : "border-white/10 bg-white/[0.04] text-slate-400 hover:bg-white/[0.07]"
-                }`}
-              >
-                Archived (
-                {archiveScope === "workflow"
-                  ? metrics.workflowArchived
-                  : metrics.executionArchived}
-                )
-              </button>
-              <button
-                type="button"
-                onClick={() => setArchiveTab("deleted")}
-                className={`rounded-full border px-4 py-2 text-xs font-semibold uppercase tracking-[0.18em] transition ${
-                  archiveTab === "deleted"
-                    ? "border-rose-400/20 bg-rose-500/10 text-rose-200"
-                    : "border-white/10 bg-white/[0.04] text-slate-400 hover:bg-white/[0.07]"
-                }`}
-              >
-                Deleted (
-                {archiveScope === "workflow"
-                  ? metrics.workflowDeleted
-                  : metrics.executionDeleted}
-                )
-              </button>
-            </div>
-
-            <div className="overflow-x-auto">
-              <div className="max-h-[620px] overflow-y-auto">
-                {archiveScope === "workflow" ? (
-                  <table className="w-full min-w-[1500px] border-collapse">
-                    <thead className="sticky top-0 z-20 border-b border-white/10 bg-black/70 backdrop-blur-xl">
-                      <tr>
-                        <th className="px-5 py-4 text-left text-[11px] font-semibold uppercase tracking-[0.18em] text-slate-500">
-                          Expense
-                        </th>
-                        <th className="px-5 py-4 text-left text-[11px] font-semibold uppercase tracking-[0.18em] text-slate-500">
-                          Made By
-                        </th>
-                        <th className="px-5 py-4 text-left text-[11px] font-semibold uppercase tracking-[0.18em] text-slate-500">
-                          Type
-                        </th>
-                        <th className="px-5 py-4 text-right text-[11px] font-semibold uppercase tracking-[0.18em] text-slate-500">
-                          Amount
-                        </th>
-                        <th className="px-5 py-4 text-left text-[11px] font-semibold uppercase tracking-[0.18em] text-slate-500">
-                          Docs
-                        </th>
-                        <th className="px-5 py-4 text-left text-[11px] font-semibold uppercase tracking-[0.18em] text-slate-500">
-                          Review
-                        </th>
-                        <th className="px-5 py-4 text-left text-[11px] font-semibold uppercase tracking-[0.18em] text-slate-500">
-                          Coverage
-                        </th>
-                        <th className="px-5 py-4 text-left text-[11px] font-semibold uppercase tracking-[0.18em] text-slate-500">
-                          Recipient
-                        </th>
-                        <th className="px-5 py-4 text-left text-[11px] font-semibold uppercase tracking-[0.18em] text-slate-500">
-                          Next Step
-                        </th>
-                        <th className="sticky right-0 bg-black/70 px-4 py-4 text-right text-[11px] font-semibold uppercase tracking-[0.18em] text-slate-500 shadow-[-18px_0_24px_rgba(0,0,0,0.35)] backdrop-blur-xl">
-                          Actions
-                        </th>
-                      </tr>
-                    </thead>
-                    <tbody>{renderExpenseRows(workflowArchiveRows, "archive")}</tbody>
-                  </table>
-                ) : (
-                  <table className="w-full min-w-[1240px] border-collapse">
-                    <thead className="sticky top-0 z-20 border-b border-white/10 bg-black/70 backdrop-blur-xl">
-                      <tr>
-                        <th className="px-5 py-4 text-left text-[11px] font-semibold uppercase tracking-[0.18em] text-slate-500">
-                          Record
-                        </th>
-                        <th className="px-5 py-4 text-left text-[11px] font-semibold uppercase tracking-[0.18em] text-slate-500">
-                          Type
-                        </th>
-                        <th className="px-5 py-4 text-left text-[11px] font-semibold uppercase tracking-[0.18em] text-slate-500">
-                          Company / Bank
-                        </th>
-                        <th className="px-5 py-4 text-right text-[11px] font-semibold uppercase tracking-[0.18em] text-slate-500">
-                          Amount
-                        </th>
-                        <th className="px-5 py-4 text-left text-[11px] font-semibold uppercase tracking-[0.18em] text-slate-500">
-                          Lines
-                        </th>
-                        <th className="px-5 py-4 text-left text-[11px] font-semibold uppercase tracking-[0.18em] text-slate-500">
-                          Status
-                        </th>
-                        <th className="px-5 py-4 text-left text-[11px] font-semibold uppercase tracking-[0.18em] text-slate-500">
-                          Docs / Recipient
-                        </th>
-                        <th className="sticky right-0 bg-black/70 px-4 py-4 text-right text-[11px] font-semibold uppercase tracking-[0.18em] text-slate-500 shadow-[-18px_0_24px_rgba(0,0,0,0.35)] backdrop-blur-xl">
-                          Actions
-                        </th>
-                      </tr>
-                    </thead>
-                    <tbody>{renderExecutionRows(executionArchiveRows, "archive")}</tbody>
-                  </table>
-                )}
-              </div>
-            </div>
-          </div>
+        <div className="aixia-action-row">
+          {mainWorkflowTabs.map((tab) => (
+            <AixiaButton
+              key={tab.key}
+              type="button"
+              variant={activeTab === tab.key ? "primary" : "secondary"}
+              onClick={() => setActiveTab(tab.key)}
+            >
+              {tab.label}
+            </AixiaButton>
+          ))}
         </div>
-      ) : null}
-    </div>
+
+        <div className="aixia-action-row">
+          {executionTabs.map((tab) => (
+            <AixiaButton
+              key={tab.key}
+              type="button"
+              variant={activeTab === tab.key ? "primary" : "secondary"}
+              onClick={() => setActiveTab(tab.key)}
+            >
+              {tab.label}
+            </AixiaButton>
+          ))}
+          <AixiaButton
+            type="button"
+            variant="primary"
+            onClick={() =>
+              navigate("/finance/transactions/expenses-payments-made/funding-batches/new")
+            }
+          >
+            <Plus className="h-4 w-4" />
+            Allocate New Funds
+          </AixiaButton>
+        </div>
+
+        {activeTab === "permission_requests"
+          ? renderExpenseTable(pendingPermissionRows)
+          : null}
+        {activeTab === "approved_to_spend"
+          ? renderExpenseTable(approvedToSpendRows)
+          : null}
+        {activeTab === "documentation" ? renderExpenseTable(documentationRows) : null}
+        {activeTab === "verified_for_payment" ? renderExpenseTable(verifiedRows) : null}
+        {activeTab === "recipient_tracking"
+          ? renderExpenseTable(recipientTrackingRows)
+          : null}
+        {activeTab === "funding_batches" ? renderExecutionTable(activeBatchRows) : null}
+        {activeTab === "payments" ? renderExecutionTable(activePaymentRows) : null}
+        {activeTab === "allocations" ? (
+          <AixiaChildAllocationRegistry
+            title="Linked Expense Allocations"
+            description="Backend allocation rows linking payments, funding pools, recipients, and covered expenses."
+            icon={Receipt}
+            archiveAction={
+              <AixiaButton
+                type="button"
+                variant="danger"
+                onClick={() => setAllocationArchiveOpen(true)}
+              >
+                <FolderArchive className="h-4 w-4" />
+                Allocation Archive
+              </AixiaButton>
+            }
+          >
+            <AixiaTableShell variant="registry">
+              <thead className="aixia-table-head">
+                <tr>
+                  <th>
+                    <AixiaSortableHeader
+                      label="Expense"
+                      sortKey="expense"
+                      activeSortKey={allocationSortKey}
+                      sortDirection={allocationSortDirection}
+                      onSort={handleAllocationSort}
+                    />
+                  </th>
+                  <th>
+                    <AixiaSortableHeader
+                      label="Payment"
+                      sortKey="payment"
+                      activeSortKey={allocationSortKey}
+                      sortDirection={allocationSortDirection}
+                      onSort={handleAllocationSort}
+                    />
+                  </th>
+                  <th>
+                    <AixiaSortableHeader
+                      label="Recipient"
+                      sortKey="recipient"
+                      activeSortKey={allocationSortKey}
+                      sortDirection={allocationSortDirection}
+                      onSort={handleAllocationSort}
+                    />
+                  </th>
+                  <th>
+                    <AixiaSortableHeader
+                      label="Amount"
+                      sortKey="amount"
+                      activeSortKey={allocationSortKey}
+                      sortDirection={allocationSortDirection}
+                      onSort={handleAllocationSort}
+                    />
+                  </th>
+                  <th>
+                    <AixiaSortableHeader
+                      label="Recipient Status"
+                      sortKey="recipient_status"
+                      activeSortKey={allocationSortKey}
+                      sortDirection={allocationSortDirection}
+                      onSort={handleAllocationSort}
+                    />
+                  </th>
+                  <th>
+                    <AixiaSortableHeader
+                      label="Updated"
+                      sortKey="updated_at"
+                      activeSortKey={allocationSortKey}
+                      sortDirection={allocationSortDirection}
+                      onSort={handleAllocationSort}
+                    />
+                  </th>
+                  <th>Actions</th>
+                </tr>
+              </thead>
+              <tbody>{renderAllocationRows(sortedActiveAllocationRows, "active")}</tbody>
+            </AixiaTableShell>
+          </AixiaChildAllocationRegistry>
+        ) : null}
+      </AixiaSection>
+
+      <AixiaArchiveManagerModal
+        open={archiveModalOpen}
+        title={
+          archiveScope === "workflow"
+            ? "Expense Workflow Archive"
+            : "Payment Execution Archive"
+        }
+        description={
+          archiveScope === "workflow"
+            ? "Archived and deleted expense workflow records."
+            : "Archived and deleted payment execution records."
+        }
+        archivedCount={
+          archiveScope === "workflow" ? metrics.workflowArchived : metrics.executionArchived
+        }
+        onClose={() => setArchiveModalOpen(false)}
+      >
+        <div className="aixia-stack">
+          <div className="aixia-action-row">
+            <AixiaButton
+              type="button"
+              variant={archiveTab === "archived" ? "primary" : "secondary"}
+              onClick={() => setArchiveTab("archived")}
+            >
+              Archived (
+              {archiveScope === "workflow" ? metrics.workflowArchived : metrics.executionArchived})
+            </AixiaButton>
+            <AixiaButton
+              type="button"
+              variant={archiveTab === "deleted" ? "danger" : "secondary"}
+              onClick={() => setArchiveTab("deleted")}
+            >
+              Deleted (
+              {archiveScope === "workflow" ? metrics.workflowDeleted : metrics.executionDeleted})
+            </AixiaButton>
+          </div>
+
+          {archiveScope === "workflow"
+            ? renderExpenseTable(workflowArchiveRows, "archive")
+            : renderExecutionTable(executionArchiveRows, "archive")}
+        </div>
+      </AixiaArchiveManagerModal>
+
+      <AixiaArchiveManagerModal
+        open={allocationArchiveOpen}
+        title="Linked Expense Allocations Archive"
+        description="Archived allocation rows can be restored. Deleted allocation rows can be restored or permanently deleted."
+        archivedCount={archivedAllocationRows.length}
+        onClose={() => setAllocationArchiveOpen(false)}
+      >
+        <div className="aixia-stack">
+          <div className="aixia-action-row">
+            <AixiaButton
+              type="button"
+              variant={allocationArchiveTab === "archived" ? "primary" : "secondary"}
+              onClick={() => setAllocationArchiveTab("archived")}
+            >
+              Archived ({archivedAllocationRows.length})
+            </AixiaButton>
+            <AixiaButton
+              type="button"
+              variant={allocationArchiveTab === "deleted" ? "danger" : "secondary"}
+              onClick={() => setAllocationArchiveTab("deleted")}
+            >
+              Deleted ({deletedAllocationRows.length})
+            </AixiaButton>
+          </div>
+
+          <AixiaTableShell variant="archive">
+            <thead className="aixia-table-head">
+              <tr>
+                <th>Expense</th>
+                <th>Payment</th>
+                <th>Recipient</th>
+                <th>Amount</th>
+                <th>Recipient Status</th>
+                <th>Updated</th>
+                <th>Actions</th>
+              </tr>
+            </thead>
+            <tbody>{renderAllocationRows(allocationArchiveRows, "archive")}</tbody>
+          </AixiaTableShell>
+        </div>
+      </AixiaArchiveManagerModal>
+    </AixiaPage>
   );
 }

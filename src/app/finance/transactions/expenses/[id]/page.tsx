@@ -10,9 +10,7 @@ import {
   CheckCircle2,
   CreditCard,
   FileCheck2,
-  FileText,
   Landmark,
-  Link2,
   Loader2,
   Pencil,
   Plus,
@@ -20,8 +18,6 @@ import {
   Save,
   ShieldCheck,
   ShoppingCart,
-  Trash2,
-  UploadCloud,
   WalletCards,
   Wrench,
   X,
@@ -3125,7 +3121,7 @@ export default function FinanceExpenseDetailPage() {
             </AixiaFormFullWidth>
           </AixiaFormGrid>
 
-          <AixiaAlert tone="warning">
+          <AixiaAlert tone="info">
             Reimbursement skips spend approval. This record means the person already paid
             personally. Finance reviews proof, then the record moves to payment distribution
             and recipient confirmation.
@@ -4091,7 +4087,7 @@ export default function FinanceExpenseDetailPage() {
               : null}
 
             <AixiaFormFullWidth>
-              <AixiaAlert tone="warning">
+              <AixiaAlert tone="info">
                 Save nickname, brand, holder, expiry, and last 4 only. Never enter
                 or store the full card number.
               </AixiaAlert>
@@ -4260,17 +4256,18 @@ export default function FinanceExpenseDetailPage() {
           icon={AlertTriangle}
           title="Expense not found"
           description={pageError || "The requested expense could not be loaded."}
-          action={
-            <AixiaButton
-              type="button"
-              variant="primary"
-              onClick={() => navigate("/finance/transactions/expenses")}
-            >
-              <ArrowRight className="h-4 w-4 rotate-180" />
-              Expenses & Reimbursements
-            </AixiaButton>
-          }
         />
+
+        <div className="aixia-action-row">
+          <AixiaButton
+            type="button"
+            variant="primary"
+            onClick={() => navigate("/finance/transactions/expenses")}
+          >
+            <ArrowRight className="h-4 w-4 rotate-180" />
+            Expenses & Reimbursements
+          </AixiaButton>
+        </div>
       </AixiaPage>
     );
   }
@@ -4416,7 +4413,7 @@ export default function FinanceExpenseDetailPage() {
                 )
               }
             >
-              <AixiaAlert tone={canEditOverview ? "info" : "warning"}>
+              <AixiaAlert tone="info">
                 {canEditOverview
                   ? "Only draft expense requests can be edited here."
                   : "This expense is no longer draft, so request details are locked."}
@@ -4776,7 +4773,7 @@ export default function FinanceExpenseDetailPage() {
               icon={FileCheck2}
             >
               {needsSpendAndUploadProof ? (
-                <AixiaAlert tone="warning">
+                <AixiaAlert tone="info">
                   Spend the approved expense and upload proof. After upload, this
                   expense will move to Document Review automatically.
                 </AixiaAlert>

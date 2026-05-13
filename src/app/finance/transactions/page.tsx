@@ -10,17 +10,40 @@ import {
   LockKeyhole,
   Receipt,
   ShieldCheck,
-  Sparkles,
   UserRound,
   Wallet,
 } from "lucide-react";
 
-import { supabase } from "@/lib/supabase";
 import {
-  getEffectivePermissions,
-  type Permission,
-  type Role,
-} from "@/lib/permissions";
+  AixiaAccessRule,
+  AixiaAlert,
+  AixiaBadge,
+  AixiaButton,
+  AixiaEmptyState,
+  AixiaHero,
+  AixiaLoadingState,
+  AixiaMetricCard,
+  AixiaMetricGrid,
+  AixiaNavigationCard,
+  AixiaNavigationGrid,
+  AixiaNavigationInfoPanel,
+  AixiaNavigationStatBlock,
+  AixiaPage,
+  AixiaReviewGrid,
+  AixiaSection,
+  AixiaSideList,
+  AixiaSideListRow,
+  AixiaSmartLayout,
+  AixiaValueBlock,
+} from "@/components/aixia";
+import {
+  fetchFinanceEffectivePermissions,
+  resolveFinancePagePermissionState,
+  type FinanceLoadMode,
+  type FinancePageAccessConfig,
+} from "@/lib/finance/pageAccess";
+import type { Permission, Role } from "@/lib/permissions";
+import { supabase } from "@/lib/supabase";
 
 type TransactionMetricCard = {
   key: string;
@@ -55,6 +78,7 @@ type TransactionModuleCard = {
   statusLabel: string;
   lastUpdatedLabel: string;
   isPersonalDefault?: boolean;
+  tone: "emerald" | "cyan" | "amber" | "violet" | "rose" | "neutral";
 };
 
 type TransactionFlowItem = {
@@ -77,10 +101,10 @@ type TransactionSection = {
     | "procurement"
     | "operating-expenses"
     | "internal-flows";
-  
   title: string;
   subtitle: string;
   tone: TransactionSectionTone;
+  icon: LucideIcon;
   modules: TransactionFlowItem[];
 };
 
@@ -141,7 +165,6 @@ type CurrentUserProfile = {
   user_id: string;
   full_name: string | null;
   role: Role | null;
-  permissions: Partial<Record<Permission, boolean>> | null;
 };
 
 type RecentTransactionItem = {
@@ -181,26 +204,117 @@ type TransactionsPageData = {
 
 type AccessFlags = {
   hasAnyFinanceEntry: boolean;
-
   canSeeIncomingMoney: boolean;
   canMonitorIncomingMoney: boolean;
-
   canSeeSupplierProcurement: boolean;
   canMonitorSupplierProcurement: boolean;
-
   canSeeOwnExpenses: boolean;
   canSeeExpenseFunding: boolean;
   canMonitorExpenseFunding: boolean;
-
   canSeeOwnPaychecks: boolean;
   canSeePayrollBasket: boolean;
   canMonitorPayrollBasket: boolean;
-
   canMonitorAnyCompanyFinance: boolean;
 };
 
 type CountResult = {
   count?: number | null;
+};
+
+const ADMIN_PERMISSIONS: readonly Permission[] = [
+  "manageFinanceMasterData",
+  "approveFinanceRecords",
+];
+
+const INCOMING_MONEY_ACCESS_CONFIG: FinancePageAccessConfig = {
+  sectionKey: "incomingMoneyFlow",
+  adminPermissions: ADMIN_PERMISSIONS,
+  readPermissions: [
+    "accessFinance",
+    "viewFinance",
+    "accessReceivables",
+    "viewReceivables",
+    "viewInvoices",
+    "viewReceivedPayments",
+  ],
+  createPermissions: ["createFinanceRecords", "createInvoices"],
+  updatePermissions: ["editFinanceRecords", "editDraftInvoices"],
+  deleteArchivePermissions: ["archiveFinanceRecords"],
+  approveExecutePermissions: [
+    "approveFinanceRecords",
+    "sendInvoices",
+    "recordPaymentsReceived",
+  ],
+};
+
+const SUPPLIER_PROCUREMENT_ACCESS_CONFIG: FinancePageAccessConfig = {
+  sectionKey: "supplierProcurementFlow",
+  adminPermissions: ADMIN_PERMISSIONS,
+  readPermissions: [
+    "accessFinance",
+    "viewFinance",
+    "accessPayables",
+    "viewPayables",
+    "viewBills",
+    "viewPaymentsMade",
+    "viewVendors",
+  ],
+  createPermissions: ["createFinanceRecords", "createBills"],
+  updatePermissions: ["editFinanceRecords", "editDraftBills", "manageVendors"],
+  deleteArchivePermissions: ["archiveFinanceRecords"],
+  approveExecutePermissions: [
+    "approveFinanceRecords",
+    "openBills",
+    "recordPaymentsMade",
+  ],
+};
+
+const EXPENSE_FUNDING_ACCESS_CONFIG: FinancePageAccessConfig = {
+  sectionKey: "expensesFundingPayment",
+  adminPermissions: ADMIN_PERMISSIONS,
+  readPermissions: [
+    "accessFinance",
+    "viewFinance",
+    "accessExpenses",
+    "viewExpenses",
+    "viewReimbursements",
+    "viewPaymentsMade",
+  ],
+  createPermissions: [
+    "createFinanceRecords",
+    "issueReimbursements",
+    "recordReimbursementPayments",
+    "recordPaymentsMade",
+  ],
+  updatePermissions: ["editFinanceRecords", "editAllDraftExpenses"],
+  deleteArchivePermissions: ["archiveFinanceRecords", "cancelExpenses"],
+  approveExecutePermissions: [
+    "approveFinanceRecords",
+    "approveExpenses",
+    "rejectExpenses",
+    "issueReimbursements",
+    "recordReimbursementPayments",
+  ],
+};
+
+const PAYROLL_ACCESS_CONFIG: FinancePageAccessConfig = {
+  sectionKey: "payrollFundBasket",
+  adminPermissions: ADMIN_PERMISSIONS,
+  readPermissions: [
+    "accessFinance",
+    "viewFinance",
+    "accessPayroll",
+    "viewPayroll",
+    "viewOwnPaychecks",
+  ],
+  createPermissions: ["createFinanceRecords", "createPayrollRuns"],
+  updatePermissions: ["editFinanceRecords", "editPayrollRuns", "managePayProfiles"],
+  deleteArchivePermissions: ["archiveFinanceRecords"],
+  approveExecutePermissions: [
+    "approveFinanceRecords",
+    "approvePayroll",
+    "processPayrollPayments",
+  ],
 };
 
 const EMPTY_TRANSACTIONS_DATA: TransactionsPageData = {
@@ -231,26 +345,22 @@ const EMPTY_TRANSACTIONS_DATA: TransactionsPageData = {
 
 const EMPTY_ACCESS_FLAGS: AccessFlags = {
   hasAnyFinanceEntry: false,
-
   canSeeIncomingMoney: false,
   canMonitorIncomingMoney: false,
-
   canSeeSupplierProcurement: false,
   canMonitorSupplierProcurement: false,
-
   canSeeOwnExpenses: true,
   canSeeExpenseFunding: false,
   canMonitorExpenseFunding: false,
-
   canSeeOwnPaychecks: true,
   canSeePayrollBasket: false,
   canMonitorPayrollBasket: false,
-
   canMonitorAnyCompanyFinance: false,
 };
 
 function toNumber(value: number | string | null | undefined) {
-  return Number(value ?? 0);
+  const parsed = Number(value ?? 0);
+  return Number.isFinite(parsed) ? parsed : 0;
 }
 
 function formatMoney(value: number) {
@@ -293,75 +403,53 @@ function getCount(result: CountResult) {
   return result.count ?? 0;
 }
 
-function hasPermission(
-  permissions: Record<Permission, boolean> | null,
-  permission: Permission
-) {
-  return Boolean(permissions?.[permission]);
-}
-
-function buildAccessFlags(
-  currentProfile: CurrentUserProfile | null
+function resolveAccessFlags(
+  profileRole: Role | null | undefined,
+  effectivePermissions: Partial<Record<Permission, boolean>> | null
 ): AccessFlags {
-  if (!currentProfile?.role) {
-    return EMPTY_ACCESS_FLAGS;
-  }
+  if (!profileRole || !effectivePermissions) return EMPTY_ACCESS_FLAGS;
 
-  const permissions = getEffectivePermissions(
-    currentProfile.role,
-    currentProfile.permissions || null
-  );
+  const incomingPermission = resolveFinancePagePermissionState({
+    profileRole,
+    permissions: effectivePermissions,
+    config: INCOMING_MONEY_ACCESS_CONFIG,
+  });
 
-  const canSeeIncomingMoney =
-    hasPermission(permissions, "accessReceivables") &&
-    hasPermission(permissions, "viewReceivables");
+  const supplierPermission = resolveFinancePagePermissionState({
+    profileRole,
+    permissions: effectivePermissions,
+    config: SUPPLIER_PROCUREMENT_ACCESS_CONFIG,
+  });
 
+  const expensePermission = resolveFinancePagePermissionState({
+    profileRole,
+    permissions: effectivePermissions,
+    config: EXPENSE_FUNDING_ACCESS_CONFIG,
+  });
+
+  const payrollPermission = resolveFinancePagePermissionState({
+    profileRole,
+    permissions: effectivePermissions,
+    config: PAYROLL_ACCESS_CONFIG,
+  });
+
+  const canSeeIncomingMoney = incomingPermission.canRead;
   const canMonitorIncomingMoney =
-    canSeeIncomingMoney &&
-    (hasPermission(permissions, "viewReports") ||
-      hasPermission(permissions, "viewInvoices") ||
-      hasPermission(permissions, "viewReceivedPayments"));
+    incomingPermission.canUpdate || incomingPermission.canApproveExecute;
 
-  const canSeeSupplierProcurement =
-    hasPermission(permissions, "accessPayables") &&
-    hasPermission(permissions, "viewPayables");
-
+  const canSeeSupplierProcurement = supplierPermission.canRead;
   const canMonitorSupplierProcurement =
-    canSeeSupplierProcurement &&
-    (hasPermission(permissions, "viewReports") ||
-      hasPermission(permissions, "viewBills") ||
-      hasPermission(permissions, "viewPaymentsMade") ||
-      hasPermission(permissions, "viewVendors"));
+    supplierPermission.canUpdate || supplierPermission.canApproveExecute;
 
   const canSeeOwnExpenses = true;
-
-  const canSeeExpenseFunding =
-    hasPermission(permissions, "viewTeamExpenses") ||
-    hasPermission(permissions, "approveExpenses") ||
-    hasPermission(permissions, "issueReimbursements") ||
-    hasPermission(permissions, "recordReimbursementPayments");
-
+  const canSeeExpenseFunding = expensePermission.canRead;
   const canMonitorExpenseFunding =
-    canSeeExpenseFunding &&
-    (hasPermission(permissions, "viewReports") ||
-      hasPermission(permissions, "viewTeamExpenses") ||
-      hasPermission(permissions, "viewPaymentsMade"));
+    expensePermission.canUpdate || expensePermission.canApproveExecute;
 
   const canSeeOwnPaychecks = true;
-
-  const canSeePayrollBasket =
-    hasPermission(permissions, "viewAllPaychecks") ||
-    hasPermission(permissions, "viewPayroll") ||
-    hasPermission(permissions, "createPayrollRuns") ||
-    hasPermission(permissions, "editPayrollRuns") ||
-    hasPermission(permissions, "approvePayroll") ||
-    hasPermission(permissions, "processPayrollPayments");
-
+  const canSeePayrollBasket = payrollPermission.canRead;
   const canMonitorPayrollBasket =
-    canSeePayrollBasket &&
-    (hasPermission(permissions, "viewReports") ||
-      hasPermission(permissions, "viewAllPaychecks") ||
-      hasPermission(permissions, "viewPayroll"));
+    payrollPermission.canUpdate || payrollPermission.canApproveExecute;
 
   const canMonitorAnyCompanyFinance =
     canMonitorIncomingMoney ||
@@ -379,442 +467,46 @@ function buildAccessFlags(
 
   return {
     hasAnyFinanceEntry,
-
     canSeeIncomingMoney,
     canMonitorIncomingMoney,
-
     canSeeSupplierProcurement,
     canMonitorSupplierProcurement,
-
     canSeeOwnExpenses,
     canSeeExpenseFunding,
     canMonitorExpenseFunding,
-
     canSeeOwnPaychecks,
     canSeePayrollBasket,
     canMonitorPayrollBasket,
-
     canMonitorAnyCompanyFinance,
   };
 }
 
-async function safeCount(tableName: string): Promise<CountResult> {
-  try {
-    const result = await supabase
-      .from(tableName)
-      .select("id", { count: "exact", head: true });
+async function loadCount(tableName: string): Promise<CountResult> {
+  const result = await supabase
+    .from(tableName)
+    .select("id", { count: "exact", head: true });
 
-    return { count: result.count ?? 0 };
-  } catch {
-    return { count: 0 };
-  }
+  if (result.error) throw result.error;
+  return { count: result.count ?? 0 };
 }
 
-function getMetricToneClasses(tone: TransactionMetricCard["tone"]) {
-  switch (tone) {
-    case "emerald":
-      return {
-        glow: "from-emerald-500/20 via-emerald-400/10 to-transparent",
-        iconWrap: "border-emerald-400/20 bg-emerald-500/10 text-emerald-200",
-        accent: "bg-emerald-400",
-        value: "text-emerald-100",
-      };
-    case "amber":
-      return {
-        glow: "from-amber-500/20 via-amber-400/10 to-transparent",
-        iconWrap: "border-amber-400/20 bg-amber-500/10 text-amber-200",
-        accent: "bg-amber-400",
-        value: "text-amber-100",
-      };
-    case "violet":
-      return {
-        glow: "from-violet-500/20 via-violet-400/10 to-transparent",
-        iconWrap: "border-violet-400/20 bg-violet-500/10 text-violet-200",
-        accent: "bg-violet-400",
-        value: "text-violet-100",
-      };
-    case "rose":
-      return {
-        glow: "from-rose-500/20 via-rose-400/10 to-transparent",
-        iconWrap: "border-rose-400/20 bg-rose-500/10 text-rose-200",
-        accent: "bg-rose-400",
-        value: "text-rose-100",
-      };
-    case "cyan":
-    default:
-      return {
-        glow: "from-cyan-500/20 via-cyan-400/10 to-transparent",
-        iconWrap: "border-cyan-400/20 bg-cyan-500/10 text-cyan-200",
-        accent: "bg-cyan-400",
-        value: "text-cyan-100",
-      };
-  }
+function getSectionTone(tone: TransactionSectionTone) {
+  if (tone === "incoming") return "emerald";
+  if (tone === "procurement") return "amber";
+  if (tone === "expense") return "cyan";
+  return "violet";
 }
 
-function getSectionToneClasses(tone: TransactionSectionTone) {
-  switch (tone) {
-    case "incoming":
-      return {
-        border: "border-emerald-400/25",
-        badge: "border-emerald-400/20 bg-emerald-500/10 text-emerald-200",
-        panel:
-          "bg-[radial-gradient(circle_at_top_left,rgba(16,185,129,0.13),rgba(255,255,255,0.045)_48%)]",
-      };
-    case "procurement":
-      return {
-        border: "border-amber-400/25",
-        badge: "border-amber-400/20 bg-amber-500/10 text-amber-200",
-        panel:
-          "bg-[radial-gradient(circle_at_top_left,rgba(245,158,11,0.13),rgba(255,255,255,0.045)_48%)]",
-      };
-    case "expense":
-      return {
-        border: "border-cyan-400/25",
-        badge: "border-cyan-400/20 bg-cyan-500/10 text-cyan-200",
-        panel:
-          "bg-[radial-gradient(circle_at_top_left,rgba(6,182,212,0.13),rgba(255,255,255,0.045)_48%)]",
-      };
-    case "internal":
-      return {
-        border: "border-violet-400/25",
-        badge: "border-violet-400/20 bg-violet-500/10 text-violet-200",
-        panel:
-          "bg-[radial-gradient(circle_at_top_left,rgba(139,92,246,0.13),rgba(255,255,255,0.045)_48%)]",
-      };
-    default:
-      return {
-        border: "border-cyan-400/25",
-        badge: "border-cyan-400/20 bg-cyan-500/10 text-cyan-200",
-        panel:
-          "bg-[radial-gradient(circle_at_top_left,rgba(6,182,212,0.13),rgba(255,255,255,0.045)_48%)]",
-      };
-  }
+function getModuleRoute(item: TransactionFlowItem) {
+  return item.routeOverride ?? item.module.route;
 }
 
-function TransactionMetric({ metric }: { metric: TransactionMetricCard }) {
-  const Icon = metric.icon;
-  const tone = getMetricToneClasses(metric.tone);
-
-  return (
-    <div className="group relative min-h-[156px] overflow-hidden rounded-[28px] border border-white/10 bg-white/[0.045] p-5 backdrop-blur-xl transition hover:border-white/20 hover:bg-white/[0.055]">
-      <div
-        className={`pointer-events-none absolute inset-0 bg-gradient-to-br ${tone.glow}`}
-      />
-      <div className="pointer-events-none absolute inset-x-5 top-0 h-px bg-white/10" />
-
-      <div className="relative flex h-full flex-col justify-between gap-5">
-        <div className="flex items-start justify-between gap-4">
-          <div className="min-w-0">
-            <div className="text-[11px] font-semibold uppercase tracking-[0.2em] text-slate-500">
-              {metric.title}
-            </div>
-            <div
-              className={`mt-2 truncate text-3xl font-semibold tracking-[-0.035em] ${tone.value}`}
-            >
-              {metric.value}
-            </div>
-          </div>
-
-          <div
-            className={`flex h-12 w-12 shrink-0 items-center justify-center rounded-2xl border ${tone.iconWrap}`}
-          >
-            <Icon className="h-5 w-5" />
-          </div>
-        </div>
-
-        <div className="flex items-center justify-between gap-3">
-          <div className="min-w-0 truncate text-sm leading-6 text-slate-400">
-            {metric.subtitle}
-          </div>
-          <div className={`h-2 w-2 shrink-0 rounded-full ${tone.accent}`} />
-        </div>
-      </div>
-    </div>
-  );
+function getModuleTitle(item: TransactionFlowItem) {
+  return item.titleOverride ?? item.module.title;
 }
 
-function FlowConnector() {
-  return (
-    <div className="hidden flex-none items-center justify-center px-3 xl:flex">
-      <div className="flex h-7 w-7 items-center justify-center rounded-lg border border-white/[0.08] bg-white/[0.025] text-white/45">
-        <ArrowRight className="h-3.5 w-3.5" />
-      </div>
-    </div>
-  );
-}
-
-function TransactionFlowModule({
-  item,
-  onOpen,
-}: {
-  item: TransactionFlowItem;
-  onOpen: (route: string) => void;
-}) {
-  const Icon = item.module.icon;
-  const route = item.routeOverride ?? item.module.route;
-  const isClickable = Boolean(route);
-  const title = item.titleOverride ?? item.module.title;
-  const description = item.descriptionOverride ?? item.module.description;
-
-  return (
-    <button
-      type="button"
-      onClick={() => {
-        if (!route) return;
-        onOpen(route);
-      }}
-      className={`group relative flex h-[236px] w-full overflow-hidden rounded-[22px] border border-white/10 bg-white/[0.03] text-left backdrop-blur-xl transition-all duration-200 ${
-        isClickable
-          ? "hover:-translate-y-0.5 hover:border-white/20 hover:bg-white/[0.05]"
-          : "cursor-default opacity-90"
-      }`}
-    >
-      <div className="pointer-events-none absolute inset-0 bg-[radial-gradient(circle_at_top_left,rgba(255,255,255,0.08),transparent_48%)] opacity-80" />
-
-      <div className="relative flex h-full w-full flex-col gap-3 p-3.5">
-        <div className="flex items-start justify-between gap-3">
-          <div className="flex items-center gap-2.5">
-            <div className="flex h-8 w-8 items-center justify-center rounded-xl border border-white/10 bg-black/20 text-white/80">
-              <Icon className="h-4 w-4" />
-            </div>
-
-            {item.sequenceLabel ? (
-              <div className="flex h-6 min-w-[1.65rem] items-center justify-center rounded-lg border border-white/10 bg-white/[0.06] px-1.5 text-[10px] font-medium text-white/70">
-                {item.sequenceLabel}
-              </div>
-            ) : null}
-          </div>
-
-          <div className="flex items-center gap-3">
-            <span
-              className={`rounded-full border px-2.5 py-1 text-[10px] ${
-                item.module.isPersonalDefault
-                  ? "border-cyan-400/20 bg-cyan-500/10 text-cyan-200"
-                  : "border-white/10 bg-white/[0.08] text-white/70"
-              }`}
-            >
-              {item.module.statusLabel}
-            </span>
-            <ArrowRight
-              className={`h-4 w-4 text-white/30 transition-transform duration-200 ${
-                isClickable
-                  ? "group-hover:translate-x-1 group-hover:text-white/65"
-                  : ""
-              }`}
-            />
-          </div>
-        </div>
-
-        <div className="space-y-1.5">
-          <div className="line-clamp-2 text-[14px] font-medium leading-5 text-white">
-            {title}
-          </div>
-          <div className="line-clamp-3 text-[12px] leading-5 text-white/44">
-            {description}
-          </div>
-        </div>
-
-        <div className="mt-auto flex items-end justify-between gap-3 pt-1">
-          <div>
-            <div className="text-[10px] uppercase tracking-[0.18em] text-white/32">
-              Records
-            </div>
-            <div className="mt-1 text-[16px] font-semibold text-white">
-              {formatCount(item.module.count)}
-            </div>
-          </div>
-
-          <div className="text-right">
-            <div className="text-[10px] uppercase tracking-[0.18em] text-white/32">
-              Access
-            </div>
-            <div className="mt-1 text-[12px] text-white/58">
-              {item.module.lastUpdatedLabel}
-            </div>
-          </div>
-        </div>
-      </div>
-    </button>
-  );
-}
-
-function FlowRow({
-  items,
-  onOpen,
-}: {
-  items: TransactionFlowItem[];
-  onOpen: (route: string) => void;
-}) {
-  return (
-    <div className="overflow-x-auto pb-3">
-      <div className="flex min-w-max items-stretch">
-        {items.map((item, index) => (
-          <div
-            key={`${item.module.key}-${item.sequenceLabel ?? index}`}
-            className="flex flex-none items-stretch"
-          >
-            <div className="w-[220px] min-w-[220px] max-w-[220px] flex-none">
-              <TransactionFlowModule item={item} onOpen={onOpen} />
-            </div>
-
-            {index < items.length - 1 ? <FlowConnector /> : null}
-          </div>
-        ))}
-      </div>
-    </div>
-  );
-}
-
-function TransactionFlowSection({
-  section,
-  onOpen,
-}: {
-  section: TransactionSection;
-  onOpen: (route: string) => void;
-}) {
-  const tone = getSectionToneClasses(section.tone);
-
-  return (
-    <section
-      className={`overflow-hidden rounded-[30px] border ${tone.border} ${tone.panel} backdrop-blur-xl`}
-    >
-      <div className="flex items-start justify-between gap-4 border-b border-white/10 px-5 py-4">
-        <div>
-          <div
-            className={`inline-flex w-fit rounded-full border px-3 py-1 text-[11px] font-semibold uppercase tracking-[0.22em] ${tone.badge}`}
-          >
-            {section.title}
-          </div>
-          <p className="mt-2 max-w-4xl text-sm leading-6 text-slate-400">
-            {section.subtitle}
-          </p>
-        </div>
-      </div>
-
-      <div className="p-5">
-        <FlowRow items={section.modules} onOpen={onOpen} />
-      </div>
-    </section>
-  );
-}
-
-function TransactionsSectionCard({
-  title,
-  description,
-  icon: Icon,
-  children,
-}: {
-  title: string;
-  description: string;
-  icon: LucideIcon;
-  children: React.ReactNode;
-}) {
-  return (
-    <section className="overflow-hidden rounded-[30px] border border-white/10 bg-white/[0.045] backdrop-blur-xl">
-      <div className="flex items-center justify-between border-b border-white/10 px-5 py-4">
-        <div className="flex min-w-0 items-center gap-3">
-          <div className="rounded-2xl border border-cyan-400/15 bg-cyan-500/10 p-3 text-cyan-200">
-            <Icon className="h-4 w-4" />
-          </div>
-
-          <div className="min-w-0">
-            <h2 className="text-sm font-semibold uppercase tracking-[0.18em] text-slate-400">
-              {title}
-            </h2>
-            <p className="mt-1 text-xs text-slate-500">{description}</p>
-          </div>
-        </div>
-      </div>
-
-      <div className="p-5">{children}</div>
-    </section>
-  );
-}
-
-function SummaryBlock({
-  title,
-  value,
-  subtitle,
-}: {
-  title: string;
-  value: string;
-  subtitle: string;
-}) {
-  return (
-    <div className="rounded-[24px] border border-white/10 bg-black/20 p-4">
-      <div className="text-[11px] uppercase tracking-[0.2em] text-slate-500">
-        {title}
-      </div>
-      <div className="mt-2 text-2xl font-semibold text-white">{value}</div>
-      <div className="mt-2 text-sm leading-6 text-slate-400">{subtitle}</div>
-    </div>
-  );
-}
-
-function HeaderStatusCard({
-  label,
-  value,
-  detail,
-  icon: Icon,
-  tone,
-}: {
-  label: string;
-  value: string;
-  detail: string;
-  icon: LucideIcon;
-  tone: "emerald" | "cyan" | "amber";
-}) {
-  const toneClasses = {
-    emerald: "border-emerald-400/20 bg-emerald-500/10 text-emerald-200",
-    cyan: "border-cyan-400/20 bg-cyan-500/10 text-cyan-200",
-    amber: "border-amber-400/20 bg-amber-500/10 text-amber-200",
-  }[tone];
-
-  return (
-    <div className="min-h-[148px] rounded-[24px] border border-white/10 bg-black/20 p-4">
-      <div className="flex items-start justify-between gap-3">
-        <div className="min-w-0">
-          <div className="text-[11px] font-semibold uppercase tracking-[0.2em] text-slate-500">
-            {label}
-          </div>
-          <div className="mt-2 text-xl font-semibold leading-tight tracking-[-0.035em] text-white">
-            {value}
-          </div>
-        </div>
-
-        <div
-          className={`flex h-10 w-10 shrink-0 items-center justify-center rounded-2xl border ${toneClasses}`}
-        >
-          <Icon className="h-4 w-4" />
-        </div>
-      </div>
-
-      <div className="mt-3 text-xs leading-5 text-slate-500">{detail}</div>
-    </div>
-  );
-}
-
-function AccessBlockedPanel() {
-  return (
-    <div className="rounded-[30px] border border-amber-400/20 bg-[radial-gradient(circle_at_top_left,rgba(245,158,11,0.14),rgba(255,255,255,0.045)_48%)] p-6 backdrop-blur-xl">
-      <div className="flex flex-col gap-4 md:flex-row md:items-center">
-        <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-2xl border border-amber-400/20 bg-amber-500/10 text-amber-200">
-          <LockKeyhole className="h-5 w-5" />
-        </div>
-
-        <div>
-          <div className="text-lg font-semibold text-white">
-            No company transaction modules are enabled
-          </div>
-          <div className="mt-2 max-w-3xl text-sm leading-6 text-slate-400">
-            You can still use your own allowed personal flows, such as your own
-            expenses/reimbursements and paycheck requests. Company-level finance modules
-            appear here only after an Admin enables the related Access Approval section.
-          </div>
-        </div>
-      </div>
-    </div>
-  );
+function getModuleDescription(item: TransactionFlowItem) {
+  return item.descriptionOverride ?? item.module.description;
 }
 
 export default function FinanceTransactionsPage() {
@@ -825,226 +517,271 @@ export default function FinanceTransactionsPage() {
   const [currentProfile, setCurrentProfile] = useState<CurrentUserProfile | null>(
     null
   );
+  const [effectivePermissions, setEffectivePermissions] = useState<Partial<
+    Record<Permission, boolean>
+  > | null>(null);
   const [isLoading, setIsLoading] = useState(true);
+  const [isRefreshing, setIsRefreshing] = useState(false);
+  const [hasLoadedOnce, setHasLoadedOnce] = useState(false);
+  const [pageError, setPageError] = useState<string | null>(null);
 
   const accessFlags = useMemo(() => {
-    return buildAccessFlags(currentProfile);
-  }, [currentProfile]);
+    return resolveAccessFlags(currentProfile?.role, effectivePermissions);
+  }, [currentProfile?.role, effectivePermissions]);
 
-  const loadCurrentProfile = useCallback(async () => {
-    const authResult = await supabase.auth.getUser();
-    if (authResult.error) throw authResult.error;
+  const loadCurrentProfile = useCallback(
+    async (mode: FinanceLoadMode) => {
+      const authResult = await supabase.auth.getUser();
+      if (authResult.error) throw authResult.error;
 
-    const authUserId = authResult.data.user?.id;
-    if (!authUserId) {
-      setCurrentProfile(null);
-      return;
-    }
+      const authUserId = authResult.data.user?.id;
+      if (!authUserId) {
+        if (mode === "initial") {
+          setCurrentProfile(null);
+          setEffectivePermissions(null);
+        }
+        return null;
+      }
 
-    const profileResult = await supabase
-      .from("profiles")
-      .select("user_id, full_name, role, permissions")
-      .eq("user_id", authUserId)
-      .maybeSingle();
-
-    if (profileResult.error) throw profileResult.error;
-
-    setCurrentProfile((profileResult.data || null) as CurrentUserProfile | null);
-  }, []);
-
-  const loadTransactionsData = useCallback(async () => {
-    setIsLoading(true);
-
-    try {
-      await loadCurrentProfile();
-
-      const [
-        invoicesResult,
-        billsResult,
-        expensesResult,
-        paymentsMadeResult,
-        paymentsReceivedResult,
-        payrollRunsResult,
-        paycheckRequestsResult,
-        proformaInvoicesResult,
-        purchaseOrdersResult,
-      ] = await Promise.all([
+      const [profileResult, permissions] = await Promise.all([
         supabase
-          .from("finance_invoices_issued")
-          .select(
-            "id, invoice_number, status, total_amount, balance_due, due_date, created_at"
-          )
-          .order("created_at", { ascending: false })
-          .limit(50),
-
-        supabase
-          .from("finance_bills_received")
-          .select(
-            "id, bill_number, status, total_amount, balance_due, due_date, created_at"
-          )
-          .order("created_at", { ascending: false })
-          .limit(50),
-
-        supabase
-          .from("finance_expenses")
-          .select(
-            "id, expense_number, title, amount, status, approval_status, payment_status, created_at"
-          )
-          .order("created_at", { ascending: false })
-          .limit(50),
-
-        supabase
-          .from("finance_payments_made")
-          .select("id, amount, payment_date, created_at")
-          .order("payment_date", { ascending: false })
-          .limit(50),
-
-        supabase
-          .from("finance_payments_received")
-          .select("id, amount, payment_date, created_at")
-          .order("payment_date", { ascending: false })
-          .limit(50),
-
-        supabase
-          .from("finance_payroll_runs")
-          .select("id, run_number, status, total_net, created_at")
-          .order("created_at", { ascending: false })
-          .limit(50),
-
-        safeCount("finance_paycheck_requests"),
-
-        safeCount("finance_proforma_invoices"),
-
-        safeCount("finance_purchase_orders"),
+          .from("profiles")
+          .select("user_id, full_name, role")
+          .eq("user_id", authUserId)
+          .maybeSingle(),
+        fetchFinanceEffectivePermissions(authUserId, mode, "Transactions"),
       ]);
 
-      const invoices = (invoicesResult.data || []) as FinanceInvoiceRow[];
-      const bills = (billsResult.data || []) as FinanceBillRow[];
-      const expenses = (expensesResult.data || []) as FinanceExpenseRow[];
+      if (profileResult.error) throw profileResult.error;
 
-      const paymentsMade = (paymentsMadeResult.data ||
-        []) as FinancePaymentMadeRow[];
-      const paymentsReceived = (paymentsReceivedResult.data ||
-        []) as FinancePaymentReceivedRow[];
-      const payrollRuns = (payrollRunsResult.data ||
-        []) as FinancePayrollRunRow[];
+      const nextProfile =
+        (profileResult.data || null) as CurrentUserProfile | null;
 
-      const receivables = invoices.reduce(
-        (sum, row) => sum + toNumber(row.balance_due),
-        0
-      );
+      if (!nextProfile?.role) {
+        if (mode === "initial") {
+          setCurrentProfile(nextProfile);
+          setEffectivePermissions(null);
+        }
+        return nextProfile;
+      }
 
-      const payables = bills.reduce(
-        (sum, row) => sum + toNumber(row.balance_due),
-        0
-      );
+      setCurrentProfile(nextProfile);
+      setEffectivePermissions(permissions);
+      return nextProfile;
+    },
+    []
+  );
 
-      const paymentsIn = paymentsReceived.reduce(
-        (sum, row) => sum + toNumber(row.amount),
-        0
-      );
+  const loadTransactionsData = useCallback(
+    async (mode: FinanceLoadMode = "initial") => {
+      if (mode === "initial" && !hasLoadedOnce) {
+        setIsLoading(true);
+      } else {
+        setIsRefreshing(true);
+      }
 
-      const paymentsOut = paymentsMade.reduce(
-        (sum, row) => sum + toNumber(row.amount),
-        0
-      );
+      if (mode === "initial") setPageError(null);
 
-      const overdueInvoices = invoices.filter((row) =>
-        isOverdue(row.due_date, toNumber(row.balance_due))
-      ).length;
+      try {
+        await loadCurrentProfile(mode);
 
-      const overdueBills = bills.filter((row) =>
-        isOverdue(row.due_date, toNumber(row.balance_due))
-      ).length;
+        const [
+          invoicesResult,
+          billsResult,
+          expensesResult,
+          paymentsMadeResult,
+          paymentsReceivedResult,
+          payrollRunsResult,
+          paycheckRequestsResult,
+          proformaInvoicesResult,
+          purchaseOrdersResult,
+        ] = await Promise.all([
+          supabase
+            .from("finance_invoices_issued")
+            .select(
+              "id, invoice_number, status, total_amount, balance_due, due_date, created_at"
+            )
+            .order("created_at", { ascending: false })
+            .limit(50),
+          supabase
+            .from("finance_bills_received")
+            .select(
+              "id, bill_number, status, total_amount, balance_due, due_date, created_at"
+            )
+            .order("created_at", { ascending: false })
+            .limit(50),
+          supabase
+            .from("finance_expenses")
+            .select(
+              "id, expense_number, title, amount, status, approval_status, payment_status, created_at"
+            )
+            .order("created_at", { ascending: false })
+            .limit(50),
+          supabase
+            .from("finance_payments_made")
+            .select("id, amount, payment_date, created_at")
+            .order("payment_date", { ascending: false })
+            .limit(50),
+          supabase
+            .from("finance_payments_received")
+            .select("id, amount, payment_date, created_at")
+            .order("payment_date", { ascending: false })
+            .limit(50),
+          supabase
+            .from("finance_payroll_runs")
+            .select("id, run_number, status, total_net, created_at")
+            .order("created_at", { ascending: false })
+            .limit(50),
+          loadCount("finance_paycheck_requests"),
+          loadCount("finance_proforma_invoices"),
+          loadCount("finance_purchase_orders"),
+        ]);
 
-      const pendingExpenses = expenses.filter(
-        (row) =>
-          row.approval_status === "pending" ||
-          row.status === "pending" ||
-          row.payment_status === "pending"
-      ).length;
+        if (invoicesResult.error) throw invoicesResult.error;
+        if (billsResult.error) throw billsResult.error;
+        if (expensesResult.error) throw expensesResult.error;
+        if (paymentsMadeResult.error) throw paymentsMadeResult.error;
+        if (paymentsReceivedResult.error) throw paymentsReceivedResult.error;
+        if (payrollRunsResult.error) throw payrollRunsResult.error;
 
-      const recentActivity: RecentTransactionItem[] = [
-        ...invoices.slice(0, 4).map((row) => ({
-          id: `invoice-${row.id}`,
-          type: "Invoice",
-          title: row.invoice_number,
-          subtitle: `${row.status} • Balance $${formatMoney(
-            toNumber(row.balance_due)
-          )}`,
-          createdAt: row.created_at,
-          route: `/finance/transactions/invoices/${row.id}`,
-        })),
-        ...bills.slice(0, 4).map((row) => ({
-          id: `bill-${row.id}`,
-          type: "Bill",
-          title: row.bill_number,
-          subtitle: `${row.status} • Balance $${formatMoney(
-            toNumber(row.balance_due)
-          )}`,
-          createdAt: row.created_at,
-          route: `/finance/transactions/bills/${row.id}`,
-        })),
-        ...expenses.slice(0, 4).map((row) => ({
-          id: `expense-${row.id}`,
-          type: "Expense",
-          title: row.expense_number || "Expense",
-          subtitle: `${row.status} • ${row.title || "No title"}`,
-          createdAt: row.created_at,
-          route: `/finance/transactions/expenses/${row.id}`,
-        })),
-        ...payrollRuns.slice(0, 3).map((row) => ({
-          id: `payroll-${row.id}`,
-          type: "Payroll",
-          title: row.run_number || "Payroll run",
-          subtitle: `${row.status} • Net $${formatMoney(
-            toNumber(row.total_net)
-          )}`,
-          createdAt: row.created_at,
-          route: `/finance/transactions/payroll/${row.id}`,
-        })),
-      ]
-        .sort(
-          (a, b) =>
-            new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime()
-        )
-        .slice(0, 8);
+        const invoices = (invoicesResult.data || []) as FinanceInvoiceRow[];
+        const bills = (billsResult.data || []) as FinanceBillRow[];
+        const expenses = (expensesResult.data || []) as FinanceExpenseRow[];
+        const paymentsMade = (paymentsMadeResult.data ||
+          []) as FinancePaymentMadeRow[];
+        const paymentsReceived = (paymentsReceivedResult.data ||
+          []) as FinancePaymentReceivedRow[];
+        const payrollRuns = (payrollRunsResult.data ||
+          []) as FinancePayrollRunRow[];
 
-      setData({
-        counts: {
-          invoices: invoices.length,
-          bills: bills.length,
-          proformaInvoices: getCount(proformaInvoicesResult),
-          expenses: expenses.length,
-          paymentsMade: paymentsMade.length,
-          paymentsReceived: paymentsReceived.length,
-          purchaseOrders: getCount(purchaseOrdersResult),
-          paycheckRequests: getCount(paycheckRequestsResult),
-          payrollRuns: payrollRuns.length,
-        },
-        totals: {
-          receivables,
-          payables,
-          paymentsIn,
-          paymentsOut,
-        },
-        alerts: {
-          overdueInvoices,
-          overdueBills,
-          pendingExpenses,
-        },
-        recentActivity,
-      });
-    } catch (error) {
-      console.error("Failed to load finance transactions hub:", error);
-      setData(EMPTY_TRANSACTIONS_DATA);
-    } finally {
-      setIsLoading(false);
-    }
-  }, [loadCurrentProfile]);
+        const receivables = invoices.reduce(
+          (sum, row) => sum + toNumber(row.balance_due),
+          0
+        );
+
+        const payables = bills.reduce(
+          (sum, row) => sum + toNumber(row.balance_due),
+          0
+        );
+
+        const paymentsIn = paymentsReceived.reduce(
+          (sum, row) => sum + toNumber(row.amount),
+          0
+        );
+
+        const paymentsOut = paymentsMade.reduce(
+          (sum, row) => sum + toNumber(row.amount),
+          0
+        );
+
+        const overdueInvoices = invoices.filter((row) =>
+          isOverdue(row.due_date, toNumber(row.balance_due))
+        ).length;
+
+        const overdueBills = bills.filter((row) =>
+          isOverdue(row.due_date, toNumber(row.balance_due))
+        ).length;
+
+        const pendingExpenses = expenses.filter(
+          (row) =>
+            row.approval_status === "pending" ||
+            row.status === "pending" ||
+            row.payment_status === "pending"
+        ).length;
+
+        const recentActivity: RecentTransactionItem[] = [
+          ...invoices.slice(0, 4).map((row) => ({
+            id: `invoice-${row.id}`,
+            type: "Invoice",
+            title: row.invoice_number,
+            subtitle: `${row.status} • Balance $${formatMoney(
+              toNumber(row.balance_due)
+            )}`,
+            createdAt: row.created_at,
+            route: `/finance/transactions/invoices/${row.id}`,
+          })),
+          ...bills.slice(0, 4).map((row) => ({
+            id: `bill-${row.id}`,
+            type: "Bill",
+            title: row.bill_number,
+            subtitle: `${row.status} • Balance $${formatMoney(
+              toNumber(row.balance_due)
+            )}`,
+            createdAt: row.created_at,
+            route: `/finance/transactions/bills/${row.id}`,
+          })),
+          ...expenses.slice(0, 4).map((row) => ({
+            id: `expense-${row.id}`,
+            type: "Expense",
+            title: row.expense_number || "Expense",
+            subtitle: `${row.status} • ${row.title || "No title"}`,
+            createdAt: row.created_at,
+            route: `/finance/transactions/expenses/${row.id}`,
+          })),
+          ...payrollRuns.slice(0, 3).map((row) => ({
+            id: `payroll-${row.id}`,
+            type: "Payroll",
+            title: row.run_number || "Payroll run",
+            subtitle: `${row.status} • Net $${formatMoney(
+              toNumber(row.total_net)
+            )}`,
+            createdAt: row.created_at,
+            route: `/finance/transactions/payroll/${row.id}`,
+          })),
+        ]
+          .sort(
+            (a, b) =>
+              new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime()
+          )
+          .slice(0, 8);
+
+        setData({
+          counts: {
+            invoices: invoices.length,
+            bills: bills.length,
+            proformaInvoices: getCount(proformaInvoicesResult),
+            expenses: expenses.length,
+            paymentsMade: paymentsMade.length,
+            paymentsReceived: paymentsReceived.length,
+            purchaseOrders: getCount(purchaseOrdersResult),
+            paycheckRequests: getCount(paycheckRequestsResult),
+            payrollRuns: payrollRuns.length,
+          },
+          totals: {
+            receivables,
+            payables,
+            paymentsIn,
+            paymentsOut,
+          },
+          alerts: {
+            overdueInvoices,
+            overdueBills,
+            pendingExpenses,
+          },
+          recentActivity,
+        });
+        setHasLoadedOnce(true);
+      } catch (error) {
+        console.error("Failed to load finance transactions hub:", error);
+
+        if (mode === "initial") {
+          setData(EMPTY_TRANSACTIONS_DATA);
+          setPageError(
+            error instanceof Error
+              ? error.message
+              : "Failed to load finance transactions hub."
+          );
+        }
+      } finally {
+        setIsLoading(false);
+        setIsRefreshing(false);
+      }
+    },
+    [hasLoadedOnce, loadCurrentProfile]
+  );
 
   useEffect(() => {
-    void loadTransactionsData();
+    void loadTransactionsData("initial");
   }, [loadTransactionsData]);
 
   useEffect(() => {
@@ -1053,52 +790,52 @@ export default function FinanceTransactionsPage() {
       .on(
         "postgres_changes",
         { event: "*", schema: "public", table: "finance_invoices_issued" },
-        () => void loadTransactionsData()
+        () => void loadTransactionsData("silent")
       )
       .on(
         "postgres_changes",
         { event: "*", schema: "public", table: "finance_bills_received" },
-        () => void loadTransactionsData()
+        () => void loadTransactionsData("silent")
       )
       .on(
         "postgres_changes",
         { event: "*", schema: "public", table: "finance_expenses" },
-        () => void loadTransactionsData()
+        () => void loadTransactionsData("silent")
       )
       .on(
         "postgres_changes",
         { event: "*", schema: "public", table: "finance_payments_made" },
-        () => void loadTransactionsData()
+        () => void loadTransactionsData("silent")
       )
       .on(
         "postgres_changes",
         { event: "*", schema: "public", table: "finance_payments_received" },
-        () => void loadTransactionsData()
+        () => void loadTransactionsData("silent")
       )
       .on(
         "postgres_changes",
         { event: "*", schema: "public", table: "profiles" },
-        () => void loadTransactionsData()
+        () => void loadTransactionsData("silent")
       )
       .on(
         "postgres_changes",
         { event: "*", schema: "public", table: "finance_payroll_runs" },
-        () => void loadTransactionsData()
+        () => void loadTransactionsData("silent")
       )
       .on(
         "postgres_changes",
         { event: "*", schema: "public", table: "finance_paycheck_requests" },
-        () => void loadTransactionsData()
+        () => void loadTransactionsData("silent")
       )
       .subscribe();
 
     const intervalId = window.setInterval(() => {
-      void loadTransactionsData();
+      void loadTransactionsData("silent");
     }, 60000);
 
     return () => {
       window.clearInterval(intervalId);
-      supabase.removeChannel(channel);
+      void supabase.removeChannel(channel);
     };
   }, [loadTransactionsData]);
 
@@ -1170,6 +907,7 @@ export default function FinanceTransactionsPage() {
         count: 0,
         statusLabel: "Live",
         lastUpdatedLabel: "Company",
+        tone: "emerald",
       },
       "customer-pos": {
         key: "customer-pos",
@@ -1181,6 +919,7 @@ export default function FinanceTransactionsPage() {
         count: 0,
         statusLabel: "Live",
         lastUpdatedLabel: "Company",
+        tone: "emerald",
       },
       "vendor-quotations": {
         key: "vendor-quotations",
@@ -1192,17 +931,18 @@ export default function FinanceTransactionsPage() {
         count: 0,
         statusLabel: "Route ready",
         lastUpdatedLabel: "Company",
+        tone: "amber",
       },
       invoices: {
         key: "invoices",
         title: "Invoices",
-        description:
-          "Official receivable records issued to customers and clients.",
+        description: "Official receivable records issued to customers and clients.",
         route: "/finance/transactions/invoices",
         icon: FileText,
         count: data.counts.invoices,
         statusLabel: "Live",
         lastUpdatedLabel: "Company",
+        tone: "emerald",
       },
       bills: {
         key: "bills",
@@ -1214,6 +954,7 @@ export default function FinanceTransactionsPage() {
         count: data.counts.bills,
         statusLabel: "Live",
         lastUpdatedLabel: "Company",
+        tone: "amber",
       },
       "proforma-invoices": {
         key: "proforma-invoices",
@@ -1225,6 +966,7 @@ export default function FinanceTransactionsPage() {
         count: data.counts.proformaInvoices,
         statusLabel: data.counts.proformaInvoices > 0 ? "Live" : "Later",
         lastUpdatedLabel: "Company",
+        tone: "cyan",
       },
       expenses: {
         key: "expenses",
@@ -1237,6 +979,7 @@ export default function FinanceTransactionsPage() {
         statusLabel: "Own access",
         lastUpdatedLabel: "Personal",
         isPersonalDefault: true,
+        tone: "cyan",
       },
       "payments-made": {
         key: "payments-made",
@@ -1248,6 +991,7 @@ export default function FinanceTransactionsPage() {
         count: data.counts.paymentsMade,
         statusLabel: "Company",
         lastUpdatedLabel: "Company",
+        tone: "rose",
       },
       "payments-received": {
         key: "payments-received",
@@ -1259,6 +1003,7 @@ export default function FinanceTransactionsPage() {
         count: data.counts.paymentsReceived,
         statusLabel: "Live",
         lastUpdatedLabel: "Company",
+        tone: "emerald",
       },
       "purchase-orders": {
         key: "purchase-orders",
@@ -1270,6 +1015,7 @@ export default function FinanceTransactionsPage() {
         count: data.counts.purchaseOrders,
         statusLabel: data.counts.purchaseOrders > 0 ? "Live" : "Route ready",
         lastUpdatedLabel: "Company",
+        tone: "amber",
       },
       "paycheck-requests": {
         key: "paycheck-requests",
@@ -1282,6 +1028,7 @@ export default function FinanceTransactionsPage() {
         statusLabel: "Own access",
         lastUpdatedLabel: "Personal",
         isPersonalDefault: true,
+        tone: "violet",
       },
       payroll: {
         key: "payroll",
@@ -1293,6 +1040,7 @@ export default function FinanceTransactionsPage() {
         count: data.counts.payrollRuns,
         statusLabel: "Company",
         lastUpdatedLabel: "Company",
+        tone: "violet",
       },
     }),
     [data]
@@ -1308,6 +1056,7 @@ export default function FinanceTransactionsPage() {
         subtitle:
           "Customer-side receivable flow from quotation and customer commitment through proforma, final invoice, and payment collection.",
         tone: "incoming",
+        icon: Wallet,
         modules: [
           { module: allModuleCards.quotations, sequenceLabel: "01" },
           { module: allModuleCards["customer-pos"], sequenceLabel: "02" },
@@ -1325,6 +1074,7 @@ export default function FinanceTransactionsPage() {
         subtitle:
           "Supplier quotation, purchase order, vendor PI or invoice, and outgoing payment settlement.",
         tone: "procurement",
+        icon: Receipt,
         modules: [
           { module: allModuleCards["vendor-quotations"], sequenceLabel: "01" },
           { module: allModuleCards["purchase-orders"], sequenceLabel: "02" },
@@ -1369,11 +1119,11 @@ export default function FinanceTransactionsPage() {
       sections.push({
         key: "operating-expenses",
         title: "Expenses & Reimbursements Flow",
-        subtitle:
-          accessFlags.canSeeExpenseFunding
-            ? "Personal expense/reimbursement access plus Finance/Admin funding and payment execution if enabled."
-            : "Personal expense and reimbursement requests. Company funding/payment execution is hidden until Admin enables it.",
+        subtitle: accessFlags.canSeeExpenseFunding
+          ? "Personal expense/reimbursement access plus Finance/Admin funding and payment execution if enabled."
+          : "Personal expense and reimbursement requests. Company funding/payment execution is hidden until Admin enables it.",
         tone: "expense",
+        icon: Receipt,
         modules: expenseModules,
       });
     }
@@ -1404,11 +1154,11 @@ export default function FinanceTransactionsPage() {
       sections.push({
         key: "internal-flows",
         title: "Internal Finance Flows",
-        subtitle:
-          accessFlags.canSeePayrollBasket
-            ? "Personal paycheck requests plus Finance/Admin payroll fund basket execution if enabled."
-            : "Personal paycheck requests. Payroll fund basket execution is hidden until Admin enables it.",
+        subtitle: accessFlags.canSeePayrollBasket
+          ? "Personal paycheck requests plus Finance/Admin payroll fund basket execution if enabled."
+          : "Personal paycheck requests. Payroll fund basket execution is hidden until Admin enables it.",
         tone: "internal",
+        icon: BriefcaseBusiness,
         modules: payrollModules,
       });
     }
@@ -1434,29 +1184,31 @@ export default function FinanceTransactionsPage() {
     return [
       {
         label: "System Status",
-        value: isLoading ? "Loading" : "Live",
-        detail: "Transaction hub refreshes automatically every 60 seconds.",
+        value: isLoading ? "Loading" : isRefreshing ? "Syncing" : "Live",
+        description: "Transaction hub refreshes silently every 60 seconds.",
         icon: ShieldCheck,
         tone: "emerald" as const,
       },
       {
         label: "Personal Access",
         value: "Enabled",
-        detail: "Own expenses and paycheck requests are available by default.",
+        description: "Own expenses and paycheck requests are available by default.",
         icon: UserRound,
         tone: "cyan" as const,
       },
       {
         label: "Company Modules",
         value: `${formatCount(
-          transactionSections.filter((section) => section.modules.some((item) => !item.module.isPersonalDefault)).length
+          transactionSections.filter((section) =>
+            section.modules.some((item) => !item.module.isPersonalDefault)
+          ).length
         )}`,
-        detail: "Company-level sections enabled for this user.",
+        description: "Company-level sections enabled for this user.",
         icon: LockKeyhole,
         tone: "amber" as const,
       },
     ];
-  }, [isLoading, transactionSections]);
+  }, [isLoading, isRefreshing, transactionSections]);
 
   const openRoute = useCallback(
     (route: string) => {
@@ -1465,243 +1217,263 @@ export default function FinanceTransactionsPage() {
     [navigate]
   );
 
+  if (isLoading && !hasLoadedOnce) {
+    return (
+      <AixiaLoadingState
+        title="Loading transactions studio"
+        description="Permission state, transaction counts, cash flow totals, and recent activity are being loaded."
+      />
+    );
+  }
+
   return (
-    <div className="min-h-screen bg-[#05070d] px-4 py-4 text-white md:px-6 md:py-6">
-      <div className="mx-auto flex w-full max-w-[1600px] flex-col gap-6">
-        <header className="relative overflow-hidden rounded-[34px] border border-white/10 bg-white/[0.045] p-6 shadow-2xl shadow-black/30 backdrop-blur-xl">
-          <div className="pointer-events-none absolute inset-0 bg-[radial-gradient(circle_at_top_left,rgba(6,182,212,0.16),transparent_38%),radial-gradient(circle_at_top_right,rgba(139,92,246,0.12),transparent_34%)]" />
+    <AixiaPage>
+      <AixiaHero
+        parentLabel="Finance"
+        parentPath="/finance"
+        badges={[
+          { label: "Permission-Aware Transactions", tone: "cyan" },
+          { label: "Own Records Enabled", tone: "emerald" },
+          { label: isRefreshing ? "Silent Sync" : "Auto Refresh", tone: "neutral" },
+        ]}
+        gradientTitle="Transactions"
+        title="Studio"
+        subtitle="Finance transaction workflows filtered by approved access"
+        description="This page only shows transaction areas available to the logged-in user. Personal expense and paycheck request access is enabled by default. Company-level workflows appear only when Finance Access Approvals permits them."
+        statusCards={headerStatusCards}
+      />
 
-          <div className="relative grid gap-6 xl:grid-cols-[minmax(0,1fr)_620px] xl:items-stretch">
-            <div className="flex min-w-0 flex-col justify-between">
-              <div>
-                <button
-                  type="button"
-                  onClick={() => navigate("/finance")}
-                  className="mb-5 inline-flex items-center justify-center gap-2 rounded-full border border-white/10 bg-white/[0.05] px-5 py-2 text-[11px] font-semibold uppercase tracking-[0.22em] text-slate-300 transition hover:border-white/20 hover:bg-white/[0.08] hover:text-white"
-                >
-                  <ArrowRight className="h-3.5 w-3.5 rotate-180" />
-                  Finance
-                </button>
+      {pageError ? <AixiaAlert tone="error">{pageError}</AixiaAlert> : null}
 
-                <div className="inline-flex w-fit items-center gap-2 rounded-full border border-cyan-400/20 bg-cyan-500/10 px-3 py-1 text-[11px] font-semibold uppercase tracking-[0.22em] text-cyan-200">
-                  <Sparkles className="h-3.5 w-3.5" />
-                  Permission-Aware Transactions
-                </div>
+      <AixiaAccessRule
+        title="Transactions access rule"
+        description="This hub uses finance page-access resolution and never uses local permission helpers. Company modules appear only when the matching Access Approval section resolves as readable."
+        icon={ShieldCheck}
+      >
+        Personal expense and paycheck request entry points stay visible by default. Company
+        receivables, supplier procurement, expense funding, and payroll basket controls are
+        resolved through fetchFinanceEffectivePermissions and resolveFinancePagePermissionState.
+      </AixiaAccessRule>
 
-                <h1 className="mt-4 text-3xl font-semibold tracking-[-0.035em] text-white md:text-5xl">
-                  Transactions Studio
-                </h1>
+      {metricCards.length > 0 ? (
+        <AixiaMetricGrid>
+          {metricCards.map((metric) => (
+            <AixiaMetricCard
+              key={metric.key}
+              label={metric.title}
+              value={metric.value}
+              description={metric.subtitle}
+              icon={metric.icon}
+              tone={metric.tone}
+            />
+          ))}
+        </AixiaMetricGrid>
+      ) : null}
 
-                <p className="mt-3 max-w-4xl text-sm leading-6 text-slate-400 md:text-base md:leading-7">
-                  This page only shows transaction areas available to the logged-in user.
-                  Personal expense and paycheck request access is enabled by default.
-                  Company-level workflows appear only when Finance Access Approvals permits them.
-                </p>
-              </div>
-
-              <div className="mt-5 flex flex-wrap gap-2">
-                <div className="rounded-full border border-emerald-400/20 bg-emerald-500/10 px-3 py-1 text-[11px] font-semibold uppercase tracking-[0.16em] text-emerald-200">
-                  Own records enabled
-                </div>
-                <div className="rounded-full border border-cyan-400/20 bg-cyan-500/10 px-3 py-1 text-[11px] font-semibold uppercase tracking-[0.16em] text-cyan-200">
-                  Company access filtered
-                </div>
-                <div className="rounded-full border border-slate-400/20 bg-slate-500/10 px-3 py-1 text-[11px] font-semibold uppercase tracking-[0.16em] text-slate-300">
-                  Auto refresh
-                </div>
-              </div>
-            </div>
-
-            <div className="grid gap-3 md:grid-cols-3 xl:grid-cols-3">
-              {headerStatusCards.map((card) => (
-                <HeaderStatusCard
-                  key={card.label}
-                  label={card.label}
-                  value={card.value}
-                  detail={card.detail}
-                  icon={card.icon}
-                  tone={card.tone}
-                />
-              ))}
-            </div>
-          </div>
-        </header>
-
-        {metricCards.length > 0 ? (
-          <section className="grid gap-4 md:grid-cols-2 xl:grid-cols-5">
-            {metricCards.map((metric) => (
-              <TransactionMetric key={metric.key} metric={metric} />
-            ))}
-          </section>
-        ) : null}
-
-        <section className="grid items-start gap-6 xl:grid-cols-[minmax(0,1fr)_430px]">
-          <div className="grid min-h-0 gap-6">
+      <AixiaSmartLayout
+        sidebar="normal"
+        main={
+          <>
             {transactionSections.length > 0 ? (
               transactionSections.map((section) => (
-                <TransactionFlowSection
+                <AixiaSection
                   key={section.key}
-                  section={section}
-                  onOpen={openRoute}
-                />
+                  title={section.title}
+                  description={section.subtitle}
+                  icon={section.icon}
+                  badge={<AixiaBadge tone={getSectionTone(section.tone)}>{section.title}</AixiaBadge>}
+                >
+                  <AixiaNavigationGrid>
+                    {section.modules.map((item) => {
+                      const route = getModuleRoute(item);
+
+                      return (
+                        <AixiaNavigationCard
+                          key={`${item.module.key}-${item.sequenceLabel || "module"}`}
+                          title={getModuleTitle(item)}
+                          eyebrow={item.sequenceLabel ? `Step ${item.sequenceLabel}` : undefined}
+                          description={getModuleDescription(item)}
+                          icon={item.module.icon}
+                          statusLabel={item.module.statusLabel}
+                          summary={`${formatCount(item.module.count)} records`}
+                          actionLabel={route ? "Open" : "Unavailable"}
+                          tone={item.module.tone}
+                          disabled={!route}
+                          onClick={route ? () => openRoute(route) : undefined}
+                          meta={[
+                            {
+                              label: "Records",
+                              value: formatCount(item.module.count),
+                              description: item.module.lastUpdatedLabel,
+                            },
+                            {
+                              label: "Access",
+                              value: item.module.lastUpdatedLabel,
+                              description: item.module.isPersonalDefault
+                                ? "Default personal flow"
+                                : "Company-level flow",
+                            },
+                          ]}
+                        />
+                      );
+                    })}
+                  </AixiaNavigationGrid>
+                </AixiaSection>
               ))
             ) : (
-              <AccessBlockedPanel />
+              <AixiaNavigationInfoPanel
+                tone="amber"
+                icon={LockKeyhole}
+                title="No company transaction modules are enabled"
+                description="You can still use your own allowed personal flows, such as your own expenses/reimbursements and paycheck requests. Company-level finance modules appear here only after an Admin enables the related Access Approval section."
+              />
             )}
 
             {accessFlags.canMonitorAnyCompanyFinance ? (
-              <div className="overflow-hidden rounded-[30px] border border-cyan-400/15 bg-[radial-gradient(circle_at_top,rgba(6,182,212,0.18),rgba(3,7,18,0.94)_58%)]">
-                <div className="flex items-start justify-between gap-4 border-b border-white/10 px-5 py-4">
-                  <div>
-                    <div className="text-sm font-semibold uppercase tracking-[0.18em] text-cyan-200">
-                      Transaction Readiness
-                    </div>
-                    <p className="mt-1 text-xs leading-5 text-slate-400">
-                      Company-level monitoring appears only for enabled Access Approval sections.
-                    </p>
-                  </div>
-
-                  <div className="rounded-2xl border border-cyan-400/20 bg-cyan-500/10 p-3 text-cyan-200">
-                    <Receipt className="h-5 w-5" />
-                  </div>
-                </div>
-
-                <div className="grid gap-4 p-5 md:grid-cols-3">
-                  {accessFlags.canMonitorIncomingMoney ? (
-                    <SummaryBlock
-                      title="Open Receivables"
-                      value={`$${formatMoney(data.totals.receivables)}`}
-                      subtitle={`${formatCount(data.counts.invoices)} invoice records`}
-                    />
-                  ) : null}
-
-                  {accessFlags.canMonitorSupplierProcurement ? (
-                    <SummaryBlock
-                      title="Open Payables"
-                      value={`$${formatMoney(data.totals.payables)}`}
-                      subtitle={`${formatCount(data.counts.bills)} bill records`}
-                    />
-                  ) : null}
-                </div>
-              </div>
-            ) : null}
-          </div>
-
-          <div className="sticky top-6 grid min-h-0 gap-6 self-start">
-            {accessFlags.canMonitorAnyCompanyFinance ? (
-              <TransactionsSectionCard
-                title="Control Signals"
-                description="Visible only for company-level monitoring permissions."
-                icon={BadgeAlert}
+              <AixiaSection
+                title="Transaction Readiness"
+                description="Company-level monitoring appears only for enabled Access Approval sections."
+                icon={Receipt}
               >
-                <div className="space-y-3">
+                <AixiaReviewGrid variant="cards">
                   {accessFlags.canMonitorIncomingMoney ? (
-                    <SummaryBlock
-                      title="Overdue Invoices"
-                      value={isLoading ? "—" : formatCount(data.alerts.overdueInvoices)}
-                      subtitle="Receivables requiring collection attention"
+                    <AixiaValueBlock
+                      label="Open Receivables"
+                      value={`$${formatMoney(data.totals.receivables)}`}
+                      detail={`${formatCount(data.counts.invoices)} invoice records`}
                     />
                   ) : null}
 
                   {accessFlags.canMonitorSupplierProcurement ? (
-                    <SummaryBlock
-                      title="Overdue Bills"
-                      value={isLoading ? "—" : formatCount(data.alerts.overdueBills)}
-                      subtitle="Payables requiring payment attention"
+                    <AixiaValueBlock
+                      label="Open Payables"
+                      value={`$${formatMoney(data.totals.payables)}`}
+                      detail={`${formatCount(data.counts.bills)} bill records`}
                     />
                   ) : null}
 
                   {accessFlags.canMonitorExpenseFunding ? (
-                    <SummaryBlock
-                      title="Pending Expenses"
-                      value={isLoading ? "—" : formatCount(data.alerts.pendingExpenses)}
-                      subtitle="Expense items waiting for Finance/Admin action"
+                    <AixiaValueBlock
+                      label="Pending Expenses"
+                      value={formatCount(data.alerts.pendingExpenses)}
+                      detail="Expense items waiting for Finance/Admin action"
                     />
                   ) : null}
-                </div>
-              </TransactionsSectionCard>
+                </AixiaReviewGrid>
+              </AixiaSection>
+            ) : null}
+          </>
+        }
+        side={
+          <>
+            {accessFlags.canMonitorAnyCompanyFinance ? (
+              <AixiaSection
+                title="Control Signals"
+                description="Visible only for company-level monitoring permissions."
+                icon={BadgeAlert}
+                smartScroll
+                visibleCards={8}
+                itemCount={3}
+              >
+                <AixiaReviewGrid variant="cards">
+                  {accessFlags.canMonitorIncomingMoney ? (
+                    <AixiaValueBlock
+                      label="Overdue Invoices"
+                      value={isLoading ? "—" : formatCount(data.alerts.overdueInvoices)}
+                      detail="Receivables requiring collection attention"
+                    />
+                  ) : null}
+
+                  {accessFlags.canMonitorSupplierProcurement ? (
+                    <AixiaValueBlock
+                      label="Overdue Bills"
+                      value={isLoading ? "—" : formatCount(data.alerts.overdueBills)}
+                      detail="Payables requiring payment attention"
+                    />
+                  ) : null}
+
+                  {accessFlags.canMonitorExpenseFunding ? (
+                    <AixiaValueBlock
+                      label="Pending Expenses"
+                      value={isLoading ? "—" : formatCount(data.alerts.pendingExpenses)}
+                      detail="Expense items waiting for Finance/Admin action"
+                    />
+                  ) : null}
+                </AixiaReviewGrid>
+              </AixiaSection>
             ) : null}
 
             {accessFlags.canMonitorAnyCompanyFinance ? (
-              <TransactionsSectionCard
+              <AixiaSection
                 title="Recent Activity"
                 description="Latest movement across permitted company transaction objects."
                 icon={Receipt}
+                smartScroll
+                visibleCards={8}
+                itemCount={recentActivity.length}
               >
                 {recentActivity.length === 0 ? (
-                  <div className="rounded-[28px] border border-dashed border-white/10 bg-black/20 px-6 py-12 text-center">
-                    <div className="text-sm font-medium text-white">
-                      No permitted company activity found
-                    </div>
-                    <p className="mt-2 text-sm leading-6 text-slate-500">
-                      Activity appears here only for company-level sections this user can monitor.
-                    </p>
-                  </div>
+                  <AixiaEmptyState
+                    icon={Receipt}
+                    title="No permitted company activity found"
+                    description="Activity appears here only for company-level sections this user can monitor."
+                  />
                 ) : (
-                  <div className="h-[430px] overflow-y-auto overscroll-contain rounded-[26px] border border-white/10 bg-black/20">
-                    <div className="divide-y divide-white/5">
-                      {recentActivity.map((item) => (
-                        <button
-                          key={item.id}
-                          type="button"
-                          onClick={() => {
-                            if (!item.route) return;
-                            navigate(item.route);
-                          }}
-                          className="group flex w-full items-center justify-between gap-4 px-5 py-4 text-left transition hover:bg-white/[0.045]"
-                        >
-                          <div className="min-w-0">
-                            <div className="flex min-w-0 flex-wrap items-center gap-2">
-                              <span className="rounded-full border border-cyan-400/20 bg-cyan-500/10 px-3 py-1 text-[11px] font-semibold uppercase tracking-[0.16em] text-cyan-200">
-                                {item.type}
-                              </span>
-                              <span className="truncate text-sm font-semibold text-white">
-                                {item.title}
-                              </span>
-                            </div>
-
-                            <div className="mt-2 line-clamp-1 text-sm text-slate-400">
-                              {item.subtitle}
-                            </div>
-                          </div>
-
-                          <div className="flex shrink-0 items-center gap-3">
-                            <div className="text-xs text-slate-600">
-                              {formatDateLabel(item.createdAt)}
-                            </div>
-                            <ArrowRight className="h-4 w-4 text-slate-500 transition group-hover:translate-x-1 group-hover:text-cyan-200" />
-                          </div>
-                        </button>
-                      ))}
-                    </div>
-                  </div>
+                  <AixiaSideList>
+                    {recentActivity.map((item) => (
+                      <AixiaSideListRow
+                        key={item.id}
+                        badge={<AixiaBadge tone="cyan">{item.type}</AixiaBadge>}
+                        title={item.title}
+                        description={item.subtitle}
+                        meta={formatDateLabel(item.createdAt)}
+                        disabled={!item.route}
+                        onClick={
+                          item.route ? () => navigate(item.route as string) : undefined
+                        }
+                      />
+                    ))}
+                  </AixiaSideList>
                 )}
-              </TransactionsSectionCard>
+              </AixiaSection>
             ) : null}
 
             {!accessFlags.canMonitorAnyCompanyFinance ? (
-              <TransactionsSectionCard
+              <AixiaSection
                 title="Personal Access"
                 description="Default employee finance access."
                 icon={UserRound}
               >
-                <div className="space-y-3">
-                  <SummaryBlock
-                    title="Own Expenses"
+                <AixiaReviewGrid variant="cards">
+                  <AixiaNavigationStatBlock
+                    label="Own Expenses"
                     value="Enabled"
-                    subtitle="Create, edit, submit, upload, and confirm your own expense/reimbursement records."
+                    description="Create, edit, submit, upload, and confirm your own expense/reimbursement records."
+                    tone="cyan"
                   />
-                  <SummaryBlock
-                    title="Own Paychecks"
+                  <AixiaNavigationStatBlock
+                    label="Own Paychecks"
                     value="Enabled"
-                    subtitle="Create, edit, submit, upload, and confirm your own paycheck request records."
+                    description="Create, edit, submit, upload, and confirm your own paycheck request records."
+                    tone="violet"
                   />
-                </div>
-              </TransactionsSectionCard>
+                </AixiaReviewGrid>
+              </AixiaSection>
             ) : null}
-          </div>
-        </section>
+          </>
+        }
+      />
+
+      <div className="aixia-action-stack">
+        <AixiaButton
+          type="button"
+          variant="secondary"
+          onClick={() => navigate("/finance")}
+        >
+          <ArrowRight className="h-4 w-4 rotate-180" />
+          Finance
+        </AixiaButton>
       </div>
-    </div>
+    </AixiaPage>
   );
 }

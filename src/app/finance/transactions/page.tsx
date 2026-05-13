@@ -1275,51 +1275,68 @@ export default function FinanceTransactionsPage() {
         main={
           <>
             {transactionSections.length > 0 ? (
-              transactionSections.map((section) => (
-                <AixiaSection
-                  key={section.key}
-                  title={section.title}
-                  description={section.subtitle}
-                  icon={section.icon}
-                  badge={<AixiaBadge tone={getSectionTone(section.tone)}>{section.title}</AixiaBadge>}
-                >
-                  <AixiaNavigationGrid>
-                    {section.modules.map((item) => {
-                      const route = getModuleRoute(item);
+              <AixiaSection
+                title="Transaction Workflows"
+                description="Permission-aware transaction modules. Each card opens the matching shared finance workflow when access is enabled."
+                icon={FileText}
+              >
+                <div className="aixia-stack">
+                  {transactionSections.map((section) => (
+                    <AixiaNavigationInfoPanel
+                      key={section.key}
+                      tone={getSectionTone(section.tone)}
+                      icon={section.icon}
+                      title={section.title}
+                      description={section.subtitle}
+                    />
 
-                      return (
-                        <AixiaNavigationCard
-                          key={`${item.module.key}-${item.sequenceLabel || "module"}`}
-                          title={getModuleTitle(item)}
-                          eyebrow={item.sequenceLabel ? `Step ${item.sequenceLabel}` : undefined}
-                          description={getModuleDescription(item)}
-                          icon={item.module.icon}
-                          statusLabel={item.module.statusLabel}
-                          summary={`${formatCount(item.module.count)} records`}
-                          actionLabel={route ? "Open" : "Unavailable"}
-                          tone={item.module.tone}
-                          disabled={!route}
-                          onClick={route ? () => openRoute(route) : undefined}
-                          meta={[
-                            {
-                              label: "Records",
-                              value: formatCount(item.module.count),
-                              description: item.module.lastUpdatedLabel,
-                            },
-                            {
-                              label: "Access",
-                              value: item.module.lastUpdatedLabel,
-                              description: item.module.isPersonalDefault
-                                ? "Default personal flow"
-                                : "Company-level flow",
-                            },
-                          ]}
-                        />
-                      );
-                    })}
+                  ))}
+
+                  <AixiaNavigationGrid>
+                    {transactionSections.flatMap((section) =>
+                      section.modules.map((item) => {
+                        const route = getModuleRoute(item);
+
+                        return (
+                          <AixiaNavigationCard
+                            key={`${section.key}-${item.module.key}-${
+                              item.sequenceLabel || "module"
+                            }`}
+                            title={getModuleTitle(item)}
+                            eyebrow={
+                              item.sequenceLabel
+                                ? `${section.title} · Step ${item.sequenceLabel}`
+                                : section.title
+                            }
+                            description={getModuleDescription(item)}
+                            icon={item.module.icon}
+                            statusLabel={item.module.statusLabel}
+                            summary={`${formatCount(item.module.count)} records`}
+                            actionLabel={route ? "Open" : "Unavailable"}
+                            tone={item.module.tone}
+                            disabled={!route}
+                            onClick={route ? () => openRoute(route) : undefined}
+                            meta={[
+                              {
+                                label: "Records",
+                                value: formatCount(item.module.count),
+                                description: item.module.lastUpdatedLabel,
+                              },
+                              {
+                                label: "Access",
+                                value: item.module.lastUpdatedLabel,
+                                description: item.module.isPersonalDefault
+                                  ? "Default personal flow"
+                                  : "Company-level flow",
+                              },
+                            ]}
+                          />
+                        );
+                      })
+                    )}
                   </AixiaNavigationGrid>
-                </AixiaSection>
-              ))
+                </div>
+              </AixiaSection>
             ) : (
               <AixiaNavigationInfoPanel
                 tone="amber"

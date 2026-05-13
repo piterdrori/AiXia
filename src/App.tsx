@@ -104,9 +104,13 @@ import FinancePurchaseOrderDetailPage from "@/app/finance/transactions/purchase-
 import FinanceBillsPage from "@/app/finance/transactions/bills/page";
 import FinanceNewBillPage from "@/app/finance/transactions/bills/new/page";
 import BillDetailPage from "@/app/finance/transactions/bills/[id]/page";
-import FinancePaymentsMadePage from "@/app/finance/transactions/expenses-payments-made/page";
-import FinanceNewPaymentMadePage from "@/app/finance/transactions/expenses-payments-made/new/page";
-import PaymentMadeDetailPage from "@/app/finance/transactions/expenses-payments-made/[id]/page";
+import FinancePaymentsMadePage from "@/app/finance/transactions/payments-made/page";
+import FinanceNewPaymentMadePage from "@/app/finance/transactions/payments-made/new/page";
+import PaymentMadeDetailPage from "@/app/finance/transactions/payments-made/[id]/page";
+
+import FinanceExpensePaymentsMadePage from "@/app/finance/transactions/expenses-payments-made/page";
+import FinanceNewExpensePaymentMadePage from "@/app/finance/transactions/expenses-payments-made/new/page";
+import ExpensePaymentMadeDetailPage from "@/app/finance/transactions/expenses-payments-made/[id]/page";
 import FinanceExpensePaymentReviewPage from "@/app/finance/transactions/expenses-payments-made/review/[id]/page";
 import FinanceExpenseFundingBatchNewPage from "@/app/finance/transactions/expenses-payments-made/funding-batches/new/page";
 import FinanceExpenseFundingBatchDetailPage from "@/app/finance/transactions/expenses-payments-made/funding-batches/[id]/page";
@@ -1400,7 +1404,7 @@ function AppRoutes() {
 />
 
 <Route
-  path="/finance/transactions/expenses-payments-made"
+  path="/finance/transactions/payments-made"
   element={
     <ProtectedRoute>
       <DashboardLayout>
@@ -1411,11 +1415,44 @@ function AppRoutes() {
 />
 
 <Route
-  path="/finance/transactions/expenses-payments-made/new"
+  path="/finance/transactions/payments-made/new"
   element={
     <ProtectedRoute>
       <DashboardLayout>
         <FinanceNewPaymentMadePage />
+      </DashboardLayout>
+    </ProtectedRoute>
+  }
+/>
+
+<Route
+  path="/finance/transactions/payments-made/:id"
+  element={
+    <ProtectedRoute>
+      <DashboardLayout>
+        <PaymentMadeDetailPage />
+      </DashboardLayout>
+    </ProtectedRoute>
+  }
+/>
+
+<Route
+  path="/finance/transactions/expenses-payments-made"
+  element={
+    <ProtectedRoute>
+      <DashboardLayout>
+        <FinanceExpensePaymentsMadePage />
+      </DashboardLayout>
+    </ProtectedRoute>
+  }
+/>
+
+<Route
+  path="/finance/transactions/expenses-payments-made/new"
+  element={
+    <ProtectedRoute>
+      <DashboardLayout>
+        <FinanceNewExpensePaymentMadePage />
       </DashboardLayout>
     </ProtectedRoute>
   }
@@ -1459,7 +1496,7 @@ function AppRoutes() {
   element={
     <ProtectedRoute>
       <DashboardLayout>
-        <PaymentMadeDetailPage />
+        <ExpensePaymentMadeDetailPage />
       </DashboardLayout>
     </ProtectedRoute>
   }

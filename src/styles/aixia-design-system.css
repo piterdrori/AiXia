@@ -5658,110 +5658,12 @@ button.aixia-action-card:disabled {
    locked shared registry shell, sortable headers, clear
    human-first data priority, compact rows, and 8 visible
    rows before internal scrolling.
-------------------------------------------------------- */
 
-.aixia-child-allocation-registry {
-  width: 100%;
-  min-width: 0;
-}
-
-.aixia-child-allocation-registry-body {
-  display: grid;
-  min-width: 0;
-  gap: 1rem;
-  padding: 1.1rem;
-}
-
-.aixia-child-allocation-registry-table {
-  min-width: 0;
-}
-
-.aixia-child-allocation-registry .aixia-table-scroll {
-  max-height: min(680px, 72vh) !important;
-  overflow-y: auto !important;
-  overflow-x: auto !important;
-}
-
-.aixia-child-allocation-registry .aixia-table-head {
-  position: sticky;
-  top: 0;
-  z-index: 5;
-}
-
-.aixia-child-allocation-registry .aixia-table th,
-.aixia-child-allocation-registry .aixia-table td {
-  padding-top: 0.9rem !important;
-  padding-bottom: 0.9rem !important;
-  vertical-align: middle;
-}
-
-.aixia-child-allocation-registry .aixia-table-row {
-  min-height: 4.75rem;
-}
-
-.aixia-child-allocation-registry .aixia-table-cell-text-primary {
-  font-size: 0.82rem !important;
-  line-height: 1.2 !important;
-  font-weight: 900 !important;
-}
-
-.aixia-child-allocation-registry .aixia-table-cell-text-secondary {
-  font-size: 0.72rem !important;
-  line-height: 1.35 !important;
-}
-
-.aixia-child-allocation-registry .aixia-table-cell-actions {
-  white-space: nowrap;
-}
-
-.aixia-child-allocation-registry .aixia-table-actions {
-  justify-content: flex-end;
-  gap: 0.55rem;
-}
-
-.aixia-child-allocation-registry .aixia-table-actions .aixia-btn-primary,
-.aixia-child-allocation-registry .aixia-table-actions .aixia-btn-secondary,
-.aixia-child-allocation-registry .aixia-table-actions .aixia-btn-danger {
-  min-height: 2.35rem;
-  padding: 0.55rem 0.85rem;
-  font-size: 0.68rem !important;
-}
-
-/* -------------------------------------------------------
-   GLOBAL AIXIA CHILD ALLOCATION 8-ROW SCROLL LOCK
-   Child allocation registries show up to 8 rows only.
-   After 8 visible rows, the table body scrolls internally.
-------------------------------------------------------- */
-
-.aixia-child-allocation-registry .aixia-table-scroll {
-  max-height: 560px !important;
-  overflow-y: auto !important;
-  overflow-x: auto !important;
-}
-
-.aixia-child-allocation-registry .aixia-table-head {
-  position: sticky !important;
-  top: 0 !important;
-  z-index: 8 !important;
-}
-
-.aixia-child-allocation-registry .aixia-table-row {
-  min-height: 64px !important;
-}
-
-.aixia-child-allocation-registry .aixia-table th,
-.aixia-child-allocation-registry .aixia-table td {
-  padding-top: 0.72rem !important;
-  padding-bottom: 0.72rem !important;
-}
-
-/* -------------------------------------------------------
-   GLOBAL AIXIA CHILD ALLOCATION REGISTRY STANDARD
-   Financial child allocation/line registries must use a
-   locked shared registry shell, sortable headers, clear
-   human-first data priority, compact rows, and 8 visible
-   rows before internal scrolling. Row action buttons must
-   inherit the normal shared AiXia table action standard.
+   IMPORTANT:
+   Child allocation registries must NOT redefine row action
+   button shape, color, radius, shadow, font, or padding.
+   Action buttons must inherit the same global AiXia table
+   action button standard used by normal registry tables.
 ------------------------------------------------------- */
 
 .aixia-child-allocation-registry {
@@ -5777,8 +5679,8 @@ button.aixia-action-card:disabled {
 }
 
 .aixia-child-allocation-registry-table {
-  min-width: 0;
   width: 100%;
+  min-width: 0;
 }
 
 .aixia-child-allocation-registry .aixia-table-wrap {
@@ -5789,8 +5691,8 @@ button.aixia-action-card:disabled {
 
 .aixia-child-allocation-registry .aixia-table-scroll {
   max-height: calc(2.7rem + (8 * 4.45rem)) !important;
-  overflow-y: auto !important;
   overflow-x: auto !important;
+  overflow-y: auto !important;
   overscroll-behavior: contain !important;
 }
 
@@ -5826,7 +5728,8 @@ button.aixia-action-card:disabled {
   vertical-align: middle !important;
 }
 
-.aixia-child-allocation-registry .aixia-table-primary-text {
+.aixia-child-allocation-registry .aixia-table-primary-text,
+.aixia-child-allocation-registry .aixia-table-cell-text-primary {
   display: -webkit-box !important;
   max-width: 100% !important;
   overflow: hidden !important;
@@ -5838,7 +5741,8 @@ button.aixia-action-card:disabled {
   -webkit-line-clamp: 2 !important;
 }
 
-.aixia-child-allocation-registry .aixia-table-secondary-text {
+.aixia-child-allocation-registry .aixia-table-secondary-text,
+.aixia-child-allocation-registry .aixia-table-cell-text-secondary {
   display: -webkit-box !important;
   max-width: 100% !important;
   overflow: hidden !important;
@@ -5856,34 +5760,35 @@ button.aixia-action-card:disabled {
 }
 
 .aixia-child-allocation-registry .aixia-table-cell-badge,
-.aixia-child-allocation-registry .aixia-table-cell-date,
-.aixia-child-allocation-registry .aixia-table-cell-actions {
+.aixia-child-allocation-registry .aixia-table-cell-date {
   min-width: 0 !important;
 }
 
 .aixia-child-allocation-registry .aixia-table-cell-actions {
   width: 1% !important;
-  min-width: 292px !important;
+  min-width: 300px !important;
   white-space: nowrap !important;
 }
 
+/* Keep child allocation row actions identical to global registry tables.
+   Do not restyle .aixia-btn-primary / .aixia-btn-secondary / .aixia-btn-danger here. */
 .aixia-child-allocation-registry .aixia-table-actions {
-  justify-content: center !important;
+  display: flex !important;
   align-items: center !important;
+  justify-content: center !important;
   flex-wrap: nowrap !important;
-  gap: 0.45rem !important;
+  gap: 0.5rem !important;
+  width: max-content !important;
+  min-width: max-content !important;
+  margin-left: auto !important;
+  margin-right: auto !important;
 }
 
 .aixia-child-allocation-registry .aixia-table-actions .aixia-btn,
 .aixia-child-allocation-registry .aixia-table-actions .aixia-btn-primary,
 .aixia-child-allocation-registry .aixia-table-actions .aixia-btn-secondary,
 .aixia-child-allocation-registry .aixia-table-actions .aixia-btn-danger {
-  min-height: 2rem !important;
-  height: 2rem !important;
-  padding: 0.35rem 0.62rem !important;
-  font-size: 0.64rem !important;
-  letter-spacing: 0.06em !important;
-  border-radius: 999px !important;
+  flex: 0 0 auto !important;
 }
 
 .aixia-child-allocation-registry .aixia-registry-control-cluster {

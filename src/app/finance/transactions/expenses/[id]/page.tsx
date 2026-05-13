@@ -4701,11 +4701,13 @@ export default function FinanceExpenseDetailPage() {
         resetting search, sort, archive tabs, edit state, or visible records.
       </AixiaAccessRule>
 
-      <AixiaSmartLayout
+<AixiaSmartLayout
         sidebar="normal"
         balance="main"
-        bottomSpan="never"
+        matchColumns={false}
+        bottomSpan="auto"
         sideRebalance="last-to-bottom"
+        mainTopCount={1}
         main={
           <>
             <AixiaSection

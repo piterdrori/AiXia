@@ -31,12 +31,17 @@ export function AixiaTableShell({
     (variant === "registry"
       ? "min-w-[1240px]"
       : variant === "archive"
-        ? "min-w-full"
+        ? "min-w-[1780px]"
         : "min-w-max");
 
   return (
-    <div className="aixia-table-wrap aixia-scrollbar" data-table-variant={variant}>
-      <div className={`aixia-table-scroll aixia-scrollbar ${maxHeightClassName}`}>
+    <div
+      className="aixia-table-wrap aixia-scrollbar"
+      data-table-variant={variant}
+    >
+      <div
+        className={`aixia-table-scroll aixia-scrollbar ${maxHeightClassName}`}
+      >
         <table className={`aixia-table ${resolvedMinWidthClassName}`}>
           {children}
         </table>

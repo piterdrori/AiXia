@@ -65,6 +65,37 @@ function getColumnChildren(element: HTMLElement) {
   );
 }
 
+function getResolvedMainTopCount({
+  mainChildren,
+  sideChildren,
+  sideRebalance,
+  mainTopCount,
+}: {
+  mainChildren: ReactNode[];
+  sideChildren: ReactNode[];
+  sideRebalance: AixiaSmartLayoutSideRebalance;
+  mainTopCount?: number;
+}) {
+  if (
+    typeof mainTopCount === "number" &&
+    Number.isFinite(mainTopCount) &&
+    mainTopCount > 0 &&
+    mainTopCount < mainChildren.length
+  ) {
+    return mainTopCount;
+  }
+
+  if (
+    sideRebalance === "last-to-bottom" &&
+    mainChildren.length > 3 &&
+    sideChildren.length > 1
+  ) {
+    return 3;
+  }
+
+  return undefined;
+}
+
 function shouldUseExplicitMainSplit(mainChildren: ReactNode[], mainTopCount?: number) {
   if (typeof mainTopCount !== "number") return false;
   if (!Number.isFinite(mainTopCount)) return false;
@@ -193,9 +224,16 @@ export function AixiaSmartLayout({
     return flattenLayoutChildren(side);
   }, [side]);
 
+  const resolvedMainTopCount = getResolvedMainTopCount({
+    mainChildren: normalizedMainChildren,
+    sideChildren: normalizedSideChildren,
+    sideRebalance,
+    mainTopCount,
+  });
+
   const hasExplicitMainSplit = shouldUseExplicitMainSplit(
     normalizedMainChildren,
-    mainTopCount
+    resolvedMainTopCount
   );
 
   const useSideRebalance = shouldRebalanceSide(
@@ -207,16 +245,14 @@ export function AixiaSmartLayout({
     normalizedMainChildren,
     normalizedSideChildren,
     bottomSpan,
-    sideRebalance,
-    mainTopCount
+    resolvedMainTopCount
   );
 
   const bottomMainChildren = getBottomMainChildren(
     normalizedMainChildren,
     normalizedSideChildren,
     bottomSpan,
-    sideRebalance,
-    mainTopCount
+    resolvedMainTopCount
   );
 
   const sideColumnChildren = useSideRebalance
@@ -367,11 +403,11 @@ export function AixiaSmartLayout({
       data-side-top-count={sideColumnChildren.length}
       data-side-rebalanced-count={rebalancedSideChildren.length}
       data-bottom-count={bottomSpanChildren.length}
-      data-main-split-count={mainTopCount}
+      data-main-split-count={resolvedMainTopCount}
       data-has-bottom-span={bottomSpanChildren.length > 0 ? "true" : "false"}
       data-has-side-rebalance={useSideRebalance ? "true" : "false"}
       data-has-explicit-main-split={
-        shouldUseExplicitMainSplit(normalizedMainChildren, mainTopCount)
+        shouldUseExplicitMainSplit(normalizedMainChildren, resolvedMainTopCount)
           ? "true"
           : "false"
       }

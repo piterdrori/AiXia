@@ -237,6 +237,26 @@ type EmployeeRefRow = {
   } | null;
 };
 
+type EmployeeIdentityRow = {
+  employee_ref_id?: string | null;
+  id?: string | null;
+  user_id?: string | null;
+  employee_code?: string | null;
+  code?: string | null;
+  full_name?: string | null;
+  display_name?: string | null;
+  employee_name?: string | null;
+  email?: string | null;
+  job_title?: string | null;
+  role?: string | null;
+  department?: string | null;
+  company?: string | null;
+  company_name?: string | null;
+  member_type?: string | null;
+  status?: string | null;
+  [key: string]: unknown;
+};
+
 type FundingPoolRow = {
   id: string;
   batch_number: string;
@@ -256,7 +276,8 @@ type EnrichedAllocation = AllocationRow & {
   expenseCompanyName: string;
   fundingCompanyName: string;
   bankLabel: string;
-  recipientLabel: string;
+  recipientPrimaryName: string;
+  recipientSecondaryLabel: string;
   paymentCurrencyAmount: number;
   paymentCurrencyCode: string;
   expenseCurrencyAmount: number;
@@ -383,13 +404,47 @@ function getBankLabel(bank: BankAccountRow | null | undefined) {
     .join(" • ");
 }
 
-function getEmployeeLabel(employee: EmployeeRefRow | null | undefined) {
-  if (!employee) return "—";
+function getFinanceEmployeePrimaryName(
+  identity: EmployeeIdentityRow | null | undefined,
+  employee: EmployeeRefRow | null | undefined
+) {
+  return (
+    identity?.full_name?.trim() ||
+    identity?.display_name?.trim() ||
+    identity?.employee_name?.trim() ||
+    identity?.email?.trim() ||
+    employee?.metadata?.member_type?.trim() ||
+    "Recipient"
+  );
+}
 
-  const role = employee.metadata?.job_title || employee.metadata?.source_role || employee.mark;
-  const company = employee.metadata?.company;
+function getFinanceEmployeeSecondaryLabel(
+  identity: EmployeeIdentityRow | null | undefined,
+  employee: EmployeeRefRow | null | undefined,
+  fallbackCompany: string
+) {
+  const role =
+    identity?.job_title?.trim() ||
+    identity?.role?.trim() ||
+    employee?.metadata?.job_title?.trim() ||
+    employee?.metadata?.source_role?.trim() ||
+    employee?.mark?.trim() ||
+    "";
 
-  return [employee.code || "Employee", role, company].filter(Boolean).join(" • ");
+  const company =
+    identity?.company_name?.trim() ||
+    identity?.company?.trim() ||
+    employee?.metadata?.company?.trim() ||
+    fallbackCompany ||
+    "";
+
+  const code =
+    identity?.employee_code?.trim() ||
+    identity?.code?.trim() ||
+    employee?.code?.trim() ||
+    "";
+
+  return [role, company, code ? `Ref ${code}` : ""].filter(Boolean).join(" • ");
 }
 
 function getExpenseCurrency(expense: ExpenseRow | null, fallback: string) {
@@ -440,17 +495,18 @@ function getAllocationExpenseTitle(allocation: EnrichedAllocation) {
 }
 
 function getAllocationExpenseSecondary(allocation: EnrichedAllocation) {
-  return (
-    allocation.expense?.expense_number ||
-    allocation.metadata?.expense_number ||
-    formatDate(allocation.expense?.expense_date) ||
-    formatLabel(allocation.expense?.expense_type)
-  );
+  return [
+    allocation.expense?.expense_number || allocation.metadata?.expense_number || "",
+    formatLabel(allocation.expense?.expense_type),
+    formatDate(allocation.expense?.expense_date),
+  ]
+    .filter((item) => item && item !== "—")
+    .join(" • ");
 }
 
 function getAllocationRecipientPrimary(allocation: EnrichedAllocation) {
   return (
-    allocation.recipient_person_name?.trim() ||
+    allocation.recipientPrimaryName ||
     allocation.expense?.responsible_person_name?.trim() ||
     allocation.expense?.other_made_by_explanation?.trim() ||
     "Recipient"
@@ -458,7 +514,11 @@ function getAllocationRecipientPrimary(allocation: EnrichedAllocation) {
 }
 
 function getAllocationRecipientSecondary(allocation: EnrichedAllocation) {
-  return allocation.expenseCompanyName || formatLabel(allocation.expense?.expense_made_by_type);
+  return (
+    allocation.recipientSecondaryLabel ||
+    allocation.expenseCompanyName ||
+    formatLabel(allocation.expense?.expense_made_by_type)
+  );
 }
 
 function getAllocationSortValue(
@@ -507,6 +567,9 @@ export default function FinanceExpensesPaymentsMadeDetailPage() {
   const [companies, setCompanies] = useState<CompanyRow[]>([]);
   const [bankAccounts, setBankAccounts] = useState<BankAccountRow[]>([]);
   const [employees, setEmployees] = useState<EmployeeRefRow[]>([]);
+  const [employeeIdentities, setEmployeeIdentities] = useState<
+    EmployeeIdentityRow[]
+  >([]);
   const [fundingPool, setFundingPool] = useState<FundingPoolRow | null>(null);
 
   const [isLoading, setIsLoading] = useState(true);
@@ -541,6 +604,20 @@ export default function FinanceExpensesPaymentsMadeDetailPage() {
     return new Map(employees.map((employee) => [employee.id, employee]));
   }, [employees]);
 
+  const employeeIdentityMap = useMemo(() => {
+    const entries: Array<[string, EmployeeIdentityRow]> = [];
+
+    employeeIdentities.forEach((identity) => {
+      const employeeRefId = identity.employee_ref_id || identity.id;
+      const userId = identity.user_id;
+
+      if (employeeRefId) entries.push([employeeRefId, identity]);
+      if (userId) entries.push([userId, identity]);
+    });
+
+    return new Map(entries);
+  }, [employeeIdentities]);
+
   const expenseMap = useMemo(() => {
     return new Map(expenses.map((expense) => [expense.id, expense]));
   }, [expenses]);
@@ -550,11 +627,15 @@ export default function FinanceExpensesPaymentsMadeDetailPage() {
   );
 
   const fundingCurrency = normalizeCurrencyCode(
-    payment?.metadata?.funding_currency_code || fundingPool?.currency_code || paymentCurrency
+    payment?.metadata?.funding_currency_code ||
+      fundingPool?.currency_code ||
+      paymentCurrency
   );
 
   const paymentCurrencyAmount = toNumber(
-    payment?.metadata?.payment_currency_amount || payment?.converted_amount || payment?.amount
+    payment?.metadata?.payment_currency_amount ||
+      payment?.converted_amount ||
+      payment?.amount
   );
 
   const fundingCurrencyUsedForPayment = toNumber(
@@ -616,6 +697,12 @@ export default function FinanceExpensesPaymentsMadeDetailPage() {
       const recipientEmployee = allocation.recipient_employee_ref_id
         ? employeeMap.get(allocation.recipient_employee_ref_id)
         : null;
+      const recipientIdentity = allocation.recipient_employee_ref_id
+        ? employeeIdentityMap.get(allocation.recipient_employee_ref_id) ||
+          (recipientEmployee?.user_id
+            ? employeeIdentityMap.get(recipientEmployee.user_id)
+            : null)
+        : null;
 
       const expenseCurrency = normalizeCurrencyCode(
         allocation.metadata?.expense_currency_code ||
@@ -630,6 +717,10 @@ export default function FinanceExpensesPaymentsMadeDetailPage() {
           paymentCurrency
       );
 
+      const fallbackCompanyName = allocation.expense_company_id
+        ? companyMap.get(allocation.expense_company_id)?.name || "Expense company"
+        : "Expense company";
+
       return {
         ...allocation,
         expense,
@@ -637,15 +728,27 @@ export default function FinanceExpensesPaymentsMadeDetailPage() {
           ? companyMap.get(allocation.expense_company_id)?.name || "Unknown company"
           : "No expense company",
         fundingCompanyName: allocation.funding_company_id
-          ? companyMap.get(allocation.funding_company_id)?.name || "Unknown funding company"
+          ? companyMap.get(allocation.funding_company_id)?.name ||
+            "Unknown funding company"
           : payment?.metadata?.funding_company_name || "No funding company",
         bankLabel: allocation.paid_from_bank_account_id
           ? getBankLabel(bankAccountMap.get(allocation.paid_from_bank_account_id))
           : payment?.metadata?.paid_from_bank_label || "No bank account",
-        recipientLabel:
-          allocation.recipient_person_name ||
-          getEmployeeLabel(recipientEmployee) ||
-          "Recipient",
+        recipientPrimaryName:
+          allocation.recipient_employee_ref_id && recipientIdentity
+            ? getFinanceEmployeePrimaryName(recipientIdentity, recipientEmployee)
+            : expense?.responsible_person_name?.trim() ||
+              expense?.other_made_by_explanation?.trim() ||
+              allocation.recipient_person_name?.trim() ||
+              "Recipient",
+        recipientSecondaryLabel:
+          allocation.recipient_employee_ref_id && recipientIdentity
+            ? getFinanceEmployeeSecondaryLabel(
+                recipientIdentity,
+                recipientEmployee,
+                fallbackCompanyName
+              )
+            : fallbackCompanyName,
         paymentCurrencyAmount: toNumber(
           allocation.metadata?.payment_currency_amount ||
             allocation.converted_amount ||
@@ -658,7 +761,9 @@ export default function FinanceExpensesPaymentsMadeDetailPage() {
         expenseCurrencyCode: expenseCurrency,
         exchangeRate:
           getMetadataNumber(allocation.metadata, "exchange_rate") ??
-          (toNumber(payment?.exchange_rate) > 0 ? toNumber(payment?.exchange_rate) : null),
+          (toNumber(payment?.exchange_rate) > 0
+            ? toNumber(payment?.exchange_rate)
+            : null),
         conversionDate:
           getMetadataString(allocation.metadata, "conversion_date") ||
           payment?.exchange_rate_date ||
@@ -685,6 +790,7 @@ export default function FinanceExpensesPaymentsMadeDetailPage() {
     allocations,
     bankAccountMap,
     companyMap,
+    employeeIdentityMap,
     employeeMap,
     expenseMap,
     fundingCurrency,
@@ -712,8 +818,8 @@ export default function FinanceExpensesPaymentsMadeDetailPage() {
           allocation.expense?.description,
           allocation.expense?.expense_type,
           allocation.recipient_person_name,
-          allocation.recipientLabel,
-          allocation.recipient_employee_ref_id,
+          allocation.recipientPrimaryName,
+          allocation.recipientSecondaryLabel,
           allocation.expenseCompanyName,
           allocation.fundingCompanyName,
           allocation.bankLabel,
@@ -875,6 +981,7 @@ export default function FinanceExpensesPaymentsMadeDetailPage() {
           companiesResult,
           bankAccountsResult,
           employeesResult,
+          employeeIdentitiesResult,
           fundingPoolResult,
         ] = await Promise.all([
           supabase
@@ -923,6 +1030,8 @@ export default function FinanceExpensesPaymentsMadeDetailPage() {
             .select("id, user_id, code, status, mark, metadata")
             .order("code"),
 
+          supabase.from("finance_employee_identity_v").select("*"),
+
           loadedPayment.expense_funding_batch_id
             ? supabase
                 .from("finance_expense_funding_batches")
@@ -938,6 +1047,7 @@ export default function FinanceExpensesPaymentsMadeDetailPage() {
         if (companiesResult.error) throw companiesResult.error;
         if (bankAccountsResult.error) throw bankAccountsResult.error;
         if (employeesResult.error) throw employeesResult.error;
+        if (employeeIdentitiesResult.error) throw employeeIdentitiesResult.error;
         if (fundingPoolResult.error) throw fundingPoolResult.error;
 
         const loadedAllocations =
@@ -993,6 +1103,9 @@ export default function FinanceExpensesPaymentsMadeDetailPage() {
         setCompanies((companiesResult.data || []) as CompanyRow[]);
         setBankAccounts((bankAccountsResult.data || []) as BankAccountRow[]);
         setEmployees((employeesResult.data || []) as EmployeeRefRow[]);
+        setEmployeeIdentities(
+          (employeeIdentitiesResult.data || []) as EmployeeIdentityRow[]
+        );
         setFundingPool((fundingPoolResult.data || null) as FundingPoolRow | null);
         setExpenses(loadedExpenses);
         setHasLoadedOnce(true);
@@ -1004,6 +1117,13 @@ export default function FinanceExpensesPaymentsMadeDetailPage() {
 
         if (mode === "initial" || !hasLoadedOnce) {
           setPayment(null);
+          setAllocations([]);
+          setExpenses([]);
+          setCompanies([]);
+          setBankAccounts([]);
+          setEmployees([]);
+          setEmployeeIdentities([]);
+          setFundingPool(null);
           setPageError(
             error instanceof Error
               ? error.message
@@ -1137,11 +1257,49 @@ export default function FinanceExpensesPaymentsMadeDetailPage() {
     }
   }, [loadPayment, payment, runningAction]);
 
+  const paymentRecipientEmployee = useMemo(() => {
+    if (!payment?.recipient_employee_ref_id) return null;
+    return employeeMap.get(payment.recipient_employee_ref_id) || null;
+  }, [employeeMap, payment?.recipient_employee_ref_id]);
+
+  const paymentRecipientIdentity = useMemo(() => {
+    if (!payment?.recipient_employee_ref_id) return null;
+
+    return (
+      employeeIdentityMap.get(payment.recipient_employee_ref_id) ||
+      (paymentRecipientEmployee?.user_id
+        ? employeeIdentityMap.get(paymentRecipientEmployee.user_id)
+        : null) ||
+      null
+    );
+  }, [
+    employeeIdentityMap,
+    payment?.recipient_employee_ref_id,
+    paymentRecipientEmployee?.user_id,
+  ]);
+
+  const paymentRecipientPrimaryName =
+    payment?.recipient_employee_ref_id && paymentRecipientIdentity
+      ? getFinanceEmployeePrimaryName(
+          paymentRecipientIdentity,
+          paymentRecipientEmployee
+        )
+      : payment?.recipient_person_name?.trim() || "Multiple recipients";
+
+  const paymentRecipientSecondaryLabel =
+    payment?.recipient_employee_ref_id && paymentRecipientIdentity
+      ? getFinanceEmployeeSecondaryLabel(
+          paymentRecipientIdentity,
+          paymentRecipientEmployee,
+          "Payment recipient"
+        )
+      : "Recipient confirmation owner";
+
   if (isLoading) {
     return (
       <AixiaLoadingState
         title="Loading expense payment distribution"
-        description="Payment record, funding pool, allocation lines, linked expenses, bank accounts, companies, and recipient data are being loaded."
+        description="Payment record, funding pool, allocation lines, linked expenses, bank accounts, companies, employee identity records, and recipient data are being loaded."
       />
     );
   }
@@ -1246,8 +1404,8 @@ export default function FinanceExpensesPaymentsMadeDetailPage() {
           },
           {
             label: "Linked Expenses",
-            value: String(allocations.length),
-            description: "Expense allocation lines connected to this distribution.",
+            value: String(activeAllocationRows.length),
+            description: "Active expense allocation lines connected to this distribution.",
             icon: Receipt,
             tone: "gold",
           },
@@ -1304,9 +1462,10 @@ export default function FinanceExpensesPaymentsMadeDetailPage() {
       >
         Linked Expense Allocations are financial child allocation records. They
         must use AixiaChildAllocationRegistry, sortable allocation columns,
-        AixiaTableActionsCell row actions, backend-loaded lifecycle_status, and
-        protected backend RPCs for archive, restore, soft delete, and permanent
-        delete. Realtime plus 60-second fallback refresh must stay silent without
+        AixiaTableActionsCell row actions, backend-loaded lifecycle_status,
+        finance_employee_identity_v resolved employee identity, and protected
+        backend RPCs for archive, restore, soft delete, and permanent delete.
+        Realtime plus 60-second fallback refresh must stay silent without
         resetting search, sort, archive tabs, side panels, or visible records.
       </AixiaAccessRule>
 
@@ -1367,7 +1526,8 @@ export default function FinanceExpensesPaymentsMadeDetailPage() {
                 />
                 <AixiaValueBlock
                   label="Recipient"
-                  value={payment.recipient_person_name || "Multiple recipients"}
+                  value={paymentRecipientPrimaryName}
+                  detail={paymentRecipientSecondaryLabel}
                 />
                 <AixiaValueBlock
                   label="Created"
@@ -1535,7 +1695,7 @@ export default function FinanceExpensesPaymentsMadeDetailPage() {
 
             <AixiaChildAllocationRegistry
               title="Linked Expense Allocations"
-              description="Each line shows the expense covered, payment currency amount, expense currency coverage, lifecycle state, and recipient status."
+              description="Each line shows the human-readable expense, resolved recipient identity, payment currency amount, expense currency coverage, lifecycle state, and recipient status."
               icon={Receipt}
               search={
                 <AixiaSearchField
@@ -1588,10 +1748,7 @@ export default function FinanceExpensesPaymentsMadeDetailPage() {
                   }
                 />
               ) : (
-                <AixiaTableShell
-                  variant="registry"
-                  minWidthClassName="min-w-[2040px]"
-                >
+                <AixiaTableShell variant="registry">
                   <thead className="aixia-table-head">
                     <tr>
                       <th>
@@ -1603,6 +1760,7 @@ export default function FinanceExpensesPaymentsMadeDetailPage() {
                           onSort={handleAllocationSort}
                         />
                       </th>
+
                       <th>
                         <AixiaSortableHeader
                           label="Purpose"
@@ -1612,6 +1770,7 @@ export default function FinanceExpensesPaymentsMadeDetailPage() {
                           onSort={handleAllocationSort}
                         />
                       </th>
+
                       <th>
                         <AixiaSortableHeader
                           label="Recipient"
@@ -1621,6 +1780,7 @@ export default function FinanceExpensesPaymentsMadeDetailPage() {
                           onSort={handleAllocationSort}
                         />
                       </th>
+
                       <th>
                         <AixiaSortableHeader
                           label="Payment Amount"
@@ -1630,6 +1790,7 @@ export default function FinanceExpensesPaymentsMadeDetailPage() {
                           onSort={handleAllocationSort}
                         />
                       </th>
+
                       <th>
                         <AixiaSortableHeader
                           label="Expense Coverage"
@@ -1639,6 +1800,7 @@ export default function FinanceExpensesPaymentsMadeDetailPage() {
                           onSort={handleAllocationSort}
                         />
                       </th>
+
                       <th>
                         <AixiaSortableHeader
                           label="Rate"
@@ -1648,6 +1810,7 @@ export default function FinanceExpensesPaymentsMadeDetailPage() {
                           onSort={handleAllocationSort}
                         />
                       </th>
+
                       <th>
                         <AixiaSortableHeader
                           label="Funding Used"
@@ -1657,6 +1820,7 @@ export default function FinanceExpensesPaymentsMadeDetailPage() {
                           onSort={handleAllocationSort}
                         />
                       </th>
+
                       <th>
                         <AixiaSortableHeader
                           label="Expense Remaining"
@@ -1666,6 +1830,7 @@ export default function FinanceExpensesPaymentsMadeDetailPage() {
                           onSort={handleAllocationSort}
                         />
                       </th>
+
                       <th>
                         <AixiaSortableHeader
                           label="Recipient Status"
@@ -1675,6 +1840,7 @@ export default function FinanceExpensesPaymentsMadeDetailPage() {
                           onSort={handleAllocationSort}
                         />
                       </th>
+
                       <th>Actions</th>
                     </tr>
                   </thead>
@@ -1702,7 +1868,10 @@ export default function FinanceExpensesPaymentsMadeDetailPage() {
                               allocation.expense?.expense_source_name ||
                               formatLabel(allocation.expense?.expense_type)
                             }
-                            secondary={allocation.expense?.description || "No purpose note"}
+                            secondary={
+                              allocation.expense?.description ||
+                              "No purpose note"
+                            }
                           />
 
                           <AixiaTableTextCell
@@ -1905,7 +2074,8 @@ export default function FinanceExpensesPaymentsMadeDetailPage() {
             </AixiaSection>
           </>
         }
-        side={
+
+              side={
           <>
             <AixiaSection
               title="Action Center"
@@ -1969,13 +2139,14 @@ export default function FinanceExpensesPaymentsMadeDetailPage() {
 
                 <AixiaValueBlock
                   label="Recipient"
-                  value={payment.recipient_person_name || "Multiple recipients"}
+                  value={paymentRecipientPrimaryName}
+                  detail={paymentRecipientSecondaryLabel}
                 />
 
                 <AixiaValueBlock
                   label="Linked Recipient Lines"
-                  value={String(enrichedAllocations.length)}
-                  detail="Each allocation line also carries its own recipient status."
+                  value={String(activeAllocationRows.length)}
+                  detail="Each active allocation line carries its own resolved recipient identity and confirmation status."
                 />
               </AixiaReviewGrid>
             </AixiaSection>
@@ -2027,19 +2198,19 @@ export default function FinanceExpensesPaymentsMadeDetailPage() {
 
                 <AixiaValueBlock
                   label="Source Area"
-                  value={
-                    payment.metadata?.source_area ||
-                    "expenses_payments_made"
-                  }
+                  value={payment.metadata?.source_area || "expenses_payments_made"}
                 />
 
                 <AixiaValueBlock
-                  label="Selected Expense IDs"
-                  value={String(
-                    payment.metadata?.selected_expense_ids?.length ||
-                      allocations.length
-                  )}
-                  detail="Number of expenses attached to this distribution."
+                  label="Active Allocation Lines"
+                  value={String(activeAllocationRows.length)}
+                  detail="Archived and deleted allocation rows are managed from the allocation archive."
+                />
+
+                <AixiaValueBlock
+                  label="Archived / Deleted Lines"
+                  value={`${archivedAllocationRows.length} / ${deletedAllocationRows.length}`}
+                  detail="Lifecycle-controlled child allocation rows."
                 />
 
                 <AixiaValueBlock
@@ -2056,30 +2227,22 @@ export default function FinanceExpensesPaymentsMadeDetailPage() {
 
             <AixiaSection
               title="Linked Expense Shortcuts"
-              description="Open linked expense records directly."
+              description="Open linked active expense records directly."
               icon={Receipt}
             >
-              {enrichedAllocations.length === 0 ? (
+              {activeAllocationRows.length === 0 ? (
                 <AixiaEmptyState
                   icon={Receipt}
                   title="No shortcuts available"
-                  description="Linked expense shortcuts will appear after allocations exist."
+                  description="Linked active expense shortcuts will appear after active allocations exist."
                 />
               ) : (
                 <div className="aixia-stack">
-                  {enrichedAllocations.map((allocation) => (
+                  {activeAllocationRows.map((allocation) => (
                     <AixiaActionCard
                       key={allocation.id}
-                      label={
-                        allocation.expense?.expense_number ||
-                        allocation.metadata?.expense_number ||
-                        "Expense"
-                      }
-                      value={
-                        allocation.expense?.title ||
-                        allocation.metadata?.expense_title ||
-                        "Open expense"
-                      }
+                      label={getAllocationExpenseTitle(allocation)}
+                      value={getAllocationExpenseSecondary(allocation) || "Open expense"}
                       description={`${allocation.expenseCurrencyCode} ${formatMoney(
                         allocation.expenseCurrencyAmount
                       )} covered`}
@@ -2094,7 +2257,7 @@ export default function FinanceExpensesPaymentsMadeDetailPage() {
                       meta={[
                         {
                           label: "Recipient",
-                          value: allocation.recipientLabel,
+                          value: getAllocationRecipientPrimary(allocation),
                         },
                         {
                           label: "Status",
@@ -2167,10 +2330,7 @@ export default function FinanceExpensesPaymentsMadeDetailPage() {
                 description={`No ${allocationArchiveTab} allocation records match the current filter.`}
               />
             ) : (
-              <AixiaTableShell
-                variant="archive"
-                minWidthClassName="min-w-[1520px]"
-              >
+              <AixiaTableShell variant="archive">
                 <thead className="aixia-table-head">
                   <tr>
                     <th>Expense</th>

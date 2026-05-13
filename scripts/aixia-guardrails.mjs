@@ -23,6 +23,7 @@ const REQUIRED_AIXIA_COMPONENT_FILES = [
   "AixiaArchiveManagerModal.tsx",
   "AixiaBadge.tsx",
   "AixiaButton.tsx",
+  "AixiaChildAllocationRegistry.tsx",
   "AixiaCurrencyBadge.tsx",
   "AixiaDefaultBadge.tsx",
   "AixiaDetailSection.tsx",
@@ -63,6 +64,9 @@ const REQUIRED_CSS_SELECTORS = [
   ".aixia-btn-danger",
   ".aixia-action-card",
   ".aixia-action-card-action",
+  ".aixia-child-allocation-registry",
+  ".aixia-child-allocation-registry-body",
+  ".aixia-child-allocation-registry-table",
   ".aixia-navigation-grid",
   ".aixia-navigation-card-shell",
   ".aixia-navigation-card",
@@ -107,6 +111,7 @@ const REQUIRED_INDEX_EXPORTS = [
   "AixiaNavigationInfoPanel",
   "AixiaNavigationStatBlock",
   "AixiaButton",
+  "AixiaChildAllocationRegistry",
   "AixiaSearchField",
   "AixiaRegistryToolbar",
   "AixiaArchiveManagerModal",
@@ -479,6 +484,7 @@ function inspectSharedCssSourceOfTruth() {
     "GLOBAL AIXIA TYPOGRAPHY LOCK",
     "GLOBAL AIXIA FONT + DETAIL TYPOGRAPHY LOCK",
     "GLOBAL AIXIA ACTION CARD + BUTTON SYMMETRY STANDARD",
+    "GLOBAL AIXIA CHILD ALLOCATION REGISTRY STANDARD",
     "GLOBAL AIXIA HERO AUTO-REFLOW STANDARD",
     "GLOBAL DOCUMENT UPLOAD PANEL STANDARD",
     "GLOBAL AIXIA SMART DETAIL LAYOUT COMPACTION STANDARD",
@@ -567,6 +573,34 @@ function inspectSharedComponentSourceOfTruth() {
     for (const exportName of REQUIRED_INDEX_EXPORTS) {
       if (!new RegExp(`\\b${exportName}\\b`).test(indexText)) {
         addError(indexFile, `src/components/aixia/index.ts must export ${exportName}.`, "AiXia component source-of-truth rule");
+      }
+    }
+  }
+
+  const childAllocationRegistryFile = path.join(
+    AIXIA_COMPONENT_DIR,
+    "AixiaChildAllocationRegistry.tsx"
+  );
+  if (fileExists(childAllocationRegistryFile)) {
+    const text = readText(childAllocationRegistryFile);
+    const required = [
+      "export function AixiaChildAllocationRegistry",
+      "AixiaRegistryToolbar",
+      "AixiaSection",
+      "aixia-child-allocation-registry",
+      "aixia-child-allocation-registry-body",
+      "aixia-child-allocation-registry-table",
+      "primaryAction",
+      "archiveAction",
+    ];
+
+    for (const snippet of required) {
+      if (!text.includes(snippet)) {
+        addError(
+          childAllocationRegistryFile,
+          `AixiaChildAllocationRegistry.tsx must preserve shared child allocation registry behavior/snippet: ${snippet}`,
+          "AiXia component source-of-truth rule"
+        );
       }
     }
   }
@@ -1468,6 +1502,109 @@ function inspectActionCardAndButtonSymmetryRules(filePath, text) {
   }
 }
 
+function inspectChildAllocationLifecycleRules(filePath, text) {
+  const touchesPaymentExpenseAllocations =
+    /finance_payment_made_expense_allocations|Linked Expense Allocations|payment_made_expense_allocation/i.test(
+      text
+    );
+
+  if (!touchesPaymentExpenseAllocations) return;
+
+  if (!/AixiaChildAllocationRegistry/.test(text)) {
+    addError(
+      filePath,
+      "Linked Expense Allocations and financial child allocation tables must use the shared AixiaChildAllocationRegistry shell.",
+      "AiXia child allocation registry rule"
+    );
+  }
+
+  if (!/AixiaSortableHeader/.test(text)) {
+    addError(
+      filePath,
+      "Child allocation registries must use AixiaSortableHeader for all meaningful table columns.",
+      "AiXia child allocation registry rule"
+    );
+  }
+
+  if (!/AixiaTableActionsCell/.test(text)) {
+    addError(
+      filePath,
+      "Child allocation registries must use AixiaTableActionsCell for Open / Archive / Delete row actions.",
+      "AiXia child allocation registry rule"
+    );
+  }
+
+  if (!/lifecycle_status/.test(text)) {
+    addError(
+      filePath,
+      "Child allocation registries with archive/delete behavior must load and filter lifecycle_status from the backend.",
+      "AiXia backend-first lifecycle rule"
+    );
+  }
+
+  const usesArchiveUi =
+    /Archive|Deleted|Restore|Delete Permanently|AixiaArchiveManagerModal/.test(text);
+
+  if (usesArchiveUi) {
+    const requiredRpcNames = [
+      "finance_archive_payment_made_expense_allocation",
+      "finance_restore_payment_made_expense_allocation",
+      "finance_soft_delete_payment_made_expense_allocation",
+      "finance_permanently_delete_payment_made_expense_allocation",
+    ];
+
+    for (const rpcName of requiredRpcNames) {
+      if (!text.includes(rpcName)) {
+        addError(
+          filePath,
+          `Allocation archive/delete UI requires protected backend RPC: ${rpcName}`,
+          "AiXia backend-first lifecycle rule"
+        );
+      }
+    }
+
+    if (!/AixiaArchiveManagerModal/.test(text)) {
+      addError(
+        filePath,
+        "Allocation archive/delete UI must use shared AixiaArchiveManagerModal.",
+        "AiXia child allocation registry rule"
+      );
+    }
+  }
+
+  if (
+    /\.from\(["']finance_payment_made_expense_allocations["']\)[\s\S]{0,800}\.delete\s*\(/.test(
+      text
+    )
+  ) {
+    addError(
+      filePath,
+      "Never directly .delete() from finance_payment_made_expense_allocations in frontend code. Use finance_permanently_delete_payment_made_expense_allocation RPC only.",
+      "AiXia backend-first lifecycle rule"
+    );
+  }
+
+  if (
+    /primary=\{\s*allocation\.expense\?\.expense_number|primary=\{\s*allocation\.metadata\?\.expense_number/.test(
+      text
+    )
+  ) {
+    addError(
+      filePath,
+      "Expense column must prioritize human-readable expense title/name as primary. Expense number/ID belongs in secondary text.",
+      "AiXia child allocation data-priority rule"
+    );
+  }
+
+  if (/primary=\{\s*allocation\.recipientLabel\s*\}/.test(text)) {
+    addError(
+      filePath,
+      "Recipient column must prioritize recipient/person name as primary. Employee code/ID belongs in secondary text.",
+      "AiXia child allocation data-priority rule"
+    );
+  }
+}
+
 function inspectFinancePage(filePath) {
   const text = readText(filePath);
 
@@ -1492,6 +1629,7 @@ function inspectFinancePage(filePath) {
   inspectRegistryStandards(filePath, text);
   inspectButtonMeaning(filePath, text);
   inspectActionCardAndButtonSymmetryRules(filePath, text);
+  inspectChildAllocationLifecycleRules(filePath, text);
   inspectUnusedPatternRisks(filePath, text);
   inspectZeroLocalDesign(filePath, text);
   inspectDocumentUploadAndLocalWrapperRules(filePath, text);
@@ -1537,7 +1675,7 @@ function main() {
     process.exit(1);
   }
 
-  console.log("AiXia guardrails completed. Navigation-card, action-card, document-upload, typography, button-symmetry, smart-layout auto-split/max-expansion, and shared-wrapper source-of-truth rules are active.");
+  console.log("AiXia guardrails completed. Navigation-card, action-card, child-allocation registry, document-upload, typography, button-symmetry, smart-layout auto-split/max-expansion, backend-first lifecycle, and shared-wrapper source-of-truth rules are active.");
 }
 
 main();

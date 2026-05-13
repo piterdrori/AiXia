@@ -2,26 +2,25 @@ import { useCallback, useEffect, useMemo, useState, type ReactNode } from "react
 import { useNavigate, useParams } from "react-router-dom";
 import {
   AlertTriangle,
-  ArrowRight,
   Archive,
+  ArrowRight,
   Building2,
   CalendarClock,
   CheckCircle2,
   ExternalLink,
+  Eye,
   FileCheck2,
   FileText,
   Landmark,
   Loader2,
   Receipt,
   RotateCcw,
-  Search,
   ShieldCheck,
   ShoppingCart,
   Trash2,
   WalletCards,
   Wrench,
   XCircle,
-  type LucideIcon,
 } from "lucide-react";
 
 import {
@@ -837,10 +836,6 @@ export default function FinanceExpenseReviewPage() {
   const deletedAllocations = useMemo(() => {
     return allocations.filter(isDeletedAllocation);
   }, [allocations]);
-
-  const allocationArchiveRows = useMemo(() => {
-    return allocationArchiveTab === "archived" ? archivedAllocations : deletedAllocations;
-  }, [allocationArchiveTab, archivedAllocations, deletedAllocations]);
 
   const confirmedAllocations = useMemo(() => {
     return activeAllocations.filter((allocation) =>

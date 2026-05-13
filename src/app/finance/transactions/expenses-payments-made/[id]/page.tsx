@@ -431,9 +431,10 @@ function isDeletedAllocation(allocation: AllocationRow) {
 
 function getAllocationExpenseTitle(allocation: EnrichedAllocation) {
   return (
-    allocation.expense?.title ||
-    allocation.metadata?.expense_title ||
-    allocation.expense?.expense_source_name ||
+    allocation.expense?.title?.trim() ||
+    allocation.metadata?.expense_title?.trim() ||
+    allocation.expense?.expense_source_name?.trim() ||
+    formatLabel(allocation.expense?.expense_type) ||
     "Expense"
   );
 }
@@ -442,16 +443,22 @@ function getAllocationExpenseSecondary(allocation: EnrichedAllocation) {
   return (
     allocation.expense?.expense_number ||
     allocation.metadata?.expense_number ||
-    allocation.expense_id
+    formatDate(allocation.expense?.expense_date) ||
+    formatLabel(allocation.expense?.expense_type)
   );
 }
 
 function getAllocationRecipientPrimary(allocation: EnrichedAllocation) {
-  return allocation.recipient_person_name || allocation.recipientLabel || "Recipient";
+  return (
+    allocation.recipient_person_name?.trim() ||
+    allocation.expense?.responsible_person_name?.trim() ||
+    allocation.expense?.other_made_by_explanation?.trim() ||
+    "Recipient"
+  );
 }
 
 function getAllocationRecipientSecondary(allocation: EnrichedAllocation) {
-  return allocation.recipient_employee_ref_id || allocation.expenseCompanyName;
+  return allocation.expenseCompanyName || formatLabel(allocation.expense?.expense_made_by_type);
 }
 
 function getAllocationSortValue(
@@ -1584,7 +1591,6 @@ export default function FinanceExpensesPaymentsMadeDetailPage() {
                 <AixiaTableShell
                   variant="registry"
                   minWidthClassName="min-w-[2040px]"
-                  maxHeightClassName="max-h-[720px]"
                 >
                   <thead className="aixia-table-head">
                     <tr>
@@ -2164,7 +2170,6 @@ export default function FinanceExpensesPaymentsMadeDetailPage() {
               <AixiaTableShell
                 variant="archive"
                 minWidthClassName="min-w-[1520px]"
-                maxHeightClassName="max-h-[620px]"
               >
                 <thead className="aixia-table-head">
                   <tr>

@@ -1087,9 +1087,9 @@ export default function FinanceMasterDataPage() {
         />
       ) : (
         <AixiaSmartLayout
-          sidebar="wide"
+          sidebar="normal"
           balance="main"
-          matchColumns
+          matchColumns={false}
           bottomSpan="never"
           main={
             <>
@@ -1137,23 +1137,6 @@ export default function FinanceMasterDataPage() {
                           actionLabel="Open"
                           tone={getStatusTone(module.statusLabel)}
                           onClick={() => openRoute(module.route)}
-                          meta={[
-                            {
-                              label: "Records",
-                              value: formatCount(module.count),
-                              description: "Configured records",
-                            },
-                            {
-                              label: "Required Access",
-                              value: module.requiredAccessLabel,
-                              description: module.groupLabel,
-                            },
-                            {
-                              label: "Updated",
-                              value: module.lastUpdatedLabel,
-                              description: "Backend reference",
-                            },
-                          ]}
                         />
                       ))}
                     </AixiaNavigationGrid>
@@ -1177,31 +1160,15 @@ export default function FinanceMasterDataPage() {
                     description="Changes appear here only for master-data domains this user can read."
                   />
                 ) : (
-                  <div className="aixia-stack">
+                  <div className="aixia-navigation-stat-grid">
                     {recentChanges.map((item) => (
-                      <AixiaNavigationInfoPanel
+                      <AixiaNavigationStatBlock
                         key={item.id}
-                        title={item.title}
-                        description={item.subtitle}
-                        icon={Receipt}
+                        label={item.type}
+                        value={item.title}
+                        description={`${item.subtitle} • ${formatDateLabel(item.createdAt)}`}
                         tone="indigo"
-                      >
-                        <div className="aixia-navigation-stat-grid">
-                          <AixiaNavigationStatBlock
-                            label="Type"
-                            value={item.type}
-                            description="Visible activity"
-                            tone="indigo"
-                          />
-
-                          <AixiaNavigationStatBlock
-                            label="Updated"
-                            value={formatDateLabel(item.createdAt)}
-                            description="Current snapshot"
-                            tone="cyan"
-                          />
-                        </div>
-                      </AixiaNavigationInfoPanel>
+                      />
                     ))}
                   </div>
                 )}

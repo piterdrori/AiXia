@@ -5754,3 +5754,138 @@ button.aixia-action-card:disabled {
   padding-top: 0.72rem !important;
   padding-bottom: 0.72rem !important;
 }
+
+/* -------------------------------------------------------
+   GLOBAL AIXIA CHILD ALLOCATION REGISTRY STANDARD
+   Child allocation tables must be compact, readable,
+   human-priority, and show up to 8 rows before internal
+   vertical scrolling starts. Pages must not own this height.
+------------------------------------------------------- */
+
+.aixia-child-allocation-registry {
+  width: 100%;
+  min-width: 0;
+}
+
+.aixia-child-allocation-registry-body {
+  display: grid;
+  min-width: 0;
+  gap: clamp(0.85rem, 1vw, 1rem);
+  padding: clamp(0.95rem, 1.15vw, 1.15rem);
+}
+
+.aixia-child-allocation-registry-table {
+  min-width: 0;
+  width: 100%;
+}
+
+.aixia-child-allocation-registry .aixia-table-wrap {
+  width: 100%;
+  max-width: 100%;
+  overflow-x: auto !important;
+}
+
+.aixia-child-allocation-registry .aixia-table-scroll {
+  max-height: calc(2.7rem + (8 * 4.45rem)) !important;
+  overflow-y: auto !important;
+  overflow-x: auto !important;
+  overscroll-behavior: contain !important;
+}
+
+.aixia-child-allocation-registry .aixia-table {
+  min-width: 1560px !important;
+  table-layout: fixed !important;
+}
+
+.aixia-child-allocation-registry .aixia-table-head {
+  position: sticky !important;
+  top: 0 !important;
+  z-index: 12 !important;
+}
+
+.aixia-child-allocation-registry .aixia-table th {
+  height: 2.7rem !important;
+  padding: 0.55rem 0.7rem !important;
+  white-space: nowrap !important;
+}
+
+.aixia-child-allocation-registry .aixia-table-row {
+  height: 4.45rem !important;
+  min-height: 4.45rem !important;
+  max-height: 4.45rem !important;
+}
+
+.aixia-child-allocation-registry .aixia-table td {
+  height: 4.45rem !important;
+  min-height: 4.45rem !important;
+  max-height: 4.45rem !important;
+  padding: 0.55rem 0.7rem !important;
+  overflow: hidden !important;
+  vertical-align: middle !important;
+}
+
+.aixia-child-allocation-registry .aixia-table-primary-text {
+  display: -webkit-box !important;
+  max-width: 100% !important;
+  overflow: hidden !important;
+  font-size: 0.78rem !important;
+  line-height: 1.18 !important;
+  font-weight: 900 !important;
+  text-align: center !important;
+  -webkit-box-orient: vertical !important;
+  -webkit-line-clamp: 2 !important;
+}
+
+.aixia-child-allocation-registry .aixia-table-secondary-text {
+  display: -webkit-box !important;
+  max-width: 100% !important;
+  overflow: hidden !important;
+  margin-top: 0.2rem !important;
+  font-size: 0.68rem !important;
+  line-height: 1.22 !important;
+  text-align: center !important;
+  color: rgba(148, 163, 184, 0.72) !important;
+  -webkit-box-orient: vertical !important;
+  -webkit-line-clamp: 2 !important;
+}
+
+.aixia-child-allocation-registry .aixia-table-cell-text {
+  min-width: 0 !important;
+}
+
+.aixia-child-allocation-registry .aixia-table-cell-badge,
+.aixia-child-allocation-registry .aixia-table-cell-date,
+.aixia-child-allocation-registry .aixia-table-cell-actions {
+  min-width: 0 !important;
+}
+
+.aixia-child-allocation-registry .aixia-table-cell-actions {
+  width: 1% !important;
+  min-width: 260px !important;
+  white-space: nowrap !important;
+}
+
+.aixia-child-allocation-registry .aixia-table-actions {
+  justify-content: flex-end !important;
+  flex-wrap: nowrap !important;
+  gap: 0.5rem !important;
+}
+
+.aixia-child-allocation-registry .aixia-table-actions .aixia-btn-primary,
+.aixia-child-allocation-registry .aixia-table-actions .aixia-btn-secondary,
+.aixia-child-allocation-registry .aixia-table-actions .aixia-btn-danger {
+  min-height: 2.15rem !important;
+  height: 2.15rem !important;
+  padding: 0.4rem 0.78rem !important;
+  font-size: 0.62rem !important;
+  letter-spacing: 0.08em !important;
+}
+
+.aixia-child-allocation-registry .aixia-registry-control-cluster {
+  align-items: center !important;
+  gap: 0.75rem !important;
+}
+
+.aixia-child-allocation-registry .aixia-registry-control-cluster > .aixia-search-field {
+  max-width: 420px !important;
+}

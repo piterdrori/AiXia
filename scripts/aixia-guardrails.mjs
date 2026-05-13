@@ -1617,10 +1617,71 @@ function inspectChildAllocationLifecycleRules(filePath, text) {
     );
   }
 
+    if (
+    /function\s+getAllocationExpenseTitle[\s\S]*?allocation\.expense\?\.expense_number[\s\S]*?\}/m.test(
+      text
+    )
+  ) {
+    addError(
+      filePath,
+      "getAllocationExpenseTitle must not use expense_number as a title fallback. Expense title/source/name must be primary; expense_number belongs only in secondary text.",
+      "AiXia child allocation data-priority rule"
+    );
+  }
+
+  if (
+    /function\s+getAllocationExpenseSecondary[\s\S]*?allocation\.expense_id[\s\S]*?\}/m.test(
+      text
+    )
+  ) {
+    addError(
+      filePath,
+      "getAllocationExpenseSecondary must not show raw expense_id UUID. Secondary text may show expense_number, type, or date only.",
+      "AiXia child allocation data-priority rule"
+    );
+  }
+
   if (/primary=\{\s*allocation\.recipientLabel\s*\}/.test(text)) {
     addError(
       filePath,
       "Recipient column must prioritize recipient/person name as primary. Employee code/ID belongs in secondary text.",
+      "AiXia child allocation data-priority rule"
+    );
+  }
+
+  if (
+    /function\s+getAllocationRecipientPrimary[\s\S]*?recipientLabel[\s\S]*?\}/m.test(
+      text
+    )
+  ) {
+    addError(
+      filePath,
+      "getAllocationRecipientPrimary must not fall back to recipientLabel because recipientLabel can start with employee code. Use recipient_person_name, expense.responsible_person_name, or a parsed human name only.",
+      "AiXia child allocation data-priority rule"
+    );
+  }
+
+  if (
+    /function\s+getAllocationRecipientSecondary[\s\S]*?recipient_employee_ref_id[\s\S]*?\}/m.test(
+      text
+    )
+  ) {
+    addError(
+      filePath,
+      "getAllocationRecipientSecondary must not show raw recipient_employee_ref_id UUID. Use employee code/role/company only, and never show backend UUIDs in business table cells.",
+      "AiXia child allocation data-priority rule"
+    );
+  }
+
+  if (
+    /AixiaTableTextCell[\s\S]{0,800}primary=\{getAllocationRecipientPrimary\(allocation\)\}[\s\S]{0,800}secondary=\{getAllocationRecipientSecondary\(allocation\)\}/m.test(
+      text
+    ) &&
+    !/responsible_person_name/.test(text)
+  ) {
+    addError(
+      filePath,
+      "Linked Expense Allocations recipient cell must use the human person name first. Load/use expense.responsible_person_name or allocation.recipient_person_name before employee code/reference.",
       "AiXia child allocation data-priority rule"
     );
   }

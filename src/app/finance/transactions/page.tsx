@@ -62,6 +62,7 @@ type TransactionFlowItem = {
   sequenceLabel?: string;
   titleOverride?: string;
   descriptionOverride?: string;
+  routeOverride?: string;
 };
 
 type TransactionSectionTone =
@@ -550,7 +551,8 @@ function TransactionFlowModule({
   onOpen: (route: string) => void;
 }) {
   const Icon = item.module.icon;
-  const isClickable = Boolean(item.module.route);
+  const route = item.routeOverride ?? item.module.route;
+  const isClickable = Boolean(route);
   const title = item.titleOverride ?? item.module.title;
   const description = item.descriptionOverride ?? item.module.description;
 
@@ -558,8 +560,8 @@ function TransactionFlowModule({
     <button
       type="button"
       onClick={() => {
-        if (!item.module.route) return;
-        onOpen(item.module.route);
+        if (!route) return;
+        onOpen(route);
       }}
       className={`group relative flex h-[236px] w-full overflow-hidden rounded-[22px] border border-white/10 bg-white/[0.03] text-left backdrop-blur-xl transition-all duration-200 ${
         isClickable
@@ -1359,6 +1361,7 @@ export default function FinanceTransactionsPage() {
         titleOverride: "Funding Pool / Payment Distribution",
         descriptionOverride:
           "Finance/Admin execution area for expense funding pools, payment distribution, proof review, and recipient confirmation monitoring.",
+        routeOverride: "/finance/transactions/expenses-payments-made",
       });
     }
 

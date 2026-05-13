@@ -5726,3 +5726,31 @@ button.aixia-action-card:disabled {
   padding: 0.55rem 0.85rem;
   font-size: 0.68rem !important;
 }
+
+/* -------------------------------------------------------
+   GLOBAL AIXIA CHILD ALLOCATION 8-ROW SCROLL LOCK
+   Child allocation registries show up to 8 rows only.
+   After 8 visible rows, the table body scrolls internally.
+------------------------------------------------------- */
+
+.aixia-child-allocation-registry .aixia-table-scroll {
+  max-height: 560px !important;
+  overflow-y: auto !important;
+  overflow-x: auto !important;
+}
+
+.aixia-child-allocation-registry .aixia-table-head {
+  position: sticky !important;
+  top: 0 !important;
+  z-index: 8 !important;
+}
+
+.aixia-child-allocation-registry .aixia-table-row {
+  min-height: 64px !important;
+}
+
+.aixia-child-allocation-registry .aixia-table th,
+.aixia-child-allocation-registry .aixia-table td {
+  padding-top: 0.72rem !important;
+  padding-bottom: 0.72rem !important;
+}

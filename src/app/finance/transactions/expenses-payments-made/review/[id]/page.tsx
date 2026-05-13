@@ -8,7 +8,6 @@ import {
   CalendarClock,
   CheckCircle2,
   ExternalLink,
-  Eye,
   FileCheck2,
   FileText,
   Landmark,
@@ -21,6 +20,7 @@ import {
   WalletCards,
   Wrench,
   XCircle,
+  type LucideIcon,
 } from "lucide-react";
 
 import {

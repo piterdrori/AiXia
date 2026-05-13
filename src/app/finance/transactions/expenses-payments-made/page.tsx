@@ -10,7 +10,6 @@ import {
   Plus,
   Receipt,
   RotateCcw,
-  Search,
   ShieldCheck,
   Trash2,
   WalletCards,
@@ -815,12 +814,6 @@ export default function FinanceExpensesPaymentsMadePage() {
   const deletedAllocationRows = useMemo(() => {
     return enrichedAllocations.filter(isDeletedAllocation);
   }, [enrichedAllocations]);
-
-  const archiveAllocationRows = useMemo(() => {
-    return allocationArchiveTab === "archived"
-      ? archivedAllocationRows
-      : deletedAllocationRows;
-  }, [allocationArchiveTab, archivedAllocationRows, deletedAllocationRows]);
 
   const sortedActiveAllocationRows = useMemo(() => {
     return [...activeAllocationRows].sort((a, b) => {
@@ -2056,7 +2049,7 @@ export default function FinanceExpensesPaymentsMadePage() {
             <>
               <AixiaButton
                 type="button"
-                variant="secondary"
+                variant="danger"
                 onClick={() => openArchiveModal("workflow")}
               >
                 <Archive className="h-4 w-4" />
@@ -2064,7 +2057,7 @@ export default function FinanceExpensesPaymentsMadePage() {
               </AixiaButton>
               <AixiaButton
                 type="button"
-                variant="secondary"
+                variant="danger"
                 onClick={() => openArchiveModal("execution")}
               >
                 <WalletCards className="h-4 w-4" />

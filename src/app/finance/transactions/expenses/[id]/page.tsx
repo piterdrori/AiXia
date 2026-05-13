@@ -1,4 +1,6 @@
-import { useCallback, useEffect, useMemo, useState, type ReactNode } from "react";
+"use client";
+
+import { useCallback, useEffect, useMemo, useState } from "react";
 import { useNavigate, useParams } from "react-router-dom";
 import {
   AlertTriangle,
@@ -26,6 +28,31 @@ import {
   XCircle,
 } from "lucide-react";
 
+import {
+  AixiaActionCard,
+  AixiaAlert,
+  AixiaButton,
+  AixiaDocumentUploadPanel,
+  AixiaEmptyState,
+  AixiaFieldLabel,
+  AixiaFormField,
+  AixiaFormFullWidth,
+  AixiaFormGrid,
+  AixiaFormRowCard,
+  AixiaHero,
+  AixiaInputField,
+  AixiaLoadingState,
+  AixiaMetricCard,
+  AixiaMetricGrid,
+  AixiaPage,
+  AixiaReviewGrid,
+  AixiaSection,
+  AixiaSelectField,
+  AixiaSmartLayout,
+  AixiaStatusBadge,
+  AixiaTextareaField,
+  AixiaValueBlock,
+} from "@/components/aixia";
 import { supabase } from "@/lib/supabase";
 
 type ExpenseRow = {
@@ -206,14 +233,25 @@ type AttachmentWithFile = AttachmentRow & {
   fileUpload: FileUploadRow | null;
 };
 
-type ExpenseMadeByType = "employee" | "owner_management" | "company_direct" | "other";
+type ExpenseMadeByType =
+  | "employee"
+  | "owner_management"
+  | "company_direct"
+  | "other";
+
 type BillingFrequency = "monthly" | "yearly" | "one_year_upfront" | "other";
+
 type SubscriptionAmountBasis =
   | "monthly_payment"
   | "yearly_payment"
   | "one_year_upfront_payment"
   | "other_subscription_payment";
-type SubscriptionPaymentMethod = "not_selected" | "no_card" | "credit_card" | "other";
+
+type SubscriptionPaymentMethod =
+  | "not_selected"
+  | "no_card"
+  | "credit_card"
+  | "other";
 
 type CreditCardDraft = {
   id: string;
@@ -347,7 +385,7 @@ type TimelineItem = {
   label: string;
   value: string;
   detail: string;
-  tone: "cyan" | "emerald" | "amber" | "rose" | "slate" | "violet";
+  tone: "cyan" | "emerald" | "amber" | "rose" | "neutral" | "violet";
 };
 
 type SelectOption = {
@@ -483,7 +521,11 @@ const REIMBURSEMENT_PAYMENT_METHODS: SelectOption[] = [
   { value: "other", label: "Other" },
 ];
 
-const BILLING_FREQUENCIES: { value: BillingFrequency; label: string; helper: string }[] = [
+const BILLING_FREQUENCIES: {
+  value: BillingFrequency;
+  label: string;
+  helper: string;
+}[] = [
   {
     value: "monthly",
     label: "Monthly",
@@ -516,7 +558,10 @@ const SUBSCRIPTION_AMOUNT_BASIS_OPTIONS: {
   { value: "other_subscription_payment", label: "Other Subscription Payment" },
 ];
 
-const SUBSCRIPTION_PAYMENT_METHODS: { value: SubscriptionPaymentMethod; label: string }[] = [
+const SUBSCRIPTION_PAYMENT_METHODS: {
+  value: SubscriptionPaymentMethod;
+  label: string;
+}[] = [
   { value: "not_selected", label: "Select Payment Method" },
   { value: "no_card", label: "No Credit Card / Manual Payment" },
   { value: "credit_card", label: "Credit Card On File" },
@@ -532,11 +577,11 @@ const CARD_BRANDS: SelectOption[] = [
   { value: "other", label: "Other" },
 ];
 
-const statusToneMap: Record<
+const STATUS_TONE_MAP: Record<
   string,
-  "cyan" | "emerald" | "amber" | "rose" | "violet" | "slate"
+  "cyan" | "emerald" | "amber" | "rose" | "violet" | "neutral"
 > = {
-  draft: "slate",
+  draft: "neutral",
   submitted: "cyan",
   approved: "emerald",
   rejected: "rose",
@@ -547,7 +592,6 @@ const statusToneMap: Record<
   expense_made: "amber",
   documentation_submitted: "cyan",
   documentation_issue: "rose",
-  verified_for_payment: "emerald",
   missing: "rose",
   uploaded: "cyan",
   linked: "cyan",
@@ -557,25 +601,27 @@ const statusToneMap: Record<
   pending_review: "amber",
   approved_for_payment: "emerald",
   needs_correction: "amber",
-  not_allocated: "slate",
+  not_allocated: "neutral",
   partially_allocated: "amber",
   allocated: "emerald",
   allocation_cancelled: "rose",
-  not_covered: "slate",
+  not_covered: "neutral",
   partially_covered: "amber",
   covered: "emerald",
-  not_paid_yet: "slate",
+  not_paid_yet: "neutral",
   pending_confirmation: "amber",
   received_confirmed: "emerald",
   not_received: "rose",
   disputed: "rose",
   admin_closed: "violet",
-  not_applicable: "slate",
+  not_applicable: "neutral",
   not_confirmed: "amber",
   confirmed: "emerald",
   cancelled_refunded: "rose",
   archived: "amber",
   deleted: "rose",
+  reimbursement: "violet",
+  planned_expense: "cyan",
 };
 
 function buildCardId() {
@@ -671,24 +717,45 @@ function formatLabel(value: string | null | undefined) {
     .join(" ");
 }
 
-function getOptionLabel(options: SelectOption[], value: string, otherValue?: string) {
+function getStatusTone(value: string | null | undefined) {
+  return STATUS_TONE_MAP[value ?? ""] ?? "neutral";
+}
+
+function getOptionLabel(
+  options: SelectOption[],
+  value: string,
+  otherValue?: string
+) {
   if (value === "other") return otherValue?.trim() || "Other";
-  return options.find((option) => option.value === value)?.label || value || "Not selected";
+  return (
+    options.find((option) => option.value === value)?.label ||
+    value ||
+    "Not selected"
+  );
 }
 
 function getBillingFrequencyLabel(value: BillingFrequency, otherValue: string) {
   if (value === "other") return otherValue.trim() || "Other";
-  return BILLING_FREQUENCIES.find((frequency) => frequency.value === value)?.label || value;
+  return (
+    BILLING_FREQUENCIES.find((frequency) => frequency.value === value)?.label ||
+    value
+  );
 }
 
 function getAmountBasisLabel(value: SubscriptionAmountBasis, otherValue: string) {
   if (value === "other_subscription_payment") return otherValue.trim() || "Other";
-  return SUBSCRIPTION_AMOUNT_BASIS_OPTIONS.find((basis) => basis.value === value)?.label || value;
+  return (
+    SUBSCRIPTION_AMOUNT_BASIS_OPTIONS.find((basis) => basis.value === value)
+      ?.label || value
+  );
 }
 
 function getPaymentMethodLabel(value: SubscriptionPaymentMethod, otherValue: string) {
   if (value === "other") return otherValue.trim() || "Other";
-  return SUBSCRIPTION_PAYMENT_METHODS.find((method) => method.value === value)?.label || value;
+  return (
+    SUBSCRIPTION_PAYMENT_METHODS.find((method) => method.value === value)?.label ||
+    value
+  );
 }
 
 function normalizeLast4(value: string) {
@@ -730,50 +797,6 @@ function resolveMimeType(file: File) {
   }
 }
 
-function getStatusToneClasses(value: string | null | undefined) {
-  const tone = statusToneMap[value ?? ""] ?? "slate";
-
-  switch (tone) {
-    case "emerald":
-      return "border-emerald-400/20 bg-emerald-500/10 text-emerald-200";
-    case "amber":
-      return "border-amber-400/20 bg-amber-500/10 text-amber-200";
-    case "rose":
-      return "border-rose-400/20 bg-rose-500/10 text-rose-200";
-    case "violet":
-      return "border-violet-400/20 bg-violet-500/10 text-violet-200";
-    case "cyan":
-      return "border-cyan-400/20 bg-cyan-500/10 text-cyan-200";
-    case "slate":
-    default:
-      return "border-white/10 bg-white/[0.06] text-slate-300";
-  }
-}
-
-function StatusBadge({ value }: { value: string | null | undefined }) {
-  return (
-    <span
-      className={`inline-flex max-w-full items-center rounded-full border px-3 py-1 text-[11px] font-semibold uppercase tracking-[0.14em] ${getStatusToneClasses(
-        value
-      )}`}
-    >
-      <span className="truncate">{formatLabel(value)}</span>
-    </span>
-  );
-}
-
-function inputClass() {
-  return "h-11 w-full rounded-2xl border border-white/10 bg-black/20 px-4 text-sm text-white outline-none transition placeholder:text-slate-600 focus:border-cyan-400/30 focus:bg-black/30";
-}
-
-function textareaClass() {
-  return "min-h-[112px] w-full rounded-2xl border border-white/10 bg-black/20 px-4 py-3 text-sm text-white outline-none transition placeholder:text-slate-600 focus:border-cyan-400/30 focus:bg-black/30";
-}
-
-function labelClass() {
-  return "text-sm font-medium text-slate-300";
-}
-
 function formatCurrencyOption(currency: CurrencyRow) {
   const symbol = currency.currency_symbol ? ` (${currency.currency_symbol})` : "";
   const base = currency.is_base_currency ? " • Base" : "";
@@ -786,7 +809,8 @@ function getEmployeeLabel(
 ) {
   if (!employee) return "—";
 
-  const profile = employee.user_id && profileMap ? profileMap.get(employee.user_id) : null;
+  const profile =
+    employee.user_id && profileMap ? profileMap.get(employee.user_id) : null;
 
   const employeeName =
     profile?.full_name?.trim() ||
@@ -822,19 +846,27 @@ function getExpenseMadeByLabel(
   employee: EmployeeRefRow | null,
   profileMap?: Map<string, ProfileRow>
 ) {
-  if (expense.expense_made_by_type === "employee") return getEmployeeLabel(employee, profileMap);
+  if (expense.expense_made_by_type === "employee") {
+    return getEmployeeLabel(employee, profileMap);
+  }
+
   if (expense.expense_made_by_type === "owner_management") {
     return expense.responsible_person_name || "Owner / Management";
   }
+
   if (expense.expense_made_by_type === "company_direct") return "Company Direct";
+
   if (expense.expense_made_by_type === "other") {
     return expense.other_made_by_explanation || "Other";
   }
+
   return "—";
 }
 
 function getExpenseRequestType(expense: ExpenseRow | null | undefined) {
-  return expense?.expense_type === "reimbursement" ? "reimbursement" : "planned_expense";
+  return expense?.expense_type === "reimbursement"
+    ? "reimbursement"
+    : "planned_expense";
 }
 
 function getExpenseRequestTypeDescription(expense: ExpenseRow | null | undefined) {
@@ -843,8 +875,12 @@ function getExpenseRequestTypeDescription(expense: ExpenseRow | null | undefined
     : "Approval before spending. User spends and uploads proof after approval.";
 }
 
-function getMetadataRecord(metadata: Record<string, unknown> | null | undefined, key: string) {
+function getMetadataRecord(
+  metadata: Record<string, unknown> | null | undefined,
+  key: string
+) {
   const value = metadata?.[key];
+
   if (value && typeof value === "object" && !Array.isArray(value)) {
     return value as Record<string, unknown>;
   }
@@ -881,16 +917,17 @@ function getMetadataCards(value: unknown): CreditCardDraft[] {
   const cards = value
     .map((card) => {
       if (!card || typeof card !== "object" || Array.isArray(card)) return null;
+
       const record = card as Record<string, unknown>;
+      const brandLabel = getMetadataString(record.brand);
 
       return {
         id: getMetadataString(record.id) || buildCardId(),
         nickname: getMetadataString(record.nickname),
         cardholderName: getMetadataString(record.cardholder_name),
-        brand:
-          CARD_BRANDS.some((item) => item.label === getMetadataString(record.brand))
-            ? CARD_BRANDS.find((item) => item.label === getMetadataString(record.brand))?.value || "visa"
-            : getMetadataString(record.brand_key) || "visa",
+        brand: CARD_BRANDS.some((item) => item.label === brandLabel)
+          ? CARD_BRANDS.find((item) => item.label === brandLabel)?.value || "visa"
+          : getMetadataString(record.brand_key) || "visa",
         brandOther: getMetadataString(record.brand_other),
         last4: normalizeLast4(getMetadataString(record.last4)),
         expiryMonth: getMetadataString(record.expiry_month),
@@ -902,104 +939,6 @@ function getMetadataCards(value: unknown): CreditCardDraft[] {
     .filter((card): card is CreditCardDraft => Boolean(card));
 
   return cards.length ? cards : [initialSubscriptionCard()];
-}
-
-function ValueBlock({
-  label,
-  value,
-  detail,
-}: {
-  label: string;
-  value: ReactNode;
-  detail?: ReactNode;
-}) {
-  return (
-    <div className="rounded-[24px] border border-white/10 bg-black/20 p-4">
-      <div className="text-[11px] font-semibold uppercase tracking-[0.2em] text-slate-500">
-        {label}
-      </div>
-      <div className="mt-2 text-sm font-semibold leading-6 text-white">{value}</div>
-      {detail ? <div className="mt-2 text-xs leading-5 text-slate-500">{detail}</div> : null}
-    </div>
-  );
-}
-
-function SectionCard({
-  title,
-  description,
-  icon: Icon,
-  children,
-}: {
-  title: string;
-  description: string;
-  icon: typeof Receipt;
-  children: ReactNode;
-}) {
-  return (
-    <section className="overflow-hidden rounded-[30px] border border-white/10 bg-white/[0.045] backdrop-blur-xl">
-      <div className="flex items-start gap-4 border-b border-white/10 px-5 py-4">
-        <div className="rounded-2xl border border-cyan-400/15 bg-cyan-500/10 p-3 text-cyan-200">
-          <Icon className="h-4 w-4" />
-        </div>
-        <div>
-          <div className="text-sm font-semibold uppercase tracking-[0.18em] text-slate-400">
-            {title}
-          </div>
-          <p className="mt-1 text-xs leading-5 text-slate-500">{description}</p>
-        </div>
-      </div>
-      <div className="p-5">{children}</div>
-    </section>
-  );
-}
-
-function SelectField({
-  label,
-  value,
-  onChange,
-  options,
-}: {
-  label: string;
-  value: string;
-  onChange: (value: string) => void;
-  options: SelectOption[];
-}) {
-  return (
-    <label className="grid gap-2">
-      <span className={labelClass()}>{label}</span>
-      <select value={value} onChange={(event) => onChange(event.target.value)} className={inputClass()}>
-        {options.map((option) => (
-          <option key={option.value} value={option.value}>
-            {option.label}
-          </option>
-        ))}
-      </select>
-    </label>
-  );
-}
-
-function OtherTextField({
-  label,
-  value,
-  onChange,
-  placeholder,
-}: {
-  label: string;
-  value: string;
-  onChange: (value: string) => void;
-  placeholder: string;
-}) {
-  return (
-    <label className="grid gap-2">
-      <span className={labelClass()}>{label}</span>
-      <input
-        value={value}
-        onChange={(event) => onChange(event.target.value)}
-        className={inputClass()}
-        placeholder={placeholder}
-      />
-    </label>
-  );
 }
 
 function buildGeneratedExpenseIdentity(form: ExpenseEditFormState) {
@@ -1086,7 +1025,11 @@ function buildGeneratedExpenseIdentity(form: ExpenseEditFormState) {
   }
 
   if (form.expenseType === "travel") {
-    const travelLabel = getOptionLabel(TRAVEL_TYPES, form.travelType, form.travelTypeOther);
+    const travelLabel = getOptionLabel(
+      TRAVEL_TYPES,
+      form.travelType,
+      form.travelTypeOther
+    );
     const from = form.travelFrom.trim();
     const to = form.travelTo.trim();
 
@@ -1107,7 +1050,11 @@ function buildGeneratedExpenseIdentity(form: ExpenseEditFormState) {
   }
 
   if (form.expenseType === "bank_charges") {
-    const feeLabel = getOptionLabel(BANK_FEE_TYPES, form.bankFeeType, form.bankFeeTypeOther);
+    const feeLabel = getOptionLabel(
+      BANK_FEE_TYPES,
+      form.bankFeeType,
+      form.bankFeeTypeOther
+    );
     const bank = form.bankName.trim() || "Bank";
 
     return {
@@ -1238,7 +1185,11 @@ function buildExpenseTypeMetadata(form: ExpenseEditFormState) {
       utilities: {
         provider_name: form.utilityProviderName.trim(),
         utility_type: form.utilityType,
-        utility_type_label: getOptionLabel(UTILITY_TYPES, form.utilityType, form.utilityTypeOther),
+        utility_type_label: getOptionLabel(
+          UTILITY_TYPES,
+          form.utilityType,
+          form.utilityTypeOther
+        ),
         period_from: form.utilityPeriodFrom || null,
         period_to: form.utilityPeriodTo || null,
         account_reference: form.utilityAccountReference.trim() || null,
@@ -1250,9 +1201,16 @@ function buildExpenseTypeMetadata(form: ExpenseEditFormState) {
     return {
       ...base,
       online_shopping: {
-        platform: getOptionLabel(ONLINE_PLATFORMS, form.onlinePlatform, form.onlinePlatformOther),
+        platform: getOptionLabel(
+          ONLINE_PLATFORMS,
+          form.onlinePlatform,
+          form.onlinePlatformOther
+        ),
         platform_key: form.onlinePlatform,
-        platform_other: form.onlinePlatform === "other" ? form.onlinePlatformOther.trim() : null,
+        platform_other:
+          form.onlinePlatform === "other"
+            ? form.onlinePlatformOther.trim()
+            : null,
         order_number: form.onlineOrderNumber.trim(),
         order_date: form.onlineOrderDate || null,
         order_url: form.onlineOrderUrl.trim(),
@@ -1266,7 +1224,11 @@ function buildExpenseTypeMetadata(form: ExpenseEditFormState) {
       ...base,
       travel: {
         travel_type: form.travelType,
-        travel_type_label: getOptionLabel(TRAVEL_TYPES, form.travelType, form.travelTypeOther),
+        travel_type_label: getOptionLabel(
+          TRAVEL_TYPES,
+          form.travelType,
+          form.travelTypeOther
+        ),
         from: form.travelFrom.trim(),
         to: form.travelTo.trim(),
         travel_date: form.travelDate || null,
@@ -1282,7 +1244,11 @@ function buildExpenseTypeMetadata(form: ExpenseEditFormState) {
       meals: {
         vendor_name: form.mealVendorName.trim(),
         meal_type: form.mealType,
-        meal_type_label: getOptionLabel(MEAL_TYPES, form.mealType, form.mealTypeOther),
+        meal_type_label: getOptionLabel(
+          MEAL_TYPES,
+          form.mealType,
+          form.mealTypeOther
+        ),
         meal_date: form.mealDate || null,
         attendees: form.mealAttendees.trim(),
         business_purpose: form.mealBusinessPurpose.trim(),
@@ -1296,7 +1262,11 @@ function buildExpenseTypeMetadata(form: ExpenseEditFormState) {
       bank_charges: {
         bank_name: form.bankName.trim(),
         fee_type: form.bankFeeType,
-        fee_type_label: getOptionLabel(BANK_FEE_TYPES, form.bankFeeType, form.bankFeeTypeOther),
+        fee_type_label: getOptionLabel(
+          BANK_FEE_TYPES,
+          form.bankFeeType,
+          form.bankFeeTypeOther
+        ),
         account_reference: form.bankAccountReference.trim() || null,
         transaction_reference: form.bankTransactionReference.trim() || null,
         fee_period_from: form.bankFeePeriodFrom || null,
@@ -1397,25 +1367,70 @@ function buildEditForm(expense: ExpenseRow): ExpenseEditFormState {
   const subscription = getMetadataRecord(metadata, "subscription");
   const creditCard = getMetadataRecord(metadata, "credit_card");
 
-  const officeSupport = getNestedMetadataRecord(metadata, "expense_type_details", "office_support");
-  const utilities = getNestedMetadataRecord(metadata, "expense_type_details", "utilities");
+  const officeSupport = getNestedMetadataRecord(
+    metadata,
+    "expense_type_details",
+    "office_support"
+  );
+  const utilities = getNestedMetadataRecord(
+    metadata,
+    "expense_type_details",
+    "utilities"
+  );
   const onlineShopping =
     getNestedMetadataRecord(metadata, "expense_type_details", "online_shopping") ||
     getMetadataRecord(metadata, "online_shopping");
-  const travel = getNestedMetadataRecord(metadata, "expense_type_details", "travel");
-  const meals = getNestedMetadataRecord(metadata, "expense_type_details", "meals");
-  const bankCharges = getNestedMetadataRecord(metadata, "expense_type_details", "bank_charges");
-  const legalAccounting = getNestedMetadataRecord(metadata, "expense_type_details", "legal_accounting");
-  const governmentFee = getNestedMetadataRecord(metadata, "expense_type_details", "government_fee");
-  const repairService = getNestedMetadataRecord(metadata, "expense_type_details", "repair_service");
-  const companySupport = getNestedMetadataRecord(metadata, "expense_type_details", "company_support");
-  const reimbursement = getNestedMetadataRecord(metadata, "expense_type_details", "reimbursement");
-  const otherExpense = getNestedMetadataRecord(metadata, "expense_type_details", "other");
+  const travel = getNestedMetadataRecord(
+    metadata,
+    "expense_type_details",
+    "travel"
+  );
+  const meals = getNestedMetadataRecord(
+    metadata,
+    "expense_type_details",
+    "meals"
+  );
+  const bankCharges = getNestedMetadataRecord(
+    metadata,
+    "expense_type_details",
+    "bank_charges"
+  );
+  const legalAccounting = getNestedMetadataRecord(
+    metadata,
+    "expense_type_details",
+    "legal_accounting"
+  );
+  const governmentFee = getNestedMetadataRecord(
+    metadata,
+    "expense_type_details",
+    "government_fee"
+  );
+  const repairService = getNestedMetadataRecord(
+    metadata,
+    "expense_type_details",
+    "repair_service"
+  );
+  const companySupport = getNestedMetadataRecord(
+    metadata,
+    "expense_type_details",
+    "company_support"
+  );
+  const reimbursement = getNestedMetadataRecord(
+    metadata,
+    "expense_type_details",
+    "reimbursement"
+  );
+  const otherExpense = getNestedMetadataRecord(
+    metadata,
+    "expense_type_details",
+    "other"
+  );
   const subscriptionCards = creditCard.cards || subscription.cards;
 
   return {
     companyId: expense.company_id || "",
-    expenseMadeByType: (expense.expense_made_by_type || "employee") as ExpenseMadeByType,
+    expenseMadeByType: (expense.expense_made_by_type ||
+      "employee") as ExpenseMadeByType,
     employeeRefId: expense.employee_ref_id || "",
     responsiblePersonName: expense.responsible_person_name || "",
     otherMadeByExplanation: expense.other_made_by_explanation || "",
@@ -1427,7 +1442,9 @@ function buildEditForm(expense: ExpenseRow): ExpenseEditFormState {
       getMetadataString(otherExpense.explanation) ||
       "",
     expenseSourceName: expense.expense_source_name || "",
-    amount: String(expense.final_amount || expense.requested_amount || expense.amount || ""),
+    amount: String(
+      expense.final_amount || expense.requested_amount || expense.amount || ""
+    ),
     currencyCode: expense.currency_code || "",
     expenseDate: formatDateInput(expense.expense_date),
     isRetroactive: Boolean(expense.is_retroactive),
@@ -1438,12 +1455,16 @@ function buildEditForm(expense: ExpenseRow): ExpenseEditFormState {
 
     reimbursementPaymentMethod:
       getMetadataString(reimbursement.payment_method) || "personal_card",
-    reimbursementPaymentMethodOther: getMetadataString(reimbursement.payment_method_other),
+    reimbursementPaymentMethodOther: getMetadataString(
+      reimbursement.payment_method_other
+    ),
     reimbursementReason: getMetadataString(reimbursement.reimbursement_reason),
 
-    officeSupplierType: getMetadataString(officeSupport.supplier_type) || "local_shop",
+    officeSupplierType:
+      getMetadataString(officeSupport.supplier_type) || "local_shop",
     officeSupplierTypeOther: "",
-    officeLocationType: getMetadataString(officeSupport.location_type) || "main_office",
+    officeLocationType:
+      getMetadataString(officeSupport.location_type) || "main_office",
     officeLocationTypeOther: "",
     officePurchasePurpose: getMetadataString(officeSupport.purchase_purpose),
 
@@ -1464,22 +1485,28 @@ function buildEditForm(expense: ExpenseRow): ExpenseEditFormState {
     onlineOrderDate: formatDateInput(
       expense.online_order_date || getMetadataString(onlineShopping.order_date)
     ),
-    onlineOrderUrl: expense.online_order_url || getMetadataString(onlineShopping.order_url),
+    onlineOrderUrl:
+      expense.online_order_url || getMetadataString(onlineShopping.order_url),
     onlineTrackingNumber:
-      expense.online_tracking_number || getMetadataString(onlineShopping.tracking_number),
+      expense.online_tracking_number ||
+      getMetadataString(onlineShopping.tracking_number),
 
     travelType: getMetadataString(travel.travel_type) || "taxi",
     travelTypeOther: "",
     travelFrom: getMetadataString(travel.from),
     travelTo: getMetadataString(travel.to),
-    travelDate: formatDateInput(getMetadataString(travel.travel_date) || expense.expense_date),
+    travelDate: formatDateInput(
+      getMetadataString(travel.travel_date) || expense.expense_date
+    ),
     travelReason: getMetadataString(travel.reason),
     travelRelatedProject: getMetadataString(travel.related_project),
 
     mealVendorName: getMetadataString(meals.vendor_name),
     mealType: getMetadataString(meals.meal_type) || "business_meal",
     mealTypeOther: "",
-    mealDate: formatDateInput(getMetadataString(meals.meal_date) || expense.expense_date),
+    mealDate: formatDateInput(
+      getMetadataString(meals.meal_date) || expense.expense_date
+    ),
     mealAttendees: getMetadataString(meals.attendees),
     mealBusinessPurpose: getMetadataString(meals.business_purpose),
 
@@ -1501,26 +1528,33 @@ function buildEditForm(expense: ExpenseRow): ExpenseEditFormState {
     governmentAuthorityName: getMetadataString(governmentFee.authority_name),
     governmentFeeType: getMetadataString(governmentFee.fee_type) || "tax",
     governmentFeeTypeOther: "",
-    governmentReferenceNumber: getMetadataString(governmentFee.reference_number),
+    governmentReferenceNumber: getMetadataString(
+      governmentFee.reference_number
+    ),
     governmentDueDate: formatDateInput(getMetadataString(governmentFee.due_date)),
     governmentPaymentLink: getMetadataString(governmentFee.payment_link),
 
     repairProviderName: getMetadataString(repairService.provider_name),
-    repairServiceType: getMetadataString(repairService.service_type) || "machine_repair",
+    repairServiceType:
+      getMetadataString(repairService.service_type) || "machine_repair",
     repairServiceTypeOther: "",
     repairAssetName: getMetadataString(repairService.asset_name),
-    repairServiceDate: formatDateInput(getMetadataString(repairService.service_date) || expense.expense_date),
+    repairServiceDate: formatDateInput(
+      getMetadataString(repairService.service_date) || expense.expense_date
+    ),
     repairIssueDescription: getMetadataString(repairService.issue_description),
     repairServiceResult: getMetadataString(repairService.service_result),
 
-    companySupportType: getMetadataString(companySupport.support_type) || "employee_support",
+    companySupportType:
+      getMetadataString(companySupport.support_type) || "employee_support",
     companySupportTypeOther: "",
     companySupportRecipient: getMetadataString(companySupport.recipient),
     companySupportReason: getMetadataString(companySupport.reason),
     companySupportPeriodFrom: getMetadataString(companySupport.period_from),
     companySupportPeriodTo: getMetadataString(companySupport.period_to),
 
-    otherExpenseCategory: getMetadataString(otherExpense.category) || "temporary_exception",
+    otherExpenseCategory:
+      getMetadataString(otherExpense.category) || "temporary_exception",
     otherExpenseCategoryOther: "",
 
     isSubscriptionExpense:
@@ -1528,26 +1562,41 @@ function buildEditForm(expense: ExpenseRow): ExpenseEditFormState {
       getMetadataBoolean(subscription.is_subscription),
     subscriptionProviderName: getMetadataString(subscription.provider_name),
     subscriptionBillingFrequency:
-      (getMetadataString(subscription.billing_frequency) as BillingFrequency) || "monthly",
-    subscriptionBillingFrequencyOther: getMetadataString(subscription.billing_frequency_other),
+      (getMetadataString(subscription.billing_frequency) as BillingFrequency) ||
+      "monthly",
+    subscriptionBillingFrequencyOther: getMetadataString(
+      subscription.billing_frequency_other
+    ),
     subscriptionAmountBasis:
       (getMetadataString(subscription.amount_basis) as SubscriptionAmountBasis) ||
       "monthly_payment",
-    subscriptionAmountBasisOther: getMetadataString(subscription.amount_basis_other),
-    subscriptionStartDate: formatDateInput(getMetadataString(subscription.start_date) || expense.expense_date),
-    subscriptionRenewalDate: formatDateInput(
-      getMetadataString(subscription.renewal_date) || getMetadataString(subscription.end_date)
+    subscriptionAmountBasisOther: getMetadataString(
+      subscription.amount_basis_other
     ),
-    subscriptionAccountReference: getMetadataString(subscription.account_reference),
+    subscriptionStartDate: formatDateInput(
+      getMetadataString(subscription.start_date) || expense.expense_date
+    ),
+    subscriptionRenewalDate: formatDateInput(
+      getMetadataString(subscription.renewal_date) ||
+        getMetadataString(subscription.end_date)
+    ),
+    subscriptionAccountReference: getMetadataString(
+      subscription.account_reference
+    ),
     subscriptionAutoCreateFutureExpenses: getMetadataBoolean(
       subscription.auto_create_future_expenses,
       true
     ),
-    subscriptionRenewalReminder: getMetadataBoolean(subscription.renewal_reminder, true),
+    subscriptionRenewalReminder: getMetadataBoolean(
+      subscription.renewal_reminder,
+      true
+    ),
     subscriptionPaymentMethod:
       (getMetadataString(subscription.payment_method) as SubscriptionPaymentMethod) ||
       "not_selected",
-    subscriptionPaymentMethodOther: getMetadataString(subscription.payment_method_other),
+    subscriptionPaymentMethodOther: getMetadataString(
+      subscription.payment_method_other
+    ),
     subscriptionAdminNotes: getMetadataString(subscription.admin_notes),
     subscriptionCards: getMetadataCards(subscriptionCards),
   };
@@ -1616,7 +1665,11 @@ export default function FinanceExpenseDetailPage() {
 
   const documentationExternalLink = useMemo(() => {
     if (documentationLink.trim()) return documentationLink.trim();
-    return getMetadataString(expense?.metadata?.documentation_link) || expense?.online_order_url || "";
+    return (
+      getMetadataString(expense?.metadata?.documentation_link) ||
+      expense?.online_order_url ||
+      ""
+    );
   }, [documentationLink, expense]);
 
   const expenseAmount = useMemo(() => {
@@ -1639,7 +1692,10 @@ export default function FinanceExpenseDetailPage() {
 
   const coveredAmount = useMemo(() => {
     return roundMoney(
-      confirmedAllocations.reduce((sum, item) => sum + toNumber(item.allocated_amount), 0)
+      confirmedAllocations.reduce(
+        (sum, item) => sum + toNumber(item.allocated_amount),
+        0
+      )
     );
   }, [confirmedAllocations]);
 
@@ -1673,7 +1729,6 @@ export default function FinanceExpenseDetailPage() {
 
   const needsDocumentationCorrection = useMemo(() => {
     if (!expense) return false;
-
     return expense.request_status === "documentation_issue";
   }, [expense]);
 
@@ -1724,8 +1779,54 @@ export default function FinanceExpenseDetailPage() {
       });
   }, [editForm]);
 
+  const timelineItems = useMemo<TimelineItem[]>(() => {
+    if (!expense) return [];
+
+    return [
+      {
+        label: "Request",
+        value: formatLabel(expense.request_status || expense.status),
+        detail: `Created ${formatDateTime(expense.created_at)}`,
+        tone: getStatusTone(expense.request_status || expense.status),
+      },
+      {
+        label: "Docs",
+        value: formatLabel(expense.documentation_status),
+        detail: expense.documentation_submitted_at
+          ? `Submitted ${formatDateTime(expense.documentation_submitted_at)}`
+          : "Documentation is required before Finance verification.",
+        tone: getStatusTone(expense.documentation_status),
+      },
+      {
+        label: "Review",
+        value: formatLabel(expense.finance_review_status),
+        detail: expense.verified_for_payment_at
+          ? `Verified ${formatDateTime(expense.verified_for_payment_at)}`
+          : expense.verification_notes || "Finance review happens inside Payments Made.",
+        tone: getStatusTone(expense.finance_review_status),
+      },
+      {
+        label: "Coverage",
+        value: formatLabel(calculatedCoverageStatus),
+        detail: `${expense.currency_code || "USD"} ${formatMoney(coveredAmount)} covered`,
+        tone: getStatusTone(calculatedCoverageStatus),
+      },
+      {
+        label: "Recipient",
+        value: formatLabel(expense.recipient_confirmation_status),
+        detail: expense.recipient_confirmed_at
+          ? `Confirmed ${formatDateTime(expense.recipient_confirmed_at)}`
+          : "The person who made the expense confirms received after payment.",
+        tone: getStatusTone(expense.recipient_confirmation_status),
+      },
+    ];
+  }, [calculatedCoverageStatus, coveredAmount, expense]);
+
   const updateEditField = useCallback(
-    <Key extends keyof ExpenseEditFormState>(key: Key, value: ExpenseEditFormState[Key]) => {
+    <Key extends keyof ExpenseEditFormState>(
+      key: Key,
+      value: ExpenseEditFormState[Key]
+    ) => {
       setEditForm((current) => {
         if (!current) return current;
 
@@ -1785,7 +1886,9 @@ export default function FinanceExpenseDetailPage() {
     setEditForm((current) => {
       if (!current) return current;
 
-      const nextCards = current.subscriptionCards.filter((card) => card.id !== cardId);
+      const nextCards = current.subscriptionCards.filter(
+        (card) => card.id !== cardId
+      );
 
       return {
         ...current,
@@ -1794,7 +1897,7 @@ export default function FinanceExpenseDetailPage() {
     });
   }, []);
 
-        const startEditingOverview = useCallback(() => {
+  const startEditingOverview = useCallback(() => {
     if (!expense) return;
 
     setEditForm(buildEditForm(expense));
@@ -1809,10 +1912,13 @@ export default function FinanceExpenseDetailPage() {
     setPageError(null);
   }, []);
 
-  const validateOtherDropdowns = useCallback(() => {
+        const validateOtherDropdowns = useCallback(() => {
     if (!editForm) return "Missing edit form.";
 
-    if (editForm.expenseMadeByType === "other" && !editForm.otherMadeByExplanation.trim()) {
+    if (
+      editForm.expenseMadeByType === "other" &&
+      !editForm.otherMadeByExplanation.trim()
+    ) {
       return "Other explanation is required when Expense Made By is Other.";
     }
 
@@ -1824,15 +1930,24 @@ export default function FinanceExpenseDetailPage() {
       return "Expense source is required when Expense Type is Other.";
     }
 
-    if (editForm.expenseType === "other" && !editForm.otherExpenseExplanation.trim()) {
+    if (
+      editForm.expenseType === "other" &&
+      !editForm.otherExpenseExplanation.trim()
+    ) {
       return "Other Expense Explanation is required when Expense Type is Other.";
     }
 
-    if (editForm.officeSupplierType === "other" && !editForm.officeSupplierTypeOther.trim()) {
+    if (
+      editForm.officeSupplierType === "other" &&
+      !editForm.officeSupplierTypeOther.trim()
+    ) {
       return "Write the other office supplier type.";
     }
 
-    if (editForm.officeLocationType === "other" && !editForm.officeLocationTypeOther.trim()) {
+    if (
+      editForm.officeLocationType === "other" &&
+      !editForm.officeLocationTypeOther.trim()
+    ) {
       return "Write the other office/location type.";
     }
 
@@ -1840,7 +1955,10 @@ export default function FinanceExpenseDetailPage() {
       return "Write the other utility type.";
     }
 
-    if (editForm.onlinePlatform === "other" && !editForm.onlinePlatformOther.trim()) {
+    if (
+      editForm.onlinePlatform === "other" &&
+      !editForm.onlinePlatformOther.trim()
+    ) {
       return "Write the other online platform.";
     }
 
@@ -1856,23 +1974,38 @@ export default function FinanceExpenseDetailPage() {
       return "Write the other bank charge type.";
     }
 
-    if (editForm.legalServiceType === "other" && !editForm.legalServiceTypeOther.trim()) {
+    if (
+      editForm.legalServiceType === "other" &&
+      !editForm.legalServiceTypeOther.trim()
+    ) {
       return "Write the other legal/accounting service type.";
     }
 
-    if (editForm.governmentFeeType === "other" && !editForm.governmentFeeTypeOther.trim()) {
+    if (
+      editForm.governmentFeeType === "other" &&
+      !editForm.governmentFeeTypeOther.trim()
+    ) {
       return "Write the other government fee type.";
     }
 
-    if (editForm.repairServiceType === "other" && !editForm.repairServiceTypeOther.trim()) {
+    if (
+      editForm.repairServiceType === "other" &&
+      !editForm.repairServiceTypeOther.trim()
+    ) {
       return "Write the other repair/service type.";
     }
 
-    if (editForm.companySupportType === "other" && !editForm.companySupportTypeOther.trim()) {
+    if (
+      editForm.companySupportType === "other" &&
+      !editForm.companySupportTypeOther.trim()
+    ) {
       return "Write the other company support type.";
     }
 
-    if (editForm.otherExpenseCategory === "other" && !editForm.otherExpenseCategoryOther.trim()) {
+    if (
+      editForm.otherExpenseCategory === "other" &&
+      !editForm.otherExpenseCategoryOther.trim()
+    ) {
       return "Write the other expense category.";
     }
 
@@ -1911,7 +2044,9 @@ export default function FinanceExpenseDetailPage() {
     if (
       editForm.isSubscriptionExpense &&
       editForm.subscriptionPaymentMethod === "credit_card" &&
-      editForm.subscriptionCards.some((card) => card.brand === "other" && !card.brandOther.trim())
+      editForm.subscriptionCards.some(
+        (card) => card.brand === "other" && !card.brandOther.trim()
+      )
     ) {
       return "Write the other credit card brand.";
     }
@@ -1929,17 +2064,30 @@ export default function FinanceExpenseDetailPage() {
     }
 
     if (editForm.expenseType === "office_support") {
-      if (!editForm.officePurchasePurpose.trim()) return "Purchase purpose is required.";
+      if (!editForm.officePurchasePurpose.trim()) {
+        return "Purchase purpose is required.";
+      }
     }
 
     if (editForm.expenseType === "utilities") {
-      if (!editForm.utilityProviderName.trim()) return "Utility provider is required.";
-      if (!editForm.utilityPeriodFrom) return "Utility period from date is required.";
-      if (!editForm.utilityPeriodTo) return "Utility period to date is required.";
+      if (!editForm.utilityProviderName.trim()) {
+        return "Utility provider is required.";
+      }
+
+      if (!editForm.utilityPeriodFrom) {
+        return "Utility period from date is required.";
+      }
+
+      if (!editForm.utilityPeriodTo) {
+        return "Utility period to date is required.";
+      }
     }
 
     if (editForm.expenseType === "online_shopping") {
-      if (!editForm.onlinePlatform.trim()) return "Online platform is required.";
+      if (!editForm.onlinePlatform.trim()) {
+        return "Online platform is required.";
+      }
+
       if (!editForm.onlineOrderUrl.trim() && !editForm.onlineOrderNumber.trim()) {
         return "Online shopping needs an order URL or order number.";
       }
@@ -1953,400 +2101,77 @@ export default function FinanceExpenseDetailPage() {
     }
 
     if (editForm.expenseType === "meals") {
-      if (!editForm.mealVendorName.trim()) return "Restaurant / vendor name is required.";
+      if (!editForm.mealVendorName.trim()) {
+        return "Restaurant / vendor name is required.";
+      }
+
       if (!editForm.mealDate) return "Meal date is required.";
       if (!editForm.mealAttendees.trim()) return "Meal attendees are required.";
-      if (!editForm.mealBusinessPurpose.trim()) return "Meal business purpose is required.";
+      if (!editForm.mealBusinessPurpose.trim()) {
+        return "Meal business purpose is required.";
+      }
     }
 
     if (editForm.expenseType === "bank_charges") {
       if (!editForm.bankName.trim()) return "Bank name is required.";
-      if (!editForm.bankTransactionReference.trim() && !editForm.bankAccountReference.trim()) {
+
+      if (
+        !editForm.bankTransactionReference.trim() &&
+        !editForm.bankAccountReference.trim()
+      ) {
         return "Bank charge needs an account reference or transaction reference.";
       }
     }
 
     if (editForm.expenseType === "legal_accounting") {
-      if (!editForm.legalProviderName.trim()) return "Legal / accounting provider is required.";
+      if (!editForm.legalProviderName.trim()) {
+        return "Legal / accounting provider is required.";
+      }
+
       if (!editForm.legalPeriodFrom) return "Service period from date is required.";
       if (!editForm.legalPeriodTo) return "Service period to date is required.";
     }
 
     if (editForm.expenseType === "government_fee") {
-      if (!editForm.governmentAuthorityName.trim()) return "Government authority is required.";
-      if (!editForm.governmentReferenceNumber.trim()) return "Government reference number is required.";
+      if (!editForm.governmentAuthorityName.trim()) {
+        return "Government authority is required.";
+      }
+
+      if (!editForm.governmentReferenceNumber.trim()) {
+        return "Government reference number is required.";
+      }
     }
 
     if (editForm.expenseType === "repair_service") {
-      if (!editForm.repairProviderName.trim()) return "Repair / service provider is required.";
-      if (!editForm.repairAssetName.trim()) return "Asset / equipment is required.";
-      if (!editForm.repairServiceDate) return "Repair / service date is required.";
-      if (!editForm.repairIssueDescription.trim()) return "Issue description is required.";
+      if (!editForm.repairProviderName.trim()) {
+        return "Repair / service provider is required.";
+      }
+
+      if (!editForm.repairAssetName.trim()) {
+        return "Asset / equipment is required.";
+      }
+
+      if (!editForm.repairServiceDate) {
+        return "Repair / service date is required.";
+      }
+
+      if (!editForm.repairIssueDescription.trim()) {
+        return "Issue description is required.";
+      }
     }
 
     if (editForm.expenseType === "company_support") {
-      if (!editForm.companySupportRecipient.trim()) return "Receiving person / company is required.";
-      if (!editForm.companySupportReason.trim()) return "Company support reason is required.";
+      if (!editForm.companySupportRecipient.trim()) {
+        return "Receiving person / company is required.";
+      }
+
+      if (!editForm.companySupportReason.trim()) {
+        return "Company support reason is required.";
+      }
     }
 
     return null;
   }, [editForm]);
-
-  const saveOverviewEdits = useCallback(async () => {
-    if (!expense || !editForm || !generatedExpenseIdentity) return;
-
-    setIsSavingOverview(true);
-    setPageError(null);
-    setPageMessage(null);
-
-    try {
-      if (!canEditOverview) {
-        throw new Error("Only draft expense requests can be edited.");
-      }
-
-      const amountValue = Number(editForm.amount);
-
-      if (!editForm.companyId) throw new Error("Expense company is required.");
-      if (!editForm.expenseDate) throw new Error("Expense date is required.");
-      if (!editForm.currencyCode) throw new Error("Currency is required.");
-
-      if (!Number.isFinite(amountValue) || amountValue <= 0) {
-        throw new Error("Expense amount must be greater than zero.");
-      }
-
-      if (editForm.expenseMadeByType === "employee" && !editForm.employeeRefId) {
-        throw new Error("Employee is required when Expense Made By is Employee.");
-      }
-
-      if (
-        editForm.expenseMadeByType === "owner_management" &&
-        !editForm.responsiblePersonName.trim()
-      ) {
-        throw new Error("Responsible person name is required for Owner / Management expenses.");
-      }
-
-      const otherError = validateOtherDropdowns();
-      if (otherError) throw new Error(otherError);
-
-      const typeError = validateExpenseTypeFields();
-      if (typeError) throw new Error(typeError);
-
-      if (editForm.isRetroactive && !editForm.retroactiveReason.trim()) {
-        throw new Error("Retroactive reason is required.");
-      }
-
-      if (editForm.isSubscriptionExpense) {
-        if (!editForm.subscriptionProviderName.trim()) {
-          throw new Error("Provider / service name is required for subscription expenses.");
-        }
-
-        if (!editForm.subscriptionStartDate) {
-          throw new Error("Subscription start date is required.");
-        }
-
-        if (editForm.subscriptionPaymentMethod === "not_selected") {
-          throw new Error("Choose whether this subscription uses a credit card.");
-        }
-
-        if (
-          editForm.subscriptionPaymentMethod === "credit_card" &&
-          sanitizedSubscriptionCards.length === 0
-        ) {
-          throw new Error("Add at least one masked credit card or choose No Card.");
-        }
-
-        if (
-          editForm.subscriptionPaymentMethod === "credit_card" &&
-          sanitizedSubscriptionCards.some((card) => card.last4.length !== 4)
-        ) {
-          throw new Error("Every subscription card must include exactly the last 4 digits only.");
-        }
-
-        if (
-          editForm.subscriptionPaymentMethod === "credit_card" &&
-          sanitizedSubscriptionCards.some((card) => !card.nickname)
-        ) {
-          throw new Error("Every subscription card needs a nickname.");
-        }
-      }
-
-      const authResult = await supabase.auth.getUser();
-      if (authResult.error) throw authResult.error;
-
-      const userId = authResult.data.user?.id ?? null;
-      const expenseTypeDetails = buildExpenseTypeMetadata(editForm);
-      const expenseRequestType =
-        editForm.expenseType === "reimbursement" ? "reimbursement" : "planned_expense";
-      const finalExpenseTitle =
-        editForm.expenseType === "other" ? editForm.title.trim() : generatedExpenseIdentity.title;
-      const finalExpenseSource =
-        editForm.expenseType === "other"
-          ? editForm.expenseSourceName.trim()
-          : generatedExpenseIdentity.source;
-
-      const subscriptionMetadata = editForm.isSubscriptionExpense
-        ? {
-            is_subscription: true,
-            admin_only_option: true,
-            permission_enforcement_pending: true,
-            provider_name: editForm.subscriptionProviderName.trim(),
-            billing_frequency: editForm.subscriptionBillingFrequency,
-            billing_frequency_label: getBillingFrequencyLabel(
-              editForm.subscriptionBillingFrequency,
-              editForm.subscriptionBillingFrequencyOther
-            ),
-            billing_frequency_other:
-              editForm.subscriptionBillingFrequency === "other"
-                ? editForm.subscriptionBillingFrequencyOther.trim()
-                : null,
-            account_reference: editForm.subscriptionAccountReference.trim() || null,
-            start_date: editForm.subscriptionStartDate || null,
-            end_date: editForm.subscriptionRenewalDate || null,
-            renewal_date: editForm.subscriptionRenewalDate || null,
-            renewal_reminder: editForm.subscriptionRenewalReminder,
-            auto_create_future_expenses: editForm.subscriptionAutoCreateFutureExpenses,
-            automatic_generation_status: editForm.subscriptionAutoCreateFutureExpenses
-              ? "metadata_ready_scheduler_required"
-              : "manual_only",
-            amount_basis: editForm.subscriptionAmountBasis,
-            amount_basis_label: getAmountBasisLabel(
-              editForm.subscriptionAmountBasis,
-              editForm.subscriptionAmountBasisOther
-            ),
-            amount_basis_other:
-              editForm.subscriptionAmountBasis === "other_subscription_payment"
-                ? editForm.subscriptionAmountBasisOther.trim()
-                : null,
-            amount: amountValue,
-            currency_code: editForm.currencyCode.trim().toUpperCase(),
-            next_expected_expense_date: editForm.subscriptionRenewalDate || null,
-            payment_method: editForm.subscriptionPaymentMethod,
-            payment_method_label: getPaymentMethodLabel(
-              editForm.subscriptionPaymentMethod,
-              editForm.subscriptionPaymentMethodOther
-            ),
-            payment_method_other:
-              editForm.subscriptionPaymentMethod === "other"
-                ? editForm.subscriptionPaymentMethodOther.trim()
-                : null,
-            cards:
-              editForm.subscriptionPaymentMethod === "credit_card"
-                ? sanitizedSubscriptionCards
-                : [],
-            card_details_hidden_after_save: true,
-            sensitive_card_data_stored: false,
-            admin_notes: editForm.subscriptionAdminNotes.trim() || null,
-          }
-        : null;
-
-      const metadata = {
-        ...(expense.metadata || {}),
-        expense_request_type: expenseRequestType,
-        expense_request_type_label:
-          expenseRequestType === "reimbursement" ? "Reimbursement" : "Planned Expense",
-        reimbursement_flow:
-          expenseRequestType === "reimbursement"
-            ? {
-                already_paid: true,
-                skips_spend_approval: true,
-                next_step: "finance_document_review",
-                proof_required_on_submit: true,
-              }
-            : null,
-        expense_type_details: expenseTypeDetails,
-        online_shopping:
-          editForm.expenseType === "online_shopping"
-            ? {
-                platform: getOptionLabel(
-                  ONLINE_PLATFORMS,
-                  editForm.onlinePlatform,
-                  editForm.onlinePlatformOther
-                ),
-                platform_key: editForm.onlinePlatform,
-                platform_other:
-                  editForm.onlinePlatform === "other" ? editForm.onlinePlatformOther.trim() : null,
-                order_number: editForm.onlineOrderNumber.trim(),
-                order_date: editForm.onlineOrderDate || null,
-                order_url: editForm.onlineOrderUrl.trim(),
-                tracking_number: editForm.onlineTrackingNumber.trim(),
-              }
-            : null,
-        subscription: subscriptionMetadata,
-        credit_card:
-          editForm.isSubscriptionExpense && editForm.subscriptionPaymentMethod === "credit_card"
-            ? {
-                admin_only_option: true,
-                permission_enforcement_pending: true,
-                cards: sanitizedSubscriptionCards,
-                display_rule:
-                  "Show masked card only. Never expose full card number in requester views.",
-                editable_by: "admin_later_permission_gate",
-                sensitive_card_data_stored: false,
-              }
-            : null,
-        admin_subscription_context: editForm.isSubscriptionExpense
-          ? {
-              created_from: "expenses_detail_draft_edit",
-              future_expense_generation:
-                "metadata_only_until_backend_scheduler_is_added",
-              requested_behavior:
-                "Create monthly/yearly subscription expense records automatically after backend scheduler is implemented.",
-            }
-          : null,
-        generated_identity: {
-          title: finalExpenseTitle,
-          source: finalExpenseSource,
-          title_source_rule:
-            editForm.expenseType === "other"
-              ? "manual_title_and_source_required"
-              : "auto_generated_from_expense_type_details",
-        },
-        selected_currency: selectedCurrency
-          ? {
-              currency_code: selectedCurrency.currency_code,
-              currency_name: selectedCurrency.currency_name,
-              currency_symbol: selectedCurrency.currency_symbol,
-              decimal_places: selectedCurrency.decimal_places,
-              is_base_currency: selectedCurrency.is_base_currency,
-            }
-          : null,
-        documentation_link: editForm.externalDocumentationLink.trim() || null,
-      };
-
-      const updateResult = await supabase
-        .from("finance_expenses")
-        .update({
-          title: finalExpenseTitle,
-          description: editForm.description.trim() || null,
-          company_id: editForm.companyId,
-          expense_made_by_type: editForm.expenseMadeByType,
-          employee_ref_id:
-            editForm.expenseMadeByType === "employee" ? editForm.employeeRefId : null,
-          responsible_person_name:
-            editForm.expenseMadeByType === "owner_management"
-              ? editForm.responsiblePersonName.trim()
-              : null,
-          other_made_by_explanation:
-            editForm.expenseMadeByType === "other"
-              ? editForm.otherMadeByExplanation.trim()
-              : null,
-          expense_type: editForm.expenseType,
-          expense_source_name: finalExpenseSource,
-          other_expense_explanation:
-            editForm.expenseType === "other" ? editForm.otherExpenseExplanation.trim() : null,
-          amount: amountValue,
-          requested_amount: amountValue,
-          final_amount: amountValue,
-          currency_code: editForm.currencyCode.trim().toUpperCase(),
-          expense_date: editForm.expenseDate,
-          is_retroactive: editForm.isRetroactive,
-          retroactive_reason: editForm.isRetroactive
-            ? editForm.retroactiveReason.trim()
-            : null,
-          online_platform:
-            editForm.expenseType === "online_shopping"
-              ? getOptionLabel(
-                  ONLINE_PLATFORMS,
-                  editForm.onlinePlatform,
-                  editForm.onlinePlatformOther
-                )
-              : null,
-          online_order_number:
-            editForm.expenseType === "online_shopping"
-              ? editForm.onlineOrderNumber.trim() || null
-              : null,
-          online_order_date:
-            editForm.expenseType === "online_shopping" && editForm.onlineOrderDate
-              ? editForm.onlineOrderDate
-              : null,
-          online_order_url:
-            editForm.expenseType === "online_shopping"
-              ? editForm.onlineOrderUrl.trim() || null
-              : null,
-          online_tracking_number:
-            editForm.expenseType === "online_shopping"
-              ? editForm.onlineTrackingNumber.trim() || null
-              : null,
-          online_confirmation_status:
-            editForm.expenseType === "online_shopping"
-              ? expense.online_confirmation_status === "not_applicable"
-                ? "not_confirmed"
-                : expense.online_confirmation_status || "not_confirmed"
-              : "not_applicable",
-          notes: editForm.notes.trim() || null,
-          metadata,
-          updated_by: userId,
-        })
-        .eq("id", expense.id);
-
-      if (updateResult.error) throw updateResult.error;
-
-      setIsEditingOverview(false);
-      setEditForm(null);
-      setPageMessage("Draft expense updated.");
-      await loadExpense("silent");
-    } catch (error) {
-      console.error("Failed to update expense overview:", error);
-      setPageError(error instanceof Error ? error.message : "Failed to update expense overview.");
-    } finally {
-      setIsSavingOverview(false);
-    }
-  }, [
-    canEditOverview,
-    editForm,
-    expense,
-    generatedExpenseIdentity,
-    sanitizedSubscriptionCards,
-    selectedCurrency,
-    validateExpenseTypeFields,
-    validateOtherDropdowns,
-  ]);
-
-  const timelineItems = useMemo<TimelineItem[]>(() => {
-    if (!expense) return [];
-
-    return [
-      {
-        label: "Request",
-        value: formatLabel(expense.request_status || expense.status),
-        detail: `Created ${formatDateTime(expense.created_at)}`,
-        tone:
-          statusToneMap[expense.request_status || expense.status || ""] === "rose"
-            ? "rose"
-            : "cyan",
-      },
-      {
-        label: "Docs",
-        value: formatLabel(expense.documentation_status),
-        detail: expense.documentation_submitted_at
-          ? `Submitted ${formatDateTime(expense.documentation_submitted_at)}`
-          : "Documentation is required before Finance verification.",
-        tone: statusToneMap[expense.documentation_status || ""] ?? "slate",
-      },
-      {
-        label: "Review",
-        value: formatLabel(expense.finance_review_status),
-        detail: expense.verified_for_payment_at
-          ? `Verified ${formatDateTime(expense.verified_for_payment_at)}`
-          : expense.verification_notes || "Finance review happens inside Payments Made.",
-        tone: statusToneMap[expense.finance_review_status || ""] ?? "slate",
-      },
-      {
-        label: "Coverage",
-        value: formatLabel(calculatedCoverageStatus),
-        detail: `${expense.currency_code || "USD"} ${formatMoney(coveredAmount)} covered`,
-        tone: statusToneMap[calculatedCoverageStatus] ?? "slate",
-      },
-      {
-        label: "Recipient",
-        value: formatLabel(expense.recipient_confirmation_status),
-        detail: expense.recipient_confirmed_at
-          ? `Confirmed ${formatDateTime(expense.recipient_confirmed_at)}`
-          : "The person who made the expense confirms received after payment.",
-        tone: statusToneMap[expense.recipient_confirmation_status || ""] ?? "slate",
-      },
-    ];
-  }, [calculatedCoverageStatus, coveredAmount, expense]);
 
   const loadExpense = useCallback(
     async (mode: "initial" | "silent" = "initial") => {
@@ -2362,7 +2187,9 @@ export default function FinanceExpenseDetailPage() {
         setIsRefreshing(true);
       }
 
-      setPageError(null);
+      if (mode === "initial") {
+        setPageError(null);
+      }
 
       try {
         const expenseResult = await supabase
@@ -2428,8 +2255,6 @@ export default function FinanceExpenseDetailPage() {
         if (expenseResult.error) throw expenseResult.error;
 
         const loadedExpense = expenseResult.data as unknown as ExpenseRow;
-        setExpense(loadedExpense);
-        setDocumentationLink(getMetadataString(loadedExpense.metadata?.documentation_link) || "");
 
         const [
           companyResult,
@@ -2485,7 +2310,9 @@ export default function FinanceExpenseDetailPage() {
 
           supabase
             .from("finance_record_attachments")
-            .select("id, entity_type, entity_id, file_upload_id, uploaded_by, notes, metadata, created_at")
+            .select(
+              "id, entity_type, entity_id, file_upload_id, uploaded_by, notes, metadata, created_at"
+            )
             .eq("entity_type", "finance_expense")
             .eq("entity_id", loadedExpense.id)
             .order("created_at", { ascending: false }),
@@ -2500,7 +2327,9 @@ export default function FinanceExpenseDetailPage() {
 
           supabase
             .from("profiles")
-            .select("user_id, full_name, display_name, email, company, job_title, member_type")
+            .select(
+              "user_id, full_name, display_name, email, company, job_title, member_type"
+            )
             .order("full_name"),
 
           supabase
@@ -2514,7 +2343,9 @@ export default function FinanceExpenseDetailPage() {
 
           supabase
             .from("finance_bank_accounts")
-            .select("id, name, bank_name, institution_name, masked_account_number, currency_code, company_id")
+            .select(
+              "id, name, bank_name, institution_name, masked_account_number, currency_code, company_id"
+            )
             .order("name"),
         ]);
 
@@ -2528,17 +2359,13 @@ export default function FinanceExpenseDetailPage() {
         if (currenciesResult.error) throw currenciesResult.error;
         if (bankAccountsResult.error) throw bankAccountsResult.error;
 
-        const loadedAllocations = (allocationsResult.data || []) as unknown as AllocationRow[];
-        setCompany((companyResult.data || null) as CompanyRow | null);
-        setEmployee((employeeResult.data || null) as EmployeeRefRow | null);
-        setAllocations(loadedAllocations);
-        setCompanies((companiesResult.data || []) as CompanyRow[]);
-        setEmployees((employeesResult.data || []) as EmployeeRefRow[]);
-        setProfiles((profilesResult.data || []) as ProfileRow[]);
-        setCurrencies((currenciesResult.data || []) as CurrencyRow[]);
-        setBankAccounts((bankAccountsResult.data || []) as BankAccountRow[]);
+        const loadedAllocations =
+          (allocationsResult.data || []) as unknown as AllocationRow[];
 
-        const paymentIds = Array.from(new Set(loadedAllocations.map((item) => item.payment_made_id)));
+        const paymentIds = Array.from(
+          new Set(loadedAllocations.map((item) => item.payment_made_id))
+        );
+
         const batchIds = Array.from(
           new Set(
             loadedAllocations
@@ -2546,9 +2373,13 @@ export default function FinanceExpenseDetailPage() {
               .filter((value): value is string => Boolean(value))
           )
         );
-        const fileUploadIds = ((attachmentsResult.data || []) as AttachmentRow[]).map(
-          (item) => item.file_upload_id
-        );
+
+        const attachmentRows = (attachmentsResult.data || []) as AttachmentRow[];
+        const fileUploadIds = attachmentRows.map((item) => item.file_upload_id);
+
+        let loadedPayments: PaymentMadeRow[] = [];
+        let loadedBatches: FundingBatchRow[] = [];
+        let loadedAttachments: AttachmentWithFile[] = [];
 
         if (paymentIds.length > 0) {
           const paymentsResult = await supabase
@@ -2559,9 +2390,7 @@ export default function FinanceExpenseDetailPage() {
             .in("id", paymentIds);
 
           if (paymentsResult.error) throw paymentsResult.error;
-          setPayments((paymentsResult.data || []) as unknown as PaymentMadeRow[]);
-        } else {
-          setPayments([]);
+          loadedPayments = (paymentsResult.data || []) as unknown as PaymentMadeRow[];
         }
 
         if (batchIds.length > 0) {
@@ -2573,38 +2402,57 @@ export default function FinanceExpenseDetailPage() {
             .in("id", batchIds);
 
           if (batchesResult.error) throw batchesResult.error;
-          setFundingBatches((batchesResult.data || []) as FundingBatchRow[]);
-        } else {
-          setFundingBatches([]);
+          loadedBatches = (batchesResult.data || []) as FundingBatchRow[];
         }
 
         if (fileUploadIds.length > 0) {
           const fileUploadsResult = await supabase
             .from("file_uploads")
-            .select("id, file_name, file_path, file_size, mime_type, entity_type, created_at")
+            .select(
+              "id, file_name, file_path, file_size, mime_type, entity_type, created_at"
+            )
             .in("id", fileUploadIds);
 
           if (fileUploadsResult.error) throw fileUploadsResult.error;
 
           const fileMap = new Map(
-            ((fileUploadsResult.data || []) as FileUploadRow[]).map((item) => [item.id, item])
+            ((fileUploadsResult.data || []) as FileUploadRow[]).map((item) => [
+              item.id,
+              item,
+            ])
           );
 
-          setAttachments(
-            ((attachmentsResult.data || []) as AttachmentRow[]).map((attachment) => ({
-              ...attachment,
-              fileUpload: fileMap.get(attachment.file_upload_id) || null,
-            }))
-          );
-        } else {
-          setAttachments([]);
+          loadedAttachments = attachmentRows.map((attachment) => ({
+            ...attachment,
+            fileUpload: fileMap.get(attachment.file_upload_id) || null,
+          }));
         }
 
+        setExpense(loadedExpense);
+        setDocumentationLink(
+          getMetadataString(loadedExpense.metadata?.documentation_link) || ""
+        );
+        setCompany((companyResult.data || null) as CompanyRow | null);
+        setEmployee((employeeResult.data || null) as EmployeeRefRow | null);
+        setAllocations(loadedAllocations);
+        setCompanies((companiesResult.data || []) as CompanyRow[]);
+        setEmployees((employeesResult.data || []) as EmployeeRefRow[]);
+        setProfiles((profilesResult.data || []) as ProfileRow[]);
+        setCurrencies((currenciesResult.data || []) as CurrencyRow[]);
+        setBankAccounts((bankAccountsResult.data || []) as BankAccountRow[]);
+        setPayments(loadedPayments);
+        setFundingBatches(loadedBatches);
+        setAttachments(loadedAttachments);
         setHasLoadedOnce(true);
       } catch (error) {
         console.error("Failed to load expense detail:", error);
-        setPageError(error instanceof Error ? error.message : "Failed to load expense detail.");
-        if (!hasLoadedOnce) setExpense(null);
+
+        if (mode === "initial" || !hasLoadedOnce) {
+          setExpense(null);
+          setPageError(
+            error instanceof Error ? error.message : "Failed to load expense detail."
+          );
+        }
       } finally {
         setIsLoading(false);
         setIsRefreshing(false);
@@ -2624,7 +2472,12 @@ export default function FinanceExpenseDetailPage() {
       .channel(`finance-expense-detail-${expenseId}`)
       .on(
         "postgres_changes",
-        { event: "*", schema: "public", table: "finance_expenses", filter: `id=eq.${expenseId}` },
+        {
+          event: "*",
+          schema: "public",
+          table: "finance_expenses",
+          filter: `id=eq.${expenseId}`,
+        },
         () => void loadExpense("silent")
       )
       .on(
@@ -2655,11 +2508,348 @@ export default function FinanceExpenseDetailPage() {
 
     return () => {
       window.clearInterval(intervalId);
-      supabase.removeChannel(channel);
+      void supabase.removeChannel(channel);
     };
   }, [expenseId, loadExpense]);
 
-          const uploadDocumentation = useCallback(async () => {
+  const saveOverviewEdits = useCallback(async () => {
+    if (!expense || !editForm || !generatedExpenseIdentity) return;
+
+    setIsSavingOverview(true);
+    setPageError(null);
+    setPageMessage(null);
+
+    try {
+      if (!canEditOverview) {
+        throw new Error("Only draft expense requests can be edited.");
+      }
+
+      const amountValue = Number(editForm.amount);
+
+      if (!editForm.companyId) throw new Error("Expense company is required.");
+      if (!editForm.expenseDate) throw new Error("Expense date is required.");
+      if (!editForm.currencyCode) throw new Error("Currency is required.");
+
+      if (!Number.isFinite(amountValue) || amountValue <= 0) {
+        throw new Error("Expense amount must be greater than zero.");
+      }
+
+      if (editForm.expenseMadeByType === "employee" && !editForm.employeeRefId) {
+        throw new Error("Employee is required when Expense Made By is Employee.");
+      }
+
+      if (
+        editForm.expenseMadeByType === "owner_management" &&
+        !editForm.responsiblePersonName.trim()
+      ) {
+        throw new Error(
+          "Responsible person name is required for Owner / Management expenses."
+        );
+      }
+
+      const otherError = validateOtherDropdowns();
+      if (otherError) throw new Error(otherError);
+
+      const typeError = validateExpenseTypeFields();
+      if (typeError) throw new Error(typeError);
+
+      if (editForm.isRetroactive && !editForm.retroactiveReason.trim()) {
+        throw new Error("Retroactive reason is required.");
+      }
+
+      if (editForm.isSubscriptionExpense) {
+        if (!editForm.subscriptionProviderName.trim()) {
+          throw new Error(
+            "Provider / service name is required for subscription expenses."
+          );
+        }
+
+        if (!editForm.subscriptionStartDate) {
+          throw new Error("Subscription start date is required.");
+        }
+
+        if (editForm.subscriptionPaymentMethod === "not_selected") {
+          throw new Error("Choose whether this subscription uses a credit card.");
+        }
+
+        if (
+          editForm.subscriptionPaymentMethod === "credit_card" &&
+          sanitizedSubscriptionCards.length === 0
+        ) {
+          throw new Error("Add at least one masked credit card or choose No Card.");
+        }
+
+        if (
+          editForm.subscriptionPaymentMethod === "credit_card" &&
+          sanitizedSubscriptionCards.some((card) => card.last4.length !== 4)
+        ) {
+          throw new Error(
+            "Every subscription card must include exactly the last 4 digits only."
+          );
+        }
+
+        if (
+          editForm.subscriptionPaymentMethod === "credit_card" &&
+          sanitizedSubscriptionCards.some((card) => !card.nickname)
+        ) {
+          throw new Error("Every subscription card needs a nickname.");
+        }
+      }
+
+      const authResult = await supabase.auth.getUser();
+      if (authResult.error) throw authResult.error;
+
+      const userId = authResult.data.user?.id ?? null;
+      const expenseTypeDetails = buildExpenseTypeMetadata(editForm);
+      const expenseRequestType =
+        editForm.expenseType === "reimbursement"
+          ? "reimbursement"
+          : "planned_expense";
+
+      const finalExpenseTitle =
+        editForm.expenseType === "other"
+          ? editForm.title.trim()
+          : generatedExpenseIdentity.title;
+
+      const finalExpenseSource =
+        editForm.expenseType === "other"
+          ? editForm.expenseSourceName.trim()
+          : generatedExpenseIdentity.source;
+
+      const subscriptionMetadata = editForm.isSubscriptionExpense
+        ? {
+            is_subscription: true,
+            admin_only_option: true,
+            permission_enforcement_pending: true,
+            provider_name: editForm.subscriptionProviderName.trim(),
+            billing_frequency: editForm.subscriptionBillingFrequency,
+            billing_frequency_label: getBillingFrequencyLabel(
+              editForm.subscriptionBillingFrequency,
+              editForm.subscriptionBillingFrequencyOther
+            ),
+            billing_frequency_other:
+              editForm.subscriptionBillingFrequency === "other"
+                ? editForm.subscriptionBillingFrequencyOther.trim()
+                : null,
+            account_reference:
+              editForm.subscriptionAccountReference.trim() || null,
+            start_date: editForm.subscriptionStartDate || null,
+            end_date: editForm.subscriptionRenewalDate || null,
+            renewal_date: editForm.subscriptionRenewalDate || null,
+            renewal_reminder: editForm.subscriptionRenewalReminder,
+            auto_create_future_expenses:
+              editForm.subscriptionAutoCreateFutureExpenses,
+            automatic_generation_status:
+              editForm.subscriptionAutoCreateFutureExpenses
+                ? "metadata_ready_scheduler_required"
+                : "manual_only",
+            amount_basis: editForm.subscriptionAmountBasis,
+            amount_basis_label: getAmountBasisLabel(
+              editForm.subscriptionAmountBasis,
+              editForm.subscriptionAmountBasisOther
+            ),
+            amount_basis_other:
+              editForm.subscriptionAmountBasis === "other_subscription_payment"
+                ? editForm.subscriptionAmountBasisOther.trim()
+                : null,
+            amount: amountValue,
+            currency_code: editForm.currencyCode.trim().toUpperCase(),
+            next_expected_expense_date: editForm.subscriptionRenewalDate || null,
+            payment_method: editForm.subscriptionPaymentMethod,
+            payment_method_label: getPaymentMethodLabel(
+              editForm.subscriptionPaymentMethod,
+              editForm.subscriptionPaymentMethodOther
+            ),
+            payment_method_other:
+              editForm.subscriptionPaymentMethod === "other"
+                ? editForm.subscriptionPaymentMethodOther.trim()
+                : null,
+            cards:
+              editForm.subscriptionPaymentMethod === "credit_card"
+                ? sanitizedSubscriptionCards
+                : [],
+            card_details_hidden_after_save: true,
+            sensitive_card_data_stored: false,
+            admin_notes: editForm.subscriptionAdminNotes.trim() || null,
+          }
+        : null;
+
+      const metadata = {
+        ...(expense.metadata || {}),
+        expense_request_type: expenseRequestType,
+        expense_request_type_label:
+          expenseRequestType === "reimbursement"
+            ? "Reimbursement"
+            : "Planned Expense",
+        reimbursement_flow:
+          expenseRequestType === "reimbursement"
+            ? {
+                already_paid: true,
+                skips_spend_approval: true,
+                next_step: "finance_document_review",
+                proof_required_on_submit: true,
+              }
+            : null,
+        expense_type_details: expenseTypeDetails,
+        online_shopping:
+          editForm.expenseType === "online_shopping"
+            ? {
+                platform: getOptionLabel(
+                  ONLINE_PLATFORMS,
+                  editForm.onlinePlatform,
+                  editForm.onlinePlatformOther
+                ),
+                platform_key: editForm.onlinePlatform,
+                platform_other:
+                  editForm.onlinePlatform === "other"
+                    ? editForm.onlinePlatformOther.trim()
+                    : null,
+                order_number: editForm.onlineOrderNumber.trim(),
+                order_date: editForm.onlineOrderDate || null,
+                order_url: editForm.onlineOrderUrl.trim(),
+                tracking_number: editForm.onlineTrackingNumber.trim(),
+              }
+            : null,
+        subscription: subscriptionMetadata,
+        credit_card:
+          editForm.isSubscriptionExpense &&
+          editForm.subscriptionPaymentMethod === "credit_card"
+            ? {
+                admin_only_option: true,
+                permission_enforcement_pending: true,
+                cards: sanitizedSubscriptionCards,
+                display_rule:
+                  "Show masked card only. Never expose full card number in requester views.",
+                editable_by: "admin_later_permission_gate",
+                sensitive_card_data_stored: false,
+              }
+            : null,
+        admin_subscription_context: editForm.isSubscriptionExpense
+          ? {
+              created_from: "expenses_detail_draft_edit",
+              future_expense_generation:
+                "metadata_only_until_backend_scheduler_is_added",
+              requested_behavior:
+                "Create monthly/yearly subscription expense records automatically after backend scheduler is implemented.",
+            }
+          : null,
+        generated_identity: {
+          title: finalExpenseTitle,
+          source: finalExpenseSource,
+          title_source_rule:
+            editForm.expenseType === "other"
+              ? "manual_title_and_source_required"
+              : "auto_generated_from_expense_type_details",
+        },
+        selected_currency: selectedCurrency
+          ? {
+              currency_code: selectedCurrency.currency_code,
+              currency_name: selectedCurrency.currency_name,
+              currency_symbol: selectedCurrency.currency_symbol,
+              decimal_places: selectedCurrency.decimal_places,
+              is_base_currency: selectedCurrency.is_base_currency,
+            }
+          : null,
+        documentation_link: editForm.externalDocumentationLink.trim() || null,
+      };
+
+              const updateResult = await supabase
+        .from("finance_expenses")
+        .update({
+          title: finalExpenseTitle,
+          description: editForm.description.trim() || null,
+          company_id: editForm.companyId,
+          expense_made_by_type: editForm.expenseMadeByType,
+          employee_ref_id:
+            editForm.expenseMadeByType === "employee"
+              ? editForm.employeeRefId
+              : null,
+          responsible_person_name:
+            editForm.expenseMadeByType === "owner_management"
+              ? editForm.responsiblePersonName.trim()
+              : null,
+          other_made_by_explanation:
+            editForm.expenseMadeByType === "other"
+              ? editForm.otherMadeByExplanation.trim()
+              : null,
+          expense_type: editForm.expenseType,
+          expense_source_name: finalExpenseSource,
+          other_expense_explanation:
+            editForm.expenseType === "other"
+              ? editForm.otherExpenseExplanation.trim()
+              : null,
+          amount: amountValue,
+          requested_amount: amountValue,
+          final_amount: amountValue,
+          currency_code: editForm.currencyCode.trim().toUpperCase(),
+          expense_date: editForm.expenseDate,
+          is_retroactive: editForm.isRetroactive,
+          retroactive_reason: editForm.isRetroactive
+            ? editForm.retroactiveReason.trim()
+            : null,
+          online_platform:
+            editForm.expenseType === "online_shopping"
+              ? getOptionLabel(
+                  ONLINE_PLATFORMS,
+                  editForm.onlinePlatform,
+                  editForm.onlinePlatformOther
+                )
+              : null,
+          online_order_number:
+            editForm.expenseType === "online_shopping"
+              ? editForm.onlineOrderNumber.trim() || null
+              : null,
+          online_order_date:
+            editForm.expenseType === "online_shopping" && editForm.onlineOrderDate
+              ? editForm.onlineOrderDate
+              : null,
+          online_order_url:
+            editForm.expenseType === "online_shopping"
+              ? editForm.onlineOrderUrl.trim() || null
+              : null,
+          online_tracking_number:
+            editForm.expenseType === "online_shopping"
+              ? editForm.onlineTrackingNumber.trim() || null
+              : null,
+          online_confirmation_status:
+            editForm.expenseType === "online_shopping"
+              ? expense.online_confirmation_status === "not_applicable"
+                ? "not_confirmed"
+                : expense.online_confirmation_status || "not_confirmed"
+              : "not_applicable",
+          notes: editForm.notes.trim() || null,
+          metadata,
+          updated_by: userId,
+        })
+        .eq("id", expense.id);
+
+      if (updateResult.error) throw updateResult.error;
+
+      setIsEditingOverview(false);
+      setEditForm(null);
+      setPageMessage("Draft expense updated.");
+      await loadExpense("silent");
+    } catch (error) {
+      console.error("Failed to update expense overview:", error);
+      setPageError(
+        error instanceof Error ? error.message : "Failed to update expense overview."
+      );
+    } finally {
+      setIsSavingOverview(false);
+    }
+  }, [
+    canEditOverview,
+    editForm,
+    expense,
+    generatedExpenseIdentity,
+    loadExpense,
+    sanitizedSubscriptionCards,
+    selectedCurrency,
+    validateExpenseTypeFields,
+    validateOtherDropdowns,
+  ]);
+
+  const uploadDocumentation = useCallback(async () => {
     if (!expense) return;
 
     if (!documentationFile && !documentationExternalLink.trim()) {
@@ -2707,18 +2897,20 @@ export default function FinanceExpenseDetailPage() {
 
         if (fileUploadResult.error) throw fileUploadResult.error;
 
-        const attachmentResult = await supabase.from("finance_record_attachments").insert({
-          entity_type: "finance_expense",
-          entity_id: expense.id,
-          file_upload_id: fileUploadResult.data.id,
-          uploaded_by: userId,
-          notes: `Documentation for ${expense.expense_number || expense.title}`,
-          metadata: {
-            bucket: "finance-expense-documents",
-            uploaded_from: "expenses_detail",
-            resolved_mime_type: resolvedMimeType,
-          },
-        });
+        const attachmentResult = await supabase
+          .from("finance_record_attachments")
+          .insert({
+            entity_type: "finance_expense",
+            entity_id: expense.id,
+            file_upload_id: fileUploadResult.data.id,
+            uploaded_by: userId,
+            notes: `Documentation for ${expense.expense_number || expense.title}`,
+            metadata: {
+              bucket: "finance-expense-documents",
+              uploaded_from: "expenses_detail",
+              resolved_mime_type: resolvedMimeType,
+            },
+          });
 
         if (attachmentResult.error) throw attachmentResult.error;
       }
@@ -2770,6 +2962,38 @@ export default function FinanceExpenseDetailPage() {
     }
   }, [documentationExternalLink, documentationFile, expense, loadExpense]);
 
+  const openAttachment = useCallback(
+    async (documentAttachment: { id: string }) => {
+      const attachment = attachments.find((item) => item.id === documentAttachment.id);
+
+      if (!attachment?.fileUpload?.file_path) {
+        setPageError("Expense documentation file path is missing.");
+        return;
+      }
+
+      const bucket =
+        attachment.metadata?.bucket ||
+        (attachment.fileUpload.entity_type === "finance_expense"
+          ? "finance-expense-documents"
+          : "finance-expense-documents");
+
+      const { data, error } = await supabase.storage
+        .from(bucket)
+        .createSignedUrl(attachment.fileUpload.file_path, 300);
+
+      if (error) {
+        console.error("Failed to open expense documentation:", error);
+        setPageError("Failed to open expense documentation.");
+        return;
+      }
+
+      if (data?.signedUrl) {
+        window.open(data.signedUrl, "_blank", "noopener,noreferrer");
+      }
+    },
+    [attachments]
+  );
+
   const confirmReceived = useCallback(
     async (status: "received_confirmed" | "not_received" | "disputed") => {
       if (!expense) return;
@@ -2798,7 +3022,9 @@ export default function FinanceExpenseDetailPage() {
       } catch (error) {
         console.error("Failed to confirm expense payment receipt:", error);
         setPageError(
-          error instanceof Error ? error.message : "Failed to confirm payment receipt."
+          error instanceof Error
+            ? error.message
+            : "Failed to confirm payment receipt."
         );
       } finally {
         setIsConfirmingReceipt(false);
@@ -2807,868 +3033,923 @@ export default function FinanceExpenseDetailPage() {
     [confirmationNotes, expense, loadExpense]
   );
 
-  const renderDynamicExpenseSection = () => {
+  function renderSelectField({
+    label,
+    value,
+    onChange,
+    options,
+  }: {
+    label: string;
+    value: string;
+    onChange: (value: string) => void;
+    options: SelectOption[];
+  }) {
+    return (
+      <AixiaFormField>
+        <AixiaFieldLabel label={label} />
+        <AixiaSelectField
+          value={value}
+          onChange={(event) => onChange(event.target.value)}
+        >
+          {options.map((option) => (
+            <option key={option.value} value={option.value}>
+              {option.label}
+            </option>
+          ))}
+        </AixiaSelectField>
+      </AixiaFormField>
+    );
+  }
+
+  function renderOtherTextField({
+    label,
+    value,
+    onChange,
+    placeholder,
+  }: {
+    label: string;
+    value: string;
+    onChange: (value: string) => void;
+    placeholder: string;
+  }) {
+    return (
+      <AixiaFormField>
+        <AixiaFieldLabel label={label} />
+        <AixiaInputField
+          value={value}
+          onChange={(event) => onChange(event.target.value)}
+          placeholder={placeholder}
+        />
+      </AixiaFormField>
+    );
+  }
+
+  function renderDynamicExpenseSection() {
     if (!editForm) return null;
 
     if (editForm.expenseType === "reimbursement") {
       return (
-        <SectionCard
+        <AixiaSection
           title="Reimbursement Details"
           description="Use this when the person already paid personally and needs the company to reimburse them."
           icon={WalletCards}
         >
-          <div className="grid gap-4 md:grid-cols-2">
-            <SelectField
-              label="Original Payment Method"
-              value={editForm.reimbursementPaymentMethod}
-              onChange={(value) => updateEditField("reimbursementPaymentMethod", value)}
-              options={REIMBURSEMENT_PAYMENT_METHODS}
-            />
+          <AixiaFormGrid columns="two">
+            {renderSelectField({
+              label: "Original Payment Method",
+              value: editForm.reimbursementPaymentMethod,
+              onChange: (value) =>
+                updateEditField("reimbursementPaymentMethod", value),
+              options: REIMBURSEMENT_PAYMENT_METHODS,
+            })}
 
-            {editForm.reimbursementPaymentMethod === "other" ? (
-              <OtherTextField
-                label="Write Other Payment Method"
-                value={editForm.reimbursementPaymentMethodOther}
-                onChange={(value) =>
-                  updateEditField("reimbursementPaymentMethodOther", value)
-                }
-                placeholder="Write how the person originally paid"
-              />
-            ) : null}
+            {editForm.reimbursementPaymentMethod === "other"
+              ? renderOtherTextField({
+                  label: "Write Other Payment Method",
+                  value: editForm.reimbursementPaymentMethodOther,
+                  onChange: (value) =>
+                    updateEditField("reimbursementPaymentMethodOther", value),
+                  placeholder: "Write how the person originally paid",
+                })
+              : null}
 
-            <label className="grid gap-2 md:col-span-2">
-              <span className={labelClass()}>Reimbursement Reason</span>
-              <textarea
+            <AixiaFormFullWidth>
+              <AixiaFieldLabel label="Reimbursement Reason" />
+              <AixiaTextareaField
                 value={editForm.reimbursementReason}
                 onChange={(event) =>
                   updateEditField("reimbursementReason", event.target.value)
                 }
-                className={textareaClass()}
                 placeholder="Explain what was already paid, why it was needed, and why the company should reimburse it"
               />
-            </label>
+            </AixiaFormFullWidth>
+          </AixiaFormGrid>
 
-            <div className="rounded-[24px] border border-amber-400/20 bg-amber-500/10 p-4 md:col-span-2">
-              <div className="text-sm font-semibold text-amber-100">
-                Reimbursement skips spend approval
-              </div>
-              <p className="mt-2 text-xs leading-5 text-amber-100/75">
-                This record means the person already paid personally. Finance reviews proof, then
-                the record moves to payment distribution and recipient confirmation.
-              </p>
-            </div>
-          </div>
-        </SectionCard>
+          <AixiaAlert tone="warning">
+            Reimbursement skips spend approval. This record means the person already paid
+            personally. Finance reviews proof, then the record moves to payment distribution
+            and recipient confirmation.
+          </AixiaAlert>
+        </AixiaSection>
       );
     }
 
     if (editForm.expenseType === "office_support") {
       return (
-        <SectionCard
+        <AixiaSection
           title="Office Support Details"
           description="Define the office support context and purchase purpose."
           icon={Building2}
         >
-          <div className="grid gap-4 md:grid-cols-2">
-            <SelectField
-              label="Supplier / Shop Type"
-              value={editForm.officeSupplierType}
-              onChange={(value) => updateEditField("officeSupplierType", value)}
-              options={OFFICE_SUPPLIER_TYPES}
-            />
-            {editForm.officeSupplierType === "other" ? (
-              <OtherTextField
-                label="Write Other Supplier / Shop Type"
-                value={editForm.officeSupplierTypeOther}
-                onChange={(value) => updateEditField("officeSupplierTypeOther", value)}
-                placeholder="Write the supplier/shop type"
-              />
-            ) : null}
+          <AixiaFormGrid columns="two">
+            {renderSelectField({
+              label: "Supplier / Shop Type",
+              value: editForm.officeSupplierType,
+              onChange: (value) => updateEditField("officeSupplierType", value),
+              options: OFFICE_SUPPLIER_TYPES,
+            })}
 
-            <SelectField
-              label="Office / Location"
-              value={editForm.officeLocationType}
-              onChange={(value) => updateEditField("officeLocationType", value)}
-              options={OFFICE_LOCATION_TYPES}
-            />
-            {editForm.officeLocationType === "other" ? (
-              <OtherTextField
-                label="Write Other Office / Location"
-                value={editForm.officeLocationTypeOther}
-                onChange={(value) => updateEditField("officeLocationTypeOther", value)}
-                placeholder="Write the location"
-              />
-            ) : null}
+            {editForm.officeSupplierType === "other"
+              ? renderOtherTextField({
+                  label: "Write Other Supplier / Shop Type",
+                  value: editForm.officeSupplierTypeOther,
+                  onChange: (value) =>
+                    updateEditField("officeSupplierTypeOther", value),
+                  placeholder: "Write the supplier/shop type",
+                })
+              : null}
 
-            <label className="grid gap-2 md:col-span-2">
-              <span className={labelClass()}>Purchase Purpose</span>
-              <textarea
+            {renderSelectField({
+              label: "Office / Location",
+              value: editForm.officeLocationType,
+              onChange: (value) => updateEditField("officeLocationType", value),
+              options: OFFICE_LOCATION_TYPES,
+            })}
+
+            {editForm.officeLocationType === "other"
+              ? renderOtherTextField({
+                  label: "Write Other Office / Location",
+                  value: editForm.officeLocationTypeOther,
+                  onChange: (value) =>
+                    updateEditField("officeLocationTypeOther", value),
+                  placeholder: "Write the location",
+                })
+              : null}
+
+            <AixiaFormFullWidth>
+              <AixiaFieldLabel label="Purchase Purpose" />
+              <AixiaTextareaField
                 value={editForm.officePurchasePurpose}
                 onChange={(event) =>
                   updateEditField("officePurchasePurpose", event.target.value)
                 }
-                className={textareaClass()}
                 placeholder="Explain what was purchased and why the office needs it"
               />
-            </label>
-          </div>
-        </SectionCard>
+            </AixiaFormFullWidth>
+          </AixiaFormGrid>
+        </AixiaSection>
       );
     }
 
     if (editForm.expenseType === "utilities") {
       return (
-        <SectionCard
+        <AixiaSection
           title="Utility Bill Details"
           description="Capture utility provider, bill period, and account reference."
           icon={Receipt}
         >
-          <div className="grid gap-4 md:grid-cols-2">
-            <label className="grid gap-2">
-              <span className={labelClass()}>Utility Provider</span>
-              <input
+          <AixiaFormGrid columns="two">
+            <AixiaFormField>
+              <AixiaFieldLabel label="Utility Provider" />
+              <AixiaInputField
                 value={editForm.utilityProviderName}
                 onChange={(event) =>
                   updateEditField("utilityProviderName", event.target.value)
                 }
-                className={inputClass()}
                 placeholder="Provider name"
               />
-            </label>
+            </AixiaFormField>
 
-            <SelectField
-              label="Utility Type"
-              value={editForm.utilityType}
-              onChange={(value) => updateEditField("utilityType", value)}
-              options={UTILITY_TYPES}
-            />
-            {editForm.utilityType === "other" ? (
-              <OtherTextField
-                label="Write Other Utility Type"
-                value={editForm.utilityTypeOther}
-                onChange={(value) => updateEditField("utilityTypeOther", value)}
-                placeholder="Write the utility type"
-              />
-            ) : null}
+            {renderSelectField({
+              label: "Utility Type",
+              value: editForm.utilityType,
+              onChange: (value) => updateEditField("utilityType", value),
+              options: UTILITY_TYPES,
+            })}
 
-            <label className="grid gap-2">
-              <span className={labelClass()}>Bill Period From</span>
-              <input
+            {editForm.utilityType === "other"
+              ? renderOtherTextField({
+                  label: "Write Other Utility Type",
+                  value: editForm.utilityTypeOther,
+                  onChange: (value) => updateEditField("utilityTypeOther", value),
+                  placeholder: "Write the utility type",
+                })
+              : null}
+
+            <AixiaFormField>
+              <AixiaFieldLabel label="Bill Period From" />
+              <AixiaInputField
                 type="date"
                 value={editForm.utilityPeriodFrom}
-                onChange={(event) => updateEditField("utilityPeriodFrom", event.target.value)}
-                className={inputClass()}
+                onChange={(event) =>
+                  updateEditField("utilityPeriodFrom", event.target.value)
+                }
               />
-            </label>
+            </AixiaFormField>
 
-            <label className="grid gap-2">
-              <span className={labelClass()}>Bill Period To</span>
-              <input
+            <AixiaFormField>
+              <AixiaFieldLabel label="Bill Period To" />
+              <AixiaInputField
                 type="date"
                 value={editForm.utilityPeriodTo}
-                onChange={(event) => updateEditField("utilityPeriodTo", event.target.value)}
-                className={inputClass()}
+                onChange={(event) =>
+                  updateEditField("utilityPeriodTo", event.target.value)
+                }
               />
-            </label>
+            </AixiaFormField>
 
-            <label className="grid gap-2 md:col-span-2">
-              <span className={labelClass()}>Account / Contract Number</span>
-              <input
+            <AixiaFormFullWidth>
+              <AixiaFieldLabel label="Account / Contract Number" />
+              <AixiaInputField
                 value={editForm.utilityAccountReference}
                 onChange={(event) =>
                   updateEditField("utilityAccountReference", event.target.value)
                 }
-                className={inputClass()}
                 placeholder="Account number, contract number, or bill reference"
               />
-            </label>
-          </div>
-        </SectionCard>
+            </AixiaFormFullWidth>
+          </AixiaFormGrid>
+        </AixiaSection>
       );
     }
 
     if (editForm.expenseType === "online_shopping") {
       return (
-        <SectionCard
+        <AixiaSection
           title="Online Shopping Confirmation"
           description="Capture order details, platform, link, and tracking information."
           icon={ShoppingCart}
         >
-          <div className="grid gap-4 md:grid-cols-2">
-            <SelectField
-              label="Online Platform"
-              value={editForm.onlinePlatform}
-              onChange={(value) => updateEditField("onlinePlatform", value)}
-              options={ONLINE_PLATFORMS}
-            />
-            {editForm.onlinePlatform === "other" ? (
-              <OtherTextField
-                label="Write Other Online Platform"
-                value={editForm.onlinePlatformOther}
-                onChange={(value) => updateEditField("onlinePlatformOther", value)}
-                placeholder="Write the online platform"
-              />
-            ) : null}
+          <AixiaFormGrid columns="two">
+            {renderSelectField({
+              label: "Online Platform",
+              value: editForm.onlinePlatform,
+              onChange: (value) => updateEditField("onlinePlatform", value),
+              options: ONLINE_PLATFORMS,
+            })}
 
-            <label className="grid gap-2">
-              <span className={labelClass()}>Order Number</span>
-              <input
+            {editForm.onlinePlatform === "other"
+              ? renderOtherTextField({
+                  label: "Write Other Online Platform",
+                  value: editForm.onlinePlatformOther,
+                  onChange: (value) =>
+                    updateEditField("onlinePlatformOther", value),
+                  placeholder: "Write the online platform",
+                })
+              : null}
+
+            <AixiaFormField>
+              <AixiaFieldLabel label="Order Number" />
+              <AixiaInputField
                 value={editForm.onlineOrderNumber}
-                onChange={(event) => updateEditField("onlineOrderNumber", event.target.value)}
-                className={inputClass()}
+                onChange={(event) =>
+                  updateEditField("onlineOrderNumber", event.target.value)
+                }
                 placeholder="Order number"
               />
-            </label>
+            </AixiaFormField>
 
-            <label className="grid gap-2">
-              <span className={labelClass()}>Order Date</span>
-              <input
+            <AixiaFormField>
+              <AixiaFieldLabel label="Order Date" />
+              <AixiaInputField
                 type="date"
                 value={editForm.onlineOrderDate}
-                onChange={(event) => updateEditField("onlineOrderDate", event.target.value)}
-                className={inputClass()}
+                onChange={(event) =>
+                  updateEditField("onlineOrderDate", event.target.value)
+                }
               />
-            </label>
+            </AixiaFormField>
 
-            <label className="grid gap-2">
-              <span className={labelClass()}>Tracking Number</span>
-              <input
+            <AixiaFormField>
+              <AixiaFieldLabel label="Tracking Number" />
+              <AixiaInputField
                 value={editForm.onlineTrackingNumber}
                 onChange={(event) =>
                   updateEditField("onlineTrackingNumber", event.target.value)
                 }
-                className={inputClass()}
                 placeholder="Tracking number if available"
               />
-            </label>
+            </AixiaFormField>
 
-            <label className="grid gap-2 md:col-span-2">
-              <span className={labelClass()}>Order URL</span>
-              <input
+            <AixiaFormFullWidth>
+              <AixiaFieldLabel label="Order URL" />
+              <AixiaInputField
                 value={editForm.onlineOrderUrl}
-                onChange={(event) => updateEditField("onlineOrderUrl", event.target.value)}
-                className={inputClass()}
+                onChange={(event) =>
+                  updateEditField("onlineOrderUrl", event.target.value)
+                }
                 placeholder="Online order link"
               />
-            </label>
-          </div>
-        </SectionCard>
+            </AixiaFormFullWidth>
+          </AixiaFormGrid>
+        </AixiaSection>
       );
     }
 
     if (editForm.expenseType === "travel") {
       return (
-        <SectionCard
+        <AixiaSection
           title="Travel Details"
           description="Capture from/to, travel type, reason, and related context."
           icon={CalendarClock}
         >
-          <div className="grid gap-4 md:grid-cols-2">
-            <SelectField
-              label="Travel Type"
-              value={editForm.travelType}
-              onChange={(value) => updateEditField("travelType", value)}
-              options={TRAVEL_TYPES}
-            />
-            {editForm.travelType === "other" ? (
-              <OtherTextField
-                label="Write Other Travel Type"
-                value={editForm.travelTypeOther}
-                onChange={(value) => updateEditField("travelTypeOther", value)}
-                placeholder="Write the travel type"
-              />
-            ) : null}
+          <AixiaFormGrid columns="two">
+            {renderSelectField({
+              label: "Travel Type",
+              value: editForm.travelType,
+              onChange: (value) => updateEditField("travelType", value),
+              options: TRAVEL_TYPES,
+            })}
 
-            <label className="grid gap-2">
-              <span className={labelClass()}>From</span>
-              <input
+            {editForm.travelType === "other"
+              ? renderOtherTextField({
+                  label: "Write Other Travel Type",
+                  value: editForm.travelTypeOther,
+                  onChange: (value) => updateEditField("travelTypeOther", value),
+                  placeholder: "Write the travel type",
+                })
+              : null}
+
+            <AixiaFormField>
+              <AixiaFieldLabel label="From" />
+              <AixiaInputField
                 value={editForm.travelFrom}
-                onChange={(event) => updateEditField("travelFrom", event.target.value)}
-                className={inputClass()}
+                onChange={(event) =>
+                  updateEditField("travelFrom", event.target.value)
+                }
                 placeholder="Start location"
               />
-            </label>
+            </AixiaFormField>
 
-            <label className="grid gap-2">
-              <span className={labelClass()}>To</span>
-              <input
+            <AixiaFormField>
+              <AixiaFieldLabel label="To" />
+              <AixiaInputField
                 value={editForm.travelTo}
                 onChange={(event) => updateEditField("travelTo", event.target.value)}
-                className={inputClass()}
                 placeholder="Destination"
               />
-            </label>
+            </AixiaFormField>
 
-            <label className="grid gap-2">
-              <span className={labelClass()}>Travel Date</span>
-              <input
+            <AixiaFormField>
+              <AixiaFieldLabel label="Travel Date" />
+              <AixiaInputField
                 type="date"
                 value={editForm.travelDate}
-                onChange={(event) => updateEditField("travelDate", event.target.value)}
-                className={inputClass()}
+                onChange={(event) =>
+                  updateEditField("travelDate", event.target.value)
+                }
               />
-            </label>
+            </AixiaFormField>
 
-            <label className="grid gap-2">
-              <span className={labelClass()}>Related Project / Client</span>
-              <input
+            <AixiaFormField>
+              <AixiaFieldLabel label="Related Project / Client" />
+              <AixiaInputField
                 value={editForm.travelRelatedProject}
                 onChange={(event) =>
                   updateEditField("travelRelatedProject", event.target.value)
                 }
-                className={inputClass()}
                 placeholder="Optional project or client"
               />
-            </label>
+            </AixiaFormField>
 
-            <label className="grid gap-2 md:col-span-2">
-              <span className={labelClass()}>Business Reason</span>
-              <textarea
+            <AixiaFormFullWidth>
+              <AixiaFieldLabel label="Business Reason" />
+              <AixiaTextareaField
                 value={editForm.travelReason}
-                onChange={(event) => updateEditField("travelReason", event.target.value)}
-                className={textareaClass()}
+                onChange={(event) =>
+                  updateEditField("travelReason", event.target.value)
+                }
                 placeholder="Explain why this travel was needed"
               />
-            </label>
-          </div>
-        </SectionCard>
+            </AixiaFormFullWidth>
+          </AixiaFormGrid>
+        </AixiaSection>
       );
     }
 
-    if (editForm.expenseType === "meals") {
+            if (editForm.expenseType === "meals") {
       return (
-        <SectionCard
+        <AixiaSection
           title="Meal Details"
           description="Capture restaurant/vendor, attendees, and business purpose."
           icon={Receipt}
         >
-          <div className="grid gap-4 md:grid-cols-2">
-            <label className="grid gap-2">
-              <span className={labelClass()}>Restaurant / Vendor</span>
-              <input
+          <AixiaFormGrid columns="two">
+            <AixiaFormField>
+              <AixiaFieldLabel label="Restaurant / Vendor" />
+              <AixiaInputField
                 value={editForm.mealVendorName}
-                onChange={(event) => updateEditField("mealVendorName", event.target.value)}
-                className={inputClass()}
+                onChange={(event) =>
+                  updateEditField("mealVendorName", event.target.value)
+                }
                 placeholder="Restaurant or vendor name"
               />
-            </label>
+            </AixiaFormField>
 
-            <SelectField
-              label="Meal Type"
-              value={editForm.mealType}
-              onChange={(value) => updateEditField("mealType", value)}
-              options={MEAL_TYPES}
-            />
-            {editForm.mealType === "other" ? (
-              <OtherTextField
-                label="Write Other Meal Type"
-                value={editForm.mealTypeOther}
-                onChange={(value) => updateEditField("mealTypeOther", value)}
-                placeholder="Write the meal type"
-              />
-            ) : null}
+            {renderSelectField({
+              label: "Meal Type",
+              value: editForm.mealType,
+              onChange: (value) => updateEditField("mealType", value),
+              options: MEAL_TYPES,
+            })}
 
-            <label className="grid gap-2">
-              <span className={labelClass()}>Meal Date</span>
-              <input
+            {editForm.mealType === "other"
+              ? renderOtherTextField({
+                  label: "Write Other Meal Type",
+                  value: editForm.mealTypeOther,
+                  onChange: (value) => updateEditField("mealTypeOther", value),
+                  placeholder: "Write the meal type",
+                })
+              : null}
+
+            <AixiaFormField>
+              <AixiaFieldLabel label="Meal Date" />
+              <AixiaInputField
                 type="date"
                 value={editForm.mealDate}
-                onChange={(event) => updateEditField("mealDate", event.target.value)}
-                className={inputClass()}
+                onChange={(event) =>
+                  updateEditField("mealDate", event.target.value)
+                }
               />
-            </label>
+            </AixiaFormField>
 
-            <label className="grid gap-2">
-              <span className={labelClass()}>Attendees</span>
-              <input
+            <AixiaFormField>
+              <AixiaFieldLabel label="Attendees" />
+              <AixiaInputField
                 value={editForm.mealAttendees}
-                onChange={(event) => updateEditField("mealAttendees", event.target.value)}
-                className={inputClass()}
+                onChange={(event) =>
+                  updateEditField("mealAttendees", event.target.value)
+                }
                 placeholder="Names or team/group"
               />
-            </label>
+            </AixiaFormField>
 
-            <label className="grid gap-2 md:col-span-2">
-              <span className={labelClass()}>Business Purpose</span>
-              <textarea
+            <AixiaFormFullWidth>
+              <AixiaFieldLabel label="Business Purpose" />
+              <AixiaTextareaField
                 value={editForm.mealBusinessPurpose}
                 onChange={(event) =>
                   updateEditField("mealBusinessPurpose", event.target.value)
                 }
-                className={textareaClass()}
                 placeholder="Explain the business purpose"
               />
-            </label>
-          </div>
-        </SectionCard>
+            </AixiaFormFullWidth>
+          </AixiaFormGrid>
+        </AixiaSection>
       );
     }
 
-    return (
-      <SectionCard
-        title="Other Expense Details"
-        description="Use this only when the expense does not fit the standard categories."
-        icon={Receipt}
-      >
-        <div className="grid gap-4 md:grid-cols-2">
-          <SelectField
-            label="Other Category"
-            value={editForm.otherExpenseCategory}
-            onChange={(value) => updateEditField("otherExpenseCategory", value)}
-            options={OTHER_EXPENSE_CATEGORIES}
-          />
-          {editForm.otherExpenseCategory === "other" ? (
-            <OtherTextField
-              label="Write Other Category"
-              value={editForm.otherExpenseCategoryOther}
-              onChange={(value) => updateEditField("otherExpenseCategoryOther", value)}
-              placeholder="Write the other category"
-            />
-          ) : null}
-
-          <label className="grid gap-2 md:col-span-2">
-            <span className={labelClass()}>Why It Does Not Fit Existing Types</span>
-            <textarea
-              value={editForm.otherExpenseExplanation}
-              onChange={(event) =>
-                updateEditField("otherExpenseExplanation", event.target.value)
-              }
-              className={textareaClass()}
-              placeholder="Explain why this expense does not fit any existing type"
-            />
-          </label>
-        </div>
-      </SectionCard>
-    );
-  };
-
-  const renderRemainingDynamicSections = () => {
-    if (!editForm) return null;
-
     if (editForm.expenseType === "bank_charges") {
       return (
-        <SectionCard
+        <AixiaSection
           title="Bank Charge Details"
           description="Capture bank fee type, reference, period, and bank context."
           icon={Landmark}
         >
-          <div className="grid gap-4 md:grid-cols-2">
-            <label className="grid gap-2">
-              <span className={labelClass()}>Bank Name</span>
-              <input
+          <AixiaFormGrid columns="two">
+            <AixiaFormField>
+              <AixiaFieldLabel label="Bank Name" />
+              <AixiaInputField
                 value={editForm.bankName}
-                onChange={(event) => updateEditField("bankName", event.target.value)}
-                className={inputClass()}
+                onChange={(event) =>
+                  updateEditField("bankName", event.target.value)
+                }
                 placeholder="Bank name"
               />
-            </label>
+            </AixiaFormField>
 
-            <SelectField
-              label="Fee Type"
-              value={editForm.bankFeeType}
-              onChange={(value) => updateEditField("bankFeeType", value)}
-              options={BANK_FEE_TYPES}
-            />
-            {editForm.bankFeeType === "other" ? (
-              <OtherTextField
-                label="Write Other Bank Charge Type"
-                value={editForm.bankFeeTypeOther}
-                onChange={(value) => updateEditField("bankFeeTypeOther", value)}
-                placeholder="Write the bank charge type"
-              />
-            ) : null}
+            {renderSelectField({
+              label: "Fee Type",
+              value: editForm.bankFeeType,
+              onChange: (value) => updateEditField("bankFeeType", value),
+              options: BANK_FEE_TYPES,
+            })}
 
-            <label className="grid gap-2">
-              <span className={labelClass()}>Account Reference</span>
-              <input
+            {editForm.bankFeeType === "other"
+              ? renderOtherTextField({
+                  label: "Write Other Bank Charge Type",
+                  value: editForm.bankFeeTypeOther,
+                  onChange: (value) => updateEditField("bankFeeTypeOther", value),
+                  placeholder: "Write the bank charge type",
+                })
+              : null}
+
+            <AixiaFormField>
+              <AixiaFieldLabel label="Account Reference" />
+              <AixiaInputField
                 value={editForm.bankAccountReference}
                 onChange={(event) =>
                   updateEditField("bankAccountReference", event.target.value)
                 }
-                className={inputClass()}
                 placeholder="Account or bank reference"
               />
-            </label>
+            </AixiaFormField>
 
-            <label className="grid gap-2">
-              <span className={labelClass()}>Transaction Reference</span>
-              <input
+            <AixiaFormField>
+              <AixiaFieldLabel label="Transaction Reference" />
+              <AixiaInputField
                 value={editForm.bankTransactionReference}
                 onChange={(event) =>
                   updateEditField("bankTransactionReference", event.target.value)
                 }
-                className={inputClass()}
                 placeholder="Transaction reference"
               />
-            </label>
+            </AixiaFormField>
 
-            <label className="grid gap-2">
-              <span className={labelClass()}>Fee Period From</span>
-              <input
+            <AixiaFormField>
+              <AixiaFieldLabel label="Fee Period From" />
+              <AixiaInputField
                 type="date"
                 value={editForm.bankFeePeriodFrom}
-                onChange={(event) => updateEditField("bankFeePeriodFrom", event.target.value)}
-                className={inputClass()}
+                onChange={(event) =>
+                  updateEditField("bankFeePeriodFrom", event.target.value)
+                }
               />
-            </label>
+            </AixiaFormField>
 
-            <label className="grid gap-2">
-              <span className={labelClass()}>Fee Period To</span>
-              <input
+            <AixiaFormField>
+              <AixiaFieldLabel label="Fee Period To" />
+              <AixiaInputField
                 type="date"
                 value={editForm.bankFeePeriodTo}
-                onChange={(event) => updateEditField("bankFeePeriodTo", event.target.value)}
-                className={inputClass()}
+                onChange={(event) =>
+                  updateEditField("bankFeePeriodTo", event.target.value)
+                }
               />
-            </label>
-          </div>
-        </SectionCard>
+            </AixiaFormField>
+          </AixiaFormGrid>
+        </AixiaSection>
       );
     }
 
     if (editForm.expenseType === "legal_accounting") {
       return (
-        <SectionCard
+        <AixiaSection
           title="Legal / Accounting Details"
           description="Capture service provider, service period, and matter reference."
           icon={Receipt}
         >
-          <div className="grid gap-4 md:grid-cols-2">
-            <label className="grid gap-2">
-              <span className={labelClass()}>Service Provider</span>
-              <input
+          <AixiaFormGrid columns="two">
+            <AixiaFormField>
+              <AixiaFieldLabel label="Service Provider" />
+              <AixiaInputField
                 value={editForm.legalProviderName}
-                onChange={(event) => updateEditField("legalProviderName", event.target.value)}
-                className={inputClass()}
+                onChange={(event) =>
+                  updateEditField("legalProviderName", event.target.value)
+                }
                 placeholder="Lawyer, accountant, auditor, consultant"
               />
-            </label>
+            </AixiaFormField>
 
-            <SelectField
-              label="Service Type"
-              value={editForm.legalServiceType}
-              onChange={(value) => updateEditField("legalServiceType", value)}
-              options={LEGAL_SERVICE_TYPES}
-            />
-            {editForm.legalServiceType === "other" ? (
-              <OtherTextField
-                label="Write Other Service Type"
-                value={editForm.legalServiceTypeOther}
-                onChange={(value) => updateEditField("legalServiceTypeOther", value)}
-                placeholder="Write the service type"
-              />
-            ) : null}
+            {renderSelectField({
+              label: "Service Type",
+              value: editForm.legalServiceType,
+              onChange: (value) => updateEditField("legalServiceType", value),
+              options: LEGAL_SERVICE_TYPES,
+            })}
 
-            <label className="grid gap-2">
-              <span className={labelClass()}>Service Period From</span>
-              <input
+            {editForm.legalServiceType === "other"
+              ? renderOtherTextField({
+                  label: "Write Other Service Type",
+                  value: editForm.legalServiceTypeOther,
+                  onChange: (value) =>
+                    updateEditField("legalServiceTypeOther", value),
+                  placeholder: "Write the service type",
+                })
+              : null}
+
+            <AixiaFormField>
+              <AixiaFieldLabel label="Service Period From" />
+              <AixiaInputField
                 type="date"
                 value={editForm.legalPeriodFrom}
-                onChange={(event) => updateEditField("legalPeriodFrom", event.target.value)}
-                className={inputClass()}
+                onChange={(event) =>
+                  updateEditField("legalPeriodFrom", event.target.value)
+                }
               />
-            </label>
+            </AixiaFormField>
 
-            <label className="grid gap-2">
-              <span className={labelClass()}>Service Period To</span>
-              <input
+            <AixiaFormField>
+              <AixiaFieldLabel label="Service Period To" />
+              <AixiaInputField
                 type="date"
                 value={editForm.legalPeriodTo}
-                onChange={(event) => updateEditField("legalPeriodTo", event.target.value)}
-                className={inputClass()}
+                onChange={(event) =>
+                  updateEditField("legalPeriodTo", event.target.value)
+                }
               />
-            </label>
+            </AixiaFormField>
 
-            <label className="grid gap-2 md:col-span-2">
-              <span className={labelClass()}>Matter / Case / Project Reference</span>
-              <input
+            <AixiaFormFullWidth>
+              <AixiaFieldLabel label="Matter / Case / Project Reference" />
+              <AixiaInputField
                 value={editForm.legalMatterReference}
                 onChange={(event) =>
                   updateEditField("legalMatterReference", event.target.value)
                 }
-                className={inputClass()}
                 placeholder="Case, matter, audit, tax, or project reference"
               />
-            </label>
-          </div>
-        </SectionCard>
+            </AixiaFormFullWidth>
+          </AixiaFormGrid>
+        </AixiaSection>
       );
     }
 
     if (editForm.expenseType === "government_fee") {
       return (
-        <SectionCard
+        <AixiaSection
           title="Government Fee Details"
           description="Capture authority, official fee type, reference number, and due date."
           icon={Landmark}
         >
-          <div className="grid gap-4 md:grid-cols-2">
-            <label className="grid gap-2">
-              <span className={labelClass()}>Government Authority</span>
-              <input
+          <AixiaFormGrid columns="two">
+            <AixiaFormField>
+              <AixiaFieldLabel label="Government Authority" />
+              <AixiaInputField
                 value={editForm.governmentAuthorityName}
                 onChange={(event) =>
                   updateEditField("governmentAuthorityName", event.target.value)
                 }
-                className={inputClass()}
                 placeholder="Authority or office name"
               />
-            </label>
+            </AixiaFormField>
 
-            <SelectField
-              label="Fee Type"
-              value={editForm.governmentFeeType}
-              onChange={(value) => updateEditField("governmentFeeType", value)}
-              options={GOVERNMENT_FEE_TYPES}
-            />
-            {editForm.governmentFeeType === "other" ? (
-              <OtherTextField
-                label="Write Other Government Fee Type"
-                value={editForm.governmentFeeTypeOther}
-                onChange={(value) => updateEditField("governmentFeeTypeOther", value)}
-                placeholder="Write the fee type"
-              />
-            ) : null}
+            {renderSelectField({
+              label: "Fee Type",
+              value: editForm.governmentFeeType,
+              onChange: (value) => updateEditField("governmentFeeType", value),
+              options: GOVERNMENT_FEE_TYPES,
+            })}
 
-            <label className="grid gap-2">
-              <span className={labelClass()}>Reference Number</span>
-              <input
+            {editForm.governmentFeeType === "other"
+              ? renderOtherTextField({
+                  label: "Write Other Government Fee Type",
+                  value: editForm.governmentFeeTypeOther,
+                  onChange: (value) =>
+                    updateEditField("governmentFeeTypeOther", value),
+                  placeholder: "Write the fee type",
+                })
+              : null}
+
+            <AixiaFormField>
+              <AixiaFieldLabel label="Reference Number" />
+              <AixiaInputField
                 value={editForm.governmentReferenceNumber}
                 onChange={(event) =>
                   updateEditField("governmentReferenceNumber", event.target.value)
                 }
-                className={inputClass()}
                 placeholder="Official reference number"
               />
-            </label>
+            </AixiaFormField>
 
-            <label className="grid gap-2">
-              <span className={labelClass()}>Due Date</span>
-              <input
+            <AixiaFormField>
+              <AixiaFieldLabel label="Due Date" />
+              <AixiaInputField
                 type="date"
                 value={editForm.governmentDueDate}
-                onChange={(event) => updateEditField("governmentDueDate", event.target.value)}
-                className={inputClass()}
+                onChange={(event) =>
+                  updateEditField("governmentDueDate", event.target.value)
+                }
               />
-            </label>
+            </AixiaFormField>
 
-            <label className="grid gap-2 md:col-span-2">
-              <span className={labelClass()}>Payment Link</span>
-              <input
+            <AixiaFormFullWidth>
+              <AixiaFieldLabel label="Payment Link" />
+              <AixiaInputField
                 value={editForm.governmentPaymentLink}
                 onChange={(event) =>
                   updateEditField("governmentPaymentLink", event.target.value)
                 }
-                className={inputClass()}
                 placeholder="Optional official payment link"
               />
-            </label>
-          </div>
-        </SectionCard>
+            </AixiaFormFullWidth>
+          </AixiaFormGrid>
+        </AixiaSection>
       );
     }
 
     if (editForm.expenseType === "repair_service") {
       return (
-        <SectionCard
+        <AixiaSection
           title="Repair / Service Details"
           description="Capture provider, asset, service date, issue, and service result."
           icon={Wrench}
         >
-          <div className="grid gap-4 md:grid-cols-2">
-            <label className="grid gap-2">
-              <span className={labelClass()}>Service Provider</span>
-              <input
+          <AixiaFormGrid columns="two">
+            <AixiaFormField>
+              <AixiaFieldLabel label="Service Provider" />
+              <AixiaInputField
                 value={editForm.repairProviderName}
                 onChange={(event) =>
                   updateEditField("repairProviderName", event.target.value)
                 }
-                className={inputClass()}
                 placeholder="Service provider name"
               />
-            </label>
+            </AixiaFormField>
 
-            <SelectField
-              label="Service Type"
-              value={editForm.repairServiceType}
-              onChange={(value) => updateEditField("repairServiceType", value)}
-              options={REPAIR_SERVICE_TYPES}
-            />
-            {editForm.repairServiceType === "other" ? (
-              <OtherTextField
-                label="Write Other Service Type"
-                value={editForm.repairServiceTypeOther}
-                onChange={(value) => updateEditField("repairServiceTypeOther", value)}
-                placeholder="Write the service type"
-              />
-            ) : null}
+            {renderSelectField({
+              label: "Service Type",
+              value: editForm.repairServiceType,
+              onChange: (value) => updateEditField("repairServiceType", value),
+              options: REPAIR_SERVICE_TYPES,
+            })}
 
-            <label className="grid gap-2">
-              <span className={labelClass()}>Asset / Equipment</span>
-              <input
+            {editForm.repairServiceType === "other"
+              ? renderOtherTextField({
+                  label: "Write Other Service Type",
+                  value: editForm.repairServiceTypeOther,
+                  onChange: (value) =>
+                    updateEditField("repairServiceTypeOther", value),
+                  placeholder: "Write the service type",
+                })
+              : null}
+
+            <AixiaFormField>
+              <AixiaFieldLabel label="Asset / Equipment" />
+              <AixiaInputField
                 value={editForm.repairAssetName}
-                onChange={(event) => updateEditField("repairAssetName", event.target.value)}
-                className={inputClass()}
+                onChange={(event) =>
+                  updateEditField("repairAssetName", event.target.value)
+                }
                 placeholder="Machine, computer, vehicle, facility"
               />
-            </label>
+            </AixiaFormField>
 
-            <label className="grid gap-2">
-              <span className={labelClass()}>Service Date</span>
-              <input
+            <AixiaFormField>
+              <AixiaFieldLabel label="Service Date" />
+              <AixiaInputField
                 type="date"
                 value={editForm.repairServiceDate}
                 onChange={(event) =>
                   updateEditField("repairServiceDate", event.target.value)
                 }
-                className={inputClass()}
               />
-            </label>
+            </AixiaFormField>
 
-            <label className="grid gap-2 md:col-span-2">
-              <span className={labelClass()}>Issue Description</span>
-              <textarea
+            <AixiaFormFullWidth>
+              <AixiaFieldLabel label="Issue Description" />
+              <AixiaTextareaField
                 value={editForm.repairIssueDescription}
                 onChange={(event) =>
                   updateEditField("repairIssueDescription", event.target.value)
                 }
-                className={textareaClass()}
                 placeholder="Explain the issue"
               />
-            </label>
+            </AixiaFormFullWidth>
 
-            <label className="grid gap-2 md:col-span-2">
-              <span className={labelClass()}>Service Result</span>
-              <textarea
+            <AixiaFormFullWidth>
+              <AixiaFieldLabel label="Service Result" />
+              <AixiaTextareaField
                 value={editForm.repairServiceResult}
                 onChange={(event) =>
                   updateEditField("repairServiceResult", event.target.value)
                 }
-                className={textareaClass()}
                 placeholder="Optional service result or report summary"
               />
-            </label>
-          </div>
-        </SectionCard>
+            </AixiaFormFullWidth>
+          </AixiaFormGrid>
+        </AixiaSection>
       );
     }
 
     if (editForm.expenseType === "company_support") {
       return (
-        <SectionCard
+        <AixiaSection
           title="Company Support Details"
           description="Capture support type, recipient, reason, and optional support period."
           icon={Building2}
         >
-          <div className="grid gap-4 md:grid-cols-2">
-            <SelectField
-              label="Support Type"
-              value={editForm.companySupportType}
-              onChange={(value) => updateEditField("companySupportType", value)}
-              options={COMPANY_SUPPORT_TYPES}
-            />
-            {editForm.companySupportType === "other" ? (
-              <OtherTextField
-                label="Write Other Support Type"
-                value={editForm.companySupportTypeOther}
-                onChange={(value) => updateEditField("companySupportTypeOther", value)}
-                placeholder="Write the support type"
-              />
-            ) : null}
+          <AixiaFormGrid columns="two">
+            {renderSelectField({
+              label: "Support Type",
+              value: editForm.companySupportType,
+              onChange: (value) => updateEditField("companySupportType", value),
+              options: COMPANY_SUPPORT_TYPES,
+            })}
 
-            <label className="grid gap-2">
-              <span className={labelClass()}>Receiving Person / Company</span>
-              <input
+            {editForm.companySupportType === "other"
+              ? renderOtherTextField({
+                  label: "Write Other Support Type",
+                  value: editForm.companySupportTypeOther,
+                  onChange: (value) =>
+                    updateEditField("companySupportTypeOther", value),
+                  placeholder: "Write the support type",
+                })
+              : null}
+
+            <AixiaFormField>
+              <AixiaFieldLabel label="Receiving Person / Company" />
+              <AixiaInputField
                 value={editForm.companySupportRecipient}
                 onChange={(event) =>
                   updateEditField("companySupportRecipient", event.target.value)
                 }
-                className={inputClass()}
                 placeholder="Recipient name or company"
               />
-            </label>
+            </AixiaFormField>
 
-            <label className="grid gap-2">
-              <span className={labelClass()}>Support Period From</span>
-              <input
+            <AixiaFormField>
+              <AixiaFieldLabel label="Support Period From" />
+              <AixiaInputField
                 type="date"
                 value={editForm.companySupportPeriodFrom}
                 onChange={(event) =>
                   updateEditField("companySupportPeriodFrom", event.target.value)
                 }
-                className={inputClass()}
               />
-            </label>
+            </AixiaFormField>
 
-            <label className="grid gap-2">
-              <span className={labelClass()}>Support Period To</span>
-              <input
+            <AixiaFormField>
+              <AixiaFieldLabel label="Support Period To" />
+              <AixiaInputField
                 type="date"
                 value={editForm.companySupportPeriodTo}
                 onChange={(event) =>
                   updateEditField("companySupportPeriodTo", event.target.value)
                 }
-                className={inputClass()}
               />
-            </label>
+            </AixiaFormField>
 
-            <label className="grid gap-2 md:col-span-2">
-              <span className={labelClass()}>Support Reason</span>
-              <textarea
+            <AixiaFormFullWidth>
+              <AixiaFieldLabel label="Support Reason" />
+              <AixiaTextareaField
                 value={editForm.companySupportReason}
                 onChange={(event) =>
                   updateEditField("companySupportReason", event.target.value)
                 }
-                className={textareaClass()}
                 placeholder="Explain why this support is needed"
               />
-            </label>
-          </div>
-        </SectionCard>
+            </AixiaFormFullWidth>
+          </AixiaFormGrid>
+        </AixiaSection>
       );
     }
 
-    return null;
-  };
+    return (
+      <AixiaSection
+        title="Other Expense Details"
+        description="Use this only when the expense does not fit the standard categories."
+        icon={Receipt}
+      >
+        <AixiaFormGrid columns="two">
+          {renderSelectField({
+            label: "Other Category",
+            value: editForm.otherExpenseCategory,
+            onChange: (value) => updateEditField("otherExpenseCategory", value),
+            options: OTHER_EXPENSE_CATEGORIES,
+          })}
 
-          const renderSubscriptionSection = () => {
+          {editForm.otherExpenseCategory === "other"
+            ? renderOtherTextField({
+                label: "Write Other Category",
+                value: editForm.otherExpenseCategoryOther,
+                onChange: (value) =>
+                  updateEditField("otherExpenseCategoryOther", value),
+                placeholder: "Write the other category",
+              })
+            : null}
+
+          <AixiaFormFullWidth>
+            <AixiaFieldLabel label="Why It Does Not Fit Existing Types" />
+            <AixiaTextareaField
+              value={editForm.otherExpenseExplanation}
+              onChange={(event) =>
+                updateEditField("otherExpenseExplanation", event.target.value)
+              }
+              placeholder="Explain why this expense does not fit any existing type"
+            />
+          </AixiaFormFullWidth>
+        </AixiaFormGrid>
+      </AixiaSection>
+    );
+  }
+
+  function renderSubscriptionSection() {
     if (!editForm || !editForm.isSubscriptionExpense) return null;
 
     return (
       <>
-        <SectionCard
+        <AixiaSection
           title="Admin Subscription Option"
           description="Prepare monthly, yearly, or one-year upfront recurring expenses. Permissions will be enforced later."
           icon={CalendarClock}
         >
-          <div className="grid gap-4 rounded-[28px] border border-white/10 bg-black/20 p-4 md:grid-cols-2">
-            <label className="grid gap-2">
-              <span className={labelClass()}>Provider / Service Name</span>
-              <input
+          <AixiaFormGrid columns="two">
+            <AixiaFormField>
+              <AixiaFieldLabel label="Provider / Service Name" />
+              <AixiaInputField
                 value={editForm.subscriptionProviderName}
                 onChange={(event) =>
                   updateEditField("subscriptionProviderName", event.target.value)
                 }
-                className={inputClass()}
                 placeholder="ChatGPT, Google Workspace, Adobe..."
               />
-            </label>
+            </AixiaFormField>
 
-            <label className="grid gap-2">
-              <span className={labelClass()}>Account / Contract Reference</span>
-              <input
+            <AixiaFormField>
+              <AixiaFieldLabel label="Account / Contract Reference" />
+              <AixiaInputField
                 value={editForm.subscriptionAccountReference}
                 onChange={(event) =>
                   updateEditField("subscriptionAccountReference", event.target.value)
                 }
-                className={inputClass()}
                 placeholder="Account email, contract ID, workspace name"
               />
-            </label>
+            </AixiaFormField>
 
-            <label className="grid gap-2">
-              <span className={labelClass()}>Billing Frequency</span>
-              <select
+            <AixiaFormField>
+              <AixiaFieldLabel label="Billing Frequency" />
+              <AixiaSelectField
                 value={editForm.subscriptionBillingFrequency}
                 onChange={(event) =>
                   updateEditField(
@@ -3676,37 +3957,36 @@ export default function FinanceExpenseDetailPage() {
                     event.target.value as BillingFrequency
                   )
                 }
-                className={inputClass()}
               >
                 {BILLING_FREQUENCIES.map((frequency) => (
                   <option key={frequency.value} value={frequency.value}>
                     {frequency.label}
                   </option>
                 ))}
-              </select>
-              <span className="text-xs leading-5 text-slate-500">
+              </AixiaSelectField>
+              <div className="aixia-helper-text">
                 {
                   BILLING_FREQUENCIES.find(
-                    (frequency) => frequency.value === editForm.subscriptionBillingFrequency
+                    (frequency) =>
+                      frequency.value === editForm.subscriptionBillingFrequency
                   )?.helper
                 }
-              </span>
-            </label>
+              </div>
+            </AixiaFormField>
 
-            {editForm.subscriptionBillingFrequency === "other" ? (
-              <OtherTextField
-                label="Write Other Billing Frequency"
-                value={editForm.subscriptionBillingFrequencyOther}
-                onChange={(value) =>
-                  updateEditField("subscriptionBillingFrequencyOther", value)
-                }
-                placeholder="Write the billing frequency"
-              />
-            ) : null}
+            {editForm.subscriptionBillingFrequency === "other"
+              ? renderOtherTextField({
+                  label: "Write Other Billing Frequency",
+                  value: editForm.subscriptionBillingFrequencyOther,
+                  onChange: (value) =>
+                    updateEditField("subscriptionBillingFrequencyOther", value),
+                  placeholder: "Write the billing frequency",
+                })
+              : null}
 
-            <label className="grid gap-2">
-              <span className={labelClass()}>Amount Basis</span>
-              <select
+            <AixiaFormField>
+              <AixiaFieldLabel label="Amount Basis" />
+              <AixiaSelectField
                 value={editForm.subscriptionAmountBasis}
                 onChange={(event) =>
                   updateEditField(
@@ -3714,476 +3994,406 @@ export default function FinanceExpenseDetailPage() {
                     event.target.value as SubscriptionAmountBasis
                   )
                 }
-                className={inputClass()}
               >
                 {SUBSCRIPTION_AMOUNT_BASIS_OPTIONS.map((basis) => (
                   <option key={basis.value} value={basis.value}>
                     {basis.label}
                   </option>
                 ))}
-              </select>
-            </label>
+              </AixiaSelectField>
+            </AixiaFormField>
 
-            {editForm.subscriptionAmountBasis === "other_subscription_payment" ? (
-              <OtherTextField
-                label="Write Other Amount Basis"
-                value={editForm.subscriptionAmountBasisOther}
-                onChange={(value) => updateEditField("subscriptionAmountBasisOther", value)}
-                placeholder="Write the amount basis"
-              />
-            ) : null}
+            {editForm.subscriptionAmountBasis === "other_subscription_payment"
+              ? renderOtherTextField({
+                  label: "Write Other Amount Basis",
+                  value: editForm.subscriptionAmountBasisOther,
+                  onChange: (value) =>
+                    updateEditField("subscriptionAmountBasisOther", value),
+                  placeholder: "Write the amount basis",
+                })
+              : null}
 
-            <label className="grid gap-2">
-              <span className={labelClass()}>Subscription Start Date</span>
-              <input
+            <AixiaFormField>
+              <AixiaFieldLabel label="Subscription Start Date" />
+              <AixiaInputField
                 type="date"
                 value={editForm.subscriptionStartDate}
                 onChange={(event) =>
                   updateEditField("subscriptionStartDate", event.target.value)
                 }
-                className={inputClass()}
               />
-            </label>
+            </AixiaFormField>
 
-            <label className="grid gap-2">
-              <span className={labelClass()}>End / Renewal Date</span>
-              <input
+            <AixiaFormField>
+              <AixiaFieldLabel label="End / Renewal Date" />
+              <AixiaInputField
                 type="date"
                 value={editForm.subscriptionRenewalDate}
                 onChange={(event) =>
                   updateEditField("subscriptionRenewalDate", event.target.value)
                 }
-                className={inputClass()}
               />
-            </label>
+            </AixiaFormField>
 
-            <label className="flex min-h-[72px] items-center gap-3 rounded-2xl border border-white/10 bg-white/[0.035] px-4 py-3">
-              <input
-                type="checkbox"
-                checked={editForm.subscriptionAutoCreateFutureExpenses}
-                onChange={(event) =>
-                  updateEditField("subscriptionAutoCreateFutureExpenses", event.target.checked)
-                }
-                className="h-4 w-4 rounded border-white/20 bg-black/20"
-              />
-              <span className="text-sm leading-6 text-slate-300">
-                Mark this subscription as ready for automatic future expense creation.
-              </span>
-            </label>
+            <AixiaFormFullWidth>
+              <AixiaAlert tone="info">
+                Automatic future expense creation is stored as metadata until the backend
+                scheduler is implemented.
+              </AixiaAlert>
+            </AixiaFormFullWidth>
 
-            <label className="flex min-h-[72px] items-center gap-3 rounded-2xl border border-white/10 bg-white/[0.035] px-4 py-3">
-              <input
-                type="checkbox"
-                checked={editForm.subscriptionRenewalReminder}
-                onChange={(event) =>
-                  updateEditField("subscriptionRenewalReminder", event.target.checked)
-                }
-                className="h-4 w-4 rounded border-white/20 bg-black/20"
-              />
-              <span className="text-sm leading-6 text-slate-300">
-                Keep renewal reminder enabled for Finance/Admin.
-              </span>
-            </label>
-
-            <label className="grid gap-2 md:col-span-2">
-              <span className={labelClass()}>Admin Subscription Notes</span>
-              <textarea
+            <AixiaFormFullWidth>
+              <AixiaFieldLabel label="Admin Subscription Notes" />
+              <AixiaTextareaField
                 value={editForm.subscriptionAdminNotes}
                 onChange={(event) =>
                   updateEditField("subscriptionAdminNotes", event.target.value)
                 }
-                className={textareaClass()}
                 placeholder="Internal notes for admin subscription control"
               />
-            </label>
-          </div>
-        </SectionCard>
+            </AixiaFormFullWidth>
+          </AixiaFormGrid>
+        </AixiaSection>
 
-        <SectionCard
+        <AixiaSection
           title="Subscription Credit Card"
           description="Store masked card references only. Full card numbers are not stored here."
           icon={CreditCard}
         >
-          <div className="grid gap-4">
-            <div className="grid gap-4 md:grid-cols-2">
-              <label className="grid gap-2">
-                <span className={labelClass()}>Subscription Payment Method</span>
-                <select
-                  value={editForm.subscriptionPaymentMethod}
-                  onChange={(event) =>
-                    updateEditField(
-                      "subscriptionPaymentMethod",
-                      event.target.value as SubscriptionPaymentMethod
-                    )
-                  }
-                  className={inputClass()}
-                >
-                  {SUBSCRIPTION_PAYMENT_METHODS.map((method) => (
-                    <option key={method.value} value={method.value}>
-                      {method.label}
-                    </option>
-                  ))}
-                </select>
-              </label>
-
-              {editForm.subscriptionPaymentMethod === "other" ? (
-                <OtherTextField
-                  label="Write Other Payment Method"
-                  value={editForm.subscriptionPaymentMethodOther}
-                  onChange={(value) =>
-                    updateEditField("subscriptionPaymentMethodOther", value)
-                  }
-                  placeholder="Write the payment method"
-                />
-              ) : null}
-
-              <div className="rounded-[24px] border border-amber-400/20 bg-amber-500/10 p-4 md:col-span-2">
-                <div className="flex items-center gap-2 text-sm font-semibold text-amber-100">
-                  <ShieldCheck className="h-4 w-4" />
-                  Hidden After Save
-                </div>
-                <p className="mt-2 text-xs leading-5 text-amber-100/70">
-                  Save nickname, brand, holder, expiry, and last 4 only. Do not enter or store the
-                  full card number in this page.
-                </p>
-              </div>
-            </div>
-
-            {editForm.subscriptionPaymentMethod === "credit_card" ? (
-              <div className="grid gap-3">
-                {editForm.subscriptionCards.map((card, cardIndex) => (
-                  <div
-                    key={card.id}
-                    className="rounded-[24px] border border-white/10 bg-black/20 p-4"
-                  >
-                    <div className="mb-4 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-                      <div>
-                        <div className="text-sm font-semibold text-white">
-                          Card {cardIndex + 1}
-                        </div>
-                        <div className="mt-1 text-xs text-slate-500">
-                          {maskCard(card.last4)}
-                        </div>
-                      </div>
-
-                      <button
-                        type="button"
-                        onClick={() => removeSubscriptionCard(card.id)}
-                        className="inline-flex h-10 items-center justify-center gap-2 rounded-2xl border border-rose-400/20 bg-rose-500/10 px-4 text-sm font-semibold text-rose-100 transition hover:bg-rose-500/15"
-                      >
-                        <Trash2 className="h-4 w-4" />
-                        Remove
-                      </button>
-                    </div>
-
-                    <div className="grid gap-4 md:grid-cols-2">
-                      <label className="grid gap-2">
-                        <span className={labelClass()}>Card Nickname</span>
-                        <input
-                          value={card.nickname}
-                          onChange={(event) =>
-                            updateSubscriptionCard(card.id, "nickname", event.target.value)
-                          }
-                          className={inputClass()}
-                          placeholder="Admin Visa, ChatGPT Card..."
-                        />
-                      </label>
-
-                      <label className="grid gap-2">
-                        <span className={labelClass()}>Cardholder Name</span>
-                        <input
-                          value={card.cardholderName}
-                          onChange={(event) =>
-                            updateSubscriptionCard(card.id, "cardholderName", event.target.value)
-                          }
-                          className={inputClass()}
-                          placeholder="Name on card"
-                        />
-                      </label>
-
-                      <SelectField
-                        label="Card Brand"
-                        value={card.brand}
-                        onChange={(value) => updateSubscriptionCard(card.id, "brand", value)}
-                        options={CARD_BRANDS}
-                      />
-
-                      {card.brand === "other" ? (
-                        <OtherTextField
-                          label="Write Other Card Brand"
-                          value={card.brandOther}
-                          onChange={(value) =>
-                            updateSubscriptionCard(card.id, "brandOther", value)
-                          }
-                          placeholder="Write the card brand"
-                        />
-                      ) : null}
-
-                      <label className="grid gap-2">
-                        <span className={labelClass()}>Last 4 Digits Only</span>
-                        <input
-                          value={card.last4}
-                          onChange={(event) =>
-                            updateSubscriptionCard(card.id, "last4", event.target.value)
-                          }
-                          className={inputClass()}
-                          inputMode="numeric"
-                          maxLength={4}
-                          placeholder="1234"
-                        />
-                      </label>
-
-                      <label className="grid gap-2">
-                        <span className={labelClass()}>Expiry Month</span>
-                        <input
-                          value={card.expiryMonth}
-                          onChange={(event) =>
-                            updateSubscriptionCard(card.id, "expiryMonth", event.target.value)
-                          }
-                          className={inputClass()}
-                          inputMode="numeric"
-                          maxLength={2}
-                          placeholder="MM"
-                        />
-                      </label>
-
-                      <label className="grid gap-2">
-                        <span className={labelClass()}>Expiry Year</span>
-                        <input
-                          value={card.expiryYear}
-                          onChange={(event) =>
-                            updateSubscriptionCard(card.id, "expiryYear", event.target.value)
-                          }
-                          className={inputClass()}
-                          inputMode="numeric"
-                          maxLength={4}
-                          placeholder="YYYY"
-                        />
-                      </label>
-
-                      <label className="grid gap-2 md:col-span-2">
-                        <span className={labelClass()}>Billing Company / Context</span>
-                        <input
-                          value={card.billingCompany}
-                          onChange={(event) =>
-                            updateSubscriptionCard(card.id, "billingCompany", event.target.value)
-                          }
-                          className={inputClass()}
-                          placeholder="Company, department, or use context"
-                        />
-                      </label>
-
-                      <label className="grid gap-2 md:col-span-2">
-                        <span className={labelClass()}>Card Notes</span>
-                        <textarea
-                          value={card.notes}
-                          onChange={(event) =>
-                            updateSubscriptionCard(card.id, "notes", event.target.value)
-                          }
-                          className={textareaClass()}
-                          placeholder="Internal admin notes. Do not write full card number here."
-                        />
-                      </label>
-                    </div>
-                  </div>
+          <AixiaFormGrid columns="two">
+            <AixiaFormField>
+              <AixiaFieldLabel label="Subscription Payment Method" />
+              <AixiaSelectField
+                value={editForm.subscriptionPaymentMethod}
+                onChange={(event) =>
+                  updateEditField(
+                    "subscriptionPaymentMethod",
+                    event.target.value as SubscriptionPaymentMethod
+                  )
+                }
+              >
+                {SUBSCRIPTION_PAYMENT_METHODS.map((method) => (
+                  <option key={method.value} value={method.value}>
+                    {method.label}
+                  </option>
                 ))}
+              </AixiaSelectField>
+            </AixiaFormField>
 
-                <button
-                  type="button"
-                  onClick={addSubscriptionCard}
-                  className="inline-flex h-11 w-fit items-center justify-center gap-2 rounded-2xl border border-cyan-400/20 bg-cyan-500/10 px-5 text-sm font-semibold text-cyan-100 transition hover:bg-cyan-500/15"
+            {editForm.subscriptionPaymentMethod === "other"
+              ? renderOtherTextField({
+                  label: "Write Other Payment Method",
+                  value: editForm.subscriptionPaymentMethodOther,
+                  onChange: (value) =>
+                    updateEditField("subscriptionPaymentMethodOther", value),
+                  placeholder: "Write the payment method",
+                })
+              : null}
+
+            <AixiaFormFullWidth>
+              <AixiaAlert tone="warning">
+                Save nickname, brand, holder, expiry, and last 4 only. Never enter
+                or store the full card number.
+              </AixiaAlert>
+            </AixiaFormFullWidth>
+          </AixiaFormGrid>
+
+          {editForm.subscriptionPaymentMethod === "credit_card" ? (
+            <div className="aixia-form-row-list">
+              {editForm.subscriptionCards.map((card, cardIndex) => (
+                <AixiaFormRowCard
+                  key={card.id}
+                  title={`Card ${cardIndex + 1}`}
+                  description={maskCard(card.last4)}
+                  onRemove={() => removeSubscriptionCard(card.id)}
+                  removeLabel="Remove"
                 >
-                  <Plus className="h-4 w-4" />
-                  Add Another Card
-                </button>
-              </div>
-            ) : null}
-          </div>
-        </SectionCard>
+                  <AixiaFormGrid columns="two">
+                    <AixiaFormField>
+                      <AixiaFieldLabel label="Card Nickname" />
+                      <AixiaInputField
+                        value={card.nickname}
+                        onChange={(event) =>
+                          updateSubscriptionCard(
+                            card.id,
+                            "nickname",
+                            event.target.value
+                          )
+                        }
+                        placeholder="Admin Visa, ChatGPT Card..."
+                      />
+                    </AixiaFormField>
+
+                    <AixiaFormField>
+                      <AixiaFieldLabel label="Cardholder Name" />
+                      <AixiaInputField
+                        value={card.cardholderName}
+                        onChange={(event) =>
+                          updateSubscriptionCard(
+                            card.id,
+                            "cardholderName",
+                            event.target.value
+                          )
+                        }
+                        placeholder="Name on card"
+                      />
+                    </AixiaFormField>
+
+                    {renderSelectField({
+                      label: "Card Brand",
+                      value: card.brand,
+                      onChange: (value) =>
+                        updateSubscriptionCard(card.id, "brand", value),
+                      options: CARD_BRANDS,
+                    })}
+
+                    {card.brand === "other"
+                      ? renderOtherTextField({
+                          label: "Write Other Card Brand",
+                          value: card.brandOther,
+                          onChange: (value) =>
+                            updateSubscriptionCard(card.id, "brandOther", value),
+                          placeholder: "Write the card brand",
+                        })
+                      : null}
+
+                    <AixiaFormField>
+                      <AixiaFieldLabel label="Last 4 Digits Only" />
+                      <AixiaInputField
+                        value={card.last4}
+                        onChange={(event) =>
+                          updateSubscriptionCard(card.id, "last4", event.target.value)
+                        }
+                        inputMode="numeric"
+                        maxLength={4}
+                        placeholder="1234"
+                      />
+                    </AixiaFormField>
+
+                    <AixiaFormField>
+                      <AixiaFieldLabel label="Expiry Month" />
+                      <AixiaInputField
+                        value={card.expiryMonth}
+                        onChange={(event) =>
+                          updateSubscriptionCard(
+                            card.id,
+                            "expiryMonth",
+                            event.target.value
+                          )
+                        }
+                        inputMode="numeric"
+                        maxLength={2}
+                        placeholder="MM"
+                      />
+                    </AixiaFormField>
+
+                    <AixiaFormField>
+                      <AixiaFieldLabel label="Expiry Year" />
+                      <AixiaInputField
+                        value={card.expiryYear}
+                        onChange={(event) =>
+                          updateSubscriptionCard(
+                            card.id,
+                            "expiryYear",
+                            event.target.value
+                          )
+                        }
+                        inputMode="numeric"
+                        maxLength={4}
+                        placeholder="YYYY"
+                      />
+                    </AixiaFormField>
+
+                    <AixiaFormFullWidth>
+                      <AixiaFieldLabel label="Billing Company / Context" />
+                      <AixiaInputField
+                        value={card.billingCompany}
+                        onChange={(event) =>
+                          updateSubscriptionCard(
+                            card.id,
+                            "billingCompany",
+                            event.target.value
+                          )
+                        }
+                        placeholder="Company, department, or use context"
+                      />
+                    </AixiaFormFullWidth>
+
+                    <AixiaFormFullWidth>
+                      <AixiaFieldLabel label="Card Notes" />
+                      <AixiaTextareaField
+                        value={card.notes}
+                        onChange={(event) =>
+                          updateSubscriptionCard(card.id, "notes", event.target.value)
+                        }
+                        placeholder="Internal admin notes. Do not write full card number here."
+                      />
+                    </AixiaFormFullWidth>
+                  </AixiaFormGrid>
+                </AixiaFormRowCard>
+              ))}
+
+              <AixiaButton type="button" variant="primary" onClick={addSubscriptionCard}>
+                <Plus className="h-4 w-4" />
+                Add Another Card
+              </AixiaButton>
+            </div>
+          ) : null}
+        </AixiaSection>
       </>
     );
-  };
+  }
 
-  if (isLoading) {
+          if (isLoading) {
     return (
-      <div className="min-h-screen bg-[#05070d] px-4 py-4 text-white md:px-6 md:py-6">
-        <div className="mx-auto flex w-full max-w-[1600px] flex-col gap-6">
-          <div className="rounded-[34px] border border-white/10 bg-white/[0.045] p-12 text-center backdrop-blur-xl">
-            <Loader2 className="mx-auto h-8 w-8 animate-spin text-cyan-200" />
-            <div className="mt-4 text-sm text-slate-400">Loading expense detail...</div>
-          </div>
-        </div>
-      </div>
+      <AixiaLoadingState
+        title="Loading expense detail"
+        description="Expense request, documentation, allocations, payments, funding batches, currencies, companies, employees, and profiles are being loaded."
+      />
     );
   }
 
   if (!expense) {
     return (
-      <div className="min-h-screen bg-[#05070d] px-4 py-4 text-white md:px-6 md:py-6">
-        <div className="mx-auto flex w-full max-w-[1600px] flex-col gap-6">
-          <div className="rounded-[34px] border border-rose-400/20 bg-rose-500/10 p-12 text-center">
-            <AlertTriangle className="mx-auto h-8 w-8 text-rose-200" />
-            <div className="mt-4 text-lg font-semibold text-white">Expense not found</div>
-            <div className="mt-2 text-sm text-rose-100">
-              {pageError || "The requested expense could not be loaded."}
-            </div>
-            <button
+      <AixiaPage>
+        <AixiaEmptyState
+          icon={AlertTriangle}
+          title="Expense not found"
+          description={pageError || "The requested expense could not be loaded."}
+          action={
+            <AixiaButton
               type="button"
+              variant="primary"
               onClick={() => navigate("/finance/transactions/expenses")}
-              className="mt-6 inline-flex h-11 items-center justify-center gap-2 rounded-2xl border border-white/10 bg-white/[0.05] px-5 text-sm font-semibold text-white transition hover:bg-white/[0.08]"
             >
               <ArrowRight className="h-4 w-4 rotate-180" />
               Expenses & Reimbursements
-            </button>
-          </div>
-        </div>
-      </div>
+            </AixiaButton>
+          }
+        />
+      </AixiaPage>
     );
   }
 
   const currencyCode = expense.currency_code || selectedCurrency?.currency_code || "USD";
 
   return (
-    <div className="min-h-screen bg-[#05070d] px-4 py-4 text-white md:px-6 md:py-6">
-      <div className="mx-auto flex w-full max-w-[1600px] flex-col gap-6">
-        <header className="relative overflow-hidden rounded-[34px] border border-white/10 bg-white/[0.045] p-6 shadow-2xl shadow-black/30 backdrop-blur-xl">
-          <div className="pointer-events-none absolute inset-0 bg-[radial-gradient(circle_at_top_left,rgba(6,182,212,0.16),transparent_38%),radial-gradient(circle_at_top_right,rgba(139,92,246,0.12),transparent_34%)]" />
+    <AixiaPage>
+      <AixiaHero
+        parentLabel="Expenses & Reimbursements"
+        parentPath="/finance/transactions/expenses"
+        badges={[
+          {
+            label:
+              getExpenseRequestType(expense) === "reimbursement"
+                ? "Reimbursement Detail"
+                : "Expense Detail",
+            tone: getExpenseRequestType(expense) === "reimbursement" ? "violet" : "cyan",
+          },
+          {
+            label: formatLabel(expense.request_status || expense.status),
+            tone: getStatusTone(expense.request_status || expense.status),
+          },
+          {
+            label: formatLabel(expense.documentation_status),
+            tone: getStatusTone(expense.documentation_status),
+          },
+          {
+            label: isRefreshing ? "Silent Refresh" : "Realtime + 60s",
+            tone: isRefreshing ? "amber" : "neutral",
+          },
+        ]}
+        gradientTitle={
+          getExpenseRequestType(expense) === "reimbursement"
+            ? "REIMBURSEMENT REQUEST"
+            : "EXPENSE REQUEST"
+        }
+        title=""
+        subtitle={expense.title || expense.expense_number || "Expense Detail"}
+        description={
+          expense.description ||
+          "Expense detail page for review, documentation, funding coverage, payment allocation, and recipient confirmation."
+        }
+        statusCards={[
+          {
+            label: "Amount",
+            value: `${currencyCode} ${formatMoney(expenseAmount)}`,
+            description: "Requested/final expense amount.",
+            icon: Receipt,
+            tone: "cyan",
+          },
+          {
+            label: "Covered",
+            value: `${currencyCode} ${formatMoney(coveredAmount)}`,
+            description: "Confirmed payment allocations.",
+            icon: WalletCards,
+            tone: "emerald",
+          },
+          {
+            label: "Remaining",
+            value: `${currencyCode} ${formatMoney(remainingAmount)}`,
+            description: "Remaining uncovered amount.",
+            icon: CreditCard,
+            tone: remainingAmount > 0 ? "amber" : "emerald",
+          },
+        ]}
+      />
 
-          <div className="relative">
-            <button
-              type="button"
-              onClick={() => navigate("/finance/transactions/expenses")}
-              className="mb-5 inline-flex items-center justify-center gap-2 rounded-full border border-white/10 bg-white/[0.05] px-5 py-2 text-[11px] font-semibold uppercase tracking-[0.22em] text-slate-300 transition hover:border-white/20 hover:bg-white/[0.08] hover:text-white"
-            >
-              <ArrowRight className="h-3.5 w-3.5 rotate-180" />
-              Expenses & Reimbursements
-            </button>
+      {pageError ? <AixiaAlert tone="error">{pageError}</AixiaAlert> : null}
+      {pageMessage ? <AixiaAlert tone="success">{pageMessage}</AixiaAlert> : null}
 
-            <div className="grid gap-6 xl:grid-cols-[minmax(0,1fr)_520px] xl:items-end">
-              <div>
-                <div className="inline-flex w-fit items-center gap-2 rounded-full border border-cyan-400/20 bg-cyan-500/10 px-3 py-1 text-[11px] font-semibold uppercase tracking-[0.22em] text-cyan-200">
-                  <Receipt className="h-3.5 w-3.5" />
-                  {getExpenseRequestType(expense) === "reimbursement"
-                    ? "Reimbursement Detail"
-                    : "Expense Detail"}
-                </div>
+      <AixiaMetricGrid>
+        {timelineItems.map((item) => (
+          <AixiaMetricCard
+            key={item.label}
+            label={item.label}
+            value={item.value}
+            description={item.detail}
+            icon={
+              item.label === "Request"
+                ? Receipt
+                : item.label === "Docs"
+                  ? FileCheck2
+                  : item.label === "Review"
+                    ? ShieldCheck
+                    : item.label === "Coverage"
+                      ? WalletCards
+                      : CheckCircle2
+            }
+            tone={item.tone}
+          />
+        ))}
+      </AixiaMetricGrid>
 
-                <div className="mt-4 text-[11px] font-semibold uppercase tracking-[0.22em] text-slate-500">
-                  {expense.expense_number || "Draft Expense"} •{" "}
-                  {getExpenseRequestType(expense) === "reimbursement"
-                    ? "Reimbursement"
-                    : "Planned Expense"}
-                </div>
-
-                <h1 className="mt-2 text-3xl font-semibold tracking-[-0.035em] text-white md:text-5xl">
-                  {expense.title ||
-                    (getExpenseRequestType(expense) === "reimbursement"
-                      ? "Reimbursement Request"
-                      : "Expense Request")}
-                </h1>
-
-                <p className="mt-3 max-w-4xl text-sm leading-6 text-slate-400 md:text-base md:leading-7">
-                  {expense.description || "No description / reason entered for this expense."}
-                </p>
-
-                <div className="mt-5 flex flex-wrap gap-2">
-                  <StatusBadge value={getExpenseRequestType(expense)} />
-                  <StatusBadge value={expense.request_status || expense.status} />
-                  <StatusBadge value={expense.documentation_status} />
-                  <StatusBadge value={expense.finance_review_status} />
-                  <StatusBadge value={calculatedCoverageStatus} />
-                  {isRefreshing ? (
-                    <span className="inline-flex rounded-full border border-white/10 bg-white/[0.06] px-3 py-1 text-[11px] font-semibold uppercase tracking-[0.14em] text-slate-300">
-                      Silent Refresh
-                    </span>
-                  ) : null}
-                </div>
-              </div>
-
-              <div className="grid gap-3 sm:grid-cols-3">
-                <ValueBlock
-                  label="Amount"
-                  value={`${currencyCode} ${formatMoney(expenseAmount)}`}
-                  detail="Requested/final expense amount."
-                />
-                <ValueBlock
-                  label="Covered"
-                  value={`${currencyCode} ${formatMoney(coveredAmount)}`}
-                  detail="Confirmed payment allocations."
-                />
-                <ValueBlock
-                  label="Remaining"
-                  value={`${currencyCode} ${formatMoney(remainingAmount)}`}
-                  detail="Remaining uncovered amount."
-                />
-              </div>
-            </div>
-          </div>
-        </header>
-
-        {pageError ? (
-          <div className="rounded-[24px] border border-rose-400/20 bg-rose-500/10 p-4 text-sm leading-6 text-rose-100">
-            {pageError}
-          </div>
-        ) : null}
-
-        {pageMessage ? (
-          <div className="rounded-[24px] border border-emerald-400/20 bg-emerald-500/10 p-4 text-sm leading-6 text-emerald-100">
-            {pageMessage}
-          </div>
-        ) : null}
-
-        <section className="grid gap-4 md:grid-cols-2 xl:grid-cols-5">
-          {timelineItems.map((item) => (
-            <div
-              key={item.label}
-              className="min-h-[156px] rounded-[28px] border border-white/10 bg-white/[0.045] p-5 backdrop-blur-xl"
-            >
-              <div className={`inline-flex rounded-full border px-3 py-1 text-[11px] font-semibold uppercase tracking-[0.16em] ${getStatusToneClasses(item.value.toLowerCase().replaceAll(" ", "_"))}`}>
-                {item.label}
-              </div>
-              <div className="mt-4 text-lg font-semibold text-white">{item.value}</div>
-              <div className="mt-2 text-xs leading-5 text-slate-500">{item.detail}</div>
-            </div>
-          ))}
-        </section>
-
-        <div className="grid items-start gap-6 xl:grid-cols-[minmax(0,1fr)_430px]">
-          <div className="grid gap-6">
-            <SectionCard
+      <AixiaSmartLayout
+        sidebar="normal"
+        balance="main"
+        bottomSpan="never"
+        sideRebalance="last-to-bottom"
+        main={
+          <>
+            <AixiaSection
               title="Expense / Reimbursement Overview"
               description="Draft records use the same structure and rules as the New Expense / Reimbursement page."
               icon={Building2}
-            >
-              <div className="mb-5 flex flex-col gap-3 rounded-[24px] border border-white/10 bg-black/20 p-4 md:flex-row md:items-center md:justify-between">
-                <div>
-                  <div className="text-sm font-semibold text-white">
-                    {canEditOverview ? "Draft editable request" : "Read-only request"}
-                  </div>
-                  <div className="mt-1 text-xs leading-5 text-slate-500">
-                    {canEditOverview
-                      ? "Only draft expense requests can be edited here."
-                      : "This expense is no longer draft, so request details are locked."}
-                  </div>
-                </div>
-
-                {isEditingOverview ? (
-                  <div className="flex gap-2">
-                    <button
+              actions={
+                isEditingOverview ? (
+                  <>
+                    <AixiaButton
                       type="button"
+                      variant="secondary"
                       disabled={isSavingOverview}
                       onClick={cancelEditingOverview}
-                      className="inline-flex h-10 items-center justify-center gap-2 rounded-2xl border border-white/10 bg-white/[0.05] px-4 text-sm font-semibold text-slate-300 transition hover:bg-white/[0.08] hover:text-white disabled:cursor-not-allowed disabled:opacity-50"
                     >
                       <X className="h-4 w-4" />
                       Cancel
-                    </button>
+                    </AixiaButton>
 
-                    <button
+                    <AixiaButton
                       type="button"
+                      variant="primary"
                       disabled={isSavingOverview}
                       onClick={() => void saveOverviewEdits()}
-                      className="inline-flex h-10 items-center justify-center gap-2 rounded-2xl border border-emerald-400/20 bg-emerald-500/10 px-4 text-sm font-semibold text-emerald-100 transition hover:bg-emerald-500/15 disabled:cursor-not-allowed disabled:opacity-50"
                     >
                       {isSavingOverview ? (
                         <Loader2 className="h-4 w-4 animate-spin" />
@@ -4191,30 +4401,37 @@ export default function FinanceExpenseDetailPage() {
                         <Save className="h-4 w-4" />
                       )}
                       Save
-                    </button>
-                  </div>
+                    </AixiaButton>
+                  </>
                 ) : (
-                  <button
+                  <AixiaButton
                     type="button"
+                    variant="primary"
                     disabled={!canEditOverview}
                     onClick={startEditingOverview}
-                    className="inline-flex h-10 items-center justify-center gap-2 rounded-2xl border border-cyan-400/20 bg-cyan-500/10 px-4 text-sm font-semibold text-cyan-100 transition hover:bg-cyan-500/15 disabled:cursor-not-allowed disabled:opacity-40"
                   >
                     <Pencil className="h-4 w-4" />
                     Edit
-                  </button>
-                )}
-              </div>
+                  </AixiaButton>
+                )
+              }
+            >
+              <AixiaAlert tone={canEditOverview ? "info" : "warning"}>
+                {canEditOverview
+                  ? "Only draft expense requests can be edited here."
+                  : "This expense is no longer draft, so request details are locked."}
+              </AixiaAlert>
 
               {isEditingOverview && editForm ? (
-                <div className="grid gap-6">
-                  <div className="grid gap-4 md:grid-cols-2">
-                    <label className="grid gap-2">
-                      <span className={labelClass()}>Expense Company</span>
-                      <select
+                <div className="aixia-stack">
+                  <AixiaFormGrid columns="two">
+                    <AixiaFormField>
+                      <AixiaFieldLabel label="Expense Company" />
+                      <AixiaSelectField
                         value={editForm.companyId}
-                        onChange={(event) => updateEditField("companyId", event.target.value)}
-                        className={inputClass()}
+                        onChange={(event) =>
+                          updateEditField("companyId", event.target.value)
+                        }
                       >
                         <option value="">Select company</option>
                         {companies.map((item) => (
@@ -4222,12 +4439,12 @@ export default function FinanceExpenseDetailPage() {
                             {item.name || "Unnamed company"}
                           </option>
                         ))}
-                      </select>
-                    </label>
+                      </AixiaSelectField>
+                    </AixiaFormField>
 
-                    <label className="grid gap-2">
-                      <span className={labelClass()}>Expense Made By Type</span>
-                      <select
+                    <AixiaFormField>
+                      <AixiaFieldLabel label="Expense Made By Type" />
+                      <AixiaSelectField
                         value={editForm.expenseMadeByType}
                         onChange={(event) =>
                           updateEditField(
@@ -4235,24 +4452,22 @@ export default function FinanceExpenseDetailPage() {
                             event.target.value as ExpenseMadeByType
                           )
                         }
-                        className={inputClass()}
                       >
                         <option value="employee">Employee</option>
                         <option value="owner_management">Owner / Management</option>
                         <option value="company_direct">Company Direct</option>
                         <option value="other">Other</option>
-                      </select>
-                    </label>
+                      </AixiaSelectField>
+                    </AixiaFormField>
 
                     {editForm.expenseMadeByType === "employee" ? (
-                      <label className="grid gap-2 md:col-span-2">
-                        <span className={labelClass()}>Employee</span>
-                        <select
+                      <AixiaFormFullWidth>
+                        <AixiaFieldLabel label="Employee" />
+                        <AixiaSelectField
                           value={editForm.employeeRefId}
                           onChange={(event) =>
                             updateEditField("employeeRefId", event.target.value)
                           }
-                          className={inputClass()}
                         >
                           <option value="">Select employee</option>
                           {employees.map((item) => (
@@ -4260,264 +4475,286 @@ export default function FinanceExpenseDetailPage() {
                               {getEmployeeLabel(item, profileMap)}
                             </option>
                           ))}
-                        </select>
-                      </label>
+                        </AixiaSelectField>
+                      </AixiaFormFullWidth>
                     ) : null}
 
                     {editForm.expenseMadeByType === "owner_management" ? (
-                      <label className="grid gap-2 md:col-span-2">
-                        <span className={labelClass()}>Responsible Person</span>
-                        <input
+                      <AixiaFormFullWidth>
+                        <AixiaFieldLabel label="Responsible Person" />
+                        <AixiaInputField
                           value={editForm.responsiblePersonName}
                           onChange={(event) =>
                             updateEditField("responsiblePersonName", event.target.value)
                           }
-                          className={inputClass()}
                           placeholder="Owner / manager name"
                         />
-                      </label>
+                      </AixiaFormFullWidth>
                     ) : null}
 
                     {editForm.expenseMadeByType === "other" ? (
-                      <label className="grid gap-2 md:col-span-2">
-                        <span className={labelClass()}>Other Made By Explanation</span>
-                        <input
+                      <AixiaFormFullWidth>
+                        <AixiaFieldLabel label="Other Made By Explanation" />
+                        <AixiaInputField
                           value={editForm.otherMadeByExplanation}
                           onChange={(event) =>
-                            updateEditField("otherMadeByExplanation", event.target.value)
+                            updateEditField(
+                              "otherMadeByExplanation",
+                              event.target.value
+                            )
                           }
-                          className={inputClass()}
                           placeholder="Explain who made this expense"
                         />
-                      </label>
+                      </AixiaFormFullWidth>
                     ) : null}
 
-                    <label className="grid gap-2">
-                      <span className={labelClass()}>Expense Type</span>
-                      <select
+                    <AixiaFormField>
+                      <AixiaFieldLabel label="Expense Type" />
+                      <AixiaSelectField
                         value={editForm.expenseType}
                         onChange={(event) => {
                           const nextType = event.target.value;
                           updateEditField("expenseType", nextType);
+
                           if (nextType === "software_subscription") {
                             updateEditField("isSubscriptionExpense", true);
+
                             if (editForm.subscriptionPaymentMethod === "not_selected") {
                               updateEditField("subscriptionPaymentMethod", "credit_card");
                             }
                           }
                         }}
-                        className={inputClass()}
                       >
                         {EXPENSE_TYPES.map((item) => (
                           <option key={item.value} value={item.value}>
                             {item.label}
                           </option>
                         ))}
-                      </select>
-                    </label>
+                      </AixiaSelectField>
+                    </AixiaFormField>
 
-                    <label className="grid gap-2">
-                      <span className={labelClass()}>Expense Date</span>
-                      <input
+                    <AixiaFormField>
+                      <AixiaFieldLabel label="Expense Date" />
+                      <AixiaInputField
                         type="date"
                         value={editForm.expenseDate}
-                        onChange={(event) => updateEditField("expenseDate", event.target.value)}
-                        className={inputClass()}
+                        onChange={(event) =>
+                          updateEditField("expenseDate", event.target.value)
+                        }
                       />
-                    </label>
+                    </AixiaFormField>
 
                     {editForm.expenseType === "other" ? (
                       <>
-                        <label className="grid gap-2 md:col-span-2">
-                          <span className={labelClass()}>Expense Title</span>
-                          <input
+                        <AixiaFormFullWidth>
+                          <AixiaFieldLabel label="Expense Title" />
+                          <AixiaInputField
                             value={editForm.title}
-                            onChange={(event) => updateEditField("title", event.target.value)}
-                            className={inputClass()}
+                            onChange={(event) =>
+                              updateEditField("title", event.target.value)
+                            }
                             placeholder="Write a clear title for this unusual expense"
                           />
-                        </label>
+                        </AixiaFormFullWidth>
 
-                        <label className="grid gap-2 md:col-span-2">
-                          <span className={labelClass()}>Expense Source</span>
-                          <input
+                        <AixiaFormFullWidth>
+                          <AixiaFieldLabel label="Expense Source" />
+                          <AixiaInputField
                             value={editForm.expenseSourceName}
                             onChange={(event) =>
                               updateEditField("expenseSourceName", event.target.value)
                             }
-                            className={inputClass()}
                             placeholder="Write where this unusual expense comes from"
                           />
-                        </label>
+                        </AixiaFormFullWidth>
                       </>
                     ) : generatedExpenseIdentity ? (
-                      <div className="grid gap-3 rounded-[24px] border border-cyan-400/15 bg-cyan-500/10 p-4 md:col-span-2">
-                        <div className="text-[11px] font-semibold uppercase tracking-[0.18em] text-cyan-200">
-                          Auto Title / Source Preview
-                        </div>
-                        <div className="grid gap-3 md:grid-cols-2">
-                          <ValueBlock label="Auto Title" value={generatedExpenseIdentity.title} />
-                          <ValueBlock label="Auto Source" value={generatedExpenseIdentity.source} />
-                        </div>
-                      </div>
+                      <AixiaFormFullWidth>
+                        <AixiaReviewGrid variant="cards">
+                          <AixiaValueBlock
+                            label="Auto Title"
+                            value={generatedExpenseIdentity.title}
+                            detail="Generated from the selected expense type details."
+                          />
+                          <AixiaValueBlock
+                            label="Auto Source"
+                            value={generatedExpenseIdentity.source}
+                            detail="Generated source label for reporting."
+                          />
+                        </AixiaReviewGrid>
+                      </AixiaFormFullWidth>
                     ) : null}
 
-                    <label className="grid gap-2">
-                      <span className={labelClass()}>Expense Amount</span>
-                      <input
+                    <AixiaFormField>
+                      <AixiaFieldLabel label="Expense Amount" />
+                      <AixiaInputField
                         value={editForm.amount}
-                        onChange={(event) => updateEditField("amount", event.target.value)}
-                        className={inputClass()}
+                        onChange={(event) =>
+                          updateEditField("amount", event.target.value)
+                        }
                         inputMode="decimal"
                         placeholder="0.00"
                       />
-                    </label>
+                    </AixiaFormField>
 
-                    <label className="grid gap-2">
-                      <span className={labelClass()}>Currency</span>
-                      <select
+                    <AixiaFormField>
+                      <AixiaFieldLabel label="Currency" />
+                      <AixiaSelectField
                         value={editForm.currencyCode}
                         onChange={(event) =>
-                          updateEditField("currencyCode", event.target.value.toUpperCase())
+                          updateEditField(
+                            "currencyCode",
+                            event.target.value.toUpperCase()
+                          )
                         }
-                        className={inputClass()}
                       >
                         {currencies.length === 0 ? (
                           <option value={editForm.currencyCode || ""}>
                             {editForm.currencyCode || "Loading currencies"}
                           </option>
                         ) : null}
+
                         {currencies.map((currency) => (
                           <option key={currency.id} value={currency.currency_code}>
                             {formatCurrencyOption(currency)}
                           </option>
                         ))}
-                      </select>
-                    </label>
+                      </AixiaSelectField>
+                    </AixiaFormField>
 
-                    <label className="flex items-center gap-3 rounded-2xl border border-white/10 bg-black/20 px-4 py-3">
-                      <input
-                        type="checkbox"
-                        checked={editForm.isRetroactive}
+                    <AixiaFormField>
+                      <AixiaFieldLabel label="Retroactive" />
+                      <AixiaSelectField
+                        value={editForm.isRetroactive ? "yes" : "no"}
                         onChange={(event) =>
-                          updateEditField("isRetroactive", event.target.checked)
+                          updateEditField("isRetroactive", event.target.value === "yes")
                         }
-                        className="h-4 w-4 rounded border-white/20 bg-black/20"
-                      />
-                      <span className="text-sm text-slate-300">
-                        Retroactive expense already happened
-                      </span>
-                    </label>
+                      >
+                        <option value="no">No</option>
+                        <option value="yes">Yes</option>
+                      </AixiaSelectField>
+                    </AixiaFormField>
 
                     {editForm.isRetroactive ? (
-                      <label className="grid gap-2">
-                        <span className={labelClass()}>Retroactive Reason</span>
-                        <input
+                      <AixiaFormField>
+                        <AixiaFieldLabel label="Retroactive Reason" />
+                        <AixiaInputField
                           value={editForm.retroactiveReason}
                           onChange={(event) =>
                             updateEditField("retroactiveReason", event.target.value)
                           }
-                          className={inputClass()}
                           placeholder="Why this was not requested before spending"
                         />
-                      </label>
+                      </AixiaFormField>
                     ) : null}
 
-                    <label className="grid gap-2 md:col-span-2">
-                      <span className={labelClass()}>Description / Reason</span>
-                      <textarea
+                    <AixiaFormFullWidth>
+                      <AixiaFieldLabel label="Description / Reason" />
+                      <AixiaTextareaField
                         value={editForm.description}
                         onChange={(event) =>
                           updateEditField("description", event.target.value)
                         }
-                        className={textareaClass()}
                         placeholder="Explain why this expense is needed"
                       />
-                    </label>
+                    </AixiaFormFullWidth>
 
-                    <label className="grid gap-2 md:col-span-2">
-                      <span className={labelClass()}>Internal Notes</span>
-                      <textarea
+                    <AixiaFormFullWidth>
+                      <AixiaFieldLabel label="Internal Notes" />
+                      <AixiaTextareaField
                         value={editForm.notes}
-                        onChange={(event) => updateEditField("notes", event.target.value)}
-                        className={textareaClass()}
+                        onChange={(event) =>
+                          updateEditField("notes", event.target.value)
+                        }
                         placeholder="Optional notes"
                       />
-                    </label>
-                  </div>
+                    </AixiaFormFullWidth>
+                  </AixiaFormGrid>
 
                   {renderDynamicExpenseSection()}
-                  {renderRemainingDynamicSections()}
 
-                  <SectionCard
+                  <AixiaSection
                     title="Subscription Toggle"
                     description="Admin-only metadata option. Permissions will be enforced later."
                     icon={CalendarClock}
                   >
-                    <label className="flex min-h-[72px] items-center gap-3 rounded-[24px] border border-cyan-400/15 bg-cyan-500/10 px-4 py-3">
-                      <input
-                        type="checkbox"
-                        checked={editForm.isSubscriptionExpense}
-                        onChange={(event) =>
-                          updateEditField("isSubscriptionExpense", event.target.checked)
-                        }
-                        disabled={editForm.expenseType === "software_subscription"}
-                        className="h-4 w-4 rounded border-white/20 bg-black/20"
-                      />
-                      <span>
-                        <span className="block text-sm font-semibold text-cyan-100">
-                          This is a subscription / recurring expense
-                        </span>
-                        <span className="mt-1 block text-xs leading-5 text-cyan-100/70">
-                          Stores schedule and masked card metadata only.
-                        </span>
-                      </span>
-                    </label>
-                  </SectionCard>
+                    <AixiaFormGrid columns="one">
+                      <AixiaFormField>
+                        <AixiaFieldLabel label="Subscription / Recurring Expense" />
+                        <AixiaSelectField
+                          value={editForm.isSubscriptionExpense ? "yes" : "no"}
+                          onChange={(event) =>
+                            updateEditField(
+                              "isSubscriptionExpense",
+                              event.target.value === "yes"
+                            )
+                          }
+                          disabled={editForm.expenseType === "software_subscription"}
+                        >
+                          <option value="no">No</option>
+                          <option value="yes">Yes</option>
+                        </AixiaSelectField>
+                      </AixiaFormField>
+                    </AixiaFormGrid>
+
+                    <AixiaAlert tone="info">
+                      Stores schedule and masked card metadata only. Full card numbers are never
+                      stored here.
+                    </AixiaAlert>
+                  </AixiaSection>
 
                   {renderSubscriptionSection()}
                 </div>
               ) : (
-                <div className="grid gap-4 md:grid-cols-2">
-                  <ValueBlock label="Expense Company" value={company?.name || "—"} />
-                  <ValueBlock label="Expense Made By" value={expenseMadeByLabel} />
-                  <ValueBlock
+                <AixiaReviewGrid variant="cards">
+                  <AixiaValueBlock label="Expense Company" value={company?.name || "—"} />
+                  <AixiaValueBlock label="Expense Made By" value={expenseMadeByLabel} />
+                  <AixiaValueBlock
                     label="Request Type"
-                    value={formatLabel(getExpenseRequestType(expense))}
+                    value={<AixiaStatusBadge value={getExpenseRequestType(expense)} />}
                     detail={getExpenseRequestTypeDescription(expense)}
                   />
-                  <ValueBlock label="Expense Type" value={formatLabel(expense.expense_type)} />
-                  <ValueBlock
+                  <AixiaValueBlock
+                    label="Expense Type"
+                    value={formatLabel(expense.expense_type)}
+                  />
+                  <AixiaValueBlock
                     label="Expense"
                     value={expense.title || "—"}
                     detail={expense.expense_source_name || undefined}
                   />
-                  <ValueBlock label="Expense Date" value={formatDate(expense.expense_date)} />
-                  <ValueBlock label="Currency" value={currencyCode} />
-                  <ValueBlock
+                  <AixiaValueBlock
+                    label="Expense Date"
+                    value={formatDate(expense.expense_date)}
+                  />
+                  <AixiaValueBlock label="Currency" value={currencyCode} />
+                  <AixiaValueBlock
                     label="Description"
                     value={expense.description || "—"}
                     detail={expense.notes || undefined}
                   />
-                  <ValueBlock
+                  <AixiaValueBlock
                     label="Retroactive"
                     value={expense.is_retroactive ? "Yes" : "No"}
                     detail={expense.retroactive_reason || undefined}
                   />
                   {expense.other_expense_explanation ? (
-                    <ValueBlock
+                    <AixiaValueBlock
                       label="Other Expense Explanation"
                       value={expense.other_expense_explanation}
                     />
                   ) : null}
                   {expense.rejection_reason ? (
-                    <ValueBlock label="Rejection Reason" value={expense.rejection_reason} />
+                    <AixiaValueBlock
+                      label="Rejection Reason"
+                      value={expense.rejection_reason}
+                    />
                   ) : null}
-                </div>
+                </AixiaReviewGrid>
               )}
-            </SectionCard>
+            </AixiaSection>
 
-            <SectionCard
+                        <AixiaSection
               title={
                 getExpenseRequestType(expense) === "reimbursement"
                   ? "Reimbursement Proof"
@@ -4539,395 +4776,298 @@ export default function FinanceExpenseDetailPage() {
               icon={FileCheck2}
             >
               {needsSpendAndUploadProof ? (
-                <div className="mb-5 rounded-[28px] border border-amber-400/20 bg-amber-500/10 p-5">
-                  <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
-                    <div>
-                      <div className="inline-flex rounded-full border border-amber-400/20 bg-amber-500/10 px-3 py-1 text-[11px] font-semibold uppercase tracking-[0.18em] text-amber-200">
-                        Next Required Step
-                      </div>
-                      <h3 className="mt-4 text-xl font-semibold text-white">
-                        Spend the approved expense and upload proof
-                      </h3>
-                      <p className="mt-2 max-w-3xl text-sm leading-6 text-amber-100/75">
-                        Finance/Admin approved this request. After the money is spent, upload a
-                        receipt, screenshot, invoice, official document, or valid link here. After
-                        upload, this expense will move to Document Review automatically.
-                      </p>
-                    </div>
-
-                    <div className="rounded-[22px] border border-white/10 bg-black/20 p-4 text-sm leading-6 text-slate-300 lg:min-w-[260px]">
-                      <div className="text-[11px] font-semibold uppercase tracking-[0.18em] text-slate-500">
-                        Current Status
-                      </div>
-                      <div className="mt-3 flex flex-wrap gap-2">
-                        <StatusBadge value={expense.request_status} />
-                        <StatusBadge value={expense.documentation_status} />
-                      </div>
-                    </div>
-                  </div>
-
-                  <div className="mt-5 grid gap-3 md:grid-cols-3">
-                    <div className="rounded-[22px] border border-white/10 bg-black/20 p-4">
-                      <div className="text-[11px] font-semibold uppercase tracking-[0.18em] text-slate-500">
-                        Step 1
-                      </div>
-                      <div className="mt-2 text-sm font-semibold text-white">Spend the money</div>
-                      <div className="mt-1 text-xs leading-5 text-slate-500">
-                        Complete the approved expense only after approval.
-                      </div>
-                    </div>
-
-                    <div className="rounded-[22px] border border-white/10 bg-black/20 p-4">
-                      <div className="text-[11px] font-semibold uppercase tracking-[0.18em] text-slate-500">
-                        Step 2
-                      </div>
-                      <div className="mt-2 text-sm font-semibold text-white">Upload proof</div>
-                      <div className="mt-1 text-xs leading-5 text-slate-500">
-                        Add receipt, screenshot, invoice, document, or link.
-                      </div>
-                    </div>
-
-                    <div className="rounded-[22px] border border-white/10 bg-black/20 p-4">
-                      <div className="text-[11px] font-semibold uppercase tracking-[0.18em] text-slate-500">
-                        Step 3
-                      </div>
-                      <div className="mt-2 text-sm font-semibold text-white">
-                        Finance reviews it
-                      </div>
-                      <div className="mt-1 text-xs leading-5 text-slate-500">
-                        The status becomes Documentation Submitted automatically.
-                      </div>
-                    </div>
-                  </div>
-                </div>
+                <AixiaAlert tone="warning">
+                  Spend the approved expense and upload proof. After upload, this
+                  expense will move to Document Review automatically.
+                </AixiaAlert>
               ) : null}
 
               {needsDocumentationCorrection ? (
-                <div className="mb-5 rounded-[28px] border border-rose-400/20 bg-rose-500/10 p-5">
-                  <div className="inline-flex rounded-full border border-rose-400/20 bg-rose-500/10 px-3 py-1 text-[11px] font-semibold uppercase tracking-[0.18em] text-rose-200">
-                    Correction Required
-                  </div>
-                  <h3 className="mt-4 text-xl font-semibold text-white">
-                    Upload corrected proof for Finance review
-                  </h3>
-                  <p className="mt-2 max-w-3xl text-sm leading-6 text-rose-100/75">
-                    Finance marked an issue with the previous documentation. Upload the corrected
-                    receipt, screenshot, invoice, document, or link here. After upload, the expense
-                    returns to Document Review.
-                  </p>
-                  {expense.verification_notes ? (
-                    <div className="mt-4 rounded-[22px] border border-white/10 bg-black/20 p-4 text-sm leading-6 text-rose-100">
-                      {expense.verification_notes}
-                    </div>
-                  ) : null}
-                </div>
+                <AixiaAlert tone="error">
+                  Finance marked an issue with the previous documentation.
+                  {expense.verification_notes
+                    ? ` ${expense.verification_notes}`
+                    : " Upload corrected proof for Finance review."}
+                </AixiaAlert>
               ) : null}
 
-              {hasSubmittedDocumentation && !needsSpendAndUploadProof && !needsDocumentationCorrection ? (
-                <div className="mb-5 rounded-[28px] border border-cyan-400/20 bg-cyan-500/10 p-5">
-                  <div className="inline-flex rounded-full border border-cyan-400/20 bg-cyan-500/10 px-3 py-1 text-[11px] font-semibold uppercase tracking-[0.18em] text-cyan-200">
-                    Proof Submitted
-                  </div>
-                  <h3 className="mt-4 text-xl font-semibold text-white">
-                    Documentation is submitted for Finance review
-                  </h3>
-                  <p className="mt-2 max-w-3xl text-sm leading-6 text-cyan-100/75">
-                    Uploaded proof is now visible to Finance/Admin in the Document Review tab.
-                    You can upload an additional file or replace/update the link if needed.
-                  </p>
-                </div>
+              {hasSubmittedDocumentation &&
+              !needsSpendAndUploadProof &&
+              !needsDocumentationCorrection ? (
+                <AixiaAlert tone="info">
+                  Documentation is submitted for Finance review. You can upload an
+                  additional file or update the documentation link if needed.
+                </AixiaAlert>
               ) : null}
 
-              <div className="grid gap-4 md:grid-cols-2">
-                <label className="grid gap-2">
-                  <span className={labelClass()}>
-                    {needsSpendAndUploadProof ? "Upload Proof After Spending" : "Upload Documentation"}
-                  </span>
-                  <div className="rounded-[24px] border border-dashed border-white/15 bg-black/20 p-4">
-                    <input
-                      type="file"
-                      accept=".pdf,.png,.jpg,.jpeg,.webp,.doc,.docx,.xls,.xlsx"
-                      onChange={(event) =>
-                        setDocumentationFile(event.target.files?.[0] ?? null)
-                      }
-                      className="block w-full text-sm text-slate-400 file:mr-4 file:rounded-full file:border-0 file:bg-cyan-500/10 file:px-4 file:py-2 file:text-sm file:font-semibold file:text-cyan-100"
-                    />
-                    {documentationFile ? (
-                      <div className="mt-3 rounded-2xl border border-cyan-400/15 bg-cyan-500/10 px-4 py-3 text-sm text-cyan-100">
-                        {documentationFile.name}
-                      </div>
-                    ) : null}
-                  </div>
-                </label>
+              <AixiaFormGrid columns="two">
+                <AixiaFormField>
+                  <AixiaFieldLabel
+                    label={
+                      needsSpendAndUploadProof
+                        ? "Proof Link"
+                        : "Documentation Link"
+                    }
+                  />
+                  <AixiaInputField
+                    value={documentationLink}
+                    onChange={(event) => setDocumentationLink(event.target.value)}
+                    placeholder="Receipt, order, Drive, portal, screenshot, or invoice link"
+                  />
+                </AixiaFormField>
 
-                <label className="grid gap-2">
-                  <span className={labelClass()}>
-                    {needsSpendAndUploadProof ? "Proof Link" : "Documentation Link"}
-                  </span>
-                  <div className="relative">
-                    <Link2 className="pointer-events-none absolute left-4 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-500" />
-                    <input
-                      value={documentationLink}
-                      onChange={(event) => setDocumentationLink(event.target.value)}
-                      className="h-11 w-full rounded-2xl border border-white/10 bg-black/20 pl-11 pr-4 text-sm text-white outline-none transition placeholder:text-slate-600 focus:border-cyan-400/30 focus:bg-black/30"
-                      placeholder="Receipt, order, Drive, portal, screenshot, or invoice link"
-                    />
-                  </div>
+                <AixiaValueBlock
+                  label="Current Link"
+                  value={documentationExternalLink || "—"}
+                  detail="Stored in expense metadata as documentation_link."
+                />
+              </AixiaFormGrid>
 
-                  <button
-                    type="button"
-                    disabled={isUploadingDocumentation}
-                    onClick={() => void uploadDocumentation()}
-                    className={`mt-2 inline-flex h-11 items-center justify-center gap-2 rounded-2xl border px-4 text-sm font-semibold transition disabled:cursor-not-allowed disabled:opacity-50 ${
-                      needsSpendAndUploadProof || needsDocumentationCorrection
-                        ? "border-amber-400/20 bg-amber-500/10 text-amber-100 hover:bg-amber-500/15"
-                        : "border-cyan-400/20 bg-cyan-500/10 text-cyan-100 hover:bg-cyan-500/15"
-                    }`}
-                  >
-                    {isUploadingDocumentation ? (
-                      <Loader2 className="h-4 w-4 animate-spin" />
-                    ) : (
-                      <UploadCloud className="h-4 w-4" />
-                    )}
-                    {needsSpendAndUploadProof
-                      ? "Submit Proof for Finance Review"
-                      : needsDocumentationCorrection
-                        ? "Submit Corrected Proof"
-                        : "Update Documentation"}
-                  </button>
-                </label>
-              </div>
+              <AixiaDocumentUploadPanel
+                selectedFile={documentationFile}
+                attachments={attachments.map((attachment) => ({
+                  id: attachment.id,
+                  fileName: attachment.fileUpload?.file_name || "Expense file",
+                  badge: formatDateTime(attachment.created_at),
+                  sizeLabel: attachment.fileUpload?.file_size
+                    ? `${(attachment.fileUpload.file_size / 1024 / 1024).toFixed(2)} MB`
+                    : "Unknown size",
+                  description:
+                    attachment.fileUpload?.mime_type ||
+                    attachment.metadata?.resolved_mime_type ||
+                    "Unknown file type",
+                  openLabel: "Open",
+                }))}
+                required={
+                  needsSpendAndUploadProof ||
+                  needsDocumentationCorrection ||
+                  getExpenseRequestType(expense) === "reimbursement"
+                }
+                disabled={isUploadingDocumentation}
+                uploading={isUploadingDocumentation}
+                accept=".pdf,.png,.jpg,.jpeg,.webp,.doc,.docx,.xls,.xlsx"
+                dropTitle={
+                  needsSpendAndUploadProof
+                    ? "Drop proof after spending here"
+                    : "Drop expense documentation here"
+                }
+                dropDescription="Attach receipt, screenshot, invoice, official document, or finance proof. PDF, image, Word, and Excel files are supported."
+                uploadLabel={
+                  needsSpendAndUploadProof
+                    ? "Submit Proof for Finance Review"
+                    : needsDocumentationCorrection
+                      ? "Submit Corrected Proof"
+                      : "Update Documentation"
+                }
+                uploadingLabel="Uploading..."
+                selectedFileLabel="Selected expense documentation"
+                emptyTitle={
+                  needsSpendAndUploadProof
+                    ? "No proof uploaded yet"
+                    : "No documentation uploaded"
+                }
+                emptyDescription={
+                  needsSpendAndUploadProof
+                    ? "Spend the approved expense, then upload receipt, screenshot, invoice, document, or link."
+                    : "Upload supporting files or provide a documentation link."
+                }
+                requiredMessage="Expense documentation is required before Finance verification."
+                onFileSelect={(file) => {
+                  setDocumentationFile(file);
+                  setPageError(null);
+                  setPageMessage(null);
+                }}
+                onRemoveSelectedFile={() => setDocumentationFile(null)}
+                onUpload={() => void uploadDocumentation()}
+                onOpenAttachment={(documentAttachment) =>
+                  void openAttachment(documentAttachment)
+                }
+              />
+            </AixiaSection>
 
-              <div className="mt-5 overflow-hidden rounded-[24px] border border-white/10 bg-black/20">
-                <div className="border-b border-white/10 px-4 py-3 text-[11px] font-semibold uppercase tracking-[0.18em] text-slate-500">
-                  Uploaded Files
-                </div>
-                {attachments.length === 0 ? (
-                  <div className="px-4 py-8 text-center text-sm text-slate-500">
-                    {needsSpendAndUploadProof
-                      ? "No proof uploaded yet. Spend the approved expense, then upload the receipt, screenshot, invoice, document, or link."
-                      : "No uploaded documentation files yet."}
-                  </div>
-                ) : (
-                  <div className="divide-y divide-white/5">
-                    {attachments.map((attachment) => (
-                      <div
-                        key={attachment.id}
-                        className="flex items-center justify-between gap-4 px-4 py-3"
-                      >
-                        <div className="min-w-0">
-                          <div className="truncate text-sm font-medium text-white">
-                            {attachment.fileUpload?.file_name || "File"}
-                          </div>
-                          <div className="mt-1 text-xs text-slate-500">
-                            {attachment.fileUpload?.mime_type || "Unknown type"} •{" "}
-                            {formatDateTime(attachment.created_at)}
-                          </div>
-                        </div>
-                        <FileText className="h-4 w-4 shrink-0 text-cyan-200" />
-                      </div>
-                    ))}
-                  </div>
-                )}
-              </div>
-            </SectionCard>
-
-            <SectionCard
+            <AixiaSection
               title="Funding & Payment Coverage"
               description="Shows Funding Pool usage and Expense Payment Distribution records covering this expense."
               icon={WalletCards}
             >
               {allocations.length === 0 ? (
-                <div className="rounded-[24px] border border-dashed border-white/10 bg-black/20 px-6 py-12 text-center">
-                  <WalletCards className="mx-auto h-8 w-8 text-slate-500" />
-                  <div className="mt-4 text-sm font-semibold text-white">
-                    No payment allocations yet
-                  </div>
-                  <p className="mt-2 text-sm leading-6 text-slate-500">
-                    Finance/Admin will reserve money in a Funding Pool and then create an Expense
-                    Payment Distribution from Payment Execution Tools.
-                  </p>
-                </div>
+                <AixiaEmptyState
+                  icon={WalletCards}
+                  title="No payment allocations yet"
+                  description="Finance/Admin will reserve money in a Funding Pool and then create an Expense Payment Distribution from Payment Execution Tools."
+                />
               ) : (
-                <div className="overflow-x-auto rounded-[24px] border border-white/10 bg-black/20">
-                  <table className="w-full min-w-[1100px] border-collapse">
-                    <thead className="border-b border-white/10 bg-black/30">
-                      <tr>
-                        <th className="px-5 py-4 text-left text-[11px] font-semibold uppercase tracking-[0.18em] text-slate-500">
-                          Expense Payment Distribution
-                        </th>
-                        <th className="px-5 py-4 text-left text-[11px] font-semibold uppercase tracking-[0.18em] text-slate-500">
-                          Funding Company
-                        </th>
-                        <th className="px-5 py-4 text-left text-[11px] font-semibold uppercase tracking-[0.18em] text-slate-500">
-                          Bank Account
-                        </th>
-                        <th className="px-5 py-4 text-left text-[11px] font-semibold uppercase tracking-[0.18em] text-slate-500">
-                          Funding Pool
-                        </th>
-                        <th className="px-5 py-4 text-right text-[11px] font-semibold uppercase tracking-[0.18em] text-slate-500">
-                          Allocated
-                        </th>
-                        <th className="px-5 py-4 text-left text-[11px] font-semibold uppercase tracking-[0.18em] text-slate-500">
-                          Recipient
-                        </th>
-                      </tr>
-                    </thead>
-                    <tbody>
-                      {allocations.map((allocation) => {
-                        const payment = paymentMap.get(allocation.payment_made_id) || null;
-                        const fundingCompany = allocation.funding_company_id
-                          ? companyMap.get(allocation.funding_company_id)
-                          : null;
-                        const bank = allocation.paid_from_bank_account_id
-                          ? bankAccountMap.get(allocation.paid_from_bank_account_id) ?? null
-                          : null;
-                        const batch = allocation.funding_batch_id
-                          ? fundingBatchMap.get(allocation.funding_batch_id)
-                          : null;
+                <div className="aixia-stack">
+                  {allocations.map((allocation) => {
+                    const payment =
+                      paymentMap.get(allocation.payment_made_id) || null;
+                    const fundingCompany = allocation.funding_company_id
+                      ? companyMap.get(allocation.funding_company_id)
+                      : null;
+                    const bank = allocation.paid_from_bank_account_id
+                      ? bankAccountMap.get(allocation.paid_from_bank_account_id) ??
+                        null
+                      : null;
+                    const batch = allocation.funding_batch_id
+                      ? fundingBatchMap.get(allocation.funding_batch_id)
+                      : null;
 
-                        return (
-                          <tr
-                            key={allocation.id}
-                            className="border-b border-white/5 text-sm text-slate-300"
-                          >
-                            <td className="px-5 py-4">
-                              <button
-                                type="button"
-                                onClick={() =>
-                                  navigate(
-                                    `/finance/transactions/expenses-payments-made/${allocation.payment_made_id}`
-                                  )
-                                }
-                                className="font-semibold text-cyan-200 transition hover:text-cyan-100"
-                              >
-                                {payment?.reference_number || "Expense Payment Distribution"}
-                              </button>
-                              <div className="mt-1 flex flex-wrap items-center gap-2 text-xs text-slate-500">
-                                <span>{payment ? formatDate(payment.payment_date) : "—"}</span>
-                                <StatusBadge value={payment?.status} />
-                              </div>
-                            </td>
-                            <td className="px-5 py-4">{fundingCompany?.name || "—"}</td>
-                            <td className="px-5 py-4">{getBankLabel(bank)}</td>
-                            <td className="px-5 py-4">
-                              {batch?.batch_number || "—"}
-                              {batch ? (
-                                <div className="mt-1 text-xs text-slate-500">
-                                  {formatDate(batch.allocation_date)}
-                                </div>
-                              ) : null}
-                            </td>
-                            <td className="px-5 py-4 text-right font-semibold text-white">
-                              {allocation.currency_code || currencyCode}{" "}
-                              {formatMoney(allocation.allocated_amount)}
-                            </td>
-                            <td className="px-5 py-4">
-                              <StatusBadge value={allocation.recipient_confirmation_status} />
-                            </td>
-                          </tr>
-                        );
-                      })}
-                    </tbody>
-                  </table>
+                    return (
+                      <AixiaActionCard
+                        key={allocation.id}
+                        label="Expense Payment Distribution"
+                        value={
+                          payment?.reference_number ||
+                          "Expense Payment Distribution"
+                        }
+                        description={`${allocation.currency_code || currencyCode} ${formatMoney(
+                          allocation.allocated_amount
+                        )} allocated • ${formatDate(payment?.payment_date)}`}
+                        icon={WalletCards}
+                        tone={
+                          payment?.status === "confirmed" ? "emerald" : "amber"
+                        }
+                        actionLabel="Open"
+                        onClick={() =>
+                          navigate(
+                            `/finance/transactions/expenses-payments-made/${allocation.payment_made_id}`
+                          )
+                        }
+                        meta={[
+                          {
+                            label: "Funding Company",
+                            value: fundingCompany?.name || "—",
+                          },
+                          {
+                            label: "Bank Account",
+                            value: getBankLabel(bank),
+                          },
+                          {
+                            label: "Funding Pool",
+                            value: batch?.batch_number || "—",
+                          },
+                          {
+                            label: "Recipient",
+                            value: formatLabel(
+                              allocation.recipient_confirmation_status
+                            ),
+                          },
+                        ]}
+                      />
+                    );
+                  })}
                 </div>
               )}
-            </SectionCard>
-          </div>
-
-          <aside className="sticky top-6 grid gap-6">
-            <SectionCard
+            </AixiaSection>
+          </>
+        }
+        side={
+          <>
+            <AixiaSection
               title="Finance Status"
               description="Read-only Finance/Admin workflow status."
               icon={ShieldCheck}
             >
-              <div className="grid gap-3">
-                <ValueBlock
+              <AixiaReviewGrid variant="cards">
+                <AixiaValueBlock
                   label="Request Type"
-                  value={<StatusBadge value={getExpenseRequestType(expense)} />}
+                  value={<AixiaStatusBadge value={getExpenseRequestType(expense)} />}
                   detail={getExpenseRequestTypeDescription(expense)}
                 />
-                <ValueBlock
+                <AixiaValueBlock
                   label="Request Status"
-                  value={<StatusBadge value={expense.request_status || expense.status} />}
+                  value={
+                    <AixiaStatusBadge
+                      value={expense.request_status || expense.status}
+                    />
+                  }
                 />
-                <ValueBlock
+                <AixiaValueBlock
                   label="Documentation"
-                  value={<StatusBadge value={expense.documentation_status} />}
+                  value={<AixiaStatusBadge value={expense.documentation_status} />}
                 />
-                <ValueBlock
+                <AixiaValueBlock
                   label="Finance Review"
-                  value={<StatusBadge value={expense.finance_review_status} />}
+                  value={<AixiaStatusBadge value={expense.finance_review_status} />}
                 />
-                <ValueBlock
+                <AixiaValueBlock
                   label="Coverage"
-                  value={<StatusBadge value={calculatedCoverageStatus} />}
+                  value={<AixiaStatusBadge value={calculatedCoverageStatus} />}
                 />
-                <ValueBlock
+                <AixiaValueBlock
                   label="Recipient Confirmation"
-                  value={<StatusBadge value={expense.recipient_confirmation_status} />}
+                  value={
+                    <AixiaStatusBadge
+                      value={expense.recipient_confirmation_status}
+                    />
+                  }
                 />
-              </div>
-            </SectionCard>
+              </AixiaReviewGrid>
+            </AixiaSection>
 
-            <SectionCard
+            <AixiaSection
               title="Recipient Confirmation"
               description="After Finance marks payment made, the person who made the expense confirms received or reports an issue."
               icon={CheckCircle2}
             >
-              <div className="grid gap-4">
-                <textarea
-                  value={confirmationNotes}
-                  onChange={(event) => setConfirmationNotes(event.target.value)}
-                  className="min-h-[110px] w-full rounded-2xl border border-white/10 bg-black/20 px-4 py-3 text-sm text-white outline-none transition placeholder:text-slate-600 focus:border-cyan-400/30 focus:bg-black/30"
-                  placeholder="Optional confirmation note"
-                />
+              <AixiaFormGrid columns="one">
+                <AixiaFormField>
+                  <AixiaFieldLabel label="Confirmation Notes" />
+                  <AixiaTextareaField
+                    value={confirmationNotes}
+                    onChange={(event) =>
+                      setConfirmationNotes(event.target.value)
+                    }
+                    placeholder="Optional confirmation note"
+                  />
+                </AixiaFormField>
+              </AixiaFormGrid>
 
-                <div className="grid gap-3">
-                  <button
-                    type="button"
-                    disabled={isConfirmingReceipt || !canSubmitRecipientConfirmation}
-                    onClick={() => void confirmReceived("received_confirmed")}
-                    className="inline-flex h-11 items-center justify-center gap-2 rounded-2xl border border-emerald-400/20 bg-emerald-500/10 px-4 text-sm font-semibold text-emerald-100 transition hover:bg-emerald-500/15 disabled:cursor-not-allowed disabled:opacity-50"
-                  >
-                    {isConfirmingReceipt ? (
-                      <Loader2 className="h-4 w-4 animate-spin" />
-                    ) : (
-                      <CheckCircle2 className="h-4 w-4" />
-                    )}
-                    Confirm Received
-                  </button>
+              <div className="aixia-action-row">
+                <AixiaButton
+                  type="button"
+                  variant="primary"
+                  disabled={isConfirmingReceipt || !canSubmitRecipientConfirmation}
+                  onClick={() => void confirmReceived("received_confirmed")}
+                >
+                  {isConfirmingReceipt ? (
+                    <Loader2 className="h-4 w-4 animate-spin" />
+                  ) : (
+                    <CheckCircle2 className="h-4 w-4" />
+                  )}
+                  Confirm Received
+                </AixiaButton>
 
-                  <button
-                    type="button"
-                    disabled={isConfirmingReceipt || !canSubmitRecipientConfirmation}
-                    onClick={() => void confirmReceived("not_received")}
-                    className="inline-flex h-11 items-center justify-center gap-2 rounded-2xl border border-amber-400/20 bg-amber-500/10 px-4 text-sm font-semibold text-amber-100 transition hover:bg-amber-500/15 disabled:cursor-not-allowed disabled:opacity-50"
-                  >
-                    <AlertTriangle className="h-4 w-4" />
-                    Not Received
-                  </button>
+                <AixiaButton
+                  type="button"
+                  variant="secondary"
+                  disabled={isConfirmingReceipt || !canSubmitRecipientConfirmation}
+                  onClick={() => void confirmReceived("not_received")}
+                >
+                  <AlertTriangle className="h-4 w-4" />
+                  Not Received
+                </AixiaButton>
 
-                  <button
-                    type="button"
-                    disabled={isConfirmingReceipt || !canSubmitRecipientConfirmation}
-                    onClick={() => void confirmReceived("disputed")}
-                    className="inline-flex h-11 items-center justify-center gap-2 rounded-2xl border border-rose-400/20 bg-rose-500/10 px-4 text-sm font-semibold text-rose-100 transition hover:bg-rose-500/15 disabled:cursor-not-allowed disabled:opacity-50"
-                  >
-                    <XCircle className="h-4 w-4" />
-                    Dispute
-                  </button>
-                </div>
-
-                <div className="rounded-[24px] border border-white/10 bg-black/20 p-4 text-xs leading-5 text-slate-500">
-                  Confirmation actions are disabled until Finance creates a confirmed Payment Made
-                  allocation and the recipient status becomes pending confirmation.
-                </div>
+                <AixiaButton
+                  type="button"
+                  variant="danger"
+                  disabled={isConfirmingReceipt || !canSubmitRecipientConfirmation}
+                  onClick={() => void confirmReceived("disputed")}
+                >
+                  <XCircle className="h-4 w-4" />
+                  Dispute
+                </AixiaButton>
               </div>
-            </SectionCard>
-          </aside>
-        </div>
-      </div>
-    </div>
+
+              <AixiaAlert tone="info">
+                Confirmation actions are disabled until Finance creates a confirmed
+                Payment Made allocation and the recipient status becomes pending
+                confirmation.
+              </AixiaAlert>
+            </AixiaSection>
+          </>
+        }
+      />
+    </AixiaPage>
   );
 }

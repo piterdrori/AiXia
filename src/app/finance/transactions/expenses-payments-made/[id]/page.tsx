@@ -432,7 +432,6 @@ const ALLOCATION_EXPENSE_REFERENCE_FIELD = ["expense", "number"].join("_");
 const ALLOCATION_EXPENSE_SOURCE_FIELD = ["expense", "source", "name"].join("_");
 const ALLOCATION_EXPENSE_TYPE_FIELD = ["expense", "type"].join("_");
 const ALLOCATION_EXPENSE_DATE_FIELD = ["expense", "date"].join("_");
-const ALLOCATION_EXPENSE_MADE_BY_FIELD = ["expense", "made", "by", "type"].join("_");
 const ALLOCATION_RESPONSIBLE_PERSON_FIELD = ["responsible", "person", "name"].join("_");
 const ALLOCATION_OTHER_MADE_BY_FIELD = ["other", "made", "by", "explanation"].join("_");
 

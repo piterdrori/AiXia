@@ -1,10 +1,9 @@
+"use client";
+
 import { useCallback, useEffect, useMemo, useState } from "react";
-import type { ReactNode } from "react";
-import type { LucideIcon } from "lucide-react";
 import { useNavigate, useParams } from "react-router-dom";
 import {
   AlertTriangle,
-  ArrowRight,
   Banknote,
   CheckCircle2,
   Clock3,
@@ -13,12 +12,32 @@ import {
   Loader2,
   Receipt,
   ShieldCheck,
-  Sparkles,
   UploadCloud,
   UserRound,
   WalletCards,
 } from "lucide-react";
 
+import {
+  AixiaActionCard,
+  AixiaAlert,
+  AixiaBadge,
+  AixiaButton,
+  AixiaEmptyState,
+  AixiaHero,
+  AixiaLoadingState,
+  AixiaMetricCard,
+  AixiaMetricGrid,
+  AixiaPage,
+  AixiaReviewGrid,
+  AixiaSection,
+  AixiaSmartLayout,
+  AixiaStatusBadge,
+  AixiaTableBadgeCell,
+  AixiaTableDateCell,
+  AixiaTableShell,
+  AixiaTableTextCell,
+  AixiaValueBlock,
+} from "@/components/aixia";
 import { supabase } from "@/lib/supabase";
 
 type PaymentMetadata = {
@@ -241,41 +260,6 @@ type EnrichedAllocation = AllocationRow & {
 
 type RunningAction = "confirm_payment";
 
-const statusToneMap: Record<
-  string,
-  "cyan" | "emerald" | "amber" | "rose" | "violet" | "slate"
-> = {
-  draft: "slate",
-  confirmed: "emerald",
-  cancelled: "rose",
-  archived: "amber",
-  deleted: "rose",
-  operating_expense: "cyan",
-  reimbursement: "emerald",
-  manual: "slate",
-  vendor_bill: "violet",
-  not_required: "slate",
-  pending_confirmation: "amber",
-  received_confirmed: "emerald",
-  not_received: "rose",
-  disputed: "rose",
-  admin_closed: "violet",
-  verified_for_payment: "emerald",
-  approved_for_payment: "emerald",
-  verified: "emerald",
-  uploaded: "cyan",
-  linked: "cyan",
-  files_and_links: "cyan",
-  missing: "rose",
-  issue_found: "rose",
-  not_allocated: "slate",
-  partially_allocated: "amber",
-  allocated: "emerald",
-  not_covered: "slate",
-  partially_covered: "amber",
-  covered: "emerald",
-};
-
 function toNumber(value: number | string | null | undefined) {
   const parsed = Number(value ?? 0);
   return Number.isFinite(parsed) ? parsed : 0;
@@ -356,146 +340,6 @@ function getMetadataString(
   return typeof value === "string" ? value : "";
 }
 
-function getStatusToneClasses(value: string | null | undefined) {
-  const tone = statusToneMap[value ?? ""] ?? "slate";
-
-  switch (tone) {
-    case "emerald":
-      return "border-emerald-400/20 bg-emerald-500/10 text-emerald-200";
-    case "amber":
-      return "border-amber-400/20 bg-amber-500/10 text-amber-200";
-    case "rose":
-      return "border-rose-400/20 bg-rose-500/10 text-rose-200";
-    case "violet":
-      return "border-violet-400/20 bg-violet-500/10 text-violet-200";
-    case "cyan":
-      return "border-cyan-400/20 bg-cyan-500/10 text-cyan-200";
-    case "slate":
-    default:
-      return "border-white/10 bg-white/[0.06] text-slate-300";
-  }
-}
-
-function StatusBadge({ value }: { value: string | null | undefined }) {
-  return (
-    <span
-      className={`inline-flex max-w-full items-center rounded-full border px-3 py-1 text-[11px] font-semibold uppercase tracking-[0.14em] ${getStatusToneClasses(
-        value
-      )}`}
-    >
-      <span className="truncate">{formatLabel(value)}</span>
-    </span>
-  );
-}
-
-function SummaryBlock({
-  title,
-  value,
-  subtitle,
-  icon: Icon,
-}: {
-  title: string;
-  value: string;
-  subtitle: string;
-  icon: LucideIcon;
-}) {
-  return (
-    <div className="min-h-[148px] rounded-[24px] border border-white/10 bg-black/20 p-4">
-      <div className="flex items-start justify-between gap-3">
-        <div>
-          <div className="text-[11px] font-semibold uppercase tracking-[0.2em] text-slate-500">
-            {title}
-          </div>
-          <div className="mt-2 text-xl font-semibold text-white">{value}</div>
-        </div>
-        <Icon className="h-5 w-5 text-cyan-200" />
-      </div>
-      <div className="mt-3 text-xs leading-5 text-slate-500">{subtitle}</div>
-    </div>
-  );
-}
-
-function ValueBlock({
-  label,
-  value,
-  detail,
-}: {
-  label: string;
-  value: ReactNode;
-  detail?: ReactNode;
-}) {
-  return (
-    <div className="rounded-[24px] border border-white/10 bg-black/20 p-4">
-      <div className="text-[11px] font-semibold uppercase tracking-[0.2em] text-slate-500">
-        {label}
-      </div>
-      <div className="mt-2 text-sm font-semibold leading-6 text-white">{value}</div>
-      {detail ? <div className="mt-2 text-xs leading-5 text-slate-500">{detail}</div> : null}
-    </div>
-  );
-}
-
-function SectionCard({
-  title,
-  description,
-  icon: Icon,
-  children,
-}: {
-  title: string;
-  description: string;
-  icon: LucideIcon;
-  children: ReactNode;
-}) {
-  return (
-    <section className="overflow-hidden rounded-[30px] border border-white/10 bg-white/[0.045] backdrop-blur-xl">
-      <div className="flex items-start gap-4 border-b border-white/10 px-5 py-4">
-        <div className="rounded-2xl border border-cyan-400/15 bg-cyan-500/10 p-3 text-cyan-200">
-          <Icon className="h-4 w-4" />
-        </div>
-        <div>
-          <div className="text-sm font-semibold uppercase tracking-[0.18em] text-slate-400">
-            {title}
-          </div>
-          <p className="mt-1 text-xs leading-5 text-slate-500">{description}</p>
-        </div>
-      </div>
-      <div className="p-5">{children}</div>
-    </section>
-  );
-}
-
-function ActionButton({
-  label,
-  loadingLabel,
-  icon: Icon,
-  disabled,
-  isRunning,
-  onClick,
-}: {
-  label: string;
-  loadingLabel: string;
-  icon: LucideIcon;
-  disabled?: boolean;
-  isRunning?: boolean;
-  onClick: () => void;
-}) {
-  return (
-    <button
-      type="button"
-      disabled={disabled || isRunning}
-      onClick={onClick}
-      className="inline-flex h-12 items-center justify-center gap-2 rounded-2xl border border-emerald-400/20 bg-emerald-500/10 px-5 text-sm font-semibold text-emerald-100 transition hover:bg-emerald-500/15 disabled:cursor-not-allowed disabled:opacity-50"
-    >
-      {isRunning ? (
-        <Loader2 className="h-4 w-4 animate-spin" />
-      ) : (
-        <Icon className="h-4 w-4" />
-      )}
-      {isRunning ? loadingLabel : label}
-    </button>
-  );
-}
-
 function getBankLabel(bank: BankAccountRow | null | undefined) {
   if (!bank) return "—";
 
@@ -521,6 +365,22 @@ function getExpenseCurrency(expense: ExpenseRow | null, fallback: string) {
   return normalizeCurrencyCode(expense?.currency_code || fallback);
 }
 
+function getPaymentTitle(payment: PaymentMadeRow | null) {
+  return payment?.reference_number || "Expense Payment Distribution";
+}
+
+function getFundingPoolNumber(
+  payment: PaymentMadeRow | null,
+  fundingPool: FundingPoolRow | null
+) {
+  return (
+    payment?.metadata?.funding_pool_number ||
+    payment?.metadata?.funding_batch_number ||
+    fundingPool?.batch_number ||
+    "Not linked"
+  );
+}
+
 export default function FinanceExpensesPaymentsMadeDetailPage() {
   const navigate = useNavigate();
   const params = useParams();
@@ -533,6 +393,7 @@ export default function FinanceExpensesPaymentsMadeDetailPage() {
   const [bankAccounts, setBankAccounts] = useState<BankAccountRow[]>([]);
   const [employees, setEmployees] = useState<EmployeeRefRow[]>([]);
   const [fundingPool, setFundingPool] = useState<FundingPoolRow | null>(null);
+
   const [isLoading, setIsLoading] = useState(true);
   const [hasLoadedOnce, setHasLoadedOnce] = useState(false);
   const [isRefreshing, setIsRefreshing] = useState(false);
@@ -594,11 +455,17 @@ export default function FinanceExpensesPaymentsMadeDetailPage() {
     payment?.payment_date;
 
   const paymentToFundingConversionSource =
-    payment?.metadata?.payment_to_funding_conversion_source || payment?.exchange_rate_source || "";
+    payment?.metadata?.payment_to_funding_conversion_source ||
+    payment?.exchange_rate_source ||
+    "";
 
   const proofMetadata = payment?.metadata?.payment_proof || null;
+
   const isArchivedOrDeleted =
-    payment?.status === "archived" || payment?.status === "deleted" || payment?.status === "cancelled";
+    payment?.status === "archived" ||
+    payment?.status === "deleted" ||
+    payment?.status === "cancelled";
+
   const canConfirmPayment = payment?.status === "draft" && !isArchivedOrDeleted;
   const actionLocked = Boolean(runningAction);
 
@@ -715,7 +582,9 @@ export default function FinanceExpensesPaymentsMadeDetailPage() {
         setIsRefreshing(true);
       }
 
-      setPageError(null);
+      if (mode === "initial") {
+        setPageError(null);
+      }
 
       try {
         const paymentResult = await supabase
@@ -841,16 +710,11 @@ export default function FinanceExpensesPaymentsMadeDetailPage() {
         const loadedAllocations =
           (allocationsResult.data || []) as unknown as AllocationRow[];
 
-        setPayment(loadedPayment);
-        setAllocations(loadedAllocations);
-        setCompanies((companiesResult.data || []) as CompanyRow[]);
-        setBankAccounts((bankAccountsResult.data || []) as BankAccountRow[]);
-        setEmployees((employeesResult.data || []) as EmployeeRefRow[]);
-        setFundingPool((fundingPoolResult.data || null) as FundingPoolRow | null);
-
         const expenseIds = Array.from(
           new Set(loadedAllocations.map((allocation) => allocation.expense_id))
         );
+
+        let loadedExpenses: ExpenseRow[] = [];
 
         if (expenseIds.length > 0) {
           const expensesResult = await supabase
@@ -888,18 +752,31 @@ export default function FinanceExpensesPaymentsMadeDetailPage() {
 
           if (expensesResult.error) throw expensesResult.error;
 
-          setExpenses((expensesResult.data || []) as unknown as ExpenseRow[]);
-        } else {
-          setExpenses([]);
+          loadedExpenses = (expensesResult.data || []) as unknown as ExpenseRow[];
         }
 
+        setPayment(loadedPayment);
+        setAllocations(loadedAllocations);
+        setCompanies((companiesResult.data || []) as CompanyRow[]);
+        setBankAccounts((bankAccountsResult.data || []) as BankAccountRow[]);
+        setEmployees((employeesResult.data || []) as EmployeeRefRow[]);
+        setFundingPool((fundingPoolResult.data || null) as FundingPoolRow | null);
+        setExpenses(loadedExpenses);
         setHasLoadedOnce(true);
       } catch (error) {
-        console.error("Failed to load expense payment distribution detail:", error);
-        setPageError(
-          error instanceof Error ? error.message : "Failed to load payment distribution detail."
+        console.error(
+          "Failed to load expense payment distribution detail:",
+          error
         );
-        if (!hasLoadedOnce) setPayment(null);
+
+        if (mode === "initial" || !hasLoadedOnce) {
+          setPayment(null);
+          setPageError(
+            error instanceof Error
+              ? error.message
+              : "Failed to load payment distribution detail."
+          );
+        }
       } finally {
         setIsLoading(false);
         setIsRefreshing(false);
@@ -945,7 +822,7 @@ export default function FinanceExpensesPaymentsMadeDetailPage() {
 
     return () => {
       window.clearInterval(intervalId);
-      supabase.removeChannel(channel);
+      void supabase.removeChannel(channel);
     };
   }, [loadPayment, paymentId]);
 
@@ -979,42 +856,35 @@ export default function FinanceExpensesPaymentsMadeDetailPage() {
 
   if (isLoading) {
     return (
-      <div className="min-h-screen bg-[#05070d] px-4 py-4 text-white md:px-6 md:py-6">
-        <div className="mx-auto flex w-full max-w-[1600px] flex-col gap-6">
-          <div className="rounded-[34px] border border-white/10 bg-white/[0.045] p-12 text-center backdrop-blur-xl">
-            <Loader2 className="mx-auto h-8 w-8 animate-spin text-cyan-200" />
-            <div className="mt-4 text-sm text-slate-400">
-              Loading expense payment distribution...
-            </div>
-          </div>
-        </div>
-      </div>
+      <AixiaLoadingState
+        title="Loading expense payment distribution"
+        description="Payment record, funding pool, allocation lines, linked expenses, bank accounts, companies, and recipient data are being loaded."
+      />
     );
   }
 
   if (!payment) {
     return (
-      <div className="min-h-screen bg-[#05070d] px-4 py-4 text-white md:px-6 md:py-6">
-        <div className="mx-auto flex w-full max-w-[1600px] flex-col gap-6">
-          <div className="rounded-[34px] border border-rose-400/20 bg-rose-500/10 p-12 text-center">
-            <AlertTriangle className="mx-auto h-8 w-8 text-rose-200" />
-            <div className="mt-4 text-lg font-semibold text-white">
-              Expense payment distribution not found
-            </div>
-            <div className="mt-2 text-sm text-rose-100">
-              {pageError || "The requested expense payment distribution could not be loaded."}
-            </div>
-            <button
-              type="button"
-              onClick={() => navigate("/finance/transactions/expenses-payments-made")}
-              className="mt-6 inline-flex h-11 items-center justify-center gap-2 rounded-2xl border border-white/10 bg-white/[0.05] px-5 text-sm font-semibold text-white transition hover:bg-white/[0.08]"
-            >
-              <ArrowRight className="h-4 w-4 rotate-180" />
-              Payment Control
-            </button>
-          </div>
+      <AixiaPage>
+        <AixiaEmptyState
+          icon={AlertTriangle}
+          title="Expense payment distribution not found"
+          description={
+            pageError ||
+            "The requested expense payment distribution could not be loaded."
+          }
+        />
+
+        <div className="aixia-action-row">
+          <AixiaButton
+            type="button"
+            variant="primary"
+            onClick={() => navigate("/finance/transactions/expenses-payments-made")}
+          >
+            Payment Control
+          </AixiaButton>
         </div>
-      </div>
+      </AixiaPage>
     );
   }
 
@@ -1026,152 +896,189 @@ export default function FinanceExpensesPaymentsMadeDetailPage() {
     ? bankAccountMap.get(payment.paid_from_bank_account_id)
     : null;
 
-  const fundingPoolNumber =
-    payment.metadata?.funding_pool_number ||
-    payment.metadata?.funding_batch_number ||
-    fundingPool?.batch_number ||
-    "Not linked";
+  const fundingPoolNumber = getFundingPoolNumber(payment, fundingPool);
 
-  const fundingPeriodFrom = getMetadataString(fundingPool?.metadata, "funding_period_from");
-  const fundingPeriodTo = getMetadataString(fundingPool?.metadata, "funding_period_to");
+  const fundingPeriodFrom = getMetadataString(
+    fundingPool?.metadata,
+    "funding_period_from"
+  );
+  const fundingPeriodTo = getMetadataString(
+    fundingPool?.metadata,
+    "funding_period_to"
+  );
   const fundingPeriodLabel =
     fundingPeriodFrom && fundingPeriodTo
       ? `${formatDate(fundingPeriodFrom)} → ${formatDate(fundingPeriodTo)}`
       : "Not saved";
 
   return (
-    <div className="min-h-screen bg-[#05070d] px-4 py-4 text-white md:px-6 md:py-6">
-      <div className="mx-auto flex w-full max-w-[1600px] flex-col gap-6">
-        <header className="relative overflow-hidden rounded-[34px] border border-white/10 bg-white/[0.045] p-6 shadow-2xl shadow-black/30 backdrop-blur-xl">
-          <div className="pointer-events-none absolute inset-0 bg-[radial-gradient(circle_at_top_left,rgba(6,182,212,0.16),transparent_38%),radial-gradient(circle_at_top_right,rgba(139,92,246,0.12),transparent_34%)]" />
+    <AixiaPage>
+      <AixiaHero
+        parentLabel="Payment Control"
+        parentPath="/finance/transactions/expenses-payments-made"
+        badges={[
+          { label: "Expense Payment Distribution", tone: "cyan" },
+          {
+            label: formatLabel(payment.status),
+            tone: payment.status === "confirmed" ? "emerald" : "neutral",
+          },
+          {
+            label: formatLabel(payment.payment_source_type),
+            tone: "violet",
+          },
+          {
+            label: isRefreshing ? "Silent Refresh" : "Realtime + 60s",
+            tone: isRefreshing ? "gold" : "neutral",
+          },
+        ]}
+        gradientTitle="EXPENSE PAYMENT DISTRIBUTION"
+        title=""
+        subtitle={getPaymentTitle(payment)}
+        description="This page shows how a confirmed Funding Pool was distributed across verified operating expenses, including payment-date currency conversion and recipient confirmation status."
+        statusCards={[
+          {
+            label: "Payment Amount",
+            value: `${paymentCurrency} ${formatMoney(paymentCurrencyAmount)}`,
+            description: "Amount entered in the payment currency.",
+            icon: WalletCards,
+            tone: "cyan",
+          },
+          {
+            label: "Funding Used",
+            value: `${fundingCurrency} ${formatMoney(
+              fundingCurrencyUsedForPayment
+            )}`,
+            description: "Payment converted into Funding Pool currency.",
+            icon: Banknote,
+            tone: "violet",
+          },
+          {
+            label: "Remaining After",
+            value: `${fundingCurrency} ${formatMoney(
+              fundingCurrencyRemainingAfterPayment
+            )}`,
+            description: "Funding Pool balance after this distribution.",
+            icon: ShieldCheck,
+            tone: "emerald",
+          },
+          {
+            label: "Linked Expenses",
+            value: String(allocations.length),
+            description: "Expense allocation lines connected to this distribution.",
+            icon: Receipt,
+            tone: "gold",
+          },
+        ]}
+      />
 
-          <div className="relative">
-            <button
-              type="button"
-              onClick={() => navigate("/finance/transactions/expenses-payments-made")}
-              className="mb-5 inline-flex items-center justify-center gap-2 rounded-full border border-white/10 bg-white/[0.05] px-5 py-2 text-[11px] font-semibold uppercase tracking-[0.22em] text-slate-300 transition hover:border-white/20 hover:bg-white/[0.08] hover:text-white"
-            >
-              <ArrowRight className="h-3.5 w-3.5 rotate-180" />
-              Payment Control
-            </button>
+      {pageError ? <AixiaAlert tone="error">{pageError}</AixiaAlert> : null}
+      {pageMessage ? <AixiaAlert tone="success">{pageMessage}</AixiaAlert> : null}
 
-            <div className="grid gap-6 xl:grid-cols-[minmax(0,1fr)_520px] xl:items-end">
-              <div>
-                <div className="inline-flex w-fit items-center gap-2 rounded-full border border-cyan-400/20 bg-cyan-500/10 px-3 py-1 text-[11px] font-semibold uppercase tracking-[0.22em] text-cyan-200">
-                  <Sparkles className="h-3.5 w-3.5" />
-                  Expense Payment Distribution
-                </div>
+      <AixiaMetricGrid>
+        <AixiaMetricCard
+          label="Payment Currency"
+          value={`${paymentCurrency} ${formatMoney(paymentCurrencyAmount)}`}
+          description="Original payment amount."
+          icon={WalletCards}
+          tone="cyan"
+        />
 
-                <h1 className="mt-4 text-3xl font-semibold tracking-[-0.035em] text-white md:text-5xl">
-                  {payment.reference_number || "Expense Payment Distribution"}
-                </h1>
+        <AixiaMetricCard
+          label="Funding Currency"
+          value={`${fundingCurrency} ${formatMoney(
+            fundingCurrencyUsedForPayment
+          )}`}
+          description="Funding pool amount consumed."
+          icon={Banknote}
+          tone="violet"
+        />
 
-                <p className="mt-3 max-w-4xl text-sm leading-6 text-slate-400 md:text-base md:leading-7">
-                  This page shows how a confirmed Funding Pool was distributed across verified
-                  operating expenses, including payment-date currency conversion and recipient
-                  confirmation status.
-                </p>
+        <AixiaMetricCard
+          label="Allocation Total"
+          value={`${paymentCurrency} ${formatMoney(totalPaymentCurrencyAllocated)}`}
+          description="Sum of allocation lines in payment currency."
+          icon={Receipt}
+          tone="emerald"
+        />
 
-                <div className="mt-5 flex flex-wrap gap-2">
-                  <StatusBadge value={payment.status} />
-                  <StatusBadge value={payment.payment_source_type} />
-                  <StatusBadge value={payment.recipient_confirmation_status} />
-                  {isRefreshing ? (
-                    <span className="inline-flex rounded-full border border-white/10 bg-white/[0.06] px-3 py-1 text-[11px] font-semibold uppercase tracking-[0.14em] text-slate-300">
-                      Silent Refresh
-                    </span>
-                  ) : null}
-                </div>
-              </div>
+        <AixiaMetricCard
+          label="Recipient"
+          value={formatLabel(payment.recipient_confirmation_status)}
+          description="Overall recipient confirmation state."
+          icon={UserRound}
+          tone={
+            payment.recipient_confirmation_status === "received_confirmed"
+              ? "emerald"
+              : "gold"
+          }
+        />
+      </AixiaMetricGrid>
 
-              <div className="grid gap-3 sm:grid-cols-2">
-                <SummaryBlock
-                  title="Payment Amount"
-                  value={`${paymentCurrency} ${formatMoney(paymentCurrencyAmount)}`}
-                  subtitle="Amount entered in the payment currency."
-                  icon={WalletCards}
-                />
-                <SummaryBlock
-                  title="Funding Used"
-                  value={`${fundingCurrency} ${formatMoney(fundingCurrencyUsedForPayment)}`}
-                  subtitle="Payment converted into Funding Pool currency."
-                  icon={Banknote}
-                />
-                <SummaryBlock
-                  title="Remaining After"
-                  value={`${fundingCurrency} ${formatMoney(fundingCurrencyRemainingAfterPayment)}`}
-                  subtitle="Funding Pool balance after this distribution."
-                  icon={ShieldCheck}
-                />
-                <SummaryBlock
-                  title="Linked Expenses"
-                  value={String(allocations.length)}
-                  subtitle="Expense allocation lines connected to this distribution."
-                  icon={Receipt}
-                />
-              </div>
-            </div>
-          </div>
-        </header>
-
-        {pageError ? (
-          <div className="rounded-[24px] border border-rose-400/20 bg-rose-500/10 p-4 text-sm leading-6 text-rose-100">
-            {pageError}
-          </div>
-        ) : null}
-
-        {pageMessage ? (
-          <div className="rounded-[24px] border border-emerald-400/20 bg-emerald-500/10 p-4 text-sm leading-6 text-emerald-100">
-            {pageMessage}
-          </div>
-        ) : null}
-
-        <div className="grid items-start gap-6 xl:grid-cols-[minmax(0,1fr)_430px]">
-          <div className="grid gap-6">
-            <SectionCard
+      <AixiaSmartLayout
+        sidebar="normal"
+        balance="main"
+        bottomSpan="never"
+        sideRebalance="last-to-bottom"
+        main={
+          <>
+            <AixiaSection
               title="Distribution Overview"
               description="Payment identity, source Funding Pool, and confirmation state."
               icon={WalletCards}
             >
-              <div className="grid gap-4 md:grid-cols-2">
-                <ValueBlock label="Reference Number" value={payment.reference_number || "—"} />
-                <ValueBlock label="Payment Date" value={formatDate(payment.payment_date)} />
-                <ValueBlock
+              <AixiaReviewGrid variant="cards">
+                <AixiaValueBlock
+                  label="Reference Number"
+                  value={payment.reference_number || "—"}
+                />
+                <AixiaValueBlock
+                  label="Payment Date"
+                  value={formatDate(payment.payment_date)}
+                />
+                <AixiaValueBlock
                   label="Distribution Status"
-                  value={<StatusBadge value={payment.status} />}
+                  value={<AixiaStatusBadge value={payment.status} />}
                 />
-                <ValueBlock
+                <AixiaValueBlock
                   label="Payment Source"
-                  value={<StatusBadge value={payment.payment_source_type} />}
+                  value={<AixiaStatusBadge value={payment.payment_source_type} />}
                 />
-                <ValueBlock
+                <AixiaValueBlock
                   label="Funding Company"
-                  value={fundingCompany?.name || payment.metadata?.funding_company_name || "—"}
+                  value={
+                    fundingCompany?.name ||
+                    payment.metadata?.funding_company_name ||
+                    "—"
+                  }
                 />
-                <ValueBlock
+                <AixiaValueBlock
                   label="Paid From Bank"
                   value={getBankLabel(paidFromBank)}
                   detail={payment.metadata?.paid_from_bank_label || undefined}
                 />
-                <ValueBlock
+                <AixiaValueBlock
                   label="Recipient Confirmation"
-                  value={<StatusBadge value={payment.recipient_confirmation_status} />}
+                  value={
+                    <AixiaStatusBadge
+                      value={payment.recipient_confirmation_status}
+                    />
+                  }
                   detail={
                     payment.recipient_confirmed_at
                       ? `Confirmed ${formatDateTime(payment.recipient_confirmed_at)}`
                       : "Recipient confirmation closes the distribution loop."
                   }
                 />
-                <ValueBlock
+                <AixiaValueBlock
                   label="Recipient"
                   value={payment.recipient_person_name || "Multiple recipients"}
                 />
-                <ValueBlock
+                <AixiaValueBlock
                   label="Created"
                   value={formatDateTime(payment.created_at)}
                   detail={`Updated ${formatDateTime(payment.updated_at)}`}
                 />
-                <ValueBlock
+                <AixiaValueBlock
                   label="Posted To Ledger"
                   value={payment.posted_to_ledger ? "Yes" : "No"}
                   detail={
@@ -1181,100 +1088,118 @@ export default function FinanceExpensesPaymentsMadeDetailPage() {
                   }
                 />
                 {payment.notes ? (
-                  <div className="md:col-span-2">
-                    <ValueBlock label="Notes" value={payment.notes} />
-                  </div>
+                  <AixiaValueBlock label="Notes" value={payment.notes} />
                 ) : null}
-              </div>
-            </SectionCard>
+              </AixiaReviewGrid>
+            </AixiaSection>
 
-            <SectionCard
+            <AixiaSection
               title="Funding Pool Source"
               description="Reserved funding source used by this distribution. This is not an expense approval step."
               icon={Banknote}
             >
-              {fundingPool || payment.metadata?.funding_pool_id || payment.metadata?.funding_batch_id ? (
-                <div className="grid gap-4 md:grid-cols-2">
-                  <ValueBlock label="Funding Pool" value={fundingPoolNumber} />
-                  <ValueBlock
+              {fundingPool ||
+              payment.metadata?.funding_pool_id ||
+              payment.metadata?.funding_batch_id ? (
+                <AixiaReviewGrid variant="cards">
+                  <AixiaValueBlock label="Funding Pool" value={fundingPoolNumber} />
+                  <AixiaValueBlock
                     label="Funding Period"
                     value={fundingPeriodLabel}
                     detail="Stored on the Funding Pool metadata when available."
                   />
-                  <ValueBlock
+                  <AixiaValueBlock
                     label="Pool Status"
-                    value={<StatusBadge value={fundingPool?.status || "allocated"} />}
+                    value={
+                      <AixiaStatusBadge value={fundingPool?.status || "allocated"} />
+                    }
                   />
-                  <ValueBlock
+                  <AixiaValueBlock
                     label="Pool Documentation"
-                    value={<StatusBadge value={fundingPool?.documentation_status || "verified"} />}
+                    value={
+                      <AixiaStatusBadge
+                        value={fundingPool?.documentation_status || "verified"}
+                      />
+                    }
                   />
-                  <ValueBlock
+                  <AixiaValueBlock
                     label="Pool Total"
                     value={`${fundingCurrency} ${formatMoney(fundingPoolTotal)}`}
                   />
-                  <ValueBlock
+                  <AixiaValueBlock
                     label="Available Before This Payment"
                     value={`${fundingCurrency} ${formatMoney(
                       fundingCurrencyAvailableBeforePayment
                     )}`}
                   />
-                  <ValueBlock
+                  <AixiaValueBlock
                     label="Used By This Payment"
-                    value={`${fundingCurrency} ${formatMoney(fundingCurrencyUsedForPayment)}`}
+                    value={`${fundingCurrency} ${formatMoney(
+                      fundingCurrencyUsedForPayment
+                    )}`}
                     detail={
                       paymentToFundingExchangeRate > 0
-                        ? `Rate ${formatMoney(paymentToFundingExchangeRate)} • ${paymentToFundingConversionSource || "conversion"} • ${formatDate(paymentToFundingConversionDate)}`
-                        : `Same currency or rate not stored • ${formatDate(paymentToFundingConversionDate)}`
+                        ? `Rate ${formatMoney(
+                            paymentToFundingExchangeRate
+                          )} • ${
+                            paymentToFundingConversionSource || "conversion"
+                          } • ${formatDate(paymentToFundingConversionDate)}`
+                        : `Same currency or rate not stored • ${formatDate(
+                            paymentToFundingConversionDate
+                          )}`
                     }
                   />
-                  <ValueBlock
+                  <AixiaValueBlock
                     label="Remaining After This Payment"
                     value={`${fundingCurrency} ${formatMoney(
                       fundingCurrencyRemainingAfterPayment
                     )}`}
                   />
                   {fundingPool?.notes ? (
-                    <div className="md:col-span-2">
-                      <ValueBlock label="Funding Pool Notes" value={fundingPool.notes} />
-                    </div>
+                    <AixiaValueBlock
+                      label="Funding Pool Notes"
+                      value={fundingPool.notes}
+                    />
                   ) : null}
-                </div>
+                </AixiaReviewGrid>
               ) : (
-                <div className="rounded-[24px] border border-dashed border-white/10 bg-black/20 px-6 py-12 text-center">
-                  <Banknote className="mx-auto h-8 w-8 text-slate-500" />
-                  <div className="mt-4 text-sm font-semibold text-white">
-                    No Funding Pool linked
-                  </div>
-                  <div className="mt-2 text-sm leading-6 text-slate-500">
-                    This distribution does not have a linked Funding Pool record or metadata.
-                  </div>
-                </div>
+                <AixiaEmptyState
+                  icon={Banknote}
+                  title="No Funding Pool linked"
+                  description="This distribution does not have a linked Funding Pool record or metadata."
+                />
               )}
-            </SectionCard>
+            </AixiaSection>
 
-            <SectionCard
+                        <AixiaSection
               title="Currency Conversion Summary"
               description="How payment currency was converted into Funding Pool currency and expense currencies."
               icon={FileCheck2}
             >
-              <div className="grid gap-4 md:grid-cols-2">
-                <ValueBlock
+              <AixiaReviewGrid variant="cards">
+                <AixiaValueBlock
                   label="Payment Currency Amount"
                   value={`${paymentCurrency} ${formatMoney(paymentCurrencyAmount)}`}
                   detail="The amount entered when the distribution was created."
                 />
-                <ValueBlock
+
+                <AixiaValueBlock
                   label="Allocation Lines Total"
-                  value={`${paymentCurrency} ${formatMoney(totalPaymentCurrencyAllocated)}`}
+                  value={`${paymentCurrency} ${formatMoney(
+                    totalPaymentCurrencyAllocated
+                  )}`}
                   detail="Sum of linked allocation lines in payment currency."
                 />
-                <ValueBlock
+
+                <AixiaValueBlock
                   label="Funding Pool Currency Used"
-                  value={`${fundingCurrency} ${formatMoney(fundingCurrencyUsedForPayment)}`}
+                  value={`${fundingCurrency} ${formatMoney(
+                    fundingCurrencyUsedForPayment
+                  )}`}
                   detail="Converted from payment currency using the payment date."
                 />
-                <ValueBlock
+
+                <AixiaValueBlock
                   label="Payment → Funding Rate"
                   value={
                     paymentToFundingExchangeRate > 0
@@ -1282,325 +1207,343 @@ export default function FinanceExpensesPaymentsMadeDetailPage() {
                       : "Same currency / not stored"
                   }
                 />
-                <ValueBlock
+
+                <AixiaValueBlock
                   label="Conversion Date"
                   value={formatDate(paymentToFundingConversionDate)}
-                  detail={paymentToFundingConversionSource || "Payment-date conversion context"}
+                  detail={
+                    paymentToFundingConversionSource ||
+                    "Payment-date conversion context"
+                  }
                 />
-                <ValueBlock
+
+                <AixiaValueBlock
                   label="Expense Coverage Basis"
-                  value={payment.metadata?.accounting_amount_basis || "expense_currency_coverage"}
+                  value={
+                    payment.metadata?.accounting_amount_basis ||
+                    "expense_currency_coverage"
+                  }
                   detail="Each line stores coverage in the expense currency."
                 />
-                <ValueBlock
+
+                <AixiaValueBlock
                   label="Expense Currency Coverage Total"
-                  value={formatMoney(payment.metadata?.expense_currency_coverage_total || payment.amount)}
+                  value={formatMoney(
+                    payment.metadata?.expense_currency_coverage_total ||
+                      payment.amount
+                  )}
                   detail="Combined coverage preview across selected expense currencies."
                 />
-              </div>
-            </SectionCard>
+              </AixiaReviewGrid>
+            </AixiaSection>
 
-            <SectionCard
+            <AixiaSection
               title="Linked Expense Allocations"
               description="Each line shows the expense covered, payment currency amount, expense currency coverage, and recipient status."
               icon={Receipt}
             >
               {enrichedAllocations.length === 0 ? (
-                <div className="rounded-[24px] border border-dashed border-white/10 bg-black/20 px-6 py-12 text-center">
-                  <Receipt className="mx-auto h-8 w-8 text-slate-500" />
-                  <div className="mt-4 text-sm font-semibold text-white">
-                    No linked expenses
-                  </div>
-                  <div className="mt-2 text-sm leading-6 text-slate-500">
-                    Expense allocation lines will appear here.
-                  </div>
-                </div>
+                <AixiaEmptyState
+                  icon={Receipt}
+                  title="No linked expenses"
+                  description="Expense allocation lines will appear here."
+                />
               ) : (
-                <div className="overflow-x-auto rounded-[24px] border border-white/10 bg-black/20">
-                  <div className="max-h-[720px] overflow-y-auto">
-                    <table className="w-full min-w-[1780px] border-collapse">
-                      <thead className="sticky top-0 z-20 border-b border-white/10 bg-black/70 backdrop-blur-xl">
-                        <tr>
-                          <th className="px-5 py-4 text-left text-[11px] font-semibold uppercase tracking-[0.18em] text-slate-500">
-                            Expense
-                          </th>
-                          <th className="px-5 py-4 text-left text-[11px] font-semibold uppercase tracking-[0.18em] text-slate-500">
-                            Purpose
-                          </th>
-                          <th className="px-5 py-4 text-left text-[11px] font-semibold uppercase tracking-[0.18em] text-slate-500">
-                            Recipient
-                          </th>
-                          <th className="px-5 py-4 text-right text-[11px] font-semibold uppercase tracking-[0.18em] text-slate-500">
-                            Payment Amount
-                          </th>
-                          <th className="px-5 py-4 text-right text-[11px] font-semibold uppercase tracking-[0.18em] text-slate-500">
-                            Expense Coverage
-                          </th>
-                          <th className="px-5 py-4 text-right text-[11px] font-semibold uppercase tracking-[0.18em] text-slate-500">
-                            Rate
-                          </th>
-                          <th className="px-5 py-4 text-right text-[11px] font-semibold uppercase tracking-[0.18em] text-slate-500">
-                            Funding Used
-                          </th>
-                          <th className="px-5 py-4 text-right text-[11px] font-semibold uppercase tracking-[0.18em] text-slate-500">
-                            Expense Remaining
-                          </th>
-                          <th className="px-5 py-4 text-left text-[11px] font-semibold uppercase tracking-[0.18em] text-slate-500">
-                            Recipient Status
-                          </th>
+                <AixiaTableShell
+                  variant="registry"
+                  minWidthClassName="min-w-[1780px]"
+                  maxHeightClassName="max-h-[720px]"
+                >
+                  <thead className="aixia-table-head">
+                    <tr>
+                      <th>Expense</th>
+                      <th>Purpose</th>
+                      <th>Recipient</th>
+                      <th>Payment Amount</th>
+                      <th>Expense Coverage</th>
+                      <th>Rate</th>
+                      <th>Funding Used</th>
+                      <th>Expense Remaining</th>
+                      <th>Recipient Status</th>
+                    </tr>
+                  </thead>
+
+                  <tbody>
+                    {enrichedAllocations.map((allocation) => {
+                      const expenseCurrency = getExpenseCurrency(
+                        allocation.expense,
+                        allocation.expenseCurrencyCode
+                      );
+
+                      return (
+                        <tr key={allocation.id} className="aixia-table-row">
+                          <AixiaTableTextCell
+                            width="xl"
+                            primary={
+                              allocation.expense?.expense_number ||
+                              allocation.metadata?.expense_number ||
+                              "Expense"
+                            }
+                            secondary={
+                              allocation.expense?.title ||
+                              allocation.metadata?.expense_title ||
+                              formatDate(allocation.expense?.expense_date)
+                            }
+                          />
+
+                          <AixiaTableTextCell
+                            width="xl"
+                            primary={
+                              allocation.expense?.expense_source_name ||
+                              "No source entered"
+                            }
+                            secondary={
+                              allocation.expense?.description ||
+                              formatLabel(allocation.expense?.expense_type)
+                            }
+                          />
+
+                          <AixiaTableTextCell
+                            width="lg"
+                            primary={allocation.recipientLabel}
+                            secondary={allocation.expenseCompanyName}
+                          />
+
+                          <AixiaTableTextCell
+                            width="md"
+                            primary={`${allocation.paymentCurrencyCode} ${formatMoney(
+                              allocation.paymentCurrencyAmount
+                            )}`}
+                            secondary="Payment currency"
+                          />
+
+                          <AixiaTableTextCell
+                            width="md"
+                            primary={`${
+                              allocation.expenseCurrencyCode || expenseCurrency
+                            } ${formatMoney(allocation.expenseCurrencyAmount)}`}
+                            secondary="Expense currency coverage"
+                          />
+
+                          <AixiaTableTextCell
+                            width="sm"
+                            primary={
+                              allocation.exchangeRate
+                                ? formatMoney(allocation.exchangeRate)
+                                : "—"
+                            }
+                            secondary={
+                              allocation.conversionDate
+                                ? formatDate(allocation.conversionDate)
+                                : "No date"
+                            }
+                          />
+
+                          <AixiaTableTextCell
+                            width="md"
+                            primary={`${allocation.fundingCurrencyCode} ${
+                              allocation.fundingCurrencyAmountUsed !== null
+                                ? formatMoney(allocation.fundingCurrencyAmountUsed)
+                                : "—"
+                            }`}
+                            secondary="Funding currency"
+                          />
+
+                          <AixiaTableTextCell
+                            width="lg"
+                            primary={
+                              allocation.expenseRemainingBeforePayment !== null
+                                ? `Before: ${
+                                    allocation.expenseCurrencyCode
+                                  } ${formatMoney(
+                                    allocation.expenseRemainingBeforePayment
+                                  )}`
+                                : "Before: —"
+                            }
+                            secondary={
+                              allocation.expenseRemainingAfterPayment !== null
+                                ? `After: ${
+                                    allocation.expenseCurrencyCode
+                                  } ${formatMoney(
+                                    allocation.expenseRemainingAfterPayment
+                                  )}`
+                                : "After: —"
+                            }
+                          />
+
+                          <AixiaTableBadgeCell width="md">
+                            <AixiaStatusBadge
+                              value={allocation.recipient_confirmation_status}
+                            />
+                            {allocation.recipient_confirmation_notes ? (
+                              <div className="aixia-helper-text">
+                                {allocation.recipient_confirmation_notes}
+                              </div>
+                            ) : null}
+                            {allocation.recipient_dispute_reason ? (
+                              <div className="aixia-helper-text">
+                                {allocation.recipient_dispute_reason}
+                              </div>
+                            ) : null}
+                          </AixiaTableBadgeCell>
                         </tr>
-                      </thead>
-
-                      <tbody>
-                        {enrichedAllocations.map((allocation) => {
-                          const expenseCurrency = getExpenseCurrency(
-                            allocation.expense,
-                            allocation.expenseCurrencyCode
-                          );
-
-                          return (
-                            <tr
-                              key={allocation.id}
-                              className="border-b border-white/5 text-sm text-slate-300 transition hover:bg-white/[0.035]"
-                            >
-                              <td className="min-w-[240px] px-5 py-4">
-                                <button
-                                  type="button"
-                                  onClick={() =>
-                                    navigate(
-                                      `/finance/transactions/expenses/${allocation.expense_id}`
-                                    )
-                                  }
-                                  className="text-left font-semibold text-cyan-200 transition hover:text-cyan-100"
-                                >
-                                  {allocation.expense?.expense_number ||
-                                    allocation.metadata?.expense_number ||
-                                    "Expense"}
-                                </button>
-                                <div className="mt-1 text-xs text-white">
-                                  {allocation.expense?.title ||
-                                    allocation.metadata?.expense_title ||
-                                    "—"}
-                                </div>
-                                <div className="mt-1 text-xs text-slate-500">
-                                  {formatDate(allocation.expense?.expense_date)}
-                                </div>
-                              </td>
-
-                              <td className="min-w-[300px] px-5 py-4">
-                                <div className="font-medium text-white">
-                                  {allocation.expense?.expense_source_name || "No source entered"}
-                                </div>
-                                <div className="mt-1 text-xs text-cyan-200">
-                                  {formatLabel(allocation.expense?.expense_type)}
-                                </div>
-                                <div className="mt-2 line-clamp-2 text-xs leading-5 text-slate-500">
-                                  {allocation.expense?.description ||
-                                    "No description / reason entered."}
-                                </div>
-                              </td>
-
-                              <td className="min-w-[220px] px-5 py-4">
-                                <div className="font-medium text-slate-200">
-                                  {allocation.recipientLabel}
-                                </div>
-                                <div className="mt-1 text-xs text-slate-500">
-                                  {allocation.expenseCompanyName}
-                                </div>
-                              </td>
-
-                              <td className="whitespace-nowrap px-5 py-4 text-right font-semibold text-white">
-                                {allocation.paymentCurrencyCode}{" "}
-                                {formatMoney(allocation.paymentCurrencyAmount)}
-                              </td>
-
-                              <td className="whitespace-nowrap px-5 py-4 text-right font-semibold text-emerald-100">
-                                {allocation.expenseCurrencyCode || expenseCurrency}{" "}
-                                {formatMoney(allocation.expenseCurrencyAmount)}
-                              </td>
-
-                              <td className="whitespace-nowrap px-5 py-4 text-right">
-                                <div className="font-semibold text-white">
-                                  {allocation.exchangeRate
-                                    ? formatMoney(allocation.exchangeRate)
-                                    : "—"}
-                                </div>
-                                <div className="mt-1 text-[11px] text-slate-500">
-                                  {allocation.conversionDate
-                                    ? formatDate(allocation.conversionDate)
-                                    : "No date"}
-                                </div>
-                              </td>
-
-                              <td className="whitespace-nowrap px-5 py-4 text-right font-semibold text-violet-100">
-                                {allocation.fundingCurrencyCode}{" "}
-                                {allocation.fundingCurrencyAmountUsed !== null
-                                  ? formatMoney(allocation.fundingCurrencyAmountUsed)
-                                  : "—"}
-                              </td>
-
-                              <td className="whitespace-nowrap px-5 py-4 text-right">
-                                <div className="font-semibold text-slate-200">
-                                  Before:{" "}
-                                  {allocation.expenseRemainingBeforePayment !== null
-                                    ? `${allocation.expenseCurrencyCode} ${formatMoney(
-                                        allocation.expenseRemainingBeforePayment
-                                      )}`
-                                    : "—"}
-                                </div>
-                                <div className="mt-1 text-xs text-amber-100">
-                                  After:{" "}
-                                  {allocation.expenseRemainingAfterPayment !== null
-                                    ? `${allocation.expenseCurrencyCode} ${formatMoney(
-                                        allocation.expenseRemainingAfterPayment
-                                      )}`
-                                    : "—"}
-                                </div>
-                              </td>
-
-                              <td className="whitespace-nowrap px-5 py-4">
-                                <StatusBadge value={allocation.recipient_confirmation_status} />
-                                {allocation.recipient_confirmation_notes ? (
-                                  <div className="mt-2 max-w-[260px] text-xs leading-5 text-slate-500">
-                                    {allocation.recipient_confirmation_notes}
-                                  </div>
-                                ) : null}
-                                {allocation.recipient_dispute_reason ? (
-                                  <div className="mt-2 max-w-[260px] text-xs leading-5 text-rose-200">
-                                    {allocation.recipient_dispute_reason}
-                                  </div>
-                                ) : null}
-                              </td>
-                            </tr>
-                          );
-                        })}
-                      </tbody>
-                    </table>
-                  </div>
-                </div>
+                      );
+                    })}
+                  </tbody>
+                </AixiaTableShell>
               )}
-            </SectionCard>
+            </AixiaSection>
 
-            <SectionCard
+            <AixiaSection
               title="Payment Proof"
               description="Proof metadata stored on the Payment Made record."
               icon={UploadCloud}
             >
               {proofMetadata ? (
-                <div className="grid gap-4 md:grid-cols-2">
-                  <ValueBlock label="File Name" value={proofMetadata.file_name || "—"} />
-                  <ValueBlock label="MIME Type" value={proofMetadata.mime_type || "—"} />
-                  <ValueBlock
+                <AixiaReviewGrid variant="cards">
+                  <AixiaValueBlock
+                    label="Proof Status"
+                    value={<AixiaBadge tone="emerald">Stored</AixiaBadge>}
+                    detail="Proof metadata is saved on the payment record."
+                  />
+
+                  <AixiaValueBlock
+                    label="File Name"
+                    value={proofMetadata.file_name || "—"}
+                  />
+
+                  <AixiaValueBlock
+                    label="MIME Type"
+                    value={proofMetadata.mime_type || "—"}
+                  />
+
+                  <AixiaValueBlock
                     label="Uploaded"
                     value={formatDateTime(proofMetadata.uploaded_at)}
                   />
-                  <ValueBlock label="Storage Bucket" value={proofMetadata.bucket || "—"} />
-                  <ValueBlock
-                    label="Storage Path"
-                    value={
-                      proofMetadata.path ? (
-                        <span className="break-all text-cyan-200">{proofMetadata.path}</span>
-                      ) : (
-                        "—"
-                      )
-                    }
-                  />
-                </div>
-              ) : (
-                <div className="rounded-[24px] border border-dashed border-white/10 bg-black/20 px-6 py-12 text-center">
-                  <FileText className="mx-auto h-8 w-8 text-slate-500" />
-                  <div className="mt-4 text-sm font-semibold text-white">
-                    No payment proof metadata
-                  </div>
-                  <div className="mt-2 text-sm leading-6 text-slate-500">
-                    Payment proof can be uploaded during payment creation or added later if the
-                    workflow allows it.
-                  </div>
-                </div>
-              )}
-            </SectionCard>
-          </div>
 
-          <aside className="sticky top-6 grid gap-6">
-            <SectionCard
+                  <AixiaValueBlock
+                    label="Storage Bucket"
+                    value={proofMetadata.bucket || "—"}
+                  />
+
+                  <AixiaValueBlock
+                    label="Storage Path"
+                    value={proofMetadata.path || "—"}
+                    detail="Stored path from payment proof metadata."
+                  />
+                </AixiaReviewGrid>
+              ) : (
+                <AixiaEmptyState
+                  icon={FileText}
+                  title="No payment proof metadata"
+                  description="Payment proof can be uploaded during payment creation or added later if the workflow allows it."
+                />
+              )}
+            </AixiaSection>
+          </>
+        }
+        side={
+          <>
+            <AixiaSection
               title="Action Center"
               description="Only relevant actions for this distribution are shown."
               icon={ShieldCheck}
             >
-              <div className="grid gap-3">
-                {canConfirmPayment ? (
-                  <ActionButton
-                    label="Confirm Distribution"
-                    loadingLabel="Confirming..."
-                    icon={CheckCircle2}
+              {canConfirmPayment ? (
+                <div className="aixia-action-row">
+                  <AixiaButton
+                    type="button"
+                    variant="primary"
                     disabled={actionLocked}
-                    isRunning={runningAction === "confirm_payment"}
                     onClick={() => void confirmPayment()}
-                  />
-                ) : (
-                  <div className="rounded-[24px] border border-white/10 bg-black/20 p-4 text-sm leading-6 text-slate-400">
-                    No confirmation action is available for the current status.
-                  </div>
-                )}
-              </div>
+                  >
+                    {runningAction === "confirm_payment" ? (
+                      <Loader2 className="h-4 w-4 animate-spin" />
+                    ) : (
+                      <CheckCircle2 className="h-4 w-4" />
+                    )}
+                    {runningAction === "confirm_payment"
+                      ? "Confirming..."
+                      : "Confirm Distribution"}
+                  </AixiaButton>
+                </div>
+              ) : (
+                <AixiaAlert tone="info">
+                  No confirmation action is available for the current status.
+                </AixiaAlert>
+              )}
 
-              <div className="mt-4 rounded-[24px] border border-white/10 bg-black/20 p-4 text-xs leading-5 text-slate-500">
-                Confirming a draft distribution calls{" "}
-                <span className="text-slate-300">finance_confirm_payment_made</span>.
-                Confirmed distributions update expense coverage and set recipient confirmation to
-                pending where relevant.
-              </div>
-            </SectionCard>
+              <AixiaAlert tone="info">
+                Confirming a draft distribution calls finance_confirm_payment_made.
+                Confirmed distributions update expense coverage and set recipient
+                confirmation to pending where relevant.
+              </AixiaAlert>
+            </AixiaSection>
 
-            <SectionCard
+            <AixiaSection
               title="Recipient Confirmation"
               description="This is the closing step after Finance distributes money."
               icon={UserRound}
             >
-              <div className="grid gap-3">
-                <ValueBlock
+              <AixiaReviewGrid variant="cards">
+                <AixiaValueBlock
                   label="Overall Recipient Status"
-                  value={<StatusBadge value={payment.recipient_confirmation_status} />}
+                  value={
+                    <AixiaStatusBadge
+                      value={payment.recipient_confirmation_status}
+                    />
+                  }
                   detail={
                     payment.recipient_confirmation_notes ||
                     "Recipient confirmation proves the person received the distributed money."
                   }
                 />
-                <ValueBlock
+
+                <AixiaValueBlock
                   label="Confirmed At"
                   value={formatDateTime(payment.recipient_confirmed_at)}
                 />
-                <ValueBlock
+
+                <AixiaValueBlock
                   label="Recipient"
                   value={payment.recipient_person_name || "Multiple recipients"}
                 />
-                <ValueBlock
+
+                <AixiaValueBlock
                   label="Linked Recipient Lines"
                   value={String(enrichedAllocations.length)}
                   detail="Each allocation line also carries its own recipient status."
                 />
-              </div>
-            </SectionCard>
+              </AixiaReviewGrid>
+            </AixiaSection>
 
-            <SectionCard
+            <AixiaSection
               title="Status Summary"
               description="Current distribution and posting state."
               icon={Clock3}
             >
-              <div className="grid gap-3">
-                <ValueBlock
+              <AixiaReviewGrid variant="cards">
+                <AixiaValueBlock
                   label="Distribution Status"
-                  value={<StatusBadge value={payment.status} />}
+                  value={<AixiaStatusBadge value={payment.status} />}
                 />
-                <ValueBlock
+
+                <AixiaValueBlock
                   label="Payment Source"
-                  value={<StatusBadge value={payment.payment_source_type} />}
+                  value={<AixiaStatusBadge value={payment.payment_source_type} />}
                 />
-                <ValueBlock
+
+                <AixiaValueBlock
                   label="Recipient Confirmation"
-                  value={<StatusBadge value={payment.recipient_confirmation_status} />}
+                  value={
+                    <AixiaStatusBadge
+                      value={payment.recipient_confirmation_status}
+                    />
+                  }
                 />
-                <ValueBlock
+
+                <AixiaValueBlock
                   label="Posted To Ledger"
                   value={payment.posted_to_ledger ? "Yes" : "No"}
                   detail={
@@ -1609,26 +1552,35 @@ export default function FinanceExpensesPaymentsMadeDetailPage() {
                       : "Not posted yet"
                   }
                 />
-              </div>
-            </SectionCard>
+              </AixiaReviewGrid>
+            </AixiaSection>
 
-            <SectionCard
+            <AixiaSection
               title="Record Context"
               description="Internal notes and metadata references."
               icon={FileCheck2}
             >
-              <div className="grid gap-3">
-                <ValueBlock label="Notes" value={payment.notes || "—"} />
-                <ValueBlock
+              <AixiaReviewGrid variant="cards">
+                <AixiaValueBlock label="Notes" value={payment.notes || "—"} />
+
+                <AixiaValueBlock
                   label="Source Area"
-                  value={payment.metadata?.source_area || "expenses_payments_made"}
+                  value={
+                    payment.metadata?.source_area ||
+                    "expenses_payments_made"
+                  }
                 />
-                <ValueBlock
+
+                <AixiaValueBlock
                   label="Selected Expense IDs"
-                  value={String(payment.metadata?.selected_expense_ids?.length || allocations.length)}
+                  value={String(
+                    payment.metadata?.selected_expense_ids?.length ||
+                      allocations.length
+                  )}
                   detail="Number of expenses attached to this distribution."
                 />
-                <ValueBlock
+
+                <AixiaValueBlock
                   label="Funding Pool ID"
                   value={
                     payment.metadata?.funding_pool_id ||
@@ -1637,11 +1589,66 @@ export default function FinanceExpensesPaymentsMadeDetailPage() {
                     "—"
                   }
                 />
-              </div>
-            </SectionCard>
-          </aside>
-        </div>
-      </div>
-    </div>
+              </AixiaReviewGrid>
+            </AixiaSection>
+
+            <AixiaSection
+              title="Linked Expense Shortcuts"
+              description="Open linked expense records directly."
+              icon={Receipt}
+            >
+              {enrichedAllocations.length === 0 ? (
+                <AixiaEmptyState
+                  icon={Receipt}
+                  title="No shortcuts available"
+                  description="Linked expense shortcuts will appear after allocations exist."
+                />
+              ) : (
+                <div className="aixia-stack">
+                  {enrichedAllocations.map((allocation) => (
+                    <AixiaActionCard
+                      key={allocation.id}
+                      label={
+                        allocation.expense?.expense_number ||
+                        allocation.metadata?.expense_number ||
+                        "Expense"
+                      }
+                      value={
+                        allocation.expense?.title ||
+                        allocation.metadata?.expense_title ||
+                        "Open expense"
+                      }
+                      description={`${allocation.expenseCurrencyCode} ${formatMoney(
+                        allocation.expenseCurrencyAmount
+                      )} covered`}
+                      icon={Receipt}
+                      tone="cyan"
+                      actionLabel="Open"
+                      onClick={() =>
+                        navigate(
+                          `/finance/transactions/expenses/${allocation.expense_id}`
+                        )
+                      }
+                      meta={[
+                        {
+                          label: "Recipient",
+                          value: allocation.recipientLabel,
+                        },
+                        {
+                          label: "Status",
+                          value: formatLabel(
+                            allocation.recipient_confirmation_status
+                          ),
+                        },
+                      ]}
+                    />
+                  ))}
+                </div>
+              )}
+            </AixiaSection>
+          </>
+        }
+      />
+    </AixiaPage>
   );
 }

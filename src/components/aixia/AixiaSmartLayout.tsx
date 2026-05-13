@@ -245,6 +245,7 @@ export function AixiaSmartLayout({
     normalizedMainChildren,
     normalizedSideChildren,
     bottomSpan,
+    sideRebalance,
     resolvedMainTopCount
   );
 
@@ -252,6 +253,7 @@ export function AixiaSmartLayout({
     normalizedMainChildren,
     normalizedSideChildren,
     bottomSpan,
+    sideRebalance,
     resolvedMainTopCount
   );
 

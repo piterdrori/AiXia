@@ -5475,66 +5475,71 @@ button.aixia-action-card:disabled {
 }
 
 /* -------------------------------------------------------
-   GLOBAL AIXIA SMART LAYOUT SIDEBAR WIDTH CAP STANDARD
-   Main/detail content must receive priority width. The
-   right-side column must shrink to a compact readable width
-   when a two-column detail layout has bottom-span content.
-   This prevents oversized empty right panels and allows the
-   left/main cards and tables to expand.
+   GLOBAL AIXIA SMART LAYOUT VERTICAL COMPACTION STANDARD
+   Two-column detail layouts with bottom-span content must
+   stay compact from top to bottom. Left and right cards
+   should shrink vertically when content is short, so lower
+   full-width cards can move upward sooner.
 ------------------------------------------------------- */
 
 @media (min-width: 1280px) {
-  .aixia-smart-layout[data-balance="main"][data-has-bottom-span="true"]:not([data-sidebar]) {
-    grid-template-columns: minmax(0, 1fr) minmax(300px, 360px) !important;
+  .aixia-smart-layout[data-has-bottom-span="true"] {
+    align-items: start !important;
+    row-gap: clamp(1rem, 1.35vw, 1.5rem) !important;
   }
 
-  .aixia-smart-layout[data-balance="main"][data-has-bottom-span="true"][data-sidebar="normal"] {
-    grid-template-columns: minmax(0, 1fr) minmax(300px, 360px) !important;
+  .aixia-smart-layout[data-has-bottom-span="true"] > .aixia-smart-main,
+  .aixia-smart-layout[data-has-bottom-span="true"] > .aixia-smart-side {
+    align-self: start !important;
+    height: auto !important;
   }
 
-  .aixia-smart-layout[data-balance="main"][data-has-bottom-span="true"][data-sidebar="narrow"] {
-    grid-template-columns: minmax(0, 1fr) minmax(280px, 330px) !important;
+  .aixia-smart-layout[data-has-bottom-span="true"] > .aixia-smart-main,
+  .aixia-smart-layout[data-has-bottom-span="true"] > .aixia-smart-side,
+  .aixia-smart-layout[data-has-bottom-span="true"] > .aixia-smart-bottom-span {
+    gap: clamp(1rem, 1.25vw, 1.4rem) !important;
   }
 
-  .aixia-smart-layout[data-balance="main"][data-has-bottom-span="true"][data-sidebar="wide"] {
-    grid-template-columns: minmax(0, 1fr) minmax(340px, 420px) !important;
+  .aixia-smart-layout[data-has-bottom-span="true"] .aixia-section {
+    min-height: 0 !important;
   }
 
-  .aixia-smart-layout[data-balance="main"][data-has-bottom-span="true"] > .aixia-smart-side {
+  .aixia-smart-layout[data-has-bottom-span="true"] .aixia-section-header {
+    padding-top: clamp(0.95rem, 1vw, 1.2rem) !important;
+    padding-bottom: clamp(0.95rem, 1vw, 1.2rem) !important;
+  }
+
+  .aixia-smart-layout[data-has-bottom-span="true"] .aixia-section > .p-6 {
+    padding: clamp(1rem, 1.15vw, 1.35rem) !important;
+  }
+
+  .aixia-smart-layout[data-has-bottom-span="true"] .aixia-review-grid,
+  .aixia-smart-layout[data-has-bottom-span="true"] .aixia-form-grid {
+    gap: clamp(0.75rem, 0.9vw, 1rem) !important;
+  }
+
+  .aixia-smart-layout[data-has-bottom-span="true"] .aixia-value-block,
+  .aixia-smart-layout[data-has-bottom-span="true"] .aixia-review-block,
+  .aixia-smart-layout[data-has-bottom-span="true"] .aixia-display-block,
+  .aixia-smart-layout[data-has-bottom-span="true"] .aixia-form-row-card {
+    min-height: 0 !important;
+    padding-top: clamp(0.85rem, 0.95vw, 1.05rem) !important;
+    padding-bottom: clamp(0.85rem, 0.95vw, 1.05rem) !important;
+  }
+
+  .aixia-smart-layout[data-has-bottom-span="true"] .aixia-table-scroll {
+    max-height: min(560px, 58vh) !important;
+  }
+
+  .aixia-smart-layout[data-has-bottom-span="true"] .aixia-empty-state {
+    min-height: clamp(180px, 22vh, 260px) !important;
+    padding-top: clamp(1.25rem, 1.5vw, 1.75rem) !important;
+    padding-bottom: clamp(1.25rem, 1.5vw, 1.75rem) !important;
+  }
+
+  .aixia-smart-layout[data-has-bottom-span="true"] > .aixia-smart-bottom-span {
+    grid-column: 1 / -1 !important;
     width: 100% !important;
-    max-width: 420px !important;
-    justify-self: end !important;
-  }
-
-  .aixia-smart-layout[data-balance="main"][data-has-bottom-span="true"]:not([data-sidebar]) > .aixia-smart-side,
-  .aixia-smart-layout[data-balance="main"][data-has-bottom-span="true"][data-sidebar="normal"] > .aixia-smart-side {
-    max-width: 360px !important;
-  }
-
-  .aixia-smart-layout[data-balance="main"][data-has-bottom-span="true"][data-sidebar="narrow"] > .aixia-smart-side {
-    max-width: 330px !important;
-  }
-
-  .aixia-smart-layout[data-balance="main"][data-has-bottom-span="true"] > .aixia-smart-main {
-    width: 100% !important;
-    min-width: 0 !important;
-  }
-
-  .aixia-smart-layout[data-balance="main"][data-has-bottom-span="true"] > .aixia-smart-main .aixia-section,
-  .aixia-smart-layout[data-balance="main"][data-has-bottom-span="true"] > .aixia-smart-bottom-span .aixia-section {
-    width: 100% !important;
-    max-width: 100% !important;
-  }
-}
-
-@media (min-width: 1536px) {
-  .aixia-smart-layout[data-balance="main"][data-has-bottom-span="true"]:not([data-sidebar]),
-  .aixia-smart-layout[data-balance="main"][data-has-bottom-span="true"][data-sidebar="normal"] {
-    grid-template-columns: minmax(0, 1fr) minmax(300px, 340px) !important;
-  }
-
-  .aixia-smart-layout[data-balance="main"][data-has-bottom-span="true"]:not([data-sidebar]) > .aixia-smart-side,
-  .aixia-smart-layout[data-balance="main"][data-has-bottom-span="true"][data-sidebar="normal"] > .aixia-smart-side {
-    max-width: 340px !important;
+    margin-top: 0 !important;
   }
 }

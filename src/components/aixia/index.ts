@@ -19,6 +19,7 @@ export { AixiaMetricGrid } from "./AixiaMetricGrid";
 export { AixiaModal } from "./AixiaModal";
 export { AixiaPage } from "./AixiaPage";
 export { AixiaEmptyState } from "./AixiaEmptyState";
+export { AixiaEmployeeIdentityCell } from "./AixiaEmployeeIdentityCell";
 export { AixiaSearchField } from "./AixiaSearchField";
 export { AixiaRegistryToolbar } from "./AixiaRegistryToolbar";
 export { AixiaSection } from "./AixiaSection";

@@ -485,40 +485,39 @@ function isDeletedAllocation(allocation: AllocationRow) {
 }
 
 function getAllocationExpenseTitle(allocation: EnrichedAllocation) {
-  return (
-    allocation.expense?.title?.trim() ||
-    allocation.metadata?.expense_title?.trim() ||
-    allocation.expense?.expense_source_name?.trim() ||
-    formatLabel(allocation.expense?.expense_type) ||
-    "Expense"
-  );
+  const title = allocation.expense?.title?.trim();
+  const metadataTitle = allocation.metadata?.expense_title?.trim();
+  const sourceName = allocation.expense?.expense_source_name?.trim();
+  const typeLabel = formatLabel(allocation.expense?.expense_type);
+
+  return title || metadataTitle || sourceName || typeLabel || "Expense";
 }
 
 function getAllocationExpenseSecondary(allocation: EnrichedAllocation) {
-  return [
-    allocation.expense?.expense_number || allocation.metadata?.expense_number || "",
-    formatLabel(allocation.expense?.expense_type),
-    formatDate(allocation.expense?.expense_date),
-  ]
+  const numberLabel =
+    allocation.expense?.expense_number || allocation.metadata?.expense_number || "";
+  const typeLabel = formatLabel(allocation.expense?.expense_type);
+  const dateLabel = formatDate(allocation.expense?.expense_date);
+
+  return [numberLabel, typeLabel, dateLabel]
     .filter((item) => item && item !== "—")
     .join(" • ");
 }
 
 function getAllocationRecipientPrimary(allocation: EnrichedAllocation) {
-  return (
-    allocation.recipientPrimaryName ||
-    allocation.expense?.responsible_person_name?.trim() ||
-    allocation.expense?.other_made_by_explanation?.trim() ||
-    "Recipient"
-  );
+  const resolvedName = allocation.recipientPrimaryName?.trim();
+  const responsibleName = allocation.expense?.responsible_person_name?.trim();
+  const otherName = allocation.expense?.other_made_by_explanation?.trim();
+
+  return resolvedName || responsibleName || otherName || "Recipient";
 }
 
 function getAllocationRecipientSecondary(allocation: EnrichedAllocation) {
-  return (
-    allocation.recipientSecondaryLabel ||
-    allocation.expenseCompanyName ||
-    formatLabel(allocation.expense?.expense_made_by_type)
-  );
+  const resolvedSecondary = allocation.recipientSecondaryLabel?.trim();
+  const companyName = allocation.expenseCompanyName?.trim();
+  const typeLabel = formatLabel(allocation.expense?.expense_made_by_type);
+
+  return resolvedSecondary || companyName || typeLabel;
 }
 
 function getAllocationSortValue(
@@ -1461,7 +1460,8 @@ export default function FinanceExpensesPaymentsMadeDetailPage() {
         icon={ShieldCheck}
       >
         Linked Expense Allocations are financial child allocation records. They
-        must use AixiaChildAllocationRegistry, sortable allocation columns,
+        must use AixiaChildAllocationRegistry, which renders AixiaRegistryToolbar
+        for search/filter/action controls, sortable allocation columns,
         AixiaTableActionsCell row actions, backend-loaded lifecycle_status,
         finance_employee_identity_v resolved employee identity, and protected
         backend RPCs for archive, restore, soft delete, and permanent delete.

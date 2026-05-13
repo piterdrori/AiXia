@@ -3,13 +3,11 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import {
-  ArrowRight,
   Building2,
   CalendarClock,
   CheckCircle2,
   CreditCard,
   Landmark,
-  Link2,
   Loader2,
   Plus,
   Receipt,

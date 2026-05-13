@@ -18,6 +18,7 @@ import {
 } from "lucide-react";
 
 import {
+  AixiaAccessRule,
   AixiaActionCard,
   AixiaAlert,
   AixiaBadge,
@@ -28,7 +29,9 @@ import {
   AixiaMetricCard,
   AixiaMetricGrid,
   AixiaPage,
+  AixiaRegistryToolbar,
   AixiaReviewGrid,
+  AixiaSearchField,
   AixiaSection,
   AixiaSmartLayout,
   AixiaStatusBadge,
@@ -399,6 +402,7 @@ export default function FinanceExpensesPaymentsMadeDetailPage() {
   const [runningAction, setRunningAction] = useState<RunningAction | null>(null);
   const [pageError, setPageError] = useState<string | null>(null);
   const [pageMessage, setPageMessage] = useState<string | null>(null);
+  const [allocationSearchQuery, setAllocationSearchQuery] = useState("");
 
   const companyMap = useMemo(() => {
     return new Map(companies.map((company) => [company.id, company]));
@@ -566,6 +570,39 @@ export default function FinanceExpensesPaymentsMadeDetailPage() {
     payment?.payment_date,
     paymentCurrency,
   ]);
+
+  const filteredEnrichedAllocations = useMemo(() => {
+    const normalizedSearch = allocationSearchQuery.trim().toLowerCase();
+
+    if (!normalizedSearch) return enrichedAllocations;
+
+    return enrichedAllocations.filter((allocation) => {
+      const searchableContent = [
+        allocation.expense?.expense_number,
+        allocation.metadata?.expense_number,
+        allocation.expense?.title,
+        allocation.metadata?.expense_title,
+        allocation.expense?.expense_source_name,
+        allocation.expense?.description,
+        allocation.expense?.expense_type,
+        allocation.recipientLabel,
+        allocation.expenseCompanyName,
+        allocation.fundingCompanyName,
+        allocation.bankLabel,
+        allocation.paymentCurrencyCode,
+        allocation.expenseCurrencyCode,
+        allocation.fundingCurrencyCode,
+        allocation.recipient_confirmation_status,
+        allocation.recipient_confirmation_notes,
+        allocation.recipient_dispute_reason,
+      ]
+        .filter(Boolean)
+        .join(" ")
+        .toLowerCase();
+
+      return searchableContent.includes(normalizedSearch);
+    });
+  }, [allocationSearchQuery, enrichedAllocations]);
 
   const loadPayment = useCallback(
     async (mode: "initial" | "silent" = "initial") => {
@@ -1013,6 +1050,18 @@ export default function FinanceExpensesPaymentsMadeDetailPage() {
         />
       </AixiaMetricGrid>
 
+      <AixiaAccessRule
+        title="Locked registry access rule"
+        description="Expense payment distribution detail pages must use the shared AiXia registry controls for allocation records."
+        icon={ShieldCheck}
+      >
+        Linked expense allocation records are shown through the shared AiXia
+        registry/table pattern. Search and action controls must use
+        AixiaRegistryToolbar, table structure must use AixiaTableShell, and
+        realtime plus 60-second fallback refresh must stay silent without
+        resetting the page, allocation search, side panels, or visible records.
+      </AixiaAccessRule>
+
       <AixiaSmartLayout
         sidebar="normal"
         balance="main"
@@ -1241,11 +1290,62 @@ export default function FinanceExpensesPaymentsMadeDetailPage() {
               description="Each line shows the expense covered, payment currency amount, expense currency coverage, and recipient status."
               icon={Receipt}
             >
-              {enrichedAllocations.length === 0 ? (
+              <AixiaRegistryToolbar
+                search={
+                  <AixiaSearchField
+                    width="full"
+                    value={allocationSearchQuery}
+                    onChange={(event) =>
+                      setAllocationSearchQuery(event.target.value)
+                    }
+                    placeholder="Search linked expenses, recipients, companies, currencies, status, or allocation notes"
+                  />
+                }
+                primaryAction={
+                  <AixiaButton
+                    type="button"
+                    variant="secondary"
+                    onClick={() =>
+                      navigate("/finance/transactions/expenses-payments-made")
+                    }
+                  >
+                    Payment Control
+                  </AixiaButton>
+                }
+                archiveAction={
+                  canConfirmPayment ? (
+                    <AixiaButton
+                      type="button"
+                      variant="primary"
+                      disabled={actionLocked}
+                      onClick={() => void confirmPayment()}
+                    >
+                      {runningAction === "confirm_payment" ? (
+                        <Loader2 className="h-4 w-4 animate-spin" />
+                      ) : (
+                        <CheckCircle2 className="h-4 w-4" />
+                      )}
+                      {runningAction === "confirm_payment"
+                        ? "Confirming..."
+                        : "Confirm Distribution"}
+                    </AixiaButton>
+                  ) : undefined
+                }
+              />
+
+              {filteredEnrichedAllocations.length === 0 ? (
                 <AixiaEmptyState
                   icon={Receipt}
-                  title="No linked expenses"
-                  description="Expense allocation lines will appear here."
+                  title={
+                    enrichedAllocations.length === 0
+                      ? "No linked expenses"
+                      : "No allocation records match the search"
+                  }
+                  description={
+                    enrichedAllocations.length === 0
+                      ? "Expense allocation lines will appear here."
+                      : "Clear or change the allocation registry search to show records."
+                  }
                 />
               ) : (
                 <AixiaTableShell
@@ -1268,7 +1368,7 @@ export default function FinanceExpensesPaymentsMadeDetailPage() {
                   </thead>
 
                   <tbody>
-                    {enrichedAllocations.map((allocation) => {
+                    {filteredEnrichedAllocations.map((allocation) => {
                       const expenseCurrency = getExpenseCurrency(
                         allocation.expense,
                         allocation.expenseCurrencyCode

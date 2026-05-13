@@ -1,26 +1,37 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { useNavigate, useSearchParams } from "react-router-dom";
 import {
-  ArrowRight,
   Building2,
   FileText,
   Plus,
+  Receipt,
   Save,
   SquarePen,
-  Trash2,
   Wallet,
 } from "lucide-react";
 
-import { supabase } from "@/lib/supabase";
-import { Button } from "@/components/ui/button";
-import { Badge } from "@/components/ui/badge";
 import {
-  Card,
-  CardContent,
-  CardDescription,
-  CardHeader,
-  CardTitle,
-} from "@/components/ui/card";
+  AixiaAlert,
+  AixiaButton,
+  AixiaFieldLabel,
+  AixiaFormField,
+  AixiaFormFullWidth,
+  AixiaFormGrid,
+  AixiaFormRowCard,
+  AixiaHero,
+  AixiaInputField,
+  AixiaLoadingState,
+  AixiaMetricCard,
+  AixiaMetricGrid,
+  AixiaPage,
+  AixiaReviewGrid,
+  AixiaSection,
+  AixiaSelectField,
+  AixiaSmartLayout,
+  AixiaTextareaField,
+  AixiaValueBlock,
+} from "@/components/aixia";
+import { supabase } from "@/lib/supabase";
 
 type ClientOption = {
   id: string;
@@ -261,10 +272,7 @@ function getClientAddress(client: ClientOption | null) {
 
 function getBankAddress(bank: BankAccountOption | null) {
   if (!bank) return "";
-
-  if (bank.bank_address) {
-    return bank.bank_address;
-  }
+  if (bank.bank_address) return bank.bank_address;
 
   return [
     bank.address_line_1,
@@ -281,22 +289,15 @@ function getBankIdentifier(bank: BankAccountOption | null) {
   if (!bank) return null;
 
   if (bank.iban) {
-    return {
-      label: "IBAN",
-      value: bank.iban,
-    };
+    return { label: "IBAN", value: bank.iban };
   }
 
   if (bank.swift_code) {
-    return {
-      label: "SWIFT",
-      value: bank.swift_code,
-    };
+    return { label: "SWIFT", value: bank.swift_code };
   }
 
   if (bank.account_identifier_value) {
     const normalizedType = (bank.account_identifier_type || "").toLowerCase();
-
     return {
       label: normalizedType === "swift" ? "SWIFT" : "Identifier",
       value: bank.account_identifier_value,
@@ -306,10 +307,39 @@ function getBankIdentifier(bank: BankAccountOption | null) {
   return null;
 }
 
+function getBankSummary(account: BankAccountOption | null) {
+  if (!account) return "No bank account selected";
+
+  const identifier = getBankIdentifier(account);
+
+  return [
+    account.beneficiary_name || account.name,
+    account.bank_name || account.institution_name,
+    getBankAddress(account),
+    account.account_number || account.masked_account_number
+      ? `Account: ${account.account_number || account.masked_account_number}`
+      : "",
+    identifier ? `${identifier.label}: ${identifier.value}` : "",
+    account.currency_code ? `Currency: ${account.currency_code}` : "",
+  ]
+    .filter(Boolean)
+    .join(" • ");
+}
+
+function getRowTotal(row: InvoiceItemRow, taxCodes: TaxCodeOption[]) {
+  const base = Math.max(
+    toNumber(row.quantity) * toNumber(row.unitPrice) - toNumber(row.discount),
+    0
+  );
+  const taxCode = taxCodes.find((entry) => entry.id === row.taxCodeId);
+  const taxRate = toNumber(taxCode?.rate_percent) / 100;
+  return base + base * taxRate;
+}
+
 export default function FinanceNewInvoicePage() {
-const navigate = useNavigate();
-const [searchParams] = useSearchParams();
-const sourceProformaInvoiceId = searchParams.get("proforma_invoice_id");
+  const navigate = useNavigate();
+  const [searchParams] = useSearchParams();
+  const sourceProformaInvoiceId = searchParams.get("proforma_invoice_id");
 
   const [isLoading, setIsLoading] = useState(true);
   const [isSaving, setIsSaving] = useState(false);
@@ -322,53 +352,36 @@ const sourceProformaInvoiceId = searchParams.get("proforma_invoice_id");
   const [shippingTerms, setShippingTerms] = useState<ShippingTermOption[]>([]);
   const [bankAccounts, setBankAccounts] = useState<BankAccountOption[]>([]);
   const [currencies, setCurrencies] = useState<CurrencyOption[]>([]);
-  const [paymentMethods, setPaymentMethods] = useState<PaymentMethodOption[]>(
-    []
-  );
+  const [paymentMethods, setPaymentMethods] = useState<PaymentMethodOption[]>([]);
   const [items, setItems] = useState<ItemOption[]>([]);
   const [taxCodes, setTaxCodes] = useState<TaxCodeOption[]>([]);
-  const [unitsOfMeasure, setUnitsOfMeasure] = useState<UnitOfMeasureOption[]>(
-    []
-  );
-  const [revenueCategories, setRevenueCategories] = useState<
-    RevenueCategoryOption[]
-  >([]);
+  const [unitsOfMeasure, setUnitsOfMeasure] = useState<UnitOfMeasureOption[]>([]);
+  const [revenueCategories, setRevenueCategories] = useState<RevenueCategoryOption[]>([]);
 
   const [clientId, setClientId] = useState("");
-  const [counterpartyType, setCounterpartyType] = useState<"client" | "company">(
-    "client"
-  );
+  const [counterpartyType, setCounterpartyType] = useState<"client" | "company">("client");
   const [counterpartyCompanyId, setCounterpartyCompanyId] = useState("");
   const [companyId, setCompanyId] = useState("");
   const [projectId, setProjectId] = useState("");
   const [taskId, setTaskId] = useState("");
-
   const [paymentTermsId, setPaymentTermsId] = useState("");
   const [shippingTermId, setShippingTermId] = useState("");
   const [bankAccountId, setBankAccountId] = useState("");
-
   const [paymentMethodId, setPaymentMethodId] = useState("");
   const [currencyId, setCurrencyId] = useState("");
-
-  const [issueDate, setIssueDate] = useState(
-    new Date().toISOString().slice(0, 10)
-  );
+  const [issueDate, setIssueDate] = useState(new Date().toISOString().slice(0, 10));
   const [dueDate, setDueDate] = useState("");
   const [currencyCode, setCurrencyCode] = useState("USD");
   const [notes, setNotes] = useState("");
   const [rows, setRows] = useState<InvoiceItemRow[]>([createRow()]);
-const [errorMessage, setErrorMessage] = useState("");
-const [sourceMode, setSourceMode] = useState<"manual" | "proforma_invoice">(
-  sourceProformaInvoiceId ? "proforma_invoice" : "manual"
-);
-const [sourceProformaId, setSourceProformaId] = useState(
-  sourceProformaInvoiceId || ""
-);
-const [sourceProformaInvoice, setSourceProformaInvoice] =
-  useState<ProformaInvoiceSource | null>(null);
-const [proformaSources, setProformaSources] = useState<
-  ProformaInvoiceSource[]
->([]);
+  const [errorMessage, setErrorMessage] = useState("");
+  const [sourceMode, setSourceMode] = useState<"manual" | "proforma_invoice">(
+    sourceProformaInvoiceId ? "proforma_invoice" : "manual"
+  );
+  const [sourceProformaId, setSourceProformaId] = useState(sourceProformaInvoiceId || "");
+  const [sourceProformaInvoice, setSourceProformaInvoice] =
+    useState<ProformaInvoiceSource | null>(null);
+  const [proformaSources, setProformaSources] = useState<ProformaInvoiceSource[]>([]);
 
   const selectedClient = useMemo(
     () => clients.find((client) => client.id === clientId) ?? null,
@@ -381,9 +394,7 @@ const [proformaSources, setProformaSources] = useState<
   );
 
   const selectedCounterpartyCompany = useMemo(
-    () =>
-      companies.find((company) => company.id === counterpartyCompanyId) ??
-      null,
+    () => companies.find((company) => company.id === counterpartyCompanyId) ?? null,
     [companies, counterpartyCompanyId]
   );
 
@@ -392,10 +403,8 @@ const [proformaSources, setProformaSources] = useState<
       return {
         name: selectedClient?.legal_name || selectedClient?.name || "—",
         address: getClientAddress(selectedClient),
-        email:
-          selectedClient?.company_email || selectedClient?.personnel_email || "",
-        phone:
-          selectedClient?.company_phone || selectedClient?.personnel_phone || "",
+        email: selectedClient?.company_email || selectedClient?.personnel_email || "",
+        phone: selectedClient?.company_phone || selectedClient?.personnel_phone || "",
       };
     }
 
@@ -421,19 +430,14 @@ const [proformaSources, setProformaSources] = useState<
   );
 
   const filteredBankAccounts = useMemo(() => {
-    if (!companyId) {
-      return bankAccounts;
-    }
-
+    if (!companyId) return bankAccounts;
     return bankAccounts.filter(
       (account) => !account.company_id || account.company_id === companyId
     );
   }, [bankAccounts, companyId]);
 
   const selectedBankAccount = useMemo(
-    () =>
-      filteredBankAccounts.find((account) => account.id === bankAccountId) ??
-      null,
+    () => filteredBankAccounts.find((account) => account.id === bankAccountId) ?? null,
     [bankAccountId, filteredBankAccounts]
   );
 
@@ -458,36 +462,51 @@ const [proformaSources, setProformaSources] = useState<
   );
 
   const filteredTasks = useMemo(() => {
-    if (!projectId) {
-      return tasks;
-    }
-
+    if (!projectId) return tasks;
     return tasks.filter((task) => task.project_id === projectId);
   }, [projectId, tasks]);
+
+  const totals = useMemo(() => {
+    const subtotal = rows.reduce(
+      (sum, row) => sum + toNumber(row.quantity) * toNumber(row.unitPrice),
+      0
+    );
+    const discount = rows.reduce((sum, row) => sum + toNumber(row.discount), 0);
+    const tax = rows.reduce((sum, row) => {
+      const base = Math.max(
+        toNumber(row.quantity) * toNumber(row.unitPrice) - toNumber(row.discount),
+        0
+      );
+      const taxCode = taxCodes.find((entry) => entry.id === row.taxCodeId);
+      return taxCode ? sum + base * (toNumber(taxCode.rate_percent) / 100) : sum;
+    }, 0);
+
+    return {
+      subtotal,
+      discount,
+      tax,
+      total: Math.max(subtotal - discount + tax, 0),
+    };
+  }, [rows, taxCodes]);
 
   useEffect(() => {
     if (counterpartyType === "client") {
       setCounterpartyCompanyId("");
-    } else {
-      setClientId("");
-    }
-  }, [counterpartyType]);
-
-  useEffect(() => {
-    if (!selectedClient) {
       return;
     }
 
+    setClientId("");
+  }, [counterpartyType]);
+
+  useEffect(() => {
+    if (!selectedClient) return;
+
     if (selectedClient.currency_code) {
       setCurrencyCode(selectedClient.currency_code);
-
       const matchedCurrency = currencies.find(
         (entry) => entry.currency_code === selectedClient.currency_code
       );
-
-      if (matchedCurrency) {
-        setCurrencyId(matchedCurrency.id);
-      }
+      if (matchedCurrency) setCurrencyId(matchedCurrency.id);
     }
 
     if (selectedClient.payment_terms_id) {
@@ -509,9 +528,7 @@ const [proformaSources, setProformaSources] = useState<
       ? !selectedBankAccount.company_id || selectedBankAccount.company_id === companyId
       : true;
 
-    if (!selectedBankStillBelongsToCompany) {
-      setBankAccountId("");
-    }
+    if (!selectedBankStillBelongsToCompany) setBankAccountId("");
 
     if (!currencyId && selectedCompany?.currency_code) {
       const matchedCurrency = currencies.find(
@@ -523,56 +540,33 @@ const [proformaSources, setProformaSources] = useState<
         setCurrencyCode(matchedCurrency.currency_code);
       }
     }
-  }, [
-    companyId,
-    currencies,
-    currencyId,
-    selectedBankAccount,
-    selectedCompany,
-  ]);
+  }, [companyId, currencies, currencyId, selectedBankAccount, selectedCompany]);
 
   useEffect(() => {
     if (shippingTermId) return;
-
     const defaultShippingTerm =
       shippingTerms.find((term) => term.is_default) ?? shippingTerms[0];
-
-    if (defaultShippingTerm) {
-      setShippingTermId(defaultShippingTerm.id);
-    }
+    if (defaultShippingTerm) setShippingTermId(defaultShippingTerm.id);
   }, [shippingTermId, shippingTerms]);
 
   useEffect(() => {
     if (paymentTermsId) return;
-
     const defaultPaymentTerm =
       paymentTerms.find((term) => term.is_default) ?? paymentTerms[0];
-
-    if (defaultPaymentTerm) {
-      setPaymentTermsId(defaultPaymentTerm.id);
-    }
+    if (defaultPaymentTerm) setPaymentTermsId(defaultPaymentTerm.id);
   }, [paymentTerms, paymentTermsId]);
 
   useEffect(() => {
     if (paymentMethodId) return;
-
     const defaultPaymentMethod = paymentMethods[0];
-
-    if (defaultPaymentMethod) {
-      setPaymentMethodId(defaultPaymentMethod.id);
-    }
+    if (defaultPaymentMethod) setPaymentMethodId(defaultPaymentMethod.id);
   }, [paymentMethodId, paymentMethods]);
 
   useEffect(() => {
     if (!companyId || bankAccountId) return;
-
     const defaultBank =
-      filteredBankAccounts.find((account) => account.is_default) ??
-      filteredBankAccounts[0];
-
-    if (defaultBank) {
-      setBankAccountId(defaultBank.id);
-    }
+      filteredBankAccounts.find((account) => account.is_default) ?? filteredBankAccounts[0];
+    if (defaultBank) setBankAccountId(defaultBank.id);
   }, [bankAccountId, companyId, filteredBankAccounts]);
 
   useEffect(() => {
@@ -581,13 +575,8 @@ const [proformaSources, setProformaSources] = useState<
       return;
     }
 
-    const matchingTaskStillValid = filteredTasks.some(
-      (task) => task.id === taskId
-    );
-
-    if (!matchingTaskStillValid) {
-      setTaskId("");
-    }
+    const matchingTaskStillValid = filteredTasks.some((task) => task.id === taskId);
+    if (!matchingTaskStillValid) setTaskId("");
   }, [filteredTasks, projectId, taskId]);
 
   const applyProformaSource = useCallback(async (proformaId: string) => {
@@ -612,8 +601,7 @@ const [proformaSources, setProformaSources] = useState<
 
     if (proformaError) throw proformaError;
 
-    const typedProforma =
-      (proformaData || null) as ProformaInvoiceSource | null;
+    const typedProforma = (proformaData || null) as ProformaInvoiceSource | null;
 
     if (!typedProforma) {
       setErrorMessage("Proforma invoice source was not found.");
@@ -621,16 +609,13 @@ const [proformaSources, setProformaSources] = useState<
     }
 
     if (typedProforma.status !== "confirmed") {
-      setErrorMessage(
-        "Proforma invoice must be confirmed before creating an invoice."
-      );
+      setErrorMessage("Proforma invoice must be confirmed before creating an invoice.");
       return;
     }
 
     setSourceMode("proforma_invoice");
     setSourceProformaId(typedProforma.id);
     setSourceProformaInvoice(typedProforma);
-
     setCounterpartyType("client");
     setClientId(typedProforma.client_id || "");
     setCounterpartyCompanyId("");
@@ -648,10 +633,7 @@ const [proformaSources, setProformaSources] = useState<
       ? new Date(typedProforma.valid_until)
       : new Date();
 
-    if (!typedProforma.valid_until) {
-      nextDueDate.setDate(nextDueDate.getDate() + 30);
-    }
-
+    if (!typedProforma.valid_until) nextDueDate.setDate(nextDueDate.getDate() + 30);
     setDueDate(nextDueDate.toISOString().slice(0, 10));
 
     setNotes(
@@ -665,20 +647,18 @@ const [proformaSources, setProformaSources] = useState<
         .join("\n")
     );
 
-    const { data: proformaLinesData, error: proformaLinesError } =
-      await supabase
-        .from("finance_proforma_invoice_line_items")
-        .select(
-          "id, proforma_invoice_id, item_id, description, quantity, unit_price, discount, sort_order, unit_of_measure_id, tax_code_id, revenue_category_id, project_id, task_id, status"
-        )
-        .eq("proforma_invoice_id", typedProforma.id)
-        .or("status.is.null,status.neq.deleted")
-        .order("sort_order", { ascending: true });
+    const { data: proformaLinesData, error: proformaLinesError } = await supabase
+      .from("finance_proforma_invoice_line_items")
+      .select(
+        "id, proforma_invoice_id, item_id, description, quantity, unit_price, discount, sort_order, unit_of_measure_id, tax_code_id, revenue_category_id, project_id, task_id, status"
+      )
+      .eq("proforma_invoice_id", typedProforma.id)
+      .or("status.is.null,status.neq.deleted")
+      .order("sort_order", { ascending: true });
 
     if (proformaLinesError) throw proformaLinesError;
 
-    const proformaLines =
-      (proformaLinesData || []) as ProformaInvoiceLineSource[];
+    const proformaLines = (proformaLinesData || []) as ProformaInvoiceLineSource[];
 
     setRows(
       proformaLines.length > 0
@@ -739,7 +719,6 @@ const [proformaSources, setProformaSources] = useState<
           )
           .eq("status", "active")
           .order("name", { ascending: true }),
-
         supabase
           .from("finance_companies")
           .select(
@@ -747,29 +726,18 @@ const [proformaSources, setProformaSources] = useState<
           )
           .eq("status", "active")
           .order("name", { ascending: true }),
-
-        supabase
-          .from("projects")
-          .select("id, name")
-          .order("name", { ascending: true }),
-
-                supabase
-          .from("tasks")
-          .select("id, title, project_id")
-          .order("created_at", { ascending: false }),
-
+        supabase.from("projects").select("id, name").order("name", { ascending: true }),
+        supabase.from("tasks").select("id, title, project_id").order("created_at", { ascending: false }),
         supabase
           .from("finance_payment_terms")
           .select("id, code, name, due_days, is_default")
           .eq("status", "active")
           .order("name", { ascending: true }),
-
         supabase
           .from("finance_shipping_terms")
           .select("id, code, name, description, is_default")
           .eq("status", "active")
           .order("name", { ascending: true }),
-
         supabase
           .from("finance_bank_accounts")
           .select(
@@ -777,21 +745,16 @@ const [proformaSources, setProformaSources] = useState<
           )
           .eq("status", "active")
           .order("name", { ascending: true }),
-
         supabase
           .from("finance_currencies")
-          .select(
-            "id, currency_code, currency_name, currency_symbol, is_base_currency"
-          )
+          .select("id, currency_code, currency_name, currency_symbol, is_base_currency")
           .eq("status", "active")
           .order("currency_code", { ascending: true }),
-
         supabase
           .from("finance_payment_methods")
           .select("id, code, name")
           .eq("status", "active")
           .order("name", { ascending: true }),
-
         supabase
           .from("finance_items")
           .select(
@@ -800,25 +763,21 @@ const [proformaSources, setProformaSources] = useState<
           .eq("status", "active")
           .eq("is_active_for_sales", true)
           .order("name", { ascending: true }),
-
         supabase
           .from("finance_tax_codes")
           .select("id, code, name, rate_percent")
           .eq("status", "active")
           .order("name", { ascending: true }),
-
         supabase
           .from("finance_units_of_measure")
           .select("id, code, name")
           .eq("status", "active")
           .order("name", { ascending: true }),
-
         supabase
           .from("finance_revenue_categories")
           .select("id, code, name")
           .eq("status", "active")
           .order("name", { ascending: true }),
-
         supabase
           .from("finance_proforma_invoices")
           .select(
@@ -843,57 +802,39 @@ const [proformaSources, setProformaSources] = useState<
       if (revenueCategoriesResult.error) throw revenueCategoriesResult.error;
       if (proformaSourcesResult.error) throw proformaSourcesResult.error;
 
+      const loadedCompanies = (companiesResult.data || []) as CompanyOption[];
+      const loadedPaymentTerms = (paymentTermsResult.data || []) as PaymentTermOption[];
+      const loadedShippingTerms = (shippingTermsResult.data || []) as ShippingTermOption[];
+      const loadedPaymentMethods = (paymentMethodsResult.data || []) as PaymentMethodOption[];
+
       setClients((clientsResult.data || []) as ClientOption[]);
-      setCompanies((companiesResult.data || []) as CompanyOption[]);
+      setCompanies(loadedCompanies);
       setProjects((projectsResult.data || []) as ProjectOption[]);
       setTasks((tasksResult.data || []) as TaskOption[]);
-      setPaymentTerms((paymentTermsResult.data || []) as PaymentTermOption[]);
-      setShippingTerms((shippingTermsResult.data || []) as ShippingTermOption[]);
+      setPaymentTerms(loadedPaymentTerms);
+      setShippingTerms(loadedShippingTerms);
       setBankAccounts((bankAccountsResult.data || []) as BankAccountOption[]);
       setCurrencies((currenciesResult.data || []) as CurrencyOption[]);
-      setPaymentMethods(
-        (paymentMethodsResult.data || []) as PaymentMethodOption[]
-      );
+      setPaymentMethods(loadedPaymentMethods);
       setItems((itemsResult.data || []) as ItemOption[]);
       setTaxCodes((taxCodesResult.data || []) as TaxCodeOption[]);
-      setUnitsOfMeasure(
-        (unitsOfMeasureResult.data || []) as UnitOfMeasureOption[]
-      );
-      setRevenueCategories(
-        (revenueCategoriesResult.data || []) as RevenueCategoryOption[]
-      );
-      setProformaSources(
-        (proformaSourcesResult.data || []) as ProformaInvoiceSource[]
-      );
+      setUnitsOfMeasure((unitsOfMeasureResult.data || []) as UnitOfMeasureOption[]);
+      setRevenueCategories((revenueCategoriesResult.data || []) as RevenueCategoryOption[]);
+      setProformaSources((proformaSourcesResult.data || []) as ProformaInvoiceSource[]);
 
-      if (!companyId && (companiesResult.data || []).length === 1) {
-        setCompanyId(companiesResult.data![0].id);
+      if (!companyId && loadedCompanies.length === 1) {
+        setCompanyId(loadedCompanies[0].id);
       }
 
       const defaultPaymentTerm =
-        ((paymentTermsResult.data || []) as PaymentTermOption[]).find(
-          (term) => term.is_default
-        ) || ((paymentTermsResult.data || []) as PaymentTermOption[])[0];
-
+        loadedPaymentTerms.find((term) => term.is_default) || loadedPaymentTerms[0];
       const defaultShippingTerm =
-        ((shippingTermsResult.data || []) as ShippingTermOption[]).find(
-          (term) => term.is_default
-        ) || ((shippingTermsResult.data || []) as ShippingTermOption[])[0];
+        loadedShippingTerms.find((term) => term.is_default) || loadedShippingTerms[0];
+      const defaultPaymentMethod = loadedPaymentMethods[0];
 
-      const defaultPaymentMethod =
-        ((paymentMethodsResult.data || []) as PaymentMethodOption[])[0];
-
-      if (!paymentTermsId && defaultPaymentTerm) {
-        setPaymentTermsId(defaultPaymentTerm.id);
-      }
-
-      if (!shippingTermId && defaultShippingTerm) {
-        setShippingTermId(defaultShippingTerm.id);
-      }
-
-      if (!paymentMethodId && defaultPaymentMethod) {
-        setPaymentMethodId(defaultPaymentMethod.id);
-      }
+      if (!paymentTermsId && defaultPaymentTerm) setPaymentTermsId(defaultPaymentTerm.id);
+      if (!shippingTermId && defaultShippingTerm) setShippingTermId(defaultShippingTerm.id);
+      if (!paymentMethodId && defaultPaymentMethod) setPaymentMethodId(defaultPaymentMethod.id);
 
       if (sourceProformaInvoiceId) {
         await applyProformaSource(sourceProformaInvoiceId);
@@ -904,49 +845,16 @@ const [proformaSources, setProformaSources] = useState<
     } finally {
       setIsLoading(false);
     }
-  }, []);
+  }, [applyProformaSource, sourceProformaInvoiceId]);
 
   useEffect(() => {
     void loadFormData();
   }, [loadFormData]);
 
-  const totals = useMemo(() => {
-    const subtotal = rows.reduce(
-      (sum, row) => sum + toNumber(row.quantity) * toNumber(row.unitPrice),
-      0
-    );
-
-    const discount = rows.reduce((sum, row) => sum + toNumber(row.discount), 0);
-
-    const tax = rows.reduce((sum, row) => {
-      const base = Math.max(
-        toNumber(row.quantity) * toNumber(row.unitPrice) -
-          toNumber(row.discount),
-        0
-      );
-
-      const taxCode = taxCodes.find((entry) => entry.id === row.taxCodeId);
-      if (!taxCode) return sum;
-
-      return sum + base * (toNumber(taxCode.rate_percent) / 100);
-    }, 0);
-
-    const total = Math.max(subtotal - discount + tax, 0);
-
-    return {
-      subtotal,
-      discount,
-      tax,
-      total,
-    };
-  }, [rows, taxCodes]);
-
   const updateRow = useCallback(
     (localId: string, field: keyof InvoiceItemRow, value: string) => {
       setRows((current) =>
-        current.map((row) =>
-          row.localId === localId ? { ...row, [field]: value } : row
-        )
+        current.map((row) => (row.localId === localId ? { ...row, [field]: value } : row))
       );
     },
     []
@@ -960,12 +868,7 @@ const [proformaSources, setProformaSources] = useState<
         current.map((row) => {
           if (row.localId !== localId) return row;
 
-          if (!selectedItem) {
-            return {
-              ...row,
-              itemId: "",
-            };
-          }
+          if (!selectedItem) return { ...row, itemId: "" };
 
           return {
             ...row,
@@ -985,28 +888,41 @@ const [proformaSources, setProformaSources] = useState<
   const addRow = useCallback(() => {
     setRows((current) => {
       const last = current[current.length - 1];
-
       const isLastEmpty =
         !last.description.trim() &&
         toNumber(last.quantity) === 0 &&
         toNumber(last.unitPrice) === 0;
 
-      if (isLastEmpty) {
-        return current;
-      }
-
+      if (isLastEmpty) return current;
       return [...current, createRow()];
     });
   }, []);
 
   const removeRow = useCallback((localId: string) => {
     setRows((current) => {
-      if (current.length === 1) {
-        return current;
-      }
-
+      if (current.length === 1) return current;
       return current.filter((row) => row.localId !== localId);
     });
+  }, []);
+
+  const resetManualSource = useCallback(() => {
+    setSourceMode("manual");
+    setSourceProformaId("");
+    setSourceProformaInvoice(null);
+    setClientId("");
+    setCounterpartyCompanyId("");
+    setCompanyId("");
+    setProjectId("");
+    setTaskId("");
+    setPaymentTermsId("");
+    setShippingTermId("");
+    setBankAccountId("");
+    setCurrencyId("");
+    setCurrencyCode("USD");
+    setDueDate("");
+    setRows([createRow()]);
+    setNotes("");
+    setErrorMessage("");
   }, []);
 
   const handleSaveDraft = useCallback(async () => {
@@ -1027,16 +943,9 @@ const [proformaSources, setProformaSources] = useState<
       return;
     }
 
-    const trimmedRows = rows.map((row) => ({
-      ...row,
-      description: row.description.trim(),
-    }));
-
+    const trimmedRows = rows.map((row) => ({ ...row, description: row.description.trim() }));
     const hasAtLeastOneValidRow = trimmedRows.some(
-      (row) =>
-        row.description &&
-        toNumber(row.quantity) > 0 &&
-        toNumber(row.unitPrice) >= 0
+      (row) => row.description && toNumber(row.quantity) > 0 && toNumber(row.unitPrice) >= 0
     );
 
     if (!hasAtLeastOneValidRow) {
@@ -1045,10 +954,7 @@ const [proformaSources, setProformaSources] = useState<
     }
 
     const hasInvalidRow = trimmedRows.some(
-      (row) =>
-        !row.description ||
-        toNumber(row.quantity) <= 0 ||
-        toNumber(row.unitPrice) < 0
+      (row) => !row.description || toNumber(row.quantity) <= 0 || toNumber(row.unitPrice) < 0
     );
 
     if (hasInvalidRow) {
@@ -1065,12 +971,11 @@ const [proformaSources, setProformaSources] = useState<
         data: { user },
       } = await supabase.auth.getUser();
 
-      if (!user?.id) {
-        throw new Error("User not authenticated");
-      }
+      if (!user?.id) throw new Error("User not authenticated");
 
-      const { data: createdInvoiceId, error: invoiceError } =
-        await supabase.rpc("finance_create_invoice_draft", {
+      const { data: createdInvoiceId, error: invoiceError } = await supabase.rpc(
+        "finance_create_invoice_draft",
+        {
           p_company_id: companyId,
           p_counterparty_type: counterpartyType,
           p_client_id: counterpartyType === "client" ? clientId : null,
@@ -1089,7 +994,8 @@ const [proformaSources, setProformaSources] = useState<
           p_exchange_rate: 1,
           p_payment_method_id: paymentMethodId || null,
           p_created_by: user.id,
-        });
+        }
+      );
 
       if (invoiceError) throw invoiceError;
       if (!createdInvoiceId) throw new Error("Invoice was not created");
@@ -1170,9 +1076,7 @@ const [proformaSources, setProformaSources] = useState<
 
       const { error: recalcError } = await supabase.rpc(
         "finance_recalculate_invoice_issued_totals",
-        {
-          p_invoice_id: createdInvoiceId,
-        }
+        { p_invoice_id: createdInvoiceId }
       );
 
       if (recalcError) throw recalcError;
@@ -1205,256 +1109,107 @@ const [proformaSources, setProformaSources] = useState<
     taskId,
   ]);
 
-  const activeSectionClass =
-    "overflow-hidden rounded-[30px] border border-white/10 bg-white/[0.045] backdrop-blur-xl";
-
-  const summaryBlockClass =
-    "rounded-[24px] border border-white/10 bg-black/20 p-4";
-
-  const fieldShellClass =
-    "mt-2 h-10 w-full rounded-2xl border border-white/10 bg-black/20 px-3 text-sm text-white outline-none transition focus:border-cyan-400/30 focus:bg-black/30";
-
-  const inputFieldClass =
-    "h-11 w-full rounded-2xl border border-white/10 bg-black/20 px-4 text-sm text-white outline-none transition placeholder:text-slate-600 focus:border-cyan-400/30 focus:bg-black/30";
-
-  const labelClass = "text-[11px] uppercase tracking-[0.2em] text-slate-500";
-
-  const inputLabelClass = "text-sm font-medium text-slate-300";
-
   if (isLoading) {
     return (
-      <div className="min-h-screen bg-[#05070d] px-4 py-4 text-white md:px-6 md:py-6">
-        <div className="mx-auto flex w-full max-w-[1600px] flex-col gap-6">
-          <div className="rounded-[30px] border border-white/10 bg-white/[0.045] p-6 text-sm text-slate-400 backdrop-blur-xl">
-            Loading invoice sources...
-          </div>
-        </div>
-      </div>
+      <AixiaLoadingState
+        title="Loading invoice sources"
+        description="Client, company, bank, tax, item, and proforma source data are being loaded."
+      />
     );
   }
 
   return (
-    <div className="min-h-screen bg-[#05070d] px-4 py-4 text-white md:px-6 md:py-6">
-      <div className="mx-auto flex w-full max-w-[1600px] flex-col gap-6">
-        <header className="relative overflow-hidden rounded-[34px] border border-white/10 bg-white/[0.045] p-6 shadow-2xl shadow-black/30 backdrop-blur-xl">
-          <div className="pointer-events-none absolute inset-0 bg-[radial-gradient(circle_at_top_left,rgba(6,182,212,0.16),transparent_38%),radial-gradient(circle_at_top_right,rgba(139,92,246,0.12),transparent_34%)]" />
-
-          <div className="relative">
-            <button
+    <AixiaPage>
+      <AixiaHero
+        parentLabel="Invoices"
+        parentPath="/finance/transactions/invoices"
+        badges={[
+          { label: "New Invoice Draft", tone: "cyan" },
+          { label: "Receivables", tone: "emerald" },
+          { label: sourceMode === "proforma_invoice" ? "From PI" : "Manual", tone: "neutral" },
+        ]}
+        gradientTitle="Create"
+        title="Invoice Draft"
+        subtitle="Draft-only receivables creation"
+        description="Build a draft invoice from master data or a confirmed proforma invoice. Issue the invoice later from the invoice detail page."
+        statusCards={[
+          {
+            label: "Recipient",
+            value: selectedRecipient.name,
+            description: "Recipient selected for this invoice draft.",
+            icon: counterpartyType === "client" ? FileText : Building2,
+            tone: "cyan",
+          },
+          {
+            label: "Draft Total",
+            value: formatMoney(totals.total, currencyCode),
+            description: "Live total from draft line items before saving.",
+            icon: Wallet,
+            tone: "emerald",
+          },
+        ]}
+        actions={
+          <>
+            <AixiaButton
               type="button"
-              onClick={() => navigate("/finance/transactions/invoices")}
-              className="mb-5 inline-flex items-center justify-center gap-2 rounded-full border border-white/10 bg-white/[0.05] px-5 py-2 text-[11px] font-semibold uppercase tracking-[0.22em] text-slate-300 transition hover:border-white/20 hover:bg-white/[0.08] hover:text-white"
+              variant="primary"
+              disabled={isSaving || isLoading}
+              onClick={() => void handleSaveDraft()}
             >
-              <ArrowRight className="h-3.5 w-3.5 rotate-180" />
-              Invoices
-            </button>
+              <Save className="h-4 w-4" />
+              {isSaving ? "Saving..." : "Save Draft"}
+            </AixiaButton>
+          </>
+        }
+      />
 
-            <div className="grid gap-6 xl:grid-cols-[minmax(0,1fr)_520px]">
-              <div>
-                <div className="flex flex-wrap gap-2">
-                  <Badge className="inline-flex w-fit rounded-full border border-cyan-400/20 bg-cyan-500/10 px-3 py-1 text-[11px] font-semibold uppercase tracking-[0.22em] text-cyan-200 shadow-none">
-                    New Invoice Draft
-                  </Badge>
+      {errorMessage ? <AixiaAlert tone="error">{errorMessage}</AixiaAlert> : null}
 
-                  <Badge className="inline-flex w-fit rounded-full border border-emerald-400/20 bg-emerald-500/10 px-3 py-1 text-[11px] font-semibold uppercase tracking-[0.22em] text-emerald-200 shadow-none">
-                    Receivables
-                  </Badge>
-                </div>
+      <AixiaMetricGrid>
+        <AixiaMetricCard
+          label="Subtotal"
+          value={formatMoney(totals.subtotal, currencyCode)}
+          description="Before discount and tax."
+          icon={Receipt}
+          tone="cyan"
+        />
+        <AixiaMetricCard
+          label="Discount"
+          value={formatMoney(totals.discount, currencyCode)}
+          description="Draft commercial discount."
+          icon={Receipt}
+          tone="gold"
+        />
+        <AixiaMetricCard
+          label="Tax"
+          value={formatMoney(totals.tax, currencyCode)}
+          description="Based on selected tax codes."
+          icon={Receipt}
+          tone="violet"
+        />
+        <AixiaMetricCard
+          label="Total"
+          value={formatMoney(totals.total, currencyCode)}
+          description="Draft invoice value."
+          icon={Wallet}
+          tone="emerald"
+        />
+      </AixiaMetricGrid>
 
-                <h1 className="mt-4 text-3xl font-semibold tracking-[-0.035em] text-white md:text-5xl">
-                  Create Invoice Draft
-                </h1>
-
-                <p className="mt-3 max-w-4xl text-sm leading-6 text-slate-400 md:text-base md:leading-7">
-                  Build a draft invoice from master data, save it, then issue it
-                  later from the invoice detail page.
-                </p>
-
-                <div className="mt-5 flex flex-wrap gap-2">
-                  <Badge className="rounded-full border border-cyan-400/20 bg-cyan-500/10 px-3 py-1 text-[11px] font-semibold uppercase tracking-[0.16em] text-cyan-200 shadow-none">
-                    Draft only
-                  </Badge>
-                  <Badge className="rounded-full border border-emerald-400/20 bg-emerald-500/10 px-3 py-1 text-[11px] font-semibold uppercase tracking-[0.16em] text-emerald-200 shadow-none">
-                    Issue later
-                  </Badge>
-                  <Badge className="rounded-full border border-white/10 bg-white/[0.05] px-3 py-1 text-[11px] font-semibold uppercase tracking-[0.16em] text-slate-300 shadow-none">
-                    No manual refresh
-                  </Badge>
-                </div>
-              </div>
-
-                            <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-1">
-                <div className="min-h-[148px] rounded-[24px] border border-white/10 bg-black/20 p-4">
-                  <div className="flex items-start justify-between gap-3">
-                    <div>
-                      <p className="text-[11px] font-semibold uppercase tracking-[0.2em] text-slate-500">
-                        Recipient
-                      </p>
-                      <p className="mt-2 text-xl font-semibold tracking-[-0.035em] text-white">
-                        {selectedRecipient.name}
-                      </p>
-                    </div>
-                    <div className="flex h-10 w-10 items-center justify-center rounded-2xl border border-cyan-400/20 bg-cyan-500/10 text-cyan-200">
-                      {counterpartyType === "client" ? (
-                        <FileText className="h-4 w-4" />
-                      ) : (
-                        <Building2 className="h-4 w-4" />
-                      )}
-                    </div>
-                  </div>
-                  <p className="mt-3 text-xs leading-5 text-slate-500">
-                    Recipient selected for this invoice draft.
-                  </p>
-                </div>
-
-                <div className="min-h-[148px] rounded-[24px] border border-white/10 bg-black/20 p-4">
-                  <div className="flex items-start justify-between gap-3">
-                    <div>
-                      <p className="text-[11px] font-semibold uppercase tracking-[0.2em] text-slate-500">
-                        Draft Total
-                      </p>
-                      <p className="mt-2 text-xl font-semibold tracking-[-0.035em] text-white">
-                        {formatMoney(totals.total, currencyCode)}
-                      </p>
-                    </div>
-                    <div className="flex h-10 w-10 items-center justify-center rounded-2xl border border-emerald-400/20 bg-emerald-500/10 text-emerald-200">
-                      <Wallet className="h-4 w-4" />
-                    </div>
-                  </div>
-                  <p className="mt-3 text-xs leading-5 text-slate-500">
-                    Live total from the draft line items before saving.
-                  </p>
-                </div>
-              </div>
-            </div>
-
-            <div className="mt-6 flex flex-wrap gap-3">
-              <Button
-                onClick={() => void handleSaveDraft()}
-                disabled={isSaving || isLoading}
-                className="h-11 rounded-2xl border border-cyan-400/20 bg-cyan-500 px-4 text-sm font-semibold text-slate-950 transition hover:bg-cyan-400 disabled:cursor-not-allowed disabled:opacity-40"
-              >
-                <Save className="mr-2 h-4 w-4" />
-                {isSaving ? "Saving..." : "Save Draft"}
-              </Button>
-
-              {errorMessage ? (
-                <div className="flex min-h-11 items-center rounded-2xl border border-rose-400/20 bg-rose-500/10 px-4 text-sm text-rose-200">
-                  {errorMessage}
-                </div>
-              ) : null}
-            </div>
-          </div>
-        </header>
-
-        <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
-          <div className="group relative min-h-[156px] overflow-hidden rounded-[28px] border border-white/10 bg-white/[0.045] p-5 backdrop-blur-xl transition hover:border-white/20 hover:bg-white/[0.055]">
-            <div className="pointer-events-none absolute inset-0 bg-gradient-to-br from-cyan-500/20 via-cyan-400/10 to-transparent opacity-70" />
-            <div className="relative flex items-start justify-between gap-4">
-              <div className="min-w-0">
-                <div className="text-[11px] font-semibold uppercase tracking-[0.2em] text-slate-500">
-                  Subtotal
-                </div>
-                <div className="mt-2 truncate text-3xl font-semibold tracking-[-0.035em] text-cyan-100">
-                  {formatMoney(totals.subtotal, currencyCode)}
-                </div>
-                <div className="mt-2 truncate text-sm leading-6 text-slate-400">
-                  Before discount and tax.
-                </div>
-              </div>
-              <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-2xl border border-cyan-400/20 bg-cyan-500/10 text-cyan-200">
-                <span className="h-2 w-2 rounded-full bg-cyan-400" />
-              </div>
-            </div>
-          </div>
-
-          <div className="group relative min-h-[156px] overflow-hidden rounded-[28px] border border-white/10 bg-white/[0.045] p-5 backdrop-blur-xl transition hover:border-white/20 hover:bg-white/[0.055]">
-            <div className="pointer-events-none absolute inset-0 bg-gradient-to-br from-amber-500/20 via-amber-400/10 to-transparent opacity-70" />
-            <div className="relative flex items-start justify-between gap-4">
-              <div className="min-w-0">
-                <div className="text-[11px] font-semibold uppercase tracking-[0.2em] text-slate-500">
-                  Discount
-                </div>
-                <div className="mt-2 truncate text-3xl font-semibold tracking-[-0.035em] text-amber-100">
-                  {formatMoney(totals.discount, currencyCode)}
-                </div>
-                <div className="mt-2 truncate text-sm leading-6 text-slate-400">
-                  Draft commercial discount.
-                </div>
-              </div>
-              <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-2xl border border-amber-400/20 bg-amber-500/10 text-amber-200">
-                <span className="h-2 w-2 rounded-full bg-amber-400" />
-              </div>
-            </div>
-          </div>
-
-          <div className="group relative min-h-[156px] overflow-hidden rounded-[28px] border border-white/10 bg-white/[0.045] p-5 backdrop-blur-xl transition hover:border-white/20 hover:bg-white/[0.055]">
-            <div className="pointer-events-none absolute inset-0 bg-gradient-to-br from-violet-500/20 via-violet-400/10 to-transparent opacity-70" />
-            <div className="relative flex items-start justify-between gap-4">
-              <div className="min-w-0">
-                <div className="text-[11px] font-semibold uppercase tracking-[0.2em] text-slate-500">
-                  Tax
-                </div>
-                <div className="mt-2 truncate text-3xl font-semibold tracking-[-0.035em] text-violet-100">
-                  {formatMoney(totals.tax, currencyCode)}
-                </div>
-                <div className="mt-2 truncate text-sm leading-6 text-slate-400">
-                  Based on selected tax codes.
-                </div>
-              </div>
-              <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-2xl border border-violet-400/20 bg-violet-500/10 text-violet-200">
-                <span className="h-2 w-2 rounded-full bg-violet-400" />
-              </div>
-            </div>
-          </div>
-
-          <div className="group relative min-h-[156px] overflow-hidden rounded-[28px] border border-white/10 bg-white/[0.045] p-5 backdrop-blur-xl transition hover:border-white/20 hover:bg-white/[0.055]">
-            <div className="pointer-events-none absolute inset-0 bg-gradient-to-br from-emerald-500/20 via-emerald-400/10 to-transparent opacity-70" />
-            <div className="relative flex items-start justify-between gap-4">
-              <div className="min-w-0">
-                <div className="text-[11px] font-semibold uppercase tracking-[0.2em] text-slate-500">
-                  Total
-                </div>
-                <div className="mt-2 truncate text-3xl font-semibold tracking-[-0.035em] text-emerald-100">
-                  {formatMoney(totals.total, currencyCode)}
-                </div>
-                <div className="mt-2 truncate text-sm leading-6 text-slate-400">
-                  Draft invoice value.
-                </div>
-              </div>
-              <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-2xl border border-emerald-400/20 bg-emerald-500/10 text-emerald-200">
-                <span className="h-2 w-2 rounded-full bg-emerald-400" />
-              </div>
-            </div>
-          </div>
-        </div>
-
-        <div className="grid grid-cols-1 gap-6 xl:grid-cols-[minmax(0,1.45fr)_420px]">
-          <div className="space-y-6">
-            <Card className={activeSectionClass}>
-              <CardHeader className="border-b border-white/10 px-5 py-4">
-                <div className="flex items-center gap-3">
-                  <div className="rounded-2xl border border-cyan-400/15 bg-cyan-500/10 p-3 text-cyan-200">
-                    <SquarePen className="h-4 w-4" />
-                  </div>
-                  <div>
-                    <CardTitle className="text-sm font-semibold uppercase tracking-[0.18em] text-slate-400">
-                      Document Overview
-                    </CardTitle>
-                    <CardDescription className="mt-1 text-xs text-slate-500">
-                      Issuing company, recipient, commercial terms, dates, and currency.
-                    </CardDescription>
-                  </div>
-                </div>
-              </CardHeader>
-
-              <CardContent className="grid grid-cols-1 gap-4 p-5 md:grid-cols-3">
-                <div className={summaryBlockClass}>
-                  <div className={labelClass}>Issuing Company</div>
-                  <select
+      <AixiaSmartLayout
+        main={
+          <>
+            <AixiaSection
+              title="Document Overview"
+              description="Issuing company, recipient, commercial terms, dates, currency, source mode, project, and task."
+              icon={SquarePen}
+            >
+              <AixiaFormGrid columns="three">
+                <AixiaFormField>
+                  <AixiaFieldLabel label="Issuing Company" required />
+                  <AixiaSelectField
                     value={companyId}
                     onChange={(event) => setCompanyId(event.target.value)}
-                    className={fieldShellClass}
                   >
                     <option value="">Select company</option>
                     {companies.map((company) => (
@@ -1462,49 +1217,28 @@ const [proformaSources, setProformaSources] = useState<
                         {company.legal_name || company.name}
                       </option>
                     ))}
-                  </select>
+                  </AixiaSelectField>
+                </AixiaFormField>
 
-                  {selectedCompany ? (
-                    <div className="mt-3 text-sm leading-6 text-slate-300">
-                      <div className="font-semibold text-white">
-                        {selectedCompany.legal_name || selectedCompany.name}
-                      </div>
-                      {getCompanyAddress(selectedCompany) ? (
-                        <div>{getCompanyAddress(selectedCompany)}</div>
-                      ) : null}
-                      {selectedCompany.email ? (
-                        <div>Email: {selectedCompany.email}</div>
-                      ) : null}
-                      {selectedCompany.phone ? (
-                        <div>Phone: {selectedCompany.phone}</div>
-                      ) : null}
-                    </div>
-                  ) : null}
-                </div>
-
-                                <div className={summaryBlockClass}>
-                  <div className={labelClass}>Recipient Type</div>
-                  <select
+                <AixiaFormField>
+                  <AixiaFieldLabel label="Recipient Type" required />
+                  <AixiaSelectField
                     value={counterpartyType}
                     onChange={(event) =>
-                      setCounterpartyType(
-                        event.target.value as "client" | "company"
-                      )
+                      setCounterpartyType(event.target.value as "client" | "company")
                     }
-                    className={fieldShellClass}
                   >
                     <option value="client">Client</option>
                     <option value="company">My Company</option>
-                  </select>
-                </div>
+                  </AixiaSelectField>
+                </AixiaFormField>
 
                 {counterpartyType === "client" ? (
-                  <div className={summaryBlockClass}>
-                    <div className={labelClass}>Client / Recipient</div>
-                    <select
+                  <AixiaFormField>
+                    <AixiaFieldLabel label="Client / Recipient" required />
+                    <AixiaSelectField
                       value={clientId}
                       onChange={(event) => setClientId(event.target.value)}
-                      className={fieldShellClass}
                     >
                       <option value="">Select client</option>
                       {clients.map((client) => (
@@ -1512,44 +1246,14 @@ const [proformaSources, setProformaSources] = useState<
                           {client.legal_name || client.name}
                         </option>
                       ))}
-                    </select>
-
-                    {selectedClient ? (
-                      <div className="mt-3 text-sm leading-6 text-slate-300">
-                        <div className="font-semibold text-white">
-                          {selectedClient.legal_name || selectedClient.name}
-                        </div>
-                        {getClientAddress(selectedClient) ? (
-                          <div>{getClientAddress(selectedClient)}</div>
-                        ) : null}
-                        {selectedClient.company_email ||
-                        selectedClient.personnel_email ? (
-                          <div>
-                            Email:{" "}
-                            {selectedClient.company_email ||
-                              selectedClient.personnel_email}
-                          </div>
-                        ) : null}
-                        {selectedClient.company_phone ||
-                        selectedClient.personnel_phone ? (
-                          <div>
-                            Phone:{" "}
-                            {selectedClient.company_phone ||
-                              selectedClient.personnel_phone}
-                          </div>
-                        ) : null}
-                      </div>
-                    ) : null}
-                  </div>
+                    </AixiaSelectField>
+                  </AixiaFormField>
                 ) : (
-                  <div className={summaryBlockClass}>
-                    <div className={labelClass}>Receiving Company</div>
-                    <select
+                  <AixiaFormField>
+                    <AixiaFieldLabel label="Receiving Company" required />
+                    <AixiaSelectField
                       value={counterpartyCompanyId}
-                      onChange={(event) =>
-                        setCounterpartyCompanyId(event.target.value)
-                      }
-                      className={fieldShellClass}
+                      onChange={(event) => setCounterpartyCompanyId(event.target.value)}
                     >
                       <option value="">Select company</option>
                       {companies
@@ -1559,36 +1263,15 @@ const [proformaSources, setProformaSources] = useState<
                             {company.legal_name || company.name}
                           </option>
                         ))}
-                    </select>
-
-                    {selectedCounterpartyCompany ? (
-                      <div className="mt-3 text-sm leading-6 text-slate-300">
-                        <div className="font-semibold text-white">
-                          {selectedCounterpartyCompany.legal_name ||
-                            selectedCounterpartyCompany.name}
-                        </div>
-                        {getCompanyAddress(selectedCounterpartyCompany) ? (
-                          <div>
-                            {getCompanyAddress(selectedCounterpartyCompany)}
-                          </div>
-                        ) : null}
-                        {selectedCounterpartyCompany.email ? (
-                          <div>Email: {selectedCounterpartyCompany.email}</div>
-                        ) : null}
-                        {selectedCounterpartyCompany.phone ? (
-                          <div>Phone: {selectedCounterpartyCompany.phone}</div>
-                        ) : null}
-                      </div>
-                    ) : null}
-                  </div>
+                    </AixiaSelectField>
+                  </AixiaFormField>
                 )}
 
-                <div className={summaryBlockClass}>
-                  <div className={labelClass}>Payment Terms</div>
-                  <select
+                <AixiaFormField>
+                  <AixiaFieldLabel label="Payment Terms" />
+                  <AixiaSelectField
                     value={paymentTermsId}
                     onChange={(event) => setPaymentTermsId(event.target.value)}
-                    className={fieldShellClass}
                   >
                     <option value="">Select terms</option>
                     {paymentTerms.map((term) => (
@@ -1596,15 +1279,14 @@ const [proformaSources, setProformaSources] = useState<
                         {term.code} | {term.name} | Due in {term.due_days} days
                       </option>
                     ))}
-                  </select>
-                </div>
+                  </AixiaSelectField>
+                </AixiaFormField>
 
-                <div className={summaryBlockClass}>
-                  <div className={labelClass}>Shipping Terms</div>
-                  <select
+                <AixiaFormField>
+                  <AixiaFieldLabel label="Shipping Terms" />
+                  <AixiaSelectField
                     value={shippingTermId}
                     onChange={(event) => setShippingTermId(event.target.value)}
-                    className={fieldShellClass}
                   >
                     <option value="">Select shipping terms</option>
                     {shippingTerms.map((term) => (
@@ -1612,15 +1294,14 @@ const [proformaSources, setProformaSources] = useState<
                         {term.code} | {term.name}
                       </option>
                     ))}
-                  </select>
-                </div>
+                  </AixiaSelectField>
+                </AixiaFormField>
 
-                <div className={summaryBlockClass}>
-                  <div className={labelClass}>Bank Account</div>
-                  <select
+                <AixiaFormField>
+                  <AixiaFieldLabel label="Bank Account" />
+                  <AixiaSelectField
                     value={bankAccountId}
                     onChange={(event) => setBankAccountId(event.target.value)}
-                    className={fieldShellClass}
                   >
                     <option value="">Select bank account</option>
                     {filteredBankAccounts.map((bank) => (
@@ -1628,51 +1309,14 @@ const [proformaSources, setProformaSources] = useState<
                         {bank.name}
                       </option>
                     ))}
-                  </select>
+                  </AixiaSelectField>
+                </AixiaFormField>
 
-                  {selectedBankAccount ? (
-                    <div className="mt-3 text-sm leading-6 text-slate-300">
-                      <div className="font-semibold text-white">
-                        {selectedBankAccount.beneficiary_name ||
-                          selectedBankAccount.name}
-                      </div>
-                      {selectedBankAccount.bank_name ||
-                      selectedBankAccount.institution_name ? (
-                        <div>
-                          {selectedBankAccount.bank_name ||
-                            selectedBankAccount.institution_name}
-                        </div>
-                      ) : null}
-                      {getBankAddress(selectedBankAccount) ? (
-                        <div>{getBankAddress(selectedBankAccount)}</div>
-                      ) : null}
-                      {selectedBankAccount.account_number ||
-                      selectedBankAccount.masked_account_number ? (
-                        <div>
-                          Account:{" "}
-                          {selectedBankAccount.account_number ||
-                            selectedBankAccount.masked_account_number}
-                        </div>
-                      ) : null}
-                      {getBankIdentifier(selectedBankAccount) ? (
-                        <div>
-                          {getBankIdentifier(selectedBankAccount)?.label}:{" "}
-                          {getBankIdentifier(selectedBankAccount)?.value}
-                        </div>
-                      ) : null}
-                      {selectedBankAccount.currency_code ? (
-                        <div>Currency: {selectedBankAccount.currency_code}</div>
-                      ) : null}
-                    </div>
-                  ) : null}
-                </div>
-
-                <div className={summaryBlockClass}>
-                  <div className={labelClass}>Preferred Payment Method</div>
-                  <select
+                <AixiaFormField>
+                  <AixiaFieldLabel label="Preferred Payment Method" />
+                  <AixiaSelectField
                     value={paymentMethodId}
                     onChange={(event) => setPaymentMethodId(event.target.value)}
-                    className={fieldShellClass}
                   >
                     <option value="">Select payment method</option>
                     {paymentMethods.map((method) => (
@@ -1680,46 +1324,37 @@ const [proformaSources, setProformaSources] = useState<
                         {method.name}
                       </option>
                     ))}
-                  </select>
-                </div>
+                  </AixiaSelectField>
+                </AixiaFormField>
 
-                <div className={summaryBlockClass}>
-                  <div className={labelClass}>Issue Date</div>
-                  <input
+                <AixiaFormField>
+                  <AixiaFieldLabel label="Issue Date" />
+                  <AixiaInputField
                     type="date"
                     value={issueDate}
                     onChange={(event) => setIssueDate(event.target.value)}
-                    className={fieldShellClass}
                   />
-                </div>
+                </AixiaFormField>
 
-                <div className={summaryBlockClass}>
-                  <div className={labelClass}>Due Date</div>
-                  <input
+                <AixiaFormField>
+                  <AixiaFieldLabel label="Due Date" />
+                  <AixiaInputField
                     type="date"
                     value={dueDate}
                     onChange={(event) => setDueDate(event.target.value)}
-                    className={fieldShellClass}
                   />
-                </div>
+                </AixiaFormField>
 
-                <div className={summaryBlockClass}>
-                  <div className={labelClass}>Currency</div>
-                  <select
+                <AixiaFormField>
+                  <AixiaFieldLabel label="Currency" />
+                  <AixiaSelectField
                     value={currencyId}
                     onChange={(event) => {
                       const nextId = event.target.value;
                       setCurrencyId(nextId);
-
-                      const matchedCurrency = currencies.find(
-                        (entry) => entry.id === nextId
-                      );
-
-                      if (matchedCurrency) {
-                        setCurrencyCode(matchedCurrency.currency_code);
-                      }
+                      const matchedCurrency = currencies.find((entry) => entry.id === nextId);
+                      if (matchedCurrency) setCurrencyCode(matchedCurrency.currency_code);
                     }}
-                    className={fieldShellClass}
                   >
                     <option value="">Select currency</option>
                     {currencies.map((currency) => (
@@ -1727,15 +1362,14 @@ const [proformaSources, setProformaSources] = useState<
                         {currency.currency_code} — {currency.currency_name}
                       </option>
                     ))}
-                  </select>
-                </div>
+                  </AixiaSelectField>
+                </AixiaFormField>
 
-                <div className={summaryBlockClass}>
-                  <div className={labelClass}>Project</div>
-                  <select
+                <AixiaFormField>
+                  <AixiaFieldLabel label="Project" />
+                  <AixiaSelectField
                     value={projectId}
                     onChange={(event) => setProjectId(event.target.value)}
-                    className={fieldShellClass}
                   >
                     <option value="">No project</option>
                     {projects.map((project) => (
@@ -1743,15 +1377,14 @@ const [proformaSources, setProformaSources] = useState<
                         {project.name}
                       </option>
                     ))}
-                  </select>
-                </div>
+                  </AixiaSelectField>
+                </AixiaFormField>
 
-                <div className={summaryBlockClass}>
-                  <div className={labelClass}>Task</div>
-                  <select
+                <AixiaFormField>
+                  <AixiaFieldLabel label="Task" />
+                  <AixiaSelectField
                     value={taskId}
                     onChange={(event) => setTaskId(event.target.value)}
-                    className={fieldShellClass}
                   >
                     <option value="">No task</option>
                     {filteredTasks.map((task) => (
@@ -1759,570 +1392,318 @@ const [proformaSources, setProformaSources] = useState<
                         {task.title}
                       </option>
                     ))}
-                  </select>
-                </div>
+                  </AixiaSelectField>
+                </AixiaFormField>
 
-<div className={summaryBlockClass}>
-  <div className={labelClass}>Source Mode</div>
+                <AixiaFormField>
+                  <AixiaFieldLabel label="Source Mode" />
+                  <AixiaSelectField
+                    value={sourceMode}
+                    onChange={(event) => {
+                      const nextMode = event.target.value as "manual" | "proforma_invoice";
+                      if (nextMode === "manual") {
+                        resetManualSource();
+                        return;
+                      }
 
-  <select
-    value={sourceMode}
-onChange={(event) => {
-  const nextMode = event.target.value as
-    | "manual"
-    | "proforma_invoice";
+                      setSourceMode("proforma_invoice");
+                      setSourceProformaId("");
+                      setSourceProformaInvoice(null);
+                      setRows([createRow()]);
+                      setNotes("");
+                    }}
+                  >
+                    <option value="manual">Manual</option>
+                    <option value="proforma_invoice">From Proforma Invoice</option>
+                  </AixiaSelectField>
+                </AixiaFormField>
 
-  setSourceMode(nextMode);
-
-  if (nextMode === "manual") {
-    // 🔥 FULL HARD RESET (CRITICAL)
-    setSourceProformaId("");
-    setSourceProformaInvoice(null);
-
-    setClientId("");
-    setCounterpartyCompanyId("");
-    setCompanyId("");
-    setProjectId("");
-    setTaskId("");
-
-    setPaymentTermsId("");
-    setShippingTermId("");
-    setBankAccountId("");
-
-    setCurrencyId("");
-    setCurrencyCode("USD");
-
-    setDueDate("");
-
-    setRows([createRow()]);
-    setNotes("");
-    setErrorMessage("");
-
-    return;
-  }
-
-// DO NOTHING — WAIT FOR USER SELECTION
-setSourceProformaId("");
-setSourceProformaInvoice(null);
-setRows([createRow()]);
-setNotes("");
-}}
-    className={fieldShellClass}
-  >
-    <option value="manual">Manual</option>
-    <option value="proforma_invoice">From Proforma Invoice</option>
-  </select>
-
-  {sourceMode === "proforma_invoice" && (
-    <select
-      value={sourceProformaId}
-      onChange={(event) => {
-        const nextProformaId = event.target.value;
-
-        setSourceProformaId(nextProformaId);
-
-        if (!nextProformaId) return;
-
-        // 🔥 HARD RESET BEFORE APPLY (CRITICAL FIX)
-        setRows([]);
-        setNotes("");
-
-        void applyProformaSource(nextProformaId);
-      }}
-      className={fieldShellClass}
-    >
-      <option value="">Select Proforma Invoice</option>
-
-      {proformaSources.map((proforma) => (
-        <option key={proforma.id} value={proforma.id}>
-          {proforma.proforma_number || "Proforma Invoice"} ·{" "}
-          {formatMoney(
-            Number(proforma.total_amount || 0),
-            proforma.currency_code || currencyCode
-          )}
-        </option>
-      ))}
-    </select>
-  )}
-
-  <div className="mt-3 text-sm leading-6 text-slate-400">
-    {sourceProformaInvoice
-      ? `Selected: ${
-          sourceProformaInvoice.proforma_number ||
-          "Proforma Invoice"
-        }`
-      : "Manual invoice without proforma source."}
-  </div>
-</div>
-
-                <div className="rounded-[24px] border border-white/10 bg-black/20 p-4 md:col-span-3">
-                  <div className={labelClass}>Notes</div>
-                  <textarea
-                    value={notes}
-                    onChange={(event) => setNotes(event.target.value)}
-                    rows={4}
-                    className="mt-2 w-full rounded-2xl border border-white/10 bg-black/20 px-4 py-3 text-sm leading-6 text-white outline-none transition placeholder:text-slate-600 focus:border-cyan-400/30 focus:bg-black/30"
-                  />
-                </div>
-              </CardContent>
-            </Card>
-
-                        <Card className={activeSectionClass}>
-              <CardHeader className="flex items-center justify-between border-b border-white/10 px-5 py-4">
-                <div>
-                  <div className="flex items-center gap-3">
-                    <div className="rounded-2xl border border-cyan-400/15 bg-cyan-500/10 p-3 text-cyan-200">
-                      <SquarePen className="h-4 w-4" />
-                    </div>
-                    <div>
-                      <CardTitle className="text-sm font-semibold uppercase tracking-[0.18em] text-slate-400">
-                        Line Items
-                      </CardTitle>
-                      <CardDescription className="mt-1 text-xs text-slate-500">
-                        Add products or services using the locked new/create line-item card pattern.
-                      </CardDescription>
-                    </div>
-                  </div>
-                </div>
-
-                <Button
-                  variant="outline"
-                  onClick={addRow}
-                  className="h-9 rounded-2xl border-white/10 bg-white/[0.05] px-3 text-white hover:bg-white/[0.08]"
-                >
-                  <Plus className="mr-2 h-4 w-4" />
-                  Add Row
-                </Button>
-              </CardHeader>
-
-              <CardContent className="p-5">
-                <div className="max-h-[720px] space-y-3 overflow-y-auto pr-1">
-                  {rows.map((row, index) => {
-                    const selectedItem = items.find(
-                      (item) => item.id === row.itemId
-                    );
-                    const selectedTaxCode = taxCodes.find(
-                      (taxCode) => taxCode.id === row.taxCodeId
-                    );
-                    const selectedUnit = unitsOfMeasure.find(
-                      (unit) => unit.id === row.unitOfMeasureId
-                    );
-                    const selectedRevenueCategory = revenueCategories.find(
-                      (category) => category.id === row.revenueCategoryId
-                    );
-
-                    const rowBase = Math.max(
-                      toNumber(row.quantity) * toNumber(row.unitPrice) -
-                        toNumber(row.discount),
-                      0
-                    );
-                    const rowTaxRate = selectedTaxCode?.rate_percent ?? 0;
-                    const rowTotal =
-                      rowBase + rowBase * (Number(rowTaxRate) / 100);
-
-                    return (
-                      <div
-                        key={row.localId}
-                        className="rounded-[24px] border border-white/10 bg-black/20 p-4"
-                      >
-                        <div className="mb-4 flex items-center justify-between gap-4">
-                          <div className="flex flex-wrap items-center gap-2">
-                            <div className="text-sm font-semibold text-white">
-                              Line {index + 1}
-                            </div>
-
-                            {selectedItem ? (
-                              <Badge className="rounded-full border border-violet-400/20 bg-violet-500/10 px-3 py-1 text-[10px] font-semibold uppercase tracking-[0.18em] text-violet-200 shadow-none">
-                                {selectedItem.name}
-                              </Badge>
-                            ) : null}
-                          </div>
-
-                          <Button
-                            variant="outline"
-                            onClick={() => removeRow(row.localId)}
-                            disabled={rows.length === 1}
-                            className="h-9 rounded-2xl border-white/10 bg-white/[0.05] px-3 text-white hover:bg-white/[0.08] disabled:cursor-not-allowed disabled:opacity-40"
-                          >
-                            <Trash2 className="h-4 w-4" />
-                          </Button>
-                        </div>
-
-                        <div className="grid grid-cols-1 gap-4 md:grid-cols-12">
-                          <label className="space-y-2 md:col-span-3">
-                            <div className={inputLabelClass}>Item</div>
-                            <select
-                              value={row.itemId}
-                              onChange={(event) =>
-                                applyItemToRow(row.localId, event.target.value)
-                              }
-                              className={inputFieldClass}
-                            >
-                              <option value="">Select item</option>
-                              {items.map((item) => (
-                                <option key={item.id} value={item.id}>
-                                  {item.name}
-                                </option>
-                              ))}
-                            </select>
-                          </label>
-
-                          <label className="space-y-2 md:col-span-4">
-                            <div className={inputLabelClass}>Description</div>
-                            <input
-                              value={row.description}
-                              onChange={(event) =>
-                                updateRow(
-                                  row.localId,
-                                  "description",
-                                  event.target.value
-                                )
-                              }
-                              placeholder="Description"
-                              className={inputFieldClass}
-                            />
-                          </label>
-
-                          <label className="space-y-2 md:col-span-1">
-                            <div className={inputLabelClass}>Qty</div>
-                            <input
-                              value={row.quantity}
-                              onChange={(event) =>
-                                updateRow(
-                                  row.localId,
-                                  "quantity",
-                                  event.target.value
-                                )
-                              }
-                              className={inputFieldClass}
-                            />
-                          </label>
-
-                          <label className="space-y-2 md:col-span-2">
-                            <div className={inputLabelClass}>Unit</div>
-                            <select
-                              value={row.unitOfMeasureId}
-                              onChange={(event) =>
-                                updateRow(
-                                  row.localId,
-                                  "unitOfMeasureId",
-                                  event.target.value
-                                )
-                              }
-                              className={inputFieldClass}
-                            >
-                              <option value="">Select unit</option>
-                              {unitsOfMeasure.map((unit) => (
-                                <option key={unit.id} value={unit.id}>
-                                  {unit.name}
-                                </option>
-                              ))}
-                            </select>
-                            {selectedUnit ? (
-                              <div className="text-[11px] text-slate-500">
-                                {selectedUnit.code}
-                              </div>
-                            ) : null}
-                          </label>
-
-                          <label className="space-y-2 md:col-span-2">
-                            <div className={inputLabelClass}>Unit Price</div>
-                            <input
-                              value={row.unitPrice}
-                              onChange={(event) =>
-                                updateRow(
-                                  row.localId,
-                                  "unitPrice",
-                                  event.target.value
-                                )
-                              }
-                              className={inputFieldClass}
-                            />
-                          </label>
-
-                          <label className="space-y-2 md:col-span-2">
-                            <div className={inputLabelClass}>Discount</div>
-                            <input
-                              value={row.discount}
-                              onChange={(event) =>
-                                updateRow(
-                                  row.localId,
-                                  "discount",
-                                  event.target.value
-                                )
-                              }
-                              className={inputFieldClass}
-                            />
-                          </label>
-
-                          <label className="space-y-2 md:col-span-2">
-                            <div className={inputLabelClass}>Tax Code</div>
-                            <select
-                              value={row.taxCodeId}
-                              onChange={(event) =>
-                                updateRow(
-                                  row.localId,
-                                  "taxCodeId",
-                                  event.target.value
-                                )
-                              }
-                              className={inputFieldClass}
-                            >
-                              <option value="">Select tax</option>
-                              {taxCodes.map((taxCode) => (
-                                <option key={taxCode.id} value={taxCode.id}>
-                                  {taxCode.name}
-                                </option>
-                              ))}
-                            </select>
-                          </label>
-
-                          <label className="space-y-2 md:col-span-3">
-                            <div className={inputLabelClass}>
-                              Revenue Category
-                            </div>
-                            <select
-                              value={row.revenueCategoryId}
-                              onChange={(event) =>
-                                updateRow(
-                                  row.localId,
-                                  "revenueCategoryId",
-                                  event.target.value
-                                )
-                              }
-                              className={inputFieldClass}
-                            >
-                              <option value="">Select category</option>
-                              {revenueCategories.map((category) => (
-                                <option key={category.id} value={category.id}>
-                                  {category.name}
-                                </option>
-                              ))}
-                            </select>
-                            {selectedRevenueCategory?.code ? (
-                              <div className="text-[11px] text-slate-500">
-                                {selectedRevenueCategory.code}
-                              </div>
-                            ) : null}
-                          </label>
-
-                          <div className="space-y-2 md:col-span-3">
-                            <div className={inputLabelClass}>Line Total</div>
-                            <div className="flex min-h-[44px] items-center rounded-2xl border border-cyan-400/15 bg-cyan-500/10 px-4 text-sm font-semibold text-cyan-100">
-                              {formatMoney(rowTotal, currencyCode)}
-                            </div>
-                          </div>
-                        </div>
-                      </div>
-                    );
-                  })}
-                </div>
-              </CardContent>
-            </Card>
-          </div>
-
-          <div className="space-y-6">
-            <Card className={activeSectionClass}>
-              <CardHeader className="border-b border-white/10 px-5 py-4">
-                <CardTitle className="text-sm font-semibold uppercase tracking-[0.18em] text-slate-400">
-                  Invoice Summary
-                </CardTitle>
-                <CardDescription className="mt-1 text-xs text-slate-500">
-                  Live commercial summary before saving.
-                </CardDescription>
-              </CardHeader>
-
-              <CardContent className="space-y-3 p-5">
-                <div className={summaryBlockClass}>
-                  <div className={labelClass}>Issuing Company</div>
-                  <div className="mt-2 text-2xl font-semibold text-white">
-                    {selectedCompany?.legal_name || selectedCompany?.name || "—"}
-                  </div>
-                  {selectedCompany ? (
-                    <div className="mt-2 text-sm leading-6 text-slate-400">
-                      {getCompanyAddress(selectedCompany) ? (
-                        <div>{getCompanyAddress(selectedCompany)}</div>
-                      ) : null}
-                      {selectedCompany.email ? (
-                        <div>Email: {selectedCompany.email}</div>
-                      ) : null}
-                      {selectedCompany.phone ? (
-                        <div>Phone: {selectedCompany.phone}</div>
-                      ) : null}
-                    </div>
-                  ) : null}
-                </div>
-
-                                <div className={summaryBlockClass}>
-                  <div className={labelClass}>Recipient</div>
-                  <div className="mt-2 text-2xl font-semibold text-white">
-                    {selectedRecipient.name}
-                  </div>
-                  <div className="mt-2 text-sm leading-6 text-slate-400">
-                    {selectedRecipient.address ? (
-                      <div>{selectedRecipient.address}</div>
-                    ) : null}
-                    {selectedRecipient.email ? (
-                      <div>Email: {selectedRecipient.email}</div>
-                    ) : null}
-                    {selectedRecipient.phone ? (
-                      <div>Phone: {selectedRecipient.phone}</div>
-                    ) : null}
-                  </div>
-                </div>
-
-                <div className={summaryBlockClass}>
-                  <div className={labelClass}>Payment Terms</div>
-                  <div className="mt-2 text-2xl font-semibold text-white">
-                    {selectedPaymentTerm?.name || "—"}
-                  </div>
-                  <div className="mt-2 text-sm leading-6 text-slate-400">
-                    {selectedPaymentTerm
-                      ? `${selectedPaymentTerm.code} · Due in ${selectedPaymentTerm.due_days} days`
-                      : "No payment terms selected"}
-                  </div>
-                </div>
-
-                <div className={summaryBlockClass}>
-                  <div className={labelClass}>Shipping Terms</div>
-                  <div className="mt-2 text-2xl font-semibold text-white">
-                    {selectedShippingTerm?.name || "—"}
-                  </div>
-                  <div className="mt-2 text-sm leading-6 text-slate-400">
-                    {selectedShippingTerm?.code || "No shipping terms selected"}
-                  </div>
-                </div>
-
-                <div className={summaryBlockClass}>
-                  <div className={labelClass}>Bank Account</div>
-                  <div className="mt-2 text-2xl font-semibold text-white">
-                    {selectedBankAccount?.name || "—"}
-                  </div>
-                  {selectedBankAccount ? (
-                    <div className="mt-2 text-sm leading-6 text-slate-400">
-                      {selectedBankAccount.bank_name ||
-                      selectedBankAccount.institution_name ? (
-                        <div>
-                          {selectedBankAccount.bank_name ||
-                            selectedBankAccount.institution_name}
-                        </div>
-                      ) : null}
-                      {getBankAddress(selectedBankAccount) ? (
-                        <div>{getBankAddress(selectedBankAccount)}</div>
-                      ) : null}
-                      {selectedBankAccount.account_number ||
-                      selectedBankAccount.masked_account_number ? (
-                        <div>
-                          Account:{" "}
-                          {selectedBankAccount.account_number ||
-                            selectedBankAccount.masked_account_number}
-                        </div>
-                      ) : null}
-                      {getBankIdentifier(selectedBankAccount) ? (
-                        <div>
-                          {getBankIdentifier(selectedBankAccount)?.label}:{" "}
-                          {getBankIdentifier(selectedBankAccount)?.value}
-                        </div>
-                      ) : null}
-                      {selectedBankAccount.currency_code ? (
-                        <div>Currency: {selectedBankAccount.currency_code}</div>
-                      ) : null}
-                    </div>
-                  ) : null}
-                </div>
-
-                <div className={summaryBlockClass}>
-                  <div className={labelClass}>Preferred Payment Method</div>
-                  <div className="mt-2 text-2xl font-semibold text-white">
-                    {selectedPaymentMethod?.name || "—"}
-                  </div>
-                  <div className="mt-2 text-sm leading-6 text-slate-400">
-                    {selectedPaymentMethod?.code || "No payment method selected"}
-                  </div>
-                </div>
-
-                <div className={summaryBlockClass}>
-                  <div className={labelClass}>Currency</div>
-                  <div className="mt-2 text-2xl font-semibold text-white">
-                    {selectedCurrency
-                      ? `${selectedCurrency.currency_code} — ${selectedCurrency.currency_name}`
-                      : currencyCode || "—"}
-                  </div>
-                </div>
-
-                <div className={summaryBlockClass}>
-                  <div className={labelClass}>Project / Task</div>
-                  <div className="mt-2 text-2xl font-semibold text-white">
-                    {selectedProject?.name || "—"}
-                  </div>
-                  <div className="mt-2 text-sm leading-6 text-slate-400">
-                    {selectedTask?.title || "No task selected"}
-                  </div>
-                </div>
-
-                <div className={summaryBlockClass}>
-                  <div className="flex items-center justify-between text-sm">
-                    <span className="text-slate-400">Subtotal</span>
-                    <span className="font-semibold text-white">
-                      {formatMoney(totals.subtotal, currencyCode)}
-                    </span>
-                  </div>
-
-                  <div className="mt-2 flex items-center justify-between text-sm">
-                    <span className="text-slate-400">Discount</span>
-                    <span className="font-semibold text-white">
-                      {formatMoney(totals.discount, currencyCode)}
-                    </span>
-                  </div>
-
-                  <div className="mt-2 flex items-center justify-between text-sm">
-                    <span className="text-slate-400">Tax</span>
-                    <span className="font-semibold text-white">
-                      {formatMoney(totals.tax, currencyCode)}
-                    </span>
-                  </div>
-
-                  <div className="mt-3 border-t border-white/10 pt-3">
-                    <div className="flex items-center justify-between">
-                      <span className="text-sm font-medium text-slate-300">
-                        Total
-                      </span>
-                      <span className="text-lg font-semibold text-white">
-                        {formatMoney(totals.total, currencyCode)}
-                      </span>
-                    </div>
-                  </div>
-                </div>
-
-                {errorMessage ? (
-                  <div className="rounded-[18px] border border-rose-400/20 bg-rose-500/10 px-4 py-3 text-sm text-rose-200">
-                    {errorMessage}
-                  </div>
+                {sourceMode === "proforma_invoice" ? (
+                  <AixiaFormField>
+                    <AixiaFieldLabel label="Proforma Invoice Source" />
+                    <AixiaSelectField
+                      value={sourceProformaId}
+                      onChange={(event) => {
+                        const nextProformaId = event.target.value;
+                        setSourceProformaId(nextProformaId);
+                        if (!nextProformaId) return;
+                        setRows([]);
+                        setNotes("");
+                        void applyProformaSource(nextProformaId);
+                      }}
+                    >
+                      <option value="">Select Proforma Invoice</option>
+                      {proformaSources.map((proforma) => (
+                        <option key={proforma.id} value={proforma.id}>
+                          {proforma.proforma_number || "Proforma Invoice"} ·{" "}
+                          {formatMoney(
+                            Number(proforma.total_amount || 0),
+                            proforma.currency_code || currencyCode
+                          )}
+                        </option>
+                      ))}
+                    </AixiaSelectField>
+                  </AixiaFormField>
                 ) : null}
-              </CardContent>
-            </Card>
 
-            <Card className={activeSectionClass}>
-              <CardHeader className="border-b border-white/10 px-5 py-4">
-                <CardTitle className="text-sm font-semibold uppercase tracking-[0.18em] text-slate-400">
-                  Locked Behavior
-                </CardTitle>
-                <CardDescription className="mt-1 text-xs text-slate-500">
-                  New invoice creation rules.
-                </CardDescription>
-              </CardHeader>
+                <AixiaFormFullWidth>
+                  <AixiaFormField>
+                    <AixiaFieldLabel label="Notes" />
+                    <AixiaTextareaField
+                      value={notes}
+                      onChange={(event) => setNotes(event.target.value)}
+                      rows={4}
+                    />
+                  </AixiaFormField>
+                </AixiaFormFullWidth>
+              </AixiaFormGrid>
+            </AixiaSection>
 
-              <CardContent className="space-y-2 p-5 text-sm leading-6 text-slate-400">
-                <div>• This page creates a draft only.</div>
-                <div>• Real invoice number is finalized on issue.</div>
-                <div>• Issue action happens later from the detail page.</div>
-                <div>• Master data supplies the source values.</div>
-                <div>• Invoice snapshot is frozen when issued.</div>
-              </CardContent>
-            </Card>
-          </div>
-        </div>
-      </div>
-    </div>
+            <AixiaSection
+              title="Line Items"
+              description="Add products or services using the locked new/create line-item card pattern."
+              icon={SquarePen}
+              actions={
+                <AixiaButton type="button" variant="secondary" onClick={addRow}>
+                  <Plus className="h-4 w-4" />
+                  Add Row
+                </AixiaButton>
+              }
+              smartScroll
+              visibleCards={8}
+              itemCount={rows.length}
+            >
+              <div className="aixia-stack">
+                {rows.map((row, index) => {
+                  const selectedItem = items.find((item) => item.id === row.itemId);
+                  const selectedTaxCode = taxCodes.find((taxCode) => taxCode.id === row.taxCodeId);
+                  const selectedUnit = unitsOfMeasure.find((unit) => unit.id === row.unitOfMeasureId);
+                  const selectedRevenueCategory = revenueCategories.find(
+                    (category) => category.id === row.revenueCategoryId
+                  );
+                  const rowTotal = getRowTotal(row, taxCodes);
+
+                  return (
+                    <AixiaFormRowCard
+                      key={row.localId}
+                      title={`Line ${index + 1}`}
+                      description={selectedItem?.name || "Draft invoice line"}
+                      onRemove={() => removeRow(row.localId)}
+                      removeDisabled={rows.length === 1}
+                    >
+                      <AixiaFormGrid columns="three">
+                        <AixiaFormField>
+                          <AixiaFieldLabel label="Item" />
+                          <AixiaSelectField
+                            value={row.itemId}
+                            onChange={(event) =>
+                              applyItemToRow(row.localId, event.target.value)
+                            }
+                          >
+                            <option value="">Select item</option>
+                            {items.map((item) => (
+                              <option key={item.id} value={item.id}>
+                                {item.name}
+                              </option>
+                            ))}
+                          </AixiaSelectField>
+                        </AixiaFormField>
+
+                        <AixiaFormField>
+                          <AixiaFieldLabel label="Description" />
+                          <AixiaInputField
+                            value={row.description}
+                            onChange={(event) =>
+                              updateRow(row.localId, "description", event.target.value)
+                            }
+                            placeholder="Description"
+                          />
+                        </AixiaFormField>
+
+                        <AixiaFormField>
+                          <AixiaFieldLabel label="Quantity" />
+                          <AixiaInputField
+                            value={row.quantity}
+                            onChange={(event) =>
+                              updateRow(row.localId, "quantity", event.target.value)
+                            }
+                          />
+                        </AixiaFormField>
+
+                        <AixiaFormField>
+                          <AixiaFieldLabel label="Unit" helper={selectedUnit?.code || undefined} />
+                          <AixiaSelectField
+                            value={row.unitOfMeasureId}
+                            onChange={(event) =>
+                              updateRow(row.localId, "unitOfMeasureId", event.target.value)
+                            }
+                          >
+                            <option value="">Select unit</option>
+                            {unitsOfMeasure.map((unit) => (
+                              <option key={unit.id} value={unit.id}>
+                                {unit.name}
+                              </option>
+                            ))}
+                          </AixiaSelectField>
+                        </AixiaFormField>
+
+                        <AixiaFormField>
+                          <AixiaFieldLabel label="Unit Price" />
+                          <AixiaInputField
+                            value={row.unitPrice}
+                            onChange={(event) =>
+                              updateRow(row.localId, "unitPrice", event.target.value)
+                            }
+                          />
+                        </AixiaFormField>
+
+                        <AixiaFormField>
+                          <AixiaFieldLabel label="Discount" />
+                          <AixiaInputField
+                            value={row.discount}
+                            onChange={(event) =>
+                              updateRow(row.localId, "discount", event.target.value)
+                            }
+                          />
+                        </AixiaFormField>
+
+                        <AixiaFormField>
+                          <AixiaFieldLabel label="Tax Code" helper={selectedTaxCode?.code || undefined} />
+                          <AixiaSelectField
+                            value={row.taxCodeId}
+                            onChange={(event) =>
+                              updateRow(row.localId, "taxCodeId", event.target.value)
+                            }
+                          >
+                            <option value="">Select tax</option>
+                            {taxCodes.map((taxCode) => (
+                              <option key={taxCode.id} value={taxCode.id}>
+                                {taxCode.name}
+                              </option>
+                            ))}
+                          </AixiaSelectField>
+                        </AixiaFormField>
+
+                        <AixiaFormField>
+                          <AixiaFieldLabel
+                            label="Revenue Category"
+                            helper={selectedRevenueCategory?.code || undefined}
+                          />
+                          <AixiaSelectField
+                            value={row.revenueCategoryId}
+                            onChange={(event) =>
+                              updateRow(row.localId, "revenueCategoryId", event.target.value)
+                            }
+                          >
+                            <option value="">Select category</option>
+                            {revenueCategories.map((category) => (
+                              <option key={category.id} value={category.id}>
+                                {category.name}
+                              </option>
+                            ))}
+                          </AixiaSelectField>
+                        </AixiaFormField>
+
+                        <AixiaValueBlock
+                          label="Line Total"
+                          value={formatMoney(rowTotal, currencyCode)}
+                        />
+                      </AixiaFormGrid>
+                    </AixiaFormRowCard>
+                  );
+                })}
+              </div>
+            </AixiaSection>
+          </>
+        }
+        side={
+          <>
+            <AixiaSection
+              title="Invoice Summary"
+              description="Live commercial summary before saving."
+              icon={Wallet}
+            >
+              <AixiaReviewGrid variant="cards">
+                <AixiaValueBlock
+                  label="Issuing Company"
+                  value={selectedCompany?.legal_name || selectedCompany?.name || "—"}
+                  detail={getCompanyAddress(selectedCompany) || undefined}
+                />
+                <AixiaValueBlock
+                  label="Recipient"
+                  value={selectedRecipient.name}
+                  detail={
+                    [selectedRecipient.address, selectedRecipient.email, selectedRecipient.phone]
+                      .filter(Boolean)
+                      .join(" • ") || undefined
+                  }
+                />
+                <AixiaValueBlock
+                  label="Payment Terms"
+                  value={selectedPaymentTerm?.name || "—"}
+                  detail={
+                    selectedPaymentTerm
+                      ? `${selectedPaymentTerm.code} · Due in ${selectedPaymentTerm.due_days} days`
+                      : "No payment terms selected"
+                  }
+                />
+                <AixiaValueBlock
+                  label="Shipping Terms"
+                  value={selectedShippingTerm?.name || "—"}
+                  detail={selectedShippingTerm?.code || "No shipping terms selected"}
+                />
+                <AixiaValueBlock
+                  label="Bank Account"
+                  value={selectedBankAccount?.name || "—"}
+                  detail={getBankSummary(selectedBankAccount)}
+                />
+                <AixiaValueBlock
+                  label="Preferred Payment Method"
+                  value={selectedPaymentMethod?.name || "—"}
+                  detail={selectedPaymentMethod?.code || "No payment method selected"}
+                />
+                <AixiaValueBlock
+                  label="Currency"
+                  value={
+                    selectedCurrency
+                      ? `${selectedCurrency.currency_code} — ${selectedCurrency.currency_name}`
+                      : currencyCode || "—"
+                  }
+                />
+                <AixiaValueBlock
+                  label="Project / Task"
+                  value={selectedProject?.name || "—"}
+                  detail={selectedTask?.title || "No task selected"}
+                />
+                <AixiaValueBlock
+                  label="Subtotal"
+                  value={formatMoney(totals.subtotal, currencyCode)}
+                />
+                <AixiaValueBlock
+                  label="Discount"
+                  value={formatMoney(totals.discount, currencyCode)}
+                />
+                <AixiaValueBlock label="Tax" value={formatMoney(totals.tax, currencyCode)} />
+                <AixiaValueBlock label="Total" value={formatMoney(totals.total, currencyCode)} />
+              </AixiaReviewGrid>
+            </AixiaSection>
+
+            <AixiaSection
+              title="Locked Behavior"
+              description="New invoice creation rules."
+              icon={FileText}
+            >
+              <AixiaReviewGrid variant="cards">
+                <AixiaValueBlock label="Creation Mode" value="Draft only" />
+                <AixiaValueBlock label="Invoice Number" value="Finalized on issue" />
+                <AixiaValueBlock label="Issue Action" value="Detail page only" />
+                <AixiaValueBlock label="Source Values" value="Master data controlled" />
+                <AixiaValueBlock label="Snapshot" value="Frozen when issued" />
+              </AixiaReviewGrid>
+            </AixiaSection>
+          </>
+        }
+      />
+    </AixiaPage>
   );
 }

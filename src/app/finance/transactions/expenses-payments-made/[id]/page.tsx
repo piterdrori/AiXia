@@ -485,39 +485,49 @@ function isDeletedAllocation(allocation: AllocationRow) {
 }
 
 function getAllocationExpenseTitle(allocation: EnrichedAllocation) {
-  const title = allocation.expense?.title?.trim();
-  const sourceName = allocation.expense?.expense_source_name?.trim();
-  const metadataTitle = allocation.metadata?.expense_title?.trim();
-  const typeLabel = formatLabel(allocation.expense?.expense_type);
+  const expenseRecord = allocation.expense;
+  const metadataRecord = allocation.metadata;
+
+  const title = expenseRecord?.title?.trim();
+  const sourceName = expenseRecord?.expense_source_name?.trim();
+  const metadataTitle = metadataRecord?.expense_title?.trim();
+  const typeLabel = formatLabel(expenseRecord?.expense_type);
 
   return title || sourceName || metadataTitle || typeLabel || "Expense";
 }
 
 function getAllocationExpenseSecondary(allocation: EnrichedAllocation) {
-  const expenseNumber = allocation.expense?.expense_number?.trim();
-  const metadataExpenseNumber = allocation.metadata?.expense_number?.trim();
-  const expenseType = formatLabel(allocation.expense?.expense_type);
-  const expenseDate = formatDate(allocation.expense?.expense_date);
+  const expenseRecord = allocation.expense;
+  const metadataRecord = allocation.metadata;
 
-  return [expenseNumber || metadataExpenseNumber, expenseType, expenseDate]
+  const numberLabel = expenseRecord?.expense_number?.trim();
+  const metadataNumberLabel = metadataRecord?.expense_number?.trim();
+  const typeLabel = formatLabel(expenseRecord?.expense_type);
+  const dateLabel = formatDate(expenseRecord?.expense_date);
+
+  return [numberLabel || metadataNumberLabel, typeLabel, dateLabel]
     .filter((item) => item && item !== "—")
     .join(" • ");
 }
 
 function getAllocationRecipientPrimary(allocation: EnrichedAllocation) {
-  const resolvedEmployeeName = allocation.recipientPrimaryName?.trim();
-  const responsiblePersonName = allocation.expense?.responsible_person_name?.trim();
-  const otherPersonName = allocation.expense?.other_made_by_explanation?.trim();
+  const expenseRecord = allocation.expense;
 
-  return resolvedEmployeeName || responsiblePersonName || otherPersonName || "Recipient";
+  const resolvedName = allocation.recipientPrimaryName?.trim();
+  const responsibleName = expenseRecord?.responsible_person_name?.trim();
+  const otherName = expenseRecord?.other_made_by_explanation?.trim();
+
+  return resolvedName || responsibleName || otherName || "Recipient";
 }
 
 function getAllocationRecipientSecondary(allocation: EnrichedAllocation) {
-  const resolvedIdentityLabel = allocation.recipientSecondaryLabel?.trim();
-  const expenseCompanyName = allocation.expenseCompanyName?.trim();
-  const madeByType = formatLabel(allocation.expense?.expense_made_by_type);
+  const expenseRecord = allocation.expense;
 
-  return [resolvedIdentityLabel, expenseCompanyName, madeByType]
+  const resolvedSecondary = allocation.recipientSecondaryLabel?.trim();
+  const companyName = allocation.expenseCompanyName?.trim();
+  const madeByType = formatLabel(expenseRecord?.expense_made_by_type);
+
+  return [resolvedSecondary, companyName, madeByType]
     .filter((item) => item && item !== "—")
     .join(" • ");
 }

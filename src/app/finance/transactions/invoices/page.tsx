@@ -2,7 +2,6 @@ import { useCallback, useEffect, useMemo, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import {
   Archive,
-  ArrowRight,
   Eye,
   FileText,
   Plus,
@@ -30,7 +29,6 @@ import {
   AixiaSearchField,
   AixiaSection,
   AixiaSortableHeader,
-  AixiaStatusBadge,
   AixiaTableActionsCell,
   AixiaTableBadgeCell,
   AixiaTableDateCell,

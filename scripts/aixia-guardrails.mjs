@@ -479,6 +479,7 @@ function inspectSharedCssSourceOfTruth() {
     "GLOBAL AIXIA TYPOGRAPHY LOCK",
     "GLOBAL AIXIA FONT + DETAIL TYPOGRAPHY LOCK",
     "GLOBAL AIXIA ACTION CARD + BUTTON SYMMETRY STANDARD",
+    "GLOBAL AIXIA HERO AUTO-REFLOW STANDARD",
     "GLOBAL DOCUMENT UPLOAD PANEL STANDARD",
     "GLOBAL SMART DETAIL LAYOUT COMPACTION STANDARD",
     "font-family:",
@@ -487,6 +488,8 @@ function inspectSharedCssSourceOfTruth() {
     "0.95rem",
     "1.12rem",
     "0.64rem",
+    ".aixia-hero-main[data-has-side=\"true\"]",
+    ".aixia-hero-side",
     ".aixia-document-upload-panel",
     ".aixia-document-upload-zone",
   ];

@@ -854,6 +854,14 @@ export default function FinanceBillsPage() {
                   <tr key={row.id} className="aixia-table-row">
                     <AixiaTableTextCell
                       width="xl"
+                      primary={getVendorLabel(row)}
+                      secondary={`${getVendorCodeLabel(row)} • Issued to: ${getCompanyLabel(
+                        row
+                      )}`}
+                    />
+
+                    <AixiaTableTextCell
+                      width="xl"
                       primary={row.bill_number}
                       secondary={row.external_document_number || "No vendor ref"}
                     />
@@ -863,14 +871,6 @@ export default function FinanceBillsPage() {
                         {getDocumentTypeLabel(row.document_type)}
                       </AixiaBadge>
                     </AixiaTableBadgeCell>
-
-                    <AixiaTableTextCell
-                      width="xl"
-                      primary={getVendorLabel(row)}
-                      secondary={`${getVendorCodeLabel(row)} • Issued to: ${getCompanyLabel(
-                        row
-                      )}`}
-                    />
 
                     <AixiaTableTextCell
                       width="md"

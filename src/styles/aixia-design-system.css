@@ -5333,3 +5333,86 @@ button.aixia-action-card:disabled {
   max-width: 100%;
 }
 
+/* -------------------------------------------------------
+   GLOBAL AIXIA HERO TITLE / SIDE-CARD BALANCE STANDARD
+   Hero status cards must never steal title width too early.
+   Long gradient titles must keep enough left-side space,
+   while right-side status cards sit lower and visually below
+   the wrapped title line instead of competing with it.
+------------------------------------------------------- */
+
+.aixia-hero {
+  overflow: hidden !important;
+}
+
+.aixia-hero-main,
+.aixia-hero-text,
+.aixia-hero-title-wrap,
+.aixia-hero-side,
+.aixia-hero-status-grid {
+  min-width: 0 !important;
+  max-width: 100% !important;
+}
+
+.aixia-hero-main[data-has-side="true"] {
+  align-items: start !important;
+}
+
+.aixia-hero-side {
+  align-self: end !important;
+  justify-self: stretch !important;
+  overflow: visible !important;
+}
+
+.aixia-hero-title,
+.aixia-hero-gradient-title,
+.aixia-gradient-title,
+.aixia-title-gradient,
+.aixia-title-xl,
+.aixia-hero h1 {
+  max-width: 100% !important;
+  overflow-wrap: normal !important;
+  word-break: normal !important;
+  hyphens: none !important;
+}
+
+@media (min-width: 1280px) and (max-width: 1599px) {
+  .aixia-hero-main[data-has-side="true"] {
+    grid-template-columns: minmax(0, 1fr) !important;
+    row-gap: clamp(1.4rem, 2vw, 2rem) !important;
+  }
+
+  .aixia-hero-side {
+    padding-top: 0 !important;
+  }
+}
+
+@media (min-width: 1600px) {
+  .aixia-hero-main[data-has-side="true"] {
+    grid-template-columns: minmax(720px, 1.24fr) minmax(460px, 0.76fr) !important;
+    column-gap: clamp(2.25rem, 3.2vw, 3.75rem) !important;
+  }
+
+  .aixia-hero-side {
+    padding-top: clamp(5.5rem, 7vw, 8rem) !important;
+  }
+}
+
+@media (min-width: 1800px) {
+  .aixia-hero-main[data-has-side="true"] {
+    grid-template-columns: minmax(780px, 1.28fr) minmax(500px, 0.72fr) !important;
+  }
+
+  .aixia-hero-side {
+    padding-top: clamp(6rem, 6.8vw, 8.5rem) !important;
+  }
+}
+
+.aixia-hero-status-grid {
+  align-self: end !important;
+}
+
+.aixia-hero-status-grid > * {
+  min-width: 0 !important;
+  max-width: 100% !important;
+}

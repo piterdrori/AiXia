@@ -1556,19 +1556,32 @@ function inspectActionCardAndButtonSymmetryRules(filePath, text) {
   }
 }
 
-function inspectChildAllocationLifecycleRules(filePath, text) {
-  const touchesPaymentExpenseAllocations =
-    /finance_payment_made_expense_allocations|Linked Expense Allocations|payment_made_expense_allocation/i.test(
+function inspectEmployeeIdentityGlobalRules(filePath, text) {
+  const touchesEmployeeRefs =
+    /finance_employee_refs|employee_ref_id|recipient_employee_ref_id|employee_code|recipient_person_name|getEmployeeLabel|getAllocationRecipientPrimary|getAllocationRecipientSecondary/i.test(
       text
     );
 
-    if (
-    /finance_employee_refs[\s\S]*?select\(["'][^"']*id,\s*user_id,\s*code,\s*status,\s*mark,\s*metadata[^"']*["']\)/m.test(text) &&
+  if (!touchesEmployeeRefs) return;
+
+  if (
+    /finance_employee_refs[\s\S]*?select\(["'][^"']*\bcode\b[^"']*\buser_id\b[^"']*["']\)/m.test(text) &&
     !/finance_employee_identity_v|FinanceEmployeeIdentity|getFinanceEmployeePrimaryName|AixiaEmployeeIdentityCell/.test(text)
   ) {
     addError(
       filePath,
-      "Pages that display employee refs must resolve real person identity globally. Use finance_employee_identity_v plus employeeIdentity.ts helpers or AixiaEmployeeIdentityCell. Do not display employee code as the person name.",
+      "Pages that load finance_employee_refs for display must resolve real person identity globally. Use finance_employee_identity_v plus employeeIdentity.ts helpers or AixiaEmployeeIdentityCell. Employee code is only an optional reference, not the person name.",
+      "AiXia employee identity source-of-truth rule"
+    );
+  }
+
+  if (
+    /finance_employee_refs[\s\S]*?select\(["'][^"']*\buser_id\b[^"']*\bcode\b[^"']*["']\)/m.test(text) &&
+    !/finance_employee_identity_v|FinanceEmployeeIdentity|getFinanceEmployeePrimaryName|AixiaEmployeeIdentityCell/.test(text)
+  ) {
+    addError(
+      filePath,
+      "Pages that load finance_employee_refs for display must also load/use finance_employee_identity_v or the global employee identity helper/component.",
       "AiXia employee identity source-of-truth rule"
     );
   }
@@ -1576,7 +1589,7 @@ function inspectChildAllocationLifecycleRules(filePath, text) {
   if (/recipient_person_name\s*\|\|\s*getEmployeeLabel/.test(text)) {
     addError(
       filePath,
-      "Do not use recipient_person_name || getEmployeeLabel for primary recipient display. recipient_person_name may contain EMP-code formatting. Resolve through finance_employee_identity_v.",
+      "Do not use recipient_person_name || getEmployeeLabel for primary recipient/person display. recipient_person_name may contain EMP-code formatting. Resolve through finance_employee_identity_v.",
       "AiXia employee identity source-of-truth rule"
     );
   }
@@ -1592,37 +1605,59 @@ function inspectChildAllocationLifecycleRules(filePath, text) {
   }
 
   if (
-    /function\s+getAllocationRecipientPrimary[\s\S]*?recipient_person_name[\s\S]*?\}/m.test(text) &&
+    /function\s+\w*(?:Employee|Recipient|Person)\w*Primary[\s\S]*?recipient_person_name[\s\S]*?\}/m.test(text) &&
     !/getFinanceEmployeePrimaryName|AixiaEmployeeIdentityCell|finance_employee_identity_v/.test(text)
   ) {
     addError(
       filePath,
-      "getAllocationRecipientPrimary must use resolved employee identity. Primary recipient must be real person name from finance_employee_identity_v, not recipient_person_name or employee code.",
+      "Primary employee/recipient/person display must use resolved employee identity from finance_employee_identity_v. Do not trust recipient_person_name as primary when employee refs exist.",
       "AiXia employee identity source-of-truth rule"
     );
   }
 
   if (
-    /primary=\{getAllocationRecipientPrimary\(allocation\)\}/.test(text) &&
+    /primary=\{[^}]*employee\.code[^}]*\}|primary=\{[^}]*employee_code[^}]*\}|primary=\{[^}]*recipient_employee_ref_id[^}]*\}/m.test(
+      text
+    )
+  ) {
+    addError(
+      filePath,
+      "Employee code or recipient_employee_ref_id must never be used as primary business text. Primary must be the resolved real person name.",
+      "AiXia employee identity source-of-truth rule"
+    );
+  }
+
+  if (
+    /secondary=\{[^}]*recipient_employee_ref_id[^}]*\}|secondary=\{[^}]*employee_ref_id[^}]*\}/m.test(
+      text
+    )
+  ) {
+    addError(
+      filePath,
+      "Raw employee_ref_id / recipient_employee_ref_id UUIDs must never be shown in table secondary text. Use employee code only as optional readable reference.",
+      "AiXia employee identity source-of-truth rule"
+    );
+  }
+
+  if (
+    /AixiaTableTextCell[\s\S]{0,900}primary=\{getAllocationRecipientPrimary\(allocation\)\}[\s\S]{0,900}secondary=\{getAllocationRecipientSecondary\(allocation\)\}/m.test(
+      text
+    ) &&
     !/AixiaEmployeeIdentityCell|getFinanceEmployeePrimaryName|finance_employee_identity_v/.test(text)
   ) {
     addError(
       filePath,
-      "Allocation recipient cells must use resolved employee identity. Primary must be real person name, secondary role/company, optional reference employee code.",
+      "Allocation recipient cells must use resolved employee identity. Use AixiaEmployeeIdentityCell or getFinanceEmployeePrimaryName/getFinanceEmployeeSecondaryLabel from employeeIdentity.ts.",
       "AiXia employee identity source-of-truth rule"
     );
   }
+}
 
-  if (
-    /recipient_employee_ref_id[\s\S]{0,300}primary=|primary=[\s\S]{0,300}recipient_employee_ref_id/.test(text) ||
-    /recipient_employee_ref_id[\s\S]{0,300}secondary=|secondary=[\s\S]{0,300}recipient_employee_ref_id/.test(text)
-  ) {
-    addError(
-      filePath,
-      "Never show raw recipient_employee_ref_id UUID in business table cells. Use employee code only as optional readable reference.",
-      "AiXia employee identity source-of-truth rule"
+function inspectChildAllocationLifecycleRules(filePath, text) {
+  const touchesPaymentExpenseAllocations =
+    /finance_payment_made_expense_allocations|Linked Expense Allocations|payment_made_expense_allocation/i.test(
+      text
     );
-  }
 
   if (/minWidthClassName=["']min-w-\[2040px\]["']/.test(text)) {
     addError(
@@ -1633,7 +1668,6 @@ function inspectChildAllocationLifecycleRules(filePath, text) {
   }
 
   if (!touchesPaymentExpenseAllocations) return;
-
   if (!/AixiaChildAllocationRegistry/.test(text)) {
     addError(
       filePath,
@@ -1800,11 +1834,11 @@ function inspectChildAllocationLifecycleRules(filePath, text) {
     /AixiaTableTextCell[\s\S]{0,800}primary=\{getAllocationRecipientPrimary\(allocation\)\}[\s\S]{0,800}secondary=\{getAllocationRecipientSecondary\(allocation\)\}/m.test(
       text
     ) &&
-    !/responsible_person_name/.test(text)
+    !/AixiaEmployeeIdentityCell|getFinanceEmployeePrimaryName|finance_employee_identity_v/.test(text)
   ) {
     addError(
       filePath,
-      "Linked Expense Allocations recipient cell must use the human person name first. Load/use expense.responsible_person_name or allocation.recipient_person_name before employee code/reference.",
+      "Linked Expense Allocations recipient cell must use resolved employee identity from finance_employee_identity_v. Primary is real person name, secondary is role/company, employee code is optional reference only, and UUIDs are never visible.",
       "AiXia child allocation data-priority rule"
     );
   }
@@ -1834,6 +1868,7 @@ function inspectFinancePage(filePath) {
   inspectRegistryStandards(filePath, text);
   inspectButtonMeaning(filePath, text);
   inspectActionCardAndButtonSymmetryRules(filePath, text);
+  inspectEmployeeIdentityGlobalRules(filePath, text);
   inspectChildAllocationLifecycleRules(filePath, text);
   inspectUnusedPatternRisks(filePath, text);
   inspectZeroLocalDesign(filePath, text);

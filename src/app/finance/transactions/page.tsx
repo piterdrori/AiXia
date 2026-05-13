@@ -1241,7 +1241,7 @@ export default function FinanceTransactionsPage() {
         title: "Payments Made",
         description:
           "Outgoing cash settlements for vendor invoices, expenses, reimbursements, and payroll.",
-        route: "/finance/transactions/expenses-payments-made",
+        route: "/finance/transactions/payments-made",
         icon: CreditCard,
         count: data.counts.paymentsMade,
         statusLabel: "Company",

@@ -4873,6 +4873,17 @@ button.aixia-document-attachment-card:disabled {
 .aixia-document-upload-panel .aixia-alert {
   display: grid;
   gap: 0.25rem;
+  margin-bottom: clamp(0.85rem, 1vw, 1.1rem);
+}
+
+.aixia-document-upload-panel .aixia-alert + * {
+  margin-top: 0 !important;
+}
+
+.aixia-document-upload-panel .aixia-field-label,
+.aixia-document-upload-panel .aixia-label {
+  display: block;
+  margin-bottom: 0.45rem;
 }
 
 .aixia-document-upload-panel .aixia-btn-primary,
@@ -5349,11 +5360,21 @@ button.aixia-action-card:disabled {
 }
 
 /* Compact all generic action rows unless a shared component
-   intentionally overrides them. Prevent oversized loose pills. */
+   intentionally overrides them. Prevent oversized loose pills.
+   Action rows must keep a clear vertical gap before alerts/forms. */
 
 .aixia-page .aixia-action-row {
   align-items: center;
   gap: 0.65rem;
+  margin-bottom: clamp(0.9rem, 1vw, 1.15rem);
+}
+
+.aixia-page .aixia-action-row:last-child {
+  margin-bottom: 0;
+}
+
+.aixia-page .aixia-action-row + .aixia-alert {
+  margin-top: clamp(0.35rem, 0.45vw, 0.55rem);
 }
 
 .aixia-page .aixia-action-row .aixia-btn-primary,
@@ -5634,23 +5655,49 @@ button.aixia-action-card:disabled {
 }
 
 /* -------------------------------------------------------
-   GLOBAL AIXIA SMART LAYOUT VERTICAL COMPACTION STANDARD
+   GLOBAL AIXIA SMART LAYOUT TOP-ROW ALIGNMENT STANDARD
    Two-column detail layouts with bottom-span content must
-   stay compact from top to bottom. Left and right cards
-   should shrink vertically when content is short, so lower
-   full-width cards can move upward sooner.
+   align the visible top-row cards at the bottom. The right
+   side stretches only to the top-row height, not to the full
+   page bottom. Lower main sections flow into the full-width
+   bottom span.
 ------------------------------------------------------- */
 
 @media (min-width: 1280px) {
   .aixia-smart-layout[data-has-bottom-span="true"] {
-    align-items: start !important;
+    align-items: stretch !important;
     row-gap: clamp(1rem, 1.35vw, 1.5rem) !important;
   }
 
   .aixia-smart-layout[data-has-bottom-span="true"] > .aixia-smart-main,
   .aixia-smart-layout[data-has-bottom-span="true"] > .aixia-smart-side {
-    align-self: start !important;
+    align-self: stretch !important;
     height: auto !important;
+  }
+
+  .aixia-smart-layout[data-has-bottom-span="true"] > .aixia-smart-main {
+    justify-content: stretch !important;
+  }
+
+  .aixia-smart-layout[data-has-bottom-span="true"] > .aixia-smart-side {
+    justify-content: stretch !important;
+  }
+
+  .aixia-smart-layout[data-has-bottom-span="true"] > .aixia-smart-main > .aixia-section,
+  .aixia-smart-layout[data-has-bottom-span="true"] > .aixia-smart-side > .aixia-section {
+    flex: 1 1 auto !important;
+    min-height: 0 !important;
+  }
+
+  .aixia-smart-layout[data-has-bottom-span="true"] > .aixia-smart-side > .aixia-section {
+    display: flex !important;
+    flex-direction: column !important;
+  }
+
+  .aixia-smart-layout[data-has-bottom-span="true"] > .aixia-smart-side > .aixia-section > .p-6,
+  .aixia-smart-layout[data-has-bottom-span="true"] > .aixia-smart-side > .aixia-section > .aixia-section-smart-scroll-body {
+    flex: 1 1 auto !important;
+    min-height: 0 !important;
   }
 
   .aixia-smart-layout[data-has-bottom-span="true"] > .aixia-smart-main,
@@ -5795,18 +5842,22 @@ button.aixia-action-card:disabled {
 /* -------------------------------------------------------
    GLOBAL AIXIA SMART DETAIL LAYOUT COMPACTION STANDARD
    Compatibility source-of-truth marker for the guardrail.
-   This standard is enforced by the newer smart layout
-   max-expansion, vertical compaction, and strong vertical
-   compaction rules below/above in this shared CSS file.
+
+   IMPORTANT:
+   This compact side-column rule must NOT affect layouts
+   that already use bottom-span behavior. Bottom-span layouts
+   need the top left and top right cards to stretch/alignment
+   together, while lower sections move into the full-width
+   bottom span.
 ------------------------------------------------------- */
 
 @media (min-width: 1280px) {
-  .aixia-smart-layout[data-match-columns="false"] > .aixia-smart-side {
+  .aixia-smart-layout[data-match-columns="false"]:not([data-has-bottom-span="true"]) > .aixia-smart-side {
     align-self: start;
   }
 
-  .aixia-smart-layout[data-match-columns="false"] > .aixia-smart-side > .aixia-section,
-  .aixia-smart-layout[data-match-columns="false"] > .aixia-smart-side > .aixia-detail-section {
+  .aixia-smart-layout[data-match-columns="false"]:not([data-has-bottom-span="true"]) > .aixia-smart-side > .aixia-section,
+  .aixia-smart-layout[data-match-columns="false"]:not([data-has-bottom-span="true"]) > .aixia-smart-side > .aixia-detail-section {
     flex: 0 0 auto;
   }
 }
@@ -5962,4 +6013,59 @@ button.aixia-action-card:disabled {
 
 .aixia-child-allocation-registry .aixia-registry-control-cluster > .aixia-search-field {
   max-width: 420px !important;
+}
+
+/* -------------------------------------------------------
+   GLOBAL AIXIA FINAL SMART SPLIT + FORM FEEDBACK FIX
+   Final source-of-truth correction:
+   - explicit main split layouts must align top-row columns
+   - the right top section must stretch only to the top-row
+     height, not the whole page
+   - form/document alerts need clear spacing before fields
+------------------------------------------------------- */
+
+@media (min-width: 1280px) {
+  .aixia-smart-layout[data-has-explicit-main-split="true"][data-has-bottom-span="true"] {
+    align-items: stretch !important;
+  }
+
+  .aixia-smart-layout[data-has-explicit-main-split="true"][data-has-bottom-span="true"] > .aixia-smart-main,
+  .aixia-smart-layout[data-has-explicit-main-split="true"][data-has-bottom-span="true"] > .aixia-smart-side {
+    align-self: stretch !important;
+    height: 100% !important;
+    min-height: 0 !important;
+  }
+
+  .aixia-smart-layout[data-has-explicit-main-split="true"][data-has-bottom-span="true"] > .aixia-smart-main > .aixia-smart-main-top-tail {
+    min-height: var(--aixia-smart-main-tail-height, auto) !important;
+  }
+
+  .aixia-smart-layout[data-has-explicit-main-split="true"][data-has-bottom-span="true"] > .aixia-smart-main > .aixia-smart-main-top-tail > .aixia-section,
+  .aixia-smart-layout[data-has-explicit-main-split="true"][data-has-bottom-span="true"] > .aixia-smart-side > .aixia-section {
+    height: 100% !important;
+    min-height: 100% !important;
+  }
+
+  .aixia-smart-layout[data-has-explicit-main-split="true"][data-has-bottom-span="true"] > .aixia-smart-side > .aixia-section {
+    display: flex !important;
+    flex-direction: column !important;
+  }
+
+  .aixia-smart-layout[data-has-explicit-main-split="true"][data-has-bottom-span="true"] > .aixia-smart-side > .aixia-section > .p-6,
+  .aixia-smart-layout[data-has-explicit-main-split="true"][data-has-bottom-span="true"] > .aixia-smart-side > .aixia-section > .aixia-section-smart-scroll-body {
+    flex: 1 1 auto !important;
+    min-height: 0 !important;
+  }
+}
+
+.aixia-section .aixia-alert + .aixia-form-grid,
+.aixia-section .aixia-alert + .aixia-form-field,
+.aixia-section .aixia-alert + .aixia-form-full {
+  margin-top: clamp(0.85rem, 1vw, 1.1rem) !important;
+}
+
+.aixia-section .aixia-alert + .aixia-form-grid .aixia-field-label:first-child,
+.aixia-section .aixia-alert + .aixia-form-field .aixia-field-label:first-child,
+.aixia-section .aixia-alert + .aixia-form-full .aixia-field-label:first-child {
+  margin-top: 0 !important;
 }

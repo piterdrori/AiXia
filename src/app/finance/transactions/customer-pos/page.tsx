@@ -161,11 +161,6 @@ function formatDate(value: string | null | undefined) {
   });
 }
 
-function normalizeStatusLabel(status: string | null | undefined) {
-  if (!status) return "—";
-  return status.replaceAll("_", " ");
-}
-
 async function getCurrentUserId() {
   const {
     data: { user },

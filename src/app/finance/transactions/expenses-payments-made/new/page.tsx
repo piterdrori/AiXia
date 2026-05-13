@@ -35,6 +35,7 @@ import {
   AixiaMetricCard,
   AixiaMetricGrid,
   AixiaPage,
+  AixiaRegistryToolbar,
   AixiaReviewGrid,
   AixiaSearchField,
   AixiaSection,
@@ -311,6 +312,14 @@ function getMetadataNumber(
   }
 
   return null;
+}
+
+function getMetadataText(
+  metadata: Record<string, unknown> | null | undefined,
+  key: string
+) {
+  const value = metadata?.[key];
+  return typeof value === "string" ? value.trim() : "";
 }
 
 function getBankLabel(bank: BankAccountRow | null | undefined) {
@@ -2471,23 +2480,26 @@ export default function FinanceExpensesPaymentsMadeNewPage() {
         onClose={() => setAllocationArchiveOpen(false)}
       >
         <div className="aixia-stack">
-          <div className="aixia-action-row">
-            <AixiaButton
-              type="button"
-              variant={allocationArchiveTab === "archived" ? "primary" : "secondary"}
-              onClick={() => setAllocationArchiveTab("archived")}
-            >
-              Archived ({archivedExistingAllocations.length})
-            </AixiaButton>
-
-            <AixiaButton
-              type="button"
-              variant={allocationArchiveTab === "deleted" ? "danger" : "secondary"}
-              onClick={() => setAllocationArchiveTab("deleted")}
-            >
-              Deleted ({deletedExistingAllocations.length})
-            </AixiaButton>
-          </div>
+          <AixiaRegistryToolbar
+            secondaryActions={
+              <AixiaButton
+                type="button"
+                variant={allocationArchiveTab === "archived" ? "primary" : "secondary"}
+                onClick={() => setAllocationArchiveTab("archived")}
+              >
+                Archived ({archivedExistingAllocations.length})
+              </AixiaButton>
+            }
+            archiveAction={
+              <AixiaButton
+                type="button"
+                variant={allocationArchiveTab === "deleted" ? "danger" : "secondary"}
+                onClick={() => setAllocationArchiveTab("deleted")}
+              >
+                Deleted ({deletedExistingAllocations.length})
+              </AixiaButton>
+            }
+          />
 
           {allocationArchiveRows.length === 0 ? (
             <AixiaEmptyState
@@ -2521,12 +2533,12 @@ export default function FinanceExpensesPaymentsMadeNewPage() {
                         width="xl"
                         primary={
                           expense?.expensePrimaryLabel ||
-                          allocation.metadata?.expense_title ||
+                          getMetadataText(allocation.metadata, "expense_title") ||
                           "Expense allocation"
                         }
                         secondary={
                           expense?.expenseSecondaryLabel ||
-                          allocation.metadata?.expense_number ||
+                          getMetadataText(allocation.metadata, "expense_number") ||
                           "Archived allocation record"
                         }
                       />

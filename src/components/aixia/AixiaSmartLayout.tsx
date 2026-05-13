@@ -76,9 +76,19 @@ function shouldUseBottomSpan(
   mainChildren: ReactNode[],
   sideChildren: ReactNode[],
   bottomSpan: AixiaSmartLayoutBottomSpan,
+  sideRebalance: AixiaSmartLayoutSideRebalance,
   mainTopCount?: number
 ) {
   if (shouldUseExplicitMainSplit(mainChildren, mainTopCount)) {
+    return true;
+  }
+
+  const shouldForceBottomSpanForRebalancedSide =
+    sideRebalance === "last-to-bottom" &&
+    mainChildren.length > 1 &&
+    sideChildren.length > 1;
+
+  if (shouldForceBottomSpanForRebalancedSide) {
     return true;
   }
 
@@ -108,13 +118,22 @@ function getMainColumnChildren(
   mainChildren: ReactNode[],
   sideChildren: ReactNode[],
   bottomSpan: AixiaSmartLayoutBottomSpan,
+  sideRebalance: AixiaSmartLayoutSideRebalance,
   mainTopCount?: number
 ) {
   if (shouldUseExplicitMainSplit(mainChildren, mainTopCount)) {
     return mainChildren.slice(0, mainTopCount);
   }
 
-  if (shouldUseBottomSpan(mainChildren, sideChildren, bottomSpan, mainTopCount)) {
+  if (
+    shouldUseBottomSpan(
+      mainChildren,
+      sideChildren,
+      bottomSpan,
+      sideRebalance,
+      mainTopCount
+    )
+  ) {
     return mainChildren.slice(0, -1);
   }
 
@@ -125,13 +144,22 @@ function getBottomMainChildren(
   mainChildren: ReactNode[],
   sideChildren: ReactNode[],
   bottomSpan: AixiaSmartLayoutBottomSpan,
+  sideRebalance: AixiaSmartLayoutSideRebalance,
   mainTopCount?: number
 ) {
   if (shouldUseExplicitMainSplit(mainChildren, mainTopCount)) {
     return mainChildren.slice(mainTopCount);
   }
 
-  if (shouldUseBottomSpan(mainChildren, sideChildren, bottomSpan, mainTopCount)) {
+  if (
+    shouldUseBottomSpan(
+      mainChildren,
+      sideChildren,
+      bottomSpan,
+      sideRebalance,
+      mainTopCount
+    )
+  ) {
     return mainChildren.slice(-1);
   }
 
@@ -179,6 +207,7 @@ export function AixiaSmartLayout({
     normalizedMainChildren,
     normalizedSideChildren,
     bottomSpan,
+    sideRebalance,
     mainTopCount
   );
 
@@ -186,6 +215,7 @@ export function AixiaSmartLayout({
     normalizedMainChildren,
     normalizedSideChildren,
     bottomSpan,
+    sideRebalance,
     mainTopCount
   );
 

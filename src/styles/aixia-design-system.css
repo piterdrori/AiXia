@@ -5248,5 +5248,88 @@ button.aixia-action-card:disabled {
   }
 }
 
+/* -------------------------------------------------------
+   GLOBAL AIXIA HERO AUTO-REFLOW STANDARD
+   Hero text and hero status cards must never overlap.
+   Long gradient titles must wrap/scale, and status cards
+   must move below the text when there is not enough space.
+------------------------------------------------------- */
 
+.aixia-hero {
+  overflow: hidden;
+}
+
+.aixia-hero-main {
+  align-items: stretch;
+}
+
+.aixia-hero-text,
+.aixia-hero-title-wrap,
+.aixia-hero-side,
+.aixia-hero-status-grid {
+  min-width: 0;
+  max-width: 100%;
+}
+
+.aixia-hero-text {
+  position: relative;
+  z-index: 2;
+}
+
+.aixia-hero-side {
+  position: relative;
+  z-index: 3;
+  align-self: stretch;
+}
+
+.aixia-hero-title,
+.aixia-hero-gradient-title,
+.aixia-gradient-title,
+.aixia-title-gradient,
+.aixia-hero h1 {
+  max-width: 100%;
+  overflow-wrap: anywhere;
+  word-break: normal;
+  line-height: 0.95;
+}
+
+.aixia-hero-main[data-has-side="true"] {
+  grid-template-columns: minmax(0, 1fr);
+}
+
+.aixia-hero-main[data-has-side="true"] .aixia-hero-side {
+  margin-top: clamp(1rem, 1.4vw, 1.5rem);
+}
+
+@media (min-width: 1280px) {
+  .aixia-hero-main[data-has-side="true"] {
+    grid-template-columns: minmax(0, 1fr);
+  }
+}
+
+@media (min-width: 1600px) {
+  .aixia-hero-main[data-has-side="true"] {
+    grid-template-columns: minmax(0, 1.02fr) minmax(420px, 0.98fr);
+    column-gap: clamp(2.5rem, 4vw, 4.5rem);
+  }
+
+  .aixia-hero-main[data-has-side="true"] .aixia-hero-side {
+    margin-top: 0;
+  }
+}
+
+@media (min-width: 1800px) {
+  .aixia-hero-main[data-has-side="true"] {
+    grid-template-columns: minmax(0, 1.08fr) minmax(460px, 0.92fr);
+  }
+}
+
+.aixia-hero-status-grid {
+  justify-self: stretch;
+}
+
+.aixia-hero-status-grid > * {
+  min-width: 0;
+  max-width: 100%;
+}
 

@@ -5757,9 +5757,11 @@ button.aixia-action-card:disabled {
 
 /* -------------------------------------------------------
    GLOBAL AIXIA CHILD ALLOCATION REGISTRY STANDARD
-   Child allocation tables must be compact, readable,
-   human-priority, and show up to 8 rows before internal
-   vertical scrolling starts. Pages must not own this height.
+   Financial child allocation/line registries must use a
+   locked shared registry shell, sortable headers, clear
+   human-first data priority, compact rows, and 8 visible
+   rows before internal scrolling. Row action buttons must
+   inherit the normal shared AiXia table action standard.
 ------------------------------------------------------- */
 
 .aixia-child-allocation-registry {
@@ -5861,24 +5863,27 @@ button.aixia-action-card:disabled {
 
 .aixia-child-allocation-registry .aixia-table-cell-actions {
   width: 1% !important;
-  min-width: 260px !important;
+  min-width: 292px !important;
   white-space: nowrap !important;
 }
 
 .aixia-child-allocation-registry .aixia-table-actions {
-  justify-content: flex-end !important;
+  justify-content: center !important;
+  align-items: center !important;
   flex-wrap: nowrap !important;
-  gap: 0.5rem !important;
+  gap: 0.45rem !important;
 }
 
+.aixia-child-allocation-registry .aixia-table-actions .aixia-btn,
 .aixia-child-allocation-registry .aixia-table-actions .aixia-btn-primary,
 .aixia-child-allocation-registry .aixia-table-actions .aixia-btn-secondary,
 .aixia-child-allocation-registry .aixia-table-actions .aixia-btn-danger {
-  min-height: 2.15rem !important;
-  height: 2.15rem !important;
-  padding: 0.4rem 0.78rem !important;
-  font-size: 0.62rem !important;
-  letter-spacing: 0.08em !important;
+  min-height: 2rem !important;
+  height: 2rem !important;
+  padding: 0.35rem 0.62rem !important;
+  font-size: 0.64rem !important;
+  letter-spacing: 0.06em !important;
+  border-radius: 999px !important;
 }
 
 .aixia-child-allocation-registry .aixia-registry-control-cluster {

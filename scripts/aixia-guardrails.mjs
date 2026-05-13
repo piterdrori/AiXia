@@ -485,6 +485,7 @@ function inspectSharedCssSourceOfTruth() {
     "GLOBAL AIXIA FONT + DETAIL TYPOGRAPHY LOCK",
     "GLOBAL AIXIA ACTION CARD + BUTTON SYMMETRY STANDARD",
     "GLOBAL AIXIA CHILD ALLOCATION REGISTRY STANDARD",
+    "GLOBAL AIXIA CHILD ALLOCATION 8-ROW SCROLL LOCK",
     "GLOBAL AIXIA HERO AUTO-REFLOW STANDARD",
     "GLOBAL DOCUMENT UPLOAD PANEL STANDARD",
     "GLOBAL AIXIA SMART DETAIL LAYOUT COMPACTION STANDARD",
@@ -1515,6 +1516,26 @@ function inspectChildAllocationLifecycleRules(filePath, text) {
       filePath,
       "Linked Expense Allocations and financial child allocation tables must use the shared AixiaChildAllocationRegistry shell.",
       "AiXia child allocation registry rule"
+    );
+  }
+
+  if (
+    /<AixiaChildAllocationRegistry\b[\s\S]*?<AixiaTableShell\b[\s\S]*?maxHeightClassName=/m.test(
+      text
+    )
+  ) {
+    addError(
+      filePath,
+      'When using AixiaChildAllocationRegistry, do not pass local maxHeightClassName such as maxHeightClassName="max-h-[720px]". The shared child allocation CSS owns the height and enforces the 8-row scroll rule.',
+      "AiXia child allocation 8-row scroll rule"
+    );
+  }
+
+  if (/maxHeightClassName=["']max-h-\[720px\]["']/.test(text)) {
+    addError(
+      filePath,
+      'Child allocation registries must not use maxHeightClassName="max-h-[720px]". Use the shared AixiaChildAllocationRegistry height controlled by src/styles/aixia-design-system.css.',
+      "AiXia child allocation 8-row scroll rule"
     );
   }
 

@@ -28,6 +28,7 @@ const REQUIRED_AIXIA_COMPONENT_FILES = [
   "AixiaDefaultBadge.tsx",
   "AixiaDetailSection.tsx",
   "AixiaDocumentUploadPanel.tsx",
+  "AixiaEmployeeIdentityCell.tsx",
   "AixiaEmptyState.tsx",
   "AixiaFormFields.tsx",
   "AixiaHero.tsx",
@@ -106,6 +107,7 @@ const REQUIRED_INDEX_EXPORTS = [
   "AixiaMetricGrid",
   "AixiaMetricCard",
   "AixiaDocumentUploadPanel",
+  "AixiaEmployeeIdentityCell",
   "AixiaNavigationCard",
   "AixiaNavigationGrid",
   "AixiaNavigationInfoPanel",
@@ -582,6 +584,29 @@ function inspectSharedComponentSourceOfTruth() {
     AIXIA_COMPONENT_DIR,
     "AixiaChildAllocationRegistry.tsx"
   );
+
+  const employeeIdentityCellFile = path.join(
+    AIXIA_COMPONENT_DIR,
+    "AixiaEmployeeIdentityCell.tsx"
+  );
+  if (fileExists(employeeIdentityCellFile)) {
+    const text = readText(employeeIdentityCellFile);
+    for (const snippet of [
+      "export function AixiaEmployeeIdentityCell",
+      "AixiaTableTextCell",
+      "Unresolved employee",
+      "Ref:",
+    ]) {
+      if (!text.includes(snippet)) {
+        addError(
+          employeeIdentityCellFile,
+          `AixiaEmployeeIdentityCell.tsx must preserve employee identity display behavior/snippet: ${snippet}`,
+          "AiXia employee identity source-of-truth rule"
+        );
+      }
+    }
+  }
+  
   if (fileExists(childAllocationRegistryFile)) {
     const text = readText(childAllocationRegistryFile);
     const required = [
@@ -964,6 +989,34 @@ function getExportedFunctionBlock(text, functionName) {
 
 function inspectFinanceLibSafetyRules() {
   if (!dirExists(FINANCE_LIB_DIR)) return;
+
+  const employeeIdentityFile = path.join(FINANCE_LIB_DIR, "employeeIdentity.ts");
+  if (!fileExists(employeeIdentityFile)) {
+    addError(
+      employeeIdentityFile,
+      "Required finance employee identity helper is missing. Create src/lib/finance/employeeIdentity.ts and resolve employee/person display globally.",
+      "AiXia employee identity source-of-truth rule"
+    );
+  } else {
+    const helperText = readText(employeeIdentityFile);
+    for (const snippet of [
+      "FinanceEmployeeIdentity",
+      "getFinanceEmployeePrimaryName",
+      "getFinanceEmployeeSecondaryLabel",
+      "getFinanceEmployeeReferenceLabel",
+      "isEmployeeCodeDisplay",
+      "isPollutedEmployeeDisplay",
+      "Unresolved employee",
+    ]) {
+      if (!helperText.includes(snippet)) {
+        addError(
+          employeeIdentityFile,
+          `employeeIdentity.ts must preserve employee identity behavior/snippet: ${snippet}`,
+          "AiXia employee identity source-of-truth rule"
+        );
+      }
+    }
+  }
 
   const paymentMethodsFile = path.join(FINANCE_LIB_DIR, "paymentMethods.ts");
   if (fileExists(paymentMethodsFile)) {
@@ -1508,6 +1561,76 @@ function inspectChildAllocationLifecycleRules(filePath, text) {
     /finance_payment_made_expense_allocations|Linked Expense Allocations|payment_made_expense_allocation/i.test(
       text
     );
+
+    if (
+    /finance_employee_refs[\s\S]*?select\(["'][^"']*id,\s*user_id,\s*code,\s*status,\s*mark,\s*metadata[^"']*["']\)/m.test(text) &&
+    !/finance_employee_identity_v|FinanceEmployeeIdentity|getFinanceEmployeePrimaryName|AixiaEmployeeIdentityCell/.test(text)
+  ) {
+    addError(
+      filePath,
+      "Pages that display employee refs must resolve real person identity globally. Use finance_employee_identity_v plus employeeIdentity.ts helpers or AixiaEmployeeIdentityCell. Do not display employee code as the person name.",
+      "AiXia employee identity source-of-truth rule"
+    );
+  }
+
+  if (/recipient_person_name\s*\|\|\s*getEmployeeLabel/.test(text)) {
+    addError(
+      filePath,
+      "Do not use recipient_person_name || getEmployeeLabel for primary recipient display. recipient_person_name may contain EMP-code formatting. Resolve through finance_employee_identity_v.",
+      "AiXia employee identity source-of-truth rule"
+    );
+  }
+
+  if (
+    /function\s+getEmployeeLabel[\s\S]*?employee\.code[\s\S]*?role[\s\S]*?company[\s\S]*?\}/m.test(text)
+  ) {
+    addError(
+      filePath,
+      "getEmployeeLabel must not build display labels with employee code first. Use getFinanceEmployeePrimaryName for primary and getFinanceEmployeeSecondaryLabel for secondary.",
+      "AiXia employee identity source-of-truth rule"
+    );
+  }
+
+  if (
+    /function\s+getAllocationRecipientPrimary[\s\S]*?recipient_person_name[\s\S]*?\}/m.test(text) &&
+    !/getFinanceEmployeePrimaryName|AixiaEmployeeIdentityCell|finance_employee_identity_v/.test(text)
+  ) {
+    addError(
+      filePath,
+      "getAllocationRecipientPrimary must use resolved employee identity. Primary recipient must be real person name from finance_employee_identity_v, not recipient_person_name or employee code.",
+      "AiXia employee identity source-of-truth rule"
+    );
+  }
+
+  if (
+    /primary=\{getAllocationRecipientPrimary\(allocation\)\}/.test(text) &&
+    !/AixiaEmployeeIdentityCell|getFinanceEmployeePrimaryName|finance_employee_identity_v/.test(text)
+  ) {
+    addError(
+      filePath,
+      "Allocation recipient cells must use resolved employee identity. Primary must be real person name, secondary role/company, optional reference employee code.",
+      "AiXia employee identity source-of-truth rule"
+    );
+  }
+
+  if (
+    /recipient_employee_ref_id[\s\S]{0,300}primary=|primary=[\s\S]{0,300}recipient_employee_ref_id/.test(text) ||
+    /recipient_employee_ref_id[\s\S]{0,300}secondary=|secondary=[\s\S]{0,300}recipient_employee_ref_id/.test(text)
+  ) {
+    addError(
+      filePath,
+      "Never show raw recipient_employee_ref_id UUID in business table cells. Use employee code only as optional readable reference.",
+      "AiXia employee identity source-of-truth rule"
+    );
+  }
+
+  if (/minWidthClassName=["']min-w-\[2040px\]["']/.test(text)) {
+    addError(
+      filePath,
+      'Child allocation registries must not use oversized minWidthClassName="min-w-[2040px]". The shared AixiaChildAllocationRegistry CSS owns allocation table width.',
+      "AiXia child allocation registry rule"
+    );
+  }
 
   if (!touchesPaymentExpenseAllocations) return;
 

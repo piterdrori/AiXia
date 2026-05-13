@@ -5,6 +5,7 @@ export { AixiaAlert } from "./AixiaAlert";
 export { AixiaArchiveManagerModal } from "./AixiaArchiveManagerModal";
 export { AixiaBadge } from "./AixiaBadge";
 export { AixiaButton } from "./AixiaButton";
+export { AixiaChildAllocationRegistry } from "./AixiaChildAllocationRegistry";
 export { AixiaCurrencyBadge } from "./AixiaCurrencyBadge";
 export { AixiaDefaultBadge } from "./AixiaDefaultBadge";
 export {

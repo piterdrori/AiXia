@@ -33,7 +33,6 @@ import {
   AixiaSmartLayout,
   AixiaStatusBadge,
   AixiaTableBadgeCell,
-  AixiaTableDateCell,
   AixiaTableShell,
   AixiaTableTextCell,
   AixiaValueBlock,

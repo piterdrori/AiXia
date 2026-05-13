@@ -2481,6 +2481,7 @@ export default function FinanceExpensesPaymentsMadeNewPage() {
       >
         <div className="aixia-stack">
           <AixiaRegistryToolbar
+            search={null}
             secondaryActions={
               <AixiaButton
                 type="button"

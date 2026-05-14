@@ -988,60 +988,58 @@ export default function FinancePaymentMethodsPage() {
           description="Search, filter, sort, create, edit, and archive active payment methods. Archived methods are managed only through the archive modal."
           icon={CreditCard}
           badge={<AixiaBadge tone="cyan">{formatCount(counts.visible)} Visible</AixiaBadge>}
-          actions={
-            <AixiaRegistryToolbar
-              search={
-                <AixiaSearchField
-                  width="wide"
-                  value={search}
-                  onChange={(event) => setSearch(event.target.value)}
-                  placeholder="Search code, name, description..."
-                />
-              }
-              filters={
-                <AixiaSelectField
-                  value={statusFilter}
-                  onChange={(event) => setStatusFilter(event.target.value as StatusFilter)}
-                >
-                  <option value="all" className="bg-[#05070d]">
-                    All Statuses
-                  </option>
-                  <option value="active" className="bg-[#05070d]">
-                    Active
-                  </option>
-                  <option value="inactive" className="bg-[#05070d]">
-                    Inactive
-                  </option>
-                </AixiaSelectField>
-              }
-              primaryAction={
-                permissionState.canCreate ? (
-                  <AixiaButton type="button" variant="primary" onClick={openCreateModal}>
-                    <Plus className="h-4 w-4" />
-                    New Method
-                  </AixiaButton>
-                ) : null
-              }
-              archiveAction={
-                permissionState.canDeleteArchive ? (
-                  <AixiaButton
-                    type="button"
-                    variant="danger"
-                    onClick={() => void openArchiveModal()}
-                    disabled={isActionRunning}
-                  >
-                    {runningAction === "archive-modal" ? (
-                      <Loader2 className="h-4 w-4 animate-spin" />
-                    ) : (
-                      <Archive className="h-4 w-4" />
-                    )}
-                    Archive ({counts.archived})
-                  </AixiaButton>
-                ) : null
-              }
-            />
-          }
         >
+          <AixiaRegistryToolbar
+            search={
+              <AixiaSearchField
+                width="wide"
+                value={search}
+                onChange={(event) => setSearch(event.target.value)}
+                placeholder="Search code, name, description..."
+              />
+            }
+            filters={
+              <AixiaSelectField
+                value={statusFilter}
+                onChange={(event) => setStatusFilter(event.target.value as StatusFilter)}
+              >
+                <option value="all" className="bg-[#05070d]">
+                  All Statuses
+                </option>
+                <option value="active" className="bg-[#05070d]">
+                  Active
+                </option>
+                <option value="inactive" className="bg-[#05070d]">
+                  Inactive
+                </option>
+              </AixiaSelectField>
+            }
+            primaryAction={
+              permissionState.canCreate ? (
+                <AixiaButton type="button" variant="primary" onClick={openCreateModal}>
+                  <Plus className="h-4 w-4" />
+                  New Method
+                </AixiaButton>
+              ) : null
+            }
+            archiveAction={
+              permissionState.canDeleteArchive ? (
+                <AixiaButton
+                  type="button"
+                  variant="danger"
+                  onClick={() => void openArchiveModal()}
+                  disabled={isActionRunning}
+                >
+                  {runningAction === "archive-modal" ? (
+                    <Loader2 className="h-4 w-4 animate-spin" />
+                  ) : (
+                    <Archive className="h-4 w-4" />
+                  )}
+                  Archive ({counts.archived})
+                </AixiaButton>
+              ) : null
+            }
+          />
           {filteredRows.length === 0 ? (
             <AixiaEmptyState
               icon={CreditCard}

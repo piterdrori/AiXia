@@ -1430,6 +1430,9 @@ function inspectTransactionsHubWorkflowLayout(filePath, text) {
 
   if (relativePath !== "src/app/finance/transactions/page.tsx") return;
 
+  const hasTransactionSections =
+    /const\s+transactionSections\s*=|transactionSections\.map/.test(text);
+
   const requiredWorkflowKeys = [
     'key: "incoming"',
     'key: "procurement"',
@@ -1480,6 +1483,46 @@ function inspectTransactionsHubWorkflowLayout(filePath, text) {
     }
   }
 
+  const requiredOriginalFlowRendererSnippets = [
+    "function FlowConnector",
+    "function TransactionFlowModule",
+    "function FlowRow",
+    "function TransactionFlowSection",
+    "<FlowConnector",
+    "<TransactionFlowModule",
+    "<FlowRow",
+    "<TransactionFlowSection",
+  ];
+
+  for (const snippet of requiredOriginalFlowRendererSnippets) {
+    if (!text.includes(snippet)) {
+      addError(
+        filePath,
+        `Transactions hub must preserve the original workflow renderer snippet: ${snippet}. The page must use TransactionFlowSection → FlowRow → TransactionFlowModule + FlowConnector, not generic cards.`,
+        "AiXia transactions hub original structure rule"
+      );
+    }
+  }
+
+  const requiredOriginalFlowLayoutSnippets = [
+    "w-[220px] min-w-[220px] max-w-[220px] flex-none",
+    "h-[236px]",
+    "overflow-x-auto pb-3",
+    "flex min-w-max items-stretch",
+    "index < items.length - 1 ? <FlowConnector /> : null",
+    "ArrowRight",
+  ];
+
+  for (const snippet of requiredOriginalFlowLayoutSnippets) {
+    if (!text.includes(snippet)) {
+      addError(
+        filePath,
+        `Transactions hub must preserve the compact horizontal workflow layout snippet: ${snippet}. Cards must stay same-size, compact, horizontally scrollable when needed, and connected by arrows.`,
+        "AiXia transactions hub original structure rule"
+      );
+    }
+  }
+
   const requiredSequencePattern =
     /sequenceLabel:\s*["']01["'][\s\S]{0,3000}sequenceLabel:\s*["']02["']/;
 
@@ -1491,54 +1534,126 @@ function inspectTransactionsHubWorkflowLayout(filePath, text) {
     );
   }
 
-  const rendersWorkflowModulesAsGenericNavigationGrid =
-    /transactionSections\.map\([\s\S]{0,4500}<AixiaNavigationGrid\b[\s\S]{0,4500}section\.modules\.map\([\s\S]{0,4500}<AixiaNavigationCard\b/m.test(
+  const bannedGenericWorkflowRenderers = [
+    "AixiaNavigationGrid",
+    "AixiaNavigationCard",
+    "AixiaSmartGrid",
+    "AixiaWorkspaceCard",
+    "AixiaFeaturePanel",
+  ];
+
+  if (hasTransactionSections) {
+    for (const rendererName of bannedGenericWorkflowRenderers) {
+      if (new RegExp(`\\b${rendererName}\\b`).test(text)) {
+        addError(
+          filePath,
+          `Transactions hub workflow modules must not use ${rendererName}. This page is a sequential business-flow page, not a generic navigation-card page. Preserve TransactionFlowSection → FlowRow → TransactionFlowModule + FlowConnector.`,
+          "AiXia transactions hub generic-card ban rule"
+        );
+      }
+    }
+  }
+
+  const rendersWorkflowModulesAsGenericCards =
+    /transactionSections\.map\([\s\S]{0,7000}(AixiaNavigationGrid|AixiaNavigationCard|AixiaSmartGrid|AixiaWorkspaceCard|AixiaFeaturePanel)[\s\S]{0,7000}section\.modules\.map/m.test(
+      text
+    ) ||
+    /section\.modules\.map\([\s\S]{0,7000}(AixiaNavigationGrid|AixiaNavigationCard|AixiaSmartGrid|AixiaWorkspaceCard|AixiaFeaturePanel)/m.test(
       text
     );
 
-  if (rendersWorkflowModulesAsGenericNavigationGrid) {
+  if (rendersWorkflowModulesAsGenericCards) {
     addError(
       filePath,
-      "Transactions hub must not render workflow section.modules through a generic AixiaNavigationGrid/AixiaNavigationCard grid. It destroys the grouped business-flow layout. Use a dedicated grouped workflow section/flow-row component or shared workflow layout that preserves group headers, sequence order, and business grouping.",
-      "AiXia transactions hub workflow grouping rule"
+      "Transactions hub must not render transactionSections/modules through generic navigation/workspace/smart-grid cards. That breaks group consistency, removes arrows, creates different card behavior per section, and destroys the original workflow sequence.",
+      "AiXia transactions hub generic-card ban rule"
     );
   }
 
-  const hasTransactionSections = /const\s+transactionSections\s*=|transactionSections\.map/.test(text);
-  const usesNavigationCards = /AixiaNavigationGrid|AixiaNavigationCard/.test(text);
-  const lacksFlowSectionRenderer =
-    !/TransactionFlowSection|FlowRow|workflow section|aixia-transaction-workflow/i.test(text);
+  const hasFlowConnectorsBetweenCards =
+    /items\.map\([\s\S]{0,3500}index\s*<\s*items\.length\s*-\s*1[\s\S]{0,600}<FlowConnector\s*\/>/m.test(
+      text
+    );
 
-  if (hasTransactionSections && usesNavigationCards && lacksFlowSectionRenderer) {
+  if (!hasFlowConnectorsBetweenCards) {
     addError(
       filePath,
-      "Transactions hub has transactionSections but appears to render them as generic navigation cards instead of a visible workflow layout. Preserve grouped business flow rows/sections, not random module tabs.",
-      "AiXia transactions hub workflow grouping rule"
+      "Transactions hub sequence cards must show connectors/arrows between steps. Preserve FlowConnector between each TransactionFlowModule item.",
+      "AiXia transactions hub connector rule"
     );
   }
+
+  const hasFixedEqualCardWrapper =
+    /w-\[220px\]\s+min-w-\[220px\]\s+max-w-\[220px\]\s+flex-none/.test(text) &&
+    /h-\[236px\]/.test(text);
+
+  if (!hasFixedEqualCardWrapper) {
+    addError(
+      filePath,
+      "Transactions hub workflow cards must stay equal and compact: wrapper w-[220px] min-w-[220px] max-w-[220px] flex-none and card h-[236px]. Do not allow different card sizes per section.",
+      "AiXia transactions hub card consistency rule"
+    );
+  }
+
+  const usesTwoColumnLayout =
+    /xl:grid-cols-\[minmax\(0,1fr\)_([0-9]+)px\]/.test(text);
+
+  const twoColumnWidthMatch = text.match(/xl:grid-cols-\[minmax\(0,1fr\)_([0-9]+)px\]/);
+  const sideColumnWidth = twoColumnWidthMatch ? Number(twoColumnWidthMatch[1]) : null;
+
+  if (usesTwoColumnLayout && sideColumnWidth !== null && sideColumnWidth > 430) {
+    addError(
+      filePath,
+      `Transactions hub right/side column is too wide (${sideColumnWidth}px). Squeeze the right column and allow workflow sections on the left to expand. Use a compact side column around 430px or a shared smart-layout equivalent.`,
+      "AiXia transactions hub dead-gap rule"
+    );
+  }
+
+  const hasClassicOriginalTwoColumnLayout =
+    /xl:grid-cols-\[minmax\(0,1fr\)_430px\]/.test(text);
 
   const usesSmartLayout = /<AixiaSmartLayout\b/.test(text);
   const hasSideColumn = /\bside=\{/.test(text);
-  const hasBottomSpanControl = /\bbottomSpan=|\bsideRebalance=|\bmainTopCount=/.test(text);
+  const hasBottomSpanControl =
+    /\bbottomSpan=|\bsideRebalance=|\bmainTopCount=/.test(text);
+
+  if (!hasClassicOriginalTwoColumnLayout && !(usesSmartLayout && hasBottomSpanControl)) {
+    addError(
+      filePath,
+      "Transactions hub must prevent large right-side dead gaps. Use the original compact two-column structure xl:grid-cols-[minmax(0,1fr)_430px], or use AixiaSmartLayout with explicit bottomSpan/sideRebalance/mainTopCount that visually expands the left workflow area and rebalances secondary content.",
+      "AiXia transactions hub dead-gap rule"
+    );
+  }
 
   if (usesSmartLayout && hasSideColumn && !hasBottomSpanControl) {
     addError(
       filePath,
-      "Transactions hub uses AixiaSmartLayout with a side column but no bottomSpan/sideRebalance/mainTopCount control. This can leave large dead gaps on the right. Configure the shared smart layout so lower-priority/personal/secondary transaction cards or readiness blocks can fill available lower-right space instead of leaving empty columns.",
+      "Transactions hub uses AixiaSmartLayout with a side column but no bottomSpan/sideRebalance/mainTopCount control. This can leave large dead gaps on the right.",
       "AiXia transactions hub dead-gap rule"
     );
   }
 
-  const likelyDeadGapRisk =
-    /Recent Activity|Control Signals|AixiaSideList|side=\{/.test(text) &&
-    /transactionSections\.map|AixiaNavigationGrid|AixiaNavigationCard/.test(text) &&
-    !/bottomSpan=|sideRebalance=|mainTopCount=|aixia-smart-bottom-span/.test(text);
+  const rightGapRiskWithGenericCards =
+    /Recent Activity|Control Signals|side=\{|AixiaSideList/.test(text) &&
+    /(AixiaNavigationGrid|AixiaNavigationCard|AixiaSmartGrid|AixiaWorkspaceCard|AixiaFeaturePanel)/.test(text);
 
-  if (likelyDeadGapRisk) {
+  if (rightGapRiskWithGenericCards) {
     addError(
       filePath,
-      "Transactions hub likely creates a right-side dead gap. Keep important workflow groups in the main flow, but use the shared smart layout/bottom-span behavior so lower-priority or secondary transaction cards can occupy available lower-right space instead of leaving a large empty column.",
+      "Transactions hub likely creates the exact right-side dead-gap/card-location issue: side content exists while workflow modules are generic cards. Keep workflow sections in the original left flow and only rebalance secondary/non-critical content through the approved compact layout.",
       "AiXia transactions hub dead-gap rule"
+    );
+  }
+
+  const compactnessRisk =
+    /grid\s+gap-6|gap-8|gap-10|p-8|min-h-\[[3-9][0-9]{2}px\]|h-\[[3-9][0-9]{2}px\]/.test(text) &&
+    !/h-\[236px\]/.test(text);
+
+  if (compactnessRisk) {
+    addError(
+      filePath,
+      "Transactions hub workflow became too large or messy. Preserve the original compact flow-card sizing and spacing. Do not use oversized generic cards or large section gaps for workflow modules.",
+      "AiXia transactions hub compactness rule"
     );
   }
 }
@@ -1584,13 +1699,14 @@ function inspectZeroLocalDesign(filePath, text) {
   }
 
   if (
+    getRelativePath(filePath) !== "src/app/finance/transactions/page.tsx" &&
     /path\s*:\s*["']\/finance\//.test(text) &&
     /(modules?|domains?|cards?)\s*=/.test(text) &&
     !/AixiaNavigationCard|AixiaWorkspaceCard/.test(text)
   ) {
     addError(
       filePath,
-      "Finance hub pages with route-based module cards must use the shared AixiaNavigationCard or AixiaWorkspaceCard pattern.",
+      "Finance hub pages with route-based module cards must use the shared AixiaNavigationCard or AixiaWorkspaceCard pattern. Exception: src/app/finance/transactions/page.tsx must preserve the original TransactionFlowSection → FlowRow → TransactionFlowModule + FlowConnector workflow structure.",
       "AiXia navigation-card standard rule"
     );
   }

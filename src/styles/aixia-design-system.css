@@ -1580,7 +1580,7 @@
 
 .aixia-table-wrap[data-table-variant="archive"] .aixia-table-scroll {
   width: max-content !important;
-  min-width: max(100%, var(--aixia-archive-table-min-width, 1780px)) !important;
+  min-width: max(100%, var(--aixia-archive-table-min-width, 1480px)) !important;
   max-width: none !important;
   max-height: 620px;
   overflow-x: visible !important;
@@ -1590,7 +1590,7 @@
 
 .aixia-table-wrap[data-table-variant="archive"] .aixia-table {
   width: max-content !important;
-  min-width: max(100%, var(--aixia-archive-table-min-width, 1780px)) !important;
+  min-width: max(100%, var(--aixia-archive-table-min-width, 1480px)) !important;
   max-width: none !important;
   table-layout: auto !important;
 }
@@ -1602,32 +1602,23 @@
 
 .aixia-table-wrap[data-table-variant="archive"] .aixia-table th:last-child,
 .aixia-table-wrap[data-table-variant="archive"] .aixia-table td:last-child,
-.aixia-table-wrap[data-table-variant="archive"] .aixia-table-cell-actions,
-.aixia-table-wrap[data-table-variant="archive"] td:has(.aixia-table-actions),
-.aixia-table-wrap[data-table-variant="archive"] td:has(.aixia-btn-primary),
-.aixia-table-wrap[data-table-variant="archive"] td:has(.aixia-btn-secondary),
-.aixia-table-wrap[data-table-variant="archive"] td:has(.aixia-btn-danger) {
+.aixia-table-wrap[data-table-variant="archive"] .aixia-table-cell-actions {
   width: 1% !important;
-  min-width: 520px !important;
+  min-width: 360px !important;
   white-space: nowrap !important;
   overflow: visible !important;
 }
 
-.aixia-table-wrap[data-table-variant="archive"] .aixia-table-actions,
-.aixia-table-wrap[data-table-variant="archive"] td:last-child > div,
-.aixia-table-wrap[data-table-variant="archive"] td:has(.aixia-btn-primary) > div,
-.aixia-table-wrap[data-table-variant="archive"] td:has(.aixia-btn-secondary) > div,
-.aixia-table-wrap[data-table-variant="archive"] td:has(.aixia-btn-danger) > div {
+.aixia-table-wrap[data-table-variant="archive"] .aixia-table-actions {
   display: inline-flex !important;
   align-items: center !important;
-  justify-content: center !important;
+  justify-content: flex-end !important;
   flex-wrap: nowrap !important;
   gap: 0.5rem !important;
   width: max-content !important;
   min-width: max-content !important;
   max-width: none !important;
   margin-left: auto !important;
-  margin-right: auto !important;
 }
 
 .aixia-table-wrap[data-table-variant="archive"] .aixia-btn-primary,
@@ -1928,8 +1919,8 @@
     0 0 0 1px rgba(255, 255, 255, 0.05);
 }
 
-.aixia-modal[data-modal-size="wide"] {
-  max-width: min(92vw, 1760px) !important;
+.aixia-modal[data-modal-size="wide"] .aixia-modal-body {
+  overflow-x: hidden;
 }
 
 .aixia-modal-header {

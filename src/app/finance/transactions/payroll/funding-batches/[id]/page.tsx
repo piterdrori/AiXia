@@ -1927,13 +1927,6 @@ export default function FinancePayrollFundingBatchDetailPage() {
         ]}
       />
 
-      <AixiaAccessRule
-        title="Payroll Funding Pool Access Rule"
-        description="Payroll funding pool detail access follows the shared Finance permission and registry-control standard."
-      >
-        Read access opens this funding pool detail page. Update access controls edit and proof-status actions. Registry controls for linked paycheck payment distributions use AixiaRegistryToolbar, and action sizing stays inside shared AiXia components.
-      </AixiaAccessRule>
-
       {pageError ? <AixiaAlert tone="error">{pageError}</AixiaAlert> : null}
       {pageMessage ? <AixiaAlert tone="success">{pageMessage}</AixiaAlert> : null}
 
@@ -1967,6 +1960,14 @@ export default function FinancePayrollFundingBatchDetailPage() {
           tone="amber"
         />
       </AixiaMetricGrid>
+
+      <AixiaAccessRule
+        title="Locked access rule"
+        description="Payroll funding pool detail records must use the shared AiXia registry-control and access-rule standard."
+        icon={ShieldCheck}
+      >
+        Payroll funding pool detail records are financial registry/detail records. Linked Paycheck Payment Distributions must use AixiaRegistryToolbar for search/filter/action controls, sortable distribution columns, AixiaTableActionsCell row actions, protected backend RPCs for funding pool confirmation, proof verification, and usage refresh. Realtime plus 60-second fallback refresh must stay silent without resetting edits, visible records, or page state.
+      </AixiaAccessRule>
 
       <AixiaSmartLayout
         sidebar="normal"

@@ -1579,13 +1579,14 @@
 }
 
 .aixia-table-wrap[data-table-variant="archive"] .aixia-table-scroll {
-  width: max-content !important;
-  min-width: max(100%, var(--aixia-archive-table-min-width, 1480px)) !important;
-  max-width: none !important;
+  width: 100% !important;
+  max-width: 100% !important;
+  min-width: 0 !important;
   max-height: 620px;
-  overflow-x: visible !important;
+  overflow-x: auto !important;
   overflow-y: auto !important;
   overscroll-behavior: contain;
+  padding-bottom: 0.75rem;
 }
 
 .aixia-table-wrap[data-table-variant="archive"] .aixia-table {
@@ -1917,10 +1918,6 @@
   box-shadow:
     0 28px 90px rgba(0, 0, 0, 0.78),
     0 0 0 1px rgba(255, 255, 255, 0.05);
-}
-
-.aixia-modal[data-modal-size="wide"] .aixia-modal-body {
-  overflow-x: hidden;
 }
 
 .aixia-modal-header {
@@ -4433,7 +4430,7 @@
 .aixia-table-wrap[data-table-variant="archive"] .aixia-table-scroll table,
 .aixia-table-wrap[data-table-variant="archive"] .aixia-table {
   width: max-content !important;
-  min-width: max(100%, var(--aixia-archive-table-min-width, 1780px)) !important;
+  min-width: max(100%, var(--aixia-archive-table-min-width, 1480px)) !important;
   table-layout: auto !important;
 }
 

@@ -3,7 +3,6 @@ import { useNavigate } from "react-router-dom";
 import {
   Archive,
   BadgeCheck,
-  Download,
   Eye,
   FileSignature,
   MoreHorizontal,
@@ -36,9 +35,10 @@ import {
   AixiaTableShell,
   AixiaTableTextCell,
 } from "@/components/aixia";
+import { type FinanceLoadMode } from "@/lib/finance/pageAccess";
 import { supabase } from "@/lib/supabase";
 
-type LoadMode = "initial" | "silent";
+type LoadMode = FinanceLoadMode;
 type SortDirection = "asc" | "desc";
 
 type SortKey =
@@ -482,10 +482,7 @@ function PaycheckRequestTable({
                 <div className="flex flex-col items-center justify-center gap-1">
                   <AixiaStatusBadge value={row.signed_form_status} />
                   {hasSignedForm ? (
-                    <span className="inline-flex items-center justify-center gap-1 text-[11px] font-semibold text-emerald-300">
-                      <Download className="h-3 w-3" />
-                      Form attached
-                    </span>
+                    <AixiaBadge tone="emerald">Form attached</AixiaBadge>
                   ) : null}
                 </div>
               </AixiaTableBadgeCell>
@@ -1002,7 +999,7 @@ export default function PaycheckRequestsPage() {
             archiveAction={
               <AixiaButton
                 type="button"
-                variant="secondary"
+                variant="danger"
                 onClick={() => {
                   setArchiveOpen(true);
                   setArchiveTab("archived");

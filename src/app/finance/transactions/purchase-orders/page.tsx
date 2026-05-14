@@ -1,27 +1,45 @@
+"use client";
+
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import {
   Archive,
-  ArrowRight,
+  CheckCircle,
   Eye,
   FileText,
-  FolderArchive,
   Plus,
   RotateCcw,
   Search,
+  ShieldCheck,
   Trash2,
+  Truck,
+  Wallet,
 } from "lucide-react";
 
-import { supabase } from "@/lib/supabase";
-import { Badge } from "@/components/ui/badge";
-import { Button } from "@/components/ui/button";
 import {
-  Card,
-  CardContent,
-  CardDescription,
-  CardHeader,
-  CardTitle,
-} from "@/components/ui/card";
+  AixiaAccessRule,
+  AixiaAlert,
+  AixiaArchiveManagerModal,
+  AixiaBadge,
+  AixiaButton,
+  AixiaEmptyState,
+  AixiaHero,
+  AixiaLoadingState,
+  AixiaMetricCard,
+  AixiaMetricGrid,
+  AixiaPage,
+  AixiaRegistryToolbar,
+  AixiaSearchField,
+  AixiaSection,
+  AixiaSortableHeader,
+  AixiaStatusBadge,
+  AixiaTableActionsCell,
+  AixiaTableBadgeCell,
+  AixiaTableDateCell,
+  AixiaTableShell,
+  AixiaTableTextCell,
+} from "@/components/aixia";
+import { supabase } from "@/lib/supabase";
 
 type PurchaseOrderStatus =
   | "draft"
@@ -71,6 +89,7 @@ type SortKey =
 
 type SortDirection = "asc" | "desc";
 type ArchiveTab = "archived" | "deleted";
+type LoadMode = "initial" | "silent";
 
 function toNumber(value: number | string | null | undefined) {
   const parsed = Number(value ?? 0);
@@ -99,49 +118,93 @@ function formatDate(value: string | null | undefined) {
   });
 }
 
-function getStatusBadgeClass(status: PurchaseOrderStatus | string) {
-  switch (status) {
-    case "draft":
-      return "border-slate-400/20 bg-slate-500/10 text-slate-300";
-    case "issued":
-    case "sent":
-      return "border-cyan-400/20 bg-cyan-500/10 text-cyan-200";
-    case "acknowledged":
-      return "border-emerald-400/20 bg-emerald-500/10 text-emerald-200";
-    case "linked_to_bill":
-      return "border-violet-400/20 bg-violet-500/10 text-violet-200";
-    case "closed":
-      return "border-blue-400/20 bg-blue-500/10 text-blue-200";
-    case "canceled":
-    case "deleted":
-      return "border-rose-400/20 bg-rose-500/10 text-rose-200";
-    case "archived":
+function normalizeStatusLabel(status: string | null | undefined) {
+  if (!status) return "—";
+
+  return status
+    .split("_")
+    .filter(Boolean)
+    .map((part) => part.charAt(0).toUpperCase() + part.slice(1))
+    .join(" ");
+}
+
+function getVendorDisplayName(row: PurchaseOrderRow) {
+  return row.vendor_legal_name || row.vendor_name || "Unknown vendor";
+}
+
+function getSourceDisplayName(row: PurchaseOrderRow) {
+  return row.source_vendor_quotation_number || "Manual";
+}
+
+function getSortableDate(value: string | null | undefined) {
+  if (!value) return 0;
+
+  const parsed = new Date(value).getTime();
+  return Number.isFinite(parsed) ? parsed : 0;
+}
+
+function compareSortValues(a: string | number, b: string | number) {
+  if (typeof a === "number" && typeof b === "number") {
+    return a - b;
+  }
+
+  return String(a).localeCompare(String(b), undefined, {
+    numeric: true,
+    sensitivity: "base",
+  });
+}
+
+function getPurchaseOrderSortValue(row: PurchaseOrderRow, key: SortKey) {
+  switch (key) {
+    case "purchase_order_number":
+      return String(row.purchase_order_number || "").toLowerCase();
+    case "source_vendor_quotation_number":
+      return getSourceDisplayName(row).toLowerCase();
+    case "vendor_name":
+      return getVendorDisplayName(row).toLowerCase();
+    case "po_date":
+      return getSortableDate(row.po_date);
+    case "expected_delivery_date":
+      return getSortableDate(row.expected_delivery_date);
+    case "total_amount":
+      return toNumber(row.total_amount);
+    case "status":
+      return String(row.status || "").toLowerCase();
+    case "updated_at":
     default:
-      return "border-white/10 bg-white/[0.05] text-slate-300";
+      return getSortableDate(row.updated_at);
   }
 }
 
-function normalizeStatusLabel(status: string) {
-  return status.replaceAll("_", " ");
-}
+function mapPurchaseOrderRows(records: unknown[]) {
+  return records.map((record) => {
+    const row = record as PurchaseOrderRow & {
+      finance_vendors?: {
+        name?: string | null;
+        legal_name?: string | null;
+        code?: string | null;
+      } | null;
+      finance_companies?: {
+        name?: string | null;
+        legal_name?: string | null;
+      } | null;
+      finance_vendor_quotations?: {
+        vendor_quotation_number?: string | null;
+        external_quotation_number?: string | null;
+      } | null;
+    };
 
-function compareValues(
-  firstValue: string | number | null | undefined,
-  secondValue: string | number | null | undefined,
-  direction: SortDirection
-) {
-  const first =
-    typeof firstValue === "number"
-      ? firstValue
-      : String(firstValue ?? "").toLowerCase();
-  const second =
-    typeof secondValue === "number"
-      ? secondValue
-      : String(secondValue ?? "").toLowerCase();
-
-  if (first < second) return direction === "asc" ? -1 : 1;
-  if (first > second) return direction === "asc" ? 1 : -1;
-  return 0;
+    return {
+      ...row,
+      vendor_name: row.finance_vendors?.name ?? null,
+      vendor_legal_name: row.finance_vendors?.legal_name ?? null,
+      vendor_code: row.finance_vendors?.code ?? null,
+      company_name:
+        row.finance_companies?.legal_name ?? row.finance_companies?.name ?? null,
+      source_vendor_quotation_number:
+        row.finance_vendor_quotations?.vendor_quotation_number ?? null,
+    };
+  });
 }
 
 export default function FinancePurchaseOrdersPage() {
@@ -158,42 +221,11 @@ export default function FinancePurchaseOrdersPage() {
   const [isArchiveOpen, setIsArchiveOpen] = useState(false);
   const [archiveTab, setArchiveTab] = useState<ArchiveTab>("archived");
 
-  const mapPurchaseOrderRows = useCallback((records: unknown[]) => {
-    return records.map((record) => {
-      const row = record as PurchaseOrderRow & {
-        finance_vendors?: {
-          name?: string | null;
-          legal_name?: string | null;
-          code?: string | null;
-        } | null;
-        finance_companies?: {
-          name?: string | null;
-          legal_name?: string | null;
-        } | null;
-        finance_vendor_quotations?: {
-          vendor_quotation_number?: string | null;
-          external_quotation_number?: string | null;
-        } | null;
-      };
-
-      return {
-        ...row,
-        vendor_name: row.finance_vendors?.name ?? null,
-        vendor_legal_name: row.finance_vendors?.legal_name ?? null,
-        vendor_code: row.finance_vendors?.code ?? null,
-        company_name:
-          row.finance_companies?.legal_name ??
-          row.finance_companies?.name ??
-          null,
-        source_vendor_quotation_number:
-          row.finance_vendor_quotations?.vendor_quotation_number ?? null,
-      };
-    });
-  }, []);
-
-  const loadRows = useCallback(async () => {
+  const loadRows = useCallback(async (mode: LoadMode = "initial") => {
     try {
-      setIsLoading(true);
+      if (mode === "initial") {
+        setIsLoading(true);
+      }
       setErrorMessage("");
 
       const { data, error } = await supabase
@@ -230,15 +262,22 @@ export default function FinancePurchaseOrdersPage() {
       setRows(mapPurchaseOrderRows((data || []) as unknown[]));
     } catch (error) {
       console.error("Failed to load purchase orders:", error);
+      if (mode === "initial") {
+        setRows([]);
+      }
       setErrorMessage("Failed to load purchase orders.");
     } finally {
-      setIsLoading(false);
+      if (mode === "initial") {
+        setIsLoading(false);
+      }
     }
-  }, [mapPurchaseOrderRows]);
+  }, []);
 
-  const loadArchiveRows = useCallback(async () => {
+  const loadArchiveRows = useCallback(async (mode: LoadMode = "initial") => {
     try {
-      setIsArchiveLoading(true);
+      if (mode === "initial") {
+        setIsArchiveLoading(true);
+      }
       setErrorMessage("");
 
       const { data, error } = await supabase
@@ -267,7 +306,7 @@ export default function FinancePurchaseOrdersPage() {
             "finance_vendor_quotations(vendor_quotation_number, external_quotation_number)",
           ].join(", ")
         )
-        .eq("status", archiveTab)
+        .in("status", ["archived", "deleted"])
         .order("updated_at", { ascending: false });
 
       if (error) throw error;
@@ -275,19 +314,24 @@ export default function FinancePurchaseOrdersPage() {
       setArchiveRows(mapPurchaseOrderRows((data || []) as unknown[]));
     } catch (error) {
       console.error("Failed to load archived purchase orders:", error);
+      if (mode === "initial") {
+        setArchiveRows([]);
+      }
       setErrorMessage("Failed to load archive records.");
     } finally {
-      setIsArchiveLoading(false);
+      if (mode === "initial") {
+        setIsArchiveLoading(false);
+      }
     }
-  }, [archiveTab, mapPurchaseOrderRows]);
+  }, []);
 
   useEffect(() => {
-    void loadRows();
+    void loadRows("initial");
   }, [loadRows]);
 
   useEffect(() => {
     if (!isArchiveOpen) return;
-    void loadArchiveRows();
+    void loadArchiveRows("initial");
   }, [isArchiveOpen, loadArchiveRows]);
 
   useEffect(() => {
@@ -301,17 +345,20 @@ export default function FinancePurchaseOrdersPage() {
           table: "finance_purchase_orders",
         },
         () => {
-          void loadRows();
+          void loadRows("silent");
 
           if (isArchiveOpen) {
-            void loadArchiveRows();
+            void loadArchiveRows("silent");
           }
         }
       )
       .subscribe();
 
     const intervalId = window.setInterval(() => {
-      void loadRows();
+      void loadRows("silent");
+      if (isArchiveOpen) {
+        void loadArchiveRows("silent");
+      }
     }, 60000);
 
     return () => {
@@ -344,25 +391,26 @@ export default function FinancePurchaseOrdersPage() {
       : rows;
 
     return [...visibleRows].sort((firstRow, secondRow) => {
-      if (sortKey === "total_amount") {
-        return compareValues(
-          toNumber(firstRow.total_amount),
-          toNumber(secondRow.total_amount),
-          sortDirection
-        );
-      }
+      const firstValue = getPurchaseOrderSortValue(firstRow, sortKey);
+      const secondValue = getPurchaseOrderSortValue(secondRow, sortKey);
+      const multiplier = sortDirection === "asc" ? 1 : -1;
 
-      if (sortKey === "vendor_name") {
-        return compareValues(
-          firstRow.vendor_legal_name || firstRow.vendor_name,
-          secondRow.vendor_legal_name || secondRow.vendor_name,
-          sortDirection
-        );
-      }
-
-      return compareValues(firstRow[sortKey], secondRow[sortKey], sortDirection);
+      return compareSortValues(firstValue, secondValue) * multiplier;
     });
   }, [rows, searchTerm, sortDirection, sortKey]);
+
+  const visibleArchiveRows = useMemo(() => {
+    return archiveRows.filter((row) => row.status === archiveTab);
+  }, [archiveRows, archiveTab]);
+
+  const sortedArchiveRows = useMemo(() => {
+    return [...visibleArchiveRows].sort((firstRow, secondRow) => {
+      return compareSortValues(
+        getPurchaseOrderSortValue(secondRow, "updated_at"),
+        getPurchaseOrderSortValue(firstRow, "updated_at")
+      );
+    });
+  }, [visibleArchiveRows]);
 
   const summary = useMemo(() => {
     const activeRows = rows.filter(
@@ -372,9 +420,8 @@ export default function FinancePurchaseOrdersPage() {
     return {
       total: activeRows.length,
       draft: activeRows.filter((row) => row.status === "draft").length,
-      issued: activeRows.filter((row) =>
-        ["issued", "sent"].includes(row.status)
-      ).length,
+      issued: activeRows.filter((row) => ["issued", "sent"].includes(row.status))
+        .length,
       acknowledged: activeRows.filter((row) => row.status === "acknowledged")
         .length,
       linkedToBill: activeRows.filter((row) => row.status === "linked_to_bill")
@@ -386,18 +433,57 @@ export default function FinancePurchaseOrdersPage() {
     };
   }, [rows]);
 
-  const toggleSort = useCallback(
-    (nextSortKey: SortKey) => {
-      if (nextSortKey === sortKey) {
-        setSortDirection((current) => (current === "asc" ? "desc" : "asc"));
-        return;
-      }
+  const archivedArchiveCount = archiveRows.filter(
+    (row) => row.status === "archived"
+  ).length;
+  const deletedArchiveCount = archiveRows.filter(
+    (row) => row.status === "deleted"
+  ).length;
 
-      setSortKey(nextSortKey);
-      setSortDirection("asc");
+  const metricCards = [
+    {
+      key: "draft",
+      label: "Draft",
+      value: summary.draft.toLocaleString(),
+      description: "POs being prepared before issue.",
+      icon: FileText,
+      tone: "neutral" as const,
     },
-    [sortKey]
-  );
+    {
+      key: "issued",
+      label: "Issued / Sent",
+      value: summary.issued.toLocaleString(),
+      description: "Sent to suppliers.",
+      icon: Truck,
+      tone: "cyan" as const,
+    },
+    {
+      key: "acknowledged",
+      label: "Acknowledged",
+      value: summary.acknowledged.toLocaleString(),
+      description: "Vendor acknowledged the PO.",
+      icon: CheckCircle,
+      tone: "emerald" as const,
+    },
+    {
+      key: "linked",
+      label: "Linked to Bill",
+      value: summary.linkedToBill.toLocaleString(),
+      description: "Continued to vendor PI / invoice.",
+      icon: Wallet,
+      tone: "violet" as const,
+    },
+  ];
+
+  function handleSort(nextSortKey: SortKey) {
+    if (nextSortKey === sortKey) {
+      setSortDirection((current) => (current === "asc" ? "desc" : "asc"));
+      return;
+    }
+
+    setSortKey(nextSortKey);
+    setSortDirection(nextSortKey === "updated_at" ? "desc" : "asc");
+  }
 
   const runArchiveAction = useCallback(
     async (
@@ -417,10 +503,10 @@ export default function FinancePurchaseOrdersPage() {
 
         if (error) throw error;
 
-        await loadRows();
+        await loadRows("silent");
 
         if (isArchiveOpen) {
-          await loadArchiveRows();
+          await loadArchiveRows("silent");
         }
       } catch (error) {
         console.error("Purchase order archive action failed:", error);
@@ -430,600 +516,353 @@ export default function FinancePurchaseOrdersPage() {
     [isArchiveOpen, loadArchiveRows, loadRows]
   );
 
-  const sortableHeaderClass =
-    "inline-flex items-center gap-2 text-[11px] font-semibold uppercase tracking-[0.18em] text-slate-500 transition hover:text-slate-300";
+  const renderRows = (items: PurchaseOrderRow[], isArchive = false) => {
+    if (items.length === 0) {
+      return (
+        <tr>
+          <td colSpan={8}>
+            <AixiaEmptyState
+              icon={FileText}
+              title={isArchive ? `No ${archiveTab} purchase orders` : "No active purchase orders"}
+              description={
+                isArchive
+                  ? `No ${archiveTab} purchase order records are available.`
+                  : "No active purchase orders match the current search."
+              }
+            />
+          </td>
+        </tr>
+      );
+    }
 
-  const renderSortMark = (key: SortKey) => {
-    if (sortKey !== key) return "↕";
-    return sortDirection === "asc" ? "↑" : "↓";
+    return items.map((row) => (
+      <tr key={row.id} className="aixia-table-row">
+        <AixiaTableTextCell
+          primary={row.purchase_order_number || "Purchase Order"}
+          secondary={row.company_name || "No company selected"}
+          width="lg"
+        />
+        <AixiaTableTextCell
+          primary={getVendorDisplayName(row)}
+          secondary={row.vendor_code || "—"}
+          width="lg"
+        />
+        <AixiaTableTextCell primary={getSourceDisplayName(row)} width="md" />
+        <AixiaTableDateCell>{formatDate(row.po_date)}</AixiaTableDateCell>
+        <AixiaTableDateCell>{formatDate(row.expected_delivery_date)}</AixiaTableDateCell>
+        <AixiaTableTextCell
+          primary={formatMoney(row.total_amount, row.currency_code || "USD")}
+          secondary={row.currency_code || "USD"}
+          width="md"
+        />
+        <AixiaTableBadgeCell>
+          <AixiaStatusBadge value={normalizeStatusLabel(row.status)} />
+        </AixiaTableBadgeCell>
+        <AixiaTableDateCell>{formatDate(row.updated_at)}</AixiaTableDateCell>
+        <AixiaTableActionsCell>
+          <AixiaButton
+            type="button"
+            variant="primary"
+            title="Open purchase order"
+            onClick={() => navigate(`/finance/transactions/purchase-orders/${row.id}`)}
+          >
+            <Eye className="h-4 w-4" />
+            Open
+          </AixiaButton>
+
+          {!isArchive ? (
+            <AixiaButton
+              type="button"
+              variant="danger"
+              title="Archive purchase order"
+              onClick={() =>
+                void runArchiveAction("finance_archive_purchase_order", row.id)
+              }
+            >
+              <Archive className="h-4 w-4" />
+              Archive
+            </AixiaButton>
+          ) : null}
+
+          {!isArchive ? (
+            <AixiaButton
+              type="button"
+              variant="danger"
+              title="Delete purchase order"
+              onClick={() =>
+                void runArchiveAction("finance_delete_purchase_order", row.id)
+              }
+            >
+              <Trash2 className="h-4 w-4" />
+              Delete
+            </AixiaButton>
+          ) : null}
+
+          {isArchive ? (
+            <AixiaButton
+              type="button"
+              variant="secondary"
+              title="Restore purchase order"
+              onClick={() =>
+                void runArchiveAction("finance_restore_purchase_order", row.id)
+              }
+            >
+              <RotateCcw className="h-4 w-4" />
+              Restore
+            </AixiaButton>
+          ) : null}
+
+          {isArchive && archiveTab === "deleted" ? (
+            <AixiaButton
+              type="button"
+              variant="danger"
+              title="Delete purchase order permanently"
+              onClick={() =>
+                void runArchiveAction("finance_hard_delete_purchase_order", row.id)
+              }
+            >
+              <Trash2 className="h-4 w-4" />
+              Delete Permanently
+            </AixiaButton>
+          ) : null}
+        </AixiaTableActionsCell>
+      </tr>
+    ));
   };
 
+  if (isLoading && rows.length === 0) {
+    return (
+      <AixiaLoadingState
+        title="Loading purchase orders"
+        description="Purchase order registry data, metrics, and archive state are loading."
+      />
+    );
+  }
+
   return (
-    <div className="min-h-screen bg-[#05070d] px-4 py-4 text-white md:px-6 md:py-6">
-      <div className="mx-auto flex w-full max-w-[1600px] flex-col gap-6">
-        <header className="relative overflow-hidden rounded-[34px] border border-white/10 bg-white/[0.045] p-6 shadow-2xl shadow-black/30 backdrop-blur-xl">
-          <div className="pointer-events-none absolute inset-0 bg-[radial-gradient(circle_at_top_left,rgba(6,182,212,0.16),transparent_38%),radial-gradient(circle_at_top_right,rgba(245,158,11,0.12),transparent_34%)]" />
+    <AixiaPage>
+      <AixiaHero
+        parentLabel="Transactions"
+        parentPath="/finance/transactions"
+        badges={[
+          { label: "Supplier Procurement", tone: "cyan" },
+          { label: "Step 02", tone: "amber" },
+        ]}
+        gradientTitle="Purchase"
+        title="Orders"
+        subtitle="Official supplier-side purchase order registry."
+        description="Official purchase orders sent by AiXia to suppliers after a vendor quotation is accepted. This is the second step of the supplier procurement flow."
+        statusCards={[
+          {
+            label: "Active POs",
+            value: isLoading ? "—" : summary.total.toLocaleString(),
+            description: "Active purchase order records.",
+            icon: FileText,
+            tone: "cyan",
+          },
+          {
+            label: "PO Value",
+            value: isLoading ? "—" : formatMoney(summary.totalValue, "USD"),
+            description: "Approximate active value across currencies.",
+            icon: Wallet,
+            tone: "emerald",
+          },
+        ]}
+      >
+        <div className="aixia-action-system" data-align="start" data-density="compact">
+          <AixiaBadge tone="cyan">Vendor quotation → PO</AixiaBadge>
+          <AixiaBadge tone="emerald">Vendor PI / invoice next</AixiaBadge>
+          <AixiaBadge tone="neutral">Auto-refresh enabled</AixiaBadge>
+        </div>
+      </AixiaHero>
 
-          <div className="relative">
-            <button
+      <AixiaMetricGrid>
+        {metricCards.map((metric) => (
+          <AixiaMetricCard
+            key={metric.key}
+            label={metric.label}
+            value={metric.value}
+            description={metric.description}
+            icon={metric.icon}
+            tone={metric.tone}
+          />
+        ))}
+      </AixiaMetricGrid>
+
+      <AixiaAccessRule
+        title="Locked access rule"
+        description="Purchase order registry access follows the shared Finance supplier procurement, registry, archive, and action-button standard."
+        icon={ShieldCheck}
+      >
+        This page uses shared AiXia components for page shell, hero, metrics, registry toolbar, table shell, sortable headers, archive modal, row actions, and lifecycle buttons. Page-local UI primitives and local Tailwind visual systems are intentionally removed.
+      </AixiaAccessRule>
+
+      {errorMessage ? <AixiaAlert tone="error">{errorMessage}</AixiaAlert> : null}
+
+      <AixiaSection
+        title="Purchase Order Registry"
+        description="Active purchase orders only. Archived and deleted records are managed from the archive panel."
+        icon={FileText}
+        badge={<AixiaBadge tone="cyan">Active Purchase Orders</AixiaBadge>}
+      >
+        <AixiaRegistryToolbar
+          search={
+            <AixiaSearchField
+              width="wide"
+              value={searchTerm}
+              onChange={(event) => setSearchTerm(event.target.value)}
+              placeholder="Search purchase orders..."
+            />
+          }
+          primaryAction={
+            <AixiaButton
               type="button"
-              onClick={() => navigate("/finance/transactions")}
-              className="mb-5 inline-flex items-center justify-center gap-2 rounded-full border border-white/10 bg-white/[0.05] px-5 py-2 text-[11px] font-semibold uppercase tracking-[0.22em] text-slate-300 transition hover:border-white/20 hover:bg-white/[0.08] hover:text-white"
+              variant="primary"
+              onClick={() => navigate("/finance/transactions/purchase-orders/new")}
             >
-              <ArrowRight className="h-3.5 w-3.5 rotate-180" />
-              Transactions
-            </button>
+              <Plus className="h-4 w-4" />
+              New Purchase Order
+            </AixiaButton>
+          }
+          archiveAction={
+            <AixiaButton
+              type="button"
+              variant="danger"
+              onClick={() => {
+                setArchiveTab("archived");
+                setIsArchiveOpen(true);
+              }}
+            >
+              <Archive className="h-4 w-4" />
+              Archive
+            </AixiaButton>
+          }
+        />
 
-            <div className="grid gap-6 xl:grid-cols-[minmax(0,1fr)_520px]">
-              <div>
-                <div className="flex flex-wrap gap-2">
-                  <Badge className="w-fit rounded-full border border-cyan-400/20 bg-cyan-500/10 px-3 py-1 text-[11px] font-semibold uppercase tracking-[0.22em] text-cyan-200 shadow-none">
-                    Supplier Procurement
-                  </Badge>
+        <AixiaTableShell variant="registry" minWidthClassName="min-w-[1240px]">
+          <thead className="aixia-table-head">
+            <tr>
+              <th>
+                <AixiaSortableHeader
+                  label="PO"
+                  sortKey="purchase_order_number"
+                  activeSortKey={sortKey}
+                  sortDirection={sortDirection}
+                  onSort={handleSort}
+                />
+              </th>
+              <th>
+                <AixiaSortableHeader
+                  label="Vendor"
+                  sortKey="vendor_name"
+                  activeSortKey={sortKey}
+                  sortDirection={sortDirection}
+                  onSort={handleSort}
+                />
+              </th>
+              <th>
+                <AixiaSortableHeader
+                  label="Source VQ"
+                  sortKey="source_vendor_quotation_number"
+                  activeSortKey={sortKey}
+                  sortDirection={sortDirection}
+                  onSort={handleSort}
+                />
+              </th>
+              <th>
+                <AixiaSortableHeader
+                  label="PO Date"
+                  sortKey="po_date"
+                  activeSortKey={sortKey}
+                  sortDirection={sortDirection}
+                  onSort={handleSort}
+                />
+              </th>
+              <th>
+                <AixiaSortableHeader
+                  label="Expected Delivery"
+                  sortKey="expected_delivery_date"
+                  activeSortKey={sortKey}
+                  sortDirection={sortDirection}
+                  onSort={handleSort}
+                />
+              </th>
+              <th>
+                <AixiaSortableHeader
+                  label="Total"
+                  sortKey="total_amount"
+                  activeSortKey={sortKey}
+                  sortDirection={sortDirection}
+                  onSort={handleSort}
+                  align="right"
+                />
+              </th>
+              <th>
+                <AixiaSortableHeader
+                  label="Status"
+                  sortKey="status"
+                  activeSortKey={sortKey}
+                  sortDirection={sortDirection}
+                  onSort={handleSort}
+                />
+              </th>
+              <th>
+                <AixiaSortableHeader
+                  label="Updated"
+                  sortKey="updated_at"
+                  activeSortKey={sortKey}
+                  sortDirection={sortDirection}
+                  onSort={handleSort}
+                />
+              </th>
+              <th>Actions</th>
+            </tr>
+          </thead>
+          <tbody>{renderRows(filteredRows)}</tbody>
+        </AixiaTableShell>
+      </AixiaSection>
 
-                  <Badge className="w-fit rounded-full border border-amber-400/20 bg-amber-500/10 px-3 py-1 text-[11px] font-semibold uppercase tracking-[0.22em] text-amber-200 shadow-none">
-                    Step 02
-                  </Badge>
-                </div>
-
-                <h1 className="mt-4 text-3xl font-semibold tracking-[-0.035em] text-white md:text-5xl">
-                  Purchase Orders
-                </h1>
-
-                <p className="mt-3 max-w-4xl text-sm leading-6 text-slate-400 md:text-base md:leading-7">
-                  Official purchase orders sent by AiXia to suppliers after a
-                  vendor quotation is accepted. This is the second step of the
-                  supplier procurement flow.
-                </p>
-
-                <div className="mt-5 flex flex-wrap gap-3">
-                  <Button
-                    onClick={() =>
-                      navigate("/finance/transactions/purchase-orders/new")
-                    }
-                    className="h-11 rounded-2xl border border-cyan-400/20 bg-cyan-500 px-4 text-sm font-semibold text-slate-950 transition hover:bg-cyan-400"
-                  >
-                    <Plus className="mr-2 h-4 w-4" />
-                    New Purchase Order
-                  </Button>
-
-                  <Button
-                    variant="outline"
-                    onClick={() => {
-                      setArchiveTab("archived");
-                      setIsArchiveOpen(true);
-                    }}
-                    className="h-11 rounded-2xl border-white/10 bg-white/[0.05] px-4 text-white hover:bg-white/[0.08]"
-                  >
-                    <FolderArchive className="mr-2 h-4 w-4" />
-                    Archive
-                  </Button>
-                </div>
-              </div>
-
-              <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-1">
-                <div className="min-h-[148px] rounded-[24px] border border-white/10 bg-black/20 p-4">
-                  <div className="text-[11px] font-semibold uppercase tracking-[0.2em] text-slate-500">
-                    Active POs
-                  </div>
-                  <div className="mt-2 text-3xl font-semibold tracking-[-0.035em] text-white">
-                    {isLoading ? "—" : summary.total}
-                  </div>
-                  <div className="mt-3 text-xs leading-5 text-slate-500">
-                    Active purchase order records.
-                  </div>
-                </div>
-
-                <div className="min-h-[148px] rounded-[24px] border border-white/10 bg-black/20 p-4">
-                  <div className="text-[11px] font-semibold uppercase tracking-[0.2em] text-slate-500">
-                    PO Value
-                  </div>
-                  <div className="mt-2 text-3xl font-semibold tracking-[-0.035em] text-white">
-                    {isLoading ? "—" : formatMoney(summary.totalValue, "USD")}
-                  </div>
-                  <div className="mt-3 text-xs leading-5 text-slate-500">
-                    Approximate active value across currencies.
-                  </div>
-                </div>
-              </div>
-            </div>
-          </div>
-        </header>
-
-        <section className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
-          <div className="min-h-[156px] rounded-[28px] border border-white/10 bg-white/[0.045] p-5 backdrop-blur-xl">
-            <div className="text-[11px] font-semibold uppercase tracking-[0.2em] text-slate-500">
-              Draft
-            </div>
-            <div className="mt-2 text-3xl font-semibold text-slate-100">
-              {summary.draft}
-            </div>
-            <div className="mt-2 text-sm leading-6 text-slate-400">
-              POs being prepared before issue.
-            </div>
-          </div>
-
-          <div className="min-h-[156px] rounded-[28px] border border-white/10 bg-white/[0.045] p-5 backdrop-blur-xl">
-            <div className="text-[11px] font-semibold uppercase tracking-[0.2em] text-slate-500">
-              Issued / Sent
-            </div>
-            <div className="mt-2 text-3xl font-semibold text-cyan-100">
-              {summary.issued}
-            </div>
-            <div className="mt-2 text-sm leading-6 text-slate-400">
-              Sent to suppliers.
-            </div>
-          </div>
-
-          <div className="min-h-[156px] rounded-[28px] border border-white/10 bg-white/[0.045] p-5 backdrop-blur-xl">
-            <div className="text-[11px] font-semibold uppercase tracking-[0.2em] text-slate-500">
-              Acknowledged
-            </div>
-            <div className="mt-2 text-3xl font-semibold text-emerald-100">
-              {summary.acknowledged}
-            </div>
-            <div className="mt-2 text-sm leading-6 text-slate-400">
-              Vendor acknowledged the PO.
-            </div>
-          </div>
-
-          <div className="min-h-[156px] rounded-[28px] border border-white/10 bg-white/[0.045] p-5 backdrop-blur-xl">
-            <div className="text-[11px] font-semibold uppercase tracking-[0.2em] text-slate-500">
-              Linked to Bill
-            </div>
-            <div className="mt-2 text-3xl font-semibold text-violet-100">
-              {summary.linkedToBill}
-            </div>
-            <div className="mt-2 text-sm leading-6 text-slate-400">
-              Continued to vendor PI / invoice.
-            </div>
-          </div>
-        </section>
-
-        <Card className="overflow-hidden rounded-[30px] border border-white/10 bg-white/[0.045] backdrop-blur-xl">
-          <CardHeader className="border-b border-white/10 px-5 py-4">
-            <div className="flex flex-col gap-4 xl:flex-row xl:items-center xl:justify-between">
-              <div className="flex min-w-0 items-center gap-3">
-                <div className="rounded-2xl border border-cyan-400/15 bg-cyan-500/10 p-3 text-cyan-200">
-                  <FileText className="h-4 w-4" />
-                </div>
-
-                <div className="min-w-0">
-                  <CardTitle className="text-sm font-semibold uppercase tracking-[0.18em] text-slate-400">
-                    Purchase Order Registry
-                  </CardTitle>
-                  <CardDescription className="mt-1 text-xs text-slate-500">
-                    Active purchase orders only. Archived and deleted records are
-                    managed from the archive panel.
-                  </CardDescription>
-                </div>
-              </div>
-
-              <div className="flex flex-col gap-3 sm:flex-row sm:items-center">
-                <div className="relative">
-                  <Search className="pointer-events-none absolute left-4 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-500" />
-                  <input
-                    value={searchTerm}
-                    onChange={(event) => setSearchTerm(event.target.value)}
-                    placeholder="Search purchase orders..."
-                    className="h-11 w-full rounded-2xl border border-white/10 bg-black/20 pl-11 pr-4 text-sm text-white outline-none transition placeholder:text-slate-600 focus:border-cyan-400/30 focus:bg-black/30 sm:w-[320px]"
-                  />
-                </div>
-              </div>
-            </div>
-          </CardHeader>
-
-          <CardContent className="p-0">
-            {errorMessage ? (
-              <div className="border-b border-rose-400/20 bg-rose-500/10 px-5 py-3 text-sm text-rose-200">
-                {errorMessage}
-              </div>
-            ) : null}
-
-            <div className="overflow-x-auto">
-              <div className="max-h-[720px] overflow-y-auto">
-                <table className="w-full min-w-[1240px] border-collapse">
-                  <thead className="sticky top-0 z-10 border-b border-white/10 bg-black/40 backdrop-blur-xl">
-                    <tr>
-                      <th className="px-5 py-4 text-left">
-                        <button
-                          type="button"
-                          onClick={() => toggleSort("purchase_order_number")}
-                          className={sortableHeaderClass}
-                        >
-                          PO {renderSortMark("purchase_order_number")}
-                        </button>
-                      </th>
-                      <th className="px-5 py-4 text-left">
-                        <button
-                          type="button"
-                          onClick={() => toggleSort("vendor_name")}
-                          className={sortableHeaderClass}
-                        >
-                          Vendor {renderSortMark("vendor_name")}
-                        </button>
-                      </th>
-                      <th className="px-5 py-4 text-left">
-                        <button
-                          type="button"
-                          onClick={() =>
-                            toggleSort("source_vendor_quotation_number")
-                          }
-                          className={sortableHeaderClass}
-                        >
-                          Source VQ{" "}
-                          {renderSortMark("source_vendor_quotation_number")}
-                        </button>
-                      </th>
-                      <th className="px-5 py-4 text-left">
-                        <button
-                          type="button"
-                          onClick={() => toggleSort("po_date")}
-                          className={sortableHeaderClass}
-                        >
-                          PO Date {renderSortMark("po_date")}
-                        </button>
-                      </th>
-                      <th className="px-5 py-4 text-left">
-                        <button
-                          type="button"
-                          onClick={() => toggleSort("expected_delivery_date")}
-                          className={sortableHeaderClass}
-                        >
-                          Expected Delivery{" "}
-                          {renderSortMark("expected_delivery_date")}
-                        </button>
-                      </th>
-                      <th className="px-5 py-4 text-left">
-                        <button
-                          type="button"
-                          onClick={() => toggleSort("total_amount")}
-                          className={sortableHeaderClass}
-                        >
-                          Total {renderSortMark("total_amount")}
-                        </button>
-                      </th>
-                      <th className="px-5 py-4 text-left">
-                        <button
-                          type="button"
-                          onClick={() => toggleSort("status")}
-                          className={sortableHeaderClass}
-                        >
-                          Status {renderSortMark("status")}
-                        </button>
-                      </th>
-                      <th className="px-5 py-4 text-right text-[11px] font-semibold uppercase tracking-[0.18em] text-slate-500">
-                        Actions
-                      </th>
-                    </tr>
-                  </thead>
-
-                  <tbody className="divide-y divide-white/5">
-                    {isLoading ? (
-                      <tr>
-                        <td
-                          colSpan={8}
-                          className="px-5 py-12 text-center text-sm text-slate-500"
-                        >
-                          Loading purchase orders...
-                        </td>
-                      </tr>
-                    ) : filteredRows.length === 0 ? (
-                      <tr>
-                        <td
-                          colSpan={8}
-                          className="px-5 py-12 text-center text-sm text-slate-500"
-                        >
-                          No active purchase orders found.
-                        </td>
-                      </tr>
-                    ) : (
-                      filteredRows.map((row) => (
-                        <tr
-                          key={row.id}
-                          className="text-sm text-slate-300 transition hover:bg-white/[0.035]"
-                        >
-                          <td className="px-5 py-4">
-                            <div className="font-semibold text-white">
-                              {row.purchase_order_number}
-                            </div>
-                            <div className="mt-1 text-xs text-slate-500">
-                              {row.company_name || "No company selected"}
-                            </div>
-                          </td>
-
-                          <td className="px-5 py-4">
-                            <div className="font-medium text-white">
-                              {row.vendor_legal_name ||
-                                row.vendor_name ||
-                                "Unknown vendor"}
-                            </div>
-                            <div className="mt-1 text-xs text-slate-500">
-                              {row.vendor_code || "—"}
-                            </div>
-                          </td>
-
-                          <td className="px-5 py-4 text-slate-400">
-                            {row.source_vendor_quotation_number || "Manual"}
-                          </td>
-
-                          <td className="px-5 py-4 text-slate-400">
-                            {formatDate(row.po_date)}
-                          </td>
-
-                          <td className="px-5 py-4 text-slate-400">
-                            {formatDate(row.expected_delivery_date)}
-                          </td>
-
-                          <td className="px-5 py-4">
-                            <div className="font-semibold text-white">
-                              {formatMoney(
-                                row.total_amount,
-                                row.currency_code || "USD"
-                              )}
-                            </div>
-                            <div className="mt-1 text-xs text-slate-500">
-                              {row.currency_code || "USD"}
-                            </div>
-                          </td>
-
-                          <td className="px-5 py-4">
-                            <Badge
-                              className={`rounded-full px-3 py-1 text-[11px] font-semibold uppercase tracking-[0.16em] shadow-none ${getStatusBadgeClass(
-                                row.status
-                              )}`}
-                            >
-                              {normalizeStatusLabel(row.status)}
-                            </Badge>
-                          </td>
-
-                          <td className="px-5 py-4">
-                            <div className="flex justify-end gap-2">
-                              <Button
-                                type="button"
-                                variant="outline"
-                                title="Open purchase order"
-                                onClick={() =>
-                                  navigate(
-                                    `/finance/transactions/purchase-orders/${row.id}`
-                                  )
-                                }
-                                className="flex h-11 w-11 items-center justify-center rounded-full border-cyan-400/20 bg-cyan-500/10 p-0 text-cyan-200 hover:bg-cyan-500/20"
-                              >
-                                <Eye className="h-4 w-4" />
-                              </Button>
-
-                              <Button
-                                type="button"
-                                variant="outline"
-                                title="Archive purchase order"
-                                onClick={() =>
-                                  void runArchiveAction(
-                                    "finance_archive_purchase_order",
-                                    row.id
-                                  )
-                                }
-                                className="flex h-11 w-11 items-center justify-center rounded-full border-amber-400/20 bg-amber-500/10 p-0 text-amber-200 hover:bg-amber-500/20"
-                              >
-                                <Archive className="h-4 w-4" />
-                              </Button>
-
-                              <Button
-                                type="button"
-                                variant="outline"
-                                title="Delete purchase order"
-                                onClick={() =>
-                                  void runArchiveAction(
-                                    "finance_delete_purchase_order",
-                                    row.id
-                                  )
-                                }
-                                className="flex h-11 w-11 items-center justify-center rounded-full border-rose-400/20 bg-rose-500/10 p-0 text-rose-200 hover:bg-rose-500/20"
-                              >
-                                <Trash2 className="h-4 w-4" />
-                              </Button>
-                            </div>
-                          </td>
-                        </tr>
-                      ))
-                    )}
-                  </tbody>
-                </table>
-              </div>
-            </div>
-          </CardContent>
-        </Card>
-
-        {isArchiveOpen ? (
-          <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 p-4 backdrop-blur-sm">
-            <div className="flex max-h-[88vh] w-full max-w-[1300px] flex-col overflow-hidden rounded-[30px] border border-white/10 bg-[#070b14] shadow-2xl shadow-black/50">
-              <div className="flex flex-col gap-4 border-b border-white/10 p-5 lg:flex-row lg:items-center lg:justify-between">
-                <div>
-                  <div className="text-sm font-semibold uppercase tracking-[0.18em] text-slate-400">
-                    Purchase Order Archive
-                  </div>
-                  <div className="mt-1 text-xs text-slate-500">
-                    Archived records can be restored. Deleted records can be
-                    restored or permanently removed.
-                  </div>
-                </div>
-
-                <div className="flex flex-wrap gap-2">
-                  <Button
-                    variant="outline"
-                    onClick={() => setArchiveTab("archived")}
-                    className={`h-10 rounded-2xl px-4 ${
-                      archiveTab === "archived"
-                        ? "border-amber-400/30 bg-amber-500/15 text-amber-100"
-                        : "border-white/10 bg-white/[0.05] text-slate-300 hover:bg-white/[0.08]"
-                    }`}
-                  >
-                    Archived
-                  </Button>
-
-                  <Button
-                    variant="outline"
-                    onClick={() => setArchiveTab("deleted")}
-                    className={`h-10 rounded-2xl px-4 ${
-                      archiveTab === "deleted"
-                        ? "border-rose-400/30 bg-rose-500/15 text-rose-100"
-                        : "border-white/10 bg-white/[0.05] text-slate-300 hover:bg-white/[0.08]"
-                    }`}
-                  >
-                    Deleted
-                  </Button>
-
-                  <Button
-                    variant="outline"
-                    onClick={() => setIsArchiveOpen(false)}
-                    className="h-10 rounded-2xl border-white/10 bg-white/[0.05] px-4 text-white hover:bg-white/[0.08]"
-                  >
-                    Close
-                  </Button>
-                </div>
-              </div>
-
-              <div className="overflow-x-auto">
-                <div className="max-h-[620px] overflow-y-auto">
-                  <table className="w-full min-w-[1100px] border-collapse">
-                    <thead className="sticky top-0 z-10 border-b border-white/10 bg-black/40 backdrop-blur-xl">
-                      <tr>
-                        <th className="px-5 py-4 text-left text-[11px] font-semibold uppercase tracking-[0.18em] text-slate-500">
-                          PO
-                        </th>
-                        <th className="px-5 py-4 text-left text-[11px] font-semibold uppercase tracking-[0.18em] text-slate-500">
-                          Vendor
-                        </th>
-                        <th className="px-5 py-4 text-left text-[11px] font-semibold uppercase tracking-[0.18em] text-slate-500">
-                          Source VQ
-                        </th>
-                        <th className="px-5 py-4 text-left text-[11px] font-semibold uppercase tracking-[0.18em] text-slate-500">
-                          Total
-                        </th>
-                        <th className="px-5 py-4 text-left text-[11px] font-semibold uppercase tracking-[0.18em] text-slate-500">
-                          Updated
-                        </th>
-                        <th className="px-5 py-4 text-right text-[11px] font-semibold uppercase tracking-[0.18em] text-slate-500">
-                          Actions
-                        </th>
-                      </tr>
-                    </thead>
-
-                    <tbody className="divide-y divide-white/5">
-                      {isArchiveLoading ? (
-                        <tr>
-                          <td
-                            colSpan={6}
-                            className="px-5 py-12 text-center text-sm text-slate-500"
-                          >
-                            Loading archive...
-                          </td>
-                        </tr>
-                      ) : archiveRows.length === 0 ? (
-                        <tr>
-                          <td
-                            colSpan={6}
-                            className="px-5 py-12 text-center text-sm text-slate-500"
-                          >
-                            No {archiveTab} purchase orders.
-                          </td>
-                        </tr>
-                      ) : (
-                        archiveRows.map((row) => (
-                          <tr
-                            key={row.id}
-                            className="text-sm text-slate-300 transition hover:bg-white/[0.035]"
-                          >
-                            <td className="px-5 py-4">
-                              <div className="font-semibold text-white">
-                                {row.purchase_order_number}
-                              </div>
-                              <div className="mt-1 text-xs text-slate-500">
-                                {formatDate(row.po_date)}
-                              </div>
-                            </td>
-
-                            <td className="px-5 py-4">
-                              {row.vendor_legal_name ||
-                                row.vendor_name ||
-                                "Unknown vendor"}
-                            </td>
-
-                            <td className="px-5 py-4">
-                              {row.source_vendor_quotation_number || "Manual"}
-                            </td>
-
-                            <td className="px-5 py-4">
-                              {formatMoney(
-                                row.total_amount,
-                                row.currency_code || "USD"
-                              )}
-                            </td>
-
-                            <td className="px-5 py-4">
-                              {formatDate(row.updated_at)}
-                            </td>
-
-                            <td className="px-5 py-4">
-                              <div className="flex justify-end gap-2">
-                                <Button
-                                  type="button"
-                                  variant="outline"
-                                  title="Open purchase order"
-                                  onClick={() =>
-                                    navigate(
-                                      `/finance/transactions/purchase-orders/${row.id}`
-                                    )
-                                  }
-                                  className="flex h-10 w-10 items-center justify-center rounded-full border-cyan-400/20 bg-cyan-500/10 p-0 text-cyan-200 hover:bg-cyan-500/20"
-                                >
-                                  <Eye className="h-4 w-4" />
-                                </Button>
-
-                                <Button
-                                  type="button"
-                                  variant="outline"
-                                  title="Restore purchase order"
-                                  onClick={() =>
-                                    void runArchiveAction(
-                                      "finance_restore_purchase_order",
-                                      row.id
-                                    )
-                                  }
-                                  className="flex h-10 w-10 items-center justify-center rounded-full border-emerald-400/20 bg-emerald-500/10 p-0 text-emerald-200 hover:bg-emerald-500/20"
-                                >
-                                  <RotateCcw className="h-4 w-4" />
-                                </Button>
-
-                                {archiveTab === "deleted" ? (
-                                  <Button
-                                    type="button"
-                                    variant="outline"
-                                    title="Hard delete purchase order"
-                                    onClick={() =>
-                                      void runArchiveAction(
-                                        "finance_hard_delete_purchase_order",
-                                        row.id
-                                      )
-                                    }
-                                    className="flex h-10 w-10 items-center justify-center rounded-full border-rose-400/20 bg-rose-500/10 p-0 text-rose-200 hover:bg-rose-500/20"
-                                  >
-                                    <Trash2 className="h-4 w-4" />
-                                  </Button>
-                                ) : null}
-                              </div>
-                            </td>
-                          </tr>
-                        ))
-                      )}
-                    </tbody>
-                  </table>
-                </div>
-              </div>
-            </div>
-          </div>
-        ) : null}
-      </div>
-    </div>
+      <AixiaArchiveManagerModal
+        open={isArchiveOpen}
+        title="Purchase Order Archive"
+        description="Archived records can be restored. Deleted records can be restored or permanently removed."
+        archivedCount={archivedArchiveCount}
+        deletedCount={deletedArchiveCount}
+        activeTab={archiveTab}
+        onTabChange={setArchiveTab}
+        onClose={() => setIsArchiveOpen(false)}
+        maxWidthClassName="max-w-[1300px]"
+      >
+        {isArchiveLoading ? (
+          <AixiaLoadingState
+            title="Loading purchase order archive"
+            description="Archived and deleted purchase order records are loading."
+          />
+        ) : sortedArchiveRows.length === 0 ? (
+          <AixiaEmptyState
+            icon={Archive}
+            title={`No ${archiveTab} purchase orders`}
+            description={`No ${archiveTab} purchase order records are available.`}
+          />
+        ) : (
+          <AixiaTableShell variant="archive" minWidthClassName="min-w-[1240px]">
+            <thead className="aixia-table-head">
+              <tr>
+                <th>PO</th>
+                <th>Vendor</th>
+                <th>Source VQ</th>
+                <th>PO Date</th>
+                <th>Expected Delivery</th>
+                <th>Total</th>
+                <th>Status</th>
+                <th>Updated</th>
+                <th>Actions</th>
+              </tr>
+            </thead>
+            <tbody>{renderRows(sortedArchiveRows, true)}</tbody>
+          </AixiaTableShell>
+        )}
+      </AixiaArchiveManagerModal>
+    </AixiaPage>
   );
 }

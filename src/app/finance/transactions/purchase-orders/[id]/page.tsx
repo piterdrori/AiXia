@@ -10,6 +10,7 @@ import {
   Printer,
   ReceiptText,
   RotateCcw,
+  ShieldCheck,
   Save,
   Send,
   SquarePen,
@@ -2833,7 +2834,7 @@ export default function FinancePurchaseOrderDetailPage() {
         <AixiaAccessRule
           title="Locked access rule"
           description="Purchase order detail access follows the shared Finance document, lifecycle, registry, archive, linked document, and print standards."
-          icon={FileText}
+          icon={ShieldCheck}
         >
           This page uses shared AiXia components for page shell, hero, metrics, sections, forms, line-item rows, lifecycle actions, archive modal, linked document action cards, and table actions. Page-local UI primitives and local Tailwind visual systems are intentionally removed.
         </AixiaAccessRule>

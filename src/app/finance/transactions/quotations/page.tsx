@@ -4,37 +4,54 @@ import { useCallback, useEffect, useMemo, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import {
   Archive,
-  ArrowRight,
+  CheckCircle,
   Eye,
   FileText,
   Plus,
   Receipt,
   RotateCcw,
   Search,
+  ShieldCheck,
   Trash2,
   Wallet,
 } from "lucide-react";
 
-import { Badge } from "@/components/ui/badge";
-import { Button } from "@/components/ui/button";
 import {
-  Card,
-  CardContent,
-  CardDescription,
-  CardHeader,
-  CardTitle,
-} from "@/components/ui/card";
+  AixiaAccessRule,
+  AixiaAlert,
+  AixiaArchiveManagerModal,
+  AixiaBadge,
+  AixiaButton,
+  AixiaEmptyState,
+  AixiaHero,
+  AixiaLoadingState,
+  AixiaMetricCard,
+  AixiaMetricGrid,
+  AixiaPage,
+  AixiaRegistryToolbar,
+  AixiaSearchField,
+  AixiaSection,
+  AixiaSortableHeader,
+  AixiaStatusBadge,
+  AixiaTableActionsCell,
+  AixiaTableBadgeCell,
+  AixiaTableDateCell,
+  AixiaTableShell,
+  AixiaTableTextCell,
+} from "@/components/aixia";
+import {
+  fetchFinanceEffectivePermissions,
+  resolveFinancePagePermissionState,
+  type FinanceLoadMode,
+  type FinancePageAccessConfig,
+} from "@/lib/finance/pageAccess";
+import { type Permission, type Role } from "@/lib/permissions";
 import { supabase } from "@/lib/supabase";
 
-import {
-  getEffectivePermissions,
-  type Permission,
-  type Role,
-} from "@/lib/permissions";
+type LoadMode = FinanceLoadMode;
 
 type ProfilePermissionRow = {
-  role: Role;
-  permissions?: Partial<Record<Permission, boolean>> | null;
+  role: Role | null;
 };
 
 type FinanceQuotationRow = {
@@ -63,96 +80,34 @@ type FinanceQuotationRow = {
   company_name_snapshot: string | null;
 };
 
-type QuotationMetricCard = {
-  key: string;
-  title: string;
-  value: string;
-  subtitle: string;
-  icon: typeof Wallet;
-  tone: "cyan" | "emerald" | "amber" | "violet" | "rose";
+type QuotationSortKey =
+  | "quotation_number"
+  | "client"
+  | "company"
+  | "issue_date"
+  | "valid_until"
+  | "total_amount"
+  | "status"
+  | "updated_at"
+  | "created_at";
+
+type SortDirection = "asc" | "desc";
+type ArchiveTab = "archived" | "deleted";
+
+const PAGE_ACCESS_CONFIG: FinancePageAccessConfig = {
+  sectionKey: "incomingMoneyFlow",
+  adminPermissions: ["accessFinance"],
+  readPermissions: [
+    "accessFinance",
+    "viewFinance",
+    "accessReceivables",
+    "viewReceivables",
+  ],
+  createPermissions: ["createFinanceRecords", "createInvoices"],
+  updatePermissions: ["editFinanceRecords", "editDraftInvoices"],
+  deleteArchivePermissions: ["archiveFinanceRecords"],
+  approveExecutePermissions: ["approveFinanceRecords", "sendInvoices"],
 };
-
-function getToneClasses(tone: QuotationMetricCard["tone"]) {
-  switch (tone) {
-    case "emerald":
-      return {
-        glow: "from-emerald-500/20 via-emerald-400/10 to-transparent",
-        iconWrap: "border-emerald-400/20 bg-emerald-500/10 text-emerald-200",
-        value: "text-emerald-100",
-        accent: "bg-emerald-400",
-      };
-    case "amber":
-      return {
-        glow: "from-amber-500/20 via-amber-400/10 to-transparent",
-        iconWrap: "border-amber-400/20 bg-amber-500/10 text-amber-200",
-        value: "text-amber-100",
-        accent: "bg-amber-400",
-      };
-    case "violet":
-      return {
-        glow: "from-violet-500/20 via-violet-400/10 to-transparent",
-        iconWrap: "border-violet-400/20 bg-violet-500/10 text-violet-200",
-        value: "text-violet-100",
-        accent: "bg-violet-400",
-      };
-    case "rose":
-      return {
-        glow: "from-rose-500/20 via-rose-400/10 to-transparent",
-        iconWrap: "border-rose-400/20 bg-rose-500/10 text-rose-200",
-        value: "text-rose-100",
-        accent: "bg-rose-400",
-      };
-    case "cyan":
-    default:
-      return {
-        glow: "from-cyan-500/20 via-cyan-400/10 to-transparent",
-        iconWrap: "border-cyan-400/20 bg-cyan-500/10 text-cyan-200",
-        value: "text-cyan-100",
-        accent: "bg-cyan-400",
-      };
-  }
-}
-
-function MetricCard({ metric }: { metric: QuotationMetricCard }) {
-  const tone = getToneClasses(metric.tone);
-  const Icon = metric.icon;
-
-  return (
-    <div className="group relative min-h-[156px] overflow-hidden rounded-[28px] border border-white/10 bg-white/[0.045] p-5 backdrop-blur-xl transition hover:border-white/20 hover:bg-white/[0.055]">
-      <div
-        className={`pointer-events-none absolute inset-0 bg-gradient-to-br ${tone.glow}`}
-      />
-
-      <div className="relative flex h-full flex-col justify-between gap-5">
-        <div className="flex items-start justify-between gap-4">
-          <div className="min-w-0">
-            <div className="text-[11px] font-semibold uppercase tracking-[0.2em] text-slate-500">
-              {metric.title}
-            </div>
-            <div
-              className={`mt-2 truncate text-3xl font-semibold tracking-[-0.035em] ${tone.value}`}
-            >
-              {metric.value}
-            </div>
-          </div>
-
-          <div
-            className={`flex h-12 w-12 shrink-0 items-center justify-center rounded-2xl border ${tone.iconWrap}`}
-          >
-            <Icon className="h-5 w-5" />
-          </div>
-        </div>
-
-        <div className="flex items-center justify-between gap-3">
-          <div className="min-w-0 truncate text-sm leading-6 text-slate-400">
-            {metric.subtitle}
-          </div>
-          <div className={`h-2 w-2 shrink-0 rounded-full ${tone.accent}`} />
-        </div>
-      </div>
-    </div>
-  );
-}
 
 function formatFinanceDate(value: string | null | undefined) {
   if (!value) return "—";
@@ -181,54 +136,14 @@ function formatFinanceMoney(
   }).format(Number.isFinite(numeric) ? numeric : 0);
 }
 
-function getQuotationStatusBadgeClasses(status: string) {
-  switch (status) {
-    case "draft":
-      return "border-slate-400/20 bg-white/[0.06] text-slate-300";
-    case "issued":
-      return "border-cyan-400/20 bg-cyan-500/10 text-cyan-200";
-    case "sent":
-      return "border-cyan-400/20 bg-cyan-500/10 text-cyan-200";
-    case "accepted":
-      return "border-emerald-400/20 bg-emerald-500/10 text-emerald-200";
-    case "rejected":
-      return "border-rose-400/20 bg-rose-500/10 text-rose-200";
-    case "expired":
-      return "border-amber-400/20 bg-amber-500/10 text-amber-200";
-    case "converted":
-      return "border-violet-400/20 bg-violet-500/10 text-violet-200";
-    case "archived":
-      return "border-amber-400/20 bg-amber-500/10 text-amber-200";
-    case "deleted":
-      return "border-rose-500/30 bg-rose-500/10 text-rose-300";
-    default:
-      return "border-white/10 bg-white/10 text-white/75";
-  }
-}
+function getQuotationStatusLabel(status: string | null | undefined) {
+  if (!status) return "—";
 
-function getQuotationStatusLabel(status: string) {
-  switch (status) {
-    case "draft":
-      return "Draft";
-    case "issued":
-      return "Issued";
-    case "sent":
-      return "Sent";
-    case "accepted":
-      return "Accepted";
-    case "rejected":
-      return "Rejected";
-    case "expired":
-      return "Expired";
-    case "converted":
-      return "Converted";
-    case "archived":
-      return "Archived";
-    case "deleted":
-      return "Deleted";
-    default:
-      return status;
-  }
+  return status
+    .split("_")
+    .filter(Boolean)
+    .map((part) => part.charAt(0).toUpperCase() + part.slice(1))
+    .join(" ");
 }
 
 function isEditableNegotiationStatus(status: string) {
@@ -240,53 +155,135 @@ function isEditableNegotiationStatus(status: string) {
   );
 }
 
+function getStatusTone(status: string | null | undefined) {
+  if (status === "accepted") return "emerald";
+  if (status === "sent" || status === "issued") return "cyan";
+  if (status === "draft" || status === "expired") return "amber";
+  if (status === "converted") return "violet";
+  if (status === "rejected" || status === "deleted") return "rose";
+  return "neutral";
+}
+
+function getQuotationDisplayName(quotation: FinanceQuotationRow) {
+  return quotation.quotation_number || "Quotation";
+}
+
+function getCounterpartyDisplayName(quotation: FinanceQuotationRow) {
+  return quotation.client_name_snapshot || quotation.company_name_snapshot || "—";
+}
+
+function getCompanyDisplayName(quotation: FinanceQuotationRow) {
+  return quotation.company_name_snapshot || "—";
+}
+
+function getSortableDate(value: string | null | undefined) {
+  if (!value) return 0;
+
+  const parsed = new Date(value).getTime();
+  return Number.isFinite(parsed) ? parsed : 0;
+}
+
+function compareSortValues(a: string | number, b: string | number) {
+  if (typeof a === "number" && typeof b === "number") {
+    return a - b;
+  }
+
+  return String(a).localeCompare(String(b), undefined, {
+    numeric: true,
+    sensitivity: "base",
+  });
+}
+
+function getQuotationSortValue(
+  quotation: FinanceQuotationRow,
+  key: QuotationSortKey
+) {
+  switch (key) {
+    case "quotation_number":
+      return getQuotationDisplayName(quotation).toLowerCase();
+    case "client":
+      return getCounterpartyDisplayName(quotation).toLowerCase();
+    case "company":
+      return getCompanyDisplayName(quotation).toLowerCase();
+    case "issue_date":
+      return getSortableDate(quotation.issue_date);
+    case "valid_until":
+      return getSortableDate(quotation.valid_until);
+    case "total_amount":
+      return Number(quotation.total_amount ?? 0);
+    case "status":
+      return String(quotation.status || "").toLowerCase();
+    case "updated_at":
+      return getSortableDate(quotation.updated_at);
+    case "created_at":
+    default:
+      return getSortableDate(quotation.created_at);
+  }
+}
+
+function QuotationStatusBadge({ value }: { value: string | null | undefined }) {
+  return <AixiaBadge tone={getStatusTone(value)}>{getQuotationStatusLabel(value)}</AixiaBadge>;
+}
+
 export default function FinanceQuotationsPage() {
   const navigate = useNavigate();
 
-    const [isLoading, setIsLoading] = useState(true);
+  const [isLoading, setIsLoading] = useState(true);
   const [quotations, setQuotations] = useState<FinanceQuotationRow[]>([]);
   const [search, setSearch] = useState("");
-  const [role, setRole] = useState<Role | null>(null);
-  const [permissionOverrides, setPermissionOverrides] = useState<
+  const [profileRole, setProfileRole] = useState<Role | null>(null);
+  const [effectivePermissions, setEffectivePermissions] = useState<
     Partial<Record<Permission, boolean>> | null
   >(null);
-
   const [isArchiveModalOpen, setIsArchiveModalOpen] = useState(false);
-  const [archiveTab, setArchiveTab] = useState<"archived" | "deleted">(
-    "archived"
-  );
+  const [archiveTab, setArchiveTab] = useState<ArchiveTab>("archived");
   const [archivedQuotations, setArchivedQuotations] = useState<
     FinanceQuotationRow[]
   >([]);
   const [isArchiveLoading, setIsArchiveLoading] = useState(false);
+  const [sortKey, setSortKey] = useState<QuotationSortKey>("created_at");
+  const [sortDirection, setSortDirection] = useState<SortDirection>("desc");
+  const [pageError, setPageError] = useState<string | null>(null);
 
-  const loadPermissions = useCallback(async () => {
+  const permissionState = useMemo(() => {
+    return resolveFinancePagePermissionState({
+      profileRole,
+      permissions: effectivePermissions,
+      config: PAGE_ACCESS_CONFIG,
+    });
+  }, [effectivePermissions, profileRole]);
+
+  const loadPermissions = useCallback(async (mode: LoadMode = "initial") => {
     const {
       data: { user },
     } = await supabase.auth.getUser();
 
     if (!user?.id) return;
 
-    const { data, error } = await supabase
+    const profileResult = await supabase
       .from("profiles")
-      .select("role, permissions")
+      .select("role")
       .eq("user_id", user.id)
       .maybeSingle();
 
-    if (error) {
-      console.error("Failed to load quotation permissions:", error);
+    if (profileResult.error) {
+      if (mode === "initial") {
+        console.error("Failed to load quotation profile role:", profileResult.error);
+      }
       return;
     }
 
-    if (data) {
-      const typed = data as ProfilePermissionRow;
-      setRole(typed.role);
-      setPermissionOverrides(typed.permissions || null);
-    }
+    const typedProfile = (profileResult.data || null) as ProfilePermissionRow | null;
+    const permissions = await fetchFinanceEffectivePermissions(user.id, mode, "Quotations");
+
+    if (typedProfile?.role) setProfileRole(typedProfile.role);
+    if (permissions) setEffectivePermissions(permissions);
   }, []);
 
-  const loadQuotations = useCallback(async () => {
-    setIsLoading((current) => current || quotations.length === 0);
+  const loadQuotations = useCallback(async (mode: LoadMode = "initial") => {
+    if (mode === "initial") {
+      setIsLoading(true);
+    }
 
     try {
       const { data, error } = await supabase
@@ -318,24 +315,30 @@ export default function FinanceQuotationsPage() {
             "company_name_snapshot",
           ].join(", ")
         )
-        .not("status", "in", '("archived","deleted")')
+        .not("status", "in", "(archived,deleted)")
         .order("created_at", { ascending: false });
 
-      if (error) {
-        throw error;
-      }
+      if (error) throw error;
 
       setQuotations((data ?? []) as unknown as FinanceQuotationRow[]);
+      setPageError(null);
     } catch (error) {
       console.error("Failed to load quotations:", error);
-      setQuotations([]);
+      if (mode === "initial") {
+        setQuotations([]);
+        setPageError("Failed to load quotations.");
+      }
     } finally {
-      setIsLoading(false);
+      if (mode === "initial") {
+        setIsLoading(false);
+      }
     }
-  }, [quotations.length]);
+  }, []);
 
-  const loadArchivedQuotations = useCallback(async () => {
-    setIsArchiveLoading(true);
+  const loadArchivedQuotations = useCallback(async (mode: LoadMode = "initial") => {
+    if (mode === "initial") {
+      setIsArchiveLoading(true);
+    }
 
     try {
       const { data, error } = await supabase
@@ -370,26 +373,28 @@ export default function FinanceQuotationsPage() {
         .in("status", ["archived", "deleted"])
         .order("created_at", { ascending: false });
 
-      if (error) {
-        throw error;
-      }
+      if (error) throw error;
 
       setArchivedQuotations((data ?? []) as unknown as FinanceQuotationRow[]);
     } catch (error) {
       console.error("Failed to load archived quotations:", error);
-      setArchivedQuotations([]);
+      if (mode === "initial") {
+        setArchivedQuotations([]);
+      }
     } finally {
-      setIsArchiveLoading(false);
+      if (mode === "initial") {
+        setIsArchiveLoading(false);
+      }
     }
   }, []);
 
   useEffect(() => {
-    void Promise.all([loadPermissions(), loadQuotations()]);
+    void Promise.all([loadPermissions("initial"), loadQuotations("initial")]);
   }, [loadPermissions, loadQuotations]);
 
   useEffect(() => {
     if (!isArchiveModalOpen) return;
-    void loadArchivedQuotations();
+    void loadArchivedQuotations("initial");
   }, [isArchiveModalOpen, loadArchivedQuotations]);
 
   useEffect(() => {
@@ -399,23 +404,24 @@ export default function FinanceQuotationsPage() {
         "postgres_changes",
         { event: "*", schema: "public", table: "finance_quotations" },
         () => {
-          void loadQuotations();
+          void loadQuotations("silent");
           if (isArchiveModalOpen) {
-            void loadArchivedQuotations();
+            void loadArchivedQuotations("silent");
           }
         }
       )
       .on(
         "postgres_changes",
         { event: "*", schema: "public", table: "finance_quotation_line_items" },
-        () => void loadQuotations()
+        () => void loadQuotations("silent")
       )
       .subscribe();
 
     const intervalId = window.setInterval(() => {
-      void loadQuotations();
+      void loadPermissions("silent");
+      void loadQuotations("silent");
       if (isArchiveModalOpen) {
-        void loadArchivedQuotations();
+        void loadArchivedQuotations("silent");
       }
     }, 60000);
 
@@ -423,13 +429,7 @@ export default function FinanceQuotationsPage() {
       window.clearInterval(intervalId);
       supabase.removeChannel(channel);
     };
-  }, [isArchiveModalOpen, loadArchivedQuotations, loadQuotations]);
-
-  const canCreateQuotations = useMemo(() => {
-    if (!role) return false;
-    const permissions = getEffectivePermissions(role, permissionOverrides);
-    return !!permissions?.createFinanceRecords;
-  }, [permissionOverrides, role]);
+  }, [isArchiveModalOpen, loadArchivedQuotations, loadPermissions, loadQuotations]);
 
   const filteredQuotations = useMemo(() => {
     const normalizedSearch = search.trim().toLowerCase();
@@ -440,20 +440,24 @@ export default function FinanceQuotationsPage() {
 
     return quotations.filter((quotation) => {
       return (
-        (quotation.quotation_number || "")
-          .toLowerCase()
-          .includes(normalizedSearch) ||
-        (quotation.client_name_snapshot || "")
-          .toLowerCase()
-          .includes(normalizedSearch) ||
-        (quotation.company_name_snapshot || "")
-          .toLowerCase()
-          .includes(normalizedSearch) ||
+        (quotation.quotation_number || "").toLowerCase().includes(normalizedSearch) ||
+        (quotation.client_name_snapshot || "").toLowerCase().includes(normalizedSearch) ||
+        (quotation.company_name_snapshot || "").toLowerCase().includes(normalizedSearch) ||
         (quotation.status || "").toLowerCase().includes(normalizedSearch) ||
         (quotation.currency_code || "").toLowerCase().includes(normalizedSearch)
       );
     });
   }, [quotations, search]);
+
+  const sortedQuotations = useMemo(() => {
+    return [...filteredQuotations].sort((first, second) => {
+      const firstValue = getQuotationSortValue(first, sortKey);
+      const secondValue = getQuotationSortValue(second, sortKey);
+      const multiplier = sortDirection === "asc" ? 1 : -1;
+
+      return compareSortValues(firstValue, secondValue) * multiplier;
+    });
+  }, [filteredQuotations, sortDirection, sortKey]);
 
   const visibleArchivedQuotations = useMemo(() => {
     return archivedQuotations.filter(
@@ -461,11 +465,22 @@ export default function FinanceQuotationsPage() {
     );
   }, [archivedQuotations, archiveTab]);
 
-  const metricCards = useMemo<QuotationMetricCard[]>(() => {
-    const activeQuotations = quotations.filter(
+  const sortedArchivedQuotations = useMemo(() => {
+    return [...visibleArchivedQuotations].sort((first, second) => {
+      const firstValue = getQuotationSortValue(first, "created_at");
+      const secondValue = getQuotationSortValue(second, "created_at");
+
+      return compareSortValues(secondValue, firstValue);
+    });
+  }, [visibleArchivedQuotations]);
+
+  const activeQuotations = useMemo(() => {
+    return quotations.filter(
       (row) => row.status !== "archived" && row.status !== "deleted"
     );
+  }, [quotations]);
 
+  const metricCards = useMemo(() => {
     const totalQuotations = activeQuotations.length;
     const editableQuotations = activeQuotations.filter((row) =>
       isEditableNegotiationStatus(row.status)
@@ -487,72 +502,97 @@ export default function FinanceQuotationsPage() {
     return [
       {
         key: "total",
-        title: "Quotations",
+        label: "Quotations",
         value: totalQuotations.toLocaleString(),
-        subtitle: "Commercial offer records",
+        description: "Commercial offer records.",
         icon: FileText,
-        tone: "cyan",
+        tone: "cyan" as const,
       },
       {
         key: "editable",
-        title: "Editable",
+        label: "Editable",
         value: editableQuotations.toLocaleString(),
-        subtitle: "Draft, sent, accepted, and legacy issued",
+        description: "Draft, sent, accepted, and legacy issued.",
         icon: Receipt,
-        tone: "amber",
+        tone: "amber" as const,
       },
       {
         key: "pipeline",
-        title: "Accepted Value",
+        label: "Accepted Value",
         value: formatFinanceMoney(pipelineTotal, pipelineCurrency),
-        subtitle: `${acceptedQuotations.length} accepted quotations`,
+        description: `${acceptedQuotations.length} accepted quotations.`,
         icon: Wallet,
-        tone: "emerald",
+        tone: "emerald" as const,
       },
       {
         key: "converted",
-        title: "Converted",
+        label: "Converted",
         value: convertedQuotations.toLocaleString(),
-        subtitle: "Moved forward into customer commitment",
-        icon: Receipt,
-        tone: "violet",
+        description: "Moved forward into customer commitment.",
+        icon: CheckCircle,
+        tone: "violet" as const,
       },
     ];
-  }, [quotations]);
+  }, [activeQuotations]);
+
+  const archivedArchiveCount = archivedQuotations.filter(
+    (quotation) => quotation.status === "archived"
+  ).length;
+  const deletedArchiveCount = archivedQuotations.filter(
+    (quotation) => quotation.status === "deleted"
+  ).length;
+
+  function handleSort(nextSortKey: QuotationSortKey) {
+    if (nextSortKey === sortKey) {
+      setSortDirection((current) => (current === "asc" ? "desc" : "asc"));
+      return;
+    }
+
+    setSortKey(nextSortKey);
+    setSortDirection(nextSortKey === "created_at" ? "desc" : "asc");
+  }
 
   const handleArchive = async (id: string) => {
+    if (!permissionState.canDeleteArchive) return;
+
     const { error } = await supabase
       .from("finance_quotations")
       .update({ status: "archived" })
       .eq("id", id);
 
     if (error) {
+      setPageError("Failed to archive quotation.");
       throw error;
     }
 
     await Promise.all([
-      loadQuotations(),
-      isArchiveModalOpen ? loadArchivedQuotations() : Promise.resolve(),
+      loadQuotations("silent"),
+      isArchiveModalOpen ? loadArchivedQuotations("silent") : Promise.resolve(),
     ]);
   };
 
   const handleDelete = async (id: string) => {
+    if (!permissionState.canDeleteArchive) return;
+
     const { error } = await supabase
       .from("finance_quotations")
       .update({ status: "deleted" })
       .eq("id", id);
 
     if (error) {
+      setPageError("Failed to delete quotation.");
       throw error;
     }
 
     await Promise.all([
-      loadQuotations(),
-      isArchiveModalOpen ? loadArchivedQuotations() : Promise.resolve(),
+      loadQuotations("silent"),
+      isArchiveModalOpen ? loadArchivedQuotations("silent") : Promise.resolve(),
     ]);
   };
 
   const handleRestore = async (id: string) => {
+    if (!permissionState.canDeleteArchive) return;
+
     const { data: quotationRow, error: fetchError } = await supabase
       .from("finance_quotations")
       .select("metadata")
@@ -560,6 +600,7 @@ export default function FinanceQuotationsPage() {
       .single();
 
     if (fetchError) {
+      setPageError("Failed to restore quotation.");
       throw fetchError;
     }
 
@@ -580,508 +621,389 @@ export default function FinanceQuotationsPage() {
       .eq("id", id);
 
     if (error) {
+      setPageError("Failed to restore quotation.");
       throw error;
     }
 
-    await Promise.all([loadQuotations(), loadArchivedQuotations()]);
+    await Promise.all([loadQuotations("silent"), loadArchivedQuotations("silent")]);
   };
 
   const handleHardDelete = async (id: string) => {
-    const { error } = await supabase
-      .from("finance_quotations")
-      .delete()
-      .eq("id", id);
+    if (!permissionState.canDeleteArchive) return;
+
+    const { error } = await supabase.from("finance_quotations").delete().eq("id", id);
 
     if (error) {
+      setPageError("Failed to permanently delete quotation.");
       throw error;
     }
 
-    await Promise.all([loadQuotations(), loadArchivedQuotations()]);
+    await Promise.all([loadQuotations("silent"), loadArchivedQuotations("silent")]);
   };
 
-  const activeSectionClass =
-    "overflow-hidden rounded-[30px] border border-white/10 bg-white/[0.045] backdrop-blur-xl";
+  const renderQuotationRows = (rows: FinanceQuotationRow[], isArchive = false) => {
+    if (rows.length === 0) {
+      return (
+        <tr>
+          <td colSpan={10}>
+            <AixiaEmptyState
+              icon={FileText}
+              title={isArchive ? `No ${archiveTab} quotations` : "No quotations found"}
+              description={
+                isArchive
+                  ? `No ${archiveTab} quotation records are available.`
+                  : "No active quotations match the current search."
+              }
+            />
+          </td>
+        </tr>
+      );
+    }
+
+    return rows.map((quotation) => {
+      const currency = quotation.currency_code || "USD";
+      const isEditable = isEditableNegotiationStatus(quotation.status);
+      const canArchiveRow =
+        permissionState.canDeleteArchive &&
+        !["archived", "deleted"].includes(quotation.status);
+      const canDeleteRow =
+        permissionState.canDeleteArchive &&
+        !["deleted", "converted"].includes(quotation.status);
+
+      return (
+        <tr key={quotation.id} className="aixia-table-row">
+          <AixiaTableTextCell
+            primary={getQuotationDisplayName(quotation)}
+            secondary={`Created ${formatFinanceDate(quotation.created_at)}`}
+            width="lg"
+          />
+          <AixiaTableTextCell
+            primary={quotation.client_name_snapshot || "—"}
+            width="lg"
+          />
+          <AixiaTableTextCell
+            primary={quotation.company_name_snapshot || "—"}
+            width="lg"
+          />
+          <AixiaTableDateCell>{formatFinanceDate(quotation.issue_date)}</AixiaTableDateCell>
+          <AixiaTableDateCell>{formatFinanceDate(quotation.valid_until)}</AixiaTableDateCell>
+          <AixiaTableTextCell
+            primary={formatFinanceMoney(quotation.total_amount, currency)}
+            secondary={currency}
+            width="md"
+          />
+          <AixiaTableBadgeCell>
+            <QuotationStatusBadge value={quotation.status} />
+          </AixiaTableBadgeCell>
+          <AixiaTableBadgeCell>
+            <AixiaBadge tone={isEditable ? "emerald" : "neutral"}>
+              {isEditable ? "Editable" : "Locked"}
+            </AixiaBadge>
+          </AixiaTableBadgeCell>
+          <AixiaTableDateCell>{formatFinanceDate(quotation.updated_at)}</AixiaTableDateCell>
+          <AixiaTableActionsCell>
+            <AixiaButton
+              type="button"
+              variant="primary"
+              onClick={() => navigate(`/finance/transactions/quotations/${quotation.id}`)}
+              aria-label="Open quotation"
+            >
+              <Eye className="h-4 w-4" />
+              Open
+            </AixiaButton>
+
+            {!isArchive && canArchiveRow ? (
+              <AixiaButton
+                type="button"
+                variant="danger"
+                onClick={() => void handleArchive(quotation.id)}
+                aria-label="Archive quotation"
+              >
+                <Archive className="h-4 w-4" />
+                Archive
+              </AixiaButton>
+            ) : null}
+
+            {!isArchive && canDeleteRow ? (
+              <AixiaButton
+                type="button"
+                variant="danger"
+                onClick={() => void handleDelete(quotation.id)}
+                aria-label="Delete quotation"
+              >
+                <Trash2 className="h-4 w-4" />
+                Delete
+              </AixiaButton>
+            ) : null}
+
+            {isArchive && permissionState.canDeleteArchive ? (
+              <AixiaButton
+                type="button"
+                variant="secondary"
+                onClick={() => void handleRestore(quotation.id)}
+                aria-label="Restore quotation"
+              >
+                <RotateCcw className="h-4 w-4" />
+                Restore
+              </AixiaButton>
+            ) : null}
+
+            {isArchive && archiveTab === "deleted" && permissionState.canDeleteArchive ? (
+              <AixiaButton
+                type="button"
+                variant="danger"
+                onClick={() => void handleHardDelete(quotation.id)}
+                aria-label="Delete quotation permanently"
+              >
+                <Trash2 className="h-4 w-4" />
+                Delete Permanently
+              </AixiaButton>
+            ) : null}
+          </AixiaTableActionsCell>
+        </tr>
+      );
+    });
+  };
+
+  if (isLoading && quotations.length === 0) {
+    return (
+      <AixiaLoadingState
+        title="Loading quotations"
+        description="Quotation registry data, permissions, metrics, and archive state are loading."
+      />
+    );
+  }
 
   return (
-    <div className="min-h-screen bg-[#05070d] px-4 py-4 text-white md:px-6 md:py-6">
-      <div className="mx-auto flex w-full max-w-[1600px] flex-col gap-6">
-        <section className="relative overflow-hidden rounded-[34px] border border-white/10 bg-white/[0.045] p-6 shadow-2xl shadow-black/30 backdrop-blur-xl">
-          <div className="pointer-events-none absolute inset-0 bg-[radial-gradient(circle_at_top_left,rgba(6,182,212,0.16),transparent_38%),radial-gradient(circle_at_top_right,rgba(139,92,246,0.12),transparent_34%)]" />
+    <AixiaPage>
+      <AixiaHero
+        parentLabel="Transactions"
+        parentPath="/finance/transactions"
+        badges={[{ label: "Quotation Registry", tone: "cyan" }]}
+        gradientTitle="Quotations"
+        title="Registry"
+        subtitle="Commercial offers before client PO, PI, invoice, and payment."
+        description="Quotations are editable negotiation documents. The simplified workflow is Draft → Sent → Accepted, while legacy issued records remain supported and editable."
+        statusCards={[
+          {
+            label: "Active Records",
+            value: activeQuotations.length.toLocaleString(),
+            description: "Excludes archived and deleted quotations.",
+            icon: FileText,
+            tone: "cyan",
+          },
+          {
+            label: "Visible Results",
+            value: sortedQuotations.length.toLocaleString(),
+            description: "Filtered by quotation, client, status, company, or currency.",
+            icon: Search,
+            tone: "emerald",
+          },
+        ]}
+      >
+        <div className="aixia-action-system" data-align="start" data-density="compact">
+          <AixiaBadge tone="emerald">Accepted still editable</AixiaBadge>
+          <AixiaBadge tone="cyan">Draft → Sent → Accepted</AixiaBadge>
+          <AixiaBadge tone="neutral">Auto-refresh enabled</AixiaBadge>
+        </div>
+      </AixiaHero>
 
-          <div className="relative">
-            <button
-              type="button"
-              onClick={() => navigate("/finance/transactions")}
-              className="mb-5 inline-flex items-center justify-center gap-2 rounded-full border border-white/10 bg-white/[0.05] px-5 py-2 text-[11px] font-semibold uppercase tracking-[0.22em] text-slate-300 transition hover:bg-white/[0.08]"
-            >
-              <ArrowRight className="h-3.5 w-3.5 rotate-180" />
-              Transactions
-            </button>
+      <AixiaMetricGrid>
+        {metricCards.map((metric) => (
+          <AixiaMetricCard
+            key={metric.key}
+            label={metric.label}
+            value={metric.value}
+            description={metric.description}
+            icon={metric.icon}
+            tone={metric.tone}
+          />
+        ))}
+      </AixiaMetricGrid>
 
-            <div className="grid gap-6 xl:grid-cols-[minmax(0,1fr)_620px]">
-              <div>
-                <Badge className="inline-flex w-fit items-center gap-2 rounded-full border border-cyan-400/20 bg-cyan-500/10 px-3 py-1 text-[11px] font-semibold uppercase tracking-[0.22em] text-cyan-200 shadow-none">
-                  Quotation Registry
-                </Badge>
+      <AixiaAccessRule
+        title="Locked access rule"
+        description="Quotation registry access follows the shared Finance incoming-money, registry, archive, and permission standard."
+        icon={ShieldCheck}
+      >
+        This page uses fetchFinanceEffectivePermissions and resolveFinancePagePermissionState from @/lib/finance/pageAccess. Search, creation, archive, restore, delete, and hard-delete controls are rendered only through shared AiXia registry, table, archive, and button components.
+      </AixiaAccessRule>
 
-                <div className="mt-4 flex items-center gap-3">
-                  <div className="flex h-12 w-12 items-center justify-center rounded-2xl border border-cyan-400/20 bg-cyan-500/10 text-cyan-200">
-                    <FileText className="h-5 w-5" />
-                  </div>
+      {pageError ? <AixiaAlert tone="error">{pageError}</AixiaAlert> : null}
 
-                  <div>
-                    <h1 className="text-3xl font-semibold tracking-[-0.035em] text-white md:text-4xl">
-                      Quotations
-                    </h1>
-                    <div className="mt-1 text-sm text-slate-500">
-                      Commercial offers before client PO, PI, invoice, and payment.
-                    </div>
-                  </div>
-                </div>
-
-                <p className="mt-3 max-w-4xl text-sm leading-6 text-slate-400 md:text-base md:leading-7">
-                  Quotations are editable negotiation documents. The simplified
-                  workflow is Draft → Sent → Accepted, while legacy issued records
-                  remain supported and editable.
-                </p>
-
-                <div className="mt-5 flex flex-wrap gap-2">
-                  <span className="rounded-full border border-emerald-400/20 bg-emerald-500/10 px-3 py-1 text-[11px] font-semibold uppercase tracking-[0.16em] text-emerald-200">
-                    Accepted still editable
-                  </span>
-                  <span className="rounded-full border border-cyan-400/20 bg-cyan-500/10 px-3 py-1 text-[11px] font-semibold uppercase tracking-[0.16em] text-cyan-200">
-                    Draft → Sent → Accepted
-                  </span>
-                  <span className="rounded-full border border-white/10 bg-white/[0.05] px-3 py-1 text-[11px] font-semibold uppercase tracking-[0.16em] text-slate-300">
-                    Auto-refresh enabled
-                  </span>
-                </div>
-              </div>
-
-              <div className="grid gap-4 sm:grid-cols-2">
-                <div className="min-h-[148px] rounded-[24px] border border-white/10 bg-black/20 p-4">
-                  <div className="flex items-start justify-between gap-3">
-                    <div>
-                      <div className="text-[11px] font-semibold uppercase tracking-[0.2em] text-slate-500">
-                        Active Records
-                      </div>
-                      <div className="mt-2 text-xl font-semibold leading-tight tracking-[-0.035em] text-white">
-                        {quotations.length.toLocaleString()}
-                      </div>
-                    </div>
-                    <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-2xl border border-cyan-400/20 bg-cyan-500/10 text-cyan-200">
-                      <FileText className="h-4 w-4" />
-                    </div>
-                  </div>
-                  <div className="mt-3 text-xs leading-5 text-slate-500">
-                    Excludes archived and deleted quotations.
-                  </div>
-                </div>
-
-                <div className="min-h-[148px] rounded-[24px] border border-white/10 bg-black/20 p-4">
-                  <div className="flex items-start justify-between gap-3">
-                    <div>
-                      <div className="text-[11px] font-semibold uppercase tracking-[0.2em] text-slate-500">
-                        Visible Results
-                      </div>
-                      <div className="mt-2 text-xl font-semibold leading-tight tracking-[-0.035em] text-white">
-                        {filteredQuotations.length.toLocaleString()}
-                      </div>
-                    </div>
-                    <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-2xl border border-emerald-400/20 bg-emerald-500/10 text-emerald-200">
-                      <Search className="h-4 w-4" />
-                    </div>
-                  </div>
-                  <div className="mt-3 text-xs leading-5 text-slate-500">
-                    Filtered by quotation, client, status, company, or currency.
-                  </div>
-                </div>
-              </div>
-            </div>
-
-            <div className="mt-6 flex flex-wrap gap-3">
-              {canCreateQuotations ? (
-                <Button
-                  onClick={() => navigate("/finance/transactions/quotations/new")}
-                  className="h-11 rounded-2xl border border-cyan-400/20 bg-cyan-500 px-4 text-sm font-semibold text-slate-950 transition hover:bg-cyan-400"
-                >
-                  <Plus className="mr-2 h-4 w-4" />
-                  New Quotation
-                </Button>
-              ) : null}
-
-              <Button
-                variant="outline"
+      <AixiaSection
+        title="Quotation Registry"
+        description="Search, sort, open, archive, and delete active quotation records."
+        icon={FileText}
+        badge={<AixiaBadge tone="cyan">Active Quotations</AixiaBadge>}
+      >
+        <AixiaRegistryToolbar
+          search={
+            <AixiaSearchField
+              width="wide"
+              value={search}
+              onChange={(event) => setSearch(event.target.value)}
+              placeholder="Search quotation, client, status..."
+            />
+          }
+          primaryAction={
+            permissionState.canCreate ? (
+              <AixiaButton
+                type="button"
+                variant="primary"
+                onClick={() => navigate("/finance/transactions/quotations/new")}
+              >
+                <Plus className="h-4 w-4" />
+                New Quotation
+              </AixiaButton>
+            ) : null
+          }
+          archiveAction={
+            permissionState.canDeleteArchive ? (
+              <AixiaButton
+                type="button"
+                variant="danger"
                 onClick={() => {
                   setArchiveTab("archived");
                   setIsArchiveModalOpen(true);
                 }}
-                className="h-11 rounded-2xl border-amber-400/20 bg-amber-500/10 px-4 text-amber-200 hover:bg-amber-500/20"
               >
-                <Archive className="mr-2 h-4 w-4" />
+                <Archive className="h-4 w-4" />
                 Archive
-              </Button>
-            </div>
-          </div>
-        </section>
+              </AixiaButton>
+            ) : null
+          }
+        />
 
-        <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
-          {metricCards.map((metric) => (
-            <MetricCard key={metric.key} metric={metric} />
-          ))}
-        </div>
+        <AixiaTableShell variant="registry" minWidthClassName="min-w-[1320px]">
+          <thead className="aixia-table-head">
+            <tr>
+              <th>
+                <AixiaSortableHeader
+                  label="Quotation No."
+                  sortKey="quotation_number"
+                  activeSortKey={sortKey}
+                  sortDirection={sortDirection}
+                  onSort={handleSort}
+                  align="left"
+                />
+              </th>
+              <th>
+                <AixiaSortableHeader
+                  label="Client"
+                  sortKey="client"
+                  activeSortKey={sortKey}
+                  sortDirection={sortDirection}
+                  onSort={handleSort}
+                  align="left"
+                />
+              </th>
+              <th>
+                <AixiaSortableHeader
+                  label="Company"
+                  sortKey="company"
+                  activeSortKey={sortKey}
+                  sortDirection={sortDirection}
+                  onSort={handleSort}
+                  align="left"
+                />
+              </th>
+              <th>
+                <AixiaSortableHeader
+                  label="Issue Date"
+                  sortKey="issue_date"
+                  activeSortKey={sortKey}
+                  sortDirection={sortDirection}
+                  onSort={handleSort}
+                />
+              </th>
+              <th>
+                <AixiaSortableHeader
+                  label="Valid Until"
+                  sortKey="valid_until"
+                  activeSortKey={sortKey}
+                  sortDirection={sortDirection}
+                  onSort={handleSort}
+                />
+              </th>
+              <th>
+                <AixiaSortableHeader
+                  label="Total"
+                  sortKey="total_amount"
+                  activeSortKey={sortKey}
+                  sortDirection={sortDirection}
+                  onSort={handleSort}
+                  align="right"
+                />
+              </th>
+              <th>
+                <AixiaSortableHeader
+                  label="Status"
+                  sortKey="status"
+                  activeSortKey={sortKey}
+                  sortDirection={sortDirection}
+                  onSort={handleSort}
+                />
+              </th>
+              <th>Editability</th>
+              <th>
+                <AixiaSortableHeader
+                  label="Updated"
+                  sortKey="updated_at"
+                  activeSortKey={sortKey}
+                  sortDirection={sortDirection}
+                  onSort={handleSort}
+                />
+              </th>
+              <th>Actions</th>
+            </tr>
+          </thead>
+          <tbody>{renderQuotationRows(sortedQuotations)}</tbody>
+        </AixiaTableShell>
+      </AixiaSection>
 
-        <section>
-          <Card className={activeSectionClass}>
-            <CardHeader className="border-b border-white/10 px-5 py-4">
-              <div className="flex flex-col gap-4 lg:flex-row lg:items-end lg:justify-between">
-                <div className="space-y-2">
-                  <Badge className="inline-flex w-fit rounded-full border border-cyan-400/20 bg-cyan-500/10 px-3 py-1 text-[11px] font-semibold uppercase tracking-[0.22em] text-cyan-200 shadow-none">
-                    Active Quotations
-                  </Badge>
-
-                  <CardTitle className="text-sm font-semibold uppercase tracking-[0.18em] text-slate-400">
-                    Quotation Registry
-                  </CardTitle>
-
-                  <CardDescription className="max-w-2xl text-xs text-slate-500">
-                    Manage quotation records, open details, archive old offers,
-                    and continue negotiation even after acceptance.
-                  </CardDescription>
-                </div>
-
-                <div className="relative w-full max-w-md">
-                  <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-500" />
-                  <input
-                    value={search}
-                    onChange={(event) => setSearch(event.target.value)}
-                    placeholder="Search quotation, client, status..."
-                    className="h-11 w-full rounded-2xl border border-white/10 bg-black/20 pl-10 pr-4 text-sm text-white outline-none placeholder:text-slate-600 transition focus:border-cyan-400/30 focus:bg-black/30"
-                  />
-                </div>
-              </div>
-            </CardHeader>
-
-            <CardContent className="p-0">
-              <div className="overflow-x-auto">
-                <table className="w-full min-w-[1240px] border-collapse">
-                  <thead>
-                    <tr className="border-b border-white/10 bg-black/20 text-left text-[11px] uppercase tracking-[0.18em] text-slate-500">
-                      <th className="px-5 py-4 font-semibold">Quotation No.</th>
-                      <th className="px-5 py-4 font-semibold">Client</th>
-                      <th className="px-5 py-4 font-semibold">Company</th>
-                      <th className="px-5 py-4 font-semibold">Issue Date</th>
-                      <th className="px-5 py-4 font-semibold">Valid Until</th>
-                      <th className="px-5 py-4 text-right font-semibold">Total</th>
-                      <th className="px-5 py-4 font-semibold">Status</th>
-                      <th className="px-5 py-4 font-semibold">Editability</th>
-                      <th className="px-5 py-4 font-semibold">Updated</th>
-                      <th className="px-5 py-4 text-right font-semibold">Actions</th>
-                    </tr>
-                  </thead>
-
-                  <tbody className="divide-y divide-white/5">
-                    {isLoading ? (
-                      <tr>
-                        <td
-                          colSpan={10}
-                          className="px-5 py-14 text-center text-sm text-slate-500"
-                        >
-                          Loading quotations...
-                        </td>
-                      </tr>
-                    ) : filteredQuotations.length === 0 ? (
-                      <tr>
-                        <td
-                          colSpan={10}
-                          className="px-5 py-14 text-center text-sm text-slate-500"
-                        >
-                          No quotations found.
-                        </td>
-                      </tr>
-                    ) : (
-                      filteredQuotations.map((quotation) => {
-                        const currency = quotation.currency_code || "USD";
-                        const isEditable = isEditableNegotiationStatus(
-                          quotation.status
-                        );
-
-                        return (
-                          <tr
-                            key={quotation.id}
-                            className="text-sm text-slate-300 transition hover:bg-white/[0.035]"
-                          >
-                            <td className="px-5 py-4 font-semibold text-white">
-                              {quotation.quotation_number || "Quotation"}
-                            </td>
-
-                            <td className="px-5 py-4">
-                              {quotation.client_name_snapshot || "—"}
-                            </td>
-
-                            <td className="px-5 py-4">
-                              {quotation.company_name_snapshot || "—"}
-                            </td>
-
-                            <td className="px-5 py-4">
-                              {formatFinanceDate(quotation.issue_date)}
-                            </td>
-
-                            <td className="px-5 py-4">
-                              {formatFinanceDate(quotation.valid_until)}
-                            </td>
-
-                            <td className="px-5 py-4 text-right font-semibold text-white">
-                              {formatFinanceMoney(
-                                quotation.total_amount,
-                                currency
-                              )}
-                            </td>
-
-                            <td className="px-5 py-4">
-                              <Badge
-                                className={`rounded-full border px-3 py-1 text-xs shadow-none ${getQuotationStatusBadgeClasses(
-                                  quotation.status
-                                )}`}
-                              >
-                                {getQuotationStatusLabel(quotation.status)}
-                              </Badge>
-                            </td>
-
-                            <td className="px-5 py-4">
-                              {isEditable ? (
-                                <Badge className="rounded-full border border-emerald-400/20 bg-emerald-500/10 px-3 py-1 text-xs text-emerald-200 shadow-none">
-                                  Editable
-                                </Badge>
-                              ) : (
-                                <Badge className="rounded-full border border-slate-400/20 bg-white/[0.06] px-3 py-1 text-xs text-slate-300 shadow-none">
-                                  Locked
-                                </Badge>
-                              )}
-                            </td>
-
-                            <td className="px-5 py-4">
-                              {formatFinanceDate(quotation.updated_at)}
-                            </td>
-
-                            <td className="px-5 py-4">
-                              <div className="flex justify-end gap-2">
-                                <Button
-                                  variant="outline"
-                                  onClick={() =>
-                                    navigate(
-                                      `/finance/transactions/quotations/${quotation.id}`
-                                    )
-                                  }
-                                  className="h-9 rounded-2xl border-cyan-400/20 bg-cyan-500/10 px-3 text-cyan-200 hover:bg-cyan-500/20"
-                                >
-                                  <Eye className="h-4 w-4" />
-                                </Button>
-
-                                <Button
-                                  variant="outline"
-                                  onClick={() => void handleArchive(quotation.id)}
-                                  className="h-9 rounded-2xl border-amber-400/20 bg-amber-500/10 px-3 text-amber-200 hover:bg-amber-500/20"
-                                >
-                                  <Archive className="h-4 w-4" />
-                                </Button>
-
-                                <Button
-                                  variant="outline"
-                                  onClick={() => void handleDelete(quotation.id)}
-                                  className="h-9 rounded-2xl border-rose-400/20 bg-rose-500/10 px-3 text-rose-200 hover:bg-rose-500/20"
-                                >
-                                  <Trash2 className="h-4 w-4" />
-                                </Button>
-                              </div>
-                            </td>
-                          </tr>
-                        );
-                      })
-                    )}
-                  </tbody>
-                </table>
-              </div>
-            </CardContent>
-          </Card>
-        </section>
-
-        {isArchiveModalOpen ? (
-          <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 px-4 py-6 backdrop-blur-sm">
-            <div className="flex max-h-[85vh] w-full max-w-6xl flex-col overflow-hidden rounded-[30px] border border-white/10 bg-[#0b0f1a]/95 shadow-[0_25px_80px_rgba(0,0,0,0.45)] backdrop-blur-2xl">
-              <div className="flex items-center justify-between border-b border-white/10 px-6 py-5">
-                <div>
-                  <div className="text-lg font-semibold text-white">
-                    Quotation Archive
-                  </div>
-                  <div className="mt-1 text-sm text-slate-500">
-                    Archived records can be restored. Deleted records can be
-                    restored or permanently deleted.
-                  </div>
-                </div>
-
-                <button
-                  type="button"
-                  onClick={() => setIsArchiveModalOpen(false)}
-                  className="rounded-xl border border-white/10 bg-white/[0.05] px-3 py-2 text-sm text-slate-300 hover:bg-white/[0.08]"
-                >
-                  Close
-                </button>
-              </div>
-
-              <div className="flex items-center gap-2 border-b border-white/10 px-6 py-4">
-                <button
-                  type="button"
-                  onClick={() => setArchiveTab("archived")}
-                  className={`rounded-xl px-4 py-2 text-sm transition ${
-                    archiveTab === "archived"
-                      ? "bg-white/10 text-white"
-                      : "text-white/55 hover:bg-white/5 hover:text-white/80"
-                  }`}
-                >
-                  Archived
-                </button>
-
-                <button
-                  type="button"
-                  onClick={() => setArchiveTab("deleted")}
-                  className={`rounded-xl px-4 py-2 text-sm transition ${
-                    archiveTab === "deleted"
-                      ? "bg-rose-500/15 text-rose-200"
-                      : "text-white/55 hover:bg-white/5 hover:text-white/80"
-                  }`}
-                >
-                  Deleted
-                </button>
-              </div>
-
-              <div className="overflow-y-auto p-6">
-                {isArchiveLoading ? (
-                  <div className="rounded-[24px] border border-white/10 bg-black/20 px-4 py-8 text-sm text-slate-500">
-                    Loading archived quotations...
-                  </div>
-                ) : visibleArchivedQuotations.length === 0 ? (
-                  <div className="rounded-[24px] border border-white/10 bg-black/20 px-4 py-8 text-sm text-slate-500">
-                    No {archiveTab} quotations found.
-                  </div>
-                ) : (
-                  <div className="overflow-x-auto rounded-[24px] border border-white/10">
-                    <div className="max-h-[720px] overflow-y-auto">
-                      <table className="w-full min-w-[1100px] border-collapse">
-                        <thead>
-                          <tr className="border-b border-white/10 bg-black/20 text-left text-[11px] uppercase tracking-[0.18em] text-slate-500">
-                            <th className="sticky top-0 z-10 bg-black/80 px-5 py-4 font-semibold">
-                              Quotation No.
-                            </th>
-                            <th className="sticky top-0 z-10 bg-black/80 px-5 py-4 font-semibold">
-                              Client
-                            </th>
-                            <th className="sticky top-0 z-10 bg-black/80 px-5 py-4 font-semibold">
-                              Issue Date
-                            </th>
-                            <th className="sticky top-0 z-10 bg-black/80 px-5 py-4 text-right font-semibold">
-                              Total
-                            </th>
-                            <th className="sticky top-0 z-10 bg-black/80 px-5 py-4 font-semibold">
-                              Status
-                            </th>
-                            <th className="sticky top-0 z-10 bg-black/80 px-5 py-4 font-semibold">
-                              Updated
-                            </th>
-                            <th className="sticky top-0 z-10 bg-black/80 px-5 py-4 text-right font-semibold">
-                              Actions
-                            </th>
-                          </tr>
-                        </thead>
-
-                        <tbody className="divide-y divide-white/5">
-                          {visibleArchivedQuotations.map((quotation) => (
-                            <tr
-                              key={quotation.id}
-                              className="text-sm text-slate-300 transition hover:bg-white/[0.035]"
-                            >
-                              <td className="px-5 py-4 font-semibold text-white">
-                                {quotation.quotation_number || "Quotation"}
-                              </td>
-
-                              <td className="px-5 py-4">
-                                {quotation.client_name_snapshot ||
-                                  quotation.company_name_snapshot ||
-                                  "—"}
-                              </td>
-
-                              <td className="px-5 py-4">
-                                {formatFinanceDate(quotation.issue_date)}
-                              </td>
-
-                              <td className="px-5 py-4 text-right font-semibold text-white">
-                                {formatFinanceMoney(
-                                  quotation.total_amount,
-                                  quotation.currency_code || "USD"
-                                )}
-                              </td>
-
-                              <td className="px-5 py-4">
-                                <Badge
-                                  className={`rounded-full border px-3 py-1 text-xs shadow-none ${getQuotationStatusBadgeClasses(
-                                    quotation.status
-                                  )}`}
-                                >
-                                  {getQuotationStatusLabel(quotation.status)}
-                                </Badge>
-                              </td>
-
-                              <td className="px-5 py-4">
-                                {formatFinanceDate(quotation.updated_at)}
-                              </td>
-
-                              <td className="px-5 py-4">
-                                <div className="flex justify-end gap-2">
-                                  <Button
-                                    variant="outline"
-                                    onClick={() =>
-                                      navigate(
-                                        `/finance/transactions/quotations/${quotation.id}`
-                                      )
-                                    }
-                                    className="h-9 rounded-2xl border-cyan-400/20 bg-cyan-500/10 px-3 text-cyan-200 hover:bg-cyan-500/20"
-                                  >
-                                    <Eye className="h-4 w-4" />
-                                  </Button>
-
-                                  <Button
-                                    variant="outline"
-                                    onClick={() => void handleRestore(quotation.id)}
-                                    className="h-9 rounded-2xl border-emerald-400/20 bg-emerald-500/10 px-3 text-emerald-200 hover:bg-emerald-500/20"
-                                  >
-                                    <RotateCcw className="h-4 w-4" />
-                                  </Button>
-
-                                  {archiveTab === "deleted" ? (
-                                    <Button
-                                      variant="outline"
-                                      onClick={() =>
-                                        void handleHardDelete(quotation.id)
-                                      }
-                                      className="h-9 rounded-2xl border-rose-500/30 bg-rose-500/10 px-3 text-rose-200 hover:bg-rose-500/20"
-                                    >
-                                      <Trash2 className="h-4 w-4" />
-                                    </Button>
-                                  ) : null}
-                                </div>
-                              </td>
-                            </tr>
-                          ))}
-                        </tbody>
-                      </table>
-                    </div>
-                  </div>
-                )}
-              </div>
-            </div>
-          </div>
-        ) : null}
-      </div>
-    </div>
+      <AixiaArchiveManagerModal
+        open={isArchiveModalOpen}
+        title="Quotation Archive"
+        description="Archived records can be restored. Deleted records can be restored or permanently deleted."
+        archivedCount={archivedArchiveCount}
+        deletedCount={deletedArchiveCount}
+        activeTab={archiveTab}
+        onTabChange={setArchiveTab}
+        onClose={() => setIsArchiveModalOpen(false)}
+        maxWidthClassName="max-w-[1300px]"
+      >
+        {isArchiveLoading ? (
+          <AixiaLoadingState
+            title="Loading quotation archive"
+            description="Archived and deleted quotation records are loading."
+          />
+        ) : sortedArchivedQuotations.length === 0 ? (
+          <AixiaEmptyState
+            icon={Archive}
+            title={`No ${archiveTab} quotations`}
+            description={`No ${archiveTab} quotation records are available.`}
+          />
+        ) : (
+          <AixiaTableShell variant="archive" minWidthClassName="min-w-[1320px]">
+            <thead className="aixia-table-head">
+              <tr>
+                <th>Quotation No.</th>
+                <th>Client</th>
+                <th>Company</th>
+                <th>Issue Date</th>
+                <th>Valid Until</th>
+                <th>Total</th>
+                <th>Status</th>
+                <th>Editability</th>
+                <th>Updated</th>
+                <th>Actions</th>
+              </tr>
+            </thead>
+            <tbody>{renderQuotationRows(sortedArchivedQuotations, true)}</tbody>
+          </AixiaTableShell>
+        )}
+      </AixiaArchiveManagerModal>
+    </AixiaPage>
   );
 }

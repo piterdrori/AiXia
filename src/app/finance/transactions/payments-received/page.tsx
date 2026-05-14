@@ -1,9 +1,6 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
-import type { LucideIcon } from "lucide-react";
 import { useNavigate } from "react-router-dom";
 import {
-  Archive,
-  ArrowRight,
   Banknote,
   Building2,
   CalendarDays,
@@ -18,6 +15,31 @@ import {
   WalletCards,
 } from "lucide-react";
 
+import {
+  AixiaActionCard,
+  AixiaActionStack,
+  AixiaAlert,
+  AixiaBadge,
+  AixiaButton,
+  AixiaDisplayBlock,
+  AixiaDocumentUploadPanel,
+  AixiaFieldLabel,
+  AixiaFormField,
+  AixiaFormFullWidth,
+  AixiaFormGrid,
+  AixiaHero,
+  AixiaInputField,
+  AixiaLoadingState,
+  AixiaMetricCard,
+  AixiaMetricGrid,
+  AixiaPage,
+  AixiaSection,
+  AixiaSelectField,
+  AixiaSmartLayout,
+  AixiaTextareaField,
+  AixiaValueBlock,
+  type AixiaDocumentUploadAttachment,
+} from "@/components/aixia";
 import { supabase } from "@/lib/supabase";
 
 type SaveMode = "draft" | "confirmed";
@@ -66,12 +88,16 @@ function getTodayIsoDate() {
 
 function getCurrentMonthStartIsoDate() {
   const today = new Date();
-  return new Date(today.getFullYear(), today.getMonth(), 1).toISOString().slice(0, 10);
+  return new Date(today.getFullYear(), today.getMonth(), 1)
+    .toISOString()
+    .slice(0, 10);
 }
 
 function getCurrentMonthEndIsoDate() {
   const today = new Date();
-  return new Date(today.getFullYear(), today.getMonth() + 1, 0).toISOString().slice(0, 10);
+  return new Date(today.getFullYear(), today.getMonth() + 1, 0)
+    .toISOString()
+    .slice(0, 10);
 }
 
 const initialFormState: FormState = {
@@ -112,18 +138,6 @@ function formatDate(value: string | null | undefined) {
     month: "short",
     day: "numeric",
   });
-}
-
-function inputClass() {
-  return "h-11 w-full rounded-2xl border border-white/10 bg-black/20 px-4 text-sm text-white outline-none transition placeholder:text-slate-600 focus:border-cyan-400/30 focus:bg-black/30";
-}
-
-function textareaClass() {
-  return "min-h-[132px] w-full rounded-2xl border border-white/10 bg-black/20 px-4 py-3 text-sm text-white outline-none transition placeholder:text-slate-600 focus:border-cyan-400/30 focus:bg-black/30";
-}
-
-function labelClass() {
-  return "text-sm font-medium text-slate-300";
 }
 
 function getCompanyName(company: CompanyRow | null | undefined) {
@@ -173,52 +187,6 @@ function resolveMimeType(file: File) {
   }
 }
 
-function SummaryBlock({
-  title,
-  value,
-  subtitle,
-}: {
-  title: string;
-  value: string;
-  subtitle: string;
-}) {
-  return (
-    <div className="min-h-[148px] rounded-[24px] border border-white/10 bg-black/20 p-4">
-      <div className="text-[11px] font-semibold uppercase tracking-[0.2em] text-slate-500">
-        {title}
-      </div>
-      <div className="mt-3 text-2xl font-semibold tracking-[-0.03em] text-white">
-        {value}
-      </div>
-      <div className="mt-3 text-sm leading-6 text-slate-400">{subtitle}</div>
-    </div>
-  );
-}
-
-function InfoCard({
-  icon: Icon,
-  title,
-  children,
-}: {
-  icon: LucideIcon;
-  title: string;
-  children: string;
-}) {
-  return (
-    <section className="overflow-hidden rounded-[30px] border border-white/10 bg-white/[0.045] p-5 backdrop-blur-xl">
-      <div className="flex items-start gap-3">
-        <div className="rounded-2xl border border-violet-400/15 bg-violet-500/10 p-3 text-violet-200">
-          <Icon className="h-4 w-4" />
-        </div>
-        <div>
-          <div className="text-sm font-semibold text-white">{title}</div>
-          <div className="mt-2 text-xs leading-5 text-slate-500">{children}</div>
-        </div>
-      </div>
-    </section>
-  );
-}
-
 export default function FinancePayrollFundingBatchNewPage() {
   const navigate = useNavigate();
 
@@ -261,6 +229,20 @@ export default function FinancePayrollFundingBatchNewPage() {
       ? `${formatDate(form.payrollPeriodFrom)} → ${formatDate(form.payrollPeriodTo)}`
       : "Not selected";
 
+  const uploadAttachments = useMemo<AixiaDocumentUploadAttachment[]>(() => {
+    return fundingProofFile
+      ? [
+          {
+            id: fundingProofFile.name,
+            fileName: fundingProofFile.name,
+            badge: "Selected",
+            sizeLabel: `${(fundingProofFile.size / 1024 / 1024).toFixed(2)} MB`,
+            description: "This proof file will be uploaded after the funding pool is saved.",
+          },
+        ]
+      : [];
+  }, [fundingProofFile]);
+
   const updateField = useCallback(
     <Key extends keyof FormState>(key: Key, value: FormState[Key]) => {
       setForm((current) => {
@@ -288,7 +270,7 @@ export default function FinancePayrollFundingBatchNewPage() {
       setPageError(null);
       setPageMessage(null);
     },
-    [bankAccounts]
+    [bankAccounts],
   );
 
   const loadOptions = useCallback(async () => {
@@ -298,18 +280,16 @@ export default function FinancePayrollFundingBatchNewPage() {
     try {
       const [companiesResult, bankAccountsResult, currenciesResult] = await Promise.all([
         supabase.from("finance_companies").select("id, name, legal_name").order("name"),
-
         supabase
           .from("finance_bank_accounts")
           .select(
-            "id, name, bank_name, institution_name, masked_account_number, currency_code, company_id, is_default"
+            "id, name, bank_name, institution_name, masked_account_number, currency_code, company_id, is_default",
           )
           .order("name"),
-
         supabase
           .from("finance_currencies")
           .select(
-            "id, currency_code, currency_name, currency_symbol, decimal_places, is_base_currency, status"
+            "id, currency_code, currency_name, currency_symbol, decimal_places, is_base_currency, status",
           )
           .eq("status", "active")
           .order("currency_code"),
@@ -348,7 +328,7 @@ export default function FinancePayrollFundingBatchNewPage() {
     } catch (error) {
       console.error("Failed to load payroll funding pool setup:", error);
       setPageError(
-        error instanceof Error ? error.message : "Failed to load payroll funding pool setup."
+        error instanceof Error ? error.message : "Failed to load payroll funding pool setup.",
       );
     } finally {
       setIsLoading(false);
@@ -400,7 +380,7 @@ export default function FinancePayrollFundingBatchNewPage() {
       form.payrollPeriodTo,
       fundingProofFile,
       selectedCurrency,
-    ]
+    ],
   );
 
   const uploadFundingProof = useCallback(
@@ -460,17 +440,17 @@ export default function FinancePayrollFundingBatchNewPage() {
           p_batch_id: batchId,
           p_documentation_status: "uploaded",
           p_notes: "Payroll funding proof uploaded.",
-        }
+        },
       );
 
       if (documentationResult.error) throw documentationResult.error;
 
       return true;
     },
-    [fundingProofFile]
+    [fundingProofFile],
   );
 
-          const saveFundingBatch = useCallback(
+  const saveFundingBatch = useCallback(
     async (saveMode: SaveMode) => {
       if (isSaving) return;
 
@@ -543,14 +523,14 @@ export default function FinancePayrollFundingBatchNewPage() {
         setPageMessage(
           saveMode === "confirmed"
             ? "Payroll funding pool created and confirmed."
-            : "Payroll funding pool draft created."
+            : "Payroll funding pool draft created.",
         );
 
         navigate(`/finance/transactions/payroll/funding-batches/${batchId}`);
       } catch (error) {
         console.error("Failed to save payroll funding pool:", error);
         setPageError(
-          error instanceof Error ? error.message : "Failed to save payroll funding pool."
+          error instanceof Error ? error.message : "Failed to save payroll funding pool.",
         );
       } finally {
         setIsSaving(false);
@@ -570,96 +550,106 @@ export default function FinancePayrollFundingBatchNewPage() {
       selectedCurrency,
       uploadFundingProof,
       validateForm,
-    ]
+    ],
   );
 
+  if (isLoading) {
+    return (
+      <AixiaLoadingState
+        title="Loading payroll funding pool setup"
+        description="Companies, bank accounts, and currencies are being loaded."
+      />
+    );
+  }
+
   return (
-    <div className="min-h-screen bg-[#05070d] px-4 py-4 text-white md:px-6 md:py-6">
-      <div className="mx-auto flex w-full max-w-[1600px] flex-col gap-6">
-        <header className="relative overflow-hidden rounded-[34px] border border-white/10 bg-white/[0.045] p-6 shadow-2xl shadow-black/30 backdrop-blur-xl">
-          <div className="pointer-events-none absolute inset-0 bg-[radial-gradient(circle_at_top_left,rgba(6,182,212,0.16),transparent_38%),radial-gradient(circle_at_top_right,rgba(139,92,246,0.12),transparent_34%)]" />
+    <AixiaPage>
+      <AixiaHero
+        parentLabel="Payroll"
+        parentPath="/finance/transactions/payroll"
+        badges={[
+          { label: "New Payroll Funding Pool", tone: "violet" },
+          { label: "Reserve Only", tone: "cyan" },
+          { label: fundingProofFile ? "Proof Attached" : "Proof Optional For Draft", tone: fundingProofFile ? "emerald" : "amber" },
+        ]}
+        gradientTitle="Create"
+        title="Payroll Funding Pool"
+        subtitle="Payroll reserve setup"
+        description="Reserve a payroll money pool for a selected payroll period. This page does not select paycheck requests, distribute money, or connect this pool to one specific paycheck."
+        statusCards={[
+          {
+            label: "Payroll Funding Pool",
+            value: `${selectedCurrency} ${formatMoney(allocatedPayrollAmount)}`,
+            description: "Total payroll money Finance is reserving for the selected period.",
+            icon: WalletCards,
+            tone: "violet",
+          },
+          {
+            label: "Payroll Period",
+            value: payrollPeriodLabel,
+            description: "The payroll period this pool is intended to cover.",
+            icon: CalendarDays,
+            tone: "amber",
+          },
+        ]}
 
-          <div className="relative">
-            <button
-              type="button"
-              onClick={() => navigate("/finance/transactions/payroll")}
-              className="mb-5 inline-flex items-center justify-center gap-2 rounded-full border border-white/10 bg-white/[0.05] px-5 py-2 text-[11px] font-semibold uppercase tracking-[0.22em] text-slate-300 transition hover:border-white/20 hover:bg-white/[0.08] hover:text-white"
+      />
+
+      {pageError ? <AixiaAlert tone="error">{pageError}</AixiaAlert> : null}
+      {pageMessage ? <AixiaAlert tone="success">{pageMessage}</AixiaAlert> : null}
+
+      <AixiaMetricGrid>
+        <AixiaMetricCard
+          label="Funding Company"
+          value={selectedCompanyName}
+          description="The company reserving payroll money."
+          icon={Building2}
+          tone="cyan"
+        />
+        <AixiaMetricCard
+          label="Funding Bank"
+          value={selectedBankLabel}
+          description="Optional funding account reference."
+          icon={Banknote}
+          tone="emerald"
+        />
+        <AixiaMetricCard
+          label="Payroll Pool"
+          value={`${selectedCurrency} ${formatMoney(allocatedPayrollAmount)}`}
+          description="Total internal payroll money reserved."
+          icon={WalletCards}
+          tone="violet"
+        />
+        <AixiaMetricCard
+          label="Proof Status"
+          value={fundingProofFile ? "Attached" : "Not Attached"}
+          description="Required before Confirm Funding Pool."
+          icon={UploadCloud}
+          tone={fundingProofFile ? "emerald" : "amber"}
+        />
+      </AixiaMetricGrid>
+
+      <AixiaSmartLayout
+        sidebar="normal"
+        balance="main"
+        sideRebalance="last-to-bottom"
+        main={
+          <>
+            <AixiaSection
+              title="Payroll Funding Pool Setup"
+              description="Create a Finance reserve for payroll. Paycheck matching and distribution happen later on the Paycheck Payment Distributions page."
+              icon={Sparkles}
             >
-              <ArrowRight className="h-3.5 w-3.5 rotate-180" />
-              Payroll
-            </button>
+              <AixiaAlert tone="info">
+                This creates a payroll funding pool only. Paycheck request matching and payment distribution happen later from Paycheck Payment Distributions.
+              </AixiaAlert>
 
-            <div className="grid gap-6 xl:grid-cols-[minmax(0,1fr)_520px] xl:items-end">
-              <div>
-                <div className="inline-flex w-fit items-center gap-2 rounded-full border border-violet-400/20 bg-violet-500/10 px-3 py-1 text-[11px] font-semibold uppercase tracking-[0.22em] text-violet-200">
-                  <Sparkles className="h-3.5 w-3.5" />
-                  New Payroll Funding Pool
-                </div>
-
-                <h1 className="mt-4 text-3xl font-semibold tracking-[-0.035em] text-white md:text-5xl">
-                  Create Payroll Funding Pool
-                </h1>
-
-                <p className="mt-3 max-w-4xl text-sm leading-6 text-slate-400 md:text-base md:leading-7">
-                  Reserve a payroll money pool for a selected payroll period. This page does not
-                  select paycheck requests, distribute money, or connect this pool to one specific
-                  paycheck.
-                </p>
-              </div>
-
-              <div className="grid gap-3 sm:grid-cols-2">
-                <SummaryBlock
-                  title="Payroll Funding Pool"
-                  value={`${selectedCurrency} ${formatMoney(allocatedPayrollAmount)}`}
-                  subtitle="Total payroll money Finance is reserving for the selected period."
-                />
-                <SummaryBlock
-                  title="Payroll Period"
-                  value={payrollPeriodLabel}
-                  subtitle="The payroll period this pool is intended to cover."
-                />
-              </div>
-            </div>
-          </div>
-        </header>
-
-        {pageError ? (
-          <div className="rounded-[24px] border border-rose-400/20 bg-rose-500/10 p-4 text-sm leading-6 text-rose-100">
-            {pageError}
-          </div>
-        ) : null}
-
-        {pageMessage ? (
-          <div className="rounded-[24px] border border-emerald-400/20 bg-emerald-500/10 p-4 text-sm leading-6 text-emerald-100">
-            {pageMessage}
-          </div>
-        ) : null}
-
-        <div className="grid items-start gap-6 xl:grid-cols-[minmax(0,1fr)_430px]">
-          <div className="grid gap-6">
-            <section className="overflow-hidden rounded-[30px] border border-white/10 bg-white/[0.045] backdrop-blur-xl">
-              <div className="flex items-start gap-4 border-b border-white/10 px-5 py-4">
-                <div className="rounded-2xl border border-violet-400/15 bg-violet-500/10 p-3 text-violet-200">
-                  <Archive className="h-4 w-4" />
-                </div>
-                <div>
-                  <div className="text-sm font-semibold uppercase tracking-[0.18em] text-slate-400">
-                    Payroll Funding Pool Setup
-                  </div>
-                  <p className="mt-1 text-xs leading-5 text-slate-500">
-                    Create a Finance reserve for payroll. Paycheck matching and distribution happen
-                    later on the Paycheck Payment Distributions page.
-                  </p>
-                </div>
-              </div>
-
-              <div className="grid gap-4 p-5 md:grid-cols-3">
-                <label className="grid gap-2">
-                  <span className={labelClass()}>Funding Company</span>
-                  <select
+              <AixiaFormGrid columns="three">
+                <AixiaFormField>
+                  <AixiaFieldLabel label="Funding Company" />
+                  <AixiaSelectField
                     value={form.fundingCompanyId}
                     onChange={(event) => updateField("fundingCompanyId", event.target.value)}
-                    className={inputClass()}
                     disabled={isLoading || isSaving}
                   >
                     <option value="">Select company</option>
@@ -668,16 +658,15 @@ export default function FinancePayrollFundingBatchNewPage() {
                         {getCompanyName(company)}
                       </option>
                     ))}
-                  </select>
-                </label>
+                  </AixiaSelectField>
+                </AixiaFormField>
 
-                <label className="grid gap-2">
-                  <span className={labelClass()}>Funding Bank Account</span>
-                  <select
+                <AixiaFormField>
+                  <AixiaFieldLabel label="Funding Bank Account" />
+                  <AixiaSelectField
                     value={form.fundingBankAccountId}
                     onChange={(event) => updateField("fundingBankAccountId", event.target.value)}
                     disabled={!form.fundingCompanyId || isLoading || isSaving}
-                    className={inputClass()}
                   >
                     <option value="">No bank selected</option>
                     {availableBankAccounts.map((bank) => (
@@ -685,51 +674,47 @@ export default function FinancePayrollFundingBatchNewPage() {
                         {getBankLabel(bank)}
                       </option>
                     ))}
-                  </select>
-                </label>
+                  </AixiaSelectField>
+                </AixiaFormField>
 
-                <label className="grid gap-2">
-                  <span className={labelClass()}>Allocation Date</span>
-                  <input
+                <AixiaFormField>
+                  <AixiaFieldLabel
+                    label="Allocation Date"
+                    helper="The date Finance creates or approves this payroll reserve."
+                  />
+                  <AixiaInputField
                     type="date"
                     value={form.allocationDate}
                     onChange={(event) => updateField("allocationDate", event.target.value)}
-                    className={inputClass()}
                     disabled={isLoading || isSaving}
                   />
-                  <span className="text-xs leading-5 text-slate-500">
-                    The date Finance creates or approves this payroll reserve.
-                  </span>
-                </label>
+                </AixiaFormField>
 
-                <label className="grid gap-2">
-                  <span className={labelClass()}>Payroll Period From</span>
-                  <input
+                <AixiaFormField>
+                  <AixiaFieldLabel label="Payroll Period From" />
+                  <AixiaInputField
                     type="date"
                     value={form.payrollPeriodFrom}
                     onChange={(event) => updateField("payrollPeriodFrom", event.target.value)}
-                    className={inputClass()}
                     disabled={isLoading || isSaving}
                   />
-                </label>
+                </AixiaFormField>
 
-                <label className="grid gap-2">
-                  <span className={labelClass()}>Payroll Period To</span>
-                  <input
+                <AixiaFormField>
+                  <AixiaFieldLabel label="Payroll Period To" />
+                  <AixiaInputField
                     type="date"
                     value={form.payrollPeriodTo}
                     onChange={(event) => updateField("payrollPeriodTo", event.target.value)}
-                    className={inputClass()}
                     disabled={isLoading || isSaving}
                   />
-                </label>
+                </AixiaFormField>
 
-                <label className="grid gap-2">
-                  <span className={labelClass()}>Funding Currency</span>
-                  <select
+                <AixiaFormField>
+                  <AixiaFieldLabel label="Funding Currency" />
+                  <AixiaSelectField
                     value={selectedCurrency}
                     onChange={(event) => updateField("currencyCode", event.target.value)}
-                    className={inputClass()}
                     disabled={isLoading || isSaving}
                   >
                     <option value="">Select currency</option>
@@ -738,215 +723,189 @@ export default function FinancePayrollFundingBatchNewPage() {
                         {currency.currency_code} — {currency.currency_name}
                       </option>
                     ))}
-                  </select>
-                </label>
+                  </AixiaSelectField>
+                </AixiaFormField>
 
-                <label className="grid gap-2">
-                  <span className={labelClass()}>Allocated Payroll Amount</span>
-                  <input
+                <AixiaFormField>
+                  <AixiaFieldLabel
+                    label="Allocated Payroll Amount"
+                    helper="Total payroll money reserved for this period."
+                  />
+                  <AixiaInputField
                     value={form.allocatedPayrollAmount}
-                    onChange={(event) => updateField("allocatedPayrollAmount", event.target.value)}
+                    onChange={(event) =>
+                      updateField("allocatedPayrollAmount", event.target.value)
+                    }
+                    disabled={isLoading || isSaving}
                     inputMode="decimal"
                     placeholder="0.00"
-                    className={inputClass()}
-                    disabled={isLoading || isSaving}
                   />
-                  <span className="text-xs leading-5 text-slate-500">
-                    Total payroll money reserved for this period.
-                  </span>
-                </label>
+                </AixiaFormField>
 
-                <div className="grid gap-2 md:col-span-2">
-                  <span className={labelClass()}>Pool Meaning</span>
-                  <div className="flex min-h-[44px] items-center rounded-2xl border border-emerald-400/15 bg-emerald-500/10 px-4 text-sm font-semibold text-emerald-100">
-                    Reserve only — no paycheck request selection and no payment distribution on
-                    this page
-                  </div>
-                  <span className="text-xs leading-5 text-slate-500">
-                    This pool is used later by Paycheck Payment Distributions to pay many approved
-                    paycheck requests.
-                  </span>
-                </div>
+                <AixiaFormField>
+                  <AixiaDisplayBlock
+                    label="Pool Meaning"
+                    value="Reserve only"
+                    detail="No paycheck request selection and no payment distribution on this page."
+                  />
+                </AixiaFormField>
 
-                <label className="grid gap-2 md:col-span-3">
-                  <span className={labelClass()}>Payroll Funding Notes</span>
-                  <textarea
+                <AixiaFormFullWidth>
+                  <AixiaFieldLabel label="Payroll Funding Notes" />
+                  <AixiaTextareaField
                     value={form.notes}
                     onChange={(event) => updateField("notes", event.target.value)}
-                    className={textareaClass()}
                     placeholder="Internal payroll funding notes, monthly context, approval reference, or reserve explanation"
                     disabled={isLoading || isSaving}
                   />
-                </label>
-              </div>
-            </section>
+                </AixiaFormFullWidth>
+              </AixiaFormGrid>
+            </AixiaSection>
 
-            <section className="overflow-hidden rounded-[30px] border border-white/10 bg-white/[0.045] backdrop-blur-xl">
-              <div className="flex items-start gap-4 border-b border-white/10 px-5 py-4">
-                <div className="rounded-2xl border border-amber-400/15 bg-amber-500/10 p-3 text-amber-200">
-                  <UploadCloud className="h-4 w-4" />
-                </div>
-                <div>
-                  <div className="text-sm font-semibold uppercase tracking-[0.18em] text-slate-400">
-                    Payroll Funding Proof
-                  </div>
-                  <p className="mt-1 text-xs leading-5 text-slate-500">
-                    Upload proof that this payroll money pool was approved, reserved, or
-                    transferred. Required before confirming a funding pool.
-                  </p>
-                </div>
-              </div>
-
-              <div className="grid gap-4 p-5 lg:grid-cols-[minmax(0,1fr)_320px] lg:items-stretch">
-                <div className="rounded-[24px] border border-dashed border-white/15 bg-black/20 p-5">
-                  <input
-                    type="file"
-                    accept=".pdf,.png,.jpg,.jpeg,.webp,.doc,.docx,.xls,.xlsx"
-                    disabled={isLoading || isSaving}
-                    onChange={(event) => setFundingProofFile(event.target.files?.[0] ?? null)}
-                    className="block w-full text-sm text-slate-400 file:mr-4 file:rounded-full file:border-0 file:bg-violet-500/10 file:px-4 file:py-2 file:text-sm file:font-semibold file:text-violet-100 disabled:cursor-not-allowed disabled:opacity-50"
-                  />
-
-                  {fundingProofFile ? (
-                    <div className="mt-4 rounded-2xl border border-violet-400/15 bg-violet-500/10 px-4 py-3 text-sm text-violet-100">
-                      {fundingProofFile.name}
-                    </div>
-                  ) : (
-                    <div className="mt-4 rounded-2xl border border-amber-400/15 bg-amber-500/10 px-4 py-3 text-sm text-amber-100">
-                      Proof is optional for draft and required for Confirm Funding Pool.
-                    </div>
-                  )}
-                </div>
-
-                <div className="rounded-[24px] border border-white/10 bg-black/20 p-5">
-                  <div className="text-[11px] font-semibold uppercase tracking-[0.2em] text-slate-500">
-                    Document Purpose
-                  </div>
-                  <div className="mt-3 text-sm font-semibold leading-6 text-white">
-                    Proof of internal payroll funding pool approval or reserve
-                  </div>
-                  <div className="mt-3 text-sm leading-6 text-slate-400">
-                    This can be a bank confirmation, internal approval, Finance allocation report,
-                    signed payroll reserve document, or management approval.
-                  </div>
-                </div>
-              </div>
-            </section>
-          </div>
-
-          <aside className="sticky top-6 grid gap-6">
-            <section className="overflow-hidden rounded-[30px] border border-white/10 bg-white/[0.045] backdrop-blur-xl">
-              <div className="border-b border-white/10 px-5 py-4">
-                <div className="text-sm font-semibold uppercase tracking-[0.18em] text-slate-400">
-                  Payroll Funding Summary
-                </div>
-                <p className="mt-1 text-xs leading-5 text-slate-500">
-                  Review the reserved payroll money pool before saving.
-                </p>
-              </div>
-
-              <div className="grid gap-3 p-5">
-                <SummaryBlock
-                  title="Funding Company"
-                  value={selectedCompanyName}
-                  subtitle="The company reserving payroll money."
-                />
-                <SummaryBlock
-                  title="Bank Account"
-                  value={selectedBankLabel}
-                  subtitle="Optional funding account reference."
-                />
-                <SummaryBlock
-                  title="Payroll Period"
-                  value={payrollPeriodLabel}
-                  subtitle="The paycheck period this pool should cover."
-                />
-                <SummaryBlock
-                  title="Payroll Pool"
-                  value={`${selectedCurrency} ${formatMoney(allocatedPayrollAmount)}`}
-                  subtitle="Total internal payroll money reserved."
-                />
-                <SummaryBlock
-                  title="Proof Status"
-                  value={fundingProofFile ? "Attached" : "Not Attached"}
-                  subtitle="Required before Confirm Funding Pool."
-                />
-              </div>
-            </section>
-
-                        <section className="overflow-hidden rounded-[30px] border border-white/10 bg-white/[0.045] p-5 backdrop-blur-xl">
-              <div className="grid gap-3">
-                <button
+            <AixiaSection
+              title="Payroll Funding Proof"
+              description="Upload proof that this payroll money pool was approved, reserved, or transferred. Required before confirming a funding pool."
+              icon={UploadCloud}
+              badge={
+                fundingProofFile ? (
+                  <AixiaBadge tone="emerald">Selected</AixiaBadge>
+                ) : (
+                  <AixiaBadge tone="amber">Optional For Draft</AixiaBadge>
+                )
+              }
+            >
+              <AixiaDocumentUploadPanel
+                selectedFile={fundingProofFile}
+                attachments={uploadAttachments}
+                required={false}
+                disabled={isLoading || isSaving}
+                uploading={isSaving}
+                accept=".pdf,.png,.jpg,.jpeg,.webp,.doc,.docx,.xls,.xlsx"
+                dropTitle="Drop payroll funding proof here"
+                dropDescription="Upload bank confirmation, internal approval, payroll funding report, signed payroll reserve document, or management approval."
+                uploadLabel="Save Draft With Proof"
+                uploadingLabel="Saving..."
+                emptyTitle="No payroll funding proof selected"
+                emptyDescription="Proof is optional for draft and required for Confirm Funding Pool."
+                onFileSelect={setFundingProofFile}
+                onUpload={() => void saveFundingBatch("draft")}
+                onOpenAttachment={() => undefined}
+                onRemoveSelectedFile={() => setFundingProofFile(null)}
+              />
+            </AixiaSection>
+          </>
+        }
+        side={
+          <>
+            <AixiaSection
+              title="Payroll Funding Summary"
+              description="Review the reserved payroll money pool before saving."
+              icon={WalletCards}
+            >
+              <AixiaActionStack>
+                <AixiaButton
                   type="button"
+                  variant="primary"
                   disabled={isSaving || isLoading}
                   onClick={() => void saveFundingBatch("confirmed")}
-                  className="inline-flex h-12 items-center justify-center gap-2 rounded-2xl border border-emerald-400/20 bg-emerald-500/10 px-5 text-sm font-semibold text-emerald-100 transition hover:bg-emerald-500/15 disabled:cursor-not-allowed disabled:opacity-50"
                 >
                   {savingMode === "confirmed" ? (
                     <Loader2 className="h-4 w-4 animate-spin" />
                   ) : (
                     <CheckCircle2 className="h-4 w-4" />
                   )}
-                  {savingMode === "confirmed"
-                    ? "Confirming Funding Pool..."
-                    : "Confirm Funding Pool"}
-                </button>
-
-                <button
+                  {savingMode === "confirmed" ? "Confirming..." : "Confirm Funding Pool"}
+                </AixiaButton>
+                <AixiaButton
                   type="button"
+                  variant="secondary"
                   disabled={isSaving || isLoading}
                   onClick={() => void saveFundingBatch("draft")}
-                  className="inline-flex h-12 items-center justify-center gap-2 rounded-2xl border border-white/10 bg-white/[0.05] px-5 text-sm font-semibold text-slate-300 transition hover:bg-white/[0.08] hover:text-white disabled:cursor-not-allowed disabled:opacity-50"
                 >
                   {savingMode === "draft" ? (
                     <Loader2 className="h-4 w-4 animate-spin" />
                   ) : (
                     <Save className="h-4 w-4" />
                   )}
-                  {savingMode === "draft" ? "Saving Draft..." : "Save Draft"}
-                </button>
-              </div>
+                  {savingMode === "draft" ? "Saving..." : "Save Draft"}
+                </AixiaButton>
+              </AixiaActionStack>
 
-              <div className="mt-4 rounded-[24px] border border-white/10 bg-black/20 p-4 text-xs leading-5 text-slate-500">
-                This creates a payroll funding pool only. Paycheck request matching and payment
-                distribution happen later from Paycheck Payment Distributions.
-              </div>
-            </section>
+              <AixiaFormGrid columns="one">
+                <AixiaValueBlock
+                  label="Funding Company"
+                  value={selectedCompanyName}
+                  detail="The company reserving payroll money."
+                />
+                <AixiaValueBlock
+                  label="Bank Account"
+                  value={selectedBankLabel}
+                  detail="Optional funding account reference."
+                />
+                <AixiaValueBlock
+                  label="Payroll Period"
+                  value={payrollPeriodLabel}
+                  detail="The paycheck period this pool should cover."
+                />
+                <AixiaValueBlock
+                  label="Payroll Pool"
+                  value={`${selectedCurrency} ${formatMoney(allocatedPayrollAmount)}`}
+                  detail="Total internal payroll money reserved."
+                />
+                <AixiaValueBlock
+                  label="Proof Status"
+                  value={fundingProofFile ? "Attached" : "Not Attached"}
+                  detail="Required before Confirm Funding Pool."
+                />
+              </AixiaFormGrid>
+            </AixiaSection>
 
-            <InfoCard icon={Coins} title="Payroll Funding Pool">
-              Reserve a period-based payroll money pool from one company and optional bank account.
-            </InfoCard>
-
-            <InfoCard icon={WalletCards} title="Paycheck Payment Distributions">
-              Actual distribution across approved paycheck requests happens later on the Paycheck
-              Payment Distributions page.
-            </InfoCard>
-
-            <InfoCard icon={ShieldCheck} title="Control Rule">
-              Draft can be saved without proof. Confirm Funding Pool requires proof.
-            </InfoCard>
-
-            <InfoCard icon={Building2} title="No Paycheck Selection">
-              This page does not select, match, or distribute money to individual paycheck requests.
-            </InfoCard>
-
-            <InfoCard icon={CalendarDays} title="Payroll Period">
-              Payroll Period From/To is stored directly on the payroll funding batch so Finance can
-              group monthly or custom-period payroll reserves.
-            </InfoCard>
-
-            <InfoCard icon={Banknote} title="Backend">
-              Uses finance_paycheck_funding_batches, payroll funding proof upload, documentation
-              RPC, and funding confirmation RPC.
-            </InfoCard>
-
-            <InfoCard icon={FileCheck2} title="Clean Split">
-              Payroll Funding Pool reserves money. Paycheck Payment Distributions distribute that
-              money across approved paycheck requests.
-            </InfoCard>
-          </aside>
-        </div>
-      </div>
-    </div>
+            <AixiaSection
+              title="Workflow Rules"
+              description="Funding pool creation rules and clean workflow split."
+              icon={ShieldCheck}
+            >
+              <AixiaFormGrid columns="one">
+                <AixiaActionCard
+                  label="Payroll Funding Pool"
+                  value="Reserve"
+                  description="Reserve a period-based payroll money pool from one company and optional bank account."
+                  icon={Coins}
+                  tone="violet"
+                />
+                <AixiaActionCard
+                  label="Paycheck Payment Distributions"
+                  value="Separate tool"
+                  description="Actual distribution across approved paycheck requests happens later on the Paycheck Payment Distributions page."
+                  icon={WalletCards}
+                  tone="cyan"
+                />
+                <AixiaActionCard
+                  label="Control Rule"
+                  value="Draft first"
+                  description="Draft can be saved without proof. Confirm Funding Pool requires proof."
+                  icon={ShieldCheck}
+                  tone="emerald"
+                />
+                <AixiaActionCard
+                  label="No Paycheck Selection"
+                  value="Locked split"
+                  description="This page does not select, match, or distribute money to individual paycheck requests."
+                  icon={Building2}
+                  tone="amber"
+                />
+                <AixiaActionCard
+                  label="Backend"
+                  value="Funding batch"
+                  description="Uses finance_paycheck_funding_batches, payroll funding proof upload, documentation RPC, and funding confirmation RPC."
+                  icon={FileCheck2}
+                  tone="neutral"
+                />
+              </AixiaFormGrid>
+            </AixiaSection>
+          </>
+        }
+      />
+    </AixiaPage>
   );
 }

@@ -31,6 +31,7 @@ import {
   AixiaStatusBadge,
   AixiaTableActionsCell,
   AixiaTableBadgeCell,
+  AixiaTableDateCell,
   AixiaTableShell,
   AixiaTableTextCell,
 } from "@/components/aixia";
@@ -41,6 +42,7 @@ import {
   getFinanceEmployeeSearchText,
   getFinanceEmployeeSecondaryLabel,
 } from "@/lib/finance/employeeIdentity";
+import type { FinanceLoadMode } from "@/lib/finance/pageAccess";
 import { supabase } from "@/lib/supabase";
 
 type WorkbenchTab =
@@ -55,7 +57,7 @@ type WorkbenchTab =
 type ArchiveScope = "workflow" | "execution";
 type ArchiveTab = "archived" | "deleted";
 type Tone = "cyan" | "emerald" | "amber" | "rose" | "violet" | "slate";
-type LoadMode = "initial" | "silent";
+type LoadMode = FinanceLoadMode;
 
 type PaycheckRequestRow = {
   id: string;

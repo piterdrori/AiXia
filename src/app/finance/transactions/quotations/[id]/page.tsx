@@ -5,25 +5,51 @@ import { useNavigate, useParams } from "react-router-dom";
 import QuotationPrintDocument from "./QuotationPrintDocument";
 import {
   Archive,
-  ArrowRight,
   CheckCircle,
+  Eye,
   FileText,
+  Link2,
   Printer,
+  RotateCcw,
   Save,
   SquarePen,
   Trash2,
+  Wallet,
 } from "lucide-react";
 
 import { supabase } from "@/lib/supabase";
-import { Button } from "@/components/ui/button";
-import { Badge } from "@/components/ui/badge";
 import {
-  Card,
-  CardContent,
-  CardDescription,
-  CardHeader,
-  CardTitle,
-} from "@/components/ui/card";
+  AixiaActionCard,
+  AixiaActionStack,
+  AixiaAlert,
+  AixiaArchiveManagerModal,
+  AixiaButton,
+  AixiaDisplayBlock,
+  AixiaEmptyState,
+  AixiaFieldLabel,
+  AixiaFormField,
+  AixiaFormFullWidth,
+  AixiaFormGrid,
+  AixiaFormRowCard,
+  AixiaHero,
+  AixiaInputField,
+  AixiaLoadingState,
+  AixiaMetricCard,
+  AixiaMetricGrid,
+  AixiaPage,
+  AixiaReviewBlock,
+  AixiaReviewGrid,
+  AixiaSection,
+  AixiaSelectField,
+  AixiaSmartLayout,
+  AixiaStatusBadge,
+  AixiaTableActionsCell,
+  AixiaTableBadgeCell,
+  AixiaTableDateCell,
+  AixiaTableShell,
+  AixiaTableTextCell,
+  AixiaTextareaField,
+} from "@/components/aixia";
 
 type QuotationStatus =
   | "draft"
@@ -302,7 +328,7 @@ function toNumber(value: number | string | null | undefined) {
 
 function formatFinanceMoney(
   value: number | string | null | undefined,
-  currencyCode = "USD"
+  currencyCode = "USD",
 ) {
   return new Intl.NumberFormat(undefined, {
     style: "currency",
@@ -327,30 +353,6 @@ function formatFinanceDate(value: string | null | undefined) {
 
 function joinAddress(parts: Array<string | null | undefined>) {
   return parts.filter(Boolean).join(", ");
-}
-
-function getQuotationStatusBadgeClasses(status: QuotationStatus) {
-  switch (status) {
-    case "draft":
-      return "border-slate-400/20 bg-white/[0.06] text-slate-300";
-    case "issued":
-    case "sent":
-      return "border-cyan-400/20 bg-cyan-500/10 text-cyan-200";
-    case "accepted":
-      return "border-emerald-400/20 bg-emerald-500/10 text-emerald-200";
-    case "rejected":
-      return "border-rose-400/20 bg-rose-500/10 text-rose-200";
-    case "expired":
-      return "border-amber-400/20 bg-amber-500/10 text-amber-200";
-    case "converted":
-      return "border-violet-400/20 bg-violet-500/10 text-violet-200";
-    case "archived":
-      return "border-amber-400/20 bg-amber-500/10 text-amber-200";
-    case "deleted":
-      return "border-rose-500/30 bg-rose-500/10 text-rose-300";
-    default:
-      return "border-white/10 bg-white/10 text-white/75";
-  }
 }
 
 function getQuotationStatusLabel(status: QuotationStatus) {
@@ -414,7 +416,9 @@ function formatBankDetails(bank: BankAccountOption | null) {
 
   const detailLines = [
     bank.beneficiary_name ? `Beneficiary: ${bank.beneficiary_name}` : null,
-    getBankDisplayName(bank) !== "—" ? `Bank: ${getBankDisplayName(bank)}` : null,
+    getBankDisplayName(bank) !== "—"
+      ? `Bank: ${getBankDisplayName(bank)}`
+      : null,
     address ? `Address: ${address}` : null,
     bank.account_number ? `Account: ${bank.account_number}` : null,
     bank.iban ? `IBAN: ${bank.iban}` : null,
@@ -452,7 +456,9 @@ export default function FinanceQuotationDetailPage() {
 
   const [quotation, setQuotation] = useState<QuotationRecord | null>(null);
   const [lineItems, setLineItems] = useState<QuotationLineItemRow[]>([]);
-  const [linkedClientPO, setLinkedClientPO] = useState<ClientPORow | null>(null);
+  const [linkedClientPO, setLinkedClientPO] = useState<ClientPORow | null>(
+    null,
+  );
   const [archiveItems, setArchiveItems] = useState<ArchiveQuotationRow[]>([]);
 
   const [clients, setClients] = useState<ClientOption[]>([]);
@@ -465,18 +471,21 @@ export default function FinanceQuotationDetailPage() {
   const [bankAccounts, setBankAccounts] = useState<BankAccountOption[]>([]);
   const [items, setItems] = useState<ItemOption[]>([]);
   const [taxCodes, setTaxCodes] = useState<TaxCodeOption[]>([]);
-  const [unitsOfMeasure, setUnitsOfMeasure] = useState<UnitOfMeasureOption[]>([]);
+  const [unitsOfMeasure, setUnitsOfMeasure] = useState<UnitOfMeasureOption[]>(
+    [],
+  );
   const [revenueCategories, setRevenueCategories] = useState<
     RevenueCategoryOption[]
   >([]);
 
   const [showArchivePopup, setShowArchivePopup] = useState(false);
   const [archiveTab, setArchiveTab] = useState<"archived" | "deleted">(
-    "archived"
+    "archived",
   );
 
   const [editingOverview, setEditingOverview] = useState(false);
-  const [editingFinancialSettings, setEditingFinancialSettings] = useState(false);
+  const [editingFinancialSettings, setEditingFinancialSettings] =
+    useState(false);
   const [editingDocumentDetails, setEditingDocumentDetails] = useState(false);
   const [editingLines, setEditingLines] = useState(false);
 
@@ -529,7 +538,7 @@ export default function FinanceQuotationDetailPage() {
     const { data, error } = await supabase
       .from("finance_quotations")
       .select(
-        "id, quotation_number, status, client_name_snapshot, company_name_snapshot, total_amount, updated_at"
+        "id, quotation_number, status, client_name_snapshot, company_name_snapshot, total_amount, updated_at",
       )
       .in("status", ["archived", "deleted"])
       .order("updated_at", { ascending: false })
@@ -614,7 +623,7 @@ export default function FinanceQuotationDetailPage() {
                 "counterparty_contact_person_snapshot",
                 "counterparty_email_snapshot",
                 "counterparty_phone_snapshot",
-              ].join(", ")
+              ].join(", "),
             )
             .eq("id", id)
             .maybeSingle(),
@@ -636,7 +645,7 @@ export default function FinanceQuotationDetailPage() {
                 "line_tax_amount",
                 "line_total",
                 "sort_order",
-              ].join(", ")
+              ].join(", "),
             )
             .eq("quotation_id", id)
             .order("sort_order", { ascending: true }),
@@ -644,7 +653,7 @@ export default function FinanceQuotationDetailPage() {
           supabase
             .from("finance_client_purchase_orders")
             .select(
-              "id, client_po_number, external_po_number, status, received_at, total_amount, created_at"
+              "id, client_po_number, external_po_number, status, received_at, total_amount, created_at",
             )
             .eq("quotation_id", id)
             .order("created_at", { ascending: false })
@@ -661,16 +670,17 @@ export default function FinanceQuotationDetailPage() {
         let typedQuotation = quotationResult.data as QuotationRecord | null;
 
         if (typedQuotation?.payment_terms_id) {
-          const { data: paymentTermData, error: paymentTermError } = await supabase
-            .from("finance_payment_terms")
-            .select("name, document_label, document_terms_text")
-            .eq("id", typedQuotation.payment_terms_id)
-            .maybeSingle();
+          const { data: paymentTermData, error: paymentTermError } =
+            await supabase
+              .from("finance_payment_terms")
+              .select("name, document_label, document_terms_text")
+              .eq("id", typedQuotation.payment_terms_id)
+              .maybeSingle();
 
           if (paymentTermError) {
             console.warn(
               "Failed to load quotation payment term wording:",
-              paymentTermError
+              paymentTermError,
             );
           }
 
@@ -688,8 +698,8 @@ export default function FinanceQuotationDetailPage() {
           }
         }
 
-        const typedLineItems =
-          (lineItemsResult.data || []) as unknown as QuotationLineItemRow[];
+        const typedLineItems = (lineItemsResult.data ||
+          []) as unknown as QuotationLineItemRow[];
         const typedClientPO = (poResult.data || null) as ClientPORow | null;
 
         setQuotation(typedQuotation);
@@ -697,7 +707,9 @@ export default function FinanceQuotationDetailPage() {
         setLinkedClientPO(typedClientPO);
 
         if (typedQuotation) {
-          setCounterpartyTypeDraft(typedQuotation.counterparty_type || "client");
+          setCounterpartyTypeDraft(
+            typedQuotation.counterparty_type || "client",
+          );
           setClientIdDraft(typedQuotation.client_id || "");
           setCompanyIdDraft(typedQuotation.company_id || "");
           setProjectIdDraft(typedQuotation.project_id || "");
@@ -710,7 +722,7 @@ export default function FinanceQuotationDetailPage() {
           setBankAccountIdDraft(typedQuotation.bank_account_id || "");
           setNotesDraft(typedQuotation.notes || "");
           setTermsAndConditionsDraft(
-            typedQuotation.terms_and_conditions_snapshot || ""
+            typedQuotation.terms_and_conditions_snapshot || "",
           );
 
           setLineItemsDraft(
@@ -727,7 +739,7 @@ export default function FinanceQuotationDetailPage() {
               tax_rate: String(row.tax_rate ?? 0),
               unit_of_measure_id: "",
               revenue_category_id: "",
-            }))
+            })),
           );
         }
       } catch (err) {
@@ -737,7 +749,7 @@ export default function FinanceQuotationDetailPage() {
         setIsLoading(false);
       }
     },
-    [id, loadArchiveItems]
+    [id, loadArchiveItems],
   );
 
   const loadMasterData = useCallback(async () => {
@@ -759,7 +771,7 @@ export default function FinanceQuotationDetailPage() {
         supabase
           .from("finance_clients")
           .select(
-            "id, name, legal_name, contact_person, company_email, personnel_email, company_phone, personnel_phone, currency_code, payment_terms_days, payment_terms_id, country, city, state_province, postal_code, address_line_1, address_line_2"
+            "id, name, legal_name, contact_person, company_email, personnel_email, company_phone, personnel_phone, currency_code, payment_terms_days, payment_terms_id, country, city, state_province, postal_code, address_line_1, address_line_2",
           )
           .eq("status", "active")
           .order("name", { ascending: true }),
@@ -767,7 +779,7 @@ export default function FinanceQuotationDetailPage() {
         supabase
           .from("finance_companies")
           .select(
-            "id, name, legal_name, contact_person, email, phone, currency_code, country, city, state_province, postal_code, address_line_1, address_line_2"
+            "id, name, legal_name, contact_person, email, phone, currency_code, country, city, state_province, postal_code, address_line_1, address_line_2",
           )
           .eq("status", "active")
           .order("name", { ascending: true }),
@@ -791,7 +803,7 @@ export default function FinanceQuotationDetailPage() {
         supabase
           .from("finance_payment_terms")
           .select(
-            "id, code, name, due_days, status, is_default, document_label, document_terms_text"
+            "id, code, name, due_days, status, is_default, document_label, document_terms_text",
           )
           .eq("status", "active")
           .order("name", { ascending: true }),
@@ -805,7 +817,7 @@ export default function FinanceQuotationDetailPage() {
         supabase
           .from("finance_bank_accounts")
           .select(
-            "id, code, name, account_type, institution_name, masked_account_number, status, company_id, beneficiary_name, currency_code, swift_code, iban, bank_address, account_identifier_type, account_identifier_value, bank_name, country, city, postal_code, address_line_1, address_line_2, account_number"
+            "id, code, name, account_type, institution_name, masked_account_number, status, company_id, beneficiary_name, currency_code, swift_code, iban, bank_address, account_identifier_type, account_identifier_value, bank_name, country, city, postal_code, address_line_1, address_line_2, account_number",
           )
           .eq("status", "active")
           .order("name", { ascending: true }),
@@ -813,7 +825,7 @@ export default function FinanceQuotationDetailPage() {
         supabase
           .from("finance_items")
           .select(
-            "id, name, description, sales_price, currency_code, revenue_category_id, tax_code_id, unit_of_measure_id"
+            "id, name, description, sales_price, currency_code, revenue_category_id, tax_code_id, unit_of_measure_id",
           )
           .eq("status", "active")
           .eq("is_active_for_sales", true)
@@ -857,13 +869,17 @@ export default function FinanceQuotationDetailPage() {
       setTasks((tasksResult.data || []) as TaskRow[]);
       setCurrencies((currenciesResult.data || []) as CurrencyOption[]);
       setPaymentTerms((paymentTermsResult.data || []) as PaymentTermOption[]);
-      setShippingTerms((shippingTermsResult.data || []) as ShippingTermOption[]);
+      setShippingTerms(
+        (shippingTermsResult.data || []) as ShippingTermOption[],
+      );
       setBankAccounts((bankAccountsResult.data || []) as BankAccountOption[]);
       setItems((itemsResult.data || []) as ItemOption[]);
       setTaxCodes((taxCodesResult.data || []) as TaxCodeOption[]);
-      setUnitsOfMeasure((unitsOfMeasureResult.data || []) as UnitOfMeasureOption[]);
+      setUnitsOfMeasure(
+        (unitsOfMeasureResult.data || []) as UnitOfMeasureOption[],
+      );
       setRevenueCategories(
-        (revenueCategoriesResult.data || []) as RevenueCategoryOption[]
+        (revenueCategoriesResult.data || []) as RevenueCategoryOption[],
       );
     } catch (err) {
       console.error("Failed to load quotation master data:", err);
@@ -888,7 +904,7 @@ export default function FinanceQuotationDetailPage() {
           table: "finance_quotations",
           filter: `id=eq.${id}`,
         },
-        () => void loadQuotation(true)
+        () => void loadQuotation(true),
       )
       .on(
         "postgres_changes",
@@ -898,7 +914,7 @@ export default function FinanceQuotationDetailPage() {
           table: "finance_quotation_line_items",
           filter: `quotation_id=eq.${id}`,
         },
-        () => void loadQuotation(true)
+        () => void loadQuotation(true),
       )
       .on(
         "postgres_changes",
@@ -907,7 +923,7 @@ export default function FinanceQuotationDetailPage() {
           schema: "public",
           table: "finance_client_purchase_orders",
         },
-        () => void loadQuotation(true)
+        () => void loadQuotation(true),
       )
       .subscribe();
 
@@ -929,37 +945,39 @@ export default function FinanceQuotationDetailPage() {
 
   const selectedDraftClient = useMemo(
     () => clients.find((client) => client.id === clientIdDraft) ?? null,
-    [clientIdDraft, clients]
+    [clientIdDraft, clients],
   );
 
   const selectedDraftCompany = useMemo(
     () => companies.find((company) => company.id === companyIdDraft) ?? null,
-    [companies, companyIdDraft]
+    [companies, companyIdDraft],
   );
 
   const selectedDraftProject = useMemo(
     () => projects.find((entry) => entry.id === projectIdDraft) ?? null,
-    [projectIdDraft, projects]
+    [projectIdDraft, projects],
   );
 
   const selectedDraftTask = useMemo(
     () => tasks.find((entry) => entry.id === taskIdDraft) ?? null,
-    [taskIdDraft, tasks]
+    [taskIdDraft, tasks],
   );
 
   const selectedDraftCurrency = useMemo(
     () => currencies.find((entry) => entry.id === currencyIdDraft) ?? null,
-    [currencies, currencyIdDraft]
+    [currencies, currencyIdDraft],
   );
 
   const selectedDraftPaymentTerm = useMemo(
-    () => paymentTerms.find((entry) => entry.id === paymentTermsIdDraft) ?? null,
-    [paymentTerms, paymentTermsIdDraft]
+    () =>
+      paymentTerms.find((entry) => entry.id === paymentTermsIdDraft) ?? null,
+    [paymentTerms, paymentTermsIdDraft],
   );
 
   const selectedDraftShippingTerm = useMemo(
-    () => shippingTerms.find((entry) => entry.id === shippingTermIdDraft) ?? null,
-    [shippingTermIdDraft, shippingTerms]
+    () =>
+      shippingTerms.find((entry) => entry.id === shippingTermIdDraft) ?? null,
+    [shippingTermIdDraft, shippingTerms],
   );
 
   const filteredBankAccounts = useMemo(() => {
@@ -968,13 +986,13 @@ export default function FinanceQuotationDetailPage() {
     }
 
     return bankAccounts.filter(
-      (account) => !account.company_id || account.company_id === companyIdDraft
+      (account) => !account.company_id || account.company_id === companyIdDraft,
     );
   }, [bankAccounts, companyIdDraft]);
 
   const selectedDraftBankAccount = useMemo(
     () => bankAccounts.find((entry) => entry.id === bankAccountIdDraft) ?? null,
-    [bankAccountIdDraft, bankAccounts]
+    [bankAccountIdDraft, bankAccounts],
   );
 
   const filteredDraftTasks = useMemo(() => {
@@ -1017,7 +1035,7 @@ export default function FinanceQuotationDetailPage() {
   const draftTotals = useMemo(() => {
     const subtotal = lineItemsDraft.reduce(
       (sum, row) => sum + toNumber(row.quantity) * toNumber(row.unit_price),
-      0
+      0,
     );
 
     const discount = lineItemsDraft.reduce((sum, row) => {
@@ -1101,7 +1119,8 @@ export default function FinanceQuotationDetailPage() {
 
     if (selectedDraftClient.currency_code && !currencyIdDraft) {
       const matchedCurrency = currencies.find(
-        (currency) => currency.currency_code === selectedDraftClient.currency_code
+        (currency) =>
+          currency.currency_code === selectedDraftClient.currency_code,
       );
 
       if (matchedCurrency) {
@@ -1115,7 +1134,9 @@ export default function FinanceQuotationDetailPage() {
 
     if (!validUntilDraft) {
       const days = selectedDraftClient.payment_terms_days ?? 14;
-      const base = new Date(issueDateDraft || new Date().toISOString().slice(0, 10));
+      const base = new Date(
+        issueDateDraft || new Date().toISOString().slice(0, 10),
+      );
       base.setDate(base.getDate() + days);
       setValidUntilDraft(base.toISOString().slice(0, 10));
     }
@@ -1133,7 +1154,9 @@ export default function FinanceQuotationDetailPage() {
   useEffect(() => {
     if (!quotation || !canEditQuotation) return;
 
-    const taskStillValid = filteredDraftTasks.some((task) => task.id === taskIdDraft);
+    const taskStillValid = filteredDraftTasks.some(
+      (task) => task.id === taskIdDraft,
+    );
 
     if (taskIdDraft && !taskStillValid) {
       setTaskIdDraft("");
@@ -1332,7 +1355,7 @@ export default function FinanceQuotationDetailPage() {
         setIsSavingDraft(false);
       }
     },
-    [loadArchiveItems, loadQuotation]
+    [loadArchiveItems, loadQuotation],
   );
 
   const handleHardDelete = useCallback(
@@ -1361,7 +1384,7 @@ export default function FinanceQuotationDetailPage() {
         setIsDeleting(false);
       }
     },
-    [id, loadArchiveItems, navigate]
+    [id, loadArchiveItems, navigate],
   );
 
   const applyDraftItemSelection = useCallback(
@@ -1381,7 +1404,7 @@ export default function FinanceQuotationDetailPage() {
           }
 
           const taxCode = taxCodes.find(
-            (code) => code.id === selectedItem.tax_code_id
+            (code) => code.id === selectedItem.tax_code_id,
           );
 
           return {
@@ -1395,10 +1418,10 @@ export default function FinanceQuotationDetailPage() {
             unit_of_measure_id: selectedItem.unit_of_measure_id || "",
             revenue_category_id: selectedItem.revenue_category_id || "",
           };
-        })
+        }),
       );
     },
-    [items, taxCodes]
+    [items, taxCodes],
   );
 
   const addDraftLineItem = useCallback(() => {
@@ -1448,7 +1471,7 @@ export default function FinanceQuotationDetailPage() {
       (row) =>
         (row.description || row.item_name) &&
         toNumber(row.quantity) > 0 &&
-        toNumber(row.unit_price) >= 0
+        toNumber(row.unit_price) >= 0,
     );
 
     if (!hasAtLeastOneValidLine) {
@@ -1461,12 +1484,12 @@ export default function FinanceQuotationDetailPage() {
       (row) =>
         !(row.description || row.item_name) ||
         toNumber(row.quantity) <= 0 ||
-        toNumber(row.unit_price) < 0
+        toNumber(row.unit_price) < 0,
     );
 
     if (hasInvalidLine) {
       setError(
-        "Every quotation line must have a description or item name, quantity greater than 0, and unit price 0 or higher."
+        "Every quotation line must have a description or item name, quantity greater than 0, and unit price 0 or higher.",
       );
       setIsSavingDraft(false);
       return;
@@ -1486,7 +1509,8 @@ export default function FinanceQuotationDetailPage() {
       const selectedShippingTerm =
         shippingTerms.find((term) => term.id === shippingTermIdDraft) ?? null;
       const selectedBankAccount =
-        bankAccounts.find((account) => account.id === bankAccountIdDraft) ?? null;
+        bankAccounts.find((account) => account.id === bankAccountIdDraft) ??
+        null;
 
       const nextBankDetailsSnapshot =
         formatBankDetails(selectedBankAccount) ||
@@ -1604,7 +1628,9 @@ export default function FinanceQuotationDetailPage() {
         .filter((entry) => !entry.id.startsWith("new_"))
         .map((entry) => entry.id);
 
-      const idsToDelete = existingIds.filter((entryId) => !draftIds.includes(entryId));
+      const idsToDelete = existingIds.filter(
+        (entryId) => !draftIds.includes(entryId),
+      );
 
       if (idsToDelete.length > 0) {
         const { error: deleteError } = await supabase
@@ -1629,7 +1655,7 @@ export default function FinanceQuotationDetailPage() {
         const ratePercent =
           toNumber(row.tax_rate) ||
           toNumber(
-            taxCodes.find((code) => code.id === row.tax_code_id)?.rate_percent
+            taxCodes.find((code) => code.id === row.tax_code_id)?.rate_percent,
           );
 
         const lineTax = taxableBase * (ratePercent / 100);
@@ -1713,25 +1739,24 @@ export default function FinanceQuotationDetailPage() {
 
   if (isLoading) {
     return (
-      <div className="min-h-screen bg-[#05070d] px-4 py-4 text-white md:px-6 md:py-6">
-        <div className="mx-auto flex w-full max-w-[1600px] flex-col gap-6">
-          <div className="rounded-[30px] border border-white/10 bg-white/[0.045] p-6 text-sm text-slate-400 backdrop-blur-xl">
-            Loading quotation...
-          </div>
-        </div>
-      </div>
+      <AixiaPage>
+        <AixiaLoadingState
+          title="Loading quotation"
+          description="Loading quotation workspace and linked finance data."
+        />
+      </AixiaPage>
     );
   }
 
   if (!quotation || !totals) {
     return (
-      <div className="min-h-screen bg-[#05070d] px-4 py-4 text-white md:px-6 md:py-6">
-        <div className="mx-auto flex w-full max-w-[1600px] flex-col gap-6">
-          <div className="rounded-[30px] border border-white/10 bg-white/[0.045] p-6 text-sm text-slate-400 backdrop-blur-xl">
-            Quotation not found.
-          </div>
-        </div>
-      </div>
+      <AixiaPage>
+        <AixiaEmptyState
+          icon={FileText}
+          title="Quotation not found"
+          description="The quotation record could not be loaded."
+        />
+      </AixiaPage>
     );
   }
 
@@ -1739,433 +1764,301 @@ export default function FinanceQuotationDetailPage() {
     selectedDraftCurrency?.currency_code || quotation.currency_code || "USD";
 
   const visibleArchiveItems = archiveItems.filter(
-    (item) => item.status === archiveTab
+    (item) => item.status === archiveTab,
   );
 
-  const activeSectionClass =
-    "overflow-hidden rounded-[30px] border border-white/10 bg-white/[0.045] backdrop-blur-xl";
+  const archivedCount = archiveItems.filter(
+    (item) => item.status === "archived",
+  ).length;
+  const deletedCount = archiveItems.filter(
+    (item) => item.status === "deleted",
+  ).length;
 
-  const innerPanelClass =
-    "rounded-[24px] border border-white/10 bg-black/20 p-4";
-
-  const fieldShellClass =
-    "h-11 w-full rounded-2xl border border-white/10 bg-black/20 px-4 text-sm text-white outline-none transition focus:border-cyan-400/30 focus:bg-black/30";
-
-  const readOnlyFieldClass =
-    "flex min-h-[44px] items-center rounded-2xl border border-white/10 bg-black/20 px-4 text-sm leading-6 text-white/80";
-
-  const labelClass = "text-sm font-medium text-slate-300";
+  const statusValue = getQuotationStatusLabel(quotation.status);
+  const editableLabel = getEditableStatusLabel(canEditQuotation);
 
   return (
     <>
-      <div className="min-h-screen bg-[#05070d] px-4 py-4 text-white md:px-6 md:py-6">
-        <div className="mx-auto flex w-full max-w-[1600px] flex-col gap-6">
-          <section className="relative overflow-hidden rounded-[34px] border border-white/10 bg-white/[0.045] p-6 shadow-2xl shadow-black/30 backdrop-blur-xl">
-            <div className="pointer-events-none absolute inset-0 bg-[radial-gradient(circle_at_top_left,rgba(6,182,212,0.16),transparent_38%),radial-gradient(circle_at_top_right,rgba(139,92,246,0.12),transparent_34%)]" />
-
-            <div className="relative">
-              <button
+      <AixiaPage>
+        <AixiaHero
+          parentLabel="Quotations"
+          parentPath="/finance/transactions/quotations"
+          gradientTitle={quotation.quotation_number || "Quotation"}
+          title="Workspace"
+          subtitle="Customer commercial quotation detail"
+          description="Manage the commercial quotation before client PO, proforma invoice, invoice, and payment. Editable negotiation data, downstream client PO context, archive lifecycle, and print output stay inside shared AiXia components."
+          badges={[
+            { label: "Quotation Workspace", tone: "cyan" },
+            {
+              label: statusValue,
+              tone:
+                quotation.status === "accepted"
+                  ? "emerald"
+                  : quotation.status === "rejected" ||
+                      quotation.status === "deleted"
+                    ? "rose"
+                    : quotation.status === "converted"
+                      ? "violet"
+                      : "gold",
+            },
+            {
+              label: editableLabel,
+              tone: canEditQuotation ? "emerald" : "amber",
+            },
+            ...(linkedClientPO
+              ? [{ label: "Linked Client PO", tone: "violet" as const }]
+              : []),
+          ]}
+          statusCards={[
+            {
+              label: "Client",
+              value:
+                selectedDraftClient?.legal_name ||
+                selectedDraftClient?.name ||
+                quotation.client_legal_name_snapshot ||
+                quotation.client_name_snapshot ||
+                quotation.counterparty_name_snapshot ||
+                "—",
+              description: "Active commercial counterparty",
+              icon: CheckCircle,
+              tone: "cyan",
+            },
+            {
+              label: "Total Value",
+              value: formatFinanceMoney(
+                financialSummary?.total,
+                printableCurrencyCode,
+              ),
+              description: "Live value from quotation lines",
+              icon: Wallet,
+              tone: "emerald",
+            },
+          ]}
+          actions={
+            <AixiaActionStack>
+              <AixiaButton
                 type="button"
-                onClick={() => navigate("/finance/transactions/quotations")}
-                className="mb-5 inline-flex items-center justify-center gap-2 rounded-full border border-white/10 bg-white/[0.05] px-5 py-2 text-[11px] font-semibold uppercase tracking-[0.22em] text-slate-300 transition hover:bg-white/[0.08]"
+                variant="secondary"
+                onClick={handlePrint}
               >
-                <ArrowRight className="h-3.5 w-3.5 rotate-180" />
-                Quotations
-              </button>
+                <Printer className="h-4 w-4" />
+                Print
+              </AixiaButton>
 
-              <div className="grid gap-6 xl:grid-cols-[minmax(0,1fr)_620px]">
-                <div>
-                  <Badge className="inline-flex w-fit items-center gap-2 rounded-full border border-cyan-400/20 bg-cyan-500/10 px-3 py-1 text-[11px] font-semibold uppercase tracking-[0.22em] text-cyan-200 shadow-none">
-                    Quotation Workspace
-                  </Badge>
-
-                  <div className="mt-4 flex flex-wrap items-center gap-3">
-                    <h1 className="text-3xl font-semibold tracking-[-0.035em] text-white md:text-4xl">
-                      {quotation.quotation_number || "Quotation"}
-                    </h1>
-
-                    <Badge
-                      className={`rounded-full border px-3 py-1 text-[11px] font-semibold uppercase tracking-[0.16em] shadow-none ${getQuotationStatusBadgeClasses(
-                        quotation.status
-                      )}`}
-                    >
-                      {getQuotationStatusLabel(quotation.status)}
-                    </Badge>
-
-                    <Badge
-                      className={`rounded-full border px-3 py-1 text-[11px] font-semibold uppercase tracking-[0.16em] shadow-none ${
-                        canEditQuotation
-                          ? "border-emerald-400/20 bg-emerald-500/10 text-emerald-200"
-                          : "border-amber-400/20 bg-amber-500/10 text-amber-200"
-                      }`}
-                    >
-                      {getEditableStatusLabel(canEditQuotation)}
-                    </Badge>
-
-                    {linkedClientPO ? (
-                      <Badge className="rounded-full border border-violet-400/20 bg-violet-500/10 px-3 py-1 text-[11px] font-semibold uppercase tracking-[0.16em] text-violet-200 shadow-none">
-                        Linked Client PO
-                      </Badge>
-                    ) : null}
-                  </div>
-
-                  <p className="mt-3 max-w-4xl text-sm leading-6 text-slate-400 md:text-base md:leading-7">
-                    Commercial quotation before client PO, proforma invoice,
-                    invoice, and payment. Quotations stay editable through
-                    negotiation, including accepted quotations, until they are
-                    rejected, converted, archived, or deleted.
-                  </p>
-
-                  <div className="mt-5 flex flex-wrap gap-2">
-                    <span className="rounded-full border border-emerald-400/20 bg-emerald-500/10 px-3 py-1 text-[11px] font-semibold uppercase tracking-[0.16em] text-emerald-200">
-                      Editable negotiation document
-                    </span>
-                    <span className="rounded-full border border-cyan-400/20 bg-cyan-500/10 px-3 py-1 text-[11px] font-semibold uppercase tracking-[0.16em] text-cyan-200">
-                      Draft → Sent → Accepted
-                    </span>
-                    <span className="rounded-full border border-white/10 bg-white/[0.05] px-3 py-1 text-[11px] font-semibold uppercase tracking-[0.16em] text-slate-300">
-                      Auto-refresh enabled
-                    </span>
-                  </div>
-                </div>
-
-                <div className="grid gap-4 sm:grid-cols-2">
-                  <div className="min-h-[148px] rounded-[24px] border border-white/10 bg-black/20 p-4">
-                    <div className="flex items-start justify-between gap-3">
-                      <div>
-                        <div className="text-[11px] font-semibold uppercase tracking-[0.2em] text-slate-500">
-                          Client
-                        </div>
-                        <div className="mt-2 text-xl font-semibold leading-tight tracking-[-0.035em] text-white">
-                          {selectedDraftClient?.legal_name ||
-                            selectedDraftClient?.name ||
-                            quotation.client_legal_name_snapshot ||
-                            quotation.client_name_snapshot ||
-                            quotation.counterparty_name_snapshot ||
-                            "—"}
-                        </div>
-                      </div>
-                      <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-2xl border border-cyan-400/20 bg-cyan-500/10 text-cyan-200">
-                        <CheckCircle className="h-4 w-4" />
-                      </div>
-                    </div>
-                    <div className="mt-3 text-xs leading-5 text-slate-500">
-                      Active commercial counterparty for this quotation.
-                    </div>
-                  </div>
-
-                  <div className="min-h-[148px] rounded-[24px] border border-white/10 bg-black/20 p-4">
-                    <div className="flex items-start justify-between gap-3">
-                      <div>
-                        <div className="text-[11px] font-semibold uppercase tracking-[0.2em] text-slate-500">
-                          Total Value
-                        </div>
-                        <div className="mt-2 text-xl font-semibold leading-tight tracking-[-0.035em] text-white">
-                          {formatFinanceMoney(
-                            financialSummary?.total,
-                            printableCurrencyCode
-                          )}
-                        </div>
-                      </div>
-                      <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-2xl border border-emerald-400/20 bg-emerald-500/10 text-emerald-200">
-                        <CheckCircle className="h-4 w-4" />
-                      </div>
-                    </div>
-                    <div className="mt-3 text-xs leading-5 text-slate-500">
-                      Live value reflects editable quotation lines when open.
-                    </div>
-                  </div>
-                </div>
-              </div>
-
-                            <div className="mt-6 flex flex-wrap gap-3">
-                <Button
-                  variant="outline"
-                  onClick={handlePrint}
-                  className="h-11 rounded-2xl border-white/10 bg-white/[0.05] px-4 text-white hover:bg-white/[0.08]"
+              {canMarkSent ? (
+                <AixiaButton
+                  type="button"
+                  variant="primary"
+                  onClick={() => void handleMarkSent()}
+                  disabled={isMarkingSent}
                 >
-                  <Printer className="mr-2 h-4 w-4" />
-                  Print
-                </Button>
+                  <CheckCircle className="h-4 w-4" />
+                  {isMarkingSent ? "Updating..." : "Mark as Sent"}
+                </AixiaButton>
+              ) : null}
 
-                {canMarkSent ? (
-                  <Button
-                    onClick={() => void handleMarkSent()}
-                    disabled={isMarkingSent}
-                    className="h-11 rounded-2xl border border-cyan-400/20 bg-cyan-500 px-4 text-sm font-semibold text-slate-950 transition hover:bg-cyan-400"
-                  >
-                    <CheckCircle className="mr-2 h-4 w-4" />
-                    {isMarkingSent ? "Updating..." : "Mark as Sent"}
-                  </Button>
-                ) : null}
+              {canMarkAccepted ? (
+                <AixiaButton
+                  type="button"
+                  variant="primary"
+                  onClick={() => void handleMarkAccepted()}
+                  disabled={isMarkingAccepted}
+                >
+                  <CheckCircle className="h-4 w-4" />
+                  {isMarkingAccepted ? "Updating..." : "Mark as Accepted"}
+                </AixiaButton>
+              ) : null}
 
-                {canMarkAccepted ? (
-                  <Button
-                    onClick={() => void handleMarkAccepted()}
-                    disabled={isMarkingAccepted}
-                    className="h-11 rounded-2xl border border-emerald-400/20 bg-emerald-500 px-4 text-sm font-semibold text-slate-950 transition hover:bg-emerald-400"
-                  >
-                    <CheckCircle className="mr-2 h-4 w-4" />
-                    {isMarkingAccepted ? "Updating..." : "Mark as Accepted"}
-                  </Button>
-                ) : null}
+              {canMarkRejected ? (
+                <AixiaButton
+                  type="button"
+                  variant="danger"
+                  onClick={() => void handleMarkRejected()}
+                  disabled={isMarkingRejected}
+                >
+                  <Trash2 className="h-4 w-4" />
+                  {isMarkingRejected ? "Updating..." : "Reject"}
+                </AixiaButton>
+              ) : null}
 
-                {canMarkRejected ? (
-                  <Button
-                    variant="outline"
-                    onClick={() => void handleMarkRejected()}
-                    disabled={isMarkingRejected}
-                    className="h-11 rounded-2xl border-rose-400/20 bg-rose-500/10 px-4 text-rose-200 hover:bg-rose-500/20"
-                  >
-                    <Trash2 className="mr-2 h-4 w-4" />
-                    {isMarkingRejected ? "Updating..." : "Reject"}
-                  </Button>
-                ) : null}
+              {linkedClientPO ? (
+                <AixiaButton
+                  type="button"
+                  variant="primary"
+                  onClick={() =>
+                    navigate(
+                      `/finance/transactions/customer-pos/${linkedClientPO.id}`,
+                    )
+                  }
+                >
+                  <FileText className="h-4 w-4" />
+                  Open Customer PO
+                </AixiaButton>
+              ) : quotation.status === "accepted" ? (
+                <AixiaButton
+                  type="button"
+                  variant="primary"
+                  onClick={() =>
+                    navigate(
+                      `/finance/transactions/customer-pos/new?quotation_id=${quotation.id}`,
+                    )
+                  }
+                >
+                  <FileText className="h-4 w-4" />
+                  Save Customer PO
+                </AixiaButton>
+              ) : null}
 
-                {linkedClientPO ? (
-                  <Button
-                    onClick={() =>
-                      navigate(
-                        `/finance/transactions/customer-pos/${linkedClientPO.id}`
-                      )
-                    }
-                    className="h-11 rounded-2xl border border-violet-400/20 bg-violet-500 px-4 text-sm font-semibold text-white transition hover:bg-violet-400"
-                  >
-                    <FileText className="mr-2 h-4 w-4" />
-                    Open Saved Customer PO
-                  </Button>
-                ) : quotation.status === "accepted" ? (
-                  <Button
-                    onClick={() =>
-                      navigate(
-                        `/finance/transactions/customer-pos/new?quotation_id=${quotation.id}`
-                      )
-                    }
-                    className="h-11 rounded-2xl border border-emerald-400/20 bg-emerald-500 px-4 text-sm font-semibold text-slate-950 transition hover:bg-emerald-400"
-                  >
-                    <FileText className="mr-2 h-4 w-4" />
-                    Save Customer PO
-                  </Button>
-                ) : null}
+              {quotation.status !== "archived" &&
+              quotation.status !== "deleted" ? (
+                <AixiaButton
+                  type="button"
+                  variant="danger"
+                  onClick={() => void handleArchive()}
+                  disabled={isArchiving}
+                >
+                  <Archive className="h-4 w-4" />
+                  {isArchiving ? "Archiving..." : "Archive"}
+                </AixiaButton>
+              ) : null}
 
-                {quotation.status !== "archived" &&
-                quotation.status !== "deleted" ? (
-                  <Button
-                    variant="outline"
-                    onClick={() => void handleArchive()}
-                    disabled={isArchiving}
-                    className="h-11 rounded-2xl border-amber-400/20 bg-amber-500/10 px-4 text-amber-200 hover:bg-amber-500/20"
-                  >
-                    <Archive className="mr-2 h-4 w-4" />
-                    {isArchiving ? "Archiving..." : "Archive"}
-                  </Button>
-                ) : null}
+              {quotation.status !== "deleted" &&
+              quotation.status !== "converted" ? (
+                <AixiaButton
+                  type="button"
+                  variant="danger"
+                  onClick={() => void handleDelete()}
+                  disabled={isDeleting}
+                >
+                  <Trash2 className="h-4 w-4" />
+                  {isDeleting ? "Deleting..." : "Delete"}
+                </AixiaButton>
+              ) : null}
+            </AixiaActionStack>
+          }
+        />
 
-                {quotation.status !== "deleted" &&
-                quotation.status !== "converted" ? (
-                  <Button
-                    variant="outline"
-                    onClick={() => void handleDelete()}
-                    disabled={isDeleting}
-                    className="h-11 rounded-2xl border-rose-400/20 bg-rose-500/10 px-4 text-rose-200 hover:bg-rose-500/20"
-                  >
-                    <Trash2 className="mr-2 h-4 w-4" />
-                    {isDeleting ? "Deleting..." : "Delete"}
-                  </Button>
-                ) : null}
-              </div>
-            </div>
-          </section>
+        <AixiaMetricGrid>
+          <AixiaMetricCard
+            label="Subtotal"
+            value={formatFinanceMoney(
+              financialSummary?.subtotal,
+              printableCurrencyCode,
+            )}
+            description="Before discount and tax."
+            icon={FileText}
+            tone="cyan"
+          />
+          <AixiaMetricCard
+            label="Discount"
+            value={formatFinanceMoney(
+              financialSummary?.discount,
+              printableCurrencyCode,
+            )}
+            description="Commercial adjustment."
+            icon={CheckCircle}
+            tone="gold"
+          />
+          <AixiaMetricCard
+            label="Tax"
+            value={formatFinanceMoney(
+              financialSummary?.tax,
+              printableCurrencyCode,
+            )}
+            description="Calculated from line items."
+            icon={CheckCircle}
+            tone="violet"
+          />
+          <AixiaMetricCard
+            label="Total"
+            value={formatFinanceMoney(
+              financialSummary?.total,
+              printableCurrencyCode,
+            )}
+            description="Current quotation value."
+            icon={Wallet}
+            tone="emerald"
+          />
+        </AixiaMetricGrid>
 
-          <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
-            <div className="group relative min-h-[156px] overflow-hidden rounded-[28px] border border-white/10 bg-white/[0.045] p-5 backdrop-blur-xl transition hover:border-white/20 hover:bg-white/[0.055]">
-              <div className="pointer-events-none absolute inset-0 bg-gradient-to-br from-cyan-500/20 via-cyan-400/10 to-transparent opacity-70" />
-              <div className="relative flex h-full flex-col justify-between gap-5">
-                <div className="flex items-start justify-between gap-4">
-                  <div className="min-w-0">
-                    <div className="text-[11px] font-semibold uppercase tracking-[0.2em] text-slate-500">
-                      Subtotal
-                    </div>
-                    <div className="mt-2 truncate text-3xl font-semibold tracking-[-0.035em] text-cyan-100">
-                      {formatFinanceMoney(
-                        financialSummary?.subtotal,
-                        printableCurrencyCode
-                      )}
-                    </div>
-                  </div>
-                  <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-2xl border border-cyan-400/20 bg-cyan-500/10 text-cyan-200">
-                    <span className="h-2 w-2 shrink-0 rounded-full bg-cyan-400" />
-                  </div>
-                </div>
-                <div className="min-w-0 truncate text-sm leading-6 text-slate-400">
-                  Before discount and tax.
-                </div>
-              </div>
-            </div>
+        {error ? <AixiaAlert tone="error">{error}</AixiaAlert> : null}
 
-            <div className="group relative min-h-[156px] overflow-hidden rounded-[28px] border border-white/10 bg-white/[0.045] p-5 backdrop-blur-xl transition hover:border-white/20 hover:bg-white/[0.055]">
-              <div className="pointer-events-none absolute inset-0 bg-gradient-to-br from-amber-500/20 via-amber-400/10 to-transparent opacity-70" />
-              <div className="relative flex h-full flex-col justify-between gap-5">
-                <div className="flex items-start justify-between gap-4">
-                  <div className="min-w-0">
-                    <div className="text-[11px] font-semibold uppercase tracking-[0.2em] text-slate-500">
-                      Discount
-                    </div>
-                    <div className="mt-2 truncate text-3xl font-semibold tracking-[-0.035em] text-amber-100">
-                      {formatFinanceMoney(
-                        financialSummary?.discount,
-                        printableCurrencyCode
-                      )}
-                    </div>
-                  </div>
-                  <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-2xl border border-amber-400/20 bg-amber-500/10 text-amber-200">
-                    <span className="h-2 w-2 shrink-0 rounded-full bg-amber-400" />
-                  </div>
-                </div>
-                <div className="min-w-0 truncate text-sm leading-6 text-slate-400">
-                  Commercial adjustment.
-                </div>
-              </div>
-            </div>
-
-            <div className="group relative min-h-[156px] overflow-hidden rounded-[28px] border border-white/10 bg-white/[0.045] p-5 backdrop-blur-xl transition hover:border-white/20 hover:bg-white/[0.055]">
-              <div className="pointer-events-none absolute inset-0 bg-gradient-to-br from-violet-500/20 via-violet-400/10 to-transparent opacity-70" />
-              <div className="relative flex h-full flex-col justify-between gap-5">
-                <div className="flex items-start justify-between gap-4">
-                  <div className="min-w-0">
-                    <div className="text-[11px] font-semibold uppercase tracking-[0.2em] text-slate-500">
-                      Tax
-                    </div>
-                    <div className="mt-2 truncate text-3xl font-semibold tracking-[-0.035em] text-violet-100">
-                      {formatFinanceMoney(
-                        financialSummary?.tax,
-                        printableCurrencyCode
-                      )}
-                    </div>
-                  </div>
-                  <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-2xl border border-violet-400/20 bg-violet-500/10 text-violet-200">
-                    <span className="h-2 w-2 shrink-0 rounded-full bg-violet-400" />
-                  </div>
-                </div>
-                <div className="min-w-0 truncate text-sm leading-6 text-slate-400">
-                  Calculated from line items.
-                </div>
-              </div>
-            </div>
-
-            <div className="group relative min-h-[156px] overflow-hidden rounded-[28px] border border-white/10 bg-white/[0.045] p-5 backdrop-blur-xl transition hover:border-white/20 hover:bg-white/[0.055]">
-              <div className="pointer-events-none absolute inset-0 bg-gradient-to-br from-emerald-500/20 via-emerald-400/10 to-transparent opacity-70" />
-              <div className="relative flex h-full flex-col justify-between gap-5">
-                <div className="flex items-start justify-between gap-4">
-                  <div className="min-w-0">
-                    <div className="text-[11px] font-semibold uppercase tracking-[0.2em] text-slate-500">
-                      Total
-                    </div>
-                    <div className="mt-2 truncate text-3xl font-semibold tracking-[-0.035em] text-emerald-100">
-                      {formatFinanceMoney(
-                        financialSummary?.total,
-                        printableCurrencyCode
-                      )}
-                    </div>
-                  </div>
-                  <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-2xl border border-emerald-400/20 bg-emerald-500/10 text-emerald-200">
-                    <span className="h-2 w-2 shrink-0 rounded-full bg-emerald-400" />
-                  </div>
-                </div>
-                <div className="min-w-0 truncate text-sm leading-6 text-slate-400">
-                  Current quotation value.
-                </div>
-              </div>
-            </div>
-          </div>
-
-          <div className="grid grid-cols-1 gap-6 xl:grid-cols-[minmax(0,1.45fr)_420px]">
-            <div className="space-y-6">
-              <Card className={activeSectionClass}>
-                <CardHeader className="flex flex-row items-center justify-between border-b border-white/10 px-5 py-4">
-                  <div className="flex items-center gap-3">
-                    <div className="rounded-2xl border border-cyan-400/15 bg-cyan-500/10 p-3 text-cyan-200">
-                      <FileText className="h-4 w-4" />
-                    </div>
-                    <div>
-                      <CardTitle className="text-sm font-semibold uppercase tracking-[0.18em] text-slate-400">
-                        Document Overview
-                      </CardTitle>
-                      <CardDescription className="mt-1 text-xs text-slate-500">
-                        Document identity, counterparty, dates, status, currency, and project context.
-                      </CardDescription>
-                    </div>
-                  </div>
-
-                  {canEditQuotation ? (
-                    <div className="flex items-center gap-2">
+        <AixiaSmartLayout
+          main={
+            <>
+              <AixiaSection
+                title="Document Overview"
+                description="Document identity, counterparty, dates, status, currency, and project context."
+                icon={FileText}
+                actions={
+                  canEditQuotation ? (
+                    <AixiaActionStack>
                       {editingOverview ? (
                         <>
-                          <Button
+                          <AixiaButton
+                            type="button"
+                            variant="primary"
                             onClick={() => void handleSaveDraftChanges()}
                             disabled={isSavingDraft}
-                            className="h-9 rounded-2xl border border-cyan-400/20 bg-cyan-500 px-3 font-semibold text-slate-950 hover:bg-cyan-400"
                           >
-                            <Save className="mr-2 h-4 w-4" />
+                            <Save className="h-4 w-4" />
                             {isSavingDraft ? "Saving..." : "Save"}
-                          </Button>
-
-                          <Button
-                            variant="outline"
+                          </AixiaButton>
+                          <AixiaButton
+                            type="button"
+                            variant="secondary"
                             onClick={() => setEditingOverview(false)}
-                            className="h-9 rounded-2xl border-white/10 bg-white/[0.05] px-3 text-white hover:bg-white/[0.08]"
                           >
                             Cancel
-                          </Button>
+                          </AixiaButton>
                         </>
                       ) : (
-                        <Button
-                          variant="outline"
+                        <AixiaButton
+                          type="button"
+                          variant="primary"
                           onClick={() => setEditingOverview(true)}
-                          className="h-9 rounded-2xl border-white/10 bg-white/[0.05] px-3 text-white hover:bg-white/[0.08]"
                         >
-                          <SquarePen className="mr-2 h-4 w-4" />
+                          <SquarePen className="h-4 w-4" />
                           Edit
-                        </Button>
+                        </AixiaButton>
                       )}
-                    </div>
-                  ) : null}
-                </CardHeader>
-
-                <CardContent className="grid grid-cols-1 gap-4 p-5 md:grid-cols-3">
-                  <div className={innerPanelClass}>
-                    <div className="text-[11px] uppercase tracking-[0.2em] text-slate-500">
-                      Counterparty Type
-                    </div>
+                    </AixiaActionStack>
+                  ) : null
+                }
+              >
+                <AixiaFormGrid columns="three">
+                  <AixiaFormField>
+                    <AixiaFieldLabel label="Counterparty Type" />
                     {editingOverview ? (
-                      <select
+                      <AixiaSelectField
                         value={counterpartyTypeDraft}
                         onChange={(event) =>
                           setCounterpartyTypeDraft(event.target.value)
                         }
-                        className="mt-2 h-10 w-full rounded-2xl border border-white/10 bg-black/20 px-3 text-sm text-white outline-none transition focus:border-cyan-400/30 focus:bg-black/30"
                       >
                         <option value="client">Client</option>
                         <option value="company">Intercompany</option>
-                      </select>
+                      </AixiaSelectField>
                     ) : (
-                      <div className="mt-2 text-2xl font-semibold text-white">
-                        {quotation.counterparty_type_snapshot ||
+                      <AixiaDisplayBlock
+                        label="Counterparty Type"
+                        value={
+                          quotation.counterparty_type_snapshot ||
                           quotation.counterparty_type ||
-                          "Client"}
-                      </div>
+                          "Client"
+                        }
+                      />
                     )}
-                  </div>
+                  </AixiaFormField>
 
-                  <div className={innerPanelClass}>
-                    <div className="text-[11px] uppercase tracking-[0.2em] text-slate-500">
-                      Client
-                    </div>
+                  <AixiaFormField>
+                    <AixiaFieldLabel label="Client" />
                     {editingOverview ? (
-                      <select
+                      <AixiaSelectField
                         value={clientIdDraft}
-                        onChange={(event) => setClientIdDraft(event.target.value)}
-                        className="mt-2 h-10 w-full rounded-2xl border border-white/10 bg-black/20 px-3 text-sm text-white outline-none transition focus:border-cyan-400/30 focus:bg-black/30"
+                        onChange={(event) =>
+                          setClientIdDraft(event.target.value)
+                        }
                       >
                         <option value="">Select client</option>
                         {clients.map((client) => (
@@ -2173,27 +2066,29 @@ export default function FinanceQuotationDetailPage() {
                             {client.legal_name || client.name}
                           </option>
                         ))}
-                      </select>
+                      </AixiaSelectField>
                     ) : (
-                      <div className="mt-2 text-2xl font-semibold text-white">
-                        {selectedDraftClient?.legal_name ||
+                      <AixiaDisplayBlock
+                        label="Client"
+                        value={
+                          selectedDraftClient?.legal_name ||
                           selectedDraftClient?.name ||
                           quotation.client_legal_name_snapshot ||
                           quotation.client_name_snapshot ||
-                          "—"}
-                      </div>
+                          "—"
+                        }
+                      />
                     )}
-                  </div>
+                  </AixiaFormField>
 
-                  <div className={innerPanelClass}>
-                    <div className="text-[11px] uppercase tracking-[0.2em] text-slate-500">
-                      Issuing Company
-                    </div>
+                  <AixiaFormField>
+                    <AixiaFieldLabel label="Issuing Company" />
                     {editingOverview ? (
-                      <select
+                      <AixiaSelectField
                         value={companyIdDraft}
-                        onChange={(event) => setCompanyIdDraft(event.target.value)}
-                        className="mt-2 h-10 w-full rounded-2xl border border-white/10 bg-black/20 px-3 text-sm text-white outline-none transition focus:border-cyan-400/30 focus:bg-black/30"
+                        onChange={(event) =>
+                          setCompanyIdDraft(event.target.value)
+                        }
                       >
                         <option value="">Select company</option>
                         {companies.map((company) => (
@@ -2201,27 +2096,29 @@ export default function FinanceQuotationDetailPage() {
                             {company.legal_name || company.name}
                           </option>
                         ))}
-                      </select>
+                      </AixiaSelectField>
                     ) : (
-                      <div className="mt-2 text-2xl font-semibold text-white">
-                        {selectedDraftCompany?.legal_name ||
+                      <AixiaDisplayBlock
+                        label="Issuing Company"
+                        value={
+                          selectedDraftCompany?.legal_name ||
                           selectedDraftCompany?.name ||
                           quotation.company_legal_name_snapshot ||
                           quotation.company_name_snapshot ||
-                          "—"}
-                      </div>
+                          "—"
+                        }
+                      />
                     )}
-                  </div>
+                  </AixiaFormField>
 
-                  <div className={innerPanelClass}>
-                    <div className="text-[11px] uppercase tracking-[0.2em] text-slate-500">
-                      Project
-                    </div>
+                  <AixiaFormField>
+                    <AixiaFieldLabel label="Project" />
                     {editingOverview ? (
-                      <select
+                      <AixiaSelectField
                         value={projectIdDraft}
-                        onChange={(event) => setProjectIdDraft(event.target.value)}
-                        className="mt-2 h-10 w-full rounded-2xl border border-white/10 bg-black/20 px-3 text-sm text-white outline-none transition focus:border-cyan-400/30 focus:bg-black/30"
+                        onChange={(event) =>
+                          setProjectIdDraft(event.target.value)
+                        }
                       >
                         <option value="">No project</option>
                         {projects.map((projectItem) => (
@@ -2229,23 +2126,21 @@ export default function FinanceQuotationDetailPage() {
                             {projectItem.name}
                           </option>
                         ))}
-                      </select>
+                      </AixiaSelectField>
                     ) : (
-                      <div className="mt-2 text-2xl font-semibold text-white">
-                        {selectedDraftProject?.name || "—"}
-                      </div>
+                      <AixiaDisplayBlock
+                        label="Project"
+                        value={selectedDraftProject?.name || "—"}
+                      />
                     )}
-                  </div>
+                  </AixiaFormField>
 
-                  <div className={innerPanelClass}>
-                    <div className="text-[11px] uppercase tracking-[0.2em] text-slate-500">
-                      Task
-                    </div>
+                  <AixiaFormField>
+                    <AixiaFieldLabel label="Task" />
                     {editingOverview ? (
-                      <select
+                      <AixiaSelectField
                         value={taskIdDraft}
                         onChange={(event) => setTaskIdDraft(event.target.value)}
-                        className="mt-2 h-10 w-full rounded-2xl border border-white/10 bg-black/20 px-3 text-sm text-white outline-none transition focus:border-cyan-400/30 focus:bg-black/30"
                       >
                         <option value="">No task</option>
                         {filteredDraftTasks.map((taskItem) => (
@@ -2253,23 +2148,23 @@ export default function FinanceQuotationDetailPage() {
                             {taskItem.title}
                           </option>
                         ))}
-                      </select>
+                      </AixiaSelectField>
                     ) : (
-                      <div className="mt-2 text-2xl font-semibold text-white">
-                        {selectedDraftTask?.title || "—"}
-                      </div>
+                      <AixiaDisplayBlock
+                        label="Task"
+                        value={selectedDraftTask?.title || "—"}
+                      />
                     )}
-                  </div>
+                  </AixiaFormField>
 
-                  <div className={innerPanelClass}>
-                    <div className="text-[11px] uppercase tracking-[0.2em] text-slate-500">
-                      Currency
-                    </div>
+                  <AixiaFormField>
+                    <AixiaFieldLabel label="Currency" />
                     {editingOverview ? (
-                      <select
+                      <AixiaSelectField
                         value={currencyIdDraft}
-                        onChange={(event) => setCurrencyIdDraft(event.target.value)}
-                        className="mt-2 h-10 w-full rounded-2xl border border-white/10 bg-black/20 px-3 text-sm text-white outline-none transition focus:border-cyan-400/30 focus:bg-black/30"
+                        onChange={(event) =>
+                          setCurrencyIdDraft(event.target.value)
+                        }
                       >
                         <option value="">Select currency</option>
                         {currencies.map((currency) => (
@@ -2277,132 +2172,111 @@ export default function FinanceQuotationDetailPage() {
                             {currency.currency_code} — {currency.currency_name}
                           </option>
                         ))}
-                      </select>
+                      </AixiaSelectField>
                     ) : (
-                      <div className="mt-2 text-2xl font-semibold text-white">
-                        {selectedDraftCurrency
-                          ? `${selectedDraftCurrency.currency_code} — ${selectedDraftCurrency.currency_name}`
-                          : quotation.currency_code || "USD"}
-                      </div>
+                      <AixiaDisplayBlock
+                        label="Currency"
+                        value={
+                          selectedDraftCurrency
+                            ? `${selectedDraftCurrency.currency_code} — ${selectedDraftCurrency.currency_name}`
+                            : quotation.currency_code || "USD"
+                        }
+                      />
                     )}
-                  </div>
+                  </AixiaFormField>
 
-                  <div className={innerPanelClass}>
-                    <div className="text-[11px] uppercase tracking-[0.2em] text-slate-500">
-                      Issue Date
-                    </div>
+                  <AixiaFormField>
+                    <AixiaFieldLabel label="Issue Date" />
                     {editingOverview ? (
-                      <input
+                      <AixiaInputField
                         type="date"
                         value={issueDateDraft}
-                        onChange={(event) => setIssueDateDraft(event.target.value)}
-                        className="mt-2 h-10 w-full rounded-2xl border border-white/10 bg-black/20 px-3 text-sm text-white outline-none transition focus:border-cyan-400/30 focus:bg-black/30"
+                        onChange={(event) =>
+                          setIssueDateDraft(event.target.value)
+                        }
                       />
                     ) : (
-                      <div className="mt-2 text-2xl font-semibold text-white">
-                        {formatFinanceDate(quotation.issue_date)}
-                      </div>
+                      <AixiaDisplayBlock
+                        label="Issue Date"
+                        value={formatFinanceDate(quotation.issue_date)}
+                      />
                     )}
-                  </div>
+                  </AixiaFormField>
 
-                  <div className={innerPanelClass}>
-                    <div className="text-[11px] uppercase tracking-[0.2em] text-slate-500">
-                      Valid Until
-                    </div>
+                  <AixiaFormField>
+                    <AixiaFieldLabel label="Valid Until" />
                     {editingOverview ? (
-                      <input
+                      <AixiaInputField
                         type="date"
                         value={validUntilDraft}
-                        onChange={(event) => setValidUntilDraft(event.target.value)}
-                        className="mt-2 h-10 w-full rounded-2xl border border-white/10 bg-black/20 px-3 text-sm text-white outline-none transition focus:border-cyan-400/30 focus:bg-black/30"
+                        onChange={(event) =>
+                          setValidUntilDraft(event.target.value)
+                        }
                       />
                     ) : (
-                      <div className="mt-2 text-2xl font-semibold text-white">
-                        {formatFinanceDate(quotation.valid_until)}
-                      </div>
+                      <AixiaDisplayBlock
+                        label="Valid Until"
+                        value={formatFinanceDate(quotation.valid_until)}
+                      />
                     )}
-                  </div>
+                  </AixiaFormField>
 
-                  <div className={innerPanelClass}>
-                    <div className="text-[11px] uppercase tracking-[0.2em] text-slate-500">
-                      Status
-                    </div>
-                    <div className="mt-2">
-                      <Badge
-                        className={`rounded-full border px-3 py-1 text-xs shadow-none ${getQuotationStatusBadgeClasses(
-                          quotation.status
-                        )}`}
-                      >
-                        {getQuotationStatusLabel(quotation.status)}
-                      </Badge>
-                    </div>
-                  </div>
-                </CardContent>
-              </Card>
+                  <AixiaDisplayBlock
+                    label="Status"
+                    value={<AixiaStatusBadge value={quotation.status} />}
+                  />
+                </AixiaFormGrid>
+              </AixiaSection>
 
-              <Card className={activeSectionClass}>
-                <CardHeader className="flex flex-row items-center justify-between border-b border-white/10 px-5 py-4">
-                  <div className="flex items-center gap-3">
-                    <div className="rounded-2xl border border-emerald-400/15 bg-emerald-500/10 p-3 text-emerald-200">
-                      <CheckCircle className="h-4 w-4" />
-                    </div>
-                    <div>
-                      <CardTitle className="text-sm font-semibold uppercase tracking-[0.18em] text-slate-400">
-                        Financial Settings
-                      </CardTitle>
-                      <CardDescription className="mt-1 text-xs text-slate-500">
-                        Payment terms, shipping terms, and issuing bank account from finance master data.
-                      </CardDescription>
-                    </div>
-                  </div>
-
-                  {canEditQuotation ? (
-                    <div className="flex items-center gap-2">
+              <AixiaSection
+                title="Financial Settings"
+                description="Payment terms, shipping terms, and issuing bank account from finance master data."
+                icon={CheckCircle}
+                actions={
+                  canEditQuotation ? (
+                    <AixiaActionStack>
                       {editingFinancialSettings ? (
                         <>
-                          <Button
+                          <AixiaButton
+                            type="button"
+                            variant="primary"
                             onClick={() => void handleSaveDraftChanges()}
                             disabled={isSavingDraft}
-                            className="h-9 rounded-2xl border border-cyan-400/20 bg-cyan-500 px-3 font-semibold text-slate-950 hover:bg-cyan-400"
                           >
-                            <Save className="mr-2 h-4 w-4" />
+                            <Save className="h-4 w-4" />
                             {isSavingDraft ? "Saving..." : "Save"}
-                          </Button>
-
-                          <Button
-                            variant="outline"
+                          </AixiaButton>
+                          <AixiaButton
+                            type="button"
+                            variant="secondary"
                             onClick={() => setEditingFinancialSettings(false)}
-                            className="h-9 rounded-2xl border-white/10 bg-white/[0.05] px-3 text-white hover:bg-white/[0.08]"
                           >
                             Cancel
-                          </Button>
+                          </AixiaButton>
                         </>
                       ) : (
-                        <Button
-                          variant="outline"
+                        <AixiaButton
+                          type="button"
+                          variant="primary"
                           onClick={() => setEditingFinancialSettings(true)}
-                          className="h-9 rounded-2xl border-white/10 bg-white/[0.05] px-3 text-white hover:bg-white/[0.08]"
                         >
-                          <SquarePen className="mr-2 h-4 w-4" />
+                          <SquarePen className="h-4 w-4" />
                           Edit
-                        </Button>
+                        </AixiaButton>
                       )}
-                    </div>
-                  ) : null}
-                </CardHeader>
-
-                <CardContent className="grid grid-cols-1 gap-4 p-5 md:grid-cols-2">
-                  <div className={innerPanelClass}>
-                    <div className="text-[11px] uppercase tracking-[0.2em] text-slate-500">
-                      Payment Terms
-                    </div>
+                    </AixiaActionStack>
+                  ) : null
+                }
+              >
+                <AixiaFormGrid columns="two">
+                  <AixiaFormField>
+                    <AixiaFieldLabel label="Payment Terms" />
                     {editingFinancialSettings ? (
-                      <select
+                      <AixiaSelectField
                         value={paymentTermsIdDraft}
                         onChange={(event) =>
                           setPaymentTermsIdDraft(event.target.value)
                         }
-                        className="mt-2 h-10 w-full rounded-2xl border border-white/10 bg-black/20 px-3 text-sm text-white outline-none transition focus:border-cyan-400/30 focus:bg-black/30"
                       >
                         <option value="">Select payment terms</option>
                         {paymentTerms.map((term) => (
@@ -2410,27 +2284,27 @@ export default function FinanceQuotationDetailPage() {
                             {term.document_label || term.name}
                           </option>
                         ))}
-                      </select>
+                      </AixiaSelectField>
                     ) : (
-                      <div className="mt-2 text-2xl font-semibold text-white">
-                        {getPaymentTermLabel(selectedDraftPaymentTerm) !== "—"
-                          ? getPaymentTermLabel(selectedDraftPaymentTerm)
-                          : quotation.payment_terms_snapshot || "—"}
-                      </div>
+                      <AixiaDisplayBlock
+                        label="Payment Terms"
+                        value={
+                          getPaymentTermLabel(selectedDraftPaymentTerm) !== "—"
+                            ? getPaymentTermLabel(selectedDraftPaymentTerm)
+                            : quotation.payment_terms_snapshot || "—"
+                        }
+                      />
                     )}
-                  </div>
+                  </AixiaFormField>
 
-                  <div className={innerPanelClass}>
-                    <div className="text-[11px] uppercase tracking-[0.2em] text-slate-500">
-                      Shipping Terms
-                    </div>
+                  <AixiaFormField>
+                    <AixiaFieldLabel label="Shipping Terms" />
                     {editingFinancialSettings ? (
-                      <select
+                      <AixiaSelectField
                         value={shippingTermIdDraft}
                         onChange={(event) =>
                           setShippingTermIdDraft(event.target.value)
                         }
-                        className="mt-2 h-10 w-full rounded-2xl border border-white/10 bg-black/20 px-3 text-sm text-white outline-none transition focus:border-cyan-400/30 focus:bg-black/30"
                       >
                         <option value="">Select shipping terms</option>
                         {shippingTerms.map((term) => (
@@ -2438,27 +2312,28 @@ export default function FinanceQuotationDetailPage() {
                             {term.code} — {term.name}
                           </option>
                         ))}
-                      </select>
+                      </AixiaSelectField>
                     ) : (
-                      <div className="mt-2 text-2xl font-semibold text-white">
-                        {getShippingTermLabel(selectedDraftShippingTerm) !== "—"
-                          ? getShippingTermLabel(selectedDraftShippingTerm)
-                          : quotation.shipping_terms_snapshot || "—"}
-                      </div>
+                      <AixiaDisplayBlock
+                        label="Shipping Terms"
+                        value={
+                          getShippingTermLabel(selectedDraftShippingTerm) !==
+                          "—"
+                            ? getShippingTermLabel(selectedDraftShippingTerm)
+                            : quotation.shipping_terms_snapshot || "—"
+                        }
+                      />
                     )}
-                  </div>
+                  </AixiaFormField>
 
-                  <div className={innerPanelClass}>
-                    <div className="text-[11px] uppercase tracking-[0.2em] text-slate-500">
-                      Bank Account
-                    </div>
+                  <AixiaFormField>
+                    <AixiaFieldLabel label="Bank Account" />
                     {editingFinancialSettings ? (
-                      <select
+                      <AixiaSelectField
                         value={bankAccountIdDraft}
                         onChange={(event) =>
                           setBankAccountIdDraft(event.target.value)
                         }
-                        className="mt-2 h-10 w-full rounded-2xl border border-white/10 bg-black/20 px-3 text-sm text-white outline-none transition focus:border-cyan-400/30 focus:bg-black/30"
                       >
                         <option value="">Select bank account</option>
                         {filteredBankAccounts.map((account) => (
@@ -2466,339 +2341,243 @@ export default function FinanceQuotationDetailPage() {
                             {getBankAccountLabel(account)}
                           </option>
                         ))}
-                      </select>
+                      </AixiaSelectField>
                     ) : (
-                      <div className="mt-2 text-2xl font-semibold text-white">
-                        {getBankDisplayName(selectedDraftBankAccount)}
-                      </div>
+                      <AixiaDisplayBlock
+                        label="Bank Account"
+                        value={getBankDisplayName(selectedDraftBankAccount)}
+                      />
                     )}
-                  </div>
+                  </AixiaFormField>
 
-                  <div className={innerPanelClass}>
-                    <div className="text-[11px] uppercase tracking-[0.2em] text-slate-500">
-                      Bank Details
-                    </div>
-                    <div className="mt-2 whitespace-pre-line text-sm leading-6 text-slate-300">
-                      {bankDetailsText || "—"}
-                    </div>
-                  </div>
-                </CardContent>
-              </Card>
+                  <AixiaDisplayBlock
+                    label="Bank Details"
+                    value={bankDetailsText || "—"}
+                  />
+                </AixiaFormGrid>
+              </AixiaSection>
 
-              <Card className={activeSectionClass}>
-                <CardHeader className="flex flex-row items-center justify-between border-b border-white/10 px-5 py-4">
-                  <div className="flex items-center gap-3">
-                    <div className="rounded-2xl border border-cyan-400/15 bg-cyan-500/10 p-3 text-cyan-200">
-                      <CheckCircle className="h-4 w-4" />
-                    </div>
-                    <div>
-                      <CardTitle className="text-sm font-semibold uppercase tracking-[0.18em] text-slate-400">
-                        Document Details
-                      </CardTitle>
-                      <CardDescription className="mt-1 text-xs text-slate-500">
-                        Document-level company, client, bank, financial, and terms snapshots.
-                      </CardDescription>
-                    </div>
-                  </div>
-
-                  {canEditQuotation ? (
-                    <div className="flex items-center gap-2">
+              <AixiaSection
+                title="Document Details"
+                description="Company, recipient, terms, notes, and terms-and-conditions snapshots."
+                icon={CheckCircle}
+                actions={
+                  canEditQuotation ? (
+                    <AixiaActionStack>
                       {editingDocumentDetails ? (
                         <>
-                          <Button
+                          <AixiaButton
+                            type="button"
+                            variant="primary"
                             onClick={() => void handleSaveDraftChanges()}
                             disabled={isSavingDraft}
-                            className="h-9 rounded-2xl border border-cyan-400/20 bg-cyan-500 px-3 text-sm font-semibold text-slate-950 transition hover:bg-cyan-400"
                           >
-                            <Save className="mr-2 h-4 w-4" />
+                            <Save className="h-4 w-4" />
                             {isSavingDraft ? "Saving..." : "Save"}
-                          </Button>
-
-                          <Button
-                            variant="outline"
+                          </AixiaButton>
+                          <AixiaButton
+                            type="button"
+                            variant="secondary"
                             onClick={() => setEditingDocumentDetails(false)}
-                            className="h-9 rounded-2xl border-white/10 bg-white/[0.05] px-3 text-white hover:bg-white/[0.08]"
                           >
                             Cancel
-                          </Button>
+                          </AixiaButton>
                         </>
                       ) : (
-                        <Button
-                          variant="outline"
+                        <AixiaButton
+                          type="button"
+                          variant="primary"
                           onClick={() => setEditingDocumentDetails(true)}
-                          className="h-9 rounded-2xl border-white/10 bg-white/[0.05] px-3 text-white hover:bg-white/[0.08]"
                         >
-                          <SquarePen className="mr-2 h-4 w-4" />
+                          <SquarePen className="h-4 w-4" />
                           Edit Terms
-                        </Button>
+                        </AixiaButton>
                       )}
-                    </div>
-                  ) : null}
-                </CardHeader>
+                    </AixiaActionStack>
+                  ) : null
+                }
+              >
+                <AixiaReviewGrid variant="cards">
+                  <AixiaReviewBlock
+                    label="Issuing Company"
+                    value={
+                      selectedDraftCompany?.legal_name ||
+                      selectedDraftCompany?.name ||
+                      quotation.company_legal_name_snapshot ||
+                      quotation.company_name_snapshot ||
+                      "—"
+                    }
+                    description={
+                      companyAddress ||
+                      quotation.company_email_snapshot ||
+                      "No company address saved."
+                    }
+                    tone="cyan"
+                  />
+                  <AixiaReviewBlock
+                    label="Recipient"
+                    value={
+                      selectedDraftClient?.legal_name ||
+                      selectedDraftClient?.name ||
+                      quotation.client_legal_name_snapshot ||
+                      quotation.client_name_snapshot ||
+                      quotation.counterparty_name_snapshot ||
+                      "—"
+                    }
+                    description={
+                      clientAddress ||
+                      quotation.client_email_snapshot ||
+                      "No recipient address saved."
+                    }
+                    tone="emerald"
+                  />
+                  <AixiaReviewBlock
+                    label="Payment Terms"
+                    value={
+                      quotation.payment_terms_snapshot ||
+                      getPaymentTermLabel(selectedDraftPaymentTerm)
+                    }
+                    description={
+                      quotation.payment_terms_document_text ||
+                      "Document payment wording."
+                    }
+                    tone="amber"
+                  />
+                  <AixiaReviewBlock
+                    label="Shipping Terms"
+                    value={
+                      quotation.shipping_terms_snapshot ||
+                      getShippingTermLabel(selectedDraftShippingTerm)
+                    }
+                    description={`Currency: ${printableCurrencyCode}`}
+                    tone="violet"
+                  />
+                </AixiaReviewGrid>
 
-                <CardContent className="grid grid-cols-1 gap-4 p-5 md:grid-cols-2">
-                  <div className="rounded-[24px] border border-white/10 bg-black/20 p-4">
-                    <div className="text-[11px] uppercase tracking-[0.2em] text-slate-500">
-                      Issuing Company
-                    </div>
-                    <div className="mt-3 text-xl font-semibold leading-tight text-white">
-                      {selectedDraftCompany?.legal_name ||
-                        selectedDraftCompany?.name ||
-                        quotation.company_legal_name_snapshot ||
-                        quotation.company_name_snapshot ||
-                        "—"}
-                    </div>
-                    <div className="mt-4 space-y-2 text-sm leading-6 text-slate-300">
-                      <div>
-                        {selectedDraftCompany?.contact_person ||
-                          quotation.company_contact_person_snapshot ||
-                          "—"}
-                      </div>
-                      <div>
-                        {selectedDraftCompany?.email ||
-                          quotation.company_email_snapshot ||
-                          "—"}
-                      </div>
-                      <div>
-                        {selectedDraftCompany?.phone ||
-                          quotation.company_phone_snapshot ||
-                          "—"}
-                      </div>
-                      <div>{companyAddress || "—"}</div>
-                    </div>
-                  </div>
+                <AixiaFormFullWidth>
+                  <AixiaFieldLabel label="Notes" />
+                  <AixiaDisplayBlock
+                    label="Notes"
+                    value={quotation.notes || "—"}
+                  />
+                </AixiaFormFullWidth>
 
-                  <div className="rounded-[24px] border border-white/10 bg-black/20 p-4">
-                    <div className="text-[11px] uppercase tracking-[0.2em] text-slate-500">
-                      Recipient
-                    </div>
-                    <div className="mt-3 text-xl font-semibold leading-tight text-white">
-                      {selectedDraftClient?.legal_name ||
-                        selectedDraftClient?.name ||
-                        quotation.client_legal_name_snapshot ||
-                        quotation.client_name_snapshot ||
-                        quotation.counterparty_name_snapshot ||
-                        "—"}
-                    </div>
-                    <div className="mt-4 space-y-2 text-sm leading-6 text-slate-300">
-                      <div>
-                        {selectedDraftClient?.contact_person ||
-                          quotation.client_contact_person_snapshot ||
-                          quotation.counterparty_contact_person_snapshot ||
-                          "—"}
-                      </div>
-                      <div>
-                        {selectedDraftClient?.company_email ||
-                          selectedDraftClient?.personnel_email ||
-                          quotation.client_email_snapshot ||
-                          quotation.counterparty_email_snapshot ||
-                          "—"}
-                      </div>
-                      <div>
-                        {selectedDraftClient?.company_phone ||
-                          selectedDraftClient?.personnel_phone ||
-                          quotation.client_phone_snapshot ||
-                          quotation.counterparty_phone_snapshot ||
-                          "—"}
-                      </div>
-                      <div>{clientAddress || "—"}</div>
-                    </div>
-                  </div>
+                <AixiaFormFullWidth>
+                  <AixiaFieldLabel label="Terms & Conditions" />
+                  {editingDocumentDetails ? (
+                    <AixiaTextareaField
+                      value={termsAndConditionsDraft}
+                      onChange={(event) =>
+                        setTermsAndConditionsDraft(event.target.value)
+                      }
+                      rows={7}
+                    />
+                  ) : (
+                    <AixiaDisplayBlock
+                      label="Terms & Conditions"
+                      value={quotation.terms_and_conditions_snapshot || "—"}
+                    />
+                  )}
+                </AixiaFormFullWidth>
+              </AixiaSection>
 
-                  <div className="rounded-[24px] border border-white/10 bg-black/20 p-4 md:col-span-2">
-                    <div className="grid grid-cols-1 gap-4 md:grid-cols-4">
-                      <div>
-                        <div className="text-[11px] uppercase tracking-[0.2em] text-slate-500">
-                          Payment Terms
-                        </div>
-                        <div className="mt-2 text-sm font-semibold text-white">
-                          {getPaymentTermLabel(selectedDraftPaymentTerm) !== "—"
-                            ? getPaymentTermLabel(selectedDraftPaymentTerm)
-                            : quotation.payment_terms_snapshot || "—"}
-                        </div>
-                      </div>
-
-                      <div>
-                        <div className="text-[11px] uppercase tracking-[0.2em] text-slate-500">
-                          Shipping Terms
-                        </div>
-                        <div className="mt-2 text-sm font-semibold text-white">
-                          {getShippingTermLabel(selectedDraftShippingTerm) !== "—"
-                            ? getShippingTermLabel(selectedDraftShippingTerm)
-                            : quotation.shipping_terms_snapshot || "—"}
-                        </div>
-                      </div>
-
-                      <div>
-                        <div className="text-[11px] uppercase tracking-[0.2em] text-slate-500">
-                          Currency
-                        </div>
-                        <div className="mt-2 text-sm font-semibold text-white">
-                          {printableCurrencyCode}
-                        </div>
-                      </div>
-
-                      <div>
-                        <div className="text-[11px] uppercase tracking-[0.2em] text-slate-500">
-                          Project / Task
-                        </div>
-                        <div className="mt-2 text-sm font-semibold text-white">
-                          {[selectedDraftProject?.name, selectedDraftTask?.title]
-                            .filter(Boolean)
-                            .join(" / ") || "—"}
-                        </div>
-                      </div>
-                    </div>
-                  </div>
-
-                  <div className="rounded-[24px] border border-white/10 bg-black/20 p-4 md:col-span-2">
-                    <div className="text-[11px] uppercase tracking-[0.2em] text-slate-500">
-                      Notes
-                    </div>
-                    <div className="mt-3 whitespace-pre-line text-sm leading-6 text-slate-300">
-                      {quotation.notes || "—"}
-                    </div>
-                  </div>
-
-                  <div className="rounded-[24px] border border-white/10 bg-black/20 p-4 md:col-span-2">
-                    <div className="text-[11px] uppercase tracking-[0.2em] text-slate-500">
-                      Terms &amp; Conditions
-                    </div>
-
-                    {editingDocumentDetails ? (
-                      <textarea
-                        value={termsAndConditionsDraft}
-                        onChange={(event) =>
-                          setTermsAndConditionsDraft(event.target.value)
-                        }
-                        rows={7}
-                        className="mt-3 w-full rounded-2xl border border-white/10 bg-black/20 px-4 py-3 text-sm text-white outline-none transition focus:border-cyan-400/30 focus:bg-black/30"
-                      />
-                    ) : (
-                      <div className="mt-3 whitespace-pre-line text-sm leading-6 text-slate-300">
-                        {quotation.terms_and_conditions_snapshot || "—"}
-                      </div>
-                    )}
-                  </div>
-                </CardContent>
-              </Card>
-
-              <Card className={activeSectionClass}>
-                <CardHeader className="flex flex-row items-center justify-between border-b border-white/10 px-5 py-4">
-                  <div className="flex items-center gap-3">
-                    <div className="rounded-2xl border border-cyan-400/15 bg-cyan-500/10 p-3 text-cyan-200">
-                      <SquarePen className="h-4 w-4" />
-                    </div>
-                    <div>
-                      <CardTitle className="text-sm font-semibold uppercase tracking-[0.18em] text-slate-400">
-                        Line Items
-                      </CardTitle>
-                      <CardDescription className="mt-1 text-xs text-slate-500">
-                        Quotation lines stay editable through negotiation, including accepted quotations.
-                      </CardDescription>
-                    </div>
-                  </div>
-
-                  <div className="flex items-center gap-2">
+              <AixiaSection
+                title="Line Items"
+                description="Quotation lines stay editable through negotiation, including accepted quotations."
+                icon={SquarePen}
+                smartScroll
+                itemCount={(editingLines ? lineItemsDraft : lineItems).length}
+                actions={
+                  <AixiaActionStack>
                     {editingLines ? (
-                      <Button
+                      <AixiaButton
+                        type="button"
+                        variant="primary"
                         onClick={() => void handleSaveDraftChanges()}
                         disabled={isSavingDraft}
-                        className="h-9 rounded-2xl border border-cyan-400/20 bg-cyan-500 px-3 text-sm font-semibold text-slate-950 transition hover:bg-cyan-400"
                       >
-                        <Save className="mr-2 h-4 w-4" />
+                        <Save className="h-4 w-4" />
                         {isSavingDraft ? "Saving..." : "Save"}
-                      </Button>
+                      </AixiaButton>
                     ) : null}
-
                     {editingLines && canEditQuotation ? (
-                      <Button
-                        variant="outline"
+                      <AixiaButton
+                        type="button"
+                        variant="secondary"
                         onClick={addDraftLineItem}
-                        className="h-9 rounded-2xl border-white/10 bg-white/[0.05] px-3 text-white hover:bg-white/[0.08]"
                       >
                         Add Row
-                      </Button>
+                      </AixiaButton>
                     ) : null}
-
                     {canEditQuotation ? (
-                      <Button
-                        variant="outline"
+                      <AixiaButton
+                        type="button"
+                        variant="primary"
                         onClick={() => setEditingLines((current) => !current)}
-                        className="h-9 rounded-2xl border-white/10 bg-white/[0.05] px-3 text-white hover:bg-white/[0.08]"
                       >
-                        <SquarePen className="mr-2 h-4 w-4" />
+                        <SquarePen className="h-4 w-4" />
                         {editingLines ? "Close" : "Edit"}
-                      </Button>
+                      </AixiaButton>
                     ) : null}
-                  </div>
-                </CardHeader>
-
-                <CardContent className="max-h-[720px] space-y-3 overflow-y-auto p-5 pr-4">
-                  {(editingLines ? lineItemsDraft : lineItems).map((row, index) => {
+                  </AixiaActionStack>
+                }
+              >
+                {(editingLines ? lineItemsDraft : lineItems).map(
+                  (row, index) => {
                     const editable = editingLines;
-
+                    const editableRow = row as EditableLineItem;
+                    const readOnlyRow = row as QuotationLineItemRow;
                     const editableBase = Math.max(
-                      toNumber((row as EditableLineItem).quantity) *
-                        toNumber((row as EditableLineItem).unit_price) -
-                        (toNumber((row as EditableLineItem).discount) > 0
-                          ? toNumber((row as EditableLineItem).discount)
-                          : toNumber((row as EditableLineItem).quantity) *
-                              toNumber((row as EditableLineItem).unit_price) *
-                              (toNumber((row as EditableLineItem).discount_rate) /
-                                100)),
-                      0
+                      toNumber(editableRow.quantity) *
+                        toNumber(editableRow.unit_price) -
+                        (toNumber(editableRow.discount) > 0
+                          ? toNumber(editableRow.discount)
+                          : toNumber(editableRow.quantity) *
+                            toNumber(editableRow.unit_price) *
+                            (toNumber(editableRow.discount_rate) / 100)),
+                      0,
                     );
-
                     const editableTaxRate =
                       taxCodes.find(
-                        (entry) =>
-                          entry.id === (row as EditableLineItem).tax_code_id
-                      )?.rate_percent ??
-                      toNumber((row as EditableLineItem).tax_rate);
-
+                        (entry) => entry.id === editableRow.tax_code_id,
+                      )?.rate_percent ?? toNumber(editableRow.tax_rate);
                     const rowTotal = editable
                       ? editableBase +
                         editableBase * (toNumber(String(editableTaxRate)) / 100)
-                      : toNumber((row as QuotationLineItemRow).line_total);
+                      : toNumber(readOnlyRow.line_total);
 
                     return (
-                      <div
-                        key={(row as EditableLineItem | QuotationLineItemRow).id}
-                        className="rounded-[24px] border border-white/10 bg-black/20 p-4"
+                      <AixiaFormRowCard
+                        key={
+                          (row as EditableLineItem | QuotationLineItemRow).id
+                        }
+                        title={`Line ${index + 1}`}
+                        description={
+                          editable
+                            ? "Editable quotation line"
+                            : readOnlyRow.item_name ||
+                              readOnlyRow.description ||
+                              "Quotation line"
+                        }
+                        onRemove={
+                          editable && canEditQuotation
+                            ? () => removeDraftLineItem(editableRow.id)
+                            : undefined
+                        }
+                        removeDisabled={lineItemsDraft.length === 1}
                       >
-                        <div className="mb-4 flex items-center justify-between gap-4">
-                          <div className="text-sm font-semibold text-white">
-                            Line {index + 1}
-                          </div>
-
-                          {editable && canEditQuotation ? (
-                            <Button
-                              variant="outline"
-                              onClick={() =>
-                                removeDraftLineItem((row as EditableLineItem).id)
-                              }
-                              disabled={lineItemsDraft.length === 1}
-                              className="h-9 rounded-2xl border-white/10 bg-white/[0.05] px-3 text-white hover:bg-white/[0.08]"
-                            >
-                              <Trash2 className="h-4 w-4" />
-                            </Button>
-                          ) : null}
-                        </div>
-
-                        <div className="grid grid-cols-1 gap-4 md:grid-cols-12">
-                          <label className="space-y-2 md:col-span-3">
-                            <div className={labelClass}>Item</div>
+                        <AixiaFormGrid columns="three">
+                          <AixiaFormField>
+                            <AixiaFieldLabel label="Item" />
                             {editable ? (
-                              <select
-                                value={(row as EditableLineItem).item_id}
+                              <AixiaSelectField
+                                value={editableRow.item_id}
                                 onChange={(event) =>
                                   applyDraftItemSelection(
-                                    (row as EditableLineItem).id,
-                                    event.target.value
+                                    editableRow.id,
+                                    event.target.value,
                                   )
                                 }
-                                className={fieldShellClass}
                               >
                                 <option value="">Select item</option>
                                 {items.map((item) => (
@@ -2806,177 +2585,147 @@ export default function FinanceQuotationDetailPage() {
                                     {item.name}
                                   </option>
                                 ))}
-                              </select>
+                              </AixiaSelectField>
                             ) : (
-                              <div className={readOnlyFieldClass}>
-                                {(row as QuotationLineItemRow).item_name || "—"}
-                              </div>
+                              <AixiaDisplayBlock
+                                label="Item"
+                                value={readOnlyRow.item_name || "—"}
+                              />
                             )}
-                          </label>
+                          </AixiaFormField>
 
-                          <label className="space-y-2 md:col-span-4">
-                            <div className={labelClass}>Description</div>
+                          <AixiaFormField>
+                            <AixiaFieldLabel label="Description" />
                             {editable ? (
-                              <input
-                                value={(row as EditableLineItem).description}
+                              <AixiaInputField
+                                value={editableRow.description}
                                 onChange={(event) =>
                                   setLineItemsDraft((current) =>
                                     current.map((entry) =>
-                                      entry.id === (row as EditableLineItem).id
+                                      entry.id === editableRow.id
                                         ? {
                                             ...entry,
                                             description: event.target.value,
                                           }
-                                        : entry
-                                    )
+                                        : entry,
+                                    ),
                                   )
                                 }
-                                className={fieldShellClass}
                               />
                             ) : (
-                              <div className={readOnlyFieldClass}>
-                                {(row as QuotationLineItemRow).description || "—"}
-                              </div>
+                              <AixiaDisplayBlock
+                                label="Description"
+                                value={readOnlyRow.description || "—"}
+                              />
                             )}
-                          </label>
+                          </AixiaFormField>
 
-                          <label className="space-y-2 md:col-span-1">
-                            <div className={labelClass}>Qty</div>
+                          <AixiaFormField>
+                            <AixiaFieldLabel label="Quantity" />
                             {editable ? (
-                              <input
-                                value={(row as EditableLineItem).quantity}
+                              <AixiaInputField
+                                value={editableRow.quantity}
                                 onChange={(event) =>
                                   setLineItemsDraft((current) =>
                                     current.map((entry) =>
-                                      entry.id === (row as EditableLineItem).id
-                                        ? { ...entry, quantity: event.target.value }
-                                        : entry
-                                    )
-                                  )
-                                }
-                                className={fieldShellClass}
-                              />
-                            ) : (
-                              <div className={readOnlyFieldClass}>
-                                {toNumber((row as QuotationLineItemRow).quantity)}
-                              </div>
-                            )}
-                          </label>
-
-                          <label className="space-y-2 md:col-span-2">
-                            <div className={labelClass}>Unit</div>
-                            {editable ? (
-                              <select
-                                value={(row as EditableLineItem).unit_of_measure_id}
-                                onChange={(event) =>
-                                  setLineItemsDraft((current) =>
-                                    current.map((entry) =>
-                                      entry.id === (row as EditableLineItem).id
+                                      entry.id === editableRow.id
                                         ? {
                                             ...entry,
-                                            unit_of_measure_id: event.target.value,
+                                            quantity: event.target.value,
                                           }
-                                        : entry
-                                    )
+                                        : entry,
+                                    ),
                                   )
                                 }
-                                className={fieldShellClass}
-                              >
-                                <option value="">Select unit</option>
-                                {unitsOfMeasure.map((unit) => (
-                                  <option key={unit.id} value={unit.id}>
-                                    {unit.name}
-                                  </option>
-                                ))}
-                              </select>
+                              />
                             ) : (
-                              <div className={readOnlyFieldClass}>—</div>
+                              <AixiaDisplayBlock
+                                label="Quantity"
+                                value={toNumber(readOnlyRow.quantity)}
+                              />
                             )}
-                          </label>
+                          </AixiaFormField>
 
-                          <label className="space-y-2 md:col-span-2">
-                            <div className={labelClass}>Unit Price</div>
+                          <AixiaFormField>
+                            <AixiaFieldLabel label="Unit Price" />
                             {editable ? (
-                              <input
-                                value={(row as EditableLineItem).unit_price}
+                              <AixiaInputField
+                                value={editableRow.unit_price}
                                 onChange={(event) =>
                                   setLineItemsDraft((current) =>
                                     current.map((entry) =>
-                                      entry.id === (row as EditableLineItem).id
+                                      entry.id === editableRow.id
                                         ? {
                                             ...entry,
                                             unit_price: event.target.value,
                                           }
-                                        : entry
-                                    )
+                                        : entry,
+                                    ),
                                   )
                                 }
-                                className={fieldShellClass}
                               />
                             ) : (
-                              <div className={readOnlyFieldClass}>
-                                {formatFinanceMoney(
-                                  toNumber((row as QuotationLineItemRow).unit_price),
-                                  printableCurrencyCode
+                              <AixiaDisplayBlock
+                                label="Unit Price"
+                                value={formatFinanceMoney(
+                                  toNumber(readOnlyRow.unit_price),
+                                  printableCurrencyCode,
                                 )}
-                              </div>
+                              />
                             )}
-                          </label>
+                          </AixiaFormField>
 
-                          <label className="space-y-2 md:col-span-1">
-                            <div className={labelClass}>Discount</div>
+                          <AixiaFormField>
+                            <AixiaFieldLabel label="Discount %" />
                             {editable ? (
-                              <input
-                                value={(row as EditableLineItem).discount_rate}
+                              <AixiaInputField
+                                value={editableRow.discount_rate}
                                 onChange={(event) =>
                                   setLineItemsDraft((current) =>
                                     current.map((entry) =>
-                                      entry.id === (row as EditableLineItem).id
+                                      entry.id === editableRow.id
                                         ? {
                                             ...entry,
                                             discount_rate: event.target.value,
                                             discount: "0",
                                           }
-                                        : entry
-                                    )
+                                        : entry,
+                                    ),
                                   )
                                 }
-                                className={fieldShellClass}
                               />
                             ) : (
-                              <div className={readOnlyFieldClass}>
-                                {toNumber(
-                                  (row as QuotationLineItemRow).discount_rate
-                                ).toFixed(2)}
-                                %
-                              </div>
+                              <AixiaDisplayBlock
+                                label="Discount"
+                                value={`${toNumber(readOnlyRow.discount_rate).toFixed(2)}%`}
+                              />
                             )}
-                          </label>
+                          </AixiaFormField>
 
-                          <label className="space-y-2 md:col-span-2">
-                            <div className={labelClass}>Tax Code</div>
+                          <AixiaFormField>
+                            <AixiaFieldLabel label="Tax Code" />
                             {editable ? (
-                              <select
-                                value={(row as EditableLineItem).tax_code_id}
+                              <AixiaSelectField
+                                value={editableRow.tax_code_id}
                                 onChange={(event) =>
                                   setLineItemsDraft((current) =>
                                     current.map((entry) =>
-                                      entry.id === (row as EditableLineItem).id
+                                      entry.id === editableRow.id
                                         ? {
                                             ...entry,
                                             tax_code_id: event.target.value,
                                             tax_rate: String(
                                               taxCodes.find(
                                                 (code) =>
-                                                  code.id === event.target.value
-                                              )?.rate_percent ?? 0
+                                                  code.id ===
+                                                  event.target.value,
+                                              )?.rate_percent ?? 0,
                                             ),
                                           }
-                                        : entry
-                                    )
+                                        : entry,
+                                    ),
                                   )
                                 }
-                                className={fieldShellClass}
                               >
                                 <option value="">Select tax</option>
                                 {taxCodes.map((taxCode) => (
@@ -2984,372 +2733,243 @@ export default function FinanceQuotationDetailPage() {
                                     {taxCode.name}
                                   </option>
                                 ))}
-                              </select>
+                              </AixiaSelectField>
                             ) : (
-                              <div className={readOnlyFieldClass}>
-                                {toNumber(
-                                  (row as QuotationLineItemRow).tax_rate
-                                ).toFixed(2)}
-                                %
-                              </div>
+                              <AixiaDisplayBlock
+                                label="Tax"
+                                value={`${toNumber(readOnlyRow.tax_rate).toFixed(2)}%`}
+                              />
                             )}
-                          </label>
+                          </AixiaFormField>
 
-                          <label className="space-y-2 md:col-span-2">
-                            <div className={labelClass}>Revenue Category</div>
-                            {editable ? (
-                              <select
-                                value={(row as EditableLineItem).revenue_category_id}
-                                onChange={(event) =>
-                                  setLineItemsDraft((current) =>
-                                    current.map((entry) =>
-                                      entry.id === (row as EditableLineItem).id
-                                        ? {
-                                            ...entry,
-                                            revenue_category_id: event.target.value,
-                                          }
-                                        : entry
-                                    )
-                                  )
-                                }
-                                className={fieldShellClass}
-                              >
-                                <option value="">Select category</option>
-                                {revenueCategories.map((category) => (
-                                  <option key={category.id} value={category.id}>
-                                    {category.name}
-                                  </option>
-                                ))}
-                              </select>
-                            ) : (
-                              <div className={readOnlyFieldClass}>—</div>
+                          <AixiaDisplayBlock
+                            label="Line Total"
+                            value={formatFinanceMoney(
+                              rowTotal,
+                              printableCurrencyCode,
                             )}
-                          </label>
-
-                          <div className="space-y-2 md:col-span-2">
-                            <div className={labelClass}>Line Total</div>
-                            <div className="flex min-h-[44px] items-center rounded-2xl border border-cyan-400/15 bg-cyan-500/10 px-4 text-sm font-semibold text-cyan-100">
-                              {formatFinanceMoney(rowTotal, printableCurrencyCode)}
-                            </div>
-                          </div>
-                        </div>
-                      </div>
+                          />
+                        </AixiaFormGrid>
+                      </AixiaFormRowCard>
                     );
-                  })}
-                </CardContent>
-              </Card>
-            </div>
-
-            <div className="space-y-6">
-              <Card className={activeSectionClass}>
-                <CardHeader className="border-b border-white/10 px-5 py-4">
-                  <CardTitle className="text-sm font-semibold uppercase tracking-[0.18em] text-slate-400">
-                    Financial Summary
-                  </CardTitle>
-                  <CardDescription className="mt-1 text-xs text-slate-500">
-                    Live quotation totals and document currency view.
-                  </CardDescription>
-                </CardHeader>
-
-                <CardContent className="space-y-3 p-5">
-                  <div className={innerPanelClass}>
-                    <div className="text-[11px] uppercase tracking-[0.2em] text-slate-500">
-                      Subtotal
-                    </div>
-                    <div className="mt-2 text-2xl font-semibold text-white">
-                      {formatFinanceMoney(
-                        financialSummary?.subtotal,
-                        printableCurrencyCode
-                      )}
-                    </div>
-                  </div>
-
-                  <div className={innerPanelClass}>
-                    <div className="text-[11px] uppercase tracking-[0.2em] text-slate-500">
-                      Discount
-                    </div>
-                    <div className="mt-2 text-2xl font-semibold text-white">
-                      {formatFinanceMoney(
-                        financialSummary?.discount,
-                        printableCurrencyCode
-                      )}
-                    </div>
-                  </div>
-
-                  <div className={innerPanelClass}>
-                    <div className="text-[11px] uppercase tracking-[0.2em] text-slate-500">
-                      Tax
-                    </div>
-                    <div className="mt-2 text-2xl font-semibold text-white">
-                      {formatFinanceMoney(
-                        financialSummary?.tax,
-                        printableCurrencyCode
-                      )}
-                    </div>
-                  </div>
-
-                  <div className="rounded-[24px] border border-cyan-400/20 bg-cyan-500/10 p-4">
-                    <div className="text-[11px] uppercase tracking-[0.2em] text-cyan-200/80">
-                      Total
-                    </div>
-                    <div className="mt-2 text-2xl font-semibold text-white">
-                      {formatFinanceMoney(
-                        financialSummary?.total,
-                        printableCurrencyCode
-                      )}
-                    </div>
-                  </div>
-                </CardContent>
-              </Card>
-
-              <Card className={activeSectionClass}>
-                <CardHeader className="border-b border-white/10 px-5 py-4">
-                  <CardTitle className="text-sm font-semibold uppercase tracking-[0.18em] text-slate-400">
-                    Linked Client PO
-                  </CardTitle>
-                  <CardDescription className="mt-1 text-xs text-slate-500">
-                    Downstream client purchase order created from this quotation.
-                  </CardDescription>
-                </CardHeader>
-
-                <CardContent className="space-y-3 p-5">
-                  {!linkedClientPO ? (
-                    <div className="rounded-[24px] border border-white/10 bg-black/20 px-4 py-4 text-sm text-slate-500">
-                      No linked client PO yet.
-                    </div>
-                  ) : (
-                    <>
-                      <div className={innerPanelClass}>
-                        <div className="text-[11px] uppercase tracking-[0.2em] text-slate-500">
-                          Client PO Number
-                        </div>
-                        <div className="mt-2 text-base font-semibold text-white">
-                          {linkedClientPO.client_po_number || "—"}
-                        </div>
-                      </div>
-
-                      <div className={innerPanelClass}>
-                        <div className="text-[11px] uppercase tracking-[0.2em] text-slate-500">
-                          External PO Number
-                        </div>
-                        <div className="mt-2 text-base font-semibold text-white">
-                          {linkedClientPO.external_po_number || "—"}
-                        </div>
-                      </div>
-
-                      <div className={innerPanelClass}>
-                        <div className="text-[11px] uppercase tracking-[0.2em] text-slate-500">
-                          Status
-                        </div>
-                        <div className="mt-2 text-base font-semibold text-white">
-                          {linkedClientPO.status || "—"}
-                        </div>
-                      </div>
-
-                      <div className={innerPanelClass}>
-                        <div className="text-[11px] uppercase tracking-[0.2em] text-slate-500">
-                          Received At
-                        </div>
-                        <div className="mt-2 text-base font-semibold text-white">
-                          {formatFinanceDate(linkedClientPO.received_at)}
-                        </div>
-                      </div>
-
-                      <div className={innerPanelClass}>
-                        <div className="text-[11px] uppercase tracking-[0.2em] text-slate-500">
-                          Amount
-                        </div>
-                        <div className="mt-2 text-base font-semibold text-white">
-                          {formatFinanceMoney(
-                            linkedClientPO.total_amount,
-                            printableCurrencyCode
-                          )}
-                        </div>
-                      </div>
-                    </>
-                  )}
-                </CardContent>
-              </Card>
-
-              {error ? (
-                <div className="rounded-[24px] border border-rose-400/20 bg-rose-500/10 px-4 py-3 text-sm text-rose-200">
-                  {error}
-                </div>
-              ) : null}
-            </div>
-          </div>
-        </div>
-      </div>
-
-      {showArchivePopup ? (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 px-4 py-6 backdrop-blur-sm">
-          <div className="flex max-h-[85vh] w-full max-w-6xl flex-col overflow-hidden rounded-[30px] border border-white/10 bg-[#0b0f1a]/95 shadow-[0_25px_80px_rgba(0,0,0,0.45)] backdrop-blur-2xl">
-            <div className="flex items-center justify-between border-b border-white/10 px-6 py-5">
-              <div>
-                <div className="text-lg font-semibold text-white">
-                  Quotation Archive
-                </div>
-                <div className="mt-1 text-sm text-slate-500">
-                  Archived records can be restored. Deleted records can be
-                  restored or permanently deleted.
-                </div>
-              </div>
-
-              <button
-                type="button"
-                onClick={() => setShowArchivePopup(false)}
-                className="rounded-xl border border-white/10 bg-white/[0.05] px-3 py-2 text-sm text-slate-300 hover:bg-white/[0.08]"
+                  },
+                )}
+              </AixiaSection>
+            </>
+          }
+          side={
+            <>
+              <AixiaSection
+                title="Financial Summary"
+                description="Live quotation totals."
+                icon={Wallet}
               >
-                Close
-              </button>
-            </div>
+                <AixiaReviewGrid variant="stack">
+                  <AixiaReviewBlock
+                    label="Subtotal"
+                    value={formatFinanceMoney(
+                      financialSummary?.subtotal,
+                      printableCurrencyCode,
+                    )}
+                    tone="cyan"
+                  />
+                  <AixiaReviewBlock
+                    label="Discount"
+                    value={formatFinanceMoney(
+                      financialSummary?.discount,
+                      printableCurrencyCode,
+                    )}
+                    tone="amber"
+                  />
+                  <AixiaReviewBlock
+                    label="Tax"
+                    value={formatFinanceMoney(
+                      financialSummary?.tax,
+                      printableCurrencyCode,
+                    )}
+                    tone="violet"
+                  />
+                  <AixiaReviewBlock
+                    label="Total"
+                    value={formatFinanceMoney(
+                      financialSummary?.total,
+                      printableCurrencyCode,
+                    )}
+                    tone="emerald"
+                  />
+                </AixiaReviewGrid>
+              </AixiaSection>
 
-            <div className="flex items-center gap-2 border-b border-white/10 px-6 py-4">
-              <button
-                type="button"
-                onClick={() => setArchiveTab("archived")}
-                className={`rounded-xl px-4 py-2 text-sm transition ${
-                  archiveTab === "archived"
-                    ? "bg-white/10 text-white"
-                    : "text-white/55 hover:bg-white/5 hover:text-white/80"
-                }`}
+              <AixiaSection
+                title="Linked Client PO"
+                description="Downstream client purchase order created from this quotation."
+                icon={Link2}
               >
-                Archived
-              </button>
+                {!linkedClientPO ? (
+                  <AixiaEmptyState
+                    icon={Link2}
+                    title="No linked client PO"
+                    description="No client purchase order has been saved from this quotation yet."
+                  />
+                ) : (
+                  <AixiaActionCard
+                    label="Client PO"
+                    value={linkedClientPO.client_po_number || "Client PO"}
+                    description={`Status: ${linkedClientPO.status || "—"}`}
+                    icon={FileText}
+                    tone="violet"
+                    actionLabel="Open"
+                    onClick={() =>
+                      navigate(
+                        `/finance/transactions/customer-pos/${linkedClientPO.id}`,
+                      )
+                    }
+                    meta={[
+                      {
+                        label: "External",
+                        value: linkedClientPO.external_po_number || "—",
+                      },
+                      {
+                        label: "Received",
+                        value: formatFinanceDate(linkedClientPO.received_at),
+                      },
+                      {
+                        label: "Amount",
+                        value: formatFinanceMoney(
+                          linkedClientPO.total_amount,
+                          printableCurrencyCode,
+                        ),
+                      },
+                    ]}
+                  />
+                )}
+              </AixiaSection>
 
-              <button
-                type="button"
-                onClick={() => setArchiveTab("deleted")}
-                className={`rounded-xl px-4 py-2 text-sm transition ${
-                  archiveTab === "deleted"
-                    ? "bg-rose-500/15 text-rose-200"
-                    : "text-white/55 hover:bg-white/5 hover:text-white/80"
-                }`}
+              <AixiaSection
+                title="Archive Center"
+                description="Open archived and deleted quotation records."
+                icon={Archive}
               >
-                Deleted
-              </button>
-            </div>
+                <AixiaActionCard
+                  label="Archive"
+                  value={`${archiveItems.length} records`}
+                  description="Archived records can be restored. Deleted records can be restored or permanently deleted."
+                  icon={Archive}
+                  tone="rose"
+                  actionLabel="Open Archive"
+                  onClick={() => setShowArchivePopup(true)}
+                />
+              </AixiaSection>
+            </>
+          }
+          sidebar="narrow"
+          bottomSpan="auto"
+          sideRebalance="last-to-bottom"
+        />
 
-            <div className="overflow-y-auto p-6">
-              {visibleArchiveItems.length === 0 ? (
-                <div className="rounded-[24px] border border-white/10 bg-black/20 px-4 py-8 text-sm text-slate-500">
-                  No {archiveTab} quotations found.
-                </div>
-              ) : (
-                <div className="overflow-x-auto rounded-[24px] border border-white/10">
-                  <div className="max-h-[720px] overflow-y-auto">
-                    <table className="w-full min-w-[1020px] border-collapse">
-                      <thead>
-                        <tr className="border-b border-white/10 bg-black/20 text-left text-[11px] uppercase tracking-[0.18em] text-slate-500">
-                          <th className="sticky top-0 z-10 bg-black/80 px-5 py-4 font-semibold">
-                            Quotation No.
-                          </th>
-                          <th className="sticky top-0 z-10 bg-black/80 px-5 py-4 font-semibold">
-                            Client
-                          </th>
-                          <th className="sticky top-0 z-10 bg-black/80 px-5 py-4 font-semibold">
-                            Company
-                          </th>
-                          <th className="sticky top-0 z-10 bg-black/80 px-5 py-4 text-right font-semibold">
-                            Total
-                          </th>
-                          <th className="sticky top-0 z-10 bg-black/80 px-5 py-4 font-semibold">
-                            Status
-                          </th>
-                          <th className="sticky top-0 z-10 bg-black/80 px-5 py-4 font-semibold">
-                            Updated
-                          </th>
-                          <th className="sticky top-0 z-10 bg-black/80 px-5 py-4 text-right font-semibold">
-                            Actions
-                          </th>
-                        </tr>
-                      </thead>
+        <AixiaArchiveManagerModal
+          open={showArchivePopup}
+          title="Quotation Archive"
+          description="Archived records can be restored. Deleted records can be restored or permanently deleted."
+          archivedCount={archivedCount}
+          deletedCount={deletedCount}
+          activeTab={archiveTab}
+          onTabChange={setArchiveTab}
+          onClose={() => setShowArchivePopup(false)}
+          maxWidthClassName="max-w-6xl"
+        >
+          {visibleArchiveItems.length === 0 ? (
+            <AixiaEmptyState
+              icon={Archive}
+              title={`No ${archiveTab} quotations`}
+              description={`There are no ${archiveTab} quotation records to show.`}
+            />
+          ) : (
+            <AixiaTableShell
+              variant="archive"
+              minWidthClassName="min-w-[1020px]"
+            >
+              <thead>
+                <tr>
+                  <th>Quotation No.</th>
+                  <th>Client</th>
+                  <th>Company</th>
+                  <th>Total</th>
+                  <th>Status</th>
+                  <th>Updated</th>
+                  <th>Actions</th>
+                </tr>
+              </thead>
+              <tbody>
+                {visibleArchiveItems.map((item) => (
+                  <tr key={item.id}>
+                    <AixiaTableTextCell
+                      primary={item.quotation_number || "Quotation"}
+                      secondary={item.id}
+                      width="lg"
+                    />
+                    <AixiaTableTextCell
+                      primary={item.client_name_snapshot || "—"}
+                      width="lg"
+                    />
+                    <AixiaTableTextCell
+                      primary={item.company_name_snapshot || "—"}
+                      width="lg"
+                    />
+                    <AixiaTableTextCell
+                      primary={formatFinanceMoney(
+                        item.total_amount,
+                        printableCurrencyCode,
+                      )}
+                      width="md"
+                    />
+                    <AixiaTableBadgeCell>
+                      <AixiaStatusBadge value={item.status} />
+                    </AixiaTableBadgeCell>
+                    <AixiaTableDateCell>
+                      {formatFinanceDate(item.updated_at)}
+                    </AixiaTableDateCell>
+                    <AixiaTableActionsCell>
+                      <AixiaButton
+                        type="button"
+                        variant="primary"
+                        onClick={() =>
+                          navigate(
+                            `/finance/transactions/quotations/${item.id}`,
+                          )
+                        }
+                      >
+                        <Eye className="h-4 w-4" />
+                        Open
+                      </AixiaButton>
+                      <AixiaButton
+                        type="button"
+                        variant="secondary"
+                        onClick={() => void handleRestore(item.id)}
+                      >
+                        <RotateCcw className="h-4 w-4" />
+                        Restore
+                      </AixiaButton>
+                      {archiveTab === "deleted" ? (
+                        <AixiaButton
+                          type="button"
+                          variant="danger"
+                          onClick={() => void handleHardDelete(item.id)}
+                        >
+                          <Trash2 className="h-4 w-4" />
+                          Delete Permanently
+                        </AixiaButton>
+                      ) : null}
+                    </AixiaTableActionsCell>
+                  </tr>
+                ))}
+              </tbody>
+            </AixiaTableShell>
+          )}
+        </AixiaArchiveManagerModal>
+      </AixiaPage>
 
-                      <tbody className="divide-y divide-white/5">
-                        {visibleArchiveItems.map((item) => (
-                          <tr
-                            key={item.id}
-                            className="text-sm text-slate-300 transition hover:bg-white/[0.035]"
-                          >
-                            <td className="px-5 py-4 font-semibold text-white">
-                              {item.quotation_number || "Quotation"}
-                            </td>
-
-                            <td className="px-5 py-4">
-                              {item.client_name_snapshot || "—"}
-                            </td>
-
-                            <td className="px-5 py-4">
-                              {item.company_name_snapshot || "—"}
-                            </td>
-
-                            <td className="px-5 py-4 text-right font-semibold text-white">
-                              {formatFinanceMoney(
-                                item.total_amount,
-                                printableCurrencyCode
-                              )}
-                            </td>
-
-                            <td className="px-5 py-4">
-                              <Badge
-                                className={`rounded-full border px-3 py-1 text-xs shadow-none ${getQuotationStatusBadgeClasses(
-                                  item.status
-                                )}`}
-                              >
-                                {getQuotationStatusLabel(item.status)}
-                              </Badge>
-                            </td>
-
-                            <td className="px-5 py-4">
-                              {formatFinanceDate(item.updated_at)}
-                            </td>
-
-                            <td className="px-5 py-4">
-                              <div className="flex justify-end gap-2">
-                                <Button
-                                  variant="outline"
-                                  onClick={() =>
-                                    navigate(
-                                      `/finance/transactions/quotations/${item.id}`
-                                    )
-                                  }
-                                  className="h-9 rounded-2xl border-cyan-400/20 bg-cyan-500/10 px-3 text-cyan-200 hover:bg-cyan-500/20"
-                                >
-                                  Open
-                                </Button>
-
-                                <Button
-                                  variant="outline"
-                                  onClick={() => void handleRestore(item.id)}
-                                  className="h-9 rounded-2xl border-emerald-400/20 bg-emerald-500/10 px-3 text-emerald-200 hover:bg-emerald-500/20"
-                                >
-                                  Restore
-                                </Button>
-
-                                {archiveTab === "deleted" ? (
-                                  <Button
-                                    variant="outline"
-                                    onClick={() => void handleHardDelete(item.id)}
-                                    className="h-9 rounded-2xl border-rose-500/30 bg-rose-500/10 px-3 text-rose-200 hover:bg-rose-500/20"
-                                  >
-                                    Hard Delete
-                                  </Button>
-                                ) : null}
-                              </div>
-                            </td>
-                          </tr>
-                        ))}
-                      </tbody>
-                    </table>
-                  </div>
-                </div>
-              )}
-            </div>
-          </div>
-        </div>
-      ) : null}
-
-      <div style={{ display: "none" }}>
+      <div className="aixia-print-only">
         <div id="quotation-print-root">
           <QuotationPrintDocument
             quotation={quotation}

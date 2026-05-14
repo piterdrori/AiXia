@@ -1412,14 +1412,15 @@ export default function FinanceMasterDataCurrenciesPage() {
             title="Live Currency Converter"
             description="Signature live tool. Convert active master-data currencies using live rates. This quick operational calculator does not save exchange-rate history."
             icon={Calculator}
-            actions={
+          >
+            <AixiaReviewGrid variant="cards">
               <AixiaReviewBlock
                 label="Current Pair"
                 value={`${convertFrom || "—"} → ${convertTo || "—"}`}
                 description="Live converter pair"
               />
-            }
-          >
+            </AixiaReviewGrid>
+
             <AixiaFormGrid columns="three">
               <AixiaFormField>
                 <AixiaFieldLabel label="Amount" />

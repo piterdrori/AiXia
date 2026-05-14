@@ -2,7 +2,6 @@ import { useCallback, useEffect, useMemo, useState } from "react";
 import { useNavigate, useParams } from "react-router-dom";
 import {
   Archive,
-  ArrowRight,
   CheckCircle,
   CreditCard,
   FileText,
@@ -10,25 +9,42 @@ import {
   Paperclip,
   Receipt,
   RotateCcw,
-  Save,
-  SquarePen,
   Trash2,
-  Upload,
   Wallet,
   XCircle,
 } from "lucide-react";
 
-import { supabase } from "@/lib/supabase";
-import { convertCurrencyLive } from "@/lib/integrations/frankfurter";
-import { Badge } from "@/components/ui/badge";
-import { Button } from "@/components/ui/button";
 import {
-  Card,
-  CardContent,
-  CardDescription,
-  CardHeader,
-  CardTitle,
-} from "@/components/ui/card";
+  AixiaActionStack,
+  AixiaAlert,
+  AixiaAlertText,
+  AixiaBadge,
+  AixiaButton,
+  AixiaDetailSection,
+  AixiaDisplayBlock,
+  AixiaDocumentUploadPanel,
+  AixiaFieldLabel,
+  AixiaFormField,
+  AixiaFormFullWidth,
+  AixiaFormGrid,
+  AixiaHero,
+  AixiaInputField,
+  AixiaLoadingState,
+  AixiaMetricCard,
+  AixiaMetricGrid,
+  AixiaNotFoundState,
+  AixiaPage,
+  AixiaReviewBlock,
+  AixiaReviewGrid,
+  AixiaSection,
+  AixiaSelectField,
+  AixiaSmartLayout,
+  AixiaStatusBadge,
+  AixiaTextareaField,
+  type AixiaDocumentUploadAttachment,
+} from "@/components/aixia";
+import { convertCurrencyLive } from "@/lib/integrations/frankfurter";
+import { supabase } from "@/lib/supabase";
 
 type PaymentMadeStatus =
   | "draft"
@@ -281,21 +297,6 @@ function normalizeStatusLabel(status: string | null | undefined) {
   return status.replaceAll("_", " ");
 }
 
-function getStatusBadgeClass(status: PaymentMadeStatus | string) {
-  switch (status) {
-    case "draft":
-      return "border-slate-400/20 bg-slate-500/10 text-slate-300";
-    case "confirmed":
-      return "border-emerald-400/20 bg-emerald-500/10 text-emerald-200";
-    case "cancelled":
-    case "deleted":
-      return "border-rose-400/20 bg-rose-500/10 text-rose-200";
-    case "archived":
-    default:
-      return "border-white/10 bg-white/[0.05] text-slate-300";
-  }
-}
-
 function getBillDocumentLabel(documentType: string | null | undefined) {
   return documentType === "vendor_pi" ? "Vendor PI" : "Vendor Invoice";
 }
@@ -352,6 +353,14 @@ function buildCompanyAddress(company: CompanyOption | null) {
 function getBankName(bank: BankAccountOption | null) {
   if (!bank) return "No bank selected";
   return bank.bank_name || bank.institution_name || "Bank";
+}
+
+function getVendorName(vendor: VendorOption | null) {
+  return vendor?.legal_name || vendor?.name || "Unknown vendor";
+}
+
+function getCompanyName(company: CompanyOption | null) {
+  return company?.legal_name || company?.name || "No company linked";
 }
 
 function resolveUploadMimeType(file: File) {
@@ -467,7 +476,6 @@ export default function FinancePaymentMadeDetailPage() {
   const [errorMessage, setErrorMessage] = useState("");
 
   const [isOverviewEditMode, setIsOverviewEditMode] = useState(false);
-  const [isUploadPanelOpen, setIsUploadPanelOpen] = useState(false);
   const [uploadFile, setUploadFile] = useState<File | null>(null);
 
   const [overviewDraft, setOverviewDraft] = useState<OverviewDraft>({
@@ -542,9 +550,7 @@ export default function FinancePaymentMadeDetailPage() {
 
     if (!companyId) return [];
 
-    return bankAccounts.filter(
-      (bank) => bank.company_id === companyId
-    );
+    return bankAccounts.filter((bank) => bank.company_id === companyId);
   }, [bankAccounts, overviewDraft.paid_from_company_id, paidFromCompany?.id]);
 
   const paymentCurrencyCode =
@@ -573,11 +579,40 @@ export default function FinancePaymentMadeDetailPage() {
 
   const canCancel = !!payment && ["draft", "confirmed"].includes(payment.status);
   const canArchive = !!payment && ["draft", "cancelled"].includes(payment.status);
-  const canDelete =
-    !!payment && ["draft", "cancelled"].includes(payment.status);
+  const canDelete = !!payment && ["draft", "cancelled"].includes(payment.status);
   const canRestore = !!payment && ["archived", "deleted"].includes(payment.status);
   const canHardDelete = !!payment && payment.status === "deleted";
   const canUploadProof = !!payment && canEdit;
+
+  const proofRequirementMessage =
+    attachments.length > 0
+      ? "Payment proof is attached and controlled."
+      : canEdit
+        ? "Upload the payment receipt or transfer proof before confirmation."
+        : "No payment proof is attached.";
+
+  const selectedPaymentCurrency = currencies.find(
+    (currency) => currency.currency_code === paymentCurrencyCode
+  );
+
+  const selectedBillCurrency = currencies.find(
+    (currency) => currency.currency_code === billCurrencyCode
+  );
+
+  const uploadAttachments = useMemo<AixiaDocumentUploadAttachment[]>(() => {
+    return attachments.map((attachment) => ({
+      id: attachment.id,
+      fileName: attachment.file_name || "Uploaded payment proof",
+      badge: "Stored",
+      sizeLabel: formatFileSize(attachment.file_size),
+      description: [
+        `Uploaded ${formatDateTime(attachment.created_at)}`,
+        attachment.mime_type,
+      ]
+        .filter(Boolean)
+        .join(" · "),
+    }));
+  }, [attachments]);
 
   const loadLookups = useCallback(async () => {
     const [
@@ -901,45 +936,50 @@ export default function FinancePaymentMadeDetailPage() {
         setPurchaseOrderLink(sourcePurchaseOrder);
         setVendorQuotationLink(sourceVendorQuotation);
 
-        setOverviewDraft({
-          vendor_id: typedPayment.vendor_id || "",
-          paid_from_company_id:
-            typedPayment.paid_from_company_id ||
-            sourceBill?.company_id ||
-            sourcePurchaseOrder?.company_id ||
-            "",
-          bill_id: typedPayment.bill_id || "",
-          payment_date: typedPayment.payment_date || "",
-          amount: String(typedPayment.amount ?? ""),
-          payment_currency_code:
-            typedPayment.payment_currency_code ||
-            sourceBill?.currency_code ||
-            sourcePurchaseOrder?.currency_code ||
-            sourceVendor?.currency_code ||
-            "",
-          bill_currency_code:
-            typedPayment.bill_currency_code ||
-            sourceBill?.currency_code ||
-            sourcePurchaseOrder?.currency_code ||
-            sourceVendor?.currency_code ||
-            "",
-          exchange_rate: String(typedPayment.exchange_rate ?? "1"),
-          converted_amount: String(
-            typedPayment.converted_amount ?? typedPayment.amount ?? ""
-          ),
-          exchange_rate_source: typedPayment.exchange_rate_source || "",
-          exchange_rate_date: typedPayment.exchange_rate_date || "",
-          payment_method_id: typedPayment.payment_method_id || "",
-          paid_from_bank_account_id:
-            typedPayment.paid_from_bank_account_id ||
-            typedPayment.bank_account_id ||
-            "",
-          reference_number: typedPayment.reference_number || "",
-          notes: typedPayment.notes || "",
-        });
+        if (!refreshOnly && !isOverviewEditMode) {
+          setOverviewDraft({
+            vendor_id: typedPayment.vendor_id || "",
+            paid_from_company_id:
+              typedPayment.paid_from_company_id ||
+              sourceBill?.company_id ||
+              sourcePurchaseOrder?.company_id ||
+              "",
+            bill_id: typedPayment.bill_id || "",
+            payment_date: typedPayment.payment_date || "",
+            amount: String(typedPayment.amount ?? ""),
+            payment_currency_code:
+              typedPayment.payment_currency_code ||
+              sourceBill?.currency_code ||
+              sourcePurchaseOrder?.currency_code ||
+              sourceVendor?.currency_code ||
+              "",
+            bill_currency_code:
+              typedPayment.bill_currency_code ||
+              sourceBill?.currency_code ||
+              sourcePurchaseOrder?.currency_code ||
+              sourceVendor?.currency_code ||
+              "",
+            exchange_rate: String(typedPayment.exchange_rate ?? "1"),
+            converted_amount: String(
+              typedPayment.converted_amount ?? typedPayment.amount ?? ""
+            ),
+            exchange_rate_source: typedPayment.exchange_rate_source || "",
+            exchange_rate_date: typedPayment.exchange_rate_date || "",
+            payment_method_id: typedPayment.payment_method_id || "",
+            paid_from_bank_account_id:
+              typedPayment.paid_from_bank_account_id ||
+              typedPayment.bank_account_id ||
+              "",
+            reference_number: typedPayment.reference_number || "",
+            notes: typedPayment.notes || "",
+          });
+        }
       } catch (error) {
         console.error("Failed to load payment made:", error);
-        setErrorMessage("Failed to load payment made.");
+        if (!refreshOnly) {
+          setErrorMessage("Failed to load payment made.");
+          setPayment(null);
+        }
       } finally {
         if (refreshOnly) {
           setIsRefreshing(false);
@@ -948,13 +988,13 @@ export default function FinancePaymentMadeDetailPage() {
         }
       }
     },
-    [id]
+    [id, isOverviewEditMode]
   );
 
   useEffect(() => {
     async function loadPage() {
       try {
-        await Promise.all([loadLookups(), loadPayment()]);
+        await Promise.all([loadLookups(), loadPayment(false)]);
       } catch (error) {
         console.error("Failed to load payment made page:", error);
         setErrorMessage("Failed to load payment made page.");
@@ -998,7 +1038,7 @@ export default function FinancePaymentMadeDetailPage() {
 
     return () => {
       window.clearInterval(intervalId);
-      supabase.removeChannel(channel);
+      void supabase.removeChannel(channel);
     };
   }, [id, loadPayment]);
 
@@ -1019,11 +1059,7 @@ export default function FinancePaymentMadeDetailPage() {
       try {
         setIsConvertingExchangeRate(true);
 
-        const result = await convertCurrencyLive(
-          amount,
-          fromCurrency,
-          toCurrency
-        );
+        const result = await convertCurrencyLive(amount, fromCurrency, toCurrency);
 
         if (isCancelled) return;
 
@@ -1204,7 +1240,6 @@ export default function FinancePaymentMadeDetailPage() {
       await uploadPaymentMadeProof(payment.id, uploadFile, user.id);
 
       setUploadFile(null);
-      setIsUploadPanelOpen(false);
       await loadPayment(true);
     } catch (error) {
       console.error("Failed to upload payment proof:", error);
@@ -1246,9 +1281,7 @@ export default function FinancePaymentMadeDetailPage() {
         await loadPayment(true);
       } catch (error) {
         console.error("Payment made action failed:", error);
-        setErrorMessage(
-          error instanceof Error ? error.message : "Action failed."
-        );
+        setErrorMessage(error instanceof Error ? error.message : "Action failed.");
       } finally {
         setIsRunningAction(false);
       }
@@ -1256,362 +1289,180 @@ export default function FinancePaymentMadeDetailPage() {
     [loadPayment, navigate, payment]
   );
 
-  const fieldClass =
-    "h-11 w-full rounded-2xl border border-white/10 bg-black/20 px-4 text-sm text-white outline-none transition focus:border-emerald-400/30 focus:bg-black/30 disabled:cursor-not-allowed disabled:opacity-60";
-  const readOnlyBoxClass =
-    "flex min-h-[44px] items-center rounded-2xl border border-white/10 bg-black/20 px-4 py-3 text-sm leading-6 text-white";
-  const labelClass = "text-sm font-medium text-slate-300";
-  const sectionCardClass =
-    "overflow-hidden rounded-[30px] border border-white/10 bg-white/[0.045] backdrop-blur-xl";
-  const innerPanelClass =
-    "rounded-[24px] border border-white/10 bg-black/20 p-4";
-  const eyebrowClass =
-    "text-[11px] font-semibold uppercase tracking-[0.2em] text-slate-500";
-
-  if (isLoading || !payment) {
+  if (isLoading) {
     return (
-      <div className="min-h-screen bg-[#05070d] px-4 py-4 text-white md:px-6 md:py-6">
-        <div className="mx-auto flex w-full max-w-[1600px] flex-col gap-6">
-          <div className="rounded-[30px] border border-white/10 bg-white/[0.045] p-6 text-sm text-slate-400 backdrop-blur-xl">
-            Loading payment made...
-          </div>
-        </div>
-      </div>
+      <AixiaLoadingState
+        title="Loading payment made"
+        description="Payment details, linked documents, proof attachments, and lifecycle state are being loaded."
+      />
     );
   }
 
-  const proofRequirementMessage =
-    attachments.length > 0
-      ? "Payment proof is attached and controlled."
-      : canEdit
-        ? "Upload the payment receipt or transfer proof before confirmation."
-        : "No payment proof is attached.";
-
-  const selectedPaymentCurrency = currencies.find(
-    (currency) => currency.currency_code === paymentCurrencyCode
-  );
-
-  const selectedBillCurrency = currencies.find(
-    (currency) => currency.currency_code === billCurrencyCode
-  );
+  if (!payment) {
+    return (
+      <AixiaNotFoundState
+        fullPage
+        title="Payment made not found"
+        description="The requested outgoing payment could not be found or is no longer available."
+        action={
+          <AixiaButton
+            type="button"
+            variant="secondary"
+            onClick={() => navigate("/finance/transactions/payments-made")}
+          >
+            Payments Made
+          </AixiaButton>
+        }
+      />
+    );
+  }
 
   return (
-    <div className="min-h-screen bg-[#05070d] px-4 py-4 text-white md:px-6 md:py-6">
-      <div className="mx-auto flex w-full max-w-[1600px] flex-col gap-6">
-        <header className="relative overflow-hidden rounded-[34px] border border-white/10 bg-white/[0.045] p-6 shadow-2xl shadow-black/30 backdrop-blur-xl">
-          <div className="pointer-events-none absolute inset-0 bg-[radial-gradient(circle_at_top_left,rgba(16,185,129,0.16),transparent_38%),radial-gradient(circle_at_top_right,rgba(6,182,212,0.12),transparent_34%)]" />
+    <AixiaPage>
+      <AixiaHero
+        parentLabel="Payments Made"
+        parentPath="/finance/transactions/payments-made"
+        badges={[
+          { label: "Supplier Procurement", tone: "emerald" },
+          { label: "Payment Made", tone: "cyan" },
+          { label: normalizeStatusLabel(payment.status), tone: payment.status === "confirmed" ? "emerald" : payment.status === "draft" ? "gold" : "rose" },
+          { label: attachmentReady ? "Proof Attached" : "Proof Missing", tone: attachmentReady ? "emerald" : "rose" },
+          ...(isRefreshing ? [{ label: "Syncing", tone: "neutral" as const }] : []),
+        ]}
+        gradientTitle="Payment Reference"
+        title={payment.reference_number || "Payment Made"}
+        description="Outgoing payment connected to the approved vendor PI / invoice. Confirming this payment updates the linked bill paid amount and balance due."
+        actions={
+          <AixiaActionStack>
+            {canConfirm ? (
+              <AixiaButton
+                type="button"
+                variant="primary"
+                onClick={() => void runRpcAction("finance_confirm_payment_made")}
+                disabled={isRunningAction}
+              >
+                <CheckCircle className="h-4 w-4" />
+                Confirm Payment
+              </AixiaButton>
+            ) : null}
 
-          <div className="relative">
-            <button
-              type="button"
-              onClick={() => navigate("/finance/transactions/payments-made")}
-              className="mb-5 inline-flex items-center justify-center gap-2 rounded-full border border-white/10 bg-white/[0.05] px-5 py-2 text-[11px] font-semibold uppercase tracking-[0.22em] text-slate-300 transition hover:border-white/20 hover:bg-white/[0.08] hover:text-white"
+            {canCancel ? (
+              <AixiaButton
+                type="button"
+                variant="danger"
+                onClick={() => void runRpcAction("finance_cancel_payment_made")}
+                disabled={isRunningAction}
+              >
+                <XCircle className="h-4 w-4" />
+                Cancel Payment
+              </AixiaButton>
+            ) : null}
+          </AixiaActionStack>
+        }
+        statusCards={[
+          {
+            label: "Paid To",
+            value: getVendorName(vendor),
+            description: vendor?.code || "Supplier",
+            icon: Receipt,
+            tone: "violet",
+          },
+          {
+            label: "Paid From",
+            value: getCompanyName(paidFromCompany),
+            description: purchaseOrderLink?.purchase_order_number
+              ? `From ${purchaseOrderLink.purchase_order_number}`
+              : "Loaded from linked purchase order",
+            icon: Wallet,
+            tone: "cyan",
+          },
+          {
+            label: "Effective Amount",
+            value: formatMoney(effectiveAmount, billCurrencyCode),
+            description: `Paid: ${formatMoney(paymentAmount, paymentCurrencyCode)}`,
+            icon: CreditCard,
+            tone: "emerald",
+          },
+          {
+            label: "Payment Proof",
+            value: attachmentReady ? "Attached" : "Missing",
+            description: proofRequirementMessage,
+            icon: Paperclip,
+            tone: attachmentReady ? "emerald" : "rose",
+          },
+        ]}
+      />
+
+      <AixiaMetricGrid>
+        <AixiaMetricCard
+          label="Payment Amount"
+          value={formatMoney(paymentAmount, paymentCurrencyCode)}
+          description="Actual outgoing payment currency."
+          icon={Wallet}
+          tone="emerald"
+        />
+        <AixiaMetricCard
+          label="Effective Bill Amount"
+          value={formatMoney(effectiveAmount, billCurrencyCode)}
+          description="Amount applied to the vendor bill."
+          icon={CreditCard}
+          tone="cyan"
+        />
+        <AixiaMetricCard
+          label="Exchange Rate"
+          value={toNumber(payment.exchange_rate || 1)}
+          description={`${paymentCurrencyCode} to ${billCurrencyCode}`}
+          icon={Receipt}
+          tone="violet"
+        />
+        <AixiaMetricCard
+          label="Proof Files"
+          value={attachments.length}
+          description="Payment proof documents stored."
+          icon={Paperclip}
+          tone="gold"
+        />
+      </AixiaMetricGrid>
+
+      {errorMessage ? (
+        <AixiaAlert tone="error">
+          <AixiaAlertText title="Payment made action failed" description={errorMessage} />
+        </AixiaAlert>
+      ) : null}
+
+      <AixiaSmartLayout
+        sidebar="normal"
+        balance="main"
+        sideRebalance="last-to-bottom"
+        main={
+          <>
+            <AixiaDetailSection
+              title="Payment Overview"
+              description="Supplier payment details, paid-from company, bank account, currencies, and exchange-rate control."
+              icon={CreditCard}
+              canEdit={canEdit}
+              isEditing={isOverviewEditMode}
+              isSaving={isSavingOverview || isConvertingExchangeRate}
+              editLabel="Edit Overview"
+              saveLabel={
+                isSavingOverview
+                  ? "Saving..."
+                  : isConvertingExchangeRate
+                    ? "Converting..."
+                    : "Save Payment"
+              }
+              onEdit={() => setIsOverviewEditMode(true)}
+              onCancel={() => {
+                resetOverviewDraft();
+                setIsOverviewEditMode(false);
+              }}
+              onSave={() => void saveOverview()}
             >
-              <ArrowRight className="h-3.5 w-3.5 rotate-180" />
-              Payments Made
-            </button>
-
-            <div className="grid gap-6 xl:grid-cols-[minmax(0,1fr)_620px]">
-              <div>
-                <div className="flex flex-wrap gap-2">
-                  <Badge className="w-fit rounded-full border border-emerald-400/20 bg-emerald-500/10 px-3 py-1 text-[11px] font-semibold uppercase tracking-[0.22em] text-emerald-200 shadow-none">
-                    Supplier Procurement
-                  </Badge>
-
-                  <Badge className="w-fit rounded-full border border-cyan-400/20 bg-cyan-500/10 px-3 py-1 text-[11px] font-semibold uppercase tracking-[0.22em] text-cyan-200 shadow-none">
-                    Payment Made
-                  </Badge>
-
-                  <Badge
-                    className={`w-fit rounded-full border px-3 py-1 text-[11px] font-semibold uppercase tracking-[0.22em] shadow-none ${getStatusBadgeClass(
-                      payment.status
-                    )}`}
-                  >
-                    {normalizeStatusLabel(payment.status)}
-                  </Badge>
-
-                  <Badge
-                    className={`w-fit rounded-full border px-3 py-1 text-[11px] font-semibold uppercase tracking-[0.22em] shadow-none ${
-                      attachmentReady
-                        ? "border-emerald-400/20 bg-emerald-500/10 text-emerald-200"
-                        : "border-rose-400/20 bg-rose-500/10 text-rose-200"
-                    }`}
-                  >
-                    {attachmentReady ? "Proof Attached" : "Proof Missing"}
-                  </Badge>
-
-                  {isRefreshing ? (
-                    <Badge className="w-fit rounded-full border border-white/10 bg-white/[0.05] px-3 py-1 text-[11px] font-semibold uppercase tracking-[0.22em] text-slate-400 shadow-none">
-                      Syncing
-                    </Badge>
-                  ) : null}
-                </div>
-
-                <div className="mt-4">
-                  <div className="text-[11px] font-semibold uppercase tracking-[0.22em] text-slate-500">
-                    Payment Reference
-                  </div>
-                  <h1 className="mt-2 text-3xl font-semibold tracking-[-0.035em] text-white md:text-5xl">
-                    {payment.reference_number || "Payment Made"}
-                  </h1>
-                </div>
-
-                <p className="mt-3 max-w-4xl text-sm leading-6 text-slate-400 md:text-base md:leading-7">
-                  Outgoing payment connected to the approved vendor PI / invoice.
-                  Confirming this payment updates the linked bill paid amount and
-                  balance due.
-                </p>
-
-                <div className="mt-5 flex flex-wrap gap-3">
-                  {canConfirm ? (
-                    <Button
-                      onClick={() =>
-                        void runRpcAction("finance_confirm_payment_made")
-                      }
-                      disabled={isRunningAction}
-                      className="h-11 rounded-2xl border border-emerald-400/20 bg-emerald-500 px-4 text-sm font-semibold text-white transition hover:bg-emerald-400 disabled:cursor-not-allowed disabled:opacity-40"
-                    >
-                      <CheckCircle className="mr-2 h-4 w-4" />
-                      Confirm Payment
-                    </Button>
-                  ) : null}
-
-                  {canCancel ? (
-                    <Button
-                      variant="outline"
-                      onClick={() =>
-                        void runRpcAction("finance_cancel_payment_made")
-                      }
-                      disabled={isRunningAction}
-                      className="h-11 rounded-2xl border-rose-400/20 bg-rose-500/10 px-4 text-rose-200 hover:bg-rose-500/20 disabled:cursor-not-allowed disabled:opacity-40"
-                    >
-                      <XCircle className="mr-2 h-4 w-4" />
-                      Cancel Payment
-                    </Button>
-                  ) : null}
-
-                  {canUploadProof ? (
-                    <Button
-                      variant="outline"
-                      onClick={() => setIsUploadPanelOpen((current) => !current)}
-                      className="h-11 rounded-2xl border-emerald-400/20 bg-emerald-500/10 px-4 text-emerald-200 hover:bg-emerald-500/20"
-                    >
-                      <Upload className="mr-2 h-4 w-4" />
-                      {attachments.length > 0 ? "Upload More" : "Upload Proof"}
-                    </Button>
-                  ) : null}
-
-                  {errorMessage ? (
-                    <div className="flex min-h-11 items-center rounded-2xl border border-rose-400/20 bg-rose-500/10 px-4 text-sm text-rose-200">
-                      {errorMessage}
-                    </div>
-                  ) : null}
-                </div>
-              </div>
-
-               <div className="grid gap-4 sm:grid-cols-2">
-                <div className="min-h-[148px] rounded-[24px] border border-white/10 bg-black/20 p-4">
-                  <div className="flex items-start justify-between gap-3">
-                    <div>
-                      <div className={eyebrowClass}>Paid To</div>
-                      <div className="mt-2 text-xl font-semibold tracking-[-0.035em] text-white">
-                        {vendor?.legal_name || vendor?.name || "Unknown vendor"}
-                      </div>
-                    </div>
-                    <div className="flex h-10 w-10 items-center justify-center rounded-2xl border border-violet-400/20 bg-violet-500/10 text-violet-200">
-                      <Receipt className="h-4 w-4" />
-                    </div>
-                  </div>
-                  <div className="mt-3 text-xs leading-5 text-slate-500">
-                    {vendor?.code || "Supplier"}
-                  </div>
-                </div>
-
-                <div className="min-h-[148px] rounded-[24px] border border-white/10 bg-black/20 p-4">
-                  <div className="flex items-start justify-between gap-3">
-                    <div>
-                      <div className={eyebrowClass}>Paid From</div>
-                      <div className="mt-2 text-xl font-semibold tracking-[-0.035em] text-white">
-                        {paidFromCompany?.legal_name ||
-                          paidFromCompany?.name ||
-                          "No company linked"}
-                      </div>
-                    </div>
-                    <div className="flex h-10 w-10 items-center justify-center rounded-2xl border border-cyan-400/20 bg-cyan-500/10 text-cyan-200">
-                      <Wallet className="h-4 w-4" />
-                    </div>
-                  </div>
-                  <div className="mt-3 text-xs leading-5 text-slate-500">
-                    {purchaseOrderLink?.purchase_order_number
-                      ? `From ${purchaseOrderLink.purchase_order_number}`
-                      : "Loaded from linked purchase order"}
-                  </div>
-                </div>
-
-                <div className="min-h-[148px] rounded-[24px] border border-white/10 bg-black/20 p-4">
-                  <div className={eyebrowClass}>Effective Amount</div>
-                  <div className="mt-2 text-xl font-semibold tracking-[-0.035em] text-white">
-                    {formatMoney(effectiveAmount, billCurrencyCode)}
-                  </div>
-                  <div className="mt-3 text-xs leading-5 text-slate-500">
-                    Paid: {formatMoney(paymentAmount, paymentCurrencyCode)}
-                  </div>
-                </div>
-
-                <div className="min-h-[148px] rounded-[24px] border border-white/10 bg-black/20 p-4">
-                  <div className={eyebrowClass}>Payment Proof</div>
-                  <div
-                    className={`mt-2 text-xl font-semibold tracking-[-0.035em] ${
-                      attachmentReady ? "text-emerald-100" : "text-rose-100"
-                    }`}
-                  >
-                    {attachmentReady ? "Attached" : "Missing"}
-                  </div>
-                  <div className="mt-3 text-xs leading-5 text-slate-500">
-                    {proofRequirementMessage}
-                  </div>
-                </div>
-              </div>
-            </div>
-          </div>
-        </header>
-
-        <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
-          <div className="group relative min-h-[156px] overflow-hidden rounded-[28px] border border-white/10 bg-white/[0.045] p-5 backdrop-blur-xl transition hover:border-white/20 hover:bg-white/[0.055]">
-            <div className="pointer-events-none absolute inset-0 bg-gradient-to-br from-emerald-500/20 via-emerald-400/10 to-transparent opacity-70" />
-            <div className="relative flex h-full flex-col justify-between gap-5">
-              <div>
-                <div className="text-[11px] font-semibold uppercase tracking-[0.2em] text-slate-500">
-                  Payment Amount
-                </div>
-                <div className="mt-2 truncate text-3xl font-semibold tracking-[-0.035em] text-emerald-100">
-                  {formatMoney(paymentAmount, paymentCurrencyCode)}
-                </div>
-              </div>
-              <div className="text-sm leading-6 text-slate-400">
-                Actual outgoing payment currency.
-              </div>
-            </div>
-          </div>
-
-          <div className="group relative min-h-[156px] overflow-hidden rounded-[28px] border border-white/10 bg-white/[0.045] p-5 backdrop-blur-xl transition hover:border-white/20 hover:bg-white/[0.055]">
-            <div className="pointer-events-none absolute inset-0 bg-gradient-to-br from-cyan-500/20 via-cyan-400/10 to-transparent opacity-70" />
-            <div className="relative flex h-full flex-col justify-between gap-5">
-              <div>
-                <div className="text-[11px] font-semibold uppercase tracking-[0.2em] text-slate-500">
-                  Effective Bill Amount
-                </div>
-                <div className="mt-2 truncate text-3xl font-semibold tracking-[-0.035em] text-cyan-100">
-                  {formatMoney(effectiveAmount, billCurrencyCode)}
-                </div>
-              </div>
-              <div className="text-sm leading-6 text-slate-400">
-                Amount applied to the vendor bill.
-              </div>
-            </div>
-          </div>
-
-          <div className="group relative min-h-[156px] overflow-hidden rounded-[28px] border border-white/10 bg-white/[0.045] p-5 backdrop-blur-xl transition hover:border-white/20 hover:bg-white/[0.055]">
-            <div className="pointer-events-none absolute inset-0 bg-gradient-to-br from-violet-500/20 via-violet-400/10 to-transparent opacity-70" />
-            <div className="relative flex h-full flex-col justify-between gap-5">
-              <div>
-                <div className="text-[11px] font-semibold uppercase tracking-[0.2em] text-slate-500">
-                  Exchange Rate
-                </div>
-                <div className="mt-2 truncate text-3xl font-semibold tracking-[-0.035em] text-violet-100">
-                  {toNumber(payment.exchange_rate || 1)}
-                </div>
-              </div>
-              <div className="text-sm leading-6 text-slate-400">
-                {paymentCurrencyCode} to {billCurrencyCode}
-              </div>
-            </div>
-          </div>
-
-          <div className="group relative min-h-[156px] overflow-hidden rounded-[28px] border border-white/10 bg-white/[0.045] p-5 backdrop-blur-xl transition hover:border-white/20 hover:bg-white/[0.055]">
-            <div className="pointer-events-none absolute inset-0 bg-gradient-to-br from-amber-500/20 via-amber-400/10 to-transparent opacity-70" />
-            <div className="relative flex h-full flex-col justify-between gap-5">
-              <div>
-                <div className="text-[11px] font-semibold uppercase tracking-[0.2em] text-slate-500">
-                  Proof Files
-                </div>
-                <div className="mt-2 truncate text-3xl font-semibold tracking-[-0.035em] text-amber-100">
-                  {attachments.length}
-                </div>
-              </div>
-              <div className="text-sm leading-6 text-slate-400">
-                Payment proof documents stored.
-              </div>
-            </div>
-          </div>
-        </div>
-
-        <div className="grid grid-cols-1 gap-6 xl:grid-cols-[minmax(0,1.45fr)_420px]">
-          <div className="space-y-6">
-            <Card className={sectionCardClass}>
-              <CardHeader className="flex flex-col gap-4 border-b border-white/10 px-5 py-4 md:flex-row md:items-center md:justify-between">
-                <div className="flex items-center gap-3">
-                  <div className="rounded-2xl border border-emerald-400/15 bg-emerald-500/10 p-3 text-emerald-200">
-                    <CreditCard className="h-4 w-4" />
-                  </div>
-                  <div>
-                    <CardTitle className="text-sm font-semibold uppercase tracking-[0.18em] text-slate-400">
-                      Payment Overview
-                    </CardTitle>
-                    <CardDescription className="mt-1 text-xs text-slate-500">
-                      Supplier payment details, paid-from company, bank account,
-                      currencies, and exchange-rate control.
-                    </CardDescription>
-                  </div>
-                </div>
-
-                {canEdit ? (
-                  <div className="flex flex-wrap gap-2">
-                    {isOverviewEditMode ? (
-                      <>
-                        <Button
-                          onClick={() => void saveOverview()}
-                          disabled={isSavingOverview || isConvertingExchangeRate}
-                          className="h-10 rounded-2xl border border-emerald-400/20 bg-emerald-500 px-4 text-sm font-semibold text-white transition hover:bg-emerald-400 disabled:cursor-not-allowed disabled:opacity-40"
-                        >
-                          <Save className="mr-2 h-4 w-4" />
-                          {isSavingOverview
-                            ? "Saving..."
-                            : isConvertingExchangeRate
-                              ? "Converting..."
-                              : "Save Payment"}
-                        </Button>
-
-                        <Button
-                          variant="outline"
-                          onClick={() => {
-                            resetOverviewDraft();
-                            setIsOverviewEditMode(false);
-                          }}
-                          className="h-10 rounded-2xl border-white/10 bg-white/[0.05] px-4 text-white hover:bg-white/[0.08]"
-                        >
-                          Cancel
-                        </Button>
-                      </>
-                    ) : (
-                      <Button
-                        variant="outline"
-                        onClick={() => setIsOverviewEditMode(true)}
-                        className="h-10 rounded-2xl border-white/10 bg-white/[0.05] px-4 text-white hover:bg-white/[0.08]"
-                      >
-                        <SquarePen className="mr-2 h-4 w-4" />
-                        Edit Overview
-                      </Button>
-                    )}
-                  </div>
-                ) : null}
-              </CardHeader>
-
-              <CardContent className="grid grid-cols-1 gap-4 p-5 md:grid-cols-2">
-                <label className="space-y-2">
-                  <div className={labelClass}>Vendor / Paid To</div>
+              <AixiaFormGrid>
+                <AixiaFormField>
+                  <AixiaFieldLabel label="Vendor / Paid To" required />
                   {isOverviewEditMode ? (
-                    <select
+                    <AixiaSelectField
                       value={overviewDraft.vendor_id}
                       onChange={(event) =>
                         setOverviewDraft((current) => ({
@@ -1619,7 +1470,6 @@ export default function FinancePaymentMadeDetailPage() {
                           vendor_id: event.target.value,
                         }))
                       }
-                      className={fieldClass}
                     >
                       <option value="">Select vendor</option>
                       {vendors.map((vendorOption) => (
@@ -1628,18 +1478,20 @@ export default function FinancePaymentMadeDetailPage() {
                           {vendorOption.code ? ` — ${vendorOption.code}` : ""}
                         </option>
                       ))}
-                    </select>
+                    </AixiaSelectField>
                   ) : (
-                    <div className={readOnlyBoxClass}>
-                      {vendor?.legal_name || vendor?.name || "Unknown vendor"}
-                    </div>
+                    <AixiaDisplayBlock
+                      label="Vendor / Paid To"
+                      value={getVendorName(vendor)}
+                      detail={vendor?.code || undefined}
+                    />
                   )}
-                </label>
+                </AixiaFormField>
 
-                <label className="space-y-2">
-                  <div className={labelClass}>Paid From / AiXia Company</div>
+                <AixiaFormField>
+                  <AixiaFieldLabel label="Paid From / AiXia Company" required />
                   {isOverviewEditMode ? (
-                    <select
+                    <AixiaSelectField
                       value={overviewDraft.paid_from_company_id}
                       onChange={(event) =>
                         setOverviewDraft((current) => ({
@@ -1649,7 +1501,6 @@ export default function FinancePaymentMadeDetailPage() {
                         }))
                       }
                       disabled={!!billLink}
-                      className={`${fieldClass} disabled:opacity-70`}
                     >
                       <option value="">Select company</option>
                       {companies.map((company) => (
@@ -1657,30 +1508,28 @@ export default function FinancePaymentMadeDetailPage() {
                           {company.legal_name || company.name}
                         </option>
                       ))}
-                    </select>
+                    </AixiaSelectField>
                   ) : (
-                    <div className={readOnlyBoxClass}>
-                      {paidFromCompany?.legal_name ||
-                        paidFromCompany?.name ||
-                        "No company linked"}
-                    </div>
+                    <AixiaDisplayBlock
+                      label="Paid From / AiXia Company"
+                      value={getCompanyName(paidFromCompany)}
+                      detail={purchaseOrderLink?.purchase_order_number || undefined}
+                    />
                   )}
-                </label>
+                </AixiaFormField>
 
-                <div className="space-y-2">
-                  <div className={labelClass}>Linked Vendor Document</div>
-                  <div className={readOnlyBoxClass}>
-                    {billLink?.bill_number || "—"}
-                    {billLink?.external_document_number
-                      ? ` · ${billLink.external_document_number}`
-                      : ""}
-                  </div>
-                </div>
+                <AixiaFormField>
+                  <AixiaDisplayBlock
+                    label="Linked Vendor Document"
+                    value={billLink?.bill_number || "—"}
+                    detail={billLink?.external_document_number || undefined}
+                  />
+                </AixiaFormField>
 
-                <label className="space-y-2">
-                  <div className={labelClass}>Payment Reference Number</div>
+                <AixiaFormField>
+                  <AixiaFieldLabel label="Payment Reference Number" />
                   {isOverviewEditMode ? (
-                    <input
+                    <AixiaInputField
                       value={overviewDraft.reference_number}
                       onChange={(event) =>
                         setOverviewDraft((current) => ({
@@ -1689,19 +1538,19 @@ export default function FinancePaymentMadeDetailPage() {
                         }))
                       }
                       placeholder="Transfer / receipt reference"
-                      className={fieldClass}
                     />
                   ) : (
-                    <div className={readOnlyBoxClass}>
-                      {payment.reference_number || "—"}
-                    </div>
+                    <AixiaDisplayBlock
+                      label="Payment Reference Number"
+                      value={payment.reference_number || "—"}
+                    />
                   )}
-                </label>
+                </AixiaFormField>
 
-                <label className="space-y-2">
-                  <div className={labelClass}>Payment Date</div>
+                <AixiaFormField>
+                  <AixiaFieldLabel label="Payment Date" required />
                   {isOverviewEditMode ? (
-                    <input
+                    <AixiaInputField
                       type="date"
                       value={overviewDraft.payment_date}
                       onChange={(event) =>
@@ -1710,19 +1559,19 @@ export default function FinancePaymentMadeDetailPage() {
                           payment_date: event.target.value,
                         }))
                       }
-                      className={fieldClass}
                     />
                   ) : (
-                    <div className={readOnlyBoxClass}>
-                      {formatDate(payment.payment_date)}
-                    </div>
+                    <AixiaDisplayBlock
+                      label="Payment Date"
+                      value={formatDate(payment.payment_date)}
+                    />
                   )}
-                </label>
+                </AixiaFormField>
 
-                <label className="space-y-2">
-                  <div className={labelClass}>Payment Method</div>
+                <AixiaFormField>
+                  <AixiaFieldLabel label="Payment Method" />
                   {isOverviewEditMode ? (
-                    <select
+                    <AixiaSelectField
                       value={overviewDraft.payment_method_id}
                       onChange={(event) =>
                         setOverviewDraft((current) => ({
@@ -1730,7 +1579,6 @@ export default function FinancePaymentMadeDetailPage() {
                           payment_method_id: event.target.value,
                         }))
                       }
-                      className={fieldClass}
                     >
                       <option value="">Select payment method</option>
                       {paymentMethods.map((method) => (
@@ -1738,18 +1586,19 @@ export default function FinancePaymentMadeDetailPage() {
                           {method.name}
                         </option>
                       ))}
-                    </select>
+                    </AixiaSelectField>
                   ) : (
-                    <div className={readOnlyBoxClass}>
-                      {selectedPaymentMethod?.name || "—"}
-                    </div>
+                    <AixiaDisplayBlock
+                      label="Payment Method"
+                      value={selectedPaymentMethod?.name || "—"}
+                    />
                   )}
-                </label>
+                </AixiaFormField>
 
-                <label className="space-y-2">
-                  <div className={labelClass}>Payment Currency</div>
+                <AixiaFormField>
+                  <AixiaFieldLabel label="Payment Currency" required />
                   {isOverviewEditMode ? (
-                    <select
+                    <AixiaSelectField
                       value={overviewDraft.payment_currency_code}
                       onChange={(event) =>
                         setOverviewDraft((current) => ({
@@ -1757,7 +1606,6 @@ export default function FinancePaymentMadeDetailPage() {
                           payment_currency_code: event.target.value,
                         }))
                       }
-                      className={fieldClass}
                     >
                       <option value="">Select currency</option>
                       {currencies.map((currency) => (
@@ -1765,21 +1613,20 @@ export default function FinancePaymentMadeDetailPage() {
                           {currency.currency_code} — {currency.currency_name}
                         </option>
                       ))}
-                    </select>
+                    </AixiaSelectField>
                   ) : (
-                    <div className={readOnlyBoxClass}>
-                      {paymentCurrencyCode}
-                      {selectedPaymentCurrency?.currency_name
-                        ? ` — ${selectedPaymentCurrency.currency_name}`
-                        : ""}
-                    </div>
+                    <AixiaDisplayBlock
+                      label="Payment Currency"
+                      value={paymentCurrencyCode}
+                      detail={selectedPaymentCurrency?.currency_name || undefined}
+                    />
                   )}
-                </label>
+                </AixiaFormField>
 
-                <label className="space-y-2">
-                  <div className={labelClass}>Bill Currency</div>
+                <AixiaFormField>
+                  <AixiaFieldLabel label="Bill Currency" required />
                   {isOverviewEditMode ? (
-                    <select
+                    <AixiaSelectField
                       value={overviewDraft.bill_currency_code}
                       onChange={(event) =>
                         setOverviewDraft((current) => ({
@@ -1787,7 +1634,6 @@ export default function FinancePaymentMadeDetailPage() {
                           bill_currency_code: event.target.value,
                         }))
                       }
-                      className={fieldClass}
                     >
                       <option value="">Select currency</option>
                       {currencies.map((currency) => (
@@ -1795,21 +1641,20 @@ export default function FinancePaymentMadeDetailPage() {
                           {currency.currency_code} — {currency.currency_name}
                         </option>
                       ))}
-                    </select>
+                    </AixiaSelectField>
                   ) : (
-                    <div className={readOnlyBoxClass}>
-                      {billCurrencyCode}
-                      {selectedBillCurrency?.currency_name
-                        ? ` — ${selectedBillCurrency.currency_name}`
-                        : ""}
-                    </div>
+                    <AixiaDisplayBlock
+                      label="Bill Currency"
+                      value={billCurrencyCode}
+                      detail={selectedBillCurrency?.currency_name || undefined}
+                    />
                   )}
-                </label>
+                </AixiaFormField>
 
-                <label className="space-y-2">
-                  <div className={labelClass}>Amount Paid</div>
+                <AixiaFormField>
+                  <AixiaFieldLabel label="Amount Paid" required />
                   {isOverviewEditMode ? (
-                    <input
+                    <AixiaInputField
                       value={overviewDraft.amount}
                       onChange={(event) =>
                         setOverviewDraft((current) => ({
@@ -1817,46 +1662,50 @@ export default function FinancePaymentMadeDetailPage() {
                           amount: event.target.value,
                         }))
                       }
-                      className={fieldClass}
                     />
                   ) : (
-                    <div className={readOnlyBoxClass}>
-                      {formatMoney(payment.amount, paymentCurrencyCode)}
-                    </div>
+                    <AixiaDisplayBlock
+                      label="Amount Paid"
+                      value={formatMoney(payment.amount, paymentCurrencyCode)}
+                    />
                   )}
-                </label>
+                </AixiaFormField>
 
-                <div className="space-y-2">
-                  <div className={labelClass}>Exchange Rate</div>
-                  <div className={readOnlyBoxClass}>
-                    {isConvertingExchangeRate
-                      ? "Converting..."
-                      : toNumber(
-                          isOverviewEditMode
-                            ? overviewDraft.exchange_rate
-                            : payment.exchange_rate || 1
-                        )}
-                  </div>
-                </div>
+                <AixiaFormField>
+                  <AixiaDisplayBlock
+                    label="Exchange Rate"
+                    value={
+                      isConvertingExchangeRate
+                        ? "Converting..."
+                        : toNumber(
+                            isOverviewEditMode
+                              ? overviewDraft.exchange_rate
+                              : payment.exchange_rate || 1
+                          )
+                    }
+                  />
+                </AixiaFormField>
 
-                <div className="space-y-2">
-                  <div className={labelClass}>Effective Bill Amount</div>
-                  <div className={readOnlyBoxClass}>
-                    {isConvertingExchangeRate
-                      ? "Converting..."
-                      : formatMoney(
-                          isOverviewEditMode
-                            ? overviewDraft.converted_amount
-                            : effectiveAmount,
-                          billCurrencyCode
-                        )}
-                  </div>
-                </div>
+                <AixiaFormField>
+                  <AixiaDisplayBlock
+                    label="Effective Bill Amount"
+                    value={
+                      isConvertingExchangeRate
+                        ? "Converting..."
+                        : formatMoney(
+                            isOverviewEditMode
+                              ? overviewDraft.converted_amount
+                              : effectiveAmount,
+                            billCurrencyCode
+                          )
+                    }
+                  />
+                </AixiaFormField>
 
-                <label className="space-y-2 md:col-span-2">
-                  <div className={labelClass}>Paid From Bank Account</div>
+                <AixiaFormFullWidth>
+                  <AixiaFieldLabel label="Paid From Bank Account" />
                   {isOverviewEditMode ? (
-                    <select
+                    <AixiaSelectField
                       value={overviewDraft.paid_from_bank_account_id}
                       onChange={(event) =>
                         setOverviewDraft((current) => ({
@@ -1864,7 +1713,6 @@ export default function FinancePaymentMadeDetailPage() {
                           paid_from_bank_account_id: event.target.value,
                         }))
                       }
-                      className={fieldClass}
                     >
                       <option value="">Select company bank account</option>
                       {filteredBankAccounts.map((bank) => (
@@ -1873,95 +1721,25 @@ export default function FinancePaymentMadeDetailPage() {
                           {bank.currency_code ? ` — ${bank.currency_code}` : ""}
                         </option>
                       ))}
-                    </select>
+                    </AixiaSelectField>
                   ) : (
-                    <div className={readOnlyBoxClass}>
-                      {selectedBankAccount
-                        ? `${getBankName(selectedBankAccount)} · ${getBankIdentifier(
-                            selectedBankAccount
-                          )}`
-                        : "—"}
-                    </div>
+                    <AixiaDisplayBlock
+                      label="Paid From Bank Account"
+                      value={
+                        selectedBankAccount
+                          ? `${getBankName(selectedBankAccount)} · ${getBankIdentifier(
+                              selectedBankAccount
+                            )}`
+                          : "—"
+                      }
+                    />
                   )}
-                </label>
+                </AixiaFormFullWidth>
 
-                <div className="rounded-[24px] border border-white/10 bg-black/20 p-4">
-                  <div className={eyebrowClass}>Vendor / Paid To</div>
-                  <div className="mt-3 text-xl font-semibold text-white">
-                    {selectedDraftVendor?.legal_name ||
-                      selectedDraftVendor?.name ||
-                      "Unknown vendor"}
-                  </div>
-
-                  <div className="mt-3 space-y-1 text-sm leading-6 text-slate-300">
-                    {selectedDraftVendor?.code ? (
-                      <div>Vendor Code: {selectedDraftVendor.code}</div>
-                    ) : null}
-                    {selectedDraftVendor?.contact_person ? (
-                      <div>Contact: {selectedDraftVendor.contact_person}</div>
-                    ) : null}
-                    {selectedDraftVendor?.email ? (
-                      <div>Email: {selectedDraftVendor.email}</div>
-                    ) : null}
-                    {selectedDraftVendor?.phone ? (
-                      <div>Phone: {selectedDraftVendor.phone}</div>
-                    ) : null}
-                    {buildVendorAddress(selectedDraftVendor) ? (
-                      <div>{buildVendorAddress(selectedDraftVendor)}</div>
-                    ) : null}
-                  </div>
-                </div>
-
-                <div className="rounded-[24px] border border-white/10 bg-black/20 p-4">
-                  <div className={eyebrowClass}>Paid From / AiXia Company</div>
-                  <div className="mt-3 text-xl font-semibold text-white">
-                    {selectedDraftCompany?.legal_name ||
-                      selectedDraftCompany?.name ||
-                      "No company linked"}
-                  </div>
-
-                  <div className="mt-3 space-y-1 text-sm leading-6 text-slate-300">
-                    {selectedDraftCompany?.contact_person ? (
-                      <div>Contact: {selectedDraftCompany.contact_person}</div>
-                    ) : null}
-                    {selectedDraftCompany?.email ? (
-                      <div>Email: {selectedDraftCompany.email}</div>
-                    ) : null}
-                    {selectedDraftCompany?.phone ? (
-                      <div>Phone: {selectedDraftCompany.phone}</div>
-                    ) : null}
-                    {buildCompanyAddress(selectedDraftCompany) ? (
-                      <div>{buildCompanyAddress(selectedDraftCompany)}</div>
-                    ) : null}
-                    {purchaseOrderLink?.purchase_order_number ? (
-                      <div>Linked PO: {purchaseOrderLink.purchase_order_number}</div>
-                    ) : null}
-                  </div>
-                </div>
-
-                <div className="rounded-[24px] border border-white/10 bg-black/20 p-4 md:col-span-2">
-                  <div className={eyebrowClass}>Bank Account Details</div>
-                  <div className="mt-3 text-xl font-semibold text-white">
-                    {selectedBankAccount ? getBankName(selectedBankAccount) : "No bank selected"}
-                  </div>
-
-                  <div className="mt-3 space-y-1 text-sm leading-6 text-slate-300">
-                    {selectedBankAccount?.beneficiary_name ? (
-                      <div>Beneficiary: {selectedBankAccount.beneficiary_name}</div>
-                    ) : null}
-                    {selectedBankAccount ? (
-                      <div>{getBankIdentifier(selectedBankAccount)}</div>
-                    ) : null}
-                    {selectedBankAccount?.currency_code ? (
-                      <div>Currency: {selectedBankAccount.currency_code}</div>
-                    ) : null}
-                  </div>
-                </div>
-
-                <label className="space-y-2 md:col-span-2">
-                  <div className={labelClass}>Notes</div>
+                <AixiaFormFullWidth>
+                  <AixiaFieldLabel label="Notes" />
                   {isOverviewEditMode ? (
-                    <textarea
+                    <AixiaTextareaField
                       value={overviewDraft.notes}
                       onChange={(event) =>
                         setOverviewDraft((current) => ({
@@ -1970,451 +1748,346 @@ export default function FinancePaymentMadeDetailPage() {
                         }))
                       }
                       rows={5}
-                      className="w-full rounded-2xl border border-white/10 bg-black/20 px-4 py-3 text-sm leading-6 text-white outline-none transition focus:border-emerald-400/30 focus:bg-black/30"
                     />
                   ) : (
-                    <div className={`${readOnlyBoxClass} whitespace-pre-line`}>
-                      {payment.notes || "—"}
-                    </div>
+                    <AixiaDisplayBlock label="Notes" value={payment.notes || "—"} />
                   )}
-                </label>
-              </CardContent>
-            </Card>
+                </AixiaFormFullWidth>
+              </AixiaFormGrid>
 
-            <Card className={sectionCardClass}>
-              <CardHeader className="flex flex-col gap-4 border-b border-white/10 px-5 py-4 md:flex-row md:items-center md:justify-between">
-                <div className="flex items-center gap-3">
-                  <div
-                    className={`rounded-2xl border p-3 ${
-                      attachmentReady
-                        ? "border-emerald-400/15 bg-emerald-500/10 text-emerald-200"
-                        : "border-rose-400/15 bg-rose-500/10 text-rose-200"
-                    }`}
-                  >
-                    <Paperclip className="h-4 w-4" />
-                  </div>
-                  <div>
-                    <CardTitle className="text-sm font-semibold uppercase tracking-[0.18em] text-slate-400">
-                      Payment Proof
-                    </CardTitle>
-                    <CardDescription className="mt-1 text-xs text-slate-500">
-                      Transfer receipt or payment confirmation file. Required
-                      before confirmation.
-                    </CardDescription>
-                  </div>
-                </div>
+              <AixiaReviewGrid variant="cards">
+                <AixiaReviewBlock
+                  label="Vendor / Paid To"
+                  value={getVendorName(selectedDraftVendor)}
+                  description={
+                    [
+                      selectedDraftVendor?.code
+                        ? `Vendor Code: ${selectedDraftVendor.code}`
+                        : null,
+                      selectedDraftVendor?.contact_person
+                        ? `Contact: ${selectedDraftVendor.contact_person}`
+                        : null,
+                      selectedDraftVendor?.email
+                        ? `Email: ${selectedDraftVendor.email}`
+                        : null,
+                      selectedDraftVendor?.phone
+                        ? `Phone: ${selectedDraftVendor.phone}`
+                        : null,
+                      buildVendorAddress(selectedDraftVendor) || null,
+                    ]
+                      .filter(Boolean)
+                      .join(" · ")
+                  }
+                  icon={Receipt}
+                  tone="violet"
+                />
 
-                {canUploadProof ? (
-                  <Button
-                    variant="outline"
-                    onClick={() => setIsUploadPanelOpen((current) => !current)}
-                    className="h-10 rounded-2xl border-emerald-400/20 bg-emerald-500/10 px-4 text-emerald-200 hover:bg-emerald-500/20"
-                  >
-                    <Upload className="mr-2 h-4 w-4" />
-                    {isUploadPanelOpen ? "Close Upload" : "Upload Proof"}
-                  </Button>
-                ) : null}
-              </CardHeader>
+                <AixiaReviewBlock
+                  label="Paid From / AiXia Company"
+                  value={getCompanyName(selectedDraftCompany)}
+                  description={
+                    [
+                      selectedDraftCompany?.contact_person
+                        ? `Contact: ${selectedDraftCompany.contact_person}`
+                        : null,
+                      selectedDraftCompany?.email
+                        ? `Email: ${selectedDraftCompany.email}`
+                        : null,
+                      selectedDraftCompany?.phone
+                        ? `Phone: ${selectedDraftCompany.phone}`
+                        : null,
+                      buildCompanyAddress(selectedDraftCompany) || null,
+                      purchaseOrderLink?.purchase_order_number
+                        ? `Linked PO: ${purchaseOrderLink.purchase_order_number}`
+                        : null,
+                    ]
+                      .filter(Boolean)
+                      .join(" · ")
+                  }
+                  icon={Wallet}
+                  tone="cyan"
+                />
 
-              <CardContent className="space-y-4 p-5">
-                <div
-                  className={`rounded-[24px] border p-4 ${
-                    attachmentReady
-                      ? "border-emerald-400/20 bg-emerald-500/10"
-                      : "border-rose-400/20 bg-rose-500/10"
-                  }`}
-                >
-                  <div
-                    className={`text-sm font-semibold ${
-                      attachmentReady ? "text-emerald-100" : "text-rose-100"
-                    }`}
-                  >
-                    {attachmentReady
-                      ? "Payment proof attached"
-                      : "Payment proof missing"}
-                  </div>
-                  <div
-                    className={`mt-2 text-sm leading-6 ${
-                      attachmentReady ? "text-emerald-200/80" : "text-rose-200/80"
-                    }`}
-                  >
-                    {proofRequirementMessage}
-                  </div>
-                </div>
+                <AixiaReviewBlock
+                  label="Bank Account Details"
+                  value={selectedBankAccount ? getBankName(selectedBankAccount) : "No bank selected"}
+                  description={
+                    selectedBankAccount
+                      ? [
+                          selectedBankAccount.beneficiary_name
+                            ? `Beneficiary: ${selectedBankAccount.beneficiary_name}`
+                            : null,
+                          getBankIdentifier(selectedBankAccount),
+                          selectedBankAccount.currency_code
+                            ? `Currency: ${selectedBankAccount.currency_code}`
+                            : null,
+                        ]
+                          .filter(Boolean)
+                          .join(" · ")
+                      : undefined
+                  }
+                  icon={CreditCard}
+                  tone="emerald"
+                />
+              </AixiaReviewGrid>
+            </AixiaDetailSection>
 
-                {attachments.length > 0 ? (
-                  <div className="grid gap-3">
-                    {attachments.map((attachment) => (
-                      <div
-                        key={attachment.id}
-                        className="flex flex-col gap-3 rounded-[20px] border border-white/10 bg-black/20 px-4 py-3 text-sm text-slate-300 md:flex-row md:items-center md:justify-between"
-                      >
-                        <div>
-                          <div className="font-semibold text-white">
-                            {attachment.file_name || "Uploaded payment proof"}
-                          </div>
-                          <div className="mt-1 text-xs text-slate-500">
-                            Uploaded {formatDateTime(attachment.created_at)}
-                            {attachment.file_size
-                              ? ` · ${formatFileSize(attachment.file_size)}`
-                              : ""}
-                          </div>
-                          {attachment.mime_type ? (
-                            <div className="mt-1 text-xs text-slate-600">
-                              {attachment.mime_type}
-                            </div>
-                          ) : null}
-                        </div>
+            <AixiaSection
+              title="Payment Proof"
+              description="Transfer receipt or payment confirmation file. Required before confirmation."
+              icon={Paperclip}
+              badge={
+                <AixiaBadge tone={attachmentReady ? "emerald" : "rose"}>
+                  {attachmentReady ? "Proof Attached" : "Proof Missing"}
+                </AixiaBadge>
+              }
+            >
+              <AixiaDocumentUploadPanel
+                selectedFile={uploadFile}
+                attachments={uploadAttachments}
+                required
+                disabled={!canUploadProof}
+                uploading={isUploading}
+                dropTitle="Upload payment proof"
+                dropDescription="Transfer receipt or payment confirmation file. Accepted formats are controlled by the finance-payment-made-proofs bucket."
+                uploadLabel="Upload Proof"
+                uploadingLabel="Uploading..."
+                selectedFileLabel="Selected payment proof"
+                emptyTitle="Payment proof missing"
+                emptyDescription="Payment proof documents will appear here after upload."
+                requiredMessage={proofRequirementMessage}
+                onFileSelect={setUploadFile}
+                onRemoveSelectedFile={() => setUploadFile(null)}
+                onUpload={() => void uploadProof()}
+              />
+            </AixiaSection>
+          </>
+        }
+        side={
+          <>
+            <AixiaSection
+              title="Payment Summary"
+              description="Outgoing payment amount, proof status, and confirmation state."
+              icon={Wallet}
+              badge={<AixiaStatusBadge value={payment.status} />}
+            >
+              <AixiaReviewGrid variant="compact">
+                <AixiaReviewBlock
+                  label="Payment Amount"
+                  value={formatMoney(paymentAmount, paymentCurrencyCode)}
+                  description={`${paymentCurrencyCode} outgoing payment.`}
+                  tone="emerald"
+                />
+                <AixiaReviewBlock
+                  label="Effective Bill Amount"
+                  value={formatMoney(effectiveAmount, billCurrencyCode)}
+                  description={`${billCurrencyCode} applied to linked bill.`}
+                  tone="cyan"
+                />
+                <AixiaReviewBlock
+                  label="Exchange Rate"
+                  value={toNumber(payment.exchange_rate || 1)}
+                  description={`Source: ${payment.exchange_rate_source || "—"} · Date: ${formatDate(payment.exchange_rate_date)}`}
+                  tone="violet"
+                />
+                <AixiaReviewBlock
+                  label="Proof"
+                  value={attachments.length}
+                  description="Payment proof files stored."
+                  tone={attachmentReady ? "emerald" : "rose"}
+                />
+              </AixiaReviewGrid>
 
-                        <Badge className="w-fit rounded-full border border-emerald-400/20 bg-emerald-500/10 px-3 py-1 text-[11px] uppercase tracking-[0.16em] text-emerald-200 shadow-none">
-                          Stored
-                        </Badge>
-                      </div>
-                    ))}
-                  </div>
-                ) : null}
-
-                {canUploadProof && isUploadPanelOpen ? (
-                  <div className="rounded-[24px] border border-white/10 bg-black/20 p-4">
-                    <div className="text-sm font-semibold text-white">
-                      Upload payment proof
-                    </div>
-                    <div className="mt-1 text-xs leading-5 text-slate-500">
-                      Accepted formats are controlled by the
-                      finance-payment-made-proofs bucket.
-                    </div>
-
-                    <div className="mt-4 space-y-3">
-                      <input
-                        type="file"
-                        onChange={(event) =>
-                          setUploadFile(event.target.files?.[0] || null)
-                        }
-                        className="block w-full text-sm text-white file:mr-4 file:rounded-lg file:border-0 file:bg-white/10 file:px-4 file:py-2 file:text-white hover:file:bg-white/20"
-                      />
-
-                      {uploadFile ? (
-                        <div className="rounded-[18px] border border-emerald-400/20 bg-emerald-500/10 px-4 py-3 text-sm text-emerald-200">
-                          Selected file: {uploadFile.name}
-                        </div>
-                      ) : null}
-
-                      <Button
-                        onClick={() => void uploadProof()}
-                        disabled={!uploadFile || isUploading}
-                        className="h-10 rounded-2xl border border-emerald-400/20 bg-emerald-500 px-4 text-sm font-semibold text-white transition hover:bg-emerald-400 disabled:cursor-not-allowed disabled:opacity-40"
-                      >
-                        <Upload className="mr-2 h-4 w-4" />
-                        {isUploading ? "Uploading..." : "Upload Proof"}
-                      </Button>
-                    </div>
-                  </div>
-                ) : null}
-              </CardContent>
-            </Card>
-          </div>
-
-          <div className="space-y-6">
-            <Card className={sectionCardClass}>
-              <CardHeader className="border-b border-white/10 px-5 py-4">
-                <CardTitle className="text-sm font-semibold uppercase tracking-[0.18em] text-slate-400">
-                  Payment Summary
-                </CardTitle>
-                <CardDescription className="mt-1 text-xs text-slate-500">
-                  Outgoing payment amount, proof status, and confirmation state.
-                </CardDescription>
-              </CardHeader>
-
-              <CardContent className="space-y-3 p-5">
-                <div className={innerPanelClass}>
-                  <div className={eyebrowClass}>Payment Amount</div>
-                  <div className="mt-2 text-2xl font-semibold text-white">
-                    {formatMoney(paymentAmount, paymentCurrencyCode)}
-                  </div>
-                  <div className="mt-2 text-sm leading-6 text-slate-400">
-                    {paymentCurrencyCode} outgoing payment.
-                  </div>
-                </div>
-
-                <div className={innerPanelClass}>
-                  <div className={eyebrowClass}>Effective Bill Amount</div>
-                  <div className="mt-2 text-2xl font-semibold text-white">
-                    {formatMoney(effectiveAmount, billCurrencyCode)}
-                  </div>
-                  <div className="mt-2 text-sm leading-6 text-slate-400">
-                    {billCurrencyCode} applied to linked bill.
-                  </div>
-                </div>
-
-                <div className={innerPanelClass}>
-                  <div className={eyebrowClass}>Exchange Rate</div>
-                  <div className="mt-2 text-2xl font-semibold text-white">
-                    {toNumber(payment.exchange_rate || 1)}
-                  </div>
-                  <div className="mt-2 text-sm leading-6 text-slate-400">
-                    Source: {payment.exchange_rate_source || "—"}
-                    <br />
-                    Date: {formatDate(payment.exchange_rate_date)}
-                  </div>
-                </div>
-
-                <div className={innerPanelClass}>
-                  <div className={eyebrowClass}>Status</div>
-                  <Badge
-                    className={`mt-3 rounded-full border px-3 py-1 text-[11px] font-semibold uppercase tracking-[0.16em] shadow-none ${getStatusBadgeClass(
-                      payment.status
-                    )}`}
-                  >
-                    {normalizeStatusLabel(payment.status)}
-                  </Badge>
-                  <div className="mt-3 text-sm leading-6 text-slate-400">
-                    {canConfirm
-                      ? "Ready for confirmation."
+              <AixiaAlert tone={canConfirm ? "success" : "info"}>
+                <AixiaAlertText
+                  title={
+                    canConfirm
+                      ? "Ready for confirmation"
                       : attachmentReady
-                        ? "Confirmation depends on draft state and linked bill."
-                        : "Upload the payment proof before confirmation."}
-                  </div>
-                </div>
+                        ? "Confirmation depends on draft state and linked bill"
+                        : "Upload payment proof before confirmation"
+                  }
+                  description={proofRequirementMessage}
+                />
+              </AixiaAlert>
+            </AixiaSection>
 
-                <div className={innerPanelClass}>
-                  <div className={eyebrowClass}>Proof</div>
-                  <div className="mt-2 text-2xl font-semibold text-white">
-                    {attachments.length}
-                  </div>
-                  <div className="mt-2 text-sm leading-6 text-slate-400">
-                    Payment proof files stored.
-                  </div>
-                </div>
-              </CardContent>
-            </Card>
-
-            <Card className={sectionCardClass}>
-              <CardHeader className="border-b border-white/10 px-5 py-4">
-                <div className="flex items-center gap-3">
-                  <div className="rounded-2xl border border-violet-400/15 bg-violet-500/10 p-3 text-violet-200">
-                    <Link2 className="h-4 w-4" />
-                  </div>
-                  <div>
-                    <CardTitle className="text-sm font-semibold uppercase tracking-[0.18em] text-slate-400">
-                      Linked Documents
-                    </CardTitle>
-                    <CardDescription className="mt-1 text-xs text-slate-500">
-                      Reverse flow source documents connected to this outgoing
-                      payment.
-                    </CardDescription>
-                  </div>
-                </div>
-              </CardHeader>
-
-              <CardContent className="space-y-3 p-5">
-                <div className={innerPanelClass}>
-                  <div className="flex items-start justify-between gap-3">
-                    <div>
-                      <div className={eyebrowClass}>Vendor PI / Invoice</div>
-                      <div className="mt-2 text-lg font-semibold text-white">
-                        {billLink?.bill_number || "—"}
-                      </div>
-                      <div className="mt-2 text-sm leading-6 text-slate-400">
-                        {billLink
-                          ? `${getBillDocumentLabel(
-                              billLink.document_type
-                            )} · ${
-                              billLink.external_document_number || "No vendor ref"
-                            }`
-                          : "No vendor bill linked."}
-                      </div>
-                    </div>
-
-                    <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-2xl border border-cyan-400/20 bg-cyan-500/10 text-cyan-200">
-                      <FileText className="h-4 w-4" />
-                    </div>
-                  </div>
-
-                  {billLink ? (
-                    <Button
-                      variant="outline"
-                      onClick={() =>
-                        navigate(`/finance/transactions/bills/${billLink.id}`)
-                      }
-                      className="mt-4 h-9 rounded-2xl border-cyan-400/20 bg-cyan-500/10 px-3 text-cyan-200 hover:bg-cyan-500/20"
-                    >
-                      Open Vendor Document
-                    </Button>
-                  ) : null}
-                </div>
-
-                                <div className={innerPanelClass}>
-                  <div className="flex items-start justify-between gap-3">
-                    <div>
-                      <div className={eyebrowClass}>Purchase Order</div>
-                      <div className="mt-2 text-lg font-semibold text-white">
-                        {purchaseOrderLink?.purchase_order_number || "—"}
-                      </div>
-                      <div className="mt-2 text-sm leading-6 text-slate-400">
-                        {purchaseOrderLink
-                          ? `${normalizeStatusLabel(
-                              purchaseOrderLink.status
-                            )} · ${formatMoney(
-                              purchaseOrderLink.total_amount,
-                              purchaseOrderLink.currency_code || billCurrencyCode
-                            )}`
-                          : "No purchase order linked."}
-                      </div>
-                    </div>
-
-                    <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-2xl border border-violet-400/20 bg-violet-500/10 text-violet-200">
-                      <Link2 className="h-4 w-4" />
-                    </div>
-                  </div>
-
-                  {purchaseOrderLink ? (
-                    <Button
-                      variant="outline"
-                      onClick={() =>
-                        navigate(
-                          `/finance/transactions/purchase-orders/${purchaseOrderLink.id}`
-                        )
-                      }
-                      className="mt-4 h-9 rounded-2xl border-violet-400/20 bg-violet-500/10 px-3 text-violet-200 hover:bg-violet-500/20"
-                    >
-                      Open Purchase Order
-                    </Button>
-                  ) : null}
-                </div>
-
-                <div className={innerPanelClass}>
-                  <div className="flex items-start justify-between gap-3">
-                    <div>
-                      <div className={eyebrowClass}>Vendor Quotation</div>
-                      <div className="mt-2 text-lg font-semibold text-white">
-                        {vendorQuotationLink?.vendor_quotation_number || "—"}
-                      </div>
-                      <div className="mt-2 text-sm leading-6 text-slate-400">
-                        {vendorQuotationLink
-                          ? `${normalizeStatusLabel(
-                              vendorQuotationLink.status
-                            )} · ${
-                              vendorQuotationLink.external_quotation_number ||
-                              "No external ref"
-                            }`
-                          : "No vendor quotation linked."}
-                      </div>
-                    </div>
-
-                    <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-2xl border border-amber-400/20 bg-amber-500/10 text-amber-200">
-                      <FileText className="h-4 w-4" />
-                    </div>
-                  </div>
-
-                  {vendorQuotationLink ? (
-                    <Button
-                      variant="outline"
-                      onClick={() =>
-                        navigate(
-                          `/finance/transactions/vendor-quotations/${vendorQuotationLink.id}`
-                        )
-                      }
-                      className="mt-4 h-9 rounded-2xl border-amber-400/20 bg-amber-500/10 px-3 text-amber-200 hover:bg-amber-500/20"
-                    >
-                      Open Vendor Quotation
-                    </Button>
-                  ) : null}
-                </div>
-              </CardContent>
-            </Card>
-
-            <Card className={sectionCardClass}>
-              <CardHeader className="border-b border-white/10 px-5 py-4">
-                <CardTitle className="text-sm font-semibold uppercase tracking-[0.18em] text-slate-400">
-                  Archive
-                </CardTitle>
-                <CardDescription className="mt-1 text-xs text-slate-500">
-                  Same archive/delete behavior as the supplier procurement flow.
-                </CardDescription>
-              </CardHeader>
-
-              <CardContent className="space-y-3 p-5">
-                {canArchive ? (
-                  <Button
-                    variant="outline"
-                    onClick={() =>
-                      void runRpcAction("finance_archive_payment_made")
-                    }
-                    disabled={isRunningAction}
-                    className="h-10 w-full justify-start rounded-2xl border-amber-400/20 bg-amber-500/10 px-4 text-amber-200 hover:bg-amber-500/20 disabled:cursor-not-allowed disabled:opacity-40"
+            <AixiaSection
+              title="Linked Documents"
+              description="Reverse flow source documents connected to this outgoing payment."
+              icon={Link2}
+            >
+              <AixiaReviewGrid variant="stack">
+                <AixiaReviewBlock
+                  label="Vendor PI / Invoice"
+                  value={billLink?.bill_number || "—"}
+                  description={
+                    billLink
+                      ? `${getBillDocumentLabel(billLink.document_type)} · ${
+                          billLink.external_document_number || "No vendor ref"
+                        }`
+                      : "No vendor bill linked."
+                  }
+                  icon={FileText}
+                  tone="cyan"
+                />
+                {billLink ? (
+                  <AixiaButton
+                    type="button"
+                    variant="primary"
+                    onClick={() => navigate(`/finance/transactions/bills/${billLink.id}`)}
                   >
-                    <Archive className="mr-2 h-4 w-4" />
+                    Open Vendor Document
+                  </AixiaButton>
+                ) : null}
+
+                <AixiaReviewBlock
+                  label="Purchase Order"
+                  value={purchaseOrderLink?.purchase_order_number || "—"}
+                  description={
+                    purchaseOrderLink
+                      ? `${normalizeStatusLabel(purchaseOrderLink.status)} · ${formatMoney(
+                          purchaseOrderLink.total_amount,
+                          purchaseOrderLink.currency_code || billCurrencyCode
+                        )}`
+                      : "No purchase order linked."
+                  }
+                  icon={Link2}
+                  tone="violet"
+                />
+                {purchaseOrderLink ? (
+                  <AixiaButton
+                    type="button"
+                    variant="primary"
+                    onClick={() =>
+                      navigate(
+                        `/finance/transactions/purchase-orders/${purchaseOrderLink.id}`
+                      )
+                    }
+                  >
+                    Open Purchase Order
+                  </AixiaButton>
+                ) : null}
+
+                <AixiaReviewBlock
+                  label="Vendor Quotation"
+                  value={vendorQuotationLink?.vendor_quotation_number || "—"}
+                  description={
+                    vendorQuotationLink
+                      ? `${normalizeStatusLabel(vendorQuotationLink.status)} · ${
+                          vendorQuotationLink.external_quotation_number ||
+                          "No external ref"
+                        }`
+                      : "No vendor quotation linked."
+                  }
+                  icon={FileText}
+                  tone="amber"
+                />
+                {vendorQuotationLink ? (
+                  <AixiaButton
+                    type="button"
+                    variant="primary"
+                    onClick={() =>
+                      navigate(
+                        `/finance/transactions/vendor-quotations/${vendorQuotationLink.id}`
+                      )
+                    }
+                  >
+                    Open Vendor Quotation
+                  </AixiaButton>
+                ) : null}
+              </AixiaReviewGrid>
+            </AixiaSection>
+
+            <AixiaSection
+              title="Archive"
+              description="Same archive/delete behavior as the supplier procurement flow."
+              icon={Archive}
+            >
+              <AixiaActionStack>
+                {canArchive ? (
+                  <AixiaButton
+                    type="button"
+                    variant="danger"
+                    onClick={() => void runRpcAction("finance_archive_payment_made")}
+                    disabled={isRunningAction}
+                  >
+                    <Archive className="h-4 w-4" />
                     Archive Payment Made
-                  </Button>
+                  </AixiaButton>
                 ) : null}
 
                 {canDelete ? (
-                  <Button
-                    variant="outline"
-                    onClick={() =>
-                      void runRpcAction("finance_delete_payment_made")
-                    }
+                  <AixiaButton
+                    type="button"
+                    variant="danger"
+                    onClick={() => void runRpcAction("finance_delete_payment_made")}
                     disabled={isRunningAction}
-                    className="h-10 w-full justify-start rounded-2xl border-rose-400/20 bg-rose-500/10 px-4 text-rose-200 hover:bg-rose-500/20 disabled:cursor-not-allowed disabled:opacity-40"
                   >
-                    <Trash2 className="mr-2 h-4 w-4" />
+                    <Trash2 className="h-4 w-4" />
                     Delete Payment Made
-                  </Button>
+                  </AixiaButton>
                 ) : null}
 
                 {canRestore ? (
-                  <Button
-                    variant="outline"
-                    onClick={() =>
-                      void runRpcAction("finance_restore_payment_made")
-                    }
+                  <AixiaButton
+                    type="button"
+                    variant="secondary"
+                    onClick={() => void runRpcAction("finance_restore_payment_made")}
                     disabled={isRunningAction}
-                    className="h-10 w-full justify-start rounded-2xl border-emerald-400/20 bg-emerald-500/10 px-4 text-emerald-200 hover:bg-emerald-500/20 disabled:cursor-not-allowed disabled:opacity-40"
                   >
-                    <RotateCcw className="mr-2 h-4 w-4" />
+                    <RotateCcw className="h-4 w-4" />
                     Restore Payment Made
-                  </Button>
+                  </AixiaButton>
                 ) : null}
 
                 {canHardDelete ? (
-                  <Button
-                    variant="outline"
+                  <AixiaButton
+                    type="button"
+                    variant="danger"
                     onClick={() =>
                       void runRpcAction("finance_hard_delete_payment_made")
                     }
                     disabled={isRunningAction}
-                    className="h-10 w-full justify-start rounded-2xl border-rose-400/30 bg-rose-500/15 px-4 text-rose-100 hover:bg-rose-500/25 disabled:cursor-not-allowed disabled:opacity-40"
                   >
-                    <XCircle className="mr-2 h-4 w-4" />
-                    Hard Delete Permanently
-                  </Button>
+                    <XCircle className="h-4 w-4" />
+                    Delete Permanently
+                  </AixiaButton>
                 ) : null}
+              </AixiaActionStack>
 
-                {!canArchive && !canDelete && !canRestore && !canHardDelete ? (
-                  <div className="rounded-[20px] border border-white/10 bg-black/20 px-4 py-3 text-sm leading-6 text-slate-400">
-                    Archive actions are unavailable for the current payment
-                    state.
-                  </div>
-                ) : null}
+              {!canArchive && !canDelete && !canRestore && !canHardDelete ? (
+                <AixiaAlert tone="info">
+                  <AixiaAlertText
+                    title="Archive actions unavailable"
+                    description="Archive actions are unavailable for the current payment state."
+                  />
+                </AixiaAlert>
+              ) : null}
 
-                <div className="rounded-[20px] border border-emerald-400/15 bg-emerald-500/10 px-4 py-3 text-sm leading-6 text-emerald-100">
-                  Flow: Vendor Quotation → Purchase Order → Vendor PI / Invoice
-                  → Payment Made.
-                </div>
-              </CardContent>
-            </Card>
-          </div>
-        </div>
+              <AixiaAlert tone="success">
+                <AixiaAlertText
+                  title="Supplier procurement flow"
+                  description="Vendor Quotation → Purchase Order → Vendor PI / Invoice → Payment Made."
+                />
+              </AixiaAlert>
+            </AixiaSection>
+          </>
+        }
+      />
 
-        <div className="rounded-[24px] border border-white/10 bg-white/[0.035] p-4 text-xs leading-6 text-slate-500">
-          Payment currency: {paymentCurrencyCode} · Bill currency:{" "}
-          {billCurrencyCode} · Created: {formatDateTime(payment.created_at)} ·
-          Updated: {formatDateTime(payment.updated_at)}
-          {payment.posted_to_ledger
-            ? ` · Ledger posted: ${formatDateTime(payment.ledger_posted_at)}`
-            : " · Ledger posted: No"}
-        </div>
-      </div>
-    </div>
+      <AixiaAlert tone="info">
+        <AixiaAlertText
+          title="System Fields"
+          description={`Payment currency: ${paymentCurrencyCode} · Bill currency: ${billCurrencyCode} · Created: ${formatDateTime(
+            payment.created_at
+          )} · Updated: ${formatDateTime(payment.updated_at)}${
+            payment.posted_to_ledger
+              ? ` · Ledger posted: ${formatDateTime(payment.ledger_posted_at)}`
+              : " · Ledger posted: No"
+          }`}
+        />
+      </AixiaAlert>
+    </AixiaPage>
   );
 }

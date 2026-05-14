@@ -1,25 +1,54 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
-import type { ReactNode } from "react";
-import type { LucideIcon } from "lucide-react";
 import { useNavigate, useParams } from "react-router-dom";
 import {
-  AlertTriangle,
-  ArrowRight,
   Banknote,
   CheckCircle2,
   Clock3,
+  CreditCard,
   FileCheck2,
   FileText,
-  Loader2,
   Receipt,
   ShieldCheck,
-  Sparkles,
   UploadCloud,
   UserRound,
   WalletCards,
 } from "lucide-react";
 
+import {
+  AixiaAlert,
+  AixiaBadge,
+  AixiaButton,
+  AixiaDisplayBlock,
+  AixiaDocumentUploadPanel,
+  type AixiaDocumentUploadAttachment,
+  AixiaEmployeeIdentityCell,
+  AixiaFormFullWidth,
+  AixiaFormGrid,
+  AixiaHero,
+  AixiaLoadingState,
+  AixiaMetricCard,
+  AixiaMetricGrid,
+  AixiaNotFoundState,
+  AixiaPage,
+  AixiaSection,
+  AixiaSmartLayout,
+  AixiaStatusBadge,
+  AixiaTableActionsCell,
+  AixiaTableBadgeCell,
+  AixiaTableShell,
+  AixiaTableTextCell,
+  AixiaValueBlock,
+} from "@/components/aixia";
+import type { FinanceEmployeeIdentity } from "@/lib/finance/employeeIdentity";
+import {
+  getFinanceEmployeePrimaryName,
+  getFinanceEmployeeReferenceLabel,
+  getFinanceEmployeeSearchText,
+  getFinanceEmployeeSecondaryLabel,
+} from "@/lib/finance/employeeIdentity";
 import { supabase } from "@/lib/supabase";
+
+type LoadMode = "initial" | "silent";
 
 type DistributionMetadata = {
   source_area?: string | null;
@@ -216,16 +245,6 @@ type EmployeeRefRow = {
   } | null;
 };
 
-type ProfileRow = {
-  user_id: string;
-  full_name: string | null;
-  display_name: string | null;
-  email: string | null;
-  company: string | null;
-  job_title: string | null;
-  member_type: string | null;
-};
-
 type FundingPoolRow = {
   id: string;
   batch_number: string;
@@ -277,8 +296,11 @@ type AttachmentWithFile = AttachmentRow & {
 
 type EnrichedAllocation = AllocationRow & {
   paycheckRequest: PaycheckRequestRow | null;
+  employeeIdentity: FinanceEmployeeIdentity | null;
   employeeName: string;
   employeeLabel: string;
+  employeeReference: string;
+  employeeSearchText: string;
   requestCompanyName: string;
   fundingCompanyName: string;
   bankLabel: string;
@@ -296,50 +318,6 @@ type EnrichedAllocation = AllocationRow & {
 };
 
 type RunningAction = "confirm_distribution" | "upload_proof" | "verify_proof";
-
-const statusToneMap: Record<
-  string,
-  "cyan" | "emerald" | "amber" | "rose" | "violet" | "slate"
-> = {
-  draft: "slate",
-  confirmed: "emerald",
-  cancelled: "rose",
-  archived: "amber",
-  deleted: "rose",
-  paycheck_request_distribution: "cyan",
-  payroll_paycheck_payment_distribution: "cyan",
-  not_required: "slate",
-  pending_confirmation: "amber",
-  received_confirmed: "emerald",
-  not_received: "rose",
-  disputed: "rose",
-  admin_closed: "violet",
-  approved_for_payroll: "emerald",
-  approved: "emerald",
-  submitted: "cyan",
-  pending_review: "amber",
-  needs_correction: "amber",
-  rejected: "rose",
-  linked_to_payroll: "violet",
-  payment_sent: "cyan",
-  not_paid_yet: "slate",
-  unpaid: "slate",
-  partially_paid: "amber",
-  paid: "emerald",
-  uploaded: "cyan",
-  linked: "cyan",
-  files_and_links: "cyan",
-  missing: "rose",
-  not_uploaded: "slate",
-  verified: "emerald",
-  issue_found: "rose",
-  not_allocated: "slate",
-  partially_allocated: "amber",
-  allocated: "emerald",
-  partially_used: "amber",
-  fully_used: "emerald",
-  over_allocated: "rose",
-};
 
 function toNumber(value: number | string | null | undefined) {
   const parsed = Number(value ?? 0);
@@ -397,7 +375,7 @@ function formatLabel(value: string | null | undefined) {
 
 function getMetadataNumber(
   metadata: Record<string, unknown> | null | undefined,
-  key: string
+  key: string,
 ) {
   const value = metadata?.[key];
 
@@ -415,161 +393,10 @@ function getMetadataNumber(
 
 function getMetadataString(
   metadata: Record<string, unknown> | null | undefined,
-  key: string
+  key: string,
 ) {
   const value = metadata?.[key];
   return typeof value === "string" ? value : "";
-}
-
-function getStatusToneClasses(value: string | null | undefined) {
-  const tone = statusToneMap[value ?? ""] ?? "slate";
-
-  switch (tone) {
-    case "emerald":
-      return "border-emerald-400/20 bg-emerald-500/10 text-emerald-200";
-    case "amber":
-      return "border-amber-400/20 bg-amber-500/10 text-amber-200";
-    case "rose":
-      return "border-rose-400/20 bg-rose-500/10 text-rose-200";
-    case "violet":
-      return "border-violet-400/20 bg-violet-500/10 text-violet-200";
-    case "cyan":
-      return "border-cyan-400/20 bg-cyan-500/10 text-cyan-200";
-    case "slate":
-    default:
-      return "border-white/10 bg-white/[0.06] text-slate-300";
-  }
-}
-
-function StatusBadge({ value }: { value: string | null | undefined }) {
-  return (
-    <span
-      className={`inline-flex max-w-full items-center rounded-full border px-3 py-1 text-[11px] font-semibold uppercase tracking-[0.14em] ${getStatusToneClasses(
-        value
-      )}`}
-    >
-      <span className="truncate">{formatLabel(value)}</span>
-    </span>
-  );
-}
-
-function SummaryBlock({
-  title,
-  value,
-  subtitle,
-  icon: Icon,
-}: {
-  title: string;
-  value: string;
-  subtitle: string;
-  icon: LucideIcon;
-}) {
-  return (
-    <div className="min-h-[148px] rounded-[24px] border border-white/10 bg-black/20 p-4">
-      <div className="flex items-start justify-between gap-3">
-        <div>
-          <div className="text-[11px] font-semibold uppercase tracking-[0.2em] text-slate-500">
-            {title}
-          </div>
-          <div className="mt-2 text-xl font-semibold text-white">{value}</div>
-        </div>
-        <Icon className="h-5 w-5 text-cyan-200" />
-      </div>
-      <div className="mt-3 text-xs leading-5 text-slate-500">{subtitle}</div>
-    </div>
-  );
-}
-
-function ValueBlock({
-  label,
-  value,
-  detail,
-}: {
-  label: string;
-  value: ReactNode;
-  detail?: ReactNode;
-}) {
-  return (
-    <div className="rounded-[24px] border border-white/10 bg-black/20 p-4">
-      <div className="text-[11px] font-semibold uppercase tracking-[0.2em] text-slate-500">
-        {label}
-      </div>
-      <div className="mt-2 text-sm font-semibold leading-6 text-white">{value}</div>
-      {detail ? <div className="mt-2 text-xs leading-5 text-slate-500">{detail}</div> : null}
-    </div>
-  );
-}
-
-function SectionCard({
-  title,
-  description,
-  icon: Icon,
-  children,
-}: {
-  title: string;
-  description: string;
-  icon: LucideIcon;
-  children: ReactNode;
-}) {
-  return (
-    <section className="overflow-hidden rounded-[30px] border border-white/10 bg-white/[0.045] backdrop-blur-xl">
-      <div className="flex items-start gap-4 border-b border-white/10 px-5 py-4">
-        <div className="rounded-2xl border border-cyan-400/15 bg-cyan-500/10 p-3 text-cyan-200">
-          <Icon className="h-4 w-4" />
-        </div>
-        <div>
-          <div className="text-sm font-semibold uppercase tracking-[0.18em] text-slate-400">
-            {title}
-          </div>
-          <p className="mt-1 text-xs leading-5 text-slate-500">{description}</p>
-        </div>
-      </div>
-      <div className="p-5">{children}</div>
-    </section>
-  );
-}
-
-function ActionButton({
-  label,
-  loadingLabel,
-  icon: Icon,
-  tone,
-  disabled,
-  isRunning,
-  onClick,
-}: {
-  label: string;
-  loadingLabel: string;
-  icon: LucideIcon;
-  tone: "cyan" | "emerald" | "violet" | "slate";
-  disabled?: boolean;
-  isRunning?: boolean;
-  onClick: () => void;
-}) {
-  const toneClass = {
-    cyan: "border-cyan-400/20 bg-cyan-500/10 text-cyan-100 hover:bg-cyan-500/15",
-    emerald:
-      "border-emerald-400/20 bg-emerald-500/10 text-emerald-100 hover:bg-emerald-500/15",
-    violet:
-      "border-violet-400/20 bg-violet-500/10 text-violet-100 hover:bg-violet-500/15",
-    slate: "border-white/10 bg-white/[0.05] text-slate-300 hover:bg-white/[0.08]",
-  }[tone];
-
-  return (
-    <button
-      type="button"
-      disabled={disabled || isRunning}
-      onClick={onClick}
-      className={`inline-flex h-12 items-center justify-center gap-2 rounded-2xl border px-5 text-sm font-semibold transition disabled:cursor-not-allowed disabled:opacity-50 ${toneClass}`}
-    >
-      {isRunning ? (
-        <Loader2 className="h-4 w-4 animate-spin" />
-      ) : (
-        <Icon className="h-4 w-4" />
-      )}
-      {isRunning ? loadingLabel : label}
-    </button>
-  );
 }
 
 function getCompanyName(company: CompanyRow | null | undefined) {
@@ -585,53 +412,6 @@ function getBankLabel(bank: BankAccountRow | null | undefined) {
     bank.currency_code,
     bank.masked_account_number,
   ]
-    .filter(Boolean)
-    .join(" • ");
-}
-
-function getEmployeeName(
-  allocation: AllocationRow,
-  request: PaycheckRequestRow | null,
-  employeeMap: Map<string, EmployeeRefRow>,
-  profileMap: Map<string, ProfileRow>
-) {
-  const profileUserId = allocation.employee_user_id || request?.employee_user_id || "";
-  const profile = profileMap.get(profileUserId);
-  const employeeRefId = allocation.employee_ref_id || request?.employee_ref_id || "";
-  const employee = employeeRefId ? employeeMap.get(employeeRefId) : null;
-
-  return (
-    allocation.recipient_person_name?.trim() ||
-    allocation.metadata?.employee_name?.trim() ||
-    profile?.full_name?.trim() ||
-    profile?.display_name?.trim() ||
-    profile?.email?.trim() ||
-    employee?.code?.trim() ||
-    "Employee"
-  );
-}
-
-function getEmployeeLabel(
-  allocation: AllocationRow,
-  request: PaycheckRequestRow | null,
-  employeeMap: Map<string, EmployeeRefRow>,
-  profileMap: Map<string, ProfileRow>
-) {
-  const profileUserId = allocation.employee_user_id || request?.employee_user_id || "";
-  const profile = profileMap.get(profileUserId);
-  const employeeRefId = allocation.employee_ref_id || request?.employee_ref_id || "";
-  const employee = employeeRefId ? employeeMap.get(employeeRefId) : null;
-
-  const role =
-    profile?.job_title?.trim() ||
-    employee?.metadata?.job_title?.trim() ||
-    employee?.metadata?.source_role?.trim() ||
-    employee?.mark?.trim() ||
-    null;
-
-  const company = profile?.company?.trim() || employee?.metadata?.company?.trim() || null;
-
-  return [employee?.code, role ? formatLabel(role) : null, company]
     .filter(Boolean)
     .join(" • ");
 }
@@ -666,6 +446,87 @@ function resolveMimeType(file: File) {
   }
 }
 
+function getIdentityKey(value: string | null | undefined) {
+  return (value || "").trim();
+}
+
+function buildIdentityMaps(identities: FinanceEmployeeIdentity[]) {
+  const byEmployeeRefId = new Map<string, FinanceEmployeeIdentity>();
+  const byUserId = new Map<string, FinanceEmployeeIdentity>();
+
+  identities.forEach((identity) => {
+    const employeeRefId = getIdentityKey(
+      identity.employee_ref_id || identity.id || null,
+    );
+    const userId = getIdentityKey(identity.user_id || null);
+
+    if (employeeRefId) byEmployeeRefId.set(employeeRefId, identity);
+    if (userId) byUserId.set(userId, identity);
+  });
+
+  return { byEmployeeRefId, byUserId };
+}
+
+function resolveAllocationIdentity({
+  allocation,
+  request,
+  identityByEmployeeRefId,
+  identityByUserId,
+}: {
+  allocation: AllocationRow;
+  request: PaycheckRequestRow | null;
+  identityByEmployeeRefId: Map<string, FinanceEmployeeIdentity>;
+  identityByUserId: Map<string, FinanceEmployeeIdentity>;
+}) {
+  const employeeRefId = getIdentityKey(
+    allocation.employee_ref_id || request?.employee_ref_id || null,
+  );
+  const userId = getIdentityKey(
+    allocation.employee_user_id || request?.employee_user_id || null,
+  );
+
+  if (employeeRefId && identityByEmployeeRefId.has(employeeRefId)) {
+    return identityByEmployeeRefId.get(employeeRefId) || null;
+  }
+
+  if (userId && identityByUserId.has(userId)) {
+    return identityByUserId.get(userId) || null;
+  }
+
+  return null;
+}
+
+function buildFallbackIdentity(
+  allocation: AllocationRow,
+  request: PaycheckRequestRow | null,
+  employeeMap: Map<string, EmployeeRefRow>,
+): FinanceEmployeeIdentity | null {
+  const employeeRefId = getIdentityKey(
+    allocation.employee_ref_id || request?.employee_ref_id || null,
+  );
+  const employee = employeeRefId ? employeeMap.get(employeeRefId) : null;
+
+  if (!employee && !allocation.recipient_person_name && !allocation.metadata?.employee_name) {
+    return null;
+  }
+
+  return {
+    employee_ref_id: employeeRefId || null,
+    user_id: allocation.employee_user_id || request?.employee_user_id || employee?.user_id || null,
+    employee_code: employee?.code || null,
+    code: employee?.code || null,
+    employee_status: employee?.status || null,
+    employee_mark: employee?.mark || null,
+    employee_metadata: employee?.metadata || null,
+    person_name:
+      allocation.recipient_person_name || allocation.metadata?.employee_name || null,
+    profile_company: employee?.metadata?.company || null,
+    profile_job_title:
+      employee?.metadata?.job_title || employee?.metadata?.source_role || null,
+    profile_member_type: employee?.metadata?.member_type || null,
+  };
+}
+
 export default function FinancePayrollPaymentDistributionDetailPage() {
   const navigate = useNavigate();
   const params = useParams();
@@ -677,7 +538,7 @@ export default function FinancePayrollPaymentDistributionDetailPage() {
   const [companies, setCompanies] = useState<CompanyRow[]>([]);
   const [bankAccounts, setBankAccounts] = useState<BankAccountRow[]>([]);
   const [employees, setEmployees] = useState<EmployeeRefRow[]>([]);
-  const [profiles, setProfiles] = useState<ProfileRow[]>([]);
+  const [employeeIdentities, setEmployeeIdentities] = useState<FinanceEmployeeIdentity[]>([]);
   const [fundingPool, setFundingPool] = useState<FundingPoolRow | null>(null);
   const [attachments, setAttachments] = useState<AttachmentWithFile[]>([]);
   const [proofFile, setProofFile] = useState<File | null>(null);
@@ -700,9 +561,9 @@ export default function FinancePayrollPaymentDistributionDetailPage() {
     return new Map(employees.map((employee) => [employee.id, employee]));
   }, [employees]);
 
-  const profileMap = useMemo(() => {
-    return new Map(profiles.map((profile) => [profile.user_id, profile]));
-  }, [profiles]);
+  const employeeIdentityMaps = useMemo(() => {
+    return buildIdentityMaps(employeeIdentities);
+  }, [employeeIdentities]);
 
   const requestMap = useMemo(() => {
     return new Map(paycheckRequests.map((request) => [request.id, request]));
@@ -711,43 +572,42 @@ export default function FinancePayrollPaymentDistributionDetailPage() {
   const paymentCurrency = normalizeCurrencyCode(
     distribution?.payment_currency_code ||
       distribution?.metadata?.payment_currency_code ||
-      "USD"
+      "USD",
   );
 
   const fundingCurrency = normalizeCurrencyCode(
     distribution?.funding_currency_code ||
       distribution?.metadata?.funding_currency_code ||
       fundingPool?.currency_code ||
-      paymentCurrency
+      paymentCurrency,
   );
 
   const paymentCurrencyAmount = toNumber(
-    distribution?.metadata?.payment_currency_amount ||
-      distribution?.amount
+    distribution?.metadata?.payment_currency_amount || distribution?.amount,
   );
 
   const fundingCurrencyUsedForPayment = toNumber(
     distribution?.funding_currency_amount ||
-      distribution?.metadata?.funding_currency_amount_used_for_payment
+      distribution?.metadata?.funding_currency_amount_used_for_payment,
   );
 
   const fundingCurrencyRemainingAfterPayment = toNumber(
     distribution?.metadata?.funding_currency_remaining_after_payment ??
       getMetadataNumber(fundingPool?.metadata, "remaining_amount") ??
-      0
+      0,
   );
 
   const fundingPoolTotal = toNumber(
-    distribution?.metadata?.funding_pool_total || fundingPool?.allocated_amount
+    distribution?.metadata?.funding_pool_total || fundingPool?.allocated_amount,
   );
 
   const fundingCurrencyAvailableBeforePayment = toNumber(
-    distribution?.metadata?.funding_currency_amount_available_before_payment
+    distribution?.metadata?.funding_currency_amount_available_before_payment,
   );
 
   const paymentToFundingExchangeRate = toNumber(
     distribution?.metadata?.payment_to_funding_exchange_rate ||
-      distribution?.exchange_rate
+      distribution?.exchange_rate,
   );
 
   const paymentToFundingConversionDate =
@@ -779,34 +639,46 @@ export default function FinancePayrollPaymentDistributionDetailPage() {
         toNumber(
           allocation.metadata?.payment_currency_amount ||
             allocation.converted_amount ||
-            allocation.allocated_amount
+            allocation.allocated_amount,
         ),
-      0
+      0,
     );
   }, [allocations]);
 
   const enrichedAllocations = useMemo<EnrichedAllocation[]>(() => {
     return allocations.map((allocation) => {
       const request = requestMap.get(allocation.paycheck_request_id) || null;
-
+      const viewIdentity = resolveAllocationIdentity({
+        allocation,
+        request,
+        identityByEmployeeRefId: employeeIdentityMaps.byEmployeeRefId,
+        identityByUserId: employeeIdentityMaps.byUserId,
+      });
+      const fallbackIdentity = buildFallbackIdentity(allocation, request, employeeMap);
+      const employeeIdentity = viewIdentity || fallbackIdentity;
       const paycheckCurrency = normalizeCurrencyCode(
         allocation.metadata?.paycheck_currency_code ||
           allocation.currency_code ||
           request?.requested_currency_code ||
-          paymentCurrency
+          paymentCurrency,
       );
-
       const allocationPaymentCurrency = normalizeCurrencyCode(
         allocation.metadata?.payment_currency_code ||
           allocation.payment_currency_code ||
-          paymentCurrency
+          paymentCurrency,
       );
 
       return {
         ...allocation,
         paycheckRequest: request,
-        employeeName: getEmployeeName(allocation, request, employeeMap, profileMap),
-        employeeLabel: getEmployeeLabel(allocation, request, employeeMap, profileMap),
+        employeeIdentity,
+        employeeName: getFinanceEmployeePrimaryName(
+          employeeIdentity,
+          allocation.recipient_person_name || allocation.metadata?.employee_name || null,
+        ),
+        employeeLabel: getFinanceEmployeeSecondaryLabel(employeeIdentity),
+        employeeReference: getFinanceEmployeeReferenceLabel(employeeIdentity),
+        employeeSearchText: getFinanceEmployeeSearchText(employeeIdentity),
         requestCompanyName: allocation.company_id
           ? getCompanyName(companyMap.get(allocation.company_id))
           : request?.company_id
@@ -821,11 +693,11 @@ export default function FinancePayrollPaymentDistributionDetailPage() {
         paymentCurrencyAmount: toNumber(
           allocation.metadata?.payment_currency_amount ||
             allocation.converted_amount ||
-            allocation.allocated_amount
+            allocation.allocated_amount,
         ),
         paymentCurrencyCode: allocationPaymentCurrency,
         paycheckCurrencyAmount: toNumber(
-          allocation.metadata?.paycheck_currency_amount || allocation.allocated_amount
+          allocation.metadata?.paycheck_currency_amount || allocation.allocated_amount,
         ),
         paycheckCurrencyCode: paycheckCurrency,
         exchangeRateValue:
@@ -848,11 +720,11 @@ export default function FinancePayrollPaymentDistributionDetailPage() {
         fundingCurrencyCodeValue: normalizeCurrencyCode(
           allocation.metadata?.funding_currency_code ||
             allocation.funding_currency_code ||
-            fundingCurrency
+            fundingCurrency,
         ),
         paycheckRemainingBeforePayment: getMetadataNumber(
           allocation.metadata,
-          "paycheck_remaining_before_payment"
+          "paycheck_remaining_before_payment",
         ),
         paycheckRemainingAfterPayment:
           request && request.payment_status === "paid"
@@ -861,7 +733,7 @@ export default function FinancePayrollPaymentDistributionDetailPage() {
               ? toNumber(request.remaining_amount)
               : getMetadataNumber(
                   allocation.metadata,
-                  "paycheck_remaining_after_payment"
+                  "paycheck_remaining_after_payment",
                 ),
       };
     });
@@ -874,15 +746,16 @@ export default function FinancePayrollPaymentDistributionDetailPage() {
     distribution?.metadata?.funding_company_name,
     distribution?.metadata?.paid_from_bank_label,
     distribution?.payment_date,
+    employeeIdentityMaps.byEmployeeRefId,
+    employeeIdentityMaps.byUserId,
     employeeMap,
     fundingCurrency,
     paymentCurrency,
-    profileMap,
     requestMap,
   ]);
 
   const loadDistribution = useCallback(
-    async (mode: "initial" | "silent" = "initial") => {
+    async (mode: LoadMode = "initial") => {
       if (!distributionId) {
         setPageError("Missing paycheck payment distribution ID.");
         setIsLoading(false);
@@ -895,7 +768,7 @@ export default function FinancePayrollPaymentDistributionDetailPage() {
         setIsRefreshing(true);
       }
 
-      setPageError(null);
+      if (mode === "initial") setPageError(null);
 
       try {
         const distributionResult = await supabase
@@ -927,7 +800,7 @@ export default function FinancePayrollPaymentDistributionDetailPage() {
               "updated_at",
               "created_by",
               "updated_by",
-            ].join(", ")
+            ].join(", "),
           )
           .eq("id", distributionId)
           .single();
@@ -941,7 +814,7 @@ export default function FinancePayrollPaymentDistributionDetailPage() {
           companiesResult,
           bankAccountsResult,
           employeesResult,
-          profilesResult,
+          employeeIdentityResult,
           fundingPoolResult,
           attachmentsResult,
         ] = await Promise.all([
@@ -978,30 +851,22 @@ export default function FinancePayrollPaymentDistributionDetailPage() {
                 "metadata",
                 "created_at",
                 "updated_at",
-              ].join(", ")
+              ].join(", "),
             )
             .eq("distribution_id", loadedDistribution.id)
             .order("created_at", { ascending: false }),
-
           supabase.from("finance_companies").select("id, name, legal_name").order("name"),
-
           supabase
             .from("finance_bank_accounts")
             .select(
-              "id, name, bank_name, institution_name, masked_account_number, currency_code, company_id"
+              "id, name, bank_name, institution_name, masked_account_number, currency_code, company_id",
             )
             .order("name"),
-
           supabase
             .from("finance_employee_refs")
             .select("id, user_id, code, status, mark, metadata")
             .order("code"),
-
-          supabase
-            .from("profiles")
-            .select("user_id, full_name, display_name, email, company, job_title, member_type")
-            .order("full_name"),
-
+          supabase.from("finance_employee_identity_v").select("*"),
           loadedDistribution.funding_batch_id
             ? supabase
                 .from("finance_paycheck_funding_batches")
@@ -1022,16 +887,15 @@ export default function FinancePayrollPaymentDistributionDetailPage() {
                     "metadata",
                     "created_at",
                     "updated_at",
-                  ].join(", ")
+                  ].join(", "),
                 )
                 .eq("id", loadedDistribution.funding_batch_id)
                 .maybeSingle()
             : Promise.resolve({ data: null, error: null }),
-
           supabase
             .from("finance_record_attachments")
             .select(
-              "id, entity_type, entity_id, file_upload_id, uploaded_by, notes, metadata, created_at"
+              "id, entity_type, entity_id, file_upload_id, uploaded_by, notes, metadata, created_at",
             )
             .in("entity_type", [
               "finance_paycheck_payment_distribution",
@@ -1045,7 +909,7 @@ export default function FinancePayrollPaymentDistributionDetailPage() {
         if (companiesResult.error) throw companiesResult.error;
         if (bankAccountsResult.error) throw bankAccountsResult.error;
         if (employeesResult.error) throw employeesResult.error;
-        if (profilesResult.error) throw profilesResult.error;
+        if (employeeIdentityResult.error) throw employeeIdentityResult.error;
         if (fundingPoolResult.error) throw fundingPoolResult.error;
         if (attachmentsResult.error) throw attachmentsResult.error;
 
@@ -1057,11 +921,13 @@ export default function FinancePayrollPaymentDistributionDetailPage() {
         setCompanies((companiesResult.data || []) as CompanyRow[]);
         setBankAccounts((bankAccountsResult.data || []) as BankAccountRow[]);
         setEmployees((employeesResult.data || []) as EmployeeRefRow[]);
-        setProfiles((profilesResult.data || []) as ProfileRow[]);
+        setEmployeeIdentities(
+          (employeeIdentityResult.data || []) as unknown as FinanceEmployeeIdentity[],
+        );
         setFundingPool((fundingPoolResult.data || null) as FundingPoolRow | null);
 
         const requestIds = Array.from(
-          new Set(loadedAllocations.map((allocation) => allocation.paycheck_request_id))
+          new Set(loadedAllocations.map((allocation) => allocation.paycheck_request_id)),
         );
 
         if (requestIds.length > 0) {
@@ -1103,7 +969,7 @@ export default function FinancePayrollPaymentDistributionDetailPage() {
                 "reference_number",
                 "created_at",
                 "updated_at",
-              ].join(", ")
+              ].join(", "),
             )
             .in("id", requestIds);
 
@@ -1129,7 +995,7 @@ export default function FinancePayrollPaymentDistributionDetailPage() {
             ((fileUploadsResult.data || []) as FileUploadRow[]).map((file) => [
               file.id,
               file,
-            ])
+            ]),
           );
 
           const signedAttachments = await Promise.all(
@@ -1155,7 +1021,7 @@ export default function FinancePayrollPaymentDistributionDetailPage() {
                 fileUpload,
                 signedUrl,
               };
-            })
+            }),
           );
 
           setAttachments(signedAttachments);
@@ -1166,18 +1032,22 @@ export default function FinancePayrollPaymentDistributionDetailPage() {
         setHasLoadedOnce(true);
       } catch (error) {
         console.error("Failed to load paycheck payment distribution detail:", error);
-        setPageError(
-          error instanceof Error
-            ? error.message
-            : "Failed to load paycheck payment distribution detail."
-        );
+
+        if (mode === "initial" || !hasLoadedOnce) {
+          setPageError(
+            error instanceof Error
+              ? error.message
+              : "Failed to load paycheck payment distribution detail.",
+          );
+        }
+
         if (!hasLoadedOnce) setDistribution(null);
       } finally {
         setIsLoading(false);
         setIsRefreshing(false);
       }
     },
-    [distributionId, hasLoadedOnce]
+    [distributionId, hasLoadedOnce],
   );
 
   useEffect(() => {
@@ -1197,7 +1067,7 @@ export default function FinancePayrollPaymentDistributionDetailPage() {
           table: "finance_paycheck_payment_distributions",
           filter: `id=eq.${distributionId}`,
         },
-        () => void loadDistribution("silent")
+        () => void loadDistribution("silent"),
       )
       .on(
         "postgres_changes",
@@ -1207,7 +1077,7 @@ export default function FinancePayrollPaymentDistributionDetailPage() {
           table: "finance_paycheck_payment_allocations",
           filter: `distribution_id=eq.${distributionId}`,
         },
-        () => void loadDistribution("silent")
+        () => void loadDistribution("silent"),
       )
       .on(
         "postgres_changes",
@@ -1217,7 +1087,7 @@ export default function FinancePayrollPaymentDistributionDetailPage() {
           table: "finance_record_attachments",
           filter: `entity_id=eq.${distributionId}`,
         },
-        () => void loadDistribution("silent")
+        () => void loadDistribution("silent"),
       )
       .subscribe();
 
@@ -1227,7 +1097,7 @@ export default function FinancePayrollPaymentDistributionDetailPage() {
 
     return () => {
       window.clearInterval(intervalId);
-      supabase.removeChannel(channel);
+      void supabase.removeChannel(channel);
     };
   }, [distributionId, loadDistribution]);
 
@@ -1243,7 +1113,7 @@ export default function FinancePayrollPaymentDistributionDetailPage() {
         "finance_confirm_paycheck_payment_distribution",
         {
           p_distribution_id: distribution.id,
-        }
+        },
       );
 
       if (confirmResult.error) throw confirmResult.error;
@@ -1258,7 +1128,7 @@ export default function FinancePayrollPaymentDistributionDetailPage() {
         ...allocations.map((allocation) =>
           supabase.rpc("finance_refresh_paycheck_request_payment_rollup", {
             p_request_id: allocation.paycheck_request_id,
-          })
+          }),
         ),
       ]);
 
@@ -1269,7 +1139,7 @@ export default function FinancePayrollPaymentDistributionDetailPage() {
       setPageError(
         error instanceof Error
           ? error.message
-          : "Failed to confirm paycheck payment distribution."
+          : "Failed to confirm paycheck payment distribution.",
       );
     } finally {
       setRunningAction(null);
@@ -1303,7 +1173,7 @@ export default function FinancePayrollPaymentDistributionDetailPage() {
     } catch (error) {
       console.error("Failed to verify paycheck payment proof:", error);
       setPageError(
-        error instanceof Error ? error.message : "Failed to verify paycheck payment proof."
+        error instanceof Error ? error.message : "Failed to verify paycheck payment proof.",
       );
     } finally {
       setRunningAction(null);
@@ -1391,51 +1261,68 @@ export default function FinancePayrollPaymentDistributionDetailPage() {
     } catch (error) {
       console.error("Failed to upload paycheck payment proof:", error);
       setPageError(
-        error instanceof Error ? error.message : "Failed to upload paycheck payment proof."
+        error instanceof Error ? error.message : "Failed to upload paycheck payment proof.",
       );
     } finally {
       setRunningAction(null);
     }
   }, [distribution, loadDistribution, proofFile, runningAction]);
 
+  const proofAttachments = useMemo<AixiaDocumentUploadAttachment[]>(() => {
+    return attachments.map((attachment) => ({
+      id: attachment.id,
+      fileName: attachment.fileUpload?.file_name || "Payment proof file",
+      badge: attachment.fileUpload?.mime_type || "Stored",
+      sizeLabel: attachment.fileUpload?.file_size
+        ? `${(attachment.fileUpload.file_size / 1024 / 1024).toFixed(2)} MB`
+        : undefined,
+      description: formatDateTime(attachment.created_at),
+      openLabel: attachment.signedUrl ? "Open" : "Stored",
+    }));
+  }, [attachments]);
+
+  const openProofAttachment = useCallback(
+    async (attachment: AixiaDocumentUploadAttachment) => {
+      const sourceAttachment = attachments.find((item) => item.id === attachment.id);
+
+      if (!sourceAttachment?.signedUrl) {
+        setPageError("This proof file does not have an available signed URL.");
+        return;
+      }
+
+      window.open(sourceAttachment.signedUrl, "_blank", "noopener,noreferrer");
+    },
+    [attachments],
+  );
+
   if (isLoading) {
     return (
-      <div className="min-h-screen bg-[#05070d] px-4 py-4 text-white md:px-6 md:py-6">
-        <div className="mx-auto flex w-full max-w-[1600px] flex-col gap-6">
-          <div className="rounded-[34px] border border-white/10 bg-white/[0.045] p-12 text-center backdrop-blur-xl">
-            <Loader2 className="mx-auto h-8 w-8 animate-spin text-cyan-200" />
-            <div className="mt-4 text-sm text-slate-400">
-              Loading paycheck payment distribution...
-            </div>
-          </div>
-        </div>
-      </div>
+      <AixiaLoadingState
+        title="Loading paycheck payment distribution"
+        description="Distribution, allocation, employee identity, funding pool, and proof data are being loaded."
+      />
     );
   }
 
   if (!distribution) {
     return (
-      <div className="min-h-screen bg-[#05070d] px-4 py-4 text-white md:px-6 md:py-6">
-        <div className="mx-auto flex w-full max-w-[1600px] flex-col gap-6">
-          <div className="rounded-[34px] border border-rose-400/20 bg-rose-500/10 p-12 text-center">
-            <AlertTriangle className="mx-auto h-8 w-8 text-rose-200" />
-            <div className="mt-4 text-lg font-semibold text-white">
-              Paycheck payment distribution not found
-            </div>
-            <div className="mt-2 text-sm text-rose-100">
-              {pageError || "The requested paycheck payment distribution could not be loaded."}
-            </div>
-            <button
-              type="button"
-              onClick={() => navigate("/finance/transactions/payroll")}
-              className="mt-6 inline-flex h-11 items-center justify-center gap-2 rounded-2xl border border-white/10 bg-white/[0.05] px-5 text-sm font-semibold text-white transition hover:bg-white/[0.08]"
-            >
-              <ArrowRight className="h-4 w-4 rotate-180" />
-              Payroll
-            </button>
-          </div>
-        </div>
-      </div>
+      <AixiaNotFoundState
+        fullPage
+        title="Paycheck payment distribution not found"
+        description={
+          pageError ||
+          "The requested paycheck payment distribution could not be loaded."
+        }
+        action={
+          <AixiaButton
+            type="button"
+            variant="secondary"
+            onClick={() => navigate("/finance/transactions/payroll")}
+          >
+            Payroll
+          </AixiaButton>
+        }
+      />
     );
   }
 
@@ -1458,703 +1345,646 @@ export default function FinancePayrollPaymentDistributionDetailPage() {
       ? `${formatDate(fundingPool.period_start)} → ${formatDate(fundingPool.period_end)}`
       : "Not saved";
 
-  return (
-    <div className="min-h-screen bg-[#05070d] px-4 py-4 text-white md:px-6 md:py-6">
-      <div className="mx-auto flex w-full max-w-[1600px] flex-col gap-6">
-        <header className="relative overflow-hidden rounded-[34px] border border-white/10 bg-white/[0.045] p-6 shadow-2xl shadow-black/30 backdrop-blur-xl">
-          <div className="pointer-events-none absolute inset-0 bg-[radial-gradient(circle_at_top_left,rgba(6,182,212,0.16),transparent_38%),radial-gradient(circle_at_top_right,rgba(139,92,246,0.12),transparent_34%)]" />
+  const heroActions = (
+    <>
+      {canConfirmDistribution ? (
+        <AixiaButton
+          type="button"
+          variant="primary"
+          disabled={actionLocked}
+          onClick={() => void confirmDistribution()}
+        >
+          <CheckCircle2 className="h-4 w-4" />
+          {runningAction === "confirm_distribution" ? "Confirming..." : "Confirm Distribution"}
+        </AixiaButton>
+      ) : null}
 
-          <div className="relative">
-            <button
-              type="button"
-              onClick={() => navigate("/finance/transactions/payroll")}
-              className="mb-5 inline-flex items-center justify-center gap-2 rounded-full border border-white/10 bg-white/[0.05] px-5 py-2 text-[11px] font-semibold uppercase tracking-[0.22em] text-slate-300 transition hover:border-white/20 hover:bg-white/[0.08] hover:text-white"
-            >
-              <ArrowRight className="h-3.5 w-3.5 rotate-180" />
-              Payroll
-            </button>
+      {canVerifyProof ? (
+        <AixiaButton
+          type="button"
+          variant="primary"
+          disabled={actionLocked}
+          onClick={() => void verifyProof()}
+        >
+          <FileCheck2 className="h-4 w-4" />
+          {runningAction === "verify_proof" ? "Verifying..." : "Verify Proof"}
+        </AixiaButton>
+      ) : null}
+    </>
+  );
 
-            <div className="grid gap-6 xl:grid-cols-[minmax(0,1fr)_520px] xl:items-end">
-              <div>
-                <div className="inline-flex w-fit items-center gap-2 rounded-full border border-cyan-400/20 bg-cyan-500/10 px-3 py-1 text-[11px] font-semibold uppercase tracking-[0.22em] text-cyan-200">
-                  <Sparkles className="h-3.5 w-3.5" />
-                  Paycheck Payment Distribution
-                </div>
+  const mainContent = (
+    <>
+      <AixiaSection
+        title="Distribution Overview"
+        description="Payment identity, source Payroll Funding Pool, and confirmation state."
+        icon={WalletCards}
+      >
+        <AixiaFormGrid columns="two">
+          <AixiaDisplayBlock
+            label="Distribution Number"
+            value={distribution.distribution_number || "—"}
+          />
+          <AixiaDisplayBlock
+            label="Reference Number"
+            value={distribution.reference_number || "—"}
+          />
+          <AixiaDisplayBlock
+            label="Payment Date"
+            value={formatDate(distribution.payment_date)}
+          />
+          <AixiaDisplayBlock
+            label="Distribution Status"
+            value={<AixiaStatusBadge value={distribution.status} />}
+          />
+          <AixiaDisplayBlock
+            label="Payment Mode"
+            value={<AixiaStatusBadge value={distribution.metadata?.payment_mode} />}
+          />
+          <AixiaDisplayBlock
+            label="Funding Company"
+            value={getCompanyName(fundingCompany) || distribution.metadata?.funding_company_name || "—"}
+          />
+          <AixiaDisplayBlock
+            label="Paid From Bank"
+            value={getBankLabel(paidFromBank)}
+            detail={distribution.metadata?.paid_from_bank_label || undefined}
+          />
+          <AixiaDisplayBlock
+            label="Employee Confirmation"
+            value={<AixiaStatusBadge value={distribution.recipient_confirmation_status} />}
+            detail="Employee confirmation closes the payroll payment loop."
+          />
+          <AixiaDisplayBlock
+            label="Recipient"
+            value={distribution.recipient_person_name || "Multiple employees"}
+          />
+          <AixiaDisplayBlock
+            label="Payment Proof"
+            value={<AixiaStatusBadge value={distribution.payment_proof_status || "not_uploaded"} />}
+          />
+          <AixiaDisplayBlock
+            label="Created"
+            value={formatDateTime(distribution.created_at)}
+            detail={`Updated ${formatDateTime(distribution.updated_at)}`}
+          />
+          {distribution.notes ? (
+            <AixiaFormFullWidth>
+              <AixiaDisplayBlock label="Notes" value={distribution.notes} />
+            </AixiaFormFullWidth>
+          ) : null}
+        </AixiaFormGrid>
+      </AixiaSection>
 
-                <h1 className="mt-4 text-3xl font-semibold tracking-[-0.035em] text-white md:text-5xl">
-                  {distribution.reference_number ||
-                    distribution.distribution_number ||
-                    "Paycheck Payment Distribution"}
-                </h1>
+      <AixiaSection
+        title="Payroll Funding Pool Source"
+        description="Reserved payroll funding source used by this distribution."
+        icon={Banknote}
+      >
+        {fundingPool ||
+        distribution.metadata?.funding_pool_id ||
+        distribution.metadata?.funding_batch_id ? (
+          <AixiaFormGrid columns="two">
+            <AixiaDisplayBlock label="Payroll Funding Pool" value={fundingPoolNumber} />
+            <AixiaDisplayBlock
+              label="Payroll Period"
+              value={fundingPeriodLabel}
+              detail="Stored directly on the Payroll Funding Pool."
+            />
+            <AixiaDisplayBlock
+              label="Pool Status"
+              value={<AixiaStatusBadge value={fundingPool?.status || "allocated"} />}
+            />
+            <AixiaDisplayBlock
+              label="Pool Documentation"
+              value={<AixiaStatusBadge value={fundingPool?.documentation_status || "verified"} />}
+            />
+            <AixiaDisplayBlock
+              label="Pool Total"
+              value={`${fundingCurrency} ${formatMoney(fundingPoolTotal)}`}
+            />
+            <AixiaDisplayBlock
+              label="Available Before This Payment"
+              value={`${fundingCurrency} ${formatMoney(
+                fundingCurrencyAvailableBeforePayment,
+              )}`}
+            />
+            <AixiaDisplayBlock
+              label="Used By This Payment"
+              value={`${fundingCurrency} ${formatMoney(fundingCurrencyUsedForPayment)}`}
+              detail={
+                paymentToFundingExchangeRate > 0
+                  ? `Rate ${formatMoney(paymentToFundingExchangeRate)} • ${
+                      paymentToFundingConversionSource || "conversion"
+                    } • ${formatDate(paymentToFundingConversionDate)}`
+                  : `Same currency or rate not stored • ${formatDate(
+                      paymentToFundingConversionDate,
+                    )}`
+              }
+            />
+            <AixiaDisplayBlock
+              label="Remaining After This Payment"
+              value={`${fundingCurrency} ${formatMoney(
+                fundingCurrencyRemainingAfterPayment,
+              )}`}
+            />
+            {fundingPool?.notes ? (
+              <AixiaFormFullWidth>
+                <AixiaDisplayBlock label="Funding Pool Notes" value={fundingPool.notes} />
+              </AixiaFormFullWidth>
+            ) : null}
+          </AixiaFormGrid>
+        ) : (
+          <AixiaAlert tone="info">
+            No Payroll Funding Pool is linked to this distribution record or metadata.
+          </AixiaAlert>
+        )}
+      </AixiaSection>
 
-                <p className="mt-3 max-w-4xl text-sm leading-6 text-slate-400 md:text-base md:leading-7">
-                  This page shows how a confirmed Payroll Funding Pool was distributed across
-                  approved paycheck requests, including payment-date currency conversion and
-                  employee confirmation status.
-                </p>
+      <AixiaSection
+        title="Currency Conversion Summary"
+        description="How payment currency was converted into Payroll Funding Pool currency and paycheck currencies."
+        icon={FileCheck2}
+      >
+        <AixiaFormGrid columns="two">
+          <AixiaDisplayBlock
+            label="Payment Currency Amount"
+            value={`${paymentCurrency} ${formatMoney(paymentCurrencyAmount)}`}
+            detail="The amount entered when the distribution was created."
+          />
+          <AixiaDisplayBlock
+            label="Allocation Lines Total"
+            value={`${paymentCurrency} ${formatMoney(totalPaymentCurrencyAllocated)}`}
+            detail="Sum of linked allocation lines in payment currency."
+          />
+          <AixiaDisplayBlock
+            label="Funding Pool Currency Used"
+            value={`${fundingCurrency} ${formatMoney(fundingCurrencyUsedForPayment)}`}
+            detail="Converted from payment currency using the payment date."
+          />
+          <AixiaDisplayBlock
+            label="Payment → Funding Rate"
+            value={
+              paymentToFundingExchangeRate > 0
+                ? formatMoney(paymentToFundingExchangeRate)
+                : "Same currency / not stored"
+            }
+          />
+          <AixiaDisplayBlock
+            label="Conversion Date"
+            value={formatDate(paymentToFundingConversionDate)}
+            detail={paymentToFundingConversionSource || "Payment-date conversion context"}
+          />
+          <AixiaDisplayBlock
+            label="Paycheck Coverage Basis"
+            value={
+              distribution.metadata?.accounting_amount_basis ||
+              "paycheck_currency_coverage"
+            }
+            detail="Each line stores coverage in the paycheck request currency."
+          />
+          <AixiaDisplayBlock
+            label="Paycheck Currency Coverage Total"
+            value={formatMoney(
+              distribution.metadata?.paycheck_currency_coverage_total || distribution.amount,
+            )}
+            detail="Combined coverage preview across selected paycheck currencies."
+          />
+        </AixiaFormGrid>
+      </AixiaSection>
 
-                <div className="mt-5 flex flex-wrap gap-2">
-                  <StatusBadge value={distribution.status} />
-                  <StatusBadge value={distribution.metadata?.payment_mode} />
-                  <StatusBadge value={distribution.recipient_confirmation_status} />
-                  <StatusBadge value={distribution.payment_proof_status || "not_uploaded"} />
-                  {isRefreshing ? (
-                    <span className="inline-flex rounded-full border border-white/10 bg-white/[0.06] px-3 py-1 text-[11px] font-semibold uppercase tracking-[0.14em] text-slate-300">
-                      Silent Refresh
-                    </span>
-                  ) : null}
-                </div>
-              </div>
+      <AixiaSection
+        title="Linked Paycheck Allocations"
+        description="Each line shows the paycheck request paid, payment currency amount, paycheck currency coverage, and employee status."
+        icon={Receipt}
+      >
+        {enrichedAllocations.length === 0 ? (
+          <AixiaAlert tone="info">No linked paycheck allocation lines were found.</AixiaAlert>
+        ) : (
+          <AixiaTableShell
+            variant="registry"
+            minWidthClassName="min-w-[1780px]"
+            maxHeightClassName="max-h-[720px]"
+          >
+            <thead className="aixia-table-head">
+              <tr>
+                <th>Paycheck Request</th>
+                <th>Employee</th>
+                <th>Company / Period</th>
+                <th>Payment Amount</th>
+                <th>Paycheck Coverage</th>
+                <th>Rate</th>
+                <th>Funding Used</th>
+                <th>Paycheck Remaining</th>
+                <th>Employee Status</th>
+                <th>Actions</th>
+              </tr>
+            </thead>
 
-              <div className="grid gap-3 sm:grid-cols-2">
-                <SummaryBlock
-                  title="Payment Amount"
-                  value={`${paymentCurrency} ${formatMoney(paymentCurrencyAmount)}`}
-                  subtitle="Amount entered in the payment currency."
-                  icon={WalletCards}
-                />
-                <SummaryBlock
-                  title="Funding Used"
-                  value={`${fundingCurrency} ${formatMoney(fundingCurrencyUsedForPayment)}`}
-                  subtitle="Payment converted into Payroll Funding Pool currency."
-                  icon={Banknote}
-                />
-                <SummaryBlock
-                  title="Remaining After"
-                  value={`${fundingCurrency} ${formatMoney(fundingCurrencyRemainingAfterPayment)}`}
-                  subtitle="Payroll Funding Pool balance after this distribution."
-                  icon={ShieldCheck}
-                />
-                <SummaryBlock
-                  title="Linked Paychecks"
-                  value={String(allocations.length)}
-                  subtitle="Paycheck allocation lines connected to this distribution."
-                  icon={Receipt}
-                />
-              </div>
-            </div>
-          </div>
-        </header>
-
-        {pageError ? (
-          <div className="rounded-[24px] border border-rose-400/20 bg-rose-500/10 p-4 text-sm leading-6 text-rose-100">
-            {pageError}
-          </div>
-        ) : null}
-
-        {pageMessage ? (
-          <div className="rounded-[24px] border border-emerald-400/20 bg-emerald-500/10 p-4 text-sm leading-6 text-emerald-100">
-            {pageMessage}
-          </div>
-        ) : null}
-
-        <div className="grid items-start gap-6 xl:grid-cols-[minmax(0,1fr)_430px]">
-          <div className="grid gap-6">
-            <SectionCard
-              title="Distribution Overview"
-              description="Payment identity, source Payroll Funding Pool, and confirmation state."
-              icon={WalletCards}
-            >
-              <div className="grid gap-4 md:grid-cols-2">
-                <ValueBlock
-                  label="Distribution Number"
-                  value={distribution.distribution_number || "—"}
-                />
-                <ValueBlock label="Reference Number" value={distribution.reference_number || "—"} />
-                <ValueBlock label="Payment Date" value={formatDate(distribution.payment_date)} />
-                <ValueBlock
-                  label="Distribution Status"
-                  value={<StatusBadge value={distribution.status} />}
-                />
-                <ValueBlock
-                  label="Payment Mode"
-                  value={<StatusBadge value={distribution.metadata?.payment_mode} />}
-                />
-                <ValueBlock
-                  label="Funding Company"
-                  value={getCompanyName(fundingCompany) || distribution.metadata?.funding_company_name || "—"}
-                />
-                <ValueBlock
-                  label="Paid From Bank"
-                  value={getBankLabel(paidFromBank)}
-                  detail={distribution.metadata?.paid_from_bank_label || undefined}
-                />
-                <ValueBlock
-                  label="Employee Confirmation"
-                  value={<StatusBadge value={distribution.recipient_confirmation_status} />}
-                  detail="Employee confirmation closes the payroll payment loop."
-                />
-                <ValueBlock
-                  label="Recipient"
-                  value={distribution.recipient_person_name || "Multiple employees"}
-                />
-                <ValueBlock
-                  label="Payment Proof"
-                  value={<StatusBadge value={distribution.payment_proof_status || "not_uploaded"} />}
-                />
-                <ValueBlock
-                  label="Created"
-                  value={formatDateTime(distribution.created_at)}
-                  detail={`Updated ${formatDateTime(distribution.updated_at)}`}
-                />
-                {distribution.notes ? (
-                  <div className="md:col-span-2">
-                    <ValueBlock label="Notes" value={distribution.notes} />
-                  </div>
-                ) : null}
-              </div>
-            </SectionCard>
-
-            <SectionCard
-              title="Payroll Funding Pool Source"
-              description="Reserved payroll funding source used by this distribution."
-              icon={Banknote}
-            >
-              {fundingPool ||
-              distribution.metadata?.funding_pool_id ||
-              distribution.metadata?.funding_batch_id ? (
-                <div className="grid gap-4 md:grid-cols-2">
-                  <ValueBlock label="Payroll Funding Pool" value={fundingPoolNumber} />
-                  <ValueBlock
-                    label="Payroll Period"
-                    value={fundingPeriodLabel}
-                    detail="Stored directly on the Payroll Funding Pool."
-                  />
-                  <ValueBlock
-                    label="Pool Status"
-                    value={<StatusBadge value={fundingPool?.status || "allocated"} />}
-                  />
-                  <ValueBlock
-                    label="Pool Documentation"
-                    value={<StatusBadge value={fundingPool?.documentation_status || "verified"} />}
-                  />
-                  <ValueBlock
-                    label="Pool Total"
-                    value={`${fundingCurrency} ${formatMoney(fundingPoolTotal)}`}
-                  />
-                  <ValueBlock
-                    label="Available Before This Payment"
-                    value={`${fundingCurrency} ${formatMoney(
-                      fundingCurrencyAvailableBeforePayment
-                    )}`}
-                  />
-                  <ValueBlock
-                    label="Used By This Payment"
-                    value={`${fundingCurrency} ${formatMoney(fundingCurrencyUsedForPayment)}`}
-                    detail={
-                      paymentToFundingExchangeRate > 0
-                        ? `Rate ${formatMoney(paymentToFundingExchangeRate)} • ${
-                            paymentToFundingConversionSource || "conversion"
-                          } • ${formatDate(paymentToFundingConversionDate)}`
-                        : `Same currency or rate not stored • ${formatDate(
-                            paymentToFundingConversionDate
-                          )}`
+            <tbody>
+              {enrichedAllocations.map((allocation) => (
+                <tr key={allocation.id} className="aixia-table-row">
+                  <AixiaTableTextCell
+                    width="lg"
+                    primary={
+                      allocation.paycheckRequest?.request_number ||
+                      allocation.metadata?.paycheck_request_number ||
+                      "Paycheck Request"
+                    }
+                    secondary={
+                      <>
+                        Pay date {formatDate(allocation.paycheckRequest?.requested_pay_date)}
+                        <br />
+                        Created {formatDate(allocation.paycheckRequest?.created_at)}
+                      </>
                     }
                   />
-                  <ValueBlock
-                    label="Remaining After This Payment"
-                    value={`${fundingCurrency} ${formatMoney(
-                      fundingCurrencyRemainingAfterPayment
+
+                  <AixiaEmployeeIdentityCell
+                    width="xl"
+                    identity={allocation.employeeIdentity}
+                    primary={allocation.employeeName}
+                    secondary={allocation.employeeLabel}
+                    reference={allocation.employeeReference || allocation.employeeSearchText}
+                  />
+
+                  <AixiaTableTextCell
+                    width="lg"
+                    primary={allocation.requestCompanyName}
+                    secondary={
+                      <>
+                        {formatDate(allocation.paycheckRequest?.period_start)} → {formatDate(allocation.paycheckRequest?.period_end)}
+                        <br />
+                        <AixiaStatusBadge value={allocation.paycheckRequest?.review_status} /> {" "}
+                        <AixiaStatusBadge value={allocation.paycheckRequest?.payment_status} />
+                      </>
+                    }
+                  />
+
+                  <AixiaTableTextCell
+                    width="md"
+                    primary={`${allocation.paymentCurrencyCode} ${formatMoney(
+                      allocation.paymentCurrencyAmount,
                     )}`}
                   />
-                  {fundingPool?.notes ? (
-                    <div className="md:col-span-2">
-                      <ValueBlock label="Funding Pool Notes" value={fundingPool.notes} />
-                    </div>
-                  ) : null}
-                </div>
-              ) : (
-                <div className="rounded-[24px] border border-dashed border-white/10 bg-black/20 px-6 py-12 text-center">
-                  <Banknote className="mx-auto h-8 w-8 text-slate-500" />
-                  <div className="mt-4 text-sm font-semibold text-white">
-                    No Payroll Funding Pool linked
-                  </div>
-                  <div className="mt-2 text-sm leading-6 text-slate-500">
-                    This distribution does not have a linked Payroll Funding Pool record or metadata.
-                  </div>
-                </div>
-              )}
-            </SectionCard>
 
-                        <SectionCard
-              title="Currency Conversion Summary"
-              description="How payment currency was converted into Payroll Funding Pool currency and paycheck currencies."
-              icon={FileCheck2}
-            >
-              <div className="grid gap-4 md:grid-cols-2">
-                <ValueBlock
-                  label="Payment Currency Amount"
-                  value={`${paymentCurrency} ${formatMoney(paymentCurrencyAmount)}`}
-                  detail="The amount entered when the distribution was created."
-                />
-                <ValueBlock
-                  label="Allocation Lines Total"
-                  value={`${paymentCurrency} ${formatMoney(totalPaymentCurrencyAllocated)}`}
-                  detail="Sum of linked allocation lines in payment currency."
-                />
-                <ValueBlock
-                  label="Funding Pool Currency Used"
-                  value={`${fundingCurrency} ${formatMoney(fundingCurrencyUsedForPayment)}`}
-                  detail="Converted from payment currency using the payment date."
-                />
-                <ValueBlock
-                  label="Payment → Funding Rate"
-                  value={
-                    paymentToFundingExchangeRate > 0
-                      ? formatMoney(paymentToFundingExchangeRate)
-                      : "Same currency / not stored"
-                  }
-                />
-                <ValueBlock
-                  label="Conversion Date"
-                  value={formatDate(paymentToFundingConversionDate)}
-                  detail={paymentToFundingConversionSource || "Payment-date conversion context"}
-                />
-                <ValueBlock
-                  label="Paycheck Coverage Basis"
-                  value={
-                    distribution.metadata?.accounting_amount_basis ||
-                    "paycheck_currency_coverage"
-                  }
-                  detail="Each line stores coverage in the paycheck request currency."
-                />
-                <ValueBlock
-                  label="Paycheck Currency Coverage Total"
-                  value={formatMoney(
-                    distribution.metadata?.paycheck_currency_coverage_total ||
-                      distribution.amount
-                  )}
-                  detail="Combined coverage preview across selected paycheck currencies."
-                />
-              </div>
-            </SectionCard>
-
-            <SectionCard
-              title="Linked Paycheck Allocations"
-              description="Each line shows the paycheck request paid, payment currency amount, paycheck currency coverage, and employee status."
-              icon={Receipt}
-            >
-              {enrichedAllocations.length === 0 ? (
-                <div className="rounded-[24px] border border-dashed border-white/10 bg-black/20 px-6 py-12 text-center">
-                  <Receipt className="mx-auto h-8 w-8 text-slate-500" />
-                  <div className="mt-4 text-sm font-semibold text-white">
-                    No linked paycheck requests
-                  </div>
-                  <div className="mt-2 text-sm leading-6 text-slate-500">
-                    Paycheck allocation lines will appear here.
-                  </div>
-                </div>
-              ) : (
-                <div className="overflow-x-auto rounded-[24px] border border-white/10 bg-black/20">
-                  <div className="max-h-[720px] overflow-y-auto">
-                    <table className="w-full min-w-[1780px] border-collapse">
-                      <thead className="sticky top-0 z-20 border-b border-white/10 bg-black/70 backdrop-blur-xl">
-                        <tr>
-                          <th className="px-5 py-4 text-left text-[11px] font-semibold uppercase tracking-[0.18em] text-slate-500">
-                            Paycheck Request
-                          </th>
-                          <th className="px-5 py-4 text-left text-[11px] font-semibold uppercase tracking-[0.18em] text-slate-500">
-                            Employee
-                          </th>
-                          <th className="px-5 py-4 text-left text-[11px] font-semibold uppercase tracking-[0.18em] text-slate-500">
-                            Company / Period
-                          </th>
-                          <th className="px-5 py-4 text-right text-[11px] font-semibold uppercase tracking-[0.18em] text-slate-500">
-                            Payment Amount
-                          </th>
-                          <th className="px-5 py-4 text-right text-[11px] font-semibold uppercase tracking-[0.18em] text-slate-500">
-                            Paycheck Coverage
-                          </th>
-                          <th className="px-5 py-4 text-right text-[11px] font-semibold uppercase tracking-[0.18em] text-slate-500">
-                            Rate
-                          </th>
-                          <th className="px-5 py-4 text-right text-[11px] font-semibold uppercase tracking-[0.18em] text-slate-500">
-                            Funding Used
-                          </th>
-                          <th className="px-5 py-4 text-right text-[11px] font-semibold uppercase tracking-[0.18em] text-slate-500">
-                            Paycheck Remaining
-                          </th>
-                          <th className="px-5 py-4 text-left text-[11px] font-semibold uppercase tracking-[0.18em] text-slate-500">
-                            Employee Status
-                          </th>
-                        </tr>
-                      </thead>
-
-                      <tbody>
-                        {enrichedAllocations.map((allocation) => (
-                          <tr
-                            key={allocation.id}
-                            className="border-b border-white/5 text-sm text-slate-300 transition hover:bg-white/[0.035]"
-                          >
-                            <td className="min-w-[250px] px-5 py-4">
-                              <button
-                                type="button"
-                                onClick={() =>
-                                  navigate(
-                                    `/finance/transactions/paycheck-requests/${allocation.paycheck_request_id}`
-                                  )
-                                }
-                                className="text-left font-semibold text-cyan-200 transition hover:text-cyan-100"
-                              >
-                                {allocation.paycheckRequest?.request_number ||
-                                  allocation.metadata?.paycheck_request_number ||
-                                  "Paycheck Request"}
-                              </button>
-                              <div className="mt-1 text-xs text-white">
-                                Pay date{" "}
-                                {formatDate(allocation.paycheckRequest?.requested_pay_date)}
-                              </div>
-                              <div className="mt-1 text-xs text-slate-500">
-                                Created {formatDate(allocation.paycheckRequest?.created_at)}
-                              </div>
-                            </td>
-
-                            <td className="min-w-[240px] px-5 py-4">
-                              <div className="font-medium text-white">
-                                {allocation.employeeName}
-                              </div>
-                              <div className="mt-1 text-xs text-slate-500">
-                                {allocation.employeeLabel || "Employee"}
-                              </div>
-                            </td>
-
-                            <td className="min-w-[240px] px-5 py-4">
-                              <div className="font-medium text-white">
-                                {allocation.requestCompanyName}
-                              </div>
-                              <div className="mt-1 text-xs text-slate-500">
-                                {formatDate(allocation.paycheckRequest?.period_start)} →{" "}
-                                {formatDate(allocation.paycheckRequest?.period_end)}
-                              </div>
-                              <div className="mt-2 flex flex-wrap gap-2">
-                                <StatusBadge value={allocation.paycheckRequest?.review_status} />
-                                <StatusBadge value={allocation.paycheckRequest?.payment_status} />
-                              </div>
-                            </td>
-
-                            <td className="whitespace-nowrap px-5 py-4 text-right font-semibold text-white">
-                              {allocation.paymentCurrencyCode}{" "}
-                              {formatMoney(allocation.paymentCurrencyAmount)}
-                            </td>
-
-                            <td className="whitespace-nowrap px-5 py-4 text-right font-semibold text-emerald-100">
-                              {allocation.paycheckCurrencyCode}{" "}
-                              {formatMoney(allocation.paycheckCurrencyAmount)}
-                            </td>
-
-                            <td className="whitespace-nowrap px-5 py-4 text-right">
-                              <div className="font-semibold text-white">
-                                {allocation.exchangeRateValue
-                                  ? formatMoney(allocation.exchangeRateValue)
-                                  : "—"}
-                              </div>
-                              <div className="mt-1 text-[11px] text-slate-500">
-                                {allocation.conversionDateValue
-                                  ? formatDate(allocation.conversionDateValue)
-                                  : "No date"}
-                              </div>
-                              <div className="mt-1 text-[11px] text-slate-600">
-                                {allocation.conversionSourceValue || "—"}
-                              </div>
-                            </td>
-
-                            <td className="whitespace-nowrap px-5 py-4 text-right font-semibold text-violet-100">
-                              {allocation.fundingCurrencyCodeValue}{" "}
-                              {allocation.fundingCurrencyAmountUsed !== null
-                                ? formatMoney(allocation.fundingCurrencyAmountUsed)
-                                : "—"}
-                            </td>
-
-                            <td className="whitespace-nowrap px-5 py-4 text-right">
-                              <div className="font-semibold text-slate-200">
-                                Before:{" "}
-                                {allocation.paycheckRemainingBeforePayment !== null
-                                  ? `${allocation.paycheckCurrencyCode} ${formatMoney(
-                                      allocation.paycheckRemainingBeforePayment
-                                    )}`
-                                  : "—"}
-                              </div>
-                              <div className="mt-1 text-xs text-amber-100">
-                                After:{" "}
-                                {allocation.paycheckRemainingAfterPayment !== null
-                                  ? `${allocation.paycheckCurrencyCode} ${formatMoney(
-                                      allocation.paycheckRemainingAfterPayment
-                                    )}`
-                                  : "—"}
-                              </div>
-                            </td>
-
-                            <td className="whitespace-nowrap px-5 py-4">
-                              <StatusBadge value={allocation.recipient_confirmation_status} />
-                              {allocation.recipient_confirmation_notes ? (
-                                <div className="mt-2 max-w-[260px] text-xs leading-5 text-slate-500">
-                                  {allocation.recipient_confirmation_notes}
-                                </div>
-                              ) : null}
-                              {allocation.recipient_dispute_reason ? (
-                                <div className="mt-2 max-w-[260px] text-xs leading-5 text-rose-200">
-                                  {allocation.recipient_dispute_reason}
-                                </div>
-                              ) : null}
-                            </td>
-                          </tr>
-                        ))}
-                      </tbody>
-                    </table>
-                  </div>
-                </div>
-              )}
-            </SectionCard>
-
-            <SectionCard
-              title="Payment Proof"
-              description="Proof uploaded for this paycheck payment distribution."
-              icon={UploadCloud}
-            >
-              {attachments.length === 0 && !proofMetadata ? (
-                <div className="rounded-[24px] border border-dashed border-white/10 bg-black/20 px-6 py-12 text-center">
-                  <FileText className="mx-auto h-8 w-8 text-slate-500" />
-                  <div className="mt-4 text-sm font-semibold text-white">
-                    No paycheck payment proof uploaded
-                  </div>
-                  <div className="mt-2 text-sm leading-6 text-slate-500">
-                    Upload bank confirmation, transfer proof, or payroll payment evidence.
-                  </div>
-                </div>
-              ) : (
-                <div className="grid gap-4">
-                  {proofMetadata ? (
-                    <div className="grid gap-4 md:grid-cols-2">
-                      <ValueBlock label="File Name" value={proofMetadata.file_name || "—"} />
-                      <ValueBlock label="MIME Type" value={proofMetadata.mime_type || "—"} />
-                      <ValueBlock
-                        label="Uploaded"
-                        value={formatDateTime(proofMetadata.uploaded_at)}
-                      />
-                      <ValueBlock label="Storage Bucket" value={proofMetadata.bucket || "—"} />
-                      <ValueBlock
-                        label="Storage Path"
-                        value={
-                          proofMetadata.path ? (
-                            <span className="break-all text-cyan-200">{proofMetadata.path}</span>
-                          ) : (
-                            "—"
-                          )
-                        }
-                      />
-                    </div>
-                  ) : null}
-
-                  {attachments.length > 0 ? (
-                    <div className="divide-y divide-white/5 overflow-hidden rounded-[24px] border border-white/10 bg-black/20">
-                      {attachments.map((attachment) => (
-                        <div
-                          key={attachment.id}
-                          className="flex flex-col gap-3 px-4 py-3 md:flex-row md:items-center md:justify-between"
-                        >
-                          <div className="min-w-0">
-                            <div className="truncate text-sm font-medium text-white">
-                              {attachment.fileUpload?.file_name || "File"}
-                            </div>
-                            <div className="mt-1 text-xs text-slate-500">
-                              {attachment.fileUpload?.mime_type || "Unknown type"} •{" "}
-                              {formatDateTime(attachment.created_at)}
-                            </div>
-                          </div>
-
-                          {attachment.signedUrl ? (
-                            <a
-                              href={attachment.signedUrl}
-                              target="_blank"
-                              rel="noreferrer"
-                              className="inline-flex h-9 items-center justify-center gap-2 rounded-full border border-cyan-400/20 bg-cyan-500/10 px-4 text-xs font-semibold uppercase tracking-[0.14em] text-cyan-100 transition hover:bg-cyan-500/15"
-                            >
-                              <FileText className="h-3.5 w-3.5" />
-                              Open
-                            </a>
-                          ) : (
-                            <FileText className="h-4 w-4 shrink-0 text-cyan-200" />
-                          )}
-                        </div>
-                      ))}
-                    </div>
-                  ) : null}
-                </div>
-              )}
-            </SectionCard>
-          </div>
-
-                    <aside className="sticky top-6 grid gap-6">
-            <SectionCard
-              title="Action Center"
-              description="Only relevant actions for this paycheck payment distribution are shown."
-              icon={ShieldCheck}
-            >
-              <div className="grid gap-3">
-                {canConfirmDistribution ? (
-                  <ActionButton
-                    label="Confirm Distribution"
-                    loadingLabel="Confirming..."
-                    icon={CheckCircle2}
-                    tone="emerald"
-                    disabled={actionLocked}
-                    isRunning={runningAction === "confirm_distribution"}
-                    onClick={() => void confirmDistribution()}
+                  <AixiaTableTextCell
+                    width="md"
+                    primary={`${allocation.paycheckCurrencyCode} ${formatMoney(
+                      allocation.paycheckCurrencyAmount,
+                    )}`}
                   />
-                ) : (
-                  <div className="rounded-[24px] border border-white/10 bg-black/20 p-4 text-sm leading-6 text-slate-400">
-                    No confirmation action is available for the current status.
-                  </div>
-                )}
 
-                {canVerifyProof ? (
-                  <ActionButton
-                    label="Verify Proof"
-                    loadingLabel="Verifying..."
-                    icon={FileCheck2}
-                    tone="violet"
-                    disabled={actionLocked}
-                    isRunning={runningAction === "verify_proof"}
-                    onClick={() => void verifyProof()}
+                  <AixiaTableTextCell
+                    width="md"
+                    primary={
+                      allocation.exchangeRateValue
+                        ? formatMoney(allocation.exchangeRateValue)
+                        : "—"
+                    }
+                    secondary={
+                      <>
+                        {allocation.conversionDateValue
+                          ? formatDate(allocation.conversionDateValue)
+                          : "No date"}
+                        <br />
+                        {allocation.conversionSourceValue || "—"}
+                      </>
+                    }
                   />
-                ) : null}
-              </div>
 
-              <div className="mt-4 rounded-[24px] border border-white/10 bg-black/20 p-4 text-xs leading-5 text-slate-500">
-                Confirming a draft distribution calls{" "}
-                <span className="text-slate-300">
-                  finance_confirm_paycheck_payment_distribution
-                </span>
-                . Confirmed distributions update paycheck payment rollups and set employee
-                confirmation to pending where relevant.
-              </div>
-            </SectionCard>
+                  <AixiaTableTextCell
+                    width="md"
+                    primary={`${allocation.fundingCurrencyCodeValue} ${
+                      allocation.fundingCurrencyAmountUsed !== null
+                        ? formatMoney(allocation.fundingCurrencyAmountUsed)
+                        : "—"
+                    }`}
+                  />
 
-            <SectionCard
-              title="Upload Payment Proof"
-              description="Attach proof for this paycheck payment distribution."
-              icon={UploadCloud}
+                  <AixiaTableTextCell
+                    width="lg"
+                    primary={
+                      allocation.paycheckRemainingBeforePayment !== null
+                        ? `Before: ${allocation.paycheckCurrencyCode} ${formatMoney(
+                            allocation.paycheckRemainingBeforePayment,
+                          )}`
+                        : "Before: —"
+                    }
+                    secondary={
+                      allocation.paycheckRemainingAfterPayment !== null
+                        ? `After: ${allocation.paycheckCurrencyCode} ${formatMoney(
+                            allocation.paycheckRemainingAfterPayment,
+                          )}`
+                        : "After: —"
+                    }
+                  />
+
+                  <AixiaTableBadgeCell width="lg">
+                    <AixiaStatusBadge value={allocation.recipient_confirmation_status} />
+                    {allocation.recipient_confirmation_notes ? (
+                      <AixiaBadge tone="neutral">
+                        {allocation.recipient_confirmation_notes}
+                      </AixiaBadge>
+                    ) : null}
+                    {allocation.recipient_dispute_reason ? (
+                      <AixiaBadge tone="rose">
+                        {allocation.recipient_dispute_reason}
+                      </AixiaBadge>
+                    ) : null}
+                  </AixiaTableBadgeCell>
+
+                  <AixiaTableActionsCell>
+                    <AixiaButton
+                      type="button"
+                      variant="primary"
+                      onClick={() =>
+                        navigate(
+                          `/finance/transactions/paycheck-requests/${allocation.paycheck_request_id}`,
+                        )
+                      }
+                    >
+                      Open
+                    </AixiaButton>
+                  </AixiaTableActionsCell>
+                </tr>
+              ))}
+            </tbody>
+          </AixiaTableShell>
+        )}
+      </AixiaSection>
+
+      <AixiaSection
+        title="Payment Proof"
+        description="Proof uploaded for this paycheck payment distribution."
+        icon={UploadCloud}
+      >
+        {proofMetadata ? (
+          <AixiaFormGrid columns="two">
+            <AixiaDisplayBlock label="File Name" value={proofMetadata.file_name || "—"} />
+            <AixiaDisplayBlock label="MIME Type" value={proofMetadata.mime_type || "—"} />
+            <AixiaDisplayBlock
+              label="Uploaded"
+              value={formatDateTime(proofMetadata.uploaded_at)}
+            />
+            <AixiaDisplayBlock label="Storage Bucket" value={proofMetadata.bucket || "—"} />
+            <AixiaFormFullWidth>
+              <AixiaDisplayBlock label="Storage Path" value={proofMetadata.path || "—"} />
+            </AixiaFormFullWidth>
+          </AixiaFormGrid>
+        ) : null}
+
+        <AixiaDocumentUploadPanel
+          selectedFile={proofFile}
+          attachments={proofAttachments}
+          required
+          disabled={actionLocked || isArchivedOrDeleted}
+          uploading={runningAction === "upload_proof"}
+          accept=".pdf,.png,.jpg,.jpeg,.webp,.doc,.docx,.xls,.xlsx"
+          dropTitle="Drop payment proof here"
+          dropDescription="Upload bank confirmation, transfer proof, or payroll payment evidence."
+          uploadLabel="Upload Proof"
+          uploadingLabel="Uploading Proof..."
+          emptyTitle="No paycheck payment proof uploaded"
+          emptyDescription="Upload bank confirmation, transfer proof, or payroll payment evidence."
+          requiredMessage="No paycheck payment proof has been uploaded for this distribution."
+          onFileSelect={setProofFile}
+          onUpload={uploadPaymentProof}
+          onOpenAttachment={openProofAttachment}
+          onRemoveSelectedFile={() => setProofFile(null)}
+        />
+      </AixiaSection>
+    </>
+  );
+
+  const sideContent = (
+    <>
+      <AixiaSection
+        title="Action Center"
+        description="Only relevant actions for this paycheck payment distribution are shown."
+        icon={ShieldCheck}
+      >
+        <AixiaFormGrid columns="one">
+          {canConfirmDistribution ? (
+            <AixiaButton
+              type="button"
+              variant="primary"
+              disabled={actionLocked}
+              onClick={() => void confirmDistribution()}
             >
-              <div className="rounded-[24px] border border-dashed border-white/15 bg-black/20 p-4">
-                <input
-                  type="file"
-                  accept=".pdf,.png,.jpg,.jpeg,.webp,.doc,.docx,.xls,.xlsx"
-                  disabled={actionLocked || isArchivedOrDeleted}
-                  onChange={(event) => setProofFile(event.target.files?.[0] ?? null)}
-                  className="block w-full text-sm text-slate-400 file:mr-4 file:rounded-full file:border-0 file:bg-cyan-500/10 file:px-4 file:py-2 file:text-sm file:font-semibold file:text-cyan-100 disabled:cursor-not-allowed disabled:opacity-50"
-                />
+              <CheckCircle2 className="h-4 w-4" />
+              {runningAction === "confirm_distribution" ? "Confirming..." : "Confirm Distribution"}
+            </AixiaButton>
+          ) : (
+            <AixiaAlert tone="info">
+              No confirmation action is available for the current status.
+            </AixiaAlert>
+          )}
 
-                {proofFile ? (
-                  <div className="mt-3 rounded-2xl border border-cyan-400/15 bg-cyan-500/10 px-4 py-3 text-sm text-cyan-100">
-                    {proofFile.name}
-                  </div>
-                ) : null}
-
-                <button
-                  type="button"
-                  disabled={actionLocked || !proofFile || isArchivedOrDeleted}
-                  onClick={() => void uploadPaymentProof()}
-                  className="mt-4 inline-flex h-11 w-full items-center justify-center gap-2 rounded-2xl border border-cyan-400/20 bg-cyan-500/10 px-4 text-sm font-semibold text-cyan-100 transition hover:bg-cyan-500/15 disabled:cursor-not-allowed disabled:opacity-50"
-                >
-                  {runningAction === "upload_proof" ? (
-                    <Loader2 className="h-4 w-4 animate-spin" />
-                  ) : (
-                    <UploadCloud className="h-4 w-4" />
-                  )}
-                  {runningAction === "upload_proof" ? "Uploading Proof..." : "Upload Proof"}
-                </button>
-              </div>
-            </SectionCard>
-
-            <SectionCard
-              title="Employee Confirmation"
-              description="This is the closing step after Finance distributes payroll money."
-              icon={UserRound}
+          {canVerifyProof ? (
+            <AixiaButton
+              type="button"
+              variant="primary"
+              disabled={actionLocked}
+              onClick={() => void verifyProof()}
             >
-              <div className="grid gap-3">
-                <ValueBlock
-                  label="Overall Employee Status"
-                  value={<StatusBadge value={distribution.recipient_confirmation_status} />}
-                  detail="Employee confirmation proves the person received the distributed paycheck money."
-                />
-                <ValueBlock
-                  label="Recipient"
-                  value={distribution.recipient_person_name || "Multiple employees"}
-                />
-                <ValueBlock
-                  label="Linked Employee Lines"
-                  value={String(enrichedAllocations.length)}
-                  detail="Each allocation line also carries its own employee confirmation status."
-                />
-              </div>
-            </SectionCard>
+              <FileCheck2 className="h-4 w-4" />
+              {runningAction === "verify_proof" ? "Verifying..." : "Verify Proof"}
+            </AixiaButton>
+          ) : null}
 
-            <SectionCard
-              title="Status Summary"
-              description="Current distribution and payroll payment state."
-              icon={Clock3}
-            >
-              <div className="grid gap-3">
-                <ValueBlock
-                  label="Distribution Status"
-                  value={<StatusBadge value={distribution.status} />}
-                />
-                <ValueBlock
-                  label="Payment Mode"
-                  value={<StatusBadge value={distribution.metadata?.payment_mode} />}
-                />
-                <ValueBlock
-                  label="Employee Confirmation"
-                  value={<StatusBadge value={distribution.recipient_confirmation_status} />}
-                />
-                <ValueBlock
-                  label="Payment Proof"
-                  value={<StatusBadge value={distribution.payment_proof_status || "not_uploaded"} />}
-                />
-                <ValueBlock
-                  label="Linked Paycheck Requests"
-                  value={String(enrichedAllocations.length)}
-                  detail="Number of paycheck allocation lines attached to this distribution."
-                />
-              </div>
-            </SectionCard>
+          <AixiaAlert tone="info">
+            Confirming a draft distribution calls finance_confirm_paycheck_payment_distribution.
+            Confirmed distributions update paycheck payment rollups and set employee confirmation to pending where relevant.
+          </AixiaAlert>
+        </AixiaFormGrid>
+      </AixiaSection>
 
-            <SectionCard
-              title="Record Context"
-              description="Internal notes and metadata references."
-              icon={FileCheck2}
-            >
-              <div className="grid gap-3">
-                <ValueBlock label="Notes" value={distribution.notes || "—"} />
-                <ValueBlock
-                  label="Source Area"
-                  value={
-                    distribution.metadata?.source_area ||
-                    "payroll_paycheck_payment_distribution"
-                  }
-                />
-                <ValueBlock
-                  label="Selected Paycheck IDs"
-                  value={String(
-                    distribution.metadata?.selected_paycheck_request_ids?.length ||
-                      allocations.length
-                  )}
-                  detail="Number of paycheck requests attached to this distribution."
-                />
-                <ValueBlock
-                  label="Funding Pool ID"
-                  value={
-                    distribution.metadata?.funding_pool_id ||
-                    distribution.metadata?.funding_batch_id ||
-                    distribution.funding_batch_id ||
-                    "—"
-                  }
-                />
-              </div>
-            </SectionCard>
-          </aside>
-        </div>
-      </div>
-    </div>
+      <AixiaSection
+        title="Employee Confirmation"
+        description="This is the closing step after Finance distributes payroll money."
+        icon={UserRound}
+      >
+        <AixiaFormGrid columns="one">
+          <AixiaDisplayBlock
+            label="Overall Employee Status"
+            value={<AixiaStatusBadge value={distribution.recipient_confirmation_status} />}
+            detail="Employee confirmation proves the person received the distributed paycheck money."
+          />
+          <AixiaDisplayBlock
+            label="Recipient"
+            value={distribution.recipient_person_name || "Multiple employees"}
+          />
+          <AixiaDisplayBlock
+            label="Linked Employee Lines"
+            value={String(enrichedAllocations.length)}
+            detail="Each allocation line also carries its own employee confirmation status."
+          />
+        </AixiaFormGrid>
+      </AixiaSection>
+
+      <AixiaSection
+        title="Status Summary"
+        description="Current distribution and payroll payment state."
+        icon={Clock3}
+      >
+        <AixiaFormGrid columns="one">
+          <AixiaValueBlock
+            label="Distribution Status"
+            value={<AixiaStatusBadge value={distribution.status} />}
+          />
+          <AixiaValueBlock
+            label="Payment Mode"
+            value={<AixiaStatusBadge value={distribution.metadata?.payment_mode} />}
+          />
+          <AixiaValueBlock
+            label="Employee Confirmation"
+            value={<AixiaStatusBadge value={distribution.recipient_confirmation_status} />}
+          />
+          <AixiaValueBlock
+            label="Payment Proof"
+            value={<AixiaStatusBadge value={distribution.payment_proof_status || "not_uploaded"} />}
+          />
+          <AixiaValueBlock
+            label="Linked Paycheck Requests"
+            value={String(enrichedAllocations.length)}
+            detail="Number of paycheck allocation lines attached to this distribution."
+          />
+        </AixiaFormGrid>
+      </AixiaSection>
+
+      <AixiaSection
+        title="Record Context"
+        description="Internal notes and metadata references."
+        icon={FileCheck2}
+      >
+        <AixiaFormGrid columns="one">
+          <AixiaDisplayBlock label="Notes" value={distribution.notes || "—"} />
+          <AixiaDisplayBlock
+            label="Source Area"
+            value={
+              distribution.metadata?.source_area ||
+              "payroll_paycheck_payment_distribution"
+            }
+          />
+          <AixiaDisplayBlock
+            label="Selected Paycheck IDs"
+            value={String(
+              distribution.metadata?.selected_paycheck_request_ids?.length ||
+                allocations.length,
+            )}
+            detail="Number of paycheck requests attached to this distribution."
+          />
+          <AixiaDisplayBlock
+            label="Funding Pool ID"
+            value={
+              distribution.metadata?.funding_pool_id ||
+              distribution.metadata?.funding_batch_id ||
+              distribution.funding_batch_id ||
+              "—"
+            }
+          />
+        </AixiaFormGrid>
+      </AixiaSection>
+    </>
+  );
+
+  return (
+    <AixiaPage>
+      <AixiaHero
+        parentLabel="Payroll"
+        parentPath="/finance/transactions/payroll"
+        badges={[
+          { label: "Paycheck Payment Distribution", tone: "cyan" },
+          { label: formatLabel(distribution.status), tone: "emerald" },
+          { label: formatLabel(distribution.metadata?.payment_mode), tone: "violet" },
+          {
+            label: formatLabel(distribution.payment_proof_status || "not_uploaded"),
+            tone: distribution.payment_proof_status === "verified" ? "emerald" : "amber",
+          },
+          ...(isRefreshing ? [{ label: "Silent Refresh", tone: "neutral" as const }] : []),
+        ]}
+        gradientTitle="Paycheck"
+        title={
+          distribution.reference_number ||
+          distribution.distribution_number ||
+          "Payment Distribution"
+        }
+        description="This page shows how a confirmed Payroll Funding Pool was distributed across approved paycheck requests, including payment-date currency conversion and employee confirmation status."
+        actions={heroActions}
+        statusCards={[
+          {
+            label: "Payment Amount",
+            value: `${paymentCurrency} ${formatMoney(paymentCurrencyAmount)}`,
+            description: "Amount entered in the payment currency.",
+            icon: WalletCards,
+            tone: "cyan",
+          },
+          {
+            label: "Funding Used",
+            value: `${fundingCurrency} ${formatMoney(fundingCurrencyUsedForPayment)}`,
+            description: "Converted into Payroll Funding Pool currency.",
+            icon: Banknote,
+            tone: "emerald",
+          },
+          {
+            label: "Remaining After",
+            value: `${fundingCurrency} ${formatMoney(fundingCurrencyRemainingAfterPayment)}`,
+            description: "Payroll Funding Pool balance after this distribution.",
+            icon: ShieldCheck,
+            tone: "amber",
+          },
+          {
+            label: "Linked Paychecks",
+            value: String(allocations.length),
+            description: "Paycheck allocation lines connected to this distribution.",
+            icon: Receipt,
+            tone: "violet",
+          },
+        ]}
+      />
+
+      {pageError ? <AixiaAlert tone="error">{pageError}</AixiaAlert> : null}
+      {pageMessage ? <AixiaAlert tone="success">{pageMessage}</AixiaAlert> : null}
+
+      <AixiaMetricGrid>
+        <AixiaMetricCard
+          label="Payment Currency Amount"
+          value={`${paymentCurrency} ${formatMoney(paymentCurrencyAmount)}`}
+          description="Amount entered when the distribution was created."
+          icon={CreditCard}
+          tone="cyan"
+        />
+        <AixiaMetricCard
+          label="Funding Pool Used"
+          value={`${fundingCurrency} ${formatMoney(fundingCurrencyUsedForPayment)}`}
+          description="Payment converted into funding currency."
+          icon={Banknote}
+          tone="emerald"
+        />
+        <AixiaMetricCard
+          label="Funding Remaining"
+          value={`${fundingCurrency} ${formatMoney(fundingCurrencyRemainingAfterPayment)}`}
+          description="Remaining after this distribution."
+          icon={ShieldCheck}
+          tone="amber"
+        />
+        <AixiaMetricCard
+          label="Allocation Lines"
+          value={String(enrichedAllocations.length)}
+          description="Linked paycheck request lines."
+          icon={Receipt}
+          tone="violet"
+        />
+      </AixiaMetricGrid>
+
+      <AixiaSmartLayout
+        sidebar="normal"
+        balance="main"
+        sideRebalance="last-to-bottom"
+        main={mainContent}
+        side={sideContent}
+      />
+    </AixiaPage>
   );
 }

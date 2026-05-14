@@ -1,26 +1,43 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { useNavigate, useSearchParams } from "react-router-dom";
 import {
-  ArrowRight,
+  FileText,
   Link2,
   Plus,
   Save,
-  SquarePen,
+  ShieldCheck,
   Trash2,
   Truck,
   Wallet,
 } from "lucide-react";
 
 import { supabase } from "@/lib/supabase";
-import { Badge } from "@/components/ui/badge";
-import { Button } from "@/components/ui/button";
 import {
-  Card,
-  CardContent,
-  CardDescription,
-  CardHeader,
-  CardTitle,
-} from "@/components/ui/card";
+  AixiaAccessRule,
+  AixiaActionCard,
+  AixiaAlert,
+  AixiaBadge,
+  AixiaButton,
+  AixiaDisplayBlock,
+  AixiaEmptyState,
+  AixiaFieldLabel,
+  AixiaFormField,
+  AixiaFormFullWidth,
+  AixiaFormGrid,
+  AixiaFormRowCard,
+  AixiaHero,
+  AixiaInputField,
+  AixiaLoadingState,
+  AixiaMetricCard,
+  AixiaMetricGrid,
+  AixiaPage,
+  AixiaReviewGrid,
+  AixiaSection,
+  AixiaSelectField,
+  AixiaSmartLayout,
+  AixiaTextareaField,
+  AixiaValueBlock,
+} from "@/components/aixia";
 
 type VendorOption = {
   id: string;
@@ -296,6 +313,10 @@ function formatDate(value: string | null | undefined) {
   });
 }
 
+function joinAddress(parts: Array<string | null | undefined>) {
+  return parts.filter(Boolean).join(", ");
+}
+
 export default function NewPurchaseOrderPage() {
   const navigate = useNavigate();
   const [searchParams] = useSearchParams();
@@ -322,13 +343,11 @@ export default function NewPurchaseOrderPage() {
     new Date().toISOString().substring(0, 10)
   );
   const [expectedDeliveryDate, setExpectedDeliveryDate] = useState("");
-
   const [currencyCode, setCurrencyCode] = useState("");
   const [currencyId, setCurrencyId] = useState("");
   const [projectId, setProjectId] = useState("");
   const [taskId, setTaskId] = useState("");
   const [notes, setNotes] = useState("");
-
   const [lines, setLines] = useState<PurchaseOrderLineDraft[]>([
     createEmptyLine(),
   ]);
@@ -411,10 +430,6 @@ export default function NewPurchaseOrderPage() {
     );
   }, [vendorQuotations, vendorQuotationId]);
 
-  const selectedRecipientTitle = useMemo(() => {
-    return selectedVendor?.legal_name || selectedVendor?.name || "—";
-  }, [selectedVendor]);
-
   const filteredTasks = useMemo(() => {
     if (!projectId) return tasks;
     return tasks.filter((task) => task.project_id === projectId);
@@ -423,46 +438,40 @@ export default function NewPurchaseOrderPage() {
   const getCompanyAddress = useCallback((company: CompanyOption | null) => {
     if (!company) return "";
 
-    return [
+    return joinAddress([
       company.address_line_1,
       company.address_line_2,
       company.city,
       company.state_province,
       company.postal_code,
       company.country,
-    ]
-      .filter(Boolean)
-      .join(", ");
+    ]);
   }, []);
 
   const getVendorAddress = useCallback((vendor: VendorOption | null) => {
     if (!vendor) return "";
 
-    return [
+    return joinAddress([
       vendor.address_line_1,
       vendor.address_line_2,
       vendor.city,
       vendor.state_province,
       vendor.postal_code,
       vendor.country,
-    ]
-      .filter(Boolean)
-      .join(", ");
+    ]);
   }, []);
 
   const getVendorBankAddress = useCallback(
     (bank: VendorBankAccountOption | null) => {
       if (!bank) return "";
 
-      return [
+      return joinAddress([
         bank.address_line_1,
         bank.address_line_2,
         bank.city,
         bank.postal_code,
         bank.country,
-      ]
-        .filter(Boolean)
-        .join(", ");
+      ]);
     },
     []
   );
@@ -502,6 +511,10 @@ export default function NewPurchaseOrderPage() {
     },
     []
   );
+
+  const selectedRecipientTitle = useMemo(() => {
+    return selectedVendor?.legal_name || selectedVendor?.name || "—";
+  }, [selectedVendor]);
 
   const sourceDescription = useMemo(() => {
     if (sourceMode === "vendor_quotation") {
@@ -959,7 +972,13 @@ export default function NewPurchaseOrderPage() {
     } finally {
       setIsLoading(false);
     }
-  }, [sourceVendorQuotationId]);
+  }, [
+    companyId,
+    paymentMethodId,
+    paymentTermsId,
+    shippingTermId,
+    sourceVendorQuotationId,
+  ]);
 
   useEffect(() => {
     void loadFormData();
@@ -1012,7 +1031,10 @@ export default function NewPurchaseOrderPage() {
         item_id: itemId,
         description: selected?.description || selected?.name || "",
         unit_price: String(
-          selected?.purchase_price ?? selected?.unit_price ?? selected?.sales_price ?? 0
+          selected?.purchase_price ??
+            selected?.unit_price ??
+            selected?.sales_price ??
+            0
         ),
         unit_of_measure_id:
           selected?.unit_of_measure_id ||
@@ -1259,1178 +1281,848 @@ export default function NewPurchaseOrderPage() {
     void applyVendorQuotationSource();
   }, [selectedVendorQuotation, sourceMode]);
 
-  const activeSectionClass =
-    "overflow-hidden rounded-[30px] border border-white/10 bg-white/[0.045] backdrop-blur-xl";
-
-  const summaryBlockClass =
-    "rounded-[24px] border border-white/10 bg-black/20 p-4";
-
-  const fieldShellClass =
-    "mt-2 h-10 w-full rounded-2xl border border-white/10 bg-black/20 px-3 text-sm text-white outline-none transition focus:border-cyan-400/30 focus:bg-black/30 disabled:opacity-70";
-
-  const inputFieldClass =
-    "h-11 w-full rounded-2xl border border-white/10 bg-black/20 px-4 text-sm text-white outline-none transition placeholder:text-slate-600 focus:border-cyan-400/30 focus:bg-black/30 disabled:opacity-70";
-
-  const labelClass = "text-[11px] uppercase tracking-[0.2em] text-slate-500";
-
-  const inputLabelClass = "text-sm font-medium text-slate-300";
-
   if (isLoading) {
     return (
-      <div className="min-h-screen bg-[#05070d] px-4 py-4 text-white md:px-6 md:py-6">
-        <div className="mx-auto flex w-full max-w-[1600px] flex-col gap-6">
-          <div className="rounded-[30px] border border-white/10 bg-white/[0.045] p-6 text-sm text-slate-400 backdrop-blur-xl">
-            Loading purchase order sources...
-          </div>
-        </div>
-      </div>
+      <AixiaLoadingState
+        title="Loading purchase order sources"
+        description="Vendor quotations, companies, vendors, bank accounts, terms, currencies, items, and tax data are loading."
+      />
     );
   }
 
-  return (
-    <div className="min-h-screen bg-[#05070d] px-4 py-4 text-white md:px-6 md:py-6">
-      <div className="mx-auto flex w-full max-w-[1600px] flex-col gap-6">
-        <header className="relative overflow-hidden rounded-[34px] border border-white/10 bg-white/[0.045] p-6 shadow-2xl shadow-black/30 backdrop-blur-xl">
-          <div className="pointer-events-none absolute inset-0 bg-[radial-gradient(circle_at_top_left,rgba(6,182,212,0.16),transparent_38%),radial-gradient(circle_at_top_right,rgba(245,158,11,0.12),transparent_34%)]" />
+  const currentCurrency = currencyCode || selectedCurrency?.currency_code || "USD";
 
-          <div className="relative">
-            <button
-              type="button"
-              onClick={() => navigate("/finance/transactions/purchase-orders")}
-              className="mb-5 inline-flex items-center justify-center gap-2 rounded-full border border-white/10 bg-white/[0.05] px-5 py-2 text-[11px] font-semibold uppercase tracking-[0.22em] text-slate-300 transition hover:border-white/20 hover:bg-white/[0.08] hover:text-white"
+  const sourceRelationship = (
+    <AixiaSection
+      title="Source Relationship"
+      description="Create manually or from one accepted vendor quotation."
+      icon={Link2}
+    >
+      <AixiaFormGrid columns="three">
+        <AixiaFormField>
+          <AixiaFieldLabel label="Creation Mode" />
+          <AixiaSelectField
+            value={sourceMode}
+            onChange={(event) => {
+              const nextMode = event.target.value as
+                | "manual"
+                | "vendor_quotation";
+
+              setSourceMode(nextMode);
+
+              if (nextMode === "manual") {
+                resetManualSource();
+                return;
+              }
+
+              setVendorQuotationId("");
+              setVendorQuotationLines([]);
+              setLines([createEmptyLine()]);
+              setNotes("");
+              setErrorMessage("");
+            }}
+          >
+            <option value="manual">Manual Purchase Order</option>
+            <option value="vendor_quotation">From Vendor Quotation</option>
+          </AixiaSelectField>
+        </AixiaFormField>
+
+        <AixiaFormField>
+          <AixiaFieldLabel label="Accepted Vendor Quotation" />
+          <AixiaSelectField
+            value={vendorQuotationId}
+            onChange={(event) => setVendorQuotationId(event.target.value)}
+            disabled={sourceMode !== "vendor_quotation"}
+          >
+            <option value="">Select accepted quotation</option>
+            {vendorQuotations.map((quotation) => (
+              <option key={quotation.id} value={quotation.id}>
+                {quotation.vendor_quotation_number} —{" "}
+                {quotation.vendor_legal_name || quotation.vendor_name || "Vendor"} —{" "}
+                {formatMoney(quotation.total_amount, quotation.currency_code || "USD")}
+              </option>
+            ))}
+          </AixiaSelectField>
+        </AixiaFormField>
+
+        <AixiaDisplayBlock label="Source Status" value={sourceDescription} />
+
+        {selectedVendorQuotation ? (
+          <AixiaFormFullWidth>
+            <AixiaActionCard
+              label="Source Vendor Quotation"
+              value={selectedVendorQuotation.vendor_quotation_number}
+              description={[
+                selectedVendorQuotation.vendor_legal_name ||
+                  selectedVendorQuotation.vendor_name ||
+                  "Vendor",
+                `External ref: ${
+                  selectedVendorQuotation.external_quotation_number || "—"
+                }`,
+                `Date: ${formatDate(selectedVendorQuotation.quotation_date)}`,
+                `Lines: ${vendorQuotationLines.length}`,
+              ].join(" · ")}
+              icon={Link2}
+              tone="violet"
+              actionLabel="Open Source Record"
+              onClick={() =>
+                navigate(
+                  `/finance/transactions/vendor-quotations/${selectedVendorQuotation.id}`
+                )
+              }
+            />
+          </AixiaFormFullWidth>
+        ) : null}
+      </AixiaFormGrid>
+    </AixiaSection>
+  );
+
+  const mainContent = (
+    <>
+      {sourceRelationship}
+
+      <AixiaSection
+        title="Document Overview"
+        description="Issuing company, vendor recipient, vendor bank account, terms, timeline, currency, project, task, and notes."
+        icon={FileText}
+      >
+        <AixiaFormGrid columns="three">
+          <AixiaFormField>
+            <AixiaFieldLabel label="Issuing Company" />
+            <AixiaSelectField
+              value={companyId}
+              onChange={(event) => setCompanyId(event.target.value)}
+              disabled={sourceMode === "vendor_quotation"}
             >
-              <ArrowRight className="h-3.5 w-3.5 rotate-180" />
-              Purchase Orders
-            </button>
-
-            <div className="grid gap-6 xl:grid-cols-[minmax(0,1fr)_520px]">
-              <div>
-                <div className="flex flex-wrap gap-2">
-                  <Badge className="inline-flex w-fit rounded-full border border-cyan-400/20 bg-cyan-500/10 px-3 py-1 text-[11px] font-semibold uppercase tracking-[0.22em] text-cyan-200 shadow-none">
-                    New Purchase Order Draft
-                  </Badge>
-
-                  <Badge className="inline-flex w-fit rounded-full border border-amber-400/20 bg-amber-500/10 px-3 py-1 text-[11px] font-semibold uppercase tracking-[0.22em] text-amber-200 shadow-none">
-                    Supplier Flow
-                  </Badge>
-                </div>
-
-                <h1 className="mt-4 text-3xl font-semibold tracking-[-0.035em] text-white md:text-5xl">
-                  Create Purchase Order Draft
-                </h1>
-
-                <p className="mt-3 max-w-4xl text-sm leading-6 text-slate-400 md:text-base md:leading-7">
-                  Build a purchase order from master data or from an accepted
-                  vendor quotation. Save it as a draft, then issue and send it
-                  later from the purchase order detail page.
-                </p>
-
-                <div className="mt-5 flex flex-wrap gap-2">
-                  <Badge className="rounded-full border border-cyan-400/20 bg-cyan-500/10 px-3 py-1 text-[11px] font-semibold uppercase tracking-[0.16em] text-cyan-200 shadow-none">
-                    Draft only
-                  </Badge>
-                  <Badge className="rounded-full border border-emerald-400/20 bg-emerald-500/10 px-3 py-1 text-[11px] font-semibold uppercase tracking-[0.16em] text-emerald-200 shadow-none">
-                    Issue later
-                  </Badge>
-                  <Badge className="rounded-full border border-white/10 bg-white/[0.05] px-3 py-1 text-[11px] font-semibold uppercase tracking-[0.16em] text-slate-300 shadow-none">
-                    Reverse procurement
-                  </Badge>
-                </div>
-              </div>
-
-              <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-1">
-                <div className="min-h-[148px] rounded-[24px] border border-white/10 bg-black/20 p-4">
-                  <div className="flex items-start justify-between gap-3">
-                    <div>
-                      <p className="text-[11px] font-semibold uppercase tracking-[0.2em] text-slate-500">
-                        Vendor / Recipient
-                      </p>
-                      <p className="mt-2 text-xl font-semibold tracking-[-0.035em] text-white">
-                        {selectedRecipientTitle}
-                      </p>
-                    </div>
-                    <div className="flex h-10 w-10 items-center justify-center rounded-2xl border border-amber-400/20 bg-amber-500/10 text-amber-200">
-                      <Truck className="h-4 w-4" />
-                    </div>
-                  </div>
-                  <p className="mt-3 text-xs leading-5 text-slate-500">
-                    PO recipient selected for this purchase order draft.
-                  </p>
-                </div>
-
-                <div className="min-h-[148px] rounded-[24px] border border-white/10 bg-black/20 p-4">
-                  <div className="flex items-start justify-between gap-3">
-                    <div>
-                      <p className="text-[11px] font-semibold uppercase tracking-[0.2em] text-slate-500">
-                        Draft Total
-                      </p>
-                      <p className="mt-2 text-xl font-semibold tracking-[-0.035em] text-white">
-                        {formatMoney(totals.total, currencyCode || "USD")}
-                      </p>
-                    </div>
-                    <div className="flex h-10 w-10 items-center justify-center rounded-2xl border border-emerald-400/20 bg-emerald-500/10 text-emerald-200">
-                      <Wallet className="h-4 w-4" />
-                    </div>
-                  </div>
-                  <p className="mt-3 text-xs leading-5 text-slate-500">
-                    Live value from the draft purchase order line items.
-                  </p>
-                </div>
-              </div>
-            </div>
-
-            <div className="mt-6 flex flex-wrap gap-3">
-              <Button
-                onClick={() => void handleSaveDraft()}
-                disabled={isSaving || isLoading}
-                className="h-11 rounded-2xl border border-cyan-400/20 bg-cyan-500 px-4 text-sm font-semibold text-slate-950 transition hover:bg-cyan-400 disabled:cursor-not-allowed disabled:opacity-40"
-              >
-                <Save className="mr-2 h-4 w-4" />
-                {isSaving ? "Saving..." : "Save Draft"}
-              </Button>
-
-              {errorMessage ? (
-                <div className="flex min-h-11 items-center rounded-2xl border border-rose-400/20 bg-rose-500/10 px-4 text-sm text-rose-200">
-                  {errorMessage}
-                </div>
-              ) : null}
-            </div>
-          </div>
-        </header>
-
-        <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
-          <div className="group relative min-h-[156px] overflow-hidden rounded-[28px] border border-white/10 bg-white/[0.045] p-5 backdrop-blur-xl transition hover:border-white/20 hover:bg-white/[0.055]">
-            <div className="pointer-events-none absolute inset-0 bg-gradient-to-br from-cyan-500/20 via-cyan-400/10 to-transparent opacity-70" />
-            <div className="relative flex items-start justify-between gap-4">
-              <div className="min-w-0">
-                <div className="text-[11px] font-semibold uppercase tracking-[0.2em] text-slate-500">
-                  Subtotal
-                </div>
-                <div className="mt-2 truncate text-3xl font-semibold tracking-[-0.035em] text-cyan-100">
-                  {formatMoney(totals.subtotal, currencyCode || "USD")}
-                </div>
-                <div className="mt-2 truncate text-sm leading-6 text-slate-400">
-                  Before discount and tax.
-                </div>
-              </div>
-              <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-2xl border border-cyan-400/20 bg-cyan-500/10 text-cyan-200">
-                <span className="h-2 w-2 rounded-full bg-cyan-400" />
-              </div>
-            </div>
-          </div>
-
-          <div className="group relative min-h-[156px] overflow-hidden rounded-[28px] border border-white/10 bg-white/[0.045] p-5 backdrop-blur-xl transition hover:border-white/20 hover:bg-white/[0.055]">
-            <div className="pointer-events-none absolute inset-0 bg-gradient-to-br from-amber-500/20 via-amber-400/10 to-transparent opacity-70" />
-            <div className="relative flex items-start justify-between gap-4">
-              <div className="min-w-0">
-                <div className="text-[11px] font-semibold uppercase tracking-[0.2em] text-slate-500">
-                  Discount
-                </div>
-                <div className="mt-2 truncate text-3xl font-semibold tracking-[-0.035em] text-amber-100">
-                  {formatMoney(totals.discount, currencyCode || "USD")}
-                </div>
-                <div className="mt-2 truncate text-sm leading-6 text-slate-400">
-                  Draft discount.
-                </div>
-              </div>
-              <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-2xl border border-amber-400/20 bg-amber-500/10 text-amber-200">
-                <span className="h-2 w-2 rounded-full bg-amber-400" />
-              </div>
-            </div>
-          </div>
-
-          <div className="group relative min-h-[156px] overflow-hidden rounded-[28px] border border-white/10 bg-white/[0.045] p-5 backdrop-blur-xl transition hover:border-white/20 hover:bg-white/[0.055]">
-            <div className="pointer-events-none absolute inset-0 bg-gradient-to-br from-violet-500/20 via-violet-400/10 to-transparent opacity-70" />
-            <div className="relative flex items-start justify-between gap-4">
-              <div className="min-w-0">
-                <div className="text-[11px] font-semibold uppercase tracking-[0.2em] text-slate-500">
-                  Tax
-                </div>
-                <div className="mt-2 truncate text-3xl font-semibold tracking-[-0.035em] text-violet-100">
-                  {formatMoney(totals.tax, currencyCode || "USD")}
-                </div>
-                <div className="mt-2 truncate text-sm leading-6 text-slate-400">
-                  Based on selected tax codes.
-                </div>
-              </div>
-              <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-2xl border border-violet-400/20 bg-violet-500/10 text-violet-200">
-                <span className="h-2 w-2 rounded-full bg-violet-400" />
-              </div>
-            </div>
-          </div>
-
-          <div className="group relative min-h-[156px] overflow-hidden rounded-[28px] border border-white/10 bg-white/[0.045] p-5 backdrop-blur-xl transition hover:border-white/20 hover:bg-white/[0.055]">
-            <div className="pointer-events-none absolute inset-0 bg-gradient-to-br from-emerald-500/20 via-emerald-400/10 to-transparent opacity-70" />
-            <div className="relative flex items-start justify-between gap-4">
-              <div className="min-w-0">
-                <div className="text-[11px] font-semibold uppercase tracking-[0.2em] text-slate-500">
-                  Total
-                </div>
-                <div className="mt-2 truncate text-3xl font-semibold tracking-[-0.035em] text-emerald-100">
-                  {formatMoney(totals.total, currencyCode || "USD")}
-                </div>
-                <div className="mt-2 truncate text-sm leading-6 text-slate-400">
-                  Draft purchase order value.
-                </div>
-              </div>
-              <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-2xl border border-emerald-400/20 bg-emerald-500/10 text-emerald-200">
-                <span className="h-2 w-2 rounded-full bg-emerald-400" />
-              </div>
-            </div>
-          </div>
-        </div>
-
-        <Card className={activeSectionClass}>
-          <CardHeader className="border-b border-white/10 px-5 py-4">
-            <div className="flex items-center gap-3">
-              <div className="rounded-2xl border border-violet-400/15 bg-violet-500/10 p-3 text-violet-200">
-                <Link2 className="h-4 w-4" />
-              </div>
-              <div>
-                <CardTitle className="text-sm font-semibold uppercase tracking-[0.18em] text-slate-400">
-                  Source Relationship
-                </CardTitle>
-                <CardDescription className="mt-1 text-xs text-slate-500">
-                  Create manually or from one accepted vendor quotation.
-                </CardDescription>
-              </div>
-            </div>
-          </CardHeader>
-
-          <CardContent className="grid grid-cols-1 gap-4 p-5 md:grid-cols-3">
-            <div className={summaryBlockClass}>
-              <div className={labelClass}>Creation Mode</div>
-              <select
-                value={sourceMode}
-                onChange={(event) => {
-                  const nextMode = event.target.value as
-                    | "manual"
-                    | "vendor_quotation";
-
-                  setSourceMode(nextMode);
-
-                  if (nextMode === "manual") {
-                    resetManualSource();
-                    return;
-                  }
-
-                  setVendorQuotationId("");
-                  setVendorQuotationLines([]);
-                  setLines([createEmptyLine()]);
-                  setNotes("");
-                  setErrorMessage("");
-                }}
-                className={fieldShellClass}
-              >
-                <option value="manual">Manual Purchase Order</option>
-                <option value="vendor_quotation">From Vendor Quotation</option>
-              </select>
-            </div>
-
-            <div className={summaryBlockClass}>
-              <div className={labelClass}>Accepted Vendor Quotation</div>
-              <select
-                value={vendorQuotationId}
-                onChange={(event) => setVendorQuotationId(event.target.value)}
-                disabled={sourceMode !== "vendor_quotation"}
-                className={fieldShellClass}
-              >
-                <option value="">Select accepted quotation</option>
-                {vendorQuotations.map((quotation) => (
-                  <option key={quotation.id} value={quotation.id}>
-                    {quotation.vendor_quotation_number} —{" "}
-                    {quotation.vendor_legal_name ||
-                      quotation.vendor_name ||
-                      "Vendor"}{" "}
-                    —{" "}
-                    {formatMoney(
-                      quotation.total_amount,
-                      quotation.currency_code || "USD"
-                    )}
-                  </option>
-                ))}
-              </select>
-            </div>
-
-            <div className={summaryBlockClass}>
-              <div className={labelClass}>Source Status</div>
-              <div className="mt-2 text-xl font-semibold text-white">
-                {sourceDescription}
-              </div>
-              <div className="mt-2 text-sm leading-6 text-slate-400">
-                {selectedVendorQuotation
-                  ? `External ref: ${
-                      selectedVendorQuotation.external_quotation_number || "—"
-                    }`
-                  : "Manual purchase order without source quotation."}
-              </div>
-            </div>
-
-            {selectedVendorQuotation ? (
-              <div className="rounded-[24px] border border-violet-400/15 bg-violet-500/10 p-4 md:col-span-3">
-                <div className={labelClass}>Source Vendor Quotation</div>
-                <div className="mt-2 text-2xl font-semibold text-white">
-                  {selectedVendorQuotation.vendor_quotation_number}
-                </div>
-                <div className="mt-2 grid grid-cols-1 gap-3 text-sm leading-6 text-slate-300 md:grid-cols-4">
-                  <div>
-                    <span className="text-slate-500">Vendor:</span>{" "}
-                    {selectedVendorQuotation.vendor_legal_name ||
-                      selectedVendorQuotation.vendor_name ||
-                      "—"}
-                  </div>
-                  <div>
-                    <span className="text-slate-500">Date:</span>{" "}
-                    {formatDate(selectedVendorQuotation.quotation_date)}
-                  </div>
-                  <div>
-                    <span className="text-slate-500">Valid Until:</span>{" "}
-                    {formatDate(selectedVendorQuotation.valid_until)}
-                  </div>
-                  <div>
-                    <span className="text-slate-500">Lines:</span>{" "}
-                    {vendorQuotationLines.length}
-                  </div>
-                </div>
-              </div>
+              <option value="">Select company</option>
+              {companies.map((company) => (
+                <option key={company.id} value={company.id}>
+                  {company.legal_name || company.name}
+                </option>
+              ))}
+            </AixiaSelectField>
+            {selectedCompany ? (
+              <AixiaDisplayBlock
+                label="Company Details"
+                value={selectedCompany.legal_name || selectedCompany.name}
+                detail={[
+                  getCompanyAddress(selectedCompany),
+                  selectedCompany.email ? `Email: ${selectedCompany.email}` : "",
+                  selectedCompany.phone ? `Phone: ${selectedCompany.phone}` : "",
+                ]
+                  .filter(Boolean)
+                  .join(" • ")}
+              />
             ) : null}
-          </CardContent>
-        </Card>
+          </AixiaFormField>
 
-        <div className="grid grid-cols-1 gap-6 xl:grid-cols-[minmax(0,1.45fr)_420px]">
-          <div className="space-y-6">
-            <Card className={activeSectionClass}>
-              <CardHeader className="border-b border-white/10 px-5 py-4">
-                <div className="flex items-center gap-3">
-                  <div className="rounded-2xl border border-cyan-400/15 bg-cyan-500/10 p-3 text-cyan-200">
-                    <SquarePen className="h-4 w-4" />
-                  </div>
-                  <div>
-                    <CardTitle className="text-sm font-semibold uppercase tracking-[0.18em] text-slate-400">
-                      Document Overview
-                    </CardTitle>
-                    <CardDescription className="mt-1 text-xs text-slate-500">
-                      Issuing company, vendor recipient, vendor bank account,
-                      terms, timeline, currency, project, task, and notes.
-                    </CardDescription>
-                  </div>
-                </div>
-              </CardHeader>
+          <AixiaFormField>
+            <AixiaFieldLabel label="Vendor / Recipient" />
+            <AixiaSelectField
+              value={vendorId}
+              onChange={(event) => setVendorId(event.target.value)}
+              disabled={sourceMode === "vendor_quotation"}
+            >
+              <option value="">Select vendor</option>
+              {vendors.map((vendor) => (
+                <option key={vendor.id} value={vendor.id}>
+                  {vendor.legal_name || vendor.name}
+                </option>
+              ))}
+            </AixiaSelectField>
+            {selectedVendor ? (
+              <AixiaDisplayBlock
+                label="Vendor Details"
+                value={selectedVendor.legal_name || selectedVendor.name}
+                detail={[
+                  getVendorAddress(selectedVendor),
+                  selectedVendor.email ? `Email: ${selectedVendor.email}` : "",
+                  selectedVendor.phone ? `Phone: ${selectedVendor.phone}` : "",
+                  selectedVendor.code ? `Vendor Code: ${selectedVendor.code}` : "",
+                  selectedVendor.contact_person
+                    ? `Contact: ${selectedVendor.contact_person}`
+                    : "",
+                ]
+                  .filter(Boolean)
+                  .join(" • ")}
+              />
+            ) : null}
+          </AixiaFormField>
 
-              <CardContent className="grid grid-cols-1 gap-4 p-5 md:grid-cols-3">
-                <div className={summaryBlockClass}>
-                  <div className={labelClass}>Issuing Company</div>
-                  <select
-                    value={companyId}
-                    onChange={(event) => setCompanyId(event.target.value)}
-                    disabled={sourceMode === "vendor_quotation"}
-                    className={fieldShellClass}
-                  >
-                    <option value="">Select company</option>
-                    {companies.map((company) => (
-                      <option key={company.id} value={company.id}>
-                        {company.legal_name || company.name}
-                      </option>
-                    ))}
-                  </select>
+          <AixiaFormField>
+            <AixiaFieldLabel label="Vendor Bank Account" />
+            <AixiaSelectField
+              value={vendorBankAccountId}
+              onChange={(event) => setVendorBankAccountId(event.target.value)}
+              disabled={!vendorId}
+            >
+              <option value="">Select vendor bank account</option>
+              {filteredVendorBankAccounts.map((bank) => {
+                const identifier = getVendorBankIdentifier(bank);
 
-                  {selectedCompany ? (
-                    <div className="mt-3 text-sm leading-6 text-slate-300">
-                      <div className="font-semibold text-white">
-                        {selectedCompany.legal_name || selectedCompany.name}
-                      </div>
-                      {getCompanyAddress(selectedCompany) ? (
-                        <div>{getCompanyAddress(selectedCompany)}</div>
-                      ) : null}
-                      {selectedCompany.email ? (
-                        <div>Email: {selectedCompany.email}</div>
-                      ) : null}
-                      {selectedCompany.phone ? (
-                        <div>Phone: {selectedCompany.phone}</div>
-                      ) : null}
-                    </div>
-                  ) : null}
-                </div>
+                return (
+                  <option key={bank.id} value={bank.id}>
+                    {bank.beneficiary_name || bank.bank_name || bank.bank_id}
+                    {identifier ? ` — ${identifier.label}: ${identifier.value}` : ""}
+                    {bank.currency_code ? ` — ${bank.currency_code}` : ""}
+                  </option>
+                );
+              })}
+            </AixiaSelectField>
+            {selectedVendorBankAccount ? (
+              <AixiaDisplayBlock
+                label="Bank Details"
+                value={
+                  selectedVendorBankAccount.beneficiary_name ||
+                  selectedVendorBankAccount.bank_name ||
+                  "Vendor Bank"
+                }
+                detail={[
+                  selectedVendorBankAccount.bank_name || "",
+                  getVendorBankAddress(selectedVendorBankAccount),
+                  selectedVendorBankAccount.account_number
+                    ? `Account: ${selectedVendorBankAccount.account_number}`
+                    : "",
+                  getVendorBankIdentifier(selectedVendorBankAccount)
+                    ? `${getVendorBankIdentifier(selectedVendorBankAccount)?.label}: ${
+                        getVendorBankIdentifier(selectedVendorBankAccount)?.value
+                      }`
+                    : "",
+                  selectedVendorBankAccount.currency_code
+                    ? `Currency: ${selectedVendorBankAccount.currency_code}`
+                    : "",
+                ]
+                  .filter(Boolean)
+                  .join(" • ")}
+              />
+            ) : null}
+          </AixiaFormField>
 
-                <div className={summaryBlockClass}>
-                  <div className={labelClass}>Vendor / Recipient</div>
-                  <select
-                    value={vendorId}
-                    onChange={(event) => setVendorId(event.target.value)}
-                    disabled={sourceMode === "vendor_quotation"}
-                    className={fieldShellClass}
-                  >
-                    <option value="">Select vendor</option>
-                    {vendors.map((vendor) => (
-                      <option key={vendor.id} value={vendor.id}>
-                        {vendor.legal_name || vendor.name}
-                      </option>
-                    ))}
-                  </select>
+          <AixiaFormField>
+            <AixiaFieldLabel label="Payment Terms" />
+            <AixiaSelectField
+              value={paymentTermsId}
+              onChange={(event) => setPaymentTermsId(event.target.value)}
+              disabled={sourceMode === "vendor_quotation"}
+            >
+              <option value="">Select terms</option>
+              {paymentTerms.map((term) => (
+                <option key={term.id} value={term.id}>
+                  {term.code ? `${term.code} | ` : ""}
+                  {term.name}
+                  {term.due_days !== null && term.due_days !== undefined
+                    ? ` | Due in ${term.due_days} days`
+                    : ""}
+                </option>
+              ))}
+            </AixiaSelectField>
+          </AixiaFormField>
 
-                  {selectedVendor ? (
-                    <div className="mt-3 text-sm leading-6 text-slate-300">
-                      <div className="font-semibold text-white">
-                        {selectedVendor.legal_name || selectedVendor.name}
-                      </div>
-                      {getVendorAddress(selectedVendor) ? (
-                        <div>{getVendorAddress(selectedVendor)}</div>
-                      ) : null}
-                      {selectedVendor.email ? (
-                        <div>Email: {selectedVendor.email}</div>
-                      ) : null}
-                      {selectedVendor.phone ? (
-                        <div>Phone: {selectedVendor.phone}</div>
-                      ) : null}
-                      {selectedVendor.code ? (
-                        <div>Vendor Code: {selectedVendor.code}</div>
-                      ) : null}
-                      {selectedVendor.contact_person ? (
-                        <div>Contact: {selectedVendor.contact_person}</div>
-                      ) : null}
-                    </div>
-                  ) : null}
-                </div>
+          <AixiaFormField>
+            <AixiaFieldLabel label="Shipping Terms" />
+            <AixiaSelectField
+              value={shippingTermId}
+              onChange={(event) => setShippingTermId(event.target.value)}
+              disabled={sourceMode === "vendor_quotation"}
+            >
+              <option value="">Select shipping terms</option>
+              {shippingTerms.map((term) => (
+                <option key={term.id} value={term.id}>
+                  {term.code ? `${term.code} | ` : ""}
+                  {term.name}
+                </option>
+              ))}
+            </AixiaSelectField>
+          </AixiaFormField>
 
-                <div className={summaryBlockClass}>
-                  <div className={labelClass}>Vendor Bank Account</div>
-                  <select
-                    value={vendorBankAccountId}
-                    onChange={(event) =>
-                      setVendorBankAccountId(event.target.value)
-                    }
-                    disabled={!vendorId}
-                    className={fieldShellClass}
-                  >
-                    <option value="">Select vendor bank account</option>
-                    {filteredVendorBankAccounts.map((bank) => {
-                      const identifier = getVendorBankIdentifier(bank);
+          <AixiaFormField>
+            <AixiaFieldLabel label="Preferred Payment Method" />
+            <AixiaSelectField
+              value={paymentMethodId}
+              onChange={(event) => setPaymentMethodId(event.target.value)}
+            >
+              <option value="">Select payment method</option>
+              {paymentMethods.map((method) => (
+                <option key={method.id} value={method.id}>
+                  {method.code ? `${method.code} | ` : ""}
+                  {method.name}
+                </option>
+              ))}
+            </AixiaSelectField>
+          </AixiaFormField>
 
-                      return (
-                        <option key={bank.id} value={bank.id}>
-                          {bank.beneficiary_name ||
-                            bank.bank_name ||
-                            bank.bank_id}
-                          {identifier
-                            ? ` — ${identifier.label}: ${identifier.value}`
-                            : ""}
-                          {bank.currency_code ? ` — ${bank.currency_code}` : ""}
-                        </option>
-                      );
-                    })}
-                  </select>
+          <AixiaFormField>
+            <AixiaFieldLabel label="PO Date" />
+            <AixiaInputField
+              type="date"
+              value={poDate}
+              onChange={(event) => setPoDate(event.target.value)}
+            />
+          </AixiaFormField>
 
-                  {selectedVendorBankAccount ? (
-                    <div className="mt-3 text-sm leading-6 text-slate-300">
-                      {selectedVendorBankAccount.beneficiary_name ? (
-                        <div className="font-semibold text-white">
-                          {selectedVendorBankAccount.beneficiary_name}
-                        </div>
-                      ) : null}
-                      {selectedVendorBankAccount.bank_name ? (
-                        <div>{selectedVendorBankAccount.bank_name}</div>
-                      ) : null}
-                      {getVendorBankAddress(selectedVendorBankAccount) ? (
-                        <div>
-                          {getVendorBankAddress(selectedVendorBankAccount)}
-                        </div>
-                      ) : null}
-                      {selectedVendorBankAccount.account_number ? (
-                        <div>
-                          Account: {selectedVendorBankAccount.account_number}
-                        </div>
-                      ) : null}
-                      {getVendorBankIdentifier(selectedVendorBankAccount) ? (
-                        <div>
-                          {
-                            getVendorBankIdentifier(selectedVendorBankAccount)
-                              ?.label
-                          }
-                          :{" "}
-                          {
-                            getVendorBankIdentifier(selectedVendorBankAccount)
-                              ?.value
-                          }
-                        </div>
-                      ) : null}
-                      {selectedVendorBankAccount.currency_code ? (
-                        <div>
-                          Currency: {selectedVendorBankAccount.currency_code}
-                        </div>
-                      ) : null}
-                    </div>
-                  ) : null}
+          <AixiaFormField>
+            <AixiaFieldLabel label="Expected Delivery Date" />
+            <AixiaInputField
+              type="date"
+              value={expectedDeliveryDate}
+              onChange={(event) => setExpectedDeliveryDate(event.target.value)}
+            />
+          </AixiaFormField>
 
-                  {vendorId && !selectedVendorBankAccount ? (
-                    <div className="mt-3 text-sm leading-6 text-slate-400">
-                      Select the vendor bank account manually.
-                    </div>
-                  ) : null}
-                </div>
+          <AixiaFormField>
+            <AixiaFieldLabel label="Currency" />
+            <AixiaSelectField
+              value={currencyId}
+              onChange={(event) => {
+                const nextId = event.target.value;
+                setCurrencyId(nextId);
 
-                <div className={summaryBlockClass}>
-                  <div className={labelClass}>Payment Terms</div>
-                  <select
-                    value={paymentTermsId}
-                    onChange={(event) => setPaymentTermsId(event.target.value)}
-                    disabled={sourceMode === "vendor_quotation"}
-                    className={fieldShellClass}
-                  >
-                    <option value="">Select terms</option>
-                    {paymentTerms.map((term) => (
-                      <option key={term.id} value={term.id}>
-                        {term.code ? `${term.code} | ` : ""}
-                        {term.name}
-                        {term.due_days !== null && term.due_days !== undefined
-                          ? ` | Due in ${term.due_days} days`
-                          : ""}
-                      </option>
-                    ))}
-                  </select>
-                </div>
+                const matchedCurrency = currencies.find(
+                  (entry) => entry.id === nextId
+                );
 
-                <div className={summaryBlockClass}>
-                  <div className={labelClass}>Shipping Terms</div>
-                  <select
-                    value={shippingTermId}
-                    onChange={(event) => setShippingTermId(event.target.value)}
-                    disabled={sourceMode === "vendor_quotation"}
-                    className={fieldShellClass}
-                  >
-                    <option value="">Select shipping terms</option>
-                    {shippingTerms.map((term) => (
-                      <option key={term.id} value={term.id}>
-                        {term.code ? `${term.code} | ` : ""}
-                        {term.name}
-                      </option>
-                    ))}
-                  </select>
-                </div>
+                if (matchedCurrency) {
+                  setCurrencyCode(matchedCurrency.currency_code);
+                }
+              }}
+              disabled={sourceMode === "vendor_quotation"}
+            >
+              <option value="">Select currency</option>
+              {currencies.map((currency) => (
+                <option key={currency.id} value={currency.id}>
+                  {currency.currency_code} — {currency.currency_name}
+                </option>
+              ))}
+            </AixiaSelectField>
+          </AixiaFormField>
 
-                <div className={summaryBlockClass}>
-                  <div className={labelClass}>Preferred Payment Method</div>
-                  <select
-                    value={paymentMethodId}
-                    onChange={(event) => setPaymentMethodId(event.target.value)}
-                    className={fieldShellClass}
-                  >
-                    <option value="">Select payment method</option>
-                    {paymentMethods.map((method) => (
-                      <option key={method.id} value={method.id}>
-                        {method.code ? `${method.code} | ` : ""}
-                        {method.name}
-                      </option>
-                    ))}
-                  </select>
-                </div>
+          <AixiaFormField>
+            <AixiaFieldLabel label="Project" />
+            <AixiaSelectField
+              value={projectId}
+              onChange={(event) => setProjectId(event.target.value)}
+              disabled={sourceMode === "vendor_quotation"}
+            >
+              <option value="">No project</option>
+              {projects.map((project) => (
+                <option key={project.id} value={project.id}>
+                  {project.name}
+                </option>
+              ))}
+            </AixiaSelectField>
+          </AixiaFormField>
 
-                <div className={summaryBlockClass}>
-                  <div className={labelClass}>PO Date</div>
-                  <input
-                    type="date"
-                    value={poDate}
-                    onChange={(event) => setPoDate(event.target.value)}
-                    className={fieldShellClass}
-                  />
-                </div>
+          <AixiaFormField>
+            <AixiaFieldLabel label="Task" />
+            <AixiaSelectField
+              value={taskId}
+              onChange={(event) => setTaskId(event.target.value)}
+              disabled={sourceMode === "vendor_quotation"}
+            >
+              <option value="">No task</option>
+              {filteredTasks.map((task) => (
+                <option key={task.id} value={task.id}>
+                  {task.title}
+                </option>
+              ))}
+            </AixiaSelectField>
+          </AixiaFormField>
 
-                <div className={summaryBlockClass}>
-                  <div className={labelClass}>Expected Delivery Date</div>
-                  <input
-                    type="date"
-                    value={expectedDeliveryDate}
-                    onChange={(event) =>
-                      setExpectedDeliveryDate(event.target.value)
-                    }
-                    className={fieldShellClass}
-                  />
-                </div>
+          <AixiaFormFullWidth>
+            <AixiaFieldLabel label="Notes" />
+            <AixiaTextareaField
+              value={notes}
+              onChange={(event) => setNotes(event.target.value)}
+              disabled={sourceMode === "vendor_quotation"}
+              rows={4}
+            />
+          </AixiaFormFullWidth>
+        </AixiaFormGrid>
+      </AixiaSection>
 
-                <div className={summaryBlockClass}>
-                  <div className={labelClass}>Currency</div>
-                  <select
-                    value={currencyId}
-                    onChange={(event) => {
-                      const nextId = event.target.value;
-                      setCurrencyId(nextId);
+      <AixiaSection
+        title="Line Items"
+        description="Each line in this draft purchase order can be added or removed manually."
+        icon={FileText}
+        badge={<AixiaBadge tone="cyan">{lines.length} Lines</AixiaBadge>}
+        actions={
+          sourceMode === "manual" ? (
+            <AixiaButton type="button" variant="secondary" onClick={addLine}>
+              <Plus className="h-4 w-4" />
+              Add Line
+            </AixiaButton>
+          ) : null
+        }
+        smartScroll
+        itemCount={lines.length}
+        visibleCards={10}
+      >
+        <div className="aixia-stack">
+          {lines.map((line, index) => {
+            const selectedItem = items.find((item) => item.id === line.item_id);
+            const selectedTax = taxCodes.find(
+              (tax) => tax.id === line.tax_code_id
+            );
+            const selectedCategory = expenseCategories.find(
+              (category) => category.id === line.expense_category_id
+            );
 
-                      const matchedCurrency = currencies.find(
-                        (entry) => entry.id === nextId
-                      );
-
-                      if (matchedCurrency) {
-                        setCurrencyCode(matchedCurrency.currency_code);
+            return (
+              <AixiaFormRowCard
+                key={line.localId}
+                title={`Line ${index + 1}`}
+                description={
+                  selectedItem?.name ||
+                  selectedCategory?.name ||
+                  "Purchase order line"
+                }
+                onRemove={
+                  sourceMode === "manual"
+                    ? () => removeLine(line.localId)
+                    : undefined
+                }
+                removeLabel={<Trash2 className="h-4 w-4" />}
+              >
+                <AixiaFormGrid columns="three">
+                  <AixiaFormField>
+                    <AixiaFieldLabel label="Item" />
+                    <AixiaSelectField
+                      value={line.item_id}
+                      onChange={(event) =>
+                        handleItemChange(line.localId, event.target.value)
                       }
-                    }}
-                    disabled={sourceMode === "vendor_quotation"}
-                    className={fieldShellClass}
-                  >
-                    <option value="">Select currency</option>
-                    {currencies.map((currency) => (
-                      <option key={currency.id} value={currency.id}>
-                        {currency.currency_code} — {currency.currency_name}
-                      </option>
-                    ))}
-                  </select>
-                </div>
+                      disabled={sourceMode === "vendor_quotation"}
+                    >
+                      <option value="">Manual item</option>
+                      {items.map((item) => (
+                        <option key={item.id} value={item.id}>
+                          {item.name}
+                        </option>
+                      ))}
+                    </AixiaSelectField>
+                  </AixiaFormField>
 
-                <div className={summaryBlockClass}>
-                  <div className={labelClass}>Project</div>
-                  <select
-                    value={projectId}
-                    onChange={(event) => setProjectId(event.target.value)}
-                    disabled={sourceMode === "vendor_quotation"}
-                    className={fieldShellClass}
-                  >
-                    <option value="">No project</option>
-                    {projects.map((project) => (
-                      <option key={project.id} value={project.id}>
-                        {project.name}
-                      </option>
-                    ))}
-                  </select>
-                </div>
+                  <AixiaFormField>
+                    <AixiaFieldLabel label="Description" />
+                    <AixiaInputField
+                      value={line.description}
+                      onChange={(event) =>
+                        updateLine(line.localId, {
+                          description: event.target.value,
+                        })
+                      }
+                      disabled={sourceMode === "vendor_quotation"}
+                      placeholder="Description"
+                    />
+                  </AixiaFormField>
 
-                <div className={summaryBlockClass}>
-                  <div className={labelClass}>Task</div>
-                  <select
-                    value={taskId}
-                    onChange={(event) => setTaskId(event.target.value)}
-                    disabled={sourceMode === "vendor_quotation"}
-                    className={fieldShellClass}
-                  >
-                    <option value="">No task</option>
-                    {filteredTasks.map((task) => (
-                      <option key={task.id} value={task.id}>
-                        {task.title}
-                      </option>
-                    ))}
-                  </select>
-                </div>
+                  <AixiaFormField>
+                    <AixiaFieldLabel label="Qty" />
+                    <AixiaInputField
+                      value={line.quantity}
+                      onChange={(event) =>
+                        updateLine(line.localId, {
+                          quantity: event.target.value,
+                        })
+                      }
+                      disabled={sourceMode === "vendor_quotation"}
+                    />
+                  </AixiaFormField>
 
-                <div className="rounded-[24px] border border-white/10 bg-black/20 p-4 md:col-span-3">
-                  <div className={labelClass}>Notes</div>
-                  <textarea
-                    value={notes}
-                    onChange={(event) => setNotes(event.target.value)}
-                    disabled={sourceMode === "vendor_quotation"}
-                    rows={4}
-                    className="mt-2 w-full rounded-2xl border border-white/10 bg-black/20 px-4 py-3 text-sm leading-6 text-white outline-none transition placeholder:text-slate-600 focus:border-cyan-400/30 focus:bg-black/30 disabled:opacity-70"
+                  <AixiaFormField>
+                    <AixiaFieldLabel label="Unit" />
+                    <AixiaSelectField
+                      value={line.unit_of_measure_id}
+                      onChange={(event) =>
+                        updateLine(line.localId, {
+                          unit_of_measure_id: event.target.value,
+                        })
+                      }
+                      disabled={sourceMode === "vendor_quotation"}
+                    >
+                      <option value="">Select unit</option>
+                      {units.map((unit) => (
+                        <option key={unit.id} value={unit.id}>
+                          {unit.name}
+                        </option>
+                      ))}
+                    </AixiaSelectField>
+                  </AixiaFormField>
+
+                  <AixiaFormField>
+                    <AixiaFieldLabel label="Unit Price" />
+                    <AixiaInputField
+                      value={line.unit_price}
+                      onChange={(event) =>
+                        updateLine(line.localId, {
+                          unit_price: event.target.value,
+                        })
+                      }
+                      disabled={sourceMode === "vendor_quotation"}
+                    />
+                  </AixiaFormField>
+
+                  <AixiaFormField>
+                    <AixiaFieldLabel label="Discount" />
+                    <AixiaInputField
+                      value={line.discount}
+                      onChange={(event) =>
+                        updateLine(line.localId, {
+                          discount: event.target.value,
+                        })
+                      }
+                      disabled={sourceMode === "vendor_quotation"}
+                    />
+                  </AixiaFormField>
+
+                  <AixiaFormField>
+                    <AixiaFieldLabel label="Tax Code" />
+                    <AixiaSelectField
+                      value={line.tax_code_id}
+                      onChange={(event) =>
+                        updateLine(line.localId, {
+                          tax_code_id: event.target.value,
+                        })
+                      }
+                      disabled={sourceMode === "vendor_quotation"}
+                    >
+                      <option value="">Select tax</option>
+                      {taxCodes.map((tax) => (
+                        <option key={tax.id} value={tax.id}>
+                          {tax.code ? `${tax.code} | ` : ""}
+                          {tax.name} — {toNumber(tax.rate_percent)}%
+                        </option>
+                      ))}
+                    </AixiaSelectField>
+                    {selectedTax ? (
+                      <AixiaDisplayBlock
+                        label="Tax Rate"
+                        value={`${toNumber(selectedTax.rate_percent)}%`}
+                      />
+                    ) : null}
+                  </AixiaFormField>
+
+                  <AixiaFormField>
+                    <AixiaFieldLabel label="Expense Category" />
+                    <AixiaSelectField
+                      value={line.expense_category_id}
+                      onChange={(event) =>
+                        updateLine(line.localId, {
+                          expense_category_id: event.target.value,
+                        })
+                      }
+                      disabled={sourceMode === "vendor_quotation"}
+                    >
+                      <option value="">Select category</option>
+                      {expenseCategories.map((category) => (
+                        <option key={category.id} value={category.id}>
+                          {category.code ? `${category.code} | ` : ""}
+                          {category.name}
+                        </option>
+                      ))}
+                    </AixiaSelectField>
+                  </AixiaFormField>
+
+                  <AixiaDisplayBlock
+                    label="Line Total"
+                    value={formatMoney(lineTotals[index] || 0, currentCurrency)}
                   />
-                </div>
-              </CardContent>
-            </Card>
 
-            <Card className={activeSectionClass}>
-              <CardHeader className="border-b border-white/10 px-5 py-4">
-                <CardTitle className="text-sm font-semibold uppercase tracking-[0.18em] text-slate-400">
-                  Line Items
-                </CardTitle>
-                <CardDescription className="mt-1 text-xs text-slate-500">
-                  Each line in this draft purchase order can be added or
-                  removed manually.
-                </CardDescription>
-              </CardHeader>
-
-              <CardContent className="space-y-3 p-5">
-                <div className="max-h-[720px] space-y-3 overflow-y-auto pr-1">
-                  {lines.map((line, index) => {
-                    const selectedItem = items.find(
-                      (item) => item.id === line.item_id
-                    );
-                    const selectedTax = taxCodes.find(
-                      (tax) => tax.id === line.tax_code_id
-                    );
-                    const selectedCategory = expenseCategories.find(
-                      (category) => category.id === line.expense_category_id
-                    );
-
-                    return (
-                      <div
-                        key={line.localId}
-                        className="rounded-[24px] border border-white/10 bg-black/20 p-4"
-                      >
-                        <div className="mb-4 flex items-center justify-between gap-4">
-                          <div className="flex flex-wrap items-center gap-2">
-                            <div className="text-sm font-semibold text-white">
-                              Line {index + 1}
-                            </div>
-
-                            {selectedItem ? (
-                              <Badge className="rounded-full border border-violet-400/20 bg-violet-500/10 px-3 py-1 text-[10px] font-semibold uppercase tracking-[0.18em] text-violet-200 shadow-none">
-                                {selectedItem.name}
-                              </Badge>
-                            ) : null}
-
-                            {selectedCategory ? (
-                              <Badge className="rounded-full border border-amber-400/20 bg-amber-500/10 px-3 py-1 text-[10px] font-semibold uppercase tracking-[0.18em] text-amber-200 shadow-none">
-                                {selectedCategory.name}
-                              </Badge>
-                            ) : null}
-                          </div>
-
-                          <Button
-                            variant="outline"
-                            onClick={() => removeLine(line.localId)}
-                            disabled={lines.length === 1}
-                            className="h-9 rounded-2xl border-white/10 bg-white/[0.05] px-3 text-white hover:bg-white/[0.08] disabled:cursor-not-allowed disabled:opacity-40"
-                          >
-                            <Trash2 className="h-4 w-4" />
-                          </Button>
-                        </div>
-
-                        <div className="grid grid-cols-1 gap-4 md:grid-cols-12">
-                          <label className="space-y-2 md:col-span-3">
-                            <div className={inputLabelClass}>Item</div>
-                            <select
-                              value={line.item_id}
-                              onChange={(event) =>
-                                handleItemChange(
-                                  line.localId,
-                                  event.target.value
-                                )
-                              }
-                              disabled={sourceMode === "vendor_quotation"}
-                              className={inputFieldClass}
-                            >
-                              <option value="">Manual item</option>
-                              {items.map((item) => (
-                                <option key={item.id} value={item.id}>
-                                  {item.name}
-                                </option>
-                              ))}
-                            </select>
-                          </label>
-
-                          <label className="space-y-2 md:col-span-4">
-                            <div className={inputLabelClass}>Description</div>
-                            <input
-                              value={line.description}
-                              onChange={(event) =>
-                                updateLine(line.localId, {
-                                  description: event.target.value,
-                                })
-                              }
-                              disabled={sourceMode === "vendor_quotation"}
-                              placeholder="Description"
-                              className={inputFieldClass}
-                            />
-                          </label>
-
-                          <label className="space-y-2 md:col-span-1">
-                            <div className={inputLabelClass}>Qty</div>
-                            <input
-                              value={line.quantity}
-                              onChange={(event) =>
-                                updateLine(line.localId, {
-                                  quantity: event.target.value,
-                                })
-                              }
-                              disabled={sourceMode === "vendor_quotation"}
-                              className={inputFieldClass}
-                            />
-                          </label>
-
-                          <label className="space-y-2 md:col-span-2">
-                            <div className={inputLabelClass}>Unit</div>
-                            <select
-                              value={line.unit_of_measure_id}
-                              onChange={(event) =>
-                                updateLine(line.localId, {
-                                  unit_of_measure_id: event.target.value,
-                                })
-                              }
-                              disabled={sourceMode === "vendor_quotation"}
-                              className={inputFieldClass}
-                            >
-                              <option value="">Select unit</option>
-                              {units.map((unit) => (
-                                <option key={unit.id} value={unit.id}>
-                                  {unit.name}
-                                </option>
-                              ))}
-                            </select>
-                          </label>
-
-                          <label className="space-y-2 md:col-span-2">
-                            <div className={inputLabelClass}>Unit Price</div>
-                            <input
-                              value={line.unit_price}
-                              onChange={(event) =>
-                                updateLine(line.localId, {
-                                  unit_price: event.target.value,
-                                })
-                              }
-                              disabled={sourceMode === "vendor_quotation"}
-                              className={inputFieldClass}
-                            />
-                          </label>
-
-                          <label className="space-y-2 md:col-span-2">
-                            <div className={inputLabelClass}>Discount</div>
-                            <input
-                              value={line.discount}
-                              onChange={(event) =>
-                                updateLine(line.localId, {
-                                  discount: event.target.value,
-                                })
-                              }
-                              disabled={sourceMode === "vendor_quotation"}
-                              className={inputFieldClass}
-                            />
-                          </label>
-
-                          <label className="space-y-2 md:col-span-2">
-                            <div className={inputLabelClass}>Tax Code</div>
-                            <select
-                              value={line.tax_code_id}
-                              onChange={(event) =>
-                                updateLine(line.localId, {
-                                  tax_code_id: event.target.value,
-                                })
-                              }
-                              disabled={sourceMode === "vendor_quotation"}
-                              className={inputFieldClass}
-                            >
-                              <option value="">Select tax</option>
-                              {taxCodes.map((tax) => (
-                                <option key={tax.id} value={tax.id}>
-                                  {tax.code ? `${tax.code} | ` : ""}
-                                  {tax.name} — {toNumber(tax.rate_percent)}%
-                                </option>
-                              ))}
-                            </select>
-
-                            {selectedTax ? (
-                              <div className="text-[11px] text-slate-500">
-                                {toNumber(selectedTax.rate_percent)}%
-                              </div>
-                            ) : null}
-                          </label>
-
-                                                    <label className="space-y-2 md:col-span-3">
-                            <div className={inputLabelClass}>
-                              Expense Category
-                            </div>
-                            <select
-                              value={line.expense_category_id}
-                              onChange={(event) =>
-                                updateLine(line.localId, {
-                                  expense_category_id: event.target.value,
-                                })
-                              }
-                              disabled={sourceMode === "vendor_quotation"}
-                              className={inputFieldClass}
-                            >
-                              <option value="">Select category</option>
-                              {expenseCategories.map((category) => (
-                                <option key={category.id} value={category.id}>
-                                  {category.code ? `${category.code} | ` : ""}
-                                  {category.name}
-                                </option>
-                              ))}
-                            </select>
-                          </label>
-
-                          <div className="space-y-2 md:col-span-3">
-                            <div className={inputLabelClass}>Line Total</div>
-                            <div className="flex min-h-[44px] items-center rounded-2xl border border-cyan-400/15 bg-cyan-500/10 px-4 text-sm font-semibold text-cyan-100">
-                              {formatMoney(
-                                lineTotals[index] || 0,
-                                currencyCode || "USD"
-                              )}
-                            </div>
-                          </div>
-
-                          <label className="space-y-2 md:col-span-12">
-                            <div className={inputLabelClass}>Line Notes</div>
-                            <input
-                              value={line.notes}
-                              onChange={(event) =>
-                                updateLine(line.localId, {
-                                  notes: event.target.value,
-                                })
-                              }
-                              disabled={sourceMode === "vendor_quotation"}
-                              placeholder="Optional line notes"
-                              className={inputFieldClass}
-                            />
-                          </label>
-                        </div>
-                      </div>
-                    );
-                  })}
-                </div>
-
-                {sourceMode === "manual" ? (
-                  <Button
-                    variant="outline"
-                    onClick={addLine}
-                    className="h-10 rounded-2xl border-white/10 bg-white/[0.05] px-4 text-white hover:bg-white/[0.08]"
-                  >
-                    <Plus className="mr-2 h-4 w-4" />
-                    Add Line
-                  </Button>
-                ) : null}
-              </CardContent>
-            </Card>
-          </div>
-
-          <div className="space-y-6">
-            <Card className={activeSectionClass}>
-              <CardHeader className="border-b border-white/10 px-5 py-4">
-                <CardTitle className="text-sm font-semibold uppercase tracking-[0.18em] text-slate-400">
-                  Purchase Order Summary
-                </CardTitle>
-                <CardDescription className="mt-1 text-xs text-slate-500">
-                  Live supplier-side summary before saving.
-                </CardDescription>
-              </CardHeader>
-
-              <CardContent className="space-y-3 p-5">
-                <div className={summaryBlockClass}>
-                  <div className={labelClass}>Issuing Company</div>
-                  <div className="mt-2 text-2xl font-semibold text-white">
-                    {selectedCompany?.legal_name || selectedCompany?.name || "—"}
-                  </div>
-
-                  {selectedCompany ? (
-                    <div className="mt-2 text-sm leading-6 text-slate-400">
-                      {getCompanyAddress(selectedCompany) ? (
-                        <div>{getCompanyAddress(selectedCompany)}</div>
-                      ) : null}
-                      {selectedCompany.email ? (
-                        <div>Email: {selectedCompany.email}</div>
-                      ) : null}
-                      {selectedCompany.phone ? (
-                        <div>Phone: {selectedCompany.phone}</div>
-                      ) : null}
-                    </div>
-                  ) : null}
-                </div>
-
-                <div className={summaryBlockClass}>
-                  <div className={labelClass}>Vendor / Recipient</div>
-                  <div className="mt-2 text-2xl font-semibold text-white">
-                    {selectedVendor?.legal_name || selectedVendor?.name || "—"}
-                  </div>
-
-                  {selectedVendor ? (
-                    <div className="mt-2 text-sm leading-6 text-slate-400">
-                      {getVendorAddress(selectedVendor) ? (
-                        <div>{getVendorAddress(selectedVendor)}</div>
-                      ) : null}
-                      {selectedVendor.email ? (
-                        <div>Email: {selectedVendor.email}</div>
-                      ) : null}
-                      {selectedVendor.phone ? (
-                        <div>Phone: {selectedVendor.phone}</div>
-                      ) : null}
-                      {selectedVendor.code ? (
-                        <div>Vendor Code: {selectedVendor.code}</div>
-                      ) : null}
-                      {selectedVendor.contact_person ? (
-                        <div>Contact: {selectedVendor.contact_person}</div>
-                      ) : null}
-                    </div>
-                  ) : null}
-                </div>
-
-                <div className={summaryBlockClass}>
-                  <div className={labelClass}>Vendor Bank Account</div>
-                  <div className="mt-2 text-2xl font-semibold text-white">
-                    {selectedVendorBankAccount?.beneficiary_name ||
-                      selectedVendorBankAccount?.bank_name ||
-                      "—"}
-                  </div>
-
-                  {selectedVendorBankAccount ? (
-                    <div className="mt-2 text-sm leading-6 text-slate-400">
-                      {selectedVendorBankAccount.bank_name ? (
-                        <div>{selectedVendorBankAccount.bank_name}</div>
-                      ) : null}
-                      {getVendorBankAddress(selectedVendorBankAccount) ? (
-                        <div>
-                          {getVendorBankAddress(selectedVendorBankAccount)}
-                        </div>
-                      ) : null}
-                      {selectedVendorBankAccount.account_number ? (
-                        <div>
-                          Account: {selectedVendorBankAccount.account_number}
-                        </div>
-                      ) : null}
-                      {getVendorBankIdentifier(selectedVendorBankAccount) ? (
-                        <div>
-                          {
-                            getVendorBankIdentifier(selectedVendorBankAccount)
-                              ?.label
-                          }
-                          :{" "}
-                          {
-                            getVendorBankIdentifier(selectedVendorBankAccount)
-                              ?.value
-                          }
-                        </div>
-                      ) : null}
-                      {selectedVendorBankAccount.currency_code ? (
-                        <div>
-                          Currency: {selectedVendorBankAccount.currency_code}
-                        </div>
-                      ) : null}
-                    </div>
-                  ) : null}
-
-                  {!selectedVendorBankAccount ? (
-                    <div className="mt-2 text-sm leading-6 text-slate-400">
-                      No vendor bank account selected.
-                    </div>
-                  ) : null}
-                </div>
-
-                <div className={summaryBlockClass}>
-                  <div className={labelClass}>Payment Terms</div>
-                  <div className="mt-2 text-2xl font-semibold text-white">
-                    {selectedPaymentTerm?.name || "—"}
-                  </div>
-                  <div className="mt-2 text-sm leading-6 text-slate-400">
-                    {selectedPaymentTerm
-                      ? `${selectedPaymentTerm.code || "Terms"}${
-                          selectedPaymentTerm.due_days !== null &&
-                          selectedPaymentTerm.due_days !== undefined
-                            ? ` · Due in ${selectedPaymentTerm.due_days} days`
-                            : ""
-                        }`
-                      : "No payment terms selected"}
-                  </div>
-                </div>
-
-                <div className={summaryBlockClass}>
-                  <div className={labelClass}>Shipping Terms</div>
-                  <div className="mt-2 text-2xl font-semibold text-white">
-                    {selectedShippingTerm?.name || "—"}
-                  </div>
-                  <div className="mt-2 text-sm leading-6 text-slate-400">
-                    {selectedShippingTerm?.code ||
-                      "No shipping terms selected"}
-                  </div>
-                </div>
-
-                <div className={summaryBlockClass}>
-                  <div className={labelClass}>Preferred Payment Method</div>
-                  <div className="mt-2 text-2xl font-semibold text-white">
-                    {selectedPaymentMethod?.name || "—"}
-                  </div>
-                  <div className="mt-2 text-sm leading-6 text-slate-400">
-                    {selectedPaymentMethod?.code ||
-                      "No payment method selected"}
-                  </div>
-                </div>
-
-                <div className={summaryBlockClass}>
-                  <div className={labelClass}>Source</div>
-                  <div className="mt-2 text-2xl font-semibold text-white">
-                    {sourceDescription}
-                  </div>
-                  <div className="mt-2 text-sm leading-6 text-slate-400">
-                    {sourceMode === "vendor_quotation"
-                      ? "Accepted vendor quotation source."
-                      : "Manual purchase order draft."}
-                  </div>
-                </div>
-
-                <div className={summaryBlockClass}>
-                  <div className={labelClass}>Timeline</div>
-                  <div className="mt-2 text-2xl font-semibold text-white">
-                    {formatDate(poDate)}
-                  </div>
-                  <div className="mt-2 text-sm leading-6 text-slate-400">
-                    Expected delivery: {formatDate(expectedDeliveryDate)}
-                  </div>
-                </div>
-
-                <div className={summaryBlockClass}>
-                  <div className={labelClass}>Currency</div>
-                  <div className="mt-2 text-2xl font-semibold text-white">
-                    {selectedCurrency
-                      ? `${selectedCurrency.currency_code} — ${selectedCurrency.currency_name}`
-                      : currencyCode || "—"}
-                  </div>
-                </div>
-
-                <div className={summaryBlockClass}>
-                  <div className={labelClass}>Project / Task</div>
-                  <div className="mt-2 text-2xl font-semibold text-white">
-                    {selectedProject?.name || "—"}
-                  </div>
-                  <div className="mt-2 text-sm leading-6 text-slate-400">
-                    {selectedTask?.title || "No task selected"}
-                  </div>
-                </div>
-
-                <div className={summaryBlockClass}>
-                  <div className="flex items-center justify-between text-sm">
-                    <span className="text-slate-400">Subtotal</span>
-                    <span className="font-semibold text-white">
-                      {formatMoney(totals.subtotal, currencyCode || "USD")}
-                    </span>
-                  </div>
-
-                  <div className="mt-2 flex items-center justify-between text-sm">
-                    <span className="text-slate-400">Discount</span>
-                    <span className="font-semibold text-white">
-                      {formatMoney(totals.discount, currencyCode || "USD")}
-                    </span>
-                  </div>
-
-                  <div className="mt-2 flex items-center justify-between text-sm">
-                    <span className="text-slate-400">Tax</span>
-                    <span className="font-semibold text-white">
-                      {formatMoney(totals.tax, currencyCode || "USD")}
-                    </span>
-                  </div>
-
-                  <div className="mt-3 border-t border-white/10 pt-3">
-                    <div className="flex items-center justify-between">
-                      <span className="text-sm font-medium text-slate-300">
-                        Total
-                      </span>
-                      <span className="text-lg font-semibold text-white">
-                        {formatMoney(totals.total, currencyCode || "USD")}
-                      </span>
-                    </div>
-                  </div>
-                </div>
-
-                {errorMessage ? (
-                  <div className="rounded-[18px] border border-rose-400/20 bg-rose-500/10 px-4 py-3 text-sm text-rose-200">
-                    {errorMessage}
-                  </div>
-                ) : null}
-              </CardContent>
-            </Card>
-
-            <Card className={activeSectionClass}>
-              <CardHeader className="border-b border-white/10 px-5 py-4">
-                <CardTitle className="text-sm font-semibold uppercase tracking-[0.18em] text-slate-400">
-                  Locked Behavior
-                </CardTitle>
-                <CardDescription className="mt-1 text-xs text-slate-500">
-                  New purchase order creation rules.
-                </CardDescription>
-              </CardHeader>
-
-              <CardContent className="space-y-2 p-5 text-sm leading-6 text-slate-400">
-                <div>• This page creates a purchase order draft only.</div>
-                <div>• PO number and official snapshot are finalized on issue.</div>
-                <div>• Issue/send action happens later from the PO detail page.</div>
-                <div>• Vendor PI / Invoice is received only after PO issue.</div>
-                <div>• Payment Made happens after vendor bill approval.</div>
-                <div>• This is the supplier procurement flow: vendor quotation → purchase order → vendor PI / invoice → payment made.</div>
-              </CardContent>
-            </Card>
-          </div>
+                  <AixiaFormFullWidth>
+                    <AixiaFieldLabel label="Line Notes" />
+                    <AixiaInputField
+                      value={line.notes}
+                      onChange={(event) =>
+                        updateLine(line.localId, {
+                          notes: event.target.value,
+                        })
+                      }
+                      disabled={sourceMode === "vendor_quotation"}
+                      placeholder="Optional line notes"
+                    />
+                  </AixiaFormFullWidth>
+                </AixiaFormGrid>
+              </AixiaFormRowCard>
+            );
+          })}
         </div>
-      </div>
-    </div>
+      </AixiaSection>
+    </>
+  );
+
+  const sideContent = (
+    <>
+      <AixiaSection
+        title="Purchase Order Summary"
+        description="Live supplier-side summary before saving."
+        icon={Wallet}
+      >
+        <AixiaReviewGrid variant="cards">
+          <AixiaValueBlock
+            label="Issuing Company"
+            value={selectedCompany?.legal_name || selectedCompany?.name || "—"}
+            detail={
+              selectedCompany
+                ? [
+                    getCompanyAddress(selectedCompany),
+                    selectedCompany.email ? `Email: ${selectedCompany.email}` : "",
+                    selectedCompany.phone ? `Phone: ${selectedCompany.phone}` : "",
+                  ]
+                    .filter(Boolean)
+                    .join(" • ")
+                : "—"
+            }
+          />
+          <AixiaValueBlock
+            label="Vendor / Recipient"
+            value={selectedVendor?.legal_name || selectedVendor?.name || "—"}
+            detail={
+              selectedVendor
+                ? [
+                    getVendorAddress(selectedVendor),
+                    selectedVendor.email ? `Email: ${selectedVendor.email}` : "",
+                    selectedVendor.phone ? `Phone: ${selectedVendor.phone}` : "",
+                    selectedVendor.code ? `Vendor Code: ${selectedVendor.code}` : "",
+                    selectedVendor.contact_person
+                      ? `Contact: ${selectedVendor.contact_person}`
+                      : "",
+                  ]
+                    .filter(Boolean)
+                    .join(" • ")
+                : "—"
+            }
+          />
+          <AixiaValueBlock
+            label="Vendor Bank Account"
+            value={
+              selectedVendorBankAccount?.beneficiary_name ||
+              selectedVendorBankAccount?.bank_name ||
+              "—"
+            }
+            detail={
+              selectedVendorBankAccount
+                ? [
+                    selectedVendorBankAccount.bank_name || "",
+                    getVendorBankAddress(selectedVendorBankAccount),
+                    selectedVendorBankAccount.account_number
+                      ? `Account: ${selectedVendorBankAccount.account_number}`
+                      : "",
+                    getVendorBankIdentifier(selectedVendorBankAccount)
+                      ? `${
+                          getVendorBankIdentifier(selectedVendorBankAccount)?.label
+                        }: ${
+                          getVendorBankIdentifier(selectedVendorBankAccount)?.value
+                        }`
+                      : "",
+                    selectedVendorBankAccount.currency_code
+                      ? `Currency: ${selectedVendorBankAccount.currency_code}`
+                      : "",
+                  ]
+                    .filter(Boolean)
+                    .join(" • ")
+                : "No vendor bank account selected."
+            }
+          />
+          <AixiaValueBlock
+            label="Payment Terms"
+            value={selectedPaymentTerm?.name || "—"}
+            detail={
+              selectedPaymentTerm
+                ? `${selectedPaymentTerm.code || "Terms"}${
+                    selectedPaymentTerm.due_days !== null &&
+                    selectedPaymentTerm.due_days !== undefined
+                      ? ` · Due in ${selectedPaymentTerm.due_days} days`
+                      : ""
+                  }`
+                : "No payment terms selected."
+            }
+          />
+          <AixiaValueBlock
+            label="Shipping Terms"
+            value={selectedShippingTerm?.name || "—"}
+            detail={selectedShippingTerm?.code || "No shipping terms selected."}
+          />
+          <AixiaValueBlock
+            label="Preferred Payment Method"
+            value={selectedPaymentMethod?.name || "—"}
+            detail={selectedPaymentMethod?.code || "No payment method selected."}
+          />
+          <AixiaValueBlock
+            label="Source"
+            value={sourceDescription}
+            detail={
+              sourceMode === "vendor_quotation"
+                ? "Accepted vendor quotation source."
+                : "Manual purchase order draft."
+            }
+          />
+          <AixiaValueBlock
+            label="Timeline"
+            value={formatDate(poDate)}
+            detail={`Expected delivery: ${formatDate(expectedDeliveryDate)}`}
+          />
+          <AixiaValueBlock
+            label="Currency"
+            value={
+              selectedCurrency
+                ? `${selectedCurrency.currency_code} — ${selectedCurrency.currency_name}`
+                : currencyCode || "—"
+            }
+          />
+          <AixiaValueBlock
+            label="Project / Task"
+            value={selectedProject?.name || "—"}
+            detail={selectedTask?.title || "No task selected."}
+          />
+          <AixiaValueBlock
+            label="Subtotal"
+            value={formatMoney(totals.subtotal, currentCurrency)}
+          />
+          <AixiaValueBlock
+            label="Discount"
+            value={formatMoney(totals.discount, currentCurrency)}
+          />
+          <AixiaValueBlock
+            label="Tax"
+            value={formatMoney(totals.tax, currentCurrency)}
+          />
+          <AixiaValueBlock
+            label="Total"
+            value={formatMoney(totals.total, currentCurrency)}
+          />
+        </AixiaReviewGrid>
+      </AixiaSection>
+
+      <AixiaSection
+        title="Locked Behavior"
+        description="New purchase order creation rules."
+        icon={ShieldCheck}
+      >
+        <AixiaReviewGrid variant="cards">
+          <AixiaValueBlock
+            label="Draft Only"
+            value="Save Draft"
+            detail="This page creates a purchase order draft only."
+          />
+          <AixiaValueBlock
+            label="Issue Later"
+            value="Detail Page"
+            detail="PO number and official snapshot are finalized on issue."
+          />
+          <AixiaValueBlock
+            label="Procurement Flow"
+            value="Vendor Quotation → PO → Vendor PI / Invoice → Payment Made"
+          />
+        </AixiaReviewGrid>
+      </AixiaSection>
+    </>
+  );
+
+  return (
+    <AixiaPage>
+      <AixiaHero
+        parentLabel="Purchase Orders"
+        parentPath="/finance/transactions/purchase-orders"
+        badges={[
+          { label: "New Purchase Order Draft", tone: "cyan" },
+          { label: "Supplier Flow", tone: "amber" },
+          { label: "Draft Only", tone: "neutral" },
+        ]}
+        gradientTitle="Purchase Order"
+        title="Create Purchase Order Draft"
+        description="Build a purchase order from master data or from an accepted vendor quotation. Save it as a draft, then issue and send it later from the purchase order detail page."
+        statusCards={[
+          {
+            label: "Vendor / Recipient",
+            value: selectedRecipientTitle,
+            description: "PO recipient selected for this purchase order draft.",
+            icon: Truck,
+            tone: "amber",
+          },
+          {
+            label: "Draft Total",
+            value: formatMoney(totals.total, currentCurrency),
+            description: "Live value from the draft purchase order line items.",
+            icon: Wallet,
+            tone: "emerald",
+          },
+        ]}
+      />
+
+      <AixiaMetricGrid>
+        <AixiaMetricCard
+          label="Subtotal"
+          value={formatMoney(totals.subtotal, currentCurrency)}
+          description="Before discount and tax."
+          icon={FileText}
+          tone="cyan"
+        />
+        <AixiaMetricCard
+          label="Discount"
+          value={formatMoney(totals.discount, currentCurrency)}
+          description="Draft discount."
+          icon={Wallet}
+          tone="amber"
+        />
+        <AixiaMetricCard
+          label="Tax"
+          value={formatMoney(totals.tax, currentCurrency)}
+          description="Based on selected tax codes."
+          icon={FileText}
+          tone="violet"
+        />
+        <AixiaMetricCard
+          label="Total"
+          value={formatMoney(totals.total, currentCurrency)}
+          description="Draft purchase order value."
+          icon={Wallet}
+          tone="emerald"
+        />
+      </AixiaMetricGrid>
+
+      <AixiaAccessRule
+        title="Locked access rule"
+        description="Purchase order creation follows the shared Finance create-page, procurement source, line-item, and draft-save standards."
+        icon={ShieldCheck}
+      >
+        This page uses shared AiXia components for the page shell, hero, metrics,
+        source relationship, form controls, line-item cards, summary blocks, and
+        action buttons. Page-local UI primitives and local Tailwind visual systems
+        are intentionally removed.
+      </AixiaAccessRule>
+
+      {errorMessage ? <AixiaAlert tone="error">{errorMessage}</AixiaAlert> : null}
+
+      <AixiaSmartLayout
+        sidebar="normal"
+        balance="main"
+        sideRebalance="last-to-bottom"
+        main={mainContent}
+        side={sideContent}
+      />
+
+      <AixiaSection
+        title="Save Draft"
+        description="Create the draft purchase order and continue in the purchase order detail workspace."
+        icon={Save}
+        actions={
+          <AixiaButton
+            type="button"
+            variant="primary"
+            onClick={() => void handleSaveDraft()}
+            disabled={isSaving || isLoading}
+          >
+            <Save className="h-4 w-4" />
+            {isSaving ? "Saving..." : "Save Draft"}
+          </AixiaButton>
+        }
+      >
+        <AixiaEmptyState
+          icon={Save}
+          title="Ready to save"
+          description="Review the source, vendor, bank account, terms, currency, and line items before saving this draft."
+        />
+      </AixiaSection>
+    </AixiaPage>
   );
 }

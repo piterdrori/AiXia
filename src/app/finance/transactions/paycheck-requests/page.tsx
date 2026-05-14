@@ -2,7 +2,6 @@ import { useCallback, useEffect, useMemo, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import {
   Archive,
-  ArrowRight,
   BadgeCheck,
   Download,
   Eye,
@@ -10,16 +9,36 @@ import {
   MoreHorizontal,
   Plus,
   RotateCcw,
-  Search,
   ShieldCheck,
   Trash2,
   UserRound,
   WalletCards,
-  X,
 } from "lucide-react";
 
+import {
+  AixiaAlert,
+  AixiaArchiveManagerModal,
+  AixiaBadge,
+  AixiaButton,
+  AixiaEmptyState,
+  AixiaHero,
+  AixiaMetricCard,
+  AixiaMetricGrid,
+  AixiaPage,
+  AixiaRegistryToolbar,
+  AixiaSearchField,
+  AixiaSection,
+  AixiaSortableHeader,
+  AixiaStatusBadge,
+  AixiaTableActionsCell,
+  AixiaTableBadgeCell,
+  AixiaTableDateCell,
+  AixiaTableShell,
+  AixiaTableTextCell,
+} from "@/components/aixia";
 import { supabase } from "@/lib/supabase";
 
+type LoadMode = "initial" | "silent";
 type SortDirection = "asc" | "desc";
 
 type SortKey =
@@ -152,31 +171,6 @@ type EnrichedPaycheckRequestRow = PaycheckRequestRow & {
   periodLabel: string;
 };
 
-const statusToneMap: Record<string, string> = {
-  draft: "border-slate-400/20 bg-slate-500/10 text-slate-300",
-  submitted: "border-cyan-400/20 bg-cyan-500/10 text-cyan-200",
-  pending_review: "border-cyan-400/20 bg-cyan-500/10 text-cyan-200",
-  needs_correction: "border-amber-400/20 bg-amber-500/10 text-amber-200",
-  approved_for_payroll: "border-emerald-400/20 bg-emerald-500/10 text-emerald-200",
-  approved: "border-emerald-400/20 bg-emerald-500/10 text-emerald-200",
-  rejected: "border-rose-400/20 bg-rose-500/10 text-rose-200",
-  linked_to_payroll: "border-violet-400/20 bg-violet-500/10 text-violet-200",
-  payment_sent: "border-blue-400/20 bg-blue-500/10 text-blue-200",
-  received_confirmed: "border-emerald-400/20 bg-emerald-500/10 text-emerald-200",
-  disputed: "border-rose-400/20 bg-rose-500/10 text-rose-200",
-  closed: "border-slate-400/20 bg-slate-500/10 text-slate-300",
-  archived: "border-slate-400/20 bg-slate-500/10 text-slate-300",
-  deleted: "border-rose-400/20 bg-rose-500/10 text-rose-200",
-  missing: "border-rose-400/20 bg-rose-500/10 text-rose-200",
-  uploaded: "border-emerald-400/20 bg-emerald-500/10 text-emerald-200",
-  linked: "border-cyan-400/20 bg-cyan-500/10 text-cyan-200",
-  files_and_links: "border-violet-400/20 bg-violet-500/10 text-violet-200",
-  not_uploaded: "border-slate-400/20 bg-slate-500/10 text-slate-300",
-  not_submitted: "border-slate-400/20 bg-slate-500/10 text-slate-300",
-  not_paid_yet: "border-slate-400/20 bg-slate-500/10 text-slate-300",
-  not_received: "border-rose-400/20 bg-rose-500/10 text-rose-200",
-};
-
 function toNumber(value: number | string | null | undefined) {
   const parsed = Number(value ?? 0);
   return Number.isFinite(parsed) ? parsed : 0;
@@ -290,100 +284,6 @@ function sortRows(
   });
 }
 
-function StatusBadge({ value }: { value: string | null | undefined }) {
-  const status = value || "—";
-  const tone = statusToneMap[status] ?? "border-white/10 bg-white/[0.06] text-slate-300";
-
-  return (
-    <span
-      className={`inline-flex items-center rounded-full border px-2.5 py-1 text-[11px] font-semibold uppercase tracking-[0.12em] ${tone}`}
-    >
-      {formatLabel(status)}
-    </span>
-  );
-}
-
-function SortHeader({
-  label,
-  sortKey,
-  activeKey,
-  direction,
-  onSort,
-  className = "",
-}: {
-  label: string;
-  sortKey: SortKey;
-  activeKey: SortKey;
-  direction: SortDirection;
-  onSort: (key: SortKey) => void;
-  className?: string;
-}) {
-  const isActive = activeKey === sortKey;
-
-  return (
-    <th className={`px-5 py-4 text-left ${className}`}>
-      <button
-        type="button"
-        onClick={() => onSort(sortKey)}
-        className="inline-flex items-center gap-2 text-[11px] font-semibold uppercase tracking-[0.18em] text-slate-500 transition hover:text-slate-200"
-      >
-        {label}
-        <span className={isActive ? "text-cyan-300" : "text-slate-700"}>
-          {isActive ? (direction === "asc" ? "↑" : "↓") : "↕"}
-        </span>
-      </button>
-    </th>
-  );
-}
-
-function KpiCard({
-  label,
-  value,
-  detail,
-  icon: Icon,
-  tone,
-}: {
-  label: string;
-  value: string;
-  detail: string;
-  icon: typeof FileSignature;
-  tone: "cyan" | "emerald" | "amber" | "violet";
-}) {
-  const toneClasses = {
-    cyan: "border-cyan-400/20 bg-cyan-500/10 text-cyan-200",
-    emerald: "border-emerald-400/20 bg-emerald-500/10 text-emerald-200",
-    amber: "border-amber-400/20 bg-amber-500/10 text-amber-200",
-    violet: "border-violet-400/20 bg-violet-500/10 text-violet-200",
-  }[tone];
-
-  return (
-    <div className="relative min-h-[156px] overflow-hidden rounded-[28px] border border-white/10 bg-white/[0.045] p-5 backdrop-blur-xl">
-      <div className="pointer-events-none absolute inset-0 bg-[radial-gradient(circle_at_top_left,rgba(255,255,255,0.08),transparent_48%)]" />
-
-      <div className="relative flex h-full flex-col justify-between gap-5">
-        <div className="flex items-start justify-between gap-4">
-          <div>
-            <div className="text-[11px] font-semibold uppercase tracking-[0.2em] text-slate-500">
-              {label}
-            </div>
-            <div className="mt-2 text-3xl font-semibold tracking-[-0.035em] text-white">
-              {value}
-            </div>
-          </div>
-
-          <div
-            className={`flex h-12 w-12 shrink-0 items-center justify-center rounded-2xl border ${toneClasses}`}
-          >
-            <Icon className="h-5 w-5" />
-          </div>
-        </div>
-
-        <div className="text-sm leading-6 text-slate-400">{detail}</div>
-      </div>
-    </div>
-  );
-}
-
 function PaycheckRequestTable({
   rows,
   sortKey,
@@ -411,256 +311,261 @@ function PaycheckRequestTable({
 }) {
   if (rows.length === 0) {
     return (
-      <div className="rounded-[28px] border border-dashed border-white/10 bg-black/20 px-6 py-14 text-center">
-        <div className="mx-auto flex h-12 w-12 items-center justify-center rounded-2xl border border-cyan-400/20 bg-cyan-500/10 text-cyan-200">
-          <FileSignature className="h-5 w-5" />
-        </div>
-        <div className="mt-4 text-sm font-semibold text-white">
-          No paycheck requests found
-        </div>
-        <p className="mx-auto mt-2 max-w-xl text-sm leading-6 text-slate-500">
-          Employee paycheck requests, signed forms, Finance review, payroll linking,
-          payment sent, and employee confirmation will appear here.
-        </p>
-      </div>
+      <AixiaEmptyState
+        icon={FileSignature}
+        title="No paycheck requests found"
+        description="Employee paycheck requests, signed forms, Finance review, payroll linking, payment sent, and employee confirmation will appear here."
+      />
     );
   }
 
   return (
-    <div className="max-h-[720px] overflow-y-auto rounded-[26px] border border-white/10 bg-black/20">
-      <div className="overflow-x-auto">
-        <table className="w-full min-w-[1420px] border-collapse">
-          <thead className="sticky top-0 z-10 border-b border-white/10 bg-black/80 backdrop-blur-xl">
-            <tr>
-              <SortHeader
-                label="Request"
-                sortKey="request_number"
-                activeKey={sortKey}
-                direction={sortDirection}
-                onSort={onSort}
-              />
-              <SortHeader
-                label="Employee"
-                sortKey="employee"
-                activeKey={sortKey}
-                direction={sortDirection}
-                onSort={onSort}
-              />
-              <SortHeader
-                label="Period Start"
-                sortKey="period_start"
-                activeKey={sortKey}
-                direction={sortDirection}
-                onSort={onSort}
-              />
-              <SortHeader
-                label="Period End"
-                sortKey="period_end"
-                activeKey={sortKey}
-                direction={sortDirection}
-                onSort={onSort}
-              />
-              <SortHeader
-                label="Currency"
-                sortKey="requested_currency_code"
-                activeKey={sortKey}
-                direction={sortDirection}
-                onSort={onSort}
-              />
-              <SortHeader
-                label="Net Amount"
-                sortKey="requested_net_amount"
-                activeKey={sortKey}
-                direction={sortDirection}
-                onSort={onSort}
-                className="text-right"
-              />
-              <SortHeader
-                label="Status"
-                sortKey="status"
-                activeKey={sortKey}
-                direction={sortDirection}
-                onSort={onSort}
-              />
-              <SortHeader
-                label="Review"
-                sortKey="review_status"
-                activeKey={sortKey}
-                direction={sortDirection}
-                onSort={onSort}
-              />
-              <SortHeader
-                label="Signed Form"
-                sortKey="signed_form_status"
-                activeKey={sortKey}
-                direction={sortDirection}
-                onSort={onSort}
-              />
-              <SortHeader
-                label="Confirmation"
-                sortKey="recipient_confirmation_status"
-                activeKey={sortKey}
-                direction={sortDirection}
-                onSort={onSort}
-              />
-              <SortHeader
-                label="Updated"
-                sortKey="updated_at"
-                activeKey={sortKey}
-                direction={sortDirection}
-                onSort={onSort}
-              />
-              <th className="px-5 py-4 text-right text-[11px] font-semibold uppercase tracking-[0.18em] text-slate-500">
-                Actions
-              </th>
-            </tr>
-          </thead>
+    <AixiaTableShell
+      variant={archiveMode ? "archive" : "registry"}
+      minWidthClassName={archiveMode ? "min-w-[1380px]" : "min-w-[1420px]"}
+      maxHeightClassName={archiveMode ? "max-h-[520px]" : "max-h-[720px]"}
+    >
+      <thead className="aixia-table-head">
+        <tr>
+          <th>
+            <AixiaSortableHeader
+              label="Request"
+              sortKey="request_number"
+              activeSortKey={sortKey}
+              sortDirection={sortDirection}
+              onSort={onSort}
+            />
+          </th>
+          <th>
+            <AixiaSortableHeader
+              label="Employee"
+              sortKey="employee"
+              activeSortKey={sortKey}
+              sortDirection={sortDirection}
+              onSort={onSort}
+            />
+          </th>
+          <th>
+            <AixiaSortableHeader
+              label="Period Start"
+              sortKey="period_start"
+              activeSortKey={sortKey}
+              sortDirection={sortDirection}
+              onSort={onSort}
+            />
+          </th>
+          <th>
+            <AixiaSortableHeader
+              label="Period End"
+              sortKey="period_end"
+              activeSortKey={sortKey}
+              sortDirection={sortDirection}
+              onSort={onSort}
+            />
+          </th>
+          <th>
+            <AixiaSortableHeader
+              label="Currency"
+              sortKey="requested_currency_code"
+              activeSortKey={sortKey}
+              sortDirection={sortDirection}
+              onSort={onSort}
+            />
+          </th>
+          <th>
+            <AixiaSortableHeader
+              label="Net Amount"
+              sortKey="requested_net_amount"
+              activeSortKey={sortKey}
+              sortDirection={sortDirection}
+              onSort={onSort}
+            />
+          </th>
+          <th>
+            <AixiaSortableHeader
+              label="Status"
+              sortKey="status"
+              activeSortKey={sortKey}
+              sortDirection={sortDirection}
+              onSort={onSort}
+            />
+          </th>
+          <th>
+            <AixiaSortableHeader
+              label="Review"
+              sortKey="review_status"
+              activeSortKey={sortKey}
+              sortDirection={sortDirection}
+              onSort={onSort}
+            />
+          </th>
+          <th>
+            <AixiaSortableHeader
+              label="Signed Form"
+              sortKey="signed_form_status"
+              activeSortKey={sortKey}
+              sortDirection={sortDirection}
+              onSort={onSort}
+            />
+          </th>
+          <th>
+            <AixiaSortableHeader
+              label="Confirmation"
+              sortKey="recipient_confirmation_status"
+              activeSortKey={sortKey}
+              sortDirection={sortDirection}
+              onSort={onSort}
+            />
+          </th>
+          <th>
+            <AixiaSortableHeader
+              label="Updated"
+              sortKey="updated_at"
+              activeSortKey={sortKey}
+              sortDirection={sortDirection}
+              onSort={onSort}
+            />
+          </th>
+          <th>Actions</th>
+        </tr>
+      </thead>
 
-          <tbody className="divide-y divide-white/5">
-            {rows.map((row) => (
-              <tr
-                key={row.id}
-                className="text-sm text-slate-300 transition hover:bg-white/[0.035]"
-              >
-                <td className="px-5 py-4">
-                  <div className="font-semibold text-white">
-                    {row.request_number || row.reference_number || "Draft Request"}
-                  </div>
-                  <div className="mt-1 text-[11px] text-slate-500">
-                    Created {formatDate(row.created_at)}
-                  </div>
-                </td>
+      <tbody>
+        {rows.map((row) => {
+          const hasSignedForm = Boolean(
+            row.signed_form_storage_path || row.signed_form_external_url
+          );
 
-                <td className="min-w-[220px] px-5 py-4">
-                  <div className="flex items-start gap-3">
-                    <div className="mt-0.5 flex h-9 w-9 shrink-0 items-center justify-center rounded-2xl border border-cyan-400/15 bg-cyan-500/10 text-cyan-200">
-                      <UserRound className="h-4 w-4" />
-                    </div>
-                    <div className="min-w-0">
-                      <div className="line-clamp-1 font-medium text-white">
-                        {row.employeeLabel}
-                      </div>
-                      <div className="mt-1 line-clamp-1 text-[11px] text-slate-500">
-                        {row.employeeSubLabel}
-                      </div>
-                    </div>
-                  </div>
-                </td>
+          return (
+            <tr key={row.id} className="aixia-table-row">
+              <AixiaTableTextCell
+                width="lg"
+                primary={row.request_number || row.reference_number || "Draft Request"}
+                secondary={`Created ${formatDate(row.created_at)}`}
+              />
 
-                <td className="whitespace-nowrap px-5 py-4">
-                  {formatDate(row.period_start)}
-                </td>
+              <AixiaTableTextCell
+                width="xl"
+                primary={
+                  <span className="inline-flex items-center justify-center gap-2">
+                    <UserRound className="h-4 w-4 text-cyan-200" />
+                    {row.employeeLabel}
+                  </span>
+                }
+                secondary={row.employeeSubLabel}
+              />
 
-                <td className="whitespace-nowrap px-5 py-4">
-                  {formatDate(row.period_end)}
-                </td>
+              <AixiaTableDateCell>{formatDate(row.period_start)}</AixiaTableDateCell>
 
-                <td className="whitespace-nowrap px-5 py-4 font-semibold text-cyan-100">
-                  {row.requested_currency_code || "USD"}
-                </td>
+              <AixiaTableDateCell>{formatDate(row.period_end)}</AixiaTableDateCell>
 
-                <td className="whitespace-nowrap px-5 py-4 text-right font-semibold text-white">
-                  {row.requested_currency_code || "USD"}{" "}
-                  {formatMoney(row.requested_net_amount)}
-                </td>
+              <AixiaTableBadgeCell>
+                <AixiaBadge tone="cyan">{row.requested_currency_code || "USD"}</AixiaBadge>
+              </AixiaTableBadgeCell>
 
-                <td className="whitespace-nowrap px-5 py-4">
-                  <StatusBadge value={row.status} />
-                </td>
+              <AixiaTableTextCell
+                width="md"
+                primary={`${row.requested_currency_code || "USD"} ${formatMoney(
+                  row.requested_net_amount
+                )}`}
+              />
 
-                <td className="whitespace-nowrap px-5 py-4">
-                  <StatusBadge value={row.review_status} />
-                </td>
+              <AixiaTableBadgeCell>
+                <AixiaStatusBadge value={row.status} />
+              </AixiaTableBadgeCell>
 
-                <td className="whitespace-nowrap px-5 py-4">
-                  <StatusBadge value={row.signed_form_status} />
-                  {row.signed_form_storage_path || row.signed_form_external_url ? (
-                    <div className="mt-1 flex items-center gap-1 text-[11px] text-emerald-300">
+              <AixiaTableBadgeCell>
+                <AixiaStatusBadge value={row.review_status} />
+              </AixiaTableBadgeCell>
+
+              <AixiaTableBadgeCell width="md">
+                <div className="flex flex-col items-center justify-center gap-1">
+                  <AixiaStatusBadge value={row.signed_form_status} />
+                  {hasSignedForm ? (
+                    <span className="inline-flex items-center justify-center gap-1 text-[11px] font-semibold text-emerald-300">
                       <Download className="h-3 w-3" />
                       Form attached
-                    </div>
+                    </span>
                   ) : null}
-                </td>
+                </div>
+              </AixiaTableBadgeCell>
 
-                <td className="whitespace-nowrap px-5 py-4">
-                  <StatusBadge value={row.recipient_confirmation_status} />
-                </td>
+              <AixiaTableBadgeCell width="md">
+                <AixiaStatusBadge value={row.recipient_confirmation_status} />
+              </AixiaTableBadgeCell>
 
-                <td className="whitespace-nowrap px-5 py-4 text-slate-400">
-                  {formatDate(row.updated_at)}
-                </td>
+              <AixiaTableDateCell>{formatDate(row.updated_at)}</AixiaTableDateCell>
 
-                <td className="px-5 py-4">
-                  <div className="flex items-center justify-end gap-2">
-                    {!archiveMode ? (
-                      <>
-                        <button
-                          type="button"
-                          onClick={() => onOpen(row.id)}
-                          className="inline-flex h-9 items-center justify-center gap-2 rounded-2xl border border-cyan-400/20 bg-cyan-500/10 px-3 text-xs font-semibold text-cyan-100 transition hover:bg-cyan-500/15"
-                        >
-                          <Eye className="h-3.5 w-3.5" />
-                          Open
-                        </button>
+              <AixiaTableActionsCell>
+                {!archiveMode ? (
+                  <>
+                    <AixiaButton
+                      type="button"
+                      variant="primary"
+                      onClick={() => onOpen(row.id)}
+                    >
+                      <Eye className="h-3.5 w-3.5" />
+                      Open
+                    </AixiaButton>
 
-                        <button
-                          type="button"
-                          onClick={() => onArchive?.(row.id)}
-                          className="inline-flex h-9 items-center justify-center rounded-2xl border border-amber-400/20 bg-amber-500/10 px-3 text-amber-100 transition hover:bg-amber-500/15"
-                          title="Archive"
-                        >
-                          <Archive className="h-3.5 w-3.5" />
-                        </button>
+                    <AixiaButton
+                      type="button"
+                      variant="danger"
+                      onClick={() => onArchive?.(row.id)}
+                      title="Archive"
+                    >
+                      <Archive className="h-3.5 w-3.5" />
+                      Archive
+                    </AixiaButton>
 
-                        <button
-                          type="button"
-                          onClick={() => onDelete?.(row.id)}
-                          className="inline-flex h-9 items-center justify-center rounded-2xl border border-rose-400/20 bg-rose-500/10 px-3 text-rose-100 transition hover:bg-rose-500/15"
-                          title="Delete"
-                        >
-                          <Trash2 className="h-3.5 w-3.5" />
-                        </button>
-                      </>
-                    ) : (
-                      <>
-                        <button
-                          type="button"
-                          onClick={() => onOpen(row.id)}
-                          className="inline-flex h-9 items-center justify-center gap-2 rounded-2xl border border-cyan-400/20 bg-cyan-500/10 px-3 text-xs font-semibold text-cyan-100 transition hover:bg-cyan-500/15"
-                        >
-                          <Eye className="h-3.5 w-3.5" />
-                          View
-                        </button>
+                    <AixiaButton
+                      type="button"
+                      variant="danger"
+                      onClick={() => onDelete?.(row.id)}
+                      title="Delete"
+                    >
+                      <Trash2 className="h-3.5 w-3.5" />
+                      Delete
+                    </AixiaButton>
+                  </>
+                ) : (
+                  <>
+                    <AixiaButton
+                      type="button"
+                      variant="primary"
+                      onClick={() => onOpen(row.id)}
+                    >
+                      <Eye className="h-3.5 w-3.5" />
+                      View
+                    </AixiaButton>
 
-                        <button
-                          type="button"
-                          onClick={() => onRestore?.(row.id)}
-                          className="inline-flex h-9 items-center justify-center gap-2 rounded-2xl border border-emerald-400/20 bg-emerald-500/10 px-3 text-xs font-semibold text-emerald-100 transition hover:bg-emerald-500/15"
-                        >
-                          <RotateCcw className="h-3.5 w-3.5" />
-                          Restore
-                        </button>
+                    <AixiaButton
+                      type="button"
+                      variant="secondary"
+                      onClick={() => onRestore?.(row.id)}
+                    >
+                      <RotateCcw className="h-3.5 w-3.5" />
+                      Restore
+                    </AixiaButton>
 
-                        {archiveTab === "deleted" ? (
-                          <button
-                            type="button"
-                            onClick={() => onHardDelete?.(row.id)}
-                            className="inline-flex h-9 items-center justify-center gap-2 rounded-2xl border border-rose-400/20 bg-rose-500/10 px-3 text-xs font-semibold text-rose-100 transition hover:bg-rose-500/15"
-                          >
-                            <Trash2 className="h-3.5 w-3.5" />
-                            Hard Delete
-                          </button>
-                        ) : null}
-                      </>
-                    )}
-                  </div>
-                </td>
-              </tr>
-            ))}
-          </tbody>
-        </table>
-      </div>
-    </div>
+                    {archiveTab === "deleted" ? (
+                      <AixiaButton
+                        type="button"
+                        variant="danger"
+                        onClick={() => onHardDelete?.(row.id)}
+                      >
+                        <Trash2 className="h-3.5 w-3.5" />
+                        Delete Permanently
+                      </AixiaButton>
+                    ) : null}
+                  </>
+                )}
+              </AixiaTableActionsCell>
+            </tr>
+          );
+        })}
+      </tbody>
+    </AixiaTableShell>
   );
 }
 
@@ -669,6 +574,7 @@ export default function PaycheckRequestsPage() {
 
   const [requests, setRequests] = useState<PaycheckRequestRow[]>([]);
   const [isLoading, setIsLoading] = useState(true);
+  const [backgroundRefreshing, setBackgroundRefreshing] = useState(false);
   const [actionError, setActionError] = useState<string | null>(null);
   const [actionMessage, setActionMessage] = useState<string | null>(null);
 
@@ -679,9 +585,13 @@ export default function PaycheckRequestsPage() {
   const [archiveOpen, setArchiveOpen] = useState(false);
   const [archiveTab, setArchiveTab] = useState<ArchiveTab>("archived");
 
-  const loadRequests = useCallback(async () => {
-    setIsLoading(true);
-    setActionError(null);
+  const loadRequests = useCallback(async (mode: LoadMode = "initial") => {
+    if (mode === "initial") {
+      setIsLoading(true);
+      setActionError(null);
+    } else {
+      setBackgroundRefreshing(true);
+    }
 
     try {
       const result = await supabase
@@ -756,19 +666,26 @@ export default function PaycheckRequestsPage() {
       setRequests((result.data || []) as unknown as PaycheckRequestRow[]);
     } catch (error) {
       console.error("Failed to load paycheck requests:", error);
-      setActionError(
-        error instanceof Error
-          ? error.message
-          : "Failed to load paycheck requests."
-      );
-      setRequests([]);
+
+      if (mode === "initial") {
+        setActionError(
+          error instanceof Error
+            ? error.message
+            : "Failed to load paycheck requests."
+        );
+        setRequests([]);
+      }
     } finally {
-      setIsLoading(false);
+      if (mode === "initial") {
+        setIsLoading(false);
+      } else {
+        setBackgroundRefreshing(false);
+      }
     }
   }, []);
 
   useEffect(() => {
-    void loadRequests();
+    void loadRequests("initial");
   }, [loadRequests]);
 
   useEffect(() => {
@@ -777,27 +694,27 @@ export default function PaycheckRequestsPage() {
       .on(
         "postgres_changes",
         { event: "*", schema: "public", table: "finance_paycheck_requests" },
-        () => void loadRequests()
+        () => void loadRequests("silent")
       )
       .on(
         "postgres_changes",
         { event: "*", schema: "public", table: "finance_payroll_payments" },
-        () => void loadRequests()
+        () => void loadRequests("silent")
       )
       .on(
         "postgres_changes",
         { event: "*", schema: "public", table: "finance_paychecks" },
-        () => void loadRequests()
+        () => void loadRequests("silent")
       )
       .subscribe();
 
     const intervalId = window.setInterval(() => {
-      void loadRequests();
+      void loadRequests("silent");
     }, 60000);
 
     return () => {
       window.clearInterval(intervalId);
-      supabase.removeChannel(channel);
+      void supabase.removeChannel(channel);
     };
   }, [loadRequests]);
 
@@ -909,11 +826,7 @@ export default function PaycheckRequestsPage() {
   );
 
   const runRpcAction = useCallback(
-    async (
-      rpcName: string,
-      requestId: string,
-      successMessage: string
-    ) => {
+    async (rpcName: string, requestId: string, successMessage: string) => {
       setActionError(null);
       setActionMessage(null);
 
@@ -937,7 +850,7 @@ export default function PaycheckRequestsPage() {
       }
 
       setActionMessage(successMessage);
-      await loadRequests();
+      await loadRequests("silent");
     },
     [loadRequests]
   );
@@ -986,281 +899,190 @@ export default function PaycheckRequestsPage() {
     [runRpcAction]
   );
 
+  const registrySearch = (
+    <AixiaSearchField
+      width="wide"
+      value={searchTerm}
+      onChange={(event) => setSearchTerm(event.target.value)}
+      placeholder="Search paycheck requests..."
+    />
+  );
+
   return (
-    <div className="min-h-screen bg-[#05070d] px-4 py-4 text-white md:px-6 md:py-6">
-      <div className="mx-auto flex w-full max-w-[1600px] flex-col gap-6">
-        <header className="relative overflow-hidden rounded-[34px] border border-white/10 bg-white/[0.045] p-6 shadow-2xl shadow-black/30 backdrop-blur-xl">
-          <div className="pointer-events-none absolute inset-0 bg-[radial-gradient(circle_at_top_left,rgba(6,182,212,0.16),transparent_38%),radial-gradient(circle_at_top_right,rgba(139,92,246,0.12),transparent_34%)]" />
+    <AixiaPage>
+      <AixiaHero
+        parentLabel="Transactions"
+        parentPath="/finance/transactions"
+        badges={[
+          { label: "Paycheck Requests", tone: "cyan" },
+          { label: "Signed Forms", tone: "emerald" },
+          { label: "Payroll Linking", tone: "violet" },
+          { label: "Payment Confirmation", tone: "amber" },
+        ]}
+        gradientTitle="Employee"
+        title="Paycheck Requests"
+        description="Employee-side paycheck request intake for signed forms, Finance review, payroll linking, payment execution, and employee payment confirmation."
+        statusCards={[
+          {
+            label: "Active Requests",
+            value: isLoading ? "—" : formatCount(metrics.active),
+            description: "Active paycheck requests excluding archived and deleted records.",
+            icon: FileSignature,
+            tone: "cyan",
+          },
+          {
+            label: "Submitted",
+            value: isLoading ? "—" : formatCount(metrics.submitted),
+            description: "Signed forms waiting for Finance review.",
+            icon: ShieldCheck,
+            tone: "amber",
+          },
+          {
+            label: "Approved",
+            value: isLoading ? "—" : formatCount(metrics.approved),
+            description: "Approved requests ready to link to payroll.",
+            icon: BadgeCheck,
+            tone: "emerald",
+          },
+        ]}
+      />
 
-          <div className="relative">
-            <button
-              type="button"
-              onClick={() => navigate("/finance/transactions")}
-              className="mb-5 inline-flex items-center justify-center gap-2 rounded-full border border-white/10 bg-white/[0.05] px-5 py-2 text-[11px] font-semibold uppercase tracking-[0.22em] text-slate-300 transition hover:border-white/20 hover:bg-white/[0.08] hover:text-white"
-            >
-              <ArrowRight className="h-3.5 w-3.5 rotate-180" />
-              Transactions
-            </button>
+      <AixiaMetricGrid>
+        <AixiaMetricCard
+          label="Total Active"
+          value={isLoading ? "—" : formatCount(metrics.active)}
+          description="Visible active paycheck requests."
+          icon={FileSignature}
+          tone="cyan"
+        />
+        <AixiaMetricCard
+          label="Pending Review"
+          value={isLoading ? "—" : formatCount(metrics.submitted)}
+          description="Submitted signed forms waiting for Finance review."
+          icon={ShieldCheck}
+          tone="amber"
+        />
+        <AixiaMetricCard
+          label="Approved For Payroll"
+          value={isLoading ? "—" : formatCount(metrics.approved)}
+          description="Approved requests ready to link to payroll run."
+          icon={BadgeCheck}
+          tone="emerald"
+        />
+        <AixiaMetricCard
+          label="Payment Sent"
+          value={isLoading ? "—" : formatCount(metrics.paymentSent)}
+          description="Requests waiting for employee payment confirmation."
+          icon={WalletCards}
+          tone="violet"
+        />
+        <AixiaMetricCard
+          label="Total Net"
+          value={isLoading ? "—" : formatMoney(metrics.totalNet)}
+          description="Total requested net amount for active requests."
+          icon={WalletCards}
+          tone="gold"
+        />
+      </AixiaMetricGrid>
 
-            <div className="grid gap-6 xl:grid-cols-[minmax(0,1fr)_430px] xl:items-stretch">
-              <div className="min-w-0">
-                <div className="inline-flex w-fit items-center gap-2 rounded-full border border-cyan-400/20 bg-cyan-500/10 px-3 py-1 text-[11px] font-semibold uppercase tracking-[0.22em] text-cyan-200">
-                  <FileSignature className="h-3.5 w-3.5" />
-                  Paycheck Requests
-                </div>
-
-                <h1 className="mt-4 text-3xl font-semibold tracking-[-0.035em] text-white md:text-5xl">
-                  Employee Paycheck Requests
-                </h1>
-
-                <p className="mt-3 max-w-4xl text-sm leading-6 text-slate-400 md:text-base md:leading-7">
-                  Employee-side paycheck request intake for signed forms, Finance review,
-                  payroll linking, payment execution, and employee payment confirmation.
-                </p>
-
-                <div className="mt-5 flex flex-wrap gap-2">
-                  <div className="rounded-full border border-cyan-400/20 bg-cyan-500/10 px-3 py-1 text-[11px] font-semibold uppercase tracking-[0.16em] text-cyan-200">
-                    Signed Forms
-                  </div>
-                  <div className="rounded-full border border-emerald-400/20 bg-emerald-500/10 px-3 py-1 text-[11px] font-semibold uppercase tracking-[0.16em] text-emerald-200">
-                    Finance Review
-                  </div>
-                  <div className="rounded-full border border-violet-400/20 bg-violet-500/10 px-3 py-1 text-[11px] font-semibold uppercase tracking-[0.16em] text-violet-200">
-                    Payroll Linking
-                  </div>
-                  <div className="rounded-full border border-amber-400/20 bg-amber-500/10 px-3 py-1 text-[11px] font-semibold uppercase tracking-[0.16em] text-amber-200">
-                    Payment Confirmation
-                  </div>
-                </div>
-              </div>
-
-              <div className="grid gap-3">
-                <div className="min-h-[148px] rounded-[24px] border border-white/10 bg-black/20 p-4">
-                  <div className="flex items-start justify-between gap-3">
-                    <div>
-                      <div className="text-[11px] font-semibold uppercase tracking-[0.2em] text-slate-500">
-                        Active Requests
-                      </div>
-                      <div className="mt-2 text-2xl font-semibold text-white">
-                        {isLoading ? "—" : formatCount(metrics.active)}
-                      </div>
-                    </div>
-                    <div className="flex h-10 w-10 items-center justify-center rounded-2xl border border-cyan-400/20 bg-cyan-500/10 text-cyan-200">
-                      <FileSignature className="h-4 w-4" />
-                    </div>
-                  </div>
-                  <div className="mt-3 text-xs leading-5 text-slate-500">
-                    Active paycheck requests excluding archived and deleted records.
-                  </div>
-                </div>
-
-                <div className="grid gap-3 sm:grid-cols-2">
-                  <div className="rounded-[24px] border border-white/10 bg-black/20 p-4">
-                    <div className="text-[11px] font-semibold uppercase tracking-[0.2em] text-slate-500">
-                      Submitted
-                    </div>
-                    <div className="mt-2 text-xl font-semibold text-cyan-100">
-                      {isLoading ? "—" : formatCount(metrics.submitted)}
-                    </div>
-                  </div>
-
-                  <div className="rounded-[24px] border border-white/10 bg-black/20 p-4">
-                    <div className="text-[11px] font-semibold uppercase tracking-[0.2em] text-slate-500">
-                      Approved
-                    </div>
-                    <div className="mt-2 text-xl font-semibold text-emerald-100">
-                      {isLoading ? "—" : formatCount(metrics.approved)}
-                    </div>
-                  </div>
-                </div>
-              </div>
-            </div>
-          </div>
-        </header>
-
-        <section className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
-          <KpiCard
-            label="Total Active"
-            value={isLoading ? "—" : formatCount(metrics.active)}
-            detail="Visible active paycheck requests."
-            icon={FileSignature}
-            tone="cyan"
-          />
-          <KpiCard
-            label="Pending Review"
-            value={isLoading ? "—" : formatCount(metrics.submitted)}
-            detail="Submitted signed forms waiting for Finance review."
-            icon={ShieldCheck}
-            tone="amber"
-          />
-          <KpiCard
-            label="Approved For Payroll"
-            value={isLoading ? "—" : formatCount(metrics.approved)}
-            detail="Approved requests ready to link to payroll run."
-            icon={BadgeCheck}
-            tone="emerald"
-          />
-          <KpiCard
-            label="Payment Sent"
-            value={isLoading ? "—" : formatCount(metrics.paymentSent)}
-            detail="Requests waiting for employee payment confirmation."
-            icon={WalletCards}
-            tone="violet"
-          />
-        </section>
-
-        <section className="overflow-hidden rounded-[30px] border border-white/10 bg-white/[0.045] backdrop-blur-xl">
-          <div className="flex flex-col gap-4 border-b border-white/10 px-5 py-4 xl:flex-row xl:items-center xl:justify-between">
-            <div>
-              <div className="text-sm font-semibold uppercase tracking-[0.18em] text-slate-400">
-                Paycheck Requests Registry
-              </div>
-              <p className="mt-1 text-xs leading-5 text-slate-500">
-                Active registry: Request, Employee, Period, Currency, Net Amount,
-                Status, Review, Signed Form, Confirmation, and Actions.
-              </p>
-            </div>
-
-            <div className="flex flex-col gap-3 sm:flex-row sm:items-center">
-              <label className="relative block min-w-[280px]">
-                <Search className="pointer-events-none absolute left-4 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-500" />
-                <input
-                  value={searchTerm}
-                  onChange={(event) => setSearchTerm(event.target.value)}
-                  placeholder="Search paycheck requests..."
-                  className="h-11 w-full rounded-2xl border border-white/10 bg-black/20 pl-11 pr-4 text-sm text-white outline-none transition placeholder:text-slate-600 focus:border-cyan-400/30 focus:bg-black/30"
-                />
-              </label>
-
-              <button
+      <AixiaSection
+        title="Paycheck Requests Registry"
+        description="Active registry: Request, Employee, Period, Currency, Net Amount, Status, Review, Signed Form, Confirmation, and Actions."
+        icon={FileSignature}
+        badge={
+          backgroundRefreshing ? (
+            <AixiaBadge tone="neutral">Syncing</AixiaBadge>
+          ) : (
+            <AixiaBadge tone="emerald">Live</AixiaBadge>
+          )
+        }
+        actions={
+          <AixiaRegistryToolbar
+            search={registrySearch}
+            archiveAction={
+              <AixiaButton
                 type="button"
+                variant="secondary"
                 onClick={() => {
                   setArchiveOpen(true);
                   setArchiveTab("archived");
                 }}
-                className="inline-flex h-11 items-center justify-center gap-2 rounded-2xl border border-white/10 bg-white/[0.04] px-4 text-sm font-semibold text-slate-200 transition hover:border-white/20 hover:bg-white/[0.07]"
               >
                 <MoreHorizontal className="h-4 w-4" />
                 Archive
-              </button>
-
-              <button
+              </AixiaButton>
+            }
+            primaryAction={
+              <AixiaButton
                 type="button"
+                variant="primary"
                 onClick={() => navigate("/finance/transactions/paycheck-requests/new")}
-                className="inline-flex h-11 items-center justify-center gap-2 rounded-2xl border border-cyan-400/20 bg-cyan-500/10 px-4 text-sm font-semibold text-cyan-100 transition hover:bg-cyan-500/15"
               >
                 <Plus className="h-4 w-4" />
                 New Paycheck Request
-              </button>
-            </div>
-          </div>
-
-          <div className="p-5">
-            {actionError ? (
-              <div className="mb-4 rounded-[24px] border border-rose-400/20 bg-rose-500/10 px-4 py-3 text-sm text-rose-100">
-                {actionError}
-              </div>
-            ) : null}
-
-            {actionMessage ? (
-              <div className="mb-4 rounded-[24px] border border-emerald-400/20 bg-emerald-500/10 px-4 py-3 text-sm text-emerald-100">
-                {actionMessage}
-              </div>
-            ) : null}
-
-            <PaycheckRequestTable
-              rows={sortedRows}
-              sortKey={sortKey}
-              sortDirection={sortDirection}
-              onSort={handleSort}
-              onOpen={openRequest}
-              onArchive={archiveRequest}
-              onDelete={deleteRequest}
-            />
-          </div>
-        </section>
-
-        {archiveOpen ? (
-          <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 px-4 py-6 backdrop-blur-md">
-            <div className="flex max-h-[92vh] w-full max-w-[1500px] flex-col overflow-hidden rounded-[34px] border border-white/10 bg-[#070b14] shadow-2xl shadow-black/40">
-              <div className="flex items-start justify-between gap-4 border-b border-white/10 p-6">
-                <div>
-                  <div className="inline-flex w-fit rounded-full border border-cyan-400/20 bg-cyan-500/10 px-3 py-1 text-[11px] font-semibold uppercase tracking-[0.22em] text-cyan-200">
-                    Paycheck Requests Archive
-                  </div>
-                  <h2 className="mt-3 text-2xl font-semibold text-white">
-                    Archived & Deleted Paycheck Requests
-                  </h2>
-                  <p className="mt-2 text-sm leading-6 text-slate-400">
-                    Archived requests can be restored. Deleted requests can be restored or
-                    permanently deleted.
-                  </p>
-                </div>
-
-                <button
-                  type="button"
-                  onClick={() => setArchiveOpen(false)}
-                  className="flex h-10 w-10 items-center justify-center rounded-2xl border border-white/10 bg-white/[0.04] text-slate-300 transition hover:bg-white/[0.08] hover:text-white"
-                >
-                  <X className="h-4 w-4" />
-                </button>
-              </div>
-
-              <div className="flex flex-wrap items-center justify-between gap-3 border-b border-white/10 px-6 py-4">
-                <div className="flex rounded-2xl border border-white/10 bg-black/20 p-1">
-                  <button
-                    type="button"
-                    onClick={() => setArchiveTab("archived")}
-                    className={`rounded-xl px-4 py-2 text-sm font-semibold transition ${
-                      archiveTab === "archived"
-                        ? "bg-cyan-500/15 text-cyan-100"
-                        : "text-slate-500 hover:text-slate-200"
-                    }`}
-                  >
-                    Archived ({formatCount(archivedRows.length)})
-                  </button>
-
-                  <button
-                    type="button"
-                    onClick={() => setArchiveTab("deleted")}
-                    className={`rounded-xl px-4 py-2 text-sm font-semibold transition ${
-                      archiveTab === "deleted"
-                        ? "bg-rose-500/15 text-rose-100"
-                        : "text-slate-500 hover:text-slate-200"
-                    }`}
-                  >
-                    Deleted ({formatCount(deletedRows.length)})
-                  </button>
-                </div>
-
-                <label className="relative block min-w-[280px]">
-                  <Search className="pointer-events-none absolute left-4 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-500" />
-                  <input
-                    value={searchTerm}
-                    onChange={(event) => setSearchTerm(event.target.value)}
-                    placeholder="Search archive..."
-                    className="h-11 w-full rounded-2xl border border-white/10 bg-black/20 pl-11 pr-4 text-sm text-white outline-none transition placeholder:text-slate-600 focus:border-cyan-400/30 focus:bg-black/30"
-                  />
-                </label>
-              </div>
-
-              <div className="min-h-0 overflow-y-auto p-6">
-                <PaycheckRequestTable
-                  rows={sortedRows}
-                  sortKey={sortKey}
-                  sortDirection={sortDirection}
-                  onSort={handleSort}
-                  onOpen={openRequest}
-                  archiveMode
-                  archiveTab={archiveTab}
-                  onRestore={restoreRequest}
-                  onHardDelete={hardDeleteRequest}
-                />
-              </div>
-            </div>
-          </div>
+              </AixiaButton>
+            }
+          />
+        }
+      >
+        {actionError ? (
+          <AixiaAlert tone="error" className="mb-4">
+            {actionError}
+          </AixiaAlert>
         ) : null}
-      </div>
-    </div>
+
+        {actionMessage ? (
+          <AixiaAlert tone="success" className="mb-4">
+            {actionMessage}
+          </AixiaAlert>
+        ) : null}
+
+        <PaycheckRequestTable
+          rows={sortedRows}
+          sortKey={sortKey}
+          sortDirection={sortDirection}
+          onSort={handleSort}
+          onOpen={openRequest}
+          onArchive={archiveRequest}
+          onDelete={deleteRequest}
+        />
+      </AixiaSection>
+
+      <AixiaArchiveManagerModal
+        open={archiveOpen}
+        title="Archived & Deleted Paycheck Requests"
+        description="Archived requests can be restored. Deleted requests can be restored or permanently deleted."
+        archivedCount={archivedRows.length}
+        deletedCount={deletedRows.length}
+        countLabel="Paycheck Requests"
+        activeTab={archiveTab}
+        onTabChange={setArchiveTab}
+        onClose={() => setArchiveOpen(false)}
+        maxWidthClassName="max-w-[1500px]"
+      >
+        <AixiaRegistryToolbar
+          search={
+            <AixiaSearchField
+              width="wide"
+              value={searchTerm}
+              onChange={(event) => setSearchTerm(event.target.value)}
+              placeholder="Search archive..."
+            />
+          }
+        />
+
+        <PaycheckRequestTable
+          rows={sortedRows}
+          sortKey={sortKey}
+          sortDirection={sortDirection}
+          onSort={handleSort}
+          onOpen={openRequest}
+          archiveMode
+          archiveTab={archiveTab}
+          onRestore={restoreRequest}
+          onHardDelete={hardDeleteRequest}
+        />
+      </AixiaArchiveManagerModal>
+    </AixiaPage>
   );
 }

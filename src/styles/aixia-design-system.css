@@ -6168,3 +6168,284 @@ button.aixia-action-card:disabled {
 .aixia-section .aixia-alert + .aixia-form-full .aixia-field-label:first-child {
   margin-top: 0 !important;
 }
+
+
+
+/* -------------------------------------------------------
+   TRANSACTIONS HUB WORKFLOW STANDARD
+   Shared typography/layout rules for the Finance
+   Transactions hub. Page keeps the original workflow
+   renderer, while sizing/typography lives here.
+------------------------------------------------------- */
+
+.aixia-transactions-hub-layout {
+  display: grid;
+  gap: clamp(1rem, 1.5vw, 1.5rem);
+}
+
+@media (min-width: 1280px) {
+  .aixia-transactions-hub-layout {
+    grid-template-columns: minmax(0, 1fr) 430px;
+    align-items: start;
+  }
+}
+
+.aixia-transactions-hub-span {
+  min-width: 0;
+}
+
+@media (min-width: 1280px) {
+  .aixia-transactions-hub-span {
+    grid-column: 1 / -1;
+  }
+}
+
+.aixia-transaction-flow-section {
+  overflow: hidden;
+  border-radius: 30px;
+  border-width: 1px;
+  backdrop-filter: blur(24px);
+}
+
+.aixia-transaction-flow-section-head {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 1rem;
+  border-bottom: 1px solid rgb(255 255 255 / 0.1);
+  padding: 1rem 1.25rem;
+}
+
+.aixia-transaction-flow-section-title-row {
+  display: flex;
+  min-width: 0;
+  align-items: flex-start;
+  gap: 0.75rem;
+}
+
+.aixia-transaction-flow-section-icon {
+  border-radius: 1rem;
+  border-width: 1px;
+  padding: 0.75rem;
+}
+
+.aixia-transaction-flow-section-copy {
+  min-width: 0;
+}
+
+.aixia-transaction-flow-section-badge {
+  display: inline-flex;
+  width: fit-content;
+  border-radius: 999px;
+  border-width: 1px;
+  padding: 0.25rem 0.75rem;
+  font-size: 0.6875rem;
+  font-weight: 600;
+  letter-spacing: 0.22em;
+  line-height: 1rem;
+  text-transform: uppercase;
+}
+
+.aixia-transaction-flow-section-description {
+  margin-top: 0.5rem;
+  max-width: 64rem;
+  color: rgb(148 163 184);
+  font-size: 0.875rem;
+  line-height: 1.5rem;
+}
+
+.aixia-transaction-flow-section-body {
+  padding: 1.25rem;
+}
+
+.aixia-transaction-flow-module {
+  position: relative;
+  display: flex;
+  height: 236px;
+  width: 100%;
+  overflow: hidden;
+  border-radius: 22px;
+  border: 1px solid rgb(255 255 255 / 0.1);
+  background: rgb(255 255 255 / 0.03);
+  text-align: left;
+  backdrop-filter: blur(24px);
+  transition:
+    transform 200ms ease,
+    border-color 200ms ease,
+    background-color 200ms ease;
+}
+
+.aixia-transaction-flow-module-clickable:hover {
+  transform: translateY(-0.125rem);
+  border-color: rgb(255 255 255 / 0.2);
+  background: rgb(255 255 255 / 0.05);
+}
+
+.aixia-transaction-flow-module-disabled {
+  cursor: not-allowed;
+  opacity: 0.7;
+}
+
+.aixia-transaction-flow-module-glow {
+  pointer-events: none;
+  position: absolute;
+  inset: 0;
+  background: radial-gradient(circle at top left, rgb(255 255 255 / 0.08), transparent 48%);
+  opacity: 0.8;
+}
+
+.aixia-transaction-flow-module-body {
+  position: relative;
+  display: flex;
+  height: 100%;
+  width: 100%;
+  flex-direction: column;
+  gap: 0.75rem;
+  padding: 0.875rem;
+}
+
+.aixia-transaction-flow-module-head {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 0.75rem;
+}
+
+.aixia-transaction-flow-module-left,
+.aixia-transaction-flow-module-status-wrap {
+  display: flex;
+  align-items: center;
+  gap: 0.625rem;
+}
+
+.aixia-transaction-flow-module-status-wrap {
+  gap: 0.5rem;
+}
+
+.aixia-transaction-flow-module-icon {
+  display: flex;
+  height: 2rem;
+  width: 2rem;
+  align-items: center;
+  justify-content: center;
+  border-radius: 0.75rem;
+  border: 1px solid rgb(255 255 255 / 0.1);
+  background: rgb(0 0 0 / 0.2);
+  color: rgb(255 255 255 / 0.8);
+}
+
+.aixia-transaction-flow-module-sequence {
+  display: flex;
+  height: 1.5rem;
+  min-width: 1.65rem;
+  align-items: center;
+  justify-content: center;
+  border-radius: 0.5rem;
+  border: 1px solid rgb(255 255 255 / 0.1);
+  background: rgb(255 255 255 / 0.06);
+  padding-inline: 0.375rem;
+  color: rgb(255 255 255 / 0.7);
+  font-size: 0.625rem;
+  font-weight: 500;
+  line-height: 1rem;
+}
+
+.aixia-transaction-flow-module-status {
+  border-radius: 999px;
+  border-width: 1px;
+  padding: 0.25rem 0.625rem;
+  font-size: 0.625rem;
+  line-height: 1rem;
+}
+
+.aixia-transaction-flow-module-status-personal {
+  border-color: rgb(34 211 238 / 0.2);
+  background: rgb(6 182 212 / 0.1);
+  color: rgb(165 243 252);
+}
+
+.aixia-transaction-flow-module-status-company {
+  border-color: rgb(255 255 255 / 0.1);
+  background: rgb(255 255 255 / 0.08);
+  color: rgb(255 255 255 / 0.7);
+}
+
+.aixia-transaction-flow-module-arrow {
+  height: 1rem;
+  width: 1rem;
+  color: rgb(255 255 255 / 0.3);
+  transition:
+    transform 200ms ease,
+    color 200ms ease;
+}
+
+.aixia-transaction-flow-module-arrow-active {
+  color: rgb(255 255 255 / 0.3);
+}
+
+.aixia-transaction-flow-module-clickable:hover .aixia-transaction-flow-module-arrow-active {
+  transform: translateX(0.25rem);
+  color: rgb(255 255 255 / 0.65);
+}
+
+.aixia-transaction-flow-module-copy {
+  display: grid;
+  gap: 0.375rem;
+}
+
+.aixia-transaction-flow-module-title {
+  display: -webkit-box;
+  overflow: hidden;
+  color: rgb(255 255 255);
+  font-size: 0.875rem;
+  font-weight: 500;
+  line-height: 1.25rem;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 2;
+}
+
+.aixia-transaction-flow-module-description {
+  display: -webkit-box;
+  overflow: hidden;
+  color: rgb(255 255 255 / 0.44);
+  font-size: 0.75rem;
+  line-height: 1.25rem;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 3;
+}
+
+.aixia-transaction-flow-module-footer {
+  margin-top: auto;
+  display: flex;
+  align-items: flex-end;
+  justify-content: space-between;
+  gap: 0.75rem;
+  padding-top: 0.25rem;
+}
+
+.aixia-transaction-flow-module-meta-right {
+  text-align: right;
+}
+
+.aixia-transaction-flow-module-meta-label {
+  color: rgb(255 255 255 / 0.32);
+  font-size: 0.625rem;
+  letter-spacing: 0.18em;
+  line-height: 1rem;
+  text-transform: uppercase;
+}
+
+.aixia-transaction-flow-module-meta-value {
+  margin-top: 0.25rem;
+  color: rgb(255 255 255);
+  font-size: 1rem;
+  font-weight: 600;
+  line-height: 1.5rem;
+}
+
+.aixia-transaction-flow-module-meta-text {
+  margin-top: 0.25rem;
+  color: rgb(255 255 255 / 0.58);
+  font-size: 0.75rem;
+  line-height: 1rem;
+}

@@ -61,6 +61,18 @@ function parseBankDetails(details: string | null | undefined) {
   }
 }
 
+function joinAddress(parts: Array<string | null | undefined>) {
+  return parts.filter(Boolean).join(", ");
+}
+
+function getLineValue(item: any) {
+  const unitPrice = Number(item.unitPrice ?? item.unit_price ?? 0);
+  const quantity = Number(item.quantity ?? 0);
+  const discount = Number(item.discount ?? 0);
+
+  return item.lineTotal ?? item.line_total ?? Math.max(quantity * unitPrice - discount, 0);
+}
+
 export default function ProformaInvoicePrintDocument({
   proforma,
   lineItems,
@@ -68,10 +80,7 @@ export default function ProformaInvoicePrintDocument({
   company,
   client,
 }: Props) {
-  const currency =
-    proforma?.currency_code ||
-    proforma?.metadata?.currency_code ||
-    "USD";
+  const currency = proforma?.currency_code || proforma?.metadata?.currency_code || "USD";
 
   const companyName =
     proforma?.company_name_snapshot ||
@@ -88,29 +97,21 @@ export default function ProformaInvoicePrintDocument({
     "";
 
   const companyEmail =
-    proforma?.company_email_snapshot ||
-    company?.email ||
-    proforma?.company_email ||
-    "";
+    proforma?.company_email_snapshot || company?.email || proforma?.company_email || "";
 
   const companyPhone =
-    proforma?.company_phone_snapshot ||
-    company?.phone ||
-    proforma?.company_phone ||
-    "";
+    proforma?.company_phone_snapshot || company?.phone || proforma?.company_phone || "";
 
   const companyAddress =
     proforma?.company_address_snapshot ||
-    [
+    joinAddress([
       company?.address_line_1,
       company?.address_line_2,
       company?.city,
       company?.state_province,
       company?.postal_code,
       company?.country,
-    ]
-      .filter(Boolean)
-      .join(", ") ||
+    ]) ||
     proforma?.company_address ||
     "";
 
@@ -148,23 +149,20 @@ export default function ProformaInvoicePrintDocument({
 
   const billingAddress =
     proforma?.billing_address_snapshot ||
-    [
+    joinAddress([
       client?.address_line_1,
       client?.address_line_2,
       client?.city,
       client?.state_province,
       client?.postal_code,
       client?.country,
-    ]
-      .filter(Boolean)
-      .join(", ") ||
+    ]) ||
     proforma?.billing_address ||
     "—";
 
   const proformaNumber = proforma?.proforma_number || "Draft";
   const issueDate = proforma?.issue_date || null;
   const validUntil = proforma?.valid_until || null;
-
   const bankInfo = parseBankDetails(proforma?.bank_details_snapshot);
 
   const paymentTerms =
@@ -184,13 +182,9 @@ export default function ProformaInvoicePrintDocument({
     proforma?.shipping_terms_snapshot &&
     !String(proforma.shipping_terms_snapshot).match(/^[0-9a-f-]{36}$/i)
       ? proforma.shipping_terms_snapshot
-      : proforma?.shipping_term_label ||
-        proforma?.shipping_term_name ||
-        "Not specified";
+      : proforma?.shipping_term_label || proforma?.shipping_term_name || "Not specified";
 
-  const termsAndConditions =
-    proforma?.terms_and_conditions_snapshot || DEFAULT_TERMS;
-
+  const termsAndConditions = proforma?.terms_and_conditions_snapshot || DEFAULT_TERMS;
   const rows = Array.isArray(lineItems) ? lineItems : [];
   const visibleRows = rows.slice(0, 8);
   const fillerRows = Math.max(0, 3 - visibleRows.length);
@@ -237,651 +231,207 @@ export default function ProformaInvoicePrintDocument({
       `}</style>
 
       <div className="proforma-print-sheet">
-        <div
-          style={{
-            width: "210mm",
-            minHeight: "297mm",
-            background: "#ffffff",
-            color: "#111827",
-            fontFamily:
-              'Inter, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif',
-            position: "relative",
-            overflow: "visible",
-          }}
-        >
-          <div
-            style={{
-              position: "absolute",
-              left: 0,
-              right: 0,
-              top: 0,
-              height: "78mm",
-              background: "linear-gradient(135deg, #232323 0%, #1b1b1b 100%)",
-              zIndex: 0,
-            }}
-          />
+        <div className="aixia-print-page">
+          <div className="aixia-print-hero-band" />
 
-          <div
-            style={{
-              position: "relative",
-              zIndex: 2,
-              padding: "9mm 14mm 10mm 14mm",
-            }}
-          >
-            <div
-              style={{
-                display: "grid",
-                gridTemplateColumns: "1.05fr 0.95fr",
-                gap: "10mm",
-                alignItems: "start",
-                color: "#ffffff",
-                minHeight: "72mm",
-              }}
-            >
-              <div>
+          <div className="aixia-print-content">
+            <div className="aixia-print-hero-grid">
+              <div className="aixia-print-company-block">
                 <img
                   src="https://leoilrrnwlquunsbulok.supabase.co/storage/v1/object/public/Branding/aixia-logo.png"
                   alt="AiXia"
-                  style={{
-                    height: "40mm",
-                    width: "auto",
-                    filter: "brightness(0) invert(1)",
-                    marginTop: "-7mm",
-                    marginBottom: "0.5mm",
-                  }}
+                  className="aixia-print-logo"
                 />
 
-                <div
-                  style={{
-                    maxWidth: "84mm",
-                    fontSize: "8.3pt",
-                    lineHeight: 1.38,
-                    paddingTop: "0mm",
-                    marginTop: "-5mm",
-                  }}
-                >
-                  <div
-                    style={{
-                      fontWeight: 700,
-                      fontSize: "10.5pt",
-                      marginBottom: "0.8mm",
-                    }}
-                  >
-                    {companyName}
-                  </div>
-
+                <div className="aixia-print-company-details">
+                  <div className="aixia-print-company-name">{companyName}</div>
                   {companyContact ? <div>{companyContact}</div> : null}
                   {companyPhone ? <div>{companyPhone}</div> : null}
                   {companyEmail ? <div>{companyEmail}</div> : null}
-
                   {companyAddress ? (
-                    <div
-                      style={{
-                        marginTop: "0.5mm",
-                        lineHeight: 1.32,
-                        whiteSpace: "pre-wrap",
-                        wordBreak: "break-word",
-                        maxWidth: "84mm",
-                        fontSize: "7.9pt",
-                      }}
-                    >
-                      {companyAddress}
-                    </div>
+                    <div className="aixia-print-address">{companyAddress}</div>
                   ) : null}
                 </div>
               </div>
 
-                            <div style={{ paddingTop: "2mm", textAlign: "left" }}>
-                <div
-                  style={{
-                    fontSize: "31pt",
-                    fontWeight: 300,
-                    letterSpacing: "0.09em",
-                    textTransform: "uppercase",
-                    marginBottom: "6mm",
-                    lineHeight: 1,
-                  }}
-                >
-                  Proforma Invoice
-                </div>
+              <div className="aixia-print-document-heading">
+                <div className="aixia-print-title">Proforma Invoice</div>
 
-                <div style={{ fontSize: "10pt", lineHeight: 1.95 }}>
-                  <div style={{ display: "flex", gap: "4mm" }}>
-                    <span style={{ width: "30mm", opacity: 0.78 }}>
-                      Proforma No
-                    </span>
-                    <span style={{ fontWeight: 700 }}>{proformaNumber}</span>
+                <div className="aixia-print-document-meta">
+                  <div className="aixia-print-meta-row">
+                    <span>Proforma No</span>
+                    <strong>{proformaNumber}</strong>
                   </div>
-
-                  <div style={{ display: "flex", gap: "4mm" }}>
-                    <span style={{ width: "30mm", opacity: 0.78 }}>
-                      Issue Date
-                    </span>
-                    <span>{formatFinanceDate(issueDate)}</span>
+                  <div className="aixia-print-meta-row">
+                    <span>Issue Date</span>
+                    <strong>{formatFinanceDate(issueDate)}</strong>
                   </div>
-
-                  <div style={{ display: "flex", gap: "4mm" }}>
-                    <span style={{ width: "30mm", opacity: 0.78 }}>
-                      Valid Until
-                    </span>
-                    <span>{formatFinanceDate(validUntil)}</span>
+                  <div className="aixia-print-meta-row">
+                    <span>Valid Until</span>
+                    <strong>{formatFinanceDate(validUntil)}</strong>
                   </div>
-
-                  <div style={{ display: "flex", gap: "4mm" }}>
-                    <span style={{ width: "30mm", opacity: 0.78 }}>Status</span>
-                    <span>{String(proforma?.status || "—")}</span>
+                  <div className="aixia-print-meta-row">
+                    <span>Status</span>
+                    <strong>{String(proforma?.status || "—")}</strong>
                   </div>
                 </div>
               </div>
             </div>
 
-            <div style={{ marginTop: "5mm", marginBottom: "7mm" }}>
-              <div
-                style={{
-                  background: "#ffffff",
-                  border: "0.5pt solid #e5e7eb",
-                  borderRadius: "2mm",
-                  padding: "4mm 5mm",
-                  display: "grid",
-                  gridTemplateColumns: "1fr",
-                }}
-              >
-                <div
-                  style={{
-                    fontSize: "7.2pt",
-                    textTransform: "uppercase",
-                    letterSpacing: "0.1em",
-                    color: "#6b7280",
-                    fontWeight: 700,
-                    marginBottom: "1.5mm",
-                  }}
-                >
-                  Recipient
-                </div>
+            <section className="aixia-print-card aixia-print-recipient-card">
+              <div className="aixia-print-label">Recipient</div>
+              <div className="aixia-print-recipient-name">{counterpartyName}</div>
+              {counterpartyContact ? <div>{counterpartyContact}</div> : null}
+              {counterpartyEmail || counterpartyPhone ? (
+                <div>{[counterpartyEmail, counterpartyPhone].filter(Boolean).join(" • ")}</div>
+              ) : null}
+              <div className="aixia-print-address">{billingAddress}</div>
+            </section>
 
-                <div
-                  style={{
-                    fontWeight: 700,
-                    fontSize: "11pt",
-                    marginBottom: "1mm",
-                  }}
-                >
-                  {counterpartyName}
-                </div>
+            <table className="aixia-print-table">
+              <thead>
+                <tr>
+                  <th className="aixia-print-col-number">No</th>
+                  <th>Item Description</th>
+                  <th>Unit Price</th>
+                  <th>Quantity</th>
+                  <th>Value</th>
+                </tr>
+              </thead>
+              <tbody>
+                {visibleRows.map((item, index) => {
+                  const unitPrice = Number(item.unitPrice ?? item.unit_price ?? 0);
+                  const quantity = Number(item.quantity ?? 0);
+                  const value = getLineValue(item);
 
-                {counterpartyContact ? (
-                  <div
-                    style={{
-                      fontSize: "8.3pt",
-                      color: "#4b5563",
-                      marginBottom: "0.8mm",
-                    }}
-                  >
-                    {counterpartyContact}
-                  </div>
-                ) : null}
-
-                {counterpartyEmail || counterpartyPhone ? (
-                  <div
-                    style={{
-                      fontSize: "8.1pt",
-                      color: "#4b5563",
-                      marginBottom: "0.8mm",
-                    }}
-                  >
-                    {[counterpartyEmail, counterpartyPhone].filter(Boolean).join(" • ")}
-                  </div>
-                ) : null}
-
-                <div
-                  style={{
-                    fontSize: "8.3pt",
-                    color: "#4b5563",
-                    lineHeight: 1.55,
-                  }}
-                >
-                  {billingAddress}
-                </div>
-              </div>
-            </div>
-
-            <div style={{ marginBottom: "8mm" }}>
-              <table
-                style={{
-                  width: "100%",
-                  borderCollapse: "collapse",
-                  tableLayout: "fixed",
-                  fontSize: "8.5pt",
-                }}
-              >
-                <thead>
-                  <tr style={{ background: "#232323", color: "#ffffff" }}>
-                    <th
-                      style={{
-                        width: "9%",
-                        textAlign: "center",
-                        padding: "3mm 2mm",
-                        fontWeight: 700,
-                      }}
-                    >
-                      No
-                    </th>
-                    <th
-                      style={{
-                        width: "49%",
-                        textAlign: "left",
-                        padding: "3mm 3mm",
-                        fontWeight: 700,
-                      }}
-                    >
-                      Item Description
-                    </th>
-                    <th
-                      style={{
-                        width: "15%",
-                        textAlign: "right",
-                        padding: "3mm 2mm",
-                        fontWeight: 700,
-                      }}
-                    >
-                      Unit Price
-                    </th>
-                    <th
-                      style={{
-                        width: "12%",
-                        textAlign: "right",
-                        padding: "3mm 2mm",
-                        fontWeight: 700,
-                      }}
-                    >
-                      Quantity
-                    </th>
-                    <th
-                      style={{
-                        width: "15%",
-                        textAlign: "right",
-                        padding: "3mm 2mm",
-                        fontWeight: 700,
-                      }}
-                    >
-                      Value
-                    </th>
-                  </tr>
-                </thead>
-
-                <tbody>
-                  {visibleRows.map((item, index) => {
-                    const unitPrice = Number(item.unitPrice ?? item.unit_price ?? 0);
-                    const quantity = Number(item.quantity ?? 0);
-                    const discount = Number(item.discount ?? 0);
-                    const value =
-                      item.lineTotal ??
-                      item.line_total ??
-                      Math.max(quantity * unitPrice - discount, 0);
-
-                    return (
-                      <tr
-                        key={item.id || index}
-                        style={{ borderBottom: "0.5pt solid #d1d5db" }}
-                      >
-                        <td style={{ padding: "3mm 2mm", textAlign: "center" }}>
-                          {index + 1}
-                        </td>
-
-                        <td style={{ padding: "3mm 3mm", verticalAlign: "top" }}>
-                          <div style={{ fontWeight: 500 }}>
-                            {item.description || "—"}
-                          </div>
-                        </td>
-
-                        <td
-                          style={{
-                            padding: "3mm 2mm",
-                            textAlign: "right",
-                            fontFamily: "monospace",
-                          }}
-                        >
-                          {formatFinanceMoney(unitPrice, currency)}
-                        </td>
-
-                        <td
-                          style={{
-                            padding: "3mm 2mm",
-                            textAlign: "right",
-                            fontFamily: "monospace",
-                          }}
-                        >
-                          {quantity}
-                        </td>
-
-                        <td
-                          style={{
-                            padding: "3mm 2mm",
-                            textAlign: "right",
-                            fontFamily: "monospace",
-                            fontWeight: 700,
-                          }}
-                        >
-                          {formatFinanceMoney(value, currency)}
-                        </td>
-                      </tr>
-                    );
-                  })}
-
-                  {Array.from({ length: fillerRows }).map((_, index) => (
-                    <tr
-                      key={`filler-${index}`}
-                      style={{ borderBottom: "0.5pt solid #d1d5db" }}
-                    >
-                      <td style={{ height: "7mm", padding: "0 2mm" }} />
-                      <td style={{ height: "7mm", padding: "0 3mm" }} />
-                      <td style={{ height: "7mm", padding: "0 2mm" }} />
-                      <td style={{ height: "7mm", padding: "0 2mm" }} />
-                      <td style={{ height: "7mm", padding: "0 2mm" }} />
+                  return (
+                    <tr key={item.id || index}>
+                      <td>{index + 1}</td>
+                      <td>{item.description || "—"}</td>
+                      <td className="aixia-print-money">{formatFinanceMoney(unitPrice, currency)}</td>
+                      <td className="aixia-print-money">{quantity}</td>
+                      <td className="aixia-print-money aixia-print-strong">
+                        {formatFinanceMoney(value, currency)}
+                      </td>
                     </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
+                  );
+                })}
 
-            <div
-              style={{
-                display: "grid",
-                gridTemplateColumns: "1.12fr 0.88fr",
-                gap: "14mm",
-                alignItems: "start",
-                marginTop: "0mm",
-              }}
-            >
-              <div style={{ fontSize: "8pt", color: "#374151" }}>
-                <div
-                  style={{
-                    background: "#ffffff",
-                    paddingTop: "2mm",
-                    paddingRight: "1mm",
-                  }}
-                >
-                  <div style={{ marginBottom: "4mm" }}>
-                    <div
-                      style={{
-                        fontWeight: 700,
-                        fontSize: "9pt",
-                        color: "#111827",
-                        marginBottom: "1.5mm",
-                      }}
-                    >
-                      Payment and Shipping Terms
-                    </div>
+                {Array.from({ length: fillerRows }).map((_, index) => (
+                  <tr key={`filler-${index}`} className="aixia-print-filler-row">
+                    <td />
+                    <td />
+                    <td />
+                    <td />
+                    <td />
+                  </tr>
+                ))}
+              </tbody>
+            </table>
 
-                    <div style={{ lineHeight: 1.7 }}>
-                      <div>
-                        <span style={{ color: "#6b7280" }}>Payment Terms: </span>
-                        <span style={{ fontWeight: 500 }}>{paymentTerms}</span>
-                      </div>
-
-                      {paymentTermsText ? (
-                        <div
-                          style={{
-                            marginTop: "1mm",
-                            lineHeight: 1.55,
-                            whiteSpace: "pre-wrap",
-                            color: "#374151",
-                          }}
-                        >
-                          {paymentTermsText}
-                        </div>
-                      ) : null}
-
-                      <div style={{ marginTop: paymentTermsText ? "1.2mm" : "0mm" }}>
-                        <span style={{ color: "#6b7280" }}>Shipping Terms: </span>
-                        <span style={{ fontWeight: 500 }}>{shippingTerms}</span>
-                      </div>
-
-                      <div>
-                        <span style={{ color: "#6b7280" }}>Currency: </span>
-                        <span style={{ fontWeight: 500 }}>{currency}</span>
-                      </div>
-                    </div>
-                  </div>
-
-                  <div style={{ marginBottom: "8mm" }}>
-                    <div
-                      style={{
-                        fontWeight: 700,
-                        fontSize: "9pt",
-                        color: "#111827",
-                        marginBottom: "1.5mm",
-                      }}
-                    >
-                      Bank Details
-                    </div>
-
-                    {bankInfo ? (
-                      <div style={{ lineHeight: 1.65 }}>
-                        {bankInfo.beneficiary ? (
-                          <div>
-                            <span style={{ color: "#6b7280" }}>Beneficiary: </span>
-                            <span style={{ fontWeight: 600 }}>
-                              {bankInfo.beneficiary}
-                            </span>
-                          </div>
-                        ) : null}
-
-                        {bankInfo.bank ? (
-                          <div>
-                            <span style={{ color: "#6b7280" }}>
-                              Beneficiary Bank Name:{" "}
-                            </span>
-                            <span>{bankInfo.bank}</span>
-                          </div>
-                        ) : null}
-
-                        {bankInfo.bankAddress ? (
-                          <div>
-                            <span style={{ color: "#6b7280" }}>
-                              Beneficiary Bank Address:{" "}
-                            </span>
-                            <span>{bankInfo.bankAddress}</span>
-                          </div>
-                        ) : null}
-
-                        {bankInfo.accountNumber ? (
-                          <div>
-                            <span style={{ color: "#6b7280" }}>Bank Account: </span>
-                            <span
-                              style={{
-                                fontFamily: "monospace",
-                                fontWeight: 600,
-                              }}
-                            >
-                              {bankInfo.accountNumber}
-                            </span>
-                          </div>
-                        ) : null}
-
-                        {bankInfo.swift ? (
-                          <div>
-                            <span style={{ color: "#6b7280" }}>SWIFT Code: </span>
-                            <span
-                              style={{
-                                fontFamily: "monospace",
-                                fontWeight: 600,
-                              }}
-                            >
-                              {bankInfo.swift}
-                            </span>
-                          </div>
-                        ) : null}
-
-                        {bankInfo.iban ? (
-                          <div>
-                            <span style={{ color: "#6b7280" }}>IBAN: </span>
-                            <span
-                              style={{
-                                fontFamily: "monospace",
-                                fontWeight: 600,
-                              }}
-                            >
-                              {bankInfo.iban}
-                            </span>
-                          </div>
-                        ) : null}
-                      </div>
-                    ) : (
-                      <div>No bank details available.</div>
-                    )}
-                  </div>
+            <div className="aixia-print-bottom-grid">
+              <section className="aixia-print-terms-block">
+                <div className="aixia-print-section-title">Payment and Shipping Terms</div>
+                <div className="aixia-print-term-line">
+                  <span>Payment Terms: </span>
+                  <strong>{paymentTerms}</strong>
                 </div>
-              </div>
-
-              <div>
-                <div
-                  style={{
-                    background: "#ffffff",
-                    padding: "2mm 0 0 6mm",
-                  }}
-                >
-                  <div
-                    style={{
-                      display: "flex",
-                      justifyContent: "space-between",
-                      marginBottom: "2mm",
-                      fontSize: "9pt",
-                    }}
-                  >
-                    <span>SUB TOTAL</span>
-                    <span style={{ fontFamily: "monospace" }}>
-                      {formatFinanceMoney(financialSummary?.subtotal || 0, currency)}
-                    </span>
-                  </div>
-
-                  <div
-                    style={{
-                      display: "flex",
-                      justifyContent: "space-between",
-                      marginBottom: "2mm",
-                      fontSize: "9pt",
-                    }}
-                  >
-                    <span>TAX / VAT</span>
-                    <span style={{ fontFamily: "monospace" }}>
-                      {formatFinanceMoney(financialSummary?.tax || 0, currency)}
-                    </span>
-                  </div>
-
-                  <div
-                    style={{
-                      display: "flex",
-                      justifyContent: "space-between",
-                      marginBottom: "2mm",
-                      fontSize: "9pt",
-                    }}
-                  >
-                    <span>DISCOUNT</span>
-                    <span style={{ fontFamily: "monospace" }}>
-                      {formatFinanceMoney(financialSummary?.discount || 0, currency)}
-                    </span>
-                  </div>
-
-                  <div
-                    style={{
-                      background: "#232323",
-                      color: "#ffffff",
-                      display: "flex",
-                      justifyContent: "space-between",
-                      alignItems: "center",
-                      padding: "3mm 3mm",
-                      marginTop: "2.5mm",
-                    }}
-                  >
-                    <span
-                      style={{
-                        fontSize: "10pt",
-                        fontWeight: 700,
-                        textTransform: "uppercase",
-                      }}
-                    >
-                      Grand Total
-                    </span>
-                    <span
-                      style={{
-                        fontFamily: "monospace",
-                        fontSize: "11pt",
-                        fontWeight: 700,
-                      }}
-                    >
-                      {formatFinanceMoney(financialSummary?.total || 0, currency)}
-                    </span>
-                  </div>
-
-                  <div
-                    style={{
-                      marginTop: "6mm",
-                      textAlign: "center",
-                      width: "100%",
-                    }}
-                  >
-                    <div
-                      style={{
-                        borderBottom: "0.5pt dashed #6b7280",
-                        height: "12mm",
-                        marginBottom: "1.5mm",
-                      }}
-                    />
-
-                    <div style={{ fontSize: "8pt", color: "#374151" }}>
-                      Authorized Signature
-                    </div>
-                  </div>
+                {paymentTermsText ? (
+                  <div className="aixia-print-paragraph">{paymentTermsText}</div>
+                ) : null}
+                <div className="aixia-print-term-line">
+                  <span>Shipping Terms: </span>
+                  <strong>{shippingTerms}</strong>
                 </div>
-              </div>
+                <div className="aixia-print-term-line">
+                  <span>Currency: </span>
+                  <strong>{currency}</strong>
+                </div>
+
+                <div className="aixia-print-section-title aixia-print-bank-title">
+                  Bank Details
+                </div>
+                {bankInfo ? (
+                  <div className="aixia-print-bank-details">
+                    {bankInfo.beneficiary ? (
+                      <div>
+                        <span>Beneficiary: </span>
+                        <strong>{bankInfo.beneficiary}</strong>
+                      </div>
+                    ) : null}
+                    {bankInfo.bank ? (
+                      <div>
+                        <span>Beneficiary Bank Name: </span>
+                        <strong>{bankInfo.bank}</strong>
+                      </div>
+                    ) : null}
+                    {bankInfo.bankAddress ? (
+                      <div>
+                        <span>Beneficiary Bank Address: </span>
+                        <strong>{bankInfo.bankAddress}</strong>
+                      </div>
+                    ) : null}
+                    {bankInfo.accountNumber ? (
+                      <div>
+                        <span>Bank Account: </span>
+                        <strong className="aixia-print-money">{bankInfo.accountNumber}</strong>
+                      </div>
+                    ) : null}
+                    {bankInfo.swift ? (
+                      <div>
+                        <span>SWIFT Code: </span>
+                        <strong className="aixia-print-money">{bankInfo.swift}</strong>
+                      </div>
+                    ) : null}
+                    {bankInfo.iban ? (
+                      <div>
+                        <span>IBAN: </span>
+                        <strong className="aixia-print-money">{bankInfo.iban}</strong>
+                      </div>
+                    ) : null}
+                  </div>
+                ) : (
+                  <div>No bank details available.</div>
+                )}
+              </section>
+
+              <section className="aixia-print-summary-block">
+                <div className="aixia-print-total-row">
+                  <span>SUB TOTAL</span>
+                  <strong className="aixia-print-money">
+                    {formatFinanceMoney(financialSummary?.subtotal || 0, currency)}
+                  </strong>
+                </div>
+                <div className="aixia-print-total-row">
+                  <span>TAX / VAT</span>
+                  <strong className="aixia-print-money">
+                    {formatFinanceMoney(financialSummary?.tax || 0, currency)}
+                  </strong>
+                </div>
+                <div className="aixia-print-total-row">
+                  <span>DISCOUNT</span>
+                  <strong className="aixia-print-money">
+                    {formatFinanceMoney(financialSummary?.discount || 0, currency)}
+                  </strong>
+                </div>
+                <div className="aixia-print-grand-total-row">
+                  <span>Grand Total</span>
+                  <strong className="aixia-print-money">
+                    {formatFinanceMoney(financialSummary?.total || 0, currency)}
+                  </strong>
+                </div>
+                <div className="aixia-print-signature-block">
+                  <div className="aixia-print-signature-line" />
+                  <div>Authorized Signature</div>
+                </div>
+              </section>
             </div>
 
-            <div
-              style={{
-                marginTop: "1mm",
-                paddingTop: "2mm",
-                borderTop: "0.5pt solid #e5e7eb",
-                background: "#ffffff",
-              }}
-            >
-              <div
-                style={{
-                  fontWeight: 700,
-                  fontSize: "9pt",
-                  color: "#111827",
-                  marginBottom: "2mm",
-                }}
-              >
-                Terms and Conditions
-              </div>
-
-              <div
-                style={{
-                  lineHeight: 1.45,
-                  whiteSpace: "pre-wrap",
-                  fontSize: "7pt",
-                  color: "#374151",
-                  marginBottom: "3mm",
-                }}
-              >
-                {termsAndConditions}
-              </div>
-
-              <div
-                style={{
-                  textAlign: "center",
-                  fontSize: "10pt",
-                  fontWeight: 700,
-                  letterSpacing: "0.08em",
-                  textTransform: "uppercase",
-                  color: "#111827",
-                  marginTop: "3mm",
-                }}
-              >
-                Thank You For Your Business
-              </div>
-            </div>
+            <section className="aixia-print-footer-terms">
+              <div className="aixia-print-section-title">Terms and Conditions</div>
+              <div className="aixia-print-legal-text">{termsAndConditions}</div>
+              <div className="aixia-print-thank-you">Thank You For Your Business</div>
+            </section>
           </div>
         </div>
       </div>

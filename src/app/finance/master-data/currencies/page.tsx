@@ -1719,32 +1719,34 @@ export default function FinanceMasterDataCurrenciesPage() {
             title="Stored Exchange Rates"
             description="Create auditable exchange-rate records from automatic live conversion. Manual rate typing is not the normal workflow."
             icon={Database}
-            actions={
-              <AixiaRegistryToolbar
-                search={
-                  <AixiaSearchField
-                    width="wide"
-                    value={rateSearch}
-                    onChange={(event) => setRateSearch(event.target.value)}
-                    placeholder="Search exchange rates"
-                  />
-                }
-                filters={<AixiaBadge tone="neutral">{filteredExchangeRates.length} Rows</AixiaBadge>}
-                primaryAction={
-                  permissionState.canCreate ? (
-                    <AixiaButton
-                      type="button"
-                      variant="primary"
-                      onClick={openCreateRateDialog}
-                    >
-                      <Plus className="h-4 w-4" />
-                      New Automatic Rate
-                    </AixiaButton>
-                  ) : null
-                }
-              />
-            }
           >
+            <AixiaRegistryToolbar
+              search={
+                <AixiaSearchField
+                  width="wide"
+                  value={rateSearch}
+                  onChange={(event) => setRateSearch(event.target.value)}
+                  placeholder="Search exchange rates"
+                />
+              }
+              filters={
+                <AixiaBadge tone="neutral">
+                  {filteredExchangeRates.length} Rows
+                </AixiaBadge>
+              }
+              primaryAction={
+                permissionState.canCreate ? (
+                  <AixiaButton
+                    type="button"
+                    variant="primary"
+                    onClick={openCreateRateDialog}
+                  >
+                    <Plus className="h-4 w-4" />
+                    New Automatic Rate
+                  </AixiaButton>
+                ) : null
+              }
+            />
             {filteredExchangeRates.length === 0 ? (
               <AixiaEmptyState
                 icon={Database}

@@ -1,17 +1,57 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { useNavigate, useSearchParams } from "react-router-dom";
 import {
-  ArrowRight,
+  BadgeCheck,
   CheckCircle2,
+  CreditCard,
+  FileCheck2,
+  Link2,
   Loader2,
   Receipt,
   Save,
   Search,
-  Sparkles,
+  ShieldCheck,
   WalletCards,
 } from "lucide-react";
 
+import {
+  AixiaAlert,
+  AixiaBadge,
+  AixiaButton,
+  AixiaDisplayBlock,
+  AixiaEmployeeIdentityCell,
+  AixiaFieldLabel,
+  AixiaFormField,
+  AixiaFormFullWidth,
+  AixiaFormGrid,
+  AixiaHero,
+  AixiaInputField,
+  AixiaLoadingState,
+  AixiaMetricCard,
+  AixiaMetricGrid,
+  AixiaPage,
+  AixiaRegistryToolbar,
+  AixiaSearchField,
+  AixiaSection,
+  AixiaSelectField,
+  AixiaSmartLayout,
+  AixiaStatusBadge,
+  AixiaTableActionsCell,
+  AixiaTableBadgeCell,
+  AixiaTableDateCell,
+  AixiaTableShell,
+  AixiaTableTextCell,
+  AixiaTextareaField,
+  AixiaValueBlock,
+} from "@/components/aixia";
 import { convertCurrencyAtDate } from "@/lib/integrations/frankfurter";
+import type { FinanceEmployeeIdentity } from "@/lib/finance/employeeIdentity";
+import {
+  getFinanceEmployeePrimaryName,
+  getFinanceEmployeeReferenceLabel,
+  getFinanceEmployeeSearchText,
+  getFinanceEmployeeSecondaryLabel,
+} from "@/lib/finance/employeeIdentity";
 import { supabase } from "@/lib/supabase";
 
 type SaveMode = "draft" | "confirm";
@@ -66,16 +106,6 @@ type EmployeeRefRow = {
     source_status?: string | null;
     [key: string]: unknown;
   } | null;
-};
-
-type ProfileRow = {
-  user_id: string;
-  full_name: string | null;
-  display_name: string | null;
-  email: string | null;
-  company: string | null;
-  job_title: string | null;
-  member_type: string | null;
 };
 
 type BankAccountRow = {
@@ -151,8 +181,11 @@ type AllocationDraft = {
 };
 
 type EnrichedPaycheckRequest = PaycheckRequestRow & {
+  employeeIdentity: FinanceEmployeeIdentity | null;
   employeeName: string;
   employeeLabel: string;
+  employeeReference: string;
+  employeeSearchText: string;
   companyName: string;
   periodLabel: string;
   targetAmount: number;
@@ -201,41 +234,7 @@ const initialFormState: FormState = {
   notes: "",
 };
 
-const statusToneMap: Record<
-  string,
-  "cyan" | "emerald" | "amber" | "rose" | "violet" | "slate"
-> = {
-  approved_for_payroll: "emerald",
-  approved: "emerald",
-  submitted: "cyan",
-  pending_review: "amber",
-  needs_correction: "amber",
-  rejected: "rose",
-  linked_to_payroll: "violet",
-  payment_sent: "cyan",
-  received_confirmed: "emerald",
-  not_received: "rose",
-  disputed: "rose",
-  draft: "slate",
-  missing: "rose",
-  uploaded: "cyan",
-  linked: "cyan",
-  files_and_links: "cyan",
-  verified: "emerald",
-  issue_found: "rose",
-  not_allocated: "slate",
-  partially_allocated: "amber",
-  allocated: "emerald",
-  over_allocated: "rose",
-  unpaid: "slate",
-  partially_paid: "amber",
-  paid: "emerald",
-  pending_confirmation: "amber",
-  not_required: "slate",
-  confirmed: "emerald",
-  partially_used: "amber",
-  fully_used: "emerald",
-};
+const FX_ROUNDING_TOLERANCE = 0.05;
 
 function buildReferenceNumber() {
   const datePart = new Date().toISOString().slice(0, 10).replaceAll("-", "");
@@ -256,11 +255,9 @@ function roundMoney(value: number) {
   return Math.round((value + Number.EPSILON) * 100) / 100;
 }
 
-const FX_ROUNDING_TOLERANCE = 0.05;
-
 function isFxRoundingDifference(
   preview: ConversionPreview | null | undefined,
-  remainingAmount: number
+  remainingAmount: number,
 ) {
   if (!preview || preview.paycheckCurrencyAmount === null) return false;
   if (preview.source === "same_currency") return false;
@@ -272,7 +269,7 @@ function isFxRoundingDifference(
 
 function getCappedPaycheckCoverageAmount(
   preview: ConversionPreview | null | undefined,
-  remainingAmount: number
+  remainingAmount: number,
 ) {
   if (!preview || preview.paycheckCurrencyAmount === null) return null;
 
@@ -319,7 +316,7 @@ function formatLabel(value: string | null | undefined) {
 
 function getMetadataNumber(
   metadata: Record<string, unknown> | null | undefined,
-  key: string
+  key: string,
 ) {
   const value = metadata?.[key];
 
@@ -335,92 +332,80 @@ function getMetadataNumber(
   return null;
 }
 
-function getStatusToneClasses(value: string | null | undefined) {
-  const tone = statusToneMap[value ?? ""] ?? "slate";
+function getIdentityKey(value: string | null | undefined) {
+  return (value || "").trim();
+}
 
-  switch (tone) {
-    case "emerald":
-      return "border-emerald-400/20 bg-emerald-500/10 text-emerald-200";
-    case "amber":
-      return "border-amber-400/20 bg-amber-500/10 text-amber-200";
-    case "rose":
-      return "border-rose-400/20 bg-rose-500/10 text-rose-200";
-    case "violet":
-      return "border-violet-400/20 bg-violet-500/10 text-violet-200";
-    case "cyan":
-      return "border-cyan-400/20 bg-cyan-500/10 text-cyan-200";
-    case "slate":
-    default:
-      return "border-white/10 bg-white/[0.06] text-slate-300";
+function buildIdentityMaps(identities: FinanceEmployeeIdentity[]) {
+  const byEmployeeRefId = new Map<string, FinanceEmployeeIdentity>();
+  const byUserId = new Map<string, FinanceEmployeeIdentity>();
+
+  identities.forEach((identity) => {
+    const employeeRefId = getIdentityKey(
+      identity.employee_ref_id || identity.id || null,
+    );
+    const userId = getIdentityKey(identity.user_id || null);
+
+    if (employeeRefId) byEmployeeRefId.set(employeeRefId, identity);
+    if (userId) byUserId.set(userId, identity);
+  });
+
+  return { byEmployeeRefId, byUserId };
+}
+
+function buildFallbackIdentity(
+  request: PaycheckRequestRow,
+  employeeMap: Map<string, EmployeeRefRow>,
+): FinanceEmployeeIdentity | null {
+  const employeeRefId = getIdentityKey(request.employee_ref_id || null);
+  const employee = employeeRefId ? employeeMap.get(employeeRefId) : null;
+
+  if (!employee && !request.employee_user_id) return null;
+
+  return {
+    employee_ref_id: employeeRefId || null,
+    user_id: request.employee_user_id || employee?.user_id || null,
+    employee_code: employee?.code || null,
+    code: employee?.code || null,
+    employee_status: employee?.status || null,
+    employee_mark: employee?.mark || null,
+    employee_metadata: employee?.metadata || null,
+    person_name: null,
+    profile_company: employee?.metadata?.company || null,
+    profile_job_title:
+      employee?.metadata?.job_title || employee?.metadata?.source_role || null,
+    profile_member_type: employee?.metadata?.member_type || null,
+  };
+}
+
+function resolveRequestIdentity({
+  request,
+  employeeMap,
+  identityByEmployeeRefId,
+  identityByUserId,
+}: {
+  request: PaycheckRequestRow;
+  employeeMap: Map<string, EmployeeRefRow>;
+  identityByEmployeeRefId: Map<string, FinanceEmployeeIdentity>;
+  identityByUserId: Map<string, FinanceEmployeeIdentity>;
+}) {
+  const employeeRefId = getIdentityKey(request.employee_ref_id || null);
+  const userId = getIdentityKey(request.employee_user_id || null);
+
+  if (employeeRefId && identityByEmployeeRefId.has(employeeRefId)) {
+    return identityByEmployeeRefId.get(employeeRefId) || null;
   }
-}
 
-function StatusBadge({ value }: { value: string | null | undefined }) {
-  return (
-    <span
-      className={`inline-flex max-w-full items-center rounded-full border px-3 py-1 text-[11px] font-semibold uppercase tracking-[0.14em] ${getStatusToneClasses(
-        value
-      )}`}
-    >
-      <span className="truncate">{formatLabel(value)}</span>
-    </span>
-  );
-}
+  if (userId && identityByUserId.has(userId)) {
+    return identityByUserId.get(userId) || null;
+  }
 
-function inputClass() {
-  return "h-11 w-full rounded-2xl border border-white/10 bg-black/20 px-4 text-sm text-white outline-none transition placeholder:text-slate-600 focus:border-cyan-400/30 focus:bg-black/30 disabled:cursor-not-allowed disabled:opacity-50";
-}
-
-function textareaClass() {
-  return "min-h-[120px] w-full rounded-2xl border border-white/10 bg-black/20 px-4 py-3 text-sm text-white outline-none transition placeholder:text-slate-600 focus:border-cyan-400/30 focus:bg-black/30";
-}
-
-function labelClass() {
-  return "text-sm font-medium text-slate-300";
+  return buildFallbackIdentity(request, employeeMap);
 }
 
 function getCompanyName(company: CompanyRow | null | undefined) {
   if (!company) return "No company";
   return company.legal_name || company.name || "Company";
-}
-
-function getEmployeeName(
-  request: PaycheckRequestRow,
-  employeeMap: Map<string, EmployeeRefRow>,
-  profileMap: Map<string, ProfileRow>
-) {
-  const profile = profileMap.get(request.employee_user_id);
-  const employee = request.employee_ref_id ? employeeMap.get(request.employee_ref_id) : null;
-
-  return (
-    profile?.full_name?.trim() ||
-    profile?.display_name?.trim() ||
-    profile?.email?.trim() ||
-    employee?.code?.trim() ||
-    "Employee"
-  );
-}
-
-function getEmployeeLabel(
-  request: PaycheckRequestRow,
-  employeeMap: Map<string, EmployeeRefRow>,
-  profileMap: Map<string, ProfileRow>
-) {
-  const employee = request.employee_ref_id ? employeeMap.get(request.employee_ref_id) : null;
-  const profile = profileMap.get(request.employee_user_id);
-
-  const role =
-    profile?.job_title?.trim() ||
-    employee?.metadata?.job_title?.trim() ||
-    employee?.metadata?.source_role?.trim() ||
-    employee?.mark?.trim() ||
-    null;
-
-  const company = profile?.company?.trim() || employee?.metadata?.company?.trim() || null;
-
-  return [employee?.code, role ? formatLabel(role) : null, company]
-    .filter(Boolean)
-    .join(" • ");
 }
 
 function getBankLabel(bank: BankAccountRow | null | undefined) {
@@ -449,7 +434,7 @@ function getPaycheckTargetAmount(request: PaycheckRequestRow) {
 
 function getFundingCurrencyUsedFromAllocation(
   allocation: ExistingAllocationRow,
-  fundingCurrencyCode: string
+  fundingCurrencyCode: string,
 ) {
   const metadataFundingUsage =
     getMetadataNumber(allocation.metadata, "funding_currency_amount_used_for_line") ??
@@ -479,34 +464,12 @@ function getFundingCurrencyUsedFromAllocation(
   return 0;
 }
 
-function SummaryBlock({
-  title,
-  value,
-  subtitle,
-}: {
-  title: string;
-  value: string;
-  subtitle: string;
-}) {
-  return (
-    <div className="min-h-[148px] rounded-[24px] border border-white/10 bg-black/20 p-4">
-      <div className="text-[11px] font-semibold uppercase tracking-[0.2em] text-slate-500">
-        {title}
-      </div>
-      <div className="mt-3 text-2xl font-semibold tracking-[-0.03em] text-white">
-        {value}
-      </div>
-      <div className="mt-3 text-sm leading-6 text-slate-400">{subtitle}</div>
-    </div>
-  );
-}
-
 async function buildPaymentDateConversionPreview(
   paycheckRequestId: string,
   amount: number,
   fromCurrency: string,
   toCurrency: string,
-  conversionDate: string
+  conversionDate: string,
 ): Promise<ConversionPreview> {
   const paymentCurrencyCode = normalizeCurrencyCode(fromCurrency);
   const paycheckCurrencyCode = normalizeCurrencyCode(toCurrency);
@@ -547,7 +510,7 @@ async function buildPaymentDateConversionPreview(
       amount,
       paymentCurrencyCode,
       paycheckCurrencyCode,
-      conversionDate
+      conversionDate,
     );
 
     return {
@@ -580,7 +543,7 @@ async function buildFundingUsagePreview(
   paymentCurrencyAmount: number,
   paymentCurrencyCode: string,
   fundingCurrencyCode: string,
-  conversionDate: string
+  conversionDate: string,
 ): Promise<FundingUsagePreview> {
   const normalizedPaymentCurrency = normalizeCurrencyCode(paymentCurrencyCode);
   const normalizedFundingCurrency = normalizeCurrencyCode(fundingCurrencyCode);
@@ -624,7 +587,7 @@ async function buildFundingUsagePreview(
       paymentCurrencyAmount,
       normalizedPaymentCurrency,
       normalizedFundingCurrency,
-      conversionDate
+      conversionDate,
     );
 
     return {
@@ -655,7 +618,7 @@ async function buildDefaultPaymentAmountFromRemainingPaycheck(
   remainingPaycheckAmount: number,
   paycheckCurrencyCode: string,
   paymentCurrencyCode: string,
-  conversionDate: string
+  conversionDate: string,
 ): Promise<string> {
   const normalizedPaycheckCurrency = normalizeCurrencyCode(paycheckCurrencyCode);
   const normalizedPaymentCurrency = normalizeCurrencyCode(paymentCurrencyCode);
@@ -678,7 +641,7 @@ async function buildDefaultPaymentAmountFromRemainingPaycheck(
       remainingPaycheckAmount,
       normalizedPaycheckCurrency,
       normalizedPaymentCurrency,
-      conversionDate
+      conversionDate,
     );
 
     return String(roundMoney(result.convertedAmount));
@@ -703,14 +666,14 @@ export default function FinancePayrollPaymentDistributionNewPage() {
   const [paycheckRequests, setPaycheckRequests] = useState<PaycheckRequestRow[]>([]);
   const [companies, setCompanies] = useState<CompanyRow[]>([]);
   const [employees, setEmployees] = useState<EmployeeRefRow[]>([]);
-  const [profiles, setProfiles] = useState<ProfileRow[]>([]);
+  const [employeeIdentities, setEmployeeIdentities] = useState<FinanceEmployeeIdentity[]>([]);
   const [bankAccounts, setBankAccounts] = useState<BankAccountRow[]>([]);
   const [currencies, setCurrencies] = useState<CurrencyRow[]>([]);
   const [fundingPools, setFundingPools] = useState<FundingPoolRow[]>([]);
   const [existingAllocations, setExistingAllocations] = useState<ExistingAllocationRow[]>([]);
   const [existingDistributions, setExistingDistributions] = useState<ExistingDistributionRow[]>([]);
   const [selectedRequestIds, setSelectedRequestIds] = useState<string[]>(
-    initialPaycheckRequestId ? [initialPaycheckRequestId] : []
+    initialPaycheckRequestId ? [initialPaycheckRequestId] : [],
   );
   const [allocationDrafts, setAllocationDrafts] = useState<AllocationDraft[]>([]);
   const [conversionPreviews, setConversionPreviews] = useState<ConversionPreviewMap>({});
@@ -731,9 +694,9 @@ export default function FinancePayrollPaymentDistributionNewPage() {
     return new Map(employees.map((employee) => [employee.id, employee]));
   }, [employees]);
 
-  const profileMap = useMemo(() => {
-    return new Map(profiles.map((profile) => [profile.user_id, profile]));
-  }, [profiles]);
+  const employeeIdentityMaps = useMemo(() => {
+    return buildIdentityMaps(employeeIdentities);
+  }, [employeeIdentities]);
 
   const bankAccountMap = useMemo(() => {
     return new Map(bankAccounts.map((bank) => [bank.id, bank]));
@@ -756,11 +719,11 @@ export default function FinancePayrollPaymentDistributionNewPage() {
     : null;
 
   const fundingCurrencyCode = normalizeCurrencyCode(
-    selectedFundingPool?.currency_code || form.paymentCurrencyCode || "USD"
+    selectedFundingPool?.currency_code || form.paymentCurrencyCode || "USD",
   );
 
   const paymentCurrencyCode = normalizeCurrencyCode(
-    form.paymentCurrencyCode || fundingCurrencyCode
+    form.paymentCurrencyCode || fundingCurrencyCode,
   );
 
   const fundingPoolTotal = toNumber(selectedFundingPool?.allocated_amount);
@@ -769,13 +732,13 @@ export default function FinancePayrollPaymentDistributionNewPage() {
     return new Set(
       existingDistributions
         .filter((distribution) => distribution.status === "confirmed")
-        .map((distribution) => distribution.id)
+        .map((distribution) => distribution.id),
     );
   }, [existingDistributions]);
 
   const confirmedExistingAllocations = useMemo(() => {
     return existingAllocations.filter((allocation) =>
-      confirmedDistributionIdSet.has(allocation.distribution_id)
+      confirmedDistributionIdSet.has(allocation.distribution_id),
     );
   }, [confirmedDistributionIdSet, existingAllocations]);
 
@@ -786,8 +749,8 @@ export default function FinancePayrollPaymentDistributionNewPage() {
       map.set(
         allocation.paycheck_request_id,
         roundMoney(
-          (map.get(allocation.paycheck_request_id) || 0) + toNumber(allocation.allocated_amount)
-        )
+          (map.get(allocation.paycheck_request_id) || 0) + toNumber(allocation.allocated_amount),
+        ),
       );
     }
 
@@ -803,13 +766,13 @@ export default function FinancePayrollPaymentDistributionNewPage() {
         .reduce(
           (sum, allocation) =>
             sum + getFundingCurrencyUsedFromAllocation(allocation, fundingCurrencyCode),
-          0
-        )
+          0,
+        ),
     );
   }, [confirmedExistingAllocations, fundingCurrencyCode, selectedFundingPool]);
 
   const fundingPoolRemainingBeforePayment = roundMoney(
-    Math.max(fundingPoolTotal - previousFundingPoolUsage, 0)
+    Math.max(fundingPoolTotal - previousFundingPoolUsage, 0),
   );
 
   const enrichedRequests = useMemo<EnrichedPaycheckRequest[]>(() => {
@@ -822,11 +785,20 @@ export default function FinancePayrollPaymentDistributionNewPage() {
         remainingFromDb > 0
           ? remainingFromDb
           : roundMoney(Math.max(targetAmount - existingPaidAmount, 0));
+      const employeeIdentity = resolveRequestIdentity({
+        request,
+        employeeMap,
+        identityByEmployeeRefId: employeeIdentityMaps.byEmployeeRefId,
+        identityByUserId: employeeIdentityMaps.byUserId,
+      });
 
       return {
         ...request,
-        employeeName: getEmployeeName(request, employeeMap, profileMap),
-        employeeLabel: getEmployeeLabel(request, employeeMap, profileMap),
+        employeeIdentity,
+        employeeName: getFinanceEmployeePrimaryName(employeeIdentity, null),
+        employeeLabel: getFinanceEmployeeSecondaryLabel(employeeIdentity),
+        employeeReference: getFinanceEmployeeReferenceLabel(employeeIdentity),
+        employeeSearchText: getFinanceEmployeeSearchText(employeeIdentity),
         companyName: request.company_id
           ? getCompanyName(companyMap.get(request.company_id))
           : "No company",
@@ -836,7 +808,14 @@ export default function FinancePayrollPaymentDistributionNewPage() {
         remainingAmountCalculated,
       };
     });
-  }, [companyMap, employeeMap, existingRequestCoverageMap, paycheckRequests, profileMap]);
+  }, [
+    companyMap,
+    employeeIdentityMaps.byEmployeeRefId,
+    employeeIdentityMaps.byUserId,
+    employeeMap,
+    existingRequestCoverageMap,
+    paycheckRequests,
+  ]);
 
   const normalizedSearch = searchQuery.trim().toLowerCase();
 
@@ -858,6 +837,8 @@ export default function FinancePayrollPaymentDistributionNewPage() {
         request.request_number,
         request.employeeName,
         request.employeeLabel,
+        request.employeeReference,
+        request.employeeSearchText,
         request.companyName,
         request.periodLabel,
         request.requested_currency_code,
@@ -883,7 +864,7 @@ export default function FinancePayrollPaymentDistributionNewPage() {
     return roundMoney(
       allocationDrafts
         .filter((draft) => selectedRequestIds.includes(draft.paycheckRequestId))
-        .reduce((sum, draft) => sum + toNumber(draft.paymentCurrencyAmount), 0)
+        .reduce((sum, draft) => sum + toNumber(draft.paymentCurrencyAmount), 0),
     );
   }, [allocationDrafts, selectedRequestIds]);
 
@@ -893,20 +874,20 @@ export default function FinancePayrollPaymentDistributionNewPage() {
         const preview = conversionPreviews[request.id];
         const cappedCoverageAmount = getCappedPaycheckCoverageAmount(
           preview,
-          request.remainingAmountCalculated
+          request.remainingAmountCalculated,
         );
 
         return sum + toNumber(cappedCoverageAmount);
-      }, 0)
+      }, 0),
     );
   }, [conversionPreviews, selectedRequests]);
 
   const currentFundingCurrencyUsed = roundMoney(
-    toNumber(fundingUsagePreview?.fundingCurrencyAmount)
+    toNumber(fundingUsagePreview?.fundingCurrencyAmount),
   );
 
   const fundingCurrencyRemainingAfterPayment = roundMoney(
-    fundingPoolRemainingBeforePayment - currentFundingCurrencyUsed
+    fundingPoolRemainingBeforePayment - currentFundingCurrencyUsed,
   );
 
   const updateField = useCallback(
@@ -919,28 +900,25 @@ export default function FinancePayrollPaymentDistributionNewPage() {
       setPageError(null);
       setPageMessage(null);
     },
-    []
+    [],
   );
 
-  const applyFundingPoolToForm = useCallback(
-    (poolId: string, loadedPools: FundingPoolRow[]) => {
-      const pool = loadedPools.find((item) => item.id === poolId) || null;
+  const applyFundingPoolToForm = useCallback((poolId: string, loadedPools: FundingPoolRow[]) => {
+    const pool = loadedPools.find((item) => item.id === poolId) || null;
 
-      setForm((current) => ({
-        ...current,
-        fundingPoolId: poolId,
-        paymentCurrencyCode: normalizeCurrencyCode(
-          pool?.currency_code || current.paymentCurrencyCode || "USD"
-        ),
-      }));
+    setForm((current) => ({
+      ...current,
+      fundingPoolId: poolId,
+      paymentCurrencyCode: normalizeCurrencyCode(
+        pool?.currency_code || current.paymentCurrencyCode || "USD",
+      ),
+    }));
 
-      setPageError(null);
-      setPageMessage(null);
-    },
-    []
-  );
+    setPageError(null);
+    setPageMessage(null);
+  }, []);
 
-        const loadOptions = useCallback(async () => {
+  const loadOptions = useCallback(async () => {
     setIsLoading(true);
     setPageError(null);
 
@@ -949,7 +927,7 @@ export default function FinancePayrollPaymentDistributionNewPage() {
         requestsResult,
         companiesResult,
         employeesResult,
-        profilesResult,
+        employeeIdentityResult,
         bankAccountsResult,
         currenciesResult,
         fundingPoolsResult,
@@ -987,47 +965,37 @@ export default function FinancePayrollPaymentDistributionNewPage() {
               "recipient_confirmation_status",
               "created_at",
               "updated_at",
-            ].join(", ")
+            ].join(", "),
           )
           .order("updated_at", { ascending: false })
           .limit(500),
-
         supabase.from("finance_companies").select("id, name, legal_name").order("name"),
-
         supabase
           .from("finance_employee_refs")
           .select("id, user_id, code, status, mark, metadata")
           .order("code"),
-
-        supabase
-          .from("profiles")
-          .select("user_id, full_name, display_name, email, company, job_title, member_type")
-          .order("full_name"),
-
+        supabase.from("finance_employee_identity_v").select("*"),
         supabase
           .from("finance_bank_accounts")
           .select(
-            "id, name, bank_name, institution_name, masked_account_number, currency_code, company_id, is_default"
+            "id, name, bank_name, institution_name, masked_account_number, currency_code, company_id, is_default",
           )
           .order("name"),
-
         supabase
           .from("finance_currencies")
           .select(
-            "id, currency_code, currency_name, currency_symbol, decimal_places, is_base_currency, status"
+            "id, currency_code, currency_name, currency_symbol, decimal_places, is_base_currency, status",
           )
           .eq("status", "active")
           .order("currency_code"),
-
         supabase
           .from("finance_paycheck_funding_batches")
           .select(
-            "id, batch_number, funding_company_id, funding_bank_account_id, allocation_date, period_start, period_end, currency_code, allocated_amount, status, documentation_status, notes, metadata"
+            "id, batch_number, funding_company_id, funding_bank_account_id, allocation_date, period_start, period_end, currency_code, allocated_amount, status, documentation_status, notes, metadata",
           )
           .in("status", ["confirmed", "allocated", "partially_used"])
           .order("updated_at", { ascending: false })
           .limit(300),
-
         supabase
           .from("finance_paycheck_payment_allocations")
           .select(
@@ -1044,14 +1012,13 @@ export default function FinancePayrollPaymentDistributionNewPage() {
               "funding_currency_amount",
               "recipient_confirmation_status",
               "metadata",
-            ].join(", ")
+            ].join(", "),
           )
           .not("paycheck_request_id", "is", null),
-
         supabase
           .from("finance_paycheck_payment_distributions")
           .select(
-            "id, funding_batch_id, status, amount, payment_currency_code, funding_currency_code, funding_currency_amount, metadata"
+            "id, funding_batch_id, status, amount, payment_currency_code, funding_currency_code, funding_currency_amount, metadata",
           )
           .limit(1000),
       ]);
@@ -1059,7 +1026,7 @@ export default function FinancePayrollPaymentDistributionNewPage() {
       if (requestsResult.error) throw requestsResult.error;
       if (companiesResult.error) throw companiesResult.error;
       if (employeesResult.error) throw employeesResult.error;
-      if (profilesResult.error) throw profilesResult.error;
+      if (employeeIdentityResult.error) throw employeeIdentityResult.error;
       if (bankAccountsResult.error) throw bankAccountsResult.error;
       if (currenciesResult.error) throw currenciesResult.error;
       if (fundingPoolsResult.error) throw fundingPoolsResult.error;
@@ -1073,15 +1040,17 @@ export default function FinancePayrollPaymentDistributionNewPage() {
       setPaycheckRequests(loadedRequests);
       setCompanies((companiesResult.data || []) as CompanyRow[]);
       setEmployees((employeesResult.data || []) as EmployeeRefRow[]);
-      setProfiles((profilesResult.data || []) as ProfileRow[]);
+      setEmployeeIdentities(
+        (employeeIdentityResult.data || []) as unknown as FinanceEmployeeIdentity[],
+      );
       setBankAccounts((bankAccountsResult.data || []) as BankAccountRow[]);
       setCurrencies(loadedCurrencies);
       setFundingPools(loadedPools);
       setExistingAllocations(
-        (existingAllocationsResult.data || []) as unknown as ExistingAllocationRow[]
+        (existingAllocationsResult.data || []) as unknown as ExistingAllocationRow[],
       );
       setExistingDistributions(
-        (existingDistributionsResult.data || []) as unknown as ExistingDistributionRow[]
+        (existingDistributionsResult.data || []) as unknown as ExistingDistributionRow[],
       );
 
       const initialPool = initialFundingPoolId
@@ -1104,7 +1073,7 @@ export default function FinancePayrollPaymentDistributionNewPage() {
       setPageError(
         error instanceof Error
           ? error.message
-          : "Failed to load paycheck payment distribution options."
+          : "Failed to load paycheck payment distribution options.",
       );
     } finally {
       setIsLoading(false);
@@ -1121,7 +1090,7 @@ export default function FinancePayrollPaymentDistributionNewPage() {
     setForm((current) => ({
       ...current,
       paymentCurrencyCode: normalizeCurrencyCode(
-        current.paymentCurrencyCode || selectedFundingPool.currency_code || "USD"
+        current.paymentCurrencyCode || selectedFundingPool.currency_code || "USD",
       ),
     }));
   }, [selectedFundingPool]);
@@ -1140,14 +1109,14 @@ export default function FinancePayrollPaymentDistributionNewPage() {
 
       const nextPreviews: ConversionPreviewMap = {};
       const selectedDrafts = allocationDrafts.filter((draft) =>
-        selectedRequestIds.includes(draft.paycheckRequestId)
+        selectedRequestIds.includes(draft.paycheckRequestId),
       );
 
       for (const draft of selectedDrafts) {
         const request = selectedRequests.find((item) => item.id === draft.paycheckRequestId);
         const paymentAmount = toNumber(draft.paymentCurrencyAmount);
         const paycheckCurrency = normalizeCurrencyCode(
-          request?.requested_currency_code || paymentCurrencyCode
+          request?.requested_currency_code || paymentCurrencyCode,
         );
 
         nextPreviews[draft.paycheckRequestId] = await buildPaymentDateConversionPreview(
@@ -1155,7 +1124,7 @@ export default function FinancePayrollPaymentDistributionNewPage() {
           paymentAmount,
           paymentCurrencyCode,
           paycheckCurrency,
-          form.paymentDate
+          form.paymentDate,
         );
       }
 
@@ -1163,7 +1132,7 @@ export default function FinancePayrollPaymentDistributionNewPage() {
         totalPaymentCurrencyAllocated,
         paymentCurrencyCode,
         fundingCurrencyCode,
-        form.paymentDate
+        form.paymentDate,
       );
 
       if (!isCancelled) {
@@ -1193,7 +1162,7 @@ export default function FinancePayrollPaymentDistributionNewPage() {
 
     async function refreshDefaultPaymentAmounts() {
       const currentMap = new Map(
-        allocationDrafts.map((item) => [item.paycheckRequestId, item.paymentCurrencyAmount])
+        allocationDrafts.map((item) => [item.paycheckRequestId, item.paymentCurrencyAmount]),
       );
 
       const nextEntries: Array<[string, string]> = [];
@@ -1207,14 +1176,14 @@ export default function FinancePayrollPaymentDistributionNewPage() {
         }
 
         const paycheckCurrency = normalizeCurrencyCode(
-          request.requested_currency_code || paymentCurrencyCode
+          request.requested_currency_code || paymentCurrencyCode,
         );
 
         const convertedDefaultAmount = await buildDefaultPaymentAmountFromRemainingPaycheck(
           request.remainingAmountCalculated,
           paycheckCurrency,
           paymentCurrencyCode,
-          form.paymentDate
+          form.paymentDate,
         );
 
         nextEntries.push([request.id, convertedDefaultAmount]);
@@ -1297,14 +1266,14 @@ export default function FinancePayrollPaymentDistributionNewPage() {
         return current.map((draft) =>
           draft.paycheckRequestId === paycheckRequestId
             ? { ...draft, paymentCurrencyAmount }
-            : draft
+            : draft,
         );
       });
 
       setPageError(null);
       setPageMessage(null);
     },
-    []
+    [],
   );
 
   const validateForm = useCallback(() => {
@@ -1382,7 +1351,7 @@ export default function FinancePayrollPaymentDistributionNewPage() {
     totalPaymentCurrencyAllocated,
   ]);
 
-        const savePayment = useCallback(
+  const savePayment = useCallback(
     async (saveMode: SaveMode) => {
       if (savingMode) return;
 
@@ -1433,7 +1402,7 @@ export default function FinancePayrollPaymentDistributionNewPage() {
         }>;
 
         const freshDistributionIds = Array.from(
-          new Set(freshAllocationRows.map((allocation) => allocation.distribution_id))
+          new Set(freshAllocationRows.map((allocation) => allocation.distribution_id)),
         );
 
         const freshConfirmedDistributionIdSet = new Set<string>();
@@ -1464,8 +1433,8 @@ export default function FinancePayrollPaymentDistributionNewPage() {
             allocationRow.paycheck_request_id,
             roundMoney(
               (freshCoverageMap.get(allocationRow.paycheck_request_id) || 0) +
-                toNumber(allocationRow.allocated_amount)
-            )
+                toNumber(allocationRow.allocated_amount),
+            ),
           );
         }
 
@@ -1482,7 +1451,7 @@ export default function FinancePayrollPaymentDistributionNewPage() {
             throw new Error(
               `Payment would overpay ${
                 request.request_number || request.employeeName
-              }. Reload and review the remaining balance.`
+              }. Reload and review the remaining balance.`,
             );
           }
         }
@@ -1576,11 +1545,11 @@ export default function FinancePayrollPaymentDistributionNewPage() {
 
             const paymentCurrencyAmount = roundMoney(toNumber(draft.paymentCurrencyAmount));
             const paycheckCurrencyCode = normalizeCurrencyCode(
-              request.requested_currency_code || paymentCurrencyCode
+              request.requested_currency_code || paymentCurrencyCode,
             );
             const cappedPaycheckCurrencyAmount = getCappedPaycheckCoverageAmount(
               preview,
-              request.remainingAmountCalculated
+              request.remainingAmountCalculated,
             );
 
             if (cappedPaycheckCurrencyAmount === null) {
@@ -1642,7 +1611,7 @@ export default function FinancePayrollPaymentDistributionNewPage() {
                 previous_paycheck_paid_amount: request.existingPaidAmount,
                 paycheck_remaining_before_payment: request.remainingAmountCalculated,
                 paycheck_remaining_after_payment: roundMoney(
-                  request.remainingAmountCalculated - cappedPaycheckCurrencyAmount
+                  request.remainingAmountCalculated - cappedPaycheckCurrencyAmount,
                 ),
               },
               created_by: userId,
@@ -1661,7 +1630,7 @@ export default function FinancePayrollPaymentDistributionNewPage() {
             "finance_confirm_paycheck_payment_distribution",
             {
               p_distribution_id: distributionId,
-            }
+            },
           );
 
           if (confirmResult.error) throw confirmResult.error;
@@ -1674,14 +1643,14 @@ export default function FinancePayrollPaymentDistributionNewPage() {
           ...selectedRequestIds.map((requestId) =>
             supabase.rpc("finance_refresh_paycheck_request_payment_rollup", {
               p_request_id: requestId,
-            })
+            }),
           ),
         ]);
 
         setPageMessage(
           saveMode === "confirm"
             ? "Paycheck payment distribution created and confirmed."
-            : "Paycheck payment distribution draft created."
+            : "Paycheck payment distribution draft created.",
         );
 
         navigate("/finance/transactions/payroll");
@@ -1690,7 +1659,7 @@ export default function FinancePayrollPaymentDistributionNewPage() {
         setPageError(
           error instanceof Error
             ? error.message
-            : "Failed to save paycheck payment distribution."
+            : "Failed to save paycheck payment distribution.",
         );
       } finally {
         setSavingMode(null);
@@ -1719,578 +1688,514 @@ export default function FinancePayrollPaymentDistributionNewPage() {
       totalPaycheckCurrencyCovered,
       totalPaymentCurrencyAllocated,
       validateForm,
-    ]
+    ],
+  );
+
+  if (isLoading) {
+    return (
+      <AixiaLoadingState
+        title="Loading paycheck payment distribution"
+        description="Payroll funding pools, approved paycheck requests, currency data, and employee identity records are being loaded."
+      />
+    );
+  }
+
+  const summaryMain = (
+    <>
+      <AixiaSection
+        title="Paycheck Payment Setup"
+        description="Funding company and bank come from the selected Payroll Funding Pool. Payment currency comes from active Currency Master Data."
+        icon={WalletCards}
+      >
+        <AixiaFormGrid columns="two">
+          <AixiaFormField>
+            <AixiaDisplayBlock
+              label="Payment Type"
+              value="Paycheck Request Distribution"
+            />
+          </AixiaFormField>
+
+          <AixiaFormField>
+            <AixiaFieldLabel
+              label="Payment Date"
+              helper="Currency conversion uses this date."
+            />
+            <AixiaInputField
+              type="date"
+              value={form.paymentDate}
+              onChange={(event) => updateField("paymentDate", event.target.value)}
+            />
+          </AixiaFormField>
+
+          <AixiaFormFullWidth>
+            <AixiaFieldLabel label="Payroll Funding Pool" />
+            <AixiaSelectField
+              value={form.fundingPoolId}
+              onChange={(event) => applyFundingPoolToForm(event.target.value, fundingPools)}
+            >
+              <option value="">Select confirmed payroll funding pool</option>
+              {fundingPools.map((pool) => (
+                <option key={pool.id} value={pool.id}>
+                  {pool.batch_number} • {getCompanyName(companyMap.get(pool.funding_company_id))} • {pool.currency_code || "USD"} {formatMoney(pool.allocated_amount)}
+                </option>
+              ))}
+            </AixiaSelectField>
+          </AixiaFormFullWidth>
+
+          <AixiaDisplayBlock
+            label="Funding Company"
+            value={getCompanyName(fundingCompany)}
+          />
+          <AixiaDisplayBlock
+            label="Paid From Bank Account"
+            value={getBankLabel(paidFromBankAccount)}
+          />
+
+          <AixiaFormField>
+            <AixiaFieldLabel label="Payment Currency" />
+            <AixiaSelectField
+              value={paymentCurrencyCode}
+              onChange={(event) => updateField("paymentCurrencyCode", event.target.value)}
+            >
+              <option value="">Select currency</option>
+              {currencyOptions.map((currency) => (
+                <option key={currency.id} value={currency.currency_code}>
+                  {currency.currency_code} — {currency.currency_name}
+                </option>
+              ))}
+            </AixiaSelectField>
+          </AixiaFormField>
+
+          <AixiaDisplayBlock
+            label="Funding Pool Currency"
+            value={fundingCurrencyCode}
+          />
+
+          <AixiaFormFullWidth>
+            <AixiaFieldLabel label="Reference Number" />
+            <AixiaInputField
+              value={form.referenceNumber}
+              onChange={(event) => updateField("referenceNumber", event.target.value)}
+              placeholder="Paycheck payment distribution reference number"
+            />
+          </AixiaFormFullWidth>
+
+          <AixiaFormFullWidth>
+            <AixiaFieldLabel label="Payment Notes" />
+            <AixiaTextareaField
+              value={form.notes}
+              onChange={(event) => updateField("notes", event.target.value)}
+              placeholder="Internal paycheck payment notes"
+              rows={4}
+            />
+          </AixiaFormFullWidth>
+        </AixiaFormGrid>
+      </AixiaSection>
+
+      <AixiaSection
+        title="Select Approved Paycheck Requests"
+        description="Partially paid requests remain available until fully paid. Enter payment amounts in the selected payment currency."
+        icon={Receipt}
+        actions={
+          <AixiaRegistryToolbar
+            search={
+              <AixiaSearchField
+                width="wide"
+                value={searchQuery}
+                onChange={(event) => setSearchQuery(event.target.value)}
+                placeholder="Search paycheck requests..."
+              />
+            }
+          />
+        }
+      >
+        {filteredRequests.length === 0 ? (
+          <AixiaAlert tone="info">
+            No payable approved paycheck requests found. Paycheck requests must be approved and still have a remaining unpaid balance.
+          </AixiaAlert>
+        ) : (
+          <AixiaTableShell
+            variant="registry"
+            minWidthClassName="min-w-[1780px]"
+            maxHeightClassName="max-h-[720px]"
+          >
+            <thead className="aixia-table-head">
+              <tr>
+                <th>Action</th>
+                <th>Paycheck Request</th>
+                <th>Employee</th>
+                <th>Company</th>
+                <th>Docs</th>
+                <th>Payment</th>
+                <th>Request Total</th>
+                <th>Already Paid</th>
+                <th>Remaining</th>
+                <th>Pay In {paymentCurrencyCode}</th>
+                <th>Covers In Paycheck Currency</th>
+              </tr>
+            </thead>
+
+            <tbody>
+              {filteredRequests.map((request) => {
+                const isSelected = selectedRequestIds.includes(request.id);
+                const allocationValue =
+                  allocationDrafts.find(
+                    (draft) => draft.paycheckRequestId === request.id,
+                  )?.paymentCurrencyAmount || "";
+                const paycheckCurrency = normalizeCurrencyCode(
+                  request.requested_currency_code || paymentCurrencyCode,
+                );
+                const preview = conversionPreviews[request.id];
+                const displayedPaycheckCoverageAmount =
+                  getCappedPaycheckCoverageAmount(
+                    preview,
+                    request.remainingAmountCalculated,
+                  );
+                const hasFxRoundingDifference = isFxRoundingDifference(
+                  preview,
+                  request.remainingAmountCalculated,
+                );
+                const overCovers =
+                  isSelected &&
+                  preview?.paycheckCurrencyAmount !== null &&
+                  preview?.paycheckCurrencyAmount !== undefined &&
+                  preview.paycheckCurrencyAmount >
+                    request.remainingAmountCalculated + FX_ROUNDING_TOLERANCE;
+
+                return (
+                  <tr key={request.id} className="aixia-table-row">
+                    <AixiaTableActionsCell>
+                      <AixiaButton
+                        type="button"
+                        variant={isSelected ? "secondary" : "primary"}
+                        onClick={() => toggleRequest(request)}
+                      >
+                        {isSelected ? "Remove" : "Select"}
+                      </AixiaButton>
+                    </AixiaTableActionsCell>
+
+                    <AixiaTableTextCell
+                      width="lg"
+                      primary={request.request_number || "Paycheck Request"}
+                      secondary={
+                        <>
+                          {request.periodLabel}
+                          <br />
+                          Pay date {formatDate(request.requested_pay_date)}
+                        </>
+                      }
+                    />
+
+                    <AixiaEmployeeIdentityCell
+                      width="xl"
+                      identity={request.employeeIdentity}
+                      primary={request.employeeName}
+                      secondary={request.employeeLabel}
+                      reference={request.employeeReference || request.employeeSearchText}
+                    />
+
+                    <AixiaTableTextCell width="md" primary={request.companyName} />
+
+                    <AixiaTableBadgeCell width="lg">
+                      <AixiaStatusBadge
+                        value={
+                          request.documentation_status ||
+                          request.signed_form_status ||
+                          request.admin_signed_form_status
+                        }
+                      />
+                    </AixiaTableBadgeCell>
+
+                    <AixiaTableBadgeCell width="md">
+                      <AixiaStatusBadge value={request.payment_status || "unpaid"} />
+                    </AixiaTableBadgeCell>
+
+                    <AixiaTableTextCell
+                      width="md"
+                      primary={`${paycheckCurrency} ${formatMoney(request.targetAmount)}`}
+                    />
+
+                    <AixiaTableTextCell
+                      width="md"
+                      primary={`${paycheckCurrency} ${formatMoney(request.existingPaidAmount)}`}
+                    />
+
+                    <AixiaTableTextCell
+                      width="md"
+                      primary={`${paycheckCurrency} ${formatMoney(request.remainingAmountCalculated)}`}
+                    />
+
+                    <AixiaTableTextCell
+                      width="md"
+                      primary={
+                        <AixiaInputField
+                          value={allocationValue}
+                          onChange={(event) =>
+                            updateAllocationAmount(request.id, event.target.value)
+                          }
+                          disabled={!isSelected}
+                          inputMode="decimal"
+                          placeholder="0.00"
+                        />
+                      }
+                    />
+
+                    <AixiaTableTextCell
+                      width="xl"
+                      primary={
+                        !isSelected
+                          ? "Not selected"
+                          : isConverting
+                            ? "Converting..."
+                            : !preview ||
+                                preview.paycheckCurrencyAmount === null ||
+                                preview.exchangeRate === null
+                              ? "Missing conversion"
+                              : `${paycheckCurrency} ${formatMoney(displayedPaycheckCoverageAmount)}`
+                      }
+                      secondary={
+                        !isSelected
+                          ? "Select to convert"
+                          : isConverting
+                            ? `${paymentCurrencyCode} → ${paycheckCurrency}`
+                            : !preview ||
+                                preview.paycheckCurrencyAmount === null ||
+                                preview.exchangeRate === null
+                              ? `${paymentCurrencyCode} → ${paycheckCurrency}`
+                              : overCovers
+                                ? "Over remaining balance"
+                                : hasFxRoundingDifference
+                                  ? "Full remaining balance covered"
+                                  : preview.source === "same_currency"
+                                    ? "Same currency"
+                                    : `Rate date ${preview.conversionDate}`
+                      }
+                    />
+                  </tr>
+                );
+              })}
+            </tbody>
+          </AixiaTableShell>
+        )}
+      </AixiaSection>
+    </>
+  );
+
+  const sideContent = (
+    <>
+      <AixiaSection
+        title="Distribution Summary"
+        description="Review payroll funding pool usage before saving or confirming."
+        icon={ShieldCheck}
+      >
+        <AixiaFormGrid columns="one">
+          <AixiaValueBlock
+            label="Funding Pool"
+            value={selectedFundingPool?.batch_number || "Not selected"}
+            detail="Confirmed payroll funding pool used as payment source."
+          />
+          <AixiaValueBlock
+            label="Funding Company"
+            value={getCompanyName(fundingCompany)}
+            detail="Derived from selected payroll funding pool."
+          />
+          <AixiaValueBlock
+            label="Bank Account"
+            value={getBankLabel(paidFromBankAccount)}
+            detail="Derived from selected payroll funding pool."
+          />
+          <AixiaValueBlock
+            label="Pool Total"
+            value={`${fundingCurrencyCode} ${formatMoney(fundingPoolTotal)}`}
+            detail="Original payroll funding pool amount."
+          />
+          <AixiaValueBlock
+            label="Already Used"
+            value={`${fundingCurrencyCode} ${formatMoney(previousFundingPoolUsage)}`}
+            detail="Previous confirmed paycheck payment distributions from this pool."
+          />
+          <AixiaValueBlock
+            label="Remaining Before"
+            value={`${fundingCurrencyCode} ${formatMoney(fundingPoolRemainingBeforePayment)}`}
+            detail="Available before this distribution."
+          />
+          <AixiaValueBlock
+            label="Payment Amount"
+            value={`${paymentCurrencyCode} ${formatMoney(totalPaymentCurrencyAllocated)}`}
+            detail="Total entered in payment currency."
+          />
+          <AixiaValueBlock
+            label="Funding Used"
+            value={`${fundingCurrencyCode} ${formatMoney(currentFundingCurrencyUsed)}`}
+            detail={
+              fundingUsagePreview?.source === "same_currency"
+                ? "Same as funding pool currency."
+                : `Converted using payment date ${
+                    fundingUsagePreview?.conversionDate || form.paymentDate
+                  }.`
+            }
+          />
+          <AixiaValueBlock
+            label="Remaining After"
+            value={`${fundingCurrencyCode} ${formatMoney(fundingCurrencyRemainingAfterPayment)}`}
+            detail="Funding pool balance after this paycheck distribution."
+          />
+          <AixiaValueBlock
+            label="Paycheck Coverage"
+            value={formatMoney(totalPaycheckCurrencyCovered)}
+            detail="Combined converted coverage preview across selected paycheck currencies."
+          />
+        </AixiaFormGrid>
+      </AixiaSection>
+
+      <AixiaSection
+        title="Actions"
+        description="Create this distribution as draft or create and immediately confirm it."
+        icon={CheckCircle2}
+      >
+        <AixiaFormGrid columns="one">
+          <AixiaButton
+            type="button"
+            variant="primary"
+            disabled={Boolean(savingMode) || isConverting}
+            onClick={() => void savePayment("confirm")}
+          >
+            {savingMode === "confirm" ? (
+              <Loader2 className="h-4 w-4 animate-spin" />
+            ) : (
+              <CheckCircle2 className="h-4 w-4" />
+            )}
+            {savingMode === "confirm"
+              ? "Creating Distribution..."
+              : "Create & Confirm Distribution"}
+          </AixiaButton>
+
+          <AixiaButton
+            type="button"
+            variant="secondary"
+            disabled={Boolean(savingMode) || isConverting}
+            onClick={() => void savePayment("draft")}
+          >
+            {savingMode === "draft" ? (
+              <Loader2 className="h-4 w-4 animate-spin" />
+            ) : (
+              <Save className="h-4 w-4" />
+            )}
+            {savingMode === "draft" ? "Saving Draft..." : "Save Draft"}
+          </AixiaButton>
+        </AixiaFormGrid>
+
+        <AixiaAlert tone="info">
+          This distributes reserved Payroll Funding Pool money across selected approved paycheck requests. Currency conversion uses active Finance Currency Master Data codes and the selected payment date.
+        </AixiaAlert>
+      </AixiaSection>
+
+      <AixiaSection title="Workflow Controls" icon={Link2}>
+        <AixiaFormGrid columns="one">
+          <AixiaDisplayBlock
+            label="Funding Source"
+            value="Confirmed Payroll Funding Pool"
+          />
+          <AixiaDisplayBlock
+            label="Selection Rule"
+            value="Approved requests with unpaid remaining balance only"
+          />
+          <AixiaDisplayBlock
+            label="Conversion Rule"
+            value="Payment-date conversion"
+          />
+        </AixiaFormGrid>
+      </AixiaSection>
+    </>
   );
 
   return (
-    <div className="min-h-screen bg-[#05070d] px-4 py-4 text-white md:px-6 md:py-6">
-      <div className="mx-auto flex w-full max-w-[1600px] flex-col gap-6">
-        <header className="relative overflow-hidden rounded-[34px] border border-white/10 bg-white/[0.045] p-6 shadow-2xl shadow-black/30 backdrop-blur-xl">
-          <div className="pointer-events-none absolute inset-0 bg-[radial-gradient(circle_at_top_left,rgba(6,182,212,0.16),transparent_38%),radial-gradient(circle_at_top_right,rgba(139,92,246,0.12),transparent_34%)]" />
+    <AixiaPage>
+      <AixiaHero
+        parentLabel="Payroll"
+        parentPath="/finance/transactions/payroll"
+        badges={[
+          { label: "Paycheck Payment Distribution", tone: "cyan" },
+          { label: "Funding Pool Based", tone: "emerald" },
+          { label: "Employee Identity View", tone: "violet" },
+          ...(isConverting ? [{ label: "Converting", tone: "neutral" as const }] : []),
+        ]}
+        gradientTitle="Distribute"
+        title="Paycheck Payments"
+        description="Use a confirmed Payroll Funding Pool to distribute reserved money across approved paycheck requests. Currencies come from Finance Currency Master Data, and conversion uses the selected payment date."
+        statusCards={[
+          {
+            label: "Funding Pool Total",
+            value: `${fundingCurrencyCode} ${formatMoney(fundingPoolTotal)}`,
+            description: "Original reserved money in the selected payroll funding pool currency.",
+            icon: WalletCards,
+            tone: "cyan",
+          },
+          {
+            label: "Already Used",
+            value: `${fundingCurrencyCode} ${formatMoney(previousFundingPoolUsage)}`,
+            description: "Confirmed previous paycheck payment distributions from this pool.",
+            icon: CreditCard,
+            tone: "amber",
+          },
+          {
+            label: "This Payment Uses",
+            value: `${fundingCurrencyCode} ${formatMoney(currentFundingCurrencyUsed)}`,
+            description: "Current distribution converted into funding pool currency.",
+            icon: BadgeCheck,
+            tone: "emerald",
+          },
+          {
+            label: "Remaining After",
+            value: `${fundingCurrencyCode} ${formatMoney(fundingCurrencyRemainingAfterPayment)}`,
+            description: "Remaining pool balance after this paycheck payment distribution.",
+            icon: ShieldCheck,
+            tone: "violet",
+          },
+        ]}
+      />
 
-          <div className="relative">
-            <button
-              type="button"
-              onClick={() => navigate("/finance/transactions/payroll")}
-              className="mb-5 inline-flex items-center justify-center gap-2 rounded-full border border-white/10 bg-white/[0.05] px-5 py-2 text-[11px] font-semibold uppercase tracking-[0.22em] text-slate-300 transition hover:border-white/20 hover:bg-white/[0.08] hover:text-white"
-            >
-              <ArrowRight className="h-3.5 w-3.5 rotate-180" />
-              Payroll
-            </button>
+      {pageError ? <AixiaAlert tone="error">{pageError}</AixiaAlert> : null}
+      {pageMessage ? <AixiaAlert tone="success">{pageMessage}</AixiaAlert> : null}
 
-            <div className="grid gap-6 xl:grid-cols-[minmax(0,1fr)_520px] xl:items-end">
-              <div>
-                <div className="inline-flex w-fit items-center gap-2 rounded-full border border-cyan-400/20 bg-cyan-500/10 px-3 py-1 text-[11px] font-semibold uppercase tracking-[0.22em] text-cyan-200">
-                  <Sparkles className="h-3.5 w-3.5" />
-                  Paycheck Payment Distribution
-                </div>
+      <AixiaMetricGrid>
+        <AixiaMetricCard
+          label="Selected Requests"
+          value={selectedRequestIds.length.toLocaleString()}
+          description="Paycheck requests selected for this distribution."
+          icon={Receipt}
+          tone="cyan"
+        />
+        <AixiaMetricCard
+          label="Payment Amount"
+          value={`${paymentCurrencyCode} ${formatMoney(totalPaymentCurrencyAllocated)}`}
+          description="Total entered in payment currency."
+          icon={CreditCard}
+          tone="emerald"
+        />
+        <AixiaMetricCard
+          label="Paycheck Coverage"
+          value={formatMoney(totalPaycheckCurrencyCovered)}
+          description="Converted coverage across selected paycheck currencies."
+          icon={FileCheck2}
+          tone="violet"
+        />
+        <AixiaMetricCard
+          label="Funding Remaining"
+          value={`${fundingCurrencyCode} ${formatMoney(fundingCurrencyRemainingAfterPayment)}`}
+          description="Funding pool balance after this payment."
+          icon={ShieldCheck}
+          tone="amber"
+        />
+      </AixiaMetricGrid>
 
-                <h1 className="mt-4 text-3xl font-semibold tracking-[-0.035em] text-white md:text-5xl">
-                  Distribute Paycheck Payments
-                </h1>
-
-                <p className="mt-3 max-w-4xl text-sm leading-6 text-slate-400 md:text-base md:leading-7">
-                  Use a confirmed Payroll Funding Pool to distribute reserved money across approved
-                  paycheck requests. Currencies come from Finance Currency Master Data, and
-                  conversion uses the selected payment date.
-                </p>
-              </div>
-
-              <div className="grid gap-3 sm:grid-cols-2">
-                <SummaryBlock
-                  title="Funding Pool Total"
-                  value={`${fundingCurrencyCode} ${formatMoney(fundingPoolTotal)}`}
-                  subtitle="Original reserved money in the selected payroll funding pool currency."
-                />
-                <SummaryBlock
-                  title="Already Used"
-                  value={`${fundingCurrencyCode} ${formatMoney(previousFundingPoolUsage)}`}
-                  subtitle="Confirmed previous paycheck payment distributions from this pool."
-                />
-                <SummaryBlock
-                  title="This Payment Uses"
-                  value={`${fundingCurrencyCode} ${formatMoney(currentFundingCurrencyUsed)}`}
-                  subtitle="Current distribution converted into funding pool currency."
-                />
-                <SummaryBlock
-                  title="Remaining After"
-                  value={`${fundingCurrencyCode} ${formatMoney(fundingCurrencyRemainingAfterPayment)}`}
-                  subtitle="Remaining pool balance after this paycheck payment distribution."
-                />
-              </div>
-            </div>
-          </div>
-        </header>
-
-        {pageError ? (
-          <div className="rounded-[24px] border border-rose-400/20 bg-rose-500/10 p-4 text-sm leading-6 text-rose-100">
-            {pageError}
-          </div>
-        ) : null}
-
-        {pageMessage ? (
-          <div className="rounded-[24px] border border-emerald-400/20 bg-emerald-500/10 p-4 text-sm leading-6 text-emerald-100">
-            {pageMessage}
-          </div>
-        ) : null}
-
-        <div className="grid items-start gap-6 xl:grid-cols-[minmax(0,1fr)_430px]">
-          <div className="grid gap-6">
-            <section className="overflow-hidden rounded-[30px] border border-white/10 bg-white/[0.045] backdrop-blur-xl">
-              <div className="flex items-start gap-4 border-b border-white/10 px-5 py-4">
-                <div className="rounded-2xl border border-cyan-400/15 bg-cyan-500/10 p-3 text-cyan-200">
-                  <WalletCards className="h-4 w-4" />
-                </div>
-                <div>
-                  <div className="text-sm font-semibold uppercase tracking-[0.18em] text-slate-400">
-                    Paycheck Payment Setup
-                  </div>
-                  <p className="mt-1 text-xs leading-5 text-slate-500">
-                    Funding company and bank come from the selected Payroll Funding Pool. Payment
-                    currency comes from active Currency Master Data.
-                  </p>
-                </div>
-              </div>
-
-              <div className="grid gap-4 p-5 md:grid-cols-2">
-                <div className="grid gap-2">
-                  <span className={labelClass()}>Payment Type</span>
-                  <div className="flex h-11 items-center rounded-2xl border border-cyan-400/15 bg-cyan-500/10 px-4 text-sm font-semibold text-cyan-100">
-                    Paycheck Request Distribution
-                  </div>
-                </div>
-
-                <label className="grid gap-2">
-                  <span className={labelClass()}>Payment Date</span>
-                  <input
-                    type="date"
-                    value={form.paymentDate}
-                    onChange={(event) => updateField("paymentDate", event.target.value)}
-                    className={inputClass()}
-                  />
-                  <span className="text-xs leading-5 text-slate-500">
-                    Currency conversion uses this date.
-                  </span>
-                </label>
-
-                                <label className="grid gap-2 md:col-span-2">
-                  <span className={labelClass()}>Payroll Funding Pool</span>
-                  <select
-                    value={form.fundingPoolId}
-                    onChange={(event) => applyFundingPoolToForm(event.target.value, fundingPools)}
-                    className={inputClass()}
-                  >
-                    <option value="">Select confirmed payroll funding pool</option>
-                    {fundingPools.map((pool) => (
-                      <option key={pool.id} value={pool.id}>
-                        {pool.batch_number} •{" "}
-                        {getCompanyName(companyMap.get(pool.funding_company_id))} •{" "}
-                        {pool.currency_code || "USD"} {formatMoney(pool.allocated_amount)}
-                      </option>
-                    ))}
-                  </select>
-                </label>
-
-                <div className="grid gap-2">
-                  <span className={labelClass()}>Funding Company</span>
-                  <div className="flex h-11 items-center rounded-2xl border border-white/10 bg-black/20 px-4 text-sm font-semibold text-white">
-                    {getCompanyName(fundingCompany)}
-                  </div>
-                </div>
-
-                <div className="grid gap-2">
-                  <span className={labelClass()}>Paid From Bank Account</span>
-                  <div className="flex h-11 items-center rounded-2xl border border-white/10 bg-black/20 px-4 text-sm font-semibold text-white">
-                    {getBankLabel(paidFromBankAccount)}
-                  </div>
-                </div>
-
-                <label className="grid gap-2">
-                  <span className={labelClass()}>Payment Currency</span>
-                  <select
-                    value={paymentCurrencyCode}
-                    onChange={(event) => updateField("paymentCurrencyCode", event.target.value)}
-                    className={inputClass()}
-                  >
-                    <option value="">Select currency</option>
-                    {currencyOptions.map((currency) => (
-                      <option key={currency.id} value={currency.currency_code}>
-                        {currency.currency_code} — {currency.currency_name}
-                      </option>
-                    ))}
-                  </select>
-                </label>
-
-                <div className="grid gap-2">
-                  <span className={labelClass()}>Funding Pool Currency</span>
-                  <div className="flex h-11 items-center rounded-2xl border border-violet-400/15 bg-violet-500/10 px-4 text-sm font-semibold text-violet-100">
-                    {fundingCurrencyCode}
-                  </div>
-                </div>
-
-                <label className="grid gap-2 md:col-span-2">
-                  <span className={labelClass()}>Reference Number</span>
-                  <input
-                    value={form.referenceNumber}
-                    onChange={(event) => updateField("referenceNumber", event.target.value)}
-                    className={inputClass()}
-                    placeholder="Paycheck payment distribution reference number"
-                  />
-                </label>
-
-                <label className="grid gap-2 md:col-span-2">
-                  <span className={labelClass()}>Payment Notes</span>
-                  <textarea
-                    value={form.notes}
-                    onChange={(event) => updateField("notes", event.target.value)}
-                    className={textareaClass()}
-                    placeholder="Internal paycheck payment notes"
-                  />
-                </label>
-              </div>
-            </section>
-
-            <section className="overflow-hidden rounded-[30px] border border-white/10 bg-white/[0.045] backdrop-blur-xl">
-              <div className="flex flex-col gap-4 border-b border-white/10 px-5 py-4 lg:flex-row lg:items-center lg:justify-between">
-                <div className="flex items-start gap-4">
-                  <div className="rounded-2xl border border-emerald-400/15 bg-emerald-500/10 p-3 text-emerald-200">
-                    <Receipt className="h-4 w-4" />
-                  </div>
-                  <div>
-                    <div className="text-sm font-semibold uppercase tracking-[0.18em] text-slate-400">
-                      Select Approved Paycheck Requests
-                    </div>
-                    <p className="mt-1 text-xs leading-5 text-slate-500">
-                      Partially paid requests remain available until fully paid. Enter payment
-                      amounts in the selected payment currency.
-                    </p>
-                  </div>
-                </div>
-
-                <div className="relative">
-                  <Search className="pointer-events-none absolute left-4 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-500" />
-                  <input
-                    value={searchQuery}
-                    onChange={(event) => setSearchQuery(event.target.value)}
-                    className="h-11 w-full rounded-2xl border border-white/10 bg-black/20 pl-11 pr-4 text-sm text-white outline-none transition placeholder:text-slate-600 focus:border-cyan-400/30 focus:bg-black/30 lg:w-[340px]"
-                    placeholder="Search paycheck requests..."
-                  />
-                </div>
-              </div>
-
-              <div className="p-5">
-                {isLoading ? (
-                  <div className="rounded-[24px] border border-white/10 bg-black/20 px-6 py-12 text-center">
-                    <Loader2 className="mx-auto h-8 w-8 animate-spin text-cyan-200" />
-                    <div className="mt-4 text-sm text-slate-400">
-                      Loading approved paycheck requests...
-                    </div>
-                  </div>
-                ) : filteredRequests.length === 0 ? (
-                  <div className="rounded-[24px] border border-dashed border-white/10 bg-black/20 px-6 py-12 text-center">
-                    <Receipt className="mx-auto h-8 w-8 text-slate-500" />
-                    <div className="mt-4 text-sm font-semibold text-white">
-                      No payable approved paycheck requests found
-                    </div>
-                    <div className="mt-2 text-sm leading-6 text-slate-500">
-                      Paycheck requests must be approved and still have a remaining unpaid balance.
-                    </div>
-                  </div>
-                ) : (
-                  <div className="overflow-x-auto rounded-[24px] border border-white/10 bg-black/20">
-                    <div className="max-h-[720px] overflow-y-auto">
-                      <table className="w-full min-w-[1780px] border-collapse">
-                        <thead className="sticky top-0 z-20 border-b border-white/10 bg-black/70 backdrop-blur-xl">
-                          <tr>
-                            <th className="px-5 py-4 text-left text-[11px] font-semibold uppercase tracking-[0.18em] text-slate-500">
-                              Select
-                            </th>
-                            <th className="px-5 py-4 text-left text-[11px] font-semibold uppercase tracking-[0.18em] text-slate-500">
-                              Paycheck Request
-                            </th>
-                            <th className="px-5 py-4 text-left text-[11px] font-semibold uppercase tracking-[0.18em] text-slate-500">
-                              Employee
-                            </th>
-                            <th className="px-5 py-4 text-left text-[11px] font-semibold uppercase tracking-[0.18em] text-slate-500">
-                              Company
-                            </th>
-                            <th className="px-5 py-4 text-left text-[11px] font-semibold uppercase tracking-[0.18em] text-slate-500">
-                              Docs
-                            </th>
-                            <th className="px-5 py-4 text-left text-[11px] font-semibold uppercase tracking-[0.18em] text-slate-500">
-                              Payment
-                            </th>
-                            <th className="px-5 py-4 text-right text-[11px] font-semibold uppercase tracking-[0.18em] text-slate-500">
-                              Request Total
-                            </th>
-                            <th className="px-5 py-4 text-right text-[11px] font-semibold uppercase tracking-[0.18em] text-slate-500">
-                              Already Paid
-                            </th>
-                            <th className="px-5 py-4 text-right text-[11px] font-semibold uppercase tracking-[0.18em] text-slate-500">
-                              Remaining
-                            </th>
-                            <th className="px-5 py-4 text-right text-[11px] font-semibold uppercase tracking-[0.18em] text-slate-500">
-                              Pay In {paymentCurrencyCode}
-                            </th>
-                            <th className="px-5 py-4 text-right text-[11px] font-semibold uppercase tracking-[0.18em] text-slate-500">
-                              Covers In Paycheck Currency
-                            </th>
-                          </tr>
-                        </thead>
-
-                        <tbody>
-                          {filteredRequests.map((request) => {
-                            const isSelected = selectedRequestIds.includes(request.id);
-                            const allocationValue =
-                              allocationDrafts.find(
-                                (draft) => draft.paycheckRequestId === request.id
-                              )?.paymentCurrencyAmount || "";
-                            const paycheckCurrency = normalizeCurrencyCode(
-                              request.requested_currency_code || paymentCurrencyCode
-                            );
-                            const preview = conversionPreviews[request.id];
-                            const displayedPaycheckCoverageAmount =
-                              getCappedPaycheckCoverageAmount(
-                                preview,
-                                request.remainingAmountCalculated
-                              );
-                            const hasFxRoundingDifference = isFxRoundingDifference(
-                              preview,
-                              request.remainingAmountCalculated
-                            );
-                            const overCovers =
-                              isSelected &&
-                              preview?.paycheckCurrencyAmount !== null &&
-                              preview?.paycheckCurrencyAmount !== undefined &&
-                              preview.paycheckCurrencyAmount >
-                                request.remainingAmountCalculated + FX_ROUNDING_TOLERANCE;
-
-                            return (
-                              <tr
-                                key={request.id}
-                                className="border-b border-white/5 text-sm text-slate-300 transition hover:bg-white/[0.035]"
-                              >
-                                <td className="px-5 py-4">
-                                  <input
-                                    type="checkbox"
-                                    checked={isSelected}
-                                    onChange={() => toggleRequest(request)}
-                                    className="h-4 w-4 rounded border-white/20 bg-black/20"
-                                  />
-                                </td>
-
-                                <td className="min-w-[240px] px-5 py-4">
-                                  <button
-                                    type="button"
-                                    onClick={() =>
-                                      navigate(`/finance/transactions/paycheck-requests/${request.id}`)
-                                    }
-                                    className="text-left font-semibold text-cyan-200 transition hover:text-cyan-100"
-                                  >
-                                    {request.request_number || "Paycheck Request"}
-                                  </button>
-                                  <div className="mt-1 text-xs text-white">
-                                    {request.periodLabel}
-                                  </div>
-                                  <div className="mt-1 text-xs text-slate-500">
-                                    Pay date {formatDate(request.requested_pay_date)}
-                                  </div>
-                                </td>
-
-                                <td className="min-w-[220px] px-5 py-4">
-                                  <div className="font-medium text-slate-200">
-                                    {request.employeeName}
-                                  </div>
-                                  <div className="mt-1 text-xs text-slate-500">
-                                    {request.employeeLabel || "Employee"}
-                                  </div>
-                                </td>
-
-                                <td className="min-w-[180px] px-5 py-4">
-                                  {request.companyName}
-                                </td>
-
-                                <td className="whitespace-nowrap px-5 py-4">
-                                  <StatusBadge
-                                    value={
-                                      request.documentation_status ||
-                                      request.signed_form_status ||
-                                      request.admin_signed_form_status
-                                    }
-                                  />
-                                </td>
-
-                                <td className="whitespace-nowrap px-5 py-4">
-                                  <StatusBadge value={request.payment_status || "unpaid"} />
-                                </td>
-
-                                <td className="whitespace-nowrap px-5 py-4 text-right font-semibold text-white">
-                                  {paycheckCurrency} {formatMoney(request.targetAmount)}
-                                </td>
-
-                                <td className="whitespace-nowrap px-5 py-4 text-right font-semibold text-slate-300">
-                                  {paycheckCurrency} {formatMoney(request.existingPaidAmount)}
-                                </td>
-
-                                <td className="whitespace-nowrap px-5 py-4 text-right font-semibold text-amber-100">
-                                  {paycheckCurrency} {formatMoney(request.remainingAmountCalculated)}
-                                </td>
-
-                                <td className="whitespace-nowrap px-5 py-4 text-right">
-                                  <input
-                                    value={allocationValue}
-                                    onChange={(event) =>
-                                      updateAllocationAmount(request.id, event.target.value)
-                                    }
-                                    disabled={!isSelected}
-                                    inputMode="decimal"
-                                    placeholder="0.00"
-                                    className="h-10 w-[150px] rounded-2xl border border-white/10 bg-black/20 px-4 text-right text-sm text-white outline-none transition disabled:cursor-not-allowed disabled:opacity-40 focus:border-cyan-400/30 focus:bg-black/30"
-                                  />
-                                </td>
-
-                                <td className="whitespace-nowrap px-5 py-4 text-right">
-                                  {!isSelected ? (
-                                    <div>
-                                      <div className="font-semibold text-slate-400">
-                                        Not selected
-                                      </div>
-                                      <div className="mt-1 text-[11px] text-slate-600">
-                                        Select to convert
-                                      </div>
-                                    </div>
-                                  ) : isConverting ? (
-                                    <div>
-                                      <div className="font-semibold text-cyan-200">
-                                        Converting...
-                                      </div>
-                                      <div className="mt-1 text-[11px] text-slate-500">
-                                        {paymentCurrencyCode} → {paycheckCurrency}
-                                      </div>
-                                    </div>
-                                  ) : !preview ||
-                                    preview.paycheckCurrencyAmount === null ||
-                                    preview.exchangeRate === null ? (
-                                    <div>
-                                      <div className="font-semibold text-rose-200">
-                                        Missing conversion
-                                      </div>
-                                      <div className="mt-1 text-[11px] text-slate-500">
-                                        {paymentCurrencyCode} → {paycheckCurrency}
-                                      </div>
-                                    </div>
-                                  ) : (
-                                    <div>
-                                      <div
-                                        className={`font-semibold ${
-                                          overCovers ? "text-rose-200" : "text-emerald-100"
-                                        }`}
-                                      >
-                                        {paycheckCurrency}{" "}
-                                        {formatMoney(displayedPaycheckCoverageAmount)}
-                                      </div>
-                                      <div className="mt-1 text-[11px] text-slate-500">
-                                        {preview.source === "same_currency"
-                                          ? "Same currency"
-                                          : `Rate date ${preview.conversionDate}`}
-                                      </div>
-                                      {overCovers ? (
-                                        <div className="mt-1 text-[11px] text-rose-200">
-                                          Over remaining balance
-                                        </div>
-                                      ) : hasFxRoundingDifference ? (
-                                        <div className="mt-1 text-[11px] text-emerald-200">
-                                          Full remaining balance covered
-                                        </div>
-                                      ) : null}
-                                    </div>
-                                  )}
-                                </td>
-                              </tr>
-                            );
-                          })}
-                        </tbody>
-                      </table>
-                    </div>
-                  </div>
-                )}
-              </div>
-            </section>
-          </div>
-
-                    <aside className="sticky top-6 grid gap-6">
-            <section className="overflow-hidden rounded-[30px] border border-white/10 bg-white/[0.045] backdrop-blur-xl">
-              <div className="border-b border-white/10 px-5 py-4">
-                <div className="text-sm font-semibold uppercase tracking-[0.18em] text-slate-400">
-                  Distribution Summary
-                </div>
-                <p className="mt-1 text-xs leading-5 text-slate-500">
-                  Review payroll funding pool usage before saving or confirming.
-                </p>
-              </div>
-
-              <div className="grid gap-3 p-5">
-                <SummaryBlock
-                  title="Funding Pool"
-                  value={selectedFundingPool?.batch_number || "Not selected"}
-                  subtitle="Confirmed payroll funding pool used as payment source."
-                />
-                <SummaryBlock
-                  title="Funding Company"
-                  value={getCompanyName(fundingCompany)}
-                  subtitle="Derived from selected payroll funding pool."
-                />
-                <SummaryBlock
-                  title="Bank Account"
-                  value={getBankLabel(paidFromBankAccount)}
-                  subtitle="Derived from selected payroll funding pool."
-                />
-                <SummaryBlock
-                  title="Pool Total"
-                  value={`${fundingCurrencyCode} ${formatMoney(fundingPoolTotal)}`}
-                  subtitle="Original payroll funding pool amount."
-                />
-                <SummaryBlock
-                  title="Already Used"
-                  value={`${fundingCurrencyCode} ${formatMoney(previousFundingPoolUsage)}`}
-                  subtitle="Previous confirmed paycheck payment distributions from this pool."
-                />
-                <SummaryBlock
-                  title="Remaining Before"
-                  value={`${fundingCurrencyCode} ${formatMoney(fundingPoolRemainingBeforePayment)}`}
-                  subtitle="Available before this distribution."
-                />
-                <SummaryBlock
-                  title="Payment Amount"
-                  value={`${paymentCurrencyCode} ${formatMoney(totalPaymentCurrencyAllocated)}`}
-                  subtitle="Total entered in payment currency."
-                />
-                <SummaryBlock
-                  title="Funding Used"
-                  value={`${fundingCurrencyCode} ${formatMoney(currentFundingCurrencyUsed)}`}
-                  subtitle={
-                    fundingUsagePreview?.source === "same_currency"
-                      ? "Same as funding pool currency."
-                      : `Converted using payment date ${
-                          fundingUsagePreview?.conversionDate || form.paymentDate
-                        }.`
-                  }
-                />
-                <SummaryBlock
-                  title="Remaining After"
-                  value={`${fundingCurrencyCode} ${formatMoney(fundingCurrencyRemainingAfterPayment)}`}
-                  subtitle="Funding pool balance after this paycheck distribution."
-                />
-                <SummaryBlock
-                  title="Paycheck Coverage"
-                  value={formatMoney(totalPaycheckCurrencyCovered)}
-                  subtitle="Combined converted coverage preview across selected paycheck currencies."
-                />
-              </div>
-            </section>
-
-            <section className="overflow-hidden rounded-[30px] border border-white/10 bg-white/[0.045] p-5 backdrop-blur-xl">
-              <div className="grid gap-3">
-                <button
-                  type="button"
-                  disabled={Boolean(savingMode) || isConverting}
-                  onClick={() => void savePayment("confirm")}
-                  className="inline-flex h-12 items-center justify-center gap-2 rounded-2xl border border-emerald-400/20 bg-emerald-500/10 px-5 text-sm font-semibold text-emerald-100 transition hover:bg-emerald-500/15 disabled:cursor-not-allowed disabled:opacity-50"
-                >
-                  {savingMode === "confirm" ? (
-                    <Loader2 className="h-4 w-4 animate-spin" />
-                  ) : (
-                    <CheckCircle2 className="h-4 w-4" />
-                  )}
-                  {savingMode === "confirm"
-                    ? "Creating Distribution..."
-                    : "Create & Confirm Distribution"}
-                </button>
-
-                <button
-                  type="button"
-                  disabled={Boolean(savingMode) || isConverting}
-                  onClick={() => void savePayment("draft")}
-                  className="inline-flex h-12 items-center justify-center gap-2 rounded-2xl border border-white/10 bg-white/[0.05] px-5 text-sm font-semibold text-slate-300 transition hover:bg-white/[0.08] hover:text-white disabled:cursor-not-allowed disabled:opacity-50"
-                >
-                  {savingMode === "draft" ? (
-                    <Loader2 className="h-4 w-4 animate-spin" />
-                  ) : (
-                    <Save className="h-4 w-4" />
-                  )}
-                  {savingMode === "draft" ? "Saving Draft..." : "Save Draft"}
-                </button>
-              </div>
-
-              <div className="mt-4 rounded-[24px] border border-white/10 bg-black/20 p-4 text-xs leading-5 text-slate-500">
-                This distributes reserved Payroll Funding Pool money across selected approved
-                paycheck requests. Currency conversion uses active Finance Currency Master Data
-                codes and the selected payment date.
-              </div>
-            </section>
-          </aside>
-        </div>
-      </div>
-    </div>
+      <AixiaSmartLayout
+        sidebar="normal"
+        balance="main"
+        sideRebalance="last-to-bottom"
+        main={summaryMain}
+        side={sideContent}
+      />
+    </AixiaPage>
   );
 }

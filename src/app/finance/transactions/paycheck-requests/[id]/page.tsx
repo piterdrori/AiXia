@@ -15,6 +15,7 @@ import {
 } from "lucide-react";
 
 import {
+  AixiaAccessRule,
   AixiaAlert,
   AixiaButton,
   AixiaDocumentUploadPanel,
@@ -29,7 +30,9 @@ import {
   AixiaMetricCard,
   AixiaMetricGrid,
   AixiaPage,
+  AixiaRegistryToolbar,
   AixiaReviewGrid,
+  AixiaSearchField,
   AixiaSection,
   AixiaSmartLayout,
   AixiaStatusBadge,
@@ -621,6 +624,7 @@ export default function PaycheckRequestDetailPage() {
   const [replacementFile, setReplacementFile] = useState<File | null>(null);
   const [replacementLink, setReplacementLink] = useState("");
   const [confirmationNotes, setConfirmationNotes] = useState("");
+  const [historySearch, setHistorySearch] = useState("");
   const [allocations, setAllocations] = useState<AllocationRow[]>([]);
   const [distributions, setDistributions] = useState<DistributionRow[]>([]);
   const [paycheckHistory, setPaycheckHistory] = useState<PaycheckHistoryRow[]>([]);
@@ -798,6 +802,8 @@ export default function PaycheckRequestDetailPage() {
 
   const paycheckHistoryRows = useMemo<PaycheckHistoryRow[]>(() => {
     const seen = new Set<string>();
+    const query = historySearch.trim().toLowerCase();
+
     return paycheckHistory
       .filter((historyRow) => !["archived", "deleted", "cancelled"].includes(historyRow.status))
       .filter((historyRow) => {
@@ -805,12 +811,41 @@ export default function PaycheckRequestDetailPage() {
         seen.add(historyRow.id);
         return true;
       })
+      .filter((historyRow) => {
+        if (!query) return true;
+
+        const historyCurrency = normalizeCurrencyCode(
+          historyRow.requested_currency_code || requestCurrency
+        );
+        const historyTargetAmount = getPaycheckHistoryTargetAmount(historyRow);
+
+        return [
+          historyRow.request_number,
+          historyRow.reference_number,
+          historyRow.period_start,
+          historyRow.period_end,
+          historyRow.requested_pay_date,
+          historyCurrency,
+          formatMoney(historyTargetAmount),
+          historyRow.status,
+          historyRow.review_status,
+          historyRow.documentation_status,
+          historyRow.signed_form_status,
+          historyRow.admin_signed_form_status,
+          historyRow.payment_status,
+          historyRow.recipient_confirmation_status,
+        ]
+          .filter(Boolean)
+          .join(" ")
+          .toLowerCase()
+          .includes(query);
+      })
       .sort((first, second) => {
         const firstDate = new Date(first.period_end || first.updated_at || first.created_at);
         const secondDate = new Date(second.period_end || second.updated_at || second.created_at);
         return secondDate.getTime() - firstDate.getTime();
       });
-  }, [paycheckHistory]);
+  }, [historySearch, paycheckHistory, requestCurrency]);
 
   const financeReviewItems = useMemo<DetailItem[]>(() => {
     if (!request) return [];
@@ -1573,6 +1608,13 @@ export default function PaycheckRequestDetailPage() {
       {actionError ? <AixiaAlert tone="error">{actionError}</AixiaAlert> : null}
       {actionMessage ? <AixiaAlert tone="success">{actionMessage}</AixiaAlert> : null}
 
+      <AixiaAccessRule
+        title="Locked access rule"
+        description="Requester-side paycheck detail pages must keep employee actions, payment confirmation, document visibility, and history access scoped to the loaded paycheck request."
+      >
+        This page is the employee/requester-facing detail view. It uses resolved employee identity, requester ownership checks, silent refresh, and shared AiXia registry/table patterns. Primary row Open actions must stay primary; secondary links are reserved for context links such as source records or external documents.
+      </AixiaAccessRule>
+
       <AixiaMetricGrid>
         {timelineItems.map((item) => (
           <AixiaMetricCard
@@ -1830,6 +1872,17 @@ export default function PaycheckRequestDetailPage() {
               description="Shows paycheck requests for this same employee only. Internal funding drafts and company execution rows are hidden from this requester page."
               icon={WalletCards}
             >
+              <AixiaRegistryToolbar
+                search={
+                  <AixiaSearchField
+                    width="wide"
+                    value={historySearch}
+                    onChange={(event) => setHistorySearch(event.target.value)}
+                    placeholder="Search paycheck history by request, period, amount, status, payment, or confirmation"
+                  />
+                }
+              />
+
               {paycheckHistoryRows.length === 0 ? (
                 <AixiaEmptyState
                   icon={WalletCards}

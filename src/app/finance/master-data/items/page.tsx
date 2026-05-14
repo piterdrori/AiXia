@@ -1456,83 +1456,81 @@ export default function FinanceItemsPage() {
           title="Item Registry"
           description="Active and inactive item records. Archived items are managed only through the archive modal."
           icon={Package}
-          actions={
-            <AixiaRegistryToolbar
-              search={
-                <AixiaSearchField
-                  width="wide"
-                  value={search}
-                  onChange={(event) => setSearch(event.target.value)}
-                  placeholder="Search code, name, type, description, notes, or currency..."
-                />
-              }
-              filters={
-                <>
-                  <AixiaSelectField
-                    value={statusFilter}
-                    onChange={(event) => setStatusFilter(event.target.value as StatusFilter)}
-                  >
-                    <option value="all" className="bg-[#05070d]">
-                      All Statuses
-                    </option>
-                    <option value="active" className="bg-[#05070d]">
-                      Active
-                    </option>
-                    <option value="inactive" className="bg-[#05070d]">
-                      Inactive
-                    </option>
-                  </AixiaSelectField>
-
-                  <AixiaSelectField
-                    value={typeFilter}
-                    onChange={(event) => setTypeFilter(event.target.value as TypeFilter)}
-                  >
-                    <option value="all" className="bg-[#05070d]">
-                      All Types
-                    </option>
-                    <option value="product" className="bg-[#05070d]">
-                      Product
-                    </option>
-                    <option value="service" className="bg-[#05070d]">
-                      Service
-                    </option>
-                    <option value="component" className="bg-[#05070d]">
-                      Component
-                    </option>
-                    <option value="assembly" className="bg-[#05070d]">
-                      Assembly
-                    </option>
-                  </AixiaSelectField>
-                </>
-              }
-              primaryAction={
-                permissionState.canCreate ? (
-                  <AixiaButton type="button" variant="primary" onClick={openCreateDialog}>
-                    <Plus className="h-4 w-4" />
-                    New Item
-                  </AixiaButton>
-                ) : null
-              }
-              archiveAction={
-                permissionState.canDeleteArchive ? (
-                  <AixiaButton
-                    type="button"
-                    variant="danger"
-                    onClick={openArchiveModal}
-                    disabled={isActionRunning}
-                  >
-                    {runningAction === "archive-modal" ? (
-                      <Loader2 className="h-4 w-4 animate-spin" />
-                    ) : (
-                      <Archive className="h-4 w-4" />
-                    )}
-                    Archive
-                  </AixiaButton>
-                ) : null
-              }
-            />
-          }
         >
+          <AixiaRegistryToolbar
+            search={
+              <AixiaSearchField
+                width="wide"
+                value={search}
+                onChange={(event) => setSearch(event.target.value)}
+                placeholder="Search code, name, type, description, notes, or currency..."
+              />
+            }
+            filters={
+              <>
+                <AixiaSelectField
+                  value={statusFilter}
+                  onChange={(event) => setStatusFilter(event.target.value as StatusFilter)}
+                >
+                  <option value="all" className="bg-[#05070d]">
+                    All Statuses
+                  </option>
+                  <option value="active" className="bg-[#05070d]">
+                    Active
+                  </option>
+                  <option value="inactive" className="bg-[#05070d]">
+                    Inactive
+                  </option>
+                </AixiaSelectField>
+
+                <AixiaSelectField
+                  value={typeFilter}
+                  onChange={(event) => setTypeFilter(event.target.value as TypeFilter)}
+                >
+                  <option value="all" className="bg-[#05070d]">
+                    All Types
+                  </option>
+                  <option value="product" className="bg-[#05070d]">
+                    Product
+                  </option>
+                  <option value="service" className="bg-[#05070d]">
+                    Service
+                  </option>
+                  <option value="component" className="bg-[#05070d]">
+                    Component
+                  </option>
+                  <option value="assembly" className="bg-[#05070d]">
+                    Assembly
+                  </option>
+                </AixiaSelectField>
+              </>
+            }
+            primaryAction={
+              permissionState.canCreate ? (
+                <AixiaButton type="button" variant="primary" onClick={openCreateDialog}>
+                  <Plus className="h-4 w-4" />
+                  New Item
+                </AixiaButton>
+              ) : null
+            }
+            archiveAction={
+              permissionState.canDeleteArchive ? (
+                <AixiaButton
+                  type="button"
+                  variant="danger"
+                  onClick={openArchiveModal}
+                  disabled={isActionRunning}
+                >
+                  {runningAction === "archive-modal" ? (
+                    <Loader2 className="h-4 w-4 animate-spin" />
+                  ) : (
+                    <Archive className="h-4 w-4" />
+                  )}
+                  Archive
+                </AixiaButton>
+              ) : null
+            }
+          />
           {filteredRows.length === 0 ? (
             <AixiaEmptyState
               icon={Package}

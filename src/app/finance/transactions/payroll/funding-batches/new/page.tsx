@@ -17,6 +17,7 @@ import {
 
 import {
   AixiaActionCard,
+  AixiaActionStack,
   AixiaAlert,
   AixiaBadge,
   AixiaButton,
@@ -591,36 +592,7 @@ export default function FinancePayrollFundingBatchNewPage() {
             tone: "amber",
           },
         ]}
-        actions={
-          <>
-            <AixiaButton
-              type="button"
-              variant="primary"
-              disabled={isSaving || isLoading}
-              onClick={() => void saveFundingBatch("confirmed")}
-            >
-              {savingMode === "confirmed" ? (
-                <Loader2 className="h-4 w-4 animate-spin" />
-              ) : (
-                <CheckCircle2 className="h-4 w-4" />
-              )}
-              {savingMode === "confirmed" ? "Confirming..." : "Confirm Funding Pool"}
-            </AixiaButton>
-            <AixiaButton
-              type="button"
-              variant="secondary"
-              disabled={isSaving || isLoading}
-              onClick={() => void saveFundingBatch("draft")}
-            >
-              {savingMode === "draft" ? (
-                <Loader2 className="h-4 w-4 animate-spin" />
-              ) : (
-                <Save className="h-4 w-4" />
-              )}
-              {savingMode === "draft" ? "Saving..." : "Save Draft"}
-            </AixiaButton>
-          </>
-        }
+
       />
 
       {pageError ? <AixiaAlert tone="error">{pageError}</AixiaAlert> : null}
@@ -829,37 +801,36 @@ export default function FinancePayrollFundingBatchNewPage() {
               title="Payroll Funding Summary"
               description="Review the reserved payroll money pool before saving."
               icon={WalletCards}
-              actions={
-                <>
-                  <AixiaButton
-                    type="button"
-                    variant="primary"
-                    disabled={isSaving || isLoading}
-                    onClick={() => void saveFundingBatch("confirmed")}
-                  >
-                    {savingMode === "confirmed" ? (
-                      <Loader2 className="h-4 w-4 animate-spin" />
-                    ) : (
-                      <CheckCircle2 className="h-4 w-4" />
-                    )}
-                    {savingMode === "confirmed" ? "Confirming..." : "Confirm Funding Pool"}
-                  </AixiaButton>
-                  <AixiaButton
-                    type="button"
-                    variant="secondary"
-                    disabled={isSaving || isLoading}
-                    onClick={() => void saveFundingBatch("draft")}
-                  >
-                    {savingMode === "draft" ? (
-                      <Loader2 className="h-4 w-4 animate-spin" />
-                    ) : (
-                      <Save className="h-4 w-4" />
-                    )}
-                    {savingMode === "draft" ? "Saving..." : "Save Draft"}
-                  </AixiaButton>
-                </>
-              }
             >
+              <AixiaActionStack>
+                <AixiaButton
+                  type="button"
+                  variant="primary"
+                  disabled={isSaving || isLoading}
+                  onClick={() => void saveFundingBatch("confirmed")}
+                >
+                  {savingMode === "confirmed" ? (
+                    <Loader2 className="h-4 w-4 animate-spin" />
+                  ) : (
+                    <CheckCircle2 className="h-4 w-4" />
+                  )}
+                  {savingMode === "confirmed" ? "Confirming..." : "Confirm Funding Pool"}
+                </AixiaButton>
+                <AixiaButton
+                  type="button"
+                  variant="secondary"
+                  disabled={isSaving || isLoading}
+                  onClick={() => void saveFundingBatch("draft")}
+                >
+                  {savingMode === "draft" ? (
+                    <Loader2 className="h-4 w-4 animate-spin" />
+                  ) : (
+                    <Save className="h-4 w-4" />
+                  )}
+                  {savingMode === "draft" ? "Saving..." : "Save Draft"}
+                </AixiaButton>
+              </AixiaActionStack>
+
               <AixiaFormGrid columns="one">
                 <AixiaValueBlock
                   label="Funding Company"

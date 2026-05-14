@@ -1935,10 +1935,6 @@
   padding: 1.5rem;
 }
 
-.aixia-modal[data-modal-size="wide"] .aixia-modal-body {
-  overflow-x: hidden;
-}
-
 .aixia-modal-body > * + * {
   margin-top: 1rem;
 }

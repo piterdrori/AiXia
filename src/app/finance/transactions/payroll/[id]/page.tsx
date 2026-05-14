@@ -1948,10 +1948,10 @@ export default function FinancePayrollPaymentDistributionDetailPage() {
       <AixiaRegistryToolbar search={null} primaryAction={toolbarPrimaryAction} />
 
       <AixiaAccessRule
-        title="Payroll Distribution Access Rule"
+        title="Locked Access Rule"
         description="Payroll distribution detail access is controlled by the shared Finance permissions system. Confirmation, proof verification, upload, allocation visibility, and employee identity display must stay aligned with the shared AiXia source-of-truth components."
       >
-        This page uses shared AiXia layout, registry toolbar action placement, employee identity display, and silent refresh behavior. Hero actions are intentionally empty because registry/front/list action controls belong in AixiaRegistryToolbar.
+        This registry/detail page uses the shared locked access rule block, shared AiXia layout, registry toolbar action placement, employee identity display, and silent refresh behavior. Hero actions are intentionally empty because registry/front/list action controls belong in AixiaRegistryToolbar.
       </AixiaAccessRule>
 
       {pageError ? <AixiaAlert tone="error">{pageError}</AixiaAlert> : null}

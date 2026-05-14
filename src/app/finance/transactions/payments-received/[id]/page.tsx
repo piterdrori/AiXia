@@ -1010,7 +1010,7 @@ export default function PaymentReceivedDetailPage() {
             onClick={cancelEditMode}
           >
             <XCircle className="h-4 w-4" />
-            Cancel Edit
+            Cancel Changes
           </AixiaButton>
         </>
       ) : null}

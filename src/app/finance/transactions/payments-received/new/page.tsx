@@ -2,27 +2,31 @@
 
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { useNavigate, useSearchParams } from "react-router-dom";
-import {
-  ArrowRight,
-  FileText,
-  Link2,
-  Save,
-  Upload,
-  Wallet,
-} from "lucide-react";
+import { FileText, Link2, Save, Upload, Wallet } from "lucide-react";
 
-import { supabase } from "@/lib/supabase";
-import { Button } from "@/components/ui/button";
-import { Badge } from "@/components/ui/badge";
 import {
-  Card,
-  CardContent,
-  CardDescription,
-  CardHeader,
-  CardTitle,
-} from "@/components/ui/card";
-
+  AixiaAlert,
+  AixiaBadge,
+  AixiaButton,
+  AixiaDisplayBlock,
+  AixiaDocumentUploadPanel,
+  AixiaFieldLabel,
+  AixiaFormField,
+  AixiaFormFullWidth,
+  AixiaFormGrid,
+  AixiaHero,
+  AixiaInputField,
+  AixiaLoadingState,
+  AixiaMetricCard,
+  AixiaMetricGrid,
+  AixiaPage,
+  AixiaSection,
+  AixiaSelectField,
+  AixiaSmartLayout,
+  AixiaTextareaField,
+} from "@/components/aixia";
 import { createPaymentReceived } from "@/lib/finance/paymentsReceived";
+import { supabase } from "@/lib/supabase";
 
 type InvoiceOption = {
   id: string;
@@ -137,9 +141,7 @@ export default function NewPaymentReceivedPage() {
 
   const [invoices, setInvoices] = useState<InvoiceOption[]>([]);
   const [currencies, setCurrencies] = useState<CurrencyOption[]>([]);
-  const [paymentMethods, setPaymentMethods] = useState<PaymentMethodOption[]>(
-    []
-  );
+  const [paymentMethods, setPaymentMethods] = useState<PaymentMethodOption[]>([]);
 
   const [invoiceId, setInvoiceId] = useState(sourceInvoiceId || "");
   const [paymentDate, setPaymentDate] = useState(
@@ -263,8 +265,7 @@ export default function NewPaymentReceivedPage() {
   const openBalance = toNumber(selectedInvoice?.balance_due);
 
   const invoiceFromName = selectedInvoice?.company_name_snapshot || "—";
-  const invoiceFromContact =
-    selectedInvoice?.company_contact_person_snapshot || "";
+  const invoiceFromContact = selectedInvoice?.company_contact_person_snapshot || "";
   const invoiceFromEmail = selectedInvoice?.company_email_snapshot || "";
   const invoiceFromPhone = selectedInvoice?.company_phone_snapshot || "";
   const invoiceFromAddress = selectedInvoice?.company_address_snapshot || "";
@@ -470,232 +471,117 @@ export default function NewPaymentReceivedPage() {
     sourceInvoiceId,
   ]);
 
-  const sectionCardClass =
-    "overflow-hidden rounded-[30px] border border-white/10 bg-white/[0.045] backdrop-blur-xl";
-
-  const summaryBlockClass =
-    "rounded-[24px] border border-white/10 bg-black/20 p-4";
-
-  const fieldShellClass =
-    "h-11 w-full rounded-2xl border border-white/10 bg-black/20 px-4 text-sm text-white outline-none transition focus:border-cyan-400/30 focus:bg-black/30";
-
-  const labelClass = "text-sm font-medium text-slate-300";
-  const eyebrowClass = "text-[11px] uppercase tracking-[0.2em] text-slate-500";
-
   if (isLoading) {
     return (
-      <div className="min-h-screen bg-[#05070d] px-4 py-4 text-white md:px-6 md:py-6">
-        <div className="mx-auto flex w-full max-w-[1600px] flex-col gap-6">
-          <div className="rounded-[30px] border border-white/10 bg-white/[0.045] p-6 text-sm text-slate-400 backdrop-blur-xl">
-            Loading payment sources...
-          </div>
-        </div>
-      </div>
+      <AixiaPage>
+        <AixiaLoadingState title="Loading payment sources" description="Preparing invoices, currencies, and payment methods." />
+      </AixiaPage>
     );
   }
 
   return (
-    <div className="min-h-screen bg-[#05070d] px-4 py-4 text-white md:px-6 md:py-6">
-      <div className="mx-auto flex w-full max-w-[1600px] flex-col gap-6">
-        <header className="relative overflow-hidden rounded-[34px] border border-white/10 bg-white/[0.045] p-6 shadow-2xl shadow-black/30 backdrop-blur-xl">
-          <div className="pointer-events-none absolute inset-0 bg-[radial-gradient(circle_at_top_left,rgba(6,182,212,0.16),transparent_38%),radial-gradient(circle_at_top_right,rgba(139,92,246,0.12),transparent_34%)]" />
+    <AixiaPage>
+      <AixiaHero
+        parentLabel="Payments Received"
+        parentPath="/finance/transactions/payments-received"
+        badges={[
+          { label: "New Payment Draft", tone: "cyan" },
+          { label: "Receivables", tone: "emerald" },
+          ...(sourceInvoiceId
+            ? [{ label: "Invoice prefilled", tone: "violet" as const }]
+            : []),
+        ]}
+        gradientTitle="Create"
+        title="Payment Received Draft"
+        description="Register a manual incoming payment against one issued or partially paid invoice. Save the draft, upload proof now or later, then confirm from the payment detail page."
+        statusCards={[
+          {
+            label: "Linked Invoice",
+            value: metricSummary.invoiceNumber,
+            description: "Payment draft will be saved against this invoice.",
+            icon: FileText,
+            tone: "cyan",
+          },
+          {
+            label: "Entered Amount",
+            value: formatMoney(numericAmount, paymentCurrencyCode || "USD"),
+            description: "Current draft payment amount.",
+            icon: Wallet,
+            tone: "emerald",
+          },
+        ]}
+        actions={
+          <AixiaButton
+            type="button"
+            variant="primary"
+            onClick={() => void handleSaveDraft()}
+            disabled={isSaving || isLoading}
+          >
+            <Save className="h-4 w-4" />
+            {isSaving ? "Saving..." : "Save Draft"}
+          </AixiaButton>
+        }
+      />
 
-          <div className="relative">
-            <button
-              type="button"
-              onClick={() => navigate("/finance/transactions/payments-received")}
-              className="mb-5 inline-flex items-center justify-center gap-2 rounded-full border border-white/10 bg-white/[0.05] px-5 py-2 text-[11px] font-semibold uppercase tracking-[0.22em] text-slate-300 transition hover:border-white/20 hover:bg-white/[0.08] hover:text-white"
+      <AixiaMetricGrid>
+        <AixiaMetricCard
+          label="Invoice Total"
+          value={formatMoney(selectedInvoice?.total_amount, invoiceCurrencyCode)}
+          description="Original invoice value."
+          icon={FileText}
+          tone="cyan"
+        />
+        <AixiaMetricCard
+          label="Paid"
+          value={formatMoney(selectedInvoice?.paid_amount, invoiceCurrencyCode)}
+          description="Confirmed payments already applied."
+          icon={Wallet}
+          tone="emerald"
+        />
+        <AixiaMetricCard
+          label="Open Balance"
+          value={formatMoney(openBalance, invoiceCurrencyCode)}
+          description="Remaining amount available for payment."
+          icon={Wallet}
+          tone="amber"
+        />
+        <AixiaMetricCard
+          label="Settlement"
+          value={isCrossCurrency ? "FX" : "Same"}
+          description={`${paymentCurrencyCode || "—"} → ${invoiceCurrencyCode || "—"}`}
+          icon={Link2}
+          tone="violet"
+        />
+      </AixiaMetricGrid>
+
+      {errorMessage ? <AixiaAlert tone="error">{errorMessage}</AixiaAlert> : null}
+      {enteredAmountExceedsOpenBalance ? (
+        <AixiaAlert tone="error">
+          Same-currency payment cannot exceed the open invoice balance.
+        </AixiaAlert>
+      ) : null}
+
+      <AixiaSmartLayout
+        main={
+          <>
+            <AixiaSection
+              title="Payment Header"
+              description="Link this draft to one open invoice and capture amount, currency, date, method, reference, and notes."
+              icon={Link2}
             >
-              <ArrowRight className="h-3.5 w-3.5 rotate-180" />
-              Payments Received
-            </button>
-
-            <div className="grid gap-6 xl:grid-cols-[minmax(0,1fr)_520px]">
-              <div>
-                <div className="flex flex-wrap gap-2">
-                  <Badge className="inline-flex w-fit rounded-full border border-cyan-400/20 bg-cyan-500/10 px-3 py-1 text-[11px] font-semibold uppercase tracking-[0.22em] text-cyan-200 shadow-none">
-                    New Payment Draft
-                  </Badge>
-
-                  <Badge className="inline-flex w-fit rounded-full border border-emerald-400/20 bg-emerald-500/10 px-3 py-1 text-[11px] font-semibold uppercase tracking-[0.22em] text-emerald-200 shadow-none">
-                    Receivables
-                  </Badge>
-
-                  {sourceInvoiceId ? (
-                    <Badge className="inline-flex w-fit rounded-full border border-violet-400/20 bg-violet-500/10 px-3 py-1 text-[11px] font-semibold uppercase tracking-[0.22em] text-violet-200 shadow-none">
-                      Invoice prefilled
-                    </Badge>
-                  ) : null}
-                </div>
-
-                <h1 className="mt-4 text-3xl font-semibold tracking-[-0.035em] text-white md:text-5xl">
-                  Create Payment Received Draft
-                </h1>
-
-                <p className="mt-3 max-w-4xl text-sm leading-6 text-slate-400 md:text-base md:leading-7">
-                  Register a manual incoming payment against one issued or
-                  partially paid invoice. Save the draft, upload proof now or
-                  later, then confirm from the payment detail page.
-                </p>
-
-                <div className="mt-5 flex flex-wrap gap-2">
-                  <Badge className="rounded-full border border-cyan-400/20 bg-cyan-500/10 px-3 py-1 text-[11px] font-semibold uppercase tracking-[0.16em] text-cyan-200 shadow-none">
-                    Draft only
-                  </Badge>
-                  <Badge className="rounded-full border border-emerald-400/20 bg-emerald-500/10 px-3 py-1 text-[11px] font-semibold uppercase tracking-[0.16em] text-emerald-200 shadow-none">
-                    Proof before confirmation
-                  </Badge>
-                  <Badge className="rounded-full border border-white/10 bg-white/[0.05] px-3 py-1 text-[11px] font-semibold uppercase tracking-[0.16em] text-slate-300 shadow-none">
-                    Backend FX conversion
-                  </Badge>
-                </div>
-              </div>
-
-              <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-1">
-                <div className="min-h-[148px] rounded-[24px] border border-white/10 bg-black/20 p-4">
-                  <div className="flex items-start justify-between gap-3">
-                    <div>
-                      <p className="text-[11px] font-semibold uppercase tracking-[0.2em] text-slate-500">
-                        Linked Invoice
-                      </p>
-                      <p className="mt-2 text-xl font-semibold tracking-[-0.035em] text-white">
-                        {metricSummary.invoiceNumber}
-                      </p>
-                    </div>
-                    <div className="flex h-10 w-10 items-center justify-center rounded-2xl border border-cyan-400/20 bg-cyan-500/10 text-cyan-200">
-                      <FileText className="h-4 w-4" />
-                    </div>
-                  </div>
-                  <p className="mt-3 text-xs leading-5 text-slate-500">
-                    Payment draft will be saved against this invoice.
-                  </p>
-                </div>
-
-                <div className="min-h-[148px] rounded-[24px] border border-white/10 bg-black/20 p-4">
-                  <div className="flex items-start justify-between gap-3">
-                    <div>
-                      <p className="text-[11px] font-semibold uppercase tracking-[0.2em] text-slate-500">
-                        Entered Amount
-                      </p>
-                      <p className="mt-2 text-xl font-semibold tracking-[-0.035em] text-white">
-                        {formatMoney(numericAmount, paymentCurrencyCode || "USD")}
-                      </p>
-                    </div>
-                    <div className="flex h-10 w-10 items-center justify-center rounded-2xl border border-emerald-400/20 bg-emerald-500/10 text-emerald-200">
-                      <Wallet className="h-4 w-4" />
-                    </div>
-                  </div>
-                  <p className="mt-3 text-xs leading-5 text-slate-500">
-                    Current draft payment amount.
-                  </p>
-                </div>
-              </div>
-            </div>
-
-            <div className="mt-6 flex flex-wrap gap-3">
-              <Button
-                onClick={() => void handleSaveDraft()}
-                disabled={isSaving || isLoading}
-                className="h-11 rounded-2xl border border-cyan-400/20 bg-cyan-500 px-4 text-sm font-semibold text-slate-950 transition hover:bg-cyan-400 disabled:cursor-not-allowed disabled:opacity-40"
-              >
-                <Save className="mr-2 h-4 w-4" />
-                {isSaving ? "Saving..." : "Save Draft"}
-              </Button>
-
-              {errorMessage ? (
-                <div className="flex min-h-11 items-center rounded-2xl border border-rose-400/20 bg-rose-500/10 px-4 text-sm text-rose-200">
-                  {errorMessage}
-                </div>
-              ) : null}
-            </div>
-          </div>
-        </header>
-
-        <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
-          <div className="group relative min-h-[156px] overflow-hidden rounded-[28px] border border-white/10 bg-white/[0.045] p-5 backdrop-blur-xl">
-            <div className="pointer-events-none absolute inset-0 bg-gradient-to-br from-cyan-500/20 via-cyan-400/10 to-transparent opacity-70" />
-            <div className="relative">
-              <div className={eyebrowClass}>Invoice Total</div>
-              <div className="mt-2 truncate text-3xl font-semibold tracking-[-0.035em] text-cyan-100">
-                {formatMoney(selectedInvoice?.total_amount, invoiceCurrencyCode)}
-              </div>
-              <div className="mt-2 text-sm leading-6 text-slate-400">
-                Original invoice value.
-              </div>
-            </div>
-          </div>
-
-          <div className="group relative min-h-[156px] overflow-hidden rounded-[28px] border border-white/10 bg-white/[0.045] p-5 backdrop-blur-xl">
-            <div className="pointer-events-none absolute inset-0 bg-gradient-to-br from-emerald-500/20 via-emerald-400/10 to-transparent opacity-70" />
-            <div className="relative">
-              <div className={eyebrowClass}>Paid</div>
-              <div className="mt-2 truncate text-3xl font-semibold tracking-[-0.035em] text-emerald-100">
-                {formatMoney(selectedInvoice?.paid_amount, invoiceCurrencyCode)}
-              </div>
-              <div className="mt-2 text-sm leading-6 text-slate-400">
-                Confirmed payments already applied.
-              </div>
-            </div>
-          </div>
-
-          <div className="group relative min-h-[156px] overflow-hidden rounded-[28px] border border-white/10 bg-white/[0.045] p-5 backdrop-blur-xl">
-            <div className="pointer-events-none absolute inset-0 bg-gradient-to-br from-amber-500/20 via-amber-400/10 to-transparent opacity-70" />
-            <div className="relative">
-              <div className={eyebrowClass}>Open Balance</div>
-              <div className="mt-2 truncate text-3xl font-semibold tracking-[-0.035em] text-amber-100">
-                {formatMoney(openBalance, invoiceCurrencyCode)}
-              </div>
-              <div className="mt-2 text-sm leading-6 text-slate-400">
-                Remaining amount available for payment.
-              </div>
-            </div>
-          </div>
-
-          <div className="group relative min-h-[156px] overflow-hidden rounded-[28px] border border-white/10 bg-white/[0.045] p-5 backdrop-blur-xl">
-            <div className="pointer-events-none absolute inset-0 bg-gradient-to-br from-violet-500/20 via-violet-400/10 to-transparent opacity-70" />
-            <div className="relative">
-              <div className={eyebrowClass}>Settlement</div>
-              <div className="mt-2 truncate text-3xl font-semibold tracking-[-0.035em] text-violet-100">
-                {isCrossCurrency ? "FX" : "Same"}
-              </div>
-              <div className="mt-2 text-sm leading-6 text-slate-400">
-                {paymentCurrencyCode || "—"} → {invoiceCurrencyCode || "—"}
-              </div>
-            </div>
-          </div>
-        </div>
-
-        <div className="grid grid-cols-1 gap-6 xl:grid-cols-[minmax(0,1.45fr)_420px]">
-          <div className="space-y-6">
-            <Card className={sectionCardClass}>
-              <CardHeader className="border-b border-white/10 px-5 py-4">
-                <div className="flex items-center gap-3">
-                  <div className="rounded-2xl border border-cyan-400/15 bg-cyan-500/10 p-3 text-cyan-200">
-                    <Link2 className="h-4 w-4" />
-                  </div>
-                  <div>
-                    <CardTitle className="text-sm font-semibold uppercase tracking-[0.18em] text-slate-400">
-                      Payment Header
-                    </CardTitle>
-                    <CardDescription className="mt-1 text-xs text-slate-500">
-                      Link this draft to one open invoice and capture amount,
-                      currency, date, method, reference, and notes.
-                    </CardDescription>
-                  </div>
-                </div>
-              </CardHeader>
-
-              <CardContent className="grid grid-cols-1 gap-4 p-5 md:grid-cols-2">
-                <label className="space-y-2 md:col-span-2">
-                  <div className={labelClass}>Linked Invoice</div>
-                  <select
+              <AixiaFormGrid>
+                <AixiaFormFullWidth>
+                  <AixiaFieldLabel
+                    label="Linked Invoice"
+                    helper="After confirmation, the linked invoice balance updates from this payment."
+                  />
+                  <AixiaSelectField
                     value={invoiceId}
                     onChange={(event) => {
                       setInvoiceId(event.target.value);
                       setAmount("");
                       setPaymentCurrencyCode("");
                     }}
-                    className={fieldShellClass}
                   >
                     <option value="">Select invoice</option>
                     {invoices.map((invoice) => {
@@ -707,90 +593,60 @@ export default function NewPaymentReceivedPage() {
 
                       return (
                         <option key={invoice.id} value={invoice.id}>
-                          {invoice.invoice_number} —{" "}
-                          {invoice.company_name_snapshot || "From company"} →{" "}
-                          {recipientName} —{" "}
-                          {formatMoney(
-                            invoice.balance_due,
-                            invoice.currency_code || "USD"
-                          )}{" "}
-                          open
+                          {invoice.invoice_number} — {invoice.company_name_snapshot || "From company"} → {recipientName} — {formatMoney(invoice.balance_due, invoice.currency_code || "USD")} open
                         </option>
                       );
                     })}
-                  </select>
-
-                  <div className="text-xs leading-5 text-slate-500">
-                    After confirmation, the linked invoice balance updates from
-                    this payment.
-                  </div>
-                </label>
+                  </AixiaSelectField>
+                </AixiaFormFullWidth>
 
                 {selectedInvoice ? (
-                  <div className="grid grid-cols-1 gap-4 md:col-span-2 md:grid-cols-2">
-                    <div className="rounded-[22px] border border-cyan-400/15 bg-cyan-500/10 p-4">
-                      <div className={eyebrowClass}>Invoice From</div>
-                      <div className="mt-2 text-lg font-semibold text-white">
-                        {invoiceFromName}
-                      </div>
+                  <>
+                    <AixiaFormField>
+                      <AixiaDisplayBlock
+                        label="Invoice From"
+                        value={invoiceFromName}
+                        detail={[invoiceFromContact, invoiceFromEmail, invoiceFromPhone, invoiceFromAddress]
+                          .filter(Boolean)
+                          .join(" • ")}
+                      />
+                    </AixiaFormField>
 
-                      <div className="mt-3 space-y-1 text-sm leading-6 text-slate-300">
-                        {invoiceFromContact ? (
-                          <div>Contact: {invoiceFromContact}</div>
-                        ) : null}
-                        {invoiceFromEmail ? <div>Email: {invoiceFromEmail}</div> : null}
-                        {invoiceFromPhone ? <div>Phone: {invoiceFromPhone}</div> : null}
-                        {invoiceFromAddress ? <div>{invoiceFromAddress}</div> : null}
-                      </div>
-                    </div>
-
-                    <div className="rounded-[22px] border border-emerald-400/15 bg-emerald-500/10 p-4">
-                      <div className={eyebrowClass}>Invoice To</div>
-                      <div className="mt-2 text-lg font-semibold text-white">
-                        {invoiceToName}
-                      </div>
-
-                      <div className="mt-3 space-y-1 text-sm leading-6 text-slate-300">
-                        {invoiceToContact ? <div>Contact: {invoiceToContact}</div> : null}
-                        {invoiceToEmail ? <div>Email: {invoiceToEmail}</div> : null}
-                        {invoiceToPhone ? <div>Phone: {invoiceToPhone}</div> : null}
-                        {invoiceToAddress ? <div>{invoiceToAddress}</div> : null}
-                      </div>
-                    </div>
-                  </div>
+                    <AixiaFormField>
+                      <AixiaDisplayBlock
+                        label="Invoice To"
+                        value={invoiceToName}
+                        detail={[invoiceToContact, invoiceToEmail, invoiceToPhone, invoiceToAddress]
+                          .filter(Boolean)
+                          .join(" • ")}
+                      />
+                    </AixiaFormField>
+                  </>
                 ) : null}
 
-                <label className="space-y-2">
-                  <div className={labelClass}>Payment Date</div>
-                  <input
+                <AixiaFormField>
+                  <AixiaFieldLabel label="Payment Date" />
+                  <AixiaInputField
                     type="date"
                     value={paymentDate}
                     onChange={(event) => setPaymentDate(event.target.value)}
-                    className={fieldShellClass}
                   />
-                </label>
+                </AixiaFormField>
 
-                <label className="space-y-2">
-                  <div className={labelClass}>Amount</div>
-                  <input
+                <AixiaFormField>
+                  <AixiaFieldLabel label="Amount" />
+                  <AixiaInputField
                     value={amount}
                     onChange={(event) => setAmount(event.target.value)}
                     placeholder="Enter received amount"
-                    className={fieldShellClass}
                   />
-                  {enteredAmountExceedsOpenBalance ? (
-                    <div className="text-xs leading-5 text-rose-300">
-                      Same-currency payment cannot exceed open invoice balance.
-                    </div>
-                  ) : null}
-                </label>
+                </AixiaFormField>
 
-                <label className="space-y-2">
-                  <div className={labelClass}>Payment Currency</div>
-                  <select
+                <AixiaFormField>
+                  <AixiaFieldLabel label="Payment Currency" />
+                  <AixiaSelectField
                     value={paymentCurrencyCode}
                     onChange={(event) => setPaymentCurrencyCode(event.target.value)}
-                    className={fieldShellClass}
                   >
                     <option value="">Select currency</option>
                     {currencies.map((currency) => (
@@ -798,32 +654,27 @@ export default function NewPaymentReceivedPage() {
                         {currency.currency_code} — {currency.currency_name}
                       </option>
                     ))}
-                  </select>
-                </label>
+                  </AixiaSelectField>
+                </AixiaFormField>
 
-                <div className="space-y-2">
-                  <div className={labelClass}>Invoice Currency</div>
-                  <div className="flex h-11 items-center rounded-2xl border border-white/10 bg-black/20 px-4 text-sm text-white/70">
-                    {invoiceCurrencyCode}
-                  </div>
-                </div>
+                <AixiaFormField>
+                  <AixiaDisplayBlock label="Invoice Currency" value={invoiceCurrencyCode} />
+                </AixiaFormField>
 
-                <label className="space-y-2">
-                  <div className={labelClass}>Reference Number</div>
-                  <input
+                <AixiaFormField>
+                  <AixiaFieldLabel label="Reference Number" />
+                  <AixiaInputField
                     value={referenceNumber}
                     onChange={(event) => setReferenceNumber(event.target.value)}
                     placeholder="Bank reference / transfer reference"
-                    className={fieldShellClass}
                   />
-                </label>
+                </AixiaFormField>
 
-                <label className="space-y-2">
-                  <div className={labelClass}>Payment Method</div>
-                  <select
+                <AixiaFormField>
+                  <AixiaFieldLabel label="Payment Method" />
+                  <AixiaSelectField
                     value={paymentMethodId}
                     onChange={(event) => setPaymentMethodId(event.target.value)}
-                    className={fieldShellClass}
                   >
                     <option value="">Select payment method</option>
                     {paymentMethods.map((method) => (
@@ -831,205 +682,137 @@ export default function NewPaymentReceivedPage() {
                         {method.name}
                       </option>
                     ))}
-                  </select>
-                </label>
+                  </AixiaSelectField>
+                </AixiaFormField>
 
-                <div className="space-y-2">
-                  <div className={labelClass}>Settlement Type</div>
-                  <div className="flex h-11 items-center rounded-2xl border border-white/10 bg-black/20 px-4 text-sm text-white/70">
-                    {isCrossCurrency
-                      ? "Cross-currency settlement"
-                      : "Same-currency settlement"}
-                  </div>
-                </div>
+                <AixiaFormField>
+                  <AixiaDisplayBlock
+                    label="Settlement Type"
+                    value={isCrossCurrency ? "Cross-currency settlement" : "Same-currency settlement"}
+                  />
+                </AixiaFormField>
 
-                <label className="space-y-2 md:col-span-2">
-                  <div className={labelClass}>Notes</div>
-                  <textarea
+                <AixiaFormFullWidth>
+                  <AixiaFieldLabel label="Notes" />
+                  <AixiaTextareaField
                     value={notes}
                     onChange={(event) => setNotes(event.target.value)}
                     rows={4}
-                    className="w-full rounded-2xl border border-white/10 bg-black/20 px-4 py-3 text-sm text-white outline-none transition focus:border-cyan-400/30 focus:bg-black/30"
                   />
-                </label>
-              </CardContent>
-            </Card>
+                </AixiaFormFullWidth>
+              </AixiaFormGrid>
+            </AixiaSection>
 
-            <Card className={sectionCardClass}>
-              <CardHeader className="border-b border-white/10 px-5 py-4">
-                <div className="flex items-center gap-3">
-                  <div className="rounded-2xl border border-amber-400/15 bg-amber-500/10 p-3 text-amber-200">
-                    <Upload className="h-4 w-4" />
-                  </div>
-                  <div>
-                    <CardTitle className="text-sm font-semibold uppercase tracking-[0.18em] text-slate-400">
-                      Proof of Payment
-                    </CardTitle>
-                    <CardDescription className="mt-1 text-xs text-slate-500">
-                      Optional here, required before confirmation. If selected,
-                      the proof file is uploaded immediately after the draft is
-                      created.
-                    </CardDescription>
-                  </div>
-                </div>
-              </CardHeader>
+            <AixiaSection
+              title="Proof of Payment"
+              description="Optional here, required before confirmation. If selected, the proof file is uploaded immediately after the draft is created."
+              icon={Upload}
+              badge={proofFile ? <AixiaBadge tone="emerald">Selected</AixiaBadge> : <AixiaBadge tone="amber">Optional Now</AixiaBadge>}
+            >
+              <AixiaDocumentUploadPanel
+                selectedFile={proofFile}
+                attachments={[]}
+                required={false}
+                disabled={isSaving}
+                uploading={isSaving}
+                dropTitle="Attach payment proof"
+                dropDescription="Upload transfer confirmation, remittance advice, or payment slip."
+                uploadLabel="Save Draft With Proof"
+                uploadingLabel="Saving..."
+                emptyTitle="No proof selected"
+                emptyDescription="You can upload proof now or later from the payment detail page."
+                onFileSelect={setProofFile}
+                onRemoveSelectedFile={() => setProofFile(null)}
+                onUpload={() => void handleSaveDraft()}
+              />
+            </AixiaSection>
 
-              <CardContent className="space-y-4 p-5">
-                <input
-                  type="file"
-                  onChange={(event) => {
-                    const file = event.target.files?.[0] || null;
-                    setProofFile(file);
-                  }}
-                  className="block w-full text-sm text-white file:mr-4 file:rounded-lg file:border-0 file:bg-white/10 file:px-4 file:py-2 file:text-white hover:file:bg-white/20"
-                />
+            <AixiaSection
+              title="Locked Behavior"
+              description="Payment creation rules."
+              icon={FileText}
+            >
+              <AixiaAlert tone="info">
+                Payments are created as draft only. Every payment must be linked to one invoice. Proof may be uploaded now or later. Confirmation is blocked until proof exists. Confirmed payments update the linked invoice balance. Multi-currency conversion is calculated by backend.
+              </AixiaAlert>
+            </AixiaSection>
+          </>
+        }
+        side={
+          <>
+            <AixiaSection
+              title="Draft Summary"
+              description="Review the linked invoice, amount, payment method, and settlement direction before saving."
+              icon={FileText}
+            >
+              <AixiaFormGrid>
+                <AixiaFormField>
+                  <AixiaDisplayBlock
+                    label="Linked Invoice"
+                    value={metricSummary.invoiceNumber}
+                    detail={`Status: ${metricSummary.invoiceStatus} · Payment: ${metricSummary.paymentStatus}`}
+                  />
+                </AixiaFormField>
 
-                {proofFile ? (
-                  <div className="rounded-[18px] border border-emerald-400/20 bg-emerald-500/10 px-4 py-3 text-sm text-emerald-200">
-                    Selected file: {proofFile.name}
-                  </div>
-                ) : (
-                  <div className="rounded-[18px] border border-amber-400/20 bg-amber-500/10 px-4 py-3 text-sm text-amber-200">
-                    No file selected. You can upload proof later on the detail page.
-                  </div>
-                )}
-              </CardContent>
-            </Card>
+                <AixiaFormField>
+                  <AixiaDisplayBlock
+                    label="Invoice From / To"
+                    value={`${invoiceFromName} → ${invoiceToName}`}
+                    detail={invoiceToEmail || invoiceToPhone || metricSummary.clientName}
+                  />
+                </AixiaFormField>
 
-            <Card className={sectionCardClass}>
-              <CardHeader className="border-b border-white/10 px-5 py-4">
-                <CardTitle className="text-sm font-semibold uppercase tracking-[0.18em] text-slate-400">
-                  Locked Behavior
-                </CardTitle>
-                <CardDescription className="mt-1 text-xs text-slate-500">
-                  Payment creation rules.
-                </CardDescription>
-              </CardHeader>
+                <AixiaFormField>
+                  <AixiaDisplayBlock
+                    label="Open Balance"
+                    value={formatMoney(metricSummary.openBalance, metricSummary.invoiceCurrency)}
+                  />
+                </AixiaFormField>
 
-              <CardContent className="space-y-2 p-5 text-sm leading-6 text-slate-400">
-                <div>• Payments are created as draft only.</div>
-                <div>• Every payment must be linked to one invoice.</div>
-                <div>• The selected invoice ID is saved on the payment record.</div>
-                <div>• Proof may be uploaded now or later.</div>
-                <div>• Confirmation is blocked until proof exists.</div>
-                <div>• Confirmed payments update the linked invoice balance.</div>
-                <div>• Multi-currency conversion is calculated by backend.</div>
-                <div>• Converted amount is used for invoice settlement.</div>
-                <div>• Payments can be cancelled but not edited after confirmation.</div>
-              </CardContent>
-            </Card>
-          </div>
+                <AixiaFormField>
+                  <AixiaDisplayBlock
+                    label="Entered Amount"
+                    value={formatMoney(metricSummary.enteredAmount, paymentCurrencyCode || "USD")}
+                  />
+                </AixiaFormField>
 
-          <div className="space-y-6">
-            <Card className={sectionCardClass}>
-              <CardHeader className="border-b border-white/10 px-5 py-4">
-                <CardTitle className="text-sm font-semibold uppercase tracking-[0.18em] text-slate-400">
-                  Draft Summary
-                </CardTitle>
-                <CardDescription className="mt-1 text-xs text-slate-500">
-                  Review the linked invoice, amount, payment method, and
-                  settlement direction before saving.
-                </CardDescription>
-              </CardHeader>
+                <AixiaFormField>
+                  <AixiaDisplayBlock
+                    label="Payment Method"
+                    value={metricSummary.paymentMethod}
+                  />
+                </AixiaFormField>
 
-              <CardContent className="space-y-3 p-5">
-                <div className="rounded-[20px] border border-cyan-400/15 bg-cyan-500/10 px-4 py-3">
-                  <div className="text-xs uppercase tracking-[0.18em] text-cyan-100/70">
-                    Linked Invoice
-                  </div>
-                  <div className="mt-2 text-base font-semibold text-white">
-                    {metricSummary.invoiceNumber}
-                  </div>
-                  <div className="mt-1 text-xs text-slate-500">
-                    Status: {metricSummary.invoiceStatus} · Payment:{" "}
-                    {metricSummary.paymentStatus}
-                  </div>
-                </div>
+                <AixiaFormField>
+                  <AixiaDisplayBlock
+                    label="Settlement Direction"
+                    value={`${paymentCurrencyCode || "—"} → ${invoiceCurrencyCode || "—"}`}
+                    detail={
+                      !selectedInvoice
+                        ? "Select invoice first."
+                        : isCrossCurrency
+                          ? "Cross-currency payment. Backend will calculate converted amount."
+                          : "Same-currency payment."
+                    }
+                  />
+                </AixiaFormField>
+              </AixiaFormGrid>
 
-                <div className={summaryBlockClass}>
-                  <div className={eyebrowClass}>Invoice From / To</div>
-                  <div className="mt-2 text-base font-semibold text-white">
-                    {invoiceFromName} → {invoiceToName}
-                  </div>
-                  <div className="mt-1 text-xs leading-5 text-slate-500">
-                    {invoiceToEmail || invoiceToPhone || metricSummary.clientName}
-                  </div>
-                </div>
+              {proofFile ? (
+                <AixiaAlert tone="success">Proof will be uploaded with the draft.</AixiaAlert>
+              ) : (
+                <AixiaAlert tone="warning">Proof is not attached yet.</AixiaAlert>
+              )}
+            </AixiaSection>
 
-                <div className={summaryBlockClass}>
-                  <div className={eyebrowClass}>Open Balance</div>
-                  <div className="mt-2 text-lg font-semibold text-white">
-                    {formatMoney(metricSummary.openBalance, metricSummary.invoiceCurrency)}
-                  </div>
-                </div>
-
-                <div className={summaryBlockClass}>
-                  <div className={eyebrowClass}>Entered Amount</div>
-                  <div className="mt-2 text-lg font-semibold text-white">
-                    {formatMoney(metricSummary.enteredAmount, paymentCurrencyCode || "USD")}
-                  </div>
-                </div>
-
-                <div className={summaryBlockClass}>
-                  <div className={eyebrowClass}>Payment Method</div>
-                  <div className="mt-2 text-base font-semibold text-white">
-                    {metricSummary.paymentMethod}
-                  </div>
-                </div>
-
-                <div className="rounded-[20px] border border-violet-400/15 bg-violet-500/10 px-4 py-3">
-                  <div className="text-xs uppercase tracking-[0.18em] text-violet-100/70">
-                    Settlement Direction
-                  </div>
-                  <div className="mt-2 text-xl font-semibold text-white">
-                    {paymentCurrencyCode || "—"} → {invoiceCurrencyCode || "—"}
-                  </div>
-                  <div className="mt-1 text-xs text-slate-500">
-                    {!selectedInvoice
-                      ? "Select invoice first."
-                      : isCrossCurrency
-                        ? "Cross-currency payment. Backend will calculate converted amount."
-                        : "Same-currency payment."}
-                  </div>
-                </div>
-
-                {proofFile ? (
-                  <div className="rounded-[18px] border border-emerald-400/20 bg-emerald-500/10 px-4 py-3 text-sm text-emerald-200">
-                    Proof will be uploaded with the draft.
-                  </div>
-                ) : (
-                  <div className="rounded-[18px] border border-amber-400/20 bg-amber-500/10 px-4 py-3 text-sm text-amber-200">
-                    Proof is not attached yet.
-                  </div>
-                )}
-
-                {errorMessage ? (
-                  <div className="rounded-[18px] border border-rose-400/20 bg-rose-500/10 px-4 py-3 text-sm text-rose-200">
-                    {errorMessage}
-                  </div>
-                ) : null}
-              </CardContent>
-            </Card>
-
-            <Card className={sectionCardClass}>
-              <CardHeader className="border-b border-white/10 px-5 py-4">
-                <CardTitle className="text-sm font-semibold uppercase tracking-[0.18em] text-slate-400">
-                  Workflow Reminder
-                </CardTitle>
-              </CardHeader>
-
-              <CardContent className="space-y-2 p-5 text-sm leading-6 text-slate-400">
-                <div>• Select the invoice first.</div>
-                <div>• Save the payment as draft against that invoice.</div>
-                <div>• Upload the transfer proof now or on the detail page.</div>
-                <div>• Confirm only after proof exists.</div>
-                <div>• Confirmed payments update the linked invoice balance.</div>
-                <div>• Multi-currency conversion runs after draft creation.</div>
-              </CardContent>
-            </Card>
-          </div>
-        </div>
-      </div>
-    </div>
+            <AixiaSection title="Workflow Reminder" icon={Link2}>
+              <AixiaAlert tone="info">
+                Select the invoice first. Save the payment as draft against that invoice. Upload the transfer proof now or on the detail page. Confirm only after proof exists. Confirmed payments update the linked invoice balance. Multi-currency conversion runs after draft creation.
+              </AixiaAlert>
+            </AixiaSection>
+          </>
+        }
+      />
+    </AixiaPage>
   );
 }

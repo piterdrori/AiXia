@@ -1582,12 +1582,13 @@
   width: 100% !important;
   min-width: 0 !important;
   max-width: 100% !important;
-  height: min(360px, 34vh) !important;
-  max-height: min(360px, 34vh) !important;
-  overflow: scroll !important;
+  height: min(340px, 32vh) !important;
+  max-height: min(340px, 32vh) !important;
+  overflow-x: scroll !important;
+  overflow-y: scroll !important;
   overscroll-behavior: contain !important;
-  padding-right: 0.75rem;
-  padding-bottom: 1rem;
+  padding-right: 1rem !important;
+  padding-bottom: 1.75rem !important;
   scrollbar-gutter: stable both-edges;
 }
 
@@ -1686,13 +1687,14 @@
   width: 100% !important;
   min-width: 0 !important;
   max-width: 100% !important;
-  height: min(360px, 34vh) !important;
+  height: min(340px, 32vh) !important;
   min-height: 0;
-  max-height: min(360px, 34vh) !important;
-  overflow: scroll !important;
+  max-height: min(340px, 32vh) !important;
+  overflow-x: scroll !important;
+  overflow-y: scroll !important;
   overscroll-behavior: contain !important;
-  padding-right: 0.75rem;
-  padding-bottom: 1rem;
+  padding-right: 1rem !important;
+  padding-bottom: 1.75rem !important;
   scrollbar-gutter: stable both-edges;
 }
 
@@ -3058,8 +3060,28 @@
 }
 
 .aixia-table-wrap[data-table-variant="archive"] .aixia-table-scroll {
-  scrollbar-color: rgba(255, 255, 255, 0.38) rgba(255, 255, 255, 0.08) !important;
+  scrollbar-color: rgba(255, 255, 255, 0.72) rgba(255, 255, 255, 0.16) !important;
   scrollbar-width: auto !important;
+}
+
+.aixia-table-wrap[data-table-variant="archive"] .aixia-table-scroll::-webkit-scrollbar:horizontal {
+  height: 16px !important;
+}
+
+.aixia-table-wrap[data-table-variant="archive"] .aixia-table-scroll::-webkit-scrollbar:vertical {
+  width: 12px !important;
+}
+
+.aixia-table-wrap[data-table-variant="archive"] .aixia-table-scroll::-webkit-scrollbar-track:horizontal {
+  border-radius: 999px !important;
+  background: rgba(255, 255, 255, 0.16) !important;
+}
+
+.aixia-table-wrap[data-table-variant="archive"] .aixia-table-scroll::-webkit-scrollbar-thumb:horizontal {
+  min-width: 80px !important;
+  border: 3px solid rgba(15, 23, 42, 0.95) !important;
+  border-radius: 999px !important;
+  background: rgba(255, 255, 255, 0.72) !important;
 }
 
 /* -------------------------------------------------------

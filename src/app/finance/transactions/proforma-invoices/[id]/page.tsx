@@ -4,7 +4,6 @@ import { useCallback, useEffect, useMemo, useState } from "react";
 import { useNavigate, useParams } from "react-router-dom";
 import {
   Archive,
-  ArrowRight,
   CheckCircle,
   FileText,
   Link2,
@@ -16,15 +15,38 @@ import {
 } from "lucide-react";
 
 import { supabase } from "@/lib/supabase";
-import { Button } from "@/components/ui/button";
-import { Badge } from "@/components/ui/badge";
 import {
-  Card,
-  CardContent,
-  CardDescription,
-  CardHeader,
-  CardTitle,
-} from "@/components/ui/card";
+  AixiaAccessRule,
+  AixiaAlert,
+  AixiaArchiveManagerModal,
+  AixiaBadge,
+  AixiaButton,
+  AixiaDisplayBlock,
+  AixiaEmptyState,
+  AixiaFieldLabel,
+  AixiaFormField,
+  AixiaFormFullWidth,
+  AixiaFormGrid,
+  AixiaFormRowCard,
+  AixiaHero,
+  AixiaInputField,
+  AixiaLoadingState,
+  AixiaMetricCard,
+  AixiaMetricGrid,
+  AixiaPage,
+  AixiaReviewGrid,
+  AixiaSection,
+  AixiaSelectField,
+  AixiaSmartLayout,
+  AixiaStatusBadge,
+  AixiaTableActionsCell,
+  AixiaTableBadgeCell,
+  AixiaTableDateCell,
+  AixiaTableShell,
+  AixiaTableTextCell,
+  AixiaTextareaField,
+  AixiaValueBlock,
+} from "@/components/aixia";
 
 import ProformaInvoicePrintDocument from "./ProformaInvoicePrintDocument";
 
@@ -458,27 +480,6 @@ function buildBankDetailsLinesFromSnapshot(snapshot: string | null | undefined) 
       if (line === "Currency: —") return false;
       return true;
     });
-}
-
-function getProformaStatusBadgeClasses(status: ProformaStatus) {
-  switch (status) {
-    case "draft":
-      return "border-white/10 bg-white/10 text-white/75";
-    case "issued":
-      return "border-sky-400/20 bg-sky-500/10 text-sky-200";
-    case "confirmed":
-      return "border-emerald-400/20 bg-emerald-500/10 text-emerald-200";
-    case "converted":
-      return "border-violet-400/20 bg-violet-500/10 text-violet-200";
-    case "archived":
-      return "border-amber-400/20 bg-amber-500/10 text-amber-200";
-    case "deleted":
-      return "border-rose-500/30 bg-rose-500/10 text-rose-300";
-    case "canceled":
-      return "border-rose-400/20 bg-rose-500/10 text-rose-200";
-    default:
-      return "border-white/10 bg-white/10 text-white/75";
-  }
 }
 
 function getProformaStatusLabel(status: ProformaStatus) {
@@ -2115,1721 +2116,1021 @@ export default function FinanceProformaInvoiceDetailPage() {
   const visibleArchiveItems = archiveItems.filter(
     (item) => item.status === archiveTab
   );
-
-  const sectionCardClass =
-    "overflow-hidden rounded-[30px] border border-white/10 bg-white/[0.045] backdrop-blur-xl";
-
-  const innerPanelClass =
-    "rounded-[24px] border border-white/10 bg-black/20 p-4";
-
-  const fieldShellClass =
-    "h-10 w-full rounded-2xl border border-white/10 bg-black/20 px-3 text-sm text-white outline-none transition focus:border-cyan-400/30 focus:bg-black/30";
-
-  const inputFieldClass =
-    "h-11 w-full rounded-2xl border border-white/10 bg-black/20 px-4 text-sm text-white outline-none transition placeholder:text-slate-600 focus:border-cyan-400/30 focus:bg-black/30";
-
-  const readOnlyFieldClass =
-    "flex min-h-[44px] items-center rounded-2xl border border-white/10 bg-black/20 px-4 text-sm leading-6 text-white/80";
-
-  const labelClass = "text-sm font-medium text-slate-300";
-
-  const eyebrowClass = "text-[11px] uppercase tracking-[0.2em] text-slate-500";
+  const archivedArchiveCount = archiveItems.filter(
+    (item) => item.status === "archived"
+  ).length;
+  const deletedArchiveCount = archiveItems.filter(
+    (item) => item.status === "deleted"
+  ).length;
 
   if (isLoading) {
     return (
-      <div className="min-h-screen bg-[#05070d] px-4 py-4 text-white md:px-6 md:py-6">
-        <div className="mx-auto flex w-full max-w-[1600px] flex-col gap-6">
-          <div className="rounded-[30px] border border-white/10 bg-white/[0.045] p-6 text-sm text-slate-400 backdrop-blur-xl">
-            Loading proforma invoice...
-          </div>
-        </div>
-      </div>
+      <AixiaLoadingState
+        title="Loading proforma invoice"
+        description="Proforma invoice document data, line items, linked documents, and master data are loading."
+      />
     );
   }
 
   if (!proforma || !totals) {
     return (
-      <div className="min-h-screen bg-[#05070d] px-4 py-4 text-white md:px-6 md:py-6">
-        <div className="mx-auto flex w-full max-w-[1600px] flex-col gap-6">
-          <div className="rounded-[30px] border border-white/10 bg-white/[0.045] p-6 text-sm text-slate-400 backdrop-blur-xl">
-            Proforma invoice not found.
-          </div>
-        </div>
-      </div>
+      <AixiaPage>
+        <AixiaEmptyState
+          icon={FileText}
+          title="Proforma invoice not found"
+          description="The requested proforma invoice could not be loaded."
+        />
+      </AixiaPage>
     );
   }
 
+  const overviewActions = canEditDraft ? (
+    editingOverview ? (
+      <>
+        <AixiaButton
+          type="button"
+          variant="primary"
+          disabled={isSavingDraft}
+          onClick={() => void handleSaveDraftChanges()}
+        >
+          <Save className="h-4 w-4" />
+          {isSavingDraft ? "Saving..." : "Save"}
+        </AixiaButton>
+        <AixiaButton
+          type="button"
+          variant="secondary"
+          onClick={() => {
+            setEditingOverview(false);
+            void loadProforma(true);
+          }}
+        >
+          Cancel
+        </AixiaButton>
+      </>
+    ) : (
+      <AixiaButton
+        type="button"
+        variant="primary"
+        onClick={() => setEditingOverview(true)}
+      >
+        <SquarePen className="h-4 w-4" />
+        Edit
+      </AixiaButton>
+    )
+  ) : null;
+
+  const financialActions = canEditDraft ? (
+    editingFinancialSettings ? (
+      <>
+        <AixiaButton
+          type="button"
+          variant="primary"
+          disabled={isSavingDraft}
+          onClick={() => void handleSaveDraftChanges()}
+        >
+          <Save className="h-4 w-4" />
+          {isSavingDraft ? "Saving..." : "Save"}
+        </AixiaButton>
+        <AixiaButton
+          type="button"
+          variant="secondary"
+          onClick={() => {
+            setEditingFinancialSettings(false);
+            void loadProforma(true);
+          }}
+        >
+          Cancel
+        </AixiaButton>
+      </>
+    ) : (
+      <AixiaButton
+        type="button"
+        variant="primary"
+        onClick={() => setEditingFinancialSettings(true)}
+      >
+        <SquarePen className="h-4 w-4" />
+        Edit
+      </AixiaButton>
+    )
+  ) : null;
+
+  const documentActions = canEditDraft ? (
+    editingDocumentDetails ? (
+      <>
+        <AixiaButton
+          type="button"
+          variant="primary"
+          disabled={isSavingDraft}
+          onClick={() => void handleSaveDraftChanges()}
+        >
+          <Save className="h-4 w-4" />
+          {isSavingDraft ? "Saving..." : "Save"}
+        </AixiaButton>
+        <AixiaButton
+          type="button"
+          variant="secondary"
+          onClick={() => {
+            setEditingDocumentDetails(false);
+            void loadProforma(true);
+          }}
+        >
+          Cancel
+        </AixiaButton>
+      </>
+    ) : (
+      <AixiaButton
+        type="button"
+        variant="primary"
+        onClick={() => setEditingDocumentDetails(true)}
+      >
+        <SquarePen className="h-4 w-4" />
+        Edit Terms
+      </AixiaButton>
+    )
+  ) : null;
+
+  const lineActions = canEditDraft ? (
+    <>
+      {editingLines ? (
+        <AixiaButton
+          type="button"
+          variant="primary"
+          disabled={isSavingDraft}
+          onClick={() => void handleSaveDraftChanges()}
+        >
+          <Save className="h-4 w-4" />
+          {isSavingDraft ? "Saving..." : "Save"}
+        </AixiaButton>
+      ) : null}
+      {editingLines ? (
+        <AixiaButton type="button" variant="secondary" onClick={addDraftLineItem}>
+          Add Row
+        </AixiaButton>
+      ) : null}
+      <AixiaButton
+        type="button"
+        variant={editingLines ? "secondary" : "primary"}
+        onClick={() => setEditingLines((current) => !current)}
+      >
+        <SquarePen className="h-4 w-4" />
+        {editingLines ? "Close" : "Edit"}
+      </AixiaButton>
+    </>
+  ) : null;
+
+  const mainContent = (
+    <>
+      <AixiaSection
+        title="Document Overview"
+        description="Source mode, Customer PO source, client, company, dates, currency, and project context."
+        icon={FileText}
+        actions={overviewActions}
+      >
+        <AixiaFormGrid columns="three">
+          <AixiaFormField>
+            <AixiaDisplayBlock label="Source Mode" value={linkedCustomerPo ? "From Customer PO" : "Manual"} />
+            {editingOverview && canEditDraft ? (
+              <AixiaSelectField
+                value={sourceModeDraft}
+                onChange={(event) => {
+                  const nextMode = event.target.value as "manual" | "customer_po";
+                  setSourceModeDraft(nextMode);
+
+                  if (nextMode === "manual") {
+                    setSourceCustomerPoIdDraft("");
+                    setLinkedCustomerPo(null);
+                    setLineItemsDraft([createEditableDraftLineItem()]);
+                    setNotesDraft("");
+                  }
+                }}
+              >
+                <option value="manual">Manual</option>
+                <option value="customer_po">From Customer PO</option>
+              </AixiaSelectField>
+            ) : null}
+          </AixiaFormField>
+
+          <AixiaFormField>
+            <AixiaFieldLabel label="Source Customer PO" />
+            {editingOverview && canEditDraft ? (
+              <AixiaSelectField
+                value={sourceCustomerPoIdDraft}
+                onChange={(event) => void applyCustomerPoSourceToDraft(event.target.value)}
+              >
+                <option value="">No Customer PO / Manual</option>
+                {selectableCustomerPos.map((po) => (
+                  <option key={po.id} value={po.id}>
+                    {po.client_po_number || "Customer PO"} · {po.external_po_number || "No external no."} · {formatFinanceMoney(po.total_amount, po.currency_code || printableCurrencyCode)}
+                  </option>
+                ))}
+              </AixiaSelectField>
+            ) : (
+              <AixiaDisplayBlock
+                label="Source Customer PO"
+                value={
+                  linkedCustomerPo?.client_po_number ||
+                  linkedCustomerPo?.external_po_number ||
+                  getMetadataString(proforma.metadata, "client_po_number") ||
+                  getMetadataString(proforma.metadata, "external_po_number") ||
+                  "—"
+                }
+              />
+            )}
+          </AixiaFormField>
+
+          <AixiaDisplayBlock label="Proforma Status" value={<AixiaStatusBadge value={proforma.status} />} />
+
+          <AixiaFormField>
+            <AixiaFieldLabel label="Client" />
+            {editingOverview && canEditDraft ? (
+              <AixiaSelectField value={clientIdDraft} onChange={(event) => setClientIdDraft(event.target.value)}>
+                <option value="">Select client</option>
+                {clients.map((client) => (
+                  <option key={client.id} value={client.id}>
+                    {client.legal_name || client.name}
+                  </option>
+                ))}
+              </AixiaSelectField>
+            ) : (
+              <AixiaDisplayBlock
+                label="Client"
+                value={
+                  selectedDraftClient?.legal_name ||
+                  selectedDraftClient?.name ||
+                  getMetadataString(proforma.metadata, "client_name_snapshot") ||
+                  "—"
+                }
+              />
+            )}
+          </AixiaFormField>
+
+          <AixiaFormField>
+            <AixiaFieldLabel label="Issuing Company" />
+            {editingOverview && canEditDraft ? (
+              <AixiaSelectField value={companyIdDraft} onChange={(event) => setCompanyIdDraft(event.target.value)}>
+                <option value="">Select company</option>
+                {companies.map((company) => (
+                  <option key={company.id} value={company.id}>
+                    {company.legal_name || company.name}
+                  </option>
+                ))}
+              </AixiaSelectField>
+            ) : (
+              <AixiaDisplayBlock
+                label="Issuing Company"
+                value={
+                  selectedDraftCompany?.legal_name ||
+                  selectedDraftCompany?.name ||
+                  getMetadataString(proforma.metadata, "company_name_snapshot") ||
+                  "—"
+                }
+              />
+            )}
+          </AixiaFormField>
+
+          <AixiaFormField>
+            <AixiaFieldLabel label="Currency" />
+            {editingOverview && canEditDraft ? (
+              <AixiaSelectField value={currencyIdDraft} onChange={(event) => setCurrencyIdDraft(event.target.value)}>
+                <option value="">Select currency</option>
+                {currencies.map((currency) => (
+                  <option key={currency.id} value={currency.id}>
+                    {currency.currency_code} — {currency.currency_name}
+                  </option>
+                ))}
+              </AixiaSelectField>
+            ) : (
+              <AixiaDisplayBlock label="Currency" value={printableCurrencyCode} />
+            )}
+          </AixiaFormField>
+
+          <AixiaFormField>
+            <AixiaFieldLabel label="Issue Date" />
+            {editingOverview && canEditDraft ? (
+              <AixiaInputField type="date" value={issueDateDraft} onChange={(event) => setIssueDateDraft(event.target.value)} />
+            ) : (
+              <AixiaDisplayBlock label="Issue Date" value={formatFinanceDate(proforma.issue_date)} />
+            )}
+          </AixiaFormField>
+
+          <AixiaFormField>
+            <AixiaFieldLabel label="Valid Until" />
+            {editingOverview && canEditDraft ? (
+              <AixiaInputField type="date" value={validUntilDraft} onChange={(event) => setValidUntilDraft(event.target.value)} />
+            ) : (
+              <AixiaDisplayBlock label="Valid Until" value={formatFinanceDate(proforma.valid_until)} />
+            )}
+          </AixiaFormField>
+
+          <AixiaFormField>
+            <AixiaFieldLabel label="Project" />
+            {editingOverview && canEditDraft ? (
+              <AixiaSelectField
+                value={projectIdDraft}
+                onChange={(event) => {
+                  setProjectIdDraft(event.target.value);
+                  setTaskIdDraft("");
+                }}
+              >
+                <option value="">No project</option>
+                {projects.map((projectItem) => (
+                  <option key={projectItem.id} value={projectItem.id}>
+                    {projectItem.name}
+                  </option>
+                ))}
+              </AixiaSelectField>
+            ) : (
+              <AixiaDisplayBlock label="Project" value={selectedDraftProject?.name || "—"} />
+            )}
+          </AixiaFormField>
+
+          <AixiaFormField>
+            <AixiaFieldLabel label="Task" />
+            {editingOverview && canEditDraft ? (
+              <AixiaSelectField value={taskIdDraft} onChange={(event) => setTaskIdDraft(event.target.value)}>
+                <option value="">No task</option>
+                {filteredDraftTasks.map((taskItem) => (
+                  <option key={taskItem.id} value={taskItem.id}>
+                    {taskItem.title}
+                  </option>
+                ))}
+              </AixiaSelectField>
+            ) : (
+              <AixiaDisplayBlock label="Task" value={selectedDraftTask?.title || "—"} />
+            )}
+          </AixiaFormField>
+
+          <AixiaFormFullWidth>
+            <AixiaFieldLabel label="Notes" />
+            {editingOverview && canEditDraft ? (
+              <AixiaTextareaField value={notesDraft} onChange={(event) => setNotesDraft(event.target.value)} rows={4} />
+            ) : (
+              <AixiaDisplayBlock label="Notes" value={proforma.notes || "—"} />
+            )}
+          </AixiaFormFullWidth>
+        </AixiaFormGrid>
+      </AixiaSection>
+
+      <AixiaSection
+        title="Financial Settings"
+        description="Payment terms, shipping terms, bank account, payment method, and bank details."
+        icon={CheckCircle}
+        actions={financialActions}
+      >
+        <AixiaFormGrid columns="two">
+          <AixiaFormField>
+            <AixiaFieldLabel label="Payment Terms" />
+            {editingFinancialSettings && canEditDraft ? (
+              <AixiaSelectField value={paymentTermsIdDraft} onChange={(event) => setPaymentTermsIdDraft(event.target.value)}>
+                <option value="">Select payment terms</option>
+                {paymentTerms.map((term) => (
+                  <option key={term.id} value={term.id}>
+                    {term.code} | {term.name}
+                  </option>
+                ))}
+              </AixiaSelectField>
+            ) : (
+              <AixiaDisplayBlock
+                label="Payment Terms"
+                value={
+                  getPaymentTermLabel(selectedDraftPaymentTerm) !== "—"
+                    ? getPaymentTermLabel(selectedDraftPaymentTerm)
+                    : proforma.payment_terms_snapshot || "—"
+                }
+              />
+            )}
+          </AixiaFormField>
+
+          <AixiaFormField>
+            <AixiaFieldLabel label="Shipping Terms" />
+            {editingFinancialSettings && canEditDraft ? (
+              <AixiaSelectField value={shippingTermIdDraft} onChange={(event) => setShippingTermIdDraft(event.target.value)}>
+                <option value="">Select shipping terms</option>
+                {shippingTerms.map((term) => (
+                  <option key={term.id} value={term.id}>
+                    {term.code} | {term.name}
+                  </option>
+                ))}
+              </AixiaSelectField>
+            ) : (
+              <AixiaDisplayBlock
+                label="Shipping Terms"
+                value={selectedDraftShippingTermsLabel !== "—" ? selectedDraftShippingTermsLabel : proforma.shipping_terms_snapshot || "—"}
+              />
+            )}
+          </AixiaFormField>
+
+          <AixiaFormField>
+            <AixiaFieldLabel label="Bank Account" />
+            {editingFinancialSettings && canEditDraft ? (
+              <AixiaSelectField value={bankAccountIdDraft} onChange={(event) => setBankAccountIdDraft(event.target.value)}>
+                <option value="">Select bank account</option>
+                {filteredDraftBankAccounts.map((account) => (
+                  <option key={account.id} value={account.id}>
+                    {account.name}
+                  </option>
+                ))}
+              </AixiaSelectField>
+            ) : (
+              <AixiaDisplayBlock
+                label="Bank Account"
+                value={selectedDraftBankAccount?.name || getMetadataString(proforma.metadata, "bank_account_name") || "—"}
+              />
+            )}
+          </AixiaFormField>
+
+          <AixiaFormField>
+            <AixiaFieldLabel label="Preferred Payment Method" />
+            {editingFinancialSettings && canEditDraft ? (
+              <AixiaSelectField value={paymentMethodIdDraft} onChange={(event) => setPaymentMethodIdDraft(event.target.value)}>
+                <option value="">Select payment method</option>
+                {paymentMethods.map((method) => (
+                  <option key={method.id} value={method.id}>
+                    {method.name}
+                  </option>
+                ))}
+              </AixiaSelectField>
+            ) : (
+              <AixiaDisplayBlock
+                label="Preferred Payment Method"
+                value={selectedDraftPaymentMethod?.name || getMetadataString(proforma.metadata, "preferred_payment_method_name") || "—"}
+              />
+            )}
+          </AixiaFormField>
+
+          <AixiaFormFullWidth>
+            <AixiaDisplayBlock
+              label="Bank Details"
+              value={
+                (resolvedBankDetailsLines.length > 0
+                  ? resolvedBankDetailsLines
+                  : buildBankDetailsLinesFromSnapshot(
+                      proforma.bank_details_snapshot || getMetadataString(proforma.metadata, "bank_details_snapshot"),
+                    )
+                ).join("\n") || "—"
+              }
+            />
+          </AixiaFormFullWidth>
+        </AixiaFormGrid>
+      </AixiaSection>
+
+      <AixiaSection
+        title="Document Details"
+        description="Document snapshots for print, parties, payment, shipping, notes, and terms."
+        icon={FileText}
+        actions={documentActions}
+      >
+        <AixiaReviewGrid variant="cards">
+          <AixiaValueBlock
+            label="Issuing Company"
+            value={
+              selectedDraftCompany?.legal_name ||
+              selectedDraftCompany?.name ||
+              getMetadataString(proforma.metadata, "company_name_snapshot") ||
+              "—"
+            }
+            detail={
+              [
+                selectedDraftCompany?.contact_person || getMetadataString(proforma.metadata, "company_contact_person_snapshot"),
+                selectedDraftCompany?.email || getMetadataString(proforma.metadata, "company_email_snapshot"),
+                selectedDraftCompany?.phone || getMetadataString(proforma.metadata, "company_phone_snapshot"),
+                resolvedDraftCompanyAddress || getMetadataString(proforma.metadata, "company_address_snapshot"),
+              ]
+                .filter(Boolean)
+                .join(" • ") || "—"
+            }
+          />
+          <AixiaValueBlock
+            label="Recipient"
+            value={
+              selectedDraftClient?.legal_name ||
+              selectedDraftClient?.name ||
+              getMetadataString(proforma.metadata, "client_name_snapshot") ||
+              "—"
+            }
+            detail={
+              [
+                selectedDraftClient?.contact_person || getMetadataString(proforma.metadata, "client_contact_person_snapshot"),
+                selectedDraftClient?.company_email || selectedDraftClient?.personnel_email || getMetadataString(proforma.metadata, "client_email_snapshot"),
+                selectedDraftClient?.company_phone || selectedDraftClient?.personnel_phone || getMetadataString(proforma.metadata, "client_phone_snapshot"),
+                resolvedDraftRecipientAddress || getMetadataString(proforma.metadata, "billing_address_snapshot"),
+              ]
+                .filter(Boolean)
+                .join(" • ") || "—"
+            }
+          />
+          <AixiaValueBlock
+            label="Payment Terms"
+            value={getPaymentTermLabel(selectedDraftPaymentTerm) !== "—" ? getPaymentTermLabel(selectedDraftPaymentTerm) : proforma.payment_terms_snapshot || "—"}
+          />
+          <AixiaValueBlock
+            label="Shipping Terms"
+            value={selectedDraftShippingTermsLabel !== "—" ? selectedDraftShippingTermsLabel : proforma.shipping_terms_snapshot || "—"}
+          />
+          <AixiaValueBlock label="Currency" value={printableCurrencyCode} />
+          <AixiaValueBlock
+            label="Project / Task"
+            value={[selectedDraftProject?.name, selectedDraftTask?.title].filter(Boolean).join(" / ") || "—"}
+          />
+        </AixiaReviewGrid>
+
+        <AixiaFormFullWidth>
+          <AixiaFieldLabel label="Terms & Conditions" />
+          {editingDocumentDetails && canEditDraft ? (
+            <AixiaTextareaField
+              value={termsAndConditionsDraft}
+              onChange={(event) => setTermsAndConditionsDraft(event.target.value)}
+              rows={7}
+            />
+          ) : (
+            <AixiaDisplayBlock
+              label="Terms & Conditions"
+              value={
+                termsAndConditionsDraft ||
+                proforma.terms_and_conditions_snapshot ||
+                getMetadataString(proforma.metadata, "terms_and_conditions_snapshot") ||
+                "—"
+              }
+            />
+          )}
+        </AixiaFormFullWidth>
+      </AixiaSection>
+
+      <AixiaSection
+        title="Line Items"
+        description="Products and services included in this proforma invoice."
+        icon={SquarePen}
+        badge={<AixiaBadge tone="cyan">{(editingLines ? lineItemsDraft : lineItems).length} Lines</AixiaBadge>}
+        actions={lineActions}
+        smartScroll
+        itemCount={(editingLines ? lineItemsDraft : lineItems).length}
+        visibleCards={10}
+      >
+        <div className="aixia-stack">
+          {(editingLines ? lineItemsDraft : lineItems).map((row, index) => {
+            const editable = editingLines && canEditDraft;
+            const rowQuantity = toNumber(row.quantity);
+            const rowUnitPrice = toNumber(row.unit_price);
+            const rowDiscount = toNumber(row.discount);
+            const rowTaxRate = taxCodes.find((taxCode) => taxCode.id === row.tax_code_id)?.rate_percent ?? 0;
+            const taxableBase = Math.max(rowQuantity * rowUnitPrice - rowDiscount, 0);
+            const rowTotal = editable
+              ? taxableBase + taxableBase * (toNumber(rowTaxRate) / 100)
+              : toNumber((row as ProformaLineItemRow).line_total);
+
+            return (
+              <AixiaFormRowCard
+                key={row.id}
+                title={`Line ${index + 1}`}
+                description={editable ? "Editable draft line" : row.description || "Line item"}
+                onRemove={editable ? () => removeDraftLineItem(row.id) : undefined}
+                removeLabel={<Trash2 className="h-4 w-4" />}
+              >
+                <AixiaFormGrid columns="three">
+                  <AixiaFormField>
+                    <AixiaFieldLabel label="Item" />
+                    {editable ? (
+                      <AixiaSelectField value={row.item_id || ""} onChange={(event) => applyDraftItemSelection(row.id, event.target.value)}>
+                        <option value="">Select item</option>
+                        {items.map((item) => (
+                          <option key={item.id} value={item.id}>
+                            {item.name}
+                          </option>
+                        ))}
+                      </AixiaSelectField>
+                    ) : (
+                      <AixiaDisplayBlock label="Item" value={items.find((item) => item.id === row.item_id)?.name || "—"} />
+                    )}
+                  </AixiaFormField>
+
+                  <AixiaFormField>
+                    <AixiaFieldLabel label="Description" />
+                    {editable ? (
+                      <AixiaInputField
+                        value={row.description || ""}
+                        onChange={(event) =>
+                          setLineItemsDraft((current) =>
+                            current.map((entry) =>
+                              entry.id === row.id ? { ...entry, description: event.target.value } : entry,
+                            ),
+                          )
+                        }
+                      />
+                    ) : (
+                      <AixiaDisplayBlock label="Description" value={row.description || "—"} />
+                    )}
+                  </AixiaFormField>
+
+                  <AixiaFormField>
+                    <AixiaFieldLabel label="Quantity" />
+                    {editable ? (
+                      <AixiaInputField
+                        value={String(row.quantity ?? "")}
+                        onChange={(event) =>
+                          setLineItemsDraft((current) =>
+                            current.map((entry) =>
+                              entry.id === row.id ? { ...entry, quantity: event.target.value } : entry,
+                            ),
+                          )
+                        }
+                      />
+                    ) : (
+                      <AixiaDisplayBlock label="Quantity" value={toNumber(row.quantity)} />
+                    )}
+                  </AixiaFormField>
+
+                  <AixiaFormField>
+                    <AixiaFieldLabel label="Unit" />
+                    {editable ? (
+                      <AixiaSelectField
+                        value={row.unit_of_measure_id || ""}
+                        onChange={(event) =>
+                          setLineItemsDraft((current) =>
+                            current.map((entry) =>
+                              entry.id === row.id ? { ...entry, unit_of_measure_id: event.target.value } : entry,
+                            ),
+                          )
+                        }
+                      >
+                        <option value="">Select unit</option>
+                        {unitsOfMeasure.map((unit) => (
+                          <option key={unit.id} value={unit.id}>
+                            {unit.name}
+                          </option>
+                        ))}
+                      </AixiaSelectField>
+                    ) : (
+                      <AixiaDisplayBlock label="Unit" value={unitsOfMeasure.find((unit) => unit.id === row.unit_of_measure_id)?.name || "—"} />
+                    )}
+                  </AixiaFormField>
+
+                  <AixiaFormField>
+                    <AixiaFieldLabel label="Unit Price" />
+                    {editable ? (
+                      <AixiaInputField
+                        value={String(row.unit_price ?? "")}
+                        onChange={(event) =>
+                          setLineItemsDraft((current) =>
+                            current.map((entry) =>
+                              entry.id === row.id ? { ...entry, unit_price: event.target.value } : entry,
+                            ),
+                          )
+                        }
+                      />
+                    ) : (
+                      <AixiaDisplayBlock label="Unit Price" value={formatFinanceMoney(row.unit_price, printableCurrencyCode)} />
+                    )}
+                  </AixiaFormField>
+
+                  <AixiaFormField>
+                    <AixiaFieldLabel label="Discount" />
+                    {editable ? (
+                      <AixiaInputField
+                        value={String(row.discount ?? "")}
+                        onChange={(event) =>
+                          setLineItemsDraft((current) =>
+                            current.map((entry) =>
+                              entry.id === row.id ? { ...entry, discount: event.target.value } : entry,
+                            ),
+                          )
+                        }
+                      />
+                    ) : (
+                      <AixiaDisplayBlock label="Discount" value={formatFinanceMoney(row.discount, printableCurrencyCode)} />
+                    )}
+                  </AixiaFormField>
+
+                  <AixiaFormField>
+                    <AixiaFieldLabel label="Tax Code" />
+                    {editable ? (
+                      <AixiaSelectField
+                        value={row.tax_code_id || ""}
+                        onChange={(event) =>
+                          setLineItemsDraft((current) =>
+                            current.map((entry) =>
+                              entry.id === row.id ? { ...entry, tax_code_id: event.target.value } : entry,
+                            ),
+                          )
+                        }
+                      >
+                        <option value="">Select tax</option>
+                        {taxCodes.map((taxCode) => (
+                          <option key={taxCode.id} value={taxCode.id}>
+                            {taxCode.name}
+                          </option>
+                        ))}
+                      </AixiaSelectField>
+                    ) : (
+                      <AixiaDisplayBlock label="Tax Code" value={taxCodes.find((taxCode) => taxCode.id === row.tax_code_id)?.name || "—"} />
+                    )}
+                  </AixiaFormField>
+
+                  <AixiaFormField>
+                    <AixiaFieldLabel label="Revenue Category" />
+                    {editable ? (
+                      <AixiaSelectField
+                        value={row.revenue_category_id || ""}
+                        onChange={(event) =>
+                          setLineItemsDraft((current) =>
+                            current.map((entry) =>
+                              entry.id === row.id ? { ...entry, revenue_category_id: event.target.value } : entry,
+                            ),
+                          )
+                        }
+                      >
+                        <option value="">Select category</option>
+                        {revenueCategories.map((category) => (
+                          <option key={category.id} value={category.id}>
+                            {category.name}
+                          </option>
+                        ))}
+                      </AixiaSelectField>
+                    ) : (
+                      <AixiaDisplayBlock label="Revenue Category" value={revenueCategories.find((category) => category.id === row.revenue_category_id)?.name || "—"} />
+                    )}
+                  </AixiaFormField>
+
+                  <AixiaDisplayBlock label="Line Total" value={formatFinanceMoney(rowTotal, printableCurrencyCode)} />
+                </AixiaFormGrid>
+              </AixiaFormRowCard>
+            );
+          })}
+        </div>
+      </AixiaSection>
+    </>
+  );
+
+  const sideContent = (
+    <>
+      <AixiaSection
+        title="Lifecycle Actions"
+        description="Print, issue, confirm, convert, archive, or delete this proforma invoice."
+        icon={CheckCircle}
+      >
+        <div className="aixia-action-stack">
+          <AixiaButton type="button" variant="secondary" onClick={handlePrint}>
+            <Printer className="h-4 w-4" />
+            Print
+          </AixiaButton>
+
+          {canMarkIssued ? (
+            <AixiaButton type="button" variant="primary" onClick={() => void handleMarkIssued()} disabled={isSavingDraft}>
+              <CheckCircle className="h-4 w-4" />
+              {isSavingDraft ? "Updating..." : "Mark as Issued"}
+            </AixiaButton>
+          ) : null}
+
+          {canConfirm ? (
+            <AixiaButton type="button" variant="primary" onClick={() => void handleConfirm()} disabled={isSavingDraft}>
+              <CheckCircle className="h-4 w-4" />
+              {isSavingDraft ? "Updating..." : "Mark as Confirmed"}
+            </AixiaButton>
+          ) : null}
+
+          {canConvert ? (
+            <AixiaButton type="button" variant="primary" onClick={() => void handleConvert()} disabled={isConverting}>
+              <CheckCircle className="h-4 w-4" />
+              {isConverting ? "Converting..." : "Convert to Invoice"}
+            </AixiaButton>
+          ) : null}
+
+          {canArchive ? (
+            <AixiaButton type="button" variant="danger" onClick={() => void handleArchive()} disabled={isArchiving}>
+              <Archive className="h-4 w-4" />
+              {isArchiving ? "Archiving..." : "Archive"}
+            </AixiaButton>
+          ) : null}
+
+          {proforma.status !== "deleted" && proforma.status !== "converted" ? (
+            <AixiaButton type="button" variant="danger" onClick={() => void handleDelete()} disabled={isDeleting}>
+              <Trash2 className="h-4 w-4" />
+              {isDeleting ? "Deleting..." : "Delete"}
+            </AixiaButton>
+          ) : null}
+
+          <AixiaButton
+            type="button"
+            variant="secondary"
+            onClick={() => {
+              setShowArchivePopup(true);
+              setArchiveTab("archived");
+              void loadArchiveItems();
+            }}
+          >
+            <Archive className="h-4 w-4" />
+            Open Archive
+          </AixiaButton>
+        </div>
+      </AixiaSection>
+
+      <AixiaSection
+        title="Financial Summary"
+        description="Live totals and document currency view."
+        icon={CheckCircle}
+      >
+        <AixiaReviewGrid variant="cards">
+          <AixiaValueBlock label="Subtotal" value={formatFinanceMoney(financialSummary?.subtotal ?? 0, printableCurrencyCode)} />
+          <AixiaValueBlock label="Discount" value={formatFinanceMoney(financialSummary?.discount ?? 0, printableCurrencyCode)} />
+          <AixiaValueBlock label="Tax" value={formatFinanceMoney(financialSummary?.tax ?? 0, printableCurrencyCode)} />
+          <AixiaValueBlock label="Total" value={formatFinanceMoney(financialSummary?.total ?? 0, printableCurrencyCode)} />
+        </AixiaReviewGrid>
+      </AixiaSection>
+
+      <AixiaSection
+        title="Linked Documents"
+        description="Source Customer PO and converted invoice relationship."
+        icon={Link2}
+      >
+        <AixiaFormGrid columns="one">
+          <AixiaDisplayBlock
+            label="Source Customer PO"
+            value={
+              linkedCustomerPo?.client_po_number ||
+              linkedCustomerPo?.external_po_number ||
+              getMetadataString(proforma.metadata, "client_po_number") ||
+              getMetadataString(proforma.metadata, "external_po_number") ||
+              "Manual"
+            }
+            detail={
+              linkedCustomerPo
+                ? `${linkedCustomerPo.status} · ${formatFinanceMoney(
+                    linkedCustomerPo.total_amount ?? getMetadataNumberOrString(proforma.metadata, "customer_po_total_amount"),
+                    linkedCustomerPo.currency_code || printableCurrencyCode,
+                  )}`
+                : "This proforma invoice has no Customer PO source."
+            }
+          />
+          {linkedCustomerPo ? (
+            <AixiaButton
+              type="button"
+              variant="primary"
+              onClick={() => navigate(`/finance/transactions/customer-pos/${linkedCustomerPo.id}`)}
+            >
+              Open Customer PO
+            </AixiaButton>
+          ) : null}
+
+          <AixiaDisplayBlock
+            label="Linked Invoice"
+            value={linkedInvoice?.invoice_number || "—"}
+            detail={linkedInvoice ? `${linkedInvoice.status} · ${linkedInvoice.payment_status || "—"}` : "No invoice created from this proforma yet."}
+          />
+          {linkedInvoice ? (
+            <AixiaButton
+              type="button"
+              variant="primary"
+              onClick={() => navigate(`/finance/transactions/invoices/${linkedInvoice.id}`)}
+            >
+              Open Linked Invoice
+            </AixiaButton>
+          ) : null}
+        </AixiaFormGrid>
+      </AixiaSection>
+    </>
+  );
+
   return (
     <>
-      <div className="min-h-screen bg-[#05070d] px-4 py-4 text-white md:px-6 md:py-6">
-        <div className="mx-auto flex w-full max-w-[1600px] flex-col gap-6">
-          <header className="relative overflow-hidden rounded-[34px] border border-white/10 bg-white/[0.045] p-6 shadow-2xl shadow-black/30 backdrop-blur-xl">
-            <div className="pointer-events-none absolute inset-0 bg-[radial-gradient(circle_at_top_left,rgba(6,182,212,0.16),transparent_38%),radial-gradient(circle_at_top_right,rgba(139,92,246,0.12),transparent_34%)]" />
-
-            <div className="relative">
-              <button
-                type="button"
-                onClick={() =>
-                  navigate("/finance/transactions/proforma-invoices")
-                }
-                className="mb-5 inline-flex items-center justify-center gap-2 rounded-full border border-white/10 bg-white/[0.05] px-5 py-2 text-[11px] font-semibold uppercase tracking-[0.22em] text-slate-300 transition hover:border-white/20 hover:bg-white/[0.08] hover:text-white"
-              >
-                <ArrowRight className="h-3.5 w-3.5 rotate-180" />
-                Proforma Invoices
-              </button>
-
-              <div className="grid gap-6 xl:grid-cols-[minmax(0,1fr)_620px]">
-                <div>
-                  <div className="flex flex-wrap gap-2">
-                    <Badge className="inline-flex w-fit rounded-full border border-cyan-400/20 bg-cyan-500/10 px-3 py-1 text-[11px] font-semibold uppercase tracking-[0.22em] text-cyan-200 shadow-none">
-                      Proforma Workspace
-                    </Badge>
-
-                    <Badge
-                      className={`inline-flex w-fit rounded-full border px-3 py-1 text-[11px] font-semibold uppercase tracking-[0.22em] shadow-none ${getProformaStatusBadgeClasses(
-                        proforma.status
-                      )}`}
-                    >
-                      {getProformaStatusLabel(proforma.status)}
-                    </Badge>
-
-                    {linkedCustomerPo ? (
-                      <Badge className="inline-flex w-fit rounded-full border border-emerald-400/20 bg-emerald-500/10 px-3 py-1 text-[11px] font-semibold uppercase tracking-[0.22em] text-emerald-200 shadow-none">
-                        Source Customer PO
-                      </Badge>
-                    ) : null}
-
-                    {linkedInvoice ? (
-                      <Badge className="inline-flex w-fit rounded-full border border-violet-400/20 bg-violet-500/10 px-3 py-1 text-[11px] font-semibold uppercase tracking-[0.22em] text-violet-200 shadow-none">
-                        Linked Invoice
-                      </Badge>
-                    ) : null}
-                  </div>
-
-                  <h1 className="mt-4 text-3xl font-semibold tracking-[-0.035em] text-white md:text-5xl">
-                    {proforma.proforma_number ||
-                      (proforma.status === "draft"
-                        ? "Draft Proforma"
-                        : "Proforma Invoice")}
-                  </h1>
-
-                  <p className="mt-3 max-w-4xl text-sm leading-6 text-slate-400 md:text-base md:leading-7">
-                    Commercial pre-invoice document used before formal invoice
-                    issuance. Drafts are editable. Confirmed proformas can be
-                    converted into invoices.
-                  </p>
-
-                  <div className="mt-5 flex flex-wrap gap-2">
-                    <span className="rounded-full border border-cyan-400/20 bg-cyan-500/10 px-3 py-1 text-[11px] font-semibold uppercase tracking-[0.16em] text-cyan-200">
-                      Draft → Issued → Confirmed
-                    </span>
-                    <span className="rounded-full border border-emerald-400/20 bg-emerald-500/10 px-3 py-1 text-[11px] font-semibold uppercase tracking-[0.16em] text-emerald-200">
-                      Customer PO source editable in draft
-                    </span>
-                    <span className="rounded-full border border-white/10 bg-white/[0.05] px-3 py-1 text-[11px] font-semibold uppercase tracking-[0.16em] text-slate-300">
-                      Auto-refresh enabled
-                    </span>
-                  </div>
-                </div>
-
-                <div className="grid gap-4 sm:grid-cols-2">
-                  <div className="min-h-[148px] rounded-[24px] border border-white/10 bg-black/20 p-4">
-                    <div className="flex items-start justify-between gap-3">
-                      <div>
-                        <p className="text-[11px] font-semibold uppercase tracking-[0.2em] text-slate-500">
-                          Recipient
-                        </p>
-                        <p className="mt-2 text-xl font-semibold tracking-[-0.035em] text-white">
-                          {selectedDraftClient?.legal_name ||
-                            selectedDraftClient?.name ||
-                            getMetadataString(
-                              proforma.metadata,
-                              "client_name_snapshot"
-                            ) ||
-                            "—"}
-                        </p>
-                      </div>
-                      <div className="flex h-10 w-10 items-center justify-center rounded-2xl border border-cyan-400/20 bg-cyan-500/10 text-cyan-200">
-                        <CheckCircle className="h-4 w-4" />
-                      </div>
-                    </div>
-                    <p className="mt-3 text-xs leading-5 text-slate-500">
-                      Client selected for this proforma invoice.
-                    </p>
-                  </div>
-
-                  <div className="min-h-[148px] rounded-[24px] border border-white/10 bg-black/20 p-4">
-                    <div className="flex items-start justify-between gap-3">
-                      <div>
-                        <p className="text-[11px] font-semibold uppercase tracking-[0.2em] text-slate-500">
-                          Total
-                        </p>
-                        <p className="mt-2 text-xl font-semibold tracking-[-0.035em] text-white">
-                          {formatFinanceMoney(
-                            financialSummary?.total ?? 0,
-                            printableCurrencyCode
-                          )}
-                        </p>
-                      </div>
-                      <div className="flex h-10 w-10 items-center justify-center rounded-2xl border border-emerald-400/20 bg-emerald-500/10 text-emerald-200">
-                        <span className="h-2 w-2 rounded-full bg-emerald-400" />
-                      </div>
-                    </div>
-                    <p className="mt-3 text-xs leading-5 text-slate-500">
-                      Current proforma commercial value.
-                    </p>
-                  </div>
-                </div>
-              </div>
-
-                            <div className="mt-6 flex flex-wrap gap-3">
-                <Button
-                  variant="outline"
-                  onClick={handlePrint}
-                  className="h-11 rounded-2xl border-white/10 bg-white/[0.05] px-4 text-white hover:bg-white/[0.08]"
-                >
-                  <Printer className="mr-2 h-4 w-4" />
-                  Print
-                </Button>
-
-                {canMarkIssued ? (
-                  <Button
-                    onClick={() => void handleMarkIssued()}
-                    disabled={isSavingDraft}
-                    className="h-11 rounded-2xl border border-cyan-400/20 bg-cyan-500 px-4 text-sm font-semibold text-slate-950 transition hover:bg-cyan-400 disabled:cursor-not-allowed disabled:opacity-40"
-                  >
-                    <CheckCircle className="mr-2 h-4 w-4" />
-                    {isSavingDraft ? "Updating..." : "Mark as Issued"}
-                  </Button>
-                ) : null}
-
-                {canConfirm ? (
-                  <Button
-                    onClick={() => void handleConfirm()}
-                    disabled={isSavingDraft}
-                    className="h-11 rounded-2xl border border-emerald-400/20 bg-emerald-500 px-4 text-sm font-semibold text-slate-950 transition hover:bg-emerald-400 disabled:cursor-not-allowed disabled:opacity-40"
-                  >
-                    <CheckCircle className="mr-2 h-4 w-4" />
-                    {isSavingDraft ? "Updating..." : "Mark as Confirmed"}
-                  </Button>
-                ) : null}
-
-                {canConvert ? (
-                  <Button
-                    onClick={() => void handleConvert()}
-                    disabled={isConverting}
-                    className="h-11 rounded-2xl border border-violet-400/20 bg-violet-500 px-4 text-sm font-semibold text-white transition hover:bg-violet-400 disabled:cursor-not-allowed disabled:opacity-40"
-                  >
-                    <CheckCircle className="mr-2 h-4 w-4" />
-                    {isConverting ? "Converting..." : "Convert to Invoice"}
-                  </Button>
-                ) : null}
-
-                {canArchive ? (
-                  <Button
-                    variant="outline"
-                    onClick={() => void handleArchive()}
-                    disabled={isArchiving}
-                    className="h-11 rounded-2xl border-amber-400/20 bg-amber-500/10 px-4 text-amber-200 hover:bg-amber-500/20 disabled:cursor-not-allowed disabled:opacity-40"
-                  >
-                    <Archive className="mr-2 h-4 w-4" />
-                    {isArchiving ? "Archiving..." : "Archive"}
-                  </Button>
-                ) : null}
-
-                {proforma.status !== "deleted" &&
-                proforma.status !== "converted" ? (
-                  <Button
-                    variant="outline"
-                    onClick={() => void handleDelete()}
-                    disabled={isDeleting}
-                    className="h-11 rounded-2xl border-rose-400/20 bg-rose-500/10 px-4 text-rose-200 hover:bg-rose-500/20 disabled:cursor-not-allowed disabled:opacity-40"
-                  >
-                    <Trash2 className="mr-2 h-4 w-4" />
-                    {isDeleting ? "Deleting..." : "Delete"}
-                  </Button>
-                ) : null}
-              </div>
-            </div>
-          </header>
-
-          <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
-            <div className="group relative min-h-[156px] overflow-hidden rounded-[28px] border border-white/10 bg-white/[0.045] p-5 backdrop-blur-xl transition hover:border-white/20 hover:bg-white/[0.055]">
-              <div className="pointer-events-none absolute inset-0 bg-gradient-to-br from-cyan-500/20 via-cyan-400/10 to-transparent opacity-70" />
-              <div className="relative flex h-full flex-col justify-between gap-5">
-                <div className="flex items-start justify-between gap-4">
-                  <div className="min-w-0">
-                    <div className="text-[11px] font-semibold uppercase tracking-[0.2em] text-slate-500">
-                      Subtotal
-                    </div>
-                    <div className="mt-2 truncate text-3xl font-semibold tracking-[-0.035em] text-cyan-100">
-                      {formatFinanceMoney(
-                        financialSummary?.subtotal ?? 0,
-                        printableCurrencyCode
-                      )}
-                    </div>
-                  </div>
-                  <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-2xl border border-cyan-400/20 bg-cyan-500/10 text-cyan-200">
-                    <span className="h-2 w-2 rounded-full bg-cyan-400" />
-                  </div>
-                </div>
-                <div className="text-sm leading-6 text-slate-400">
-                  Before discount and tax.
-                </div>
-              </div>
-            </div>
-
-            <div className="group relative min-h-[156px] overflow-hidden rounded-[28px] border border-white/10 bg-white/[0.045] p-5 backdrop-blur-xl transition hover:border-white/20 hover:bg-white/[0.055]">
-              <div className="pointer-events-none absolute inset-0 bg-gradient-to-br from-amber-500/20 via-amber-400/10 to-transparent opacity-70" />
-              <div className="relative flex h-full flex-col justify-between gap-5">
-                <div className="flex items-start justify-between gap-4">
-                  <div className="min-w-0">
-                    <div className="text-[11px] font-semibold uppercase tracking-[0.2em] text-slate-500">
-                      Discount
-                    </div>
-                    <div className="mt-2 truncate text-3xl font-semibold tracking-[-0.035em] text-amber-100">
-                      {formatFinanceMoney(
-                        financialSummary?.discount ?? 0,
-                        printableCurrencyCode
-                      )}
-                    </div>
-                  </div>
-                  <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-2xl border border-amber-400/20 bg-amber-500/10 text-amber-200">
-                    <span className="h-2 w-2 rounded-full bg-amber-400" />
-                  </div>
-                </div>
-                <div className="text-sm leading-6 text-slate-400">
-                  Commercial discount.
-                </div>
-              </div>
-            </div>
-
-            <div className="group relative min-h-[156px] overflow-hidden rounded-[28px] border border-white/10 bg-white/[0.045] p-5 backdrop-blur-xl transition hover:border-white/20 hover:bg-white/[0.055]">
-              <div className="pointer-events-none absolute inset-0 bg-gradient-to-br from-violet-500/20 via-violet-400/10 to-transparent opacity-70" />
-              <div className="relative flex h-full flex-col justify-between gap-5">
-                <div className="flex items-start justify-between gap-4">
-                  <div className="min-w-0">
-                    <div className="text-[11px] font-semibold uppercase tracking-[0.2em] text-slate-500">
-                      Tax
-                    </div>
-                    <div className="mt-2 truncate text-3xl font-semibold tracking-[-0.035em] text-violet-100">
-                      {formatFinanceMoney(
-                        financialSummary?.tax ?? 0,
-                        printableCurrencyCode
-                      )}
-                    </div>
-                  </div>
-                  <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-2xl border border-violet-400/20 bg-violet-500/10 text-violet-200">
-                    <span className="h-2 w-2 rounded-full bg-violet-400" />
-                  </div>
-                </div>
-                <div className="text-sm leading-6 text-slate-400">
-                  Based on selected tax codes.
-                </div>
-              </div>
-            </div>
-
-            <div className="group relative min-h-[156px] overflow-hidden rounded-[28px] border border-white/10 bg-white/[0.045] p-5 backdrop-blur-xl transition hover:border-white/20 hover:bg-white/[0.055]">
-              <div className="pointer-events-none absolute inset-0 bg-gradient-to-br from-emerald-500/20 via-emerald-400/10 to-transparent opacity-70" />
-              <div className="relative flex h-full flex-col justify-between gap-5">
-                <div className="flex items-start justify-between gap-4">
-                  <div className="min-w-0">
-                    <div className="text-[11px] font-semibold uppercase tracking-[0.2em] text-slate-500">
-                      Total
-                    </div>
-                    <div className="mt-2 truncate text-3xl font-semibold tracking-[-0.035em] text-emerald-100">
-                      {formatFinanceMoney(
-                        financialSummary?.total ?? 0,
-                        printableCurrencyCode
-                      )}
-                    </div>
-                  </div>
-                  <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-2xl border border-emerald-400/20 bg-emerald-500/10 text-emerald-200">
-                    <span className="h-2 w-2 rounded-full bg-emerald-400" />
-                  </div>
-                </div>
-                <div className="text-sm leading-6 text-slate-400">
-                  Proforma value.
-                </div>
-              </div>
-            </div>
-          </div>
-
-          <div className="grid grid-cols-1 gap-6 xl:grid-cols-[minmax(0,1.45fr)_420px]">
-            <div className="space-y-6">
-              <Card className={sectionCardClass}>
-                <CardHeader className="flex flex-row items-center justify-between border-b border-white/10 px-5 py-4">
-                  <div className="flex items-center gap-3">
-                    <div className="rounded-2xl border border-cyan-400/15 bg-cyan-500/10 p-3 text-cyan-200">
-                      <FileText className="h-4 w-4" />
-                    </div>
-                    <div>
-                      <CardTitle className="text-sm font-semibold uppercase tracking-[0.18em] text-slate-400">
-                        Document Overview
-                      </CardTitle>
-                      <CardDescription className="mt-1 text-xs text-slate-500">
-                        Source mode, source Customer PO, client, company, dates, currency, and project context.
-                      </CardDescription>
-                    </div>
-                  </div>
-
-                  {canEditDraft ? (
-                    <div className="flex items-center gap-2">
-                      {editingOverview ? (
-                        <>
-                          <Button
-                            onClick={() => void handleSaveDraftChanges()}
-                            disabled={isSavingDraft}
-                            className="h-9 rounded-2xl border border-cyan-400/20 bg-cyan-500 px-3 font-semibold text-slate-950 hover:bg-cyan-400"
-                          >
-                            <Save className="mr-2 h-4 w-4" />
-                            {isSavingDraft ? "Saving..." : "Save"}
-                          </Button>
-
-                          <Button
-                            variant="outline"
-                            onClick={() => {
-                              setEditingOverview(false);
-                              void loadProforma(true);
-                            }}
-                            className="h-9 rounded-2xl border-white/10 bg-white/[0.05] px-3 text-white hover:bg-white/[0.08]"
-                          >
-                            Cancel
-                          </Button>
-                        </>
-                      ) : (
-                        <Button
-                          variant="outline"
-                          onClick={() => setEditingOverview(true)}
-                          className="h-9 rounded-2xl border-white/10 bg-white/[0.05] px-3 text-white hover:bg-white/[0.08]"
-                        >
-                          <SquarePen className="mr-2 h-4 w-4" />
-                          Edit
-                        </Button>
-                      )}
-                    </div>
-                  ) : null}
-                </CardHeader>
-
-                <CardContent className="grid grid-cols-1 gap-4 p-5 md:grid-cols-3">
-                  <div className={innerPanelClass}>
-                    <div className={eyebrowClass}>Source Mode</div>
-                    {editingOverview && canEditDraft ? (
-                      <>
-                        <select
-                          value={sourceModeDraft}
-                          onChange={(event) => {
-                            const nextMode = event.target.value as
-                              | "manual"
-                              | "customer_po";
-
-                            setSourceModeDraft(nextMode);
-
-                            if (nextMode === "manual") {
-                              setSourceCustomerPoIdDraft("");
-                              setLinkedCustomerPo(null);
-                              setLineItemsDraft([createEditableDraftLineItem()]);
-                              setNotesDraft("");
-                            }
-                          }}
-                          className={`mt-2 ${fieldShellClass}`}
-                        >
-                          <option value="manual">Manual</option>
-                          <option value="customer_po">From Customer PO</option>
-                        </select>
-
-                        {sourceModeDraft === "customer_po" ? (
-                          <select
-                            value={sourceCustomerPoIdDraft}
-                            onChange={(event) =>
-                              void applyCustomerPoSourceToDraft(
-                                event.target.value
-                              )
-                            }
-                            className={`mt-2 ${fieldShellClass}`}
-                          >
-                            <option value="">Select Customer PO</option>
-                            {selectableCustomerPos.map((po) => (
-                              <option key={po.id} value={po.id}>
-                                {po.client_po_number || "Customer PO"} ·{" "}
-                                {po.external_po_number || "No external no."} ·{" "}
-                                {formatFinanceMoney(
-                                  po.total_amount,
-                                  po.currency_code || printableCurrencyCode
-                                )}
-                              </option>
-                            ))}
-                          </select>
-                        ) : null}
-                      </>
-                    ) : (
-                      <div className="mt-2 text-2xl font-semibold text-white">
-                        {linkedCustomerPo ? "From Customer PO" : "Manual"}
-                      </div>
-                    )}
-                  </div>
-
-                  <div className={innerPanelClass}>
-                    <div className={eyebrowClass}>Source Customer PO</div>
-                    <div className="mt-2 text-2xl font-semibold text-white">
-                      {linkedCustomerPo?.client_po_number ||
-                        linkedCustomerPo?.external_po_number ||
-                        getMetadataString(proforma.metadata, "client_po_number") ||
-                        getMetadataString(proforma.metadata, "external_po_number") ||
-                        "—"}
-                    </div>
-                  </div>
-
-                  <div className={innerPanelClass}>
-                    <div className={eyebrowClass}>Proforma Status</div>
-                    <div className="mt-2">
-                      <Badge
-                        className={`rounded-full border px-3 py-1 text-xs shadow-none ${getProformaStatusBadgeClasses(
-                          proforma.status
-                        )}`}
-                      >
-                        {getProformaStatusLabel(proforma.status)}
-                      </Badge>
-                    </div>
-                  </div>
-
-                  <div className={innerPanelClass}>
-                    <div className={eyebrowClass}>Client</div>
-                    {editingOverview && canEditDraft ? (
-                      <select
-                        value={clientIdDraft}
-                        onChange={(event) => setClientIdDraft(event.target.value)}
-                        className={`mt-2 ${fieldShellClass}`}
-                      >
-                        <option value="">Select client</option>
-                        {clients.map((client) => (
-                          <option key={client.id} value={client.id}>
-                            {client.legal_name || client.name}
-                          </option>
-                        ))}
-                      </select>
-                    ) : (
-                      <div className="mt-2 text-2xl font-semibold text-white">
-                        {selectedDraftClient?.legal_name ||
-                          selectedDraftClient?.name ||
-                          getMetadataString(proforma.metadata, "client_name_snapshot") ||
-                          "—"}
-                      </div>
-                    )}
-                  </div>
-
-                  <div className={innerPanelClass}>
-                    <div className={eyebrowClass}>Issuing Company</div>
-                    {editingOverview && canEditDraft ? (
-                      <select
-                        value={companyIdDraft}
-                        onChange={(event) => setCompanyIdDraft(event.target.value)}
-                        className={`mt-2 ${fieldShellClass}`}
-                      >
-                        <option value="">Select company</option>
-                        {companies.map((company) => (
-                          <option key={company.id} value={company.id}>
-                            {company.legal_name || company.name}
-                          </option>
-                        ))}
-                      </select>
-                    ) : (
-                      <div className="mt-2 text-2xl font-semibold text-white">
-                        {selectedDraftCompany?.legal_name ||
-                          selectedDraftCompany?.name ||
-                          getMetadataString(
-                            proforma.metadata,
-                            "company_name_snapshot"
-                          ) ||
-                          "—"}
-                      </div>
-                    )}
-                  </div>
-
-                  <div className={innerPanelClass}>
-                    <div className={eyebrowClass}>Currency</div>
-                    {editingOverview && canEditDraft ? (
-                      <select
-                        value={currencyIdDraft}
-                        onChange={(event) => setCurrencyIdDraft(event.target.value)}
-                        className={`mt-2 ${fieldShellClass}`}
-                      >
-                        <option value="">Select currency</option>
-                        {currencies.map((currency) => (
-                          <option key={currency.id} value={currency.id}>
-                            {currency.currency_code} — {currency.currency_name}
-                          </option>
-                        ))}
-                      </select>
-                    ) : (
-                      <div className="mt-2 text-2xl font-semibold text-white">
-                        {printableCurrencyCode}
-                      </div>
-                    )}
-                  </div>
-
-                  <div className={innerPanelClass}>
-                    <div className={eyebrowClass}>Issue Date</div>
-                    {editingOverview && canEditDraft ? (
-                      <input
-                        type="date"
-                        value={issueDateDraft}
-                        onChange={(event) => setIssueDateDraft(event.target.value)}
-                        className={`mt-2 ${fieldShellClass}`}
-                      />
-                    ) : (
-                      <div className="mt-2 text-2xl font-semibold text-white">
-                        {formatFinanceDate(proforma.issue_date)}
-                      </div>
-                    )}
-                  </div>
-
-                  <div className={innerPanelClass}>
-                    <div className={eyebrowClass}>Valid Until</div>
-                    {editingOverview && canEditDraft ? (
-                      <input
-                        type="date"
-                        value={validUntilDraft}
-                        onChange={(event) => setValidUntilDraft(event.target.value)}
-                        className={`mt-2 ${fieldShellClass}`}
-                      />
-                    ) : (
-                      <div className="mt-2 text-2xl font-semibold text-white">
-                        {formatFinanceDate(proforma.valid_until)}
-                      </div>
-                    )}
-                  </div>
-
-                  <div className={innerPanelClass}>
-                    <div className={eyebrowClass}>Linked Customer PO</div>
-                    {editingOverview && canEditDraft ? (
-                      <select
-                        value={sourceCustomerPoIdDraft}
-                        onChange={(event) =>
-                          void applyCustomerPoSourceToDraft(event.target.value)
-                        }
-                        className={`mt-2 ${fieldShellClass}`}
-                      >
-                        <option value="">No Customer PO / Manual</option>
-                        {selectableCustomerPos.map((po) => (
-                          <option key={po.id} value={po.id}>
-                            {po.client_po_number || "Customer PO"} ·{" "}
-                            {po.external_po_number || "No external no."} ·{" "}
-                            {formatFinanceMoney(
-                              po.total_amount,
-                              po.currency_code || printableCurrencyCode
-                            )}
-                          </option>
-                        ))}
-                      </select>
-                    ) : (
-                      <div className="mt-2 text-2xl font-semibold text-white">
-                        {linkedCustomerPo?.client_po_number ||
-                          linkedCustomerPo?.external_po_number ||
-                          getMetadataString(proforma.metadata, "client_po_number") ||
-                          getMetadataString(proforma.metadata, "external_po_number") ||
-                          "—"}
-                      </div>
-                    )}
-                  </div>
-
-                  <div className={innerPanelClass}>
-                    <div className={eyebrowClass}>Project</div>
-                    {editingOverview && canEditDraft ? (
-                      <select
-                        value={projectIdDraft}
-                        onChange={(event) => {
-                          setProjectIdDraft(event.target.value);
-                          setTaskIdDraft("");
-                        }}
-                        className={`mt-2 ${fieldShellClass}`}
-                      >
-                        <option value="">No project</option>
-                        {projects.map((projectItem) => (
-                          <option key={projectItem.id} value={projectItem.id}>
-                            {projectItem.name}
-                          </option>
-                        ))}
-                      </select>
-                    ) : (
-                      <div className="mt-2 text-2xl font-semibold text-white">
-                        {selectedDraftProject?.name || "—"}
-                      </div>
-                    )}
-                  </div>
-
-                  <div className={innerPanelClass}>
-                    <div className={eyebrowClass}>Task</div>
-                    {editingOverview && canEditDraft ? (
-                      <select
-                        value={taskIdDraft}
-                        onChange={(event) => setTaskIdDraft(event.target.value)}
-                        className={`mt-2 ${fieldShellClass}`}
-                      >
-                        <option value="">No task</option>
-                        {filteredDraftTasks.map((taskItem) => (
-                          <option key={taskItem.id} value={taskItem.id}>
-                            {taskItem.title}
-                          </option>
-                        ))}
-                      </select>
-                    ) : (
-                      <div className="mt-2 text-2xl font-semibold text-white">
-                        {selectedDraftTask?.title || "—"}
-                      </div>
-                    )}
-                  </div>
-
-                  <div className="rounded-[24px] border border-white/10 bg-black/20 p-4 md:col-span-3">
-                    <div className={eyebrowClass}>Notes</div>
-                    {editingOverview && canEditDraft ? (
-                      <textarea
-                        value={notesDraft}
-                        onChange={(event) => setNotesDraft(event.target.value)}
-                        rows={4}
-                        className="mt-3 w-full rounded-2xl border border-white/10 bg-black/20 px-4 py-3 text-sm leading-6 text-white outline-none transition placeholder:text-slate-600 focus:border-cyan-400/30 focus:bg-black/30"
-                      />
-                    ) : (
-                      <div className="mt-3 whitespace-pre-line text-sm leading-6 text-slate-300">
-                        {proforma.notes || "—"}
-                      </div>
-                    )}
-                  </div>
-                </CardContent>
-              </Card>
-
-              <Card className={sectionCardClass}>
-                <CardHeader className="flex flex-row items-center justify-between border-b border-white/10 px-5 py-4">
-                  <div className="flex items-center gap-3">
-                    <div className="rounded-2xl border border-emerald-400/15 bg-emerald-500/10 p-3 text-emerald-200">
-                      <CheckCircle className="h-4 w-4" />
-                    </div>
-                    <div>
-                      <CardTitle className="text-sm font-semibold uppercase tracking-[0.18em] text-slate-400">
-                        Financial Settings
-                      </CardTitle>
-                      <CardDescription className="mt-1 text-xs text-slate-500">
-                        Payment terms, shipping terms, bank account, and payment method.
-                      </CardDescription>
-                    </div>
-                  </div>
-
-                  {canEditDraft ? (
-                    <div className="flex items-center gap-2">
-                      {editingFinancialSettings ? (
-                        <>
-                          <Button
-                            onClick={() => void handleSaveDraftChanges()}
-                            disabled={isSavingDraft}
-                            className="h-9 rounded-2xl border border-cyan-400/20 bg-cyan-500 px-3 font-semibold text-slate-950 hover:bg-cyan-400"
-                          >
-                            <Save className="mr-2 h-4 w-4" />
-                            {isSavingDraft ? "Saving..." : "Save"}
-                          </Button>
-
-                          <Button
-                            variant="outline"
-                            onClick={() => {
-                              setEditingFinancialSettings(false);
-                              void loadProforma(true);
-                            }}
-                            className="h-9 rounded-2xl border-white/10 bg-white/[0.05] px-3 text-white hover:bg-white/[0.08]"
-                          >
-                            Cancel
-                          </Button>
-                        </>
-                      ) : (
-                        <Button
-                          variant="outline"
-                          onClick={() => setEditingFinancialSettings(true)}
-                          className="h-9 rounded-2xl border-white/10 bg-white/[0.05] px-3 text-white hover:bg-white/[0.08]"
-                        >
-                          <SquarePen className="mr-2 h-4 w-4" />
-                          Edit
-                        </Button>
-                      )}
-                    </div>
-                  ) : null}
-                </CardHeader>
-
-                <CardContent className="grid grid-cols-1 gap-4 p-5 md:grid-cols-2">
-                  <div className={innerPanelClass}>
-                    <div className={eyebrowClass}>Payment Terms</div>
-                    {editingFinancialSettings && canEditDraft ? (
-                      <select
-                        value={paymentTermsIdDraft}
-                        onChange={(event) =>
-                          setPaymentTermsIdDraft(event.target.value)
-                        }
-                        className={`mt-2 ${fieldShellClass}`}
-                      >
-                        <option value="">Select payment terms</option>
-                        {paymentTerms.map((term) => (
-                          <option key={term.id} value={term.id}>
-                            {term.code} | {term.name}
-                          </option>
-                        ))}
-                      </select>
-                    ) : (
-                      <div className="mt-2 text-2xl font-semibold text-white">
-                        {getPaymentTermLabel(selectedDraftPaymentTerm) !== "—"
-                          ? getPaymentTermLabel(selectedDraftPaymentTerm)
-                          : proforma.payment_terms_snapshot || "—"}
-                      </div>
-                    )}
-                  </div>
-
-                  <div className={innerPanelClass}>
-                    <div className={eyebrowClass}>Shipping Terms</div>
-                    {editingFinancialSettings && canEditDraft ? (
-                      <select
-                        value={shippingTermIdDraft}
-                        onChange={(event) =>
-                          setShippingTermIdDraft(event.target.value)
-                        }
-                        className={`mt-2 ${fieldShellClass}`}
-                      >
-                        <option value="">Select shipping terms</option>
-                        {shippingTerms.map((term) => (
-                          <option key={term.id} value={term.id}>
-                            {term.code} | {term.name}
-                          </option>
-                        ))}
-                      </select>
-                    ) : (
-                      <div className="mt-2 text-2xl font-semibold text-white">
-                        {selectedDraftShippingTermsLabel !== "—"
-                          ? selectedDraftShippingTermsLabel
-                          : proforma.shipping_terms_snapshot || "—"}
-                      </div>
-                    )}
-                  </div>
-
-                  <div className={innerPanelClass}>
-                    <div className={eyebrowClass}>Bank Account</div>
-                    {editingFinancialSettings && canEditDraft ? (
-                      <select
-                        value={bankAccountIdDraft}
-                        onChange={(event) =>
-                          setBankAccountIdDraft(event.target.value)
-                        }
-                        className={`mt-2 ${fieldShellClass}`}
-                      >
-                        <option value="">Select bank account</option>
-                        {filteredDraftBankAccounts.map((account) => (
-                          <option key={account.id} value={account.id}>
-                            {account.name}
-                          </option>
-                        ))}
-                      </select>
-                    ) : (
-                      <div className="mt-2 text-2xl font-semibold text-white">
-                        {selectedDraftBankAccount?.name ||
-                          getMetadataString(proforma.metadata, "bank_account_name") ||
-                          "—"}
-                      </div>
-                    )}
-                  </div>
-
-                  <div className={innerPanelClass}>
-                    <div className={eyebrowClass}>Preferred Payment Method</div>
-                    {editingFinancialSettings && canEditDraft ? (
-                      <select
-                        value={paymentMethodIdDraft}
-                        onChange={(event) =>
-                          setPaymentMethodIdDraft(event.target.value)
-                        }
-                        className={`mt-2 ${fieldShellClass}`}
-                      >
-                        <option value="">Select payment method</option>
-                        {paymentMethods.map((method) => (
-                          <option key={method.id} value={method.id}>
-                            {method.name}
-                          </option>
-                        ))}
-                      </select>
-                    ) : (
-                      <div className="mt-2 text-2xl font-semibold text-white">
-                        {selectedDraftPaymentMethod?.name ||
-                          getMetadataString(
-                            proforma.metadata,
-                            "preferred_payment_method_name"
-                          ) ||
-                          "—"}
-                      </div>
-                    )}
-                  </div>
-
-                  <div className="rounded-[24px] border border-white/10 bg-black/20 p-4 md:col-span-2">
-                    <div className={eyebrowClass}>Bank Details</div>
-                    <div className="mt-3 whitespace-pre-line text-sm leading-6 text-slate-300">
-                      {(resolvedBankDetailsLines.length > 0
-                        ? resolvedBankDetailsLines
-                        : buildBankDetailsLinesFromSnapshot(
-                            proforma.bank_details_snapshot ||
-                              getMetadataString(
-                                proforma.metadata,
-                                "bank_details_snapshot"
-                              )
-                          )
-                      ).join("\n") || "—"}
-                    </div>
-                  </div>
-                </CardContent>
-              </Card>
-
-              <Card className={sectionCardClass}>
-                <CardHeader className="flex flex-row items-center justify-between border-b border-white/10 px-5 py-4">
-                  <div className="flex items-center gap-3">
-                    <div className="rounded-2xl border border-violet-400/15 bg-violet-500/10 p-3 text-violet-200">
-                      <FileText className="h-4 w-4" />
-                    </div>
-                    <div>
-                      <CardTitle className="text-sm font-semibold uppercase tracking-[0.18em] text-slate-400">
-                        Document Details
-                      </CardTitle>
-                      <CardDescription className="mt-1 text-xs text-slate-500">
-                        Document snapshots for print, parties, payment, shipping, notes, and terms.
-                      </CardDescription>
-                    </div>
-                  </div>
-
-                  {canEditDraft ? (
-                    <div className="flex items-center gap-2">
-                      {editingDocumentDetails ? (
-                        <>
-                          <Button
-                            onClick={() => void handleSaveDraftChanges()}
-                            disabled={isSavingDraft}
-                            className="h-9 rounded-2xl border border-cyan-400/20 bg-cyan-500 px-3 font-semibold text-slate-950 hover:bg-cyan-400"
-                          >
-                            <Save className="mr-2 h-4 w-4" />
-                            {isSavingDraft ? "Saving..." : "Save"}
-                          </Button>
-
-                          <Button
-                            variant="outline"
-                            onClick={() => {
-                              setEditingDocumentDetails(false);
-                              void loadProforma(true);
-                            }}
-                            className="h-9 rounded-2xl border-white/10 bg-white/[0.05] px-3 text-white hover:bg-white/[0.08]"
-                          >
-                            Cancel
-                          </Button>
-                        </>
-                      ) : (
-                        <Button
-                          variant="outline"
-                          onClick={() => setEditingDocumentDetails(true)}
-                          className="h-9 rounded-2xl border-white/10 bg-white/[0.05] px-3 text-white hover:bg-white/[0.08]"
-                        >
-                          <SquarePen className="mr-2 h-4 w-4" />
-                          Edit Terms
-                        </Button>
-                      )}
-                    </div>
-                  ) : null}
-                </CardHeader>
-
-                <CardContent className="grid grid-cols-1 gap-4 p-5 md:grid-cols-2">
-                  <div className={innerPanelClass}>
-                    <div className={eyebrowClass}>Issuing Company</div>
-                    <div className="mt-3 text-xl font-semibold leading-tight text-white">
-                      {selectedDraftCompany?.legal_name ||
-                        selectedDraftCompany?.name ||
-                        getMetadataString(proforma.metadata, "company_name_snapshot") ||
-                        "—"}
-                    </div>
-                    <div className="mt-4 space-y-2 text-sm leading-6 text-slate-300">
-                      <div>
-                        {selectedDraftCompany?.contact_person ||
-                          getMetadataString(
-                            proforma.metadata,
-                            "company_contact_person_snapshot"
-                          ) ||
-                          "—"}
-                      </div>
-                      <div>
-                        {selectedDraftCompany?.email ||
-                          getMetadataString(
-                            proforma.metadata,
-                            "company_email_snapshot"
-                          ) ||
-                          "—"}
-                      </div>
-                      <div>
-                        {selectedDraftCompany?.phone ||
-                          getMetadataString(
-                            proforma.metadata,
-                            "company_phone_snapshot"
-                          ) ||
-                          "—"}
-                      </div>
-                      <div>
-                        {resolvedDraftCompanyAddress ||
-                          getMetadataString(
-                            proforma.metadata,
-                            "company_address_snapshot"
-                          ) ||
-                          "—"}
-                      </div>
-                    </div>
-                  </div>
-
-                  <div className={innerPanelClass}>
-                    <div className={eyebrowClass}>Recipient</div>
-                    <div className="mt-3 text-xl font-semibold leading-tight text-white">
-                      {selectedDraftClient?.legal_name ||
-                        selectedDraftClient?.name ||
-                        getMetadataString(proforma.metadata, "client_name_snapshot") ||
-                        "—"}
-                    </div>
-                    <div className="mt-4 space-y-2 text-sm leading-6 text-slate-300">
-                      <div>
-                        {selectedDraftClient?.contact_person ||
-                          getMetadataString(
-                            proforma.metadata,
-                            "client_contact_person_snapshot"
-                          ) ||
-                          "—"}
-                      </div>
-                      <div>
-                        {selectedDraftClient?.company_email ||
-                          selectedDraftClient?.personnel_email ||
-                          getMetadataString(
-                            proforma.metadata,
-                            "client_email_snapshot"
-                          ) ||
-                          "—"}
-                      </div>
-                      <div>
-                        {selectedDraftClient?.company_phone ||
-                          selectedDraftClient?.personnel_phone ||
-                          getMetadataString(
-                            proforma.metadata,
-                            "client_phone_snapshot"
-                          ) ||
-                          "—"}
-                      </div>
-                      <div>
-                        {resolvedDraftRecipientAddress ||
-                          getMetadataString(
-                            proforma.metadata,
-                            "billing_address_snapshot"
-                          ) ||
-                          "—"}
-                      </div>
-                    </div>
-                  </div>
-
-                  <div className="rounded-[24px] border border-white/10 bg-black/20 p-4 md:col-span-2">
-                    <div className="grid grid-cols-1 gap-4 md:grid-cols-4">
-                      <div>
-                        <div className={eyebrowClass}>Payment Terms</div>
-                        <div className="mt-2 text-sm font-semibold text-white">
-                          {getPaymentTermLabel(selectedDraftPaymentTerm) !== "—"
-                            ? getPaymentTermLabel(selectedDraftPaymentTerm)
-                            : proforma.payment_terms_snapshot || "—"}
-                        </div>
-                      </div>
-
-                      <div>
-                        <div className={eyebrowClass}>Shipping Terms</div>
-                        <div className="mt-2 text-sm font-semibold text-white">
-                          {selectedDraftShippingTermsLabel !== "—"
-                            ? selectedDraftShippingTermsLabel
-                            : proforma.shipping_terms_snapshot || "—"}
-                        </div>
-                      </div>
-
-                      <div>
-                        <div className={eyebrowClass}>Currency</div>
-                        <div className="mt-2 text-sm font-semibold text-white">
-                          {printableCurrencyCode}
-                        </div>
-                      </div>
-
-                      <div>
-                        <div className={eyebrowClass}>Project / Task</div>
-                        <div className="mt-2 text-sm font-semibold text-white">
-                          {[selectedDraftProject?.name, selectedDraftTask?.title]
-                            .filter(Boolean)
-                            .join(" / ") || "—"}
-                        </div>
-                      </div>
-                    </div>
-                  </div>
-
-                  <div className="rounded-[24px] border border-white/10 bg-black/20 p-4 md:col-span-2">
-                    <div className={eyebrowClass}>Terms &amp; Conditions</div>
-                    {editingDocumentDetails && canEditDraft ? (
-                      <textarea
-                        value={termsAndConditionsDraft}
-                        onChange={(event) =>
-                          setTermsAndConditionsDraft(event.target.value)
-                        }
-                        rows={7}
-                        className="mt-3 w-full rounded-2xl border border-white/10 bg-black/20 px-4 py-3 text-sm text-white outline-none transition focus:border-cyan-400/30 focus:bg-black/30"
-                      />
-                    ) : (
-                      <div className="mt-3 whitespace-pre-line text-sm leading-6 text-slate-300">
-                        {termsAndConditionsDraft ||
-                          proforma.terms_and_conditions_snapshot ||
-                          getMetadataString(
-                            proforma.metadata,
-                            "terms_and_conditions_snapshot"
-                          ) ||
-                          "—"}
-                      </div>
-                    )}
-                  </div>
-                </CardContent>
-              </Card>
-
-              <Card className={sectionCardClass}>
-                <CardHeader className="flex flex-row items-center justify-between border-b border-white/10 px-5 py-4">
-                  <div className="flex items-center gap-3">
-                    <div className="rounded-2xl border border-cyan-400/15 bg-cyan-500/10 p-3 text-cyan-200">
-                      <SquarePen className="h-4 w-4" />
-                    </div>
-                    <div>
-                      <CardTitle className="text-sm font-semibold uppercase tracking-[0.18em] text-slate-400">
-                        Line Items
-                      </CardTitle>
-                      <CardDescription className="mt-1 text-xs text-slate-500">
-                        Products and services included in this proforma invoice.
-                      </CardDescription>
-                    </div>
-                  </div>
-
-                  <div className="flex items-center gap-2">
-                    {editingLines ? (
-                      <Button
-                        onClick={() => void handleSaveDraftChanges()}
-                        disabled={isSavingDraft}
-                        className="h-9 rounded-2xl border border-cyan-400/20 bg-cyan-500 px-3 text-sm font-semibold text-slate-950 transition hover:bg-cyan-400"
-                      >
-                        <Save className="mr-2 h-4 w-4" />
-                        {isSavingDraft ? "Saving..." : "Save"}
-                      </Button>
-                    ) : null}
-
-                    {editingLines && canEditDraft ? (
-                      <Button
-                        variant="outline"
-                        onClick={addDraftLineItem}
-                        className="h-9 rounded-2xl border-white/10 bg-white/[0.05] px-3 text-white hover:bg-white/[0.08]"
-                      >
-                        Add Row
-                      </Button>
-                    ) : null}
-
-                    {canEditDraft ? (
-                      <Button
-                        variant="outline"
-                        onClick={() => setEditingLines((current) => !current)}
-                        className="h-9 rounded-2xl border-white/10 bg-white/[0.05] px-3 text-white hover:bg-white/[0.08]"
-                      >
-                        <SquarePen className="mr-2 h-4 w-4" />
-                        {editingLines ? "Close" : "Edit"}
-                      </Button>
-                    ) : null}
-                  </div>
-                </CardHeader>
-
-                <CardContent className="max-h-[720px] space-y-3 overflow-y-auto p-5 pr-4">
-                  {(editingLines ? lineItemsDraft : lineItems).map((row, index) => {
-                    const editable = editingLines && canEditDraft;
-                    const rowQuantity = toNumber(row.quantity);
-                    const rowUnitPrice = toNumber(row.unit_price);
-                    const rowDiscount = toNumber(row.discount);
-                    const rowTaxRate =
-                      taxCodes.find((taxCode) => taxCode.id === row.tax_code_id)
-                        ?.rate_percent ?? 0;
-                    const taxableBase = Math.max(
-                      rowQuantity * rowUnitPrice - rowDiscount,
-                      0
-                    );
-                    const rowTotal = editable
-                      ? taxableBase + taxableBase * (toNumber(rowTaxRate) / 100)
-                      : toNumber((row as ProformaLineItemRow).line_total);
-
-                    return (
-                      <div
-                        key={row.id}
-                        className="rounded-[24px] border border-white/10 bg-black/20 p-4"
-                      >
-                        <div className="mb-4 flex items-center justify-between gap-4">
-                          <div className="text-sm font-semibold text-white">
-                            Line {index + 1}
-                          </div>
-
-                          {editable ? (
-                            <Button
-                              variant="outline"
-                              onClick={() => removeDraftLineItem(row.id)}
-                              className="h-9 rounded-2xl border-white/10 bg-white/[0.05] px-3 text-white hover:bg-white/[0.08]"
-                            >
-                              <Trash2 className="h-4 w-4" />
-                            </Button>
-                          ) : null}
-                        </div>
-
-                        <div className="grid grid-cols-1 gap-4 md:grid-cols-12">
-                          <label className="space-y-2 md:col-span-3">
-                            <div className={labelClass}>Item</div>
-                            {editable ? (
-                              <select
-                                value={row.item_id || ""}
-                                onChange={(event) =>
-                                  applyDraftItemSelection(
-                                    row.id,
-                                    event.target.value
-                                  )
-                                }
-                                className={inputFieldClass}
-                              >
-                                <option value="">Select item</option>
-                                {items.map((item) => (
-                                  <option key={item.id} value={item.id}>
-                                    {item.name}
-                                  </option>
-                                ))}
-                              </select>
-                            ) : (
-                              <div className={readOnlyFieldClass}>
-                                {items.find((item) => item.id === row.item_id)
-                                  ?.name || "—"}
-                              </div>
-                            )}
-                          </label>
-
-                          <label className="space-y-2 md:col-span-4">
-                            <div className={labelClass}>Description</div>
-                            {editable ? (
-                              <input
-                                value={row.description || ""}
-                                onChange={(event) =>
-                                  setLineItemsDraft((current) =>
-                                    current.map((entry) =>
-                                      entry.id === row.id
-                                        ? {
-                                            ...entry,
-                                            description: event.target.value,
-                                          }
-                                        : entry
-                                    )
-                                  )
-                                }
-                                className={inputFieldClass}
-                              />
-                            ) : (
-                              <div className={readOnlyFieldClass}>
-                                {row.description || "—"}
-                              </div>
-                            )}
-                          </label>
-
-                          <label className="space-y-2 md:col-span-1">
-                            <div className={labelClass}>Qty</div>
-                            {editable ? (
-                              <input
-                                value={String(row.quantity ?? "")}
-                                onChange={(event) =>
-                                  setLineItemsDraft((current) =>
-                                    current.map((entry) =>
-                                      entry.id === row.id
-                                        ? {
-                                            ...entry,
-                                            quantity: event.target.value,
-                                          }
-                                        : entry
-                                    )
-                                  )
-                                }
-                                className={inputFieldClass}
-                              />
-                            ) : (
-                              <div className={readOnlyFieldClass}>
-                                {toNumber(row.quantity)}
-                              </div>
-                            )}
-                          </label>
-
-                          <label className="space-y-2 md:col-span-2">
-                            <div className={labelClass}>Unit</div>
-                            {editable ? (
-                              <select
-                                value={row.unit_of_measure_id || ""}
-                                onChange={(event) =>
-                                  setLineItemsDraft((current) =>
-                                    current.map((entry) =>
-                                      entry.id === row.id
-                                        ? {
-                                            ...entry,
-                                            unit_of_measure_id: event.target.value,
-                                          }
-                                        : entry
-                                    )
-                                  )
-                                }
-                                className={inputFieldClass}
-                              >
-                                <option value="">Select unit</option>
-                                {unitsOfMeasure.map((unit) => (
-                                  <option key={unit.id} value={unit.id}>
-                                    {unit.name}
-                                  </option>
-                                ))}
-                              </select>
-                            ) : (
-                              <div className={readOnlyFieldClass}>
-                                {unitsOfMeasure.find(
-                                  (unit) => unit.id === row.unit_of_measure_id
-                                )?.name || "—"}
-                              </div>
-                            )}
-                          </label>
-
-                          <label className="space-y-2 md:col-span-2">
-                            <div className={labelClass}>Unit Price</div>
-                            {editable ? (
-                              <input
-                                value={String(row.unit_price ?? "")}
-                                onChange={(event) =>
-                                  setLineItemsDraft((current) =>
-                                    current.map((entry) =>
-                                      entry.id === row.id
-                                        ? {
-                                            ...entry,
-                                            unit_price: event.target.value,
-                                          }
-                                        : entry
-                                    )
-                                  )
-                                }
-                                className={inputFieldClass}
-                              />
-                            ) : (
-                              <div className={readOnlyFieldClass}>
-                                {formatFinanceMoney(
-                                  row.unit_price,
-                                  printableCurrencyCode
-                                )}
-                              </div>
-                            )}
-                          </label>
-
-                          <label className="space-y-2 md:col-span-2">
-                            <div className={labelClass}>Discount</div>
-                            {editable ? (
-                              <input
-                                value={String(row.discount ?? "")}
-                                onChange={(event) =>
-                                  setLineItemsDraft((current) =>
-                                    current.map((entry) =>
-                                      entry.id === row.id
-                                        ? {
-                                            ...entry,
-                                            discount: event.target.value,
-                                          }
-                                        : entry
-                                    )
-                                  )
-                                }
-                                className={inputFieldClass}
-                              />
-                            ) : (
-                              <div className={readOnlyFieldClass}>
-                                {formatFinanceMoney(
-                                  row.discount,
-                                  printableCurrencyCode
-                                )}
-                              </div>
-                            )}
-                          </label>
-
-                          <label className="space-y-2 md:col-span-2">
-                            <div className={labelClass}>Tax Code</div>
-                            {editable ? (
-                              <select
-                                value={row.tax_code_id || ""}
-                                onChange={(event) =>
-                                  setLineItemsDraft((current) =>
-                                    current.map((entry) =>
-                                      entry.id === row.id
-                                        ? {
-                                            ...entry,
-                                            tax_code_id: event.target.value,
-                                          }
-                                        : entry
-                                    )
-                                  )
-                                }
-                                className={inputFieldClass}
-                              >
-                                <option value="">Select tax</option>
-                                {taxCodes.map((taxCode) => (
-                                  <option key={taxCode.id} value={taxCode.id}>
-                                    {taxCode.name}
-                                  </option>
-                                ))}
-                              </select>
-                            ) : (
-                              <div className={readOnlyFieldClass}>
-                                {taxCodes.find(
-                                  (taxCode) => taxCode.id === row.tax_code_id
-                                )?.name || "—"}
-                              </div>
-                            )}
-                          </label>
-
-                          <label className="space-y-2 md:col-span-3">
-                            <div className={labelClass}>Revenue Category</div>
-                            {editable ? (
-                              <select
-                                value={row.revenue_category_id || ""}
-                                onChange={(event) =>
-                                  setLineItemsDraft((current) =>
-                                    current.map((entry) =>
-                                      entry.id === row.id
-                                        ? {
-                                            ...entry,
-                                            revenue_category_id:
-                                              event.target.value,
-                                          }
-                                        : entry
-                                    )
-                                  )
-                                }
-                                className={inputFieldClass}
-                              >
-                                <option value="">Select category</option>
-                                {revenueCategories.map((category) => (
-                                  <option key={category.id} value={category.id}>
-                                    {category.name}
-                                  </option>
-                                ))}
-                              </select>
-                            ) : (
-                              <div className={readOnlyFieldClass}>
-                                {revenueCategories.find(
-                                  (category) =>
-                                    category.id === row.revenue_category_id
-                                )?.name || "—"}
-                              </div>
-                            )}
-                          </label>
-
-                          <div className="space-y-2 md:col-span-3">
-                            <div className={labelClass}>Line Total</div>
-                            <div className="flex min-h-[44px] items-center rounded-2xl border border-cyan-400/15 bg-cyan-500/10 px-4 text-sm font-semibold text-cyan-100">
-                              {formatFinanceMoney(
-                                rowTotal,
-                                printableCurrencyCode
-                              )}
-                            </div>
-                          </div>
-                        </div>
-                      </div>
-                    );
-                  })}
-                </CardContent>
-              </Card>
-            </div>
-
-            <div className="space-y-6">
-              <Card className={sectionCardClass}>
-                <CardHeader className="border-b border-white/10 px-5 py-4">
-                  <CardTitle className="text-sm font-semibold uppercase tracking-[0.18em] text-slate-400">
-                    Financial Summary
-                  </CardTitle>
-                  <CardDescription className="mt-1 text-xs text-slate-500">
-                    Live totals and document currency view.
-                  </CardDescription>
-                </CardHeader>
-
-                <CardContent className="space-y-3 p-5">
-                  <div className={innerPanelClass}>
-                    <div className={eyebrowClass}>Subtotal</div>
-                    <div className="mt-2 text-2xl font-semibold text-white">
-                      {formatFinanceMoney(
-                        financialSummary?.subtotal ?? 0,
-                        printableCurrencyCode
-                      )}
-                    </div>
-                  </div>
-
-                  <div className={innerPanelClass}>
-                    <div className={eyebrowClass}>Discount</div>
-                    <div className="mt-2 text-2xl font-semibold text-white">
-                      {formatFinanceMoney(
-                        financialSummary?.discount ?? 0,
-                        printableCurrencyCode
-                      )}
-                    </div>
-                  </div>
-
-                  <div className={innerPanelClass}>
-                    <div className={eyebrowClass}>Tax</div>
-                    <div className="mt-2 text-2xl font-semibold text-white">
-                      {formatFinanceMoney(
-                        financialSummary?.tax ?? 0,
-                        printableCurrencyCode
-                      )}
-                    </div>
-                  </div>
-
-                  <div className="rounded-[24px] border border-cyan-400/20 bg-cyan-500/10 p-4">
-                    <div className="text-[11px] uppercase tracking-[0.2em] text-cyan-200/80">
-                      Total
-                    </div>
-                    <div className="mt-2 text-2xl font-semibold text-white">
-                      {formatFinanceMoney(
-                        financialSummary?.total ?? 0,
-                        printableCurrencyCode
-                      )}
-                    </div>
-                  </div>
-                </CardContent>
-              </Card>
-
-              <Card className={sectionCardClass}>
-                <CardHeader className="border-b border-white/10 px-5 py-4">
-                  <CardTitle className="text-sm font-semibold uppercase tracking-[0.18em] text-slate-400">
-                    Linked Documents
-                  </CardTitle>
-                  <CardDescription className="mt-1 text-xs text-slate-500">
-                    Source Customer PO and converted invoice relationship.
-                  </CardDescription>
-                </CardHeader>
-
-                <CardContent className="space-y-3 p-5">
-                  <div className={innerPanelClass}>
-                    <div className="flex items-start justify-between gap-3">
-                      <div>
-                        <div className={eyebrowClass}>Source Customer PO</div>
-                        <div className="mt-2 text-lg font-semibold text-white">
-                          {linkedCustomerPo?.client_po_number ||
-                            linkedCustomerPo?.external_po_number ||
-                            getMetadataString(
-                              proforma.metadata,
-                              "client_po_number"
-                            ) ||
-                            getMetadataString(
-                              proforma.metadata,
-                              "external_po_number"
-                            ) ||
-                            "Manual"}
-                        </div>
-                        <div className="mt-2 text-sm leading-6 text-slate-400">
-                          {linkedCustomerPo
-                            ? `${linkedCustomerPo.status} · ${formatFinanceMoney(
-                                linkedCustomerPo.total_amount ??
-                                  getMetadataNumberOrString(
-                                    proforma.metadata,
-                                    "customer_po_total_amount"
-                                  ),
-                                linkedCustomerPo.currency_code ||
-                                  printableCurrencyCode
-                              )}`
-                            : "This proforma invoice has no Customer PO source."}
-                        </div>
-                      </div>
-                      <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-2xl border border-emerald-400/20 bg-emerald-500/10 text-emerald-200">
-                        <Link2 className="h-4 w-4" />
-                      </div>
-                    </div>
-
-                    {linkedCustomerPo ? (
-                      <Button
-                        variant="outline"
-                        onClick={() =>
-                          navigate(
-                            `/finance/transactions/customer-pos/${linkedCustomerPo.id}`
-                          )
-                        }
-                        className="mt-4 h-9 rounded-2xl border-emerald-400/20 bg-emerald-500/10 px-3 text-emerald-200 hover:bg-emerald-500/20"
-                      >
-                        Open Customer PO
-                      </Button>
-                    ) : null}
-                  </div>
-
-                  <div className={innerPanelClass}>
-                    <div className="flex items-start justify-between gap-3">
-                      <div>
-                        <div className={eyebrowClass}>Linked Invoice</div>
-                        <div className="mt-2 text-lg font-semibold text-white">
-                          {linkedInvoice?.invoice_number || "—"}
-                        </div>
-                        <div className="mt-2 text-sm leading-6 text-slate-400">
-                          {linkedInvoice
-                            ? `${linkedInvoice.status} · ${linkedInvoice.payment_status || "—"}`
-                            : "No invoice created from this proforma yet."}
-                        </div>
-                      </div>
-                      <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-2xl border border-violet-400/20 bg-violet-500/10 text-violet-200">
-                        <FileText className="h-4 w-4" />
-                      </div>
-                    </div>
-
-                    {linkedInvoice ? (
-                      <Button
-                        variant="outline"
-                        onClick={() =>
-                          navigate(
-                            `/finance/transactions/invoices/${linkedInvoice.id}`
-                          )
-                        }
-                        className="mt-4 h-9 rounded-2xl border-violet-400/20 bg-violet-500/10 px-3 text-violet-200 hover:bg-violet-500/20"
-                      >
-                        Open Linked Invoice
-                      </Button>
-                    ) : null}
-                  </div>
-                </CardContent>
-              </Card>
-
-              <Card className={sectionCardClass}>
-                <CardHeader className="border-b border-white/10 px-5 py-4">
-                  <div className="flex items-center justify-between gap-4">
-                    <div>
-                      <CardTitle className="text-sm font-semibold uppercase tracking-[0.18em] text-slate-400">
-                        Archive
-                      </CardTitle>
-                      <CardDescription className="mt-1 text-xs text-slate-500">
-                        Soft-delete, archive, restore, and hard-delete controls.
-                      </CardDescription>
-                    </div>
-
-                    <Button
-                      variant="outline"
-                      onClick={() => {
-                        setShowArchivePopup((current) => {
-                          const next = !current;
-
-                          if (next) {
-                            setArchiveTab("archived");
-                            void loadArchiveItems();
-                          }
-
-                          return next;
-                        });
-                      }}
-                      className="h-9 rounded-2xl border-white/10 bg-white/[0.05] px-3 text-white hover:bg-white/[0.08]"
-                    >
-                      {showArchivePopup ? "Close" : "Open Archive"}
-                    </Button>
-                  </div>
-                </CardHeader>
-
-                <CardContent className="space-y-3 p-5">
-                  <div className="rounded-[18px] border border-white/10 bg-black/20 px-4 py-4 text-sm leading-6 text-slate-400">
-                    Archive moves the proforma invoice to archived. Delete moves
-                    the proforma invoice to deleted. Hard delete is available only
-                    from the deleted tab.
-                  </div>
-
-                  {showArchivePopup ? (
-                    <div className="space-y-4 rounded-[22px] border border-white/10 bg-black/20 p-4">
-                      <div className="flex items-center gap-2">
-                        <button
-                          type="button"
-                          onClick={() => setArchiveTab("archived")}
-                          className={`rounded-xl px-4 py-2 text-sm transition ${
-                            archiveTab === "archived"
-                              ? "bg-white/10 text-white"
-                              : "text-slate-500 hover:bg-white/[0.05] hover:text-white"
-                          }`}
-                        >
-                          Archived
-                        </button>
-
-                        <button
-                          type="button"
-                          onClick={() => setArchiveTab("deleted")}
-                          className={`rounded-xl px-4 py-2 text-sm transition ${
-                            archiveTab === "deleted"
-                              ? "bg-rose-500/15 text-rose-200"
-                              : "text-slate-500 hover:bg-white/[0.05] hover:text-white"
-                          }`}
-                        >
-                          Deleted
-                        </button>
-                      </div>
-
-                      {visibleArchiveItems.length === 0 ? (
-                        <div className="text-sm text-slate-500">
-                          No {archiveTab} proforma invoices.
-                        </div>
-                      ) : (
-                        <div className="max-h-[430px] space-y-3 overflow-y-auto pr-1">
-                          {visibleArchiveItems.map((item) => (
-                            <div
-                              key={item.id}
-                              className="rounded-[18px] border border-white/10 bg-black/20 px-4 py-3"
-                            >
-                              <div className="flex items-start justify-between gap-4">
-                                <div>
-                                  <div className="text-sm font-medium text-white">
-                                    {item.proforma_number || "Proforma Invoice"}
-                                  </div>
-                                  <div className="mt-1 text-xs text-slate-500">
-                                    {formatFinanceDate(item.updated_at || null)}
-                                  </div>
-                                </div>
-
-                                <div className="flex items-center gap-2">
-                                  <div className="text-sm text-slate-400">
-                                    {formatFinanceMoney(
-                                      item.total_amount,
-                                      printableCurrencyCode
-                                    )}
-                                  </div>
-
-                                  <Button
-                                    variant="outline"
-                                    onClick={() => void handleRestore(item.id)}
-                                    disabled={isSavingDraft}
-                                    className="h-9 rounded-2xl border-emerald-400/20 bg-emerald-500/10 px-3 text-emerald-200 hover:bg-emerald-500/20"
-                                  >
-                                    <RotateCcw className="h-4 w-4" />
-                                  </Button>
-
-                                  {archiveTab === "deleted" ? (
-                                    <Button
-                                      variant="outline"
-                                      onClick={() =>
-                                        void handleHardDelete(item.id)
-                                      }
-                                      disabled={isDeleting}
-                                      className="h-9 rounded-2xl border-rose-400/20 bg-rose-500/10 px-3 text-rose-200 hover:bg-rose-500/20"
-                                    >
-                                      <Trash2 className="h-4 w-4" />
-                                    </Button>
-                                  ) : null}
-                                </div>
-                              </div>
-                            </div>
-                          ))}
-                        </div>
-                      )}
-                    </div>
-                  ) : null}
-                </CardContent>
-              </Card>
-
-              {error ? (
-                <div className="rounded-[18px] border border-rose-400/20 bg-rose-500/10 px-4 py-3 text-sm text-rose-200">
-                  {error}
-                </div>
-              ) : null}
-            </div>
-          </div>
-        </div>
-      </div>
+      <AixiaPage>
+        <AixiaHero
+          parentLabel="Proforma Invoices"
+          parentPath="/finance/transactions/proforma-invoices"
+          badges={[
+            { label: "Proforma Workspace", tone: "cyan" },
+            { label: getProformaStatusLabel(proforma.status), tone: proforma.status === "confirmed" ? "emerald" : "neutral" },
+            ...(linkedCustomerPo ? [{ label: "Source Customer PO", tone: "emerald" as const }] : []),
+            ...(linkedInvoice ? [{ label: "Linked Invoice", tone: "violet" as const }] : []),
+          ]}
+          gradientTitle="Proforma"
+          title={proforma.proforma_number || (proforma.status === "draft" ? "Draft Proforma" : "Proforma Invoice")}
+          description="Commercial pre-invoice document used before formal invoice issuance. Drafts are editable. Confirmed proformas can be converted into invoices."
+          statusCards={[
+            {
+              label: "Recipient",
+              value:
+                selectedDraftClient?.legal_name ||
+                selectedDraftClient?.name ||
+                getMetadataString(proforma.metadata, "client_name_snapshot") ||
+                "—",
+              description: "Client selected for this proforma invoice.",
+              icon: CheckCircle,
+              tone: "cyan",
+            },
+            {
+              label: "Total",
+              value: formatFinanceMoney(financialSummary?.total ?? 0, printableCurrencyCode),
+              description: "Current proforma commercial value.",
+              icon: FileText,
+              tone: "emerald",
+            },
+          ]}
+        />
+
+        <AixiaMetricGrid>
+          <AixiaMetricCard
+            label="Subtotal"
+            value={formatFinanceMoney(financialSummary?.subtotal ?? 0, printableCurrencyCode)}
+            description="Before discount and tax."
+            icon={FileText}
+            tone="cyan"
+          />
+          <AixiaMetricCard
+            label="Discount"
+            value={formatFinanceMoney(financialSummary?.discount ?? 0, printableCurrencyCode)}
+            description="Commercial discount."
+            icon={CheckCircle}
+            tone="amber"
+          />
+          <AixiaMetricCard
+            label="Tax"
+            value={formatFinanceMoney(financialSummary?.tax ?? 0, printableCurrencyCode)}
+            description="Based on selected tax codes."
+            icon={FileText}
+            tone="violet"
+          />
+          <AixiaMetricCard
+            label="Total"
+            value={formatFinanceMoney(financialSummary?.total ?? 0, printableCurrencyCode)}
+            description="Proforma value."
+            icon={CheckCircle}
+            tone="emerald"
+          />
+        </AixiaMetricGrid>
+
+        <AixiaAccessRule
+          title="Locked access rule"
+          description="Proforma invoice detail access follows the shared Finance document, lifecycle, registry, archive, and print standards."
+          icon={FileText}
+        >
+          This page uses shared AiXia components for page shell, hero, metrics, sections, forms, line-item rows, lifecycle actions, archive modal, and table actions. Page-local UI primitives and local Tailwind visual systems are intentionally removed.
+        </AixiaAccessRule>
+
+        {error ? <AixiaAlert tone="error">{error}</AixiaAlert> : null}
+
+        <AixiaSmartLayout
+          sidebar="normal"
+          balance="main"
+          sideRebalance="last-to-bottom"
+          main={mainContent}
+          side={sideContent}
+        />
+
+        <AixiaArchiveManagerModal
+          open={showArchivePopup}
+          title="Proforma Invoice Archive"
+          description="Archived proforma invoices can be restored. Deleted proforma invoices can be restored or permanently deleted."
+          archivedCount={archivedArchiveCount}
+          deletedCount={deletedArchiveCount}
+          activeTab={archiveTab}
+          onTabChange={setArchiveTab}
+          onClose={() => setShowArchivePopup(false)}
+          maxWidthClassName="max-w-[1300px]"
+        >
+          {visibleArchiveItems.length === 0 ? (
+            <AixiaEmptyState
+              icon={Archive}
+              title={`No ${archiveTab} proforma invoices`}
+              description={`No ${archiveTab} proforma invoice records are available.`}
+            />
+          ) : (
+            <AixiaTableShell variant="archive" minWidthClassName="min-w-[980px]">
+              <thead className="aixia-table-head">
+                <tr>
+                  <th>Proforma</th>
+                  <th>Status</th>
+                  <th>Total</th>
+                  <th>Updated</th>
+                  <th>Actions</th>
+                </tr>
+              </thead>
+              <tbody>
+                {visibleArchiveItems.map((item) => (
+                  <tr key={item.id} className="aixia-table-row">
+                    <AixiaTableTextCell primary={item.proforma_number || "Proforma Invoice"} width="lg" />
+                    <AixiaTableBadgeCell>
+                      <AixiaStatusBadge value={item.status} />
+                    </AixiaTableBadgeCell>
+                    <AixiaTableTextCell primary={formatFinanceMoney(item.total_amount, printableCurrencyCode)} width="md" />
+                    <AixiaTableDateCell>{formatFinanceDate(item.updated_at || null)}</AixiaTableDateCell>
+                    <AixiaTableActionsCell>
+                      <AixiaButton type="button" variant="secondary" onClick={() => void handleRestore(item.id)} disabled={isSavingDraft}>
+                        <RotateCcw className="h-4 w-4" />
+                        Restore
+                      </AixiaButton>
+                      {archiveTab === "deleted" ? (
+                        <AixiaButton type="button" variant="danger" onClick={() => void handleHardDelete(item.id)} disabled={isDeleting}>
+                          <Trash2 className="h-4 w-4" />
+                          Delete Permanently
+                        </AixiaButton>
+                      ) : null}
+                    </AixiaTableActionsCell>
+                  </tr>
+                ))}
+              </tbody>
+            </AixiaTableShell>
+          )}
+        </AixiaArchiveManagerModal>
+      </AixiaPage>
 
       <ProformaInvoicePrintDocument
         proforma={printableProforma}

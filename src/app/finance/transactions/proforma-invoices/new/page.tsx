@@ -3,25 +3,38 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { useNavigate, useSearchParams } from "react-router-dom";
 import {
-  ArrowRight,
   FileText,
   Plus,
   Save,
+  ShieldCheck,
   SquarePen,
   Trash2,
   Wallet,
 } from "lucide-react";
 
-import { supabase } from "@/lib/supabase";
-import { Button } from "@/components/ui/button";
-import { Badge } from "@/components/ui/badge";
 import {
-  Card,
-  CardContent,
-  CardDescription,
-  CardHeader,
-  CardTitle,
-} from "@/components/ui/card";
+  AixiaAccessRule,
+  AixiaAlert,
+  AixiaBadge,
+  AixiaButton,
+  AixiaDisplayBlock,
+  AixiaFieldLabel,
+  AixiaFormField,
+  AixiaFormFullWidth,
+  AixiaFormGrid,
+  AixiaHero,
+  AixiaInputField,
+  AixiaLoadingState,
+  AixiaMetricCard,
+  AixiaMetricGrid,
+  AixiaPage,
+  AixiaSection,
+  AixiaSelectField,
+  AixiaSmartLayout,
+  AixiaTextareaField,
+  AixiaValueBlock,
+} from "@/components/aixia";
+import { supabase } from "@/lib/supabase";
 
 type ClientOption = {
   id: string;
@@ -1206,1063 +1219,687 @@ export default function FinanceNewProformaInvoicePage() {
     validUntil,
   ]);
 
-  const activeSectionClass =
-    "overflow-hidden rounded-[30px] border border-white/10 bg-white/[0.045] backdrop-blur-xl";
-
-  const summaryBlockClass =
-    "rounded-[24px] border border-white/10 bg-black/20 p-4";
-
-  const fieldShellClass =
-    "mt-2 h-10 w-full rounded-2xl border border-white/10 bg-black/20 px-3 text-sm text-white outline-none transition focus:border-cyan-400/30 focus:bg-black/30";
-
-  const inputFieldClass =
-    "h-11 w-full rounded-2xl border border-white/10 bg-black/20 px-4 text-sm text-white outline-none transition placeholder:text-slate-600 focus:border-cyan-400/30 focus:bg-black/30";
-
-  const labelClass = "text-[11px] uppercase tracking-[0.2em] text-slate-500";
-
-  const inputLabelClass = "text-sm font-medium text-slate-300";
 
   if (isLoading) {
     return (
-      <div className="min-h-screen bg-[#05070d] px-4 py-4 text-white md:px-6 md:py-6">
-        <div className="mx-auto flex w-full max-w-[1600px] flex-col gap-6">
-          <div className="rounded-[30px] border border-white/10 bg-white/[0.045] p-6 text-sm text-slate-400 backdrop-blur-xl">
-            Loading proforma invoice sources...
-          </div>
-        </div>
-      </div>
+      <AixiaLoadingState
+        title="Loading proforma invoice sources"
+        description="Clients, companies, Customer PO sources, finance master data, bank accounts, and line-item references are being loaded."
+      />
     );
   }
 
-  return (
-    <div className="min-h-screen bg-[#05070d] px-4 py-4 text-white md:px-6 md:py-6">
-      <div className="mx-auto flex w-full max-w-[1600px] flex-col gap-6">
-        <header className="relative overflow-hidden rounded-[34px] border border-white/10 bg-white/[0.045] p-6 shadow-2xl shadow-black/30 backdrop-blur-xl">
-          <div className="pointer-events-none absolute inset-0 bg-[radial-gradient(circle_at_top_left,rgba(6,182,212,0.16),transparent_38%),radial-gradient(circle_at_top_right,rgba(139,92,246,0.12),transparent_34%)]" />
-
-          <div className="relative">
-            <button
-              type="button"
-              onClick={() => navigate("/finance/transactions/proforma-invoices")}
-              className="mb-5 inline-flex items-center justify-center gap-2 rounded-full border border-white/10 bg-white/[0.05] px-5 py-2 text-[11px] font-semibold uppercase tracking-[0.22em] text-slate-300 transition hover:border-white/20 hover:bg-white/[0.08] hover:text-white"
+  const mainContent = (
+    <>
+      <AixiaSection
+        title="Document Overview"
+        description="Issuing company, client, project references, dates, currency, source mode, and notes."
+        icon={SquarePen}
+      >
+        <AixiaFormGrid columns="three">
+          <AixiaFormField>
+            <AixiaFieldLabel label="Issuing Company" />
+            <AixiaSelectField
+              value={companyId}
+              onChange={(event) => setCompanyId(event.target.value)}
             >
-              <ArrowRight className="h-3.5 w-3.5 rotate-180" />
-              Proforma Invoices
-            </button>
+              <option value="">Select company</option>
+              {companies.map((company) => (
+                <option key={company.id} value={company.id}>
+                  {company.legal_name || company.name}
+                </option>
+              ))}
+            </AixiaSelectField>
+          </AixiaFormField>
 
-            <div className="grid gap-6 xl:grid-cols-[minmax(0,1fr)_520px]">
-              <div>
-                <div className="flex flex-wrap gap-2">
-                  <Badge className="inline-flex w-fit rounded-full border border-cyan-400/20 bg-cyan-500/10 px-3 py-1 text-[11px] font-semibold uppercase tracking-[0.22em] text-cyan-200 shadow-none">
-                    New Proforma Invoice
-                  </Badge>
+          <AixiaFormField>
+            <AixiaFieldLabel label="Client / Recipient" />
+            <AixiaSelectField
+              value={clientId}
+              onChange={(event) => setClientId(event.target.value)}
+            >
+              <option value="">Select client</option>
+              {clients.map((client) => (
+                <option key={client.id} value={client.id}>
+                  {client.legal_name || client.name}
+                </option>
+              ))}
+            </AixiaSelectField>
+          </AixiaFormField>
 
-                  {sourceCustomerPo ? (
-                    <Badge className="inline-flex w-fit rounded-full border border-emerald-400/20 bg-emerald-500/10 px-3 py-1 text-[11px] font-semibold uppercase tracking-[0.22em] text-emerald-200 shadow-none">
-                      From Customer PO{" "}
-                      {sourceCustomerPo.client_po_number ||
-                        sourceCustomerPo.external_po_number}
-                    </Badge>
-                  ) : null}
-                </div>
+          <AixiaFormField>
+            <AixiaFieldLabel label="Payment Terms" />
+            <AixiaSelectField
+              value={paymentTermsId}
+              onChange={(event) => setPaymentTermsId(event.target.value)}
+            >
+              <option value="">Select terms</option>
+              {paymentTerms.map((term) => (
+                <option key={term.id} value={term.id}>
+                  {term.code} | {term.name} | Due in {term.due_days} days
+                </option>
+              ))}
+            </AixiaSelectField>
+          </AixiaFormField>
 
-                <h1 className="mt-4 text-3xl font-semibold tracking-[-0.035em] text-white md:text-5xl">
-                  Create Proforma Invoice Draft
-                </h1>
+          <AixiaFormField>
+            <AixiaFieldLabel label="Shipping Terms" />
+            <AixiaSelectField
+              value={shippingTermId}
+              onChange={(event) => setShippingTermId(event.target.value)}
+            >
+              <option value="">Select shipping terms</option>
+              {shippingTerms.map((term) => (
+                <option key={term.id} value={term.id}>
+                  {term.code} | {term.name}
+                </option>
+              ))}
+            </AixiaSelectField>
+          </AixiaFormField>
 
-                <p className="mt-3 max-w-4xl text-sm leading-6 text-slate-400 md:text-base md:leading-7">
-                  Create a draft proforma invoice from master data or from a
-                  customer PO. Sending, acceptance, conversion, archive, and
-                  delete actions happen later from the proforma detail workflow.
-                </p>
+          <AixiaFormField>
+            <AixiaFieldLabel label="Bank Account" />
+            <AixiaSelectField
+              value={bankAccountId}
+              onChange={(event) => setBankAccountId(event.target.value)}
+            >
+              <option value="">Select bank account</option>
+              {filteredBankAccounts.map((bank) => (
+                <option key={bank.id} value={bank.id}>
+                  {bank.name}
+                </option>
+              ))}
+            </AixiaSelectField>
+          </AixiaFormField>
 
-                <div className="mt-5 flex flex-wrap gap-2">
-                  <Badge className="rounded-full border border-cyan-400/20 bg-cyan-500/10 px-3 py-1 text-[11px] font-semibold uppercase tracking-[0.16em] text-cyan-200 shadow-none">
-                    Draft only
-                  </Badge>
-                  <Badge className="rounded-full border border-emerald-400/20 bg-emerald-500/10 px-3 py-1 text-[11px] font-semibold uppercase tracking-[0.16em] text-emerald-200 shadow-none">
-                    Customer PO prefill supported
-                  </Badge>
-                  <Badge className="rounded-full border border-white/10 bg-white/[0.05] px-3 py-1 text-[11px] font-semibold uppercase tracking-[0.16em] text-slate-300 shadow-none">
-                    No manual refresh
-                  </Badge>
-                </div>
-              </div>
+          <AixiaFormField>
+            <AixiaFieldLabel label="Preferred Payment Method" />
+            <AixiaSelectField
+              value={paymentMethodId}
+              onChange={(event) => setPaymentMethodId(event.target.value)}
+            >
+              <option value="">Select payment method</option>
+              {paymentMethods.map((method) => (
+                <option key={method.id} value={method.id}>
+                  {method.name}
+                </option>
+              ))}
+            </AixiaSelectField>
+          </AixiaFormField>
 
-                            <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-1">
-                <div className="min-h-[148px] rounded-[24px] border border-white/10 bg-black/20 p-4">
-                  <div className="flex items-start justify-between gap-3">
-                    <div>
-                      <p className="text-[11px] font-semibold uppercase tracking-[0.2em] text-slate-500">
-                        Client
-                      </p>
-                      <p className="mt-2 text-xl font-semibold tracking-[-0.035em] text-white">
-                        {selectedClient?.legal_name || selectedClient?.name || "—"}
-                      </p>
-                    </div>
-                    <div className="flex h-10 w-10 items-center justify-center rounded-2xl border border-cyan-400/20 bg-cyan-500/10 text-cyan-200">
-                      <FileText className="h-4 w-4" />
-                    </div>
-                  </div>
-                  <p className="mt-3 text-xs leading-5 text-slate-500">
-                    Client selected for this proforma invoice draft.
-                  </p>
-                </div>
+          <AixiaFormField>
+            <AixiaFieldLabel label="Issue Date" />
+            <AixiaInputField
+              type="date"
+              value={issueDate}
+              onChange={(event) => setIssueDate(event.target.value)}
+            />
+          </AixiaFormField>
 
-                <div className="min-h-[148px] rounded-[24px] border border-white/10 bg-black/20 p-4">
-                  <div className="flex items-start justify-between gap-3">
-                    <div>
-                      <p className="text-[11px] font-semibold uppercase tracking-[0.2em] text-slate-500">
-                        Draft Total
-                      </p>
-                      <p className="mt-2 text-xl font-semibold tracking-[-0.035em] text-white">
-                        {formatMoney(totals.total, currencyCode)}
-                      </p>
-                    </div>
-                    <div className="flex h-10 w-10 items-center justify-center rounded-2xl border border-emerald-400/20 bg-emerald-500/10 text-emerald-200">
-                      <Wallet className="h-4 w-4" />
-                    </div>
-                  </div>
-                  <p className="mt-3 text-xs leading-5 text-slate-500">
-                    Live total from the draft line items before saving.
-                  </p>
-                </div>
-              </div>
-            </div>
+          <AixiaFormField>
+            <AixiaFieldLabel label="Due / Valid Until" />
+            <AixiaInputField
+              type="date"
+              value={validUntil}
+              onChange={(event) => setValidUntil(event.target.value)}
+            />
+          </AixiaFormField>
 
-            <div className="mt-6 flex flex-wrap gap-3">
-              <Button
-                onClick={() => void handleSaveDraft()}
-                disabled={isSaving || isLoading}
-                className="h-11 rounded-2xl border border-cyan-400/20 bg-cyan-500 px-4 text-sm font-semibold text-slate-950 transition hover:bg-cyan-400 disabled:cursor-not-allowed disabled:opacity-40"
+          <AixiaFormField>
+            <AixiaFieldLabel label="Currency" />
+            <AixiaSelectField
+              value={currencyId}
+              onChange={(event) => {
+                const nextId = event.target.value;
+                setCurrencyId(nextId);
+
+                const matchedCurrency = currencies.find(
+                  (entry) => entry.id === nextId
+                );
+
+                if (matchedCurrency) {
+                  setCurrencyCode(matchedCurrency.currency_code);
+                }
+              }}
+            >
+              <option value="">Select currency</option>
+              {currencies.map((currency) => (
+                <option key={currency.id} value={currency.id}>
+                  {currency.currency_code} — {currency.currency_name}
+                </option>
+              ))}
+            </AixiaSelectField>
+          </AixiaFormField>
+
+          <AixiaFormField>
+            <AixiaFieldLabel label="Project" />
+            <AixiaSelectField
+              value={projectId}
+              onChange={(event) => setProjectId(event.target.value)}
+            >
+              <option value="">No project</option>
+              {projects.map((project) => (
+                <option key={project.id} value={project.id}>
+                  {project.name}
+                </option>
+              ))}
+            </AixiaSelectField>
+          </AixiaFormField>
+
+          <AixiaFormField>
+            <AixiaFieldLabel label="Task" />
+            <AixiaSelectField
+              value={taskId}
+              onChange={(event) => setTaskId(event.target.value)}
+            >
+              <option value="">No task</option>
+              {filteredTasks.map((task) => (
+                <option key={task.id} value={task.id}>
+                  {task.title}
+                </option>
+              ))}
+            </AixiaSelectField>
+          </AixiaFormField>
+
+          <AixiaFormField>
+            <AixiaFieldLabel label="Source Mode" />
+            <AixiaSelectField
+              value={sourceMode}
+              onChange={(event) => {
+                const nextMode = event.target.value as "manual" | "customer_po";
+
+                setSourceMode(nextMode);
+
+                if (nextMode === "manual") {
+                  setSourceCustomerPo(null);
+                  setSourceCustomerPoId("");
+                  setRows([createRow()]);
+                  setNotes("");
+                }
+              }}
+            >
+              <option value="manual">Manual</option>
+              <option value="customer_po">From Customer PO</option>
+            </AixiaSelectField>
+          </AixiaFormField>
+
+          {sourceMode === "customer_po" ? (
+            <AixiaFormFullWidth>
+              <AixiaFieldLabel label="Source Customer PO" />
+              <AixiaSelectField
+                value={sourceCustomerPoId}
+                onChange={(event) => {
+                  const nextCustomerPoId = event.target.value;
+                  setSourceCustomerPoId(nextCustomerPoId);
+                  void applyCustomerPoSource(nextCustomerPoId);
+                }}
               >
-                <Save className="mr-2 h-4 w-4" />
-                {isSaving ? "Saving..." : "Save Draft"}
-              </Button>
+                <option value="">Select Customer PO</option>
+                {customerPoSources.map((po) => (
+                  <option key={po.id} value={po.id}>
+                    {po.client_po_number || "Customer PO"} ·{" "}
+                    {po.external_po_number || "No external no."} ·{" "}
+                    {formatMoney(
+                      Number(po.total_amount || 0),
+                      po.currency_code || currencyCode
+                    )}
+                  </option>
+                ))}
+              </AixiaSelectField>
+            </AixiaFormFullWidth>
+          ) : null}
 
-              {errorMessage ? (
-                <div className="flex min-h-11 items-center rounded-2xl border border-rose-400/20 bg-rose-500/10 px-4 text-sm text-rose-200">
-                  {errorMessage}
-                </div>
-              ) : null}
-            </div>
-          </div>
-        </header>
+          <AixiaFormFullWidth>
+            <AixiaFieldLabel label="Notes" />
+            <AixiaTextareaField
+              value={notes}
+              onChange={(event) => setNotes(event.target.value)}
+              rows={4}
+            />
+          </AixiaFormFullWidth>
+        </AixiaFormGrid>
+      </AixiaSection>
 
-        <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
-          <div className="group relative min-h-[156px] overflow-hidden rounded-[28px] border border-white/10 bg-white/[0.045] p-5 backdrop-blur-xl transition hover:border-white/20 hover:bg-white/[0.055]">
-            <div className="pointer-events-none absolute inset-0 bg-gradient-to-br from-cyan-500/20 via-cyan-400/10 to-transparent opacity-70" />
-            <div className="relative flex items-start justify-between gap-4">
-              <div className="min-w-0">
-                <div className="text-[11px] font-semibold uppercase tracking-[0.2em] text-slate-500">
-                  Subtotal
-                </div>
-                <div className="mt-2 truncate text-3xl font-semibold tracking-[-0.035em] text-cyan-100">
-                  {formatMoney(totals.subtotal, currencyCode)}
-                </div>
-                <div className="mt-2 truncate text-sm leading-6 text-slate-400">
-                  Before discount and tax.
-                </div>
-              </div>
-              <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-2xl border border-cyan-400/20 bg-cyan-500/10 text-cyan-200">
-                <span className="h-2 w-2 rounded-full bg-cyan-400" />
-              </div>
-            </div>
-          </div>
+      <AixiaSection
+        title="Line Items"
+        description="Add products or services using the locked new/create line-item card pattern."
+        icon={SquarePen}
+        actions={
+          <AixiaButton type="button" variant="secondary" onClick={addRow}>
+            <Plus className="h-4 w-4" />
+            Add Row
+          </AixiaButton>
+        }
+      >
+        <div className="aixia-stack">
+          {rows.map((row, index) => {
+            const selectedItem = items.find((item) => item.id === row.itemId);
+            const selectedTaxCode = taxCodes.find(
+              (taxCode) => taxCode.id === row.taxCodeId
+            );
+            const selectedUnit = unitsOfMeasure.find(
+              (unit) => unit.id === row.unitOfMeasureId
+            );
+            const selectedRevenueCategory = revenueCategories.find(
+              (category) => category.id === row.revenueCategoryId
+            );
 
-          <div className="group relative min-h-[156px] overflow-hidden rounded-[28px] border border-white/10 bg-white/[0.045] p-5 backdrop-blur-xl transition hover:border-white/20 hover:bg-white/[0.055]">
-            <div className="pointer-events-none absolute inset-0 bg-gradient-to-br from-amber-500/20 via-amber-400/10 to-transparent opacity-70" />
-            <div className="relative flex items-start justify-between gap-4">
-              <div className="min-w-0">
-                <div className="text-[11px] font-semibold uppercase tracking-[0.2em] text-slate-500">
-                  Discount
-                </div>
-                <div className="mt-2 truncate text-3xl font-semibold tracking-[-0.035em] text-amber-100">
-                  {formatMoney(totals.discount, currencyCode)}
-                </div>
-                <div className="mt-2 truncate text-sm leading-6 text-slate-400">
-                  Draft commercial discount.
-                </div>
-              </div>
-              <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-2xl border border-amber-400/20 bg-amber-500/10 text-amber-200">
-                <span className="h-2 w-2 rounded-full bg-amber-400" />
-              </div>
-            </div>
-          </div>
+            const rowBase = Math.max(
+              toNumber(row.quantity) * toNumber(row.unitPrice) -
+                toNumber(row.discount),
+              0
+            );
 
-          <div className="group relative min-h-[156px] overflow-hidden rounded-[28px] border border-white/10 bg-white/[0.045] p-5 backdrop-blur-xl transition hover:border-white/20 hover:bg-white/[0.055]">
-            <div className="pointer-events-none absolute inset-0 bg-gradient-to-br from-violet-500/20 via-violet-400/10 to-transparent opacity-70" />
-            <div className="relative flex items-start justify-between gap-4">
-              <div className="min-w-0">
-                <div className="text-[11px] font-semibold uppercase tracking-[0.2em] text-slate-500">
-                  Tax
-                </div>
-                <div className="mt-2 truncate text-3xl font-semibold tracking-[-0.035em] text-violet-100">
-                  {formatMoney(totals.tax, currencyCode)}
-                </div>
-                <div className="mt-2 truncate text-sm leading-6 text-slate-400">
-                  Based on selected tax codes.
-                </div>
-              </div>
-              <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-2xl border border-violet-400/20 bg-violet-500/10 text-violet-200">
-                <span className="h-2 w-2 rounded-full bg-violet-400" />
-              </div>
-            </div>
-          </div>
+            const rowTaxRate = selectedTaxCode?.rate_percent ?? 0;
+            const rowTotal = rowBase + rowBase * (Number(rowTaxRate) / 100);
 
-          <div className="group relative min-h-[156px] overflow-hidden rounded-[28px] border border-white/10 bg-white/[0.045] p-5 backdrop-blur-xl transition hover:border-white/20 hover:bg-white/[0.055]">
-            <div className="pointer-events-none absolute inset-0 bg-gradient-to-br from-emerald-500/20 via-emerald-400/10 to-transparent opacity-70" />
-            <div className="relative flex items-start justify-between gap-4">
-              <div className="min-w-0">
-                <div className="text-[11px] font-semibold uppercase tracking-[0.2em] text-slate-500">
-                  Total
-                </div>
-                <div className="mt-2 truncate text-3xl font-semibold tracking-[-0.035em] text-emerald-100">
-                  {formatMoney(totals.total, currencyCode)}
-                </div>
-                <div className="mt-2 truncate text-sm leading-6 text-slate-400">
-                  Draft proforma value.
-                </div>
-              </div>
-              <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-2xl border border-emerald-400/20 bg-emerald-500/10 text-emerald-200">
-                <span className="h-2 w-2 rounded-full bg-emerald-400" />
-              </div>
-            </div>
-          </div>
-        </div>
-
-                <div className="grid grid-cols-1 gap-6 xl:grid-cols-[minmax(0,1.45fr)_420px]">
-          <div className="space-y-6">
-            <Card className={activeSectionClass}>
-              <CardHeader className="border-b border-white/10 px-5 py-4">
-                <div className="flex items-center gap-3">
-                  <div className="rounded-2xl border border-cyan-400/15 bg-cyan-500/10 p-3 text-cyan-200">
-                    <SquarePen className="h-4 w-4" />
-                  </div>
-                  <div>
-                    <CardTitle className="text-sm font-semibold uppercase tracking-[0.18em] text-slate-400">
-                      Document Overview
-                    </CardTitle>
-                    <CardDescription className="mt-1 text-xs text-slate-500">
-                      Issuing company, client, project references, dates, and currency.
-                    </CardDescription>
-                  </div>
-                </div>
-              </CardHeader>
-
-              <CardContent className="grid grid-cols-1 gap-4 p-5 md:grid-cols-3">
-                <div className={summaryBlockClass}>
-                  <div className={labelClass}>Issuing Company</div>
-                  <select
-                    value={companyId}
-                    onChange={(event) => setCompanyId(event.target.value)}
-                    className={fieldShellClass}
+            return (
+              <AixiaSection
+                key={row.localId}
+                title={`Line ${index + 1}`}
+                description={selectedItem?.name || "Draft line item"}
+                icon={FileText}
+                badge={
+                  selectedItem ? (
+                    <AixiaBadge tone="violet">{selectedItem.name}</AixiaBadge>
+                  ) : null
+                }
+                actions={
+                  <AixiaButton
+                    type="button"
+                    variant="danger"
+                    onClick={() => removeRow(row.localId)}
+                    disabled={rows.length === 1}
                   >
-                    <option value="">Select company</option>
-                    {companies.map((company) => (
-                      <option key={company.id} value={company.id}>
-                        {company.legal_name || company.name}
-                      </option>
-                    ))}
-                  </select>
-
-                  {selectedCompany ? (
-                    <div className="mt-3 text-sm leading-6 text-slate-300">
-                      <div className="font-semibold text-white">
-                        {selectedCompany.legal_name || selectedCompany.name}
-                      </div>
-                      {getCompanyAddress(selectedCompany) ? (
-                        <div>{getCompanyAddress(selectedCompany)}</div>
-                      ) : null}
-                      {selectedCompany.email ? (
-                        <div>Email: {selectedCompany.email}</div>
-                      ) : null}
-                      {selectedCompany.phone ? (
-                        <div>Phone: {selectedCompany.phone}</div>
-                      ) : null}
-                    </div>
-                  ) : null}
-                </div>
-
-                <div className={summaryBlockClass}>
-                  <div className={labelClass}>Client / Recipient</div>
-                  <select
-                    value={clientId}
-                    onChange={(event) => setClientId(event.target.value)}
-                    className={fieldShellClass}
-                  >
-                    <option value="">Select client</option>
-                    {clients.map((client) => (
-                      <option key={client.id} value={client.id}>
-                        {client.legal_name || client.name}
-                      </option>
-                    ))}
-                  </select>
-
-                  {selectedClient ? (
-                    <div className="mt-3 text-sm leading-6 text-slate-300">
-                      <div className="font-semibold text-white">
-                        {selectedClient.legal_name || selectedClient.name}
-                      </div>
-                      {getClientAddress(selectedClient) ? (
-                        <div>{getClientAddress(selectedClient)}</div>
-                      ) : null}
-                      {selectedClient.company_email ||
-                      selectedClient.personnel_email ? (
-                        <div>
-                          Email:{" "}
-                          {selectedClient.company_email ||
-                            selectedClient.personnel_email}
-                        </div>
-                      ) : null}
-                      {selectedClient.company_phone ||
-                      selectedClient.personnel_phone ? (
-                        <div>
-                          Phone:{" "}
-                          {selectedClient.company_phone ||
-                            selectedClient.personnel_phone}
-                        </div>
-                      ) : null}
-                    </div>
-                  ) : null}
-                </div>
-
-                <div className={summaryBlockClass}>
-                  <div className={labelClass}>Payment Terms</div>
-                  <select
-                    value={paymentTermsId}
-                    onChange={(event) => setPaymentTermsId(event.target.value)}
-                    className={fieldShellClass}
-                  >
-                    <option value="">Select terms</option>
-                    {paymentTerms.map((term) => (
-                      <option key={term.id} value={term.id}>
-                        {term.code} | {term.name} | Due in {term.due_days} days
-                      </option>
-                    ))}
-                  </select>
-                </div>
-
-                <div className={summaryBlockClass}>
-                  <div className={labelClass}>Shipping Terms</div>
-                  <select
-                    value={shippingTermId}
-                    onChange={(event) => setShippingTermId(event.target.value)}
-                    className={fieldShellClass}
-                  >
-                    <option value="">Select shipping terms</option>
-                    {shippingTerms.map((term) => (
-                      <option key={term.id} value={term.id}>
-                        {term.code} | {term.name}
-                      </option>
-                    ))}
-                  </select>
-                </div>
-
-                <div className={summaryBlockClass}>
-                  <div className={labelClass}>Bank Account</div>
-                  <select
-                    value={bankAccountId}
-                    onChange={(event) => setBankAccountId(event.target.value)}
-                    className={fieldShellClass}
-                  >
-                    <option value="">Select bank account</option>
-                    {filteredBankAccounts.map((bank) => (
-                      <option key={bank.id} value={bank.id}>
-                        {bank.name}
-                      </option>
-                    ))}
-                  </select>
-
-                  {selectedBankAccount ? (
-                    <div className="mt-3 text-sm leading-6 text-slate-300">
-                      <div className="font-semibold text-white">
-                        {selectedBankAccount.beneficiary_name ||
-                          selectedBankAccount.name}
-                      </div>
-                      {selectedBankAccount.bank_name ||
-                      selectedBankAccount.institution_name ? (
-                        <div>
-                          {selectedBankAccount.bank_name ||
-                            selectedBankAccount.institution_name}
-                        </div>
-                      ) : null}
-                      {getBankAddress(selectedBankAccount) ? (
-                        <div>{getBankAddress(selectedBankAccount)}</div>
-                      ) : null}
-                      {selectedBankAccount.account_number ||
-                      selectedBankAccount.masked_account_number ? (
-                        <div>
-                          Account:{" "}
-                          {selectedBankAccount.account_number ||
-                            selectedBankAccount.masked_account_number}
-                        </div>
-                      ) : null}
-                      {getBankIdentifier(selectedBankAccount) ? (
-                        <div>
-                          {getBankIdentifier(selectedBankAccount)?.label}:{" "}
-                          {getBankIdentifier(selectedBankAccount)?.value}
-                        </div>
-                      ) : null}
-                      {selectedBankAccount.currency_code ? (
-                        <div>Currency: {selectedBankAccount.currency_code}</div>
-                      ) : null}
-                    </div>
-                  ) : null}
-                </div>
-
-                <div className={summaryBlockClass}>
-                  <div className={labelClass}>Preferred Payment Method</div>
-                  <select
-                    value={paymentMethodId}
-                    onChange={(event) => setPaymentMethodId(event.target.value)}
-                    className={fieldShellClass}
-                  >
-                    <option value="">Select payment method</option>
-                    {paymentMethods.map((method) => (
-                      <option key={method.id} value={method.id}>
-                        {method.name}
-                      </option>
-                    ))}
-                  </select>
-                </div>
-
-                <div className={summaryBlockClass}>
-                  <div className={labelClass}>Issue Date</div>
-                  <input
-                    type="date"
-                    value={issueDate}
-                    onChange={(event) => setIssueDate(event.target.value)}
-                    className={fieldShellClass}
-                  />
-                </div>
-
-                <div className={summaryBlockClass}>
-                  <div className={labelClass}>Due / Valid Until</div>
-                  <input
-                    type="date"
-                    value={validUntil}
-                    onChange={(event) => setValidUntil(event.target.value)}
-                    className={fieldShellClass}
-                  />
-                </div>
-
-                <div className={summaryBlockClass}>
-                  <div className={labelClass}>Currency</div>
-                  <select
-                    value={currencyId}
-                    onChange={(event) => {
-                      const nextId = event.target.value;
-                      setCurrencyId(nextId);
-
-                      const matchedCurrency = currencies.find(
-                        (entry) => entry.id === nextId
-                      );
-
-                      if (matchedCurrency) {
-                        setCurrencyCode(matchedCurrency.currency_code);
+                    <Trash2 className="h-4 w-4" />
+                    Remove
+                  </AixiaButton>
+                }
+              >
+                <AixiaFormGrid columns="three">
+                  <AixiaFormField>
+                    <AixiaFieldLabel label="Item" />
+                    <AixiaSelectField
+                      value={row.itemId}
+                      onChange={(event) =>
+                        applyItemToRow(row.localId, event.target.value)
                       }
-                    }}
-                    className={fieldShellClass}
-                  >
-                    <option value="">Select currency</option>
-                    {currencies.map((currency) => (
-                      <option key={currency.id} value={currency.id}>
-                        {currency.currency_code} — {currency.currency_name}
-                      </option>
-                    ))}
-                  </select>
-                </div>
-
-                <div className={summaryBlockClass}>
-                  <div className={labelClass}>Project</div>
-                  <select
-                    value={projectId}
-                    onChange={(event) => setProjectId(event.target.value)}
-                    className={fieldShellClass}
-                  >
-                    <option value="">No project</option>
-                    {projects.map((project) => (
-                      <option key={project.id} value={project.id}>
-                        {project.name}
-                      </option>
-                    ))}
-                  </select>
-                </div>
-
-                <div className={summaryBlockClass}>
-                  <div className={labelClass}>Task</div>
-                  <select
-                    value={taskId}
-                    onChange={(event) => setTaskId(event.target.value)}
-                    className={fieldShellClass}
-                  >
-                    <option value="">No task</option>
-                    {filteredTasks.map((task) => (
-                      <option key={task.id} value={task.id}>
-                        {task.title}
-                      </option>
-                    ))}
-                  </select>
-                </div>
-
-                                <div className={summaryBlockClass}>
-                  <div className={labelClass}>Source Mode</div>
-                  <select
-                    value={sourceMode}
-                    onChange={(event) => {
-                      const nextMode = event.target.value as
-                        | "manual"
-                        | "customer_po";
-
-                      setSourceMode(nextMode);
-
-                      if (nextMode === "manual") {
-                        setSourceCustomerPo(null);
-                        setSourceCustomerPoId("");
-                        setRows([createRow()]);
-                        setNotes("");
-                      }
-                    }}
-                    className={fieldShellClass}
-                  >
-                    <option value="manual">Manual</option>
-                    <option value="customer_po">From Customer PO</option>
-                  </select>
-
-                  {sourceMode === "customer_po" ? (
-                    <select
-                      value={sourceCustomerPoId}
-                      onChange={(event) => {
-                        const nextCustomerPoId = event.target.value;
-                        setSourceCustomerPoId(nextCustomerPoId);
-                        void applyCustomerPoSource(nextCustomerPoId);
-                      }}
-                      className={fieldShellClass}
                     >
-                      <option value="">Select Customer PO</option>
-                      {customerPoSources.map((po) => (
-                        <option key={po.id} value={po.id}>
-                          {po.client_po_number || "Customer PO"} ·{" "}
-                          {po.external_po_number || "No external no."} ·{" "}
-                          {formatMoney(
-                            Number(po.total_amount || 0),
-                            po.currency_code || currencyCode
-                          )}
+                      <option value="">Select item</option>
+                      {items.map((item) => (
+                        <option key={item.id} value={item.id}>
+                          {item.name}
                         </option>
                       ))}
-                    </select>
-                  ) : null}
+                    </AixiaSelectField>
+                  </AixiaFormField>
 
-                  <div className="mt-3 text-sm leading-6 text-slate-400">
-                    {sourceCustomerPo
-                      ? `Selected: ${
-                          sourceCustomerPo.client_po_number ||
-                          sourceCustomerPo.external_po_number ||
-                          "Customer PO"
-                        }`
-                      : "Manual proforma invoice without Customer PO relation."}
-                  </div>
-                </div>
+                  <AixiaFormField>
+                    <AixiaFieldLabel label="Description" />
+                    <AixiaInputField
+                      value={row.description}
+                      onChange={(event) =>
+                        updateRow(row.localId, "description", event.target.value)
+                      }
+                      placeholder="Description"
+                    />
+                  </AixiaFormField>
 
-                <div className="rounded-[24px] border border-white/10 bg-black/20 p-4 md:col-span-3">
-                  <div className={labelClass}>Notes</div>
-                  <textarea
-                    value={notes}
-                    onChange={(event) => setNotes(event.target.value)}
-                    rows={4}
-                    className="mt-2 w-full rounded-2xl border border-white/10 bg-black/20 px-4 py-3 text-sm leading-6 text-white outline-none transition placeholder:text-slate-600 focus:border-cyan-400/30 focus:bg-black/30"
+                  <AixiaFormField>
+                    <AixiaFieldLabel label="Qty" />
+                    <AixiaInputField
+                      value={row.quantity}
+                      onChange={(event) =>
+                        updateRow(row.localId, "quantity", event.target.value)
+                      }
+                    />
+                  </AixiaFormField>
+
+                  <AixiaFormField>
+                    <AixiaFieldLabel
+                      label="Unit"
+                      helper={selectedUnit?.code || undefined}
+                    />
+                    <AixiaSelectField
+                      value={row.unitOfMeasureId}
+                      onChange={(event) =>
+                        updateRow(row.localId, "unitOfMeasureId", event.target.value)
+                      }
+                    >
+                      <option value="">Select unit</option>
+                      {unitsOfMeasure.map((unit) => (
+                        <option key={unit.id} value={unit.id}>
+                          {unit.name}
+                        </option>
+                      ))}
+                    </AixiaSelectField>
+                  </AixiaFormField>
+
+                  <AixiaFormField>
+                    <AixiaFieldLabel label="Unit Price" />
+                    <AixiaInputField
+                      value={row.unitPrice}
+                      onChange={(event) =>
+                        updateRow(row.localId, "unitPrice", event.target.value)
+                      }
+                    />
+                  </AixiaFormField>
+
+                  <AixiaFormField>
+                    <AixiaFieldLabel label="Discount" />
+                    <AixiaInputField
+                      value={row.discount}
+                      onChange={(event) =>
+                        updateRow(row.localId, "discount", event.target.value)
+                      }
+                    />
+                  </AixiaFormField>
+
+                  <AixiaFormField>
+                    <AixiaFieldLabel label="Tax Code" />
+                    <AixiaSelectField
+                      value={row.taxCodeId}
+                      onChange={(event) =>
+                        updateRow(row.localId, "taxCodeId", event.target.value)
+                      }
+                    >
+                      <option value="">Select tax</option>
+                      {taxCodes.map((taxCode) => (
+                        <option key={taxCode.id} value={taxCode.id}>
+                          {taxCode.name}
+                        </option>
+                      ))}
+                    </AixiaSelectField>
+                  </AixiaFormField>
+
+                  <AixiaFormField>
+                    <AixiaFieldLabel
+                      label="Revenue Category"
+                      helper={selectedRevenueCategory?.code || undefined}
+                    />
+                    <AixiaSelectField
+                      value={row.revenueCategoryId}
+                      onChange={(event) =>
+                        updateRow(row.localId, "revenueCategoryId", event.target.value)
+                      }
+                    >
+                      <option value="">Select category</option>
+                      {revenueCategories.map((category) => (
+                        <option key={category.id} value={category.id}>
+                          {category.name}
+                        </option>
+                      ))}
+                    </AixiaSelectField>
+                  </AixiaFormField>
+
+                  <AixiaDisplayBlock
+                    label="Line Total"
+                    value={formatMoney(rowTotal, currencyCode)}
+                    detail="Calculated from quantity, unit price, discount, and tax."
                   />
-                </div>
-              </CardContent>
-            </Card>
-
-            <Card className={activeSectionClass}>
-              <CardHeader className="flex items-center justify-between border-b border-white/10 px-5 py-4">
-                <div>
-                  <div className="flex items-center gap-3">
-                    <div className="rounded-2xl border border-cyan-400/15 bg-cyan-500/10 p-3 text-cyan-200">
-                      <SquarePen className="h-4 w-4" />
-                    </div>
-                    <div>
-                      <CardTitle className="text-sm font-semibold uppercase tracking-[0.18em] text-slate-400">
-                        Line Items
-                      </CardTitle>
-                      <CardDescription className="mt-1 text-xs text-slate-500">
-                        Add products or services using the locked new/create line-item card pattern.
-                      </CardDescription>
-                    </div>
-                  </div>
-                </div>
-
-                <Button
-                  variant="outline"
-                  onClick={addRow}
-                  className="h-9 rounded-2xl border-white/10 bg-white/[0.05] px-3 text-white hover:bg-white/[0.08]"
-                >
-                  <Plus className="mr-2 h-4 w-4" />
-                  Add Row
-                </Button>
-              </CardHeader>
-
-              <CardContent className="p-5">
-                <div className="max-h-[720px] space-y-3 overflow-y-auto pr-1">
-                  {rows.map((row, index) => {
-                    const selectedItem = items.find(
-                      (item) => item.id === row.itemId
-                    );
-                    const selectedTaxCode = taxCodes.find(
-                      (taxCode) => taxCode.id === row.taxCodeId
-                    );
-                    const selectedUnit = unitsOfMeasure.find(
-                      (unit) => unit.id === row.unitOfMeasureId
-                    );
-                    const selectedRevenueCategory = revenueCategories.find(
-                      (category) => category.id === row.revenueCategoryId
-                    );
-
-                    const rowBase = Math.max(
-                      toNumber(row.quantity) * toNumber(row.unitPrice) -
-                        toNumber(row.discount),
-                      0
-                    );
-
-                    const rowTaxRate = selectedTaxCode?.rate_percent ?? 0;
-                    const rowTotal =
-                      rowBase + rowBase * (Number(rowTaxRate) / 100);
-
-                    return (
-                      <div
-                        key={row.localId}
-                        className="rounded-[24px] border border-white/10 bg-black/20 p-4"
-                      >
-                        <div className="mb-4 flex items-center justify-between gap-4">
-                          <div className="flex flex-wrap items-center gap-2">
-                            <div className="text-sm font-semibold text-white">
-                              Line {index + 1}
-                            </div>
-
-                            {selectedItem ? (
-                              <Badge className="rounded-full border border-violet-400/20 bg-violet-500/10 px-3 py-1 text-[10px] font-semibold uppercase tracking-[0.18em] text-violet-200 shadow-none">
-                                {selectedItem.name}
-                              </Badge>
-                            ) : null}
-                          </div>
-
-                          <Button
-                            variant="outline"
-                            onClick={() => removeRow(row.localId)}
-                            disabled={rows.length === 1}
-                            className="h-9 rounded-2xl border-white/10 bg-white/[0.05] px-3 text-white hover:bg-white/[0.08] disabled:cursor-not-allowed disabled:opacity-40"
-                          >
-                            <Trash2 className="h-4 w-4" />
-                          </Button>
-                        </div>
-
-                        <div className="grid grid-cols-1 gap-4 md:grid-cols-12">
-                          <label className="space-y-2 md:col-span-3">
-                            <div className={inputLabelClass}>Item</div>
-                            <select
-                              value={row.itemId}
-                              onChange={(event) =>
-                                applyItemToRow(row.localId, event.target.value)
-                              }
-                              className={inputFieldClass}
-                            >
-                              <option value="">Select item</option>
-                              {items.map((item) => (
-                                <option key={item.id} value={item.id}>
-                                  {item.name}
-                                </option>
-                              ))}
-                            </select>
-                          </label>
-
-                          <label className="space-y-2 md:col-span-4">
-                            <div className={inputLabelClass}>Description</div>
-                            <input
-                              value={row.description}
-                              onChange={(event) =>
-                                updateRow(
-                                  row.localId,
-                                  "description",
-                                  event.target.value
-                                )
-                              }
-                              placeholder="Description"
-                              className={inputFieldClass}
-                            />
-                          </label>
-
-                                                    <label className="space-y-2 md:col-span-1">
-                            <div className={inputLabelClass}>Qty</div>
-                            <input
-                              value={row.quantity}
-                              onChange={(event) =>
-                                updateRow(
-                                  row.localId,
-                                  "quantity",
-                                  event.target.value
-                                )
-                              }
-                              className={inputFieldClass}
-                            />
-                          </label>
-
-                          <label className="space-y-2 md:col-span-2">
-                            <div className={inputLabelClass}>Unit</div>
-                            <select
-                              value={row.unitOfMeasureId}
-                              onChange={(event) =>
-                                updateRow(
-                                  row.localId,
-                                  "unitOfMeasureId",
-                                  event.target.value
-                                )
-                              }
-                              className={inputFieldClass}
-                            >
-                              <option value="">Select unit</option>
-                              {unitsOfMeasure.map((unit) => (
-                                <option key={unit.id} value={unit.id}>
-                                  {unit.name}
-                                </option>
-                              ))}
-                            </select>
-                            {selectedUnit ? (
-                              <div className="text-[11px] text-slate-500">
-                                {selectedUnit.code}
-                              </div>
-                            ) : null}
-                          </label>
-
-                          <label className="space-y-2 md:col-span-2">
-                            <div className={inputLabelClass}>Unit Price</div>
-                            <input
-                              value={row.unitPrice}
-                              onChange={(event) =>
-                                updateRow(
-                                  row.localId,
-                                  "unitPrice",
-                                  event.target.value
-                                )
-                              }
-                              className={inputFieldClass}
-                            />
-                          </label>
-
-                          <label className="space-y-2 md:col-span-2">
-                            <div className={inputLabelClass}>Discount</div>
-                            <input
-                              value={row.discount}
-                              onChange={(event) =>
-                                updateRow(
-                                  row.localId,
-                                  "discount",
-                                  event.target.value
-                                )
-                              }
-                              className={inputFieldClass}
-                            />
-                          </label>
-
-                          <label className="space-y-2 md:col-span-2">
-                            <div className={inputLabelClass}>Tax Code</div>
-                            <select
-                              value={row.taxCodeId}
-                              onChange={(event) =>
-                                updateRow(
-                                  row.localId,
-                                  "taxCodeId",
-                                  event.target.value
-                                )
-                              }
-                              className={inputFieldClass}
-                            >
-                              <option value="">Select tax</option>
-                              {taxCodes.map((taxCode) => (
-                                <option key={taxCode.id} value={taxCode.id}>
-                                  {taxCode.name}
-                                </option>
-                              ))}
-                            </select>
-                          </label>
-
-                          <label className="space-y-2 md:col-span-3">
-                            <div className={inputLabelClass}>
-                              Revenue Category
-                            </div>
-                            <select
-                              value={row.revenueCategoryId}
-                              onChange={(event) =>
-                                updateRow(
-                                  row.localId,
-                                  "revenueCategoryId",
-                                  event.target.value
-                                )
-                              }
-                              className={inputFieldClass}
-                            >
-                              <option value="">Select category</option>
-                              {revenueCategories.map((category) => (
-                                <option key={category.id} value={category.id}>
-                                  {category.name}
-                                </option>
-                              ))}
-                            </select>
-                            {selectedRevenueCategory?.code ? (
-                              <div className="text-[11px] text-slate-500">
-                                {selectedRevenueCategory.code}
-                              </div>
-                            ) : null}
-                          </label>
-
-                          <div className="space-y-2 md:col-span-3">
-                            <div className={inputLabelClass}>Line Total</div>
-                            <div className="flex min-h-[44px] items-center rounded-2xl border border-cyan-400/15 bg-cyan-500/10 px-4 text-sm font-semibold text-cyan-100">
-                              {formatMoney(rowTotal, currencyCode)}
-                            </div>
-                          </div>
-                        </div>
-                      </div>
-                    );
-                  })}
-                </div>
-              </CardContent>
-            </Card>
-          </div>
-
-          <div className="space-y-6">
-            <Card className={activeSectionClass}>
-              <CardHeader className="border-b border-white/10 px-5 py-4">
-                <CardTitle className="text-sm font-semibold uppercase tracking-[0.18em] text-slate-400">
-                  Proforma Summary
-                </CardTitle>
-                <CardDescription className="mt-1 text-xs text-slate-500">
-                  Live commercial summary before saving.
-                </CardDescription>
-              </CardHeader>
-
-              <CardContent className="space-y-3 p-5">
-                <div className={summaryBlockClass}>
-                  <div className={labelClass}>Issuing Company</div>
-                  <div className="mt-2 text-2xl font-semibold text-white">
-                    {selectedCompany?.legal_name || selectedCompany?.name || "—"}
-                  </div>
-                  {selectedCompany ? (
-                    <div className="mt-2 text-sm leading-6 text-slate-400">
-                      {getCompanyAddress(selectedCompany) ? (
-                        <div>{getCompanyAddress(selectedCompany)}</div>
-                      ) : null}
-                      {selectedCompany.email ? (
-                        <div>Email: {selectedCompany.email}</div>
-                      ) : null}
-                      {selectedCompany.phone ? (
-                        <div>Phone: {selectedCompany.phone}</div>
-                      ) : null}
-                    </div>
-                  ) : null}
-                </div>
-
-                <div className={summaryBlockClass}>
-                  <div className={labelClass}>Client</div>
-                  <div className="mt-2 text-2xl font-semibold text-white">
-                    {selectedClient?.legal_name || selectedClient?.name || "—"}
-                  </div>
-                  {selectedClient ? (
-                    <div className="mt-2 text-sm leading-6 text-slate-400">
-                      {getClientAddress(selectedClient) ? (
-                        <div>{getClientAddress(selectedClient)}</div>
-                      ) : null}
-                      {selectedClient.company_email ||
-                      selectedClient.personnel_email ? (
-                        <div>
-                          Email:{" "}
-                          {selectedClient.company_email ||
-                            selectedClient.personnel_email}
-                        </div>
-                      ) : null}
-                      {selectedClient.company_phone ||
-                      selectedClient.personnel_phone ? (
-                        <div>
-                          Phone:{" "}
-                          {selectedClient.company_phone ||
-                            selectedClient.personnel_phone}
-                        </div>
-                      ) : null}
-                    </div>
-                  ) : null}
-                </div>
-
-                <div className={summaryBlockClass}>
-                  <div className={labelClass}>Source Customer PO</div>
-                  <div className="mt-2 text-2xl font-semibold text-white">
-                    {sourceCustomerPo
-                      ? sourceCustomerPo.client_po_number ||
-                        sourceCustomerPo.external_po_number ||
-                        "Linked"
-                      : "Manual"}
-                  </div>
-                  <div className="mt-2 text-sm leading-6 text-slate-400">
-                    {sourceCustomerPo
-                      ? "This PI will stay linked to the selected Customer PO."
-                      : "This PI will be created without a Customer PO link."}
-                  </div>
-                </div>
-
-                <div className={summaryBlockClass}>
-                  <div className={labelClass}>Payment Terms</div>
-                  <div className="mt-2 text-2xl font-semibold text-white">
-                    {selectedPaymentTerm?.name || "—"}
-                  </div>
-                  <div className="mt-2 text-sm leading-6 text-slate-400">
-                    {selectedPaymentTerm
-                      ? `${selectedPaymentTerm.code} · Due in ${selectedPaymentTerm.due_days} days`
-                      : "No payment terms selected"}
-                  </div>
-                </div>
-
-                <div className={summaryBlockClass}>
-                  <div className={labelClass}>Shipping Terms</div>
-                  <div className="mt-2 text-2xl font-semibold text-white">
-                    {selectedShippingTerm?.name || "—"}
-                  </div>
-                  <div className="mt-2 text-sm leading-6 text-slate-400">
-                    {selectedShippingTerm?.code || "No shipping terms selected"}
-                  </div>
-                </div>
-
-                <div className={summaryBlockClass}>
-                  <div className={labelClass}>Bank Account</div>
-                  <div className="mt-2 text-2xl font-semibold text-white">
-                    {selectedBankAccount?.name || "—"}
-                  </div>
-                  {selectedBankAccount ? (
-                    <div className="mt-2 text-sm leading-6 text-slate-400">
-                      {selectedBankAccount.bank_name ||
-                      selectedBankAccount.institution_name ? (
-                        <div>
-                          {selectedBankAccount.bank_name ||
-                            selectedBankAccount.institution_name}
-                        </div>
-                      ) : null}
-                      {getBankAddress(selectedBankAccount) ? (
-                        <div>{getBankAddress(selectedBankAccount)}</div>
-                      ) : null}
-                      {selectedBankAccount.account_number ||
-                      selectedBankAccount.masked_account_number ? (
-                        <div>
-                          Account:{" "}
-                          {selectedBankAccount.account_number ||
-                            selectedBankAccount.masked_account_number}
-                        </div>
-                      ) : null}
-                      {getBankIdentifier(selectedBankAccount) ? (
-                        <div>
-                          {getBankIdentifier(selectedBankAccount)?.label}:{" "}
-                          {getBankIdentifier(selectedBankAccount)?.value}
-                        </div>
-                      ) : null}
-                      {selectedBankAccount.currency_code ? (
-                        <div>Currency: {selectedBankAccount.currency_code}</div>
-                      ) : null}
-                    </div>
-                  ) : null}
-                </div>
-
-                <div className={summaryBlockClass}>
-                  <div className={labelClass}>Preferred Payment Method</div>
-                  <div className="mt-2 text-2xl font-semibold text-white">
-                    {selectedPaymentMethod?.name || "—"}
-                  </div>
-                  <div className="mt-2 text-sm leading-6 text-slate-400">
-                    {selectedPaymentMethod?.code || "No payment method selected"}
-                  </div>
-                </div>
-
-                <div className={summaryBlockClass}>
-                  <div className={labelClass}>Currency</div>
-                  <div className="mt-2 text-2xl font-semibold text-white">
-                    {selectedCurrency
-                      ? `${selectedCurrency.currency_code} — ${selectedCurrency.currency_name}`
-                      : currencyCode || "—"}
-                  </div>
-                </div>
-
-                <div className={summaryBlockClass}>
-                  <div className={labelClass}>Project / Task</div>
-                  <div className="mt-2 text-2xl font-semibold text-white">
-                    {selectedProject?.name || "—"}
-                  </div>
-                  <div className="mt-2 text-sm leading-6 text-slate-400">
-                    {selectedTask?.title || "No task selected"}
-                  </div>
-                </div>
-
-                <div className={summaryBlockClass}>
-                  <div className="flex items-center justify-between text-sm">
-                    <span className="text-slate-400">Subtotal</span>
-                    <span className="font-semibold text-white">
-                      {formatMoney(totals.subtotal, currencyCode)}
-                    </span>
-                  </div>
-
-                  <div className="mt-2 flex items-center justify-between text-sm">
-                    <span className="text-slate-400">Discount</span>
-                    <span className="font-semibold text-white">
-                      {formatMoney(totals.discount, currencyCode)}
-                    </span>
-                  </div>
-
-                  <div className="mt-2 flex items-center justify-between text-sm">
-                    <span className="text-slate-400">Tax</span>
-                    <span className="font-semibold text-white">
-                      {formatMoney(totals.tax, currencyCode)}
-                    </span>
-                  </div>
-
-                  <div className="mt-3 border-t border-white/10 pt-3">
-                    <div className="flex items-center justify-between">
-                      <span className="text-sm font-medium text-slate-300">
-                        Total
-                      </span>
-                      <span className="text-lg font-semibold text-white">
-                        {formatMoney(totals.total, currencyCode)}
-                      </span>
-                    </div>
-                  </div>
-                </div>
-
-                {errorMessage ? (
-                  <div className="rounded-[18px] border border-rose-400/20 bg-rose-500/10 px-4 py-3 text-sm text-rose-200">
-                    {errorMessage}
-                  </div>
-                ) : null}
-              </CardContent>
-            </Card>
-
-            <Card className={activeSectionClass}>
-              <CardHeader className="border-b border-white/10 px-5 py-4">
-                <CardTitle className="text-sm font-semibold uppercase tracking-[0.18em] text-slate-400">
-                  Locked Behavior
-                </CardTitle>
-                <CardDescription className="mt-1 text-xs text-slate-500">
-                  New proforma creation rules.
-                </CardDescription>
-              </CardHeader>
-
-              <CardContent className="space-y-2 p-5 text-sm leading-6 text-slate-400">
-                <div>• This page creates a proforma invoice draft only.</div>
-                <div>• Proforma does not affect receivables directly.</div>
-                <div>• Send, accept, archive, and convert happen later.</div>
-                <div>• Customer PO prefill keeps the source link intact.</div>
-                <div>• Conversion to invoice is controlled and explicit.</div>
-                <div>• Master data remains the source of truth.</div>
-              </CardContent>
-            </Card>
-          </div>
+                </AixiaFormGrid>
+              </AixiaSection>
+            );
+          })}
         </div>
-      </div>
-    </div>
+      </AixiaSection>
+    </>
+  );
+
+  const sideContent = (
+    <>
+      <AixiaSection
+        title="Proforma Summary"
+        description="Live commercial summary before saving."
+        icon={Wallet}
+      >
+        <AixiaFormGrid columns="one">
+          <AixiaValueBlock
+            label="Issuing Company"
+            value={selectedCompany?.legal_name || selectedCompany?.name || "—"}
+            detail={getCompanyAddress(selectedCompany) || undefined}
+          />
+          <AixiaValueBlock
+            label="Client"
+            value={selectedClient?.legal_name || selectedClient?.name || "—"}
+            detail={getClientAddress(selectedClient) || undefined}
+          />
+          <AixiaValueBlock
+            label="Source Customer PO"
+            value={
+              sourceCustomerPo
+                ? sourceCustomerPo.client_po_number ||
+                  sourceCustomerPo.external_po_number ||
+                  "Linked"
+                : "Manual"
+            }
+            detail={
+              sourceCustomerPo
+                ? "This PI will stay linked to the selected Customer PO."
+                : "This PI will be created without a Customer PO link."
+            }
+          />
+          <AixiaValueBlock
+            label="Payment Terms"
+            value={selectedPaymentTerm?.name || "—"}
+            detail={
+              selectedPaymentTerm
+                ? `${selectedPaymentTerm.code} · Due in ${selectedPaymentTerm.due_days} days`
+                : "No payment terms selected"
+            }
+          />
+          <AixiaValueBlock
+            label="Shipping Terms"
+            value={selectedShippingTerm?.name || "—"}
+            detail={selectedShippingTerm?.code || "No shipping terms selected"}
+          />
+          <AixiaValueBlock
+            label="Bank Account"
+            value={selectedBankAccount?.name || "—"}
+            detail={
+              selectedBankAccount
+                ? [
+                    selectedBankAccount.bank_name ||
+                      selectedBankAccount.institution_name,
+                    getBankAddress(selectedBankAccount),
+                    selectedBankAccount.account_number ||
+                      selectedBankAccount.masked_account_number
+                      ? `Account: ${
+                          selectedBankAccount.account_number ||
+                          selectedBankAccount.masked_account_number
+                        }`
+                      : null,
+                    getBankIdentifier(selectedBankAccount)
+                      ? `${getBankIdentifier(selectedBankAccount)?.label}: ${
+                          getBankIdentifier(selectedBankAccount)?.value
+                        }`
+                      : null,
+                    selectedBankAccount.currency_code
+                      ? `Currency: ${selectedBankAccount.currency_code}`
+                      : null,
+                  ]
+                    .filter(Boolean)
+                    .join(" • ")
+                : undefined
+            }
+          />
+          <AixiaValueBlock
+            label="Preferred Payment Method"
+            value={selectedPaymentMethod?.name || "—"}
+            detail={selectedPaymentMethod?.code || "No payment method selected"}
+          />
+          <AixiaValueBlock
+            label="Currency"
+            value={
+              selectedCurrency
+                ? `${selectedCurrency.currency_code} — ${selectedCurrency.currency_name}`
+                : currencyCode || "—"
+            }
+          />
+          <AixiaValueBlock
+            label="Project / Task"
+            value={selectedProject?.name || "—"}
+            detail={selectedTask?.title || "No task selected"}
+          />
+          <AixiaValueBlock
+            label="Subtotal"
+            value={formatMoney(totals.subtotal, currencyCode)}
+          />
+          <AixiaValueBlock
+            label="Discount"
+            value={formatMoney(totals.discount, currencyCode)}
+          />
+          <AixiaValueBlock
+            label="Tax"
+            value={formatMoney(totals.tax, currencyCode)}
+          />
+          <AixiaValueBlock
+            label="Total"
+            value={formatMoney(totals.total, currencyCode)}
+          />
+        </AixiaFormGrid>
+
+        {errorMessage ? <AixiaAlert tone="error">{errorMessage}</AixiaAlert> : null}
+      </AixiaSection>
+
+      <AixiaSection
+        title="Actions"
+        description="This page creates a proforma invoice draft only."
+        icon={Save}
+      >
+        <div className="aixia-action-row">
+          <AixiaButton
+            type="button"
+            variant="primary"
+            onClick={() => void handleSaveDraft()}
+            disabled={isSaving || isLoading}
+          >
+            <Save className="h-4 w-4" />
+            {isSaving ? "Saving..." : "Save Draft"}
+          </AixiaButton>
+        </div>
+
+        <AixiaAlert tone="info">
+          Sending, acceptance, conversion, archive, and delete actions happen later from the proforma detail workflow.
+        </AixiaAlert>
+      </AixiaSection>
+
+      <AixiaSection title="Locked Behavior" icon={ShieldCheck}>
+        <AixiaFormGrid columns="one">
+          <AixiaDisplayBlock
+            label="Draft Only"
+            value="This page creates a proforma invoice draft only."
+          />
+          <AixiaDisplayBlock
+            label="Receivables"
+            value="Proforma does not affect receivables directly."
+          />
+          <AixiaDisplayBlock
+            label="Source Link"
+            value="Customer PO prefill keeps the source link intact."
+          />
+          <AixiaDisplayBlock
+            label="Conversion"
+            value="Conversion to invoice is controlled and explicit."
+          />
+          <AixiaDisplayBlock
+            label="Master Data"
+            value="Master data remains the source of truth."
+          />
+        </AixiaFormGrid>
+      </AixiaSection>
+    </>
+  );
+
+  return (
+    <AixiaPage>
+      <AixiaHero
+        parentLabel="Proforma Invoices"
+        parentPath="/finance/transactions/proforma-invoices"
+        badges={[
+          { label: "New Proforma Invoice", tone: "cyan" },
+          { label: "Draft Only", tone: "emerald" },
+          { label: "No Manual Refresh", tone: "neutral" },
+          ...(sourceCustomerPo
+            ? [
+                {
+                  label: `From Customer PO ${
+                    sourceCustomerPo.client_po_number ||
+                    sourceCustomerPo.external_po_number ||
+                    ""
+                  }`,
+                  tone: "violet" as const,
+                },
+              ]
+            : []),
+        ]}
+        gradientTitle="Proforma"
+        title="Create Proforma Invoice Draft"
+        description="Create a draft proforma invoice from master data or from a customer PO. Sending, acceptance, conversion, archive, and delete actions happen later from the proforma detail workflow."
+        statusCards={[
+          {
+            label: "Client",
+            value: selectedClient?.legal_name || selectedClient?.name || "—",
+            description: "Client selected for this proforma invoice draft.",
+            icon: FileText,
+            tone: "cyan",
+          },
+          {
+            label: "Draft Total",
+            value: formatMoney(totals.total, currencyCode),
+            description: "Live total from the draft line items before saving.",
+            icon: Wallet,
+            tone: "emerald",
+          },
+        ]}
+      />
+
+      <AixiaMetricGrid>
+        <AixiaMetricCard
+          label="Subtotal"
+          value={formatMoney(totals.subtotal, currencyCode)}
+          description="Before discount and tax."
+          icon={Wallet}
+          tone="cyan"
+        />
+        <AixiaMetricCard
+          label="Discount"
+          value={formatMoney(totals.discount, currencyCode)}
+          description="Draft commercial discount."
+          icon={Wallet}
+          tone="amber"
+        />
+        <AixiaMetricCard
+          label="Tax"
+          value={formatMoney(totals.tax, currencyCode)}
+          description="Based on selected tax codes."
+          icon={Wallet}
+          tone="violet"
+        />
+        <AixiaMetricCard
+          label="Total"
+          value={formatMoney(totals.total, currencyCode)}
+          description="Draft proforma value."
+          icon={Wallet}
+          tone="emerald"
+        />
+      </AixiaMetricGrid>
+
+      <AixiaAccessRule
+        title="Locked access rule"
+        description="New proforma invoice creation follows the shared AiXia new/create page and finance document source-of-truth standard."
+        icon={ShieldCheck}
+      >
+        This page creates draft-only Proforma Invoice records from Finance master data or a received Customer PO source. It must use shared AiXia components for hero, metrics, form controls, line items, action buttons, alerts, and layout. Business logic, Supabase RPC creation, Customer PO linking, bank snapshot rules, payment terms, shipping terms, currency selection, and line-item calculations remain preserved.
+      </AixiaAccessRule>
+
+      <AixiaSmartLayout
+        sidebar="normal"
+        balance="main"
+        sideRebalance="last-to-bottom"
+        main={mainContent}
+        side={sideContent}
+      />
+    </AixiaPage>
   );
 }

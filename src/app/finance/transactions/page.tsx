@@ -20,20 +20,21 @@ import {
   AixiaBadge,
   AixiaButton,
   AixiaEmptyState,
+  AixiaFeaturePanel,
   AixiaHero,
   AixiaLoadingState,
   AixiaMetricCard,
   AixiaMetricGrid,
-  AixiaNavigationCard,
-  AixiaNavigationGrid,
   AixiaNavigationInfoPanel,
   AixiaNavigationStatBlock,
   AixiaPage,
   AixiaReviewGrid,
+  AixiaSmartGrid,
   AixiaSideList,
   AixiaSideListRow,
   AixiaSmartLayout,
   AixiaValueBlock,
+  AixiaWorkspaceCard,
 } from "@/components/aixia";
 import {
   fetchFinanceEffectivePermissions,
@@ -1271,70 +1272,72 @@ export default function FinanceTransactionsPage() {
 
       <AixiaSmartLayout
         sidebar="normal"
+        bottomSpan="auto"
+        sideRebalance="last-to-bottom"
+        mainTopCount={1}
         main={
           <>
             {transactionSections.length > 0 ? (
               <div className="aixia-stack">
-                <AixiaNavigationInfoPanel
+                <AixiaFeaturePanel
                   tone="cyan"
                   icon={FileText}
                   title="Transaction Workflows"
-                  description="Permission-aware transaction modules. Each card opens the matching shared finance workflow when access is enabled."
-                />
+                  description="Grouped business-flow rows are preserved by section. Each row keeps its workflow header, sequence order, and permission-aware access state."
+                >
+                  <AixiaReviewGrid variant="cards">
+                    {transactionSections.map((section) => (
+                      <AixiaValueBlock
+                        key={section.key}
+                        label={section.title}
+                        value={`${formatCount(section.modules.length)} steps`}
+                        detail={section.subtitle}
+                      />
+                    ))}
+                  </AixiaReviewGrid>
+                </AixiaFeaturePanel>
 
                 {transactionSections.map((section) => (
-                  <AixiaNavigationInfoPanel
+                  <AixiaFeaturePanel
                     key={section.key}
                     tone={getSectionTone(section.tone)}
                     icon={section.icon}
                     title={section.title}
                     description={section.subtitle}
-                  />
-                ))}
+                  >
+                    <AixiaSmartGrid mode="cards">
+                      {section.modules.map((item) => {
+                        const route = getModuleRoute(item);
 
-                <AixiaNavigationGrid>
-                  {transactionSections.flatMap((section) =>
-                    section.modules.map((item) => {
-                      const route = getModuleRoute(item);
-
-                      return (
-                        <AixiaNavigationCard
-                          key={`${section.key}-${item.module.key}-${
-                            item.sequenceLabel || "module"
-                          }`}
-                          title={getModuleTitle(item)}
-                          eyebrow={
-                            item.sequenceLabel
-                              ? `${section.title} · Step ${item.sequenceLabel}`
-                              : section.title
-                          }
-                          description={getModuleDescription(item)}
-                          icon={item.module.icon}
-                          statusLabel={item.module.statusLabel}
-                          summary={`${formatCount(item.module.count)} records`}
-                          actionLabel={route ? "Open" : "Unavailable"}
-                          tone={item.module.tone}
-                          disabled={!route}
-                          onClick={route ? () => openRoute(route) : undefined}
-                          meta={[
-                            {
-                              label: "Records",
-                              value: formatCount(item.module.count),
-                              description: item.module.lastUpdatedLabel,
-                            },
-                            {
-                              label: "Access",
-                              value: item.module.lastUpdatedLabel,
-                              description: item.module.isPersonalDefault
+                        return (
+                          <AixiaWorkspaceCard
+                            key={`${section.key}-${item.module.key}-${
+                              item.sequenceLabel || "module"
+                            }`}
+                            label={getModuleTitle(item)}
+                            eyebrow={
+                              item.sequenceLabel
+                                ? `Step ${item.sequenceLabel}`
+                                : section.title
+                            }
+                            description={getModuleDescription(item)}
+                            icon={item.module.icon}
+                            statusLabel={item.module.statusLabel}
+                            summary={`${formatCount(item.module.count)} records • ${
+                              item.module.isPersonalDefault
                                 ? "Default personal flow"
-                                : "Company-level flow",
-                            },
-                          ]}
-                        />
-                      );
-                    })
-                  )}
-                </AixiaNavigationGrid>
+                                : item.module.lastUpdatedLabel
+                            }`}
+                            actionLabel={route ? "Open" : "Unavailable"}
+                            tone={item.module.tone}
+                            disabled={!route}
+                            onClick={route ? () => openRoute(route) : undefined}
+                          />
+                        );
+                      })}
+                    </AixiaSmartGrid>
+                  </AixiaFeaturePanel>
+                ))}
               </div>
             ) : (
               <AixiaNavigationInfoPanel

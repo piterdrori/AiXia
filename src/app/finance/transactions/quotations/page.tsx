@@ -32,7 +32,6 @@ import {
   AixiaSearchField,
   AixiaSection,
   AixiaSortableHeader,
-  AixiaStatusBadge,
   AixiaTableActionsCell,
   AixiaTableBadgeCell,
   AixiaTableDateCell,

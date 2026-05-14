@@ -1398,6 +1398,33 @@ function inspectRegistryStandards(filePath, text) {
   }
 }
 
+function inspectRegistryHeroActionPlacement(filePath, text) {
+  const isRegistryPage = /variant=["']registry["']/.test(text);
+  if (!isRegistryPage) return;
+
+  const hasHeroActions =
+    /<AixiaHero\b[\s\S]*?\bactions\s*=/.test(text);
+
+  if (hasHeroActions) {
+    addError(
+      filePath,
+      "Registry/front/list pages must not pass actions={...} into AixiaHero. Create/New/Archive buttons belong only in AixiaRegistryToolbar primaryAction/archiveAction so they do not appear inside the hero.",
+      "AiXia registry hero action placement rule"
+    );
+  }
+
+  const hasRegistryToolbarPrimaryOrArchiveAction =
+    /<AixiaRegistryToolbar\b[\s\S]*?\b(primaryAction|archiveAction)\s*=/.test(text);
+
+  if (hasHeroActions && hasRegistryToolbarPrimaryOrArchiveAction) {
+    addError(
+      filePath,
+      "Duplicate registry actions detected: this page renders actions in both AixiaHero and AixiaRegistryToolbar. Remove hero actions and keep the toolbar actions only.",
+      "AiXia registry hero action placement rule"
+    );
+  }
+}
+
 function inspectZeroLocalDesign(filePath, text) {
   for (const componentName of ZERO_LOCAL_DESIGN_BANNED_PATTERNS) {
     const functionPattern = new RegExp(
@@ -1972,6 +1999,7 @@ function inspectFinancePage(filePath) {
   inspectPermissionPatterns(filePath, text);
   inspectBannedFinanceUiImports(filePath, text);
   inspectRegistryStandards(filePath, text);
+  inspectRegistryHeroActionPlacement(filePath, text);
   inspectButtonMeaning(filePath, text);
   inspectActionCardAndButtonSymmetryRules(filePath, text);
   inspectEmployeeIdentityGlobalRules(filePath, text);

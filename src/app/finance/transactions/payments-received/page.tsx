@@ -1163,36 +1163,6 @@ export default function PaymentsReceivedPage() {
         gradientTitle="Payments"
         title="Received"
         description="Payments Received tracks external client collections after invoice issuance, stores evidence, supports multi-currency settlement, and keeps archived and deleted records outside the active registry."
-        actions={
-          <>
-            {canCreatePaymentsReceived ? (
-              <AixiaButton
-                type="button"
-                variant="primary"
-                onClick={() =>
-                  navigate("/finance/transactions/payments-received/new")
-                }
-              >
-                <Plus className="h-4 w-4" />
-                New Payment
-              </AixiaButton>
-            ) : null}
-
-            {canArchivePaymentsReceived ? (
-              <AixiaButton
-                type="button"
-                variant="danger"
-                onClick={() => {
-                  setArchiveTab("archived");
-                  setIsArchiveModalOpen(true);
-                }}
-              >
-                <Archive className="h-4 w-4" />
-                Archive
-              </AixiaButton>
-            ) : null}
-          </>
-        }
         statusCards={[
           {
             label: "Active Records",
@@ -1299,6 +1269,35 @@ export default function PaymentsReceivedPage() {
                 onChange={(event) => setSearch(event.target.value)}
                 placeholder="Search reference, invoice, client, status..."
               />
+            }
+            primaryAction={
+              canCreatePaymentsReceived ? (
+                <AixiaButton
+                  type="button"
+                  variant="primary"
+                  onClick={() =>
+                    navigate("/finance/transactions/payments-received/new")
+                  }
+                >
+                  <Plus className="h-4 w-4" />
+                  New Payment
+                </AixiaButton>
+              ) : null
+            }
+            archiveAction={
+              canArchivePaymentsReceived ? (
+                <AixiaButton
+                  type="button"
+                  variant="danger"
+                  onClick={() => {
+                    setArchiveTab("archived");
+                    setIsArchiveModalOpen(true);
+                  }}
+                >
+                  <Archive className="h-4 w-4" />
+                  Archive
+                </AixiaButton>
+              ) : null
             }
           />
         }

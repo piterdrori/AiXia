@@ -1,24 +1,47 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
-import type { ReactNode } from "react";
 import { useNavigate } from "react-router-dom";
 import {
   Archive,
-  ArrowRight,
   CheckCircle2,
   Clock3,
   Eye,
   FileText,
-  Loader2,
   RotateCcw,
-  Search,
   ShieldCheck,
-  Sparkles,
   Trash2,
   WalletCards,
-  X,
 } from "lucide-react";
-import type { LucideIcon } from "lucide-react";
 
+import {
+  AixiaAccessRule,
+  AixiaAlert,
+  AixiaArchiveManagerModal,
+  AixiaBadge,
+  AixiaButton,
+  AixiaEmployeeIdentityCell,
+  AixiaEmptyState,
+  AixiaHero,
+  AixiaLoadingState,
+  AixiaMetricCard,
+  AixiaMetricGrid,
+  AixiaPage,
+  AixiaRegistryToolbar,
+  AixiaSearchField,
+  AixiaSection,
+  AixiaStatusBadge,
+  AixiaTableActionsCell,
+  AixiaTableBadgeCell,
+  AixiaTableDateCell,
+  AixiaTableShell,
+  AixiaTableTextCell,
+} from "@/components/aixia";
+import type { FinanceEmployeeIdentity } from "@/lib/finance/employeeIdentity";
+import {
+  getFinanceEmployeePrimaryName,
+  getFinanceEmployeeReferenceLabel,
+  getFinanceEmployeeSearchText,
+  getFinanceEmployeeSecondaryLabel,
+} from "@/lib/finance/employeeIdentity";
 import { supabase } from "@/lib/supabase";
 
 type WorkbenchTab =
@@ -32,8 +55,8 @@ type WorkbenchTab =
 
 type ArchiveScope = "workflow" | "execution";
 type ArchiveTab = "archived" | "deleted";
-
 type Tone = "cyan" | "emerald" | "amber" | "rose" | "violet" | "slate";
+type LoadMode = "initial" | "silent";
 
 type PaycheckRequestRow = {
   id: string;
@@ -97,16 +120,6 @@ type EmployeeRefRow = {
     source_status?: string | null;
     [key: string]: unknown;
   } | null;
-};
-
-type ProfileRow = {
-  user_id: string;
-  full_name: string | null;
-  display_name: string | null;
-  email: string | null;
-  company: string | null;
-  job_title: string | null;
-  member_type: string | null;
 };
 
 type PayProfileRow = {
@@ -193,6 +206,7 @@ type PaymentDistributionRow = {
     payment_currency_amount?: number | string | null;
     paycheck_currency_coverage_total?: number | string | null;
     funding_currency_amount_used_for_payment?: number | string | null;
+    paycheck_currency_code?: string | null;
     [key: string]: unknown;
   } | null;
   created_at: string;
@@ -227,8 +241,11 @@ type PaymentAllocationRow = {
 };
 
 type EnrichedRequestRow = PaycheckRequestRow & {
+  employeeIdentity: FinanceEmployeeIdentity | null;
   employeeName: string;
   employeeLabel: string;
+  employeeReference: string;
+  employeeSearchText: string;
   companyName: string;
   payProfileLabel: string;
   periodLabel: string;
@@ -266,51 +283,6 @@ type EnrichedDistribution = PaymentDistributionRow & {
 
 type ExecutionRecord = EnrichedFundingBatch | EnrichedDistribution;
 
-const statusToneMap: Record<string, Tone> = {
-  draft: "slate",
-  submitted: "cyan",
-  pending_review: "amber",
-  needs_correction: "amber",
-  approved_for_payroll: "emerald",
-  approved: "emerald",
-  rejected: "rose",
-  linked_to_payroll: "violet",
-  payment_sent: "cyan",
-  pending_confirmation: "amber",
-  partially_confirmed: "amber",
-  received_confirmed: "emerald",
-  not_received: "rose",
-  disputed: "rose",
-  not_paid_yet: "slate",
-  not_uploaded: "slate",
-  missing: "rose",
-  uploaded: "cyan",
-  linked: "cyan",
-  files_and_links: "cyan",
-  verified: "emerald",
-  issue_found: "rose",
-  pending: "amber",
-  scheduled: "cyan",
-  confirmed: "emerald",
-  paid: "emerald",
-  failed: "rose",
-  processing: "cyan",
-  completed: "emerald",
-  pending_approval: "amber",
-  archived: "amber",
-  deleted: "rose",
-  cancelled: "rose",
-  allocated: "emerald",
-  not_allocated: "slate",
-  partially_allocated: "amber",
-  over_allocated: "rose",
-  partially_used: "amber",
-  fully_used: "emerald",
-  unpaid: "slate",
-  partially_paid: "amber",
-  not_required: "slate",
-};
-
 const mainWorkflowTabs: Array<{
   key: WorkbenchTab;
   label: string;
@@ -319,32 +291,27 @@ const mainWorkflowTabs: Array<{
   {
     key: "paycheck_requests",
     label: "Paycheck Requests",
-    description:
-      "Finance/Admin monitors submitted paycheck requests and employee-created payroll reimbursement requests.",
+    description: "Finance/Admin monitors submitted paycheck requests and employee-created payroll reimbursement requests.",
   },
   {
     key: "payroll_documents",
     label: "Payroll Documents",
-    description:
-      "Tracks missing payroll documents, employee forms, admin signed forms, uploaded proof, and document issues.",
+    description: "Tracks missing payroll documents, employee forms, admin signed forms, uploaded proof, and document issues.",
   },
   {
     key: "payroll_review",
     label: "Payroll Review",
-    description:
-      "Finance/Admin reviews paycheck requests, approves them for payroll, asks for correction, or rejects them.",
+    description: "Finance/Admin reviews paycheck requests, approves them for payroll, asks for correction, or rejects them.",
   },
   {
     key: "ready_for_payment",
     label: "Ready for Paycheck Payment",
-    description:
-      "Approved paycheck requests ready to be covered by a payroll funding pool and paid through a distribution.",
+    description: "Approved paycheck requests ready to be covered by a payroll funding pool and paid through a distribution.",
   },
   {
     key: "employee_confirmation",
     label: "Employee Confirmation",
-    description:
-      "Final tracking step: employee confirms payment received, reports not received, or disputes the payment.",
+    description: "Final tracking step: employee confirms payment received, reports not received, or disputes the payment.",
   },
 ];
 
@@ -356,14 +323,12 @@ const executionTabs: Array<{
   {
     key: "funding_batches",
     label: "Payroll Funding Allocation",
-    description:
-      "Reserve payroll money in a confirmed funding pool before distributing payments across paycheck requests.",
+    description: "Reserve payroll money in a confirmed funding pool before distributing payments across paycheck requests.",
   },
   {
     key: "payment_distributions",
     label: "Paycheck Payment Distributions",
-    description:
-      "Distribute confirmed payroll funding across approved paycheck requests and track employee confirmation.",
+    description: "Distribute confirmed payroll funding across approved paycheck requests and track employee confirmation.",
   },
 ];
 
@@ -406,158 +371,6 @@ function formatLabel(value: string | null | undefined) {
 
 function normalizeCurrencyCode(value: string | null | undefined) {
   return (value || "").trim().toUpperCase();
-}
-
-function getToneClasses(tone: Tone) {
-  switch (tone) {
-    case "emerald":
-      return "border-emerald-400/20 bg-emerald-500/10 text-emerald-200";
-    case "amber":
-      return "border-amber-400/20 bg-amber-500/10 text-amber-200";
-    case "rose":
-      return "border-rose-400/20 bg-rose-500/10 text-rose-200";
-    case "violet":
-      return "border-violet-400/20 bg-violet-500/10 text-violet-200";
-    case "cyan":
-      return "border-cyan-400/20 bg-cyan-500/10 text-cyan-200";
-    case "slate":
-    default:
-      return "border-white/10 bg-white/[0.06] text-slate-300";
-  }
-}
-
-function getStatusToneClasses(value: string | null | undefined) {
-  return getToneClasses(statusToneMap[value ?? ""] ?? "slate");
-}
-
-function StatusBadge({ value }: { value: string | null | undefined }) {
-  return (
-    <span
-      className={`inline-flex max-w-full items-center rounded-full border px-3 py-1 text-[11px] font-semibold uppercase tracking-[0.14em] ${getStatusToneClasses(
-        value
-      )}`}
-    >
-      <span className="truncate">{formatLabel(value)}</span>
-    </span>
-  );
-}
-
-function SoftBadge({ value, tone }: { value: string; tone: Tone }) {
-  return (
-    <span
-      className={`inline-flex max-w-[360px] items-center rounded-full border px-3 py-1 text-[11px] font-semibold uppercase tracking-[0.12em] ${getToneClasses(
-        tone
-      )}`}
-    >
-      <span className="truncate">{value}</span>
-    </span>
-  );
-}
-
-function IconButton({
-  label,
-  icon: Icon,
-  tone,
-  disabled,
-  onClick,
-}: {
-  label: string;
-  icon: LucideIcon;
-  tone: "cyan" | "emerald" | "amber" | "rose" | "violet";
-  disabled?: boolean;
-  onClick: () => void;
-}) {
-  const toneClass = {
-    cyan: "border-cyan-400/20 bg-cyan-500/10 text-cyan-200 hover:bg-cyan-500/15",
-    emerald:
-      "border-emerald-400/20 bg-emerald-500/10 text-emerald-200 hover:bg-emerald-500/15",
-    amber:
-      "border-amber-400/20 bg-amber-500/10 text-amber-200 hover:bg-amber-500/15",
-    rose: "border-rose-400/20 bg-rose-500/10 text-rose-200 hover:bg-rose-500/15",
-    violet:
-      "border-violet-400/20 bg-violet-500/10 text-violet-200 hover:bg-violet-500/15",
-  }[tone];
-
-  return (
-    <button
-      type="button"
-      title={label}
-      aria-label={label}
-      disabled={disabled}
-      onClick={onClick}
-      className={`inline-flex h-9 w-9 items-center justify-center rounded-full border transition disabled:cursor-not-allowed disabled:opacity-40 ${toneClass}`}
-    >
-      <Icon className="h-4 w-4" />
-    </button>
-  );
-}
-
-function SummaryCard({
-  title,
-  value,
-  detail,
-  icon: Icon,
-}: {
-  title: string;
-  value: ReactNode;
-  detail: string;
-  icon: LucideIcon;
-}) {
-  return (
-    <div className="min-h-[156px] rounded-[28px] border border-white/10 bg-white/[0.045] p-5 backdrop-blur-xl">
-      <div className="flex items-start justify-between gap-4">
-        <div>
-          <div className="text-[11px] font-semibold uppercase tracking-[0.2em] text-slate-500">
-            {title}
-          </div>
-          <div className="mt-3 text-3xl font-semibold text-white">{value}</div>
-        </div>
-        <div className="rounded-2xl border border-cyan-400/15 bg-cyan-500/10 p-3 text-cyan-200">
-          <Icon className="h-5 w-5" />
-        </div>
-      </div>
-      <div className="mt-4 text-xs leading-5 text-slate-500">{detail}</div>
-    </div>
-  );
-}
-
-function getEmployeeName(
-  request: PaycheckRequestRow,
-  employeeMap: Map<string, EmployeeRefRow>,
-  profileMap: Map<string, ProfileRow>
-) {
-  const profile = profileMap.get(request.employee_user_id);
-  const employee = request.employee_ref_id ? employeeMap.get(request.employee_ref_id) : null;
-
-  return (
-    profile?.full_name?.trim() ||
-    profile?.display_name?.trim() ||
-    profile?.email?.trim() ||
-    employee?.code?.trim() ||
-    "Employee"
-  );
-}
-
-function getEmployeeLabel(
-  request: PaycheckRequestRow,
-  employeeMap: Map<string, EmployeeRefRow>,
-  profileMap: Map<string, ProfileRow>
-) {
-  const employee = request.employee_ref_id ? employeeMap.get(request.employee_ref_id) : null;
-  const profile = profileMap.get(request.employee_user_id);
-
-  const role =
-    profile?.job_title?.trim() ||
-    employee?.metadata?.job_title?.trim() ||
-    employee?.metadata?.source_role?.trim() ||
-    employee?.mark?.trim() ||
-    null;
-
-  const company = profile?.company?.trim() || employee?.metadata?.company?.trim() || null;
-
-  return [employee?.code, role ? formatLabel(role) : null, company]
-    .filter(Boolean)
-    .join(" • ");
 }
 
 function getCompanyName(company: CompanyRow | null | undefined) {
@@ -617,34 +430,22 @@ function getRequestNextStep(request: PaycheckRequestRow): {
   tone: Tone;
 } {
   if (request.status === "rejected" || request.review_status === "rejected") {
-    return {
-      label: "Request rejected",
-      tone: "rose",
-    };
+    return { label: "Request rejected", tone: "rose" };
   }
 
   if (request.status === "disputed" || request.recipient_confirmation_status === "disputed") {
-    return {
-      label: "Payment disputed",
-      tone: "rose",
-    };
+    return { label: "Payment disputed", tone: "rose" };
   }
 
   if (
     request.status === "received_confirmed" ||
     request.recipient_confirmation_status === "received_confirmed"
   ) {
-    return {
-      label: "Employee confirmed receipt",
-      tone: "emerald",
-    };
+    return { label: "Employee confirmed receipt", tone: "emerald" };
   }
 
   if (request.recipient_confirmation_status === "not_received") {
-    return {
-      label: "Employee reported payment not received",
-      tone: "rose",
-    };
+    return { label: "Employee reported payment not received", tone: "rose" };
   }
 
   if (
@@ -653,51 +454,30 @@ function getRequestNextStep(request: PaycheckRequestRow): {
     request.recipient_confirmation_status === "payment_sent" ||
     request.recipient_confirmation_status === "pending_confirmation"
   ) {
-    return {
-      label: "Waiting for employee confirmation",
-      tone: "violet",
-    };
+    return { label: "Waiting for employee confirmation", tone: "violet" };
   }
 
   if (request.payment_status === "partially_paid") {
-    return {
-      label: "Partially paid; remaining balance open",
-      tone: "amber",
-    };
+    return { label: "Partially paid; remaining balance open", tone: "amber" };
   }
 
   if (request.status === "approved_for_payroll" && request.payment_status !== "paid") {
-    return {
-      label: "Ready for paycheck payment distribution",
-      tone: "emerald",
-    };
+    return { label: "Ready for paycheck payment distribution", tone: "emerald" };
   }
 
   if (request.status === "needs_correction" || request.review_status === "needs_correction") {
-    return {
-      label: "Waiting for employee correction",
-      tone: "amber",
-    };
+    return { label: "Waiting for employee correction", tone: "amber" };
   }
 
   if (request.status === "submitted" || request.review_status === "pending_review") {
-    return {
-      label: "Finance review needed",
-      tone: "cyan",
-    };
+    return { label: "Finance review needed", tone: "cyan" };
   }
 
   if (request.status === "draft") {
-    return {
-      label: "Draft request not submitted",
-      tone: "slate",
-    };
+    return { label: "Draft request not submitted", tone: "slate" };
   }
 
-  return {
-    label: "Review current request status",
-    tone: "slate",
-  };
+  return { label: "Review current request status", tone: "slate" };
 }
 
 function isWorkflowArchived(request: PaycheckRequestRow) {
@@ -724,13 +504,451 @@ function isExecutionActive(record: FundingBatchRow | PaymentDistributionRow) {
   return !isExecutionArchived(record) && !isExecutionDeleted(record);
 }
 
+function buildIdentityMaps(identities: FinanceEmployeeIdentity[]) {
+  const byEmployeeRefId = new Map<string, FinanceEmployeeIdentity>();
+  const byUserId = new Map<string, FinanceEmployeeIdentity>();
+
+  identities.forEach((identity) => {
+    const employeeRefId = String(identity.employee_ref_id || identity.id || "").trim();
+    const userId = String(identity.user_id || "").trim();
+
+    if (employeeRefId) byEmployeeRefId.set(employeeRefId, identity);
+    if (userId) byUserId.set(userId, identity);
+  });
+
+  return { byEmployeeRefId, byUserId };
+}
+
+function resolveRequestIdentity(
+  request: PaycheckRequestRow,
+  identityByEmployeeRefId: Map<string, FinanceEmployeeIdentity>,
+  identityByUserId: Map<string, FinanceEmployeeIdentity>,
+) {
+  if (request.employee_ref_id && identityByEmployeeRefId.has(request.employee_ref_id)) {
+    return identityByEmployeeRefId.get(request.employee_ref_id) || null;
+  }
+
+  if (request.employee_user_id && identityByUserId.has(request.employee_user_id)) {
+    return identityByUserId.get(request.employee_user_id) || null;
+  }
+
+  return null;
+}
+
+function buildFallbackIdentity(
+  request: PaycheckRequestRow,
+  employeeMap: Map<string, EmployeeRefRow>,
+): FinanceEmployeeIdentity | null {
+  const employee = request.employee_ref_id ? employeeMap.get(request.employee_ref_id) : null;
+
+  if (!employee && !request.employee_user_id) return null;
+
+  return {
+    employee_ref_id: request.employee_ref_id || null,
+    user_id: request.employee_user_id || employee?.user_id || null,
+    employee_code: employee?.code || null,
+    code: employee?.code || null,
+    employee_status: employee?.status || null,
+    employee_mark: employee?.mark || null,
+    employee_metadata: employee?.metadata || null,
+    person_name: null,
+    profile_company: employee?.metadata?.company || null,
+    profile_job_title:
+      employee?.metadata?.job_title || employee?.metadata?.source_role || null,
+    profile_member_type: employee?.metadata?.member_type || null,
+  };
+}
+
+function getToneForBadge(tone: Tone) {
+  if (tone === "slate") return "neutral" as const;
+  return tone;
+}
+
+function PayrollTabButtons({
+  tabs,
+  activeTab,
+  onTabChange,
+}: {
+  tabs: typeof mainWorkflowTabs;
+  activeTab: WorkbenchTab;
+  onTabChange: (tab: WorkbenchTab) => void;
+}) {
+  return (
+    <>
+      {tabs.map((tab) => (
+        <AixiaButton
+          key={tab.key}
+          type="button"
+          variant={activeTab === tab.key ? "primary" : "secondary"}
+          onClick={() => onTabChange(tab.key)}
+        >
+          {tab.label}
+        </AixiaButton>
+      ))}
+    </>
+  );
+}
+
+function RequestTable({
+  rows,
+  mode,
+  archiveTab,
+  isRunningAction,
+  onOpen,
+  onArchive,
+  onDelete,
+  onRestore,
+  onHardDelete,
+}: {
+  rows: EnrichedRequestRow[];
+  mode: "active" | "archive";
+  archiveTab: ArchiveTab;
+  isRunningAction: boolean;
+  onOpen: (id: string) => void;
+  onArchive: (id: string) => void;
+  onDelete: (id: string) => void;
+  onRestore: (id: string) => void;
+  onHardDelete: (id: string) => void;
+}) {
+  if (rows.length === 0) {
+    return (
+      <AixiaEmptyState
+        icon={FileText}
+        title="No paycheck request records found"
+        description="Matching paycheck workflow records will appear here."
+      />
+    );
+  }
+
+  return (
+    <AixiaTableShell
+      variant={mode === "archive" ? "archive" : "registry"}
+      minWidthClassName="min-w-[1660px]"
+      maxHeightClassName={mode === "archive" ? "max-h-[620px]" : "max-h-[720px]"}
+    >
+      <thead className="aixia-table-head">
+        <tr>
+          <th>Request</th>
+          <th>Employee</th>
+          <th>Pay Profile</th>
+          <th>Net / Paid</th>
+          <th>Remaining</th>
+          <th>Status</th>
+          <th>Review</th>
+          <th>Docs</th>
+          <th>Funding</th>
+          <th>Next Step</th>
+          <th>Actions</th>
+        </tr>
+      </thead>
+      <tbody>
+        {rows.map((request) => (
+          <tr key={request.id} className="aixia-table-row">
+            <AixiaTableTextCell
+              width="lg"
+              primary={request.request_number || request.reference_number || "Paycheck Request"}
+              secondary={request.periodLabel}
+            />
+            <AixiaEmployeeIdentityCell
+              width="xl"
+              identity={request.employeeIdentity}
+              primary={request.employeeName}
+              secondary={request.employeeLabel}
+              reference={request.employeeReference || request.employeeSearchText}
+            />
+            <AixiaTableTextCell
+              width="lg"
+              primary={request.payProfileLabel}
+              secondary={`Pay date ${formatDate(request.requested_pay_date)}`}
+            />
+            <AixiaTableTextCell
+              width="md"
+              primary={`${request.requested_currency_code || "USD"} ${formatMoney(
+                request.targetAmount,
+              )}`}
+              secondary={`Paid ${request.requested_currency_code || "USD"} ${formatMoney(
+                request.paidAmountCalculated,
+              )}`}
+            />
+            <AixiaTableTextCell
+              width="md"
+              primary={`${request.requested_currency_code || "USD"} ${formatMoney(
+                request.remainingAmountCalculated,
+              )}`}
+              secondary={`${request.linkedAllocationCount} allocation lines`}
+            />
+            <AixiaTableBadgeCell>
+              <AixiaStatusBadge value={request.status} />
+            </AixiaTableBadgeCell>
+            <AixiaTableBadgeCell>
+              <AixiaStatusBadge value={request.review_status} />
+            </AixiaTableBadgeCell>
+            <AixiaTableBadgeCell>
+              <AixiaStatusBadge value={request.documentation_status || request.signed_form_status} />
+            </AixiaTableBadgeCell>
+            <AixiaTableBadgeCell>
+              <AixiaStatusBadge value={request.funding_status || "not_allocated"} />
+            </AixiaTableBadgeCell>
+            <AixiaTableBadgeCell width="xl">
+              <AixiaBadge tone={getToneForBadge(request.nextStepTone)}>{request.nextStepLabel}</AixiaBadge>
+              <AixiaBadge tone="neutral">
+                Payment {formatLabel(request.payment_status || "unpaid")}
+              </AixiaBadge>
+              <AixiaBadge tone="neutral">
+                Employee {formatLabel(request.recipient_confirmation_status)}
+              </AixiaBadge>
+            </AixiaTableBadgeCell>
+            <AixiaTableActionsCell>
+              <AixiaButton
+                type="button"
+                variant="primary"
+                disabled={isRunningAction}
+                onClick={() => onOpen(request.id)}
+              >
+                <Eye className="h-4 w-4" />
+                Open
+              </AixiaButton>
+              {mode === "active" ? (
+                <>
+                  <AixiaButton
+                    type="button"
+                    variant="danger"
+                    disabled={isRunningAction}
+                    onClick={() => onArchive(request.id)}
+                  >
+                    <Archive className="h-4 w-4" />
+                    Archive
+                  </AixiaButton>
+                  <AixiaButton
+                    type="button"
+                    variant="danger"
+                    disabled={isRunningAction}
+                    onClick={() => onDelete(request.id)}
+                  >
+                    <Trash2 className="h-4 w-4" />
+                    Delete
+                  </AixiaButton>
+                </>
+              ) : (
+                <>
+                  <AixiaButton
+                    type="button"
+                    variant="secondary"
+                    disabled={isRunningAction}
+                    onClick={() => onRestore(request.id)}
+                  >
+                    <RotateCcw className="h-4 w-4" />
+                    Restore
+                  </AixiaButton>
+                  {archiveTab === "deleted" ? (
+                    <AixiaButton
+                      type="button"
+                      variant="danger"
+                      disabled={isRunningAction}
+                      onClick={() => onHardDelete(request.id)}
+                    >
+                      <Trash2 className="h-4 w-4" />
+                      Delete Permanently
+                    </AixiaButton>
+                  ) : null}
+                </>
+              )}
+            </AixiaTableActionsCell>
+          </tr>
+        ))}
+      </tbody>
+    </AixiaTableShell>
+  );
+}
+
+function ExecutionTable({
+  rows,
+  mode,
+  archiveTab,
+  isRunningAction,
+  onOpen,
+  onArchive,
+  onDelete,
+  onRestore,
+  onHardDelete,
+}: {
+  rows: ExecutionRecord[];
+  mode: "active" | "archive";
+  archiveTab: ArchiveTab;
+  isRunningAction: boolean;
+  onOpen: (record: ExecutionRecord) => void;
+  onArchive: (record: ExecutionRecord) => void;
+  onDelete: (record: ExecutionRecord) => void;
+  onRestore: (record: ExecutionRecord) => void;
+  onHardDelete: (record: ExecutionRecord) => void;
+}) {
+  if (rows.length === 0) {
+    return (
+      <AixiaEmptyState
+        icon={WalletCards}
+        title="No payroll payment execution records found"
+        description="Funding pools and paycheck payment distributions will appear here."
+      />
+    );
+  }
+
+  return (
+    <AixiaTableShell
+      variant={mode === "archive" ? "archive" : "registry"}
+      minWidthClassName="min-w-[1420px]"
+      maxHeightClassName={mode === "archive" ? "max-h-[620px]" : "max-h-[720px]"}
+    >
+      <thead className="aixia-table-head">
+        <tr>
+          <th>Record</th>
+          <th>Type</th>
+          <th>Company / Bank</th>
+          <th>Amount</th>
+          <th>Balance / Coverage</th>
+          <th>Lines</th>
+          <th>Status</th>
+          <th>Docs / Employee</th>
+          <th>Actions</th>
+        </tr>
+      </thead>
+      <tbody>
+        {rows.map((record) => {
+          const isBatch = record.recordType === "funding_batch";
+          const title = isBatch ? record.batch_number : record.distribution_number;
+          const amount = isBatch
+            ? record.allocatedAmount
+            : record.fundingCurrencyAmountCalculated;
+          const currency = isBatch
+            ? record.currency_code || "USD"
+            : record.funding_currency_code || record.payment_currency_code || "USD";
+
+          return (
+            <tr key={`${record.recordType}-${record.id}`} className="aixia-table-row">
+              <AixiaTableTextCell
+                width="lg"
+                primary={title}
+                secondary={
+                  isBatch
+                    ? getFundingPeriodLabel(record)
+                    : `${formatDate(record.payment_date)} • ${record.fundingBatchNumber}`
+                }
+              />
+              <AixiaTableBadgeCell>
+                <AixiaBadge tone={isBatch ? "violet" : "cyan"}>
+                  {isBatch ? "Payroll Funding Pool" : "Paycheck Payment Distribution"}
+                </AixiaBadge>
+              </AixiaTableBadgeCell>
+              <AixiaTableTextCell
+                width="lg"
+                primary={record.companyName}
+                secondary={record.bankLabel}
+              />
+              <AixiaTableTextCell
+                width="md"
+                primary={`${currency} ${formatMoney(amount)}`}
+                secondary={
+                  isBatch
+                    ? `Used ${record.currency_code || "USD"} ${formatMoney(record.usedAmount)}`
+                    : `Payment ${record.payment_currency_code || "USD"} ${formatMoney(
+                        record.paymentCurrencyAmount,
+                      )}`
+                }
+              />
+              <AixiaTableTextCell
+                width="md"
+                primary={
+                  isBatch
+                    ? `${record.currency_code || "USD"} ${formatMoney(record.remainingAmount)}`
+                    : `${record.requestCoverageCurrencyCode} ${formatMoney(
+                        record.allocatedRequestAmount,
+                      )}`
+                }
+                secondary={isBatch ? "Remaining" : "Request coverage"}
+              />
+              <AixiaTableTextCell
+                width="sm"
+                primary={isBatch ? record.distributionCount : record.allocationCount}
+                secondary={isBatch ? `${record.confirmedDistributionCount} confirmed` : "Paycheck lines"}
+              />
+              <AixiaTableBadgeCell>
+                <AixiaStatusBadge value={record.status} />
+              </AixiaTableBadgeCell>
+              <AixiaTableBadgeCell>
+                <AixiaStatusBadge
+                  value={isBatch ? record.documentation_status : record.recipient_confirmation_status}
+                />
+              </AixiaTableBadgeCell>
+              <AixiaTableActionsCell>
+                <AixiaButton
+                  type="button"
+                  variant="primary"
+                  disabled={isRunningAction}
+                  onClick={() => onOpen(record)}
+                >
+                  <Eye className="h-4 w-4" />
+                  Open
+                </AixiaButton>
+                {mode === "active" ? (
+                  <>
+                    <AixiaButton
+                      type="button"
+                      variant="danger"
+                      disabled={isRunningAction}
+                      onClick={() => onArchive(record)}
+                    >
+                      <Archive className="h-4 w-4" />
+                      Archive
+                    </AixiaButton>
+                    <AixiaButton
+                      type="button"
+                      variant="danger"
+                      disabled={isRunningAction}
+                      onClick={() => onDelete(record)}
+                    >
+                      <Trash2 className="h-4 w-4" />
+                      Delete
+                    </AixiaButton>
+                  </>
+                ) : (
+                  <>
+                    <AixiaButton
+                      type="button"
+                      variant="secondary"
+                      disabled={isRunningAction}
+                      onClick={() => onRestore(record)}
+                    >
+                      <RotateCcw className="h-4 w-4" />
+                      Restore
+                    </AixiaButton>
+                    {archiveTab === "deleted" ? (
+                      <AixiaButton
+                        type="button"
+                        variant="danger"
+                        disabled={isRunningAction}
+                        onClick={() => onHardDelete(record)}
+                      >
+                        <Trash2 className="h-4 w-4" />
+                        Delete Permanently
+                      </AixiaButton>
+                    ) : null}
+                  </>
+                )}
+              </AixiaTableActionsCell>
+            </tr>
+          );
+        })}
+      </tbody>
+    </AixiaTableShell>
+  );
+}
+
 export default function FinancePayrollControlPage() {
   const navigate = useNavigate();
 
   const [activeTab, setActiveTab] = useState<WorkbenchTab>("paycheck_requests");
   const [requests, setRequests] = useState<PaycheckRequestRow[]>([]);
   const [employees, setEmployees] = useState<EmployeeRefRow[]>([]);
-  const [profiles, setProfiles] = useState<ProfileRow[]>([]);
+  const [employeeIdentities, setEmployeeIdentities] = useState<FinanceEmployeeIdentity[]>([]);
   const [payProfiles, setPayProfiles] = useState<PayProfileRow[]>([]);
   const [companies, setCompanies] = useState<CompanyRow[]>([]);
   const [bankAccounts, setBankAccounts] = useState<BankAccountRow[]>([]);
@@ -752,9 +970,9 @@ export default function FinancePayrollControlPage() {
     return new Map(employees.map((employee) => [employee.id, employee]));
   }, [employees]);
 
-  const profileMap = useMemo(() => {
-    return new Map(profiles.map((profile) => [profile.user_id, profile]));
-  }, [profiles]);
+  const employeeIdentityMaps = useMemo(() => {
+    return buildIdentityMaps(employeeIdentities);
+  }, [employeeIdentities]);
 
   const payProfileMap = useMemo(() => {
     return new Map(payProfiles.map((profile) => [profile.id, profile]));
@@ -776,13 +994,13 @@ export default function FinancePayrollControlPage() {
     return new Set(
       paymentDistributions
         .filter((distribution) => distribution.status === "confirmed")
-        .map((distribution) => distribution.id)
+        .map((distribution) => distribution.id),
     );
   }, [paymentDistributions]);
 
   const confirmedPaymentAllocations = useMemo(() => {
     return paymentAllocations.filter((allocation) =>
-      confirmedDistributionIdSet.has(allocation.distribution_id)
+      confirmedDistributionIdSet.has(allocation.distribution_id),
     );
   }, [confirmedDistributionIdSet, paymentAllocations]);
 
@@ -803,7 +1021,6 @@ export default function FinancePayrollControlPage() {
 
     paymentAllocations.forEach((allocation) => {
       if (!allocation.funding_batch_id) return;
-
       const current = map.get(allocation.funding_batch_id) || [];
       current.push(allocation);
       map.set(allocation.funding_batch_id, current);
@@ -840,31 +1057,39 @@ export default function FinancePayrollControlPage() {
     return requests.map((request) => {
       const targetAmount = getRequestTargetAmount(request);
       const confirmedAllocationsForRequest = confirmedPaymentAllocations.filter(
-        (allocation) => allocation.paycheck_request_id === request.id
+        (allocation) => allocation.paycheck_request_id === request.id,
       );
       const allAllocationsForRequest = allocationsByRequestId.get(request.id) || [];
       const paidAmountCalculated =
         toNumber(request.paid_amount) ||
         confirmedAllocationsForRequest.reduce(
           (sum, allocation) => sum + toNumber(allocation.allocated_amount),
-          0
+          0,
         );
-
       const remainingAmountCalculated =
         request.remaining_amount !== null && request.remaining_amount !== undefined
           ? toNumber(request.remaining_amount)
           : Math.max(targetAmount - paidAmountCalculated, 0);
-
       const nextStep = getRequestNextStep({
         ...request,
         paid_amount: paidAmountCalculated,
         remaining_amount: remainingAmountCalculated,
       });
+      const viewIdentity = resolveRequestIdentity(
+        request,
+        employeeIdentityMaps.byEmployeeRefId,
+        employeeIdentityMaps.byUserId,
+      );
+      const fallbackIdentity = buildFallbackIdentity(request, employeeMap);
+      const employeeIdentity = viewIdentity || fallbackIdentity;
 
       return {
         ...request,
-        employeeName: getEmployeeName(request, employeeMap, profileMap),
-        employeeLabel: getEmployeeLabel(request, employeeMap, profileMap),
+        employeeIdentity,
+        employeeName: getFinanceEmployeePrimaryName(employeeIdentity, "Employee"),
+        employeeLabel: getFinanceEmployeeSecondaryLabel(employeeIdentity),
+        employeeReference: getFinanceEmployeeReferenceLabel(employeeIdentity),
+        employeeSearchText: getFinanceEmployeeSearchText(employeeIdentity),
         companyName: request.company_id
           ? getCompanyName(companyMap.get(request.company_id))
           : "No company selected",
@@ -884,9 +1109,10 @@ export default function FinancePayrollControlPage() {
     allocationsByRequestId,
     companyMap,
     confirmedPaymentAllocations,
+    employeeIdentityMaps.byEmployeeRefId,
+    employeeIdentityMaps.byUserId,
     employeeMap,
     payProfileMap,
-    profileMap,
     requests,
   ]);
 
@@ -895,7 +1121,7 @@ export default function FinancePayrollControlPage() {
       const batchDistributions = distributionsByFundingBatchId.get(batch.id) || [];
       const batchAllocations = allocationsByFundingBatchId.get(batch.id) || [];
       const confirmedBatchDistributions = batchDistributions.filter(
-        (distribution) => distribution.status === "confirmed"
+        (distribution) => distribution.status === "confirmed",
       );
       const allocatedAmount = toNumber(batch.allocated_amount);
       const usedAmount =
@@ -908,17 +1134,15 @@ export default function FinancePayrollControlPage() {
               toNumber(
                 allocation.funding_currency_amount ||
                   allocation.converted_amount ||
-                  allocation.allocated_amount
+                  allocation.allocated_amount,
               ),
-            0
+            0,
           );
 
       return {
         ...batch,
         recordType: "funding_batch",
-        companyName: companyMap.get(batch.funding_company_id)?.legal_name
-          ? getCompanyName(companyMap.get(batch.funding_company_id))
-          : companyMap.get(batch.funding_company_id)?.name || "Unknown company",
+        companyName: getCompanyName(companyMap.get(batch.funding_company_id)),
         bankLabel: batch.funding_bank_account_id
           ? getBankLabel(bankAccountMap.get(batch.funding_bank_account_id))
           : "No funding bank",
@@ -946,36 +1170,31 @@ export default function FinancePayrollControlPage() {
     return paymentDistributions.map((distribution) => {
       const distributionAllocations = allocationsByDistributionId.get(distribution.id) || [];
       const fundingBatch = fundingBatchMap.get(distribution.funding_batch_id);
-
       const allocatedRequestAmount = distributionAllocations.reduce(
         (sum, allocation) => sum + toNumber(allocation.allocated_amount),
-        0
+        0,
       );
-
       const requestCoverageCurrencyCodes = Array.from(
         new Set(
           distributionAllocations
             .map((allocation) => normalizeCurrencyCode(allocation.currency_code))
-            .filter(Boolean)
-        )
+            .filter(Boolean),
+        ),
       );
-
       const requestCoverageCurrencyCode =
         requestCoverageCurrencyCodes.length === 1
           ? requestCoverageCurrencyCodes[0]
           : requestCoverageCurrencyCodes.length > 1
             ? "MIXED"
-            : normalizeCurrencyCode(distribution.metadata?.paycheck_currency_code as string | null) ||
+            : normalizeCurrencyCode(distribution.metadata?.paycheck_currency_code) ||
               normalizeCurrencyCode(distribution.payment_currency_code) ||
               "USD";
-
       const paymentCurrencyAmount =
         toNumber(distribution.metadata?.payment_currency_amount) ||
         distributionAllocations.reduce(
           (sum, allocation) => sum + toNumber(allocation.converted_amount),
-          0
+          0,
         );
-
       const fundingCurrencyAmountCalculated =
         toNumber(distribution.funding_currency_amount) ||
         toNumber(distribution.metadata?.funding_currency_amount_used_for_payment) ||
@@ -985,9 +1204,9 @@ export default function FinancePayrollControlPage() {
             toNumber(
               allocation.funding_currency_amount ||
                 allocation.converted_amount ||
-                allocation.allocated_amount
+                allocation.allocated_amount,
             ),
-          0
+          0,
         );
 
       return {
@@ -1025,6 +1244,8 @@ export default function FinancePayrollControlPage() {
         request.reference_number,
         request.employeeName,
         request.employeeLabel,
+        request.employeeReference,
+        request.employeeSearchText,
         request.companyName,
         request.payProfileLabel,
         request.periodLabel,
@@ -1094,57 +1315,31 @@ export default function FinancePayrollControlPage() {
     });
   }, [enrichedDistributions, normalizedSearch]);
 
-  const activeRequestRows = useMemo(() => {
-    return filteredRequests.filter(isWorkflowActive);
-  }, [filteredRequests]);
-
-  const archivedRequestRows = useMemo(() => {
-    return filteredRequests.filter(isWorkflowArchived);
-  }, [filteredRequests]);
-
-  const deletedRequestRows = useMemo(() => {
-    return filteredRequests.filter(isWorkflowDeleted);
-  }, [filteredRequests]);
-
-  const activeFundingBatchRows = useMemo(() => {
-    return filteredFundingBatches.filter(isExecutionActive);
-  }, [filteredFundingBatches]);
-
-  const archivedFundingBatchRows = useMemo(() => {
-    return filteredFundingBatches.filter(isExecutionArchived);
-  }, [filteredFundingBatches]);
-
-  const deletedFundingBatchRows = useMemo(() => {
-    return filteredFundingBatches.filter(isExecutionDeleted);
-  }, [filteredFundingBatches]);
-
-  const activeDistributionRows = useMemo(() => {
-    return filteredDistributions.filter(isExecutionActive);
-  }, [filteredDistributions]);
-
-  const archivedDistributionRows = useMemo(() => {
-    return filteredDistributions.filter(isExecutionArchived);
-  }, [filteredDistributions]);
-
-  const deletedDistributionRows = useMemo(() => {
-    return filteredDistributions.filter(isExecutionDeleted);
-  }, [filteredDistributions]);
+  const activeRequestRows = useMemo(() => filteredRequests.filter(isWorkflowActive), [filteredRequests]);
+  const archivedRequestRows = useMemo(() => filteredRequests.filter(isWorkflowArchived), [filteredRequests]);
+  const deletedRequestRows = useMemo(() => filteredRequests.filter(isWorkflowDeleted), [filteredRequests]);
+  const activeFundingBatchRows = useMemo(() => filteredFundingBatches.filter(isExecutionActive), [filteredFundingBatches]);
+  const archivedFundingBatchRows = useMemo(() => filteredFundingBatches.filter(isExecutionArchived), [filteredFundingBatches]);
+  const deletedFundingBatchRows = useMemo(() => filteredFundingBatches.filter(isExecutionDeleted), [filteredFundingBatches]);
+  const activeDistributionRows = useMemo(() => filteredDistributions.filter(isExecutionActive), [filteredDistributions]);
+  const archivedDistributionRows = useMemo(() => filteredDistributions.filter(isExecutionArchived), [filteredDistributions]);
+  const deletedDistributionRows = useMemo(() => filteredDistributions.filter(isExecutionDeleted), [filteredDistributions]);
 
   const archivedExecutionRows = useMemo<ExecutionRecord[]>(() => {
     return [...archivedFundingBatchRows, ...archivedDistributionRows].sort((a, b) =>
-      String(b.updated_at || "").localeCompare(String(a.updated_at || ""))
+      String(b.updated_at || "").localeCompare(String(a.updated_at || "")),
     );
   }, [archivedFundingBatchRows, archivedDistributionRows]);
 
   const deletedExecutionRows = useMemo<ExecutionRecord[]>(() => {
     return [...deletedFundingBatchRows, ...deletedDistributionRows].sort((a, b) =>
-      String(b.updated_at || "").localeCompare(String(a.updated_at || ""))
+      String(b.updated_at || "").localeCompare(String(a.updated_at || "")),
     );
   }, [deletedFundingBatchRows, deletedDistributionRows]);
 
   const paycheckRequestRows = useMemo(() => {
     return activeRequestRows.filter((request) =>
-      ["draft", "submitted", "needs_correction"].includes(request.status)
+      ["draft", "submitted", "needs_correction"].includes(request.status),
     );
   }, [activeRequestRows]);
 
@@ -1152,19 +1347,20 @@ export default function FinancePayrollControlPage() {
     return activeRequestRows.filter(
       (request) =>
         ["missing", "not_uploaded", "uploaded", "linked", "files_and_links", "needs_correction"].includes(
-          request.documentation_status || request.signed_form_status || ""
+          request.documentation_status || request.signed_form_status || "",
         ) ||
         ["not_uploaded", "uploaded", "linked", "files_and_links"].includes(
-          request.admin_signed_form_status || ""
-        )
+          request.admin_signed_form_status || "",
+        ),
     );
   }, [activeRequestRows]);
 
   const payrollReviewRows = useMemo(() => {
-    return activeRequestRows.filter((request) =>
-      ["submitted", "pending_review", "needs_correction", "approved_for_payroll", "rejected"].includes(
-        request.status
-      ) || ["pending_review", "needs_correction", "approved", "rejected"].includes(request.review_status)
+    return activeRequestRows.filter(
+      (request) =>
+        ["submitted", "pending_review", "needs_correction", "approved_for_payroll", "rejected"].includes(
+          request.status,
+        ) || ["pending_review", "needs_correction", "approved", "rejected"].includes(request.review_status),
     );
   }, [activeRequestRows]);
 
@@ -1173,7 +1369,7 @@ export default function FinancePayrollControlPage() {
       (request) =>
         request.status === "approved_for_payroll" ||
         request.review_status === "approved" ||
-        request.payment_status === "partially_paid"
+        request.payment_status === "partially_paid",
     );
   }, [activeRequestRows]);
 
@@ -1182,43 +1378,37 @@ export default function FinancePayrollControlPage() {
       (request) =>
         ["payment_sent", "received_confirmed", "disputed"].includes(request.status) ||
         ["payment_sent", "received_confirmed", "not_received", "disputed"].includes(
-          request.recipient_confirmation_status || ""
+          request.recipient_confirmation_status || "",
         ) ||
-        ["paid", "partially_paid"].includes(request.payment_status || "")
+        ["paid", "partially_paid"].includes(request.payment_status || ""),
     );
   }, [activeRequestRows]);
 
   const metrics = useMemo(() => {
     const pendingReview = activeRequestRows.filter(
-      (request) => request.status === "submitted" || request.review_status === "pending_review"
+      (request) => request.status === "submitted" || request.review_status === "pending_review",
     ).length;
-
     const documentIssues = activeRequestRows.filter(
       (request) =>
         request.documentation_status === "missing" ||
         request.signed_form_status === "needs_correction" ||
-        request.admin_signed_form_status === "not_uploaded"
+        request.admin_signed_form_status === "not_uploaded",
     ).length;
-
-    const readyForPayment = readyForPaymentRows.length;
-
     const confirmationPending = activeRequestRows.filter(
       (request) =>
         request.recipient_confirmation_status === "payment_sent" ||
-        request.recipient_confirmation_status === "pending_confirmation"
+        request.recipient_confirmation_status === "pending_confirmation",
     ).length;
-
     const allocatedAmount = activeFundingBatchRows.reduce(
       (sum, batch) => sum + batch.allocatedAmount,
-      0
+      0,
     );
-
     const usedAmount = activeFundingBatchRows.reduce((sum, batch) => sum + batch.usedAmount, 0);
 
     return {
       pendingReview,
       documentIssues,
-      readyForPayment,
+      readyForPayment: readyForPaymentRows.length,
       confirmationPending,
       activeFundingBatches: activeFundingBatchRows.length,
       activeDistributions: activeDistributionRows.length,
@@ -1244,20 +1434,20 @@ export default function FinancePayrollControlPage() {
   const activeTabMeta = allTabs.find((tab) => tab.key === activeTab) || allTabs[0];
 
   const loadPayrollControl = useCallback(
-    async (mode: "initial" | "silent" = "initial") => {
+    async (mode: LoadMode = "initial") => {
       if (mode === "initial" && !hasLoadedOnce) {
         setIsLoading(true);
       } else {
         setIsRefreshing(true);
       }
 
-      setPageError(null);
+      if (mode === "initial") setPageError(null);
 
       try {
         const [
           requestsResult,
           employeesResult,
-          profilesResult,
+          employeeIdentityResult,
           payProfilesResult,
           companiesResult,
           bankAccountsResult,
@@ -1314,40 +1504,31 @@ export default function FinancePayrollControlPage() {
                 "reference_number",
                 "created_at",
                 "updated_at",
-              ].join(", ")
+              ].join(", "),
             )
             .order("updated_at", { ascending: false })
             .limit(500),
-
           supabase
             .from("finance_employee_refs")
             .select("id, user_id, code, status, mark, metadata")
             .order("code", { ascending: true }),
-
-          supabase
-            .from("profiles")
-            .select("user_id, full_name, display_name, email, company, job_title, member_type")
-            .order("full_name", { ascending: true }),
-
+          supabase.from("finance_employee_identity_v").select("*"),
           supabase
             .from("finance_pay_profiles")
             .select(
-              "id, profile_number, user_id, pay_type, payment_frequency, base_salary, hourly_rate, default_hours, currency_code, active, status"
+              "id, profile_number, user_id, pay_type, payment_frequency, base_salary, hourly_rate, default_hours, currency_code, active, status",
             )
             .order("created_at", { ascending: false }),
-
           supabase
             .from("finance_companies")
             .select("id, name, legal_name")
             .order("name", { ascending: true }),
-
           supabase
             .from("finance_bank_accounts")
             .select(
-              "id, code, name, account_type, institution_name, masked_account_number, status, beneficiary_name, currency_code, swift_code, iban, bank_name, company_id"
+              "id, code, name, account_type, institution_name, masked_account_number, status, beneficiary_name, currency_code, swift_code, iban, bank_name, company_id",
             )
             .order("name", { ascending: true }),
-
           supabase
             .from("finance_paycheck_funding_batches")
             .select(
@@ -1367,11 +1548,10 @@ export default function FinancePayrollControlPage() {
                 "metadata",
                 "created_at",
                 "updated_at",
-              ].join(", ")
+              ].join(", "),
             )
             .order("updated_at", { ascending: false })
             .limit(300),
-
           supabase
             .from("finance_paycheck_payment_distributions")
             .select(
@@ -1399,11 +1579,10 @@ export default function FinancePayrollControlPage() {
                 "metadata",
                 "created_at",
                 "updated_at",
-              ].join(", ")
+              ].join(", "),
             )
             .order("updated_at", { ascending: false })
             .limit(300),
-
           supabase
             .from("finance_paycheck_payment_allocations")
             .select(
@@ -1432,14 +1611,14 @@ export default function FinancePayrollControlPage() {
                 "recipient_confirmation_status",
                 "created_at",
                 "updated_at",
-              ].join(", ")
+              ].join(", "),
             )
             .limit(1000),
         ]);
 
         if (requestsResult.error) throw requestsResult.error;
         if (employeesResult.error) throw employeesResult.error;
-        if (profilesResult.error) throw profilesResult.error;
+        if (employeeIdentityResult.error) throw employeeIdentityResult.error;
         if (payProfilesResult.error) throw payProfilesResult.error;
         if (companiesResult.error) throw companiesResult.error;
         if (bankAccountsResult.error) throw bankAccountsResult.error;
@@ -1449,29 +1628,31 @@ export default function FinancePayrollControlPage() {
 
         setRequests((requestsResult.data || []) as unknown as PaycheckRequestRow[]);
         setEmployees((employeesResult.data || []) as EmployeeRefRow[]);
-        setProfiles((profilesResult.data || []) as ProfileRow[]);
+        setEmployeeIdentities(
+          (employeeIdentityResult.data || []) as unknown as FinanceEmployeeIdentity[],
+        );
         setPayProfiles((payProfilesResult.data || []) as unknown as PayProfileRow[]);
         setCompanies((companiesResult.data || []) as CompanyRow[]);
         setBankAccounts((bankAccountsResult.data || []) as BankAccountRow[]);
         setFundingBatches((fundingBatchesResult.data || []) as unknown as FundingBatchRow[]);
         setPaymentDistributions(
-          (paymentDistributionsResult.data || []) as unknown as PaymentDistributionRow[]
+          (paymentDistributionsResult.data || []) as unknown as PaymentDistributionRow[],
         );
         setPaymentAllocations(
-          (paymentAllocationsResult.data || []) as unknown as PaymentAllocationRow[]
+          (paymentAllocationsResult.data || []) as unknown as PaymentAllocationRow[],
         );
         setHasLoadedOnce(true);
       } catch (error) {
         console.error("Failed to load payroll control:", error);
-        setPageError(
-          error instanceof Error ? error.message : "Failed to load payroll control."
-        );
+        if (mode === "initial" || !hasLoadedOnce) {
+          setPageError(error instanceof Error ? error.message : "Failed to load payroll control.");
+        }
       } finally {
         setIsLoading(false);
         setIsRefreshing(false);
       }
     },
-    [hasLoadedOnce]
+    [hasLoadedOnce],
   );
 
   useEffect(() => {
@@ -1484,12 +1665,17 @@ export default function FinancePayrollControlPage() {
       .on(
         "postgres_changes",
         { event: "*", schema: "public", table: "finance_paycheck_requests" },
-        () => void loadPayrollControl("silent")
+        () => void loadPayrollControl("silent"),
+      )
+      .on(
+        "postgres_changes",
+        { event: "*", schema: "public", table: "finance_employee_identity_v" },
+        () => void loadPayrollControl("silent"),
       )
       .on(
         "postgres_changes",
         { event: "*", schema: "public", table: "finance_paycheck_funding_batches" },
-        () => void loadPayrollControl("silent")
+        () => void loadPayrollControl("silent"),
       )
       .on(
         "postgres_changes",
@@ -1498,7 +1684,7 @@ export default function FinancePayrollControlPage() {
           schema: "public",
           table: "finance_paycheck_payment_distributions",
         },
-        () => void loadPayrollControl("silent")
+        () => void loadPayrollControl("silent"),
       )
       .on(
         "postgres_changes",
@@ -1507,7 +1693,7 @@ export default function FinancePayrollControlPage() {
           schema: "public",
           table: "finance_paycheck_payment_allocations",
         },
-        () => void loadPayrollControl("silent")
+        () => void loadPayrollControl("silent"),
       )
       .subscribe();
 
@@ -1517,16 +1703,12 @@ export default function FinancePayrollControlPage() {
 
     return () => {
       window.clearInterval(intervalId);
-      supabase.removeChannel(channel);
+      void supabase.removeChannel(channel);
     };
   }, [loadPayrollControl]);
 
   const runRpcAction = useCallback(
-    async (
-      rpcName: string,
-      args: Record<string, string>,
-      successMessage: string
-    ) => {
+    async (rpcName: string, args: Record<string, string>, successMessage: string) => {
       if (isRunningAction) return;
 
       setIsRunningAction(true);
@@ -1558,21 +1740,17 @@ export default function FinancePayrollControlPage() {
         setIsRunningAction(false);
       }
     },
-    [isRunningAction, loadPayrollControl]
+    [isRunningAction, loadPayrollControl],
   );
 
   const runWorkflowAction = useCallback(
-    async (
-      action: "archive" | "delete" | "restore" | "hard_delete",
-      requestId: string
-    ) => {
+    async (action: "archive" | "delete" | "restore" | "hard_delete", requestId: string) => {
       const rpcMap = {
         archive: "finance_archive_paycheck_request",
         delete: "finance_delete_paycheck_request",
         restore: "finance_restore_paycheck_request",
         hard_delete: "finance_hard_delete_paycheck_request",
       };
-
       const messageMap = {
         archive: "Paycheck request moved to Workflow Archive.",
         delete: "Paycheck request moved to Deleted Workflow records.",
@@ -1580,22 +1758,14 @@ export default function FinancePayrollControlPage() {
         hard_delete: "Paycheck request permanently deleted.",
       };
 
-      await runRpcAction(
-        rpcMap[action],
-        { p_request_id: requestId },
-        messageMap[action]
-      );
+      await runRpcAction(rpcMap[action], { p_request_id: requestId }, messageMap[action]);
     },
-    [runRpcAction]
+    [runRpcAction],
   );
 
   const runExecutionAction = useCallback(
-    async (
-      action: "archive" | "delete" | "restore" | "hard_delete",
-      record: ExecutionRecord
-    ) => {
+    async (action: "archive" | "delete" | "restore" | "hard_delete", record: ExecutionRecord) => {
       const isBatch = record.recordType === "funding_batch";
-
       const rpcMap = {
         archive: isBatch
           ? "finance_archive_paycheck_funding_batch"
@@ -1610,11 +1780,9 @@ export default function FinancePayrollControlPage() {
           ? "finance_hard_delete_paycheck_funding_batch"
           : "finance_hard_delete_paycheck_payment_distribution",
       };
-
       const args: Record<string, string> = isBatch
         ? { p_batch_id: record.id }
         : { p_distribution_id: record.id };
-
       const messageMap = {
         archive: isBatch
           ? "Payroll funding allocation moved to Payment Execution Archive."
@@ -1632,7 +1800,7 @@ export default function FinancePayrollControlPage() {
 
       await runRpcAction(rpcMap[action], args, messageMap[action]);
     },
-    [runRpcAction]
+    [runRpcAction],
   );
 
   const openArchiveModal = useCallback((scope: ArchiveScope) => {
@@ -1641,796 +1809,343 @@ export default function FinancePayrollControlPage() {
     setArchiveModalOpen(true);
   }, []);
 
-  const renderRequestRows = useCallback(
-    (rows: EnrichedRequestRow[], mode: "active" | "archive") => {
-      if (rows.length === 0) {
-        return (
-          <tr>
-            <td colSpan={11} className="px-5 py-12 text-center">
-              <div className="text-sm font-medium text-white">
-                No paycheck request records found
-              </div>
-              <div className="mt-2 text-sm text-slate-500">
-                Matching paycheck workflow records will appear here.
-              </div>
-            </td>
-          </tr>
-        );
-      }
-
-      return rows.map((request) => {
-        const reviewRoute = `/finance/transactions/payroll/review/${request.id}`;
-
-        return (
-          <tr
-            key={request.id}
-            className="border-b border-white/5 text-sm text-slate-300 transition hover:bg-white/[0.035]"
-          >
-            <td className="min-w-[260px] px-5 py-4">
-              <button
-                type="button"
-                onClick={() => navigate(reviewRoute)}
-                className="text-left font-semibold text-cyan-200 transition hover:text-cyan-100"
-              >
-                {request.request_number || request.reference_number || "Paycheck Request"}
-              </button>
-              <div className="mt-1 line-clamp-1 text-xs text-white">
-                {request.employeeName}
-              </div>
-              <div className="mt-1 text-xs text-slate-500">{request.periodLabel}</div>
-            </td>
-
-            <td className="min-w-[240px] px-5 py-4">
-              <div className="line-clamp-1 font-medium text-slate-200">
-                {request.employeeLabel || "Employee"}
-              </div>
-              <div className="mt-1 text-xs text-slate-500">{request.companyName}</div>
-            </td>
-
-            <td className="min-w-[220px] px-5 py-4">
-              <div className="font-medium text-slate-200">{request.payProfileLabel}</div>
-              <div className="mt-1 text-xs text-slate-500">
-                Pay date {formatDate(request.requested_pay_date)}
-              </div>
-            </td>
-
-            <td className="whitespace-nowrap px-5 py-4 text-right font-semibold text-white">
-              {request.requested_currency_code || "USD"} {formatMoney(request.targetAmount)}
-              <div className="mt-1 text-xs text-slate-500">
-                Paid {request.requested_currency_code || "USD"}{" "}
-                {formatMoney(request.paidAmountCalculated)}
-              </div>
-            </td>
-
-            <td className="whitespace-nowrap px-5 py-4 text-right font-semibold text-amber-100">
-              {request.requested_currency_code || "USD"}{" "}
-              {formatMoney(request.remainingAmountCalculated)}
-              <div className="mt-1 text-xs text-slate-500">
-                {request.linkedAllocationCount} allocation lines
-              </div>
-            </td>
-
-            <td className="whitespace-nowrap px-5 py-4">
-              <StatusBadge value={request.status} />
-            </td>
-
-            <td className="whitespace-nowrap px-5 py-4">
-              <StatusBadge value={request.review_status} />
-            </td>
-
-            <td className="whitespace-nowrap px-5 py-4">
-              <StatusBadge value={request.documentation_status || request.signed_form_status} />
-            </td>
-
-            <td className="whitespace-nowrap px-5 py-4">
-              <StatusBadge value={request.funding_status || "not_allocated"} />
-            </td>
-
-            <td className="min-w-[300px] px-5 py-4">
-              <SoftBadge value={request.nextStepLabel} tone={request.nextStepTone} />
-              <div className="mt-2 text-xs text-slate-500">
-                Payment {formatLabel(request.payment_status || "unpaid")} • Employee{" "}
-                {formatLabel(request.recipient_confirmation_status)}
-              </div>
-            </td>
-
-            <td className="sticky right-0 bg-[#05070d]/95 px-4 py-4 shadow-[-18px_0_24px_rgba(0,0,0,0.35)] backdrop-blur-xl">
-              <div className="flex items-center justify-end gap-2">
-                <IconButton
-                  label="Open paycheck review"
-                  icon={Eye}
-                  tone="cyan"
-                  disabled={isRunningAction}
-                  onClick={() => navigate(reviewRoute)}
-                />
-
-                {mode === "active" ? (
-                  <>
-                    <IconButton
-                      label="Archive paycheck request"
-                      icon={Archive}
-                      tone="amber"
-                      disabled={isRunningAction}
-                      onClick={() => void runWorkflowAction("archive", request.id)}
-                    />
-                    <IconButton
-                      label="Delete paycheck request"
-                      icon={Trash2}
-                      tone="rose"
-                      disabled={isRunningAction}
-                      onClick={() => void runWorkflowAction("delete", request.id)}
-                    />
-                  </>
-                ) : archiveTab === "archived" ? (
-                  <IconButton
-                    label="Restore paycheck request"
-                    icon={RotateCcw}
-                    tone="emerald"
-                    disabled={isRunningAction}
-                    onClick={() => void runWorkflowAction("restore", request.id)}
-                  />
-                ) : (
-                  <>
-                    <IconButton
-                      label="Restore paycheck request"
-                      icon={RotateCcw}
-                      tone="emerald"
-                      disabled={isRunningAction}
-                      onClick={() => void runWorkflowAction("restore", request.id)}
-                    />
-                    <IconButton
-                      label="Hard delete paycheck request"
-                      icon={Trash2}
-                      tone="rose"
-                      disabled={isRunningAction}
-                      onClick={() => void runWorkflowAction("hard_delete", request.id)}
-                    />
-                  </>
-                )}
-              </div>
-            </td>
-          </tr>
-        );
-      });
-    },
-    [archiveTab, isRunningAction, navigate, runWorkflowAction]
+  const openRequest = useCallback(
+    (requestId: string) => navigate(`/finance/transactions/payroll/review/${requestId}`),
+    [navigate],
   );
 
-  const renderRequestTable = useCallback(
-    (rows: EnrichedRequestRow[], mode: "active" | "archive" = "active") => {
-      return (
-        <div className="overflow-x-auto rounded-[24px] border border-white/10 bg-black/20">
-          <div className="max-h-[720px] overflow-y-auto">
-            <table className="w-full min-w-[1660px] border-collapse">
-              <thead className="sticky top-0 z-20 border-b border-white/10 bg-black/70 backdrop-blur-xl">
-                <tr>
-                  <th className="px-5 py-4 text-left text-[11px] font-semibold uppercase tracking-[0.18em] text-slate-500">
-                    Request
-                  </th>
-                  <th className="px-5 py-4 text-left text-[11px] font-semibold uppercase tracking-[0.18em] text-slate-500">
-                    Employee
-                  </th>
-                  <th className="px-5 py-4 text-left text-[11px] font-semibold uppercase tracking-[0.18em] text-slate-500">
-                    Pay Profile
-                  </th>
-                  <th className="px-5 py-4 text-right text-[11px] font-semibold uppercase tracking-[0.18em] text-slate-500">
-                    Net / Paid
-                  </th>
-                  <th className="px-5 py-4 text-right text-[11px] font-semibold uppercase tracking-[0.18em] text-slate-500">
-                    Remaining
-                  </th>
-                  <th className="px-5 py-4 text-left text-[11px] font-semibold uppercase tracking-[0.18em] text-slate-500">
-                    Status
-                  </th>
-                  <th className="px-5 py-4 text-left text-[11px] font-semibold uppercase tracking-[0.18em] text-slate-500">
-                    Review
-                  </th>
-                  <th className="px-5 py-4 text-left text-[11px] font-semibold uppercase tracking-[0.18em] text-slate-500">
-                    Docs
-                  </th>
-                  <th className="px-5 py-4 text-left text-[11px] font-semibold uppercase tracking-[0.18em] text-slate-500">
-                    Funding
-                  </th>
-                  <th className="px-5 py-4 text-left text-[11px] font-semibold uppercase tracking-[0.18em] text-slate-500">
-                    Next Step
-                  </th>
-                  <th className="sticky right-0 bg-black/70 px-4 py-4 text-right text-[11px] font-semibold uppercase tracking-[0.18em] text-slate-500 shadow-[-18px_0_24px_rgba(0,0,0,0.35)] backdrop-blur-xl">
-                    Actions
-                  </th>
-                </tr>
-              </thead>
-
-              <tbody>{renderRequestRows(rows, mode)}</tbody>
-            </table>
-          </div>
-        </div>
-      );
-    },
-    [renderRequestRows]
-  );
-
-  const renderExecutionRows = useCallback(
-    (rows: ExecutionRecord[], mode: "active" | "archive") => {
-      if (rows.length === 0) {
-        return (
-          <tr>
-            <td colSpan={9} className="px-5 py-12 text-center">
-              <div className="text-sm font-medium text-white">
-                No payroll payment execution records found
-              </div>
-              <div className="mt-2 text-sm text-slate-500">
-                Funding pools and paycheck payment distributions will appear here.
-              </div>
-            </td>
-          </tr>
-        );
-      }
-
-      return rows.map((record) => {
-        const isBatch = record.recordType === "funding_batch";
-        const title = isBatch ? record.batch_number : record.distribution_number;
-        const route = isBatch
+  const openExecutionRecord = useCallback(
+    (record: ExecutionRecord) => {
+      const route =
+        record.recordType === "funding_batch"
           ? `/finance/transactions/payroll/funding-batches/${record.id}`
           : `/finance/transactions/payroll/${record.id}`;
-        const amount = isBatch ? record.allocatedAmount : record.fundingCurrencyAmountCalculated;
-        const currency = isBatch
-          ? record.currency_code || "USD"
-          : record.funding_currency_code || record.payment_currency_code || "USD";
-
-        return (
-          <tr
-            key={`${record.recordType}-${record.id}`}
-            className="border-b border-white/5 text-sm text-slate-300 transition hover:bg-white/[0.035]"
-          >
-            <td className="min-w-[250px] px-5 py-4">
-              <button
-                type="button"
-                onClick={() => navigate(route)}
-                className="text-left font-semibold text-cyan-200 transition hover:text-cyan-100"
-              >
-                {title}
-              </button>
-              <div className="mt-1 text-xs text-slate-500">
-                {isBatch
-                  ? getFundingPeriodLabel(record)
-                  : `${formatDate(record.payment_date)} • ${record.fundingBatchNumber}`}
-              </div>
-            </td>
-
-            <td className="px-5 py-4">
-              {isBatch ? (
-                <SoftBadge value="Payroll Funding Pool" tone="violet" />
-              ) : (
-                <SoftBadge value="Paycheck Payment Distribution" tone="cyan" />
-              )}
-            </td>
-
-            <td className="min-w-[240px] px-5 py-4">
-              <div className="font-medium text-slate-200">{record.companyName}</div>
-              <div className="mt-1 line-clamp-1 text-xs text-slate-500">
-                {record.bankLabel}
-              </div>
-            </td>
-
-            <td className="px-5 py-4 text-right font-semibold text-white">
-              {currency} {formatMoney(amount)}
-              {isBatch ? (
-                <div className="mt-1 text-xs text-slate-500">
-                  Used {record.currency_code || "USD"} {formatMoney(record.usedAmount)}
-                </div>
-              ) : (
-                <div className="mt-1 text-xs text-slate-500">
-                  Payment {record.payment_currency_code || "USD"}{" "}
-                  {formatMoney(record.paymentCurrencyAmount)}
-                </div>
-              )}
-            </td>
-
-            <td className="px-5 py-4 text-right font-semibold text-emerald-100">
-              {isBatch ? (
-                <>
-                  {record.currency_code || "USD"} {formatMoney(record.remainingAmount)}
-                  <div className="mt-1 text-xs text-slate-500">Remaining</div>
-                </>
-              ) : (
-                <>
-                  {record.requestCoverageCurrencyCode}{" "}
-                  {formatMoney(record.allocatedRequestAmount)}
-                  <div className="mt-1 text-xs text-slate-500">Request coverage</div>
-                </>
-              )}
-            </td>
-
-            <td className="px-5 py-4">
-              {isBatch ? (
-                <div>
-                  <div className="font-medium text-white">{record.distributionCount}</div>
-                  <div className="mt-1 text-xs text-slate-500">
-                    {record.confirmedDistributionCount} confirmed distributions
-                  </div>
-                </div>
-              ) : (
-                <div>
-                  <div className="font-medium text-white">{record.allocationCount}</div>
-                  <div className="mt-1 text-xs text-slate-500">Paycheck lines</div>
-                </div>
-              )}
-            </td>
-
-            <td className="px-5 py-4">
-              <StatusBadge value={record.status} />
-            </td>
-
-            <td className="px-5 py-4">
-              {isBatch ? (
-                <StatusBadge value={record.documentation_status} />
-              ) : (
-                <StatusBadge value={record.recipient_confirmation_status} />
-              )}
-            </td>
-
-            <td className="sticky right-0 bg-[#05070d]/95 px-4 py-4 shadow-[-18px_0_24px_rgba(0,0,0,0.35)] backdrop-blur-xl">
-              <div className="flex items-center justify-end gap-2">
-                <IconButton
-                  label="Open record"
-                  icon={Eye}
-                  tone="cyan"
-                  disabled={isRunningAction}
-                  onClick={() => navigate(route)}
-                />
-
-                {mode === "active" ? (
-                  <>
-                    <IconButton
-                      label="Archive record"
-                      icon={Archive}
-                      tone="amber"
-                      disabled={isRunningAction}
-                      onClick={() => void runExecutionAction("archive", record)}
-                    />
-                    <IconButton
-                      label="Delete record"
-                      icon={Trash2}
-                      tone="rose"
-                      disabled={isRunningAction}
-                      onClick={() => void runExecutionAction("delete", record)}
-                    />
-                  </>
-                ) : archiveTab === "archived" ? (
-                  <IconButton
-                    label="Restore record"
-                    icon={RotateCcw}
-                    tone="emerald"
-                    disabled={isRunningAction}
-                    onClick={() => void runExecutionAction("restore", record)}
-                  />
-                ) : (
-                  <>
-                    <IconButton
-                      label="Restore record"
-                      icon={RotateCcw}
-                      tone="emerald"
-                      disabled={isRunningAction}
-                      onClick={() => void runExecutionAction("restore", record)}
-                    />
-                    <IconButton
-                      label="Hard delete record"
-                      icon={Trash2}
-                      tone="rose"
-                      disabled={isRunningAction}
-                      onClick={() => void runExecutionAction("hard_delete", record)}
-                    />
-                  </>
-                )}
-              </div>
-            </td>
-          </tr>
-        );
-      });
+      navigate(route);
     },
-    [archiveTab, isRunningAction, navigate, runExecutionAction]
-  );
-
-  const renderExecutionTable = useCallback(
-    (rows: ExecutionRecord[], mode: "active" | "archive" = "active") => {
-      return (
-        <div className="overflow-x-auto rounded-[24px] border border-white/10 bg-black/20">
-          <div className="max-h-[720px] overflow-y-auto">
-            <table className="w-full min-w-[1420px] border-collapse">
-              <thead className="sticky top-0 z-20 border-b border-white/10 bg-black/70 backdrop-blur-xl">
-                <tr>
-                  <th className="px-5 py-4 text-left text-[11px] font-semibold uppercase tracking-[0.18em] text-slate-500">
-                    Record
-                  </th>
-                  <th className="px-5 py-4 text-left text-[11px] font-semibold uppercase tracking-[0.18em] text-slate-500">
-                    Type
-                  </th>
-                  <th className="px-5 py-4 text-left text-[11px] font-semibold uppercase tracking-[0.18em] text-slate-500">
-                    Company / Bank
-                  </th>
-                  <th className="px-5 py-4 text-right text-[11px] font-semibold uppercase tracking-[0.18em] text-slate-500">
-                    Amount
-                  </th>
-                  <th className="px-5 py-4 text-right text-[11px] font-semibold uppercase tracking-[0.18em] text-slate-500">
-                    Balance / Coverage
-                  </th>
-                  <th className="px-5 py-4 text-left text-[11px] font-semibold uppercase tracking-[0.18em] text-slate-500">
-                    Lines
-                  </th>
-                  <th className="px-5 py-4 text-left text-[11px] font-semibold uppercase tracking-[0.18em] text-slate-500">
-                    Status
-                  </th>
-                  <th className="px-5 py-4 text-left text-[11px] font-semibold uppercase tracking-[0.18em] text-slate-500">
-                    Docs / Employee
-                  </th>
-                  <th className="sticky right-0 bg-black/70 px-4 py-4 text-right text-[11px] font-semibold uppercase tracking-[0.18em] text-slate-500 shadow-[-18px_0_24px_rgba(0,0,0,0.35)] backdrop-blur-xl">
-                    Actions
-                  </th>
-                </tr>
-              </thead>
-
-              <tbody>{renderExecutionRows(rows, mode)}</tbody>
-            </table>
-          </div>
-        </div>
-      );
-    },
-    [renderExecutionRows]
+    [navigate],
   );
 
   const workflowArchiveRows = archiveTab === "archived" ? archivedRequestRows : deletedRequestRows;
   const executionArchiveRows =
     archiveTab === "archived" ? archivedExecutionRows : deletedExecutionRows;
 
+  const activeRows = (() => {
+    switch (activeTab) {
+      case "paycheck_requests":
+        return (
+          <RequestTable
+            rows={paycheckRequestRows}
+            mode="active"
+            archiveTab={archiveTab}
+            isRunningAction={isRunningAction}
+            onOpen={openRequest}
+            onArchive={(id) => void runWorkflowAction("archive", id)}
+            onDelete={(id) => void runWorkflowAction("delete", id)}
+            onRestore={(id) => void runWorkflowAction("restore", id)}
+            onHardDelete={(id) => void runWorkflowAction("hard_delete", id)}
+          />
+        );
+      case "payroll_documents":
+        return (
+          <RequestTable
+            rows={payrollDocumentRows}
+            mode="active"
+            archiveTab={archiveTab}
+            isRunningAction={isRunningAction}
+            onOpen={openRequest}
+            onArchive={(id) => void runWorkflowAction("archive", id)}
+            onDelete={(id) => void runWorkflowAction("delete", id)}
+            onRestore={(id) => void runWorkflowAction("restore", id)}
+            onHardDelete={(id) => void runWorkflowAction("hard_delete", id)}
+          />
+        );
+      case "payroll_review":
+        return (
+          <RequestTable
+            rows={payrollReviewRows}
+            mode="active"
+            archiveTab={archiveTab}
+            isRunningAction={isRunningAction}
+            onOpen={openRequest}
+            onArchive={(id) => void runWorkflowAction("archive", id)}
+            onDelete={(id) => void runWorkflowAction("delete", id)}
+            onRestore={(id) => void runWorkflowAction("restore", id)}
+            onHardDelete={(id) => void runWorkflowAction("hard_delete", id)}
+          />
+        );
+      case "ready_for_payment":
+        return (
+          <RequestTable
+            rows={readyForPaymentRows}
+            mode="active"
+            archiveTab={archiveTab}
+            isRunningAction={isRunningAction}
+            onOpen={openRequest}
+            onArchive={(id) => void runWorkflowAction("archive", id)}
+            onDelete={(id) => void runWorkflowAction("delete", id)}
+            onRestore={(id) => void runWorkflowAction("restore", id)}
+            onHardDelete={(id) => void runWorkflowAction("hard_delete", id)}
+          />
+        );
+      case "employee_confirmation":
+        return (
+          <RequestTable
+            rows={employeeConfirmationRows}
+            mode="active"
+            archiveTab={archiveTab}
+            isRunningAction={isRunningAction}
+            onOpen={openRequest}
+            onArchive={(id) => void runWorkflowAction("archive", id)}
+            onDelete={(id) => void runWorkflowAction("delete", id)}
+            onRestore={(id) => void runWorkflowAction("restore", id)}
+            onHardDelete={(id) => void runWorkflowAction("hard_delete", id)}
+          />
+        );
+      case "funding_batches":
+        return (
+          <ExecutionTable
+            rows={activeFundingBatchRows}
+            mode="active"
+            archiveTab={archiveTab}
+            isRunningAction={isRunningAction}
+            onOpen={openExecutionRecord}
+            onArchive={(record) => void runExecutionAction("archive", record)}
+            onDelete={(record) => void runExecutionAction("delete", record)}
+            onRestore={(record) => void runExecutionAction("restore", record)}
+            onHardDelete={(record) => void runExecutionAction("hard_delete", record)}
+          />
+        );
+      case "payment_distributions":
+      default:
+        return (
+          <ExecutionTable
+            rows={activeDistributionRows}
+            mode="active"
+            archiveTab={archiveTab}
+            isRunningAction={isRunningAction}
+            onOpen={openExecutionRecord}
+            onArchive={(record) => void runExecutionAction("archive", record)}
+            onDelete={(record) => void runExecutionAction("delete", record)}
+            onRestore={(record) => void runExecutionAction("restore", record)}
+            onHardDelete={(record) => void runExecutionAction("hard_delete", record)}
+          />
+        );
+    }
+  })();
+
+  if (isLoading && !hasLoadedOnce) {
+    return (
+      <AixiaLoadingState
+        title="Loading payroll control"
+        description="Paycheck workflow, employee identity, funding pools, payment distributions, and archive controls are being loaded."
+      />
+    );
+  }
+
   return (
-    <div className="min-h-screen bg-[#05070d] px-4 py-4 text-white md:px-6 md:py-6">
-      <div className="mx-auto flex w-full max-w-[1600px] flex-col gap-6">
-        <header className="relative overflow-hidden rounded-[34px] border border-white/10 bg-white/[0.045] p-6 shadow-2xl shadow-black/30 backdrop-blur-xl">
-          <div className="pointer-events-none absolute inset-0 bg-[radial-gradient(circle_at_top_left,rgba(6,182,212,0.16),transparent_38%),radial-gradient(circle_at_top_right,rgba(139,92,246,0.12),transparent_34%)]" />
+    <AixiaPage>
+      <AixiaHero
+        parentLabel="Transactions"
+        parentPath="/finance/transactions"
+        badges={[
+          { label: "Payroll Control", tone: "cyan" },
+          { label: "Main Workflow", tone: "emerald" },
+          { label: "Payment Execution Tools", tone: "violet" },
+          ...(isRefreshing ? [{ label: "Syncing", tone: "neutral" as const }] : []),
+        ]}
+        gradientTitle="Payroll"
+        title="Paycheck Workflow & Payment Execution"
+        description="The payroll equivalent of the operating expense workbench. Track paycheck requests, payroll documents, Finance review, payment readiness, funding pools, payment distributions, and employee confirmation in one control page."
+        statusCards={[
+          {
+            label: "Ready to Pay",
+            value: metrics.readyForPayment.toLocaleString(),
+            description: "Approved paycheck requests waiting for payroll payment distribution.",
+            icon: CheckCircle2,
+            tone: "emerald",
+          },
+          {
+            label: "Remaining Funds",
+            value: formatMoney(metrics.remainingAmount),
+            description: "Active payroll funding pools minus confirmed paycheck distributions.",
+            icon: WalletCards,
+            tone: "cyan",
+          },
+        ]}
+      />
 
-          <div className="relative">
-            <button
-              type="button"
-              onClick={() => navigate("/finance/transactions")}
-              className="mb-5 inline-flex items-center justify-center gap-2 rounded-full border border-white/10 bg-white/[0.05] px-5 py-2 text-[11px] font-semibold uppercase tracking-[0.22em] text-slate-300 transition hover:border-white/20 hover:bg-white/[0.08] hover:text-white"
-            >
-              <ArrowRight className="h-3.5 w-3.5 rotate-180" />
-              Transactions
-            </button>
+      <AixiaMetricGrid>
+        <AixiaMetricCard
+          label="Pending Review"
+          value={metrics.pendingReview.toLocaleString()}
+          description="Submitted paycheck requests waiting for Finance/Admin decision."
+          icon={Clock3}
+          tone="amber"
+        />
+        <AixiaMetricCard
+          label="Payroll Docs"
+          value={metrics.documentIssues.toLocaleString()}
+          description="Missing, incomplete, or pending payroll documentation records."
+          icon={FileText}
+          tone="rose"
+        />
+        <AixiaMetricCard
+          label="Funding Pools"
+          value={metrics.activeFundingBatches.toLocaleString()}
+          description="Active payroll funding pools available for payment distribution."
+          icon={Archive}
+          tone="violet"
+        />
+        <AixiaMetricCard
+          label="Employee Pending"
+          value={metrics.confirmationPending.toLocaleString()}
+          description="Employees waiting to confirm payment received or report a problem."
+          icon={ShieldCheck}
+          tone="cyan"
+        />
+      </AixiaMetricGrid>
 
-            <div className="grid gap-6 xl:grid-cols-[minmax(0,1fr)_520px] xl:items-end">
-              <div>
-                <div className="inline-flex w-fit items-center gap-2 rounded-full border border-cyan-400/20 bg-cyan-500/10 px-3 py-1 text-[11px] font-semibold uppercase tracking-[0.22em] text-cyan-200">
-                  <Sparkles className="h-3.5 w-3.5" />
-                  Payroll Control
-                </div>
+      <AixiaAccessRule
+        title="Payroll Control Access Rule"
+        description="Payroll workflow and payment execution records use shared Finance registry, archive, table, action, and employee identity source-of-truth components."
+      >
+        This page loads finance_employee_refs together with finance_employee_identity_v and displays employees through the global employee identity helper/component. Archive and delete behavior stays split between workflow records and execution records.
+      </AixiaAccessRule>
 
-                <h1 className="mt-4 text-3xl font-semibold tracking-[-0.035em] text-white md:text-5xl">
-                  Paycheck Workflow & Payment Execution
-                </h1>
+      {pageError ? <AixiaAlert tone="error">{pageError}</AixiaAlert> : null}
+      {pageMessage ? <AixiaAlert tone="success">{pageMessage}</AixiaAlert> : null}
 
-                <p className="mt-3 max-w-4xl text-sm leading-6 text-slate-400 md:text-base md:leading-7">
-                  The payroll equivalent of the operating expense workbench. Track paycheck
-                  requests, payroll documents, Finance review, payment readiness, funding pools,
-                  payment distributions, and employee confirmation in one control page.
-                </p>
-
-                <div className="mt-5 flex flex-wrap gap-2">
-                  <div className="rounded-full border border-cyan-400/20 bg-cyan-500/10 px-3 py-1 text-[11px] font-semibold uppercase tracking-[0.16em] text-cyan-200">
-                    Main Workflow
-                  </div>
-                  <div className="rounded-full border border-violet-400/20 bg-violet-500/10 px-3 py-1 text-[11px] font-semibold uppercase tracking-[0.16em] text-violet-200">
-                    Payment Execution Tools
-                  </div>
-                  {isRefreshing ? (
-                    <div className="rounded-full border border-white/10 bg-white/[0.05] px-3 py-1 text-[11px] font-semibold uppercase tracking-[0.16em] text-slate-400">
-                      Silent Refresh
-                    </div>
-                  ) : null}
-                </div>
-              </div>
-
-              <div className="grid gap-3 sm:grid-cols-2">
-                <div className="min-h-[148px] rounded-[24px] border border-white/10 bg-black/20 p-4">
-                  <div className="flex items-start justify-between gap-3">
-                    <div>
-                      <div className="text-[11px] font-semibold uppercase tracking-[0.2em] text-slate-500">
-                        Ready to Pay
-                      </div>
-                      <div className="mt-2 text-3xl font-semibold text-emerald-100">
-                        {isLoading ? "—" : metrics.readyForPayment}
-                      </div>
-                    </div>
-                    <CheckCircle2 className="h-5 w-5 text-emerald-200" />
-                  </div>
-                  <div className="mt-3 text-xs leading-5 text-slate-500">
-                    Approved paycheck requests waiting for payroll payment distribution.
-                  </div>
-                </div>
-
-                <div className="min-h-[148px] rounded-[24px] border border-white/10 bg-black/20 p-4">
-                  <div className="flex items-start justify-between gap-3">
-                    <div>
-                      <div className="text-[11px] font-semibold uppercase tracking-[0.2em] text-slate-500">
-                        Remaining Funds
-                      </div>
-                      <div className="mt-2 text-3xl font-semibold text-white">
-                        {isLoading ? "—" : formatMoney(metrics.remainingAmount)}
-                      </div>
-                    </div>
-                    <WalletCards className="h-5 w-5 text-cyan-200" />
-                  </div>
-                  <div className="mt-3 text-xs leading-5 text-slate-500">
-                    Active payroll funding pools minus confirmed paycheck distributions.
-                  </div>
-                </div>
-              </div>
-            </div>
-          </div>
-        </header>
-
-        <section className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
-          <SummaryCard
-            title="Pending Review"
-            value={isLoading ? "—" : metrics.pendingReview}
-            detail="Submitted paycheck requests waiting for Finance/Admin decision."
-            icon={Clock3}
-          />
-          <SummaryCard
-            title="Payroll Docs"
-            value={isLoading ? "—" : metrics.documentIssues}
-            detail="Missing, incomplete, or pending payroll documentation records."
-            icon={FileText}
-          />
-          <SummaryCard
-            title="Funding Pools"
-            value={isLoading ? "—" : metrics.activeFundingBatches}
-            detail="Active payroll funding pools available for payment distribution."
-            icon={Archive}
-          />
-          <SummaryCard
-            title="Employee Pending"
-            value={isLoading ? "—" : metrics.confirmationPending}
-            detail="Employees waiting to confirm payment received or report a problem."
-            icon={ShieldCheck}
-          />
-        </section>
-
-        {pageError ? (
-          <div className="rounded-[24px] border border-rose-400/20 bg-rose-500/10 p-4 text-sm leading-6 text-rose-100">
-            {pageError}
-          </div>
-        ) : null}
-
-        {pageMessage ? (
-          <div className="rounded-[24px] border border-emerald-400/20 bg-emerald-500/10 p-4 text-sm leading-6 text-emerald-100">
-            {pageMessage}
-          </div>
-        ) : null}
-
-        <section className="overflow-hidden rounded-[30px] border border-white/10 bg-white/[0.045] backdrop-blur-xl">
-          <div className="flex flex-col gap-4 border-b border-white/10 px-5 py-4 xl:flex-row xl:items-center xl:justify-between">
-            <div>
-              <div className="text-sm font-semibold uppercase tracking-[0.18em] text-slate-400">
-                {activeTabMeta.label}
-              </div>
-              <p className="mt-1 text-xs leading-5 text-slate-500">
-                {activeTabMeta.description}
-              </p>
-            </div>
-
-            <div className="flex flex-col gap-3 xl:items-end">
-              <div className="flex flex-col gap-3 sm:flex-row sm:items-center">
-                <div className="relative">
-                  <Search className="pointer-events-none absolute left-4 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-500" />
-                  <input
-                    value={searchQuery}
-                    onChange={(event) => setSearchQuery(event.target.value)}
-                    placeholder="Search workflow or payment execution..."
-                    className="h-11 w-full rounded-2xl border border-white/10 bg-black/20 pl-11 pr-4 text-sm text-white outline-none transition placeholder:text-slate-600 focus:border-cyan-400/30 focus:bg-black/30 sm:w-[360px]"
-                  />
-                </div>
-
-                <button
+      <AixiaSection
+        title={activeTabMeta.label}
+        description={activeTabMeta.description}
+        icon={WalletCards}
+        badge={<AixiaBadge tone="cyan">Payroll Workbench</AixiaBadge>}
+        actions={
+          <AixiaRegistryToolbar
+            search={
+              <AixiaSearchField
+                width="wide"
+                value={searchQuery}
+                onChange={(event) => setSearchQuery(event.target.value)}
+                placeholder="Search workflow or payment execution..."
+              />
+            }
+            secondaryActions={
+              <>
+                <AixiaButton
                   type="button"
+                  variant="danger"
                   onClick={() => openArchiveModal("workflow")}
-                  className="inline-flex h-11 items-center justify-center gap-2 rounded-2xl border border-white/10 bg-white/[0.05] px-4 text-sm font-semibold text-slate-300 transition hover:border-white/20 hover:bg-white/[0.08] hover:text-white"
                 >
                   <Archive className="h-4 w-4" />
                   Workflow Archive
-                </button>
-
-                <button
+                </AixiaButton>
+                <AixiaButton
                   type="button"
+                  variant="danger"
                   onClick={() => openArchiveModal("execution")}
-                  className="inline-flex h-11 items-center justify-center gap-2 rounded-2xl border border-violet-400/20 bg-violet-500/10 px-4 text-sm font-semibold text-violet-100 transition hover:bg-violet-500/15"
                 >
                   <WalletCards className="h-4 w-4" />
                   Execution Archive
-                </button>
-              </div>
-
-              <div className="flex flex-col gap-3 sm:flex-row sm:items-center">
-                <button
+                </AixiaButton>
+              </>
+            }
+            primaryAction={
+              <>
+                <AixiaButton
                   type="button"
+                  variant="primary"
                   onClick={() => navigate("/finance/transactions/payroll/funding-batches/new")}
-                  className="inline-flex h-11 items-center justify-center gap-2 rounded-2xl border border-violet-400/20 bg-violet-500/10 px-4 text-sm font-semibold text-violet-100 transition hover:bg-violet-500/15"
                 >
                   <Archive className="h-4 w-4" />
                   Allocate Payroll Funds
-                </button>
-
-                <button
+                </AixiaButton>
+                <AixiaButton
                   type="button"
+                  variant="primary"
                   onClick={() => navigate("/finance/transactions/payroll/new")}
-                  className="inline-flex h-11 items-center justify-center gap-2 rounded-2xl border border-emerald-400/20 bg-emerald-500/10 px-4 text-sm font-semibold text-emerald-100 transition hover:bg-emerald-500/15"
                 >
                   <WalletCards className="h-4 w-4" />
                   Distribute Paycheck Payments
-                </button>
-              </div>
-            </div>
-          </div>
+                </AixiaButton>
+              </>
+            }
+          />
+        }
+      >
+        <AixiaSection
+          title="Main Paycheck Workflow"
+          description="Switch between the workflow stages before payment execution."
+          icon={FileText}
+        >
+          <PayrollTabButtons
+            tabs={mainWorkflowTabs}
+            activeTab={activeTab}
+            onTabChange={setActiveTab}
+          />
+        </AixiaSection>
 
-                    <div className="border-b border-white/10 px-5 py-4">
-            <div className="mb-3 text-[11px] font-semibold uppercase tracking-[0.2em] text-slate-500">
-              Main Paycheck Workflow
-            </div>
-            <div className="flex gap-2 overflow-x-auto [scrollbar-width:thin]">
-              {mainWorkflowTabs.map((tab) => (
-                <button
-                  key={tab.key}
-                  type="button"
-                  onClick={() => setActiveTab(tab.key)}
-                  className={`shrink-0 rounded-full border px-4 py-2 text-xs font-semibold uppercase tracking-[0.16em] transition ${
-                    activeTab === tab.key
-                      ? "border-cyan-400/20 bg-cyan-500/10 text-cyan-200"
-                      : "border-white/10 bg-white/[0.04] text-slate-400 hover:bg-white/[0.07] hover:text-white"
-                  }`}
-                >
-                  {tab.label}
-                </button>
-              ))}
-            </div>
+        <AixiaSection
+          title="Payment Execution Tools"
+          description="Switch between payroll funding pools and paycheck payment distributions."
+          icon={WalletCards}
+        >
+          <PayrollTabButtons
+            tabs={executionTabs}
+            activeTab={activeTab}
+            onTabChange={setActiveTab}
+          />
+        </AixiaSection>
 
-            <div className="mt-5 mb-3 text-[11px] font-semibold uppercase tracking-[0.2em] text-slate-500">
-              Payment Execution Tools
-            </div>
-            <div className="flex gap-2 overflow-x-auto [scrollbar-width:thin]">
-              {executionTabs.map((tab) => (
-                <button
-                  key={tab.key}
-                  type="button"
-                  onClick={() => setActiveTab(tab.key)}
-                  className={`shrink-0 rounded-full border px-4 py-2 text-xs font-semibold uppercase tracking-[0.16em] transition ${
-                    activeTab === tab.key
-                      ? "border-violet-400/20 bg-violet-500/10 text-violet-200"
-                      : "border-white/10 bg-white/[0.04] text-slate-400 hover:bg-white/[0.07] hover:text-white"
-                  }`}
-                >
-                  {tab.label}
-                </button>
-              ))}
-            </div>
-          </div>
+        {activeRows}
+      </AixiaSection>
 
-          <div className="p-5">
-            {isLoading ? (
-              <div className="rounded-[24px] border border-white/10 bg-black/20 px-6 py-12 text-center">
-                <Loader2 className="mx-auto h-8 w-8 animate-spin text-cyan-200" />
-                <div className="mt-4 text-sm text-slate-400">
-                  Loading payroll control...
-                </div>
-              </div>
-            ) : null}
-
-            {!isLoading && activeTab === "paycheck_requests"
-              ? renderRequestTable(paycheckRequestRows)
-              : null}
-
-            {!isLoading && activeTab === "payroll_documents"
-              ? renderRequestTable(payrollDocumentRows)
-              : null}
-
-            {!isLoading && activeTab === "payroll_review"
-              ? renderRequestTable(payrollReviewRows)
-              : null}
-
-            {!isLoading && activeTab === "ready_for_payment"
-              ? renderRequestTable(readyForPaymentRows)
-              : null}
-
-            {!isLoading && activeTab === "employee_confirmation"
-              ? renderRequestTable(employeeConfirmationRows)
-              : null}
-
-            {!isLoading && activeTab === "funding_batches"
-              ? renderExecutionTable(activeFundingBatchRows)
-              : null}
-
-            {!isLoading && activeTab === "payment_distributions"
-              ? renderExecutionTable(activeDistributionRows)
-              : null}
-          </div>
-        </section>
-      </div>
-
-      {archiveModalOpen ? (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 px-4 py-6 backdrop-blur-xl">
-          <div className="flex max-h-[90vh] w-full max-w-[1320px] flex-col overflow-hidden rounded-[34px] border border-white/10 bg-[#080b12] shadow-2xl shadow-black/50">
-            <div className="flex items-start justify-between gap-4 border-b border-white/10 p-5">
-              <div>
-                <div className="inline-flex w-fit items-center gap-2 rounded-full border border-amber-400/20 bg-amber-500/10 px-3 py-1 text-[11px] font-semibold uppercase tracking-[0.22em] text-amber-200">
-                  <Archive className="h-3.5 w-3.5" />
-                  {archiveScope === "workflow"
-                    ? "Paycheck Workflow Archive"
-                    : "Payment Execution Archive"}
-                </div>
-                <h2 className="mt-3 text-2xl font-semibold text-white">
-                  {archiveScope === "workflow"
-                    ? "Archived & Deleted Paycheck Workflow Records"
-                    : "Archived & Deleted Payment Execution Records"}
-                </h2>
-                <p className="mt-2 text-sm leading-6 text-slate-400">
-                  {archiveScope === "workflow"
-                    ? "Workflow archive contains paycheck request records only."
-                    : "Payment execution archive contains payroll funding pools and paycheck payment distributions only."}
-                </p>
-              </div>
-
-              <button
-                type="button"
-                onClick={() => setArchiveModalOpen(false)}
-                className="inline-flex h-10 w-10 items-center justify-center rounded-full border border-white/10 bg-white/[0.05] text-slate-300 transition hover:bg-white/[0.08] hover:text-white"
-              >
-                <X className="h-4 w-4" />
-              </button>
-            </div>
-
-            <div className="flex gap-2 border-b border-white/10 px-5 py-4">
-              <button
-                type="button"
-                onClick={() => setArchiveTab("archived")}
-                className={`rounded-full border px-4 py-2 text-xs font-semibold uppercase tracking-[0.18em] transition ${
-                  archiveTab === "archived"
-                    ? "border-amber-400/20 bg-amber-500/10 text-amber-200"
-                    : "border-white/10 bg-white/[0.04] text-slate-400 hover:bg-white/[0.07]"
-                }`}
-              >
-                Archived (
-                {archiveScope === "workflow"
-                  ? metrics.workflowArchived
-                  : metrics.executionArchived}
-                )
-              </button>
-
-              <button
-                type="button"
-                onClick={() => setArchiveTab("deleted")}
-                className={`rounded-full border px-4 py-2 text-xs font-semibold uppercase tracking-[0.18em] transition ${
-                  archiveTab === "deleted"
-                    ? "border-rose-400/20 bg-rose-500/10 text-rose-200"
-                    : "border-white/10 bg-white/[0.04] text-slate-400 hover:bg-white/[0.07]"
-                }`}
-              >
-                Deleted (
-                {archiveScope === "workflow"
-                  ? metrics.workflowDeleted
-                  : metrics.executionDeleted}
-                )
-              </button>
-            </div>
-
-            <div className="overflow-x-auto">
-              <div className="max-h-[620px] overflow-y-auto p-5">
-                {archiveScope === "workflow"
-                  ? renderRequestTable(workflowArchiveRows, "archive")
-                  : renderExecutionTable(executionArchiveRows, "archive")}
-              </div>
-            </div>
-          </div>
-        </div>
-      ) : null}
-    </div>
+      <AixiaArchiveManagerModal
+        open={archiveModalOpen}
+        title={
+          archiveScope === "workflow"
+            ? "Paycheck Workflow Archive"
+            : "Payment Execution Archive"
+        }
+        description={
+          archiveScope === "workflow"
+            ? "Workflow archive contains paycheck request records only."
+            : "Payment execution archive contains payroll funding pools and paycheck payment distributions only."
+        }
+        archivedCount={archiveScope === "workflow" ? metrics.workflowArchived : metrics.executionArchived}
+        deletedCount={archiveScope === "workflow" ? metrics.workflowDeleted : metrics.executionDeleted}
+        countLabel={archiveScope === "workflow" ? "Workflow Records" : "Execution Records"}
+        activeTab={archiveTab}
+        onTabChange={setArchiveTab}
+        onClose={() => setArchiveModalOpen(false)}
+        maxWidthClassName="max-w-[1500px]"
+      >
+        {archiveScope === "workflow" ? (
+          <RequestTable
+            rows={workflowArchiveRows}
+            mode="archive"
+            archiveTab={archiveTab}
+            isRunningAction={isRunningAction}
+            onOpen={openRequest}
+            onArchive={(id) => void runWorkflowAction("archive", id)}
+            onDelete={(id) => void runWorkflowAction("delete", id)}
+            onRestore={(id) => void runWorkflowAction("restore", id)}
+            onHardDelete={(id) => void runWorkflowAction("hard_delete", id)}
+          />
+        ) : (
+          <ExecutionTable
+            rows={executionArchiveRows}
+            mode="archive"
+            archiveTab={archiveTab}
+            isRunningAction={isRunningAction}
+            onOpen={openExecutionRecord}
+            onArchive={(record) => void runExecutionAction("archive", record)}
+            onDelete={(record) => void runExecutionAction("delete", record)}
+            onRestore={(record) => void runExecutionAction("restore", record)}
+            onHardDelete={(record) => void runExecutionAction("hard_delete", record)}
+          />
+        )}
+      </AixiaArchiveManagerModal>
+    </AixiaPage>
   );
 }

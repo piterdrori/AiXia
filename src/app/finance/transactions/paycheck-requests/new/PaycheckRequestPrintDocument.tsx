@@ -118,6 +118,7 @@ function buildEmployeeLabel(row: EmployeeRefRow | null | undefined) {
     row.profile?.full_name?.trim() || row.profile?.display_name?.trim();
 
   if (profileName) return profileName;
+
   return `Employee ${row.code}`;
 }
 
@@ -199,534 +200,164 @@ export default function PaycheckRequestPrintDocument({
   );
 
   return (
-    <>
-      <style>{`
-        @media print {
-          @page {
-            size: A4;
-            margin: 0;
-          }
+    <div className="paycheck-print-sheet">
+      <div className="aixia-paycheck-print-document">
+        <div className="aixia-paycheck-print-gradient" />
+        <div className="aixia-paycheck-print-orb aixia-paycheck-print-orb-left" />
+        <div className="aixia-paycheck-print-orb aixia-paycheck-print-orb-right" />
 
-          html,
-          body {
-            width: 210mm !important;
-            height: 297mm !important;
-            margin: 0 !important;
-            padding: 0 !important;
-            background: #ffffff !important;
-            -webkit-print-color-adjust: exact;
-            print-color-adjust: exact;
-          }
+        <div className="aixia-paycheck-print-content">
+          <header className="aixia-paycheck-print-header">
+            <div>
+              <div className="aixia-paycheck-print-company">{companyName}</div>
 
-          body * {
-            visibility: hidden !important;
-          }
+              {companyAddress ? (
+                <div className="aixia-paycheck-print-company-address">
+                  {companyAddress}
+                </div>
+              ) : null}
 
-          .paycheck-print-sheet,
-          .paycheck-print-sheet * {
-            visibility: visible !important;
-          }
+              <div className="aixia-paycheck-print-pill">
+                Payroll Request Form
+              </div>
+            </div>
 
-          .paycheck-print-sheet {
-            position: absolute !important;
-            left: 0 !important;
-            top: 0 !important;
-            width: 210mm !important;
-            height: 297mm !important;
-            min-height: 297mm !important;
-            max-height: 297mm !important;
-            margin: 0 !important;
-            padding: 0 !important;
-            overflow: hidden !important;
-            background: #ffffff !important;
-            page-break-after: avoid !important;
-            page-break-before: avoid !important;
-            page-break-inside: avoid !important;
-          }
-        }
+            <div className="aixia-paycheck-print-document-card">
+              <div className="aixia-paycheck-print-overline">Document</div>
+              <div className="aixia-paycheck-print-document-title">
+                PRC Pay Slip
+              </div>
+              <div className="aixia-paycheck-print-document-date">
+                Generated Date
+                <br />
+                <strong>{formatDate(requestedPayDate || new Date().toISOString())}</strong>
+              </div>
+            </div>
+          </header>
 
-        @media screen {
-          .paycheck-print-sheet {
-            display: none !important;
-          }
-        }
-      `}</style>
+          <section className="aixia-paycheck-print-info-grid">
+            <InfoCard label="Employee" value={employeeName} detail={`Code ${employeeCode}`} />
+            <InfoCard label="Position" value={position} detail="Employee reference mark" />
+            <InfoCard label="Join Date" value={formatDate(joinDate)} detail="Employee declared join date" />
+            <InfoCard
+              label="Pay Period"
+              value={payPeriod || formatMonthYear(periodStart)}
+              detail={coveredDates}
+            />
+          </section>
 
-      <div className="paycheck-print-sheet">
-        <div
-          style={{
-            width: "210mm",
-            height: "297mm",
-            minHeight: "297mm",
-            maxHeight: "297mm",
-            background: "#ffffff",
-            color: "#101827",
-            fontFamily:
-              'Inter, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Arial, sans-serif',
-            position: "relative",
-            overflow: "hidden",
-          }}
-        >
-          <div
-            style={{
-              position: "absolute",
-              inset: 0,
-              background:
-                "linear-gradient(180deg, #f8fafc 0%, #ffffff 30%, #ffffff 100%)",
-              zIndex: 0,
-            }}
-          />
+          <section className="aixia-paycheck-print-pay-card">
+            <div className="aixia-paycheck-print-pay-header">
+              <div>Pay Details</div>
+              <div>Currency: {requestedCurrencyCode || "USD"}</div>
+            </div>
 
-          <div
-            style={{
-              position: "absolute",
-              left: "-42mm",
-              top: "-56mm",
-              width: "112mm",
-              height: "112mm",
-              borderRadius: "999px",
-              background: "rgba(8, 145, 178, 0.08)",
-              zIndex: 1,
-            }}
-          />
+            <div className="aixia-paycheck-print-pay-grid">
+              <AmountRow label="Basic Salary" value={basicSalary} highlight />
+              <AmountRow
+                label="Bonus"
+                value={formatMoney(bonusAmount, requestedCurrencyCode || "USD")}
+              />
+              <AmountRow
+                label="Deduction"
+                value={formatMoney(deductionAmount, requestedCurrencyCode || "USD")}
+              />
+              <AmountRow
+                label="Reimbursement"
+                value={formatMoney(reimbursementAmount, requestedCurrencyCode || "USD")}
+              />
+            </div>
 
-          <div
-            style={{
-              position: "absolute",
-              right: "-48mm",
-              top: "-42mm",
-              width: "118mm",
-              height: "118mm",
-              borderRadius: "999px",
-              background: "rgba(99, 102, 241, 0.06)",
-              zIndex: 1,
-            }}
-          />
+            <div className="aixia-paycheck-print-net-card">
+              <div>
+                <div className="aixia-paycheck-print-net-label">Net Pay</div>
+                <div className="aixia-paycheck-print-net-detail">
+                  Gross + bonus + reimbursement − deduction
+                </div>
+              </div>
 
-          <div
-            style={{
-              position: "relative",
-              zIndex: 2,
-              padding: "10mm 14mm 9mm 14mm",
-              height: "297mm",
-              boxSizing: "border-box",
-            }}
-          >
-            <header
-              style={{
-                display: "grid",
-                gridTemplateColumns: "1fr 48mm",
-                gap: "8mm",
-                alignItems: "start",
-                borderBottom: "0.8pt solid #dbe3ef",
-                paddingBottom: "5mm",
-                marginBottom: "5mm",
-              }}
-            >
+              <div className="aixia-paycheck-print-net-value">{netPay}</div>
+            </div>
+          </section>
+
+          <section className="aixia-paycheck-print-social-card">
+            <div className="aixia-paycheck-print-social-grid">
+              <div>
+                <div className="aixia-paycheck-print-overline">Social Insurance</div>
+                <div className="aixia-paycheck-print-social-title">Contribution</div>
+              </div>
+
               <div>
                 <div
-                  style={{
-                    fontSize: "13pt",
-                    fontWeight: 800,
-                    letterSpacing: "-0.02em",
-                    color: "#0f172a",
-                  }}
+                  className={
+                    socialInsuranceContributionType === "by_employer"
+                      ? "aixia-paycheck-print-social-badge aixia-paycheck-print-social-badge-employer"
+                      : "aixia-paycheck-print-social-badge aixia-paycheck-print-social-badge-employee"
+                  }
                 >
-                  {companyName}
+                  {contributionLabel}
                 </div>
 
-                {companyAddress ? (
-                  <div
-                    style={{
-                      marginTop: "1.4mm",
-                      maxWidth: "122mm",
-                      fontSize: "7.4pt",
-                      lineHeight: 1.3,
-                      color: "#64748b",
-                    }}
-                  >
-                    {companyAddress}
+                <div className="aixia-paycheck-print-checkbox-grid">
+                  <CheckBoxLine
+                    label="By Employer"
+                    checked={socialInsuranceContributionType === "by_employer"}
+                  />
+                  <CheckBoxLine
+                    label="By Employee"
+                    checked={socialInsuranceContributionType === "by_employee"}
+                  />
+                </div>
+
+                {socialInsuranceContributionType === "by_employer" &&
+                socialInsuranceContributionDetails.trim() ? (
+                  <div className="aixia-paycheck-print-employer-details">
+                    <strong>Employer Details: </strong>
+                    {socialInsuranceContributionDetails.trim()}
                   </div>
                 ) : null}
-
-                <div
-                  style={{
-                    marginTop: "4mm",
-                    display: "inline-flex",
-                    border: "0.5pt solid #bae6fd",
-                    background: "#ecfeff",
-                    color: "#155e75",
-                    padding: "1.6mm 3.2mm",
-                    borderRadius: "99px",
-                    fontSize: "6.8pt",
-                    fontWeight: 800,
-                    letterSpacing: "0.13em",
-                    textTransform: "uppercase",
-                  }}
-                >
-                  Payroll Request Form
-                </div>
               </div>
+            </div>
+          </section>
 
-              <div
-                style={{
-                  textAlign: "right",
-                  border: "0.7pt solid #e2e8f0",
-                  borderRadius: "3mm",
-                  background: "#ffffff",
-                  padding: "3mm",
-                }}
-              >
-                <div
-                  style={{
-                    fontSize: "6.6pt",
-                    fontWeight: 800,
-                    textTransform: "uppercase",
-                    letterSpacing: "0.14em",
-                    color: "#64748b",
-                  }}
-                >
-                  Document
-                </div>
-                <div
-                  style={{
-                    marginTop: "1.5mm",
-                    fontSize: "14pt",
-                    lineHeight: 1,
-                    fontWeight: 800,
-                    color: "#0f172a",
-                    letterSpacing: "-0.02em",
-                  }}
-                >
-                  PRC Pay Slip
-                </div>
-                <div
-                  style={{
-                    marginTop: "2.4mm",
-                    fontSize: "7.2pt",
-                    color: "#64748b",
-                    lineHeight: 1.35,
-                  }}
-                >
-                  Generated Date
-                  <br />
-                  <strong style={{ color: "#0f172a" }}>
-                    {formatDate(requestedPayDate || new Date().toISOString())}
-                  </strong>
-                </div>
-              </div>
-            </header>
+          <section className="aixia-paycheck-print-mini-grid">
+            <MiniSummary label="Employee Code" value={employeeCode} />
+            <MiniSummary
+              label="Pay Profile"
+              value={
+                payProfile
+                  ? [
+                      payProfile.profile_number || "Pay Profile",
+                      formatLabel(payProfile.pay_type),
+                      formatLabel(payProfile.payment_frequency),
+                    ]
+                      .filter(Boolean)
+                      .join(" • ")
+                  : "—"
+              }
+            />
+          </section>
 
-            <section
-              style={{
-                display: "grid",
-                gridTemplateColumns: "1fr 1fr",
-                gap: "3mm",
-                marginBottom: "4mm",
-              }}
-            >
-              <InfoCard label="Employee" value={employeeName} detail={`Code ${employeeCode}`} />
-              <InfoCard label="Position" value={position} detail="Employee reference mark" />
-              <InfoCard label="Join Date" value={formatDate(joinDate)} detail="Employee declared join date" />
-              <InfoCard
-                label="Pay Period"
-                value={payPeriod || formatMonthYear(periodStart)}
-                detail={coveredDates}
-              />
-            </section>
+          <section className="aixia-paycheck-print-signature-grid">
+            <SignatureBox label="Employee Signature" />
+            <SignatureBox label="Manager Signature" />
+          </section>
 
-            <section
-              style={{
-                border: "0.7pt solid #e2e8f0",
-                borderRadius: "4mm",
-                overflow: "hidden",
-                background: "#ffffff",
-                marginBottom: "4mm",
-              }}
-            >
-              <div
-                style={{
-                  background: "#0f172a",
-                  color: "#ffffff",
-                  padding: "2.6mm 4mm",
-                  display: "flex",
-                  justifyContent: "space-between",
-                  alignItems: "center",
-                }}
-              >
-                <div
-                  style={{
-                    fontSize: "8pt",
-                    fontWeight: 800,
-                    letterSpacing: "0.08em",
-                    textTransform: "uppercase",
-                  }}
-                >
-                  Pay Details
-                </div>
-                <div
-                  style={{
-                    fontSize: "7.2pt",
-                    color: "#cbd5e1",
-                  }}
-                >
-                  Currency: {requestedCurrencyCode || "USD"}
-                </div>
-              </div>
+          <section className="aixia-paycheck-print-signature-grid aixia-paycheck-print-date-signature-grid">
+            <SignatureBox label="Employee Signature Date" compact />
+            <SignatureBox label="Manager Signature Date" compact />
+          </section>
 
-              <div
-                style={{
-                  padding: "3.8mm 4mm",
-                  display: "grid",
-                  gridTemplateColumns: "1fr 1fr",
-                  gap: "3mm 5mm",
-                }}
-              >
-                <AmountRow label="Basic Salary" value={basicSalary} highlight />
-                <AmountRow label="Bonus" value={formatMoney(bonusAmount, requestedCurrencyCode || "USD")} />
-                <AmountRow label="Deduction" value={formatMoney(deductionAmount, requestedCurrencyCode || "USD")} />
-                <AmountRow label="Reimbursement" value={formatMoney(reimbursementAmount, requestedCurrencyCode || "USD")} />
-              </div>
-
-              <div
-                style={{
-                  margin: "0 4mm 4mm 4mm",
-                  borderRadius: "3.5mm",
-                  background: "linear-gradient(135deg, #0f172a 0%, #1e293b 100%)",
-                  color: "#ffffff",
-                  padding: "3.8mm 4mm",
-                  display: "grid",
-                  gridTemplateColumns: "1fr auto",
-                  alignItems: "center",
-                  gap: "6mm",
-                }}
-              >
-                <div>
-                  <div
-                    style={{
-                      fontSize: "7.2pt",
-                      fontWeight: 800,
-                      letterSpacing: "0.14em",
-                      textTransform: "uppercase",
-                      color: "#93c5fd",
-                    }}
-                  >
-                    Net Pay
-                  </div>
-                  <div
-                    style={{
-                      marginTop: "0.8mm",
-                      fontSize: "7.2pt",
-                      color: "#cbd5e1",
-                    }}
-                  >
-                    Gross + bonus + reimbursement − deduction
-                  </div>
-                </div>
-
-                <div
-                  style={{
-                    fontSize: "16pt",
-                    fontWeight: 900,
-                    letterSpacing: "-0.02em",
-                    whiteSpace: "nowrap",
-                  }}
-                >
-                  {netPay}
-                </div>
-              </div>
-            </section>
-
-            <section
-              style={{
-                border: "0.7pt solid #e2e8f0",
-                borderRadius: "4mm",
-                background: "#ffffff",
-                padding: "4mm",
-                marginBottom: "4mm",
-              }}
-            >
-              <div
-                style={{
-                  display: "grid",
-                  gridTemplateColumns: "38mm minmax(0, 1fr)",
-                  gap: "5mm",
-                  alignItems: "start",
-                }}
-              >
-                <div>
-                  <div
-                    style={{
-                      fontSize: "7.2pt",
-                      fontWeight: 800,
-                      letterSpacing: "0.12em",
-                      textTransform: "uppercase",
-                      color: "#64748b",
-                    }}
-                  >
-                    Social Insurance
-                  </div>
-                  <div
-                    style={{
-                      marginTop: "1.2mm",
-                      fontSize: "8.7pt",
-                      fontWeight: 800,
-                      color: "#0f172a",
-                    }}
-                  >
-                    Contribution
-                  </div>
-                </div>
-
-                <div>
-                  <div
-                    style={{
-                      borderRadius: "2.6mm",
-                      background:
-                        socialInsuranceContributionType === "by_employer"
-                          ? "#ecfdf5"
-                          : "#eff6ff",
-                      border:
-                        socialInsuranceContributionType === "by_employer"
-                          ? "0.6pt solid #bbf7d0"
-                          : "0.6pt solid #bfdbfe",
-                      color:
-                        socialInsuranceContributionType === "by_employer"
-                          ? "#166534"
-                          : "#1d4ed8",
-                      padding: "2.3mm 3.2mm",
-                      fontSize: "8.5pt",
-                      fontWeight: 800,
-                    }}
-                  >
-                    {contributionLabel}
-                  </div>
-
-                  <div
-                    style={{
-                      marginTop: "2.4mm",
-                      display: "grid",
-                      gridTemplateColumns: "1fr 1fr",
-                      gap: "2.5mm",
-                      fontSize: "7.8pt",
-                    }}
-                  >
-                    <CheckBoxLine
-                      label="By Employer"
-                      checked={socialInsuranceContributionType === "by_employer"}
-                    />
-                    <CheckBoxLine
-                      label="By Employee"
-                      checked={socialInsuranceContributionType === "by_employee"}
-                    />
-                  </div>
-
-                  {socialInsuranceContributionType === "by_employer" &&
-                  socialInsuranceContributionDetails.trim() ? (
-                    <div
-                      style={{
-                        marginTop: "2.4mm",
-                        borderTop: "0.5pt solid #e2e8f0",
-                        paddingTop: "2.4mm",
-                        fontSize: "7.6pt",
-                        color: "#475569",
-                        lineHeight: 1.35,
-                      }}
-                    >
-                      <strong style={{ color: "#0f172a" }}>Employer Details: </strong>
-                      {socialInsuranceContributionDetails.trim()}
-                    </div>
-                  ) : null}
-                </div>
-              </div>
-            </section>
-
-            <section
-              style={{
-                display: "grid",
-                gridTemplateColumns: "1fr 1fr",
-                gap: "3mm",
-                marginBottom: "4mm",
-              }}
-            >
-              <MiniSummary label="Employee Code" value={employeeCode} />
-              <MiniSummary
-                label="Pay Profile"
-                value={
-                  payProfile
-                    ? [
-                        payProfile.profile_number || "Pay Profile",
-                        formatLabel(payProfile.pay_type),
-                        formatLabel(payProfile.payment_frequency),
-                      ]
-                        .filter(Boolean)
-                        .join(" • ")
-                    : "—"
-                }
-              />
-            </section>
-
-            <section
-              style={{
-                display: "grid",
-                gridTemplateColumns: "1fr 1fr",
-                gap: "4mm",
-                marginTop: "4mm",
-              }}
-            >
-              <SignatureBox label="Employee Signature" />
-              <SignatureBox label="Manager Signature" />
-            </section>
-
-            <section
-              style={{
-                display: "grid",
-                gridTemplateColumns: "1fr 1fr",
-                gap: "4mm",
-                marginTop: "3.5mm",
-              }}
-            >
-              <SignatureBox label="Employee Signature Date" compact />
-              <SignatureBox label="Manager Signature Date" compact />
-            </section>
-
-            <footer
-              style={{
-                position: "absolute",
-                left: "14mm",
-                right: "14mm",
-                bottom: "8mm",
-                borderTop: "0.5pt solid #e2e8f0",
-                paddingTop: "2.3mm",
-                display: "grid",
-                gridTemplateColumns: "1fr auto",
-                gap: "6mm",
-                alignItems: "center",
-                fontSize: "6.6pt",
-                color: "#64748b",
-                lineHeight: 1.3,
-              }}
-            >
-              <div>
-                Generated from AiXia Finance. Print or save as PDF, sign, then upload
-                the signed document before submitting to Finance review.
-              </div>
-              <div
-                style={{
-                  fontWeight: 800,
-                  color: "#0f172a",
-                  letterSpacing: "0.08em",
-                  textTransform: "uppercase",
-                  whiteSpace: "nowrap",
-                }}
-              >
-                AiXia Payroll
-              </div>
-            </footer>
-          </div>
+          <footer className="aixia-paycheck-print-footer">
+            <div>
+              Generated from AiXia Finance. Print or save as PDF, sign, then upload
+              the signed document before submitting to Finance review.
+            </div>
+            <div className="aixia-paycheck-print-footer-brand">AiXia Payroll</div>
+          </footer>
         </div>
       </div>
-    </>
+    </div>
   );
 }
 
@@ -740,48 +371,10 @@ function InfoCard({
   detail: string;
 }) {
   return (
-    <div
-      style={{
-        minHeight: "16mm",
-        border: "0.7pt solid #e2e8f0",
-        borderRadius: "3mm",
-        background: "#ffffff",
-        padding: "2.7mm 3.2mm",
-      }}
-    >
-      <div
-        style={{
-          fontSize: "6.7pt",
-          fontWeight: 800,
-          letterSpacing: "0.12em",
-          textTransform: "uppercase",
-          color: "#64748b",
-        }}
-      >
-        {label}
-      </div>
-      <div
-        style={{
-          marginTop: "1mm",
-          fontSize: "9.5pt",
-          fontWeight: 800,
-          color: "#0f172a",
-          wordBreak: "break-word",
-        }}
-      >
-        {value || "—"}
-      </div>
-      <div
-        style={{
-          marginTop: "0.6mm",
-          fontSize: "7pt",
-          color: "#64748b",
-          lineHeight: 1.25,
-          wordBreak: "break-word",
-        }}
-      >
-        {detail || "—"}
-      </div>
+    <div className="aixia-paycheck-print-info-card">
+      <div className="aixia-paycheck-print-overline">{label}</div>
+      <div className="aixia-paycheck-print-info-value">{value || "—"}</div>
+      <div className="aixia-paycheck-print-info-detail">{detail || "—"}</div>
     </div>
   );
 }
@@ -796,31 +389,14 @@ function AmountRow({
   highlight?: boolean;
 }) {
   return (
-    <div
-      style={{
-        borderBottom: "0.5pt solid #e2e8f0",
-        paddingBottom: "1.8mm",
-      }}
-    >
+    <div className="aixia-paycheck-print-amount-row">
+      <div className="aixia-paycheck-print-overline">{label}</div>
       <div
-        style={{
-          fontSize: "6.7pt",
-          fontWeight: 800,
-          letterSpacing: "0.12em",
-          textTransform: "uppercase",
-          color: "#64748b",
-        }}
-      >
-        {label}
-      </div>
-      <div
-        style={{
-          marginTop: "0.8mm",
-          fontSize: highlight ? "11.5pt" : "9.8pt",
-          fontWeight: highlight ? 900 : 800,
-          color: "#0f172a",
-          fontVariantNumeric: "tabular-nums",
-        }}
+        className={
+          highlight
+            ? "aixia-paycheck-print-amount-value aixia-paycheck-print-amount-value-highlight"
+            : "aixia-paycheck-print-amount-value"
+        }
       >
         {value || "—"}
       </div>
@@ -831,33 +407,13 @@ function AmountRow({
 function CheckBoxLine({ label, checked }: { label: string; checked: boolean }) {
   return (
     <div
-      style={{
-        display: "flex",
-        gap: "2mm",
-        alignItems: "center",
-        border: "0.5pt solid #e2e8f0",
-        borderRadius: "2.4mm",
-        padding: "2mm 2.5mm",
-        background: checked ? "#f8fafc" : "#ffffff",
-        color: "#0f172a",
-        fontWeight: checked ? 800 : 500,
-      }}
+      className={
+        checked
+          ? "aixia-paycheck-print-checkbox-line aixia-paycheck-print-checkbox-line-checked"
+          : "aixia-paycheck-print-checkbox-line"
+      }
     >
-      <div
-        style={{
-          width: "3.5mm",
-          height: "3.5mm",
-          border: "0.7pt solid #0f172a",
-          borderRadius: "0.8mm",
-          display: "flex",
-          alignItems: "center",
-          justifyContent: "center",
-          fontSize: "7pt",
-          lineHeight: 1,
-        }}
-      >
-        {checked ? "✓" : ""}
-      </div>
+      <div className="aixia-paycheck-print-checkbox">{checked ? "✓" : ""}</div>
       <div>{label}</div>
     </div>
   );
@@ -865,38 +421,9 @@ function CheckBoxLine({ label, checked }: { label: string; checked: boolean }) {
 
 function MiniSummary({ label, value }: { label: string; value: string }) {
   return (
-    <div
-      style={{
-        minHeight: "15mm",
-        border: "0.7pt solid #e2e8f0",
-        borderRadius: "3mm",
-        background: "#f8fafc",
-        padding: "2.7mm 3.2mm",
-      }}
-    >
-      <div
-        style={{
-          fontSize: "6.7pt",
-          fontWeight: 800,
-          letterSpacing: "0.12em",
-          textTransform: "uppercase",
-          color: "#64748b",
-        }}
-      >
-        {label}
-      </div>
-      <div
-        style={{
-          marginTop: "0.9mm",
-          fontSize: "8.4pt",
-          fontWeight: 800,
-          color: "#0f172a",
-          lineHeight: 1.25,
-          wordBreak: "break-word",
-        }}
-      >
-        {value || "—"}
-      </div>
+    <div className="aixia-paycheck-print-mini-summary">
+      <div className="aixia-paycheck-print-overline">{label}</div>
+      <div className="aixia-paycheck-print-mini-value">{value || "—"}</div>
     </div>
   );
 }
@@ -910,32 +437,14 @@ function SignatureBox({
 }) {
   return (
     <div
-      style={{
-        border: "0.7pt solid #e2e8f0",
-        borderRadius: "3mm",
-        background: "#ffffff",
-        padding: compact ? "2.5mm 3.2mm" : "3.2mm",
-        minHeight: compact ? "13mm" : "20mm",
-      }}
+      className={
+        compact
+          ? "aixia-paycheck-print-signature-box aixia-paycheck-print-signature-box-compact"
+          : "aixia-paycheck-print-signature-box"
+      }
     >
-      <div
-        style={{
-          fontSize: "6.7pt",
-          fontWeight: 800,
-          letterSpacing: "0.12em",
-          textTransform: "uppercase",
-          color: "#64748b",
-        }}
-      >
-        {label}
-      </div>
-      <div
-        style={{
-          marginTop: compact ? "4mm" : "9mm",
-          borderBottom: "0.7pt solid #0f172a",
-          height: "1mm",
-        }}
-      />
+      <div className="aixia-paycheck-print-overline">{label}</div>
+      <div className="aixia-paycheck-print-signature-line" />
     </div>
   );
 }

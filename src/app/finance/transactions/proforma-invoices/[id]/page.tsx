@@ -17,6 +17,7 @@ import {
 import { supabase } from "@/lib/supabase";
 import {
   AixiaAccessRule,
+  AixiaActionCard,
   AixiaAlert,
   AixiaArchiveManagerModal,
   AixiaBadge,
@@ -2941,8 +2942,8 @@ export default function FinanceProformaInvoiceDetailPage() {
         description="Source Customer PO and converted invoice relationship."
         icon={Link2}
       >
-        <AixiaFormGrid columns="one">
-          <AixiaDisplayBlock
+        <div className="aixia-stack">
+          <AixiaActionCard
             label="Source Customer PO"
             value={
               linkedCustomerPo?.client_po_number ||
@@ -2951,7 +2952,7 @@ export default function FinanceProformaInvoiceDetailPage() {
               getMetadataString(proforma.metadata, "external_po_number") ||
               "Manual"
             }
-            detail={
+            description={
               linkedCustomerPo
                 ? `${linkedCustomerPo.status} · ${formatFinanceMoney(
                     linkedCustomerPo.total_amount ?? getMetadataNumberOrString(proforma.metadata, "customer_po_total_amount"),
@@ -2959,32 +2960,34 @@ export default function FinanceProformaInvoiceDetailPage() {
                   )}`
                 : "This proforma invoice has no Customer PO source."
             }
+            icon={Link2}
+            tone="emerald"
+            actionLabel={linkedCustomerPo ? "Open Customer PO" : undefined}
+            onClick={
+              linkedCustomerPo
+                ? () => navigate(`/finance/transactions/customer-pos/${linkedCustomerPo.id}`)
+                : undefined
+            }
           />
-          {linkedCustomerPo ? (
-            <AixiaButton
-              type="button"
-              variant="primary"
-              onClick={() => navigate(`/finance/transactions/customer-pos/${linkedCustomerPo.id}`)}
-            >
-              Open Customer PO
-            </AixiaButton>
-          ) : null}
 
-          <AixiaDisplayBlock
+          <AixiaActionCard
             label="Linked Invoice"
             value={linkedInvoice?.invoice_number || "—"}
-            detail={linkedInvoice ? `${linkedInvoice.status} · ${linkedInvoice.payment_status || "—"}` : "No invoice created from this proforma yet."}
+            description={
+              linkedInvoice
+                ? `${linkedInvoice.status} · ${linkedInvoice.payment_status || "—"}`
+                : "No invoice created from this proforma yet."
+            }
+            icon={FileText}
+            tone="violet"
+            actionLabel={linkedInvoice ? "Open Linked Invoice" : undefined}
+            onClick={
+              linkedInvoice
+                ? () => navigate(`/finance/transactions/invoices/${linkedInvoice.id}`)
+                : undefined
+            }
           />
-          {linkedInvoice ? (
-            <AixiaButton
-              type="button"
-              variant="primary"
-              onClick={() => navigate(`/finance/transactions/invoices/${linkedInvoice.id}`)}
-            >
-              Open Linked Invoice
-            </AixiaButton>
-          ) : null}
-        </AixiaFormGrid>
+        </div>
       </AixiaSection>
     </>
   );

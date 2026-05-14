@@ -2541,6 +2541,12 @@ export default function FinanceQuotationDetailPage() {
                       taxCodes.find(
                         (entry) => entry.id === editableRow.tax_code_id,
                       )?.rate_percent ?? toNumber(editableRow.tax_rate);
+                    const selectedUnitOfMeasure = unitsOfMeasure.find(
+                      (entry) => entry.id === editableRow.unit_of_measure_id,
+                    );
+                    const selectedRevenueCategory = revenueCategories.find(
+                      (entry) => entry.id === editableRow.revenue_category_id,
+                    );
                     const rowTotal = editable
                       ? editableBase +
                         editableBase * (toNumber(String(editableTaxRate)) / 100)
@@ -2741,6 +2747,97 @@ export default function FinanceQuotationDetailPage() {
                               />
                             )}
                           </AixiaFormField>
+
+                          <AixiaFormField>
+                            <AixiaFieldLabel label="Unit" />
+                            {editable ? (
+                              <AixiaSelectField
+                                value={editableRow.unit_of_measure_id}
+                                onChange={(event) =>
+                                  setLineItemsDraft((current) =>
+                                    current.map((entry) =>
+                                      entry.id === editableRow.id
+                                        ? {
+                                            ...entry,
+                                            unit_of_measure_id:
+                                              event.target.value,
+                                          }
+                                        : entry,
+                                    ),
+                                  )
+                                }
+                              >
+                                <option value="">Select unit</option>
+                                {unitsOfMeasure.map((unit) => (
+                                  <option key={unit.id} value={unit.id}>
+                                    {unit.code
+                                      ? `${unit.name} — ${unit.code}`
+                                      : unit.name}
+                                  </option>
+                                ))}
+                              </AixiaSelectField>
+                            ) : (
+                              <AixiaDisplayBlock label="Unit" value="—" />
+                            )}
+                          </AixiaFormField>
+
+                          <AixiaFormField>
+                            <AixiaFieldLabel label="Revenue Category" />
+                            {editable ? (
+                              <AixiaSelectField
+                                value={editableRow.revenue_category_id}
+                                onChange={(event) =>
+                                  setLineItemsDraft((current) =>
+                                    current.map((entry) =>
+                                      entry.id === editableRow.id
+                                        ? {
+                                            ...entry,
+                                            revenue_category_id:
+                                              event.target.value,
+                                          }
+                                        : entry,
+                                    ),
+                                  )
+                                }
+                              >
+                                <option value="">Select category</option>
+                                {revenueCategories.map((category) => (
+                                  <option key={category.id} value={category.id}>
+                                    {category.code
+                                      ? `${category.name} — ${category.code}`
+                                      : category.name}
+                                  </option>
+                                ))}
+                              </AixiaSelectField>
+                            ) : (
+                              <AixiaDisplayBlock
+                                label="Revenue Category"
+                                value="—"
+                              />
+                            )}
+                          </AixiaFormField>
+
+                          <AixiaDisplayBlock
+                            label="Selected Unit"
+                            value={
+                              selectedUnitOfMeasure
+                                ? selectedUnitOfMeasure.code
+                                  ? `${selectedUnitOfMeasure.name} — ${selectedUnitOfMeasure.code}`
+                                  : selectedUnitOfMeasure.name
+                                : "—"
+                            }
+                          />
+
+                          <AixiaDisplayBlock
+                            label="Selected Revenue"
+                            value={
+                              selectedRevenueCategory
+                                ? selectedRevenueCategory.code
+                                  ? `${selectedRevenueCategory.name} — ${selectedRevenueCategory.code}`
+                                  : selectedRevenueCategory.name
+                                : "—"
+                            }
+                          />
 
                           <AixiaDisplayBlock
                             label="Line Total"

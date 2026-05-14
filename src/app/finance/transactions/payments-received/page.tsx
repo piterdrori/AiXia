@@ -16,6 +16,7 @@ import {
 
 import {
   AixiaAccessDeniedState,
+  AixiaAccessRule,
   AixiaAlert,
   AixiaArchiveManagerModal,
   AixiaBadge,
@@ -41,7 +42,9 @@ import {
   fetchFinanceEffectivePermissions,
   resolveFinancePagePermissionState,
   type FinanceLoadMode,
+  type FinancePageAccessConfig,
 } from "@/lib/finance/pageAccess";
+import type { Role } from "@/lib/permissions";
 import {
   archivePaymentReceived,
   getPaymentsReceived,
@@ -62,6 +65,7 @@ type PaymentReceivedListRow = {
   payment_date: string;
   status: string;
   reference_number: string | null;
+  payment_method_id?: string | null;
   counterparty_name: string | null;
   client_name: string | null;
   invoice_number: string | null;
@@ -112,13 +116,13 @@ type EffectivePermissions = Awaited<
   ReturnType<typeof fetchFinanceEffectivePermissions>
 >;
 
-const PAGE_ACCESS_CONFIG = {
-  sectionKey: "transactions",
+const PAGE_ACCESS_CONFIG: FinancePageAccessConfig = {
+  sectionKey: "incomingMoneyFlow",
   readPermissions: ["accessFinance", "viewFinance", "viewFinanceRecords"],
   createPermissions: ["createFinanceRecords"],
   updatePermissions: ["editFinanceRecords"],
   deleteArchivePermissions: ["archiveFinanceRecords"],
-} as const;
+};
 
 function formatFinanceDate(value: string | null | undefined) {
   if (!value) return "—";
@@ -697,7 +701,7 @@ export default function PaymentsReceivedPage() {
   const [openInvoicesSearch, setOpenInvoicesSearch] = useState("");
   const [errorMessage, setErrorMessage] = useState("");
 
-  const [profileRole, setProfileRole] = useState<string | null>(null);
+  const [profileRole, setProfileRole] = useState<Role | null>(null);
   const [effectivePermissions, setEffectivePermissions] =
     useState<EffectivePermissions | null>(null);
 
@@ -755,8 +759,8 @@ export default function PaymentsReceivedPage() {
       if (profileResult.error) throw profileResult.error;
 
       setProfileRole(
-        ((profileResult.data || null) as { role?: string | null } | null)
-          ?.role || null,
+        (((profileResult.data || null) as { role?: Role | null } | null)?.role ||
+          null) as Role | null,
       );
       setEffectivePermissions(permissions);
     } catch (error) {
@@ -1240,6 +1244,13 @@ export default function PaymentsReceivedPage() {
           tone="violet"
         />
       </AixiaMetricGrid>
+
+      <AixiaAccessRule
+        title="Payments Received Access Rule"
+        description="Incoming Money Flow permissions control visibility, creation, update, archive, restore, and permanent delete behavior for received payments."
+      >
+        Read access opens this registry. Create access shows New Payment. Delete / Archive access shows Archive, Delete, Restore, and Delete Permanently actions. Permission checks use fetchFinanceEffectivePermissions and resolveFinancePagePermissionState from the shared Finance page access source of truth.
+      </AixiaAccessRule>
 
       {errorMessage ? (
         <AixiaAlert tone="error">{errorMessage}</AixiaAlert>

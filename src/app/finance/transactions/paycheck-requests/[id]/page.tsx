@@ -1764,7 +1764,7 @@ export default function PaycheckRequestDetailPage() {
                 {request.signed_form_external_url ? (
                   <AixiaButton
                     type="button"
-                    variant="secondary"
+                    variant="primary"
                     onClick={() => openExternalUrl(request.signed_form_external_url)}
                   >
                     <ExternalLink className="h-4 w-4" />
@@ -1774,7 +1774,7 @@ export default function PaycheckRequestDetailPage() {
                 {adminSignedFormUrl ? (
                   <AixiaButton
                     type="button"
-                    variant="secondary"
+                    variant="primary"
                     onClick={() => openExternalUrl(adminSignedFormUrl)}
                   >
                     <Download className="h-4 w-4" />
@@ -1784,7 +1784,7 @@ export default function PaycheckRequestDetailPage() {
                 {request.admin_signed_form_external_url ? (
                   <AixiaButton
                     type="button"
-                    variant="secondary"
+                    variant="primary"
                     onClick={() => openExternalUrl(request.admin_signed_form_external_url)}
                   >
                     <ExternalLink className="h-4 w-4" />
@@ -2098,7 +2098,7 @@ export default function PaycheckRequestDetailPage() {
                       <AixiaButton
                         key={attachment.id}
                         type="button"
-                        variant="secondary"
+                        variant="primary"
                         onClick={() => openExternalUrl(attachment.signedUrl)}
                       >
                         <Download className="h-4 w-4" />

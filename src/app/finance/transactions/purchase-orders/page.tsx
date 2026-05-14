@@ -38,6 +38,7 @@ import {
   AixiaTableShell,
   AixiaTableTextCell,
 } from "@/components/aixia";
+import type { FinanceLoadMode } from "@/lib/finance/pageAccess";
 import { supabase } from "@/lib/supabase";
 
 type PurchaseOrderStatus =
@@ -88,7 +89,7 @@ type SortKey =
 
 type SortDirection = "asc" | "desc";
 type ArchiveTab = "archived" | "deleted";
-type LoadMode = "initial" | "silent";
+type LoadMode = FinanceLoadMode;
 
 function toNumber(value: number | string | null | undefined) {
   const parsed = Number(value ?? 0);

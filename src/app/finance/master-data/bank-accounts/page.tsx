@@ -796,48 +796,46 @@ export default function FinanceMasterDataBankAccountsPage() {
           title="Bank Account Registry"
           description="Active and inactive bank accounts. Archived records are managed only through the archive modal."
           icon={Landmark}
-          actions={
-            <AixiaRegistryToolbar
-              search={
-                <AixiaSearchField
-                  value={search}
-                  onChange={(event) => setSearch(event.target.value)}
-                  placeholder="Search by company, bank, identifier, currency, location, or status"
-                  width="wide"
-                />
-              }
-              primaryAction={
-                permissionState.canCreate ? (
-                  <AixiaButton
-                    type="button"
-                    variant="primary"
-                    onClick={() => navigate("/finance/master-data/bank-accounts/new")}
-                  >
-                    <Plus className="h-4 w-4" />
-                    Create Bank Account
-                  </AixiaButton>
-                ) : null
-              }
-              archiveAction={
-                permissionState.canDeleteArchive ? (
-                  <AixiaButton
-                    type="button"
-                    variant="danger"
-                    onClick={() => void openArchiveModal()}
-                    disabled={isActionRunning}
-                  >
-                    {runningAction === "archive-modal" ? (
-                      <Loader2 className="h-4 w-4 animate-spin" />
-                    ) : (
-                      <Archive className="h-4 w-4" />
-                    )}
-                    Archive
-                  </AixiaButton>
-                ) : null
-              }
-            />
-          }
         >
+          <AixiaRegistryToolbar
+            search={
+              <AixiaSearchField
+                value={search}
+                onChange={(event) => setSearch(event.target.value)}
+                placeholder="Search by company, bank, identifier, currency, location, or status"
+                width="wide"
+              />
+            }
+            primaryAction={
+              permissionState.canCreate ? (
+                <AixiaButton
+                  type="button"
+                  variant="primary"
+                  onClick={() => navigate("/finance/master-data/bank-accounts/new")}
+                >
+                  <Plus className="h-4 w-4" />
+                  Create Bank Account
+                </AixiaButton>
+              ) : null
+            }
+            archiveAction={
+              permissionState.canDeleteArchive ? (
+                <AixiaButton
+                  type="button"
+                  variant="danger"
+                  onClick={() => void openArchiveModal()}
+                  disabled={isActionRunning}
+                >
+                  {runningAction === "archive-modal" ? (
+                    <Loader2 className="h-4 w-4 animate-spin" />
+                  ) : (
+                    <Archive className="h-4 w-4" />
+                  )}
+                  Archive
+                </AixiaButton>
+              ) : null
+            }
+          />
           {isPageLoading ? (
             <AixiaEmptyState
               icon={Loader2}

@@ -2255,112 +2255,113 @@ export default function FinanceMasterDataEmployeesPage() {
               ) : null}
 
               {selectedActivePayProfile ? (
-                <AixiaProfileCard
-                  title={selectedActivePayProfile.profile_number || "Active Pay Profile"}
-                  subtitle="Global paycheck setup for payroll defaults. Hourly structure is separated as an optional add-on and does not control the main paycheck amount."
-                  icon={BadgeDollarSign}
-                  badges={getPayProfileBadges(selectedActivePayProfile)}
-                  highlights={
-                    <>
-                      <AixiaReviewBlock
-                        label="Default Gross Pay"
-                        value={formatMoney(
-                          getPrimaryGrossPay(selectedActivePayProfile),
-                          selectedActivePayProfile.currency_code
-                        )}
-                        description={`${getPaycheckTypeLabel(
-                          selectedActivePayProfile
-                        )} • ${formatLabel(
-                          selectedActivePayProfile.payment_frequency
-                        )}`}
-                        icon={BadgeDollarSign}
-                        tone="emerald"
-                      />
-                      <AixiaReviewBlock
-                        label="Hourly Structure"
-                        value={
-                          getHourlyStructure(selectedActivePayProfile).enabled
-                            ? "On"
-                            : "Off"
-                        }
-                        description={
-                          getHourlyStructure(selectedActivePayProfile).enabled &&
-                          getHourlyStructure(selectedActivePayProfile).hourly_rate
-                            ? `${formatMoney(
-                                getHourlyStructure(selectedActivePayProfile).hourly_rate,
-                                selectedActivePayProfile.currency_code
-                              )} / hour`
-                            : "Optional only"
-                        }
-                        icon={Clock3}
-                        tone="amber"
-                      />
-                    </>
-                  }
-                  sections={
-                    <>
-                      <AixiaReviewBlock
-                        label="Paycheck Model"
-                        value={getPaycheckTypeLabel(selectedActivePayProfile)}
-                        description={`${formatLabel(
-                          selectedActivePayProfile.payment_frequency
-                        )} • ${selectedActivePayProfile.currency_code}`}
-                        icon={WalletCards}
-                        tone="cyan"
-                      />
-                      <AixiaReviewBlock
-                        label="Start Date"
-                        value={formatDateLabel(selectedActivePayProfile.effective_from)}
-                        description="Payroll profile begins here"
-                        icon={CalendarDays}
-                        tone="violet"
-                      />
-                      <AixiaReviewBlock
-                        label="Future Termination"
-                        value={
-                          selectedActivePayProfile.effective_to
-                            ? formatDateLabel(selectedActivePayProfile.effective_to)
-                            : "Not Planned"
-                        }
-                        description="Optional future payroll stop date"
-                        icon={Landmark}
-                        tone="rose"
-                      />
-                    </>
-                  }
-                  notes={
-                    selectedActivePayProfile.notes
-                      ? selectedActivePayProfile.notes
-                      : undefined
-                  }
-                  actions={
-                    <>
-                      {permissionState.canUpdate ? (
-                        <AixiaButton
-                          type="button"
-                          variant="primary"
-                          onClick={() => openEditPayProfile(selectedActivePayProfile)}
-                          disabled={profileSaving}
-                        >
-                          <Edit3 className="h-4 w-4" />
-                          Edit
-                        </AixiaButton>
-                      ) : null}
+                <>
+                  <AixiaProfileCard
+                    title={selectedActivePayProfile.profile_number || "Active Pay Profile"}
+                    subtitle="Global paycheck setup for payroll defaults. Hourly structure is separated as an optional add-on and does not control the main paycheck amount."
+                    icon={BadgeDollarSign}
+                    badges={getPayProfileBadges(selectedActivePayProfile)}
+                    highlights={
+                      <>
+                        <AixiaReviewBlock
+                          label="Default Gross Pay"
+                          value={formatMoney(
+                            getPrimaryGrossPay(selectedActivePayProfile),
+                            selectedActivePayProfile.currency_code
+                          )}
+                          description={`${getPaycheckTypeLabel(
+                            selectedActivePayProfile
+                          )} • ${formatLabel(
+                            selectedActivePayProfile.payment_frequency
+                          )}`}
+                          icon={BadgeDollarSign}
+                          tone="emerald"
+                        />
+                        <AixiaReviewBlock
+                          label="Hourly Structure"
+                          value={
+                            getHourlyStructure(selectedActivePayProfile).enabled
+                              ? "On"
+                              : "Off"
+                          }
+                          description={
+                            getHourlyStructure(selectedActivePayProfile).enabled &&
+                            getHourlyStructure(selectedActivePayProfile).hourly_rate
+                              ? `${formatMoney(
+                                  getHourlyStructure(selectedActivePayProfile).hourly_rate,
+                                  selectedActivePayProfile.currency_code
+                                )} / hour`
+                              : "Optional only"
+                          }
+                          icon={Clock3}
+                          tone="amber"
+                        />
+                      </>
+                    }
+                    sections={
+                      <>
+                        <AixiaReviewBlock
+                          label="Paycheck Model"
+                          value={getPaycheckTypeLabel(selectedActivePayProfile)}
+                          description={`${formatLabel(
+                            selectedActivePayProfile.payment_frequency
+                          )} • ${selectedActivePayProfile.currency_code}`}
+                          icon={WalletCards}
+                          tone="cyan"
+                        />
+                        <AixiaReviewBlock
+                          label="Start Date"
+                          value={formatDateLabel(selectedActivePayProfile.effective_from)}
+                          description="Payroll profile begins here"
+                          icon={CalendarDays}
+                          tone="violet"
+                        />
+                        <AixiaReviewBlock
+                          label="Future Termination"
+                          value={
+                            selectedActivePayProfile.effective_to
+                              ? formatDateLabel(selectedActivePayProfile.effective_to)
+                              : "Not Planned"
+                          }
+                          description="Optional future payroll stop date"
+                          icon={Landmark}
+                          tone="rose"
+                        />
+                      </>
+                    }
+                    notes={
+                      selectedActivePayProfile.notes
+                        ? selectedActivePayProfile.notes
+                        : undefined
+                    }
+                  />
 
-                      {permissionState.canDeleteArchive ? (
-                        <AixiaButton
-                          type="button"
-                          variant="danger"
-                          onClick={() => void deletePayProfile(selectedActivePayProfile)}
-                          disabled={profileSaving}
-                        >
-                          <Trash2 className="h-4 w-4" />
-                          Delete
-                        </AixiaButton>
-                      ) : null}
-                    </>
-                  }
-                />
+                  <AixiaActionStack>
+                    {permissionState.canUpdate ? (
+                      <AixiaButton
+                        type="button"
+                        variant="primary"
+                        onClick={() => openEditPayProfile(selectedActivePayProfile)}
+                        disabled={profileSaving}
+                      >
+                        <Edit3 className="h-4 w-4" />
+                        Edit
+                      </AixiaButton>
+                    ) : null}
+
+                    {permissionState.canDeleteArchive ? (
+                      <AixiaButton
+                        type="button"
+                        variant="danger"
+                        onClick={() => void deletePayProfile(selectedActivePayProfile)}
+                        disabled={profileSaving}
+                      >
+                        <Trash2 className="h-4 w-4" />
+                        Delete
+                      </AixiaButton>
+                    ) : null}
+                  </AixiaActionStack>
+                </>
               ) : (
                 <AixiaAlert tone="info">
                   <AixiaAlertText
@@ -2433,33 +2434,6 @@ export default function FinanceMasterDataEmployeesPage() {
                                     ? "Hourly On"
                                     : "Hourly Off"}
                                 </AixiaBadge>
-                              </>
-                            }
-                            actions={
-                              <>
-                                {permissionState.canUpdate ? (
-                                  <AixiaButton
-                                    type="button"
-                                    variant="primary"
-                                    onClick={() => openEditPayProfile(payProfile)}
-                                    disabled={profileSaving}
-                                  >
-                                    <Edit3 className="h-3.5 w-3.5" />
-                                    Edit
-                                  </AixiaButton>
-                                ) : null}
-
-                                {permissionState.canDeleteArchive ? (
-                                  <AixiaButton
-                                    type="button"
-                                    variant="danger"
-                                    onClick={() => void deletePayProfile(payProfile)}
-                                    disabled={profileSaving}
-                                  >
-                                    <Trash2 className="h-3.5 w-3.5" />
-                                    Delete
-                                  </AixiaButton>
-                                ) : null}
                               </>
                             }
                           />

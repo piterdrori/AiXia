@@ -30,7 +30,6 @@ import {
   AixiaReviewGrid,
   AixiaSideList,
   AixiaSideListRow,
-  AixiaSmartLayout,
   AixiaValueBlock,
 } from "@/components/aixia";
 import {
@@ -1469,179 +1468,159 @@ export default function FinanceTransactionsPage() {
         </AixiaMetricGrid>
       ) : null}
 
-      <AixiaSmartLayout
-        sidebar="normal"
-        bottomSpan="auto"
-        sideRebalance="last-to-bottom"
-        mainTopCount={1}
-        main={
-          <>
-            {transactionSections.length > 0 ? (
-              <div className="aixia-stack">
-                <AixiaNavigationInfoPanel
-                  tone="cyan"
-                  icon={FileText}
-                  title="Transaction Workflows"
-                  description="Grouped business-flow rows are preserved by section. Each flow keeps its business group header, sequence order, compact fixed-size cards, and arrow connectors between steps."
-                />
+      <div className="aixia-stack">
+        {accessFlags.canMonitorAnyCompanyFinance ? (
+          <div className="aixia-stack">
+            <AixiaNavigationInfoPanel
+              tone="amber"
+              icon={BadgeAlert}
+              title="Control Signals"
+              description="Visible only for company-level monitoring permissions."
+            />
 
-                {transactionSections.map((section) => (
-                  <TransactionFlowSection
-                    key={section.key}
-                    section={section}
-                    onOpen={openRoute}
+            <AixiaReviewGrid variant="cards">
+              {accessFlags.canMonitorIncomingMoney ? (
+                <AixiaValueBlock
+                  label="Overdue Invoices"
+                  value={isLoading ? "—" : formatCount(data.alerts.overdueInvoices)}
+                  detail="Receivables requiring collection attention"
+                />
+              ) : null}
+
+              {accessFlags.canMonitorSupplierProcurement ? (
+                <AixiaValueBlock
+                  label="Overdue Bills"
+                  value={isLoading ? "—" : formatCount(data.alerts.overdueBills)}
+                  detail="Payables requiring payment attention"
+                />
+              ) : null}
+
+              {accessFlags.canMonitorExpenseFunding ? (
+                <AixiaValueBlock
+                  label="Pending Expenses"
+                  value={isLoading ? "—" : formatCount(data.alerts.pendingExpenses)}
+                  detail="Expense items waiting for Finance/Admin action"
+                />
+              ) : null}
+            </AixiaReviewGrid>
+          </div>
+        ) : null}
+
+        {transactionSections.length > 0 ? (
+          <div className="aixia-stack">
+            {transactionSections.map((section) => (
+              <TransactionFlowSection
+                key={section.key}
+                section={section}
+                onOpen={openRoute}
+              />
+            ))}
+          </div>
+        ) : (
+          <AixiaNavigationInfoPanel
+            tone="amber"
+            icon={LockKeyhole}
+            title="No company transaction modules are enabled"
+            description="You can still use your own allowed personal flows, such as your own expenses/reimbursements and paycheck requests. Company-level finance modules appear here only after an Admin enables the related Access Approval section."
+          />
+        )}
+
+        {accessFlags.canMonitorAnyCompanyFinance ? (
+          <div className="aixia-stack">
+            <AixiaNavigationInfoPanel
+              tone="cyan"
+              icon={Receipt}
+              title="Transaction Readiness"
+              description="Company-level monitoring appears only for enabled Access Approval sections."
+            />
+
+            <AixiaReviewGrid variant="cards">
+              {accessFlags.canMonitorIncomingMoney ? (
+                <AixiaValueBlock
+                  label="Open Receivables"
+                  value={`$${formatMoney(data.totals.receivables)}`}
+                  detail={`${formatCount(data.counts.invoices)} invoice records`}
+                />
+              ) : null}
+
+              {accessFlags.canMonitorSupplierProcurement ? (
+                <AixiaValueBlock
+                  label="Open Payables"
+                  value={`$${formatMoney(data.totals.payables)}`}
+                  detail={`${formatCount(data.counts.bills)} bill records`}
+                />
+              ) : null}
+
+              {accessFlags.canMonitorExpenseFunding ? (
+                <AixiaValueBlock
+                  label="Pending Expenses"
+                  value={formatCount(data.alerts.pendingExpenses)}
+                  detail="Expense items waiting for Finance/Admin action"
+                />
+              ) : null}
+            </AixiaReviewGrid>
+          </div>
+        ) : null}
+
+        {accessFlags.canMonitorAnyCompanyFinance ? (
+          <div className="aixia-stack">
+            <AixiaNavigationInfoPanel
+              tone="cyan"
+              icon={Receipt}
+              title="Recent Activity"
+              description="Latest movement across permitted company transaction objects."
+            />
+
+            {recentActivity.length === 0 ? (
+              <AixiaEmptyState
+                icon={Receipt}
+                title="No permitted company activity found"
+                description="Activity appears here only for company-level sections this user can monitor."
+              />
+            ) : (
+              <AixiaSideList>
+                {recentActivity.map((item) => (
+                  <AixiaSideListRow
+                    key={item.id}
+                    badge={<AixiaBadge tone="cyan">{item.type}</AixiaBadge>}
+                    title={item.title}
+                    description={item.subtitle}
+                    meta={formatDateLabel(item.createdAt)}
+                    disabled={!item.route}
+                    onClick={item.route ? () => navigate(item.route as string) : undefined}
                   />
                 ))}
-              </div>
-            ) : (
-              <AixiaNavigationInfoPanel
-                tone="amber"
-                icon={LockKeyhole}
-                title="No company transaction modules are enabled"
-                description="You can still use your own allowed personal flows, such as your own expenses/reimbursements and paycheck requests. Company-level finance modules appear here only after an Admin enables the related Access Approval section."
-              />
+              </AixiaSideList>
             )}
+          </div>
+        ) : null}
 
-            {accessFlags.canMonitorAnyCompanyFinance ? (
-              <div className="aixia-stack">
-                <AixiaNavigationInfoPanel
-                  tone="cyan"
-                  icon={Receipt}
-                  title="Transaction Readiness"
-                  description="Company-level monitoring appears only for enabled Access Approval sections."
-                />
+        {!accessFlags.canMonitorAnyCompanyFinance ? (
+          <div className="aixia-stack">
+            <AixiaNavigationInfoPanel
+              tone="cyan"
+              icon={UserRound}
+              title="Personal Access"
+              description="Default employee finance access."
+            />
 
-                <AixiaReviewGrid variant="cards">
-                  {accessFlags.canMonitorIncomingMoney ? (
-                    <AixiaValueBlock
-                      label="Open Receivables"
-                      value={`$${formatMoney(data.totals.receivables)}`}
-                      detail={`${formatCount(data.counts.invoices)} invoice records`}
-                    />
-                  ) : null}
-
-                  {accessFlags.canMonitorSupplierProcurement ? (
-                    <AixiaValueBlock
-                      label="Open Payables"
-                      value={`$${formatMoney(data.totals.payables)}`}
-                      detail={`${formatCount(data.counts.bills)} bill records`}
-                    />
-                  ) : null}
-
-                  {accessFlags.canMonitorExpenseFunding ? (
-                    <AixiaValueBlock
-                      label="Pending Expenses"
-                      value={formatCount(data.alerts.pendingExpenses)}
-                      detail="Expense items waiting for Finance/Admin action"
-                    />
-                  ) : null}
-                </AixiaReviewGrid>
-              </div>
-            ) : null}
-          </>
-        }
-        side={
-          <>
-            {accessFlags.canMonitorAnyCompanyFinance ? (
-              <div className="aixia-stack">
-                <AixiaNavigationInfoPanel
-                  tone="amber"
-                  icon={BadgeAlert}
-                  title="Control Signals"
-                  description="Visible only for company-level monitoring permissions."
-                />
-
-                <AixiaReviewGrid variant="cards">
-                  {accessFlags.canMonitorIncomingMoney ? (
-                    <AixiaValueBlock
-                      label="Overdue Invoices"
-                      value={isLoading ? "—" : formatCount(data.alerts.overdueInvoices)}
-                      detail="Receivables requiring collection attention"
-                    />
-                  ) : null}
-
-                  {accessFlags.canMonitorSupplierProcurement ? (
-                    <AixiaValueBlock
-                      label="Overdue Bills"
-                      value={isLoading ? "—" : formatCount(data.alerts.overdueBills)}
-                      detail="Payables requiring payment attention"
-                    />
-                  ) : null}
-
-                  {accessFlags.canMonitorExpenseFunding ? (
-                    <AixiaValueBlock
-                      label="Pending Expenses"
-                      value={isLoading ? "—" : formatCount(data.alerts.pendingExpenses)}
-                      detail="Expense items waiting for Finance/Admin action"
-                    />
-                  ) : null}
-                </AixiaReviewGrid>
-              </div>
-            ) : null}
-
-            {accessFlags.canMonitorAnyCompanyFinance ? (
-              <div className="aixia-stack">
-                <AixiaNavigationInfoPanel
-                  tone="cyan"
-                  icon={Receipt}
-                  title="Recent Activity"
-                  description="Latest movement across permitted company transaction objects."
-                />
-
-                {recentActivity.length === 0 ? (
-                  <AixiaEmptyState
-                    icon={Receipt}
-                    title="No permitted company activity found"
-                    description="Activity appears here only for company-level sections this user can monitor."
-                  />
-                ) : (
-                  <AixiaSideList>
-                    {recentActivity.map((item) => (
-                      <AixiaSideListRow
-                        key={item.id}
-                        badge={<AixiaBadge tone="cyan">{item.type}</AixiaBadge>}
-                        title={item.title}
-                        description={item.subtitle}
-                        meta={formatDateLabel(item.createdAt)}
-                        disabled={!item.route}
-                        onClick={
-                          item.route ? () => navigate(item.route as string) : undefined
-                        }
-                      />
-                    ))}
-                  </AixiaSideList>
-                )}
-              </div>
-            ) : null}
-
-            {!accessFlags.canMonitorAnyCompanyFinance ? (
-              <div className="aixia-stack">
-                <AixiaNavigationInfoPanel
-                  tone="cyan"
-                  icon={UserRound}
-                  title="Personal Access"
-                  description="Default employee finance access."
-                />
-
-                <AixiaReviewGrid variant="cards">
-                  <AixiaNavigationStatBlock
-                    label="Own Expenses"
-                    value="Enabled"
-                    description="Create, edit, submit, upload, and confirm your own expense/reimbursement records."
-                    tone="cyan"
-                  />
-                  <AixiaNavigationStatBlock
-                    label="Own Paychecks"
-                    value="Enabled"
-                    description="Create, edit, submit, upload, and confirm your own paycheck request records."
-                    tone="violet"
-                  />
-                </AixiaReviewGrid>
-              </div>
-            ) : null}
-          </>
-        }
-      />
+            <AixiaReviewGrid variant="cards">
+              <AixiaNavigationStatBlock
+                label="Own Expenses"
+                value="Enabled"
+                description="Create, edit, submit, upload, and confirm your own expense/reimbursement records."
+                tone="cyan"
+              />
+              <AixiaNavigationStatBlock
+                label="Own Paychecks"
+                value="Enabled"
+                description="Create, edit, submit, upload, and confirm your own paycheck request records."
+                tone="violet"
+              />
+            </AixiaReviewGrid>
+          </div>
+        ) : null}
+      </div>
 
       <div className="aixia-action-stack">
         <AixiaButton

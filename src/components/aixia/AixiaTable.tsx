@@ -28,7 +28,7 @@ export function AixiaTableShell({
 }: AixiaTableShellProps) {
   const resolvedMinWidthClassName =
     variant === "archive"
-      ? "min-w-[1780px]"
+      ? "min-w-[1480px]"
       : minWidthClassName ??
         (variant === "registry" ? "min-w-[1240px]" : "min-w-max");
 

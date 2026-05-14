@@ -1073,73 +1073,71 @@ export default function FinanceExpenseCategoriesPage() {
             title="Expense Category Registry"
             description="Search, sort, create, edit, and archive active expense categories. Archived records are managed in the archive manager."
             icon={Layers3}
-            actions={
-              <AixiaRegistryToolbar
-                search={
-                  <AixiaSearchField
-                    width="wide"
-                    value={search}
-                    onChange={(event) => setSearch(event.target.value)}
-                    placeholder="Search code, name, description, notes, or ledger account..."
-                  />
-                }
-                filters={
-                  <AixiaSelectField
-                    value={statusFilter}
-                    onChange={(event) =>
-                      setStatusFilter(event.target.value as StatusFilter)
-                    }
-                  >
-                    {(["all", "active", "inactive"] as StatusFilter[]).map(
-                      (value) => (
-                        <option
-                          key={value}
-                          value={value}
-                          className="bg-[#05070d]"
-                        >
-                          {formatStatusLabel(value)}
-                        </option>
-                      )
-                    )}
-                  </AixiaSelectField>
-                }
-                primaryAction={
-                  permissionState.canCreate ? (
-                    <AixiaButton
-                      type="button"
-                      variant="primary"
-                      onClick={openCreateDialog}
-                      disabled={saving}
-                    >
-                      <Plus className="h-4 w-4" />
-                      New Category
-                    </AixiaButton>
-                  ) : null
-                }
-                archiveAction={
-                  permissionState.canDeleteArchive ? (
-                    <AixiaButton
-                      type="button"
-                      variant="danger"
-                      onClick={() => {
-                        setRunningAction("archive-modal");
-                        setArchiveOpen(true);
-                        setRunningAction(null);
-                      }}
-                      disabled={saving || isArchiveActionRunning}
-                    >
-                      {isArchiveActionRunning ? (
-                        <Loader2 className="h-4 w-4 animate-spin" />
-                      ) : (
-                        <Archive className="h-4 w-4" />
-                      )}
-                      Archive
-                    </AixiaButton>
-                  ) : null
-                }
-              />
-            }
           >
+            <AixiaRegistryToolbar
+              search={
+                <AixiaSearchField
+                  width="wide"
+                  value={search}
+                  onChange={(event) => setSearch(event.target.value)}
+                  placeholder="Search code, name, description, notes, or ledger account..."
+                />
+              }
+              filters={
+                <AixiaSelectField
+                  value={statusFilter}
+                  onChange={(event) =>
+                    setStatusFilter(event.target.value as StatusFilter)
+                  }
+                >
+                  {(["all", "active", "inactive"] as StatusFilter[]).map(
+                    (value) => (
+                      <option
+                        key={value}
+                        value={value}
+                        className="bg-[#05070d]"
+                      >
+                        {formatStatusLabel(value)}
+                      </option>
+                    )
+                  )}
+                </AixiaSelectField>
+              }
+              primaryAction={
+                permissionState.canCreate ? (
+                  <AixiaButton
+                    type="button"
+                    variant="primary"
+                    onClick={openCreateDialog}
+                    disabled={saving}
+                  >
+                    <Plus className="h-4 w-4" />
+                    New Category
+                  </AixiaButton>
+                ) : null
+              }
+              archiveAction={
+                permissionState.canDeleteArchive ? (
+                  <AixiaButton
+                    type="button"
+                    variant="danger"
+                    onClick={() => {
+                      setRunningAction("archive-modal");
+                      setArchiveOpen(true);
+                      setRunningAction(null);
+                    }}
+                    disabled={saving || isArchiveActionRunning}
+                  >
+                    {isArchiveActionRunning ? (
+                      <Loader2 className="h-4 w-4 animate-spin" />
+                    ) : (
+                      <Archive className="h-4 w-4" />
+                    )}
+                    Archive
+                  </AixiaButton>
+                ) : null
+              }
+            />
             {sortedRows.length === 0 ? (
               <AixiaEmptyState
                 icon={Layers3}

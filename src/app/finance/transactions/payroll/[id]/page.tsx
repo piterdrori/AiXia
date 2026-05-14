@@ -1947,13 +1947,6 @@ export default function FinancePayrollPaymentDistributionDetailPage() {
 
       <AixiaRegistryToolbar search={null} primaryAction={toolbarPrimaryAction} />
 
-      <AixiaAccessRule
-        title="Locked Access Rule"
-        description="Payroll distribution detail access is controlled by the shared Finance permissions system. Confirmation, proof verification, upload, allocation visibility, and employee identity display must stay aligned with the shared AiXia source-of-truth components."
-      >
-        This registry/detail page uses the shared locked access rule block, shared AiXia layout, registry toolbar action placement, employee identity display, and silent refresh behavior. Hero actions are intentionally empty because registry/front/list action controls belong in AixiaRegistryToolbar.
-      </AixiaAccessRule>
-
       {pageError ? <AixiaAlert tone="error">{pageError}</AixiaAlert> : null}
       {pageMessage ? <AixiaAlert tone="success">{pageMessage}</AixiaAlert> : null}
 
@@ -1987,6 +1980,14 @@ export default function FinancePayrollPaymentDistributionDetailPage() {
           tone="violet"
         />
       </AixiaMetricGrid>
+
+      <AixiaAccessRule
+        title="Locked access rule"
+        description="Payroll payment distribution child allocations must use the shared AiXia child allocation registry lifecycle standard."
+        icon={ShieldCheck}
+      >
+        Linked Paycheck Allocations are financial child allocation records. They must use the shared AiXia registry and table lifecycle standard, with AixiaRegistryToolbar for search/filter/action controls, sortable allocation columns, AixiaTableActionsCell row actions, backend-loaded lifecycle state where available, finance_employee_identity_v resolved employee identity, and protected backend actions for confirmation, proof upload, proof verification, and payment rollup refresh. Realtime plus 60-second fallback refresh must stay silent without resetting visible records or page state.
+      </AixiaAccessRule>
 
       <AixiaSmartLayout
         sidebar="normal"

@@ -1576,17 +1576,18 @@
   overflow-x: auto !important;
   overflow-y: hidden !important;
   padding-bottom: 0.85rem;
+  overscroll-behavior-x: contain;
 }
 
 .aixia-table-wrap[data-table-variant="archive"] .aixia-table-scroll {
-  width: 100% !important;
-  max-width: 100% !important;
-  min-width: 0 !important;
-  max-height: 620px;
-  overflow-x: auto !important;
+  width: max-content !important;
+  min-width: max(100%, var(--aixia-archive-table-min-width, 1480px)) !important;
+  max-width: none !important;
+  max-height: min(620px, 58vh);
+  overflow-x: visible !important;
   overflow-y: auto !important;
-  overscroll-behavior: contain;
-  padding-bottom: 0.75rem;
+  overscroll-behavior-y: contain;
+  padding-bottom: 0;
 }
 
 .aixia-table-wrap[data-table-variant="archive"] .aixia-table {

@@ -2178,10 +2178,11 @@ export default function FinancePayrollPaymentDistributionNewPage() {
       </AixiaMetricGrid>
 
       <AixiaAccessRule
-        title="Paycheck Payment Distribution Access Rule"
-        description="Payroll payment distribution creation follows the shared Finance registry and employee identity source-of-truth standard."
+        title="Locked access rule"
+        description="Paycheck payment distribution creation must use the shared Finance registry, employee identity, and payment distribution source-of-truth standard."
+        icon={ShieldCheck}
       >
-        This page loads finance_employee_refs together with finance_employee_identity_v, displays employees through the shared employee identity helper/component, and keeps create/confirm behavior inside shared AiXia components.
+        This page loads finance_employee_refs together with finance_employee_identity_v, displays employees through the shared employee identity helper/component, keeps create and confirm behavior inside shared AiXia components, and keeps registry/search/payment request selection controls aligned with the locked AiXia source-of-truth pattern.
       </AixiaAccessRule>
 
       <AixiaSmartLayout

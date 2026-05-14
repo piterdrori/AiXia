@@ -768,48 +768,46 @@ export default function FinanceMasterDataClientsPage() {
           title="Client Registry"
           description="Active and inactive clients. Archived clients are managed only through the archive modal."
           icon={Users}
-          actions={
-            <AixiaRegistryToolbar
-              search={
-                <AixiaSearchField
-                  width="wide"
-                  value={search}
-                  onChange={(event) => setSearch(event.target.value)}
-                  placeholder="Search clients"
-                />
-              }
-              primaryAction={
-                permissionState.canCreate ? (
-                  <AixiaButton
-                    type="button"
-                    variant="primary"
-                    onClick={() => navigate("/finance/master-data/clients/new")}
-                  >
-                    <Plus className="h-4 w-4" />
-                    Create Client
-                  </AixiaButton>
-                ) : null
-              }
-              archiveAction={
-                permissionState.canDeleteArchive ? (
-                  <AixiaButton
-                    type="button"
-                    variant="danger"
-                    onClick={() => void openArchiveModal()}
-                    disabled={isActionRunning}
-                  >
-                    {runningAction === "archive-modal" ? (
-                      <Loader2 className="h-4 w-4 animate-spin" />
-                    ) : (
-                      <Archive className="h-4 w-4" />
-                    )}
-                    Archive
-                  </AixiaButton>
-                ) : null
-              }
-            />
-          }
         >
+          <AixiaRegistryToolbar
+            search={
+              <AixiaSearchField
+                width="wide"
+                value={search}
+                onChange={(event) => setSearch(event.target.value)}
+                placeholder="Search clients"
+              />
+            }
+            primaryAction={
+              permissionState.canCreate ? (
+                <AixiaButton
+                  type="button"
+                  variant="primary"
+                  onClick={() => navigate("/finance/master-data/clients/new")}
+                >
+                  <Plus className="h-4 w-4" />
+                  Create Client
+                </AixiaButton>
+              ) : null
+            }
+            archiveAction={
+              permissionState.canDeleteArchive ? (
+                <AixiaButton
+                  type="button"
+                  variant="danger"
+                  onClick={() => void openArchiveModal()}
+                  disabled={isActionRunning}
+                >
+                  {runningAction === "archive-modal" ? (
+                    <Loader2 className="h-4 w-4 animate-spin" />
+                  ) : (
+                    <Archive className="h-4 w-4" />
+                  )}
+                  Archive
+                </AixiaButton>
+              ) : null
+            }
+          />
           {filteredClients.length === 0 ? (
             <AixiaEmptyState
               icon={Building2}

@@ -1945,7 +1945,7 @@ export default function FinancePayrollPaymentDistributionDetailPage() {
         ]}
       />
 
-      <AixiaRegistryToolbar primaryAction={toolbarPrimaryAction} />
+      <AixiaRegistryToolbar search={null} primaryAction={toolbarPrimaryAction} />
 
       <AixiaAccessRule
         title="Payroll Distribution Access Rule"

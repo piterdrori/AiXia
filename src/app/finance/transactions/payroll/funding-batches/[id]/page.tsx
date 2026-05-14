@@ -53,7 +53,7 @@ import {
   AixiaTextareaField,
   AixiaValueBlock,
 } from "@/components/aixia";
-import { type FinanceLoadMode } from "@/lib/finance/pageAccess";
+import type { FinanceLoadMode } from "@/lib/finance/pageAccess";
 
 type FundingBatchRow = {
   id: string;
@@ -1672,6 +1672,7 @@ export default function FinancePayrollFundingBatchDetailPage() {
         icon={WalletCards}
         actions={
           <AixiaRegistryToolbar
+            search={null}
             primaryAction={
               isConfirmedPool && !isArchivedOrDeleted ? (
                 <AixiaButton

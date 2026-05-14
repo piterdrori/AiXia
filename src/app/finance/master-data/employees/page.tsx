@@ -2167,7 +2167,8 @@ export default function FinanceMasterDataEmployeesPage() {
               title="Employee Details"
               description="Finance employee reference linked to the source employee record."
               icon={User2}
-              actions={
+            >
+              <AixiaActionStack>
                 <AixiaButton
                   type="button"
                   variant="secondary"
@@ -2176,8 +2177,8 @@ export default function FinanceMasterDataEmployeesPage() {
                   <ExternalLink className="h-4 w-4" />
                   Open Source Record
                 </AixiaButton>
-              }
-            >
+              </AixiaActionStack>
+
               <AixiaFormGrid columns="two">
                 <AixiaDisplayBlock
                   label="Finance Status"
@@ -2238,8 +2239,9 @@ export default function FinanceMasterDataEmployeesPage() {
               title="Payroll Defaults"
               description="Manage the employee global paycheck profile and optional hourly structure. The paycheck request flow uses these values as defaults."
               icon={WalletCards}
-              actions={
-                permissionState.canCreate ? (
+            >
+              {permissionState.canCreate ? (
+                <AixiaActionStack>
                   <AixiaButton
                     type="button"
                     variant="primary"
@@ -2249,9 +2251,9 @@ export default function FinanceMasterDataEmployeesPage() {
                     <Plus className="h-4 w-4" />
                     Create Pay Profile
                   </AixiaButton>
-                ) : null
-              }
-            >
+                </AixiaActionStack>
+              ) : null}
+
               {selectedActivePayProfile ? (
                 <AixiaProfileCard
                   title={selectedActivePayProfile.profile_number || "Active Pay Profile"}

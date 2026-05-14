@@ -1,7 +1,5 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
-import type { ReactNode } from "react";
 import { useNavigate } from "react-router-dom";
-import type { LucideIcon } from "lucide-react";
 import {
   ArrowRight,
   Building2,
@@ -18,7 +16,28 @@ import {
   WalletCards,
 } from "lucide-react";
 
+import {
+  AixiaAlert,
+  AixiaButton,
+  AixiaDocumentUploadPanel,
+  AixiaEmptyState,
+  AixiaFieldLabel,
+  AixiaFormField,
+  AixiaFormFullWidth,
+  AixiaFormGrid,
+  AixiaHero,
+  AixiaInputField,
+  AixiaLoadingState,
+  AixiaPage,
+  AixiaReviewBlock,
+  AixiaReviewGrid,
+  AixiaSection,
+  AixiaSelectField,
+  AixiaTextareaField,
+  AixiaValueBlock,
+} from "@/components/aixia";
 import { supabase } from "@/lib/supabase";
+
 import PaycheckRequestPrintDocument from "./PaycheckRequestPrintDocument";
 
 type EmployeeRefRow = {
@@ -146,17 +165,19 @@ const PAYMENT_TRANSFER_METHODS: Array<{
   {
     value: "bank_transfer",
     label: "Bank Transfer",
-    helper: "Employee provides bank / account / beneficiary details for Finance to use later.",
+    helper:
+      "Employee provides bank, account, beneficiary, IBAN, SWIFT, or other transfer details for Finance review.",
   },
   {
     value: "digital_wallet",
     label: "Digital Wallet",
-    helper: "Employee provides wallet type, account ID, phone, email, or payment handle.",
+    helper:
+      "Employee provides wallet type, account ID, phone, email, or payment handle.",
   },
   {
     value: "cash",
     label: "Cash",
-    helper: "Employee requests cash payment where this is allowed by company policy.",
+    helper: "Employee requests cash payment where allowed by company policy.",
   },
   {
     value: "company_method",
@@ -223,7 +244,10 @@ function formatLabel(value: string | null | undefined) {
     .replace(/\b\w/g, (character) => character.toUpperCase());
 }
 
-function getMetadataString(metadata: Record<string, unknown> | null | undefined, key: string) {
+function getMetadataString(
+  metadata: Record<string, unknown> | null | undefined,
+  key: string
+) {
   const value = metadata?.[key];
   return typeof value === "string" ? value : "";
 }
@@ -353,113 +377,6 @@ function resolveMimeType(file: File) {
   }
 }
 
-function inputClass() {
-  return "h-11 w-full rounded-2xl border border-white/10 bg-black/20 px-4 text-sm text-white outline-none transition placeholder:text-slate-600 focus:border-cyan-400/30 focus:bg-black/30 disabled:cursor-not-allowed disabled:opacity-50";
-}
-
-function textareaClass() {
-  return "min-h-[132px] w-full resize-none rounded-2xl border border-white/10 bg-black/20 px-4 py-3 text-sm text-white outline-none transition placeholder:text-slate-600 focus:border-cyan-400/30 focus:bg-black/30 disabled:cursor-not-allowed disabled:opacity-50";
-}
-
-function labelClass() {
-  return "text-sm font-medium text-slate-300";
-}
-
-function SectionCard({
-  title,
-  description,
-  icon: Icon,
-  children,
-}: {
-  title: string;
-  description: string;
-  icon: LucideIcon;
-  children: ReactNode;
-}) {
-  return (
-    <section className="overflow-hidden rounded-[30px] border border-white/10 bg-white/[0.045] backdrop-blur-xl">
-      <div className="flex items-start gap-4 border-b border-white/10 px-5 py-4">
-        <div className="rounded-2xl border border-cyan-400/15 bg-cyan-500/10 p-3 text-cyan-200">
-          <Icon className="h-4 w-4" />
-        </div>
-        <div>
-          <div className="text-sm font-semibold uppercase tracking-[0.18em] text-slate-400">
-            {title}
-          </div>
-          <p className="mt-1 text-xs leading-5 text-slate-500">{description}</p>
-        </div>
-      </div>
-
-      <div className="p-5">{children}</div>
-    </section>
-  );
-}
-
-function SummaryBlock({
-  title,
-  value,
-  subtitle,
-}: {
-  title: string;
-  value: string;
-  subtitle: string;
-}) {
-  return (
-    <div className="min-h-[148px] rounded-[24px] border border-white/10 bg-black/20 p-4">
-      <div className="text-[11px] font-semibold uppercase tracking-[0.2em] text-slate-500">
-        {title}
-      </div>
-      <div className="mt-2 break-words text-2xl font-semibold text-white">{value}</div>
-      <div className="mt-2 text-sm leading-6 text-slate-400">{subtitle}</div>
-    </div>
-  );
-}
-
-function SmallInfoPill({
-  title,
-  value,
-}: {
-  title: string;
-  value: string;
-}) {
-  return (
-    <div className="rounded-2xl border border-white/10 bg-black/20 px-4 py-3">
-      <div className="text-[10px] font-semibold uppercase tracking-[0.18em] text-slate-500">
-        {title}
-      </div>
-      <div className="mt-1 text-sm font-semibold text-slate-200">{value}</div>
-    </div>
-  );
-}
-
-function SelectShell({
-  label,
-  value,
-  onChange,
-  children,
-  disabled,
-}: {
-  label: string;
-  value: string;
-  onChange: (value: string) => void;
-  children: ReactNode;
-  disabled?: boolean;
-}) {
-  return (
-    <label className="grid gap-2">
-      <span className={labelClass()}>{label}</span>
-      <select
-        value={value}
-        disabled={disabled}
-        onChange={(event) => onChange(event.target.value)}
-        className={inputClass()}
-      >
-        {children}
-      </select>
-    </label>
-  );
-}
-
 export default function NewPaycheckRequestPage() {
   const navigate = useNavigate();
 
@@ -495,7 +412,9 @@ export default function NewPaycheckRequestPage() {
   const [uploadedPath, setUploadedPath] = useState<string | null>(null);
   const [uploadedBucket, setUploadedBucket] = useState<string | null>(null);
   const [uploadedAt, setUploadedAt] = useState<string | null>(null);
-  const [uploadedFileUploadId, setUploadedFileUploadId] = useState<string | null>(null);
+  const [uploadedFileUploadId, setUploadedFileUploadId] = useState<string | null>(
+    null
+  );
 
   const [isLoading, setIsLoading] = useState(true);
   const [isSaving, setIsSaving] = useState<"draft" | "submit" | null>(null);
@@ -708,7 +627,7 @@ export default function NewPaycheckRequestPage() {
     }
   }, []);
 
-  useEffect(() => {
+        useEffect(() => {
     void loadInitialData();
   }, [loadInitialData]);
 
@@ -750,7 +669,8 @@ export default function NewPaycheckRequestPage() {
 
     setForm((current) => ({
       ...current,
-      requestedCurrencyCode: selectedPayProfile.currency_code || current.requestedCurrencyCode,
+      requestedCurrencyCode:
+        selectedPayProfile.currency_code || current.requestedCurrencyCode,
       grossAmount:
         selectedPayProfile.pay_type === "hourly"
           ? String(
@@ -908,19 +828,21 @@ export default function NewPaycheckRequestPage() {
 
       if (fileUploadResult.error) throw fileUploadResult.error;
 
-      const attachmentResult = await supabase.from("finance_record_attachments").insert({
-        entity_type: "finance_paycheck_request",
-        entity_id: requestId,
-        file_upload_id: fileUploadResult.data.id,
-        uploaded_by: currentUserId,
-        notes: "Employee signed paycheck request form",
-        metadata: {
-          bucket: BUCKET_NAME,
-          uploaded_from: "paycheck_request_new_page",
-          resolved_mime_type: resolvedMimeType,
-          document_role: "employee_signed_paycheck_document",
-        },
-      });
+      const attachmentResult = await supabase
+        .from("finance_record_attachments")
+        .insert({
+          entity_type: "finance_paycheck_request",
+          entity_id: requestId,
+          file_upload_id: fileUploadResult.data.id,
+          uploaded_by: currentUserId,
+          notes: "Employee signed paycheck request form",
+          metadata: {
+            bucket: BUCKET_NAME,
+            uploaded_from: "paycheck_request_new_page",
+            resolved_mime_type: resolvedMimeType,
+            document_role: "employee_signed_paycheck_document",
+          },
+        });
 
       if (attachmentResult.error) throw attachmentResult.error;
 
@@ -971,7 +893,7 @@ export default function NewPaycheckRequestPage() {
     }, 120);
   }, [form.joinDate, selectedCompany, selectedEmployee]);
 
-        const saveRequest = useCallback(
+  const saveRequest = useCallback(
     async (submitMode: "draft" | "submit") => {
       if (isSaving) return;
 
@@ -1022,6 +944,61 @@ export default function NewPaycheckRequestPage() {
             "Employee-provided payment preference only. This is not a company bank account selection.",
         };
 
+        const baseMetadata = {
+          source_area: "paycheck_request_new_page",
+          company_snapshot: companySnapshot,
+          employee_payment_preference: paymentPreferenceSnapshot,
+          employee_snapshot: {
+            employee_ref_id: selectedEmployee.id,
+            employee_user_id: selectedEmployee.user_id,
+            employee_code: selectedEmployee.code,
+            employee_mark: selectedEmployee.mark,
+            employee_label: buildEmployeeLabel(selectedEmployee),
+            employee_sub_label: buildEmployeeSubLabel(selectedEmployee),
+          },
+          pay_profile_snapshot: selectedPayProfile
+            ? {
+                pay_profile_id: selectedPayProfile.id,
+                profile_number: selectedPayProfile.profile_number,
+                pay_type: selectedPayProfile.pay_type,
+                payment_frequency: selectedPayProfile.payment_frequency,
+                base_salary: selectedPayProfile.base_salary,
+                hourly_rate: selectedPayProfile.hourly_rate,
+                default_hours: selectedPayProfile.default_hours,
+                currency_code: selectedPayProfile.currency_code,
+                effective_from: selectedPayProfile.effective_from,
+                effective_to: selectedPayProfile.effective_to,
+              }
+            : null,
+          payslip_form_snapshot: {
+            company_id: form.companyId,
+            company_label: buildCompanyLabel(selectedCompany),
+            join_date: form.joinDate,
+            position: selectedEmployee.mark ? formatLabel(selectedEmployee.mark) : null,
+            social_insurance_contribution_type: form.socialInsuranceContributionType,
+            social_insurance_contribution_label:
+              form.socialInsuranceContributionType === "by_employer"
+                ? "By Employer"
+                : "By Employee",
+            social_insurance_contribution_details:
+              form.socialInsuranceContributionDetails.trim() || null,
+            form_type: "prc_pay_slip",
+            generated_from_page: true,
+          },
+          requested_amounts: {
+            gross: grossAmount,
+            bonus: bonusAmount,
+            deduction: deductionAmount,
+            reimbursement: reimbursementAmount,
+            net: netAmount,
+            currency_code: requestCurrencyCode,
+          },
+          form_template: {
+            downloadable_pdf_available: true,
+            generated_from_page: true,
+          },
+        };
+
         const insertResult = await supabase
           .from("finance_paycheck_requests")
           .insert({
@@ -1049,60 +1026,7 @@ export default function NewPaycheckRequestPage() {
             remaining_amount: netAmount,
             recipient_confirmation_status: "not_paid_yet",
             notes: form.notes.trim() || null,
-            metadata: {
-              source_area: "paycheck_request_new_page",
-              company_snapshot: companySnapshot,
-              employee_payment_preference: paymentPreferenceSnapshot,
-              employee_snapshot: {
-                employee_ref_id: selectedEmployee.id,
-                employee_user_id: selectedEmployee.user_id,
-                employee_code: selectedEmployee.code,
-                employee_mark: selectedEmployee.mark,
-                employee_label: buildEmployeeLabel(selectedEmployee),
-                employee_sub_label: buildEmployeeSubLabel(selectedEmployee),
-              },
-              pay_profile_snapshot: selectedPayProfile
-                ? {
-                    pay_profile_id: selectedPayProfile.id,
-                    profile_number: selectedPayProfile.profile_number,
-                    pay_type: selectedPayProfile.pay_type,
-                    payment_frequency: selectedPayProfile.payment_frequency,
-                    base_salary: selectedPayProfile.base_salary,
-                    hourly_rate: selectedPayProfile.hourly_rate,
-                    default_hours: selectedPayProfile.default_hours,
-                    currency_code: selectedPayProfile.currency_code,
-                    effective_from: selectedPayProfile.effective_from,
-                    effective_to: selectedPayProfile.effective_to,
-                  }
-                : null,
-              payslip_form_snapshot: {
-                company_id: form.companyId,
-                company_label: buildCompanyLabel(selectedCompany),
-                join_date: form.joinDate,
-                position: selectedEmployee.mark ? formatLabel(selectedEmployee.mark) : null,
-                social_insurance_contribution_type: form.socialInsuranceContributionType,
-                social_insurance_contribution_label:
-                  form.socialInsuranceContributionType === "by_employer"
-                    ? "By Employer"
-                    : "By Employee",
-                social_insurance_contribution_details:
-                  form.socialInsuranceContributionDetails.trim() || null,
-                form_type: "prc_pay_slip",
-                generated_from_page: true,
-              },
-              requested_amounts: {
-                gross: grossAmount,
-                bonus: bonusAmount,
-                deduction: deductionAmount,
-                reimbursement: reimbursementAmount,
-                net: netAmount,
-                currency_code: requestCurrencyCode,
-              },
-              form_template: {
-                downloadable_pdf_available: true,
-                generated_from_page: true,
-              },
-            },
+            metadata: baseMetadata,
             created_by: currentUserId,
             updated_by: currentUserId,
           })
@@ -1143,58 +1067,7 @@ export default function NewPaycheckRequestPage() {
               submitMode === "submit" ? new Date().toISOString() : null,
             updated_by: currentUserId,
             metadata: {
-              source_area: "paycheck_request_new_page",
-              company_snapshot: companySnapshot,
-              employee_payment_preference: paymentPreferenceSnapshot,
-              employee_snapshot: {
-                employee_ref_id: selectedEmployee.id,
-                employee_user_id: selectedEmployee.user_id,
-                employee_code: selectedEmployee.code,
-                employee_mark: selectedEmployee.mark,
-                employee_label: buildEmployeeLabel(selectedEmployee),
-                employee_sub_label: buildEmployeeSubLabel(selectedEmployee),
-              },
-              pay_profile_snapshot: selectedPayProfile
-                ? {
-                    pay_profile_id: selectedPayProfile.id,
-                    profile_number: selectedPayProfile.profile_number,
-                    pay_type: selectedPayProfile.pay_type,
-                    payment_frequency: selectedPayProfile.payment_frequency,
-                    base_salary: selectedPayProfile.base_salary,
-                    hourly_rate: selectedPayProfile.hourly_rate,
-                    default_hours: selectedPayProfile.default_hours,
-                    currency_code: selectedPayProfile.currency_code,
-                    effective_from: selectedPayProfile.effective_from,
-                    effective_to: selectedPayProfile.effective_to,
-                  }
-                : null,
-              payslip_form_snapshot: {
-                company_id: form.companyId,
-                company_label: buildCompanyLabel(selectedCompany),
-                join_date: form.joinDate,
-                position: selectedEmployee.mark ? formatLabel(selectedEmployee.mark) : null,
-                social_insurance_contribution_type: form.socialInsuranceContributionType,
-                social_insurance_contribution_label:
-                  form.socialInsuranceContributionType === "by_employer"
-                    ? "By Employer"
-                    : "By Employee",
-                social_insurance_contribution_details:
-                  form.socialInsuranceContributionDetails.trim() || null,
-                form_type: "prc_pay_slip",
-                generated_from_page: true,
-              },
-              requested_amounts: {
-                gross: grossAmount,
-                bonus: bonusAmount,
-                deduction: deductionAmount,
-                reimbursement: reimbursementAmount,
-                net: netAmount,
-                currency_code: requestCurrencyCode,
-              },
-              form_template: {
-                downloadable_pdf_available: true,
-                generated_from_page: true,
-              },
+              ...baseMetadata,
               signed_form_upload: {
                 bucket: uploadInfo.bucket,
                 path: uploadInfo.path,
@@ -1265,707 +1138,648 @@ export default function NewPaycheckRequestPage() {
     ]
   );
 
-  return (
-    <div className="min-h-screen bg-[#05070d] px-4 py-4 text-white md:px-6 md:py-6">
-      <div className="mx-auto flex w-full max-w-[1600px] flex-col gap-6">
-        <header className="relative overflow-hidden rounded-[34px] border border-white/10 bg-white/[0.045] p-6 shadow-2xl shadow-black/30 backdrop-blur-xl">
-          <div className="pointer-events-none absolute inset-0 bg-[radial-gradient(circle_at_top_left,rgba(6,182,212,0.16),transparent_38%),radial-gradient(circle_at_top_right,rgba(139,92,246,0.12),transparent_34%),radial-gradient(circle_at_bottom_right,rgba(16,185,129,0.10),transparent_30%)]" />
+  if (isLoading) {
+    return (
+      <AixiaLoadingState
+        title="Loading paycheck request data"
+        description="Employee references, pay profiles, active currencies, and companies are being loaded."
+      />
+    );
+  }
 
-          <div className="relative">
-            <button
-              type="button"
-              onClick={() => navigate("/finance/transactions/paycheck-requests")}
-              className="mb-5 inline-flex items-center justify-center gap-2 rounded-full border border-white/10 bg-white/[0.05] px-5 py-2 text-[11px] font-semibold uppercase tracking-[0.22em] text-slate-300 transition hover:border-white/20 hover:bg-white/[0.08] hover:text-white"
-            >
-              <ArrowRight className="h-3.5 w-3.5 rotate-180" />
-              Paycheck Requests
-            </button>
+        return (
+    <AixiaPage>
+      <AixiaHero
+        parentLabel="Paycheck Requests"
+        parentPath="/finance/transactions/paycheck-requests"
+        badges={[
+          { label: "New Paycheck Request", tone: "cyan" },
+          { label: "Employee Request", tone: "emerald" },
+          { label: "Finance Review Next", tone: "neutral" },
+        ]}
+        gradientTitle="Create Paycheck"
+        title="Request"
+        subtitle="Employee paycheck request draft"
+        description="Create an employee paycheck request, pull pay profile defaults, generate the filled payslip form, upload the employee-signed form, and submit it to Finance/Admin review."
+        statusCards={[
+          {
+            label: "Net Requested",
+            value: `${form.requestedCurrencyCode || "USD"} ${formatMoney(netAmount)}`,
+            description: "Gross + bonus + reimbursement − deduction.",
+            icon: WalletCards,
+            tone: "cyan",
+          },
+          {
+            label: "Selected Employee",
+            value: buildEmployeeLabel(selectedEmployee),
+            description: buildEmployeeSubLabel(selectedEmployee),
+            icon: UserRound,
+            tone: "emerald",
+          },
+          {
+            label: "Next Step",
+            value: "Finance Review",
+            description: "Submitted requests move to Finance/Admin review.",
+            icon: ShieldCheck,
+            tone: "amber",
+          },
+        ]}
+      />
 
-            <div className="grid gap-6 xl:grid-cols-[minmax(0,1fr)_430px] xl:items-end">
-              <div>
-                <div className="inline-flex w-fit items-center gap-2 rounded-full border border-cyan-400/20 bg-cyan-500/10 px-3 py-1 text-[11px] font-semibold uppercase tracking-[0.22em] text-cyan-200">
-                  <FileSignature className="h-3.5 w-3.5" />
-                  New Paycheck Request
-                </div>
+      {actionError ? <AixiaAlert tone="error">{actionError}</AixiaAlert> : null}
+      {actionMessage ? <AixiaAlert tone="success">{actionMessage}</AixiaAlert> : null}
 
-                <h1 className="mt-4 text-3xl font-semibold tracking-[-0.035em] text-white md:text-5xl">
-                  Create Paycheck Request
-                </h1>
+      <div className="aixia-grid-with-side">
+        <div className="aixia-stack">
+          <AixiaSection
+            title="Company & Employee"
+            description="Select the company and employee reference for this paycheck request."
+            icon={Building2}
+          >
+            <AixiaFormGrid columns="two">
+              <AixiaFormField>
+                <AixiaFieldLabel label="Company" required />
+                <AixiaSelectField
+                  value={form.companyId}
+                  disabled={Boolean(isSaving)}
+                  onChange={(event) => updateField("companyId", event.target.value)}
+                >
+                  <option value="" className="bg-[#05070d]">
+                    Select company
+                  </option>
+                  {companies.map((row) => (
+                    <option key={row.id} value={row.id} className="bg-[#05070d]">
+                      {buildCompanyLabel(row)} — {buildCompanySubLabel(row)}
+                    </option>
+                  ))}
+                </AixiaSelectField>
+              </AixiaFormField>
 
-                <p className="mt-3 max-w-4xl text-sm leading-6 text-slate-400 md:text-base md:leading-7">
-                  Create an employee paycheck request, pull pay profile defaults, generate the
-                  filled payslip form, upload the employee-signed form, and submit it to
-                  Finance/Admin review.
-                </p>
+              <AixiaFormField>
+                <AixiaFieldLabel label="Employee Reference" required />
+                <AixiaButton
+                  type="button"
+                  variant="secondary"
+                  disabled={Boolean(isSaving)}
+                  onClick={() => setEmployeePickerOpen((current) => !current)}
+                >
+                  <UserRound className="h-4 w-4" />
+                  {selectedEmployee
+                    ? `${buildEmployeeLabel(selectedEmployee)} — ${buildEmployeeSubLabel(
+                        selectedEmployee
+                      )}`
+                    : "Select employee"}
+                </AixiaButton>
 
-                <div className="mt-5 grid gap-3 md:grid-cols-3">
-                  <SmallInfoPill title="Page Mode" value="Employee Request" />
-                  <SmallInfoPill title="Payment Preference" value="Employee Provided" />
-                  <SmallInfoPill title="Next Step" value="Finance Review" />
-                </div>
-              </div>
-
-              <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-1">
-                <SummaryBlock
-                  title="Net Requested"
-                  value={`${form.requestedCurrencyCode || "USD"} ${formatMoney(netAmount)}`}
-                  subtitle="Gross + bonus + reimbursement − deduction."
-                />
-                <SummaryBlock
-                  title="Selected Employee"
-                  value={buildEmployeeLabel(selectedEmployee)}
-                  subtitle={buildEmployeeSubLabel(selectedEmployee)}
-                />
-              </div>
-            </div>
-          </div>
-        </header>
-
-        {actionError ? (
-          <div className="rounded-[24px] border border-rose-400/20 bg-rose-500/10 px-5 py-4 text-sm text-rose-100">
-            {actionError}
-          </div>
-        ) : null}
-
-        {actionMessage ? (
-          <div className="rounded-[24px] border border-emerald-400/20 bg-emerald-500/10 px-5 py-4 text-sm text-emerald-100">
-            {actionMessage}
-          </div>
-        ) : null}
-
-        {isLoading ? (
-          <div className="rounded-[30px] border border-white/10 bg-white/[0.045] p-12 text-center backdrop-blur-xl">
-            <Loader2 className="mx-auto h-8 w-8 animate-spin text-cyan-200" />
-            <div className="mt-4 text-sm text-slate-400">
-              Loading paycheck request data...
-            </div>
-          </div>
-        ) : (
-          <section className="grid items-start gap-6 xl:grid-cols-[minmax(0,1fr)_430px]">
-            <div className="grid gap-6">
-              <SectionCard
-                title="Company & Employee"
-                description="Select the company and employee reference for this paycheck request."
-                icon={Building2}
-              >
-                <div className="grid gap-4 md:grid-cols-2">
-                  <SelectShell
-                    label="Company"
-                    value={form.companyId}
-                    onChange={(value) => updateField("companyId", value)}
-                    disabled={Boolean(isSaving)}
-                  >
-                    <option value="">Select company</option>
-                    {companies.map((row) => (
-                      <option key={row.id} value={row.id}>
-                        {buildCompanyLabel(row)} — {buildCompanySubLabel(row)}
-                      </option>
-                    ))}
-                  </SelectShell>
-
-                  <div className="grid gap-2">
-                    <span className={labelClass()}>Employee Reference</span>
-
-                    <button
+                {employeePickerOpen ? (
+                  <div className="aixia-picker-panel">
+                    <AixiaButton
                       type="button"
-                      disabled={Boolean(isSaving)}
-                      onClick={() => setEmployeePickerOpen((current) => !current)}
-                      className="flex h-11 w-full items-center justify-between gap-3 rounded-2xl border border-white/10 bg-black/20 px-4 text-left text-sm text-white outline-none transition hover:border-cyan-400/20 hover:bg-black/30 focus:border-cyan-400/30 disabled:cursor-not-allowed disabled:opacity-50"
+                      variant="secondary"
+                      onClick={() => {
+                        updateField("employeeRefId", "");
+                        updateField("payProfileId", "");
+                        setEmployeePickerOpen(false);
+                      }}
                     >
-                      <span className="min-w-0 truncate">
-                        {selectedEmployee
-                          ? `${buildEmployeeLabel(selectedEmployee)} — ${buildEmployeeSubLabel(
-                              selectedEmployee
-                            )}`
-                          : "Select employee"}
-                      </span>
-                      <span className="shrink-0 text-xs text-slate-500">
-                        {employeePickerOpen ? "Close" : "Open"}
-                      </span>
-                    </button>
+                      Select employee
+                    </AixiaButton>
 
-                    {employeePickerOpen ? (
-                      <div className="max-h-[320px] overflow-y-auto rounded-2xl border border-white/10 bg-[#080b12] p-2 shadow-2xl shadow-black/40">
-                        <button
+                    {employeeRefs.map((row) => {
+                      const isSelected = row.id === form.employeeRefId;
+
+                      return (
+                        <AixiaButton
+                          key={row.id}
                           type="button"
+                          variant={isSelected ? "primary" : "secondary"}
                           onClick={() => {
-                            updateField("employeeRefId", "");
+                            updateField("employeeRefId", row.id);
                             updateField("payProfileId", "");
                             setEmployeePickerOpen(false);
                           }}
-                          className="flex w-full items-center justify-between gap-3 rounded-xl px-3 py-2.5 text-left text-sm text-slate-400 transition hover:bg-white/[0.06] hover:text-white"
                         >
-                          <span>Select employee</span>
-                        </button>
-
-                        {employeeRefs.map((row) => {
-                          const isSelected = row.id === form.employeeRefId;
-
-                          return (
-                            <button
-                              key={row.id}
-                              type="button"
-                              onClick={() => {
-                                updateField("employeeRefId", row.id);
-                                updateField("payProfileId", "");
-                                setEmployeePickerOpen(false);
-                              }}
-                              className={`flex w-full items-center justify-between gap-3 rounded-xl px-3 py-2.5 text-left text-sm transition ${
-                                isSelected
-                                  ? "bg-cyan-500/10 text-cyan-100"
-                                  : "text-slate-300 hover:bg-white/[0.06] hover:text-white"
-                              }`}
-                            >
-                              <span className="min-w-0">
-                                <span className="block truncate font-semibold">
-                                  {buildEmployeeLabel(row)}
-                                </span>
-                                <span className="mt-0.5 block truncate text-xs text-slate-500">
-                                  {buildEmployeeSubLabel(row)}
-                                </span>
-                              </span>
-
-                              {isSelected ? (
-                                <span className="shrink-0 rounded-full border border-cyan-400/20 bg-cyan-500/10 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-[0.16em] text-cyan-200">
-                                  Selected
-                                </span>
-                              ) : null}
-                            </button>
-                          );
-                        })}
-                      </div>
-                    ) : null}
-                  </div>
-                </div>
-
-                <div className="mt-4 grid gap-4 md:grid-cols-2">
-                  <SummaryBlock
-                    title="Selected Company"
-                    value={buildCompanyLabel(selectedCompany)}
-                    subtitle={buildCompanySubLabel(selectedCompany)}
-                  />
-                  <SummaryBlock
-                    title="Employee"
-                    value={buildEmployeeLabel(selectedEmployee)}
-                    subtitle={buildEmployeeSubLabel(selectedEmployee)}
-                  />
-                </div>
-              </SectionCard>
-
-                            <SectionCard
-                title="Employee Payment Preference"
-                description="The employee writes how they would like the paycheck money transferred. This does not expose company bank accounts."
-                icon={WalletCards}
-              >
-                <div className="grid gap-4">
-                  <div className="grid gap-4 md:grid-cols-2">
-                    <SelectShell
-                      label="Preferred Transfer Method"
-                      value={form.paymentTransferMethod}
-                      onChange={(value) =>
-                        updateField("paymentTransferMethod", value as PaymentTransferMethod)
-                      }
-                      disabled={Boolean(isSaving)}
-                    >
-                      {PAYMENT_TRANSFER_METHODS.map((method) => (
-                        <option key={method.value} value={method.value}>
-                          {method.label}
-                        </option>
-                      ))}
-                    </SelectShell>
-
-                    <SummaryBlock
-                      title="Finance Visibility"
-                      value={getTransferMethodLabel(form.paymentTransferMethod)}
-                      subtitle={getTransferMethodHelper(form.paymentTransferMethod)}
-                    />
-                  </div>
-
-                  {form.paymentTransferMethod !== "company_method" ? (
-                    <div className="grid gap-4 md:grid-cols-2">
-                      <label className="grid gap-2">
-                        <span className={labelClass()}>Transfer Instructions</span>
-                        <textarea
-                          value={form.paymentTransferInstructions}
-                          disabled={Boolean(isSaving)}
-                          onChange={(event) =>
-                            updateField("paymentTransferInstructions", event.target.value)
-                          }
-                          className={textareaClass()}
-                          placeholder="Example: Bank name, beneficiary name, account/IBAN/SWIFT, wallet ID, phone, email, or other transfer details."
-                        />
-                      </label>
-
-                      <label className="grid gap-2">
-                        <span className={labelClass()}>Transfer Contact / Confirmation</span>
-                        <textarea
-                          value={form.paymentTransferContact}
-                          disabled={Boolean(isSaving)}
-                          onChange={(event) =>
-                            updateField("paymentTransferContact", event.target.value)
-                          }
-                          className={textareaClass()}
-                          placeholder="Optional: phone, email, WeChat, WhatsApp, or confirmation notes for Finance/Admin."
-                        />
-                      </label>
-                    </div>
-                  ) : (
-                    <div className="rounded-[24px] border border-cyan-400/20 bg-cyan-500/10 p-4 text-sm leading-6 text-cyan-100">
-                      Finance/Admin will use the company’s existing payroll payment method. No bank
-                      account details are selected or exposed on this requester page.
-                    </div>
-                  )}
-
-                  <div className="rounded-[24px] border border-amber-400/20 bg-amber-500/10 p-4">
-                    <div className="text-sm font-semibold text-amber-100">
-                      Payment preference only
-                    </div>
-                    <p className="mt-2 text-xs leading-5 text-amber-100/75">
-                      This section captures the employee’s preferred receiving method for Finance
-                      review. It is not connected to internal company bank-account master data and
-                      does not execute payment.
-                    </p>
-                  </div>
-                </div>
-              </SectionCard>
-
-              <SectionCard
-                title="Pay Profile Defaults"
-                description="Select the employee pay profile used to fill salary, frequency, currency, and gross amount defaults."
-                icon={UserRound}
-              >
-                <div className="grid gap-4 md:grid-cols-2">
-                  <SelectShell
-                    label="Pay Profile"
-                    value={form.payProfileId}
-                    onChange={(value) => updateField("payProfileId", value)}
-                    disabled={Boolean(isSaving)}
-                  >
-                    <option value="">Select pay profile</option>
-                    {filteredPayProfiles.map((row) => (
-                      <option key={row.id} value={row.id}>
-                        {buildPayProfileLabel(row)}
-                      </option>
-                    ))}
-                  </SelectShell>
-
-                  <label className="grid gap-2">
-                    <span className={labelClass()}>Join Date</span>
-                    <input
-                      type="date"
-                      value={form.joinDate}
-                      disabled={Boolean(isSaving)}
-                      onChange={(event) => updateField("joinDate", event.target.value)}
-                      className={inputClass()}
-                    />
-                  </label>
-                </div>
-
-                {selectedEmployee && filteredPayProfiles.length === 0 ? (
-                  <div className="mt-4 rounded-[24px] border border-amber-400/20 bg-amber-500/10 p-4">
-                    <div className="text-sm font-semibold text-amber-100">
-                      No active pay profile found for this employee.
-                    </div>
-                    <p className="mt-2 text-xs leading-5 text-amber-100/75">
-                      You can still enter paycheck amounts manually, but Finance/Admin should create
-                      the employee pay profile from Finance Master Data → Employees so future
-                      requests auto-fill correctly.
-                    </p>
+                          <UserRound className="h-4 w-4" />
+                          {buildEmployeeLabel(row)} — {buildEmployeeSubLabel(row)}
+                        </AixiaButton>
+                      );
+                    })}
                   </div>
                 ) : null}
+              </AixiaFormField>
+            </AixiaFormGrid>
 
-                <div className="mt-4 grid gap-4 md:grid-cols-3">
-                  <SummaryBlock
-                    title="Pay Type"
-                    value={formatLabel(selectedPayProfile?.pay_type)}
-                    subtitle="Pulled from employee pay profile."
-                  />
-                  <SummaryBlock
-                    title="Frequency"
-                    value={formatLabel(selectedPayProfile?.payment_frequency)}
-                    subtitle="Pulled from employee pay profile."
-                  />
-                  <SummaryBlock
-                    title="Profile Currency"
-                    value={selectedPayProfile?.currency_code || "—"}
-                    subtitle="Used as the default request currency."
-                  />
-                </div>
-              </SectionCard>
+            <AixiaReviewGrid variant="cards">
+              <AixiaValueBlock
+                label="Selected Company"
+                value={buildCompanyLabel(selectedCompany)}
+                detail={buildCompanySubLabel(selectedCompany)}
+              />
+              <AixiaValueBlock
+                label="Employee"
+                value={buildEmployeeLabel(selectedEmployee)}
+                detail={buildEmployeeSubLabel(selectedEmployee)}
+              />
+            </AixiaReviewGrid>
+          </AixiaSection>
 
-              <SectionCard
-                title="Payroll Period"
-                description="Define the payroll period and requested pay date."
-                icon={CalendarDays}
-              >
-                <div className="grid gap-4 md:grid-cols-3">
-                  <label className="grid gap-2">
-                    <span className={labelClass()}>Period Start</span>
-                    <input
-                      type="date"
-                      value={form.periodStart}
-                      disabled={Boolean(isSaving)}
-                      onChange={(event) => updateField("periodStart", event.target.value)}
-                      className={inputClass()}
-                    />
-                  </label>
+          <AixiaSection
+            title="Employee Payment Preference"
+            description="The employee writes how they would like the paycheck money transferred. This does not expose company bank accounts."
+            icon={WalletCards}
+          >
+            <AixiaFormGrid columns="two">
+              <AixiaFormField>
+                <AixiaFieldLabel label="Preferred Transfer Method" required />
+                <AixiaSelectField
+                  value={form.paymentTransferMethod}
+                  disabled={Boolean(isSaving)}
+                  onChange={(event) =>
+                    updateField(
+                      "paymentTransferMethod",
+                      event.target.value as PaymentTransferMethod
+                    )
+                  }
+                >
+                  {PAYMENT_TRANSFER_METHODS.map((method) => (
+                    <option
+                      key={method.value}
+                      value={method.value}
+                      className="bg-[#05070d]"
+                    >
+                      {method.label}
+                    </option>
+                  ))}
+                </AixiaSelectField>
+              </AixiaFormField>
 
-                  <label className="grid gap-2">
-                    <span className={labelClass()}>Period End</span>
-                    <input
-                      type="date"
-                      value={form.periodEnd}
-                      disabled={Boolean(isSaving)}
-                      onChange={(event) => updateField("periodEnd", event.target.value)}
-                      className={inputClass()}
-                    />
-                  </label>
+              <AixiaValueBlock
+                label="Finance Visibility"
+                value={getTransferMethodLabel(form.paymentTransferMethod)}
+                detail={getTransferMethodHelper(form.paymentTransferMethod)}
+              />
+            </AixiaFormGrid>
 
-                  <label className="grid gap-2">
-                    <span className={labelClass()}>Requested Pay Date</span>
-                    <input
-                      type="date"
-                      value={form.requestedPayDate}
-                      disabled={Boolean(isSaving)}
-                      onChange={(event) => updateField("requestedPayDate", event.target.value)}
-                      className={inputClass()}
-                    />
-                  </label>
-                </div>
-              </SectionCard>
-
-              <SectionCard
-                title="Paycheck Amounts"
-                description="Enter the requested amounts. Net amount is calculated automatically."
-                icon={WalletCards}
-              >
-                <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-5">
-                  <SelectShell
-                    label="Currency"
-                    value={form.requestedCurrencyCode}
-                    onChange={(value) => updateField("requestedCurrencyCode", value)}
+            {form.paymentTransferMethod !== "company_method" ? (
+              <AixiaFormGrid columns="two">
+                <AixiaFormField>
+                  <AixiaFieldLabel label="Transfer Instructions" required />
+                  <AixiaTextareaField
+                    value={form.paymentTransferInstructions}
                     disabled={Boolean(isSaving)}
-                  >
-                    {activeCurrencyCodes.map((code) => (
-                      <option key={code} value={code}>
-                        {code}
-                      </option>
-                    ))}
-                  </SelectShell>
+                    onChange={(event) =>
+                      updateField("paymentTransferInstructions", event.target.value)
+                    }
+                    placeholder="Example: Bank name, beneficiary name, account/IBAN/SWIFT, wallet ID, phone, email, or other transfer details."
+                  />
+                </AixiaFormField>
 
-                  <label className="grid gap-2">
-                    <span className={labelClass()}>Gross Amount</span>
-                    <input
-                      type="number"
-                      min="0"
-                      step="0.01"
-                      value={form.grossAmount}
-                      disabled={Boolean(isSaving)}
-                      onChange={(event) => updateField("grossAmount", event.target.value)}
-                      className={inputClass()}
-                    />
-                  </label>
+                <AixiaFormField>
+                  <AixiaFieldLabel label="Transfer Contact / Confirmation" />
+                  <AixiaTextareaField
+                    value={form.paymentTransferContact}
+                    disabled={Boolean(isSaving)}
+                    onChange={(event) =>
+                      updateField("paymentTransferContact", event.target.value)
+                    }
+                    placeholder="Optional: phone, email, WeChat, WhatsApp, or confirmation notes for Finance/Admin."
+                  />
+                </AixiaFormField>
+              </AixiaFormGrid>
+            ) : (
+              <AixiaAlert tone="info">
+                Finance/Admin will use the company’s existing payroll payment method.
+                No bank account details are selected or exposed on this requester page.
+              </AixiaAlert>
+            )}
 
-                  <label className="grid gap-2">
-                    <span className={labelClass()}>Bonus</span>
-                    <input
-                      type="number"
-                      min="0"
-                      step="0.01"
-                      value={form.bonusAmount}
-                      disabled={Boolean(isSaving)}
-                      onChange={(event) => updateField("bonusAmount", event.target.value)}
-                      className={inputClass()}
-                    />
-                  </label>
+            <AixiaAlert tone="warning">
+              This section captures the employee’s preferred receiving method for Finance
+              review. It is not connected to internal company bank-account master data and
+              does not execute payment.
+            </AixiaAlert>
+          </AixiaSection>
 
-                  <label className="grid gap-2">
-                    <span className={labelClass()}>Deduction</span>
-                    <input
-                      type="number"
-                      min="0"
-                      step="0.01"
-                      value={form.deductionAmount}
-                      disabled={Boolean(isSaving)}
-                      onChange={(event) => updateField("deductionAmount", event.target.value)}
-                      className={inputClass()}
-                    />
-                  </label>
+          <AixiaSection
+            title="Pay Profile Defaults"
+            description="Select the employee pay profile used to fill salary, frequency, currency, and gross amount defaults."
+            icon={UserRound}
+          >
+            <AixiaFormGrid columns="two">
+              <AixiaFormField>
+                <AixiaFieldLabel label="Pay Profile" />
+                <AixiaSelectField
+                  value={form.payProfileId}
+                  disabled={Boolean(isSaving)}
+                  onChange={(event) => updateField("payProfileId", event.target.value)}
+                >
+                  <option value="" className="bg-[#05070d]">
+                    Select pay profile
+                  </option>
+                  {filteredPayProfiles.map((row) => (
+                    <option key={row.id} value={row.id} className="bg-[#05070d]">
+                      {buildPayProfileLabel(row)}
+                    </option>
+                  ))}
+                </AixiaSelectField>
+              </AixiaFormField>
 
-                  <label className="grid gap-2">
-                    <span className={labelClass()}>Reimbursement</span>
-                    <input
-                      type="number"
-                      min="0"
-                      step="0.01"
-                      value={form.reimbursementAmount}
-                      disabled={Boolean(isSaving)}
-                      onChange={(event) =>
-                        updateField("reimbursementAmount", event.target.value)
-                      }
-                      className={inputClass()}
-                    />
-                  </label>
-                </div>
+              <AixiaFormField>
+                <AixiaFieldLabel label="Join Date" required />
+                <AixiaInputField
+                  type="date"
+                  value={form.joinDate}
+                  disabled={Boolean(isSaving)}
+                  onChange={(event) => updateField("joinDate", event.target.value)}
+                />
+              </AixiaFormField>
+            </AixiaFormGrid>
 
-                <div className="mt-4 rounded-[24px] border border-cyan-400/15 bg-cyan-500/10 px-5 py-4">
-                  <div className="text-[11px] font-semibold uppercase tracking-[0.2em] text-cyan-200">
-                    Calculated Net Amount
-                  </div>
-                  <div className="mt-2 text-3xl font-semibold text-white">
-                    {form.requestedCurrencyCode || "USD"} {formatMoney(netAmount)}
-                  </div>
-                  <div className="mt-2 text-sm leading-6 text-cyan-100/70">
-                    Formula: gross + bonus + reimbursement − deduction.
-                  </div>
-                </div>
-              </SectionCard>
+            {selectedEmployee && filteredPayProfiles.length === 0 ? (
+              <AixiaAlert tone="warning">
+                No active pay profile found for this employee. You can still enter paycheck
+                amounts manually, but Finance/Admin should create the employee pay profile
+                from Finance Master Data → Employees so future requests auto-fill correctly.
+              </AixiaAlert>
+            ) : null}
 
-              <SectionCard
-                title="Social Insurance"
-                description="Select how social insurance contribution should appear on the filled payslip form."
-                icon={ShieldCheck}
-              >
-                <div className="grid gap-4 md:grid-cols-2">
-                  <SelectShell
-                    label="Social Insurance Contribution"
-                    value={form.socialInsuranceContributionType}
-                    onChange={(value) =>
+            <AixiaReviewGrid variant="cards">
+              <AixiaValueBlock
+                label="Pay Type"
+                value={formatLabel(selectedPayProfile?.pay_type)}
+                detail="Pulled from employee pay profile."
+              />
+              <AixiaValueBlock
+                label="Frequency"
+                value={formatLabel(selectedPayProfile?.payment_frequency)}
+                detail="Pulled from employee pay profile."
+              />
+              <AixiaValueBlock
+                label="Profile Currency"
+                value={selectedPayProfile?.currency_code || "—"}
+                detail="Used as the default request currency."
+              />
+            </AixiaReviewGrid>
+          </AixiaSection>
+
+          <AixiaSection
+            title="Payroll Period"
+            description="Define the payroll period and requested pay date."
+            icon={CalendarDays}
+          >
+            <AixiaFormGrid columns="three">
+              <AixiaFormField>
+                <AixiaFieldLabel label="Period Start" required />
+                <AixiaInputField
+                  type="date"
+                  value={form.periodStart}
+                  disabled={Boolean(isSaving)}
+                  onChange={(event) => updateField("periodStart", event.target.value)}
+                />
+              </AixiaFormField>
+
+              <AixiaFormField>
+                <AixiaFieldLabel label="Period End" required />
+                <AixiaInputField
+                  type="date"
+                  value={form.periodEnd}
+                  disabled={Boolean(isSaving)}
+                  onChange={(event) => updateField("periodEnd", event.target.value)}
+                />
+              </AixiaFormField>
+
+              <AixiaFormField>
+                <AixiaFieldLabel label="Requested Pay Date" required />
+                <AixiaInputField
+                  type="date"
+                  value={form.requestedPayDate}
+                  disabled={Boolean(isSaving)}
+                  onChange={(event) =>
+                    updateField("requestedPayDate", event.target.value)
+                  }
+                />
+              </AixiaFormField>
+            </AixiaFormGrid>
+          </AixiaSection>
+
+                    <AixiaSection
+            title="Paycheck Amounts"
+            description="Enter the requested amounts. Net amount is calculated automatically."
+            icon={WalletCards}
+          >
+            <AixiaFormGrid columns="three">
+              <AixiaFormField>
+                <AixiaFieldLabel label="Currency" required />
+                <AixiaSelectField
+                  value={form.requestedCurrencyCode}
+                  disabled={Boolean(isSaving)}
+                  onChange={(event) =>
+                    updateField("requestedCurrencyCode", event.target.value)
+                  }
+                >
+                  {activeCurrencyCodes.map((code) => (
+                    <option key={code} value={code} className="bg-[#05070d]">
+                      {code}
+                    </option>
+                  ))}
+                </AixiaSelectField>
+              </AixiaFormField>
+
+              <AixiaFormField>
+                <AixiaFieldLabel label="Gross Amount" />
+                <AixiaInputField
+                  type="number"
+                  min="0"
+                  step="0.01"
+                  value={form.grossAmount}
+                  disabled={Boolean(isSaving)}
+                  onChange={(event) => updateField("grossAmount", event.target.value)}
+                />
+              </AixiaFormField>
+
+              <AixiaFormField>
+                <AixiaFieldLabel label="Bonus" />
+                <AixiaInputField
+                  type="number"
+                  min="0"
+                  step="0.01"
+                  value={form.bonusAmount}
+                  disabled={Boolean(isSaving)}
+                  onChange={(event) => updateField("bonusAmount", event.target.value)}
+                />
+              </AixiaFormField>
+
+              <AixiaFormField>
+                <AixiaFieldLabel label="Deduction" />
+                <AixiaInputField
+                  type="number"
+                  min="0"
+                  step="0.01"
+                  value={form.deductionAmount}
+                  disabled={Boolean(isSaving)}
+                  onChange={(event) => updateField("deductionAmount", event.target.value)}
+                />
+              </AixiaFormField>
+
+              <AixiaFormField>
+                <AixiaFieldLabel label="Reimbursement" />
+                <AixiaInputField
+                  type="number"
+                  min="0"
+                  step="0.01"
+                  value={form.reimbursementAmount}
+                  disabled={Boolean(isSaving)}
+                  onChange={(event) =>
+                    updateField("reimbursementAmount", event.target.value)
+                  }
+                />
+              </AixiaFormField>
+
+              <AixiaValueBlock
+                label="Calculated Net Amount"
+                value={`${form.requestedCurrencyCode || "USD"} ${formatMoney(netAmount)}`}
+                detail="Formula: gross + bonus + reimbursement − deduction."
+              />
+            </AixiaFormGrid>
+          </AixiaSection>
+
+          <AixiaSection
+            title="Social Insurance"
+            description="Select how social insurance contribution should appear on the filled payslip form."
+            icon={ShieldCheck}
+          >
+            <AixiaFormGrid columns="two">
+              <AixiaFormField>
+                <AixiaFieldLabel label="Social Insurance Contribution" required />
+                <AixiaSelectField
+                  value={form.socialInsuranceContributionType}
+                  disabled={Boolean(isSaving)}
+                  onChange={(event) =>
+                    updateField(
+                      "socialInsuranceContributionType",
+                      event.target.value as SocialInsuranceContributionType
+                    )
+                  }
+                >
+                  <option value="by_employee" className="bg-[#05070d]">
+                    By Employee
+                  </option>
+                  <option value="by_employer" className="bg-[#05070d]">
+                    By Employer
+                  </option>
+                </AixiaSelectField>
+              </AixiaFormField>
+
+              {form.socialInsuranceContributionType === "by_employer" ? (
+                <AixiaFormField>
+                  <AixiaFieldLabel label="Employer Contribution Details" required />
+                  <AixiaInputField
+                    value={form.socialInsuranceContributionDetails}
+                    disabled={Boolean(isSaving)}
+                    onChange={(event) =>
                       updateField(
-                        "socialInsuranceContributionType",
-                        value as SocialInsuranceContributionType
+                        "socialInsuranceContributionDetails",
+                        event.target.value
                       )
                     }
-                    disabled={Boolean(isSaving)}
-                  >
-                    <option value="by_employee">By Employee</option>
-                    <option value="by_employer">By Employer</option>
-                  </SelectShell>
+                    placeholder="Enter employer social insurance details"
+                  />
+                </AixiaFormField>
+              ) : (
+                <AixiaValueBlock
+                  label="PDF Form Output"
+                  value="By Employee"
+                  detail="The payslip form will mark social insurance contribution as employee-paid."
+                />
+              )}
+            </AixiaFormGrid>
+          </AixiaSection>
 
-                  {form.socialInsuranceContributionType === "by_employer" ? (
-                    <label className="grid gap-2">
-                      <span className={labelClass()}>Employer Contribution Details</span>
-                      <input
-                        value={form.socialInsuranceContributionDetails}
-                        disabled={Boolean(isSaving)}
-                        onChange={(event) =>
-                          updateField("socialInsuranceContributionDetails", event.target.value)
-                        }
-                        placeholder="Enter employer social insurance details"
-                        className={inputClass()}
-                      />
-                    </label>
-                  ) : (
-                    <div className="rounded-[24px] border border-white/10 bg-black/20 p-4">
-                      <div className="text-[11px] font-semibold uppercase tracking-[0.2em] text-slate-500">
-                        PDF Form Output
-                      </div>
-                      <div className="mt-2 text-lg font-semibold text-white">By Employee</div>
-                      <div className="mt-2 text-sm leading-6 text-slate-400">
-                        The payslip form will mark social insurance contribution as employee-paid.
-                      </div>
-                    </div>
-                  )}
-                </div>
-              </SectionCard>
+          <AixiaSection
+            title="Signed Form"
+            description="Generate the filled payslip form, save/sign it, then upload the employee-signed form or provide a signed-form link."
+            icon={UploadCloud}
+          >
+            <AixiaReviewGrid variant="cards">
+              <AixiaValueBlock
+                label="Employee-signed form"
+                value={
+                  signedFormFile || uploadedPath || form.signedFormExternalUrl.trim()
+                    ? "Ready"
+                    : "Missing"
+                }
+                detail="Submission requires an uploaded signed form or external signed-form link. Drafts can be saved without a signed form."
+              />
+              <AixiaValueBlock
+                label="Storage Bucket"
+                value={BUCKET_NAME}
+                detail={uploadedPath ? `Uploaded: ${uploadedPath}` : "No file uploaded yet."}
+              />
+            </AixiaReviewGrid>
 
-                            <SectionCard
-                title="Signed Form"
-                description="Generate the filled payslip form, save/sign it, then upload the employee-signed form or provide a signed-form link."
-                icon={UploadCloud}
+            <div className="aixia-action-stack">
+              <AixiaButton
+                type="button"
+                variant="primary"
+                onClick={generateFilledPdfForm}
+                disabled={!selectedEmployee || !selectedCompany || Boolean(isSaving)}
               >
-                <div className="grid gap-4 lg:grid-cols-[minmax(0,1fr)_280px]">
-                  <div className="grid gap-4">
-                    <button
-                      type="button"
-                      onClick={generateFilledPdfForm}
-                      disabled={!selectedEmployee || !selectedCompany || Boolean(isSaving)}
-                      className="inline-flex h-11 w-fit items-center justify-center gap-2 rounded-2xl border border-emerald-400/20 bg-emerald-500/10 px-4 text-sm font-semibold text-emerald-100 transition hover:bg-emerald-500/15 disabled:cursor-not-allowed disabled:opacity-50"
-                    >
-                      <Download className="h-4 w-4" />
-                      Generate Filled PDF Form
-                    </button>
-
-                    <label className="grid gap-2">
-                      <span className={labelClass()}>Upload Employee-Signed Form</span>
-                      <input
-                        type="file"
-                        accept=".pdf,.png,.jpg,.jpeg,.webp,.doc,.docx"
-                        disabled={Boolean(isSaving)}
-                        onChange={(event) =>
-                          setSignedFormFile(event.target.files?.[0] || null)
-                        }
-                        className="block w-full rounded-2xl border border-white/10 bg-black/20 px-4 py-3 text-sm text-slate-300 file:mr-4 file:rounded-xl file:border-0 file:bg-cyan-500/10 file:px-4 file:py-2 file:text-sm file:font-semibold file:text-cyan-100 hover:file:bg-cyan-500/15 disabled:cursor-not-allowed disabled:opacity-50"
-                      />
-                    </label>
-
-                    <label className="grid gap-2">
-                      <span className={labelClass()}>Signed Form Link</span>
-                      <div className="relative">
-                        <LinkIcon className="pointer-events-none absolute left-4 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-500" />
-                        <input
-                          value={form.signedFormExternalUrl}
-                          disabled={Boolean(isSaving)}
-                          onChange={(event) =>
-                            updateField("signedFormExternalUrl", event.target.value)
-                          }
-                          placeholder="Paste signed form link if stored externally"
-                          className={`${inputClass()} pl-11`}
-                        />
-                      </div>
-                    </label>
-
-                    <label className="grid gap-2">
-                      <span className={labelClass()}>Notes</span>
-                      <textarea
-                        value={form.notes}
-                        disabled={Boolean(isSaving)}
-                        onChange={(event) => updateField("notes", event.target.value)}
-                        placeholder="Optional notes for Finance/Admin review"
-                        className={textareaClass()}
-                      />
-                    </label>
-                  </div>
-
-                  <div className="rounded-[24px] border border-amber-400/20 bg-amber-500/10 p-4">
-                    <div className="text-sm font-semibold text-amber-100">
-                      Employee-signed form required for submission
-                    </div>
-                    <p className="mt-2 text-xs leading-5 text-amber-100/75">
-                      Generate the filled payslip form, save as PDF or print it, sign it as the
-                      employee, then upload the signed file. Drafts can be saved without a signed
-                      form. Submission requires an uploaded signed form or external signed-form link.
-                    </p>
-                    <div className="mt-4 text-xs leading-5 text-amber-100/75">
-                      Bucket: {BUCKET_NAME}
-                    </div>
-                    {signedFormFile ? (
-                      <div className="mt-3 rounded-2xl border border-white/10 bg-black/20 p-3 text-xs text-slate-300">
-                        Selected: {signedFormFile.name}
-                      </div>
-                    ) : null}
-                    {uploadedPath ? (
-                      <div className="mt-3 rounded-2xl border border-emerald-400/15 bg-emerald-500/10 p-3 text-xs text-emerald-100">
-                        Uploaded: {uploadedPath}
-                      </div>
-                    ) : null}
-                  </div>
-                </div>
-              </SectionCard>
+                <Download className="h-4 w-4" />
+                Generate Filled PDF Form
+              </AixiaButton>
             </div>
 
-            <aside className="sticky top-6 grid gap-6 self-start">
-              <section className="overflow-hidden rounded-[30px] border border-white/10 bg-white/[0.045] backdrop-blur-xl">
-                <div className="border-b border-white/10 px-5 py-4">
-                  <div className="text-sm font-semibold uppercase tracking-[0.18em] text-slate-400">
-                    Request Summary
-                  </div>
-                  <p className="mt-1 text-xs leading-5 text-slate-500">
-                    Save draft or submit the signed request to Finance/Admin review.
-                  </p>
-                </div>
+            <AixiaFormGrid columns="two">
+              <AixiaFormFullWidth>
+                <AixiaDocumentUploadPanel
+                  selectedFile={signedFormFile}
+                  attachments={[]}
+                  required={false}
+                  disabled={Boolean(isSaving)}
+                  uploading={Boolean(isSaving)}
+                  accept=".pdf,.png,.jpg,.jpeg,.webp,.doc,.docx"
+                  dropTitle="Drop employee-signed paycheck form here"
+                  dropDescription="Upload the signed payslip/paycheck request form."
+                  uploadLabel="Keep Selected File"
+                  uploadingLabel="Saving..."
+                  selectedFileLabel="Selected signed form"
+                  emptyTitle="No signed form selected"
+                  emptyDescription="Drafts can be saved without a signed form. Submission requires a file or external signed-form link."
+                  requiredMessage="Signed form documentation is required before submission."
+                  onFileSelect={(file) => setSignedFormFile(file)}
+                  onRemoveSelectedFile={() => setSignedFormFile(null)}
+                  onUpload={() => undefined}
+                />
+              </AixiaFormFullWidth>
 
-                <div className="grid gap-3 p-5">
-                  <SummaryBlock
-                    title="Company"
-                    value={buildCompanyLabel(selectedCompany)}
-                    subtitle={buildCompanySubLabel(selectedCompany)}
-                  />
+              <AixiaFormField>
+                <AixiaFieldLabel label="Signed Form Link" />
+                <AixiaInputField
+                  value={form.signedFormExternalUrl}
+                  disabled={Boolean(isSaving)}
+                  onChange={(event) =>
+                    updateField("signedFormExternalUrl", event.target.value)
+                  }
+                  placeholder="Paste signed form link if stored externally"
+                />
+              </AixiaFormField>
 
-                  <SummaryBlock
-                    title="Employee"
-                    value={buildEmployeeLabel(selectedEmployee)}
-                    subtitle={buildEmployeeSubLabel(selectedEmployee)}
-                  />
+              <AixiaFormField>
+                <AixiaFieldLabel label="Notes" />
+                <AixiaTextareaField
+                  value={form.notes}
+                  disabled={Boolean(isSaving)}
+                  onChange={(event) => updateField("notes", event.target.value)}
+                  placeholder="Optional notes for Finance/Admin review"
+                />
+              </AixiaFormField>
+            </AixiaFormGrid>
 
-                  <SummaryBlock
-                    title="Payment Preference"
-                    value={getTransferMethodLabel(form.paymentTransferMethod)}
-                    subtitle={
-                      form.paymentTransferMethod === "company_method"
-                        ? "Finance/Admin will use the company default payroll method."
-                        : form.paymentTransferInstructions.trim() ||
-                          getTransferMethodHelper(form.paymentTransferMethod)
-                    }
-                  />
+            <AixiaAlert tone="warning">
+              Generate the filled payslip form, save as PDF or print it, sign it as the
+              employee, then upload the signed file. Submission requires an uploaded signed
+              form or external signed-form link.
+            </AixiaAlert>
+          </AixiaSection>
+        </div>
 
-                  <SummaryBlock
-                    title="Period"
-                    value={`${formatDate(form.periodStart)} → ${formatDate(form.periodEnd)}`}
-                    subtitle={`Requested pay date: ${formatDate(form.requestedPayDate)}`}
-                  />
+        <aside className="aixia-stack">
+          <AixiaSection
+            title="Request Summary"
+            description="Save draft or submit the signed request to Finance/Admin review."
+            icon={FileSignature}
+          >
+            <AixiaReviewGrid variant="cards">
+              <AixiaValueBlock
+                label="Company"
+                value={buildCompanyLabel(selectedCompany)}
+                detail={buildCompanySubLabel(selectedCompany)}
+              />
+              <AixiaValueBlock
+                label="Employee"
+                value={buildEmployeeLabel(selectedEmployee)}
+                detail={buildEmployeeSubLabel(selectedEmployee)}
+              />
+              <AixiaValueBlock
+                label="Payment Preference"
+                value={getTransferMethodLabel(form.paymentTransferMethod)}
+                detail={
+                  form.paymentTransferMethod === "company_method"
+                    ? "Finance/Admin will use the company default payroll method."
+                    : form.paymentTransferInstructions.trim() ||
+                      getTransferMethodHelper(form.paymentTransferMethod)
+                }
+              />
+              <AixiaValueBlock
+                label="Period"
+                value={`${formatDate(form.periodStart)} → ${formatDate(form.periodEnd)}`}
+                detail={`Requested pay date: ${formatDate(form.requestedPayDate)}`}
+              />
+              <AixiaValueBlock
+                label="Net Paycheck Request"
+                value={`${form.requestedCurrencyCode || "USD"} ${formatMoney(netAmount)}`}
+                detail="Calculated from the amount fields."
+              />
+              <AixiaValueBlock
+                label="Social Insurance"
+                value={
+                  form.socialInsuranceContributionType === "by_employer"
+                    ? "By Employer"
+                    : "By Employee"
+                }
+                detail={
+                  form.socialInsuranceContributionType === "by_employer"
+                    ? form.socialInsuranceContributionDetails || "Details required."
+                    : "Employee-paid contribution option."
+                }
+              />
+              <AixiaValueBlock
+                label="Employee Signed Form"
+                value={
+                  signedFormFile || uploadedPath || form.signedFormExternalUrl.trim()
+                    ? "Ready"
+                    : "Missing"
+                }
+                detail="Required before submitting to Finance/Admin review."
+              />
+            </AixiaReviewGrid>
 
-                  <SummaryBlock
-                    title="Net Paycheck Request"
-                    value={`${form.requestedCurrencyCode || "USD"} ${formatMoney(netAmount)}`}
-                    subtitle="Calculated from the amount fields."
-                  />
+            <div className="aixia-action-stack">
+              <AixiaButton
+                type="button"
+                variant="primary"
+                onClick={() => void saveRequest("submit")}
+                disabled={Boolean(isSaving) || isLoading}
+              >
+                {isSaving === "submit" ? (
+                  <Loader2 className="h-4 w-4 animate-spin" />
+                ) : (
+                  <Send className="h-4 w-4" />
+                )}
+                {isSaving === "submit" ? "Submitting..." : "Submit To Finance Review"}
+              </AixiaButton>
 
-                  <SummaryBlock
-                    title="Social Insurance"
-                    value={
-                      form.socialInsuranceContributionType === "by_employer"
-                        ? "By Employer"
-                        : "By Employee"
-                    }
-                    subtitle={
-                      form.socialInsuranceContributionType === "by_employer"
-                        ? form.socialInsuranceContributionDetails || "Details required."
-                        : "Employee-paid contribution option."
-                    }
-                  />
+              <AixiaButton
+                type="button"
+                variant="secondary"
+                onClick={() => void saveRequest("draft")}
+                disabled={Boolean(isSaving) || isLoading}
+              >
+                {isSaving === "draft" ? (
+                  <Loader2 className="h-4 w-4 animate-spin" />
+                ) : (
+                  <Save className="h-4 w-4" />
+                )}
+                {isSaving === "draft" ? "Saving..." : "Save Draft"}
+              </AixiaButton>
+            </div>
 
-                  <SummaryBlock
-                    title="Employee Signed Form"
-                    value={
-                      signedFormFile || uploadedPath || form.signedFormExternalUrl.trim()
-                        ? "Ready"
-                        : "Missing"
-                    }
-                    subtitle="Required before submitting to Finance/Admin review."
-                  />
-
-                  <div className="grid gap-3 pt-2">
-                    <button
-                      type="button"
-                      onClick={() => void saveRequest("submit")}
-                      disabled={Boolean(isSaving) || isLoading}
-                      className="inline-flex h-12 items-center justify-center gap-2 rounded-2xl border border-cyan-400/20 bg-cyan-500/10 px-4 text-sm font-semibold text-cyan-100 transition hover:bg-cyan-500/15 disabled:cursor-not-allowed disabled:opacity-50"
-                    >
-                      {isSaving === "submit" ? (
-                        <Loader2 className="h-4 w-4 animate-spin" />
-                      ) : (
-                        <Send className="h-4 w-4" />
-                      )}
-                      {isSaving === "submit"
-                        ? "Submitting..."
-                        : "Submit To Finance Review"}
-                    </button>
-
-                    <button
-                      type="button"
-                      onClick={() => void saveRequest("draft")}
-                      disabled={Boolean(isSaving) || isLoading}
-                      className="inline-flex h-12 items-center justify-center gap-2 rounded-2xl border border-white/10 bg-white/[0.04] px-4 text-sm font-semibold text-slate-200 transition hover:border-white/20 hover:bg-white/[0.07] disabled:cursor-not-allowed disabled:opacity-50"
-                    >
-                      {isSaving === "draft" ? (
-                        <Loader2 className="h-4 w-4 animate-spin" />
-                      ) : (
-                        <Save className="h-4 w-4" />
-                      )}
-                      {isSaving === "draft" ? "Saving..." : "Save Draft"}
-                    </button>
-                  </div>
-
-                  <div className="rounded-[24px] border border-white/10 bg-black/20 p-4 text-xs leading-5 text-slate-500">
-                    Finance/Admin review, manager signature, funding allocation, payment
-                    distribution, and employee confirmation happen after this requester page.
-                  </div>
-                </div>
-              </section>
-            </aside>
-          </section>
-        )}
+            <AixiaAlert tone="info">
+              Finance/Admin review, manager signature, funding allocation, payment
+              distribution, and employee confirmation happen after this requester page.
+            </AixiaAlert>
+          </AixiaSection>
+        </aside>
       </div>
 
       <PaycheckRequestPrintDocument
@@ -1985,6 +1799,6 @@ export default function NewPaycheckRequestPage() {
         socialInsuranceContributionType={form.socialInsuranceContributionType}
         socialInsuranceContributionDetails={form.socialInsuranceContributionDetails}
       />
-    </div>
+    </AixiaPage>
   );
 }

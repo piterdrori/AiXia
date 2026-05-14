@@ -1528,44 +1528,44 @@ export default function FinanceMasterDataCurrenciesPage() {
             title="Currency Master Data"
             description="Allowed currencies for the finance engine. Create from major presets or add a manual currency."
             icon={Coins}
-            actions={
-              <AixiaRegistryToolbar
-                search={
-                  <AixiaSearchField
-                    width="wide"
-                    value={currencySearch}
-                    onChange={(event) => setCurrencySearch(event.target.value)}
-                    placeholder="Search currencies"
-                  />
-                }
-                filters={<AixiaBadge tone="neutral">{filteredCurrencies.length} Rows</AixiaBadge>}
-                archiveAction={
-                  permissionState.canDeleteArchive ? (
-                    <AixiaButton
-                      type="button"
-                      variant="danger"
-                      onClick={() => void openArchiveModal()}
-                    >
-                      <Archive className="h-4 w-4" />
-                      Archive
-                    </AixiaButton>
-                  ) : null
-                }
-                primaryAction={
-                  permissionState.canCreate ? (
-                    <AixiaButton
-                      type="button"
-                      variant="primary"
-                      onClick={openCreateCurrencyDialog}
-                    >
-                      <Plus className="h-4 w-4" />
-                      New Currency
-                    </AixiaButton>
-                  ) : null
-                }
-              />
-            }
           >
+            <AixiaRegistryToolbar
+              search={
+                <AixiaSearchField
+                  width="wide"
+                  value={currencySearch}
+                  onChange={(event) => setCurrencySearch(event.target.value)}
+                  placeholder="Search currencies"
+                />
+              }
+              filters={
+                <AixiaBadge tone="neutral">{filteredCurrencies.length} Rows</AixiaBadge>
+              }
+              archiveAction={
+                permissionState.canDeleteArchive ? (
+                  <AixiaButton
+                    type="button"
+                    variant="danger"
+                    onClick={() => void openArchiveModal()}
+                  >
+                    <Archive className="h-4 w-4" />
+                    Archive
+                  </AixiaButton>
+                ) : null
+              }
+              primaryAction={
+                permissionState.canCreate ? (
+                  <AixiaButton
+                    type="button"
+                    variant="primary"
+                    onClick={openCreateCurrencyDialog}
+                  >
+                    <Plus className="h-4 w-4" />
+                    New Currency
+                  </AixiaButton>
+                ) : null
+              }
+            />
             {filteredCurrencies.length === 0 ? (
               <AixiaEmptyState
                 icon={Coins}

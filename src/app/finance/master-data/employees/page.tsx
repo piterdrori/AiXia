@@ -1783,52 +1783,50 @@ export default function FinanceMasterDataEmployeesPage() {
   title="Employee Reference Records"
   description="Search employee references and open each record to manage payroll defaults."
   icon={Users}
-  actions={
-    <AixiaRegistryToolbar
-      search={
-        <AixiaSearchField
-          width="wide"
-          value={search}
-          onChange={(event) => setSearch(event.target.value)}
-          placeholder="Search employees, codes, email, job title, pay profile..."
-        />
-      }
-      filters={
-        <AixiaSelectField
-          value={statusFilter}
-          onChange={(event) => setStatusFilter(event.target.value as FilterStatus)}
-        >
-          <option value="all" className="bg-[#05070d]">
-            All Statuses
-          </option>
-          <option value="active" className="bg-[#05070d]">
-            Active
-          </option>
-          <option value="inactive" className="bg-[#05070d]">
-            Inactive
-          </option>
-        </AixiaSelectField>
-      }
-      archiveAction={
-        permissionState.canDeleteArchive ? (
-          <AixiaButton
-            type="button"
-            variant="danger"
-            onClick={openArchiveModal}
-            disabled={isActionRunning}
-          >
-            {runningAction === "archive-employee" ? (
-              <Loader2 className="h-4 w-4 animate-spin" />
-            ) : (
-              <Archive className="h-4 w-4" />
-            )}
-            Archive
-          </AixiaButton>
-        ) : null
-      }
-    />
-  }
 >
+  <AixiaRegistryToolbar
+    search={
+      <AixiaSearchField
+        width="wide"
+        value={search}
+        onChange={(event) => setSearch(event.target.value)}
+        placeholder="Search employees, codes, email, job title, pay profile..."
+      />
+    }
+    filters={
+      <AixiaSelectField
+        value={statusFilter}
+        onChange={(event) => setStatusFilter(event.target.value as FilterStatus)}
+      >
+        <option value="all" className="bg-[#05070d]">
+          All Statuses
+        </option>
+        <option value="active" className="bg-[#05070d]">
+          Active
+        </option>
+        <option value="inactive" className="bg-[#05070d]">
+          Inactive
+        </option>
+      </AixiaSelectField>
+    }
+    archiveAction={
+      permissionState.canDeleteArchive ? (
+        <AixiaButton
+          type="button"
+          variant="danger"
+          onClick={openArchiveModal}
+          disabled={isActionRunning}
+        >
+          {runningAction === "archive-employee" ? (
+            <Loader2 className="h-4 w-4 animate-spin" />
+          ) : (
+            <Archive className="h-4 w-4" />
+          )}
+          Archive
+        </AixiaButton>
+      ) : null
+    }
+  />
             {filteredRows.length === 0 ? (
               <AixiaEmptyState
                 icon={Users}

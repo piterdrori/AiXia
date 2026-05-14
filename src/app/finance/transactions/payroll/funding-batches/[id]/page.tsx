@@ -23,6 +23,7 @@ import {
   AixiaActionStack,
   AixiaAlert,
   AixiaButton,
+  AixiaAccessRule,
   AixiaDisplayBlock,
   AixiaDocumentUploadPanel,
   type AixiaDocumentUploadAttachment,
@@ -38,6 +39,7 @@ import {
   AixiaMetricGrid,
   AixiaNotFoundState,
   AixiaPage,
+  AixiaRegistryToolbar,
   AixiaSection,
   AixiaSelectField,
   AixiaSmartLayout,
@@ -51,6 +53,7 @@ import {
   AixiaTextareaField,
   AixiaValueBlock,
 } from "@/components/aixia";
+import { type FinanceLoadMode } from "@/lib/finance/pageAccess";
 
 type FundingBatchRow = {
   id: string;
@@ -206,7 +209,7 @@ type RunningAction =
   | "refresh_usage"
   | "open_payment_tool";
 
-type LoadMode = "initial" | "silent";
+type LoadMode = FinanceLoadMode;
 type DistributionSortKey =
   | "distribution_number"
   | "payment_date"
@@ -1667,6 +1670,29 @@ export default function FinancePayrollFundingBatchDetailPage() {
         title="Paycheck Payment Distributions"
         description="Confirmed and draft payment distributions that use this payroll funding pool."
         icon={WalletCards}
+        actions={
+          <AixiaRegistryToolbar
+            primaryAction={
+              isConfirmedPool && !isArchivedOrDeleted ? (
+                <AixiaButton
+                  type="button"
+                  variant="primary"
+                  disabled={actionLocked}
+                  onClick={openPaycheckPaymentTool}
+                >
+                  {runningAction === "open_payment_tool" ? (
+                    <Loader2 className="h-4 w-4 animate-spin" />
+                  ) : (
+                    <WalletCards className="h-4 w-4" />
+                  )}
+                  {runningAction === "open_payment_tool"
+                    ? "Opening..."
+                    : "Open Paycheck Payment Tool"}
+                </AixiaButton>
+              ) : null
+            }
+          />
+        }
       >
         <DistributionTable
           rows={sortedEnrichedDistributions}
@@ -1933,6 +1959,13 @@ export default function FinancePayrollFundingBatchDetailPage() {
           tone="amber"
         />
       </AixiaMetricGrid>
+
+      <AixiaAccessRule
+        title="Payroll Funding Pool Access Rule"
+        description="Payroll funding pool detail access follows the shared Finance permission and registry-control standard."
+      >
+        Read access opens this funding pool detail page. Update access controls edit and proof-status actions. Registry controls for linked paycheck payment distributions use AixiaRegistryToolbar, and action sizing stays inside shared AiXia components.
+      </AixiaAccessRule>
 
       <AixiaSmartLayout
         sidebar="normal"

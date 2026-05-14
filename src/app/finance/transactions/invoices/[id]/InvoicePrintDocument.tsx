@@ -64,73 +64,67 @@ export default function InvoicePrintDocument({
   payments = [],
 }: Props) {
   const currency = invoice?.currency_code || "USD";
-  // ===== RESOLVED DATA (SNAPSHOT → FALLBACK) =====
 
-const companyName =
-  invoice?.company_name_snapshot ||
-  invoice?.company_name ||
-  invoice?.company ||
-  "—";
+  const companyName =
+    invoice?.company_name_snapshot ||
+    invoice?.company_name ||
+    invoice?.company ||
+    "—";
 
-const companyContact =
-  invoice?.company_contact_person_snapshot ||
-  invoice?.company_contact_person ||
-  "";
+  const companyContact =
+    invoice?.company_contact_person_snapshot ||
+    invoice?.company_contact_person ||
+    "";
 
-const companyEmail =
-  invoice?.company_email_snapshot ||
-  invoice?.company_email ||
-  "";
+  const companyEmail =
+    invoice?.company_email_snapshot ||
+    invoice?.company_email ||
+    "";
 
-const companyPhone =
-  invoice?.company_phone_snapshot ||
-  invoice?.company_phone ||
-  "";
+  const companyPhone =
+    invoice?.company_phone_snapshot ||
+    invoice?.company_phone ||
+    "";
 
-const companyAddress =
-  invoice?.company_address_snapshot ||
-  invoice?.company_address ||
-  "";
+  const companyAddress =
+    invoice?.company_address_snapshot ||
+    invoice?.company_address ||
+    "";
 
-const counterpartyName =
-  invoice?.counterparty_name_snapshot ||
-  invoice?.client_name_snapshot ||
-  invoice?.client_name ||
-  invoice?.client ||
-  "—";
+  const counterpartyName =
+    invoice?.counterparty_name_snapshot ||
+    invoice?.client_name_snapshot ||
+    invoice?.client_name ||
+    invoice?.client ||
+    "—";
 
-const counterpartyContact =
-  invoice?.counterparty_contact_person_snapshot ||
-  invoice?.client_contact_person_snapshot ||
-  invoice?.client_contact_person ||
-  "";
+  const counterpartyContact =
+    invoice?.counterparty_contact_person_snapshot ||
+    invoice?.client_contact_person_snapshot ||
+    invoice?.client_contact_person ||
+    "";
 
-const counterpartyEmail =
-  invoice?.counterparty_email_snapshot ||
-  invoice?.client_email_snapshot ||
-  invoice?.client_email ||
-  "";
+  const counterpartyEmail =
+    invoice?.counterparty_email_snapshot ||
+    invoice?.client_email_snapshot ||
+    invoice?.client_email ||
+    "";
 
-const counterpartyPhone =
-  invoice?.counterparty_phone_snapshot ||
-  invoice?.client_phone_snapshot ||
-  invoice?.client_phone ||
-  "";
+  const counterpartyPhone =
+    invoice?.counterparty_phone_snapshot ||
+    invoice?.client_phone_snapshot ||
+    invoice?.client_phone ||
+    "";
 
-const billingAddress =
-  invoice?.billing_address_snapshot ||
-  invoice?.billing_address ||
-  "—";
+  const billingAddress =
+    invoice?.billing_address_snapshot ||
+    invoice?.billing_address ||
+    "—";
 
-const invoiceNumber =
-  invoice?.invoice_number || "Draft";
+  const invoiceNumber = invoice?.invoice_number || "Draft";
+  const issueDate = invoice?.issue_date || invoice?.issued_at || null;
+  const dueDate = invoice?.due_date || null;
 
-const issueDate =
-  invoice?.issue_date || invoice?.issued_at || null;
-
-const dueDate =
-  invoice?.due_date || null;
-  
   const bankInfo = parseBankDetails(invoice?.bank_details_snapshot);
 
   const paymentTerms = invoice?.payment_terms_snapshot || "—";
@@ -139,13 +133,15 @@ const dueDate =
     invoice?.payment_terms_text_snapshot ||
     invoice?.payment_terms_description ||
     "";
-    const shippingTerms =
+
+  const shippingTerms =
     invoice?.shipping_terms_snapshot &&
     !invoice.shipping_terms_snapshot.match(/^[0-9a-f-]{36}$/i)
       ? invoice.shipping_terms_snapshot
       : invoice?.shipping_term_label ||
         invoice?.shipping_term_name ||
         "Not specified";
+
   const termsAndConditions =
     invoice?.terms_and_conditions_snapshot || DEFAULT_TERMS;
 
@@ -157,14 +153,27 @@ const dueDate =
     <>
       <style>{`
         @media print {
-          @page { size: A4; margin: 0; }
-          html, body {
+          @page {
+            size: A4;
+            margin: 0;
+          }
+
+          html,
+          body {
             background: #ffffff !important;
             -webkit-print-color-adjust: exact;
             print-color-adjust: exact;
           }
-          body * { visibility: hidden !important; }
-          .invoice-print-sheet, .invoice-print-sheet * { visibility: visible !important; }
+
+          body * {
+            visibility: hidden !important;
+          }
+
+          .invoice-print-sheet,
+          .invoice-print-sheet * {
+            visibility: visible !important;
+          }
+
           .invoice-print-sheet {
             position: absolute !important;
             left: 0 !important;
@@ -182,241 +191,412 @@ const dueDate =
             display: none !important;
           }
         }
+
+        .invoice-print-page {
+          width: 210mm;
+          min-height: 297mm;
+          background: #ffffff;
+          color: #111827;
+          position: relative;
+          overflow: visible;
+        }
+
+        .invoice-print-header-bg {
+          position: absolute;
+          left: 0;
+          right: 0;
+          top: 0;
+          height: 78mm;
+          background: linear-gradient(135deg, #232323 0%, #1b1b1b 100%);
+          z-index: 0;
+        }
+
+        .invoice-print-body {
+          position: relative;
+          z-index: 2;
+          padding: 9mm 14mm 10mm 14mm;
+        }
+
+        .invoice-print-top {
+          display: grid;
+          grid-template-columns: 1.05fr 0.95fr;
+          gap: 10mm;
+          align-items: start;
+          color: #ffffff;
+          min-height: 72mm;
+        }
+
+        .invoice-print-logo {
+          height: 40mm;
+          width: auto;
+          filter: brightness(0) invert(1);
+          margin-top: -7mm;
+          margin-bottom: 0.5mm;
+        }
+
+        .invoice-print-company {
+          max-width: 84mm;
+          padding-top: 0;
+          margin-top: -5mm;
+        }
+
+        .invoice-print-company-name {
+          margin-bottom: 0.8mm;
+        }
+
+        .invoice-print-company-address {
+          margin-top: 0.5mm;
+          white-space: pre-wrap;
+          word-break: break-word;
+          max-width: 84mm;
+        }
+
+        .invoice-print-title-block {
+          padding-top: 2mm;
+          text-align: left;
+        }
+
+        .invoice-print-title {
+          text-transform: uppercase;
+          margin-bottom: 6mm;
+        }
+
+        .invoice-print-meta-row {
+          display: flex;
+          gap: 4mm;
+        }
+
+        .invoice-print-meta-label {
+          width: 26mm;
+          opacity: 0.78;
+        }
+
+        .invoice-print-recipient-wrap {
+          margin-top: 5mm;
+          margin-bottom: 7mm;
+        }
+
+        .invoice-print-recipient-card {
+          background: #ffffff;
+          border: 0.5pt solid #e5e7eb;
+          border-radius: 2mm;
+          padding: 4mm 5mm;
+          display: grid;
+          grid-template-columns: 1fr;
+        }
+
+        .invoice-print-section-label {
+          text-transform: uppercase;
+          color: #6b7280;
+          margin-bottom: 1.5mm;
+        }
+
+        .invoice-print-recipient-name {
+          margin-bottom: 1mm;
+        }
+
+        .invoice-print-muted-line {
+          color: #4b5563;
+          margin-bottom: 0.8mm;
+        }
+
+        .invoice-print-table-wrap {
+          margin-bottom: 8mm;
+        }
+
+        .invoice-print-table {
+          width: 100%;
+          border-collapse: collapse;
+          table-layout: fixed;
+        }
+
+        .invoice-print-table thead tr {
+          background: #232323;
+          color: #ffffff;
+        }
+
+        .invoice-print-table th {
+          padding: 3mm 2mm;
+        }
+
+        .invoice-print-table td {
+          padding: 3mm 2mm;
+        }
+
+        .invoice-print-table-row {
+          border-bottom: 0.5pt solid #d1d5db;
+        }
+
+        .invoice-print-bottom-grid {
+          display: grid;
+          grid-template-columns: 1.12fr 0.88fr;
+          gap: 14mm;
+          align-items: start;
+          margin-top: 0;
+        }
+
+        .invoice-print-left-copy {
+          color: #374151;
+        }
+
+        .invoice-print-copy-box {
+          background: #ffffff;
+          padding-top: 2mm;
+          padding-right: 1mm;
+        }
+
+        .invoice-print-copy-section {
+          margin-bottom: 4mm;
+        }
+
+        .invoice-print-copy-section-large {
+          margin-bottom: 8mm;
+        }
+
+        .invoice-print-copy-title {
+          color: #111827;
+          margin-bottom: 1.5mm;
+        }
+
+        .invoice-print-terms-text {
+          margin-top: 1mm;
+          padding-left: 0;
+          white-space: pre-wrap;
+          color: #374151;
+        }
+
+        .invoice-print-total-box {
+          background: #ffffff;
+          padding: 2mm 0 0 6mm;
+        }
+
+        .invoice-print-total-row {
+          display: flex;
+          justify-content: space-between;
+          margin-bottom: 2mm;
+        }
+
+        .invoice-print-grand-total {
+          background: #232323;
+          color: #ffffff;
+          display: flex;
+          justify-content: space-between;
+          align-items: center;
+          padding: 3mm 3mm;
+          margin-top: 2.5mm;
+        }
+
+        .invoice-print-paid-row {
+          display: flex;
+          justify-content: space-between;
+          margin-top: 2.4mm;
+        }
+
+        .invoice-print-balance-row {
+          display: flex;
+          justify-content: space-between;
+          margin-top: 2.4mm;
+        }
+
+        .invoice-print-signature {
+          margin-top: 6mm;
+          text-align: center;
+          width: 100%;
+        }
+
+        .invoice-print-signature-line {
+          border-bottom: 0.5pt dashed #6b7280;
+          height: 12mm;
+          margin-bottom: 1.5mm;
+        }
+
+        .invoice-print-footer {
+          margin-top: 1mm;
+          padding-top: 2mm;
+          border-top: 0.5pt solid #e5e7eb;
+          background: #ffffff;
+        }
+
+        .invoice-print-footer-title {
+          color: #111827;
+          margin-bottom: 2mm;
+        }
+
+        .invoice-print-footer-terms {
+          white-space: pre-wrap;
+          color: #374151;
+          margin-bottom: 3mm;
+        }
+
+        .invoice-print-payment-history {
+          margin-top: 2mm;
+          text-align: right;
+          color: #6b7280;
+        }
+
+        .invoice-print-thank-you {
+          text-align: center;
+          text-transform: uppercase;
+          color: #111827;
+          margin-top: 3mm;
+        }
+
+        .invoice-print-text-xs {
+          font-size: 6.8pt;
+          line-height: 1.5;
+        }
+
+        .invoice-print-text-sm {
+          font-size: 7pt;
+          line-height: 1.45;
+        }
+
+        .invoice-print-text-md {
+          font-size: 7.2pt;
+          line-height: 1.2;
+        }
+
+        .invoice-print-text-base {
+          font-size: 8pt;
+          line-height: 1.65;
+        }
+
+        .invoice-print-text-body {
+          font-size: 8.3pt;
+          line-height: 1.38;
+        }
+
+        .invoice-print-text-table {
+          font-size: 8.5pt;
+          line-height: 1.3;
+        }
+
+        .invoice-print-text-total {
+          font-size: 9pt;
+          line-height: 1.3;
+        }
+
+        .invoice-print-text-title-small {
+          font-size: 10.5pt;
+          line-height: 1.2;
+        }
+
+        .invoice-print-text-title {
+          font-size: 31pt;
+          line-height: 1;
+          letter-spacing: 0.09em;
+        }
+
+        .invoice-print-weight-light {
+          font-weight: 300;
+        }
+
+        .invoice-print-weight-medium {
+          font-weight: 500;
+        }
+
+        .invoice-print-weight-semibold {
+          font-weight: 600;
+        }
+
+        .invoice-print-weight-bold {
+          font-weight: 700;
+        }
+
+        .invoice-print-tracking {
+          letter-spacing: 0.1em;
+        }
+
+        .invoice-print-mono {
+          font-family: monospace;
+        }
       `}</style>
 
       <div className="invoice-print-sheet">
-        <div
-          style={{
-            width: "210mm",
-            minHeight: "297mm",
-            background: "#ffffff",
-            color: "#111827",
-            fontFamily:
-              'Inter, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif',
-            position: "relative",
-            overflow: "visible",
-          }}
-        >
-          {/* Header background */}
-          <div
-            style={{
-              position: "absolute",
-              left: 0,
-              right: 0,
-              top: 0,
-              height: "78mm",
-              background: "linear-gradient(135deg, #232323 0%, #1b1b1b 100%)",
-              zIndex: 0,
-            }}
-          />
+        <div className="invoice-print-page">
+          <div className="invoice-print-header-bg" />
 
-          <div style={{ position: "relative", zIndex: 2, padding: "9mm 14mm 10mm 14mm" }}>
-            {/* Top header */}
-            <div
-              style={{
-                display: "grid",
-                gridTemplateColumns: "1.05fr 0.95fr",
-                gap: "10mm",
-                alignItems: "start",
-                color: "#ffffff",
-                minHeight: "72mm",
-              }}
-            >
+          <div className="invoice-print-body">
+            <div className="invoice-print-top">
               <div>
                 <img
                   src="https://leoilrrnwlquunsbulok.supabase.co/storage/v1/object/public/Branding/aixia-logo.png"
                   alt="AiXia"
-                  style={{
-                    height: "40mm",
-                    width: "auto",
-                    filter: "brightness(0) invert(1)",
-                    marginTop: "-7mm",
-                    marginBottom: "0.5mm",
-                  }}
+                  className="invoice-print-logo"
                 />
 
-                <div
-                  style={{
-                    maxWidth: "84mm",
-                    fontSize: "8.3pt",
-                    lineHeight: 1.38,
-                    paddingTop: "0mm",
-                    marginTop: "-5mm",
-                  }}
-                >
-                  <div
-                    style={{
-                      fontWeight: 700,
-                      fontSize: "10.5pt",
-                      marginBottom: "0.8mm",
-                    }}
-                  >
+                <div className="invoice-print-company invoice-print-text-body">
+                  <div className="invoice-print-company-name invoice-print-text-title-small invoice-print-weight-bold">
                     {companyName}
                   </div>
-                  {companyContact ? (
-  <div>{companyContact}</div>
-) : null}
-                 {companyPhone ? (
-  <div>{companyPhone}</div>
-) : null}
-                  {companyEmail ? (
-  <div>{companyEmail}</div>
-) : null}
+                  {companyContact ? <div>{companyContact}</div> : null}
+                  {companyPhone ? <div>{companyPhone}</div> : null}
+                  {companyEmail ? <div>{companyEmail}</div> : null}
                   {companyAddress ? (
-  <div
-    style={{
-      marginTop: "0.5mm",
-      lineHeight: 1.32,
-      whiteSpace: "pre-wrap",
-      wordBreak: "break-word",
-      maxWidth: "84mm",
-      fontSize: "7.9pt",
-    }}
-  >
-    {companyAddress}
-  </div>
-) : null}
+                    <div className="invoice-print-company-address invoice-print-text-body">
+                      {companyAddress}
+                    </div>
+                  ) : null}
                 </div>
               </div>
 
-              <div style={{ paddingTop: "2mm", textAlign: "left" }}>
-                <div
-                  style={{
-                    fontSize: "31pt",
-                    fontWeight: 300,
-                    letterSpacing: "0.09em",
-                    textTransform: "uppercase",
-                    marginBottom: "6mm",
-                    lineHeight: 1,
-                  }}
-                >
+              <div className="invoice-print-title-block">
+                <div className="invoice-print-title invoice-print-text-title invoice-print-weight-light">
                   Invoice
                 </div>
 
-                <div style={{ fontSize: "10pt", lineHeight: 1.95 }}>
-                  <div style={{ display: "flex", gap: "4mm" }}>
-                    <span style={{ width: "26mm", opacity: 0.78 }}>Invoice No</span>
-                    <span style={{ fontWeight: 700 }}>{invoiceNumber}</span>
+                <div className="invoice-print-text-title-small">
+                  <div className="invoice-print-meta-row">
+                    <span className="invoice-print-meta-label">Invoice No</span>
+                    <span className="invoice-print-weight-bold">{invoiceNumber}</span>
                   </div>
-                  <div style={{ display: "flex", gap: "4mm" }}>
-                    <span style={{ width: "26mm", opacity: 0.78 }}>Issue Date</span>
+                  <div className="invoice-print-meta-row">
+                    <span className="invoice-print-meta-label">Issue Date</span>
                     <span>{formatFinanceDate(issueDate)}</span>
                   </div>
-                  <div style={{ display: "flex", gap: "4mm" }}>
-                    <span style={{ width: "26mm", opacity: 0.78 }}>Due Date</span>
+                  <div className="invoice-print-meta-row">
+                    <span className="invoice-print-meta-label">Due Date</span>
                     <span>{formatFinanceDate(dueDate)}</span>
                   </div>
                 </div>
               </div>
             </div>
 
-            {/* Recipient */}
-            <div style={{ marginTop: "5mm", marginBottom: "7mm" }}>
-              <div
-                style={{
-                  background: "#ffffff",
-                  border: "0.5pt solid #e5e7eb",
-                  borderRadius: "2mm",
-                  padding: "4mm 5mm",
-                  display: "grid",
-                  gridTemplateColumns: "1fr",
-                }}
-              >
-                <div
-                  style={{
-                    fontSize: "7.2pt",
-                    textTransform: "uppercase",
-                    letterSpacing: "0.1em",
-                    color: "#6b7280",
-                    fontWeight: 700,
-                    marginBottom: "1.5mm",
-                  }}
-                >
+            <div className="invoice-print-recipient-wrap">
+              <div className="invoice-print-recipient-card">
+                <div className="invoice-print-section-label invoice-print-text-md invoice-print-weight-bold invoice-print-tracking">
                   Recipient
                 </div>
-                <div style={{ fontWeight: 700, fontSize: "11pt", marginBottom: "1mm" }}>
+                <div className="invoice-print-recipient-name invoice-print-text-title-small invoice-print-weight-bold">
                   {counterpartyName}
                 </div>
-             {counterpartyContact ? (
-  <div style={{ fontSize: "8.3pt", color: "#4b5563", marginBottom: "0.8mm" }}>
-    {counterpartyContact}
-  </div>
-) : null}
-             {counterpartyEmail || counterpartyPhone ? (
-  <div style={{ fontSize: "8.1pt", color: "#4b5563", marginBottom: "0.8mm" }}>
-    {[counterpartyEmail, counterpartyPhone]
-      .filter(Boolean)
-      .join(" • ")}
-  </div>
-) : null}
-                <div style={{ fontSize: "8.3pt", color: "#4b5563", lineHeight: 1.55 }}>
+                {counterpartyContact ? (
+                  <div className="invoice-print-muted-line invoice-print-text-body">
+                    {counterpartyContact}
+                  </div>
+                ) : null}
+                {counterpartyEmail || counterpartyPhone ? (
+                  <div className="invoice-print-muted-line invoice-print-text-base">
+                    {[counterpartyEmail, counterpartyPhone].filter(Boolean).join(" • ")}
+                  </div>
+                ) : null}
+                <div className="invoice-print-text-body" style={{ color: "#4b5563" }}>
                   {billingAddress}
                 </div>
               </div>
             </div>
 
-            {/* Table */}
-            <div style={{ marginBottom: "8mm" }}>
-              <table
-                style={{
-                  width: "100%",
-                  borderCollapse: "collapse",
-                  tableLayout: "fixed",
-                  fontSize: "8.5pt",
-                }}
-              >
+            <div className="invoice-print-table-wrap">
+              <table className="invoice-print-table invoice-print-text-table">
                 <thead>
-                  <tr style={{ background: "#232323", color: "#ffffff" }}>
-                    <th
-                      style={{
-                        width: "9%",
-                        textAlign: "center",
-                        padding: "3mm 2mm",
-                        fontWeight: 700,
-                      }}
-                    >
-                      No
-                    </th>
-                    <th
-                      style={{
-                        width: "49%",
-                        textAlign: "left",
-                        padding: "3mm 3mm",
-                        fontWeight: 700,
-                      }}
-                    >
+                  <tr>
+                    <th style={{ width: "9%", textAlign: "center" }}>No</th>
+                    <th style={{ width: "49%", textAlign: "left", paddingLeft: "3mm" }}>
                       Item Description
                     </th>
-                    <th
-                      style={{
-                        width: "15%",
-                        textAlign: "right",
-                        padding: "3mm 2mm",
-                        fontWeight: 700,
-                      }}
-                    >
-                      Unit Price
-                    </th>
-                    <th
-                      style={{
-                        width: "12%",
-                        textAlign: "right",
-                        padding: "3mm 2mm",
-                        fontWeight: 700,
-                      }}
-                    >
-                      Quantity
-                    </th>
-                    <th
-                      style={{
-                        width: "15%",
-                        textAlign: "right",
-                        padding: "3mm 2mm",
-                        fontWeight: 700,
-                      }}
-                    >
-                      Value
-                    </th>
+                    <th style={{ width: "15%", textAlign: "right" }}>Unit Price</th>
+                    <th style={{ width: "12%", textAlign: "right" }}>Quantity</th>
+                    <th style={{ width: "15%", textAlign: "right" }}>Value</th>
                   </tr>
                 </thead>
                 <tbody>
@@ -430,36 +610,22 @@ const dueDate =
                       Math.max(quantity * unitPrice - discount, 0);
 
                     return (
-                      <tr key={item.id || index} style={{ borderBottom: "0.5pt solid #d1d5db" }}>
-                        <td style={{ padding: "3mm 2mm", textAlign: "center" }}>{index + 1}</td>
-                        <td style={{ padding: "3mm 3mm", verticalAlign: "top" }}>
-                          <div style={{ fontWeight: 500 }}>{item.description || "—"}</div>
+                      <tr key={item.id || index} className="invoice-print-table-row">
+                        <td style={{ textAlign: "center" }}>{index + 1}</td>
+                        <td style={{ paddingLeft: "3mm", verticalAlign: "top" }}>
+                          <div className="invoice-print-weight-medium">
+                            {item.description || "—"}
+                          </div>
                         </td>
-                        <td
-                          style={{
-                            padding: "3mm 2mm",
-                            textAlign: "right",
-                            fontFamily: "monospace",
-                          }}
-                        >
+                        <td className="invoice-print-mono" style={{ textAlign: "right" }}>
                           {formatFinanceMoney(unitPrice, currency)}
                         </td>
-                        <td
-                          style={{
-                            padding: "3mm 2mm",
-                            textAlign: "right",
-                            fontFamily: "monospace",
-                          }}
-                        >
+                        <td className="invoice-print-mono" style={{ textAlign: "right" }}>
                           {quantity}
                         </td>
                         <td
-                          style={{
-                            padding: "3mm 2mm",
-                            textAlign: "right",
-                            fontFamily: "monospace",
-                            fontWeight: 700,
-                          }}
+                          className="invoice-print-mono invoice-print-weight-bold"
+                          style={{ textAlign: "right" }}
                         >
                           {formatFinanceMoney(value, currency)}
                         </td>
@@ -468,7 +634,7 @@ const dueDate =
                   })}
 
                   {Array.from({ length: fillerRows }).map((_, index) => (
-                    <tr key={`filler-${index}`} style={{ borderBottom: "0.5pt solid #d1d5db" }}>
+                    <tr key={`filler-${index}`} className="invoice-print-table-row">
                       <td style={{ height: "7mm", padding: "0 2mm" }} />
                       <td style={{ height: "7mm", padding: "0 3mm" }} />
                       <td style={{ height: "7mm", padding: "0 2mm" }} />
@@ -480,84 +646,49 @@ const dueDate =
               </table>
             </div>
 
-            {/* Bottom content */}
-            <div
-              style={{
-                display: "grid",
-                gridTemplateColumns: "1.12fr 0.88fr",
-                gap: "14mm",
-                alignItems: "start",
-                marginTop: "0mm",
-              }}
-            >
-              <div style={{ fontSize: "8pt", color: "#374151" }}>
-                <div
-                  style={{
-                    background: "#ffffff",
-                    paddingTop: "2mm",
-                    paddingRight: "1mm",
-                  }}
-                >
-                  <div style={{ marginBottom: "4mm" }}>
-                    <div
-                      style={{
-                        fontWeight: 700,
-                        fontSize: "9pt",
-                        color: "#111827",
-                        marginBottom: "1.5mm",
-                      }}
-                    >
+            <div className="invoice-print-bottom-grid">
+              <div className="invoice-print-left-copy invoice-print-text-base">
+                <div className="invoice-print-copy-box">
+                  <div className="invoice-print-copy-section">
+                    <div className="invoice-print-copy-title invoice-print-text-total invoice-print-weight-bold">
                       Payment and Shipping Terms
                     </div>
-                    <div style={{ lineHeight: 1.7 }}>
+                    <div>
                       <div>
                         <span style={{ color: "#6b7280" }}>Payment Terms: </span>
-                        <span style={{ fontWeight: 500 }}>{paymentTerms}</span>
+                        <span className="invoice-print-weight-medium">{paymentTerms}</span>
                       </div>
 
                       {paymentTermsText ? (
-                        <div
-                          style={{
-                            marginTop: "1mm",
-                            paddingLeft: "0mm",
-                            lineHeight: 1.55,
-                            whiteSpace: "pre-wrap",
-                            color: "#374151",
-                          }}
-                        >
+                        <div className="invoice-print-terms-text invoice-print-text-body">
                           {paymentTermsText}
                         </div>
                       ) : null}
 
                       <div style={{ marginTop: paymentTermsText ? "1.2mm" : "0mm" }}>
                         <span style={{ color: "#6b7280" }}>Shipping Terms: </span>
-                        <span style={{ fontWeight: 500 }}>{shippingTerms}</span>
+                        <span className="invoice-print-weight-medium">{shippingTerms}</span>
                       </div>
                       <div>
                         <span style={{ color: "#6b7280" }}>Currency: </span>
-                        <span style={{ fontWeight: 500 }}>{currency}</span>
+                        <span className="invoice-print-weight-medium">{currency}</span>
                       </div>
                     </div>
                   </div>
 
-                  <div style={{ marginBottom: "8mm" }}>
-                    <div
-                      style={{
-                        fontWeight: 700,
-                        fontSize: "9pt",
-                        color: "#111827",
-                        marginBottom: "1.5mm",
-                      }}
-                    >
+                  <div className="invoice-print-copy-section-large">
+                    <div className="invoice-print-copy-title invoice-print-text-total invoice-print-weight-bold">
                       Bank Details
                     </div>
 
                     {bankInfo ? (
-                      <div style={{ lineHeight: 1.65 }}>
+                      <div>
                         {bankInfo.beneficiary ? (
                           <div>
                             <span style={{ color: "#6b7280" }}>Beneficiary: </span>
-                            <span style={{ fontWeight: 600 }}>{bankInfo.beneficiary}</span>
+                            <span className="invoice-print-weight-semibold">
+                              {bankInfo.beneficiary}
+                            </span>
                           </div>
                         ) : null}
                         {bankInfo.bank ? (
@@ -575,7 +706,7 @@ const dueDate =
                         {bankInfo.accountNumber ? (
                           <div>
                             <span style={{ color: "#6b7280" }}>Bank Account: </span>
-                            <span style={{ fontFamily: "monospace", fontWeight: 600 }}>
+                            <span className="invoice-print-mono invoice-print-weight-semibold">
                               {bankInfo.accountNumber}
                             </span>
                           </div>
@@ -583,7 +714,7 @@ const dueDate =
                         {bankInfo.swift ? (
                           <div>
                             <span style={{ color: "#6b7280" }}>SWIFT Code: </span>
-                            <span style={{ fontFamily: "monospace", fontWeight: 600 }}>
+                            <span className="invoice-print-mono invoice-print-weight-semibold">
                               {bankInfo.swift}
                             </span>
                           </div>
@@ -591,7 +722,7 @@ const dueDate =
                         {bankInfo.iban ? (
                           <div>
                             <span style={{ color: "#6b7280" }}>IBAN: </span>
-                            <span style={{ fontFamily: "monospace", fontWeight: 600 }}>
+                            <span className="invoice-print-mono invoice-print-weight-semibold">
                               {bankInfo.iban}
                             </span>
                           </div>
@@ -604,206 +735,86 @@ const dueDate =
                 </div>
               </div>
 
-              {/* Right Column - Totals and Signature */}
               <div>
-                <div
-                  style={{
-                    background: "#ffffff",
-                    padding: "2mm 0 0 6mm",
-                  }}
-                >
-                  <div
-                    style={{
-                      display: "flex",
-                      justifyContent: "space-between",
-                      marginBottom: "2mm",
-                      fontSize: "9pt",
-                    }}
-                  >
+                <div className="invoice-print-total-box">
+                  <div className="invoice-print-total-row invoice-print-text-total">
                     <span>SUB TOTAL</span>
-                    <span style={{ fontFamily: "monospace" }}>
+                    <span className="invoice-print-mono">
                       {formatFinanceMoney(financialSummary?.subtotal || 0, currency)}
                     </span>
                   </div>
 
-                  <div
-                    style={{
-                      display: "flex",
-                      justifyContent: "space-between",
-                      marginBottom: "2mm",
-                      fontSize: "9pt",
-                    }}
-                  >
+                  <div className="invoice-print-total-row invoice-print-text-total">
                     <span>TAX / VAT</span>
-                    <span style={{ fontFamily: "monospace" }}>
+                    <span className="invoice-print-mono">
                       {formatFinanceMoney(financialSummary?.tax || 0, currency)}
                     </span>
                   </div>
 
-                  <div
-                    style={{
-                      display: "flex",
-                      justifyContent: "space-between",
-                      marginBottom: "2mm",
-                      fontSize: "9pt",
-                    }}
-                  >
+                  <div className="invoice-print-total-row invoice-print-text-total">
                     <span>DISCOUNT</span>
-                    <span style={{ fontFamily: "monospace" }}>
+                    <span className="invoice-print-mono">
                       {formatFinanceMoney(financialSummary?.discount || 0, currency)}
                     </span>
                   </div>
 
-                  <div
-                    style={{
-                      background: "#232323",
-                      color: "#ffffff",
-                      display: "flex",
-                      justifyContent: "space-between",
-                      alignItems: "center",
-                      padding: "3mm 3mm",
-                      marginTop: "2.5mm",
-                    }}
-                  >
-                    <span
-                      style={{
-                        fontSize: "10pt",
-                        fontWeight: 700,
-                        textTransform: "uppercase",
-                      }}
-                    >
+                  <div className="invoice-print-grand-total">
+                    <span className="invoice-print-text-title-small invoice-print-weight-bold">
                       Grand Total
                     </span>
-                    <span
-                      style={{
-                        fontFamily: "monospace",
-                        fontSize: "11pt",
-                        fontWeight: 700,
-                      }}
-                    >
+                    <span className="invoice-print-mono invoice-print-text-title-small invoice-print-weight-bold">
                       {formatFinanceMoney(financialSummary?.total || 0, currency)}
                     </span>
                   </div>
 
                   {(financialSummary?.paid || 0) > 0 ? (
-                    <div
-                      style={{
-                        display: "flex",
-                        justifyContent: "space-between",
-                        marginTop: "2.4mm",
-                        fontSize: "8.7pt",
-                      }}
-                    >
+                    <div className="invoice-print-paid-row invoice-print-text-body">
                       <span>PAID</span>
-                      <span style={{ fontFamily: "monospace" }}>
+                      <span className="invoice-print-mono">
                         {formatFinanceMoney(financialSummary?.paid || 0, currency)}
                       </span>
                     </div>
                   ) : null}
 
-                  <div
-                    style={{
-                      display: "flex",
-                      justifyContent: "space-between",
-                      marginTop: "2.4mm",
-                      fontSize: "9pt",
-                      fontWeight: 700,
-                    }}
-                  >
+                  <div className="invoice-print-balance-row invoice-print-text-total invoice-print-weight-bold">
                     <span>BALANCE DUE</span>
-                    <span style={{ fontFamily: "monospace" }}>
+                    <span className="invoice-print-mono">
                       {formatFinanceMoney(financialSummary?.balance || 0, currency)}
                     </span>
                   </div>
 
-                  {/* Signature - Under Balance Due with signing space */}
-                  <div
-                    style={{
-                      marginTop: "6mm",
-                      textAlign: "center",
-                      width: "100%",
-                    }}
-                  >
-                    <div
-                      style={{
-                        borderBottom: "0.5pt dashed #6b7280",
-                        height: "12mm",
-                        marginBottom: "1.5mm",
-                      }}
-                    />
-                    <div style={{ fontSize: "8pt", color: "#374151" }}>Signature</div>
+                  <div className="invoice-print-signature">
+                    <div className="invoice-print-signature-line" />
+                    <div className="invoice-print-text-base" style={{ color: "#374151" }}>
+                      Signature
+                    </div>
                   </div>
                 </div>
               </div>
             </div>
 
-            {/* Footer */}
-            <div
-              style={{
-                marginTop: "1mm",
-                paddingTop: "2mm",
-                borderTop: "0.5pt solid #e5e7eb",
-                background: "#ffffff",
-              }}
-            >
-              <div
-                style={{
-                  fontWeight: 700,
-                  fontSize: "9pt",
-                  color: "#111827",
-                  marginBottom: "2mm",
-                }}
-              >
+            <div className="invoice-print-footer">
+              <div className="invoice-print-footer-title invoice-print-text-total invoice-print-weight-bold">
                 Terms and Conditions
               </div>
 
-              <div
-                style={{
-                  lineHeight: 1.45,
-                  whiteSpace: "pre-wrap",
-                  fontSize: "7pt",
-                  color: "#374151",
-                  marginBottom: "3mm",
-                }}
-              >
+              <div className="invoice-print-footer-terms invoice-print-text-sm">
                 {termsAndConditions}
               </div>
 
-              {/* Payment History - Right aligned if exists */}
               {payments?.length > 0 ? (
-                <div
-                  style={{
-                    marginTop: "2mm",
-                    textAlign: "right",
-                    fontSize: "6.8pt",
-                    color: "#6b7280",
-                    lineHeight: 1.5,
-                  }}
-                >
+                <div className="invoice-print-payment-history invoice-print-text-xs">
                   {payments.map((payment: any, index: number) => (
                     <div key={payment.id || index}>
                       {formatFinanceDate(payment.payment_date)} ·{" "}
                       {formatFinanceMoney(payment.amount, currency)}
-                      {payment.reference_number
-                        ? ` · ${payment.reference_number}`
-                        : ""}
+                      {payment.reference_number ? ` · ${payment.reference_number}` : ""}
                     </div>
                   ))}
                 </div>
               ) : null}
 
-              {/* Thank You - Centered at bottom */}
-              <div
-                style={{
-                  textAlign: "center",
-                  fontSize: "10pt",
-                  fontWeight: 700,
-                  letterSpacing: "0.08em",
-                  textTransform: "uppercase",
-                  color: "#111827",
-                  marginTop: "3mm",
-                }}
-              >
+              <div className="invoice-print-thank-you invoice-print-text-title-small invoice-print-weight-bold">
                 Thank You For Your Business
               </div>
             </div>

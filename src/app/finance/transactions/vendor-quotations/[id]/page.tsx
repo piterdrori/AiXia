@@ -1,3 +1,5 @@
+"use client";
+
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { useNavigate, useParams } from "react-router-dom";
 import {
@@ -6,27 +8,49 @@ import {
   CheckCircle,
   FileText,
   Link2,
-  Paperclip,
   Plus,
   Receipt,
   RotateCcw,
   Save,
+  ShieldCheck,
   SquarePen,
   Trash2,
   Upload,
+  Wallet,
   XCircle,
 } from "lucide-react";
 
-import { supabase } from "@/lib/supabase";
-import { Badge } from "@/components/ui/badge";
-import { Button } from "@/components/ui/button";
 import {
-  Card,
-  CardContent,
-  CardDescription,
-  CardHeader,
-  CardTitle,
-} from "@/components/ui/card";
+  AixiaAccessRule,
+  AixiaActionCard,
+  AixiaActionStack,
+  AixiaAlert,
+  AixiaBadge,
+  AixiaButton,
+  AixiaDisplayBlock,
+  AixiaDocumentUploadPanel,
+  type AixiaDocumentUploadAttachment,
+  AixiaEmptyState,
+  AixiaFieldLabel,
+  AixiaFormField,
+  AixiaFormFullWidth,
+  AixiaFormGrid,
+  AixiaFormRowCard,
+  AixiaHero,
+  AixiaInputField,
+  AixiaLoadingState,
+  AixiaMetricCard,
+  AixiaMetricGrid,
+  AixiaPage,
+  AixiaReviewGrid,
+  AixiaSection,
+  AixiaSelectField,
+  AixiaSmartLayout,
+  AixiaStatusBadge,
+  AixiaTextareaField,
+  AixiaValueBlock,
+} from "@/components/aixia";
+import { supabase } from "@/lib/supabase";
 
 type VendorQuotationStatus =
   | "draft"
@@ -143,38 +167,12 @@ type CompanyOption = {
   address_line_2: string | null;
 };
 
-type CurrencyOption = {
-  id: string;
-  currency_code: string;
-  currency_name: string;
-};
-
-type PaymentTermOption = {
-  id: string;
-  name: string;
-};
-
-type ShippingTermOption = {
-  id: string;
-  name: string;
-};
-
-type UnitOption = {
-  id: string;
-  name: string;
-  code: string | null;
-};
-
-type TaxCodeOption = {
-  id: string;
-  name: string;
-  rate_percent: number | string | null;
-};
-
-type ExpenseCategoryOption = {
-  id: string;
-  name: string;
-};
+type CurrencyOption = { id: string; currency_code: string; currency_name: string };
+type PaymentTermOption = { id: string; name: string };
+type ShippingTermOption = { id: string; name: string };
+type UnitOption = { id: string; name: string; code: string | null };
+type TaxCodeOption = { id: string; name: string; rate_percent: number | string | null };
+type ExpenseCategoryOption = { id: string; name: string };
 
 type ItemOption = {
   id: string;
@@ -248,23 +246,15 @@ function formatMoney(value: number | string | null | undefined, currency = "USD"
 
 function formatDate(value: string | null | undefined) {
   if (!value) return "—";
-
   const parsed = new Date(value);
   if (Number.isNaN(parsed.getTime())) return value;
-
-  return parsed.toLocaleDateString(undefined, {
-    year: "numeric",
-    month: "short",
-    day: "numeric",
-  });
+  return parsed.toLocaleDateString(undefined, { year: "numeric", month: "short", day: "numeric" });
 }
 
 function formatDateTime(value: string | null | undefined) {
   if (!value) return "—";
-
   const parsed = new Date(value);
   if (Number.isNaN(parsed.getTime())) return value;
-
   return parsed.toLocaleString(undefined, {
     year: "numeric",
     month: "short",
@@ -276,34 +266,10 @@ function formatDateTime(value: string | null | undefined) {
 
 function formatFileSize(value: number | string | null | undefined) {
   const size = toNumber(value);
-
   if (!size) return "—";
   if (size < 1024) return `${size} B`;
   if (size < 1024 * 1024) return `${Math.round(size / 102.4) / 10} KB`;
-
   return `${Math.round(size / 1024 / 102.4) / 10} MB`;
-}
-
-function getStatusBadgeClass(status: VendorQuotationStatus | string) {
-  switch (status) {
-    case "draft":
-      return "border-slate-400/20 bg-slate-500/10 text-slate-300";
-    case "received":
-      return "border-cyan-400/20 bg-cyan-500/10 text-cyan-200";
-    case "under_review":
-      return "border-amber-400/20 bg-amber-500/10 text-amber-200";
-    case "accepted":
-      return "border-emerald-400/20 bg-emerald-500/10 text-emerald-200";
-    case "converted":
-      return "border-violet-400/20 bg-violet-500/10 text-violet-200";
-    case "rejected":
-    case "expired":
-    case "deleted":
-      return "border-rose-400/20 bg-rose-500/10 text-rose-200";
-    case "archived":
-    default:
-      return "border-white/10 bg-white/[0.05] text-slate-300";
-  }
 }
 
 function normalizeStatusLabel(status: string | null | undefined) {
@@ -343,7 +309,6 @@ function createEmptyLineDraft(): LineDraft {
 
 function buildVendorAddress(vendor: VendorOption | null) {
   if (!vendor) return "";
-
   return [
     vendor.address_line_1,
     vendor.address_line_2,
@@ -358,7 +323,6 @@ function buildVendorAddress(vendor: VendorOption | null) {
 
 function buildCompanyAddress(company: CompanyOption | null) {
   if (!company) return "";
-
   return [
     company.address_line_1,
     company.address_line_2,
@@ -373,13 +337,8 @@ function buildCompanyAddress(company: CompanyOption | null) {
 
 function resolveUploadMimeType(file: File) {
   const currentType = file.type?.trim();
-
-  if (currentType && currentType !== "application/octet-stream") {
-    return currentType;
-  }
-
+  if (currentType && currentType !== "application/octet-stream") return currentType;
   const extension = file.name.split(".").pop()?.toLowerCase();
-
   switch (extension) {
     case "pdf":
       return "application/pdf";
@@ -414,11 +373,7 @@ async function uploadVendorQuotationDocument(
 
   const { error: uploadError } = await supabase.storage
     .from("finance-vendor-quotation-documents")
-    .upload(storagePath, selectedFile, {
-      upsert: false,
-      contentType: resolvedMimeType,
-    });
-
+    .upload(storagePath, selectedFile, { upsert: false, contentType: resolvedMimeType });
   if (uploadError) throw uploadError;
 
   const { data: fileUploadRow, error: fileUploadError } = await supabase
@@ -433,23 +388,16 @@ async function uploadVendorQuotationDocument(
     })
     .select("id")
     .single();
-
   if (fileUploadError) throw fileUploadError;
 
-  const { error: attachmentError } = await supabase
-    .from("finance_record_attachments")
-    .insert({
-      entity_type: "finance_vendor_quotation",
-      entity_id: vendorQuotationId,
-      file_upload_id: fileUploadRow.id,
-      uploaded_by: userId,
-      notes: "Vendor quotation document",
-      metadata: {
-        bucket: "finance-vendor-quotation-documents",
-        uploaded_from: "vendor_quotation_id_page",
-      },
-    });
-
+  const { error: attachmentError } = await supabase.from("finance_record_attachments").insert({
+    entity_type: "finance_vendor_quotation",
+    entity_id: vendorQuotationId,
+    file_upload_id: fileUploadRow.id,
+    uploaded_by: userId,
+    notes: "Vendor quotation document",
+    metadata: { bucket: "finance-vendor-quotation-documents", uploaded_from: "vendor_quotation_id_page" },
+  });
   if (attachmentError) throw attachmentError;
 }
 
@@ -461,8 +409,7 @@ export default function FinanceVendorQuotationDetailPage() {
   const [lineItems, setLineItems] = useState<VendorQuotationLineItem[]>([]);
   const [lineDrafts, setLineDrafts] = useState<LineDraft[]>([]);
   const [attachments, setAttachments] = useState<AttachmentRow[]>([]);
-  const [purchaseOrderLink, setPurchaseOrderLink] =
-    useState<PurchaseOrderLinkRow | null>(null);
+  const [purchaseOrderLink, setPurchaseOrderLink] = useState<PurchaseOrderLinkRow | null>(null);
 
   const [vendors, setVendors] = useState<VendorOption[]>([]);
   const [companies, setCompanies] = useState<CompanyOption[]>([]);
@@ -471,9 +418,7 @@ export default function FinanceVendorQuotationDetailPage() {
   const [shippingTerms, setShippingTerms] = useState<ShippingTermOption[]>([]);
   const [units, setUnits] = useState<UnitOption[]>([]);
   const [taxCodes, setTaxCodes] = useState<TaxCodeOption[]>([]);
-  const [expenseCategories, setExpenseCategories] = useState<
-    ExpenseCategoryOption[]
-  >([]);
+  const [expenseCategories, setExpenseCategories] = useState<ExpenseCategoryOption[]>([]);
   const [items, setItems] = useState<ItemOption[]>([]);
 
   const [isLoading, setIsLoading] = useState(true);
@@ -486,7 +431,6 @@ export default function FinanceVendorQuotationDetailPage() {
 
   const [isOverviewEditMode, setIsOverviewEditMode] = useState(false);
   const [isLinesEditMode, setIsLinesEditMode] = useState(false);
-  const [isUploadPanelOpen, setIsUploadPanelOpen] = useState(false);
   const [uploadFile, setUploadFile] = useState<File | null>(null);
 
   const [overviewDraft, setOverviewDraft] = useState<OverviewDraft>({
@@ -505,46 +449,28 @@ export default function FinanceVendorQuotationDetailPage() {
     () => vendors.find((vendor) => vendor.id === quotation?.vendor_id) ?? null,
     [quotation?.vendor_id, vendors]
   );
-
   const selectedCompany = useMemo(
-    () =>
-      companies.find((company) => company.id === quotation?.company_id) ?? null,
+    () => companies.find((company) => company.id === quotation?.company_id) ?? null,
     [companies, quotation?.company_id]
   );
-
   const selectedDraftVendor = useMemo(
-    () =>
-      vendors.find((vendor) => vendor.id === overviewDraft.vendor_id) ??
-      selectedVendor,
+    () => vendors.find((vendor) => vendor.id === overviewDraft.vendor_id) ?? selectedVendor,
     [overviewDraft.vendor_id, selectedVendor, vendors]
   );
-
   const selectedDraftCompany = useMemo(
-    () =>
-      companies.find((company) => company.id === overviewDraft.company_id) ??
-      selectedCompany,
+    () => companies.find((company) => company.id === overviewDraft.company_id) ?? selectedCompany,
     [companies, overviewDraft.company_id, selectedCompany]
   );
-
   const selectedPaymentTerm = useMemo(
-    () =>
-      paymentTerms.find((term) => term.id === quotation?.payment_terms_id) ??
-      null,
+    () => paymentTerms.find((term) => term.id === quotation?.payment_terms_id) ?? null,
     [paymentTerms, quotation?.payment_terms_id]
   );
-
   const selectedShippingTerm = useMemo(
-    () =>
-      shippingTerms.find((term) => term.id === quotation?.shipping_term_id) ??
-      null,
+    () => shippingTerms.find((term) => term.id === quotation?.shipping_term_id) ?? null,
     [shippingTerms, quotation?.shipping_term_id]
   );
-
   const selectedCurrency = useMemo(
-    () =>
-      currencies.find(
-        (currency) => currency.currency_code === quotation?.currency_code
-      ) ?? null,
+    () => currencies.find((currency) => currency.currency_code === quotation?.currency_code) ?? null,
     [currencies, quotation?.currency_code]
   );
 
@@ -553,24 +479,12 @@ export default function FinanceVendorQuotationDetailPage() {
   const subtotalAmount = toNumber(quotation?.subtotal);
   const totalAmount = toNumber(quotation?.total_amount);
   const lineCount = lineItems.length;
-
-  const canEdit =
-    !!quotation &&
-    ["draft", "received", "under_review"].includes(quotation.status);
-  const canAccept =
-    !!quotation &&
-    ["draft", "received", "under_review"].includes(quotation.status) &&
-    hasDocument;
-  const canConvert =
-    !!quotation && quotation.status === "accepted" && lineItems.length > 0;
-  const canArchive =
-    !!quotation &&
-    !["archived", "deleted", "converted"].includes(quotation.status);
-  const canDelete =
-    !!quotation &&
-    !["archived", "deleted", "converted"].includes(quotation.status);
-  const canRestore =
-    !!quotation && ["archived", "deleted"].includes(quotation.status);
+  const canEdit = !!quotation && ["draft", "received", "under_review"].includes(quotation.status);
+  const canAccept = canEdit && hasDocument;
+  const canConvert = !!quotation && quotation.status === "accepted" && lineItems.length > 0;
+  const canArchive = !!quotation && !["archived", "deleted", "converted"].includes(quotation.status);
+  const canDelete = !!quotation && !["archived", "deleted", "converted"].includes(quotation.status);
+  const canRestore = !!quotation && ["archived", "deleted"].includes(quotation.status);
   const canHardDelete = !!quotation && quotation.status === "deleted";
   const canUploadDocument = !!quotation && canEdit;
 
@@ -590,63 +504,31 @@ export default function FinanceVendorQuotationDetailPage() {
     ] = await Promise.all([
       supabase
         .from("finance_vendors")
-        .select(
-          "id, code, name, legal_name, currency_code, payment_terms_id, email, phone, contact_person, country, city, state_province, postal_code, address_line_1, address_line_2"
-        )
+        .select("id, code, name, legal_name, currency_code, payment_terms_id, email, phone, contact_person, country, city, state_province, postal_code, address_line_1, address_line_2")
         .order("name", { ascending: true }),
       supabase
         .from("finance_vendor_addresses")
-        .select(
-          "id, vendor_id, address_type, country, city, state_province, postal_code, address_line_1, address_line_2, sort_order, is_primary, status"
-        )
+        .select("id, vendor_id, address_type, country, city, state_province, postal_code, address_line_1, address_line_2, sort_order, is_primary, status")
         .eq("status", "active")
         .order("is_primary", { ascending: false })
         .order("sort_order", { ascending: true }),
       supabase
         .from("finance_vendor_personnel")
-        .select(
-          "id, vendor_id, full_name, position, email, phone, sort_order, is_primary, status"
-        )
+        .select("id, vendor_id, full_name, position, email, phone, sort_order, is_primary, status")
         .eq("status", "active")
         .order("is_primary", { ascending: false })
         .order("sort_order", { ascending: true }),
       supabase
         .from("finance_companies")
-        .select(
-          "id, name, legal_name, email, phone, contact_person, country, city, state_province, postal_code, address_line_1, address_line_2"
-        )
+        .select("id, name, legal_name, email, phone, contact_person, country, city, state_province, postal_code, address_line_1, address_line_2")
         .order("name", { ascending: true }),
-      supabase
-
-              .from("finance_currencies")
-        .select("id, currency_code, currency_name")
-        .order("currency_code", { ascending: true }),
-      supabase
-        .from("finance_payment_terms")
-        .select("id, name")
-        .order("name", { ascending: true }),
-      supabase
-        .from("finance_shipping_terms")
-        .select("id, name")
-        .order("name", { ascending: true }),
-      supabase
-        .from("finance_units_of_measure")
-        .select("id, name, code")
-        .order("name", { ascending: true }),
-      supabase
-        .from("finance_tax_codes")
-        .select("id, name, rate_percent")
-        .order("name", { ascending: true }),
-      supabase
-        .from("finance_expense_categories")
-        .select("id, name")
-        .order("name", { ascending: true }),
-      supabase
-        .from("finance_items")
-        .select(
-          "id, name, description, unit_price, default_unit_of_measure_id, default_tax_code_id"
-        )
-        .order("name", { ascending: true }),
+      supabase.from("finance_currencies").select("id, currency_code, currency_name").order("currency_code", { ascending: true }),
+      supabase.from("finance_payment_terms").select("id, name").order("name", { ascending: true }),
+      supabase.from("finance_shipping_terms").select("id, name").order("name", { ascending: true }),
+      supabase.from("finance_units_of_measure").select("id, name, code").order("name", { ascending: true }),
+      supabase.from("finance_tax_codes").select("id, name, rate_percent").order("name", { ascending: true }),
+      supabase.from("finance_expense_categories").select("id, name").order("name", { ascending: true }),
+      supabase.from("finance_items").select("id, name, description, unit_price, default_unit_of_measure_id, default_tax_code_id").order("name", { ascending: true }),
     ]);
 
     if (vendorsResult.error) throw vendorsResult.error;
@@ -661,30 +543,19 @@ export default function FinanceVendorQuotationDetailPage() {
     if (expenseCategoriesResult.error) throw expenseCategoriesResult.error;
     if (itemsResult.error) throw itemsResult.error;
 
-    const vendorAddresses =
-      (vendorAddressesResult.data || []) as VendorAddressOption[];
-    const vendorPersonnel =
-      (vendorPersonnelResult.data || []) as VendorPersonnelOption[];
+    const vendorAddresses = (vendorAddressesResult.data || []) as VendorAddressOption[];
+    const vendorPersonnel = (vendorPersonnelResult.data || []) as VendorPersonnelOption[];
 
     const getBestVendorAddress = (vendorIdToMatch: string) => {
       const activeAddresses = vendorAddresses.filter(
         (address) =>
           address.vendor_id === vendorIdToMatch &&
-          [
-            address.address_line_1,
-            address.address_line_2,
-            address.city,
-            address.state_province,
-            address.postal_code,
-            address.country,
-          ].some(Boolean)
+          [address.address_line_1, address.address_line_2, address.city, address.state_province, address.postal_code, address.country].some(Boolean)
       );
 
       return (
         activeAddresses.find(
-          (address) =>
-            address.is_primary === true &&
-            (address.address_type || "").toLowerCase() === "primary"
+          (address) => address.is_primary === true && (address.address_type || "").toLowerCase() === "primary"
         ) ||
         activeAddresses.find((address) => address.is_primary === true) ||
         activeAddresses[0] ||
@@ -694,84 +565,49 @@ export default function FinanceVendorQuotationDetailPage() {
 
     const getBestVendorPersonnel = (vendorIdToMatch: string) => {
       const activePersonnel = vendorPersonnel.filter(
-        (person) =>
-          person.vendor_id === vendorIdToMatch &&
-          [person.full_name, person.email, person.phone].some(Boolean)
+        (person) => person.vendor_id === vendorIdToMatch && [person.full_name, person.email, person.phone].some(Boolean)
       );
-
-      return (
-        activePersonnel.find((person) => person.is_primary === true) ||
-        activePersonnel[0] ||
-        null
-      );
+      return activePersonnel.find((person) => person.is_primary === true) || activePersonnel[0] || null;
     };
 
-    const enrichedVendors = ((vendorsResult.data || []) as VendorOption[]).map(
-      (vendorOption) => {
-        const primaryAddress = getBestVendorAddress(vendorOption.id);
-        const primaryPerson = getBestVendorPersonnel(vendorOption.id);
-
-        return {
-          ...vendorOption,
-          email: vendorOption.email || primaryPerson?.email || null,
-          phone: vendorOption.phone || primaryPerson?.phone || null,
-          contact_person:
-            vendorOption.contact_person || primaryPerson?.full_name || null,
-          country: vendorOption.country || primaryAddress?.country || null,
-          city: vendorOption.city || primaryAddress?.city || null,
-          state_province:
-            vendorOption.state_province || primaryAddress?.state_province || null,
-          postal_code:
-            vendorOption.postal_code || primaryAddress?.postal_code || null,
-          address_line_1:
-            vendorOption.address_line_1 || primaryAddress?.address_line_1 || null,
-          address_line_2:
-            vendorOption.address_line_2 || primaryAddress?.address_line_2 || null,
-        };
-      }
-    );
+    const enrichedVendors = ((vendorsResult.data || []) as VendorOption[]).map((vendorOption) => {
+      const primaryAddress = getBestVendorAddress(vendorOption.id);
+      const primaryPerson = getBestVendorPersonnel(vendorOption.id);
+      return {
+        ...vendorOption,
+        email: vendorOption.email || primaryPerson?.email || null,
+        phone: vendorOption.phone || primaryPerson?.phone || null,
+        contact_person: vendorOption.contact_person || primaryPerson?.full_name || null,
+        country: vendorOption.country || primaryAddress?.country || null,
+        city: vendorOption.city || primaryAddress?.city || null,
+        state_province: vendorOption.state_province || primaryAddress?.state_province || null,
+        postal_code: vendorOption.postal_code || primaryAddress?.postal_code || null,
+        address_line_1: vendorOption.address_line_1 || primaryAddress?.address_line_1 || null,
+        address_line_2: vendorOption.address_line_2 || primaryAddress?.address_line_2 || null,
+      };
+    });
 
     setVendors(enrichedVendors);
     setCompanies((companiesResult.data || []) as unknown as CompanyOption[]);
     setCurrencies((currenciesResult.data || []) as unknown as CurrencyOption[]);
-    setPaymentTerms(
-      (paymentTermsResult.data || []) as unknown as PaymentTermOption[]
-    );
-    setShippingTerms(
-      (shippingTermsResult.data || []) as unknown as ShippingTermOption[]
-    );
+    setPaymentTerms((paymentTermsResult.data || []) as unknown as PaymentTermOption[]);
+    setShippingTerms((shippingTermsResult.data || []) as unknown as ShippingTermOption[]);
     setUnits((unitsResult.data || []) as unknown as UnitOption[]);
     setTaxCodes((taxCodesResult.data || []) as unknown as TaxCodeOption[]);
-    setExpenseCategories(
-      (expenseCategoriesResult.data || []) as unknown as ExpenseCategoryOption[]
-    );
+    setExpenseCategories((expenseCategoriesResult.data || []) as unknown as ExpenseCategoryOption[]);
     setItems((itemsResult.data || []) as unknown as ItemOption[]);
   }, []);
 
   const loadQuotation = useCallback(
     async (refreshOnly = false) => {
       if (!id) return;
-
       try {
-        if (refreshOnly) {
-          setIsRefreshing(true);
-        } else {
-          setIsLoading(true);
-        }
-
+        if (refreshOnly) setIsRefreshing(true);
+        else setIsLoading(true);
         setErrorMessage("");
 
-        const [
-          quotationResult,
-          linesResult,
-          attachmentsResult,
-          purchaseOrdersResult,
-        ] = await Promise.all([
-          supabase
-            .from("finance_vendor_quotations")
-            .select("*")
-            .eq("id", id)
-            .single(),
+        const [quotationResult, linesResult, attachmentsResult, purchaseOrdersResult] = await Promise.all([
+          supabase.from("finance_vendor_quotations").select("*").eq("id", id).single(),
           supabase
             .from("finance_vendor_quotation_line_items")
             .select("*")
@@ -781,17 +617,13 @@ export default function FinanceVendorQuotationDetailPage() {
             .order("created_at", { ascending: true }),
           supabase
             .from("finance_record_attachments")
-            .select(
-              "id, entity_type, entity_id, file_upload_id, notes, created_at, file_uploads(file_name, file_path, mime_type, file_size)"
-            )
+            .select("id, entity_type, entity_id, file_upload_id, notes, created_at, file_uploads(file_name, file_path, mime_type, file_size)")
             .eq("entity_type", "finance_vendor_quotation")
             .eq("entity_id", id)
             .order("created_at", { ascending: false }),
           supabase
             .from("finance_purchase_orders")
-            .select(
-              "id, purchase_order_number, status, total_amount, currency_code, created_at"
-            )
+            .select("id, purchase_order_number, status, total_amount, currency_code, created_at")
             .eq("vendor_quotation_id", id)
             .order("created_at", { ascending: false })
             .limit(1),
@@ -802,51 +634,35 @@ export default function FinanceVendorQuotationDetailPage() {
         if (attachmentsResult.error) throw attachmentsResult.error;
         if (purchaseOrdersResult.error) throw purchaseOrdersResult.error;
 
-        const typedQuotation =
-          quotationResult.data as unknown as VendorQuotationRecord;
-        const typedLines = (linesResult.data ||
-          []) as unknown as VendorQuotationLineItem[];
-
-        const typedAttachments = ((attachmentsResult.data || []) as unknown[]).map(
-          (record) => {
-            const attachment = record as AttachmentRow & {
-              file_uploads?: {
-                file_name?: string | null;
-                file_path?: string | null;
-                mime_type?: string | null;
-                file_size?: number | string | null;
-              } | null;
-            };
-
-            return {
-              id: attachment.id,
-              entity_type: attachment.entity_type,
-              entity_id: attachment.entity_id,
-              file_upload_id: attachment.file_upload_id,
-              notes: attachment.notes,
-              created_at: attachment.created_at,
-              file_name: attachment.file_uploads?.file_name ?? null,
-              file_path: attachment.file_uploads?.file_path ?? null,
-              mime_type: attachment.file_uploads?.mime_type ?? null,
-              file_size: attachment.file_uploads?.file_size ?? null,
-            };
-          }
-        );
+        const typedQuotation = quotationResult.data as unknown as VendorQuotationRecord;
+        const typedLines = (linesResult.data || []) as unknown as VendorQuotationLineItem[];
+        const typedAttachments = ((attachmentsResult.data || []) as unknown[]).map((record) => {
+          const attachment = record as AttachmentRow & {
+            file_uploads?: { file_name?: string | null; file_path?: string | null; mime_type?: string | null; file_size?: number | string | null } | null;
+          };
+          return {
+            id: attachment.id,
+            entity_type: attachment.entity_type,
+            entity_id: attachment.entity_id,
+            file_upload_id: attachment.file_upload_id,
+            notes: attachment.notes,
+            created_at: attachment.created_at,
+            file_name: attachment.file_uploads?.file_name ?? null,
+            file_path: attachment.file_uploads?.file_path ?? null,
+            mime_type: attachment.file_uploads?.mime_type ?? null,
+            file_size: attachment.file_uploads?.file_size ?? null,
+          };
+        });
 
         setQuotation(typedQuotation);
         setLineItems(typedLines);
-        setLineDrafts(typedLines.map(createLineDraft));
+        setLineDrafts(typedLines.length > 0 ? typedLines.map(createLineDraft) : [createEmptyLineDraft()]);
         setAttachments(typedAttachments);
-        setPurchaseOrderLink(
-          ((purchaseOrdersResult.data || [])[0] ||
-            null) as PurchaseOrderLinkRow | null
-        );
-
+        setPurchaseOrderLink(((purchaseOrdersResult.data || [])[0] || null) as PurchaseOrderLinkRow | null);
         setOverviewDraft({
           vendor_id: typedQuotation.vendor_id || "",
           company_id: typedQuotation.company_id || "",
-          external_quotation_number:
-            typedQuotation.external_quotation_number || "",
+          external_quotation_number: typedQuotation.external_quotation_number || "",
           quotation_date: typedQuotation.quotation_date || "",
           valid_until: typedQuotation.valid_until || "",
           currency_code: typedQuotation.currency_code || "",
@@ -858,11 +674,8 @@ export default function FinanceVendorQuotationDetailPage() {
         console.error("Failed to load vendor quotation:", error);
         setErrorMessage("Failed to load vendor quotation.");
       } finally {
-        if (refreshOnly) {
-          setIsRefreshing(false);
-        } else {
-          setIsLoading(false);
-        }
+        if (refreshOnly) setIsRefreshing(false);
+        else setIsLoading(false);
       }
     },
     [id]
@@ -878,50 +691,19 @@ export default function FinanceVendorQuotationDetailPage() {
         setIsLoading(false);
       }
     }
-
     void loadPage();
   }, [loadLookups, loadQuotation]);
 
   useEffect(() => {
     if (!id) return;
-
     const channel = supabase
       .channel(`finance-vendor-quotation-${id}`)
-      .on(
-        "postgres_changes",
-        {
-          event: "*",
-          schema: "public",
-          table: "finance_vendor_quotations",
-          filter: `id=eq.${id}`,
-        },
-        () => void loadQuotation(true)
-      )
-      .on(
-        "postgres_changes",
-        {
-          event: "*",
-          schema: "public",
-          table: "finance_vendor_quotation_line_items",
-          filter: `vendor_quotation_id=eq.${id}`,
-        },
-        () => void loadQuotation(true)
-      )
-      .on(
-        "postgres_changes",
-        {
-          event: "*",
-          schema: "public",
-          table: "finance_record_attachments",
-          filter: `entity_id=eq.${id}`,
-        },
-        () => void loadQuotation(true)
-      )
+      .on("postgres_changes", { event: "*", schema: "public", table: "finance_vendor_quotations", filter: `id=eq.${id}` }, () => void loadQuotation(true))
+      .on("postgres_changes", { event: "*", schema: "public", table: "finance_vendor_quotation_line_items", filter: `vendor_quotation_id=eq.${id}` }, () => void loadQuotation(true))
+      .on("postgres_changes", { event: "*", schema: "public", table: "finance_record_attachments", filter: `entity_id=eq.${id}` }, () => void loadQuotation(true))
       .subscribe();
 
-    const intervalId = window.setInterval(() => {
-      void loadQuotation(true);
-    }, 60000);
+    const intervalId = window.setInterval(() => void loadQuotation(true), 60000);
 
     return () => {
       window.clearInterval(intervalId);
@@ -932,25 +714,30 @@ export default function FinanceVendorQuotationDetailPage() {
   const draftLineTotals = useMemo(() => {
     return lineDrafts.map((line) => {
       const taxCode = taxCodes.find((tax) => tax.id === line.tax_code_id);
-      const base = Math.max(
-        toNumber(line.quantity) * toNumber(line.unit_price) -
-          toNumber(line.discount),
-        0
-      );
+      const base = Math.max(toNumber(line.quantity) * toNumber(line.unit_price) - toNumber(line.discount), 0);
       const taxAmount = base * (toNumber(taxCode?.rate_percent) / 100);
-
       return Math.round((base + taxAmount) * 100) / 100;
     });
   }, [lineDrafts, taxCodes]);
 
-  const updateLineDraft = useCallback(
-    (lineId: string, patch: Partial<Omit<LineDraft, "id">>) => {
-      setLineDrafts((current) =>
-        current.map((line) => (line.id === lineId ? { ...line, ...patch } : line))
-      );
-    },
-    []
-  );
+  const attachmentCards = useMemo<AixiaDocumentUploadAttachment[]>(() => {
+    return attachments.map((attachment) => ({
+      id: attachment.id,
+      fileName: attachment.file_name || "Uploaded document",
+      badge: "Stored",
+      sizeLabel: formatFileSize(attachment.file_size),
+      description: [
+        `Uploaded ${formatDateTime(attachment.created_at)}`,
+        attachment.mime_type || "",
+      ]
+        .filter(Boolean)
+        .join(" · "),
+    }));
+  }, [attachments]);
+
+  const updateLineDraft = useCallback((lineId: string, patch: Partial<Omit<LineDraft, "id">>) => {
+    setLineDrafts((current) => current.map((line) => (line.id === lineId ? { ...line, ...patch } : line)));
+  }, []);
 
   const addLineDraft = useCallback(() => {
     setLineDrafts((current) => [...current, createEmptyLineDraft()]);
@@ -967,15 +754,10 @@ export default function FinanceVendorQuotationDetailPage() {
   const handleItemChange = useCallback(
     (lineId: string, itemId: string) => {
       const selectedItem = items.find((item) => item.id === itemId);
-
       updateLineDraft(lineId, {
         item_id: itemId,
         description: selectedItem?.description || selectedItem?.name || "",
-        unit_price:
-          selectedItem?.unit_price !== null &&
-          selectedItem?.unit_price !== undefined
-            ? String(selectedItem.unit_price)
-            : "0",
+        unit_price: selectedItem?.unit_price !== null && selectedItem?.unit_price !== undefined ? String(selectedItem.unit_price) : "0",
         unit_of_measure_id: selectedItem?.default_unit_of_measure_id || "",
         tax_code_id: selectedItem?.default_tax_code_id || "",
       });
@@ -985,7 +767,6 @@ export default function FinanceVendorQuotationDetailPage() {
 
   const resetOverviewDraft = useCallback(() => {
     if (!quotation) return;
-
     setOverviewDraft({
       vendor_id: quotation.vendor_id || "",
       company_id: quotation.company_id || "",
@@ -1001,44 +782,22 @@ export default function FinanceVendorQuotationDetailPage() {
 
   const saveOverview = useCallback(async () => {
     if (!quotation || !canEdit) return;
-
-    if (!overviewDraft.vendor_id) {
-      setErrorMessage("Select a vendor.");
-      return;
-    }
-
-    if (!overviewDraft.company_id) {
-      setErrorMessage("Select issued-to company.");
-      return;
-    }
-
-    if (!overviewDraft.quotation_date) {
-      setErrorMessage("Select quotation date.");
-      return;
-    }
-
-    if (!overviewDraft.currency_code) {
-      setErrorMessage("Select currency.");
-      return;
-    }
+    if (!overviewDraft.vendor_id) return setErrorMessage("Select a vendor.");
+    if (!overviewDraft.company_id) return setErrorMessage("Select issued-to company.");
+    if (!overviewDraft.quotation_date) return setErrorMessage("Select quotation date.");
+    if (!overviewDraft.currency_code) return setErrorMessage("Select currency.");
 
     try {
       setIsSavingOverview(true);
       setErrorMessage("");
-
-      const {
-        data: { user },
-      } = await supabase.auth.getUser();
-
+      const { data: { user } } = await supabase.auth.getUser();
       if (!user?.id) throw new Error("User not authenticated");
-
       const { error } = await supabase
         .from("finance_vendor_quotations")
         .update({
           vendor_id: overviewDraft.vendor_id,
           company_id: overviewDraft.company_id || null,
-          external_quotation_number:
-            overviewDraft.external_quotation_number.trim() || null,
+          external_quotation_number: overviewDraft.external_quotation_number.trim() || null,
           quotation_date: overviewDraft.quotation_date,
           valid_until: overviewDraft.valid_until || null,
           currency_code: overviewDraft.currency_code,
@@ -1048,16 +807,12 @@ export default function FinanceVendorQuotationDetailPage() {
           updated_by: user.id,
         })
         .eq("id", quotation.id);
-
       if (error) throw error;
-
       setIsOverviewEditMode(false);
       await loadQuotation(true);
     } catch (error) {
       console.error("Failed to save overview:", error);
-      setErrorMessage(
-        error instanceof Error ? error.message : "Failed to save overview."
-      );
+      setErrorMessage(error instanceof Error ? error.message : "Failed to save overview.");
     } finally {
       setIsSavingOverview(false);
     }
@@ -1065,44 +820,24 @@ export default function FinanceVendorQuotationDetailPage() {
 
   const saveLines = useCallback(async () => {
     if (!quotation || !canEdit) return;
-
-    const invalidLine = lineDrafts.find(
-      (line) => !line.description.trim() || toNumber(line.quantity) <= 0
-    );
-
-    if (invalidLine) {
-      setErrorMessage("Each line must have a description and quantity above 0.");
-      return;
-    }
+    const invalidLine = lineDrafts.find((line) => !line.description.trim() || toNumber(line.quantity) <= 0);
+    if (invalidLine) return setErrorMessage("Each line must have a description and quantity above 0.");
 
     try {
       setIsSavingLines(true);
       setErrorMessage("");
-
-      const {
-        data: { user },
-      } = await supabase.auth.getUser();
-
+      const { data: { user } } = await supabase.auth.getUser();
       if (!user?.id) throw new Error("User not authenticated");
 
-      const keptExistingIds = lineDrafts
-        .filter((line) => !line.id.startsWith("new-"))
-        .map((line) => line.id);
-
-      const removedExistingLines = lineItems.filter(
-        (line) => !keptExistingIds.includes(line.id)
-      );
+      const keptExistingIds = lineDrafts.filter((line) => !line.id.startsWith("new-")).map((line) => line.id);
+      const removedExistingLines = lineItems.filter((line) => !keptExistingIds.includes(line.id));
 
       for (const removedLine of removedExistingLines) {
         const { error } = await supabase
           .from("finance_vendor_quotation_line_items")
-          .update({
-            status: "deleted",
-            updated_by: user.id,
-          })
+          .update({ status: "deleted", updated_by: user.id })
           .eq("id", removedLine.id)
           .eq("vendor_quotation_id", quotation.id);
-
         if (error) throw error;
       }
 
@@ -1122,15 +857,12 @@ export default function FinanceVendorQuotationDetailPage() {
         };
 
         if (line.id.startsWith("new-")) {
-          const { error } = await supabase
-            .from("finance_vendor_quotation_line_items")
-            .insert({
-              vendor_quotation_id: quotation.id,
-              ...linePayload,
-              status: "active",
-              created_by: user.id,
-            });
-
+          const { error } = await supabase.from("finance_vendor_quotation_line_items").insert({
+            vendor_quotation_id: quotation.id,
+            ...linePayload,
+            status: "active",
+            created_by: user.id,
+          });
           if (error) throw error;
         } else {
           const { error } = await supabase
@@ -1138,7 +870,6 @@ export default function FinanceVendorQuotationDetailPage() {
             .update(linePayload)
             .eq("id", line.id)
             .eq("vendor_quotation_id", quotation.id);
-
           if (error) throw error;
         }
       }
@@ -1147,9 +878,7 @@ export default function FinanceVendorQuotationDetailPage() {
       await loadQuotation(true);
     } catch (error) {
       console.error("Failed to save lines:", error);
-      setErrorMessage(
-        error instanceof Error ? error.message : "Failed to save line items."
-      );
+      setErrorMessage(error instanceof Error ? error.message : "Failed to save line items.");
     } finally {
       setIsSavingLines(false);
     }
@@ -1157,27 +886,17 @@ export default function FinanceVendorQuotationDetailPage() {
 
   const uploadDocument = useCallback(async () => {
     if (!quotation || !uploadFile) return;
-
     try {
       setIsUploading(true);
       setErrorMessage("");
-
-      const {
-        data: { user },
-      } = await supabase.auth.getUser();
-
+      const { data: { user } } = await supabase.auth.getUser();
       if (!user?.id) throw new Error("User not authenticated");
-
       await uploadVendorQuotationDocument(quotation.id, uploadFile, user.id);
-
       setUploadFile(null);
-      setIsUploadPanelOpen(false);
       await loadQuotation(true);
     } catch (error) {
       console.error("Failed to upload document:", error);
-      setErrorMessage(
-        error instanceof Error ? error.message : "Failed to upload document."
-      );
+      setErrorMessage(error instanceof Error ? error.message : "Failed to upload document.");
     } finally {
       setIsUploading(false);
     }
@@ -1194,37 +913,26 @@ export default function FinanceVendorQuotationDetailPage() {
         | "finance_convert_vendor_quotation_to_purchase_order"
     ) => {
       if (!quotation) return;
-
       try {
         setIsRunningAction(true);
         setErrorMessage("");
-
-        const { data, error } = await supabase.rpc(rpcName, {
-          p_vendor_quotation_id: quotation.id,
-        });
-
+        const { data, error } = await supabase.rpc(rpcName, { p_vendor_quotation_id: quotation.id });
         if (error) throw error;
-
         if (rpcName === "finance_convert_vendor_quotation_to_purchase_order") {
           const purchaseOrderId = data as string | null;
-
           if (purchaseOrderId) {
             navigate(`/finance/transactions/purchase-orders/${purchaseOrderId}`);
             return;
           }
         }
-
         if (rpcName === "finance_hard_delete_vendor_quotation") {
           navigate("/finance/transactions/vendor-quotations");
           return;
         }
-
         await loadQuotation(true);
       } catch (error) {
         console.error("Vendor quotation action failed:", error);
-        setErrorMessage(
-          error instanceof Error ? error.message : "Action failed."
-        );
+        setErrorMessage(error instanceof Error ? error.message : "Action failed.");
       } finally {
         setIsRunningAction(false);
       }
@@ -1232,1339 +940,553 @@ export default function FinanceVendorQuotationDetailPage() {
     [loadQuotation, navigate, quotation]
   );
 
-  const fieldClass =
-    "h-11 w-full rounded-2xl border border-white/10 bg-black/20 px-4 text-sm text-white outline-none transition focus:border-amber-400/30 focus:bg-black/30 disabled:cursor-not-allowed disabled:opacity-60";
-  const readOnlyBoxClass =
-    "flex min-h-[44px] items-center rounded-2xl border border-white/10 bg-black/20 px-4 py-3 text-sm leading-6 text-white";
-  const labelClass = "text-sm font-medium text-slate-300";
-  const sectionCardClass =
-    "overflow-hidden rounded-[30px] border border-white/10 bg-white/[0.045] backdrop-blur-xl";
-  const innerPanelClass =
-    "rounded-[24px] border border-white/10 bg-black/20 p-4";
-  const eyebrowClass =
-    "text-[11px] font-semibold uppercase tracking-[0.2em] text-slate-500";
-
   if (isLoading || !quotation) {
     return (
-      <div className="min-h-screen bg-[#05070d] px-4 py-4 text-white md:px-6 md:py-6">
-        <div className="mx-auto flex w-full max-w-[1600px] flex-col gap-6">
-          <div className="rounded-[30px] border border-white/10 bg-white/[0.045] p-6 text-sm text-slate-400 backdrop-blur-xl">
-            Loading vendor quotation...
-          </div>
-        </div>
-      </div>
+      <AixiaLoadingState
+        title="Loading vendor quotation"
+        description="Vendor quotation, line items, attachments, supplier context, and linked purchase order data are loading."
+      />
     );
   }
 
-  const documentRequirementMessage =
-    attachments.length > 0
-      ? "Vendor quotation document is attached and controlled."
-      : canEdit
-        ? "Upload the original vendor quotation document before accepting."
-        : "No vendor quotation document is attached.";
+  const documentRequirementMessage = attachments.length > 0
+    ? "Vendor quotation document is attached and controlled."
+    : canEdit
+      ? "Upload the original vendor quotation document before accepting."
+      : "No vendor quotation document is attached.";
+
+  const overviewActions = canEdit ? (
+    isOverviewEditMode ? (
+      <>
+        <AixiaButton type="button" variant="primary" disabled={isSavingOverview} onClick={() => void saveOverview()}>
+          <Save className="h-4 w-4" />
+          {isSavingOverview ? "Saving..." : "Save Overview"}
+        </AixiaButton>
+        <AixiaButton
+          type="button"
+          variant="secondary"
+          onClick={() => {
+            resetOverviewDraft();
+            setIsOverviewEditMode(false);
+          }}
+        >
+          Cancel
+        </AixiaButton>
+      </>
+    ) : (
+      <AixiaButton type="button" variant="primary" onClick={() => setIsOverviewEditMode(true)}>
+        <SquarePen className="h-4 w-4" />
+        Edit Overview
+      </AixiaButton>
+    )
+  ) : null;
+
+  const lineActions = canEdit ? (
+    <>
+      {isLinesEditMode ? (
+        <AixiaButton type="button" variant="secondary" onClick={addLineDraft}>
+          <Plus className="h-4 w-4" />
+          Add Line
+        </AixiaButton>
+      ) : null}
+      {isLinesEditMode ? (
+        <AixiaButton type="button" variant="primary" disabled={isSavingLines} onClick={() => void saveLines()}>
+          <Save className="h-4 w-4" />
+          {isSavingLines ? "Saving..." : "Save Lines"}
+        </AixiaButton>
+      ) : null}
+      <AixiaButton
+        type="button"
+        variant={isLinesEditMode ? "secondary" : "primary"}
+        onClick={() => {
+          if (isLinesEditMode) setLineDrafts(lineItems.map(createLineDraft));
+          setIsLinesEditMode((current) => !current);
+        }}
+      >
+        <SquarePen className="h-4 w-4" />
+        {isLinesEditMode ? "Close" : "Edit Lines"}
+      </AixiaButton>
+    </>
+  ) : null;
+
+  const mainContent = (
+    <>
+      <AixiaSection
+        title="Document Overview"
+        description="Vendor quotation identity, issuing supplier, receiving company, commercial terms, and source document context."
+        icon={FileText}
+        actions={overviewActions}
+      >
+        <AixiaFormGrid columns="two">
+          <AixiaFormField>
+            <AixiaFieldLabel label="Vendor / Issued From" required />
+            {isOverviewEditMode ? (
+              <AixiaSelectField
+                value={overviewDraft.vendor_id}
+                onChange={(event) => setOverviewDraft((current) => ({ ...current, vendor_id: event.target.value }))}
+              >
+                <option value="">Select vendor</option>
+                {vendors.map((vendor) => (
+                  <option key={vendor.id} value={vendor.id}>
+                    {vendor.legal_name || vendor.name}{vendor.code ? ` — ${vendor.code}` : ""}
+                  </option>
+                ))}
+              </AixiaSelectField>
+            ) : (
+              <AixiaDisplayBlock
+                label="Vendor / Issued From"
+                value={selectedVendor?.legal_name || selectedVendor?.name || "Unknown vendor"}
+                detail={
+                  [
+                    selectedVendor?.code ? `Vendor Code: ${selectedVendor.code}` : "",
+                    selectedVendor?.contact_person ? `Contact: ${selectedVendor.contact_person}` : "",
+                    selectedVendor?.email ? `Email: ${selectedVendor.email}` : "",
+                    selectedVendor?.phone ? `Phone: ${selectedVendor.phone}` : "",
+                    buildVendorAddress(selectedVendor),
+                  ].filter(Boolean).join(" • ") || "—"
+                }
+              />
+            )}
+          </AixiaFormField>
+
+          <AixiaFormField>
+            <AixiaFieldLabel label="Issued To / AiXia Company" required />
+            {isOverviewEditMode ? (
+              <AixiaSelectField
+                value={overviewDraft.company_id}
+                onChange={(event) => setOverviewDraft((current) => ({ ...current, company_id: event.target.value }))}
+              >
+                <option value="">Select company</option>
+                {companies.map((company) => (
+                  <option key={company.id} value={company.id}>{company.legal_name || company.name}</option>
+                ))}
+              </AixiaSelectField>
+            ) : (
+              <AixiaDisplayBlock
+                label="Issued To / AiXia Company"
+                value={selectedCompany?.legal_name || selectedCompany?.name || "No company linked"}
+                detail={
+                  [
+                    selectedCompany?.contact_person ? `Contact: ${selectedCompany.contact_person}` : "",
+                    selectedCompany?.email ? `Email: ${selectedCompany.email}` : "",
+                    selectedCompany?.phone ? `Phone: ${selectedCompany.phone}` : "",
+                    buildCompanyAddress(selectedCompany),
+                  ].filter(Boolean).join(" • ") || "—"
+                }
+              />
+            )}
+          </AixiaFormField>
+
+          <AixiaDisplayBlock label="Document Type" value="Vendor Quotation" />
+          <AixiaDisplayBlock label="Status" value={<AixiaStatusBadge value={quotation.status} />} />
+
+          <AixiaFormField>
+            <AixiaFieldLabel label="Vendor Quotation Number" />
+            {isOverviewEditMode ? (
+              <AixiaInputField
+                value={overviewDraft.external_quotation_number}
+                onChange={(event) => setOverviewDraft((current) => ({ ...current, external_quotation_number: event.target.value }))}
+                placeholder="Supplier quotation number"
+              />
+            ) : (
+              <AixiaDisplayBlock label="Vendor Quotation Number" value={quotation.external_quotation_number || quotation.vendor_quotation_number} />
+            )}
+          </AixiaFormField>
+
+          <AixiaFormField>
+            <AixiaFieldLabel label="Quotation Date" required />
+            {isOverviewEditMode ? (
+              <AixiaInputField
+                type="date"
+                value={overviewDraft.quotation_date}
+                onChange={(event) => setOverviewDraft((current) => ({ ...current, quotation_date: event.target.value }))}
+              />
+            ) : (
+              <AixiaDisplayBlock label="Quotation Date" value={formatDate(quotation.quotation_date)} />
+            )}
+          </AixiaFormField>
+
+          <AixiaFormField>
+            <AixiaFieldLabel label="Valid Until" />
+            {isOverviewEditMode ? (
+              <AixiaInputField
+                type="date"
+                value={overviewDraft.valid_until}
+                onChange={(event) => setOverviewDraft((current) => ({ ...current, valid_until: event.target.value }))}
+              />
+            ) : (
+              <AixiaDisplayBlock label="Valid Until" value={formatDate(quotation.valid_until)} />
+            )}
+          </AixiaFormField>
+
+          <AixiaFormField>
+            <AixiaFieldLabel label="Currency" required />
+            {isOverviewEditMode ? (
+              <AixiaSelectField
+                value={overviewDraft.currency_code}
+                onChange={(event) => setOverviewDraft((current) => ({ ...current, currency_code: event.target.value }))}
+              >
+                <option value="">Select currency</option>
+                {currencies.map((currency) => (
+                  <option key={currency.id} value={currency.currency_code}>{currency.currency_code} — {currency.currency_name}</option>
+                ))}
+              </AixiaSelectField>
+            ) : (
+              <AixiaDisplayBlock
+                label="Currency"
+                value={quotationCurrencyCode}
+                detail={selectedCurrency?.currency_name || undefined}
+              />
+            )}
+          </AixiaFormField>
+
+          <AixiaFormField>
+            <AixiaFieldLabel label="Payment Terms" />
+            {isOverviewEditMode ? (
+              <AixiaSelectField
+                value={overviewDraft.payment_terms_id}
+                onChange={(event) => setOverviewDraft((current) => ({ ...current, payment_terms_id: event.target.value }))}
+              >
+                <option value="">Select terms</option>
+                {paymentTerms.map((term) => <option key={term.id} value={term.id}>{term.name}</option>)}
+              </AixiaSelectField>
+            ) : (
+              <AixiaDisplayBlock label="Payment Terms" value={selectedPaymentTerm?.name || "—"} />
+            )}
+          </AixiaFormField>
+
+          <AixiaFormField>
+            <AixiaFieldLabel label="Shipping Terms" />
+            {isOverviewEditMode ? (
+              <AixiaSelectField
+                value={overviewDraft.shipping_term_id}
+                onChange={(event) => setOverviewDraft((current) => ({ ...current, shipping_term_id: event.target.value }))}
+              >
+                <option value="">Select shipping term</option>
+                {shippingTerms.map((term) => <option key={term.id} value={term.id}>{term.name}</option>)}
+              </AixiaSelectField>
+            ) : (
+              <AixiaDisplayBlock label="Shipping Terms" value={selectedShippingTerm?.name || "—"} />
+            )}
+          </AixiaFormField>
+
+          <AixiaFormFullWidth>
+            <AixiaReviewGrid variant="cards">
+              <AixiaValueBlock
+                label="Vendor / Issued From"
+                value={selectedDraftVendor?.legal_name || selectedDraftVendor?.name || "Unknown vendor"}
+                detail={[selectedDraftVendor?.code, selectedDraftVendor?.contact_person, selectedDraftVendor?.email, selectedDraftVendor?.phone, buildVendorAddress(selectedDraftVendor)].filter(Boolean).join(" • ") || "—"}
+              />
+              <AixiaValueBlock
+                label="Issued To / AiXia Company"
+                value={selectedDraftCompany?.legal_name || selectedDraftCompany?.name || "No company linked"}
+                detail={[selectedDraftCompany?.contact_person, selectedDraftCompany?.email, selectedDraftCompany?.phone, buildCompanyAddress(selectedDraftCompany)].filter(Boolean).join(" • ") || "—"}
+              />
+            </AixiaReviewGrid>
+          </AixiaFormFullWidth>
+
+          <AixiaFormFullWidth>
+            <AixiaFieldLabel label="Notes" />
+            {isOverviewEditMode ? (
+              <AixiaTextareaField
+                value={overviewDraft.notes}
+                onChange={(event) => setOverviewDraft((current) => ({ ...current, notes: event.target.value }))}
+                rows={5}
+              />
+            ) : (
+              <AixiaDisplayBlock label="Notes" value={quotation.notes || "—"} />
+            )}
+          </AixiaFormFullWidth>
+        </AixiaFormGrid>
+      </AixiaSection>
+
+      <AixiaSection
+        title="Line Items"
+        description="Vendor quotation lines. Editable only before acceptance and conversion."
+        icon={FileText}
+        badge={<AixiaBadge tone="cyan">{isLinesEditMode ? lineDrafts.length : lineItems.length} Lines</AixiaBadge>}
+        actions={lineActions}
+        smartScroll
+        visibleCards={10}
+        itemCount={isLinesEditMode ? lineDrafts.length : lineItems.length}
+      >
+        <div className="aixia-stack">
+          {isLinesEditMode
+            ? lineDrafts.map((draft, index) => (
+                <AixiaFormRowCard
+                  key={draft.id}
+                  title={`Line ${index + 1}`}
+                  description={`Sort order: ${index}`}
+                  onRemove={() => removeLineDraft(draft.id)}
+                  removeDisabled={lineDrafts.length <= 1}
+                  removeLabel={<Trash2 className="h-4 w-4" />}
+                >
+                  <AixiaFormGrid columns="three">
+                    <AixiaFormField>
+                      <AixiaFieldLabel label="Item" />
+                      <AixiaSelectField value={draft.item_id} onChange={(event) => handleItemChange(draft.id, event.target.value)}>
+                        <option value="">Manual item</option>
+                        {items.map((item) => <option key={item.id} value={item.id}>{item.name}</option>)}
+                      </AixiaSelectField>
+                    </AixiaFormField>
+                    <AixiaFormField>
+                      <AixiaFieldLabel label="Description" required />
+                      <AixiaInputField value={draft.description} onChange={(event) => updateLineDraft(draft.id, { description: event.target.value })} />
+                    </AixiaFormField>
+                    <AixiaFormField>
+                      <AixiaFieldLabel label="Qty" required />
+                      <AixiaInputField value={draft.quantity} onChange={(event) => updateLineDraft(draft.id, { quantity: event.target.value })} />
+                    </AixiaFormField>
+                    <AixiaFormField>
+                      <AixiaFieldLabel label="Unit Price" />
+                      <AixiaInputField value={draft.unit_price} onChange={(event) => updateLineDraft(draft.id, { unit_price: event.target.value })} />
+                    </AixiaFormField>
+                    <AixiaFormField>
+                      <AixiaFieldLabel label="Discount" />
+                      <AixiaInputField value={draft.discount} onChange={(event) => updateLineDraft(draft.id, { discount: event.target.value })} />
+                    </AixiaFormField>
+                    <AixiaFormField>
+                      <AixiaFieldLabel label="Unit" />
+                      <AixiaSelectField value={draft.unit_of_measure_id} onChange={(event) => updateLineDraft(draft.id, { unit_of_measure_id: event.target.value })}>
+                        <option value="">Select</option>
+                        {units.map((unit) => <option key={unit.id} value={unit.id}>{unit.code || unit.name}</option>)}
+                      </AixiaSelectField>
+                    </AixiaFormField>
+                    <AixiaFormField>
+                      <AixiaFieldLabel label="Tax Code" />
+                      <AixiaSelectField value={draft.tax_code_id} onChange={(event) => updateLineDraft(draft.id, { tax_code_id: event.target.value })}>
+                        <option value="">No tax</option>
+                        {taxCodes.map((tax) => <option key={tax.id} value={tax.id}>{tax.name} — {toNumber(tax.rate_percent)}%</option>)}
+                      </AixiaSelectField>
+                    </AixiaFormField>
+                    <AixiaFormField>
+                      <AixiaFieldLabel label="Expense Category" />
+                      <AixiaSelectField value={draft.expense_category_id} onChange={(event) => updateLineDraft(draft.id, { expense_category_id: event.target.value })}>
+                        <option value="">Select</option>
+                        {expenseCategories.map((category) => <option key={category.id} value={category.id}>{category.name}</option>)}
+                      </AixiaSelectField>
+                    </AixiaFormField>
+                    <AixiaDisplayBlock label="Line Total" value={formatMoney(draftLineTotals[index] || 0, quotationCurrencyCode)} />
+                    <AixiaFormFullWidth>
+                      <AixiaFieldLabel label="Line Notes" />
+                      <AixiaInputField value={draft.notes} onChange={(event) => updateLineDraft(draft.id, { notes: event.target.value })} />
+                    </AixiaFormFullWidth>
+                  </AixiaFormGrid>
+                </AixiaFormRowCard>
+              ))
+            : lineItems.map((line, index) => {
+                const selectedUnit = units.find((unit) => unit.id === line.unit_of_measure_id);
+                const selectedTax = taxCodes.find((tax) => tax.id === line.tax_code_id);
+                const selectedCategory = expenseCategories.find((category) => category.id === line.expense_category_id);
+                return (
+                  <AixiaFormRowCard key={line.id} title={`Line ${index + 1}`} description={`Sort order: ${line.sort_order}`}>
+                    <AixiaFormGrid columns="three">
+                      <AixiaDisplayBlock label="Description" value={line.description} />
+                      <AixiaDisplayBlock label="Quantity" value={toNumber(line.quantity)} />
+                      <AixiaDisplayBlock label="Unit Price" value={formatMoney(line.unit_price, quotationCurrencyCode)} />
+                      <AixiaDisplayBlock label="Discount" value={formatMoney(line.discount, quotationCurrencyCode)} />
+                      <AixiaDisplayBlock label="Unit" value={selectedUnit?.code || selectedUnit?.name || "—"} />
+                      <AixiaDisplayBlock label="Tax Code" value={selectedTax ? `${selectedTax.name} — ${toNumber(selectedTax.rate_percent)}%` : "—"} />
+                      <AixiaDisplayBlock label="Expense Category" value={selectedCategory?.name || "—"} />
+                      <AixiaDisplayBlock label="Line Total" value={formatMoney(line.line_total, quotationCurrencyCode)} />
+                      {line.notes ? <AixiaDisplayBlock label="Line Notes" value={line.notes} /> : null}
+                    </AixiaFormGrid>
+                  </AixiaFormRowCard>
+                );
+              })}
+
+          {(!isLinesEditMode && lineItems.length === 0) || (isLinesEditMode && lineDrafts.length === 0) ? (
+            <AixiaEmptyState icon={FileText} title="No line items found" description="This vendor quotation does not have active line items yet." />
+          ) : null}
+        </div>
+      </AixiaSection>
+
+      <AixiaSection
+        title="Vendor Quotation Document"
+        description="Original quotation file received from the supplier. The shared upload panel owns upload/drop-zone/attachment UI."
+        icon={Upload}
+        badge={<AixiaBadge tone={hasDocument ? "emerald" : "rose"}>{hasDocument ? "Document Attached" : "Document Missing"}</AixiaBadge>}
+      >
+        <AixiaDocumentUploadPanel
+          selectedFile={uploadFile}
+          attachments={attachmentCards}
+          required
+          disabled={!canUploadDocument}
+          uploading={isUploading}
+          accept=".pdf,.png,.jpg,.jpeg,.webp,.doc,.docx,.xls,.xlsx,application/pdf,image/png,image/jpeg,image/webp"
+          dropTitle="Upload vendor quotation document"
+          dropDescription="Upload the original vendor quotation document received from the supplier."
+          uploadLabel="Upload Document"
+          uploadingLabel="Uploading..."
+          emptyTitle="Vendor quotation document missing"
+          emptyDescription={documentRequirementMessage}
+          requiredMessage={documentRequirementMessage}
+          onFileSelect={setUploadFile}
+          onRemoveSelectedFile={() => setUploadFile(null)}
+          onUpload={uploadDocument}
+        />
+      </AixiaSection>
+    </>
+  );
+
+  const sideContent = (
+    <>
+      <AixiaSection
+        title="Lifecycle Actions"
+        description="Accept, convert, archive, delete, restore, or permanently delete this vendor quotation according to its current state."
+        icon={CheckCircle}
+      >
+        <AixiaActionStack>
+          {canAccept ? (
+            <AixiaButton type="button" variant="primary" onClick={() => void runRpcAction("finance_accept_vendor_quotation")} disabled={isRunningAction}>
+              <CheckCircle className="h-4 w-4" />
+              Accept Quotation
+            </AixiaButton>
+          ) : null}
+          {canConvert ? (
+            <AixiaButton type="button" variant="primary" onClick={() => void runRpcAction("finance_convert_vendor_quotation_to_purchase_order")} disabled={isRunningAction}>
+              <ArrowRight className="h-4 w-4" />
+              Create Purchase Order
+            </AixiaButton>
+          ) : null}
+          {canArchive ? (
+            <AixiaButton type="button" variant="danger" onClick={() => void runRpcAction("finance_archive_vendor_quotation")} disabled={isRunningAction}>
+              <Archive className="h-4 w-4" />
+              Archive Vendor Quotation
+            </AixiaButton>
+          ) : null}
+          {canDelete ? (
+            <AixiaButton type="button" variant="danger" onClick={() => void runRpcAction("finance_delete_vendor_quotation")} disabled={isRunningAction}>
+              <Trash2 className="h-4 w-4" />
+              Delete Vendor Quotation
+            </AixiaButton>
+          ) : null}
+          {canRestore ? (
+            <AixiaButton type="button" variant="secondary" onClick={() => void runRpcAction("finance_restore_vendor_quotation")} disabled={isRunningAction}>
+              <RotateCcw className="h-4 w-4" />
+              Restore Vendor Quotation
+            </AixiaButton>
+          ) : null}
+          {canHardDelete ? (
+            <AixiaButton type="button" variant="danger" onClick={() => void runRpcAction("finance_hard_delete_vendor_quotation")} disabled={isRunningAction}>
+              <XCircle className="h-4 w-4" />
+              Delete Permanently
+            </AixiaButton>
+          ) : null}
+          {!canAccept && !canConvert && !canArchive && !canDelete && !canRestore && !canHardDelete ? (
+            <AixiaAlert tone="info">Archive and lifecycle actions are unavailable for the current quotation state.</AixiaAlert>
+          ) : null}
+        </AixiaActionStack>
+      </AixiaSection>
+
+      <AixiaSection title="Financial Summary" description="Vendor quotation value and commercial status." icon={Wallet}>
+        <AixiaReviewGrid variant="cards">
+          <AixiaValueBlock label="Subtotal" value={formatMoney(subtotalAmount, quotationCurrencyCode)} detail="Before total adjustments." />
+          <AixiaValueBlock label="Total Amount" value={formatMoney(totalAmount, quotationCurrencyCode)} detail="Supplier quoted amount." />
+          <AixiaValueBlock label="Status" value={<AixiaStatusBadge value={quotation.status} />} detail={canAccept ? "Ready for acceptance." : hasDocument ? "Review status and line items before acceptance." : "Upload the original vendor quotation before acceptance."} />
+          <AixiaValueBlock label="Document" value={attachments.length} detail="Original vendor quotation files stored." />
+        </AixiaReviewGrid>
+      </AixiaSection>
+
+      <AixiaSection
+        title="Linked Documents"
+        description="Reverse procurement flow relationship from vendor quotation to purchase order."
+        icon={Link2}
+      >
+        <AixiaActionCard
+          label="Purchase Order"
+          value={purchaseOrderLink?.purchase_order_number || "—"}
+          description={
+            purchaseOrderLink
+              ? `${normalizeStatusLabel(purchaseOrderLink.status)} · ${formatMoney(purchaseOrderLink.total_amount, purchaseOrderLink.currency_code || quotationCurrencyCode)}`
+              : "No purchase order has been created from this vendor quotation yet."
+          }
+          icon={Link2}
+          tone="violet"
+          actionLabel={purchaseOrderLink ? "Open Purchase Order" : undefined}
+          onClick={purchaseOrderLink ? () => navigate(`/finance/transactions/purchase-orders/${purchaseOrderLink.id}`) : undefined}
+        />
+        <AixiaAlert tone="info">Flow: Vendor Quotation → Purchase Order → Vendor PI / Invoice → Payment Made.</AixiaAlert>
+      </AixiaSection>
+    </>
+  );
 
   return (
-    <div className="min-h-screen bg-[#05070d] px-4 py-4 text-white md:px-6 md:py-6">
-      <div className="mx-auto flex w-full max-w-[1600px] flex-col gap-6">
-        <header className="relative overflow-hidden rounded-[34px] border border-white/10 bg-white/[0.045] p-6 shadow-2xl shadow-black/30 backdrop-blur-xl">
-          <div className="pointer-events-none absolute inset-0 bg-[radial-gradient(circle_at_top_left,rgba(245,158,11,0.16),transparent_38%),radial-gradient(circle_at_top_right,rgba(139,92,246,0.12),transparent_34%)]" />
-
-          <div className="relative">
-            <button
-              type="button"
-              onClick={() => navigate("/finance/transactions/vendor-quotations")}
-              className="mb-5 inline-flex items-center justify-center gap-2 rounded-full border border-white/10 bg-white/[0.05] px-5 py-2 text-[11px] font-semibold uppercase tracking-[0.22em] text-slate-300 transition hover:border-white/20 hover:bg-white/[0.08] hover:text-white"
-            >
-              <ArrowRight className="h-3.5 w-3.5 rotate-180" />
-              Vendor Quotations
-            </button>
-
-            <div className="grid gap-6 xl:grid-cols-[minmax(0,1fr)_620px]">
-              <div>
-                <div className="flex flex-wrap gap-2">
-                  <Badge className="w-fit rounded-full border border-amber-400/20 bg-amber-500/10 px-3 py-1 text-[11px] font-semibold uppercase tracking-[0.22em] text-amber-200 shadow-none">
-                    Supplier Procurement
-                  </Badge>
-
-                  <Badge className="w-fit rounded-full border border-cyan-400/20 bg-cyan-500/10 px-3 py-1 text-[11px] font-semibold uppercase tracking-[0.22em] text-cyan-200 shadow-none">
-                    Vendor Quotation
-                  </Badge>
-
-                  <Badge
-                    className={`w-fit rounded-full border px-3 py-1 text-[11px] font-semibold uppercase tracking-[0.22em] shadow-none ${getStatusBadgeClass(
-                      quotation.status
-                    )}`}
-                  >
-                    {normalizeStatusLabel(quotation.status)}
-                  </Badge>
-
-                  <Badge
-                    className={`w-fit rounded-full border px-3 py-1 text-[11px] font-semibold uppercase tracking-[0.22em] shadow-none ${
-                      hasDocument
-                        ? "border-emerald-400/20 bg-emerald-500/10 text-emerald-200"
-                        : "border-rose-400/20 bg-rose-500/10 text-rose-200"
-                    }`}
-                  >
-                    {hasDocument ? "Document Attached" : "Document Missing"}
-                  </Badge>
-
-                  {isRefreshing ? (
-                    <Badge className="w-fit rounded-full border border-white/10 bg-white/[0.05] px-3 py-1 text-[11px] font-semibold uppercase tracking-[0.22em] text-slate-400 shadow-none">
-                      Syncing
-                    </Badge>
-                  ) : null}
-                </div>
-
-                <div className="mt-4">
-                  <div className="text-[11px] font-semibold uppercase tracking-[0.22em] text-slate-500">
-                    AiXia Vendor Quotation No.
-                  </div>
-                  <h1 className="mt-2 text-3xl font-semibold tracking-[-0.035em] text-white md:text-5xl">
-                    {quotation.vendor_quotation_number}
-                  </h1>
-                </div>
-
-                <p className="mt-3 max-w-4xl text-sm leading-6 text-slate-400 md:text-base md:leading-7">
-                  Vendor quotation received from supplier. Review the document,
-                  confirm commercial lines, accept the quotation, then convert it
-                  into an AiXia purchase order.
-                </p>
-
-                <div className="mt-5 flex flex-wrap gap-3">
-                  {canAccept ? (
-                    <Button
-                      onClick={() =>
-                        void runRpcAction("finance_accept_vendor_quotation")
-                      }
-                      disabled={isRunningAction}
-                      className="h-11 rounded-2xl border border-emerald-400/20 bg-emerald-500 px-4 text-sm font-semibold text-white transition hover:bg-emerald-400 disabled:cursor-not-allowed disabled:opacity-40"
-                    >
-                      <CheckCircle className="mr-2 h-4 w-4" />
-                      Accept Quotation
-                    </Button>
-                  ) : null}
-
-                  {canConvert ? (
-                    <Button
-                      onClick={() =>
-                        void runRpcAction(
-                          "finance_convert_vendor_quotation_to_purchase_order"
-                        )
-                      }
-                      disabled={isRunningAction}
-                      className="h-11 rounded-2xl border border-amber-400/20 bg-amber-500 px-4 text-sm font-semibold text-slate-950 transition hover:bg-amber-400 disabled:cursor-not-allowed disabled:opacity-40"
-                    >
-                      <ArrowRight className="mr-2 h-4 w-4" />
-                      Create Purchase Order
-                    </Button>
-                  ) : null}
-
-                  {canUploadDocument ? (
-                    <Button
-                      variant="outline"
-                      onClick={() => setIsUploadPanelOpen((current) => !current)}
-                      className="h-11 rounded-2xl border-emerald-400/20 bg-emerald-500/10 px-4 text-emerald-200 hover:bg-emerald-500/20"
-                    >
-                      <Upload className="mr-2 h-4 w-4" />
-                      {attachments.length > 0 ? "Upload More" : "Upload Document"}
-                    </Button>
-                  ) : null}
-
-                  {errorMessage ? (
-                    <div className="flex min-h-11 items-center rounded-2xl border border-rose-400/20 bg-rose-500/10 px-4 text-sm text-rose-200">
-                      {errorMessage}
-                    </div>
-                  ) : null}
-                </div>
-              </div>
-
-              <div className="grid gap-4 sm:grid-cols-2">
-                <div className="min-h-[148px] rounded-[24px] border border-white/10 bg-black/20 p-4">
-                  <div className="flex items-start justify-between gap-3">
-                    <div>
-                      <div className={eyebrowClass}>Issued From</div>
-                      <div className="mt-2 text-xl font-semibold tracking-[-0.035em] text-white">
-                        {selectedVendor?.legal_name ||
-                          selectedVendor?.name ||
-                          "Unknown vendor"}
-                      </div>
-                    </div>
-                    <div className="flex h-10 w-10 items-center justify-center rounded-2xl border border-amber-400/20 bg-amber-500/10 text-amber-200">
-                      <Receipt className="h-4 w-4" />
-                    </div>
-                  </div>
-                  <div className="mt-3 text-xs leading-5 text-slate-500">
-                    {selectedVendor?.code || "Vendor source"}
-                  </div>
-                </div>
-
-                <div className="min-h-[148px] rounded-[24px] border border-white/10 bg-black/20 p-4">
-                  <div className="flex items-start justify-between gap-3">
-                    <div>
-                      <div className={eyebrowClass}>Issued To</div>
-                      <div className="mt-2 text-xl font-semibold tracking-[-0.035em] text-white">
-                        {selectedCompany?.legal_name ||
-                          selectedCompany?.name ||
-                          "No company linked"}
-                      </div>
-                    </div>
-                    <div className="flex h-10 w-10 items-center justify-center rounded-2xl border border-cyan-400/20 bg-cyan-500/10 text-cyan-200">
-                      <FileText className="h-4 w-4" />
-                    </div>
-                  </div>
-                  <div className="mt-3 text-xs leading-5 text-slate-500">
-                    AiXia receiving company.
-                  </div>
-                </div>
-
-                <div className="min-h-[148px] rounded-[24px] border border-white/10 bg-black/20 p-4">
-                  <div className={eyebrowClass}>Quotation Total</div>
-                  <div className="mt-2 text-xl font-semibold tracking-[-0.035em] text-white">
-                    {formatMoney(totalAmount, quotationCurrencyCode)}
-                  </div>
-                  <div className="mt-3 text-xs leading-5 text-slate-500">
-                    {lineCount} active line items.
-                  </div>
-                </div>
-
-                <div className="min-h-[148px] rounded-[24px] border border-white/10 bg-black/20 p-4">
-                  <div className={eyebrowClass}>Vendor Document</div>
-                  <div
-                    className={`mt-2 text-xl font-semibold tracking-[-0.035em] ${
-                      hasDocument ? "text-emerald-100" : "text-rose-100"
-                    }`}
-                  >
-                    {hasDocument ? "Attached" : "Missing"}
-                  </div>
-                  <div className="mt-3 text-xs leading-5 text-slate-500">
-                    {documentRequirementMessage}
-                  </div>
-                </div>
-              </div>
-            </div>
-          </div>
-        </header>
-
-        <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
-          <div className="group relative min-h-[156px] overflow-hidden rounded-[28px] border border-white/10 bg-white/[0.045] p-5 backdrop-blur-xl transition hover:border-white/20 hover:bg-white/[0.055]">
-            <div className="pointer-events-none absolute inset-0 bg-gradient-to-br from-amber-500/20 via-amber-400/10 to-transparent opacity-70" />
-            <div className="relative flex h-full flex-col justify-between gap-5">
-              <div>
-                <div className="text-[11px] font-semibold uppercase tracking-[0.2em] text-slate-500">
-                  Subtotal
-                </div>
-                <div className="mt-2 truncate text-3xl font-semibold tracking-[-0.035em] text-amber-100">
-                  {formatMoney(subtotalAmount, quotationCurrencyCode)}
-                </div>
-              </div>
-              <div className="text-sm leading-6 text-slate-400">
-                Quotation subtotal before total adjustments.
-              </div>
-            </div>
-          </div>
-
-          <div className="group relative min-h-[156px] overflow-hidden rounded-[28px] border border-white/10 bg-white/[0.045] p-5 backdrop-blur-xl transition hover:border-white/20 hover:bg-white/[0.055]">
-            <div className="pointer-events-none absolute inset-0 bg-gradient-to-br from-cyan-500/20 via-cyan-400/10 to-transparent opacity-70" />
-            <div className="relative flex h-full flex-col justify-between gap-5">
-              <div>
-                <div className="text-[11px] font-semibold uppercase tracking-[0.2em] text-slate-500">
-                  Total Amount
-                </div>
-                <div className="mt-2 truncate text-3xl font-semibold tracking-[-0.035em] text-cyan-100">
-                  {formatMoney(totalAmount, quotationCurrencyCode)}
-                </div>
-              </div>
-              <div className="text-sm leading-6 text-slate-400">
-                Vendor quoted commercial value.
-              </div>
-            </div>
-          </div>
-
-          <div className="group relative min-h-[156px] overflow-hidden rounded-[28px] border border-white/10 bg-white/[0.045] p-5 backdrop-blur-xl transition hover:border-white/20 hover:bg-white/[0.055]">
-            <div className="pointer-events-none absolute inset-0 bg-gradient-to-br from-violet-500/20 via-violet-400/10 to-transparent opacity-70" />
-            <div className="relative flex h-full flex-col justify-between gap-5">
-              <div>
-                <div className="text-[11px] font-semibold uppercase tracking-[0.2em] text-slate-500">
-                  Line Items
-                </div>
-                <div className="mt-2 truncate text-3xl font-semibold tracking-[-0.035em] text-violet-100">
-                  {lineCount}
-                </div>
-              </div>
-              <div className="text-sm leading-6 text-slate-400">
-                Active supplier quotation lines.
-              </div>
-            </div>
-          </div>
-
-          <div className="group relative min-h-[156px] overflow-hidden rounded-[28px] border border-white/10 bg-white/[0.045] p-5 backdrop-blur-xl transition hover:border-white/20 hover:bg-white/[0.055]">
-            <div className="pointer-events-none absolute inset-0 bg-gradient-to-br from-emerald-500/20 via-emerald-400/10 to-transparent opacity-70" />
-            <div className="relative flex h-full flex-col justify-between gap-5">
-              <div>
-                <div className="text-[11px] font-semibold uppercase tracking-[0.2em] text-slate-500">
-                  Attachments
-                </div>
-                <div className="mt-2 truncate text-3xl font-semibold tracking-[-0.035em] text-emerald-100">
-                  {attachments.length}
-                </div>
-              </div>
-              <div className="text-sm leading-6 text-slate-400">
-                Original vendor quotation files stored.
-              </div>
-            </div>
-          </div>
-        </div>
-
-                <div className="grid grid-cols-1 gap-6 xl:grid-cols-[minmax(0,1.45fr)_420px]">
-          <div className="space-y-6">
-            <Card className={sectionCardClass}>
-              <CardHeader className="flex flex-col gap-4 border-b border-white/10 px-5 py-4 md:flex-row md:items-center md:justify-between">
-                <div className="flex items-center gap-3">
-                  <div className="rounded-2xl border border-amber-400/15 bg-amber-500/10 p-3 text-amber-200">
-                    <FileText className="h-4 w-4" />
-                  </div>
-                  <div>
-                    <CardTitle className="text-sm font-semibold uppercase tracking-[0.18em] text-slate-400">
-                      Document Overview
-                    </CardTitle>
-                    <CardDescription className="mt-1 text-xs text-slate-500">
-                      Vendor quotation identity, issuing supplier, receiving
-                      company, commercial terms, and source document context.
-                    </CardDescription>
-                  </div>
-                </div>
-
-                {canEdit ? (
-                  <div className="flex w-full flex-col gap-2 sm:w-auto sm:flex-row sm:items-center sm:justify-end">
-                    {isOverviewEditMode ? (
-                      <>
-                        <Button
-                          onClick={() => void saveOverview()}
-                          disabled={isSavingOverview}
-                          className="h-10 rounded-2xl border border-amber-400/20 bg-amber-500 px-4 text-sm font-semibold text-slate-950 transition hover:bg-amber-400 disabled:cursor-not-allowed disabled:opacity-40"
-                        >
-                          <Save className="mr-2 h-4 w-4" />
-                          {isSavingOverview ? "Saving..." : "Save Overview"}
-                        </Button>
-
-                        <Button
-                          variant="outline"
-                          onClick={() => {
-                            resetOverviewDraft();
-                            setIsOverviewEditMode(false);
-                          }}
-                          className="h-10 rounded-2xl border-white/10 bg-white/[0.05] px-4 text-white hover:bg-white/[0.08]"
-                        >
-                          Cancel
-                        </Button>
-                      </>
-                    ) : (
-                      <Button
-                        variant="outline"
-                        onClick={() => setIsOverviewEditMode(true)}
-                        className="h-10 rounded-2xl border-white/10 bg-white/[0.05] px-4 text-white hover:bg-white/[0.08]"
-                      >
-                        <SquarePen className="mr-2 h-4 w-4" />
-                        Edit Overview
-                      </Button>
-                    )}
-                  </div>
-                ) : null}
-              </CardHeader>
-
-              <CardContent className="grid grid-cols-1 gap-4 p-5 md:grid-cols-2">
-                <label className="space-y-2">
-                  <div className={labelClass}>Vendor / Issued From</div>
-                  {isOverviewEditMode ? (
-                    <select
-                      value={overviewDraft.vendor_id}
-                      onChange={(event) =>
-                        setOverviewDraft((current) => ({
-                          ...current,
-                          vendor_id: event.target.value,
-                        }))
-                      }
-                      className={fieldClass}
-                    >
-                      <option value="">Select vendor</option>
-                      {vendors.map((vendor) => (
-                        <option key={vendor.id} value={vendor.id}>
-                          {vendor.legal_name || vendor.name}
-                          {vendor.code ? ` — ${vendor.code}` : ""}
-                        </option>
-                      ))}
-                    </select>
-                  ) : (
-                    <div className={readOnlyBoxClass}>
-                      {selectedVendor?.legal_name ||
-                        selectedVendor?.name ||
-                        "Unknown vendor"}
-                    </div>
-                  )}
-                </label>
-
-                <label className="space-y-2">
-                  <div className={labelClass}>Issued To / AiXia Company</div>
-                  {isOverviewEditMode ? (
-                    <select
-                      value={overviewDraft.company_id}
-                      onChange={(event) =>
-                        setOverviewDraft((current) => ({
-                          ...current,
-                          company_id: event.target.value,
-                        }))
-                      }
-                      className={fieldClass}
-                    >
-                      <option value="">Select company</option>
-                      {companies.map((company) => (
-                        <option key={company.id} value={company.id}>
-                          {company.legal_name || company.name}
-                        </option>
-                      ))}
-                    </select>
-                  ) : (
-                    <div className={readOnlyBoxClass}>
-                      {selectedCompany?.legal_name ||
-                        selectedCompany?.name ||
-                        "No company linked"}
-                    </div>
-                  )}
-                </label>
-
-                <div className="space-y-2">
-                  <div className={labelClass}>Document Type</div>
-                  <div className={readOnlyBoxClass}>Vendor Quotation</div>
-                </div>
-
-                <label className="space-y-2">
-                  <div className={labelClass}>Vendor Quotation Number</div>
-                  {isOverviewEditMode ? (
-                    <input
-                      value={overviewDraft.external_quotation_number}
-                      onChange={(event) =>
-                        setOverviewDraft((current) => ({
-                          ...current,
-                          external_quotation_number: event.target.value,
-                        }))
-                      }
-                      placeholder="Supplier quotation number"
-                      className={fieldClass}
-                    />
-                  ) : (
-                    <div className={readOnlyBoxClass}>
-                      {quotation.external_quotation_number ||
-                        quotation.vendor_quotation_number}
-                    </div>
-                  )}
-                </label>
-
-                <label className="space-y-2">
-                  <div className={labelClass}>Quotation Date</div>
-                  {isOverviewEditMode ? (
-                    <input
-                      type="date"
-                      value={overviewDraft.quotation_date}
-                      onChange={(event) =>
-                        setOverviewDraft((current) => ({
-                          ...current,
-                          quotation_date: event.target.value,
-                        }))
-                      }
-                      className={fieldClass}
-                    />
-                  ) : (
-                    <div className={readOnlyBoxClass}>
-                      {formatDate(quotation.quotation_date)}
-                    </div>
-                  )}
-                </label>
-
-                <label className="space-y-2">
-                  <div className={labelClass}>Valid Until</div>
-                  {isOverviewEditMode ? (
-                    <input
-                      type="date"
-                      value={overviewDraft.valid_until}
-                      onChange={(event) =>
-                        setOverviewDraft((current) => ({
-                          ...current,
-                          valid_until: event.target.value,
-                        }))
-                      }
-                      className={fieldClass}
-                    />
-                  ) : (
-                    <div className={readOnlyBoxClass}>
-                      {formatDate(quotation.valid_until)}
-                    </div>
-                  )}
-                </label>
-
-                <label className="space-y-2">
-                  <div className={labelClass}>Currency</div>
-                  {isOverviewEditMode ? (
-                    <select
-                      value={overviewDraft.currency_code}
-                      onChange={(event) =>
-                        setOverviewDraft((current) => ({
-                          ...current,
-                          currency_code: event.target.value,
-                        }))
-                      }
-                      className={fieldClass}
-                    >
-                      <option value="">Select currency</option>
-                      {currencies.map((currency) => (
-                        <option
-                          key={currency.id}
-                          value={currency.currency_code}
-                        >
-                          {currency.currency_code} — {currency.currency_name}
-                        </option>
-                      ))}
-                    </select>
-                  ) : (
-                    <div className={readOnlyBoxClass}>
-                      {quotationCurrencyCode}
-                      {selectedCurrency?.currency_name
-                        ? ` — ${selectedCurrency.currency_name}`
-                        : ""}
-                    </div>
-                  )}
-                </label>
-
-                <div className="space-y-2">
-                  <div className={labelClass}>Status</div>
-                  <div className={readOnlyBoxClass}>
-                    <Badge
-                      className={`rounded-full border px-3 py-1 text-[11px] font-semibold uppercase tracking-[0.16em] shadow-none ${getStatusBadgeClass(
-                        quotation.status
-                      )}`}
-                    >
-                      {normalizeStatusLabel(quotation.status)}
-                    </Badge>
-                  </div>
-                </div>
-
-                <label className="space-y-2">
-                  <div className={labelClass}>Payment Terms</div>
-                  {isOverviewEditMode ? (
-                    <select
-                      value={overviewDraft.payment_terms_id}
-                      onChange={(event) =>
-                        setOverviewDraft((current) => ({
-                          ...current,
-                          payment_terms_id: event.target.value,
-                        }))
-                      }
-                      className={fieldClass}
-                    >
-                      <option value="">Select terms</option>
-                      {paymentTerms.map((term) => (
-                        <option key={term.id} value={term.id}>
-                          {term.name}
-                        </option>
-                      ))}
-                    </select>
-                  ) : (
-                    <div className={readOnlyBoxClass}>
-                      {selectedPaymentTerm?.name || "—"}
-                    </div>
-                  )}
-                </label>
-
-                <label className="space-y-2">
-                  <div className={labelClass}>Shipping Terms</div>
-                  {isOverviewEditMode ? (
-                    <select
-                      value={overviewDraft.shipping_term_id}
-                      onChange={(event) =>
-                        setOverviewDraft((current) => ({
-                          ...current,
-                          shipping_term_id: event.target.value,
-                        }))
-                      }
-                      className={fieldClass}
-                    >
-                      <option value="">Select shipping term</option>
-                      {shippingTerms.map((term) => (
-                        <option key={term.id} value={term.id}>
-                          {term.name}
-                        </option>
-                      ))}
-                    </select>
-                  ) : (
-                    <div className={readOnlyBoxClass}>
-                      {selectedShippingTerm?.name || "—"}
-                    </div>
-                  )}
-                </label>
-
-                <div className="rounded-[24px] border border-white/10 bg-black/20 p-4">
-                  <div className={eyebrowClass}>Vendor / Issued From</div>
-                  <div className="mt-3 text-xl font-semibold text-white">
-                    {selectedDraftVendor?.legal_name ||
-                      selectedDraftVendor?.name ||
-                      "Unknown vendor"}
-                  </div>
-
-                  <div className="mt-3 space-y-1 text-sm leading-6 text-slate-300">
-                    {selectedDraftVendor?.code ? (
-                      <div>Vendor Code: {selectedDraftVendor.code}</div>
-                    ) : null}
-                    {selectedDraftVendor?.contact_person ? (
-                      <div>Contact: {selectedDraftVendor.contact_person}</div>
-                    ) : null}
-                    {selectedDraftVendor?.email ? (
-                      <div>Email: {selectedDraftVendor.email}</div>
-                    ) : null}
-                    {selectedDraftVendor?.phone ? (
-                      <div>Phone: {selectedDraftVendor.phone}</div>
-                    ) : null}
-                    {buildVendorAddress(selectedDraftVendor) ? (
-                      <div>{buildVendorAddress(selectedDraftVendor)}</div>
-                    ) : null}
-                  </div>
-                </div>
-
-                <div className="rounded-[24px] border border-white/10 bg-black/20 p-4">
-                  <div className={eyebrowClass}>Issued To / AiXia Company</div>
-                  <div className="mt-3 text-xl font-semibold text-white">
-                    {selectedDraftCompany?.legal_name ||
-                      selectedDraftCompany?.name ||
-                      "No company linked"}
-                  </div>
-
-                  <div className="mt-3 space-y-1 text-sm leading-6 text-slate-300">
-                    {selectedDraftCompany?.contact_person ? (
-                      <div>Contact: {selectedDraftCompany.contact_person}</div>
-                    ) : null}
-                    {selectedDraftCompany?.email ? (
-                      <div>Email: {selectedDraftCompany.email}</div>
-                    ) : null}
-                    {selectedDraftCompany?.phone ? (
-                      <div>Phone: {selectedDraftCompany.phone}</div>
-                    ) : null}
-                    {buildCompanyAddress(selectedDraftCompany) ? (
-                      <div>{buildCompanyAddress(selectedDraftCompany)}</div>
-                    ) : null}
-                  </div>
-                </div>
-
-                <label className="space-y-2 md:col-span-2">
-                  <div className={labelClass}>Notes</div>
-                  {isOverviewEditMode ? (
-                    <textarea
-                      value={overviewDraft.notes}
-                      onChange={(event) =>
-                        setOverviewDraft((current) => ({
-                          ...current,
-                          notes: event.target.value,
-                        }))
-                      }
-                      rows={5}
-                      className="w-full rounded-2xl border border-white/10 bg-black/20 px-4 py-3 text-sm leading-6 text-white outline-none transition focus:border-amber-400/30 focus:bg-black/30"
-                    />
-                  ) : (
-                    <div className={`${readOnlyBoxClass} whitespace-pre-line`}>
-                      {quotation.notes || "—"}
-                    </div>
-                  )}
-                </label>
-              </CardContent>
-            </Card>
-
-                        <Card className={sectionCardClass}>
-              <CardHeader className="flex flex-col gap-4 border-b border-white/10 px-5 py-4 md:flex-row md:items-center md:justify-between">
-                <div className="flex items-center gap-3">
-                  <div className="rounded-2xl border border-cyan-400/15 bg-cyan-500/10 p-3 text-cyan-200">
-                    <FileText className="h-4 w-4" />
-                  </div>
-                  <div>
-                    <CardTitle className="text-sm font-semibold uppercase tracking-[0.18em] text-slate-400">
-                      Line Items
-                    </CardTitle>
-                    <CardDescription className="mt-1 text-xs text-slate-500">
-                      Vendor quotation lines. Editable only before acceptance
-                      and conversion.
-                    </CardDescription>
-                  </div>
-                </div>
-
-                {canEdit ? (
-                  <div className="flex w-full flex-col gap-2 sm:w-auto sm:flex-row sm:items-center sm:justify-end">
-                    {isLinesEditMode ? (
-                      <>
-                        <Button
-                          variant="outline"
-                          onClick={addLineDraft}
-                          className="h-10 rounded-2xl border-emerald-400/20 bg-emerald-500/10 px-4 text-emerald-200 hover:bg-emerald-500/20"
-                        >
-                          <Plus className="mr-2 h-4 w-4" />
-                          Add Line
-                        </Button>
-
-                        <Button
-                          onClick={() => void saveLines()}
-                          disabled={isSavingLines}
-                          className="h-10 rounded-2xl border border-cyan-400/20 bg-cyan-500 px-4 text-sm font-semibold text-slate-950 transition hover:bg-cyan-400 disabled:cursor-not-allowed disabled:opacity-40"
-                        >
-                          <Save className="mr-2 h-4 w-4" />
-                          {isSavingLines ? "Saving..." : "Save Lines"}
-                        </Button>
-
-                        <Button
-                          variant="outline"
-                          onClick={() => {
-                            setLineDrafts(lineItems.map(createLineDraft));
-                            setIsLinesEditMode(false);
-                          }}
-                          className="h-10 rounded-2xl border-white/10 bg-white/[0.05] px-4 text-white hover:bg-white/[0.08]"
-                        >
-                          Cancel
-                        </Button>
-                      </>
-                    ) : (
-                      <>
-                        <Button
-                          variant="outline"
-                          onClick={addLineDraft}
-                          className="h-10 rounded-2xl border-emerald-400/20 bg-emerald-500/10 px-4 text-emerald-200 hover:bg-emerald-500/20"
-                        >
-                          <Plus className="mr-2 h-4 w-4" />
-                          Add Line
-                        </Button>
-
-                        <Button
-                          variant="outline"
-                          onClick={() => setIsLinesEditMode(true)}
-                          className="h-10 rounded-2xl border-white/10 bg-white/[0.05] px-4 text-white hover:bg-white/[0.08]"
-                        >
-                          <SquarePen className="mr-2 h-4 w-4" />
-                          Edit Lines
-                        </Button>
-                      </>
-                    )}
-                  </div>
-                ) : null}
-              </CardHeader>
-
-              <CardContent className="max-h-[720px] space-y-3 overflow-y-auto p-5 pr-2">
-                {isLinesEditMode ? (
-                  lineDrafts.length === 0 ? (
-                    <div className="rounded-[24px] border border-dashed border-white/10 bg-black/20 px-5 py-10 text-center text-sm text-slate-500">
-                      No line items found.
-                    </div>
-                  ) : (
-                    lineDrafts.map((draft, index) => (
-                      <div
-                        key={draft.id}
-                        className="rounded-[24px] border border-white/10 bg-black/20 p-4"
-                      >
-                        <div className="mb-4 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-                          <div>
-                            <div className="text-sm font-semibold text-white">
-                              Line {index + 1}
-                            </div>
-                            <div className="mt-1 text-xs text-slate-500">
-                              Sort order: {index}
-                            </div>
-                          </div>
-
-                          <div className="flex flex-wrap items-center gap-2">
-                            <Button
-                              variant="outline"
-                              onClick={() => removeLineDraft(draft.id)}
-                              disabled={lineDrafts.length <= 1}
-                              className="h-9 rounded-2xl border-rose-400/20 bg-rose-500/10 px-3 text-rose-200 hover:bg-rose-500/20 disabled:cursor-not-allowed disabled:opacity-40"
-                            >
-                              <Trash2 className="mr-2 h-4 w-4" />
-                              Remove
-                            </Button>
-
-                            <div className="rounded-2xl border border-amber-400/15 bg-amber-500/10 px-4 py-2 text-sm font-semibold text-amber-100">
-                              {formatMoney(
-                                draftLineTotals[index] || 0,
-                                quotationCurrencyCode
-                              )}
-                            </div>
-                          </div>
-                        </div>
-
-                        <div className="grid grid-cols-1 gap-4 lg:grid-cols-[1.1fr_1.4fr_0.55fr_0.65fr]">
-                          <label className="space-y-2">
-                            <div className={labelClass}>Item</div>
-                            <select
-                              value={draft.item_id}
-                              onChange={(event) =>
-                                handleItemChange(draft.id, event.target.value)
-                              }
-                              className={fieldClass}
-                            >
-                              <option value="">Manual item</option>
-                              {items.map((item) => (
-                                <option key={item.id} value={item.id}>
-                                  {item.name}
-                                </option>
-                              ))}
-                            </select>
-                          </label>
-
-                          <label className="space-y-2">
-                            <div className={labelClass}>Description</div>
-                            <input
-                              value={draft.description}
-                              onChange={(event) =>
-                                updateLineDraft(draft.id, {
-                                  description: event.target.value,
-                                })
-                              }
-                              className={fieldClass}
-                            />
-                          </label>
-
-                          <label className="space-y-2">
-                            <div className={labelClass}>Qty</div>
-                            <input
-                              value={draft.quantity}
-                              onChange={(event) =>
-                                updateLineDraft(draft.id, {
-                                  quantity: event.target.value,
-                                })
-                              }
-                              className={fieldClass}
-                            />
-                          </label>
-
-                          <label className="space-y-2">
-                            <div className={labelClass}>Unit Price</div>
-                            <input
-                              value={draft.unit_price}
-                              onChange={(event) =>
-                                updateLineDraft(draft.id, {
-                                  unit_price: event.target.value,
-                                })
-                              }
-                              className={fieldClass}
-                            />
-                          </label>
-                        </div>
-
-                        <div className="mt-4 grid grid-cols-1 gap-4 lg:grid-cols-[0.7fr_0.8fr_0.9fr_0.9fr]">
-                          <label className="space-y-2">
-                            <div className={labelClass}>Discount</div>
-                            <input
-                              value={draft.discount}
-                              onChange={(event) =>
-                                updateLineDraft(draft.id, {
-                                  discount: event.target.value,
-                                })
-                              }
-                              className={fieldClass}
-                            />
-                          </label>
-
-                          <label className="space-y-2">
-                            <div className={labelClass}>Unit</div>
-                            <select
-                              value={draft.unit_of_measure_id}
-                              onChange={(event) =>
-                                updateLineDraft(draft.id, {
-                                  unit_of_measure_id: event.target.value,
-                                })
-                              }
-                              className={fieldClass}
-                            >
-                              <option value="">Select</option>
-                              {units.map((unit) => (
-                                <option key={unit.id} value={unit.id}>
-                                  {unit.code || unit.name}
-                                </option>
-                              ))}
-                            </select>
-                          </label>
-
-                          <label className="space-y-2">
-                            <div className={labelClass}>Tax Code</div>
-                            <select
-                              value={draft.tax_code_id}
-                              onChange={(event) =>
-                                updateLineDraft(draft.id, {
-                                  tax_code_id: event.target.value,
-                                })
-                              }
-                              className={fieldClass}
-                            >
-                              <option value="">No tax</option>
-                              {taxCodes.map((tax) => (
-                                <option key={tax.id} value={tax.id}>
-                                  {tax.name} — {toNumber(tax.rate_percent)}%
-                                </option>
-                              ))}
-                            </select>
-                          </label>
-
-                          <label className="space-y-2">
-                            <div className={labelClass}>Expense Category</div>
-                            <select
-                              value={draft.expense_category_id}
-                              onChange={(event) =>
-                                updateLineDraft(draft.id, {
-                                  expense_category_id: event.target.value,
-                                })
-                              }
-                              className={fieldClass}
-                            >
-                              <option value="">Select</option>
-                              {expenseCategories.map((category) => (
-                                <option key={category.id} value={category.id}>
-                                  {category.name}
-                                </option>
-                              ))}
-                            </select>
-                          </label>
-                        </div>
-
-                        <label className="mt-4 block space-y-2">
-                          <div className={labelClass}>Line Notes</div>
-                          <input
-                            value={draft.notes}
-                            onChange={(event) =>
-                              updateLineDraft(draft.id, {
-                                notes: event.target.value,
-                              })
-                            }
-                            className={fieldClass}
-                          />
-                        </label>
-                      </div>
-                    ))
-                  )
-                ) : lineItems.length === 0 ? (
-                  <div className="rounded-[24px] border border-dashed border-white/10 bg-black/20 px-5 py-10 text-center text-sm text-slate-500">
-                    No line items found.
-                  </div>
-                ) : (
-                  lineItems.map((line, index) => (
-                    <div
-                      key={line.id}
-                      className="rounded-[24px] border border-white/10 bg-black/20 p-4"
-                    >
-                      <div className="mb-4 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-                        <div>
-                          <div className="text-sm font-semibold text-white">
-                            Line {index + 1}
-                          </div>
-                          <div className="mt-1 text-xs text-slate-500">
-                            Sort order: {line.sort_order}
-                          </div>
-                        </div>
-
-                        <div className="rounded-2xl border border-amber-400/15 bg-amber-500/10 px-4 py-2 text-sm font-semibold text-amber-100">
-                          {formatMoney(line.line_total, quotationCurrencyCode)}
-                        </div>
-                      </div>
-
-                      <div className="grid grid-cols-1 gap-4 md:grid-cols-4">
-                        <div>
-                          <div className="text-[11px] uppercase tracking-[0.18em] text-slate-500">
-                            Description
-                          </div>
-                          <div className="mt-2 text-sm text-white">
-                            {line.description}
-                          </div>
-                        </div>
-
-                        <div>
-                          <div className="text-[11px] uppercase tracking-[0.18em] text-slate-500">
-                            Quantity
-                          </div>
-                          <div className="mt-2 text-sm text-white">
-                            {toNumber(line.quantity)}
-                          </div>
-                        </div>
-
-                        <div>
-                          <div className="text-[11px] uppercase tracking-[0.18em] text-slate-500">
-                            Unit Price
-                          </div>
-                          <div className="mt-2 text-sm text-white">
-                            {formatMoney(line.unit_price, quotationCurrencyCode)}
-                          </div>
-                        </div>
-
-                        <div>
-                          <div className="text-[11px] uppercase tracking-[0.18em] text-slate-500">
-                            Discount
-                          </div>
-                          <div className="mt-2 text-sm text-white">
-                            {formatMoney(line.discount, quotationCurrencyCode)}
-                          </div>
-                        </div>
-                      </div>
-
-                      {line.notes ? (
-                        <div className="mt-4 rounded-2xl border border-white/10 bg-white/[0.03] px-4 py-3 text-sm text-slate-400">
-                          {line.notes}
-                        </div>
-                      ) : null}
-                    </div>
-                  ))
-                )}
-              </CardContent>
-            </Card>
-
-            <Card className={sectionCardClass}>
-              <CardHeader className="flex flex-col gap-4 border-b border-white/10 px-5 py-4 md:flex-row md:items-center md:justify-between">
-                <div className="flex items-center gap-3">
-                  <div
-                    className={`rounded-2xl border p-3 ${
-                      hasDocument
-                        ? "border-emerald-400/15 bg-emerald-500/10 text-emerald-200"
-                        : "border-rose-400/15 bg-rose-500/10 text-rose-200"
-                    }`}
-                  >
-                    <Paperclip className="h-4 w-4" />
-                  </div>
-                  <div>
-                    <CardTitle className="text-sm font-semibold uppercase tracking-[0.18em] text-slate-400">
-                      Vendor Quotation Document
-                    </CardTitle>
-                    <CardDescription className="mt-1 text-xs text-slate-500">
-                      Original quotation file received from the supplier.
-                    </CardDescription>
-                  </div>
-                </div>
-
-                {canUploadDocument ? (
-                  <Button
-                    variant="outline"
-                    onClick={() => setIsUploadPanelOpen((current) => !current)}
-                    className="h-10 rounded-2xl border-emerald-400/20 bg-emerald-500/10 px-4 text-emerald-200 hover:bg-emerald-500/20"
-                  >
-                    <Upload className="mr-2 h-4 w-4" />
-                    {isUploadPanelOpen ? "Close Upload" : "Upload Document"}
-                  </Button>
-                ) : null}
-              </CardHeader>
-
-              <CardContent className="space-y-4 p-5">
-                <div
-                  className={`rounded-[24px] border p-4 ${
-                    hasDocument
-                      ? "border-emerald-400/20 bg-emerald-500/10"
-                      : "border-rose-400/20 bg-rose-500/10"
-                  }`}
-                >
-                  <div
-                    className={`text-sm font-semibold ${
-                      hasDocument ? "text-emerald-100" : "text-rose-100"
-                    }`}
-                  >
-                    {hasDocument
-                      ? "Vendor quotation document attached"
-                      : "Vendor quotation document missing"}
-                  </div>
-                  <div
-                    className={`mt-2 text-sm leading-6 ${
-                      hasDocument ? "text-emerald-200/80" : "text-rose-200/80"
-                    }`}
-                  >
-                    {documentRequirementMessage}
-                  </div>
-                </div>
-
-                {attachments.length > 0 ? (
-                  <div className="grid gap-3">
-                    {attachments.map((attachment) => (
-                      <div
-                        key={attachment.id}
-                        className="flex flex-col gap-3 rounded-[20px] border border-white/10 bg-black/20 px-4 py-3 text-sm text-slate-300 md:flex-row md:items-center md:justify-between"
-                      >
-                        <div>
-                          <div className="font-semibold text-white">
-                            {attachment.file_name || "Uploaded document"}
-                          </div>
-                          <div className="mt-1 text-xs text-slate-500">
-                            Uploaded {formatDateTime(attachment.created_at)}
-                            {attachment.file_size
-                              ? ` · ${formatFileSize(attachment.file_size)}`
-                              : ""}
-                          </div>
-                          {attachment.mime_type ? (
-                            <div className="mt-1 text-xs text-slate-600">
-                              {attachment.mime_type}
-                            </div>
-                          ) : null}
-                        </div>
-
-                        <Badge className="w-fit rounded-full border border-emerald-400/20 bg-emerald-500/10 px-3 py-1 text-[11px] uppercase tracking-[0.16em] text-emerald-200 shadow-none">
-                          Stored
-                        </Badge>
-                      </div>
-                    ))}
-                  </div>
-                ) : null}
-
-                {canUploadDocument && isUploadPanelOpen ? (
-                  <div className="rounded-[24px] border border-white/10 bg-black/20 p-4">
-                    <div className="text-sm font-semibold text-white">
-                      Upload vendor quotation document
-                    </div>
-                    <div className="mt-1 text-xs leading-5 text-slate-500">
-                      Accepted formats are controlled by the
-                      finance-vendor-quotation-documents bucket.
-                    </div>
-
-                    <div className="mt-4 space-y-3">
-                      <input
-                        type="file"
-                        onChange={(event) =>
-                          setUploadFile(event.target.files?.[0] || null)
-                        }
-                        className="block w-full text-sm text-white file:mr-4 file:rounded-lg file:border-0 file:bg-white/10 file:px-4 file:py-2 file:text-white hover:file:bg-white/20"
-                      />
-
-                      {uploadFile ? (
-                        <div className="rounded-[18px] border border-emerald-400/20 bg-emerald-500/10 px-4 py-3 text-sm text-emerald-200">
-                          Selected file: {uploadFile.name}
-                        </div>
-                      ) : null}
-
-                      <Button
-                        onClick={() => void uploadDocument()}
-                        disabled={!uploadFile || isUploading}
-                        className="h-10 rounded-2xl border border-emerald-400/20 bg-emerald-500 px-4 text-sm font-semibold text-white transition hover:bg-emerald-400 disabled:cursor-not-allowed disabled:opacity-40"
-                      >
-                        <Upload className="mr-2 h-4 w-4" />
-                        {isUploading ? "Uploading..." : "Upload Document"}
-                      </Button>
-                    </div>
-                  </div>
-                ) : null}
-              </CardContent>
-            </Card>
-          </div>
-
-                            <div className="space-y-6">
-            <Card className={sectionCardClass}>
-              <CardHeader className="border-b border-white/10 px-5 py-4">
-                <CardTitle className="text-sm font-semibold uppercase tracking-[0.18em] text-slate-400">
-                  Financial Summary
-                </CardTitle>
-                <CardDescription className="mt-1 text-xs text-slate-500">
-                  Vendor quotation value and commercial status.
-                </CardDescription>
-              </CardHeader>
-
-              <CardContent className="space-y-3 p-5">
-                <div className={innerPanelClass}>
-                  <div className={eyebrowClass}>Subtotal</div>
-                  <div className="mt-2 text-2xl font-semibold text-white">
-                    {formatMoney(subtotalAmount, quotationCurrencyCode)}
-                  </div>
-                  <div className="mt-2 text-sm leading-6 text-slate-400">
-                    Before total adjustments.
-                  </div>
-                </div>
-
-                <div className={innerPanelClass}>
-                  <div className={eyebrowClass}>Total Amount</div>
-                  <div className="mt-2 text-2xl font-semibold text-white">
-                    {formatMoney(totalAmount, quotationCurrencyCode)}
-                  </div>
-                  <div className="mt-2 text-sm leading-6 text-slate-400">
-                    Supplier quoted amount.
-                  </div>
-                </div>
-
-                <div className={innerPanelClass}>
-                  <div className={eyebrowClass}>Status</div>
-                  <Badge
-                    className={`mt-3 rounded-full border px-3 py-1 text-[11px] font-semibold uppercase tracking-[0.16em] shadow-none ${getStatusBadgeClass(
-                      quotation.status
-                    )}`}
-                  >
-                    {normalizeStatusLabel(quotation.status)}
-                  </Badge>
-                  <div className="mt-3 text-sm leading-6 text-slate-400">
-                    {canAccept
-                      ? "Ready for acceptance."
-                      : hasDocument
-                        ? "Review status and line items before acceptance."
-                        : "Upload the original vendor quotation before acceptance."}
-                  </div>
-                </div>
-
-                <div className={innerPanelClass}>
-                  <div className={eyebrowClass}>Document</div>
-                  <div className="mt-2 text-2xl font-semibold text-white">
-                    {attachments.length}
-                  </div>
-                  <div className="mt-2 text-sm leading-6 text-slate-400">
-                    Original vendor quotation files stored.
-                  </div>
-                </div>
-              </CardContent>
-            </Card>
-
-            <Card className={sectionCardClass}>
-              <CardHeader className="border-b border-white/10 px-5 py-4">
-                <div className="flex items-center gap-3">
-                  <div className="rounded-2xl border border-violet-400/15 bg-violet-500/10 p-3 text-violet-200">
-                    <Link2 className="h-4 w-4" />
-                  </div>
-                  <div>
-                    <CardTitle className="text-sm font-semibold uppercase tracking-[0.18em] text-slate-400">
-                      Linked Documents
-                    </CardTitle>
-                    <CardDescription className="mt-1 text-xs text-slate-500">
-                      Reverse procurement flow relationship from quotation to
-                      purchase order.
-                    </CardDescription>
-                  </div>
-                </div>
-              </CardHeader>
-
-              <CardContent className="space-y-3 p-5">
-                <div className={innerPanelClass}>
-                  <div className="flex items-start justify-between gap-3">
-                    <div>
-                      <div className={eyebrowClass}>Purchase Order</div>
-                      <div className="mt-2 text-lg font-semibold text-white">
-                        {purchaseOrderLink?.purchase_order_number || "—"}
-                      </div>
-                      <div className="mt-2 text-sm leading-6 text-slate-400">
-                        {purchaseOrderLink
-                          ? `${normalizeStatusLabel(
-                              purchaseOrderLink.status
-                            )} · ${formatMoney(
-                              purchaseOrderLink.total_amount,
-                              purchaseOrderLink.currency_code ||
-                                quotationCurrencyCode
-                            )}`
-                          : "No purchase order has been created from this vendor quotation yet."}
-                      </div>
-                    </div>
-
-                    <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-2xl border border-violet-400/20 bg-violet-500/10 text-violet-200">
-                      <Link2 className="h-4 w-4" />
-                    </div>
-                  </div>
-
-                  {purchaseOrderLink ? (
-                    <Button
-                      variant="outline"
-                      onClick={() =>
-                        navigate(
-                          `/finance/transactions/purchase-orders/${purchaseOrderLink.id}`
-                        )
-                      }
-                      className="mt-4 h-9 rounded-2xl border-violet-400/20 bg-violet-500/10 px-3 text-violet-200 hover:bg-violet-500/20"
-                    >
-                      Open Purchase Order
-                    </Button>
-                  ) : null}
-                </div>
-
-                <div className="rounded-[20px] border border-amber-400/15 bg-amber-500/10 px-4 py-3 text-sm leading-6 text-amber-100">
-                  Flow: Vendor Quotation → Purchase Order → Vendor PI / Invoice
-                  → Payment Made.
-                </div>
-              </CardContent>
-            </Card>
-
-            <Card className={sectionCardClass}>
-              <CardHeader className="border-b border-white/10 px-5 py-4">
-                <CardTitle className="text-sm font-semibold uppercase tracking-[0.18em] text-slate-400">
-                  Archive
-                </CardTitle>
-                <CardDescription className="mt-1 text-xs text-slate-500">
-                  Same archive/delete behavior as the supplier procurement flow.
-                </CardDescription>
-              </CardHeader>
-
-              <CardContent className="space-y-3 p-5">
-                {canArchive ? (
-                  <Button
-                    variant="outline"
-                    onClick={() =>
-                      void runRpcAction("finance_archive_vendor_quotation")
-                    }
-                    disabled={isRunningAction}
-                    className="h-10 w-full justify-start rounded-2xl border-amber-400/20 bg-amber-500/10 px-4 text-amber-200 hover:bg-amber-500/20 disabled:cursor-not-allowed disabled:opacity-40"
-                  >
-                    <Archive className="mr-2 h-4 w-4" />
-                    Archive Vendor Quotation
-                  </Button>
-                ) : null}
-
-                {canDelete ? (
-                  <Button
-                    variant="outline"
-                    onClick={() =>
-                      void runRpcAction("finance_delete_vendor_quotation")
-                    }
-                    disabled={isRunningAction}
-                    className="h-10 w-full justify-start rounded-2xl border-rose-400/20 bg-rose-500/10 px-4 text-rose-200 hover:bg-rose-500/20 disabled:cursor-not-allowed disabled:opacity-40"
-                  >
-                    <Trash2 className="mr-2 h-4 w-4" />
-                    Delete Vendor Quotation
-                  </Button>
-                ) : null}
-
-                {canRestore ? (
-                  <Button
-                    variant="outline"
-                    onClick={() =>
-                      void runRpcAction("finance_restore_vendor_quotation")
-                    }
-                    disabled={isRunningAction}
-                    className="h-10 w-full justify-start rounded-2xl border-emerald-400/20 bg-emerald-500/10 px-4 text-emerald-200 hover:bg-emerald-500/20 disabled:cursor-not-allowed disabled:opacity-40"
-                  >
-                    <RotateCcw className="mr-2 h-4 w-4" />
-                    Restore Vendor Quotation
-                  </Button>
-                ) : null}
-
-                {canHardDelete ? (
-                  <Button
-                    variant="outline"
-                    onClick={() =>
-                      void runRpcAction("finance_hard_delete_vendor_quotation")
-                    }
-                    disabled={isRunningAction}
-                    className="h-10 w-full justify-start rounded-2xl border-rose-400/30 bg-rose-500/15 px-4 text-rose-100 hover:bg-rose-500/25 disabled:cursor-not-allowed disabled:opacity-40"
-                  >
-                    <XCircle className="mr-2 h-4 w-4" />
-                    Hard Delete Permanently
-                  </Button>
-                ) : null}
-
-                {!canArchive && !canDelete && !canRestore && !canHardDelete ? (
-                  <div className="rounded-[20px] border border-white/10 bg-black/20 px-4 py-3 text-sm leading-6 text-slate-400">
-                    Archive actions are unavailable for the current quotation
-                    state.
-                  </div>
-                ) : null}
-              </CardContent>
-            </Card>
-          </div>
-        </div>
-
-        <div className="rounded-[24px] border border-white/10 bg-white/[0.035] p-4 text-xs leading-6 text-slate-500">
-          Currency: {quotationCurrencyCode} · Created:{" "}
-          {formatDateTime(quotation.created_at)} · Updated:{" "}
-          {formatDateTime(quotation.updated_at)}
-          {quotation.accepted_at
-            ? ` · Accepted: ${formatDateTime(quotation.accepted_at)}`
-            : ""}
-          {quotation.converted_at
-            ? ` · Converted: ${formatDateTime(quotation.converted_at)}`
-            : ""}
-        </div>
-      </div>
-    </div>
+    <AixiaPage>
+      <AixiaHero
+        parentLabel="Vendor Quotations"
+        parentPath="/finance/transactions/vendor-quotations"
+        badges={[
+          { label: "Supplier Procurement", tone: "amber" },
+          { label: "Vendor Quotation", tone: "cyan" },
+          { label: normalizeStatusLabel(quotation.status), tone: quotation.status === "accepted" ? "emerald" : quotation.status === "deleted" || quotation.status === "rejected" ? "rose" : "neutral" },
+          { label: hasDocument ? "Document Attached" : "Document Missing", tone: hasDocument ? "emerald" : "rose" },
+          ...(isRefreshing ? [{ label: "Syncing", tone: "neutral" as const }] : []),
+        ]}
+        gradientTitle="Vendor"
+        title={quotation.vendor_quotation_number}
+        subtitle="Supplier quotation review and conversion workflow."
+        description="Vendor quotation received from supplier. Review the document, confirm commercial lines, accept the quotation, then convert it into an AiXia purchase order."
+        statusCards={[
+          {
+            label: "Issued From",
+            value: selectedVendor?.legal_name || selectedVendor?.name || "Unknown vendor",
+            description: selectedVendor?.code || "Vendor source",
+            icon: Receipt,
+            tone: "amber",
+          },
+          {
+            label: "Issued To",
+            value: selectedCompany?.legal_name || selectedCompany?.name || "No company linked",
+            description: "AiXia receiving company.",
+            icon: FileText,
+            tone: "cyan",
+          },
+          {
+            label: "Quotation Total",
+            value: formatMoney(totalAmount, quotationCurrencyCode),
+            description: `${lineCount} active line items.`,
+            icon: Wallet,
+            tone: "emerald",
+          },
+          {
+            label: "Vendor Document",
+            value: hasDocument ? "Attached" : "Missing",
+            description: documentRequirementMessage,
+            icon: Upload,
+            tone: hasDocument ? "emerald" : "rose",
+          },
+        ]}
+      />
+
+      <AixiaMetricGrid>
+        <AixiaMetricCard label="Subtotal" value={formatMoney(subtotalAmount, quotationCurrencyCode)} description="Quotation subtotal before total adjustments." icon={Wallet} tone="amber" />
+        <AixiaMetricCard label="Total Amount" value={formatMoney(totalAmount, quotationCurrencyCode)} description="Vendor quoted commercial value." icon={Wallet} tone="cyan" />
+        <AixiaMetricCard label="Line Items" value={lineCount.toLocaleString()} description="Active supplier quotation lines." icon={FileText} tone="violet" />
+        <AixiaMetricCard label="Attachments" value={attachments.length.toLocaleString()} description="Original vendor quotation files stored." icon={Upload} tone="emerald" />
+      </AixiaMetricGrid>
+
+      <AixiaAccessRule
+        title="Locked access rule"
+        description="Vendor quotation detail access follows the shared AiXia supplier procurement, document upload, lifecycle action, and line-item editing standard."
+        icon={ShieldCheck}
+      >
+        This page uses shared AiXia page, hero, metric, section, action, upload, form, and review components. Page-local UI primitives, manual upload/drop-zone UI, and local glass card systems are intentionally removed.
+      </AixiaAccessRule>
+
+      {errorMessage ? <AixiaAlert tone="error">{errorMessage}</AixiaAlert> : null}
+
+      <AixiaSmartLayout main={mainContent} side={sideContent} sidebar="wide" bottomSpan="auto" sideRebalance="last-to-bottom" />
+
+      <AixiaSection title="System Timeline" description="Automatic timestamps retained from the original vendor quotation record." icon={FileText}>
+        <AixiaReviewGrid variant="cards">
+          <AixiaValueBlock label="Currency" value={quotationCurrencyCode} />
+          <AixiaValueBlock label="Created" value={formatDateTime(quotation.created_at)} />
+          <AixiaValueBlock label="Updated" value={formatDateTime(quotation.updated_at)} />
+          {quotation.accepted_at ? <AixiaValueBlock label="Accepted" value={formatDateTime(quotation.accepted_at)} /> : null}
+          {quotation.converted_at ? <AixiaValueBlock label="Converted" value={formatDateTime(quotation.converted_at)} /> : null}
+        </AixiaReviewGrid>
+      </AixiaSection>
+    </AixiaPage>
   );
 }

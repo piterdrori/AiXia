@@ -801,7 +801,7 @@ export default function NewPaymentReceivedPage() {
               {proofFile ? (
                 <AixiaAlert tone="success">Proof will be uploaded with the draft.</AixiaAlert>
               ) : (
-                <AixiaAlert tone="warning">Proof is not attached yet.</AixiaAlert>
+                <AixiaAlert tone="info">Proof is not attached yet.</AixiaAlert>
               )}
             </AixiaSection>
 

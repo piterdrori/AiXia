@@ -1,24 +1,39 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { useNavigate, useSearchParams } from "react-router-dom";
 import {
-  ArrowRight,
   CreditCard,
+  FileText,
   Link2,
+  Receipt,
   Save,
   Upload,
+  Wallet,
 } from "lucide-react";
 
+import {
+  AixiaAlert,
+  AixiaBadge,
+  AixiaButton,
+  AixiaDisplayBlock,
+  AixiaDocumentUploadPanel,
+  AixiaFieldLabel,
+  AixiaFormField,
+  AixiaFormFullWidth,
+  AixiaFormGrid,
+  AixiaHero,
+  AixiaInputField,
+  AixiaLoadingState,
+  AixiaMetricCard,
+  AixiaMetricGrid,
+  AixiaPage,
+  AixiaSection,
+  AixiaSelectField,
+  AixiaSmartLayout,
+  AixiaTextareaField,
+  AixiaValueBlock,
+} from "@/components/aixia";
 import { convertCurrencyLive } from "@/lib/integrations/frankfurter";
 import { supabase } from "@/lib/supabase";
-import { Badge } from "@/components/ui/badge";
-import { Button } from "@/components/ui/button";
-import {
-  Card,
-  CardContent,
-  CardDescription,
-  CardHeader,
-  CardTitle,
-} from "@/components/ui/card";
 
 type BillOption = {
   id: string;
@@ -94,7 +109,10 @@ function toNumber(value: number | string | null | undefined) {
   return Number.isFinite(parsed) ? parsed : 0;
 }
 
-function formatMoney(value: number | string | null | undefined, currency = "USD") {
+function formatMoney(
+  value: number | string | null | undefined,
+  currency = "USD",
+) {
   return new Intl.NumberFormat(undefined, {
     style: "currency",
     currency: currency || "USD",
@@ -124,7 +142,10 @@ function getBankIdentifier(bank: BankAccountOption) {
   if (bank.iban) return `IBAN ${bank.iban}`;
   if (bank.swift_code) return `SWIFT ${bank.swift_code}`;
 
-  if (bank.account_identifier_type === "swift" && bank.account_identifier_value) {
+  if (
+    bank.account_identifier_type === "swift" &&
+    bank.account_identifier_value
+  ) {
     return `SWIFT ${bank.account_identifier_value}`;
   }
 
@@ -177,7 +198,7 @@ function resolveUploadMimeType(file: File) {
 async function uploadPaymentMadeProof(
   paymentId: string,
   selectedFile: File,
-  userId: string
+  userId: string,
 ) {
   const safeFileName = selectedFile.name.replace(/\s+/g, "-");
   const storagePath = `payments-made/${paymentId}/${Date.now()}-${safeFileName}`;
@@ -233,30 +254,35 @@ export default function FinanceNewPaymentMadePage() {
   const [bills, setBills] = useState<BillOption[]>([]);
   const [vendors, setVendors] = useState<VendorOption[]>([]);
   const [companies, setCompanies] = useState<CompanyOption[]>([]);
-  const [paymentMethods, setPaymentMethods] = useState<PaymentMethodOption[]>([]);
+  const [paymentMethods, setPaymentMethods] = useState<PaymentMethodOption[]>(
+    [],
+  );
   const [bankAccounts, setBankAccounts] = useState<BankAccountOption[]>([]);
   const [currencies, setCurrencies] = useState<CurrencyOption[]>([]);
 
   const [isLoading, setIsLoading] = useState(true);
   const [isSaving, setIsSaving] = useState(false);
-  const [isConvertingExchangeRate, setIsConvertingExchangeRate] = useState(false);
+  const [isConvertingExchangeRate, setIsConvertingExchangeRate] =
+    useState(false);
   const [errorMessage, setErrorMessage] = useState("");
+  const [uploadMessage, setUploadMessage] = useState("");
 
   const [billId, setBillId] = useState(sourceBillId);
   const [vendorId, setVendorId] = useState("");
   const [paidFromCompanyId, setPaidFromCompanyId] = useState("");
   const [paymentDate, setPaymentDate] = useState(
-    new Date().toISOString().slice(0, 10)
+    new Date().toISOString().slice(0, 10),
   );
   const [amount, setAmount] = useState("");
   const [paymentCurrencyCode, setPaymentCurrencyCode] = useState("");
   const [billCurrencyCode, setBillCurrencyCode] = useState("");
   const [exchangeRate, setExchangeRate] = useState("1");
   const [convertedAmount, setConvertedAmount] = useState("");
-  const [exchangeRateSource, setExchangeRateSource] =
-    useState("Frankfurter live API");
+  const [exchangeRateSource, setExchangeRateSource] = useState(
+    "Frankfurter live API",
+  );
   const [exchangeRateDate, setExchangeRateDate] = useState(
-    new Date().toISOString().slice(0, 10)
+    new Date().toISOString().slice(0, 10),
   );
   const [paymentMethodId, setPaymentMethodId] = useState("");
   const [paidFromBankAccountId, setPaidFromBankAccountId] = useState("");
@@ -266,32 +292,30 @@ export default function FinanceNewPaymentMadePage() {
 
   const selectedBill = useMemo(
     () => bills.find((bill) => bill.id === billId) ?? null,
-    [billId, bills]
+    [billId, bills],
   );
 
   const selectedVendor = useMemo(
     () => vendors.find((vendor) => vendor.id === vendorId) ?? null,
-    [vendorId, vendors]
+    [vendorId, vendors],
   );
 
   const selectedCompany = useMemo(
     () => companies.find((company) => company.id === paidFromCompanyId) ?? null,
-    [companies, paidFromCompanyId]
+    [companies, paidFromCompanyId],
   );
 
   const filteredBankAccounts = useMemo(() => {
     if (!paidFromCompanyId) return [];
 
-    return bankAccounts.filter(
-      (bank) => bank.company_id === paidFromCompanyId
-    );
+    return bankAccounts.filter((bank) => bank.company_id === paidFromCompanyId);
   }, [bankAccounts, paidFromCompanyId]);
 
   const selectedBankAccount = useMemo(
     () =>
       filteredBankAccounts.find((bank) => bank.id === paidFromBankAccountId) ??
       null,
-    [filteredBankAccounts, paidFromBankAccountId]
+    [filteredBankAccounts, paidFromBankAccountId],
   );
 
   useEffect(() => {
@@ -332,7 +356,7 @@ export default function FinanceNewPaymentMadePage() {
                 "finance_companies(name, legal_name)",
                 "finance_purchase_orders(purchase_order_number)",
                 "finance_vendor_quotations(vendor_quotation_number)",
-              ].join(", ")
+              ].join(", "),
             )
             .eq("approval_status", "approved")
             .in("status", ["open", "partially_paid", "overdue"])
@@ -370,7 +394,7 @@ export default function FinanceNewPaymentMadePage() {
                 "masked_account_number",
                 "currency_code",
                 "is_default",
-              ].join(", ")
+              ].join(", "),
             )
             .order("is_default", { ascending: false })
             .order("bank_name", { ascending: true }),
@@ -420,20 +444,22 @@ export default function FinanceNewPaymentMadePage() {
               vendor_quotation_number:
                 row.finance_vendor_quotations?.vendor_quotation_number ?? null,
             };
-          }
+          },
         );
 
         setBills(mappedBills);
         setVendors((vendorsResult.data || []) as unknown as VendorOption[]);
-        setCompanies((companiesResult.data || []) as unknown as CompanyOption[]);
+        setCompanies(
+          (companiesResult.data || []) as unknown as CompanyOption[],
+        );
         setPaymentMethods(
-          (paymentMethodsResult.data || []) as unknown as PaymentMethodOption[]
+          (paymentMethodsResult.data || []) as unknown as PaymentMethodOption[],
         );
         setBankAccounts(
-          (bankAccountsResult.data || []) as unknown as BankAccountOption[]
+          (bankAccountsResult.data || []) as unknown as BankAccountOption[],
         );
         setCurrencies(
-          (currenciesResult.data || []) as unknown as CurrencyOption[]
+          (currenciesResult.data || []) as unknown as CurrencyOption[],
         );
       } catch (error) {
         console.error("Failed to load payment made form data:", error);
@@ -459,14 +485,19 @@ export default function FinanceNewPaymentMadePage() {
     setBillCurrencyCode(resolvedBillCurrency);
     setPaymentCurrencyCode(resolvedBillCurrency);
     setReferenceNumber(
-      (current) => current || selectedBill.external_document_number || ""
+      (current) => current || selectedBill.external_document_number || "",
     );
   }, [selectedBill, selectedVendor?.currency_code]);
 
   useEffect(() => {
     const rawAmount = toNumber(amount);
 
-    if (!rawAmount || rawAmount <= 0 || !paymentCurrencyCode || !billCurrencyCode) {
+    if (
+      !rawAmount ||
+      rawAmount <= 0 ||
+      !paymentCurrencyCode ||
+      !billCurrencyCode
+    ) {
       setConvertedAmount("");
       setExchangeRate("1");
       setExchangeRateSource("Frankfurter live API");
@@ -483,7 +514,7 @@ export default function FinanceNewPaymentMadePage() {
         const result = await convertCurrencyLive(
           rawAmount,
           paymentCurrencyCode,
-          billCurrencyCode
+          billCurrencyCode,
         );
 
         if (isCancelled) return;
@@ -503,7 +534,7 @@ export default function FinanceNewPaymentMadePage() {
         setErrorMessage(
           error instanceof Error
             ? error.message
-            : "Failed to convert payment currency."
+            : "Failed to convert payment currency.",
         );
       } finally {
         if (!isCancelled) {
@@ -524,7 +555,8 @@ export default function FinanceNewPaymentMadePage() {
     if (!vendorId) return "Vendor is required.";
     if (!paidFromCompanyId) return "Paid from company is required.";
     if (!paymentDate) return "Select payment date.";
-    if (!amount || toNumber(amount) <= 0) return "Payment amount must be above 0.";
+    if (!amount || toNumber(amount) <= 0)
+      return "Payment amount must be above 0.";
     if (!paymentCurrencyCode) return "Select payment currency.";
     if (!billCurrencyCode) return "Select bill currency.";
     if (!exchangeRate || toNumber(exchangeRate) <= 0) {
@@ -536,7 +568,10 @@ export default function FinanceNewPaymentMadePage() {
     if (!paymentMethodId) return "Select payment method.";
     if (!selectedFile) return "Upload payment proof.";
 
-    if (selectedBill && toNumber(convertedAmount) > toNumber(selectedBill.balance_due)) {
+    if (
+      selectedBill &&
+      toNumber(convertedAmount) > toNumber(selectedBill.balance_due)
+    ) {
       return "Converted payment amount cannot exceed bill balance due.";
     }
 
@@ -567,6 +602,7 @@ export default function FinanceNewPaymentMadePage() {
     try {
       setIsSaving(true);
       setErrorMessage("");
+      setUploadMessage("");
 
       const {
         data: { user },
@@ -626,7 +662,7 @@ export default function FinanceNewPaymentMadePage() {
     } catch (error) {
       console.error("Failed to save payment made:", error);
       setErrorMessage(
-        error instanceof Error ? error.message : "Failed to save payment made."
+        error instanceof Error ? error.message : "Failed to save payment made.",
       );
     } finally {
       setIsSaving(false);
@@ -655,250 +691,245 @@ export default function FinanceNewPaymentMadePage() {
     vendorId,
   ]);
 
-  const fieldClass =
-    "h-11 w-full rounded-2xl border border-white/10 bg-black/20 px-4 text-sm text-white outline-none transition focus:border-emerald-400/30 focus:bg-black/30 disabled:cursor-not-allowed disabled:opacity-60";
-  const readOnlyBoxClass =
-    "flex min-h-[44px] items-center rounded-2xl border border-white/10 bg-black/20 px-4 py-3 text-sm leading-6 text-white";
-  const labelClass = "text-sm font-medium text-slate-300";
-  const sectionCardClass =
-    "overflow-hidden rounded-[30px] border border-white/10 bg-white/[0.045] backdrop-blur-xl";
-  const innerPanelClass =
-    "rounded-[24px] border border-white/10 bg-black/20 p-4";
-  const eyebrowClass =
-    "text-[11px] font-semibold uppercase tracking-[0.2em] text-slate-500";
+  const handleDocumentPanelUpload = useCallback(() => {
+    if (!selectedFile) {
+      setErrorMessage("Upload payment proof.");
+      setUploadMessage("");
+      return;
+    }
+
+    setErrorMessage("");
+    setUploadMessage(
+      "Payment proof selected. It will be uploaded when the payment draft is saved.",
+    );
+  }, [selectedFile]);
 
   if (isLoading) {
     return (
-      <div className="min-h-screen bg-[#05070d] px-4 py-4 text-white md:px-6 md:py-6">
-        <div className="mx-auto flex w-full max-w-[1600px] flex-col gap-6">
-          <div className="rounded-[30px] border border-white/10 bg-white/[0.045] p-6 text-sm text-slate-400 backdrop-blur-xl">
-            Loading payment made form...
-          </div>
-        </div>
-      </div>
+      <AixiaLoadingState
+        title="Loading payment made form"
+        description="Approved bills, vendors, companies, currencies, payment methods, and bank accounts are being loaded."
+      />
     );
   }
 
   const remainingAfterDraft =
     selectedBill && convertedAmount
-      ? Math.max(toNumber(selectedBill.balance_due) - toNumber(convertedAmount), 0)
+      ? Math.max(
+          toNumber(selectedBill.balance_due) - toNumber(convertedAmount),
+          0,
+        )
       : 0;
 
+  const selectedBillLabel = selectedBill
+    ? `${selectedBill.bill_number} · ${getDocumentTypeLabel(selectedBill.document_type)}`
+    : "No payable selected";
+
+  const vendorLabel =
+    selectedVendor?.legal_name || selectedVendor?.name || "Not selected";
+
+  const companyLabel =
+    selectedCompany?.legal_name ||
+    selectedCompany?.name ||
+    selectedBill?.company_legal_name ||
+    selectedBill?.company_name ||
+    "Not selected";
+
+  const effectiveAmountLabel = formatMoney(
+    convertedAmount || amount,
+    billCurrencyCode || "USD",
+  );
+
+  const paymentAmountLabel = formatMoney(amount, paymentCurrencyCode || "USD");
+
   return (
-    <div className="min-h-screen bg-[#05070d] px-4 py-4 text-white md:px-6 md:py-6">
-      <div className="mx-auto flex w-full max-w-[1600px] flex-col gap-6">
-        <header className="relative overflow-hidden rounded-[34px] border border-white/10 bg-white/[0.045] p-6 shadow-2xl shadow-black/30 backdrop-blur-xl">
-          <div className="pointer-events-none absolute inset-0 bg-[radial-gradient(circle_at_top_left,rgba(16,185,129,0.16),transparent_38%),radial-gradient(circle_at_top_right,rgba(6,182,212,0.12),transparent_34%)]" />
-
-          <div className="relative">
-            <button
+    <AixiaPage>
+      <AixiaHero
+        parentLabel="Payments Made"
+        parentPath="/finance/transactions/payments-made"
+        badges={[
+          { label: "New Payment Made", tone: "emerald" },
+          { label: "Step 04", tone: "cyan" },
+          ...(isConvertingExchangeRate
+            ? [{ label: "Converting", tone: "violet" as const }]
+            : []),
+        ]}
+        gradientTitle="Register"
+        title="Payment Made"
+        description="Create an outgoing payment against an approved vendor PI / invoice. Currency conversion is calculated automatically using the Frankfurter live API and the payment is saved as draft first."
+        statusCards={[
+          {
+            label: "Paid To / Vendor",
+            value: vendorLabel,
+            description: selectedVendor?.code || "Select approved vendor bill.",
+            icon: Receipt,
+            tone: "emerald",
+          },
+          {
+            label: "Paid From / AiXia Company",
+            value: companyLabel,
+            description: selectedBill?.purchase_order_number
+              ? `From ${selectedBill.purchase_order_number}`
+              : "Loaded from selected vendor document.",
+            icon: Wallet,
+            tone: "cyan",
+          },
+          {
+            label: "Effective Bill Amount",
+            value: effectiveAmountLabel,
+            description: `Paid: ${paymentAmountLabel}`,
+            icon: CreditCard,
+            tone: "violet",
+          },
+        ]}
+        actions={
+          <>
+            <AixiaButton
               type="button"
-              onClick={() => navigate("/finance/transactions/payments-made")}
-              className="mb-5 inline-flex items-center justify-center gap-2 rounded-full border border-white/10 bg-white/[0.05] px-5 py-2 text-[11px] font-semibold uppercase tracking-[0.22em] text-slate-300 transition hover:border-white/20 hover:bg-white/[0.08] hover:text-white"
+              variant="primary"
+              onClick={() => void handleSave()}
+              disabled={isSaving || isConvertingExchangeRate}
             >
-              <ArrowRight className="h-3.5 w-3.5 rotate-180" />
-              Payments Made
-            </button>
+              <Save className="h-4 w-4" />
+              {isSaving
+                ? "Saving..."
+                : isConvertingExchangeRate
+                  ? "Converting..."
+                  : "Save Payment Draft"}
+            </AixiaButton>
+          </>
+        }
+      />
 
-            <div className="grid gap-6 xl:grid-cols-[minmax(0,1fr)_420px]">
-              <div>
-                <div className="flex flex-wrap gap-2">
-                  <Badge className="w-fit rounded-full border border-emerald-400/20 bg-emerald-500/10 px-3 py-1 text-[11px] font-semibold uppercase tracking-[0.22em] text-emerald-200 shadow-none">
-                    New Payment Made
-                  </Badge>
+      <AixiaMetricGrid>
+        <AixiaMetricCard
+          label="Payment Amount"
+          value={paymentAmountLabel}
+          description="Actual outgoing payment currency."
+          icon={CreditCard}
+          tone="emerald"
+        />
+        <AixiaMetricCard
+          label="Effective Bill Amount"
+          value={effectiveAmountLabel}
+          description="Amount applied to the vendor bill."
+          icon={Receipt}
+          tone="cyan"
+        />
+        <AixiaMetricCard
+          label="Exchange Rate"
+          value={toNumber(exchangeRate || 1)}
+          description={`${paymentCurrencyCode || "—"} to ${billCurrencyCode || "—"}`}
+          icon={Wallet}
+          tone="violet"
+        />
+        <AixiaMetricCard
+          label="Payment Proof"
+          value={selectedFile ? "Selected" : "Required"}
+          description="Proof is uploaded after the draft record is created."
+          icon={Upload}
+          tone={selectedFile ? "emerald" : "rose"}
+        />
+      </AixiaMetricGrid>
 
-                  <Badge className="w-fit rounded-full border border-cyan-400/20 bg-cyan-500/10 px-3 py-1 text-[11px] font-semibold uppercase tracking-[0.22em] text-cyan-200 shadow-none">
-                    Step 04
-                  </Badge>
+      {errorMessage ? (
+        <AixiaAlert tone="error">{errorMessage}</AixiaAlert>
+      ) : null}
 
-                  {isConvertingExchangeRate ? (
-                    <Badge className="w-fit rounded-full border border-violet-400/20 bg-violet-500/10 px-3 py-1 text-[11px] font-semibold uppercase tracking-[0.22em] text-violet-200 shadow-none">
-                      Converting
-                    </Badge>
-                  ) : null}
-                </div>
+      {uploadMessage ? (
+        <AixiaAlert tone="success">{uploadMessage}</AixiaAlert>
+      ) : null}
 
-                <h1 className="mt-4 text-3xl font-semibold tracking-[-0.035em] text-white md:text-5xl">
-                  Register Payment Made
-                </h1>
-
-                <p className="mt-3 max-w-4xl text-sm leading-6 text-slate-400 md:text-base md:leading-7">
-                  Create an outgoing payment against an approved vendor PI /
-                  invoice. Currency conversion is calculated automatically using
-                  the Frankfurter live API and the payment is saved as draft first.
-                </p>
-
-                <div className="mt-5 flex flex-wrap gap-3">
-                  <Button
-                    onClick={() => void handleSave()}
-                    disabled={isSaving || isConvertingExchangeRate}
-                    className="h-11 rounded-2xl border border-emerald-400/20 bg-emerald-500 px-4 text-sm font-semibold text-white transition hover:bg-emerald-400 disabled:cursor-not-allowed disabled:opacity-50"
-                  >
-                    <Save className="mr-2 h-4 w-4" />
-                    {isSaving
-                      ? "Saving..."
-                      : isConvertingExchangeRate
-                        ? "Converting..."
-                        : "Save Payment Draft"}
-                  </Button>
-
-                  {errorMessage ? (
-                    <div className="flex min-h-11 items-center rounded-2xl border border-rose-400/20 bg-rose-500/10 px-4 text-sm text-rose-200">
-                      {errorMessage}
-                    </div>
-                  ) : null}
-                </div>
-              </div>
-
-              <div className="grid gap-4">
-                <div className="min-h-[148px] rounded-[24px] border border-white/10 bg-black/20 p-4">
-                  <div className={eyebrowClass}>Paid To / Vendor</div>
-                  <div className="mt-2 text-xl font-semibold text-white">
-                    {selectedVendor?.legal_name ||
-                      selectedVendor?.name ||
-                      "Not selected"}
-                  </div>
-                  <div className="mt-3 text-xs leading-5 text-slate-500">
-                    {selectedVendor?.code || "Select approved vendor bill."}
-                  </div>
-                </div>
-
-                <div className="min-h-[148px] rounded-[24px] border border-white/10 bg-black/20 p-4">
-                  <div className={eyebrowClass}>Paid From / AiXia Company</div>
-                  <div className="mt-2 text-xl font-semibold text-white">
-                    {selectedCompany?.legal_name ||
-                      selectedCompany?.name ||
-                      selectedBill?.company_legal_name ||
-                      selectedBill?.company_name ||
-                      "Not selected"}
-                  </div>
-                  <div className="mt-3 text-xs leading-5 text-slate-500">
-                    {selectedBill?.purchase_order_number
-                      ? `From ${selectedBill.purchase_order_number}`
-                      : "Loaded from selected vendor document."}
-                  </div>
-                </div>
-
-                <div className="min-h-[148px] rounded-[24px] border border-white/10 bg-black/20 p-4">
-                  <div className={eyebrowClass}>Effective Bill Amount</div>
-                  <div className="mt-2 text-xl font-semibold text-white">
-                    {formatMoney(convertedAmount || amount, billCurrencyCode || "USD")}
-                  </div>
-                  <div className="mt-3 text-xs leading-5 text-slate-500">
-                    Paid: {formatMoney(amount, paymentCurrencyCode || "USD")}
-                  </div>
-                </div>
-              </div>
-            </div>
-          </div>
-        </header>
-
-        <div className="grid grid-cols-1 gap-6 xl:grid-cols-[minmax(0,1.45fr)_420px]">
-          <div className="space-y-6">
-            <Card className={sectionCardClass}>
-              <CardHeader className="border-b border-white/10 px-5 py-4">
-                <div className="flex items-center gap-3">
-                  <div className="rounded-2xl border border-cyan-400/15 bg-cyan-500/10 p-3 text-cyan-200">
-                    <Link2 className="h-4 w-4" />
-                  </div>
-                  <div>
-                    <CardTitle className="text-sm font-semibold uppercase tracking-[0.18em] text-slate-400">
-                      Source Vendor Document
-                    </CardTitle>
-                    <CardDescription className="mt-1 text-xs text-slate-500">
-                      Select an approved vendor PI / invoice with open balance.
-                    </CardDescription>
-                  </div>
-                </div>
-              </CardHeader>
-
-              <CardContent className="grid grid-cols-1 gap-4 p-5">
-                <label className="space-y-2">
-                  <div className={labelClass}>Approved Vendor PI / Invoice</div>
-                  <select
+      <AixiaSmartLayout
+        sidebar="normal"
+        balance="main"
+        bottomSpan="never"
+        main={
+          <>
+            <AixiaSection
+              title="Source Vendor Document"
+              description="Select an approved vendor PI / invoice with open balance."
+              icon={Link2}
+            >
+              <AixiaFormGrid columns="one">
+                <AixiaFormField>
+                  <AixiaFieldLabel
+                    label="Approved Vendor PI / Invoice"
+                    required
+                  />
+                  <AixiaSelectField
                     value={billId}
                     onChange={(event) => setBillId(event.target.value)}
-                    className={fieldClass}
                   >
                     <option value="">Select approved vendor document</option>
                     {bills.map((bill) => (
                       <option key={bill.id} value={bill.id}>
-                        {bill.bill_number} — {getDocumentTypeLabel(bill.document_type)} —{" "}
-                        {bill.vendor_legal_name || bill.vendor_name || "Vendor"} —{" "}
-                        Balance {formatMoney(bill.balance_due, bill.currency_code || "USD")}
+                        {bill.bill_number} —{" "}
+                        {getDocumentTypeLabel(bill.document_type)} —{" "}
+                        {bill.vendor_legal_name || bill.vendor_name || "Vendor"}{" "}
+                        — Balance{" "}
+                        {formatMoney(
+                          bill.balance_due,
+                          bill.currency_code || "USD",
+                        )}
                       </option>
                     ))}
-                  </select>
-                </label>
+                  </AixiaSelectField>
+                </AixiaFormField>
 
                 {selectedBill ? (
-                  <div className="rounded-[22px] border border-cyan-400/15 bg-cyan-500/10 p-4">
-                    <div className="text-[11px] uppercase tracking-[0.2em] text-cyan-100/70">
-                      Selected Payable
-                    </div>
-                    <div className="mt-2 text-lg font-semibold text-white">
-                      {selectedBill.bill_number}
-                    </div>
-                    <div className="mt-2 text-sm leading-6 text-slate-300">
-                      Vendor Ref:{" "}
-                      {selectedBill.external_document_number || "—"} · Issued To:{" "}
-                      {selectedBill.company_legal_name ||
+                  <AixiaFormFullWidth>
+                    <AixiaValueBlock
+                      label="Selected Payable"
+                      value={selectedBillLabel}
+                      detail={`Vendor Ref: ${
+                        selectedBill.external_document_number || "—"
+                      } · Issued To: ${
+                        selectedBill.company_legal_name ||
                         selectedBill.company_name ||
                         selectedCompany?.legal_name ||
                         selectedCompany?.name ||
-                        "Company"}{" "}
-                      · Due: {formatDate(selectedBill.due_date)} · Balance:{" "}
-                      {formatMoney(selectedBill.balance_due, billCurrencyCode || "USD")}
-                    </div>
-                  </div>
+                        "Company"
+                      } · Due: ${formatDate(selectedBill.due_date)} · Balance: ${formatMoney(
+                        selectedBill.balance_due,
+                        billCurrencyCode || "USD",
+                      )}`}
+                    />
+                  </AixiaFormFullWidth>
                 ) : null}
-              </CardContent>
-            </Card>
+              </AixiaFormGrid>
+            </AixiaSection>
 
-            <Card className={sectionCardClass}>
-              <CardHeader className="border-b border-white/10 px-5 py-4">
-                <div className="flex items-center gap-3">
-                  <div className="rounded-2xl border border-emerald-400/15 bg-emerald-500/10 p-3 text-emerald-200">
-                    <CreditCard className="h-4 w-4" />
-                  </div>
-                  <div>
-                    <CardTitle className="text-sm font-semibold uppercase tracking-[0.18em] text-slate-400">
-                      Payment Details
-                    </CardTitle>
-                    <CardDescription className="mt-1 text-xs text-slate-500">
-                      Amount, payment method, live currency conversion, and bank
-                      source.
-                    </CardDescription>
-                  </div>
-                </div>
-              </CardHeader>
-
-              <CardContent className="grid grid-cols-1 gap-4 p-5 md:grid-cols-2">
-                <label className="space-y-2">
-                  <div className={labelClass}>Payment Date</div>
-                  <input
+            <AixiaSection
+              title="Payment Details"
+              description="Amount, payment method, live currency conversion, and bank source."
+              icon={CreditCard}
+            >
+              <AixiaFormGrid columns="two">
+                <AixiaFormField>
+                  <AixiaFieldLabel label="Payment Date" required />
+                  <AixiaInputField
                     type="date"
                     value={paymentDate}
                     onChange={(event) => setPaymentDate(event.target.value)}
-                    className={fieldClass}
                   />
-                </label>
+                </AixiaFormField>
 
-                <label className="space-y-2">
-                  <div className={labelClass}>Amount Paid</div>
-                  <input
+                <AixiaFormField>
+                  <AixiaFieldLabel label="Amount Paid" required />
+                  <AixiaInputField
                     value={amount}
                     onChange={(event) => setAmount(event.target.value)}
-                    className={fieldClass}
                   />
-                </label>
+                </AixiaFormField>
 
-                <label className="space-y-2">
-                  <div className={labelClass}>Payment Currency</div>
-                  <select
+                <AixiaFormField>
+                  <AixiaFieldLabel label="Payment Currency" required />
+                  <AixiaSelectField
                     value={paymentCurrencyCode}
-                    onChange={(event) => setPaymentCurrencyCode(event.target.value)}
-                    className={fieldClass}
+                    onChange={(event) =>
+                      setPaymentCurrencyCode(event.target.value)
+                    }
                   >
                     <option value="">Select currency</option>
                     {currencies.map((currency) => (
@@ -906,15 +937,16 @@ export default function FinanceNewPaymentMadePage() {
                         {currency.currency_code} — {currency.currency_name}
                       </option>
                     ))}
-                  </select>
-                </label>
+                  </AixiaSelectField>
+                </AixiaFormField>
 
-                <label className="space-y-2">
-                  <div className={labelClass}>Bill Currency</div>
-                  <select
+                <AixiaFormField>
+                  <AixiaFieldLabel label="Bill Currency" required />
+                  <AixiaSelectField
                     value={billCurrencyCode}
-                    onChange={(event) => setBillCurrencyCode(event.target.value)}
-                    className={fieldClass}
+                    onChange={(event) =>
+                      setBillCurrencyCode(event.target.value)
+                    }
                   >
                     <option value="">Select bill currency</option>
                     {currencies.map((currency) => (
@@ -922,41 +954,45 @@ export default function FinanceNewPaymentMadePage() {
                         {currency.currency_code} — {currency.currency_name}
                       </option>
                     ))}
-                  </select>
-                </label>
+                  </AixiaSelectField>
+                </AixiaFormField>
 
-                <div className="space-y-2">
-                  <div className={labelClass}>Exchange Rate</div>
-                  <div className={readOnlyBoxClass}>
-                    {isConvertingExchangeRate ? "Converting..." : toNumber(exchangeRate || 1)}
-                  </div>
-                </div>
-
-                <div className="space-y-2">
-                  <div className={labelClass}>Effective Bill Amount</div>
-                  <div className={readOnlyBoxClass}>
-                    {isConvertingExchangeRate
+                <AixiaDisplayBlock
+                  label="Exchange Rate"
+                  value={
+                    isConvertingExchangeRate
                       ? "Converting..."
-                      : formatMoney(convertedAmount || amount, billCurrencyCode || "USD")}
-                  </div>
-                </div>
+                      : toNumber(exchangeRate || 1)
+                  }
+                />
 
-                <div className="space-y-2">
-                  <div className={labelClass}>Exchange Rate Source</div>
-                  <div className={readOnlyBoxClass}>{exchangeRateSource}</div>
-                </div>
+                <AixiaDisplayBlock
+                  label="Effective Bill Amount"
+                  value={
+                    isConvertingExchangeRate
+                      ? "Converting..."
+                      : formatMoney(
+                          convertedAmount || amount,
+                          billCurrencyCode || "USD",
+                        )
+                  }
+                />
 
-                <div className="space-y-2">
-                  <div className={labelClass}>Exchange Rate Date</div>
-                  <div className={readOnlyBoxClass}>{exchangeRateDate || "—"}</div>
-                </div>
+                <AixiaDisplayBlock
+                  label="Exchange Rate Source"
+                  value={exchangeRateSource}
+                />
 
-                <label className="space-y-2">
-                  <div className={labelClass}>Payment Method</div>
-                  <select
+                <AixiaDisplayBlock
+                  label="Exchange Rate Date"
+                  value={exchangeRateDate || "—"}
+                />
+
+                <AixiaFormField>
+                  <AixiaFieldLabel label="Payment Method" required />
+                  <AixiaSelectField
                     value={paymentMethodId}
                     onChange={(event) => setPaymentMethodId(event.target.value)}
-                    className={fieldClass}
                   >
                     <option value="">Select payment method</option>
                     {paymentMethods.map((method) => (
@@ -964,17 +1000,16 @@ export default function FinanceNewPaymentMadePage() {
                         {method.name}
                       </option>
                     ))}
-                  </select>
-                </label>
+                  </AixiaSelectField>
+                </AixiaFormField>
 
-                <label className="space-y-2">
-                  <div className={labelClass}>Paid From Bank Account</div>
-                  <select
+                <AixiaFormField>
+                  <AixiaFieldLabel label="Paid From Bank Account" />
+                  <AixiaSelectField
                     value={paidFromBankAccountId}
                     onChange={(event) =>
                       setPaidFromBankAccountId(event.target.value)
                     }
-                    className={fieldClass}
                   >
                     <option value="">Select company bank account</option>
                     {filteredBankAccounts.map((bank) => (
@@ -983,146 +1018,112 @@ export default function FinanceNewPaymentMadePage() {
                         {bank.currency_code ? ` — ${bank.currency_code}` : ""}
                       </option>
                     ))}
-                  </select>
-                </label>
+                  </AixiaSelectField>
+                </AixiaFormField>
 
-                <label className="space-y-2">
-                  <div className={labelClass}>Reference Number</div>
-                  <input
+                <AixiaFormField>
+                  <AixiaFieldLabel label="Reference Number" />
+                  <AixiaInputField
                     value={referenceNumber}
                     onChange={(event) => setReferenceNumber(event.target.value)}
                     placeholder="Bank transfer / receipt reference"
-                    className={fieldClass}
                   />
-                </label>
+                </AixiaFormField>
 
-                <label className="space-y-2 md:col-span-2">
-                  <div className={labelClass}>Notes</div>
-                  <textarea
+                <AixiaFormFullWidth>
+                  <AixiaFieldLabel label="Notes" />
+                  <AixiaTextareaField
                     value={notes}
                     onChange={(event) => setNotes(event.target.value)}
                     rows={4}
-                    className="w-full rounded-2xl border border-white/10 bg-black/20 px-4 py-3 text-sm text-white outline-none transition focus:border-emerald-400/30 focus:bg-black/30"
                   />
-                </label>
-              </CardContent>
-            </Card>
-          </div>
+                </AixiaFormFullWidth>
+              </AixiaFormGrid>
+            </AixiaSection>
+          </>
+        }
+        side={
+          <>
+            <AixiaSection
+              title="Payment Proof"
+              description="Required. Store the transfer proof or payment receipt."
+              icon={Upload}
+              badge={
+                <AixiaBadge tone={selectedFile ? "emerald" : "rose"}>
+                  {selectedFile ? "Selected" : "Required"}
+                </AixiaBadge>
+              }
+            >
+              <AixiaDocumentUploadPanel
+                selectedFile={selectedFile}
+                required
+                uploading={isSaving}
+                dropTitle="Drop payment proof here"
+                dropDescription="Select the receipt or transfer proof. It will upload when the payment draft is saved."
+                uploadLabel="Mark Proof Ready"
+                uploadingLabel="Saving..."
+                selectedFileLabel="Payment proof selected"
+                emptyTitle="Payment proof required"
+                emptyDescription="Attach the payment proof before saving the payment made draft."
+                requiredMessage="Payment proof is required before the payment made draft can be saved."
+                onFileSelect={(file) => {
+                  setSelectedFile(file);
+                  setUploadMessage("");
+                }}
+                onRemoveSelectedFile={() => {
+                  setSelectedFile(null);
+                  setUploadMessage("");
+                }}
+                onUpload={handleDocumentPanelUpload}
+              />
+            </AixiaSection>
 
-          <div className="space-y-6">
-            <Card className={sectionCardClass}>
-              <CardHeader className="border-b border-white/10 px-5 py-4">
-                <div className="flex items-center gap-3">
-                  <div className="rounded-2xl border border-emerald-400/15 bg-emerald-500/10 p-3 text-emerald-200">
-                    <Upload className="h-4 w-4" />
-                  </div>
-                  <div>
-                    <CardTitle className="text-sm font-semibold uppercase tracking-[0.18em] text-slate-400">
-                      Payment Proof
-                    </CardTitle>
-                    <CardDescription className="mt-1 text-xs text-slate-500">
-                      Required. Store the transfer proof / payment receipt.
-                    </CardDescription>
-                  </div>
-                </div>
-              </CardHeader>
-
-              <CardContent className="space-y-4 p-5">
-                <input
-                  type="file"
-                  onChange={(event) =>
-                    setSelectedFile(event.target.files?.[0] || null)
-                  }
-                  className="block w-full text-sm text-white file:mr-4 file:rounded-lg file:border-0 file:bg-white/10 file:px-4 file:py-2 file:text-white hover:file:bg-white/20"
+            <AixiaSection title="Payment Summary" icon={Receipt}>
+              <AixiaValueBlock
+                label="Payment Amount"
+                value={formatMoney(amount, paymentCurrencyCode || "USD")}
+              />
+              <AixiaValueBlock
+                label="Effective Bill Amount"
+                value={formatMoney(convertedAmount, billCurrencyCode || "USD")}
+              />
+              {selectedBill ? (
+                <AixiaValueBlock
+                  label="Remaining After Draft"
+                  value={formatMoney(
+                    remainingAfterDraft,
+                    billCurrencyCode || "USD",
+                  )}
                 />
+              ) : null}
+              {selectedBankAccount ? (
+                <AixiaAlert tone="info">
+                  Paid from: {getBankName(selectedBankAccount)} ·{" "}
+                  {getBankIdentifier(selectedBankAccount)}
+                </AixiaAlert>
+              ) : null}
+              <AixiaAlert tone="info">
+                Exchange: {paymentCurrencyCode || "—"} →{" "}
+                {billCurrencyCode || "—"} · Source: {exchangeRateSource} · Date:{" "}
+                {exchangeRateDate || "—"}
+              </AixiaAlert>
+              <AixiaAlert tone="success">
+                This payment is saved as draft. Confirm from the ID page after
+                checking proof and balance.
+              </AixiaAlert>
+            </AixiaSection>
 
-                {selectedFile ? (
-                  <div className="rounded-[18px] border border-emerald-400/20 bg-emerald-500/10 px-4 py-3 text-sm text-emerald-200">
-                    Selected file: {selectedFile.name}
-                  </div>
-                ) : (
-                  <div className="rounded-[18px] border border-rose-400/20 bg-rose-500/10 px-4 py-3 text-sm text-rose-200">
-                    Payment proof is required.
-                  </div>
-                )}
-              </CardContent>
-            </Card>
-
-            <Card className={sectionCardClass}>
-              <CardHeader className="border-b border-white/10 px-5 py-4">
-                <CardTitle className="text-sm font-semibold uppercase tracking-[0.18em] text-slate-400">
-                  Payment Summary
-                </CardTitle>
-              </CardHeader>
-
-              <CardContent className="space-y-3 p-5">
-                <div className={innerPanelClass}>
-                  <div className={eyebrowClass}>Payment Amount</div>
-                  <div className="mt-2 text-2xl font-semibold text-white">
-                    {formatMoney(amount, paymentCurrencyCode || "USD")}
-                  </div>
-                </div>
-
-                <div className={innerPanelClass}>
-                  <div className={eyebrowClass}>Effective Bill Amount</div>
-                  <div className="mt-2 text-2xl font-semibold text-white">
-                    {formatMoney(convertedAmount, billCurrencyCode || "USD")}
-                  </div>
-                </div>
-
-                {selectedBill ? (
-                  <div className={innerPanelClass}>
-                    <div className={eyebrowClass}>Remaining After Draft</div>
-                    <div className="mt-2 text-2xl font-semibold text-white">
-                      {formatMoney(remainingAfterDraft, billCurrencyCode || "USD")}
-                    </div>
-                  </div>
-                ) : null}
-
-                {selectedBankAccount ? (
-                  <div className="rounded-[20px] border border-cyan-400/15 bg-cyan-500/10 px-4 py-3 text-sm leading-6 text-cyan-100">
-                    Paid from: {getBankName(selectedBankAccount)} ·{" "}
-                    {getBankIdentifier(selectedBankAccount)}
-                  </div>
-                ) : null}
-
-                <div className="rounded-[20px] border border-violet-400/15 bg-violet-500/10 px-4 py-3 text-sm leading-6 text-violet-100">
-                  Exchange: {paymentCurrencyCode || "—"} →{" "}
-                  {billCurrencyCode || "—"} · Source: {exchangeRateSource} · Date:{" "}
-                  {exchangeRateDate || "—"}
-                </div>
-
-                <div className="rounded-[20px] border border-emerald-400/15 bg-emerald-500/10 px-4 py-3 text-sm leading-6 text-emerald-100">
-                  This payment is saved as draft. Confirm from the ID page after
-                  checking proof and balance.
-                </div>
-
-                {errorMessage ? (
-                  <div className="rounded-[18px] border border-rose-400/20 bg-rose-500/10 px-4 py-3 text-sm text-rose-200">
-                    {errorMessage}
-                  </div>
-                ) : null}
-              </CardContent>
-            </Card>
-
-            <Card className={sectionCardClass}>
-              <CardHeader className="border-b border-white/10 px-5 py-4">
-                <CardTitle className="text-sm font-semibold uppercase tracking-[0.18em] text-slate-400">
-                  Reverse Flow Position
-                </CardTitle>
-              </CardHeader>
-
-              <CardContent className="space-y-2 p-5 text-sm leading-6 text-slate-400">
-                <div>• Vendor PI / invoice is approved.</div>
-                <div>• Payment made draft is created with proof.</div>
-                <div>• Exchange rate is calculated automatically.</div>
-                <div>• Payment is confirmed from the ID page.</div>
-                <div>• Bill balance updates automatically.</div>
-              </CardContent>
-            </Card>
-          </div>
-        </div>
-      </div>
-    </div>
+            <AixiaSection title="Reverse Flow Position" icon={FileText}>
+              <AixiaAlert tone="info">
+                Vendor PI / invoice is approved. Payment made draft is created
+                with proof. Exchange rate is calculated automatically. Payment
+                is confirmed from the ID page. Bill balance updates
+                automatically.
+              </AixiaAlert>
+            </AixiaSection>
+          </>
+        }
+      />
+    </AixiaPage>
   );
 }

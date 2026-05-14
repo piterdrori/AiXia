@@ -1248,65 +1248,63 @@ export default function FinancePaymentTermsPage() {
             title="Payment Terms Registry"
             description="Active and inactive terms. Archived records are managed from the archive manager."
             icon={WalletCards}
-            actions={
-              <AixiaRegistryToolbar
-                search={
-                  <AixiaSearchField
-                    width="wide"
-                    value={search}
-                    onChange={(event) => setSearch(event.target.value)}
-                    placeholder="Search code, name, type, wording, or notes..."
-                  />
-                }
-                filters={
-                  <AixiaSelectField
-                    value={statusFilter}
-                    onChange={(event) =>
-                      setStatusFilter(event.target.value as StatusFilter)
-                    }
-                  >
-                    <option value="all">All Statuses</option>
-                    <option value="active">Active</option>
-                    <option value="inactive">Inactive</option>
-                  </AixiaSelectField>
-                }
-                primaryAction={
-                  canCreate ? (
-                    <AixiaButton
-                      type="button"
-                      variant="primary"
-                      onClick={openCreateDialog}
-                      disabled={saving}
-                    >
-                      <Plus className="h-4 w-4" />
-                      New Payment Term
-                    </AixiaButton>
-                  ) : null
-                }
-                archiveAction={
-                  canArchive ? (
-                    <AixiaButton
-                      type="button"
-                      variant="danger"
-                      onClick={() => {
-                        setRunningAction("archive-modal");
-                        setArchiveOpen(true);
-                        setRunningAction(null);
-                      }}
-                      disabled={saving || runningAction === "archive-modal"}
-                    >
-                      {runningAction === "archive-modal" ? (
-                        <Loader2 className="h-4 w-4 animate-spin" />
-                      ) : (
-                        <Archive className="h-4 w-4" />
-                      )}
-                      Archive
-                    </AixiaButton>
-                  ) : null
-                }
-              />
-            }
           >
+            <AixiaRegistryToolbar
+              search={
+                <AixiaSearchField
+                  width="wide"
+                  value={search}
+                  onChange={(event) => setSearch(event.target.value)}
+                  placeholder="Search code, name, type, wording, or notes..."
+                />
+              }
+              filters={
+                <AixiaSelectField
+                  value={statusFilter}
+                  onChange={(event) =>
+                    setStatusFilter(event.target.value as StatusFilter)
+                  }
+                >
+                  <option value="all">All Statuses</option>
+                  <option value="active">Active</option>
+                  <option value="inactive">Inactive</option>
+                </AixiaSelectField>
+              }
+              primaryAction={
+                canCreate ? (
+                  <AixiaButton
+                    type="button"
+                    variant="primary"
+                    onClick={openCreateDialog}
+                    disabled={saving}
+                  >
+                    <Plus className="h-4 w-4" />
+                    New Payment Term
+                  </AixiaButton>
+                ) : null
+              }
+              archiveAction={
+                canArchive ? (
+                  <AixiaButton
+                    type="button"
+                    variant="danger"
+                    onClick={() => {
+                      setRunningAction("archive-modal");
+                      setArchiveOpen(true);
+                      setRunningAction(null);
+                    }}
+                    disabled={saving || runningAction === "archive-modal"}
+                  >
+                    {runningAction === "archive-modal" ? (
+                      <Loader2 className="h-4 w-4 animate-spin" />
+                    ) : (
+                      <Archive className="h-4 w-4" />
+                    )}
+                    Archive
+                  </AixiaButton>
+                ) : null
+              }
+            />
             {sortedRows.length === 0 ? (
               <AixiaEmptyState
                 icon={WalletCards}

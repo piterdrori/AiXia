@@ -20,7 +20,6 @@ import {
   AixiaBadge,
   AixiaButton,
   AixiaEmptyState,
-  AixiaFeaturePanel,
   AixiaHero,
   AixiaLoadingState,
   AixiaMetricCard,
@@ -29,12 +28,10 @@ import {
   AixiaNavigationStatBlock,
   AixiaPage,
   AixiaReviewGrid,
-  AixiaSmartGrid,
   AixiaSideList,
   AixiaSideListRow,
   AixiaSmartLayout,
   AixiaValueBlock,
-  AixiaWorkspaceCard,
 } from "@/components/aixia";
 import {
   fetchFinanceEffectivePermissions,
@@ -490,11 +487,42 @@ async function loadCount(tableName: string): Promise<CountResult> {
   return { count: result.count ?? 0 };
 }
 
-function getSectionTone(tone: TransactionSectionTone) {
-  if (tone === "incoming") return "emerald";
-  if (tone === "procurement") return "amber";
-  if (tone === "expense") return "cyan";
-  return "violet";
+function getSectionToneClasses(tone: TransactionSectionTone) {
+  switch (tone) {
+    case "incoming":
+      return {
+        border: "border-emerald-400/25",
+        badge: "border-emerald-400/20 bg-emerald-500/10 text-emerald-200",
+        icon: "border-emerald-400/20 bg-emerald-500/10 text-emerald-200",
+        panel:
+          "bg-[radial-gradient(circle_at_top_left,rgba(16,185,129,0.13),rgba(255,255,255,0.045)_48%)]",
+      };
+    case "procurement":
+      return {
+        border: "border-amber-400/25",
+        badge: "border-amber-400/20 bg-amber-500/10 text-amber-200",
+        icon: "border-amber-400/20 bg-amber-500/10 text-amber-200",
+        panel:
+          "bg-[radial-gradient(circle_at_top_left,rgba(245,158,11,0.13),rgba(255,255,255,0.045)_48%)]",
+      };
+    case "expense":
+      return {
+        border: "border-cyan-400/25",
+        badge: "border-cyan-400/20 bg-cyan-500/10 text-cyan-200",
+        icon: "border-cyan-400/20 bg-cyan-500/10 text-cyan-200",
+        panel:
+          "bg-[radial-gradient(circle_at_top_left,rgba(6,182,212,0.13),rgba(255,255,255,0.045)_48%)]",
+      };
+    case "internal":
+    default:
+      return {
+        border: "border-violet-400/25",
+        badge: "border-violet-400/20 bg-violet-500/10 text-violet-200",
+        icon: "border-violet-400/20 bg-violet-500/10 text-violet-200",
+        panel:
+          "bg-[radial-gradient(circle_at_top_left,rgba(139,92,246,0.13),rgba(255,255,255,0.045)_48%)]",
+      };
+  }
 }
 
 function getModuleRoute(item: TransactionFlowItem) {
@@ -507,6 +535,177 @@ function getModuleTitle(item: TransactionFlowItem) {
 
 function getModuleDescription(item: TransactionFlowItem) {
   return item.descriptionOverride ?? item.module.description;
+}
+
+function FlowConnector() {
+  return (
+    <div className="hidden flex-none items-center justify-center px-3 xl:flex">
+      <div className="flex h-7 w-7 items-center justify-center rounded-lg border border-white/[0.08] bg-white/[0.025] text-white/45">
+        <ArrowRight className="h-3.5 w-3.5" />
+      </div>
+    </div>
+  );
+}
+
+function TransactionFlowModule({
+  item,
+  onOpen,
+}: {
+  item: TransactionFlowItem;
+  onOpen: (route: string) => void;
+}) {
+  const Icon = item.module.icon;
+  const route = getModuleRoute(item);
+  const title = getModuleTitle(item);
+  const description = getModuleDescription(item);
+  const isClickable = Boolean(route);
+
+  return (
+    <button
+      type="button"
+      onClick={() => {
+        if (!route) return;
+        onOpen(route);
+      }}
+      disabled={!route}
+      className={`group relative flex h-[236px] w-full overflow-hidden rounded-[22px] border border-white/10 bg-white/[0.03] text-left backdrop-blur-xl transition-all duration-200 ${
+        isClickable
+          ? "hover:-translate-y-0.5 hover:border-white/20 hover:bg-white/[0.05]"
+          : "cursor-not-allowed opacity-70"
+      }`}
+    >
+      <div className="pointer-events-none absolute inset-0 bg-[radial-gradient(circle_at_top_left,rgba(255,255,255,0.08),transparent_48%)] opacity-80" />
+
+      <div className="relative flex h-full w-full flex-col gap-3 p-3.5">
+        <div className="flex items-start justify-between gap-3">
+          <div className="flex items-center gap-2.5">
+            <div className="flex h-8 w-8 items-center justify-center rounded-xl border border-white/10 bg-black/20 text-white/80">
+              <Icon className="h-4 w-4" />
+            </div>
+
+            {item.sequenceLabel ? (
+              <div className="flex h-6 min-w-[1.65rem] items-center justify-center rounded-lg border border-white/10 bg-white/[0.06] px-1.5 text-[10px] font-medium text-white/70">
+                {item.sequenceLabel}
+              </div>
+            ) : null}
+          </div>
+
+          <div className="flex items-center gap-2">
+            <span
+              className={`rounded-full border px-2.5 py-1 text-[10px] ${
+                item.module.isPersonalDefault
+                  ? "border-cyan-400/20 bg-cyan-500/10 text-cyan-200"
+                  : "border-white/10 bg-white/[0.08] text-white/70"
+              }`}
+            >
+              {item.module.statusLabel}
+            </span>
+            <ArrowRight
+              className={`h-4 w-4 text-white/30 transition-transform duration-200 ${
+                isClickable ? "group-hover:translate-x-1 group-hover:text-white/65" : ""
+              }`}
+            />
+          </div>
+        </div>
+
+        <div className="space-y-1.5">
+          <div className="line-clamp-2 text-[14px] font-medium leading-5 text-white">
+            {title}
+          </div>
+          <div className="line-clamp-3 text-[12px] leading-5 text-white/44">
+            {description}
+          </div>
+        </div>
+
+        <div className="mt-auto flex items-end justify-between gap-3 pt-1">
+          <div>
+            <div className="text-[10px] uppercase tracking-[0.18em] text-white/32">
+              Records
+            </div>
+            <div className="mt-1 text-[16px] font-semibold text-white">
+              {formatCount(item.module.count)}
+            </div>
+          </div>
+
+          <div className="text-right">
+            <div className="text-[10px] uppercase tracking-[0.18em] text-white/32">
+              Access
+            </div>
+            <div className="mt-1 text-[12px] text-white/58">
+              {item.module.isPersonalDefault ? "Personal" : item.module.lastUpdatedLabel}
+            </div>
+          </div>
+        </div>
+      </div>
+    </button>
+  );
+}
+
+function FlowRow({
+  items,
+  onOpen,
+}: {
+  items: TransactionFlowItem[];
+  onOpen: (route: string) => void;
+}) {
+  return (
+    <div className="overflow-x-auto pb-3">
+      <div className="flex min-w-max items-stretch">
+        {items.map((item, index) => (
+          <div
+            key={`${item.module.key}-${item.sequenceLabel ?? index}`}
+            className="flex flex-none items-stretch"
+          >
+            <div className="w-[220px] min-w-[220px] max-w-[220px] flex-none">
+              <TransactionFlowModule item={item} onOpen={onOpen} />
+            </div>
+
+            {index < items.length - 1 ? <FlowConnector /> : null}
+          </div>
+        ))}
+      </div>
+    </div>
+  );
+}
+
+function TransactionFlowSection({
+  section,
+  onOpen,
+}: {
+  section: TransactionSection;
+  onOpen: (route: string) => void;
+}) {
+  const tone = getSectionToneClasses(section.tone);
+  const Icon = section.icon;
+
+  return (
+    <section
+      className={`overflow-hidden rounded-[30px] border ${tone.border} ${tone.panel} backdrop-blur-xl`}
+    >
+      <div className="flex items-start justify-between gap-4 border-b border-white/10 px-5 py-4">
+        <div className="flex min-w-0 items-start gap-3">
+          <div className={`rounded-2xl border p-3 ${tone.icon}`}>
+            <Icon className="h-4 w-4" />
+          </div>
+
+          <div className="min-w-0">
+            <div
+              className={`inline-flex w-fit rounded-full border px-3 py-1 text-[11px] font-semibold uppercase tracking-[0.22em] ${tone.badge}`}
+            >
+              {section.title}
+            </div>
+            <p className="mt-2 max-w-4xl text-sm leading-6 text-slate-400">
+              {section.subtitle}
+            </p>
+          </div>
+        </div>
+      </div>
+
+      <div className="p-5">
+        <FlowRow items={section.modules} onOpen={onOpen} />
+      </div>
+    </section>
+  );
 }
 
 export default function FinanceTransactionsPage() {
@@ -1279,64 +1478,19 @@ export default function FinanceTransactionsPage() {
           <>
             {transactionSections.length > 0 ? (
               <div className="aixia-stack">
-                <AixiaFeaturePanel
+                <AixiaNavigationInfoPanel
                   tone="cyan"
                   icon={FileText}
                   title="Transaction Workflows"
-                  description="Grouped business-flow rows are preserved by section. Each row keeps its workflow header, sequence order, and permission-aware access state."
-                >
-                  <AixiaReviewGrid variant="cards">
-                    {transactionSections.map((section) => (
-                      <AixiaValueBlock
-                        key={section.key}
-                        label={section.title}
-                        value={`${formatCount(section.modules.length)} steps`}
-                        detail={section.subtitle}
-                      />
-                    ))}
-                  </AixiaReviewGrid>
-                </AixiaFeaturePanel>
+                  description="Grouped business-flow rows are preserved by section. Each flow keeps its business group header, sequence order, compact fixed-size cards, and arrow connectors between steps."
+                />
 
                 {transactionSections.map((section) => (
-                  <AixiaFeaturePanel
+                  <TransactionFlowSection
                     key={section.key}
-                    tone={getSectionTone(section.tone)}
-                    icon={section.icon}
-                    title={section.title}
-                    description={section.subtitle}
-                  >
-                    <AixiaSmartGrid mode="cards">
-                      {section.modules.map((item) => {
-                        const route = getModuleRoute(item);
-
-                        return (
-                          <AixiaWorkspaceCard
-                            key={`${section.key}-${item.module.key}-${
-                              item.sequenceLabel || "module"
-                            }`}
-                            label={getModuleTitle(item)}
-                            eyebrow={
-                              item.sequenceLabel
-                                ? `Step ${item.sequenceLabel}`
-                                : section.title
-                            }
-                            description={getModuleDescription(item)}
-                            icon={item.module.icon}
-                            statusLabel={item.module.statusLabel}
-                            summary={`${formatCount(item.module.count)} records • ${
-                              item.module.isPersonalDefault
-                                ? "Default personal flow"
-                                : item.module.lastUpdatedLabel
-                            }`}
-                            actionLabel={route ? "Open" : "Unavailable"}
-                            tone={item.module.tone}
-                            disabled={!route}
-                            onClick={route ? () => openRoute(route) : undefined}
-                          />
-                        );
-                      })}
-                    </AixiaSmartGrid>
-                  </AixiaFeaturePanel>
+                    section={section}
+                    onOpen={openRoute}
+                  />
                 ))}
               </div>
             ) : (

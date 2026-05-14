@@ -1425,6 +1425,124 @@ function inspectRegistryHeroActionPlacement(filePath, text) {
   }
 }
 
+function inspectTransactionsHubWorkflowLayout(filePath, text) {
+  const relativePath = getRelativePath(filePath);
+
+  if (relativePath !== "src/app/finance/transactions/page.tsx") return;
+
+  const requiredWorkflowKeys = [
+    'key: "incoming"',
+    'key: "procurement"',
+    'key: "operating-expenses"',
+    'key: "internal-flows"',
+  ];
+
+  let lastWorkflowIndex = -1;
+
+  for (const workflowKey of requiredWorkflowKeys) {
+    const workflowIndex = text.indexOf(workflowKey);
+
+    if (workflowIndex === -1) {
+      addError(
+        filePath,
+        `Transactions hub must preserve the locked business workflow group: ${workflowKey}. Required order is Incoming Money Flow → Supplier Procurement Flow → Expenses & Reimbursements Flow → Internal Finance Flows.`,
+        "AiXia transactions hub workflow grouping rule"
+      );
+      continue;
+    }
+
+    if (workflowIndex < lastWorkflowIndex) {
+      addError(
+        filePath,
+        "Transactions hub workflow groups are out of order. Preserve this exact business order: Incoming Money Flow → Supplier Procurement Flow → Expenses & Reimbursements Flow → Internal Finance Flows.",
+        "AiXia transactions hub workflow grouping rule"
+      );
+      break;
+    }
+
+    lastWorkflowIndex = workflowIndex;
+  }
+
+  const requiredWorkflowTitles = [
+    "Incoming Money Flow",
+    "Supplier Procurement Flow",
+    "Expenses & Reimbursements Flow",
+    "Internal Finance Flows",
+  ];
+
+  for (const workflowTitle of requiredWorkflowTitles) {
+    if (!text.includes(workflowTitle)) {
+      addError(
+        filePath,
+        `Transactions hub must preserve the visible workflow group title: ${workflowTitle}. Do not turn transaction modules into random ungrouped tabs/cards.`,
+        "AiXia transactions hub workflow grouping rule"
+      );
+    }
+  }
+
+  const requiredSequencePattern =
+    /sequenceLabel:\s*["']01["'][\s\S]{0,3000}sequenceLabel:\s*["']02["']/;
+
+  if (!requiredSequencePattern.test(text)) {
+    addError(
+      filePath,
+      "Transactions hub workflow modules must keep sequenceLabel order inside each business flow. Do not remove step ordering when rewriting this page.",
+      "AiXia transactions hub workflow grouping rule"
+    );
+  }
+
+  const rendersWorkflowModulesAsGenericNavigationGrid =
+    /transactionSections\.map\([\s\S]{0,4500}<AixiaNavigationGrid\b[\s\S]{0,4500}section\.modules\.map\([\s\S]{0,4500}<AixiaNavigationCard\b/m.test(
+      text
+    );
+
+  if (rendersWorkflowModulesAsGenericNavigationGrid) {
+    addError(
+      filePath,
+      "Transactions hub must not render workflow section.modules through a generic AixiaNavigationGrid/AixiaNavigationCard grid. It destroys the grouped business-flow layout. Use a dedicated grouped workflow section/flow-row component or shared workflow layout that preserves group headers, sequence order, and business grouping.",
+      "AiXia transactions hub workflow grouping rule"
+    );
+  }
+
+  const hasTransactionSections = /const\s+transactionSections\s*=|transactionSections\.map/.test(text);
+  const usesNavigationCards = /AixiaNavigationGrid|AixiaNavigationCard/.test(text);
+  const lacksFlowSectionRenderer =
+    !/TransactionFlowSection|FlowRow|workflow section|aixia-transaction-workflow/i.test(text);
+
+  if (hasTransactionSections && usesNavigationCards && lacksFlowSectionRenderer) {
+    addError(
+      filePath,
+      "Transactions hub has transactionSections but appears to render them as generic navigation cards instead of a visible workflow layout. Preserve grouped business flow rows/sections, not random module tabs.",
+      "AiXia transactions hub workflow grouping rule"
+    );
+  }
+
+  const usesSmartLayout = /<AixiaSmartLayout\b/.test(text);
+  const hasSideColumn = /\bside=\{/.test(text);
+  const hasBottomSpanControl = /\bbottomSpan=|\bsideRebalance=|\bmainTopCount=/.test(text);
+
+  if (usesSmartLayout && hasSideColumn && !hasBottomSpanControl) {
+    addError(
+      filePath,
+      "Transactions hub uses AixiaSmartLayout with a side column but no bottomSpan/sideRebalance/mainTopCount control. This can leave large dead gaps on the right. Configure the shared smart layout so lower-priority/personal/secondary transaction cards or readiness blocks can fill available lower-right space instead of leaving empty columns.",
+      "AiXia transactions hub dead-gap rule"
+    );
+  }
+
+  const likelyDeadGapRisk =
+    /Recent Activity|Control Signals|AixiaSideList|side=\{/.test(text) &&
+    /transactionSections\.map|AixiaNavigationGrid|AixiaNavigationCard/.test(text) &&
+    !/bottomSpan=|sideRebalance=|mainTopCount=|aixia-smart-bottom-span/.test(text);
+
+  if (likelyDeadGapRisk) {
+    addError(
+      filePath,
+      "Transactions hub likely creates a right-side dead gap. Keep important workflow groups in the main flow, but use the shared smart layout/bottom-span behavior so lower-priority or secondary transaction cards can occupy available lower-right space instead of leaving a large empty column.",
+      "AiXia transactions hub dead-gap rule"
+    );
+  }
+}
+
 function inspectZeroLocalDesign(filePath, text) {
   for (const componentName of ZERO_LOCAL_DESIGN_BANNED_PATTERNS) {
     const functionPattern = new RegExp(
@@ -2000,6 +2118,7 @@ function inspectFinancePage(filePath) {
   inspectBannedFinanceUiImports(filePath, text);
   inspectRegistryStandards(filePath, text);
   inspectRegistryHeroActionPlacement(filePath, text);
+  inspectTransactionsHubWorkflowLayout(filePath, text);
   inspectButtonMeaning(filePath, text);
   inspectActionCardAndButtonSymmetryRules(filePath, text);
   inspectEmployeeIdentityGlobalRules(filePath, text);
@@ -2008,7 +2127,6 @@ function inspectFinancePage(filePath) {
   inspectZeroLocalDesign(filePath, text);
   inspectDocumentUploadAndLocalWrapperRules(filePath, text);
 }
-
 function main() {
   if (!fs.existsSync(SRC_DIR)) {
     console.log("AiXia guardrails skipped: src directory not found.");

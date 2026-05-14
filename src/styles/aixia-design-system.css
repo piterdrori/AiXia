@@ -1581,12 +1581,13 @@
   width: 100% !important;
   min-width: 0 !important;
   max-width: 100% !important;
-  max-height: min(560px, 48vh);
+  height: min(420px, 42vh) !important;
+  max-height: min(420px, 42vh) !important;
   overflow-x: auto !important;
-  overflow-y: auto !important;
+  overflow-y: scroll !important;
   overscroll-behavior: contain;
   padding-bottom: 0.75rem;
-  scrollbar-gutter: stable;
+  scrollbar-gutter: stable both-edges;
 }
 
 .aixia-table-wrap[data-table-variant="archive"] .aixia-table {
@@ -1648,6 +1649,8 @@
 
 .aixia-modal:has(.aixia-archive-manager-tabs) .aixia-modal-header {
   flex: 0 0 auto;
+  padding-top: 2.65rem;
+  padding-bottom: 2rem;
 }
 
 .aixia-modal:has(.aixia-archive-manager-tabs) .aixia-modal-body {
@@ -1656,8 +1659,8 @@
   min-height: 0;
   flex-direction: column;
   overflow: hidden !important;
-  padding-top: clamp(2.15rem, 2.35vw, 2.65rem);
-  padding-bottom: clamp(1rem, 1.2vw, 1.25rem);
+  padding-top: 2.65rem;
+  padding-bottom: 1.25rem;
 }
 
 .aixia-modal:has(.aixia-archive-manager-tabs) .aixia-modal-body > * + * {
@@ -1665,20 +1668,20 @@
 }
 
 .aixia-modal:has(.aixia-archive-manager-tabs) .aixia-table-wrap[data-table-variant="archive"] {
-  flex: 1 1 auto;
+  flex: 0 1 auto;
   min-height: 0;
-  max-height: 100%;
+  max-height: min(420px, 42vh);
   margin-top: 0;
   overflow: hidden !important;
 }
 
 .aixia-modal:has(.aixia-archive-manager-tabs) .aixia-table-wrap[data-table-variant="archive"] .aixia-table-scroll {
-  height: 100%;
+  height: min(420px, 42vh) !important;
   min-height: 0;
-  max-height: none;
+  max-height: min(420px, 42vh) !important;
   overflow-x: auto !important;
-  overflow-y: auto !important;
-  scrollbar-gutter: stable;
+  overflow-y: scroll !important;
+  scrollbar-gutter: stable both-edges;
 }
 
 .aixia-modal:has(.aixia-archive-manager-tabs) .aixia-modal-footer {

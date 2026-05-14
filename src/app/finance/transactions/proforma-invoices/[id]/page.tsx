@@ -2911,7 +2911,7 @@ export default function FinanceProformaInvoiceDetailPage() {
 
           <AixiaButton
             type="button"
-            variant="secondary"
+            variant="danger"
             onClick={() => {
               setShowArchivePopup(true);
               setArchiveTab("archived");

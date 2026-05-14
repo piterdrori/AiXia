@@ -6449,3 +6449,471 @@ button.aixia-action-card:disabled {
   font-size: 0.75rem;
   line-height: 1rem;
 }
+
+/* -------------------------------------------------------
+   PAYCHECK REQUEST PRINT DOCUMENT STANDARD
+------------------------------------------------------- */
+
+@media print {
+  @page {
+    size: A4;
+    margin: 0;
+  }
+
+  html,
+  body {
+    width: 210mm !important;
+    height: 297mm !important;
+    margin: 0 !important;
+    padding: 0 !important;
+    background: #ffffff !important;
+    -webkit-print-color-adjust: exact;
+    print-color-adjust: exact;
+  }
+
+  body * {
+    visibility: hidden !important;
+  }
+
+  .paycheck-print-sheet,
+  .paycheck-print-sheet * {
+    visibility: visible !important;
+  }
+
+  .paycheck-print-sheet {
+    position: absolute !important;
+    left: 0 !important;
+    top: 0 !important;
+    width: 210mm !important;
+    height: 297mm !important;
+    min-height: 297mm !important;
+    max-height: 297mm !important;
+    margin: 0 !important;
+    padding: 0 !important;
+    overflow: hidden !important;
+    background: #ffffff !important;
+    page-break-after: avoid !important;
+    page-break-before: avoid !important;
+    page-break-inside: avoid !important;
+  }
+}
+
+@media screen {
+  .paycheck-print-sheet {
+    display: none !important;
+  }
+}
+
+.aixia-paycheck-print-document {
+  width: 210mm;
+  height: 297mm;
+  min-height: 297mm;
+  max-height: 297mm;
+  background: #ffffff;
+  color: #101827;
+  font-family: Inter, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Arial, sans-serif;
+  position: relative;
+  overflow: hidden;
+}
+
+.aixia-paycheck-print-gradient {
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(180deg, #f8fafc 0%, #ffffff 30%, #ffffff 100%);
+  z-index: 0;
+}
+
+.aixia-paycheck-print-orb {
+  position: absolute;
+  border-radius: 999px;
+  z-index: 1;
+}
+
+.aixia-paycheck-print-orb-left {
+  left: -42mm;
+  top: -56mm;
+  width: 112mm;
+  height: 112mm;
+  background: rgba(8, 145, 178, 0.08);
+}
+
+.aixia-paycheck-print-orb-right {
+  right: -48mm;
+  top: -42mm;
+  width: 118mm;
+  height: 118mm;
+  background: rgba(99, 102, 241, 0.06);
+}
+
+.aixia-paycheck-print-content {
+  position: relative;
+  z-index: 2;
+  padding: 10mm 14mm 9mm 14mm;
+  height: 297mm;
+  box-sizing: border-box;
+}
+
+.aixia-paycheck-print-header {
+  display: grid;
+  grid-template-columns: 1fr 48mm;
+  gap: 8mm;
+  align-items: start;
+  border-bottom: 0.8pt solid #dbe3ef;
+  padding-bottom: 5mm;
+  margin-bottom: 5mm;
+}
+
+.aixia-paycheck-print-company {
+  font-size: 13pt;
+  font-weight: 800;
+  letter-spacing: -0.02em;
+  color: #0f172a;
+}
+
+.aixia-paycheck-print-company-address {
+  margin-top: 1.4mm;
+  max-width: 122mm;
+  font-size: 7.4pt;
+  line-height: 1.3;
+  color: #64748b;
+}
+
+.aixia-paycheck-print-pill {
+  margin-top: 4mm;
+  display: inline-flex;
+  border: 0.5pt solid #bae6fd;
+  background: #ecfeff;
+  color: #155e75;
+  padding: 1.6mm 3.2mm;
+  border-radius: 99px;
+  font-size: 6.8pt;
+  font-weight: 800;
+  letter-spacing: 0.13em;
+  text-transform: uppercase;
+}
+
+.aixia-paycheck-print-document-card {
+  text-align: right;
+  border: 0.7pt solid #e2e8f0;
+  border-radius: 3mm;
+  background: #ffffff;
+  padding: 3mm;
+}
+
+.aixia-paycheck-print-overline {
+  font-size: 6.7pt;
+  font-weight: 800;
+  text-transform: uppercase;
+  letter-spacing: 0.12em;
+  color: #64748b;
+}
+
+.aixia-paycheck-print-document-title {
+  margin-top: 1.5mm;
+  font-size: 14pt;
+  line-height: 1;
+  font-weight: 800;
+  color: #0f172a;
+  letter-spacing: -0.02em;
+}
+
+.aixia-paycheck-print-document-date {
+  margin-top: 2.4mm;
+  font-size: 7.2pt;
+  color: #64748b;
+  line-height: 1.35;
+}
+
+.aixia-paycheck-print-document-date strong {
+  color: #0f172a;
+}
+
+.aixia-paycheck-print-info-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 3mm;
+  margin-bottom: 4mm;
+}
+
+.aixia-paycheck-print-info-card,
+.aixia-paycheck-print-mini-summary {
+  min-height: 16mm;
+  border: 0.7pt solid #e2e8f0;
+  border-radius: 3mm;
+  background: #ffffff;
+  padding: 2.7mm 3.2mm;
+}
+
+.aixia-paycheck-print-info-value {
+  margin-top: 1mm;
+  font-size: 9.5pt;
+  font-weight: 800;
+  color: #0f172a;
+  word-break: break-word;
+}
+
+.aixia-paycheck-print-info-detail {
+  margin-top: 0.6mm;
+  font-size: 7pt;
+  color: #64748b;
+  line-height: 1.25;
+  word-break: break-word;
+}
+
+.aixia-paycheck-print-pay-card {
+  border: 0.7pt solid #e2e8f0;
+  border-radius: 4mm;
+  overflow: hidden;
+  background: #ffffff;
+  margin-bottom: 4mm;
+}
+
+.aixia-paycheck-print-pay-header {
+  background: #0f172a;
+  color: #ffffff;
+  padding: 2.6mm 4mm;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  font-size: 8pt;
+  font-weight: 800;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+.aixia-paycheck-print-pay-header > div:last-child {
+  font-size: 7.2pt;
+  color: #cbd5e1;
+  font-weight: 500;
+  letter-spacing: 0;
+  text-transform: none;
+}
+
+.aixia-paycheck-print-pay-grid {
+  padding: 3.8mm 4mm;
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 3mm 5mm;
+}
+
+.aixia-paycheck-print-amount-row {
+  border-bottom: 0.5pt solid #e2e8f0;
+  padding-bottom: 1.8mm;
+}
+
+.aixia-paycheck-print-amount-value {
+  margin-top: 0.8mm;
+  font-size: 9.8pt;
+  font-weight: 800;
+  color: #0f172a;
+  font-variant-numeric: tabular-nums;
+}
+
+.aixia-paycheck-print-amount-value-highlight {
+  font-size: 11.5pt;
+  font-weight: 900;
+}
+
+.aixia-paycheck-print-net-card {
+  margin: 0 4mm 4mm 4mm;
+  border-radius: 3.5mm;
+  background: linear-gradient(135deg, #0f172a 0%, #1e293b 100%);
+  color: #ffffff;
+  padding: 3.8mm 4mm;
+  display: grid;
+  grid-template-columns: 1fr auto;
+  align-items: center;
+  gap: 6mm;
+}
+
+.aixia-paycheck-print-net-label {
+  font-size: 7.2pt;
+  font-weight: 800;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  color: #93c5fd;
+}
+
+.aixia-paycheck-print-net-detail {
+  margin-top: 0.8mm;
+  font-size: 7.2pt;
+  color: #cbd5e1;
+}
+
+.aixia-paycheck-print-net-value {
+  font-size: 16pt;
+  font-weight: 900;
+  letter-spacing: -0.02em;
+  white-space: nowrap;
+}
+
+.aixia-paycheck-print-social-card {
+  border: 0.7pt solid #e2e8f0;
+  border-radius: 4mm;
+  background: #ffffff;
+  padding: 4mm;
+  margin-bottom: 4mm;
+}
+
+.aixia-paycheck-print-social-grid {
+  display: grid;
+  grid-template-columns: 38mm minmax(0, 1fr);
+  gap: 5mm;
+  align-items: start;
+}
+
+.aixia-paycheck-print-social-title {
+  margin-top: 1.2mm;
+  font-size: 8.7pt;
+  font-weight: 800;
+  color: #0f172a;
+}
+
+.aixia-paycheck-print-social-badge {
+  border-radius: 2.6mm;
+  padding: 2.3mm 3.2mm;
+  font-size: 8.5pt;
+  font-weight: 800;
+}
+
+.aixia-paycheck-print-social-badge-employer {
+  background: #ecfdf5;
+  border: 0.6pt solid #bbf7d0;
+  color: #166534;
+}
+
+.aixia-paycheck-print-social-badge-employee {
+  background: #eff6ff;
+  border: 0.6pt solid #bfdbfe;
+  color: #1d4ed8;
+}
+
+.aixia-paycheck-print-checkbox-grid,
+.aixia-paycheck-print-mini-grid,
+.aixia-paycheck-print-signature-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+}
+
+.aixia-paycheck-print-checkbox-grid {
+  margin-top: 2.4mm;
+  gap: 2.5mm;
+  font-size: 7.8pt;
+}
+
+.aixia-paycheck-print-checkbox-line {
+  display: flex;
+  gap: 2mm;
+  align-items: center;
+  border: 0.5pt solid #e2e8f0;
+  border-radius: 2.4mm;
+  padding: 2mm 2.5mm;
+  background: #ffffff;
+  color: #0f172a;
+  font-weight: 500;
+}
+
+.aixia-paycheck-print-checkbox-line-checked {
+  background: #f8fafc;
+  font-weight: 800;
+}
+
+.aixia-paycheck-print-checkbox {
+  width: 3.5mm;
+  height: 3.5mm;
+  border: 0.7pt solid #0f172a;
+  border-radius: 0.8mm;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 7pt;
+  line-height: 1;
+}
+
+.aixia-paycheck-print-employer-details {
+  margin-top: 2.4mm;
+  border-top: 0.5pt solid #e2e8f0;
+  padding-top: 2.4mm;
+  font-size: 7.6pt;
+  color: #475569;
+  line-height: 1.35;
+}
+
+.aixia-paycheck-print-employer-details strong {
+  color: #0f172a;
+}
+
+.aixia-paycheck-print-mini-grid {
+  gap: 3mm;
+  margin-bottom: 4mm;
+}
+
+.aixia-paycheck-print-mini-summary {
+  min-height: 15mm;
+  background: #f8fafc;
+}
+
+.aixia-paycheck-print-mini-value {
+  margin-top: 0.9mm;
+  font-size: 8.4pt;
+  font-weight: 800;
+  color: #0f172a;
+  line-height: 1.25;
+  word-break: break-word;
+}
+
+.aixia-paycheck-print-signature-grid {
+  gap: 4mm;
+  margin-top: 4mm;
+}
+
+.aixia-paycheck-print-date-signature-grid {
+  margin-top: 3.5mm;
+}
+
+.aixia-paycheck-print-signature-box {
+  border: 0.7pt solid #e2e8f0;
+  border-radius: 3mm;
+  background: #ffffff;
+  padding: 3.2mm;
+  min-height: 20mm;
+}
+
+.aixia-paycheck-print-signature-box-compact {
+  padding: 2.5mm 3.2mm;
+  min-height: 13mm;
+}
+
+.aixia-paycheck-print-signature-line {
+  margin-top: 9mm;
+  border-bottom: 0.7pt solid #0f172a;
+  height: 1mm;
+}
+
+.aixia-paycheck-print-signature-box-compact .aixia-paycheck-print-signature-line {
+  margin-top: 4mm;
+}
+
+.aixia-paycheck-print-footer {
+  position: absolute;
+  left: 14mm;
+  right: 14mm;
+  bottom: 8mm;
+  border-top: 0.5pt solid #e2e8f0;
+  padding-top: 2.3mm;
+  display: grid;
+  grid-template-columns: 1fr auto;
+  gap: 6mm;
+  align-items: center;
+  font-size: 6.6pt;
+  color: #64748b;
+  line-height: 1.3;
+}
+
+.aixia-paycheck-print-footer-brand {
+  font-weight: 800;
+  color: #0f172a;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  white-space: nowrap;
+}

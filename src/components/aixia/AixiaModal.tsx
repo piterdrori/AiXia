@@ -26,14 +26,9 @@ export function AixiaModal({
 }: AixiaModalProps) {
   if (!open) return null;
 
-  const isWideModal = maxWidthClassName.includes("92vw");
-
   return (
     <div className="aixia-modal-backdrop">
-      <div
-        className={`aixia-modal ${maxWidthClassName}`}
-        data-modal-size={isWideModal ? "wide" : "default"}
-      >
+      <div className={`aixia-modal ${maxWidthClassName}`}>
         <div className="aixia-modal-header">
           <div className="pointer-events-none absolute inset-0">
             <div className="absolute -left-20 -top-20 h-64 w-64 rounded-full bg-[#6366F1]/20 blur-[80px]" />

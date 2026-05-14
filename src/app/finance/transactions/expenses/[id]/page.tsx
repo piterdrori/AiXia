@@ -4756,7 +4756,6 @@ export default function FinanceExpenseDetailPage() {
               </div>
 
               <AixiaAlert tone="info">
-              <AixiaAlert tone="info">
                 {canEditOverview
                   ? "Only draft expense requests can be edited here."
                   : "This expense is no longer draft, so request details are locked."}

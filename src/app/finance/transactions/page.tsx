@@ -567,7 +567,7 @@ function TransactionFlowModule({
         onOpen(route);
       }}
       disabled={!route}
-      className={`aixia-transaction-flow-module group ${
+      className={`aixia-transaction-flow-module h-[236px] group ${
         isClickable
           ? "aixia-transaction-flow-module-clickable"
           : "aixia-transaction-flow-module-disabled"

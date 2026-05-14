@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState, type ReactNode } from "react";
+import type { ReactNode } from "react";
 import { ArrowUpDown } from "lucide-react";
 
 type SortDirection = "asc" | "desc";
@@ -26,12 +26,6 @@ export function AixiaTableShell({
   maxHeightClassName = "max-h-[690px]",
   variant = "default",
 }: AixiaTableShellProps) {
-  const tableScrollRef = useRef<HTMLDivElement | null>(null);
-  const horizontalScrollRef = useRef<HTMLDivElement | null>(null);
-  const [archiveScrollWidth, setArchiveScrollWidth] = useState(1);
-
-  const isArchiveVariant = variant === "archive";
-
   const resolvedMinWidthClassName =
     minWidthClassName ??
     (variant === "registry"
@@ -40,95 +34,18 @@ export function AixiaTableShell({
         ? "min-w-[1680px]"
         : "min-w-max");
 
-  useEffect(() => {
-    if (!isArchiveVariant) return;
-
-    const tableScrollElement = tableScrollRef.current;
-    const horizontalScrollElement = horizontalScrollRef.current;
-
-    if (!tableScrollElement || !horizontalScrollElement) return;
-
-    const updateScrollWidth = () => {
-      setArchiveScrollWidth(Math.max(tableScrollElement.scrollWidth, tableScrollElement.clientWidth, 1));
-      horizontalScrollElement.scrollLeft = tableScrollElement.scrollLeft;
-    };
-
-    updateScrollWidth();
-
-    const resizeObserver =
-      typeof ResizeObserver !== "undefined"
-        ? new ResizeObserver(updateScrollWidth)
-        : null;
-
-    resizeObserver?.observe(tableScrollElement);
-
-    const tableElement = tableScrollElement.querySelector("table");
-    if (tableElement) {
-      resizeObserver?.observe(tableElement);
-    }
-
-    window.addEventListener("resize", updateScrollWidth);
-
-    return () => {
-      resizeObserver?.disconnect();
-      window.removeEventListener("resize", updateScrollWidth);
-    };
-  }, [isArchiveVariant, children]);
-
-  const syncTableScrollFromTable = () => {
-    if (!isArchiveVariant) return;
-
-    const tableScrollElement = tableScrollRef.current;
-    const horizontalScrollElement = horizontalScrollRef.current;
-
-    if (!tableScrollElement || !horizontalScrollElement) return;
-
-    if (horizontalScrollElement.scrollLeft !== tableScrollElement.scrollLeft) {
-      horizontalScrollElement.scrollLeft = tableScrollElement.scrollLeft;
-    }
-  };
-
-  const syncTableScrollFromFrame = () => {
-    if (!isArchiveVariant) return;
-
-    const tableScrollElement = tableScrollRef.current;
-    const horizontalScrollElement = horizontalScrollRef.current;
-
-    if (!tableScrollElement || !horizontalScrollElement) return;
-
-    if (tableScrollElement.scrollLeft !== horizontalScrollElement.scrollLeft) {
-      tableScrollElement.scrollLeft = horizontalScrollElement.scrollLeft;
-    }
-  };
-
   return (
     <div
       className="aixia-table-wrap aixia-scrollbar"
       data-table-variant={variant}
     >
       <div
-        ref={tableScrollRef}
         className={`aixia-table-scroll aixia-scrollbar ${maxHeightClassName}`}
-        onScroll={syncTableScrollFromTable}
       >
         <table className={`aixia-table ${resolvedMinWidthClassName}`}>
           {children}
         </table>
       </div>
-
-      {isArchiveVariant ? (
-        <div
-          ref={horizontalScrollRef}
-          className="aixia-table-horizontal-scroll aixia-scrollbar"
-          onScroll={syncTableScrollFromFrame}
-          aria-hidden="true"
-        >
-          <div
-            className="aixia-table-horizontal-scroll-spacer"
-            style={{ width: `${archiveScrollWidth}px` }}
-          />
-        </div>
-      ) : null}
     </div>
   );
 }

@@ -15,6 +15,7 @@ import {
 
 import {
   AixiaAlert,
+  AixiaAccessRule,
   AixiaBadge,
   AixiaButton,
   AixiaDisplayBlock,
@@ -29,6 +30,7 @@ import {
   AixiaMetricGrid,
   AixiaNotFoundState,
   AixiaPage,
+  AixiaRegistryToolbar,
   AixiaSection,
   AixiaSmartLayout,
   AixiaStatusBadge,
@@ -45,9 +47,10 @@ import {
   getFinanceEmployeeSearchText,
   getFinanceEmployeeSecondaryLabel,
 } from "@/lib/finance/employeeIdentity";
+import type { FinanceLoadMode } from "@/lib/finance/pageAccess";
 import { supabase } from "@/lib/supabase";
 
-type LoadMode = "initial" | "silent";
+type LoadMode = FinanceLoadMode;
 
 type DistributionMetadata = {
   source_area?: string | null;
@@ -1344,7 +1347,7 @@ export default function FinancePayrollPaymentDistributionDetailPage() {
       ? `${formatDate(fundingPool.period_start)} → ${formatDate(fundingPool.period_end)}`
       : "Not saved";
 
-  const heroActions = (
+  const toolbarPrimaryAction = (
     <>
       {canConfirmDistribution ? (
         <AixiaButton
@@ -1910,7 +1913,6 @@ export default function FinancePayrollPaymentDistributionDetailPage() {
           "Payment Distribution"
         }
         description="This page shows how a confirmed Payroll Funding Pool was distributed across approved paycheck requests, including payment-date currency conversion and employee confirmation status."
-        actions={heroActions}
         statusCards={[
           {
             label: "Payment Amount",
@@ -1942,6 +1944,15 @@ export default function FinancePayrollPaymentDistributionDetailPage() {
           },
         ]}
       />
+
+      <AixiaRegistryToolbar primaryAction={toolbarPrimaryAction} />
+
+      <AixiaAccessRule
+        title="Payroll Distribution Access Rule"
+        description="Payroll distribution detail access is controlled by the shared Finance permissions system. Confirmation, proof verification, upload, allocation visibility, and employee identity display must stay aligned with the shared AiXia source-of-truth components."
+      >
+        This page uses shared AiXia layout, registry toolbar action placement, employee identity display, and silent refresh behavior. Hero actions are intentionally empty because registry/front/list action controls belong in AixiaRegistryToolbar.
+      </AixiaAccessRule>
 
       {pageError ? <AixiaAlert tone="error">{pageError}</AixiaAlert> : null}
       {pageMessage ? <AixiaAlert tone="success">{pageMessage}</AixiaAlert> : null}

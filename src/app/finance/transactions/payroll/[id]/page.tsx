@@ -6,7 +6,6 @@ import {
   Clock3,
   CreditCard,
   FileCheck2,
-  FileText,
   Receipt,
   ShieldCheck,
   UploadCloud,

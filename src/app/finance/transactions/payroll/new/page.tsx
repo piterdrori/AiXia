@@ -9,14 +9,13 @@ import {
   Loader2,
   Receipt,
   Save,
-  Search,
   ShieldCheck,
   WalletCards,
 } from "lucide-react";
 
 import {
   AixiaAlert,
-  AixiaBadge,
+  AixiaAccessRule,
   AixiaButton,
   AixiaDisplayBlock,
   AixiaEmployeeIdentityCell,
@@ -38,7 +37,6 @@ import {
   AixiaStatusBadge,
   AixiaTableActionsCell,
   AixiaTableBadgeCell,
-  AixiaTableDateCell,
   AixiaTableShell,
   AixiaTableTextCell,
   AixiaTextareaField,
@@ -302,16 +300,6 @@ function formatDate(value: string | null | undefined) {
     month: "short",
     day: "numeric",
   });
-}
-
-function formatLabel(value: string | null | undefined) {
-  if (!value) return "—";
-
-  return value
-    .split("_")
-    .filter(Boolean)
-    .map((part) => part.charAt(0).toUpperCase() + part.slice(1))
-    .join(" ");
 }
 
 function getMetadataNumber(
@@ -2188,6 +2176,13 @@ export default function FinancePayrollPaymentDistributionNewPage() {
           tone="amber"
         />
       </AixiaMetricGrid>
+
+      <AixiaAccessRule
+        title="Paycheck Payment Distribution Access Rule"
+        description="Payroll payment distribution creation follows the shared Finance registry and employee identity source-of-truth standard."
+      >
+        This page loads finance_employee_refs together with finance_employee_identity_v, displays employees through the shared employee identity helper/component, and keeps create/confirm behavior inside shared AiXia components.
+      </AixiaAccessRule>
 
       <AixiaSmartLayout
         sidebar="normal"

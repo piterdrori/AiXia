@@ -1578,21 +1578,23 @@
 }
 
 .aixia-table-wrap[data-table-variant="archive"] .aixia-table-scroll {
+  display: block !important;
   width: 100% !important;
   min-width: 0 !important;
   max-width: 100% !important;
   height: min(360px, 34vh) !important;
   max-height: min(360px, 34vh) !important;
-  overflow-x: scroll !important;
-  overflow-y: scroll !important;
+  overflow: scroll !important;
   overscroll-behavior: contain !important;
+  padding-right: 0.75rem;
   padding-bottom: 1rem;
   scrollbar-gutter: stable both-edges;
 }
 
 .aixia-table-wrap[data-table-variant="archive"] .aixia-table {
+  display: table !important;
   width: max-content !important;
-  min-width: max(100%, var(--aixia-archive-table-min-width, 1480px)) !important;
+  min-width: max(100%, var(--aixia-archive-table-min-width, 1680px)) !important;
   max-width: none !important;
   table-layout: auto !important;
 }
@@ -1680,15 +1682,16 @@
 }
 
 .aixia-modal:has(.aixia-archive-manager-tabs) .aixia-table-wrap[data-table-variant="archive"] .aixia-table-scroll {
+  display: block !important;
   width: 100% !important;
   min-width: 0 !important;
   max-width: 100% !important;
   height: min(360px, 34vh) !important;
   min-height: 0;
   max-height: min(360px, 34vh) !important;
-  overflow-x: scroll !important;
-  overflow-y: scroll !important;
+  overflow: scroll !important;
   overscroll-behavior: contain !important;
+  padding-right: 0.75rem;
   padding-bottom: 1rem;
   scrollbar-gutter: stable both-edges;
 }
@@ -4483,8 +4486,9 @@
 .aixia-table-wrap[data-table-variant="archive"] table,
 .aixia-table-wrap[data-table-variant="archive"] .aixia-table-scroll table,
 .aixia-table-wrap[data-table-variant="archive"] .aixia-table {
+  display: table !important;
   width: max-content !important;
-  min-width: max(100%, var(--aixia-archive-table-min-width, 1480px)) !important;
+  min-width: max(100%, var(--aixia-archive-table-min-width, 1680px)) !important;
   table-layout: auto !important;
 }
 

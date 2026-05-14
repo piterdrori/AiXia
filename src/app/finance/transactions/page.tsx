@@ -567,70 +567,68 @@ function TransactionFlowModule({
         onOpen(route);
       }}
       disabled={!route}
-      className={`group relative flex h-[236px] w-full overflow-hidden rounded-[22px] border border-white/10 bg-white/[0.03] text-left backdrop-blur-xl transition-all duration-200 ${
+      className={`aixia-transaction-flow-module group ${
         isClickable
-          ? "hover:-translate-y-0.5 hover:border-white/20 hover:bg-white/[0.05]"
-          : "cursor-not-allowed opacity-70"
+          ? "aixia-transaction-flow-module-clickable"
+          : "aixia-transaction-flow-module-disabled"
       }`}
     >
-      <div className="pointer-events-none absolute inset-0 bg-[radial-gradient(circle_at_top_left,rgba(255,255,255,0.08),transparent_48%)] opacity-80" />
+      <div className="aixia-transaction-flow-module-glow" />
 
-      <div className="relative flex h-full w-full flex-col gap-3 p-3.5">
-        <div className="flex items-start justify-between gap-3">
-          <div className="flex items-center gap-2.5">
-            <div className="flex h-8 w-8 items-center justify-center rounded-xl border border-white/10 bg-black/20 text-white/80">
+      <div className="aixia-transaction-flow-module-body">
+        <div className="aixia-transaction-flow-module-head">
+          <div className="aixia-transaction-flow-module-left">
+            <div className="aixia-transaction-flow-module-icon">
               <Icon className="h-4 w-4" />
             </div>
 
             {item.sequenceLabel ? (
-              <div className="flex h-6 min-w-[1.65rem] items-center justify-center rounded-lg border border-white/10 bg-white/[0.06] px-1.5 text-[10px] font-medium text-white/70">
+              <div className="aixia-transaction-flow-module-sequence">
                 {item.sequenceLabel}
               </div>
             ) : null}
           </div>
 
-          <div className="flex items-center gap-2">
+          <div className="aixia-transaction-flow-module-status-wrap">
             <span
-              className={`rounded-full border px-2.5 py-1 text-[10px] ${
+              className={`aixia-transaction-flow-module-status ${
                 item.module.isPersonalDefault
-                  ? "border-cyan-400/20 bg-cyan-500/10 text-cyan-200"
-                  : "border-white/10 bg-white/[0.08] text-white/70"
+                  ? "aixia-transaction-flow-module-status-personal"
+                  : "aixia-transaction-flow-module-status-company"
               }`}
             >
               {item.module.statusLabel}
             </span>
             <ArrowRight
-              className={`h-4 w-4 text-white/30 transition-transform duration-200 ${
-                isClickable ? "group-hover:translate-x-1 group-hover:text-white/65" : ""
+              className={`aixia-transaction-flow-module-arrow ${
+                isClickable ? "aixia-transaction-flow-module-arrow-active" : ""
               }`}
             />
           </div>
         </div>
 
-        <div className="space-y-1.5">
-          <div className="line-clamp-2 text-[14px] font-medium leading-5 text-white">
-            {title}
-          </div>
-          <div className="line-clamp-3 text-[12px] leading-5 text-white/44">
+        <div className="aixia-transaction-flow-module-copy">
+          <div className="aixia-transaction-flow-module-title">{title}</div>
+          <div className="aixia-transaction-flow-module-description">
             {description}
           </div>
         </div>
 
-        <div className="mt-auto flex items-end justify-between gap-3 pt-1">
+        <div className="aixia-transaction-flow-module-footer">
           <div>
-            <div className="text-[10px] uppercase tracking-[0.18em] text-white/32">
+            <div className="aixia-transaction-flow-module-meta-label">
               Records
             </div>
-            <div className="mt-1 text-[16px] font-semibold text-white">
+            <div className="aixia-transaction-flow-module-meta-value">
               {formatCount(item.module.count)}
             </div>
           </div>
 
-          <div className="text-right">
-            <div className="text-[10px] uppercase tracking-[0.18em] text-white/32">
+          <div className="aixia-transaction-flow-module-meta-right">
+            <div className="aixia-transaction-flow-module-meta-label">
               Access
             </div>
-            <div className="mt-1 text-[12px] text-white/58">
+            <div className="aixia-transaction-flow-module-meta-text">
               {item.module.isPersonalDefault ? "Personal" : item.module.lastUpdatedLabel}
             </div>
           </div>
@@ -679,28 +677,26 @@ function TransactionFlowSection({
 
   return (
     <section
-      className={`overflow-hidden rounded-[30px] border ${tone.border} ${tone.panel} backdrop-blur-xl`}
+      className={`aixia-transaction-flow-section ${tone.border} ${tone.panel}`}
     >
-      <div className="flex items-start justify-between gap-4 border-b border-white/10 px-5 py-4">
-        <div className="flex min-w-0 items-start gap-3">
-          <div className={`rounded-2xl border p-3 ${tone.icon}`}>
+      <div className="aixia-transaction-flow-section-head">
+        <div className="aixia-transaction-flow-section-title-row">
+          <div className={`aixia-transaction-flow-section-icon ${tone.icon}`}>
             <Icon className="h-4 w-4" />
           </div>
 
-          <div className="min-w-0">
-            <div
-              className={`inline-flex w-fit rounded-full border px-3 py-1 text-[11px] font-semibold uppercase tracking-[0.22em] ${tone.badge}`}
-            >
+          <div className="aixia-transaction-flow-section-copy">
+            <div className={`aixia-transaction-flow-section-badge ${tone.badge}`}>
               {section.title}
             </div>
-            <p className="mt-2 max-w-4xl text-sm leading-6 text-slate-400">
+            <p className="aixia-transaction-flow-section-description">
               {section.subtitle}
             </p>
           </div>
         </div>
       </div>
 
-      <div className="p-5">
+      <div className="aixia-transaction-flow-section-body">
         <FlowRow items={section.modules} onOpen={onOpen} />
       </div>
     </section>
@@ -1468,62 +1464,66 @@ export default function FinanceTransactionsPage() {
         </AixiaMetricGrid>
       ) : null}
 
-      <div className="aixia-stack">
-        {accessFlags.canMonitorAnyCompanyFinance ? (
-          <div className="aixia-stack">
+      <div className="aixia-transactions-hub-layout xl:grid-cols-[minmax(0,1fr)_430px]">
+        <div className="aixia-transactions-hub-span">
+          {accessFlags.canMonitorAnyCompanyFinance ? (
+            <div className="aixia-stack">
+              <AixiaNavigationInfoPanel
+                tone="amber"
+                icon={BadgeAlert}
+                title="Control Signals"
+                description="Visible only for company-level monitoring permissions."
+              />
+
+              <AixiaReviewGrid variant="cards">
+                {accessFlags.canMonitorIncomingMoney ? (
+                  <AixiaValueBlock
+                    label="Overdue Invoices"
+                    value={isLoading ? "—" : formatCount(data.alerts.overdueInvoices)}
+                    detail="Receivables requiring collection attention"
+                  />
+                ) : null}
+
+                {accessFlags.canMonitorSupplierProcurement ? (
+                  <AixiaValueBlock
+                    label="Overdue Bills"
+                    value={isLoading ? "—" : formatCount(data.alerts.overdueBills)}
+                    detail="Payables requiring payment attention"
+                  />
+                ) : null}
+
+                {accessFlags.canMonitorExpenseFunding ? (
+                  <AixiaValueBlock
+                    label="Pending Expenses"
+                    value={isLoading ? "—" : formatCount(data.alerts.pendingExpenses)}
+                    detail="Expense items waiting for Finance/Admin action"
+                  />
+                ) : null}
+              </AixiaReviewGrid>
+            </div>
+          ) : null}
+        </div>
+
+        <div className="aixia-transactions-hub-span">
+          {transactionSections.length > 0 ? (
+            <div className="aixia-stack">
+              {transactionSections.map((section) => (
+                <TransactionFlowSection
+                  key={section.key}
+                  section={section}
+                  onOpen={openRoute}
+                />
+              ))}
+            </div>
+          ) : (
             <AixiaNavigationInfoPanel
               tone="amber"
-              icon={BadgeAlert}
-              title="Control Signals"
-              description="Visible only for company-level monitoring permissions."
+              icon={LockKeyhole}
+              title="No company transaction modules are enabled"
+              description="You can still use your own allowed personal flows, such as your own expenses/reimbursements and paycheck requests. Company-level finance modules appear here only after an Admin enables the related Access Approval section."
             />
-
-            <AixiaReviewGrid variant="cards">
-              {accessFlags.canMonitorIncomingMoney ? (
-                <AixiaValueBlock
-                  label="Overdue Invoices"
-                  value={isLoading ? "—" : formatCount(data.alerts.overdueInvoices)}
-                  detail="Receivables requiring collection attention"
-                />
-              ) : null}
-
-              {accessFlags.canMonitorSupplierProcurement ? (
-                <AixiaValueBlock
-                  label="Overdue Bills"
-                  value={isLoading ? "—" : formatCount(data.alerts.overdueBills)}
-                  detail="Payables requiring payment attention"
-                />
-              ) : null}
-
-              {accessFlags.canMonitorExpenseFunding ? (
-                <AixiaValueBlock
-                  label="Pending Expenses"
-                  value={isLoading ? "—" : formatCount(data.alerts.pendingExpenses)}
-                  detail="Expense items waiting for Finance/Admin action"
-                />
-              ) : null}
-            </AixiaReviewGrid>
-          </div>
-        ) : null}
-
-        {transactionSections.length > 0 ? (
-          <div className="aixia-stack">
-            {transactionSections.map((section) => (
-              <TransactionFlowSection
-                key={section.key}
-                section={section}
-                onOpen={openRoute}
-              />
-            ))}
-          </div>
-        ) : (
-          <AixiaNavigationInfoPanel
-            tone="amber"
-            icon={LockKeyhole}
-            title="No company transaction modules are enabled"
-            description="You can still use your own allowed personal flows, such as your own expenses/reimbursements and paycheck requests. Company-level finance modules appear here only after an Admin enables the related Access Approval section."
-          />
-        )}
+          )}
+        </div>
 
         {accessFlags.canMonitorAnyCompanyFinance ? (
           <div className="aixia-stack">
@@ -1596,28 +1596,30 @@ export default function FinanceTransactionsPage() {
         ) : null}
 
         {!accessFlags.canMonitorAnyCompanyFinance ? (
-          <div className="aixia-stack">
-            <AixiaNavigationInfoPanel
-              tone="cyan"
-              icon={UserRound}
-              title="Personal Access"
-              description="Default employee finance access."
-            />
-
-            <AixiaReviewGrid variant="cards">
-              <AixiaNavigationStatBlock
-                label="Own Expenses"
-                value="Enabled"
-                description="Create, edit, submit, upload, and confirm your own expense/reimbursement records."
+          <div className="aixia-transactions-hub-span">
+            <div className="aixia-stack">
+              <AixiaNavigationInfoPanel
                 tone="cyan"
+                icon={UserRound}
+                title="Personal Access"
+                description="Default employee finance access."
               />
-              <AixiaNavigationStatBlock
-                label="Own Paychecks"
-                value="Enabled"
-                description="Create, edit, submit, upload, and confirm your own paycheck request records."
-                tone="violet"
-              />
-            </AixiaReviewGrid>
+
+              <AixiaReviewGrid variant="cards">
+                <AixiaNavigationStatBlock
+                  label="Own Expenses"
+                  value="Enabled"
+                  description="Create, edit, submit, upload, and confirm your own expense/reimbursement records."
+                  tone="cyan"
+                />
+                <AixiaNavigationStatBlock
+                  label="Own Paychecks"
+                  value="Enabled"
+                  description="Create, edit, submit, upload, and confirm your own paycheck request records."
+                  tone="violet"
+                />
+              </AixiaReviewGrid>
+            </div>
           </div>
         ) : null}
       </div>

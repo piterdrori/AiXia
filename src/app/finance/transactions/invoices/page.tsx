@@ -603,34 +603,6 @@ export default function FinanceInvoicesPage() {
             tone: "emerald",
           },
         ]}
-        actions={
-          <>
-            {permissionState.canCreate ? (
-              <AixiaButton
-                type="button"
-                variant="primary"
-                onClick={() => navigate("/finance/transactions/invoices/new")}
-              >
-                <Plus className="h-4 w-4" />
-                New Invoice
-              </AixiaButton>
-            ) : null}
-
-            {permissionState.canDeleteArchive ? (
-              <AixiaButton
-                type="button"
-                variant="danger"
-                onClick={() => {
-                  setArchiveTab("archived");
-                  setIsArchiveModalOpen(true);
-                }}
-              >
-                <Archive className="h-4 w-4" />
-                Archive
-              </AixiaButton>
-            ) : null}
-          </>
-        }
       />
 
       {pageError ? <AixiaAlert tone="error">{pageError}</AixiaAlert> : null}

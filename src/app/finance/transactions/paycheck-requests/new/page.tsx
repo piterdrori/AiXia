@@ -1,12 +1,10 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import {
-  ArrowRight,
   Building2,
   CalendarDays,
   Download,
   FileSignature,
-  LinkIcon,
   Loader2,
   Save,
   Send,
@@ -20,7 +18,6 @@ import {
   AixiaAlert,
   AixiaButton,
   AixiaDocumentUploadPanel,
-  AixiaEmptyState,
   AixiaFieldLabel,
   AixiaFormField,
   AixiaFormFullWidth,
@@ -29,7 +26,6 @@ import {
   AixiaInputField,
   AixiaLoadingState,
   AixiaPage,
-  AixiaReviewBlock,
   AixiaReviewGrid,
   AixiaSection,
   AixiaSelectField,
@@ -1353,7 +1349,7 @@ export default function NewPaycheckRequestPage() {
               </AixiaAlert>
             )}
 
-            <AixiaAlert tone="warning">
+            <AixiaAlert tone="info">
               This section captures the employee’s preferred receiving method for Finance
               review. It is not connected to internal company bank-account master data and
               does not execute payment.
@@ -1396,7 +1392,7 @@ export default function NewPaycheckRequestPage() {
             </AixiaFormGrid>
 
             {selectedEmployee && filteredPayProfiles.length === 0 ? (
-              <AixiaAlert tone="warning">
+              <AixiaAlert tone="info">
                 No active pay profile found for this employee. You can still enter paycheck
                 amounts manually, but Finance/Admin should create the employee pay profile
                 from Finance Master Data → Employees so future requests auto-fill correctly.
@@ -1675,7 +1671,7 @@ export default function NewPaycheckRequestPage() {
               </AixiaFormField>
             </AixiaFormGrid>
 
-            <AixiaAlert tone="warning">
+            <AixiaAlert tone="info">
               Generate the filled payslip form, save as PDF or print it, sign it as the
               employee, then upload the signed file. Submission requires an uploaded signed
               form or external signed-form link.

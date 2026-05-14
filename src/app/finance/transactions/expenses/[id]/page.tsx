@@ -4714,8 +4714,9 @@ export default function FinanceExpenseDetailPage() {
               title="Expense / Reimbursement Overview"
               description="Draft records use the same structure and rules as the New Expense / Reimbursement page."
               icon={Building2}
-              actions={
-                isEditingOverview ? (
+            >
+              <div className="aixia-action-row">
+                {isEditingOverview ? (
                   <>
                     <AixiaButton
                       type="button"
@@ -4751,9 +4752,10 @@ export default function FinanceExpenseDetailPage() {
                     <Pencil className="h-4 w-4" />
                     Edit
                   </AixiaButton>
-                )
-              }
-            >
+                )}
+              </div>
+
+              <AixiaAlert tone="info">
               <AixiaAlert tone="info">
                 {canEditOverview
                   ? "Only draft expense requests can be edited here."

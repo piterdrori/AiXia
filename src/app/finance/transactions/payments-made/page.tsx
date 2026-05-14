@@ -2,26 +2,41 @@ import { useCallback, useEffect, useMemo, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import {
   Archive,
-  ArrowRight,
   CreditCard,
   Eye,
   FolderArchive,
   Plus,
+  Receipt,
   RotateCcw,
-  Search,
   Trash2,
+  WalletCards,
 } from "lucide-react";
 
-import { supabase } from "@/lib/supabase";
-import { Badge } from "@/components/ui/badge";
-import { Button } from "@/components/ui/button";
 import {
-  Card,
-  CardContent,
-  CardDescription,
-  CardHeader,
-  CardTitle,
-} from "@/components/ui/card";
+  AixiaAlert,
+  AixiaArchiveManagerModal,
+  AixiaBadge,
+  AixiaButton,
+  AixiaEmptyState,
+  AixiaHero,
+  AixiaMetricCard,
+  AixiaMetricGrid,
+  AixiaPage,
+  AixiaRegistryToolbar,
+  AixiaSearchField,
+  AixiaSection,
+  AixiaSortableHeader,
+  AixiaStatusBadge,
+  AixiaTableActionsCell,
+  AixiaTableBadgeCell,
+  AixiaTableDateCell,
+  AixiaTableShell,
+  AixiaTableTextCell,
+} from "@/components/aixia";
+import type { FinanceLoadMode } from "@/lib/finance/pageAccess";
+import { supabase } from "@/lib/supabase";
+
+type LoadMode = FinanceLoadMode;
 
 type PaymentMadeStatus =
   | "draft"
@@ -78,7 +93,14 @@ function toNumber(value: number | string | null | undefined) {
   return Number.isFinite(parsed) ? parsed : 0;
 }
 
-function formatMoney(value: number | string | null | undefined, currency = "USD") {
+function formatCount(value: number) {
+  return value.toLocaleString();
+}
+
+function formatMoney(
+  value: number | string | null | undefined,
+  currency = "USD",
+) {
   return new Intl.NumberFormat(undefined, {
     style: "currency",
     currency: currency || "USD",
@@ -100,29 +122,10 @@ function formatDate(value: string | null | undefined) {
   });
 }
 
-function normalizeStatusLabel(status: string) {
-  return status.replaceAll("_", " ");
-}
-
-function getStatusBadgeClass(status: PaymentMadeStatus | string) {
-  switch (status) {
-    case "draft":
-      return "border-slate-400/20 bg-slate-500/10 text-slate-300";
-    case "confirmed":
-      return "border-emerald-400/20 bg-emerald-500/10 text-emerald-200";
-    case "cancelled":
-    case "deleted":
-      return "border-rose-400/20 bg-rose-500/10 text-rose-200";
-    case "archived":
-    default:
-      return "border-white/10 bg-white/[0.05] text-slate-300";
-  }
-}
-
 function compareValues(
   firstValue: string | number | null | undefined,
   secondValue: string | number | null | undefined,
-  direction: SortDirection
+  direction: SortDirection,
 ) {
   const first =
     typeof firstValue === "number"
@@ -138,6 +141,370 @@ function compareValues(
   return 0;
 }
 
+function getSortValue(row: PaymentMadeRow, sortKey: SortKey) {
+  if (sortKey === "amount" || sortKey === "converted_amount") {
+    return toNumber(row[sortKey]);
+  }
+
+  if (sortKey === "vendor_name") {
+    return row.vendor_legal_name || row.vendor_name || "";
+  }
+
+  return row[sortKey] ?? "";
+}
+
+function sortPaymentRows(
+  rowsToSort: PaymentMadeRow[],
+  sortKey: SortKey,
+  sortDirection: SortDirection,
+) {
+  return [...rowsToSort].sort((firstRow, secondRow) =>
+    compareValues(
+      getSortValue(firstRow, sortKey),
+      getSortValue(secondRow, sortKey),
+      sortDirection,
+    ),
+  );
+}
+
+function getPaymentCurrency(row: PaymentMadeRow) {
+  return row.payment_currency_code || row.bill_currency_code || "USD";
+}
+
+function getEffectiveCurrency(row: PaymentMadeRow) {
+  return row.bill_currency_code || row.payment_currency_code || "USD";
+}
+
+function getVendorLabel(row: PaymentMadeRow) {
+  return row.vendor_legal_name || row.vendor_name || "Unknown vendor";
+}
+
+function PaymentsMadeTable({
+  rows,
+  sortKey,
+  sortDirection,
+  onSort,
+  onOpen,
+  onArchive,
+  onDelete,
+  archiveMode = false,
+  archiveTab = "archived",
+  onRestore,
+  onHardDelete,
+  isLoading = false,
+}: {
+  rows: PaymentMadeRow[];
+  sortKey: SortKey;
+  sortDirection: SortDirection;
+  onSort?: (sortKey: SortKey) => void;
+  onOpen: (id: string) => void;
+  onArchive?: (id: string) => void;
+  onDelete?: (id: string) => void;
+  archiveMode?: boolean;
+  archiveTab?: ArchiveTab;
+  onRestore?: (id: string) => void;
+  onHardDelete?: (id: string) => void;
+  isLoading?: boolean;
+}) {
+  if (isLoading) {
+    return (
+      <AixiaEmptyState
+        icon={CreditCard}
+        title="Loading payments made"
+        description="Outgoing payment records are being loaded."
+      />
+    );
+  }
+
+  if (rows.length === 0) {
+    return (
+      <AixiaEmptyState
+        icon={CreditCard}
+        title={
+          archiveMode
+            ? `No ${archiveTab} payments made`
+            : "No active payments made found"
+        }
+        description={
+          archiveMode
+            ? "Archived and deleted outgoing payment records will appear here."
+            : "Outgoing vendor payments linked to approved vendor PI / invoice documents will appear here."
+        }
+      />
+    );
+  }
+
+  return (
+    <AixiaTableShell
+      variant={archiveMode ? "archive" : "registry"}
+      minWidthClassName={archiveMode ? "min-w-[1180px]" : "min-w-[1320px]"}
+      maxHeightClassName={archiveMode ? "max-h-[620px]" : "max-h-[720px]"}
+    >
+      <thead className="aixia-table-head">
+        <tr>
+          <th>
+            {onSort ? (
+              <AixiaSortableHeader
+                label="Payment"
+                sortKey="reference_number"
+                activeSortKey={sortKey}
+                sortDirection={sortDirection}
+                onSort={onSort}
+              />
+            ) : (
+              "Payment"
+            )}
+          </th>
+          <th>
+            {onSort ? (
+              <AixiaSortableHeader
+                label="Vendor"
+                sortKey="vendor_name"
+                activeSortKey={sortKey}
+                sortDirection={sortDirection}
+                onSort={onSort}
+              />
+            ) : (
+              "Vendor"
+            )}
+          </th>
+          <th>
+            {onSort ? (
+              <AixiaSortableHeader
+                label="Bill"
+                sortKey="bill_number"
+                activeSortKey={sortKey}
+                sortDirection={sortDirection}
+                onSort={onSort}
+              />
+            ) : (
+              "Bill"
+            )}
+          </th>
+          {!archiveMode ? (
+            <th>
+              {onSort ? (
+                <AixiaSortableHeader
+                  label="PO"
+                  sortKey="purchase_order_number"
+                  activeSortKey={sortKey}
+                  sortDirection={sortDirection}
+                  onSort={onSort}
+                />
+              ) : (
+                "PO"
+              )}
+            </th>
+          ) : null}
+          <th>
+            {onSort ? (
+              <AixiaSortableHeader
+                label="Date"
+                sortKey="payment_date"
+                activeSortKey={sortKey}
+                sortDirection={sortDirection}
+                onSort={onSort}
+              />
+            ) : (
+              "Date"
+            )}
+          </th>
+          <th>
+            {onSort ? (
+              <AixiaSortableHeader
+                label="Amount"
+                sortKey="amount"
+                activeSortKey={sortKey}
+                sortDirection={sortDirection}
+                onSort={onSort}
+              />
+            ) : (
+              "Amount"
+            )}
+          </th>
+          <th>
+            {onSort ? (
+              <AixiaSortableHeader
+                label="Effective"
+                sortKey="converted_amount"
+                activeSortKey={sortKey}
+                sortDirection={sortDirection}
+                onSort={onSort}
+              />
+            ) : (
+              "Effective"
+            )}
+          </th>
+          {!archiveMode ? (
+            <th>
+              {onSort ? (
+                <AixiaSortableHeader
+                  label="Status"
+                  sortKey="status"
+                  activeSortKey={sortKey}
+                  sortDirection={sortDirection}
+                  onSort={onSort}
+                />
+              ) : (
+                "Status"
+              )}
+            </th>
+          ) : null}
+          {archiveMode ? (
+            <th>
+              {onSort ? (
+                <AixiaSortableHeader
+                  label="Updated"
+                  sortKey="updated_at"
+                  activeSortKey={sortKey}
+                  sortDirection={sortDirection}
+                  onSort={onSort}
+                />
+              ) : (
+                "Updated"
+              )}
+            </th>
+          ) : null}
+          <th>Actions</th>
+        </tr>
+      </thead>
+
+      <tbody>
+        {rows.map((row) => (
+          <tr key={row.id} className="aixia-table-row">
+            <AixiaTableTextCell
+              width="lg"
+              primary={row.reference_number || "Payment Made"}
+              secondary={row.payment_method_name || "No method"}
+            />
+
+            <AixiaTableTextCell
+              width="lg"
+              primary={getVendorLabel(row)}
+              secondary={row.vendor_code || "—"}
+            />
+
+            <AixiaTableTextCell
+              width="lg"
+              primary={row.bill_number || "—"}
+              secondary={row.external_document_number || "No vendor ref"}
+            />
+
+            {!archiveMode ? (
+              <AixiaTableTextCell
+                width="md"
+                primary={row.purchase_order_number || "—"}
+                secondary={row.vendor_quotation_number || undefined}
+              />
+            ) : null}
+
+            <AixiaTableDateCell>
+              {formatDate(row.payment_date)}
+            </AixiaTableDateCell>
+
+            <AixiaTableTextCell
+              width="md"
+              primary={formatMoney(row.amount, getPaymentCurrency(row))}
+              secondary={getPaymentCurrency(row)}
+            />
+
+            <AixiaTableTextCell
+              width="md"
+              primary={formatMoney(
+                row.converted_amount || row.amount,
+                getEffectiveCurrency(row),
+              )}
+              secondary={getEffectiveCurrency(row)}
+            />
+
+            {!archiveMode ? (
+              <AixiaTableBadgeCell>
+                <AixiaStatusBadge value={row.status} />
+              </AixiaTableBadgeCell>
+            ) : null}
+
+            {archiveMode ? (
+              <AixiaTableDateCell>
+                {formatDate(row.updated_at)}
+              </AixiaTableDateCell>
+            ) : null}
+
+            <AixiaTableActionsCell>
+              {!archiveMode ? (
+                <>
+                  <AixiaButton
+                    type="button"
+                    variant="primary"
+                    title="Open payment made"
+                    onClick={() => onOpen(row.id)}
+                  >
+                    <Eye className="h-3.5 w-3.5" />
+                    Open
+                  </AixiaButton>
+
+                  <AixiaButton
+                    type="button"
+                    variant="danger"
+                    title="Archive payment made"
+                    onClick={() => onArchive?.(row.id)}
+                  >
+                    <Archive className="h-3.5 w-3.5" />
+                    Archive
+                  </AixiaButton>
+
+                  <AixiaButton
+                    type="button"
+                    variant="danger"
+                    title="Delete payment made"
+                    onClick={() => onDelete?.(row.id)}
+                  >
+                    <Trash2 className="h-3.5 w-3.5" />
+                    Delete
+                  </AixiaButton>
+                </>
+              ) : (
+                <>
+                  <AixiaButton
+                    type="button"
+                    variant="primary"
+                    title="Open payment made"
+                    onClick={() => onOpen(row.id)}
+                  >
+                    <Eye className="h-3.5 w-3.5" />
+                    Open
+                  </AixiaButton>
+
+                  <AixiaButton
+                    type="button"
+                    variant="secondary"
+                    title="Restore payment made"
+                    onClick={() => onRestore?.(row.id)}
+                  >
+                    <RotateCcw className="h-3.5 w-3.5" />
+                    Restore
+                  </AixiaButton>
+
+                  {archiveTab === "deleted" ? (
+                    <AixiaButton
+                      type="button"
+                      variant="danger"
+                      title="Delete permanently"
+                      onClick={() => onHardDelete?.(row.id)}
+                    >
+                      <Trash2 className="h-3.5 w-3.5" />
+                      Delete Permanently
+                    </AixiaButton>
+                  ) : null}
+                </>
+              )}
+            </AixiaTableActionsCell>
+          </tr>
+        ))}
+      </tbody>
+    </AixiaTableShell>
+  );
+}
+
 export default function FinancePaymentsMadePage() {
   const navigate = useNavigate();
 
@@ -145,10 +512,15 @@ export default function FinancePaymentsMadePage() {
   const [archiveRows, setArchiveRows] = useState<PaymentMadeRow[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [isArchiveLoading, setIsArchiveLoading] = useState(false);
+  const [isBackgroundRefreshing, setIsBackgroundRefreshing] = useState(false);
   const [errorMessage, setErrorMessage] = useState("");
   const [searchTerm, setSearchTerm] = useState("");
+  const [archiveSearchTerm, setArchiveSearchTerm] = useState("");
   const [sortKey, setSortKey] = useState<SortKey>("updated_at");
   const [sortDirection, setSortDirection] = useState<SortDirection>("desc");
+  const [archiveSortKey, setArchiveSortKey] = useState<SortKey>("updated_at");
+  const [archiveSortDirection, setArchiveSortDirection] =
+    useState<SortDirection>("desc");
   const [isArchiveOpen, setIsArchiveOpen] = useState(false);
   const [archiveTab, setArchiveTab] = useState<ArchiveTab>("archived");
 
@@ -194,107 +566,131 @@ export default function FinancePaymentsMadePage() {
     });
   }, []);
 
-  const loadRows = useCallback(async () => {
-    try {
-      setIsLoading(true);
-      setErrorMessage("");
+  const loadRows = useCallback(
+    async (mode: LoadMode = "initial") => {
+      try {
+        if (mode === "initial") {
+          setIsLoading(true);
+          setErrorMessage("");
+        } else {
+          setIsBackgroundRefreshing(true);
+        }
 
-      const { data, error } = await supabase
-        .from("finance_payments_made")
-        .select(
-          [
-            "id",
-            "bill_id",
-            "vendor_id",
-            "purchase_order_id",
-            "vendor_quotation_id",
-            "amount",
-            "payment_date",
-            "payment_method_id",
-            "reference_number",
-            "status",
-            "notes",
-            "payment_currency_code",
-            "bill_currency_code",
-            "exchange_rate",
-            "converted_amount",
-            "created_at",
-            "updated_at",
-            "finance_vendors(name, legal_name, code)",
-            "finance_bills_received(bill_number, external_document_number, document_type)",
-            "finance_purchase_orders(purchase_order_number)",
-            "finance_vendor_quotations(vendor_quotation_number)",
-            "finance_payment_methods(name)",
-          ].join(", ")
-        )
-        .not("status", "in", "(archived,deleted)")
-        .order("updated_at", { ascending: false });
+        const { data, error } = await supabase
+          .from("finance_payments_made")
+          .select(
+            [
+              "id",
+              "bill_id",
+              "vendor_id",
+              "purchase_order_id",
+              "vendor_quotation_id",
+              "amount",
+              "payment_date",
+              "payment_method_id",
+              "reference_number",
+              "status",
+              "notes",
+              "payment_currency_code",
+              "bill_currency_code",
+              "exchange_rate",
+              "converted_amount",
+              "created_at",
+              "updated_at",
+              "finance_vendors(name, legal_name, code)",
+              "finance_bills_received(bill_number, external_document_number, document_type)",
+              "finance_purchase_orders(purchase_order_number)",
+              "finance_vendor_quotations(vendor_quotation_number)",
+              "finance_payment_methods(name)",
+            ].join(", "),
+          )
+          .not("status", "in", "(archived,deleted)")
+          .order("updated_at", { ascending: false });
 
-      if (error) throw error;
+        if (error) throw error;
 
-      setRows(mapPaymentRows((data || []) as unknown[]));
-    } catch (error) {
-      console.error("Failed to load payments made:", error);
-      setErrorMessage("Failed to load payments made.");
-    } finally {
-      setIsLoading(false);
-    }
-  }, [mapPaymentRows]);
+        setRows(mapPaymentRows((data || []) as unknown[]));
+      } catch (error) {
+        console.error("Failed to load payments made:", error);
 
-  const loadArchiveRows = useCallback(async () => {
-    try {
-      setIsArchiveLoading(true);
-      setErrorMessage("");
+        if (mode === "initial") {
+          setErrorMessage("Failed to load payments made.");
+        }
+      } finally {
+        if (mode === "initial") {
+          setIsLoading(false);
+        } else {
+          setIsBackgroundRefreshing(false);
+        }
+      }
+    },
+    [mapPaymentRows],
+  );
 
-      const { data, error } = await supabase
-        .from("finance_payments_made")
-        .select(
-          [
-            "id",
-            "bill_id",
-            "vendor_id",
-            "purchase_order_id",
-            "vendor_quotation_id",
-            "amount",
-            "payment_date",
-            "payment_method_id",
-            "reference_number",
-            "status",
-            "notes",
-            "payment_currency_code",
-            "bill_currency_code",
-            "exchange_rate",
-            "converted_amount",
-            "created_at",
-            "updated_at",
-            "finance_vendors(name, legal_name, code)",
-            "finance_bills_received(bill_number, external_document_number, document_type)",
-            "finance_purchase_orders(purchase_order_number)",
-            "finance_vendor_quotations(vendor_quotation_number)",
-            "finance_payment_methods(name)",
-          ].join(", ")
-        )
-        .eq("status", archiveTab)
-        .order("updated_at", { ascending: false });
+  const loadArchiveRows = useCallback(
+    async (mode: LoadMode = "silent") => {
+      try {
+        if (mode === "initial") {
+          setIsArchiveLoading(true);
+          setErrorMessage("");
+        }
 
-      if (error) throw error;
+        const { data, error } = await supabase
+          .from("finance_payments_made")
+          .select(
+            [
+              "id",
+              "bill_id",
+              "vendor_id",
+              "purchase_order_id",
+              "vendor_quotation_id",
+              "amount",
+              "payment_date",
+              "payment_method_id",
+              "reference_number",
+              "status",
+              "notes",
+              "payment_currency_code",
+              "bill_currency_code",
+              "exchange_rate",
+              "converted_amount",
+              "created_at",
+              "updated_at",
+              "finance_vendors(name, legal_name, code)",
+              "finance_bills_received(bill_number, external_document_number, document_type)",
+              "finance_purchase_orders(purchase_order_number)",
+              "finance_vendor_quotations(vendor_quotation_number)",
+              "finance_payment_methods(name)",
+            ].join(", "),
+          )
+          .in("status", ["archived", "deleted"])
+          .order("updated_at", { ascending: false });
 
-      setArchiveRows(mapPaymentRows((data || []) as unknown[]));
-    } catch (error) {
-      console.error("Failed to load archived payments made:", error);
-      setErrorMessage("Failed to load archive records.");
-    } finally {
-      setIsArchiveLoading(false);
-    }
-  }, [archiveTab, mapPaymentRows]);
+        if (error) throw error;
+
+        setArchiveRows(mapPaymentRows((data || []) as unknown[]));
+      } catch (error) {
+        console.error("Failed to load archived payments made:", error);
+
+        if (mode === "initial") {
+          setErrorMessage("Failed to load archive records.");
+        }
+      } finally {
+        if (mode === "initial") {
+          setIsArchiveLoading(false);
+        }
+      }
+    },
+    [mapPaymentRows],
+  );
 
   useEffect(() => {
-    void loadRows();
+    void loadRows("initial");
   }, [loadRows]);
 
   useEffect(() => {
     if (!isArchiveOpen) return;
-    void loadArchiveRows();
+    void loadArchiveRows("initial");
   }, [isArchiveOpen, loadArchiveRows]);
 
   useEffect(() => {
@@ -308,22 +704,26 @@ export default function FinancePaymentsMadePage() {
           table: "finance_payments_made",
         },
         () => {
-          void loadRows();
+          void loadRows("silent");
 
           if (isArchiveOpen) {
-            void loadArchiveRows();
+            void loadArchiveRows("silent");
           }
-        }
+        },
       )
       .subscribe();
 
     const intervalId = window.setInterval(() => {
-      void loadRows();
+      void loadRows("silent");
+
+      if (isArchiveOpen) {
+        void loadArchiveRows("silent");
+      }
     }, 60000);
 
     return () => {
       window.clearInterval(intervalId);
-      supabase.removeChannel(channel);
+      void supabase.removeChannel(channel);
     };
   }, [isArchiveOpen, loadArchiveRows, loadRows]);
 
@@ -352,30 +752,59 @@ export default function FinancePaymentsMadePage() {
         })
       : rows;
 
-    return [...visibleRows].sort((firstRow, secondRow) => {
-      if (sortKey === "amount" || sortKey === "converted_amount") {
-        return compareValues(
-          toNumber(firstRow[sortKey]),
-          toNumber(secondRow[sortKey]),
-          sortDirection
-        );
-      }
-
-      if (sortKey === "vendor_name") {
-        return compareValues(
-          firstRow.vendor_legal_name || firstRow.vendor_name,
-          secondRow.vendor_legal_name || secondRow.vendor_name,
-          sortDirection
-        );
-      }
-
-      return compareValues(firstRow[sortKey], secondRow[sortKey], sortDirection);
-    });
+    return sortPaymentRows(visibleRows, sortKey, sortDirection);
   }, [rows, searchTerm, sortDirection, sortKey]);
+
+  const archivedRows = useMemo(
+    () => archiveRows.filter((row) => row.status === "archived"),
+    [archiveRows],
+  );
+
+  const deletedRows = useMemo(
+    () => archiveRows.filter((row) => row.status === "deleted"),
+    [archiveRows],
+  );
+
+  const filteredArchiveRows = useMemo(() => {
+    const normalizedSearch = archiveSearchTerm.trim().toLowerCase();
+    const sourceRows = archiveTab === "archived" ? archivedRows : deletedRows;
+
+    const visibleRows = normalizedSearch
+      ? sourceRows.filter((row) => {
+          const haystack = [
+            row.reference_number,
+            row.vendor_name,
+            row.vendor_legal_name,
+            row.vendor_code,
+            row.bill_number,
+            row.external_document_number,
+            row.purchase_order_number,
+            row.vendor_quotation_number,
+            row.payment_method_name,
+            row.status,
+          ]
+            .filter(Boolean)
+            .join(" ")
+            .toLowerCase();
+
+          return haystack.includes(normalizedSearch);
+        })
+      : sourceRows;
+
+    return sortPaymentRows(visibleRows, archiveSortKey, archiveSortDirection);
+  }, [
+    archiveRows,
+    archiveSearchTerm,
+    archiveSortDirection,
+    archiveSortKey,
+    archiveTab,
+    archivedRows,
+    deletedRows,
+  ]);
 
   const summary = useMemo(() => {
     const activeRows = rows.filter(
-      (row) => !["archived", "deleted"].includes(row.status)
+      (row) => !["archived", "deleted"].includes(row.status),
     );
 
     return {
@@ -387,7 +816,7 @@ export default function FinancePaymentsMadePage() {
         .filter((row) => row.status === "confirmed")
         .reduce(
           (sum, row) => sum + toNumber(row.converted_amount || row.amount),
-          0
+          0,
         ),
     };
   }, [rows]);
@@ -402,7 +831,22 @@ export default function FinancePaymentsMadePage() {
       setSortKey(nextSortKey);
       setSortDirection("asc");
     },
-    [sortKey]
+    [sortKey],
+  );
+
+  const toggleArchiveSort = useCallback(
+    (nextSortKey: SortKey) => {
+      if (nextSortKey === archiveSortKey) {
+        setArchiveSortDirection((current) =>
+          current === "asc" ? "desc" : "asc",
+        );
+        return;
+      }
+
+      setArchiveSortKey(nextSortKey);
+      setArchiveSortDirection("asc");
+    },
+    [archiveSortKey],
   );
 
   const runArchiveAction = useCallback(
@@ -412,7 +856,7 @@ export default function FinancePaymentsMadePage() {
         | "finance_delete_payment_made"
         | "finance_restore_payment_made"
         | "finance_hard_delete_payment_made",
-      rowId: string
+      rowId: string,
     ) => {
       try {
         setErrorMessage("");
@@ -423,627 +867,222 @@ export default function FinancePaymentsMadePage() {
 
         if (error) throw error;
 
-        await loadRows();
+        await loadRows("silent");
 
         if (isArchiveOpen) {
-          await loadArchiveRows();
+          await loadArchiveRows("silent");
         }
       } catch (error) {
         console.error("Payment made archive action failed:", error);
-        setErrorMessage("Action failed. Please check permissions and try again.");
+        setErrorMessage(
+          "Action failed. Please check permissions and try again.",
+        );
       }
     },
-    [isArchiveOpen, loadArchiveRows, loadRows]
+    [isArchiveOpen, loadArchiveRows, loadRows],
   );
 
-  const sortableHeaderClass =
-    "inline-flex items-center gap-2 text-[11px] font-semibold uppercase tracking-[0.18em] text-slate-500 transition hover:text-slate-300";
-
-  const renderSortMark = (key: SortKey) => {
-    if (sortKey !== key) return "↕";
-    return sortDirection === "asc" ? "↑" : "↓";
-  };
+  const openPayment = useCallback(
+    (rowId: string) => {
+      navigate(`/finance/transactions/payments-made/${rowId}`);
+    },
+    [navigate],
+  );
 
   return (
-    <div className="min-h-screen bg-[#05070d] px-4 py-4 text-white md:px-6 md:py-6">
-      <div className="mx-auto flex w-full max-w-[1600px] flex-col gap-6">
-        <header className="relative overflow-hidden rounded-[34px] border border-white/10 bg-white/[0.045] p-6 shadow-2xl shadow-black/30 backdrop-blur-xl">
-          <div className="pointer-events-none absolute inset-0 bg-[radial-gradient(circle_at_top_left,rgba(16,185,129,0.16),transparent_38%),radial-gradient(circle_at_top_right,rgba(6,182,212,0.12),transparent_34%)]" />
-
-          <div className="relative">
-            <button
+    <AixiaPage>
+      <AixiaHero
+        parentLabel="Transactions"
+        parentPath="/finance/transactions"
+        badges={[
+          { label: "Supplier Procurement", tone: "emerald" },
+          { label: "Step 04", tone: "cyan" },
+          {
+            label: isBackgroundRefreshing ? "Syncing" : "Live",
+            tone: "neutral",
+          },
+        ]}
+        gradientTitle="Payments"
+        title="Made"
+        description="Outgoing payment records linked to approved vendor PI / invoice documents. Confirmed payments update the payable bill paid amount and balance due."
+        actions={
+          <>
+            <AixiaButton
               type="button"
-              onClick={() => navigate("/finance/transactions")}
-              className="mb-5 inline-flex items-center justify-center gap-2 rounded-full border border-white/10 bg-white/[0.05] px-5 py-2 text-[11px] font-semibold uppercase tracking-[0.22em] text-slate-300 transition hover:border-white/20 hover:bg-white/[0.08] hover:text-white"
+              variant="primary"
+              onClick={() =>
+                navigate("/finance/transactions/payments-made/new")
+              }
             >
-              <ArrowRight className="h-3.5 w-3.5 rotate-180" />
-              Transactions
-            </button>
+              <Plus className="h-4 w-4" />
+              New Payment Made
+            </AixiaButton>
 
-            <div className="grid gap-6 xl:grid-cols-[minmax(0,1fr)_520px]">
-              <div>
-                <div className="flex flex-wrap gap-2">
-                  <Badge className="w-fit rounded-full border border-emerald-400/20 bg-emerald-500/10 px-3 py-1 text-[11px] font-semibold uppercase tracking-[0.22em] text-emerald-200 shadow-none">
-                    Supplier Procurement
-                  </Badge>
+            <AixiaButton
+              type="button"
+              variant="danger"
+              onClick={() => {
+                setArchiveTab("archived");
+                setIsArchiveOpen(true);
+              }}
+            >
+              <FolderArchive className="h-4 w-4" />
+              Archive
+            </AixiaButton>
+          </>
+        }
+        statusCards={[
+          {
+            label: "Active Payments",
+            value: isLoading ? "—" : formatCount(summary.total),
+            description: "Active outgoing payment records.",
+            icon: CreditCard,
+            tone: "emerald",
+          },
+          {
+            label: "Confirmed Paid",
+            value: isLoading ? "—" : formatMoney(summary.totalPaid, "USD"),
+            description: "Approximate confirmed outgoing value.",
+            icon: WalletCards,
+            tone: "cyan",
+          },
+        ]}
+      />
 
-                  <Badge className="w-fit rounded-full border border-cyan-400/20 bg-cyan-500/10 px-3 py-1 text-[11px] font-semibold uppercase tracking-[0.22em] text-cyan-200 shadow-none">
-                    Step 04
-                  </Badge>
-                </div>
+      <AixiaMetricGrid>
+        <AixiaMetricCard
+          label="Draft"
+          value={formatCount(summary.draft)}
+          description="Created but not confirmed."
+          icon={Receipt}
+          tone="neutral"
+        />
+        <AixiaMetricCard
+          label="Confirmed"
+          value={formatCount(summary.confirmed)}
+          description="Posted against vendor bill balances."
+          icon={CreditCard}
+          tone="emerald"
+        />
+        <AixiaMetricCard
+          label="Cancelled"
+          value={formatCount(summary.cancelled)}
+          description="Cancelled outgoing payment records."
+          icon={Archive}
+          tone="rose"
+        />
+        <AixiaMetricCard
+          label="Flow"
+          value="04"
+          description="Vendor PI / Invoice → Payment Made."
+          icon={WalletCards}
+          tone="cyan"
+        />
+      </AixiaMetricGrid>
 
-                <h1 className="mt-4 text-3xl font-semibold tracking-[-0.035em] text-white md:text-5xl">
-                  Payments Made
-                </h1>
-
-                <p className="mt-3 max-w-4xl text-sm leading-6 text-slate-400 md:text-base md:leading-7">
-                  Outgoing payment records linked to approved vendor PI /
-                  invoice documents. Confirmed payments update the payable bill
-                  paid amount and balance due.
-                </p>
-
-                <div className="mt-5 flex flex-wrap gap-3">
-                  <Button
-                    onClick={() =>
-                      navigate("/finance/transactions/payments-made/new")
-                    }
-                    className="h-11 rounded-2xl border border-emerald-400/20 bg-emerald-500 px-4 text-sm font-semibold text-white transition hover:bg-emerald-400"
-                  >
-                    <Plus className="mr-2 h-4 w-4" />
-                    New Payment Made
-                  </Button>
-
-                  <Button
-                    variant="outline"
-                    onClick={() => {
-                      setArchiveTab("archived");
-                      setIsArchiveOpen(true);
-                    }}
-                    className="h-11 rounded-2xl border-white/10 bg-white/[0.05] px-4 text-white hover:bg-white/[0.08]"
-                  >
-                    <FolderArchive className="mr-2 h-4 w-4" />
-                    Archive
-                  </Button>
-                </div>
-              </div>
-
-              <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-1">
-                <div className="min-h-[148px] rounded-[24px] border border-white/10 bg-black/20 p-4">
-                  <div className="text-[11px] font-semibold uppercase tracking-[0.2em] text-slate-500">
-                    Active Payments
-                  </div>
-                  <div className="mt-2 text-3xl font-semibold tracking-[-0.035em] text-white">
-                    {isLoading ? "—" : summary.total}
-                  </div>
-                  <div className="mt-3 text-xs leading-5 text-slate-500">
-                    Active outgoing payment records.
-                  </div>
-                </div>
-
-                <div className="min-h-[148px] rounded-[24px] border border-white/10 bg-black/20 p-4">
-                  <div className="text-[11px] font-semibold uppercase tracking-[0.2em] text-slate-500">
-                    Confirmed Paid
-                  </div>
-                  <div className="mt-2 text-3xl font-semibold tracking-[-0.035em] text-white">
-                    {isLoading ? "—" : formatMoney(summary.totalPaid, "USD")}
-                  </div>
-                  <div className="mt-3 text-xs leading-5 text-slate-500">
-                    Approximate confirmed outgoing value.
-                  </div>
-                </div>
-              </div>
-            </div>
-          </div>
-        </header>
-
-        <section className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
-          <div className="min-h-[156px] rounded-[28px] border border-white/10 bg-white/[0.045] p-5 backdrop-blur-xl">
-            <div className="text-[11px] font-semibold uppercase tracking-[0.2em] text-slate-500">
-              Draft
-            </div>
-            <div className="mt-2 text-3xl font-semibold text-slate-100">
-              {summary.draft}
-            </div>
-            <div className="mt-2 text-sm leading-6 text-slate-400">
-              Created but not confirmed.
-            </div>
-          </div>
-
-          <div className="min-h-[156px] rounded-[28px] border border-white/10 bg-white/[0.045] p-5 backdrop-blur-xl">
-            <div className="text-[11px] font-semibold uppercase tracking-[0.2em] text-slate-500">
-              Confirmed
-            </div>
-            <div className="mt-2 text-3xl font-semibold text-emerald-100">
-              {summary.confirmed}
-            </div>
-            <div className="mt-2 text-sm leading-6 text-slate-400">
-              Posted against vendor bill balances.
-            </div>
-          </div>
-
-          <div className="min-h-[156px] rounded-[28px] border border-white/10 bg-white/[0.045] p-5 backdrop-blur-xl">
-            <div className="text-[11px] font-semibold uppercase tracking-[0.2em] text-slate-500">
-              Cancelled
-            </div>
-            <div className="mt-2 text-3xl font-semibold text-rose-100">
-              {summary.cancelled}
-            </div>
-            <div className="mt-2 text-sm leading-6 text-slate-400">
-              Cancelled outgoing payment records.
-            </div>
-          </div>
-
-          <div className="min-h-[156px] rounded-[28px] border border-white/10 bg-white/[0.045] p-5 backdrop-blur-xl">
-            <div className="text-[11px] font-semibold uppercase tracking-[0.2em] text-slate-500">
-              Flow
-            </div>
-            <div className="mt-2 text-3xl font-semibold text-cyan-100">04</div>
-            <div className="mt-2 text-sm leading-6 text-slate-400">
-              Vendor PI / Invoice → Payment Made.
-            </div>
-          </div>
-        </section>
-
-        <Card className="overflow-hidden rounded-[30px] border border-white/10 bg-white/[0.045] backdrop-blur-xl">
-          <CardHeader className="border-b border-white/10 px-5 py-4">
-            <div className="flex flex-col gap-4 xl:flex-row xl:items-center xl:justify-between">
-              <div className="flex min-w-0 items-center gap-3">
-                <div className="rounded-2xl border border-emerald-400/15 bg-emerald-500/10 p-3 text-emerald-200">
-                  <CreditCard className="h-4 w-4" />
-                </div>
-
-                <div className="min-w-0">
-                  <CardTitle className="text-sm font-semibold uppercase tracking-[0.18em] text-slate-400">
-                    Payment Made Registry
-                  </CardTitle>
-                  <CardDescription className="mt-1 text-xs text-slate-500">
-                    Active outgoing payments only. Archived and deleted records
-                    are managed from the archive panel.
-                  </CardDescription>
-                </div>
-              </div>
-
-              <div className="relative">
-                <Search className="pointer-events-none absolute left-4 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-500" />
-                <input
-                  value={searchTerm}
-                  onChange={(event) => setSearchTerm(event.target.value)}
-                  placeholder="Search payments made..."
-                  className="h-11 w-full rounded-2xl border border-white/10 bg-black/20 pl-11 pr-4 text-sm text-white outline-none transition placeholder:text-slate-600 focus:border-emerald-400/30 focus:bg-black/30 sm:w-[320px]"
-                />
-              </div>
-            </div>
-          </CardHeader>
-
-          <CardContent className="p-0">
-            {errorMessage ? (
-              <div className="border-b border-rose-400/20 bg-rose-500/10 px-5 py-3 text-sm text-rose-200">
-                {errorMessage}
-              </div>
-            ) : null}
-
-            <div className="overflow-x-auto">
-              <div className="max-h-[720px] overflow-y-auto">
-                <table className="w-full min-w-[1320px] border-collapse">
-                  <thead className="sticky top-0 z-10 border-b border-white/10 bg-black/40 backdrop-blur-xl">
-                    <tr>
-                      <th className="px-5 py-4 text-left">
-                        <button
-                          type="button"
-                          onClick={() => toggleSort("reference_number")}
-                          className={sortableHeaderClass}
-                        >
-                          Payment {renderSortMark("reference_number")}
-                        </button>
-                      </th>
-                      <th className="px-5 py-4 text-left">
-                        <button
-                          type="button"
-                          onClick={() => toggleSort("vendor_name")}
-                          className={sortableHeaderClass}
-                        >
-                          Vendor {renderSortMark("vendor_name")}
-                        </button>
-                      </th>
-                      <th className="px-5 py-4 text-left">
-                        <button
-                          type="button"
-                          onClick={() => toggleSort("bill_number")}
-                          className={sortableHeaderClass}
-                        >
-                          Bill {renderSortMark("bill_number")}
-                        </button>
-                      </th>
-                      <th className="px-5 py-4 text-left">
-                        <button
-                          type="button"
-                          onClick={() => toggleSort("purchase_order_number")}
-                          className={sortableHeaderClass}
-                        >
-                          PO {renderSortMark("purchase_order_number")}
-                        </button>
-                      </th>
-                      <th className="px-5 py-4 text-left">
-                        <button
-                          type="button"
-                          onClick={() => toggleSort("payment_date")}
-                          className={sortableHeaderClass}
-                        >
-                          Date {renderSortMark("payment_date")}
-                        </button>
-                      </th>
-                      <th className="px-5 py-4 text-left">
-                        <button
-                          type="button"
-                          onClick={() => toggleSort("amount")}
-                          className={sortableHeaderClass}
-                        >
-                          Amount {renderSortMark("amount")}
-                        </button>
-                      </th>
-                      <th className="px-5 py-4 text-left">
-                        <button
-                          type="button"
-                          onClick={() => toggleSort("converted_amount")}
-                          className={sortableHeaderClass}
-                        >
-                          Effective {renderSortMark("converted_amount")}
-                        </button>
-                      </th>
-                      <th className="px-5 py-4 text-left">
-                        <button
-                          type="button"
-                          onClick={() => toggleSort("status")}
-                          className={sortableHeaderClass}
-                        >
-                          Status {renderSortMark("status")}
-                        </button>
-                      </th>
-                      <th className="px-5 py-4 text-right text-[11px] font-semibold uppercase tracking-[0.18em] text-slate-500">
-                        Actions
-                      </th>
-                    </tr>
-                  </thead>
-
-                  <tbody className="divide-y divide-white/5">
-                    {isLoading ? (
-                      <tr>
-                        <td
-                          colSpan={9}
-                          className="px-5 py-12 text-center text-sm text-slate-500"
-                        >
-                          Loading payments made...
-                        </td>
-                      </tr>
-                    ) : filteredRows.length === 0 ? (
-                      <tr>
-                        <td
-                          colSpan={9}
-                          className="px-5 py-12 text-center text-sm text-slate-500"
-                        >
-                          No active payments made found.
-                        </td>
-                      </tr>
-                    ) : (
-                      filteredRows.map((row) => (
-                        <tr
-                          key={row.id}
-                          className="text-sm text-slate-300 transition hover:bg-white/[0.035]"
-                        >
-                          <td className="px-5 py-4">
-                            <div className="font-semibold text-white">
-                              {row.reference_number || "Payment Made"}
-                            </div>
-                            <div className="mt-1 text-xs text-slate-500">
-                              {row.payment_method_name || "No method"}
-                            </div>
-                          </td>
-
-                          <td className="px-5 py-4">
-                            <div className="font-medium text-white">
-                              {row.vendor_legal_name ||
-                                row.vendor_name ||
-                                "Unknown vendor"}
-                            </div>
-                            <div className="mt-1 text-xs text-slate-500">
-                              {row.vendor_code || "—"}
-                            </div>
-                          </td>
-
-                          <td className="px-5 py-4">
-                            <div className="font-medium text-white">
-                              {row.bill_number || "—"}
-                            </div>
-                            <div className="mt-1 text-xs text-slate-500">
-                              {row.external_document_number || "No vendor ref"}
-                            </div>
-                          </td>
-
-                          <td className="px-5 py-4 text-slate-400">
-                            {row.purchase_order_number || "—"}
-                          </td>
-
-                          <td className="px-5 py-4 text-slate-400">
-                            {formatDate(row.payment_date)}
-                          </td>
-
-                          <td className="px-5 py-4 font-semibold text-white">
-                            {formatMoney(
-                              row.amount,
-                              row.payment_currency_code ||
-                                row.bill_currency_code ||
-                                "USD"
-                            )}
-                          </td>
-
-                          <td className="px-5 py-4 font-semibold text-white">
-                            {formatMoney(
-                              row.converted_amount || row.amount,
-                              row.bill_currency_code ||
-                                row.payment_currency_code ||
-                                "USD"
-                            )}
-                          </td>
-
-                          <td className="px-5 py-4">
-                            <Badge
-                              className={`rounded-full px-3 py-1 text-[11px] font-semibold uppercase tracking-[0.16em] shadow-none ${getStatusBadgeClass(
-                                row.status
-                              )}`}
-                            >
-                              {normalizeStatusLabel(row.status)}
-                            </Badge>
-                          </td>
-
-                          <td className="px-5 py-4">
-                            <div className="flex justify-end gap-2">
-                              <Button
-                                type="button"
-                                variant="outline"
-                                title="Open payment made"
-                                onClick={() =>
-                                  navigate(
-                                    `/finance/transactions/payments-made/${row.id}`
-                                  )
-                                }
-                                className="flex h-11 w-11 items-center justify-center rounded-full border-cyan-400/20 bg-cyan-500/10 p-0 text-cyan-200 hover:bg-cyan-500/20"
-                              >
-                                <Eye className="h-4 w-4" />
-                              </Button>
-
-                              <Button
-                                type="button"
-                                variant="outline"
-                                title="Archive payment made"
-                                onClick={() =>
-                                  void runArchiveAction(
-                                    "finance_archive_payment_made",
-                                    row.id
-                                  )
-                                }
-                                className="flex h-11 w-11 items-center justify-center rounded-full border-amber-400/20 bg-amber-500/10 p-0 text-amber-200 hover:bg-amber-500/20"
-                              >
-                                <Archive className="h-4 w-4" />
-                              </Button>
-
-                              <Button
-                                type="button"
-                                variant="outline"
-                                title="Delete payment made"
-                                onClick={() =>
-                                  void runArchiveAction(
-                                    "finance_delete_payment_made",
-                                    row.id
-                                  )
-                                }
-                                className="flex h-11 w-11 items-center justify-center rounded-full border-rose-400/20 bg-rose-500/10 p-0 text-rose-200 hover:bg-rose-500/20"
-                              >
-                                <Trash2 className="h-4 w-4" />
-                              </Button>
-                            </div>
-                          </td>
-                        </tr>
-                      ))
-                    )}
-                  </tbody>
-                </table>
-              </div>
-            </div>
-          </CardContent>
-        </Card>
-
-        {isArchiveOpen ? (
-          <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 p-4 backdrop-blur-sm">
-            <div className="flex max-h-[88vh] w-full max-w-[1300px] flex-col overflow-hidden rounded-[30px] border border-white/10 bg-[#070b14] shadow-2xl shadow-black/50">
-              <div className="flex flex-col gap-4 border-b border-white/10 p-5 lg:flex-row lg:items-center lg:justify-between">
-                <div>
-                  <div className="text-sm font-semibold uppercase tracking-[0.18em] text-slate-400">
-                    Payments Made Archive
-                  </div>
-                  <div className="mt-1 text-xs text-slate-500">
-                    Archived records can be restored. Deleted records can be
-                    restored or permanently removed.
-                  </div>
-                </div>
-
-                <div className="flex flex-wrap gap-2">
-                  <Button
-                    variant="outline"
-                    onClick={() => setArchiveTab("archived")}
-                    className={`h-10 rounded-2xl px-4 ${
-                      archiveTab === "archived"
-                        ? "border-amber-400/30 bg-amber-500/15 text-amber-100"
-                        : "border-white/10 bg-white/[0.05] text-slate-300 hover:bg-white/[0.08]"
-                    }`}
-                  >
-                    Archived
-                  </Button>
-
-                  <Button
-                    variant="outline"
-                    onClick={() => setArchiveTab("deleted")}
-                    className={`h-10 rounded-2xl px-4 ${
-                      archiveTab === "deleted"
-                        ? "border-rose-400/30 bg-rose-500/15 text-rose-100"
-                        : "border-white/10 bg-white/[0.05] text-slate-300 hover:bg-white/[0.08]"
-                    }`}
-                  >
-                    Deleted
-                  </Button>
-
-                  <Button
-                    variant="outline"
-                    onClick={() => setIsArchiveOpen(false)}
-                    className="h-10 rounded-2xl border-white/10 bg-white/[0.05] px-4 text-white hover:bg-white/[0.08]"
-                  >
-                    Close
-                  </Button>
-                </div>
-              </div>
-
-              <div className="overflow-x-auto">
-                <div className="max-h-[620px] overflow-y-auto">
-                  <table className="w-full min-w-[1100px] border-collapse">
-                    <thead className="sticky top-0 z-10 border-b border-white/10 bg-black/40 backdrop-blur-xl">
-                      <tr>
-                        <th className="px-5 py-4 text-left text-[11px] font-semibold uppercase tracking-[0.18em] text-slate-500">
-                          Payment
-                        </th>
-                        <th className="px-5 py-4 text-left text-[11px] font-semibold uppercase tracking-[0.18em] text-slate-500">
-                          Vendor
-                        </th>
-                        <th className="px-5 py-4 text-left text-[11px] font-semibold uppercase tracking-[0.18em] text-slate-500">
-                          Bill
-                        </th>
-                        <th className="px-5 py-4 text-left text-[11px] font-semibold uppercase tracking-[0.18em] text-slate-500">
-                          Amount
-                        </th>
-                        <th className="px-5 py-4 text-left text-[11px] font-semibold uppercase tracking-[0.18em] text-slate-500">
-                          Updated
-                        </th>
-                        <th className="px-5 py-4 text-right text-[11px] font-semibold uppercase tracking-[0.18em] text-slate-500">
-                          Actions
-                        </th>
-                      </tr>
-                    </thead>
-
-                    <tbody className="divide-y divide-white/5">
-                      {isArchiveLoading ? (
-                        <tr>
-                          <td
-                            colSpan={6}
-                            className="px-5 py-12 text-center text-sm text-slate-500"
-                          >
-                            Loading archive...
-                          </td>
-                        </tr>
-                      ) : archiveRows.length === 0 ? (
-                        <tr>
-                          <td
-                            colSpan={6}
-                            className="px-5 py-12 text-center text-sm text-slate-500"
-                          >
-                            No {archiveTab} payments made.
-                          </td>
-                        </tr>
-                      ) : (
-                        archiveRows.map((row) => (
-                          <tr
-                            key={row.id}
-                            className="text-sm text-slate-300 transition hover:bg-white/[0.035]"
-                          >
-                            <td className="px-5 py-4">
-                              <div className="font-semibold text-white">
-                                {row.reference_number || "Payment Made"}
-                              </div>
-                              <div className="mt-1 text-xs text-slate-500">
-                                {formatDate(row.payment_date)}
-                              </div>
-                            </td>
-
-                            <td className="px-5 py-4">
-                              {row.vendor_legal_name ||
-                                row.vendor_name ||
-                                "Unknown vendor"}
-                            </td>
-
-                            <td className="px-5 py-4">
-                              {row.bill_number || "—"}
-                            </td>
-
-                            <td className="px-5 py-4">
-                              {formatMoney(
-                                row.converted_amount || row.amount,
-                                row.bill_currency_code ||
-                                  row.payment_currency_code ||
-                                  "USD"
-                              )}
-                            </td>
-
-                            <td className="px-5 py-4">
-                              {formatDate(row.updated_at)}
-                            </td>
-
-                            <td className="px-5 py-4">
-                              <div className="flex justify-end gap-2">
-                                <Button
-                                  type="button"
-                                  variant="outline"
-                                  title="Open payment made"
-                                  onClick={() =>
-                                    navigate(
-                                      `/finance/transactions/payments-made/${row.id}`
-                                    )
-                                  }
-                                  className="flex h-10 w-10 items-center justify-center rounded-full border-cyan-400/20 bg-cyan-500/10 p-0 text-cyan-200 hover:bg-cyan-500/20"
-                                >
-                                  <Eye className="h-4 w-4" />
-                                </Button>
-
-                                <Button
-                                  type="button"
-                                  variant="outline"
-                                  title="Restore payment made"
-                                  onClick={() =>
-                                    void runArchiveAction(
-                                      "finance_restore_payment_made",
-                                      row.id
-                                    )
-                                  }
-                                  className="flex h-10 w-10 items-center justify-center rounded-full border-emerald-400/20 bg-emerald-500/10 p-0 text-emerald-200 hover:bg-emerald-500/20"
-                                >
-                                  <RotateCcw className="h-4 w-4" />
-                                </Button>
-
-                                {archiveTab === "deleted" ? (
-                                  <Button
-                                    type="button"
-                                    variant="outline"
-                                    title="Hard delete payment made"
-                                    onClick={() =>
-                                      void runArchiveAction(
-                                        "finance_hard_delete_payment_made",
-                                        row.id
-                                      )
-                                    }
-                                    className="flex h-10 w-10 items-center justify-center rounded-full border-rose-400/20 bg-rose-500/10 p-0 text-rose-200 hover:bg-rose-500/20"
-                                  >
-                                    <Trash2 className="h-4 w-4" />
-                                  </Button>
-                                ) : null}
-                              </div>
-                            </td>
-                          </tr>
-                        ))
-                      )}
-                    </tbody>
-                  </table>
-                </div>
-              </div>
-            </div>
-          </div>
+      <AixiaSection
+        title="Payment Made Registry"
+        description="Active outgoing payments only. Archived and deleted records are managed from the archive panel."
+        icon={CreditCard}
+        badge={<AixiaBadge tone="emerald">Active</AixiaBadge>}
+        actions={
+          <AixiaRegistryToolbar
+            search={
+              <AixiaSearchField
+                width="wide"
+                value={searchTerm}
+                onChange={(event) => setSearchTerm(event.target.value)}
+                placeholder="Search payments made..."
+              />
+            }
+            primaryAction={
+              <AixiaButton
+                type="button"
+                variant="primary"
+                onClick={() =>
+                  navigate("/finance/transactions/payments-made/new")
+                }
+              >
+                <Plus className="h-4 w-4" />
+                New Payment Made
+              </AixiaButton>
+            }
+            archiveAction={
+              <AixiaButton
+                type="button"
+                variant="danger"
+                onClick={() => {
+                  setArchiveTab("archived");
+                  setIsArchiveOpen(true);
+                }}
+              >
+                <FolderArchive className="h-4 w-4" />
+                Archive
+              </AixiaButton>
+            }
+          />
+        }
+      >
+        {errorMessage ? (
+          <AixiaAlert tone="error">{errorMessage}</AixiaAlert>
         ) : null}
-      </div>
-    </div>
+
+        <PaymentsMadeTable
+          rows={filteredRows}
+          sortKey={sortKey}
+          sortDirection={sortDirection}
+          onSort={toggleSort}
+          onOpen={openPayment}
+          onArchive={(rowId) =>
+            void runArchiveAction("finance_archive_payment_made", rowId)
+          }
+          onDelete={(rowId) =>
+            void runArchiveAction("finance_delete_payment_made", rowId)
+          }
+          isLoading={isLoading}
+        />
+      </AixiaSection>
+
+      <AixiaArchiveManagerModal
+        open={isArchiveOpen}
+        title="Payments Made Archive"
+        description="Archived records can be restored. Deleted records can be restored or permanently removed."
+        archivedCount={archivedRows.length}
+        deletedCount={deletedRows.length}
+        countLabel="Payments Made"
+        activeTab={archiveTab}
+        onTabChange={setArchiveTab}
+        onClose={() => setIsArchiveOpen(false)}
+        maxWidthClassName="max-w-[1300px]"
+      >
+        <AixiaRegistryToolbar
+          search={
+            <AixiaSearchField
+              width="wide"
+              value={archiveSearchTerm}
+              onChange={(event) => setArchiveSearchTerm(event.target.value)}
+              placeholder="Search archive..."
+            />
+          }
+        />
+
+        <PaymentsMadeTable
+          rows={filteredArchiveRows}
+          sortKey={archiveSortKey}
+          sortDirection={archiveSortDirection}
+          onSort={toggleArchiveSort}
+          onOpen={openPayment}
+          archiveMode
+          archiveTab={archiveTab}
+          onRestore={(rowId) =>
+            void runArchiveAction("finance_restore_payment_made", rowId)
+          }
+          onHardDelete={(rowId) =>
+            void runArchiveAction("finance_hard_delete_payment_made", rowId)
+          }
+          isLoading={isArchiveLoading}
+        />
+      </AixiaArchiveManagerModal>
+    </AixiaPage>
   );
 }

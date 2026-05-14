@@ -35,7 +35,7 @@ export function AixiaArchiveManagerModal({
   onTabChange,
   archivedTabLabel = "Archived",
   deletedTabLabel = "Deleted",
-  maxWidthClassName = "max-w-[92vw]",
+  maxWidthClassName = "max-w-6xl",
 }: AixiaArchiveManagerModalProps) {
   const shouldShowLifecycleTabs = Boolean(activeTab && onTabChange);
 

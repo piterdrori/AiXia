@@ -1573,15 +1573,18 @@
   width: 100%;
   max-width: 100%;
   min-width: 0;
+  max-height: calc(min(340px, 32vh) + 1rem);
   overflow-x: scroll !important;
-  overflow-y: hidden !important;
+  overflow-y: scroll !important;
+  padding-right: 1rem !important;
   padding-bottom: 1rem !important;
-  overscroll-behavior-x: contain !important;
+  overscroll-behavior: contain !important;
   scrollbar-color: rgba(255, 255, 255, 0.72) rgba(255, 255, 255, 0.16) !important;
   scrollbar-width: auto !important;
 }
 
 .aixia-table-wrap[data-table-variant="archive"]::-webkit-scrollbar {
+  width: 16px !important;
   height: 16px !important;
 }
 
@@ -1592,6 +1595,7 @@
 
 .aixia-table-wrap[data-table-variant="archive"]::-webkit-scrollbar-thumb {
   min-width: 96px !important;
+  min-height: 96px !important;
   border: 3px solid rgba(15, 23, 42, 0.95) !important;
   border-radius: 999px !important;
   background: rgba(255, 255, 255, 0.78) !important;
@@ -1601,19 +1605,21 @@
   background: rgba(255, 255, 255, 0.92) !important;
 }
 
+.aixia-table-wrap[data-table-variant="archive"]::-webkit-scrollbar-corner {
+  background: rgba(15, 23, 42, 0.95) !important;
+}
+
 .aixia-table-wrap[data-table-variant="archive"] .aixia-table-scroll {
   display: block !important;
   width: max-content !important;
   min-width: max(100%, var(--aixia-archive-table-min-width, 1680px)) !important;
   max-width: none !important;
-  height: min(340px, 32vh) !important;
-  max-height: min(340px, 32vh) !important;
-  overflow-x: visible !important;
-  overflow-y: scroll !important;
-  overscroll-behavior-y: contain !important;
-  padding-right: 1rem !important;
+  height: auto !important;
+  min-height: 0 !important;
+  max-height: none !important;
+  overflow: visible !important;
+  padding-right: 0 !important;
   padding-bottom: 0 !important;
-  scrollbar-gutter: stable both-edges;
 }
 
 .aixia-table-wrap[data-table-variant="archive"] .aixia-table {
@@ -1704,7 +1710,8 @@
   max-height: calc(min(340px, 32vh) + 1rem);
   margin-top: 0;
   overflow-x: scroll !important;
-  overflow-y: hidden !important;
+  overflow-y: scroll !important;
+  padding-right: 1rem !important;
   padding-bottom: 1rem !important;
 }
 
@@ -1713,15 +1720,12 @@
   width: max-content !important;
   min-width: max(100%, var(--aixia-archive-table-min-width, 1680px)) !important;
   max-width: none !important;
-  height: min(340px, 32vh) !important;
-  min-height: 0;
-  max-height: min(340px, 32vh) !important;
-  overflow-x: visible !important;
-  overflow-y: scroll !important;
-  overscroll-behavior-y: contain !important;
-  padding-right: 1rem !important;
+  height: auto !important;
+  min-height: 0 !important;
+  max-height: none !important;
+  overflow: visible !important;
+  padding-right: 0 !important;
   padding-bottom: 0 !important;
-  scrollbar-gutter: stable both-edges;
 }
 
 .aixia-modal:has(.aixia-archive-manager-tabs) .aixia-modal-footer {

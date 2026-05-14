@@ -31,7 +31,6 @@ import {
   AixiaStatusBadge,
   AixiaTableActionsCell,
   AixiaTableBadgeCell,
-  AixiaTableDateCell,
   AixiaTableShell,
   AixiaTableTextCell,
 } from "@/components/aixia";

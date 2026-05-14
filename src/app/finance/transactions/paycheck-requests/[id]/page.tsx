@@ -1,16 +1,12 @@
 import { useCallback, useEffect, useMemo, useState, type ReactNode } from "react";
 import { useNavigate, useParams } from "react-router-dom";
-import type { LucideIcon } from "lucide-react";
 import {
-  AlertTriangle,
   ArrowRight,
   BadgeCheck,
   Download,
   ExternalLink,
   FileCheck2,
   FileSignature,
-  LinkIcon,
-  Loader2,
   Send,
   UploadCloud,
   UserRound,
@@ -18,6 +14,38 @@ import {
   XCircle,
 } from "lucide-react";
 
+import {
+  AixiaAlert,
+  AixiaButton,
+  AixiaDocumentUploadPanel,
+  AixiaEmptyState,
+  AixiaFieldLabel,
+  AixiaFormField,
+  AixiaFormFullWidth,
+  AixiaFormGrid,
+  AixiaHero,
+  AixiaInputField,
+  AixiaLoadingState,
+  AixiaMetricCard,
+  AixiaMetricGrid,
+  AixiaPage,
+  AixiaReviewGrid,
+  AixiaSection,
+  AixiaSmartLayout,
+  AixiaStatusBadge,
+  AixiaTableActionsCell,
+  AixiaTableBadgeCell,
+  AixiaTableShell,
+  AixiaTableTextCell,
+  AixiaTextareaField,
+  AixiaValueBlock,
+} from "@/components/aixia";
+import {
+  getFinanceEmployeePrimaryName,
+  getFinanceEmployeeReferenceLabel,
+  getFinanceEmployeeSecondaryLabel,
+  type FinanceEmployeeIdentity,
+} from "@/lib/finance/employeeIdentity";
 import { supabase } from "@/lib/supabase";
 
 type ConfirmationDecision = "received_confirmed" | "not_received" | "disputed";
@@ -325,57 +353,7 @@ type DetailItem = {
 };
 
 const BUCKET_NAME = "finance-paycheck-forms";
-
-// TEMPORARY TEST ONLY:
-// Allows Finance/Admin/current tester to confirm paycheck receipt from the requester page
-// until the final employee confirmation permission model is fixed.
 const TEMP_ALLOW_TEST_CONFIRMATION = true;
-
-const statusToneMap: Record<
-  string,
-  "cyan" | "emerald" | "amber" | "rose" | "violet" | "slate"
-> = {
-  draft: "slate",
-  submitted: "cyan",
-  pending_review: "amber",
-  needs_correction: "amber",
-  correction_requested: "amber",
-  approved_for_payroll: "emerald",
-  approved: "emerald",
-  rejected: "rose",
-  linked_to_payroll: "violet",
-  payment_sent: "cyan",
-  received_confirmed: "emerald",
-  not_received: "rose",
-  disputed: "rose",
-  closed: "violet",
-  archived: "amber",
-  deleted: "rose",
-  missing: "rose",
-  uploaded: "cyan",
-  linked: "cyan",
-  files_and_links: "cyan",
-  verified: "emerald",
-  issue_found: "rose",
-  not_uploaded: "slate",
-  not_submitted: "slate",
-  not_paid_yet: "slate",
-  pending_confirmation: "amber",
-  confirmed: "emerald",
-  pending: "amber",
-  scheduled: "cyan",
-  paid: "emerald",
-  unpaid: "slate",
-  partially_paid: "amber",
-  failed: "rose",
-  not_allocated: "slate",
-  partially_allocated: "amber",
-  allocated: "emerald",
-  over_allocated: "rose",
-  partially_used: "amber",
-  fully_used: "emerald",
-  cancelled: "rose",
-};
 
 function toNumber(value: number | string | null | undefined) {
   const parsed = Number(value ?? 0);
@@ -395,10 +373,8 @@ function formatMoney(value: number | string | null | undefined) {
 
 function formatDate(value: string | null | undefined) {
   if (!value) return "—";
-
   const parsed = new Date(value);
   if (Number.isNaN(parsed.getTime())) return value;
-
   return parsed.toLocaleDateString(undefined, {
     year: "numeric",
     month: "short",
@@ -408,10 +384,8 @@ function formatDate(value: string | null | undefined) {
 
 function formatDateTime(value: string | null | undefined) {
   if (!value) return "—";
-
   const parsed = new Date(value);
   if (Number.isNaN(parsed.getTime())) return value;
-
   return parsed.toLocaleString(undefined, {
     year: "numeric",
     month: "short",
@@ -423,7 +397,6 @@ function formatDateTime(value: string | null | undefined) {
 
 function formatLabel(value: string | null | undefined) {
   if (!value) return "—";
-
   return value
     .split("_")
     .filter(Boolean)
@@ -440,11 +413,9 @@ function getMetadataRecord(
   key: string
 ) {
   const value = metadata?.[key];
-
   if (value && typeof value === "object" && !Array.isArray(value)) {
     return value as Record<string, unknown>;
   }
-
   return {};
 }
 
@@ -470,31 +441,25 @@ function resolvePaymentPreference(
   metadata: Record<string, unknown> | null | undefined
 ): PaymentPreference {
   const preference = getMetadataRecord(metadata, "employee_payment_preference");
-
   const method =
     getMetadataString(metadata, "payment_transfer_method") ||
     (typeof preference.method === "string" ? preference.method : "") ||
     "company_method";
-
   const methodLabel =
     (typeof preference.method_label === "string" ? preference.method_label : "") ||
     formatLabel(method);
 
-  const instructions =
-    typeof preference.instructions === "string" && preference.instructions.trim()
-      ? preference.instructions
-      : null;
-
-  const contact =
-    typeof preference.contact === "string" && preference.contact.trim()
-      ? preference.contact
-      : null;
-
   return {
     method,
     method_label: methodLabel,
-    instructions,
-    contact,
+    instructions:
+      typeof preference.instructions === "string" && preference.instructions.trim()
+        ? preference.instructions
+        : null,
+    contact:
+      typeof preference.contact === "string" && preference.contact.trim()
+        ? preference.contact
+        : null,
     submitted_by_employee:
       typeof preference.submitted_by_employee === "boolean"
         ? preference.submitted_by_employee
@@ -515,12 +480,8 @@ function sanitizePathPart(value: string) {
 }
 
 function resolveMimeType(file: File) {
-  if (file.type && file.type !== "application/octet-stream") {
-    return file.type;
-  }
-
+  if (file.type && file.type !== "application/octet-stream") return file.type;
   const extension = file.name.split(".").pop()?.toLowerCase();
-
   switch (extension) {
     case "pdf":
       return "application/pdf";
@@ -544,52 +505,12 @@ function resolveMimeType(file: File) {
   }
 }
 
-function getStatusToneClasses(value: string | null | undefined) {
-  const tone = statusToneMap[value ?? ""] ?? "slate";
-
-  switch (tone) {
-    case "emerald":
-      return "border-emerald-400/20 bg-emerald-500/10 text-emerald-200";
-    case "amber":
-      return "border-amber-400/20 bg-amber-500/10 text-amber-200";
-    case "rose":
-      return "border-rose-400/20 bg-rose-500/10 text-rose-200";
-    case "violet":
-      return "border-violet-400/20 bg-violet-500/10 text-violet-200";
-    case "cyan":
-      return "border-cyan-400/20 bg-cyan-500/10 text-cyan-200";
-    case "slate":
-    default:
-      return "border-white/10 bg-white/[0.06] text-slate-300";
-  }
-}
-
-function StatusBadge({ value }: { value: string | null | undefined }) {
-  return (
-    <span
-      className={`inline-flex max-w-full items-center rounded-full border px-3 py-1 text-[11px] font-semibold uppercase tracking-[0.14em] ${getStatusToneClasses(
-        value
-      )}`}
-    >
-      <span className="truncate">{formatLabel(value)}</span>
-    </span>
-  );
-}
-
-function inputClass() {
-  return "h-11 w-full rounded-2xl border border-white/10 bg-black/20 px-4 text-sm text-white outline-none transition placeholder:text-slate-600 focus:border-cyan-400/30 focus:bg-black/30 disabled:cursor-not-allowed disabled:opacity-50";
-}
-
-function textareaClass() {
-  return "min-h-[132px] w-full resize-none rounded-2xl border border-white/10 bg-black/20 px-4 py-3 text-sm text-white outline-none transition placeholder:text-slate-600 focus:border-cyan-400/30 focus:bg-black/30 disabled:cursor-not-allowed disabled:opacity-50";
-}
-
-function labelClass() {
-  return "text-sm font-medium text-slate-300";
-}
-
-function getEmployeeLabel(request: PaycheckRequestRow | null) {
+function getCleanEmployeePrimary(
+  request: PaycheckRequestRow | null,
+  employeeIdentity: FinanceEmployeeIdentity | null
+) {
   if (!request) return "Employee";
+  if (employeeIdentity) return getFinanceEmployeePrimaryName(employeeIdentity);
 
   const profileName =
     request.profile?.full_name?.trim() ||
@@ -597,19 +518,25 @@ function getEmployeeLabel(request: PaycheckRequestRow | null) {
     request.profile?.email?.trim();
 
   if (profileName) return profileName;
-  if (request.employee_ref?.code) return `Employee ${request.employee_ref.code}`;
 
   const metadataName =
     getNestedMetadataString(request.metadata, "employee_snapshot", "employee_label") ||
     getMetadataString(request.metadata, "employee_label");
 
-  if (metadataName) return metadataName;
-
-  return "Employee";
+  return metadataName || "Employee";
 }
 
-function getEmployeeSubLabel(request: PaycheckRequestRow | null) {
+function getCleanEmployeeSecondary(
+  request: PaycheckRequestRow | null,
+  employeeIdentity: FinanceEmployeeIdentity | null
+) {
   if (!request) return "Employee registry";
+
+  if (employeeIdentity) {
+    const secondary = getFinanceEmployeeSecondaryLabel(employeeIdentity);
+    const reference = getFinanceEmployeeReferenceLabel(employeeIdentity);
+    return [secondary, reference ? `Ref: ${reference}` : ""].filter(Boolean).join(" • ");
+  }
 
   const metadataSubLabel =
     getNestedMetadataString(request.metadata, "employee_snapshot", "employee_sub_label") ||
@@ -618,12 +545,12 @@ function getEmployeeSubLabel(request: PaycheckRequestRow | null) {
   if (metadataSubLabel) return metadataSubLabel;
 
   return [
-    request.employee_ref?.code ? `Code ${request.employee_ref.code}` : null,
     request.employee_ref?.mark ? formatLabel(request.employee_ref.mark) : null,
     request.pay_profile?.pay_type ? formatLabel(request.pay_profile.pay_type) : null,
     request.pay_profile?.payment_frequency
       ? formatLabel(request.pay_profile.payment_frequency)
       : null,
+    request.employee_ref?.code ? `Ref: ${request.employee_ref.code}` : null,
   ]
     .filter(Boolean)
     .join(" • ");
@@ -631,11 +558,9 @@ function getEmployeeSubLabel(request: PaycheckRequestRow | null) {
 
 function getCompanyLabel(request: PaycheckRequestRow | null) {
   if (!request) return "—";
-
   const metadataCompany =
     getNestedMetadataString(request.metadata, "company_snapshot", "legal_name") ||
     getNestedMetadataString(request.metadata, "company_snapshot", "company_name");
-
   return request.company?.legal_name || request.company?.name || metadataCompany || "—";
 }
 
@@ -656,10 +581,8 @@ function hasAdminSignedForm(request: PaycheckRequestRow) {
 
 function getPaycheckTargetAmount(request: PaycheckRequestRow | null) {
   if (!request) return 0;
-
   const explicitNet = toNumber(request.requested_net_amount);
   if (explicitNet > 0) return explicitNet;
-
   return (
     toNumber(request.requested_gross_amount) +
     toNumber(request.requested_bonus_amount) +
@@ -670,10 +593,8 @@ function getPaycheckTargetAmount(request: PaycheckRequestRow | null) {
 
 function getPaycheckHistoryTargetAmount(request: PaycheckHistoryRow | null) {
   if (!request) return 0;
-
   const explicitNet = toNumber(request.requested_net_amount);
   if (explicitNet > 0) return explicitNet;
-
   return (
     toNumber(request.requested_gross_amount) +
     toNumber(request.requested_bonus_amount) +
@@ -682,137 +603,9 @@ function getPaycheckHistoryTargetAmount(request: PaycheckHistoryRow | null) {
   );
 }
 
-function ValueBlock({
-  label,
-  value,
-  detail,
-}: {
-  label: string;
-  value: ReactNode;
-  detail?: ReactNode;
-}) {
-  return (
-    <div className="rounded-[24px] border border-white/10 bg-black/20 p-4">
-      <div className="text-[11px] font-semibold uppercase tracking-[0.2em] text-slate-500">
-        {label}
-      </div>
-      <div className="mt-2 text-sm font-semibold leading-6 text-white">{value || "—"}</div>
-      {detail ? <div className="mt-2 text-xs leading-5 text-slate-500">{detail}</div> : null}
-    </div>
-  );
-}
-
-function AmountCard({
-  label,
-  value,
-  currency,
-  tone,
-}: {
-  label: string;
-  value: number | string | null | undefined;
-  currency: string;
-  tone: "cyan" | "emerald" | "amber" | "rose";
-}) {
-  const toneClasses = {
-    cyan: "border-cyan-400/20 bg-cyan-500/10 text-cyan-200",
-    emerald: "border-emerald-400/20 bg-emerald-500/10 text-emerald-200",
-    amber: "border-amber-400/20 bg-amber-500/10 text-amber-200",
-    rose: "border-rose-400/20 bg-rose-500/10 text-rose-200",
-  }[tone];
-
-  return (
-    <div className={`min-h-[148px] rounded-[24px] border p-4 ${toneClasses}`}>
-      <div className="text-[11px] font-semibold uppercase tracking-[0.2em] opacity-80">
-        {label}
-      </div>
-      <div className="mt-3 text-2xl font-semibold text-white">
-        {currency} {formatMoney(value)}
-      </div>
-    </div>
-  );
-}
-
-function SectionCard({
-  title,
-  description,
-  icon: Icon,
-  children,
-}: {
-  title: string;
-  description: string;
-  icon: LucideIcon;
-  children: ReactNode;
-}) {
-  return (
-    <section className="overflow-hidden rounded-[30px] border border-white/10 bg-white/[0.045] backdrop-blur-xl">
-      <div className="flex items-start gap-4 border-b border-white/10 px-5 py-4">
-        <div className="rounded-2xl border border-cyan-400/15 bg-cyan-500/10 p-3 text-cyan-200">
-          <Icon className="h-4 w-4" />
-        </div>
-        <div>
-          <div className="text-sm font-semibold uppercase tracking-[0.18em] text-slate-400">
-            {title}
-          </div>
-          <p className="mt-1 text-xs leading-5 text-slate-500">{description}</p>
-        </div>
-      </div>
-      <div className="p-5">{children}</div>
-    </section>
-  );
-}
-
-function StageGuide({
-  stage,
-  title,
-  children,
-  tone = "cyan",
-}: {
-  stage: string;
-  title: string;
-  children: ReactNode;
-  tone?: "cyan" | "emerald" | "amber" | "violet" | "rose";
-}) {
-  const toneClass = {
-    cyan: "border-cyan-400/20 bg-cyan-500/10 text-cyan-100",
-    emerald: "border-emerald-400/20 bg-emerald-500/10 text-emerald-100",
-    amber: "border-amber-400/20 bg-amber-500/10 text-amber-100",
-    violet: "border-violet-400/20 bg-violet-500/10 text-violet-100",
-    rose: "border-rose-400/20 bg-rose-500/10 text-rose-100",
-  }[tone];
-
-  return (
-    <div className={`rounded-[24px] border p-4 ${toneClass}`}>
-      <div className="text-[11px] font-semibold uppercase tracking-[0.2em] opacity-75">
-        {stage}
-      </div>
-      <div className="mt-1 text-sm font-semibold text-white">{title}</div>
-      <div className="mt-2 text-xs leading-5 opacity-75">{children}</div>
-    </div>
-  );
-}
-
-function DetailGrid({ items }: { items: DetailItem[] }) {
-  const visibleItems = items.filter((item) => {
-    if (item.value === null || item.value === undefined) return false;
-    if (typeof item.value === "string" && !item.value.trim()) return false;
-    return true;
-  });
-
-  if (visibleItems.length === 0) {
-    return (
-      <div className="rounded-[24px] border border-dashed border-white/10 bg-black/20 px-6 py-10 text-center text-sm text-slate-500">
-        No details available.
-      </div>
-    );
-  }
-
-  return (
-    <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">
-      {visibleItems.map((item) => (
-        <ValueBlock key={item.label} label={item.label} value={item.value} detail={item.detail} />
-      ))}
-    </div>
-  );
+function openExternalUrl(url: string | null | undefined) {
+  if (!url) return;
+  window.open(url, "_blank", "noopener,noreferrer");
 }
 
 export default function PaycheckRequestDetailPage() {
@@ -820,6 +613,8 @@ export default function PaycheckRequestDetailPage() {
   const { id } = useParams<{ id: string }>();
 
   const [request, setRequest] = useState<PaycheckRequestRow | null>(null);
+  const [employeeIdentity, setEmployeeIdentity] =
+    useState<FinanceEmployeeIdentity | null>(null);
   const [currentUserId, setCurrentUserId] = useState<string | null>(null);
   const [signedFormUrl, setSignedFormUrl] = useState<string | null>(null);
   const [adminSignedFormUrl, setAdminSignedFormUrl] = useState<string | null>(null);
@@ -837,6 +632,9 @@ export default function PaycheckRequestDetailPage() {
   const [actionError, setActionError] = useState<string | null>(null);
   const [actionMessage, setActionMessage] = useState<string | null>(null);
 
+  const employeePrimary = getCleanEmployeePrimary(request, employeeIdentity);
+  const employeeSecondary = getCleanEmployeeSecondary(request, employeeIdentity);
+
   const isEmployeeOwner = Boolean(
     currentUserId &&
       (request?.employee_user_id === currentUserId || TEMP_ALLOW_TEST_CONFIRMATION)
@@ -844,7 +642,8 @@ export default function PaycheckRequestDetailPage() {
 
   const requestCurrency = normalizeCurrencyCode(request?.requested_currency_code || "USD");
   const targetAmount = getPaycheckTargetAmount(request);
-  const paidAmount = request?.payment_status === "paid" ? targetAmount : toNumber(request?.paid_amount);
+  const paidAmount =
+    request?.payment_status === "paid" ? targetAmount : toNumber(request?.paid_amount);
   const remainingAmount =
     request?.payment_status === "paid"
       ? 0
@@ -882,7 +681,6 @@ export default function PaycheckRequestDetailPage() {
     if (request?.remaining_amount !== null && request?.remaining_amount !== undefined) {
       return Math.max(roundMoney(toNumber(request.remaining_amount)), 0);
     }
-
     return Math.max(roundMoney(targetAmount - coveredAmount), 0);
   }, [coveredAmount, request?.payment_status, request?.remaining_amount, targetAmount]);
 
@@ -909,7 +707,6 @@ export default function PaycheckRequestDetailPage() {
 
   const timelineItems = useMemo<TimelineItem[]>(() => {
     if (!request) return [];
-
     return [
       {
         label: "Request",
@@ -952,25 +749,11 @@ export default function PaycheckRequestDetailPage() {
 
   const overviewItems = useMemo<DetailItem[]>(() => {
     if (!request) return [];
-
     return [
-      {
-        label: "Employee",
-        value: getEmployeeLabel(request),
-        detail: getEmployeeSubLabel(request),
-      },
-      {
-        label: "Company",
-        value: getCompanyLabel(request),
-      },
-      {
-        label: "Payroll Period",
-        value: getRequestPeriodLabel(request),
-      },
-      {
-        label: "Requested Pay Date",
-        value: formatDate(request.requested_pay_date),
-      },
+      { label: "Employee", value: employeePrimary, detail: employeeSecondary },
+      { label: "Company", value: getCompanyLabel(request) },
+      { label: "Payroll Period", value: getRequestPeriodLabel(request) },
+      { label: "Requested Pay Date", value: formatDate(request.requested_pay_date) },
       {
         label: "Pay Profile",
         value: request.pay_profile
@@ -980,16 +763,10 @@ export default function PaycheckRequestDetailPage() {
           : "—",
         detail: request.pay_profile?.profile_number || "No pay profile linked",
       },
-      {
-        label: "Request Reference",
-        value: request.request_number || request.reference_number || "—",
-      },
-      {
-        label: "Notes",
-        value: request.notes || "—",
-      },
+      { label: "Request Reference", value: request.request_number || request.reference_number || "—" },
+      { label: "Notes", value: request.notes || "—" },
     ];
-  }, [request]);
+  }, [employeePrimary, employeeSecondary, request]);
 
   const paymentPreferenceItems = useMemo<DetailItem[]>(() => {
     return [
@@ -1021,7 +798,6 @@ export default function PaycheckRequestDetailPage() {
 
   const paycheckHistoryRows = useMemo<PaycheckHistoryRow[]>(() => {
     const seen = new Set<string>();
-
     return paycheckHistory
       .filter((historyRow) => !["archived", "deleted", "cancelled"].includes(historyRow.status))
       .filter((historyRow) => {
@@ -1032,18 +808,16 @@ export default function PaycheckRequestDetailPage() {
       .sort((first, second) => {
         const firstDate = new Date(first.period_end || first.updated_at || first.created_at);
         const secondDate = new Date(second.period_end || second.updated_at || second.created_at);
-
         return secondDate.getTime() - firstDate.getTime();
       });
   }, [paycheckHistory]);
 
   const financeReviewItems = useMemo<DetailItem[]>(() => {
     if (!request) return [];
-
     return [
       {
         label: "Current Review",
-        value: <StatusBadge value={request.review_status} />,
+        value: <AixiaStatusBadge value={request.review_status} />,
         detail: `Reviewed: ${formatDateTime(request.reviewed_at)}`,
       },
       {
@@ -1053,29 +827,19 @@ export default function PaycheckRequestDetailPage() {
       },
       {
         label: "Admin Signed Form",
-        value: <StatusBadge value={request.admin_signed_form_status} />,
+        value: <AixiaStatusBadge value={request.admin_signed_form_status} />,
         detail: adminSignedFormExists
           ? `Uploaded: ${formatDateTime(request.admin_signed_form_uploaded_at)}`
           : "Required before Finance approval.",
       },
-      {
-        label: "Review Notes",
-        value: request.review_notes || "—",
-      },
-      {
-        label: "Correction Instructions",
-        value: request.correction_notes || "—",
-      },
-      {
-        label: "Rejected Reason",
-        value: request.rejected_reason || "—",
-      },
+      { label: "Review Notes", value: request.review_notes || "—" },
+      { label: "Correction Instructions", value: request.correction_notes || "—" },
+      { label: "Rejected Reason", value: request.rejected_reason || "—" },
     ];
   }, [adminSignedFormExists, request]);
 
   const payrollLinkItems = useMemo<DetailItem[]>(() => {
     if (!request) return [];
-
     const paymentCurrency =
       request.payment?.payment_currency_code ||
       request.payment?.paycheck_currency_code ||
@@ -1125,11 +889,34 @@ export default function PaycheckRequestDetailPage() {
       },
       {
         label: "Recipient Confirmation",
-        value: <StatusBadge value={request.recipient_confirmation_status} />,
+        value: <AixiaStatusBadge value={request.recipient_confirmation_status} />,
         detail: request.confirmation_notes || "Employee confirms after payment is sent.",
       },
     ];
   }, [paidAmount, request, requestCurrency]);
+
+  const loadEmployeeIdentity = useCallback(async (loadedRequest: PaycheckRequestRow) => {
+    const filters = [
+      loadedRequest.employee_ref_id ? `employee_ref_id.eq.${loadedRequest.employee_ref_id}` : "",
+      loadedRequest.employee_user_id ? `user_id.eq.${loadedRequest.employee_user_id}` : "",
+    ].filter(Boolean);
+
+    if (filters.length === 0) {
+      setEmployeeIdentity(null);
+      return;
+    }
+
+    const identityResult = await supabase
+      .from("finance_employee_identity_v")
+      .select("*")
+      .or(filters.join(","))
+      .limit(1);
+
+    if (identityResult.error) throw identityResult.error;
+    setEmployeeIdentity(
+      ((identityResult.data || [])[0] || null) as FinanceEmployeeIdentity | null
+    );
+  }, []);
 
   const loadRequest = useCallback(
     async (mode: "initial" | "silent" = "initial") => {
@@ -1235,11 +1022,9 @@ export default function PaycheckRequestDetailPage() {
           .single();
 
         if (result.error) throw result.error;
-
         const loadedRequestBase = result.data as unknown as PaycheckRequestRow;
 
         let loadedCompany: CompanyRow | null = null;
-
         if (loadedRequestBase.company_id) {
           const companyResult = await supabase
             .from("finance_companies")
@@ -1250,7 +1035,6 @@ export default function PaycheckRequestDetailPage() {
             .maybeSingle();
 
           if (companyResult.error) throw companyResult.error;
-
           loadedCompany = (companyResult.data || null) as CompanyRow | null;
         }
 
@@ -1259,6 +1043,7 @@ export default function PaycheckRequestDetailPage() {
           company: loadedCompany,
         };
 
+        await loadEmployeeIdentity(loadedRequest);
         setRequest(loadedRequest);
         setReplacementLink(loadedRequest.signed_form_external_url || "");
         setConfirmationNotes(loadedRequest.confirmation_notes || "");
@@ -1268,7 +1053,6 @@ export default function PaycheckRequestDetailPage() {
           const signedResult = await supabase.storage
             .from(employeeBucket)
             .createSignedUrl(loadedRequest.signed_form_storage_path, 3600);
-
           setSignedFormUrl(signedResult.error ? null : signedResult.data.signedUrl);
         } else {
           setSignedFormUrl(null);
@@ -1280,7 +1064,6 @@ export default function PaycheckRequestDetailPage() {
           const adminSignedResult = await supabase.storage
             .from(adminBucket)
             .createSignedUrl(loadedRequest.admin_signed_form_storage_path, 3600);
-
           setAdminSignedFormUrl(
             adminSignedResult.error ? null : adminSignedResult.data.signedUrl
           );
@@ -1326,7 +1109,6 @@ export default function PaycheckRequestDetailPage() {
             )
             .eq("paycheck_request_id", loadedRequest.id)
             .order("created_at", { ascending: false }),
-
           supabase
             .from("finance_record_attachments")
             .select(
@@ -1335,7 +1117,6 @@ export default function PaycheckRequestDetailPage() {
             .in("entity_type", ["finance_paycheck_request", "finance_paycheck_document"])
             .eq("entity_id", loadedRequest.id)
             .order("created_at", { ascending: false }),
-
           supabase
             .from("finance_paycheck_requests")
             .select(
@@ -1385,10 +1166,8 @@ export default function PaycheckRequestDetailPage() {
         const distributionIds = Array.from(
           new Set(loadedAllocations.map((item) => item.distribution_id))
         );
-
-        const fileUploadIds = ((attachmentsResult.data || []) as AttachmentRow[]).map(
-          (item) => item.file_upload_id
-        );
+        const attachmentRows = (attachmentsResult.data || []) as AttachmentRow[];
+        const fileUploadIds = attachmentRows.map((item) => item.file_upload_id);
 
         if (distributionIds.length > 0) {
           const distributionsResult = await supabase
@@ -1439,27 +1218,19 @@ export default function PaycheckRequestDetailPage() {
           );
 
           const signedAttachments = await Promise.all(
-            ((attachmentsResult.data || []) as AttachmentRow[]).map(async (attachment) => {
+            attachmentRows.map(async (attachment) => {
               const fileUpload = fileMap.get(attachment.file_upload_id) || null;
               const bucket = attachment.metadata?.bucket || "finance-paycheck-documents";
-
               let signedUrl: string | null = null;
 
               if (fileUpload?.file_path && bucket) {
                 const signedResult = await supabase.storage
                   .from(bucket)
                   .createSignedUrl(fileUpload.file_path, 3600);
-
-                if (!signedResult.error) {
-                  signedUrl = signedResult.data.signedUrl;
-                }
+                if (!signedResult.error) signedUrl = signedResult.data.signedUrl;
               }
 
-              return {
-                ...attachment,
-                fileUpload,
-                signedUrl,
-              };
+              return { ...attachment, fileUpload, signedUrl };
             })
           );
 
@@ -1477,6 +1248,7 @@ export default function PaycheckRequestDetailPage() {
 
         if (!hasLoadedOnce) {
           setRequest(null);
+          setEmployeeIdentity(null);
           setSignedFormUrl(null);
           setAdminSignedFormUrl(null);
           setAllocations([]);
@@ -1489,7 +1261,7 @@ export default function PaycheckRequestDetailPage() {
         setIsRefreshing(false);
       }
     },
-    [hasLoadedOnce, id]
+    [hasLoadedOnce, id, loadEmployeeIdentity]
   );
 
   useEffect(() => {
@@ -1503,12 +1275,7 @@ export default function PaycheckRequestDetailPage() {
       .channel(`finance-paycheck-request-${id}`)
       .on(
         "postgres_changes",
-        {
-          event: "*",
-          schema: "public",
-          table: "finance_paycheck_requests",
-          filter: `id=eq.${id}`,
-        },
+        { event: "*", schema: "public", table: "finance_paycheck_requests", filter: `id=eq.${id}` },
         () => void loadRequest("silent")
       )
       .on(
@@ -1523,23 +1290,16 @@ export default function PaycheckRequestDetailPage() {
       )
       .on(
         "postgres_changes",
-        {
-          event: "*",
-          schema: "public",
-          table: "finance_record_attachments",
-          filter: `entity_id=eq.${id}`,
-        },
+        { event: "*", schema: "public", table: "finance_record_attachments", filter: `entity_id=eq.${id}` },
         () => void loadRequest("silent")
       )
       .subscribe();
 
-    const intervalId = window.setInterval(() => {
-      void loadRequest("silent");
-    }, 60000);
+    const intervalId = window.setInterval(() => void loadRequest("silent"), 60000);
 
     return () => {
       window.clearInterval(intervalId);
-      supabase.removeChannel(channel);
+      void supabase.removeChannel(channel);
     };
   }, [id, loadRequest]);
 
@@ -1561,13 +1321,11 @@ export default function PaycheckRequestDetailPage() {
     const safeName = sanitizePathPart(replacementFile.name.replace(/\.[^.]+$/, ""));
     const path = `${safeCode}/${request.id}/${Date.now()}-${safeName}.${extension}`;
 
-    const uploadResult = await supabase.storage
-      .from(BUCKET_NAME)
-      .upload(path, replacementFile, {
-        cacheControl: "3600",
-        contentType: resolvedMimeType,
-        upsert: false,
-      });
+    const uploadResult = await supabase.storage.from(BUCKET_NAME).upload(path, replacementFile, {
+      cacheControl: "3600",
+      contentType: resolvedMimeType,
+      upsert: false,
+    });
 
     if (uploadResult.error) throw uploadResult.error;
 
@@ -1611,20 +1369,13 @@ export default function PaycheckRequestDetailPage() {
   }, [currentUserId, replacementFile, request]);
 
   const updateSignedFormAndMaybeSubmit = useCallback(async () => {
-    if (!request || !currentUserId) {
-      throw new Error("Missing request or user context.");
-    }
-
-    if (!isEmployeeOwner) {
-      throw new Error("Only the employee owner can submit this paycheck request.");
-    }
-
+    if (!request || !currentUserId) throw new Error("Missing request or user context.");
+    if (!isEmployeeOwner) throw new Error("Only the employee owner can submit this paycheck request.");
     if (!["draft", "needs_correction"].includes(request.status)) {
       throw new Error("Only draft or correction requests can be submitted.");
     }
 
     const uploadInfo = await uploadReplacementForm();
-
     const hasFile = Boolean(uploadInfo.path);
     const hasLink = Boolean(replacementLink.trim());
 
@@ -1632,8 +1383,7 @@ export default function PaycheckRequestDetailPage() {
       throw new Error("Signed form upload or signed form link is required.");
     }
 
-    const documentationStatus =
-      hasFile && hasLink ? "files_and_links" : hasFile ? "uploaded" : "linked";
+    const documentationStatus = hasFile && hasLink ? "files_and_links" : hasFile ? "uploaded" : "linked";
 
     const updateResult = await supabase
       .from("finance_paycheck_requests")
@@ -1657,17 +1407,10 @@ export default function PaycheckRequestDetailPage() {
     });
 
     if (submitResult.error) throw submitResult.error;
-  }, [
-    currentUserId,
-    isEmployeeOwner,
-    replacementLink,
-    request,
-    uploadReplacementForm,
-  ]);
+  }, [currentUserId, isEmployeeOwner, replacementLink, request, uploadReplacementForm]);
 
   const handleSubmitRequest = useCallback(async () => {
     if (isWorking) return;
-
     setIsWorking(true);
     setActionError(null);
     setActionMessage(null);
@@ -1679,9 +1422,7 @@ export default function PaycheckRequestDetailPage() {
       await loadRequest("silent");
     } catch (error) {
       console.error("Failed to submit paycheck request:", error);
-      setActionError(
-        error instanceof Error ? error.message : "Failed to submit paycheck request."
-      );
+      setActionError(error instanceof Error ? error.message : "Failed to submit paycheck request.");
     } finally {
       setIsWorking(false);
     }
@@ -1689,21 +1430,14 @@ export default function PaycheckRequestDetailPage() {
 
   const handleConfirmation = useCallback(
     async (decision: ConfirmationDecision) => {
-      if (isWorking) return;
-      if (!request || !currentUserId) return;
-
+      if (isWorking || !request || !currentUserId) return;
       setIsWorking(true);
       setActionError(null);
       setActionMessage(null);
 
       try {
-        if (!isEmployeeOwner) {
-          throw new Error("Only the employee owner can confirm paycheck receipt.");
-        }
-
-        if (!canEmployeeConfirmPayment) {
-          throw new Error("Payment must be sent before employee confirmation.");
-        }
+        if (!isEmployeeOwner) throw new Error("Only the employee owner can confirm paycheck receipt.");
+        if (!canEmployeeConfirmPayment) throw new Error("Payment must be sent before employee confirmation.");
 
         const result = await supabase.rpc("finance_confirm_paycheck_allocation_received", {
           p_paycheck_request_id: request.id,
@@ -1718,15 +1452,10 @@ export default function PaycheckRequestDetailPage() {
             ? "Payment received confirmation saved."
             : "Payment confirmation issue reported."
         );
-
         await loadRequest("silent");
       } catch (error) {
         console.error("Failed to confirm paycheck payment:", error);
-        setActionError(
-          error instanceof Error
-            ? error.message
-            : "Failed to confirm paycheck payment."
-        );
+        setActionError(error instanceof Error ? error.message : "Failed to confirm paycheck payment.");
       } finally {
         setIsWorking(false);
       }
@@ -1742,961 +1471,623 @@ export default function PaycheckRequestDetailPage() {
     ]
   );
 
-  if (isLoading) {
+  function renderDetailGrid(items: DetailItem[]) {
+    const visibleItems = items.filter((item) => {
+      if (item.value === null || item.value === undefined) return false;
+      if (typeof item.value === "string" && !item.value.trim()) return false;
+      return true;
+    });
+
+    if (visibleItems.length === 0) {
+      return (
+        <AixiaEmptyState
+          icon={FileCheck2}
+          title="No details available"
+          description="No saved details were found for this section."
+        />
+      );
+    }
+
     return (
-      <div className="min-h-screen bg-[#05070d] px-4 py-4 text-white md:px-6 md:py-6">
-        <div className="mx-auto flex w-full max-w-[1600px] flex-col gap-6">
-          <div className="rounded-[34px] border border-white/10 bg-white/[0.045] p-12 text-center backdrop-blur-xl">
-            <Loader2 className="mx-auto h-8 w-8 animate-spin text-cyan-200" />
-            <div className="mt-4 text-sm text-slate-400">Loading paycheck request...</div>
-          </div>
-        </div>
-      </div>
+      <AixiaReviewGrid variant="cards">
+        {visibleItems.map((item) => (
+          <AixiaValueBlock
+            key={item.label}
+            label={item.label}
+            value={item.value}
+            detail={item.detail}
+          />
+        ))}
+      </AixiaReviewGrid>
+    );
+  }
+
+  if (isLoading && !hasLoadedOnce) {
+    return (
+      <AixiaLoadingState
+        title="Loading paycheck request"
+        description="Request data, signed documents, allocation status, payment history, and attachments are being loaded."
+      />
     );
   }
 
   if (!request) {
     return (
-      <div className="min-h-screen bg-[#05070d] px-4 py-4 text-white md:px-6 md:py-6">
-        <div className="mx-auto flex w-full max-w-[1600px] flex-col gap-6">
-          <div className="rounded-[34px] border border-rose-400/20 bg-rose-500/10 p-12 text-center">
-            <AlertTriangle className="mx-auto h-8 w-8 text-rose-200" />
-            <div className="mt-4 text-lg font-semibold text-white">
-              Paycheck request not found
-            </div>
-            <div className="mt-2 text-sm text-rose-100">
-              {actionError || "The requested paycheck request could not be loaded."}
-            </div>
-            <button
-              type="button"
-              onClick={() => navigate("/finance/transactions/paycheck-requests")}
-              className="mt-6 inline-flex h-11 items-center justify-center gap-2 rounded-2xl border border-white/10 bg-white/[0.05] px-5 text-sm font-semibold text-white transition hover:bg-white/[0.08]"
-            >
-              <ArrowRight className="h-4 w-4 rotate-180" />
-              Paycheck Requests
-            </button>
-          </div>
-        </div>
-      </div>
+      <AixiaPage>
+        <AixiaAlert tone="error">
+          {actionError || "The requested paycheck request could not be loaded."}
+        </AixiaAlert>
+        <AixiaButton
+          type="button"
+          variant="secondary"
+          onClick={() => navigate("/finance/transactions/paycheck-requests")}
+        >
+          <ArrowRight className="h-4 w-4 rotate-180" />
+          Paycheck Requests
+        </AixiaButton>
+      </AixiaPage>
     );
   }
 
   return (
-    <div className="min-h-screen bg-[#05070d] px-4 py-4 text-white md:px-6 md:py-6">
-      <div className="mx-auto flex w-full max-w-[1600px] flex-col gap-6">
-        <header className="relative overflow-hidden rounded-[34px] border border-white/10 bg-white/[0.045] p-6 shadow-2xl shadow-black/30 backdrop-blur-xl">
-          <div className="pointer-events-none absolute inset-0 bg-[radial-gradient(circle_at_top_left,rgba(6,182,212,0.16),transparent_38%),radial-gradient(circle_at_top_right,rgba(139,92,246,0.12),transparent_34%),radial-gradient(circle_at_bottom_right,rgba(16,185,129,0.10),transparent_30%)]" />
+    <AixiaPage>
+      <AixiaHero
+        parentLabel="Paycheck Requests"
+        parentPath="/finance/transactions/paycheck-requests"
+        badges={[
+          { label: "Paycheck Request Detail", tone: "cyan" },
+          { label: formatLabel(request.status), tone: "emerald" },
+          { label: isRefreshing ? "Silent Refresh" : "Auto Refresh", tone: "neutral" },
+        ]}
+        gradientTitle={request.request_number || request.reference_number || "Draft Request"}
+        title={employeePrimary}
+        subtitle={employeeSecondary}
+        description={getRequestPeriodLabel(request)}
+        statusCards={[
+          {
+            label: "Requested Net",
+            value: `${requestCurrency} ${formatMoney(targetAmount)}`,
+            description: "Employee paycheck amount requested.",
+            icon: WalletCards,
+            tone: "cyan",
+          },
+          {
+            label: "Paid",
+            value: `${requestCurrency} ${formatMoney(paidAmount || coveredAmount)}`,
+            description: "Confirmed paycheck payment coverage.",
+            icon: BadgeCheck,
+            tone: "emerald",
+          },
+          {
+            label: "Remaining",
+            value: `${requestCurrency} ${formatMoney(
+              calculatedRemainingAmount || remainingAmount
+            )}`,
+            description: "Open amount after confirmed payments.",
+            icon: FileSignature,
+            tone: "amber",
+          },
+        ]}
+      />
 
-          <div className="relative">
-            <button
-              type="button"
-              onClick={() => navigate("/finance/transactions/paycheck-requests")}
-              className="mb-5 inline-flex items-center justify-center gap-2 rounded-full border border-white/10 bg-white/[0.05] px-5 py-2 text-[11px] font-semibold uppercase tracking-[0.22em] text-slate-300 transition hover:border-white/20 hover:bg-white/[0.08] hover:text-white"
-            >
-              <ArrowRight className="h-3.5 w-3.5 rotate-180" />
-              Paycheck Requests
-            </button>
+      {actionError ? <AixiaAlert tone="error">{actionError}</AixiaAlert> : null}
+      {actionMessage ? <AixiaAlert tone="success">{actionMessage}</AixiaAlert> : null}
 
-            <div className="grid gap-6 xl:grid-cols-[minmax(0,1fr)_520px] xl:items-end">
-              <div>
-                <div className="inline-flex w-fit items-center gap-2 rounded-full border border-cyan-400/20 bg-cyan-500/10 px-3 py-1 text-[11px] font-semibold uppercase tracking-[0.22em] text-cyan-200">
-                  <FileSignature className="h-3.5 w-3.5" />
-                  Paycheck Request Detail
-                </div>
+      <AixiaMetricGrid>
+        {timelineItems.map((item) => (
+          <AixiaMetricCard
+            key={item.label}
+            label={item.label}
+            value={item.value}
+            description={item.detail}
+            icon={FileCheck2}
+            tone="cyan"
+          />
+        ))}
+      </AixiaMetricGrid>
 
-                <div className="mt-4 text-[11px] font-semibold uppercase tracking-[0.22em] text-slate-500">
-                  {request.request_number || request.reference_number || "Draft Request"}
-                </div>
-
-                <h1 className="mt-2 text-3xl font-semibold tracking-[-0.035em] text-white md:text-5xl">
-                  {getEmployeeLabel(request)}
-                </h1>
-
-                <p className="mt-3 max-w-4xl text-sm leading-6 text-slate-400 md:text-base md:leading-7">
-                  {getEmployeeSubLabel(request)} • {getRequestPeriodLabel(request)}
-                </p>
-
-                <div className="mt-5 flex flex-wrap gap-2">
-                  <StatusBadge value={request.status} />
-                  <StatusBadge value={request.review_status} />
-                  <StatusBadge value={request.signed_form_status} />
-                  <StatusBadge value={request.admin_signed_form_status} />
-                  <StatusBadge value={request.payment_status || request.paycheck?.payment_status || "unpaid"} />
-                  <StatusBadge value={request.recipient_confirmation_status} />
-                  {isRefreshing ? (
-                    <span className="inline-flex rounded-full border border-white/10 bg-white/[0.06] px-3 py-1 text-[11px] font-semibold uppercase tracking-[0.14em] text-slate-300">
-                      Silent Refresh
-                    </span>
-                  ) : null}
-                </div>
-              </div>
-
-              <div className="grid gap-3 sm:grid-cols-3">
-                <ValueBlock
-                  label="Requested Net"
-                  value={`${requestCurrency} ${formatMoney(targetAmount)}`}
-                  detail="Employee paycheck amount requested."
-                />
-                <ValueBlock
-                  label="Paid"
-                  value={`${requestCurrency} ${formatMoney(paidAmount || coveredAmount)}`}
-                  detail="Confirmed paycheck payment coverage."
-                />
-                <ValueBlock
-                  label="Remaining"
-                  value={`${requestCurrency} ${formatMoney(calculatedRemainingAmount || remainingAmount)}`}
-                  detail="Open amount after confirmed payments."
-                />
-              </div>
-            </div>
-          </div>
-        </header>
-
-        {actionError ? (
-          <div className="rounded-[24px] border border-rose-400/20 bg-rose-500/10 p-4 text-sm leading-6 text-rose-100">
-            {actionError}
-          </div>
-        ) : null}
-
-        {actionMessage ? (
-          <div className="rounded-[24px] border border-emerald-400/20 bg-emerald-500/10 p-4 text-sm leading-6 text-emerald-100">
-            {actionMessage}
-          </div>
-        ) : null}
-
-        <section className="grid gap-4 md:grid-cols-2 xl:grid-cols-5">
-          {timelineItems.map((item) => (
-            <div
-              key={item.label}
-              className="min-h-[156px] rounded-[28px] border border-white/10 bg-white/[0.045] p-5 backdrop-blur-xl"
-            >
-              <div
-                className={`inline-flex rounded-full border px-3 py-1 text-[11px] font-semibold uppercase tracking-[0.16em] ${getStatusToneClasses(
-                  item.raw
-                )}`}
-              >
-                {item.label}
-              </div>
-              <div className="mt-4 text-lg font-semibold text-white">{item.value}</div>
-              <div className="mt-2 text-xs leading-5 text-slate-500">{item.detail}</div>
-            </div>
-          ))}
-        </section>
-
-        <div className="grid items-start gap-6 xl:grid-cols-[minmax(0,1fr)_430px]">
-          <div className="grid gap-6">
-            <SectionCard
+      <AixiaSmartLayout
+        sidebar="normal"
+        main={
+          <>
+            <AixiaSection
               title="Request Overview"
               description="Employee, company, pay profile, payroll period, and requester-side notes."
               icon={UserRound}
             >
-              <div className="mb-5 grid gap-4 md:grid-cols-2">
-                <StageGuide
-                  stage="Stage 1 — Employee Request"
-                  title="Request created by employee"
-                  tone="cyan"
-                >
-                  The employee creates the paycheck request, checks the payroll period and amount,
-                  generates the PRC Pay Slip form, signs the employee side, uploads the signed
-                  document, and submits it to Finance/Admin review.
-                </StageGuide>
+              <AixiaReviewGrid variant="cards">
+                <AixiaValueBlock
+                  label="Stage 1 — Employee Request"
+                  value="Request created by employee"
+                  detail="The employee checks the payroll period and amount, signs the employee side, uploads the signed document, and submits it to Finance/Admin review."
+                />
+                <AixiaValueBlock
+                  label="Stage 2 — Employee Monitoring"
+                  value="Requester-side status page"
+                  detail="After submission, the employee monitors review, documents, funding, payment, and confirmation status."
+                />
+              </AixiaReviewGrid>
+              {renderDetailGrid(overviewItems)}
+            </AixiaSection>
 
-                <StageGuide
-                  stage="Stage 2 — Employee Monitoring"
-                  title="Requester-side status page"
-                  tone="violet"
-                >
-                  After submission, the employee monitors review, documents, funding, payment, and
-                  confirmation status. Approval and payment actions are handled by Finance/Admin.
-                </StageGuide>
-              </div>
-
-              <DetailGrid items={overviewItems} />
-            </SectionCard>
-
-            <SectionCard
+            <AixiaSection
               title="Employee Payment Preference"
               description="Employee-provided receiving preference. This is not connected to company bank accounts."
               icon={WalletCards}
             >
-              <div className="mb-5 rounded-[24px] border border-amber-400/20 bg-amber-500/10 p-4">
-                <div className="text-sm font-semibold text-amber-100">
-                  Payment preference only
-                </div>
-                <p className="mt-2 text-xs leading-5 text-amber-100/75">
-                  This section shows how the employee wants to receive the paycheck. It does not
-                  expose internal company bank-account master data and does not execute payment.
-                </p>
-              </div>
+              <AixiaAlert tone="info">
+                This section shows how the employee wants to receive the paycheck. It does not expose internal company bank-account master data and does not execute payment.
+              </AixiaAlert>
+              {renderDetailGrid(paymentPreferenceItems)}
+            </AixiaSection>
 
-              <DetailGrid items={paymentPreferenceItems} />
-            </SectionCard>
-
-            <SectionCard
+            <AixiaSection
               title="Paycheck Amounts"
               description="Requested salary, bonus, reimbursement, deduction, net, paid, and remaining amount."
               icon={WalletCards}
             >
-              <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-5">
-                <AmountCard
+              <AixiaMetricGrid>
+                <AixiaMetricCard
                   label="Gross"
-                  value={request.requested_gross_amount}
-                  currency={requestCurrency}
+                  value={`${requestCurrency} ${formatMoney(request.requested_gross_amount)}`}
+                  description="Requested gross pay"
+                  icon={WalletCards}
                   tone="cyan"
                 />
-                <AmountCard
+                <AixiaMetricCard
                   label="Bonus"
-                  value={request.requested_bonus_amount}
-                  currency={requestCurrency}
+                  value={`${requestCurrency} ${formatMoney(request.requested_bonus_amount)}`}
+                  description="Requested bonus"
+                  icon={WalletCards}
                   tone="emerald"
                 />
-                <AmountCard
+                <AixiaMetricCard
                   label="Reimbursement"
-                  value={request.requested_reimbursement_amount}
-                  currency={requestCurrency}
+                  value={`${requestCurrency} ${formatMoney(request.requested_reimbursement_amount)}`}
+                  description="Requested reimbursement"
+                  icon={WalletCards}
                   tone="amber"
                 />
-                <AmountCard
+                <AixiaMetricCard
                   label="Deduction"
-                  value={request.requested_deduction_amount}
-                  currency={requestCurrency}
+                  value={`${requestCurrency} ${formatMoney(request.requested_deduction_amount)}`}
+                  description="Requested deduction"
+                  icon={WalletCards}
                   tone="rose"
                 />
-                <AmountCard
-                  label="Net"
-                  value={targetAmount}
-                  currency={requestCurrency}
-                  tone="cyan"
-                />
-              </div>
+              </AixiaMetricGrid>
 
-              <div className="mt-4 grid gap-4 md:grid-cols-3">
-                <ValueBlock
+              <AixiaReviewGrid variant="cards">
+                <AixiaValueBlock
                   label="Paid Amount"
                   value={`${requestCurrency} ${formatMoney(paidAmount || coveredAmount)}`}
                   detail="Confirmed amount from payment rollup/distributions."
                 />
-                <ValueBlock
+                <AixiaValueBlock
                   label="Remaining Amount"
-                  value={`${requestCurrency} ${formatMoney(calculatedRemainingAmount || remainingAmount)}`}
+                  value={`${requestCurrency} ${formatMoney(
+                    calculatedRemainingAmount || remainingAmount
+                  )}`}
                   detail="Remaining amount after confirmed payments."
                 />
-                <ValueBlock
+                <AixiaValueBlock
                   label="Payment Status"
-                  value={<StatusBadge value={request.payment_status || request.paycheck?.payment_status || "unpaid"} />}
+                  value={
+                    <AixiaStatusBadge
+                      value={request.payment_status || request.paycheck?.payment_status || "unpaid"}
+                    />
+                  }
                   detail="Payment status is updated by Finance/Admin payment distribution."
                 />
-              </div>
-            </SectionCard>
+              </AixiaReviewGrid>
+            </AixiaSection>
 
-            <SectionCard
+            <AixiaSection
               title="Signed Forms"
               description="Employee-signed form and Finance/Admin two-way signed form status."
               icon={UploadCloud}
             >
-              <div className="mb-5 grid gap-4 md:grid-cols-2">
-                <StageGuide
-                  stage="Stage 3 — Employee Signed Form"
-                  title="Employee form is required before review"
-                  tone={employeeSignedFormExists ? "emerald" : "amber"}
-                >
-                  The employee uploads or links the signed paycheck form. If Finance requests a
-                  correction, the employee can upload a corrected version from this page.
-                </StageGuide>
+              <AixiaReviewGrid variant="cards">
+                <AixiaValueBlock
+                  label="Employee Signed Form"
+                  value={<AixiaStatusBadge value={request.signed_form_status} />}
+                  detail={
+                    employeeSignedFormExists
+                      ? `Uploaded: ${formatDateTime(request.signed_form_uploaded_at)}`
+                      : "No employee signed form is attached yet."
+                  }
+                />
+                <AixiaValueBlock
+                  label="Admin / Manager Signed Form"
+                  value={<AixiaStatusBadge value={request.admin_signed_form_status} />}
+                  detail={
+                    adminSignedFormExists
+                      ? `Uploaded: ${formatDateTime(request.admin_signed_form_uploaded_at)}`
+                      : "Waiting for Finance/Admin to upload the two-way signed form."
+                  }
+                />
+              </AixiaReviewGrid>
 
-                <StageGuide
-                  stage="Stage 4 — Admin Signed Form"
-                  title="Finance uploads the two-way signed form"
-                  tone={adminSignedFormExists ? "emerald" : "amber"}
-                >
-                  Finance/Admin downloads the employee signed form, signs the manager side, uploads
-                  the two-way signed document, and then approves the request for payroll.
-                </StageGuide>
-              </div>
-
-              <div className="grid gap-4 lg:grid-cols-2">
-                <div className="grid gap-4 rounded-[24px] border border-white/10 bg-black/20 p-4">
-                  <div className="flex items-start justify-between gap-3">
-                    <div>
-                      <div className="text-sm font-semibold text-white">
-                        Employee Signed Form
-                      </div>
-                      <p className="mt-1 text-xs leading-5 text-slate-500">
-                        Uploaded or linked by the employee/requester.
-                      </p>
-                    </div>
-                    <StatusBadge value={request.signed_form_status} />
-                  </div>
-
-                  <ValueBlock
-                    label="Employee Form Status"
-                    value={employeeSignedFormExists ? "Attached" : "Missing"}
-                    detail={`Uploaded: ${formatDateTime(request.signed_form_uploaded_at)}`}
-                  />
-
-                  <div className="flex flex-wrap gap-2">
-                    {signedFormUrl ? (
-                      <a
-                        href={signedFormUrl}
-                        target="_blank"
-                        rel="noreferrer"
-                        className="inline-flex h-10 items-center gap-2 rounded-2xl border border-cyan-400/20 bg-cyan-500/10 px-4 text-sm font-semibold text-cyan-100 transition hover:bg-cyan-500/15"
-                      >
-                        <Download className="h-4 w-4" />
-                        Open Employee File
-                      </a>
-                    ) : null}
-
-                    {request.signed_form_external_url ? (
-                      <a
-                        href={request.signed_form_external_url}
-                        target="_blank"
-                        rel="noreferrer"
-                        className="inline-flex h-10 items-center gap-2 rounded-2xl border border-emerald-400/20 bg-emerald-500/10 px-4 text-sm font-semibold text-emerald-100 transition hover:bg-emerald-500/15"
-                      >
-                        <ExternalLink className="h-4 w-4" />
-                        Open Employee Link
-                      </a>
-                    ) : null}
-                  </div>
-
-                  {!employeeSignedFormExists ? (
-                    <div className="rounded-2xl border border-rose-400/20 bg-rose-500/10 p-3 text-xs leading-5 text-rose-100">
-                      No employee signed form is attached yet.
-                    </div>
-                  ) : null}
-                </div>
-
-                <div className="grid gap-4 rounded-[24px] border border-white/10 bg-black/20 p-4">
-                  <div className="flex items-start justify-between gap-3">
-                    <div>
-                      <div className="text-sm font-semibold text-white">
-                        Admin / Manager Signed Form
-                      </div>
-                      <p className="mt-1 text-xs leading-5 text-slate-500">
-                        Uploaded by Finance/Admin after manager-side signature.
-                      </p>
-                    </div>
-                    <StatusBadge value={request.admin_signed_form_status} />
-                  </div>
-
-                  <ValueBlock
-                    label="Admin Form Status"
-                    value={adminSignedFormExists ? "Attached" : "Missing"}
-                    detail={`Uploaded: ${formatDateTime(request.admin_signed_form_uploaded_at)}`}
-                  />
-
-                  <div className="flex flex-wrap gap-2">
-                    {adminSignedFormUrl ? (
-                      <a
-                        href={adminSignedFormUrl}
-                        target="_blank"
-                        rel="noreferrer"
-                        className="inline-flex h-10 items-center gap-2 rounded-2xl border border-violet-400/20 bg-violet-500/10 px-4 text-sm font-semibold text-violet-100 transition hover:bg-violet-500/15"
-                      >
-                        <Download className="h-4 w-4" />
-                        Open Admin File
-                      </a>
-                    ) : null}
-
-                    {request.admin_signed_form_external_url ? (
-                      <a
-                        href={request.admin_signed_form_external_url}
-                        target="_blank"
-                        rel="noreferrer"
-                        className="inline-flex h-10 items-center gap-2 rounded-2xl border border-emerald-400/20 bg-emerald-500/10 px-4 text-sm font-semibold text-emerald-100 transition hover:bg-emerald-500/15"
-                      >
-                        <ExternalLink className="h-4 w-4" />
-                        Open Admin Link
-                      </a>
-                    ) : null}
-                  </div>
-
-                  {request.admin_signed_form_notes ? (
-                    <div className="rounded-2xl border border-white/10 bg-white/[0.04] p-3 text-xs leading-5 text-slate-300">
-                      {request.admin_signed_form_notes}
-                    </div>
-                  ) : null}
-
-                  {!adminSignedFormExists ? (
-                    <div className="rounded-2xl border border-amber-400/20 bg-amber-500/10 p-3 text-xs leading-5 text-amber-100">
-                      Waiting for Finance/Admin to upload the two-way signed form.
-                    </div>
-                  ) : null}
-                </div>
+              <div className="aixia-action-stack">
+                {signedFormUrl ? (
+                  <AixiaButton
+                    type="button"
+                    variant="primary"
+                    onClick={() => openExternalUrl(signedFormUrl)}
+                  >
+                    <Download className="h-4 w-4" />
+                    Open Employee File
+                  </AixiaButton>
+                ) : null}
+                {request.signed_form_external_url ? (
+                  <AixiaButton
+                    type="button"
+                    variant="secondary"
+                    onClick={() => openExternalUrl(request.signed_form_external_url)}
+                  >
+                    <ExternalLink className="h-4 w-4" />
+                    Open Employee Link
+                  </AixiaButton>
+                ) : null}
+                {adminSignedFormUrl ? (
+                  <AixiaButton
+                    type="button"
+                    variant="secondary"
+                    onClick={() => openExternalUrl(adminSignedFormUrl)}
+                  >
+                    <Download className="h-4 w-4" />
+                    Open Admin File
+                  </AixiaButton>
+                ) : null}
+                {request.admin_signed_form_external_url ? (
+                  <AixiaButton
+                    type="button"
+                    variant="secondary"
+                    onClick={() => openExternalUrl(request.admin_signed_form_external_url)}
+                  >
+                    <ExternalLink className="h-4 w-4" />
+                    Open Admin Link
+                  </AixiaButton>
+                ) : null}
               </div>
 
               {canEmployeeSubmit ? (
-                <div className="mt-5 grid gap-4 rounded-[24px] border border-cyan-400/20 bg-cyan-500/10 p-4">
-                  <StageGuide
-                    stage="Correction / Submission"
-                    title={
-                      request.status === "needs_correction"
-                        ? "Correction requested by Finance"
-                        : "Draft submission"
-                    }
-                    tone={request.status === "needs_correction" ? "amber" : "cyan"}
-                  >
-                    {request.status === "needs_correction"
-                      ? "Read Finance correction instructions, upload the corrected signed form, and resubmit to Finance review."
-                      : "Upload the employee-signed form or provide a secure signed-form link, then submit to Finance review."}
-                  </StageGuide>
-
+                <AixiaSection
+                  title={
+                    request.status === "needs_correction"
+                      ? "Correction Requested"
+                      : "Draft Submission"
+                  }
+                  description={
+                    request.status === "needs_correction"
+                      ? "Upload the corrected signed form and resubmit to Finance review."
+                      : "Upload the employee-signed form or provide a secure signed-form link."
+                  }
+                  icon={Send}
+                >
                   {request.correction_notes ? (
-                    <div className="rounded-[24px] border border-amber-400/20 bg-amber-500/10 p-4">
-                      <div className="text-[11px] font-semibold uppercase tracking-[0.2em] text-amber-100/75">
-                        Correction Instructions
-                      </div>
-                      <div className="mt-2 text-sm leading-6 text-amber-50">
-                        {request.correction_notes}
-                      </div>
-                    </div>
+                    <AixiaAlert tone="info">{request.correction_notes}</AixiaAlert>
                   ) : null}
 
-                  <label className="grid gap-2">
-                    <span className={labelClass()}>Upload Corrected / Signed Form</span>
-                    <input
-                      type="file"
-                      accept=".pdf,.png,.jpg,.jpeg,.webp,.doc,.docx"
-                      onChange={(event) =>
-                        setReplacementFile(event.target.files?.[0] || null)
-                      }
-                      disabled={isWorking}
-                      className="block w-full rounded-2xl border border-white/10 bg-black/20 px-4 py-3 text-sm text-slate-300 file:mr-4 file:rounded-xl file:border-0 file:bg-cyan-500/10 file:px-4 file:py-2 file:text-sm file:font-semibold file:text-cyan-100 hover:file:bg-cyan-500/15 disabled:cursor-not-allowed disabled:opacity-50"
-                    />
-                  </label>
-
-                  <label className="grid gap-2">
-                    <span className={labelClass()}>Signed Form Link</span>
-                    <div className="relative">
-                      <LinkIcon className="pointer-events-none absolute left-4 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-500" />
-                      <input
+                  <AixiaFormGrid>
+                    <AixiaFormFullWidth>
+                      <AixiaDocumentUploadPanel
+                        selectedFile={replacementFile}
+                        attachments={[]}
+                        required
+                        disabled={isWorking}
+                        uploading={isWorking}
+                        accept=".pdf,.png,.jpg,.jpeg,.webp,.doc,.docx"
+                        dropTitle="Drop signed paycheck form here"
+                        dropDescription="Attach the corrected or signed paycheck request form."
+                        uploadLabel={
+                          request.status === "needs_correction"
+                            ? "Resubmit Corrected Form"
+                            : "Submit To Finance Review"
+                        }
+                        uploadingLabel="Submitting..."
+                        selectedFileLabel="Selected signed form"
+                        emptyTitle="No signed form selected"
+                        emptyDescription="Upload a signed form or provide a secure signed-form link."
+                        requiredMessage="Signed form documentation is required before submission."
+                        onFileSelect={(file) => setReplacementFile(file)}
+                        onRemoveSelectedFile={() => setReplacementFile(null)}
+                        onUpload={() => void handleSubmitRequest()}
+                      />
+                    </AixiaFormFullWidth>
+                    <AixiaFormField>
+                      <AixiaFieldLabel label="Signed Form Link" />
+                      <AixiaInputField
                         value={replacementLink}
                         onChange={(event) => setReplacementLink(event.target.value)}
                         placeholder="Paste signed form link if stored externally"
                         disabled={isWorking}
-                        className={`${inputClass()} pl-11`}
                       />
-                    </div>
-                  </label>
-
-                  <button
-                    type="button"
-                    onClick={() => void handleSubmitRequest()}
-                    disabled={!canEmployeeSubmit}
-                    className="inline-flex h-11 w-fit items-center justify-center gap-2 rounded-2xl border border-cyan-400/20 bg-cyan-500/10 px-4 text-sm font-semibold text-cyan-100 transition hover:bg-cyan-500/15 disabled:cursor-not-allowed disabled:opacity-50"
-                  >
-                    {isWorking ? (
-                      <Loader2 className="h-4 w-4 animate-spin" />
-                    ) : (
-                      <Send className="h-4 w-4" />
-                    )}
-                    {request.status === "needs_correction"
-                      ? "Resubmit Corrected Form"
-                      : "Submit To Finance Review"}
-                  </button>
-                </div>
+                    </AixiaFormField>
+                  </AixiaFormGrid>
+                </AixiaSection>
               ) : null}
-            </SectionCard>
+            </AixiaSection>
 
-                        <SectionCard
+            <AixiaSection
               title="Finance Review Status"
               description="Finance/Admin review result is shown here. Approval actions happen only inside the payroll review page."
               icon={FileCheck2}
             >
-              <div className="mb-5">
-                <StageGuide
-                  stage="Finance Decision"
-                  title="Review result is read-only on this page"
-                  tone={
-                    request.review_status === "approved"
-                      ? "emerald"
-                      : request.review_status === "rejected"
-                        ? "rose"
-                        : request.review_status === "needs_correction"
-                          ? "amber"
-                          : "cyan"
-                  }
-                >
-                  Finance/Admin reviews this request from the payroll review page. The employee
-                  cannot approve, reject, upload the admin signed form, allocate funds, or distribute
-                  payment from this page.
-                </StageGuide>
-              </div>
+              {renderDetailGrid(financeReviewItems)}
+            </AixiaSection>
 
-              <DetailGrid items={financeReviewItems} />
-            </SectionCard>
-
-            <SectionCard
+            <AixiaSection
               title="Payroll / Paycheck Link"
               description="Approved requests are linked to payroll run, paycheck, and payment execution by Finance/Admin."
               icon={WalletCards}
             >
-              <div className="mb-5">
-                <StageGuide
-                  stage="Payroll Processing"
-                  title="Finance links approved requests"
-                  tone="violet"
-                >
-                  Only Finance/Admin can link an approved request into a payroll basket/run.
-                  Linking creates or connects the paycheck line for later funding and payment
-                  distribution.
-                </StageGuide>
-              </div>
+              {renderDetailGrid(payrollLinkItems)}
+            </AixiaSection>
 
-              <DetailGrid items={payrollLinkItems} />
-            </SectionCard>
-
-            <SectionCard
+            <AixiaSection
               title="Employee Paycheck Request History"
               description="Shows paycheck requests for this same employee only. Internal funding drafts and company execution rows are hidden from this requester page."
               icon={WalletCards}
             >
               {paycheckHistoryRows.length === 0 ? (
-                <div className="rounded-[24px] border border-dashed border-white/10 bg-black/20 px-6 py-12 text-center">
-                  <WalletCards className="mx-auto h-8 w-8 text-slate-500" />
-                  <div className="mt-4 text-sm font-semibold text-white">
-                    No paycheck history found
-                  </div>
-                  <p className="mt-2 text-sm leading-6 text-slate-500">
-                    This section will show the employee&apos;s paycheck request history after more
-                    requests are created for the same employee.
-                  </p>
-                </div>
+                <AixiaEmptyState
+                  icon={WalletCards}
+                  title="No paycheck history found"
+                  description="This section will show the employee's paycheck request history after more requests are created for the same employee."
+                />
               ) : (
-                <div className="overflow-x-auto rounded-[24px] border border-white/10 bg-black/20">
-                  <div className="max-h-[720px] overflow-y-auto">
-                    <table className="w-full min-w-[1320px] border-collapse">
-                      <thead className="sticky top-0 z-20 border-b border-white/10 bg-black/70 backdrop-blur-xl">
-                        <tr>
-                          <th className="px-5 py-4 text-left text-[11px] font-semibold uppercase tracking-[0.18em] text-slate-500">
-                            Period
-                          </th>
-                          <th className="px-5 py-4 text-left text-[11px] font-semibold uppercase tracking-[0.18em] text-slate-500">
-                            Request
-                          </th>
-                          <th className="px-5 py-4 text-right text-[11px] font-semibold uppercase tracking-[0.18em] text-slate-500">
-                            Requested Net
-                          </th>
-                          <th className="px-5 py-4 text-right text-[11px] font-semibold uppercase tracking-[0.18em] text-slate-500">
-                            Paid
-                          </th>
-                          <th className="px-5 py-4 text-right text-[11px] font-semibold uppercase tracking-[0.18em] text-slate-500">
-                            Remaining
-                          </th>
-                          <th className="px-5 py-4 text-left text-[11px] font-semibold uppercase tracking-[0.18em] text-slate-500">
-                            Status
-                          </th>
-                          <th className="px-5 py-4 text-left text-[11px] font-semibold uppercase tracking-[0.18em] text-slate-500">
-                            Confirmation
-                          </th>
-                          <th className="px-5 py-4 text-right text-[11px] font-semibold uppercase tracking-[0.18em] text-slate-500">
-                            Action
-                          </th>
-                        </tr>
-                      </thead>
+                <AixiaTableShell variant="registry" minWidthClassName="min-w-[1320px]">
+                  <thead className="aixia-table-head">
+                    <tr>
+                      <th>Period</th>
+                      <th>Request</th>
+                      <th>Requested Net</th>
+                      <th>Paid</th>
+                      <th>Remaining</th>
+                      <th>Status</th>
+                      <th>Confirmation</th>
+                      <th>Action</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {paycheckHistoryRows.map((historyRow) => {
+                      const historyCurrency = normalizeCurrencyCode(
+                        historyRow.requested_currency_code || requestCurrency
+                      );
+                      const historyTargetAmount = getPaycheckHistoryTargetAmount(historyRow);
+                      const historyPaidAmount =
+                        historyRow.payment_status === "paid"
+                          ? historyTargetAmount
+                          : toNumber(historyRow.paid_amount);
+                      const historyRemainingAmount =
+                        historyRow.payment_status === "paid"
+                          ? 0
+                          : Math.max(roundMoney(toNumber(historyRow.remaining_amount)), 0);
+                      const isCurrentRequest = historyRow.id === request.id;
 
-                      <tbody>
-                        {paycheckHistoryRows.map((historyRow) => {
-                          const historyCurrency = normalizeCurrencyCode(
-                            historyRow.requested_currency_code || requestCurrency
-                          );
-                          const historyTargetAmount = getPaycheckHistoryTargetAmount(historyRow);
-                          const historyPaidAmount =
-                            historyRow.payment_status === "paid"
-                              ? historyTargetAmount
-                              : toNumber(historyRow.paid_amount);
-                          const historyRemainingAmount =
-                            historyRow.payment_status === "paid"
-                              ? 0
-                              : Math.max(roundMoney(toNumber(historyRow.remaining_amount)), 0);
-                          const isCurrentRequest = historyRow.id === request.id;
-
-                          return (
-                            <tr
-                              key={historyRow.id}
-                              className={`border-b border-white/5 text-sm text-slate-300 transition hover:bg-white/[0.035] ${
-                                isCurrentRequest ? "bg-cyan-500/[0.055]" : ""
-                              }`}
+                      return (
+                        <tr key={historyRow.id} className="aixia-table-row">
+                          <AixiaTableTextCell
+                            width="lg"
+                            primary={`${formatDate(historyRow.period_start)} → ${formatDate(
+                              historyRow.period_end
+                            )}`}
+                            secondary={`Pay date ${formatDate(historyRow.requested_pay_date)}`}
+                          />
+                          <AixiaTableTextCell
+                            width="lg"
+                            primary={
+                              historyRow.request_number ||
+                              historyRow.reference_number ||
+                              "Paycheck Request"
+                            }
+                            secondary={
+                              isCurrentRequest
+                                ? "Current Request"
+                                : `Updated ${formatDate(historyRow.updated_at)}`
+                            }
+                          />
+                          <AixiaTableTextCell
+                            width="md"
+                            primary={`${historyCurrency} ${formatMoney(historyTargetAmount)}`}
+                          />
+                          <AixiaTableTextCell
+                            width="md"
+                            primary={`${historyCurrency} ${formatMoney(historyPaidAmount)}`}
+                          />
+                          <AixiaTableTextCell
+                            width="md"
+                            primary={`${historyCurrency} ${formatMoney(historyRemainingAmount)}`}
+                          />
+                          <AixiaTableBadgeCell width="lg">
+                            <div className="aixia-action-row">
+                              <AixiaStatusBadge value={historyRow.status} />
+                              <AixiaStatusBadge value={historyRow.review_status} />
+                              <AixiaStatusBadge value={historyRow.payment_status || "unpaid"} />
+                            </div>
+                          </AixiaTableBadgeCell>
+                          <AixiaTableBadgeCell width="md">
+                            <AixiaStatusBadge value={historyRow.recipient_confirmation_status} />
+                          </AixiaTableBadgeCell>
+                          <AixiaTableActionsCell>
+                            <AixiaButton
+                              type="button"
+                              variant="primary"
+                              onClick={() =>
+                                navigate(
+                                  `/finance/transactions/paycheck-requests/${historyRow.id}`
+                                )
+                              }
                             >
-                              <td className="min-w-[210px] px-5 py-4">
-                                <div className="font-semibold text-white">
-                                  {formatDate(historyRow.period_start)} →{" "}
-                                  {formatDate(historyRow.period_end)}
-                                </div>
-                                <div className="mt-1 text-xs text-slate-500">
-                                  Pay date {formatDate(historyRow.requested_pay_date)}
-                                </div>
-                              </td>
-
-                              <td className="min-w-[190px] px-5 py-4">
-                                <div className="font-semibold text-cyan-200">
-                                  {historyRow.request_number ||
-                                    historyRow.reference_number ||
-                                    "Paycheck Request"}
-                                </div>
-                                <div className="mt-1 text-xs text-slate-500">
-                                  Updated {formatDate(historyRow.updated_at)}
-                                </div>
-                                {isCurrentRequest ? (
-                                  <div className="mt-2 inline-flex rounded-full border border-cyan-400/20 bg-cyan-500/10 px-2.5 py-1 text-[10px] font-semibold uppercase tracking-[0.14em] text-cyan-100">
-                                    Current Request
-                                  </div>
-                                ) : null}
-                              </td>
-
-                              <td className="whitespace-nowrap px-5 py-4 text-right font-semibold text-white">
-                                {historyCurrency} {formatMoney(historyTargetAmount)}
-                              </td>
-
-                              <td className="whitespace-nowrap px-5 py-4 text-right font-semibold text-emerald-100">
-                                {historyCurrency} {formatMoney(historyPaidAmount)}
-                              </td>
-
-                              <td className="whitespace-nowrap px-5 py-4 text-right font-semibold text-amber-100">
-                                {historyCurrency} {formatMoney(historyRemainingAmount)}
-                              </td>
-
-                              <td className="min-w-[260px] px-5 py-4">
-                                <div className="flex flex-wrap gap-2">
-                                  <StatusBadge value={historyRow.status} />
-                                  <StatusBadge value={historyRow.review_status} />
-                                  <StatusBadge value={historyRow.payment_status || "unpaid"} />
-                                </div>
-                              </td>
-
-                              <td className="min-w-[220px] px-5 py-4">
-                                <StatusBadge value={historyRow.recipient_confirmation_status} />
-                                <div className="mt-1 text-xs text-slate-500">
-                                  Confirmed {formatDateTime(historyRow.payment_confirmed_at)}
-                                </div>
-                              </td>
-
-                              <td className="px-5 py-4 text-right">
-                                <button
-                                  type="button"
-                                  onClick={() =>
-                                    navigate(
-                                      `/finance/transactions/paycheck-requests/${historyRow.id}`
-                                    )
-                                  }
-                                  className="inline-flex h-9 items-center justify-center gap-2 rounded-full border border-cyan-400/20 bg-cyan-500/10 px-4 text-xs font-semibold uppercase tracking-[0.14em] text-cyan-100 transition hover:bg-cyan-500/15"
-                                >
-                                  Open
-                                </button>
-                              </td>
-                            </tr>
-                          );
-                        })}
-                      </tbody>
-                    </table>
-                  </div>
-                </div>
+                              Open
+                            </AixiaButton>
+                          </AixiaTableActionsCell>
+                        </tr>
+                      );
+                    })}
+                  </tbody>
+                </AixiaTableShell>
               )}
-            </SectionCard>
+            </AixiaSection>
 
-            <SectionCard
+            <AixiaSection
               title="Employee Payment Confirmation"
               description="After Finance sends the paycheck, the employee confirms whether the money was received."
               icon={BadgeCheck}
             >
-              <div className="mb-5">
-                <StageGuide
-                  stage="Employee Confirmation"
-                  title="Confirm only after money arrives"
-                  tone="emerald"
-                >
-                  After Finance/Admin records payment, the employee confirms received, not received,
-                  or disputed. This action becomes disabled after the confirmation status changes.
-                </StageGuide>
-              </div>
-
-              <div className="grid gap-4 lg:grid-cols-[minmax(0,1fr)_320px]">
-                <label className="grid gap-2">
-                  <span className={labelClass()}>Confirmation Notes</span>
-                  <textarea
+              <AixiaFormGrid>
+                <AixiaFormFullWidth>
+                  <AixiaFieldLabel label="Confirmation Notes" />
+                  <AixiaTextareaField
                     value={confirmationNotes}
                     onChange={(event) => setConfirmationNotes(event.target.value)}
                     placeholder="Optional note: received, not received, payment issue, or dispute details"
                     disabled={isWorking || !canEmployeeConfirmPayment}
-                    className={textareaClass()}
                   />
-                </label>
+                </AixiaFormFullWidth>
+              </AixiaFormGrid>
 
-                <div className="grid gap-3">
-                  <ValueBlock
-                    label="Current Confirmation"
-                    value={<StatusBadge value={request.recipient_confirmation_status} />}
-                    detail={`Payment sent: ${formatDateTime(request.payment_sent_at)}`}
-                  />
-
-                  <button
-                    type="button"
-                    onClick={() => void handleConfirmation("received_confirmed")}
-                    disabled={!canEmployeeConfirmPayment}
-                    className="inline-flex h-11 items-center justify-center gap-2 rounded-2xl border border-emerald-400/20 bg-emerald-500/10 px-4 text-sm font-semibold text-emerald-100 transition hover:bg-emerald-500/15 disabled:cursor-not-allowed disabled:opacity-50"
-                  >
-                    <BadgeCheck className="h-4 w-4" />
-                    Confirm Received
-                  </button>
-
-                  <button
-                    type="button"
-                    onClick={() => void handleConfirmation("not_received")}
-                    disabled={!canEmployeeConfirmPayment}
-                    className="inline-flex h-11 items-center justify-center gap-2 rounded-2xl border border-amber-400/20 bg-amber-500/10 px-4 text-sm font-semibold text-amber-100 transition hover:bg-amber-500/15 disabled:cursor-not-allowed disabled:opacity-50"
-                  >
-                    <XCircle className="h-4 w-4" />
-                    Not Received
-                  </button>
-
-                  <button
-                    type="button"
-                    onClick={() => void handleConfirmation("disputed")}
-                    disabled={!canEmployeeConfirmPayment}
-                    className="inline-flex h-11 items-center justify-center gap-2 rounded-2xl border border-rose-400/20 bg-rose-500/10 px-4 text-sm font-semibold text-rose-100 transition hover:bg-rose-500/15 disabled:cursor-not-allowed disabled:opacity-50"
-                  >
-                    <XCircle className="h-4 w-4" />
-                    Dispute Payment
-                  </button>
-                </div>
-              </div>
-            </SectionCard>
-          </div>
-
-          <aside className="sticky top-6 grid gap-6 self-start">
-            <section className="overflow-hidden rounded-[30px] border border-white/10 bg-white/[0.045] backdrop-blur-xl">
-              <div className="border-b border-white/10 px-5 py-4">
-                <div className="text-sm font-semibold uppercase tracking-[0.18em] text-slate-400">
-                  Workflow Status
-                </div>
-                <p className="mt-1 text-xs leading-5 text-slate-500">
-                  Request, employee form, admin form, review, payroll, payment, and confirmation
-                  state.
-                </p>
-              </div>
-
-              <div className="grid gap-4 p-5">
-                <ValueBlock
-                  label="Request Status"
-                  value={<StatusBadge value={request.status} />}
-                  detail={`Updated: ${formatDateTime(request.updated_at)}`}
+              <AixiaReviewGrid variant="cards">
+                <AixiaValueBlock
+                  label="Current Confirmation"
+                  value={<AixiaStatusBadge value={request.recipient_confirmation_status} />}
+                  detail={`Payment sent: ${formatDateTime(request.payment_sent_at)}`}
                 />
+              </AixiaReviewGrid>
 
-                <ValueBlock
-                  label="Review Status"
-                  value={<StatusBadge value={request.review_status} />}
-                  detail={`Reviewed: ${formatDateTime(request.reviewed_at)}`}
-                />
-
-                <ValueBlock
-                  label="Employee Signed Form"
-                  value={<StatusBadge value={request.signed_form_status} />}
-                  detail={
-                    employeeSignedFormExists
-                      ? `Uploaded: ${formatDateTime(request.signed_form_uploaded_at)}`
-                      : "Employee signed form missing"
-                  }
-                />
-
-                <ValueBlock
-                  label="Admin Signed Form"
-                  value={<StatusBadge value={request.admin_signed_form_status} />}
-                  detail={
-                    adminSignedFormExists
-                      ? `Uploaded: ${formatDateTime(request.admin_signed_form_uploaded_at)}`
-                      : "Waiting for Finance/Admin signature"
-                  }
-                />
-
-                <ValueBlock
-                  label="Documentation"
-                  value={<StatusBadge value={request.documentation_status} />}
-                  detail={
-                    request.signed_form_storage_path ||
-                    request.signed_form_external_url ||
-                    "No form attached"
-                  }
-                />
-
-                <ValueBlock
-                  label="Funding"
-                  value={<StatusBadge value={request.funding_status || "not_allocated"} />}
-                  detail="Funding Pool status is controlled by Finance/Admin."
-                />
-
-                <ValueBlock
-                  label="Payment"
-                  value={
-                    <StatusBadge
-                      value={
-                        request.payment_status ||
-                        request.payment?.status ||
-                        request.paycheck?.payment_status ||
-                        "unpaid"
-                      }
-                    />
-                  }
-                  detail={request.payment?.payment_number || "No payment recorded yet"}
-                />
-
-                <ValueBlock
-                  label="Confirmation"
-                  value={<StatusBadge value={request.recipient_confirmation_status} />}
-                  detail={
-                    request.confirmation_notes ||
-                    "Waiting for employee confirmation after payment sent"
-                  }
-                />
-              </div>
-            </section>
-
-            <section className="overflow-hidden rounded-[30px] border border-white/10 bg-white/[0.045] backdrop-blur-xl">
-              <div className="border-b border-white/10 px-5 py-4">
-                <div className="text-sm font-semibold uppercase tracking-[0.18em] text-slate-400">
-                  Timeline
-                </div>
-              </div>
-
-              <div className="grid gap-3 p-5">
-                <ValueBlock
-                  label="Created"
-                  value={formatDateTime(request.created_at)}
-                  detail={request.request_number || request.reference_number || "Draft request"}
-                />
-                <ValueBlock
-                  label="Submitted"
-                  value={formatDateTime(request.submitted_at)}
-                  detail="Employee submitted signed form for review."
-                />
-                <ValueBlock
-                  label="Employee Form Uploaded"
-                  value={formatDateTime(request.signed_form_uploaded_at)}
-                  detail="Employee signed form was uploaded or linked."
-                />
-                <ValueBlock
-                  label="Admin Form Uploaded"
-                  value={formatDateTime(request.admin_signed_form_uploaded_at)}
-                  detail="Finance/Admin signed form was uploaded or linked."
-                />
-                <ValueBlock
-                  label="Approved"
-                  value={formatDateTime(request.approved_at)}
-                  detail="Finance approved for payroll."
-                />
-                <ValueBlock
-                  label="Payment Sent"
-                  value={formatDateTime(request.payment_sent_at)}
-                  detail={request.payment?.payment_number || "No payment number yet."}
-                />
-                <ValueBlock
-                  label="Payment Confirmed"
-                  value={formatDateTime(request.payment_confirmed_at)}
-                  detail={request.confirmation_notes || "No confirmation notes yet."}
-                />
-              </div>
-            </section>
-
-            <section className="overflow-hidden rounded-[30px] border border-white/10 bg-white/[0.045] backdrop-blur-xl">
-              <div className="border-b border-white/10 px-5 py-4">
-                <div className="text-sm font-semibold uppercase tracking-[0.18em] text-slate-400">
-                  Attached Documents
-                </div>
-                <p className="mt-1 text-xs leading-5 text-slate-500">
-                  Paycheck request files linked through Finance attachments.
-                </p>
-              </div>
-
-              {attachments.length === 0 ? (
-                <div className="p-5 text-sm text-slate-500">No attachments found.</div>
-              ) : (
-                <div className="max-h-[430px] overflow-y-auto p-5">
-                  <div className="grid gap-3">
-                    {attachments.map((attachment) => (
-                      <div
-                        key={attachment.id}
-                        className="rounded-[24px] border border-white/10 bg-black/20 p-4"
-                      >
-                        <div className="min-w-0">
-                          <div className="truncate text-sm font-semibold text-white">
-                            {attachment.fileUpload?.file_name || "File"}
-                          </div>
-                          <div className="mt-1 text-xs text-slate-500">
-                            {attachment.fileUpload?.mime_type || "Unknown type"} •{" "}
-                            {formatDateTime(attachment.created_at)}
-                          </div>
-                          {attachment.metadata?.document_role ? (
-                            <div className="mt-1 text-xs text-cyan-200">
-                              {formatLabel(attachment.metadata.document_role)}
-                            </div>
-                          ) : null}
-                        </div>
-
-                        {attachment.signedUrl ? (
-                          <a
-                            href={attachment.signedUrl}
-                            target="_blank"
-                            rel="noreferrer"
-                            className="mt-3 inline-flex h-9 items-center justify-center gap-2 rounded-full border border-cyan-400/20 bg-cyan-500/10 px-4 text-xs font-semibold uppercase tracking-[0.14em] text-cyan-100 transition hover:bg-cyan-500/15"
-                          >
-                            <Download className="h-3.5 w-3.5" />
-                            Open
-                          </a>
-                        ) : null}
-                      </div>
-                    ))}
-                  </div>
-                </div>
-              )}
-            </section>
-
-            <section className="overflow-hidden rounded-[30px] border border-white/10 bg-white/[0.045] backdrop-blur-xl">
-              <div className="border-b border-white/10 px-5 py-4">
-                <div className="text-sm font-semibold uppercase tracking-[0.18em] text-slate-400">
-                  Quick Links
-                </div>
-              </div>
-
-              <div className="grid gap-3 p-5">
-                <button
+              <div className="aixia-action-stack">
+                <AixiaButton
                   type="button"
+                  variant="primary"
+                  onClick={() => void handleConfirmation("received_confirmed")}
+                  disabled={!canEmployeeConfirmPayment}
+                >
+                  <BadgeCheck className="h-4 w-4" />
+                  Confirm Received
+                </AixiaButton>
+                <AixiaButton
+                  type="button"
+                  variant="secondary"
+                  onClick={() => void handleConfirmation("not_received")}
+                  disabled={!canEmployeeConfirmPayment}
+                >
+                  <XCircle className="h-4 w-4" />
+                  Not Received
+                </AixiaButton>
+                <AixiaButton
+                  type="button"
+                  variant="danger"
+                  onClick={() => void handleConfirmation("disputed")}
+                  disabled={!canEmployeeConfirmPayment}
+                >
+                  <XCircle className="h-4 w-4" />
+                  Dispute Payment
+                </AixiaButton>
+              </div>
+            </AixiaSection>
+          </>
+        }
+        side={
+          <>
+            <AixiaSection
+              title="Workflow Status"
+              description="Request, employee form, admin form, review, payroll, payment, and confirmation state."
+              icon={FileSignature}
+              smartScroll
+              visibleCards={8}
+              itemCount={8}
+            >
+              <AixiaReviewGrid variant="cards">
+                <AixiaValueBlock label="Request Status" value={<AixiaStatusBadge value={request.status} />} detail={`Updated: ${formatDateTime(request.updated_at)}`} />
+                <AixiaValueBlock label="Review Status" value={<AixiaStatusBadge value={request.review_status} />} detail={`Reviewed: ${formatDateTime(request.reviewed_at)}`} />
+                <AixiaValueBlock label="Employee Signed Form" value={<AixiaStatusBadge value={request.signed_form_status} />} detail={employeeSignedFormExists ? `Uploaded: ${formatDateTime(request.signed_form_uploaded_at)}` : "Employee signed form missing"} />
+                <AixiaValueBlock label="Admin Signed Form" value={<AixiaStatusBadge value={request.admin_signed_form_status} />} detail={adminSignedFormExists ? `Uploaded: ${formatDateTime(request.admin_signed_form_uploaded_at)}` : "Waiting for Finance/Admin signature"} />
+                <AixiaValueBlock label="Documentation" value={<AixiaStatusBadge value={request.documentation_status} />} detail={request.signed_form_storage_path || request.signed_form_external_url || "No form attached"} />
+                <AixiaValueBlock label="Funding" value={<AixiaStatusBadge value={request.funding_status || "not_allocated"} />} detail="Funding Pool status is controlled by Finance/Admin." />
+                <AixiaValueBlock label="Payment" value={<AixiaStatusBadge value={request.payment_status || request.payment?.status || request.paycheck?.payment_status || "unpaid"} />} detail={request.payment?.payment_number || "No payment recorded yet"} />
+                <AixiaValueBlock label="Confirmation" value={<AixiaStatusBadge value={request.recipient_confirmation_status} />} detail={request.confirmation_notes || "Waiting for employee confirmation after payment sent"} />
+              </AixiaReviewGrid>
+            </AixiaSection>
+
+            <AixiaSection title="Timeline" description="Important request timestamps." icon={FileCheck2} smartScroll visibleCards={8} itemCount={7}>
+              <AixiaReviewGrid variant="cards">
+                <AixiaValueBlock label="Created" value={formatDateTime(request.created_at)} detail={request.request_number || request.reference_number || "Draft request"} />
+                <AixiaValueBlock label="Submitted" value={formatDateTime(request.submitted_at)} detail="Employee submitted signed form for review." />
+                <AixiaValueBlock label="Employee Form Uploaded" value={formatDateTime(request.signed_form_uploaded_at)} detail="Employee signed form was uploaded or linked." />
+                <AixiaValueBlock label="Admin Form Uploaded" value={formatDateTime(request.admin_signed_form_uploaded_at)} detail="Finance/Admin signed form was uploaded or linked." />
+                <AixiaValueBlock label="Approved" value={formatDateTime(request.approved_at)} detail="Finance approved for payroll." />
+                <AixiaValueBlock label="Payment Sent" value={formatDateTime(request.payment_sent_at)} detail={request.payment?.payment_number || "No payment number yet."} />
+                <AixiaValueBlock label="Payment Confirmed" value={formatDateTime(request.payment_confirmed_at)} detail={request.confirmation_notes || "No confirmation notes yet."} />
+              </AixiaReviewGrid>
+            </AixiaSection>
+
+            <AixiaSection title="Attached Documents" description="Paycheck request files linked through Finance attachments." icon={Download} smartScroll visibleCards={8} itemCount={attachments.length}>
+              {attachments.length === 0 ? (
+                <AixiaEmptyState icon={Download} title="No attachments found" description="No paycheck request files are attached yet." />
+              ) : (
+                <AixiaReviewGrid variant="cards">
+                  {attachments.map((attachment) => (
+                    <AixiaValueBlock
+                      key={attachment.id}
+                      label={attachment.fileUpload?.file_name || "File"}
+                      value={attachment.fileUpload?.mime_type || "Unknown type"}
+                      detail={formatDateTime(attachment.created_at)}
+                    />
+                  ))}
+                </AixiaReviewGrid>
+              )}
+              {attachments.length > 0 ? (
+                <div className="aixia-action-stack">
+                  {attachments
+                    .filter((attachment) => attachment.signedUrl)
+                    .map((attachment) => (
+                      <AixiaButton
+                        key={attachment.id}
+                        type="button"
+                        variant="secondary"
+                        onClick={() => openExternalUrl(attachment.signedUrl)}
+                      >
+                        <Download className="h-4 w-4" />
+                        Open {attachment.fileUpload?.file_name || "File"}
+                      </AixiaButton>
+                    ))}
+                </div>
+              ) : null}
+            </AixiaSection>
+
+            <AixiaSection title="Quick Links" description="Requester-side navigation and context." icon={ArrowRight}>
+              <div className="aixia-action-stack">
+                <AixiaButton
+                  type="button"
+                  variant="secondary"
                   onClick={() => navigate("/finance/transactions/paycheck-requests")}
-                  className="inline-flex h-11 items-center justify-center gap-2 rounded-2xl border border-white/10 bg-white/[0.05] px-4 text-sm font-semibold text-slate-300 transition hover:bg-white/[0.08] hover:text-white"
                 >
                   <ArrowRight className="h-4 w-4 rotate-180" />
                   Paycheck Requests
-                </button>
-
+                </AixiaButton>
                 {request.linked_payment_distribution_id ? (
-                  <button
+                  <AixiaButton
                     type="button"
+                    variant="primary"
                     onClick={() =>
-                      navigate(
-                        `/finance/transactions/payroll/${request.linked_payment_distribution_id}`
-                      )
+                      navigate(`/finance/transactions/payroll/${request.linked_payment_distribution_id}`)
                     }
-                    className="inline-flex h-11 items-center justify-center gap-2 rounded-2xl border border-emerald-400/20 bg-emerald-500/10 px-4 text-sm font-semibold text-emerald-100 transition hover:bg-emerald-500/15"
                   >
                     <WalletCards className="h-4 w-4" />
                     Linked Distribution
-                  </button>
+                  </AixiaButton>
                 ) : null}
-
-                {isEmployeeOwner ? (
-                  <div className="rounded-[24px] border border-cyan-400/20 bg-cyan-500/10 p-4 text-xs leading-5 text-cyan-100">
-                    You are the requester/employee owner for this paycheck request.
-                  </div>
-                ) : (
-                  <div className="rounded-[24px] border border-amber-400/20 bg-amber-500/10 p-4 text-xs leading-5 text-amber-100">
-                    This page is requester-focused. Employee actions are disabled because you are
-                    not the requester owner.
-                  </div>
-                )}
               </div>
-            </section>
-          </aside>
-        </div>
-      </div>
-    </div>
+              <AixiaAlert tone="info">
+                {isEmployeeOwner
+                  ? "You are the requester/employee owner for this paycheck request."
+                  : "This page is requester-focused. Employee actions are disabled because you are not the requester owner."}
+              </AixiaAlert>
+            </AixiaSection>
+          </>
+        }
+      />
+    </AixiaPage>
   );
 }

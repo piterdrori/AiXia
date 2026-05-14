@@ -907,7 +907,14 @@ export default function FinanceNewQuotationPage() {
   ]);
 
   if (isLoading) {
-    return <AixiaLoadingState label="Loading quotation sources..." />;
+    return (
+      <AixiaPage>
+        <AixiaLoadingState
+          title="Loading quotation sources"
+          description="Loading quotation master data, clients, companies, terms, bank accounts, and line-item references."
+        />
+      </AixiaPage>
+    );
   }
 
   const counterpartyName =

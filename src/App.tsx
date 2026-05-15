@@ -1449,6 +1449,17 @@ function AppRoutes() {
   }
 />
 
+      <Route
+  path="/finance/transactions/expenses-payments-made/process-book-template"
+  element={
+    <ProtectedRoute>
+      <DashboardLayout>
+        <FinanceExpenseProcessBookTemplatePage />
+      </DashboardLayout>
+    </ProtectedRoute>
+  }
+/>
+
 <Route
   path="/finance/transactions/expenses-payments-made/new"
   element={

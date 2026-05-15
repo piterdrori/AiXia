@@ -1945,6 +1945,7 @@ export default function FinanceCustomerPoDetailPage() {
         balance="main"
         bottomSpan="auto"
         sideRebalance="last-to-bottom"
+        mainTopCount={1}
         main={
           <>
             <AixiaDetailSection

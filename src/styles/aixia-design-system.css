@@ -3713,15 +3713,34 @@
 }
 
 .aixia-action-stack {
-  display: grid;
+  display: flex;
   min-width: 0;
-  gap: 0.75rem;
+  max-width: 100%;
+  flex-direction: row;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 0.65rem;
 }
 
 .aixia-action-stack > .aixia-btn-primary,
 .aixia-action-stack > .aixia-btn-secondary,
 .aixia-action-stack > .aixia-btn-danger {
-  width: 100%;
+  width: auto;
+  flex: 0 0 auto;
+  white-space: nowrap;
+}
+
+@media (max-width: 639px) {
+  .aixia-action-stack {
+    justify-content: flex-start;
+  }
+
+  .aixia-action-stack > .aixia-btn-primary,
+  .aixia-action-stack > .aixia-btn-secondary,
+  .aixia-action-stack > .aixia-btn-danger {
+    max-width: 100%;
+  }
 }
 
 .aixia-alert-text {

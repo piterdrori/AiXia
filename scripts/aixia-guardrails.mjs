@@ -1464,6 +1464,72 @@ function inspectRegistryHeroActionPlacement(filePath, text) {
   }
 }
 
+function inspectFinanceDetailSmartLayoutConfiguration(filePath, text) {
+  const relativePath = getRelativePath(filePath);
+  const isFinanceDetailPage =
+    relativePath.startsWith("src/app/finance/") &&
+    /\[id\]\/page\.tsx$/.test(relativePath);
+
+  if (!isFinanceDetailPage) return;
+  if (!/<AixiaSmartLayout\b/.test(text)) return;
+
+  const usesSideContent = /\bside=\{/.test(text);
+  const usesMainContent = /\bmain=\{/.test(text);
+
+  if (!usesMainContent || !usesSideContent) return;
+
+  const hasNeverBottomSpan = /\bbottomSpan=["']never["']/.test(text);
+  const hasLastToBottomRebalance =
+    /\bsideRebalance=["']last-to-bottom["']/.test(text);
+
+  if (hasNeverBottomSpan && hasLastToBottomRebalance) {
+    addError(
+      filePath,
+      'Finance detail pages must not combine bottomSpan="never" with sideRebalance="last-to-bottom". This blocks lower main cards from expanding full width while trying to rebalance side content. Use bottomSpan="auto" with sideRebalance="last-to-bottom", or use bottomSpan="never" only when no lower main sections should expand.',
+      "AiXia detail SmartLayout bottom-span rule"
+    );
+  }
+
+  const likelyHasMultipleMainSections =
+    /main=\{\s*<>\s*[\s\S]*?<Aixia(?:Detail)?Section\b[\s\S]*?<Aixia(?:Detail)?Section\b[\s\S]*?<\/>/.test(
+      text
+    );
+
+  if (hasNeverBottomSpan && likelyHasMultipleMainSections) {
+    addError(
+      filePath,
+      'Finance detail pages with multiple main sections must not use bottomSpan="never" unless explicitly justified. Lower main sections like Line Items, Linked Documents, Document Details, or totals should be allowed to expand full width with bottomSpan="auto".',
+      "AiXia detail SmartLayout bottom-span rule"
+    );
+  }
+
+  const hasLineItemsInMain =
+    /main=\{[\s\S]{0,12000}(Line Items|Line items|Line Item|Customer PO Line Items|Customer PO line items)[\s\S]{0,12000}\}/i.test(
+      text
+    );
+
+  if (hasNeverBottomSpan && hasLineItemsInMain) {
+    addError(
+      filePath,
+      'Finance detail pages with Line Items in the main column must not use bottomSpan="never". Line-item/detail sections should expand into the full-width bottom span when side content exists. Use bottomSpan="auto".',
+      "AiXia detail SmartLayout line-items expansion rule"
+    );
+  }
+
+  const hasLinkedDocumentsInMain =
+    /main=\{[\s\S]{0,14000}(Linked Documents|Source Documents|Related Documents)[\s\S]{0,14000}\}/i.test(
+      text
+    );
+
+  if (hasNeverBottomSpan && hasLinkedDocumentsInMain) {
+    addError(
+      filePath,
+      'Finance detail pages with Linked Documents/Source Documents in the main column must not use bottomSpan="never" when side content exists. Let lower document sections expand full width with bottomSpan="auto".',
+      "AiXia detail SmartLayout linked-documents expansion rule"
+    );
+  }
+}
+
 function inspectTransactionsHubWorkflowLayout(filePath, text) {
   const relativePath = getRelativePath(filePath);
 
@@ -2273,6 +2339,7 @@ function inspectFinancePage(filePath) {
   inspectBannedFinanceUiImports(filePath, text);
   inspectRegistryStandards(filePath, text);
   inspectRegistryHeroActionPlacement(filePath, text);
+  inspectFinanceDetailSmartLayoutConfiguration(filePath, text);
   inspectTransactionsHubWorkflowLayout(filePath, text);
   inspectButtonMeaning(filePath, text);
   inspectHorizontalActionButtonOrientation(filePath, text);

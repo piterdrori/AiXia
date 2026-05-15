@@ -2861,13 +2861,12 @@ export default function FinanceProformaInvoiceDetailPage() {
     </>
   );
 
-  const sideContent = (
-    <>
-      <AixiaSection
-        title="Lifecycle Actions"
-        description="Print, issue, confirm, convert, archive, or delete this proforma invoice."
-        icon={CheckCircle}
-      >
+  const lifecycleActionsContent = (
+    <AixiaSection
+      title="Lifecycle Actions"
+      description="Print, issue, confirm, convert, archive, or delete this proforma invoice."
+      icon={CheckCircle}
+    >
         <div className="aixia-action-stack">
           <AixiaButton type="button" variant="secondary" onClick={handlePrint}>
             <Printer className="h-4 w-4" />
@@ -2922,8 +2921,11 @@ export default function FinanceProformaInvoiceDetailPage() {
             Open Archive
           </AixiaButton>
         </div>
-      </AixiaSection>
+    </AixiaSection>
+  );
 
+  const sideContent = (
+    <>
       <AixiaSection
         title="Financial Summary"
         description="Live totals and document currency view."
@@ -3074,8 +3076,10 @@ export default function FinanceProformaInvoiceDetailPage() {
           sidebar="normal"
           balance="main"
           matchColumns={false}
-          bottomSpan="never"
+          bottomSpan="auto"
           sideRebalance="off"
+          mainTopCount={2}
+          top={lifecycleActionsContent}
           main={mainContent}
           side={sideContent}
         />

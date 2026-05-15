@@ -128,17 +128,22 @@ type QuotationRecord = {
 type QuotationLineItemRow = {
   id: string;
   quotation_id: string;
+  item_id?: string | null;
   item_name?: string | null;
   description?: string | null;
   quantity: number | string | null;
   unit_price: number | string | null;
   discount_rate?: number | string | null;
+  tax_code_id?: string | null;
   tax_rate?: number | string | null;
+  unit_of_measure_id?: string | null;
+  revenue_category_id?: string | null;
   line_subtotal?: number | string | null;
   line_discount_amount?: number | string | null;
   line_tax_amount?: number | string | null;
   line_total: number | string | null;
   sort_order: number | null;
+  notes?: string | null;
 };
 
 type ClientPORow = {
@@ -174,6 +179,7 @@ type EditableLineItem = {
   tax_rate: string;
   unit_of_measure_id: string;
   revenue_category_id: string;
+  notes: string;
 };
 
 type ClientOption = {
@@ -318,6 +324,7 @@ function createEditableDraftLineItem(): EditableLineItem {
     tax_rate: "0",
     unit_of_measure_id: "",
     revenue_category_id: "",
+    notes: "",
   };
 }
 
@@ -634,17 +641,22 @@ export default function FinanceQuotationDetailPage() {
               [
                 "id",
                 "quotation_id",
+                "item_id",
                 "item_name",
                 "description",
                 "quantity",
                 "unit_price",
                 "discount_rate",
+                "tax_code_id",
                 "tax_rate",
+                "unit_of_measure_id",
+                "revenue_category_id",
                 "line_subtotal",
                 "line_discount_amount",
                 "line_tax_amount",
                 "line_total",
                 "sort_order",
+                "notes",
               ].join(", "),
             )
             .eq("quotation_id", id)
@@ -728,17 +740,18 @@ export default function FinanceQuotationDetailPage() {
           setLineItemsDraft(
             typedLineItems.map((row) => ({
               id: row.id,
-              item_id: "",
+              item_id: row.item_id || "",
               item_name: row.item_name || "",
               description: row.description || row.item_name || "",
               quantity: String(row.quantity ?? 0),
               unit_price: String(row.unit_price ?? 0),
               discount: "0",
               discount_rate: String(row.discount_rate ?? 0),
-              tax_code_id: "",
+              tax_code_id: row.tax_code_id || "",
               tax_rate: String(row.tax_rate ?? 0),
-              unit_of_measure_id: "",
-              revenue_category_id: "",
+              unit_of_measure_id: row.unit_of_measure_id || "",
+              revenue_category_id: row.revenue_category_id || "",
+              notes: row.notes || "",
             })),
           );
         }
@@ -1461,38 +1474,43 @@ export default function FinanceQuotationDetailPage() {
     setIsSavingDraft(true);
     setError("");
 
+    const shouldPersistLines = editingLines;
+
     const cleanedLineItems = lineItemsDraft.map((row) => ({
       ...row,
       description: row.description.trim(),
       item_name: row.item_name.trim(),
+      notes: row.notes.trim(),
     }));
 
-    const hasAtLeastOneValidLine = cleanedLineItems.some(
-      (row) =>
-        (row.description || row.item_name) &&
-        toNumber(row.quantity) > 0 &&
-        toNumber(row.unit_price) >= 0,
-    );
-
-    if (!hasAtLeastOneValidLine) {
-      setError("Quotation must include at least one valid line item.");
-      setIsSavingDraft(false);
-      return;
-    }
-
-    const hasInvalidLine = cleanedLineItems.some(
-      (row) =>
-        !(row.description || row.item_name) ||
-        toNumber(row.quantity) <= 0 ||
-        toNumber(row.unit_price) < 0,
-    );
-
-    if (hasInvalidLine) {
-      setError(
-        "Every quotation line must have a description or item name, quantity greater than 0, and unit price 0 or higher.",
+    if (shouldPersistLines) {
+      const hasAtLeastOneValidLine = cleanedLineItems.some(
+        (row) =>
+          (row.description || row.item_name) &&
+          toNumber(row.quantity) > 0 &&
+          toNumber(row.unit_price) >= 0,
       );
-      setIsSavingDraft(false);
-      return;
+
+      if (!hasAtLeastOneValidLine) {
+        setError("Quotation must include at least one valid line item.");
+        setIsSavingDraft(false);
+        return;
+      }
+
+      const hasInvalidLine = cleanedLineItems.some(
+        (row) =>
+          !(row.description || row.item_name) ||
+          toNumber(row.quantity) <= 0 ||
+          toNumber(row.unit_price) < 0,
+      );
+
+      if (hasInvalidLine) {
+        setError(
+          "Every quotation line must have a description or item name, quantity greater than 0, and unit price 0 or higher.",
+        );
+        setIsSavingDraft(false);
+        return;
+      }
     }
 
     try {
@@ -1612,10 +1630,14 @@ export default function FinanceQuotationDetailPage() {
             ]) ||
             quotation.company_address_snapshot ||
             null,
-          subtotal: draftTotals.subtotal,
-          discount_amount: draftTotals.discount,
-          tax_amount: draftTotals.tax,
-          total_amount: draftTotals.total,
+          ...(shouldPersistLines
+            ? {
+                subtotal: draftTotals.subtotal,
+                discount_amount: draftTotals.discount,
+                tax_amount: draftTotals.tax,
+                total_amount: draftTotals.total,
+              }
+            : {}),
           updated_by: user.id,
         })
         .eq("id", id)
@@ -1623,73 +1645,80 @@ export default function FinanceQuotationDetailPage() {
 
       if (quotationError) throw quotationError;
 
-      const existingIds = lineItems.map((entry) => entry.id);
-      const draftIds = cleanedLineItems
-        .filter((entry) => !entry.id.startsWith("new_"))
-        .map((entry) => entry.id);
+      if (shouldPersistLines) {
+        const existingIds = lineItems.map((entry) => entry.id);
+        const draftIds = cleanedLineItems
+          .filter((entry) => !entry.id.startsWith("new_"))
+          .map((entry) => entry.id);
 
-      const idsToDelete = existingIds.filter(
-        (entryId) => !draftIds.includes(entryId),
-      );
+        const idsToDelete = existingIds.filter(
+          (entryId) => !draftIds.includes(entryId),
+        );
 
-      if (idsToDelete.length > 0) {
-        const { error: deleteError } = await supabase
-          .from("finance_quotation_line_items")
-          .delete()
-          .in("id", idsToDelete);
-
-        if (deleteError) throw deleteError;
-      }
-
-      for (let index = 0; index < cleanedLineItems.length; index += 1) {
-        const row = cleanedLineItems[index];
-        const qty = toNumber(row.quantity);
-        const unitPrice = toNumber(row.unit_price);
-        const base = qty * unitPrice;
-        const lineDiscount =
-          toNumber(row.discount) > 0
-            ? toNumber(row.discount)
-            : base * (toNumber(row.discount_rate) / 100);
-        const taxableBase = Math.max(base - lineDiscount, 0);
-
-        const ratePercent =
-          toNumber(row.tax_rate) ||
-          toNumber(
-            taxCodes.find((code) => code.id === row.tax_code_id)?.rate_percent,
-          );
-
-        const lineTax = taxableBase * (ratePercent / 100);
-        const lineTotal = taxableBase + lineTax;
-
-        const payload = {
-          quotation_id: id,
-          item_name: row.item_name || row.description.trim() || null,
-          description: row.description.trim() || null,
-          quantity: qty,
-          unit_price: unitPrice,
-          discount_rate: toNumber(row.discount_rate),
-          tax_rate: ratePercent,
-          line_subtotal: base,
-          line_discount_amount: lineDiscount,
-          line_tax_amount: lineTax,
-          line_total: lineTotal,
-          sort_order: index + 1,
-        };
-
-        if (row.id.startsWith("new_")) {
-          const { error: insertError } = await supabase
+        if (idsToDelete.length > 0) {
+          const { error: deleteError } = await supabase
             .from("finance_quotation_line_items")
-            .insert(payload);
+            .delete()
+            .in("id", idsToDelete);
 
-          if (insertError) throw insertError;
-        } else {
-          const { error: updateError } = await supabase
-            .from("finance_quotation_line_items")
-            .update(payload)
-            .eq("id", row.id)
-            .eq("quotation_id", id);
+          if (deleteError) throw deleteError;
+        }
 
-          if (updateError) throw updateError;
+        for (let index = 0; index < cleanedLineItems.length; index += 1) {
+          const row = cleanedLineItems[index];
+          const qty = toNumber(row.quantity);
+          const unitPrice = toNumber(row.unit_price);
+          const base = qty * unitPrice;
+          const lineDiscount =
+            toNumber(row.discount) > 0
+              ? toNumber(row.discount)
+              : base * (toNumber(row.discount_rate) / 100);
+          const taxableBase = Math.max(base - lineDiscount, 0);
+
+          const ratePercent =
+            toNumber(row.tax_rate) ||
+            toNumber(
+              taxCodes.find((code) => code.id === row.tax_code_id)?.rate_percent,
+            );
+
+          const lineTax = taxableBase * (ratePercent / 100);
+          const lineTotal = taxableBase + lineTax;
+
+          const payload = {
+            quotation_id: id,
+            item_id: row.item_id || null,
+            item_name: row.item_name || row.description.trim() || null,
+            description: row.description.trim() || null,
+            quantity: qty,
+            unit_price: unitPrice,
+            discount_rate: toNumber(row.discount_rate),
+            tax_code_id: row.tax_code_id || null,
+            tax_rate: ratePercent,
+            unit_of_measure_id: row.unit_of_measure_id || null,
+            revenue_category_id: row.revenue_category_id || null,
+            line_subtotal: base,
+            line_discount_amount: lineDiscount,
+            line_tax_amount: lineTax,
+            line_total: lineTotal,
+            sort_order: index + 1,
+            notes: row.notes || null,
+          };
+
+          if (row.id.startsWith("new_")) {
+            const { error: insertError } = await supabase
+              .from("finance_quotation_line_items")
+              .insert(payload);
+
+            if (insertError) throw insertError;
+          } else {
+            const { error: updateError } = await supabase
+              .from("finance_quotation_line_items")
+              .update(payload)
+              .eq("id", row.id)
+              .eq("quotation_id", id);
+
+            if (updateError) throw updateError;
+          }
         }
       }
 
@@ -1715,6 +1744,7 @@ export default function FinanceQuotationDetailPage() {
     draftTotals.discount,
     draftTotals.subtotal,
     draftTotals.tax,
+    editingLines,
     draftTotals.total,
     id,
     issueDateDraft,
@@ -2456,10 +2486,18 @@ export default function FinanceQuotationDetailPage() {
 
                 <AixiaFormFullWidth>
                   <AixiaFieldLabel label="Notes" />
-                  <AixiaDisplayBlock
-                    label="Notes"
-                    value={quotation.notes || "—"}
-                  />
+                  {editingDocumentDetails ? (
+                    <AixiaTextareaField
+                      value={notesDraft}
+                      onChange={(event) => setNotesDraft(event.target.value)}
+                      rows={4}
+                    />
+                  ) : (
+                    <AixiaDisplayBlock
+                      label="Notes"
+                      value={quotation.notes || "—"}
+                    />
+                  )}
                 </AixiaFormFullWidth>
 
                 <AixiaFormFullWidth>
@@ -2813,6 +2851,33 @@ export default function FinanceQuotationDetailPage() {
                               <AixiaDisplayBlock
                                 label="Revenue Category"
                                 value="—"
+                              />
+                            )}
+                          </AixiaFormField>
+
+                          <AixiaFormField>
+                            <AixiaFieldLabel label="Notes" />
+                            {editable ? (
+                              <AixiaTextareaField
+                                value={editableRow.notes}
+                                onChange={(event) =>
+                                  setLineItemsDraft((current) =>
+                                    current.map((entry) =>
+                                      entry.id === editableRow.id
+                                        ? {
+                                            ...entry,
+                                            notes: event.target.value,
+                                          }
+                                        : entry,
+                                    ),
+                                  )
+                                }
+                                rows={3}
+                              />
+                            ) : (
+                              <AixiaDisplayBlock
+                                label="Notes"
+                                value={readOnlyRow.notes || "—"}
                               />
                             )}
                           </AixiaFormField>

@@ -8,6 +8,7 @@ import {
   AixiaHero,
   AixiaPage,
   AixiaProcessBook,
+  AixiaProcessInfo,
   type AixiaProcessStageItem,
   type AixiaProcessSummaryItem,
 } from "@/components/aixia";
@@ -15,6 +16,8 @@ import {
 type PreviewRole = "employee" | "admin";
 
 type ProcessKey = "application" | "review" | "funding" | "payment";
+
+type HistoryTab = "active" | "archived" | "deleted";
 
 type ProcessPermissionKey =
   | "canApplyExpense"
@@ -26,6 +29,8 @@ type ProcessPermissionKey =
 type ProcessTemplate = {
   key: ProcessKey;
   label: string;
+  infoTitle: string;
+  infoText: string;
   eyebrow: string;
   title: string;
   subtitle: string;
@@ -41,12 +46,16 @@ type ProcessTemplate = {
 };
 
 type ExpenseHistoryRow = {
+  id: string;
+  date: string;
   number: string;
   owner: string;
   type: string;
   amount: string;
-  status: string;
+  employeeStatus: string;
+  adminStatus: string;
   nextAction: string;
+  lifecycle: HistoryTab;
 };
 
 const PREVIEW_ROLE: PreviewRole = "admin";
@@ -72,6 +81,8 @@ const PROCESSES: ProcessTemplate[] = [
   {
     key: "application",
     label: "Apply Expense",
+    infoTitle: "Apply Expense",
+    infoText: "Create and submit a new expense request.",
     eyebrow: "Process 1",
     title: "Employee Expense Application",
     subtitle:
@@ -114,6 +125,8 @@ const PROCESSES: ProcessTemplate[] = [
   {
     key: "review",
     label: "Review Expenses",
+    infoTitle: "Review Expenses",
+    infoText: "Approve, reject, or request correction for submitted expenses.",
     eyebrow: "Process 2",
     title: "Admin Expense Review / Approval",
     subtitle:
@@ -150,6 +163,8 @@ const PROCESSES: ProcessTemplate[] = [
   {
     key: "funding",
     label: "Funding Pool",
+    infoTitle: "Funding Pool",
+    infoText: "Reserve company money before expense payments are made.",
     eyebrow: "Process 3",
     title: "Funding Pool / Money Allocation",
     subtitle: "The admin creates and confirms the money pool that will later be used to pay approved expenses.",
@@ -194,6 +209,8 @@ const PROCESSES: ProcessTemplate[] = [
   {
     key: "payment",
     label: "Execute Payments",
+    infoTitle: "Execute Payments",
+    infoText: "Use approved funds to pay approved expenses.",
     eyebrow: "Process 4",
     title: "Payment Execution",
     subtitle:
@@ -240,36 +257,100 @@ const PROCESSES: ProcessTemplate[] = [
 
 const EXPENSE_HISTORY_ROWS: ExpenseHistoryRow[] = [
   {
+    id: "1",
+    date: "May 15, 2026",
     number: "EXP-2026-001",
     owner: "Employee A",
     type: "Travel",
     amount: "$240.00",
-    status: "Submitted",
+    employeeStatus: "Submitted",
+    adminStatus: "Submitted",
     nextAction: "Admin review pending",
+    lifecycle: "active",
   },
   {
+    id: "2",
+    date: "May 14, 2026",
     number: "EXP-2026-002",
     owner: "Employee B",
     type: "Online Purchase",
     amount: "$89.50",
-    status: "Needs Correction",
+    employeeStatus: "Needs Correction",
+    adminStatus: "Needs Correction",
     nextAction: "Employee update required",
+    lifecycle: "active",
   },
   {
+    id: "3",
+    date: "May 13, 2026",
     number: "EXP-2026-003",
     owner: "Employee C",
     type: "Vendor Service",
     amount: "$1,420.00",
-    status: "Approved",
+    employeeStatus: "Approved",
+    adminStatus: "Waiting Funding",
     nextAction: "Waiting for funding pool",
+    lifecycle: "active",
   },
   {
+    id: "4",
+    date: "May 12, 2026",
     number: "EXP-2026-004",
     owner: "Employee D",
     type: "Reimbursement",
     amount: "$310.00",
-    status: "Paid",
+    employeeStatus: "Paid — Waiting Owner Confirmation",
+    adminStatus: "Paid — Waiting Owner Confirmation",
     nextAction: "Owner confirmation required",
+    lifecycle: "active",
+  },
+  {
+    id: "5",
+    date: "May 11, 2026",
+    number: "EXP-2026-005",
+    owner: "Employee E",
+    type: "Meals",
+    amount: "$56.00",
+    employeeStatus: "Confirmed",
+    adminStatus: "Confirmed",
+    nextAction: "Ready to archive",
+    lifecycle: "active",
+  },
+  {
+    id: "6",
+    date: "May 10, 2026",
+    number: "EXP-2026-006",
+    owner: "Employee F",
+    type: "Software",
+    amount: "$29.00",
+    employeeStatus: "Rejected",
+    adminStatus: "Rejected",
+    nextAction: "Can archive or delete",
+    lifecycle: "active",
+  },
+  {
+    id: "7",
+    date: "May 8, 2026",
+    number: "EXP-2026-007",
+    owner: "Employee G",
+    type: "Supplies",
+    amount: "$74.00",
+    employeeStatus: "Archived",
+    adminStatus: "Archived",
+    nextAction: "Restore if needed",
+    lifecycle: "archived",
+  },
+  {
+    id: "8",
+    date: "May 6, 2026",
+    number: "EXP-2026-008",
+    owner: "Employee H",
+    type: "Parking",
+    amount: "$18.00",
+    employeeStatus: "Deleted",
+    adminStatus: "Deleted",
+    nextAction: "Restore or delete permanently",
+    lifecycle: "deleted",
   },
 ];
 
@@ -285,6 +366,14 @@ function canViewProcess(process: ProcessTemplate) {
   }
 
   return process.adminVisible;
+}
+
+function canShowArchiveDelete(row: ExpenseHistoryRow) {
+  if (PREVIEW_ROLE === "employee") {
+    return row.employeeStatus === "Confirmed" || row.employeeStatus === "Rejected";
+  }
+
+  return row.adminStatus !== "Funded" && row.adminStatus !== "Payment Processing" && row.adminStatus !== "Paid — Waiting Owner Confirmation";
 }
 
 function PlaceholderStageContent({ title, description }: { title: string; description?: string }) {
@@ -314,26 +403,42 @@ function PlaceholderStageContent({ title, description }: { title: string; descri
 }
 
 function ExpenseHistoryModal({ onClose }: { onClose: () => void }) {
+  const [tab, setTab] = useState<HistoryTab>("active");
+  const [search, setSearch] = useState("");
+
+  const rows = EXPENSE_HISTORY_ROWS.filter((row) => {
+    const roleStatus = PREVIEW_ROLE === "admin" ? row.adminStatus : row.employeeStatus;
+    const searchText = `${row.date} ${row.number} ${row.owner} ${row.type} ${row.amount} ${roleStatus} ${row.nextAction}`.toLowerCase();
+
+    return row.lifecycle === tab && searchText.includes(search.toLowerCase().trim());
+  });
+
+  const title = PREVIEW_ROLE === "admin" ? "All Open Expense Requests" : "My Open Expenses";
+
   return (
     <div
-      className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 px-4 py-6 backdrop-blur-xl"
+      className="aixia-process-history-modal"
       role="dialog"
       aria-modal="true"
-      aria-label={PREVIEW_ROLE === "admin" ? "All expense status" : "My open expenses"}
+      aria-label={title}
+      onClick={onClose}
     >
-      <div className="max-h-[86vh] w-full max-w-[1180px] overflow-hidden rounded-[34px] border border-white/10 bg-[#070a12] shadow-2xl">
-        <div className="flex items-start justify-between gap-4 border-b border-white/10 bg-white/[0.045] px-6 py-5">
+      <div
+        className="aixia-process-history-modal__panel"
+        onClick={(event) => {
+          event.stopPropagation();
+        }}
+      >
+        <div className="aixia-process-history-modal__header">
           <div>
-            <p className="text-[11px] font-bold uppercase tracking-[0.22em] text-cyan-200/80">
+            <p className="aixia-process-history-modal__eyebrow">
               {PREVIEW_ROLE === "admin" ? "Admin Expense Status" : "Employee Expense Status"}
             </p>
-            <h2 className="mt-2 text-2xl font-bold text-white">
-              {PREVIEW_ROLE === "admin" ? "All Open Expense Requests" : "My Open Expenses"}
-            </h2>
-            <p className="mt-2 max-w-3xl text-sm leading-6 text-slate-400">
+            <h2 className="aixia-process-history-modal__title">{title}</h2>
+            <p className="aixia-process-history-modal__text">
               {PREVIEW_ROLE === "admin"
-                ? "Admin can review every active expense request, current workflow state, next required action, and confirmation status."
-                : "Employee can review only their own open expenses, current approval status, and confirmation actions."}
+                ? "Admin can review every active expense request, workflow status, next action, and confirmation status."
+                : "Employee can review only their own expenses, current status, and confirmation actions."}
             </p>
           </div>
           <AixiaButton type="button" variant="secondary" onClick={onClose}>
@@ -341,38 +446,111 @@ function ExpenseHistoryModal({ onClose }: { onClose: () => void }) {
           </AixiaButton>
         </div>
 
-        <div className="max-h-[62vh] overflow-auto p-5">
-          <div className="min-w-[980px] overflow-hidden rounded-[26px] border border-white/10">
-            <div className="grid grid-cols-[1.2fr_1fr_0.8fr_1fr_1.5fr_auto] border-b border-white/10 bg-black/30 px-5 py-3 text-[11px] font-bold uppercase tracking-[0.18em] text-slate-500">
-              <div>Expense</div>
-              <div>Type</div>
+        <div className="aixia-process-history-modal__tools">
+          <div className="aixia-process-history-modal__tabs">
+            {(["active", "archived", "deleted"] as HistoryTab[]).map((currentTab) => (
+              <button
+                key={currentTab}
+                type="button"
+                className="aixia-process-history-modal__tab"
+                data-active={tab === currentTab ? "true" : "false"}
+                onClick={() => setTab(currentTab)}
+              >
+                {currentTab === "active" ? "Active" : currentTab === "archived" ? "Archived" : "Deleted"}
+              </button>
+            ))}
+          </div>
+
+          <input
+            className="aixia-process-history-modal__search"
+            value={search}
+            onChange={(event) => setSearch(event.target.value)}
+            placeholder="Search expenses..."
+          />
+        </div>
+
+        <div className="aixia-process-history-modal__body">
+          <div className="aixia-process-history-table">
+            <div className="aixia-process-history-table__row" data-header="true">
+              <div>Date</div>
+              {PREVIEW_ROLE === "admin" ? <div>Employee</div> : null}
+              <div>Expense Type</div>
               <div>Amount</div>
               <div>Status</div>
               <div>Next Action</div>
-              <div className="text-right">Action</div>
+              <div>Actions</div>
             </div>
 
-            {EXPENSE_HISTORY_ROWS.map((row) => (
-              <div
-                key={row.number}
-                className="grid grid-cols-[1.2fr_1fr_0.8fr_1fr_1.5fr_auto] items-center gap-4 border-b border-white/10 px-5 py-4 text-sm text-slate-300 last:border-b-0 hover:bg-white/[0.035]"
-              >
-                <div>
-                  <div className="font-semibold text-white">{row.number}</div>
-                  <div className="mt-1 text-xs text-slate-500">{row.owner}</div>
-                </div>
-                <div>{row.type}</div>
-                <div className="font-semibold text-white">{row.amount}</div>
-                <div>{row.status}</div>
-                <div>{row.nextAction}</div>
-                <div className="flex justify-end">
-                  <AixiaButton type="button" variant={row.status === "Paid" ? "primary" : "secondary"}>
-                    {row.status === "Paid" ? "Confirm" : "Open"}
-                  </AixiaButton>
-                </div>
-              </div>
-            ))}
+            <div className="aixia-process-history-table__scroll">
+              {rows.map((row) => {
+                const status = PREVIEW_ROLE === "admin" ? row.adminStatus : row.employeeStatus;
+
+                return (
+                  <div className="aixia-process-history-table__row" key={row.id}>
+                    <div>
+                      <div className="aixia-process-history-table__primary">{row.date}</div>
+                      <div className="aixia-process-history-table__secondary">{row.number}</div>
+                    </div>
+
+                    {PREVIEW_ROLE === "admin" ? (
+                      <div className="aixia-process-history-table__primary">{row.owner}</div>
+                    ) : null}
+
+                    <div>{row.type}</div>
+                    <div className="aixia-process-history-table__amount">{row.amount}</div>
+                    <div>{status}</div>
+                    <div>{row.nextAction}</div>
+
+                    <div className="aixia-process-history-table__actions">
+                      {tab === "active" ? (
+                        <>
+                          <AixiaButton type="button" variant="primary">
+                            Open
+                          </AixiaButton>
+                          {status === "Paid — Waiting Owner Confirmation" ? (
+                            <AixiaButton type="button" variant="primary">
+                              Confirm
+                            </AixiaButton>
+                          ) : null}
+                          {canShowArchiveDelete(row) ? (
+                            <>
+                              <AixiaButton type="button" variant="danger">
+                                Archive
+                              </AixiaButton>
+                              <AixiaButton type="button" variant="danger">
+                                Delete
+                              </AixiaButton>
+                            </>
+                          ) : null}
+                        </>
+                      ) : null}
+
+                      {tab === "archived" ? (
+                        <AixiaButton type="button" variant="secondary">
+                          Restore
+                        </AixiaButton>
+                      ) : null}
+
+                      {tab === "deleted" ? (
+                        <>
+                          <AixiaButton type="button" variant="secondary">
+                            Restore
+                          </AixiaButton>
+                          <AixiaButton type="button" variant="danger">
+                            Delete Permanently
+                          </AixiaButton>
+                        </>
+                      ) : null}
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
           </div>
+        </div>
+
+        <div className="aixia-process-history-modal__footer">
+          Showing {rows.length} record{rows.length === 1 ? "" : "s"}. Default sort is newest date first.
         </div>
       </div>
     </div>
@@ -443,22 +621,34 @@ export default function FinanceExpensePaymentProcessBookTemplatePage() {
         ]}
       />
 
-      <div className="aixia-action-system" data-align="start" data-density="normal">
+      <div className="aixia-process-selector">
         {visibleProcesses.map((process) => (
-          <AixiaButton
-            key={process.key}
-            type="button"
-            variant={process.key === selectedProcess.key ? "primary" : "secondary"}
-            onClick={() => setProcessKey(process.key)}
-          >
-            {process.label}
-          </AixiaButton>
+          <span className="aixia-process-action-with-info" key={process.key}>
+            <AixiaButton
+              type="button"
+              variant={process.key === selectedProcess.key ? "primary" : "secondary"}
+              onClick={() => setProcessKey(process.key)}
+            >
+              {process.label}
+            </AixiaButton>
+            <AixiaProcessInfo title={process.infoTitle} text={process.infoText} />
+          </span>
         ))}
 
         {PREVIEW_PERMISSIONS[PREVIEW_ROLE].canViewExpenseHistory ? (
-          <AixiaButton type="button" variant="secondary" onClick={() => setHistoryOpen(true)}>
-            {PREVIEW_ROLE === "admin" ? "All Expense Status" : "My Expenses"}
-          </AixiaButton>
+          <span className="aixia-process-action-with-info">
+            <AixiaButton type="button" variant="secondary" onClick={() => setHistoryOpen(true)}>
+              {PREVIEW_ROLE === "admin" ? "All Expense Status" : "My Expenses"}
+            </AixiaButton>
+            <AixiaProcessInfo
+              title={PREVIEW_ROLE === "admin" ? "All Expense Status" : "My Expenses"}
+              text={
+                PREVIEW_ROLE === "admin"
+                  ? "View active, archived, and deleted expense requests."
+                  : "View your own open expenses and confirmations."
+              }
+            />
+          </span>
         ) : null}
       </div>
 

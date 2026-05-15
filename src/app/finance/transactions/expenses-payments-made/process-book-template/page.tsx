@@ -472,13 +472,13 @@ function ExpenseHistoryModal({ onClose }: { onClose: () => void }) {
         <div className="aixia-process-history-modal__body">
           <div className="aixia-process-history-table">
             <div className="aixia-process-history-table__row" data-header="true">
-              <div>Date</div>
-              {PREVIEW_ROLE === "admin" ? <div>Employee</div> : null}
-              <div>Expense Type</div>
-              <div>Amount</div>
-              <div>Status</div>
-              <div>Next Action</div>
-              <div>Actions</div>
+              <div className="aixia-process-history-table__cell">Date</div>
+              <div className="aixia-process-history-table__cell">Employee</div>
+              <div className="aixia-process-history-table__cell">Expense Type</div>
+              <div className="aixia-process-history-table__cell">Amount</div>
+              <div className="aixia-process-history-table__cell">Status</div>
+              <div className="aixia-process-history-table__cell">Next Action</div>
+              <div className="aixia-process-history-table__cell" data-align="right">Actions</div>
             </div>
 
             <div className="aixia-process-history-table__scroll">
@@ -487,68 +487,77 @@ function ExpenseHistoryModal({ onClose }: { onClose: () => void }) {
 
                 return (
                   <div className="aixia-process-history-table__row" key={row.id}>
-                    <div>
+                    <div className="aixia-process-history-table__cell">
                       <div className="aixia-process-history-table__primary">{row.date}</div>
                       <div className="aixia-process-history-table__secondary">{row.number}</div>
                     </div>
 
-                    {PREVIEW_ROLE === "admin" ? (
-                      <div className="aixia-process-history-table__primary">{row.owner}</div>
-                    ) : null}
+                    <div className="aixia-process-history-table__cell">
+                      <div className="aixia-process-history-table__primary">
+                        {PREVIEW_ROLE === "admin" ? row.owner : "My Expense"}
+                      </div>
+                    </div>
 
-                    <div>{row.type}</div>
-                    <div className="aixia-process-history-table__amount">{row.amount}</div>
-                    <div>{status}</div>
-                    <div>{row.nextAction}</div>
+                    <div className="aixia-process-history-table__cell">{row.type}</div>
 
-                    <div className="aixia-process-history-table__actions">
-                      <details className="aixia-process-history-action-menu">
-                        <summary className="aixia-process-history-action-menu__summary">Actions</summary>
+                    <div className="aixia-process-history-table__cell">
+                      <div className="aixia-process-history-table__amount">{row.amount}</div>
+                    </div>
 
-                        <div className="aixia-process-history-action-menu__panel">
-                          {tab === "active" ? (
-                            <>
-                              <button type="button" className="aixia-process-history-action-menu__item" data-tone="primary">
-                                Open
-                              </button>
+                    <div className="aixia-process-history-table__cell">{status}</div>
 
-                              {status === "Paid — Waiting Owner Confirmation" ? (
+                    <div className="aixia-process-history-table__cell">{row.nextAction}</div>
+
+                    <div className="aixia-process-history-table__cell" data-align="right">
+                      <div className="aixia-process-history-table__actions">
+                        <details className="aixia-process-history-action-menu">
+                          <summary className="aixia-process-history-action-menu__summary">Actions</summary>
+
+                          <div className="aixia-process-history-action-menu__panel">
+                            {tab === "active" ? (
+                              <>
                                 <button type="button" className="aixia-process-history-action-menu__item" data-tone="primary">
-                                  Confirm
+                                  Open
                                 </button>
-                              ) : null}
 
-                              {canShowArchiveDelete(row) ? (
-                                <>
-                                  <button type="button" className="aixia-process-history-action-menu__item" data-tone="danger">
-                                    Archive
+                                {status === "Paid — Waiting Owner Confirmation" ? (
+                                  <button type="button" className="aixia-process-history-action-menu__item" data-tone="primary">
+                                    Confirm
                                   </button>
-                                  <button type="button" className="aixia-process-history-action-menu__item" data-tone="danger">
-                                    Delete
-                                  </button>
-                                </>
-                              ) : null}
-                            </>
-                          ) : null}
+                                ) : null}
 
-                          {tab === "archived" ? (
-                            <button type="button" className="aixia-process-history-action-menu__item">
-                              Restore
-                            </button>
-                          ) : null}
+                                {canShowArchiveDelete(row) ? (
+                                  <>
+                                    <button type="button" className="aixia-process-history-action-menu__item" data-tone="danger">
+                                      Archive
+                                    </button>
+                                    <button type="button" className="aixia-process-history-action-menu__item" data-tone="danger">
+                                      Delete
+                                    </button>
+                                  </>
+                                ) : null}
+                              </>
+                            ) : null}
 
-                          {tab === "deleted" ? (
-                            <>
+                            {tab === "archived" ? (
                               <button type="button" className="aixia-process-history-action-menu__item">
                                 Restore
                               </button>
-                              <button type="button" className="aixia-process-history-action-menu__item" data-tone="danger">
-                                Delete Permanently
-                              </button>
-                            </>
-                          ) : null}
-                        </div>
-                      </details>
+                            ) : null}
+
+                            {tab === "deleted" ? (
+                              <>
+                                <button type="button" className="aixia-process-history-action-menu__item">
+                                  Restore
+                                </button>
+                                <button type="button" className="aixia-process-history-action-menu__item" data-tone="danger">
+                                  Delete Permanently
+                                </button>
+                              </>
+                            ) : null}
+                          </div>
+                        </details>
+                      </div>
                     </div>
                   </div>
                 );

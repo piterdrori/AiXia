@@ -438,6 +438,56 @@ function getPostingStatusLabel(status: InvoicePostingStatus) {
   return status === "posted" ? "Posted" : "Not posted";
 }
 
+function getInvoiceLineItemDisplayName(
+  row: LineItemRow | EditableLineItem,
+  items: ItemOption[],
+) {
+  const selectedItem = items.find((item) => item.id === row.item_id);
+
+  return selectedItem?.name || row.description || "—";
+}
+
+function getInvoiceLineUnitDisplayName(
+  row: LineItemRow | EditableLineItem,
+  unitsOfMeasure: UnitOfMeasureOption[],
+) {
+  const selectedUnit = unitsOfMeasure.find(
+    (unit) => unit.id === row.unit_of_measure_id,
+  );
+
+  if (!selectedUnit) return "—";
+
+  return selectedUnit.code ? `${selectedUnit.name} — ${selectedUnit.code}` : selectedUnit.name;
+}
+
+function getInvoiceLineTaxDisplayName(
+  row: LineItemRow | EditableLineItem,
+  taxCodes: TaxCodeOption[],
+) {
+  const selectedTaxCode = taxCodes.find((taxCode) => taxCode.id === row.tax_code_id);
+
+  if (!selectedTaxCode) return "—";
+
+  return selectedTaxCode.code
+    ? `${selectedTaxCode.name} — ${selectedTaxCode.code}`
+    : `${selectedTaxCode.name} — ${toNumber(selectedTaxCode.rate_percent).toFixed(2)}%`;
+}
+
+function getInvoiceLineRevenueCategoryDisplayName(
+  row: LineItemRow | EditableLineItem,
+  revenueCategories: RevenueCategoryOption[],
+) {
+  const selectedCategory = revenueCategories.find(
+    (category) => category.id === row.revenue_category_id,
+  );
+
+  if (!selectedCategory) return "—";
+
+  return selectedCategory.code
+    ? `${selectedCategory.name} — ${selectedCategory.code}`
+    : selectedCategory.name;
+}
+
 export default function FinanceInvoiceDetailPage() {
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
@@ -2675,7 +2725,7 @@ export default function FinanceInvoiceDetailPage() {
                             ) : (
                               <AixiaValueBlock
                                 label="Item"
-                                value={items.find((item) => item.id === readOnlyRow.item_id)?.name || "—"}
+                                value={getInvoiceLineItemDisplayName(readOnlyRow, items)}
                               />
                             )}
                           </AixiaFormField>
@@ -2745,9 +2795,10 @@ export default function FinanceInvoiceDetailPage() {
                             ) : (
                               <AixiaValueBlock
                                 label="Unit"
-                                value={
-                                  unitsOfMeasure.find((unit) => unit.id === readOnlyRow.unit_of_measure_id)?.name || "—"
-                                }
+                                value={getInvoiceLineUnitDisplayName(
+                                  readOnlyRow,
+                                  unitsOfMeasure,
+                                )}
                               />
                             )}
                           </AixiaFormField>
@@ -2823,7 +2874,7 @@ export default function FinanceInvoiceDetailPage() {
                             ) : (
                               <AixiaValueBlock
                                 label="Tax Code"
-                                value={taxCodes.find((taxCode) => taxCode.id === readOnlyRow.tax_code_id)?.name || "—"}
+                                value={getInvoiceLineTaxDisplayName(readOnlyRow, taxCodes)}
                               />
                             )}
                           </AixiaFormField>
@@ -2853,11 +2904,10 @@ export default function FinanceInvoiceDetailPage() {
                             ) : (
                               <AixiaValueBlock
                                 label="Revenue Category"
-                                value={
-                                  revenueCategories.find(
-                                    (category) => category.id === readOnlyRow.revenue_category_id
-                                  )?.name || "—"
-                                }
+                                value={getInvoiceLineRevenueCategoryDisplayName(
+                                  readOnlyRow,
+                                  revenueCategories,
+                                )}
                               />
                             )}
                           </AixiaFormField>

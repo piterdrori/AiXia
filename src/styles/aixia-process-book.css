@@ -796,24 +796,25 @@
 }
 
 .aixia-process-history-table {
-  min-width: 980px;
+  min-width: 1120px;
   overflow: hidden;
   border-radius: 1.55rem;
   border: 1px solid rgba(255, 255, 255, 0.09);
 }
 
 .aixia-process-history-table__scroll {
-  max-height: 25rem;
+  max-height: 20rem;
   overflow-y: auto;
 }
 
 .aixia-process-history-table__row {
   display: grid;
-  grid-template-columns: 1fr 1fr 0.75fr 1.15fr 1.4fr auto;
+  min-height: 4.6rem;
+  grid-template-columns: minmax(130px, 0.95fr) minmax(130px, 0.9fr) minmax(140px, 1fr) minmax(110px, 0.7fr) minmax(160px, 1fr) minmax(210px, 1.35fr) minmax(110px, 0.65fr);
   align-items: center;
   gap: 1rem;
   border-bottom: 1px solid rgba(255, 255, 255, 0.08);
-  padding: 0.95rem 1rem;
+  padding: 0.85rem 1rem;
   color: rgba(203, 213, 225, 0.88);
   font-size: 0.86rem;
 }
@@ -826,7 +827,8 @@
   position: sticky;
   top: 0;
   z-index: 1;
-  background: rgba(0, 0, 0, 0.38);
+  min-height: 3.1rem;
+  background: rgba(0, 0, 0, 0.42);
   color: rgba(148, 163, 184, 0.9);
   font-size: 0.68rem;
   font-weight: 850;
@@ -838,20 +840,34 @@
   background: rgba(255, 255, 255, 0.035);
 }
 
+.aixia-process-history-table__cell {
+  display: flex;
+  min-width: 0;
+  flex-direction: column;
+  justify-content: center;
+}
+
+.aixia-process-history-table__cell[data-align="right"] {
+  align-items: flex-end;
+}
+
 .aixia-process-history-table__primary {
   color: rgba(255, 255, 255, 0.95);
   font-weight: 800;
+  line-height: 1.25;
 }
 
 .aixia-process-history-table__secondary {
-  margin-top: 0.2rem;
+  margin-top: 0.22rem;
   color: rgba(148, 163, 184, 0.78);
   font-size: 0.75rem;
+  line-height: 1.25;
 }
 
 .aixia-process-history-table__amount {
   color: rgba(255, 255, 255, 0.94);
   font-weight: 800;
+  line-height: 1.25;
 }
 
 .aixia-process-history-table__actions {

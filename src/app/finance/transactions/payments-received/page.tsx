@@ -118,7 +118,7 @@ type EffectivePermissions = Awaited<
 
 const PAGE_ACCESS_CONFIG: FinancePageAccessConfig = {
   sectionKey: "incomingMoneyFlow",
-  readPermissions: ["accessFinance", "viewFinance", "viewFinanceRecords"],
+  readPermissions: ["accessFinance", "viewFinance"],
   createPermissions: ["createFinanceRecords"],
   updatePermissions: ["editFinanceRecords"],
   deleteArchivePermissions: ["archiveFinanceRecords"],

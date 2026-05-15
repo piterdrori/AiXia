@@ -33,9 +33,7 @@ function parseBankDetails(details: string | null | undefined) {
       const line = normalized
         .split("\n")
         .map((entry) => entry.trim())
-        .find((entry) =>
-          entry.toLowerCase().startsWith(`${label.toLowerCase()}:`)
-        );
+        .find((entry) => entry.toLowerCase().startsWith(`${label.toLowerCase()}:`));
 
       return line ? line.slice(label.length + 1).trim() : "";
     };
@@ -66,67 +64,73 @@ export default function InvoicePrintDocument({
   payments = [],
 }: Props) {
   const currency = invoice?.currency_code || "USD";
+  // ===== RESOLVED DATA (SNAPSHOT → FALLBACK) =====
 
-  const companyName =
-    invoice?.company_name_snapshot ||
-    invoice?.company_name ||
-    invoice?.company ||
-    "—";
+const companyName =
+  invoice?.company_name_snapshot ||
+  invoice?.company_name ||
+  invoice?.company ||
+  "—";
 
-  const companyContact =
-    invoice?.company_contact_person_snapshot ||
-    invoice?.company_contact_person ||
-    "";
+const companyContact =
+  invoice?.company_contact_person_snapshot ||
+  invoice?.company_contact_person ||
+  "";
 
-  const companyEmail =
-    invoice?.company_email_snapshot ||
-    invoice?.company_email ||
-    "";
+const companyEmail =
+  invoice?.company_email_snapshot ||
+  invoice?.company_email ||
+  "";
 
-  const companyPhone =
-    invoice?.company_phone_snapshot ||
-    invoice?.company_phone ||
-    "";
+const companyPhone =
+  invoice?.company_phone_snapshot ||
+  invoice?.company_phone ||
+  "";
 
-  const companyAddress =
-    invoice?.company_address_snapshot ||
-    invoice?.company_address ||
-    "";
+const companyAddress =
+  invoice?.company_address_snapshot ||
+  invoice?.company_address ||
+  "";
 
-  const counterpartyName =
-    invoice?.counterparty_name_snapshot ||
-    invoice?.client_name_snapshot ||
-    invoice?.client_name ||
-    invoice?.client ||
-    "—";
+const counterpartyName =
+  invoice?.counterparty_name_snapshot ||
+  invoice?.client_name_snapshot ||
+  invoice?.client_name ||
+  invoice?.client ||
+  "—";
 
-  const counterpartyContact =
-    invoice?.counterparty_contact_person_snapshot ||
-    invoice?.client_contact_person_snapshot ||
-    invoice?.client_contact_person ||
-    "";
+const counterpartyContact =
+  invoice?.counterparty_contact_person_snapshot ||
+  invoice?.client_contact_person_snapshot ||
+  invoice?.client_contact_person ||
+  "";
 
-  const counterpartyEmail =
-    invoice?.counterparty_email_snapshot ||
-    invoice?.client_email_snapshot ||
-    invoice?.client_email ||
-    "";
+const counterpartyEmail =
+  invoice?.counterparty_email_snapshot ||
+  invoice?.client_email_snapshot ||
+  invoice?.client_email ||
+  "";
 
-  const counterpartyPhone =
-    invoice?.counterparty_phone_snapshot ||
-    invoice?.client_phone_snapshot ||
-    invoice?.client_phone ||
-    "";
+const counterpartyPhone =
+  invoice?.counterparty_phone_snapshot ||
+  invoice?.client_phone_snapshot ||
+  invoice?.client_phone ||
+  "";
 
-  const billingAddress =
-    invoice?.billing_address_snapshot ||
-    invoice?.billing_address ||
-    "—";
+const billingAddress =
+  invoice?.billing_address_snapshot ||
+  invoice?.billing_address ||
+  "—";
 
-  const invoiceNumber = invoice?.invoice_number || "Draft";
-  const issueDate = invoice?.issue_date || invoice?.issued_at || null;
-  const dueDate = invoice?.due_date || null;
+const invoiceNumber =
+  invoice?.invoice_number || "Draft";
 
+const issueDate =
+  invoice?.issue_date || invoice?.issued_at || null;
+
+const dueDate =
+  invoice?.due_date || null;
+  
   const bankInfo = parseBankDetails(invoice?.bank_details_snapshot);
 
   const paymentTerms = invoice?.payment_terms_snapshot || "—";
@@ -135,15 +139,13 @@ export default function InvoicePrintDocument({
     invoice?.payment_terms_text_snapshot ||
     invoice?.payment_terms_description ||
     "";
-
-  const shippingTerms =
+    const shippingTerms =
     invoice?.shipping_terms_snapshot &&
-    !String(invoice.shipping_terms_snapshot).match(/^[0-9a-f-]{36}$/i)
+    !invoice.shipping_terms_snapshot.match(/^[0-9a-f-]{36}$/i)
       ? invoice.shipping_terms_snapshot
       : invoice?.shipping_term_label ||
         invoice?.shipping_term_name ||
         "Not specified";
-
   const termsAndConditions =
     invoice?.terms_and_conditions_snapshot || DEFAULT_TERMS;
 
@@ -184,16 +186,18 @@ export default function InvoicePrintDocument({
 
       <div className="invoice-print-sheet">
         <div
-          className="aixia-print-page"
           style={{
             width: "210mm",
             minHeight: "297mm",
             background: "#ffffff",
             color: "#111827",
+            fontFamily:
+              'Inter, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif',
             position: "relative",
             overflow: "visible",
           }}
         >
+          {/* Header background */}
           <div
             style={{
               position: "absolute",
@@ -206,13 +210,8 @@ export default function InvoicePrintDocument({
             }}
           />
 
-          <div
-            style={{
-              position: "relative",
-              zIndex: 2,
-              padding: "9mm 14mm 10mm 14mm",
-            }}
-          >
+          <div style={{ position: "relative", zIndex: 2, padding: "9mm 14mm 10mm 14mm" }}>
+            {/* Top header */}
             <div
               style={{
                 display: "grid",
@@ -237,75 +236,81 @@ export default function InvoicePrintDocument({
                 />
 
                 <div
-                  className="aixia-print-company-details"
                   style={{
                     maxWidth: "84mm",
+                    fontSize: "8.3pt",
+                    lineHeight: 1.38,
                     paddingTop: "0mm",
                     marginTop: "-5mm",
                   }}
                 >
                   <div
-                    className="aixia-print-company-name"
                     style={{
+                      fontWeight: 700,
+                      fontSize: "10.5pt",
                       marginBottom: "0.8mm",
                     }}
                   >
                     {companyName}
                   </div>
-
-                  {companyContact ? <div>{companyContact}</div> : null}
-                  {companyPhone ? <div>{companyPhone}</div> : null}
-                  {companyEmail ? <div>{companyEmail}</div> : null}
+                  {companyContact ? (
+  <div>{companyContact}</div>
+) : null}
+                 {companyPhone ? (
+  <div>{companyPhone}</div>
+) : null}
+                  {companyEmail ? (
+  <div>{companyEmail}</div>
+) : null}
                   {companyAddress ? (
-                    <div
-                      className="aixia-print-address"
-                      style={{
-                        marginTop: "0.5mm",
-                        whiteSpace: "pre-wrap",
-                        wordBreak: "break-word",
-                        maxWidth: "84mm",
-                      }}
-                    >
-                      {companyAddress}
-                    </div>
-                  ) : null}
+  <div
+    style={{
+      marginTop: "0.5mm",
+      lineHeight: 1.32,
+      whiteSpace: "pre-wrap",
+      wordBreak: "break-word",
+      maxWidth: "84mm",
+      fontSize: "7.9pt",
+    }}
+  >
+    {companyAddress}
+  </div>
+) : null}
                 </div>
               </div>
 
               <div style={{ paddingTop: "2mm", textAlign: "left" }}>
                 <div
-                  className="aixia-print-title"
                   style={{
+                    fontSize: "31pt",
+                    fontWeight: 300,
+                    letterSpacing: "0.09em",
                     textTransform: "uppercase",
                     marginBottom: "6mm",
+                    lineHeight: 1,
                   }}
                 >
                   Invoice
                 </div>
 
-                <div className="aixia-print-document-meta">
+                <div style={{ fontSize: "10pt", lineHeight: 1.95 }}>
                   <div style={{ display: "flex", gap: "4mm" }}>
-                    <span style={{ width: "30mm", opacity: 0.78 }}>
-                      Invoice No
-                    </span>
-                    <span className="aixia-print-strong">{invoiceNumber}</span>
+                    <span style={{ width: "26mm", opacity: 0.78 }}>Invoice No</span>
+                    <span style={{ fontWeight: 700 }}>{invoiceNumber}</span>
                   </div>
                   <div style={{ display: "flex", gap: "4mm" }}>
-                    <span style={{ width: "30mm", opacity: 0.78 }}>
-                      Issue Date
-                    </span>
+                    <span style={{ width: "26mm", opacity: 0.78 }}>Issue Date</span>
                     <span>{formatFinanceDate(issueDate)}</span>
                   </div>
                   <div style={{ display: "flex", gap: "4mm" }}>
-                    <span style={{ width: "30mm", opacity: 0.78 }}>
-                      Due Date
-                    </span>
+                    <span style={{ width: "26mm", opacity: 0.78 }}>Due Date</span>
                     <span>{formatFinanceDate(dueDate)}</span>
                   </div>
                 </div>
               </div>
             </div>
 
+            {/* Recipient */}
             <div style={{ marginTop: "5mm", marginBottom: "7mm" }}>
               <div
                 style={{
@@ -318,115 +323,96 @@ export default function InvoicePrintDocument({
                 }}
               >
                 <div
-                  className="aixia-print-label"
                   style={{
+                    fontSize: "7.2pt",
                     textTransform: "uppercase",
+                    letterSpacing: "0.1em",
                     color: "#6b7280",
+                    fontWeight: 700,
                     marginBottom: "1.5mm",
                   }}
                 >
                   Recipient
                 </div>
-                <div
-                  className="aixia-print-recipient-name"
-                  style={{
-                    marginBottom: "1mm",
-                  }}
-                >
+                <div style={{ fontWeight: 700, fontSize: "11pt", marginBottom: "1mm" }}>
                   {counterpartyName}
                 </div>
-                {counterpartyContact ? (
-                  <div
-                    className="aixia-print-muted-line"
-                    style={{
-                      color: "#4b5563",
-                      marginBottom: "0.8mm",
-                    }}
-                  >
-                    {counterpartyContact}
-                  </div>
-                ) : null}
-                {counterpartyEmail || counterpartyPhone ? (
-                  <div
-                    className="aixia-print-muted-line"
-                    style={{
-                      color: "#4b5563",
-                      marginBottom: "0.8mm",
-                    }}
-                  >
-                    {[counterpartyEmail, counterpartyPhone]
-                      .filter(Boolean)
-                      .join(" • ")}
-                  </div>
-                ) : null}
-                <div
-                  className="aixia-print-address"
-                  style={{
-                    color: "#4b5563",
-                  }}
-                >
+             {counterpartyContact ? (
+  <div style={{ fontSize: "8.3pt", color: "#4b5563", marginBottom: "0.8mm" }}>
+    {counterpartyContact}
+  </div>
+) : null}
+             {counterpartyEmail || counterpartyPhone ? (
+  <div style={{ fontSize: "8.1pt", color: "#4b5563", marginBottom: "0.8mm" }}>
+    {[counterpartyEmail, counterpartyPhone]
+      .filter(Boolean)
+      .join(" • ")}
+  </div>
+) : null}
+                <div style={{ fontSize: "8.3pt", color: "#4b5563", lineHeight: 1.55 }}>
                   {billingAddress}
                 </div>
               </div>
             </div>
 
+            {/* Table */}
             <div style={{ marginBottom: "8mm" }}>
               <table
-                className="aixia-print-table"
                 style={{
                   width: "100%",
                   borderCollapse: "collapse",
                   tableLayout: "fixed",
+                  fontSize: "8.5pt",
                 }}
               >
                 <thead>
                   <tr style={{ background: "#232323", color: "#ffffff" }}>
                     <th
-                      className="aixia-print-strong"
                       style={{
                         width: "9%",
                         textAlign: "center",
                         padding: "3mm 2mm",
+                        fontWeight: 700,
                       }}
                     >
                       No
                     </th>
                     <th
-                      className="aixia-print-strong"
                       style={{
                         width: "49%",
                         textAlign: "left",
                         padding: "3mm 3mm",
+                        fontWeight: 700,
                       }}
                     >
                       Item Description
                     </th>
                     <th
-                      className="aixia-print-strong"
                       style={{
                         width: "15%",
                         textAlign: "right",
                         padding: "3mm 2mm",
+                        fontWeight: 700,
                       }}
                     >
                       Unit Price
                     </th>
                     <th
-                      className="aixia-print-strong"
                       style={{
                         width: "12%",
                         textAlign: "right",
                         padding: "3mm 2mm",
+                        fontWeight: 700,
                       }}
                     >
                       Quantity
                     </th>
                     <th
-                      className="aixia-print-strong"
                       style={{
                         width: "15%",
                         textAlign: "right",
                         padding: "3mm 2mm",
+                        fontWeight: 700,
                       }}
                     >
                       Value
@@ -437,59 +423,42 @@ export default function InvoicePrintDocument({
                   {visibleRows.map((item, index) => {
                     const unitPrice = Number(item.unitPrice ?? item.unit_price ?? 0);
                     const quantity = Number(item.quantity ?? 0);
-                    const discount =
-                      Number(item.discount ?? item.discount_rate ?? 0);
+                    const discount = Number(item.discount ?? 0);
                     const value =
                       item.lineTotal ??
                       item.line_total ??
                       Math.max(quantity * unitPrice - discount, 0);
 
                     return (
-                      <tr
-                        key={item.id || index}
-                        style={{ borderBottom: "0.5pt solid #d1d5db" }}
-                      >
-                        <td
-                          style={{
-                            padding: "3mm 2mm",
-                            textAlign: "center",
-                          }}
-                        >
-                          {index + 1}
+                      <tr key={item.id || index} style={{ borderBottom: "0.5pt solid #d1d5db" }}>
+                        <td style={{ padding: "3mm 2mm", textAlign: "center" }}>{index + 1}</td>
+                        <td style={{ padding: "3mm 3mm", verticalAlign: "top" }}>
+                          <div style={{ fontWeight: 500 }}>{item.description || "—"}</div>
                         </td>
                         <td
-                          style={{
-                            padding: "3mm 3mm",
-                            verticalAlign: "top",
-                          }}
-                        >
-                          <div className="aixia-print-medium">
-                            {item.description || item.item_name || "—"}
-                          </div>
-                        </td>
-                        <td
-                          className="aixia-print-money"
                           style={{
                             padding: "3mm 2mm",
                             textAlign: "right",
+                            fontFamily: "monospace",
                           }}
                         >
                           {formatFinanceMoney(unitPrice, currency)}
                         </td>
                         <td
-                          className="aixia-print-money"
                           style={{
                             padding: "3mm 2mm",
                             textAlign: "right",
+                            fontFamily: "monospace",
                           }}
                         >
                           {quantity}
                         </td>
                         <td
-                          className="aixia-print-money aixia-print-strong"
                           style={{
                             padding: "3mm 2mm",
                             textAlign: "right",
+                            fontFamily: "monospace",
+                            fontWeight: 700,
                           }}
                         >
                           {formatFinanceMoney(value, currency)}
@@ -499,10 +468,7 @@ export default function InvoicePrintDocument({
                   })}
 
                   {Array.from({ length: fillerRows }).map((_, index) => (
-                    <tr
-                      key={`filler-${index}`}
-                      style={{ borderBottom: "0.5pt solid #d1d5db" }}
-                    >
+                    <tr key={`filler-${index}`} style={{ borderBottom: "0.5pt solid #d1d5db" }}>
                       <td style={{ height: "7mm", padding: "0 2mm" }} />
                       <td style={{ height: "7mm", padding: "0 3mm" }} />
                       <td style={{ height: "7mm", padding: "0 2mm" }} />
@@ -514,6 +480,7 @@ export default function InvoicePrintDocument({
               </table>
             </div>
 
+            {/* Bottom content */}
             <div
               style={{
                 display: "grid",
@@ -523,7 +490,7 @@ export default function InvoicePrintDocument({
                 marginTop: "0mm",
               }}
             >
-              <div className="aixia-print-copy" style={{ color: "#374151" }}>
+              <div style={{ fontSize: "8pt", color: "#374151" }}>
                 <div
                   style={{
                     background: "#ffffff",
@@ -533,25 +500,27 @@ export default function InvoicePrintDocument({
                 >
                   <div style={{ marginBottom: "4mm" }}>
                     <div
-                      className="aixia-print-section-title"
                       style={{
+                        fontWeight: 700,
+                        fontSize: "9pt",
                         color: "#111827",
                         marginBottom: "1.5mm",
                       }}
                     >
                       Payment and Shipping Terms
                     </div>
-                    <div>
+                    <div style={{ lineHeight: 1.7 }}>
                       <div>
                         <span style={{ color: "#6b7280" }}>Payment Terms: </span>
-                        <span className="aixia-print-medium">{paymentTerms}</span>
+                        <span style={{ fontWeight: 500 }}>{paymentTerms}</span>
                       </div>
 
                       {paymentTermsText ? (
                         <div
-                          className="aixia-print-paragraph"
                           style={{
                             marginTop: "1mm",
+                            paddingLeft: "0mm",
+                            lineHeight: 1.55,
                             whiteSpace: "pre-wrap",
                             color: "#374151",
                           }}
@@ -562,19 +531,20 @@ export default function InvoicePrintDocument({
 
                       <div style={{ marginTop: paymentTermsText ? "1.2mm" : "0mm" }}>
                         <span style={{ color: "#6b7280" }}>Shipping Terms: </span>
-                        <span className="aixia-print-medium">{shippingTerms}</span>
+                        <span style={{ fontWeight: 500 }}>{shippingTerms}</span>
                       </div>
                       <div>
                         <span style={{ color: "#6b7280" }}>Currency: </span>
-                        <span className="aixia-print-medium">{currency}</span>
+                        <span style={{ fontWeight: 500 }}>{currency}</span>
                       </div>
                     </div>
                   </div>
 
                   <div style={{ marginBottom: "8mm" }}>
                     <div
-                      className="aixia-print-section-title"
                       style={{
+                        fontWeight: 700,
+                        fontSize: "9pt",
                         color: "#111827",
                         marginBottom: "1.5mm",
                       }}
@@ -583,11 +553,11 @@ export default function InvoicePrintDocument({
                     </div>
 
                     {bankInfo ? (
-                      <div>
+                      <div style={{ lineHeight: 1.65 }}>
                         {bankInfo.beneficiary ? (
                           <div>
                             <span style={{ color: "#6b7280" }}>Beneficiary: </span>
-                            <span className="aixia-print-strong">{bankInfo.beneficiary}</span>
+                            <span style={{ fontWeight: 600 }}>{bankInfo.beneficiary}</span>
                           </div>
                         ) : null}
                         {bankInfo.bank ? (
@@ -605,7 +575,7 @@ export default function InvoicePrintDocument({
                         {bankInfo.accountNumber ? (
                           <div>
                             <span style={{ color: "#6b7280" }}>Bank Account: </span>
-                            <span className="aixia-print-money aixia-print-strong">
+                            <span style={{ fontFamily: "monospace", fontWeight: 600 }}>
                               {bankInfo.accountNumber}
                             </span>
                           </div>
@@ -613,7 +583,7 @@ export default function InvoicePrintDocument({
                         {bankInfo.swift ? (
                           <div>
                             <span style={{ color: "#6b7280" }}>SWIFT Code: </span>
-                            <span className="aixia-print-money aixia-print-strong">
+                            <span style={{ fontFamily: "monospace", fontWeight: 600 }}>
                               {bankInfo.swift}
                             </span>
                           </div>
@@ -621,7 +591,7 @@ export default function InvoicePrintDocument({
                         {bankInfo.iban ? (
                           <div>
                             <span style={{ color: "#6b7280" }}>IBAN: </span>
-                            <span className="aixia-print-money aixia-print-strong">
+                            <span style={{ fontFamily: "monospace", fontWeight: 600 }}>
                               {bankInfo.iban}
                             </span>
                           </div>
@@ -634,6 +604,7 @@ export default function InvoicePrintDocument({
                 </div>
               </div>
 
+              {/* Right Column - Totals and Signature */}
               <div>
                 <div
                   style={{
@@ -642,43 +613,43 @@ export default function InvoicePrintDocument({
                   }}
                 >
                   <div
-                    className="aixia-print-total-row"
                     style={{
                       display: "flex",
                       justifyContent: "space-between",
                       marginBottom: "2mm",
+                      fontSize: "9pt",
                     }}
                   >
                     <span>SUB TOTAL</span>
-                    <span className="aixia-print-money">
+                    <span style={{ fontFamily: "monospace" }}>
                       {formatFinanceMoney(financialSummary?.subtotal || 0, currency)}
                     </span>
                   </div>
 
                   <div
-                    className="aixia-print-total-row"
                     style={{
                       display: "flex",
                       justifyContent: "space-between",
                       marginBottom: "2mm",
+                      fontSize: "9pt",
                     }}
                   >
                     <span>TAX / VAT</span>
-                    <span className="aixia-print-money">
+                    <span style={{ fontFamily: "monospace" }}>
                       {formatFinanceMoney(financialSummary?.tax || 0, currency)}
                     </span>
                   </div>
 
                   <div
-                    className="aixia-print-total-row"
                     style={{
                       display: "flex",
                       justifyContent: "space-between",
                       marginBottom: "2mm",
+                      fontSize: "9pt",
                     }}
                   >
                     <span>DISCOUNT</span>
-                    <span className="aixia-print-money">
+                    <span style={{ fontFamily: "monospace" }}>
                       {formatFinanceMoney(financialSummary?.discount || 0, currency)}
                     </span>
                   </div>
@@ -695,48 +666,57 @@ export default function InvoicePrintDocument({
                     }}
                   >
                     <span
-                      className="aixia-print-strong"
                       style={{
+                        fontSize: "10pt",
+                        fontWeight: 700,
                         textTransform: "uppercase",
                       }}
                     >
                       Grand Total
                     </span>
-                    <span className="aixia-print-money aixia-print-strong">
+                    <span
+                      style={{
+                        fontFamily: "monospace",
+                        fontSize: "11pt",
+                        fontWeight: 700,
+                      }}
+                    >
                       {formatFinanceMoney(financialSummary?.total || 0, currency)}
                     </span>
                   </div>
 
                   {(financialSummary?.paid || 0) > 0 ? (
                     <div
-                      className="aixia-print-total-row"
                       style={{
                         display: "flex",
                         justifyContent: "space-between",
-                        marginTop: "2mm",
+                        marginTop: "2.4mm",
+                        fontSize: "8.7pt",
                       }}
                     >
                       <span>PAID</span>
-                      <span className="aixia-print-money">
+                      <span style={{ fontFamily: "monospace" }}>
                         {formatFinanceMoney(financialSummary?.paid || 0, currency)}
                       </span>
                     </div>
                   ) : null}
 
                   <div
-                    className="aixia-print-total-row"
                     style={{
                       display: "flex",
                       justifyContent: "space-between",
-                      marginTop: "2mm",
+                      marginTop: "2.4mm",
+                      fontSize: "9pt",
+                      fontWeight: 700,
                     }}
                   >
                     <span>BALANCE DUE</span>
-                    <span className="aixia-print-money aixia-print-strong">
+                    <span style={{ fontFamily: "monospace" }}>
                       {formatFinanceMoney(financialSummary?.balance || 0, currency)}
                     </span>
                   </div>
 
+                  {/* Signature - Under Balance Due with signing space */}
                   <div
                     style={{
                       marginTop: "6mm",
@@ -751,14 +731,13 @@ export default function InvoicePrintDocument({
                         marginBottom: "1.5mm",
                       }}
                     />
-                    <div style={{ color: "#374151" }}>
-                      Authorized Signature
-                    </div>
+                    <div style={{ fontSize: "8pt", color: "#374151" }}>Signature</div>
                   </div>
                 </div>
               </div>
             </div>
 
+            {/* Footer */}
             <div
               style={{
                 marginTop: "1mm",
@@ -768,8 +747,9 @@ export default function InvoicePrintDocument({
               }}
             >
               <div
-                className="aixia-print-section-title"
                 style={{
+                  fontWeight: 700,
+                  fontSize: "9pt",
                   color: "#111827",
                   marginBottom: "2mm",
                 }}
@@ -778,9 +758,10 @@ export default function InvoicePrintDocument({
               </div>
 
               <div
-                className="aixia-print-legal-text"
                 style={{
+                  lineHeight: 1.45,
                   whiteSpace: "pre-wrap",
+                  fontSize: "7pt",
                   color: "#374151",
                   marginBottom: "3mm",
                 }}
@@ -788,28 +769,36 @@ export default function InvoicePrintDocument({
                 {termsAndConditions}
               </div>
 
+              {/* Payment History - Right aligned if exists */}
               {payments?.length > 0 ? (
                 <div
-                  className="aixia-print-payment-history"
                   style={{
-                    color: "#374151",
-                    marginBottom: "3mm",
+                    marginTop: "2mm",
+                    textAlign: "right",
+                    fontSize: "6.8pt",
+                    color: "#6b7280",
+                    lineHeight: 1.5,
                   }}
                 >
                   {payments.map((payment: any, index: number) => (
                     <div key={payment.id || index}>
                       {formatFinanceDate(payment.payment_date)} ·{" "}
                       {formatFinanceMoney(payment.amount, currency)}
-                      {payment.reference_number ? ` · ${payment.reference_number}` : ""}
+                      {payment.reference_number
+                        ? ` · ${payment.reference_number}`
+                        : ""}
                     </div>
                   ))}
                 </div>
               ) : null}
 
+              {/* Thank You - Centered at bottom */}
               <div
-                className="aixia-print-thank-you"
                 style={{
                   textAlign: "center",
+                  fontSize: "10pt",
+                  fontWeight: 700,
+                  letterSpacing: "0.08em",
                   textTransform: "uppercase",
                   color: "#111827",
                   marginTop: "3mm",

@@ -1,0 +1,404 @@
+/* -------------------------------------------------------
+   AIXIA PROCESS BOOK SYSTEM
+   Isolated workflow layout. Visual language stays AiXia Finance.
+------------------------------------------------------- */
+
+.aixia-process-book {
+  display: flex;
+  flex-direction: column;
+  gap: clamp(1rem, 1.4vw, 1.35rem);
+  min-width: 0;
+}
+
+.aixia-process-book__cover {
+  position: relative;
+  overflow: hidden;
+  border-radius: clamp(1.5rem, 2vw, 2.125rem);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  background:
+    radial-gradient(circle at top left, rgba(34, 211, 238, 0.16), transparent 34%),
+    radial-gradient(circle at top right, rgba(139, 92, 246, 0.14), transparent 32%),
+    rgba(255, 255, 255, 0.045);
+  box-shadow: 0 24px 80px rgba(0, 0, 0, 0.35);
+  backdrop-filter: blur(16px);
+  padding: clamp(1.125rem, 1.8vw, 1.75rem);
+}
+
+.aixia-process-book__cover-content {
+  position: relative;
+  z-index: 1;
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 1rem;
+}
+
+.aixia-process-book__eyebrow {
+  margin: 0 0 0.45rem;
+  font-size: 0.68rem;
+  font-weight: 700;
+  letter-spacing: 0.2em;
+  text-transform: uppercase;
+  color: rgba(103, 232, 249, 0.78);
+}
+
+.aixia-process-book__title {
+  margin: 0;
+  font-size: clamp(1.65rem, 2.45vw, 2.55rem);
+  line-height: 1;
+  font-weight: 800;
+  letter-spacing: -0.045em;
+  color: #fff;
+}
+
+.aixia-process-book__subtitle {
+  margin: 0.65rem 0 0;
+  max-width: 760px;
+  font-size: 0.92rem;
+  line-height: 1.7;
+  color: rgba(203, 213, 225, 0.78);
+}
+
+.aixia-process-book__meta {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+  gap: 0.5rem;
+  min-width: 220px;
+}
+
+.aixia-process-chip {
+  display: inline-flex;
+  min-height: 2rem;
+  align-items: center;
+  gap: 0.35rem;
+  border-radius: 999px;
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  background: rgba(0, 0, 0, 0.22);
+  padding: 0.35rem 0.7rem;
+  font-size: 0.72rem;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: rgba(226, 232, 240, 0.86);
+}
+
+.aixia-process-chip[data-tone="cyan"] {
+  border-color: rgba(34, 211, 238, 0.24);
+  background: rgba(8, 145, 178, 0.12);
+  color: rgba(207, 250, 254, 0.94);
+}
+
+.aixia-process-chip[data-tone="emerald"] {
+  border-color: rgba(52, 211, 153, 0.24);
+  background: rgba(5, 150, 105, 0.12);
+  color: rgba(209, 250, 229, 0.94);
+}
+
+.aixia-process-chip[data-tone="amber"] {
+  border-color: rgba(251, 191, 36, 0.24);
+  background: rgba(217, 119, 6, 0.12);
+  color: rgba(254, 243, 199, 0.94);
+}
+
+.aixia-process-stepper {
+  overflow-x: auto;
+  border-radius: clamp(1.25rem, 1.8vw, 1.75rem);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  background: rgba(255, 255, 255, 0.04);
+  padding: 0.75rem;
+  backdrop-filter: blur(14px);
+}
+
+.aixia-process-stepper__track {
+  display: flex;
+  min-width: max-content;
+  align-items: stretch;
+  gap: 0.65rem;
+}
+
+.aixia-process-step {
+  display: grid;
+  min-width: 158px;
+  grid-template-columns: auto 1fr;
+  gap: 0.65rem;
+  align-items: center;
+  border-radius: 1.15rem;
+  border: 1px solid rgba(255, 255, 255, 0.085);
+  background: rgba(0, 0, 0, 0.18);
+  padding: 0.75rem 0.8rem;
+  color: rgba(203, 213, 225, 0.78);
+  text-align: left;
+  transition:
+    border-color 220ms ease,
+    background-color 220ms ease,
+    transform 220ms ease;
+}
+
+.aixia-process-step:not(:disabled) {
+  cursor: pointer;
+}
+
+.aixia-process-step:not(:disabled):hover {
+  border-color: rgba(103, 232, 249, 0.28);
+  background: rgba(255, 255, 255, 0.055);
+}
+
+.aixia-process-step:disabled {
+  cursor: not-allowed;
+  opacity: 0.55;
+}
+
+.aixia-process-step__number {
+  display: inline-flex;
+  height: 2.15rem;
+  width: 2.15rem;
+  align-items: center;
+  justify-content: center;
+  border-radius: 0.9rem;
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  background: rgba(255, 255, 255, 0.045);
+  font-size: 0.82rem;
+  font-weight: 800;
+  color: rgba(226, 232, 240, 0.9);
+}
+
+.aixia-process-step__label {
+  min-width: 0;
+}
+
+.aixia-process-step__title {
+  display: block;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: 0.82rem;
+  font-weight: 800;
+  color: rgba(248, 250, 252, 0.92);
+}
+
+.aixia-process-step__status {
+  display: block;
+  margin-top: 0.18rem;
+  font-size: 0.66rem;
+  font-weight: 700;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  color: rgba(148, 163, 184, 0.82);
+}
+
+.aixia-process-step[data-status="current"] {
+  border-color: rgba(34, 211, 238, 0.34);
+  background: rgba(8, 145, 178, 0.13);
+}
+
+.aixia-process-step[data-status="current"] .aixia-process-step__number {
+  border-color: rgba(103, 232, 249, 0.32);
+  background: rgba(34, 211, 238, 0.16);
+  color: rgb(207, 250, 254);
+}
+
+.aixia-process-step[data-status="complete"] {
+  border-color: rgba(52, 211, 153, 0.26);
+  background: rgba(5, 150, 105, 0.11);
+}
+
+.aixia-process-step[data-status="warning"] {
+  border-color: rgba(251, 191, 36, 0.26);
+  background: rgba(217, 119, 6, 0.11);
+}
+
+.aixia-process-layout {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(280px, 360px);
+  align-items: start;
+  gap: clamp(1rem, 1.4vw, 1.35rem);
+}
+
+.aixia-process-stage,
+.aixia-process-summary,
+.aixia-process-navigation {
+  border-radius: clamp(1.35rem, 1.8vw, 1.875rem);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  background: rgba(255, 255, 255, 0.045);
+  box-shadow: 0 24px 80px rgba(0, 0, 0, 0.28);
+  backdrop-filter: blur(16px);
+}
+
+.aixia-process-stage {
+  min-height: 520px;
+  padding: clamp(1rem, 1.5vw, 1.45rem);
+}
+
+.aixia-process-stage__header {
+  margin-bottom: 1rem;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+  padding-bottom: 1rem;
+}
+
+.aixia-process-stage__eyebrow {
+  margin: 0 0 0.4rem;
+  font-size: 0.66rem;
+  font-weight: 800;
+  letter-spacing: 0.18em;
+  text-transform: uppercase;
+  color: rgba(103, 232, 249, 0.78);
+}
+
+.aixia-process-stage__title {
+  margin: 0;
+  font-size: clamp(1.28rem, 1.8vw, 1.75rem);
+  line-height: 1.1;
+  font-weight: 800;
+  color: #fff;
+}
+
+.aixia-process-stage__description {
+  margin: 0.5rem 0 0;
+  max-width: 760px;
+  font-size: 0.88rem;
+  line-height: 1.65;
+  color: rgba(203, 213, 225, 0.78);
+}
+
+.aixia-process-stage__content {
+  min-width: 0;
+}
+
+.aixia-process-summary {
+  position: sticky;
+  top: 1rem;
+  padding: 1rem;
+}
+
+.aixia-process-summary__title {
+  margin: 0 0 0.75rem;
+  font-size: 0.78rem;
+  font-weight: 800;
+  letter-spacing: 0.16em;
+  text-transform: uppercase;
+  color: rgba(226, 232, 240, 0.86);
+}
+
+.aixia-process-summary__list {
+  display: flex;
+  flex-direction: column;
+  gap: 0.55rem;
+}
+
+.aixia-process-summary__row {
+  display: grid;
+  grid-template-columns: minmax(96px, 0.85fr) minmax(0, 1fr);
+  gap: 0.75rem;
+  border-radius: 1rem;
+  border: 1px solid rgba(255, 255, 255, 0.075);
+  background: rgba(0, 0, 0, 0.17);
+  padding: 0.7rem 0.75rem;
+}
+
+.aixia-process-summary__label {
+  font-size: 0.67rem;
+  font-weight: 800;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  color: rgba(148, 163, 184, 0.88);
+}
+
+.aixia-process-summary__value {
+  min-width: 0;
+  overflow-wrap: anywhere;
+  text-align: right;
+  font-size: 0.8rem;
+  font-weight: 700;
+  color: rgba(248, 250, 252, 0.92);
+}
+
+.aixia-process-navigation {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.75rem;
+  padding: 0.85rem;
+}
+
+.aixia-process-navigation__group {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.65rem;
+}
+
+.aixia-process-placeholder-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 0.75rem;
+}
+
+.aixia-process-placeholder-block {
+  min-height: 112px;
+  border-radius: 1.2rem;
+  border: 1px dashed rgba(255, 255, 255, 0.14);
+  background: rgba(0, 0, 0, 0.16);
+  padding: 0.9rem;
+}
+
+.aixia-process-placeholder-block[data-span="full"] {
+  grid-column: 1 / -1;
+}
+
+.aixia-process-placeholder-block__label {
+  margin: 0 0 0.4rem;
+  font-size: 0.68rem;
+  font-weight: 800;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  color: rgba(103, 232, 249, 0.78);
+}
+
+.aixia-process-placeholder-block__text {
+  margin: 0;
+  font-size: 0.83rem;
+  line-height: 1.6;
+  color: rgba(203, 213, 225, 0.78);
+}
+
+@media (max-width: 1100px) {
+  .aixia-process-layout {
+    grid-template-columns: 1fr;
+  }
+
+  .aixia-process-summary {
+    position: relative;
+    top: auto;
+    order: -1;
+  }
+}
+
+@media (max-width: 720px) {
+  .aixia-process-book__cover-content {
+    flex-direction: column;
+  }
+
+  .aixia-process-book__meta {
+    justify-content: flex-start;
+    min-width: 0;
+  }
+
+  .aixia-process-stage {
+    min-height: auto;
+  }
+
+  .aixia-process-placeholder-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .aixia-process-navigation,
+  .aixia-process-navigation__group {
+    align-items: stretch;
+  }
+
+  .aixia-process-navigation__group {
+    width: 100%;
+  }
+}

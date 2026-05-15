@@ -70,3 +70,23 @@ export {
   AixiaTableDateCell,
   AixiaTableTextCell,
 } from "./AixiaTableCells";
+export {
+  AixiaFinancePrintBankBlock,
+  AixiaFinancePrintBottomGrid,
+  AixiaFinancePrintFooter,
+  AixiaFinancePrintHeader,
+  AixiaFinancePrintLineTable,
+  AixiaFinancePrintPartyBlock,
+  AixiaFinancePrintSection,
+  AixiaFinancePrintSheet,
+  AixiaFinancePrintTermsBlock,
+  AixiaFinancePrintTotalsBlock,
+  aixiaPrintHasValue,
+  aixiaPrintJoin,
+  type AixiaFinancePrintBankRow,
+  type AixiaFinancePrintLineItem,
+  type AixiaFinancePrintMetaRow,
+  type AixiaFinancePrintParty,
+  type AixiaFinancePrintTermRow,
+  type AixiaFinancePrintTotalRow,
+} from "./AixiaFinancePrint";

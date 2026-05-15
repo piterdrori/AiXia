@@ -2815,7 +2815,16 @@ export default function FinanceQuotationDetailPage() {
                                 ))}
                               </AixiaSelectField>
                             ) : (
-                              <AixiaDisplayBlock label="Unit" value="—" />
+                              <AixiaDisplayBlock
+                                label="Unit"
+                                value={
+                                  selectedUnitOfMeasure
+                                    ? selectedUnitOfMeasure.code
+                                      ? `${selectedUnitOfMeasure.name} — ${selectedUnitOfMeasure.code}`
+                                      : selectedUnitOfMeasure.name
+                                    : readOnlyRow.unit_of_measure_id || "—"
+                                }
+                              />
                             )}
                           </AixiaFormField>
 
@@ -2850,7 +2859,13 @@ export default function FinanceQuotationDetailPage() {
                             ) : (
                               <AixiaDisplayBlock
                                 label="Revenue Category"
-                                value="—"
+                                value={
+                                  selectedRevenueCategory
+                                    ? selectedRevenueCategory.code
+                                      ? `${selectedRevenueCategory.name} — ${selectedRevenueCategory.code}`
+                                      : selectedRevenueCategory.name
+                                    : readOnlyRow.revenue_category_id || "—"
+                                }
                               />
                             )}
                           </AixiaFormField>

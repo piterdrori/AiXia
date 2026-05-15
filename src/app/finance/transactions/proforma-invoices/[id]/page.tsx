@@ -110,11 +110,13 @@ type ProformaLineItemRow = {
   id: string;
   proforma_invoice_id: string;
   item_id: string | null;
+  item_name?: string | null;
   description: string;
   quantity: number | string | null;
   unit_price: number | string | null;
   discount: number | string | null;
   tax_code_id: string | null;
+  tax_rate?: number | string | null;
   unit_of_measure_id: string | null;
   revenue_category_id: string | null;
   line_total: number | string | null;
@@ -550,6 +552,62 @@ function resolveProformaQuotationId(proforma: ProformaRecord | null) {
     getMetadataString(proforma.metadata, "quotation_id") ||
     ""
   );
+}
+
+function getLineItemDisplayName(
+  row: ProformaLineItemRow | EditableLineItem,
+  items: ItemOption[],
+) {
+  const selectedItem = items.find((item) => item.id === row.item_id);
+
+  if (selectedItem?.name) return selectedItem.name;
+
+  if ("item_name" in row && row.item_name) return row.item_name;
+
+  return row.description || "—";
+}
+
+function getLineTaxDisplayName(
+  row: ProformaLineItemRow | EditableLineItem,
+  taxCodes: TaxCodeOption[],
+) {
+  const selectedTaxCode = taxCodes.find((taxCode) => taxCode.id === row.tax_code_id);
+
+  if (selectedTaxCode) {
+    return `${selectedTaxCode.name} — ${toNumber(selectedTaxCode.rate_percent).toFixed(2)}%`;
+  }
+
+  if ("tax_rate" in row && row.tax_rate !== null && row.tax_rate !== undefined) {
+    return `${toNumber(row.tax_rate).toFixed(2)}%`;
+  }
+
+  return "—";
+}
+
+function getLineUnitDisplayName(
+  row: ProformaLineItemRow | EditableLineItem,
+  unitsOfMeasure: UnitOfMeasureOption[],
+) {
+  const selectedUnit = unitsOfMeasure.find((unit) => unit.id === row.unit_of_measure_id);
+
+  if (!selectedUnit) return "—";
+
+  return selectedUnit.code ? `${selectedUnit.name} — ${selectedUnit.code}` : selectedUnit.name;
+}
+
+function getLineRevenueCategoryDisplayName(
+  row: ProformaLineItemRow | EditableLineItem,
+  revenueCategories: RevenueCategoryOption[],
+) {
+  const selectedCategory = revenueCategories.find(
+    (category) => category.id === row.revenue_category_id,
+  );
+
+  if (!selectedCategory) return "—";
+
+  return selectedCategory.code
+    ? `${selectedCategory.name} — ${selectedCategory.code}`
+    : selectedCategory.name;
 }
 
 export default function FinanceProformaInvoiceDetailPage() {
@@ -2650,6 +2708,8 @@ export default function FinanceProformaInvoiceDetailPage() {
                 termsAndConditionsDraft ||
                 proforma.terms_and_conditions_snapshot ||
                 getMetadataString(proforma.metadata, "terms_and_conditions_snapshot") ||
+                getMetadataString(proforma.metadata, "terms_and_conditions") ||
+                getMetadataString(proforma.metadata, "document_terms_and_conditions") ||
                 "—"
               }
             />
@@ -2700,7 +2760,10 @@ export default function FinanceProformaInvoiceDetailPage() {
                         ))}
                       </AixiaSelectField>
                     ) : (
-                      <AixiaDisplayBlock label="Item" value={items.find((item) => item.id === row.item_id)?.name || "—"} />
+                      <AixiaDisplayBlock
+                        label="Item"
+                        value={getLineItemDisplayName(row as ProformaLineItemRow, items)}
+                      />
                     )}
                   </AixiaFormField>
 
@@ -2761,7 +2824,13 @@ export default function FinanceProformaInvoiceDetailPage() {
                         ))}
                       </AixiaSelectField>
                     ) : (
-                      <AixiaDisplayBlock label="Unit" value={unitsOfMeasure.find((unit) => unit.id === row.unit_of_measure_id)?.name || "—"} />
+                      <AixiaDisplayBlock
+                        label="Unit"
+                        value={getLineUnitDisplayName(
+                          row as ProformaLineItemRow,
+                          unitsOfMeasure,
+                        )}
+                      />
                     )}
                   </AixiaFormField>
 
@@ -2822,7 +2891,10 @@ export default function FinanceProformaInvoiceDetailPage() {
                         ))}
                       </AixiaSelectField>
                     ) : (
-                      <AixiaDisplayBlock label="Tax Code" value={taxCodes.find((taxCode) => taxCode.id === row.tax_code_id)?.name || "—"} />
+                      <AixiaDisplayBlock
+                        label="Tax Code"
+                        value={getLineTaxDisplayName(row as ProformaLineItemRow, taxCodes)}
+                      />
                     )}
                   </AixiaFormField>
 
@@ -2847,7 +2919,13 @@ export default function FinanceProformaInvoiceDetailPage() {
                         ))}
                       </AixiaSelectField>
                     ) : (
-                      <AixiaDisplayBlock label="Revenue Category" value={revenueCategories.find((category) => category.id === row.revenue_category_id)?.name || "—"} />
+                      <AixiaDisplayBlock
+                        label="Revenue Category"
+                        value={getLineRevenueCategoryDisplayName(
+                          row as ProformaLineItemRow,
+                          revenueCategories,
+                        )}
+                      />
                     )}
                   </AixiaFormField>
 

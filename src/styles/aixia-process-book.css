@@ -690,7 +690,7 @@
 
 .aixia-process-history-modal__panel {
   display: flex;
-  width: min(1180px, 100%);
+  width: min(1320px, calc(100vw - 2rem));
   max-height: 86vh;
   flex-direction: column;
   overflow: hidden;

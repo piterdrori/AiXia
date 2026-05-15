@@ -177,6 +177,32 @@ Use shared badges only:
 
 Do not create local rounded badge spans.
 
+## 13. GLOBAL AIXIA FONT / TYPOGRAPHY RULE
+
+All AiXia pages must use the same shared font and shared text-size scale.
+
+Typography belongs in `src/styles/aixia-design-system.css` and shared AiXia components only. Page files must not create local typography systems, local font stacks, local text-size scales, local tracking scales, local weight systems, or local print typography helper classes.
+
+No page may create its own font family.
+
+Forbidden page-level patterns include:
+
+- local `font-family` declarations
+- local `font-*` utility systems used as a page typography language
+- local `text-[...]` sizing systems repeated across a page
+- local print typography classes such as `*-text-xs`, `*-text-sm`, `*-text-title`, `*-weight-bold`, `*-tracking`, or `*-mono`
+- inline style typography such as custom `fontSize`, `fontFamily`, `fontWeight`, `lineHeight`, or `letterSpacing`
+- page-specific heading/label/body text scales
+
+Allowed typography behavior:
+
+- shared AiXia components may expose approved typography through their props and shared classes
+- print documents must use shared `aixia-print-*` typography classes from the shared stylesheet
+- normal pages must use shared AiXia components/classes for labels, headings, descriptions, values, badges, tables, forms, and buttons
+- Large hero titles may stay large when rendered through `AixiaHero` or approved shared hero/title classes
+
+If a page needs a new text treatment, extend the shared AiXia stylesheet or shared component first. Do not solve typography locally inside the page.
+
 ## 13. Silent refresh standard
 
 Every loader that can run after initial load must support `mode: "initial" | "silent"`.

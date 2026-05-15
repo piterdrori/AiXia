@@ -796,7 +796,7 @@
 }
 
 .aixia-process-history-table {
-  min-width: 1120px;
+  width: 100%;
   overflow: hidden;
   border-radius: 1.55rem;
   border: 1px solid rgba(255, 255, 255, 0.09);
@@ -804,12 +804,15 @@
 
 .aixia-process-history-table__scroll {
   max-height: 20.5rem;
-  overflow-y: auto;
+  overflow: auto;
   padding-bottom: 1rem;
+  scrollbar-gutter: stable;
 }
 
 .aixia-process-history-table__row {
   display: grid;
+  width: max-content;
+  min-width: 1120px;
   min-height: 4.35rem;
   grid-template-columns: minmax(138px, 1fr) minmax(138px, 0.92fr) minmax(148px, 1fr) minmax(110px, 0.72fr) minmax(170px, 1fr) minmax(220px, 1.25fr) minmax(128px, 0.7fr);
   align-items: center;
@@ -839,7 +842,7 @@
 }
 
 .aixia-process-history-table__row[data-header="true"] .aixia-process-history-table__cell {
-  transform: translateX(-0.75rem);
+  transform: none;
 }
 
 .aixia-process-history-table__row:not([data-header="true"]):hover {

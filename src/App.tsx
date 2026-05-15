@@ -107,6 +107,8 @@ import BillDetailPage from "@/app/finance/transactions/bills/[id]/page";
 import FinancePaymentsMadePage from "@/app/finance/transactions/payments-made/page";
 import FinanceNewPaymentMadePage from "@/app/finance/transactions/payments-made/new/page";
 import PaymentMadeDetailPage from "@/app/finance/transactions/payments-made/[id]/page";
+import FinanceExpenseProcessBookTemplatePage from "@/app/finance/transactions/expenses-payments-made/process-book-template/page";
+
 
 import FinanceExpensePaymentsMadePage from "@/app/finance/transactions/expenses-payments-made/page";
 import FinanceNewExpensePaymentMadePage from "@/app/finance/transactions/expenses-payments-made/new/page";

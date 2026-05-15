@@ -3073,7 +3073,9 @@ export default function FinanceProformaInvoiceDetailPage() {
         <AixiaSmartLayout
           sidebar="normal"
           balance="main"
-          sideRebalance="last-to-bottom"
+          matchColumns={false}
+          bottomSpan="never"
+          sideRebalance="off"
           main={mainContent}
           side={sideContent}
         />

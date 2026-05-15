@@ -313,37 +313,67 @@ function PlaceholderStageContent({ title, description }: { title: string; descri
   );
 }
 
-function ExpenseHistoryPreview() {
+function ExpenseHistoryModal({ onClose }: { onClose: () => void }) {
   return (
-    <div className="aixia-process-placeholder-block" data-span="full">
-      <p className="aixia-process-placeholder-block__label">
-        {PREVIEW_ROLE === "admin" ? "Expense Status / Admin View" : "My Open Expenses"}
-      </p>
-      <p className="aixia-process-placeholder-block__text">
-        {PREVIEW_ROLE === "admin"
-          ? "Admin can see all expense requests and their current workflow status. Later this section will use real permissions and Supabase data."
-          : "Employee can see only their own open expenses, status, and confirmation actions."}
-      </p>
-
-      <div className="mt-4 grid gap-3">
-        {EXPENSE_HISTORY_ROWS.map((row) => (
-          <div
-            key={row.number}
-            className="grid gap-3 rounded-2xl border border-white/10 bg-black/20 p-4 text-sm text-slate-300 md:grid-cols-[1.2fr_1fr_0.8fr_1fr_1.4fr_auto] md:items-center"
-          >
-            <div>
-              <div className="font-semibold text-white">{row.number}</div>
-              <div className="text-xs text-slate-500">{row.owner}</div>
-            </div>
-            <div>{row.type}</div>
-            <div className="font-semibold text-white">{row.amount}</div>
-            <div>{row.status}</div>
-            <div>{row.nextAction}</div>
-            <AixiaButton type="button" variant={row.status === "Paid" ? "primary" : "secondary"}>
-              {row.status === "Paid" ? "Confirm" : "Open"}
-            </AixiaButton>
+    <div
+      className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 px-4 py-6 backdrop-blur-xl"
+      role="dialog"
+      aria-modal="true"
+      aria-label={PREVIEW_ROLE === "admin" ? "All expense status" : "My open expenses"}
+    >
+      <div className="max-h-[86vh] w-full max-w-[1180px] overflow-hidden rounded-[34px] border border-white/10 bg-[#070a12] shadow-2xl">
+        <div className="flex items-start justify-between gap-4 border-b border-white/10 bg-white/[0.045] px-6 py-5">
+          <div>
+            <p className="text-[11px] font-bold uppercase tracking-[0.22em] text-cyan-200/80">
+              {PREVIEW_ROLE === "admin" ? "Admin Expense Status" : "Employee Expense Status"}
+            </p>
+            <h2 className="mt-2 text-2xl font-bold text-white">
+              {PREVIEW_ROLE === "admin" ? "All Open Expense Requests" : "My Open Expenses"}
+            </h2>
+            <p className="mt-2 max-w-3xl text-sm leading-6 text-slate-400">
+              {PREVIEW_ROLE === "admin"
+                ? "Admin can review every active expense request, current workflow state, next required action, and confirmation status."
+                : "Employee can review only their own open expenses, current approval status, and confirmation actions."}
+            </p>
           </div>
-        ))}
+          <AixiaButton type="button" variant="secondary" onClick={onClose}>
+            Close
+          </AixiaButton>
+        </div>
+
+        <div className="max-h-[62vh] overflow-auto p-5">
+          <div className="min-w-[980px] overflow-hidden rounded-[26px] border border-white/10">
+            <div className="grid grid-cols-[1.2fr_1fr_0.8fr_1fr_1.5fr_auto] border-b border-white/10 bg-black/30 px-5 py-3 text-[11px] font-bold uppercase tracking-[0.18em] text-slate-500">
+              <div>Expense</div>
+              <div>Type</div>
+              <div>Amount</div>
+              <div>Status</div>
+              <div>Next Action</div>
+              <div className="text-right">Action</div>
+            </div>
+
+            {EXPENSE_HISTORY_ROWS.map((row) => (
+              <div
+                key={row.number}
+                className="grid grid-cols-[1.2fr_1fr_0.8fr_1fr_1.5fr_auto] items-center gap-4 border-b border-white/10 px-5 py-4 text-sm text-slate-300 last:border-b-0 hover:bg-white/[0.035]"
+              >
+                <div>
+                  <div className="font-semibold text-white">{row.number}</div>
+                  <div className="mt-1 text-xs text-slate-500">{row.owner}</div>
+                </div>
+                <div>{row.type}</div>
+                <div className="font-semibold text-white">{row.amount}</div>
+                <div>{row.status}</div>
+                <div>{row.nextAction}</div>
+                <div className="flex justify-end">
+                  <AixiaButton type="button" variant={row.status === "Paid" ? "primary" : "secondary"}>
+                    {row.status === "Paid" ? "Confirm" : "Open"}
+                  </AixiaButton>
+                </div>
+              </div>
+            ))}
+          </div>
+        </div>
       </div>
     </div>
   );
@@ -352,6 +382,7 @@ function ExpenseHistoryPreview() {
 export default function FinanceExpensePaymentProcessBookTemplatePage() {
   const visibleProcesses = useMemo(() => PROCESSES.filter(canViewProcess), []);
   const [processKey, setProcessKey] = useState<ProcessKey>(visibleProcesses[0]?.key ?? "application");
+  const [historyOpen, setHistoryOpen] = useState(false);
   const selectedProcess = visibleProcesses.find((process) => process.key === processKey) ?? visibleProcesses[0] ?? PROCESSES[0];
 
   const [stageByProcess, setStageByProcess] = useState<Record<ProcessKey, string>>({
@@ -423,9 +454,13 @@ export default function FinanceExpensePaymentProcessBookTemplatePage() {
             {process.label}
           </AixiaButton>
         ))}
-      </div>
 
-      {PREVIEW_PERMISSIONS[PREVIEW_ROLE].canViewExpenseHistory ? <ExpenseHistoryPreview /> : null}
+        {PREVIEW_PERMISSIONS[PREVIEW_ROLE].canViewExpenseHistory ? (
+          <AixiaButton type="button" variant="secondary" onClick={() => setHistoryOpen(true)}>
+            {PREVIEW_ROLE === "admin" ? "All Expense Status" : "My Expenses"}
+          </AixiaButton>
+        ) : null}
+      </div>
 
       <AixiaProcessBook
         eyebrow={selectedProcess.eyebrow}
@@ -451,6 +486,8 @@ export default function FinanceExpensePaymentProcessBookTemplatePage() {
           ) : null
         }
       />
+
+      {historyOpen ? <ExpenseHistoryModal onClose={() => setHistoryOpen(false)} /> : null}
     </AixiaPage>
   );
 }

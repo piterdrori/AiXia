@@ -176,17 +176,17 @@
 .aixia-process-step {
   display: grid;
   min-width: 0;
+  min-height: 5rem;
   grid-template-columns: 2.12rem minmax(0, 1fr);
-  grid-template-rows: auto;
   align-items: start;
   gap: 0.7rem;
   border-radius: 1.2rem;
-  border: 1px solid rgba(255, 255, 255, 0.06);
-  background: rgba(0, 0, 0, 0.14);
+  border: 1px solid rgba(255, 255, 255, 0.055);
+  background: rgba(0, 0, 0, 0.13);
   padding: 0.78rem 0.82rem;
-  color: rgba(226, 232, 240, 0.86);
+  color: rgba(226, 232, 240, 0.84);
   text-align: left;
-  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.02);
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.018);
   transition:
     border-color 220ms ease,
     background-color 220ms ease,
@@ -200,16 +200,16 @@
 
 .aixia-process-step:not(:disabled):hover {
   transform: translateY(-1px);
-  border-color: rgba(103, 232, 249, 0.18);
-  background: rgba(255, 255, 255, 0.045);
+  border-color: rgba(103, 232, 249, 0.16);
+  background: rgba(255, 255, 255, 0.04);
   box-shadow:
-    0 16px 32px rgba(0, 0, 0, 0.16),
-    inset 0 1px 0 rgba(255, 255, 255, 0.035);
+    0 16px 32px rgba(0, 0, 0, 0.15),
+    inset 0 1px 0 rgba(255, 255, 255, 0.03);
 }
 
 .aixia-process-step:disabled {
   cursor: not-allowed;
-  opacity: 0.72;
+  opacity: 0.76;
 }
 
 .aixia-process-step__number {
@@ -219,10 +219,10 @@
   align-items: center;
   justify-content: center;
   border-radius: 0.9rem;
-  border: 1px solid rgba(255, 255, 255, 0.075);
-  background: rgba(255, 255, 255, 0.035);
-  color: rgba(248, 250, 252, 0.9);
-  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.03);
+  border: 1px solid rgba(255, 255, 255, 0.07);
+  background: rgba(255, 255, 255, 0.032);
+  color: rgba(248, 250, 252, 0.88);
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.026);
   font-size: 0.82rem;
   font-weight: 850;
 }
@@ -230,16 +230,17 @@
 .aixia-process-step__label {
   display: grid;
   min-width: 0;
-  grid-template-rows: minmax(38px, auto) 16px;
+  grid-template-rows: 2.45rem 0.9rem;
   align-items: start;
 }
 
 .aixia-process-step__title {
   display: flex;
+  min-height: 2.45rem;
   align-items: flex-start;
   overflow: visible;
-  color: rgba(248, 250, 252, 0.97);
-  font-size: 0.8rem;
+  color: rgba(248, 250, 252, 0.94);
+  font-size: 0.78rem;
   font-weight: 850;
   line-height: 1.18;
   text-overflow: unset;
@@ -249,20 +250,22 @@
 
 .aixia-process-step__status {
   display: flex;
+  height: 0.9rem;
   align-items: center;
   margin-top: 0;
-  color: rgba(178, 190, 211, 0.82);
-  font-size: 0.64rem;
+  color: rgba(178, 190, 211, 0.78);
+  font-size: 0.62rem;
   font-weight: 800;
   letter-spacing: 0.13em;
+  line-height: 1;
   text-transform: uppercase;
 }
 
 .aixia-process-step[data-status="current"] {
-  border-color: rgba(34, 211, 238, 0.32);
+  border-color: rgba(34, 211, 238, 0.34);
   background:
-    radial-gradient(circle at 20% 0%, rgba(34, 211, 238, 0.16), transparent 55%),
-    rgba(8, 145, 178, 0.14);
+    radial-gradient(circle at 20% 0%, rgba(34, 211, 238, 0.17), transparent 55%),
+    rgba(8, 145, 178, 0.145);
   box-shadow:
     0 18px 40px rgba(8, 145, 178, 0.08),
     inset 0 1px 0 rgba(255, 255, 255, 0.045);
@@ -274,15 +277,32 @@
   color: rgb(207, 250, 254);
 }
 
+.aixia-process-step[data-status="current"] .aixia-process-step__title {
+  color: rgba(255, 255, 255, 0.99);
+}
+
+.aixia-process-step[data-status="current"] .aixia-process-step__status {
+  color: rgba(207, 250, 254, 0.9);
+}
+
 .aixia-process-step[data-status="complete"] {
-  border-color: rgba(255, 255, 255, 0.07);
-  background: rgba(255, 255, 255, 0.03);
+  border-color: rgba(255, 255, 255, 0.055);
+  background: rgba(0, 0, 0, 0.13);
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.018);
 }
 
 .aixia-process-step[data-status="complete"] .aixia-process-step__number {
-  border-color: rgba(255, 255, 255, 0.08);
-  background: rgba(255, 255, 255, 0.045);
+  border-color: rgba(255, 255, 255, 0.07);
+  background: rgba(255, 255, 255, 0.032);
   color: rgba(248, 250, 252, 0.88);
+}
+
+.aixia-process-step[data-status="complete"] .aixia-process-step__title {
+  color: rgba(248, 250, 252, 0.86);
+}
+
+.aixia-process-step[data-status="complete"] .aixia-process-step__status {
+  color: rgba(178, 190, 211, 0.72);
 }
 
 .aixia-process-step[data-status="warning"] {

@@ -511,6 +511,9 @@ function inspectSharedCssSourceOfTruth() {
     "hyphens: none",
     ".aixia-document-upload-panel",
     ".aixia-document-upload-zone",
+    ".aixia-action-stack",
+    "flex-direction: row",
+    "flex-wrap: wrap",
   ];
 
   for (const snippet of requiredSnippets) {
@@ -1208,6 +1211,42 @@ function inspectButtonMeaning(filePath, text) {
         "AiXia button meaning rule"
       );
     }
+  }
+}
+
+function inspectHorizontalActionButtonOrientation(filePath, text) {
+  const hasAixiaButtons = /<AixiaButton\b/.test(text);
+  if (!hasAixiaButtons) return;
+
+  const verticalActionContainerPatterns = [
+    /className=["'][^"']*\bflex-col\b[^"']*["'][\s\S]{0,1800}<AixiaButton\b[\s\S]{0,1800}<AixiaButton\b/m,
+    /className=["'][^"']*\bgrid-cols-1\b[^"']*["'][\s\S]{0,1800}<AixiaButton\b[\s\S]{0,1800}<AixiaButton\b/m,
+    /className=["'][^"']*\bspace-y-[^\s"']+[^"']*["'][\s\S]{0,1800}<AixiaButton\b[\s\S]{0,1800}<AixiaButton\b/m,
+    /className=["'][^"']*\bitems-stretch\b[^"']*["'][\s\S]{0,1800}<AixiaButton\b[\s\S]{0,1800}<AixiaButton\b/m,
+  ];
+
+  for (const pattern of verticalActionContainerPatterns) {
+    if (pattern.test(text)) {
+      addError(
+        filePath,
+        "Finance pages must not stack action buttons vertically. All multi-button action groups must be horizontal rows with wrapping allowed. Use AixiaActionStack or shared horizontal action layout, not flex-col/space-y/grid-cols-1/items-stretch button stacks.",
+        "AiXia horizontal action-button orientation rule"
+      );
+      break;
+    }
+  }
+
+  const sectionActionsVerticalRisk =
+    /actions=\{[\s\S]{0,2200}(flex-col|space-y-|grid-cols-1|items-stretch)[\s\S]{0,2200}<AixiaButton\b[\s\S]{0,2200}<AixiaButton\b/m.test(
+      text
+    );
+
+  if (sectionActionsVerticalRisk) {
+    addError(
+      filePath,
+      "Aixia section/header actions must not render vertical button stacks. Section action buttons must use a horizontal row/wrap layout controlled by shared AiXia CSS/components.",
+      "AiXia horizontal action-button orientation rule"
+    );
   }
 }
 
@@ -2236,6 +2275,7 @@ function inspectFinancePage(filePath) {
   inspectRegistryHeroActionPlacement(filePath, text);
   inspectTransactionsHubWorkflowLayout(filePath, text);
   inspectButtonMeaning(filePath, text);
+  inspectHorizontalActionButtonOrientation(filePath, text);
   inspectActionCardAndButtonSymmetryRules(filePath, text);
   inspectEmployeeIdentityGlobalRules(filePath, text);
   inspectChildAllocationLifecycleRules(filePath, text);

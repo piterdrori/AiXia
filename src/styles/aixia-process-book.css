@@ -827,14 +827,19 @@
 .aixia-process-history-table__row[data-header="true"] {
   position: sticky;
   top: 0;
-  z-index: 1;
+  z-index: 2;
   min-height: 3rem;
-  background: rgba(0, 0, 0, 0.42);
+  background: rgba(0, 0, 0, 0.58);
   color: rgba(148, 163, 184, 0.9);
   font-size: 0.68rem;
   font-weight: 850;
   letter-spacing: 0.18em;
   text-transform: uppercase;
+  backdrop-filter: blur(16px);
+}
+
+.aixia-process-history-table__row[data-header="true"] .aixia-process-history-table__cell {
+  transform: translateX(-0.75rem);
 }
 
 .aixia-process-history-table__row:not([data-header="true"]):hover {

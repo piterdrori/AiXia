@@ -1,0 +1,459 @@
+/* -------------------------------------------------------
+   GLOBAL AIXIA FINANCE PRINT DOCUMENT STANDARD
+   One shared A4 print system for all Finance print files.
+
+   Required behavior:
+   - Print files use shared AixiaFinancePrint components.
+   - Print files do not define local @page / 210mm / 297mm.
+   - Optional fields disappear when missing.
+   - Normal commercial documents fit one A4 page.
+------------------------------------------------------- */
+
+@media print {
+  @page {
+    size: A4;
+    margin: 0;
+  }
+
+  html,
+  body {
+    width: 210mm !important;
+    min-height: 297mm !important;
+    margin: 0 !important;
+    padding: 0 !important;
+    background: #ffffff !important;
+    -webkit-print-color-adjust: exact;
+    print-color-adjust: exact;
+  }
+
+  body * {
+    visibility: hidden !important;
+  }
+
+  .aixia-finance-print-sheet,
+  .aixia-finance-print-sheet * {
+    visibility: visible !important;
+  }
+
+  .aixia-finance-print-sheet {
+    position: absolute !important;
+    left: 0 !important;
+    top: 0 !important;
+    width: 210mm !important;
+    min-height: 297mm !important;
+    margin: 0 !important;
+    padding: 0 !important;
+    background: #ffffff !important;
+    page-break-before: avoid !important;
+    page-break-after: avoid !important;
+    page-break-inside: avoid !important;
+  }
+}
+
+@media screen {
+  .aixia-finance-print-sheet {
+    display: none !important;
+  }
+}
+
+.aixia-finance-print-page {
+  position: relative;
+  width: 210mm;
+  min-height: 297mm;
+  overflow: visible;
+  background: #ffffff;
+  color: #111827;
+  font-family:
+    Inter,
+    -apple-system,
+    BlinkMacSystemFont,
+    "Segoe UI",
+    Roboto,
+    Arial,
+    sans-serif;
+}
+
+.aixia-finance-print-hero-band {
+  position: absolute;
+  inset: 0 0 auto 0;
+  height: 78mm;
+  z-index: 0;
+  background: linear-gradient(135deg, #232323 0%, #1b1b1b 100%);
+}
+
+.aixia-finance-print-content {
+  position: relative;
+  z-index: 2;
+  box-sizing: border-box;
+  min-height: 297mm;
+  padding: 9mm 14mm 10mm 14mm;
+}
+
+.aixia-finance-print-header {
+  display: grid;
+  min-height: 72mm;
+  grid-template-columns: 1.05fr 0.95fr;
+  align-items: start;
+  gap: 10mm;
+  color: #ffffff;
+}
+
+.aixia-finance-print-company-block {
+  min-width: 0;
+}
+
+.aixia-finance-print-logo {
+  width: auto;
+  height: 40mm;
+  margin-top: -7mm;
+  margin-bottom: 0.5mm;
+  filter: brightness(0) invert(1);
+}
+
+.aixia-finance-print-company-details {
+  max-width: 84mm;
+  margin-top: -5mm;
+  padding-top: 0;
+  font-size: 8.3pt;
+  line-height: 1.38;
+}
+
+.aixia-finance-print-company-name {
+  margin-bottom: 0.8mm;
+  font-size: 10.5pt;
+  font-weight: 700;
+}
+
+.aixia-finance-print-document-heading {
+  min-width: 0;
+  padding-top: 2mm;
+  text-align: left;
+}
+
+.aixia-finance-print-title {
+  margin-bottom: 6mm;
+  font-size: 31pt;
+  font-weight: 300;
+  letter-spacing: 0.09em;
+  line-height: 1;
+  text-transform: uppercase;
+}
+
+.aixia-finance-print-document-meta {
+  display: grid;
+  gap: 0;
+  font-size: 10pt;
+  line-height: 1.95;
+}
+
+.aixia-finance-print-meta-row {
+  display: flex;
+  gap: 4mm;
+}
+
+.aixia-finance-print-meta-row > span:first-child {
+  width: 30mm;
+  flex: 0 0 30mm;
+  opacity: 0.78;
+}
+
+.aixia-finance-print-meta-row > strong {
+  font-weight: 700;
+}
+
+.aixia-finance-print-card,
+.aixia-finance-print-party-card {
+  border: 0.5pt solid #e5e7eb;
+  border-radius: 2mm;
+  background: #ffffff;
+}
+
+.aixia-finance-print-party-card {
+  display: grid;
+  grid-template-columns: 1fr;
+  margin-top: 5mm;
+  margin-bottom: 7mm;
+  padding: 4mm 5mm;
+}
+
+.aixia-finance-print-label {
+  margin-bottom: 1.5mm;
+  color: #6b7280;
+  font-size: 7.2pt;
+  font-weight: 700;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+}
+
+.aixia-finance-print-party-name {
+  margin-bottom: 1mm;
+  font-size: 11pt;
+  font-weight: 700;
+}
+
+.aixia-finance-print-muted-line {
+  margin-bottom: 0.8mm;
+  color: #4b5563;
+  font-size: 8.1pt;
+  line-height: 1.45;
+}
+
+.aixia-finance-print-address {
+  max-width: 100%;
+  color: #4b5563;
+  font-size: 8.3pt;
+  line-height: 1.55;
+  white-space: pre-wrap;
+  word-break: break-word;
+}
+
+.aixia-finance-print-company-details .aixia-finance-print-address {
+  max-width: 84mm;
+  margin-top: 0.5mm;
+  color: #ffffff;
+  font-size: 7.9pt;
+  line-height: 1.32;
+}
+
+.aixia-finance-print-table {
+  width: 100%;
+  margin-bottom: 8mm;
+  border-collapse: collapse;
+  table-layout: fixed;
+  font-size: 8.5pt;
+}
+
+.aixia-finance-print-table thead tr {
+  background: #232323;
+  color: #ffffff;
+}
+
+.aixia-finance-print-table th {
+  padding: 3mm 2mm;
+  font-weight: 700;
+  text-align: right;
+}
+
+.aixia-finance-print-table th:nth-child(1) {
+  width: 9%;
+  text-align: center;
+}
+
+.aixia-finance-print-table th:nth-child(2) {
+  width: 49%;
+  padding-left: 3mm;
+  padding-right: 3mm;
+  text-align: left;
+}
+
+.aixia-finance-print-table th:nth-child(3) {
+  width: 15%;
+}
+
+.aixia-finance-print-table th:nth-child(4) {
+  width: 12%;
+}
+
+.aixia-finance-print-table th:nth-child(5) {
+  width: 15%;
+}
+
+.aixia-finance-print-table td {
+  border-bottom: 0.5pt solid #d1d5db;
+  padding: 3mm 2mm;
+  vertical-align: top;
+  text-align: right;
+}
+
+.aixia-finance-print-table td:nth-child(1) {
+  text-align: center;
+}
+
+.aixia-finance-print-table td:nth-child(2) {
+  padding-left: 3mm;
+  padding-right: 3mm;
+  text-align: left;
+}
+
+.aixia-finance-print-filler-row td {
+  height: 7mm;
+  padding-top: 0;
+  padding-bottom: 0;
+}
+
+.aixia-finance-print-medium {
+  font-weight: 500;
+}
+
+.aixia-finance-print-strong {
+  font-weight: 700;
+}
+
+.aixia-finance-print-money {
+  font-family:
+    ui-monospace,
+    SFMono-Regular,
+    Menlo,
+    Monaco,
+    Consolas,
+    "Liberation Mono",
+    "Courier New",
+    monospace;
+  font-variant-numeric: tabular-nums;
+}
+
+.aixia-finance-print-bottom-grid {
+  display: grid;
+  grid-template-columns: 1.12fr 0.88fr;
+  gap: 14mm;
+  align-items: start;
+  margin-top: 0;
+}
+
+.aixia-finance-print-bottom-left,
+.aixia-finance-print-bottom-right {
+  min-width: 0;
+}
+
+.aixia-finance-print-bottom-left {
+  color: #374151;
+  font-size: 8pt;
+  line-height: 1.7;
+}
+
+.aixia-finance-print-terms-block,
+.aixia-finance-print-bank-block {
+  background: #ffffff;
+}
+
+.aixia-finance-print-terms-block {
+  margin-bottom: 4mm;
+  padding-top: 2mm;
+  padding-right: 1mm;
+}
+
+.aixia-finance-print-bank-block {
+  margin-bottom: 8mm;
+}
+
+.aixia-finance-print-section-title {
+  margin-bottom: 1.5mm;
+  color: #111827;
+  font-size: 9pt;
+  font-weight: 700;
+}
+
+.aixia-finance-print-term-group + .aixia-finance-print-term-group {
+  margin-top: 1.2mm;
+}
+
+.aixia-finance-print-term-line span,
+.aixia-finance-print-bank-details span {
+  color: #6b7280;
+}
+
+.aixia-finance-print-paragraph {
+  margin-top: 1mm;
+  color: #374151;
+  line-height: 1.55;
+  white-space: pre-wrap;
+}
+
+.aixia-finance-print-bank-details {
+  line-height: 1.65;
+}
+
+.aixia-finance-print-summary-block {
+  background: #ffffff;
+  padding: 2mm 0 0 6mm;
+}
+
+.aixia-finance-print-total-row {
+  display: flex;
+  justify-content: space-between;
+  gap: 4mm;
+  margin-bottom: 2mm;
+  font-size: 9pt;
+}
+
+.aixia-finance-print-grand-total-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 4mm;
+  margin-top: 2.5mm;
+  padding: 3mm;
+  background: #232323;
+  color: #ffffff;
+}
+
+.aixia-finance-print-grand-total-row span {
+  font-size: 10pt;
+  font-weight: 700;
+  text-transform: uppercase;
+}
+
+.aixia-finance-print-grand-total-row strong {
+  font-size: 11pt;
+  font-weight: 700;
+}
+
+.aixia-finance-print-signature-block {
+  width: 100%;
+  margin-top: 6mm;
+  text-align: center;
+}
+
+.aixia-finance-print-signature-line {
+  height: 12mm;
+  margin-bottom: 1.5mm;
+  border-bottom: 0.5pt dashed #6b7280;
+}
+
+.aixia-finance-print-signature-block div:last-child {
+  color: #374151;
+  font-size: 8pt;
+}
+
+.aixia-finance-print-footer {
+  margin-top: 1mm;
+  padding-top: 2mm;
+  border-top: 0.5pt solid #e5e7eb;
+  background: #ffffff;
+}
+
+.aixia-finance-print-legal-text {
+  margin-bottom: 3mm;
+  color: #374151;
+  font-size: 7pt;
+  line-height: 1.45;
+  white-space: pre-wrap;
+}
+
+.aixia-finance-print-history {
+  margin-top: 2mm;
+  color: #6b7280;
+  font-size: 6.8pt;
+  line-height: 1.5;
+  text-align: right;
+}
+
+.aixia-finance-print-thank-you {
+  margin-top: 3mm;
+  color: #111827;
+  font-size: 10pt;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  text-align: center;
+  text-transform: uppercase;
+}
+
+@media print {
+  .aixia-finance-print-card,
+  .aixia-finance-print-party-card,
+  .aixia-finance-print-table,
+  .aixia-finance-print-bottom-grid,
+  .aixia-finance-print-footer {
+    break-inside: avoid;
+  }
+}

@@ -1940,12 +1940,11 @@ export default function FinanceCustomerPoDetailPage() {
         </div>
       </AixiaSection>
 
-      <AixiaSmartLayout
-        sidebar="normal"
-        balance="main"
-        bottomSpan="never"
-        sideRebalance="last-to-bottom"
-        main={
+<AixiaSmartLayout
+  sidebar="normal"
+  balance="main"
+  bottomSpan="auto"
+  sideRebalance="last-to-bottom"
           <>
             <AixiaDetailSection
               title="Document Overview"

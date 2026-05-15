@@ -1,137 +1,134 @@
+"use client";
+
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import {
-  Banknote,
-  Building2,
-  CalendarDays,
-  CheckCircle2,
-  Coins,
+  Archive,
+  BadgeCheck,
+  Eye,
   FileCheck2,
-  Loader2,
-  Save,
-  ShieldCheck,
-  Sparkles,
-  UploadCloud,
-  WalletCards,
+  Plus,
+  Receipt,
+  RotateCcw,
+  Trash2,
+  Wallet,
 } from "lucide-react";
 
 import {
-  AixiaActionCard,
-  AixiaActionStack,
+  AixiaAccessDeniedState,
+  AixiaAccessRule,
   AixiaAlert,
+  AixiaArchiveManagerModal,
   AixiaBadge,
   AixiaButton,
-  AixiaDisplayBlock,
-  AixiaDocumentUploadPanel,
-  AixiaFieldLabel,
-  AixiaFormField,
-  AixiaFormFullWidth,
-  AixiaFormGrid,
+  AixiaEmptyState,
   AixiaHero,
-  AixiaInputField,
-  AixiaLoadingState,
   AixiaMetricCard,
   AixiaMetricGrid,
   AixiaPage,
+  AixiaRegistryToolbar,
+  AixiaSearchField,
   AixiaSection,
-  AixiaSelectField,
-  AixiaSmartLayout,
-  AixiaTextareaField,
-  AixiaValueBlock,
-  type AixiaDocumentUploadAttachment,
+  AixiaSortableHeader,
+  AixiaStatusBadge,
+  AixiaTableActionsCell,
+  AixiaTableBadgeCell,
+  AixiaTableDateCell,
+  AixiaTableShell,
+  AixiaTableTextCell,
+  AixiaLoadingState,
 } from "@/components/aixia";
+import {
+  fetchFinanceEffectivePermissions,
+  resolveFinancePagePermissionState,
+  type FinanceLoadMode,
+  type FinancePageAccessConfig,
+} from "@/lib/finance/pageAccess";
+import type { Role } from "@/lib/permissions";
+import {
+  archivePaymentReceived,
+  getPaymentsReceived,
+  getPaymentsReceivedArchiveList,
+  permanentlyDeletePaymentReceived,
+  restorePaymentReceived,
+  softDeletePaymentReceived,
+} from "@/lib/finance/paymentsReceived";
+import { getIssuedInvoicesList } from "@/lib/finance/invoicesIssued";
 import { supabase } from "@/lib/supabase";
 
-type SaveMode = "draft" | "confirmed";
+type LoadMode = FinanceLoadMode;
 
-type CompanyRow = {
+type PaymentReceivedListRow = {
   id: string;
-  name: string | null;
-  legal_name: string | null;
-};
-
-type BankAccountRow = {
-  id: string;
-  name: string | null;
-  bank_name: string | null;
-  institution_name: string | null;
-  masked_account_number: string | null;
-  currency_code: string | null;
-  company_id: string | null;
-  is_default: boolean | null;
-};
-
-type CurrencyRow = {
-  id: string;
-  currency_code: string;
-  currency_name: string;
-  currency_symbol: string | null;
-  decimal_places: number;
-  is_base_currency: boolean;
+  amount: number;
+  converted_amount?: number | null;
+  payment_date: string;
   status: string;
+  reference_number: string | null;
+  payment_method_id?: string | null;
+  counterparty_name: string | null;
+  client_name: string | null;
+  invoice_number: string | null;
+  payment_currency_code?: string | null;
+  invoice_currency_code?: string | null;
+  exchange_rate?: number | null;
+  exchange_rate_source?: string | null;
 };
 
-type FormState = {
-  fundingCompanyId: string;
-  fundingBankAccountId: string;
-  payrollPeriodFrom: string;
-  payrollPeriodTo: string;
-  allocationDate: string;
-  currencyCode: string;
-  allocatedPayrollAmount: string;
-  notes: string;
+type OpenInvoiceRow = {
+  id: string;
+  invoice_number: string | null;
+  issue_date: string | null;
+  due_date: string | null;
+  status: string;
+  payment_status: string | null;
+  counterparty_name_snapshot?: string | null;
+  client_name_snapshot?: string | null;
+  client_name?: string | null;
+  total_amount: number | string | null;
+  paid_amount: number | string | null;
+  balance_due: number | string | null;
+  currency_code: string | null;
 };
 
-function getTodayIsoDate() {
-  return new Date().toISOString().slice(0, 10);
-}
+type PaymentSortKey =
+  | "reference_number"
+  | "client"
+  | "invoice_number"
+  | "amount"
+  | "converted_amount"
+  | "payment_date"
+  | "status"
+  | "currency";
 
-function getCurrentMonthStartIsoDate() {
-  const today = new Date();
-  return new Date(today.getFullYear(), today.getMonth(), 1)
-    .toISOString()
-    .slice(0, 10);
-}
+type OpenInvoiceSortKey =
+  | "invoice_number"
+  | "client"
+  | "due_date"
+  | "total_amount"
+  | "paid_amount"
+  | "balance_due"
+  | "currency_code";
 
-function getCurrentMonthEndIsoDate() {
-  const today = new Date();
-  return new Date(today.getFullYear(), today.getMonth() + 1, 0)
-    .toISOString()
-    .slice(0, 10);
-}
+type SortDirection = "asc" | "desc";
+type ArchiveTab = "archived" | "deleted";
+type EffectivePermissions = Awaited<
+  ReturnType<typeof fetchFinanceEffectivePermissions>
+>;
 
-const initialFormState: FormState = {
-  fundingCompanyId: "",
-  fundingBankAccountId: "",
-  payrollPeriodFrom: getCurrentMonthStartIsoDate(),
-  payrollPeriodTo: getCurrentMonthEndIsoDate(),
-  allocationDate: getTodayIsoDate(),
-  currencyCode: "USD",
-  allocatedPayrollAmount: "",
-  notes: "",
+const PAGE_ACCESS_CONFIG: FinancePageAccessConfig = {
+  sectionKey: "incomingMoneyFlow",
+  readPermissions: ["accessFinance", "viewFinance", "viewFinanceRecords"],
+  createPermissions: ["createFinanceRecords"],
+  updatePermissions: ["editFinanceRecords"],
+  deleteArchivePermissions: ["archiveFinanceRecords"],
 };
 
-function toNumber(value: number | string | null | undefined) {
-  const parsed = Number(value ?? 0);
-  return Number.isFinite(parsed) ? parsed : 0;
-}
-
-function normalizeCurrencyCode(value: string | null | undefined) {
-  return (value || "").trim().toUpperCase();
-}
-
-function formatMoney(value: number | string | null | undefined) {
-  return toNumber(value).toLocaleString(undefined, {
-    minimumFractionDigits: 2,
-    maximumFractionDigits: 2,
-  });
-}
-
-function formatDate(value: string | null | undefined) {
+function formatFinanceDate(value: string | null | undefined) {
   if (!value) return "—";
 
   const parsed = new Date(value);
-  if (Number.isNaN(parsed.getTime())) return value;
+  if (Number.isNaN(parsed.getTime())) return "—";
 
   return parsed.toLocaleDateString(undefined, {
     year: "numeric",
@@ -140,424 +137,1012 @@ function formatDate(value: string | null | undefined) {
   });
 }
 
-function getCompanyName(company: CompanyRow | null | undefined) {
-  if (!company) return "Not selected";
-  return company.legal_name || company.name || "Company selected";
+function formatFinanceMoney(
+  amount: number | string | null | undefined,
+  currencyCode = "USD",
+) {
+  const numeric = Number(amount ?? 0);
+
+  return new Intl.NumberFormat(undefined, {
+    style: "currency",
+    currency: currencyCode || "USD",
+    minimumFractionDigits: 2,
+    maximumFractionDigits: 2,
+  }).format(Number.isFinite(numeric) ? numeric : 0);
 }
 
-function getBankLabel(bank: BankAccountRow | null | undefined) {
-  if (!bank) return "—";
+function getPaymentStatusLabel(status: string | null | undefined) {
+  if (!status) return "Unknown";
 
-  return [
-    bank.name || bank.bank_name || bank.institution_name || "Bank Account",
-    bank.currency_code,
-    bank.masked_account_number,
-  ]
+  return status
+    .split("_")
     .filter(Boolean)
-    .join(" • ");
+    .map((part) => part.charAt(0).toUpperCase() + part.slice(1))
+    .join(" ");
 }
 
-function resolveMimeType(file: File) {
-  if (file.type && file.type !== "application/octet-stream") {
-    return file.type;
+function getCurrencyBadgeLabel(
+  paymentCurrencyCode?: string | null,
+  invoiceCurrencyCode?: string | null,
+) {
+  if (
+    paymentCurrencyCode &&
+    invoiceCurrencyCode &&
+    paymentCurrencyCode !== invoiceCurrencyCode
+  ) {
+    return `${paymentCurrencyCode} → ${invoiceCurrencyCode}`;
   }
 
-  const extension = file.name.split(".").pop()?.toLowerCase();
+  return paymentCurrencyCode || invoiceCurrencyCode || "Currency";
+}
 
-  switch (extension) {
-    case "pdf":
-      return "application/pdf";
-    case "png":
-      return "image/png";
-    case "jpg":
-    case "jpeg":
-      return "image/jpeg";
-    case "webp":
-      return "image/webp";
-    case "doc":
-      return "application/msword";
-    case "docx":
-      return "application/vnd.openxmlformats-officedocument.wordprocessingml.document";
-    case "xls":
-      return "application/vnd.ms-excel";
-    case "xlsx":
-      return "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet";
+function getCurrencyBadgeTone(
+  paymentCurrencyCode?: string | null,
+  invoiceCurrencyCode?: string | null,
+) {
+  if (
+    paymentCurrencyCode &&
+    invoiceCurrencyCode &&
+    paymentCurrencyCode !== invoiceCurrencyCode
+  ) {
+    return "violet" as const;
+  }
+
+  return "neutral" as const;
+}
+
+function getPaymentClientName(payment: PaymentReceivedListRow) {
+  return payment.counterparty_name || payment.client_name || "—";
+}
+
+function getOpenInvoiceClientName(invoice: OpenInvoiceRow) {
+  return (
+    invoice.counterparty_name_snapshot ||
+    invoice.client_name_snapshot ||
+    invoice.client_name ||
+    "—"
+  );
+}
+
+function getPaymentSortValue(
+  payment: PaymentReceivedListRow,
+  key: PaymentSortKey,
+) {
+  switch (key) {
+    case "reference_number":
+      return (payment.reference_number || "Payment Record").toLowerCase();
+    case "client":
+      return getPaymentClientName(payment).toLowerCase();
+    case "invoice_number":
+      return (payment.invoice_number || "").toLowerCase();
+    case "amount":
+      return Number(payment.amount ?? 0);
+    case "converted_amount":
+      return Number(payment.converted_amount ?? payment.amount ?? 0);
+    case "payment_date":
+      return payment.payment_date
+        ? new Date(payment.payment_date).getTime()
+        : 0;
+    case "status":
+      return String(payment.status || "").toLowerCase();
+    case "currency":
+      return getCurrencyBadgeLabel(
+        payment.payment_currency_code,
+        payment.invoice_currency_code,
+      ).toLowerCase();
     default:
-      return file.type || "application/octet-stream";
+      return "";
   }
 }
 
-export default function FinancePayrollFundingBatchNewPage() {
+function getOpenInvoiceSortValue(
+  invoice: OpenInvoiceRow,
+  key: OpenInvoiceSortKey,
+) {
+  switch (key) {
+    case "invoice_number":
+      return (invoice.invoice_number || "Invoice").toLowerCase();
+    case "client":
+      return getOpenInvoiceClientName(invoice).toLowerCase();
+    case "due_date":
+      return invoice.due_date ? new Date(invoice.due_date).getTime() : 0;
+    case "total_amount":
+      return Number(invoice.total_amount ?? 0);
+    case "paid_amount":
+      return Number(invoice.paid_amount ?? 0);
+    case "balance_due":
+      return Number(invoice.balance_due ?? 0);
+    case "currency_code":
+      return String(invoice.currency_code || "").toLowerCase();
+    default:
+      return "";
+  }
+}
+
+function compareSortValues(
+  firstValue: string | number,
+  secondValue: string | number,
+  direction: SortDirection,
+) {
+  if (typeof firstValue === "number" && typeof secondValue === "number") {
+    return direction === "asc"
+      ? firstValue - secondValue
+      : secondValue - firstValue;
+  }
+
+  return direction === "asc"
+    ? String(firstValue).localeCompare(String(secondValue))
+    : String(secondValue).localeCompare(String(firstValue));
+}
+
+function PaymentsTable({
+  rows,
+  sortKey,
+  sortDirection,
+  onSort,
+  onOpen,
+  onArchive,
+  onDelete,
+  canArchive,
+  archiveMode = false,
+  archiveTab = "archived",
+  onRestore,
+  onHardDelete,
+}: {
+  rows: PaymentReceivedListRow[];
+  sortKey: PaymentSortKey;
+  sortDirection: SortDirection;
+  onSort: (key: PaymentSortKey) => void;
+  onOpen: (id: string) => void;
+  onArchive?: (id: string) => void;
+  onDelete?: (id: string) => void;
+  canArchive?: boolean;
+  archiveMode?: boolean;
+  archiveTab?: ArchiveTab;
+  onRestore?: (id: string) => void;
+  onHardDelete?: (id: string) => void;
+}) {
+  if (rows.length === 0) {
+    return (
+      <AixiaEmptyState
+        icon={Receipt}
+        title={
+          archiveMode
+            ? `No ${archiveTab} payments found`
+            : "No payments received found"
+        }
+        description={
+          archiveMode
+            ? "Archived and deleted payment records will appear here."
+            : "Incoming payment records will appear here after draft creation or confirmation."
+        }
+      />
+    );
+  }
+
+  return (
+    <AixiaTableShell
+      variant={archiveMode ? "archive" : "registry"}
+      minWidthClassName={archiveMode ? "min-w-[1280px]" : "min-w-[1420px]"}
+      maxHeightClassName={archiveMode ? "max-h-[620px]" : "max-h-[720px]"}
+    >
+      <thead className="aixia-table-head">
+        <tr>
+          <th>
+            <AixiaSortableHeader
+              label="Reference"
+              sortKey="reference_number"
+              activeSortKey={sortKey}
+              sortDirection={sortDirection}
+              onSort={onSort}
+            />
+          </th>
+          <th>
+            <AixiaSortableHeader
+              label="Client"
+              sortKey="client"
+              activeSortKey={sortKey}
+              sortDirection={sortDirection}
+              onSort={onSort}
+            />
+          </th>
+          <th>
+            <AixiaSortableHeader
+              label="Invoice"
+              sortKey="invoice_number"
+              activeSortKey={sortKey}
+              sortDirection={sortDirection}
+              onSort={onSort}
+            />
+          </th>
+          <th>
+            <AixiaSortableHeader
+              label="Paid"
+              sortKey="amount"
+              activeSortKey={sortKey}
+              sortDirection={sortDirection}
+              onSort={onSort}
+            />
+          </th>
+          <th>
+            <AixiaSortableHeader
+              label="Converted"
+              sortKey="converted_amount"
+              activeSortKey={sortKey}
+              sortDirection={sortDirection}
+              onSort={onSort}
+            />
+          </th>
+          <th>
+            <AixiaSortableHeader
+              label="Date"
+              sortKey="payment_date"
+              activeSortKey={sortKey}
+              sortDirection={sortDirection}
+              onSort={onSort}
+            />
+          </th>
+          <th>
+            <AixiaSortableHeader
+              label="Status"
+              sortKey="status"
+              activeSortKey={sortKey}
+              sortDirection={sortDirection}
+              onSort={onSort}
+            />
+          </th>
+          <th>
+            <AixiaSortableHeader
+              label="Currency"
+              sortKey="currency"
+              activeSortKey={sortKey}
+              sortDirection={sortDirection}
+              onSort={onSort}
+            />
+          </th>
+          <th>FX Source</th>
+          <th>Actions</th>
+        </tr>
+      </thead>
+
+      <tbody>
+        {rows.map((payment) => {
+          const displayConvertedAmount =
+            payment.converted_amount ?? payment.amount ?? 0;
+
+          return (
+            <tr key={payment.id} className="aixia-table-row">
+              <AixiaTableTextCell
+                width="lg"
+                primary={payment.reference_number || "Payment Record"}
+                secondary={payment.payment_method_id || undefined}
+              />
+              <AixiaTableTextCell
+                width="lg"
+                primary={getPaymentClientName(payment)}
+                secondary={
+                  payment.client_name &&
+                  payment.client_name !== getPaymentClientName(payment)
+                    ? payment.client_name
+                    : undefined
+                }
+              />
+              <AixiaTableTextCell
+                width="md"
+                primary={payment.invoice_number || "—"}
+                secondary="Linked invoice"
+              />
+              <AixiaTableTextCell
+                width="md"
+                primary={formatFinanceMoney(
+                  payment.amount,
+                  payment.payment_currency_code || "USD",
+                )}
+              />
+              <AixiaTableTextCell
+                width="md"
+                primary={formatFinanceMoney(
+                  displayConvertedAmount,
+                  payment.invoice_currency_code || "USD",
+                )}
+              />
+              <AixiaTableDateCell>
+                {formatFinanceDate(payment.payment_date)}
+              </AixiaTableDateCell>
+              <AixiaTableBadgeCell>
+                <AixiaStatusBadge value={payment.status} />
+              </AixiaTableBadgeCell>
+              <AixiaTableBadgeCell width="md">
+                <AixiaBadge
+                  tone={getCurrencyBadgeTone(
+                    payment.payment_currency_code,
+                    payment.invoice_currency_code,
+                  )}
+                >
+                  {getCurrencyBadgeLabel(
+                    payment.payment_currency_code,
+                    payment.invoice_currency_code,
+                  )}
+                </AixiaBadge>
+              </AixiaTableBadgeCell>
+              <AixiaTableTextCell
+                width="lg"
+                primary={payment.exchange_rate_source || "—"}
+              />
+              <AixiaTableActionsCell>
+                <AixiaButton
+                  type="button"
+                  variant="primary"
+                  onClick={() => onOpen(payment.id)}
+                >
+                  <Eye className="h-4 w-4" />
+                  Open
+                </AixiaButton>
+
+                {!archiveMode && canArchive ? (
+                  <>
+                    <AixiaButton
+                      type="button"
+                      variant="danger"
+                      onClick={() => onArchive?.(payment.id)}
+                    >
+                      <Archive className="h-4 w-4" />
+                      Archive
+                    </AixiaButton>
+
+                    <AixiaButton
+                      type="button"
+                      variant="danger"
+                      onClick={() => onDelete?.(payment.id)}
+                    >
+                      <Trash2 className="h-4 w-4" />
+                      Delete
+                    </AixiaButton>
+                  </>
+                ) : null}
+
+                {archiveMode ? (
+                  <>
+                    <AixiaButton
+                      type="button"
+                      variant="secondary"
+                      onClick={() => onRestore?.(payment.id)}
+                    >
+                      <RotateCcw className="h-4 w-4" />
+                      Restore
+                    </AixiaButton>
+
+                    {archiveTab === "deleted" ? (
+                      <AixiaButton
+                        type="button"
+                        variant="danger"
+                        onClick={() => onHardDelete?.(payment.id)}
+                      >
+                        <Trash2 className="h-4 w-4" />
+                        Delete Permanently
+                      </AixiaButton>
+                    ) : null}
+                  </>
+                ) : null}
+              </AixiaTableActionsCell>
+            </tr>
+          );
+        })}
+      </tbody>
+    </AixiaTableShell>
+  );
+}
+
+function OpenInvoicesTable({
+  rows,
+  sortKey,
+  sortDirection,
+  onSort,
+  onOpen,
+}: {
+  rows: OpenInvoiceRow[];
+  sortKey: OpenInvoiceSortKey;
+  sortDirection: SortDirection;
+  onSort: (key: OpenInvoiceSortKey) => void;
+  onOpen: (id: string) => void;
+}) {
+  if (rows.length === 0) {
+    return (
+      <AixiaEmptyState
+        icon={FileCheck2}
+        title="No open invoices found"
+        description="Issued invoices with open balance will appear here."
+      />
+    );
+  }
+
+  return (
+    <AixiaTableShell
+      variant="registry"
+      minWidthClassName="min-w-[1180px]"
+      maxHeightClassName="max-h-[520px]"
+    >
+      <thead className="aixia-table-head">
+        <tr>
+          <th>
+            <AixiaSortableHeader
+              label="Invoice No."
+              sortKey="invoice_number"
+              activeSortKey={sortKey}
+              sortDirection={sortDirection}
+              onSort={onSort}
+            />
+          </th>
+          <th>
+            <AixiaSortableHeader
+              label="Client"
+              sortKey="client"
+              activeSortKey={sortKey}
+              sortDirection={sortDirection}
+              onSort={onSort}
+            />
+          </th>
+          <th>
+            <AixiaSortableHeader
+              label="Due Date"
+              sortKey="due_date"
+              activeSortKey={sortKey}
+              sortDirection={sortDirection}
+              onSort={onSort}
+            />
+          </th>
+          <th>
+            <AixiaSortableHeader
+              label="Total"
+              sortKey="total_amount"
+              activeSortKey={sortKey}
+              sortDirection={sortDirection}
+              onSort={onSort}
+            />
+          </th>
+          <th>
+            <AixiaSortableHeader
+              label="Paid"
+              sortKey="paid_amount"
+              activeSortKey={sortKey}
+              sortDirection={sortDirection}
+              onSort={onSort}
+            />
+          </th>
+          <th>
+            <AixiaSortableHeader
+              label="Balance"
+              sortKey="balance_due"
+              activeSortKey={sortKey}
+              sortDirection={sortDirection}
+              onSort={onSort}
+            />
+          </th>
+          <th>
+            <AixiaSortableHeader
+              label="Currency"
+              sortKey="currency_code"
+              activeSortKey={sortKey}
+              sortDirection={sortDirection}
+              onSort={onSort}
+            />
+          </th>
+          <th>Actions</th>
+        </tr>
+      </thead>
+
+      <tbody>
+        {rows.map((invoice) => (
+          <tr key={invoice.id} className="aixia-table-row">
+            <AixiaTableTextCell
+              width="lg"
+              primary={invoice.invoice_number || "Invoice"}
+              secondary={getPaymentStatusLabel(invoice.status)}
+            />
+            <AixiaTableTextCell
+              width="lg"
+              primary={getOpenInvoiceClientName(invoice)}
+              secondary={invoice.payment_status || undefined}
+            />
+            <AixiaTableDateCell>
+              {formatFinanceDate(invoice.due_date)}
+            </AixiaTableDateCell>
+            <AixiaTableTextCell
+              width="md"
+              primary={formatFinanceMoney(
+                invoice.total_amount,
+                invoice.currency_code || "USD",
+              )}
+            />
+            <AixiaTableTextCell
+              width="md"
+              primary={formatFinanceMoney(
+                invoice.paid_amount,
+                invoice.currency_code || "USD",
+              )}
+            />
+            <AixiaTableTextCell
+              width="md"
+              primary={formatFinanceMoney(
+                invoice.balance_due,
+                invoice.currency_code || "USD",
+              )}
+            />
+            <AixiaTableBadgeCell>
+              <AixiaBadge tone="neutral">
+                {invoice.currency_code || "USD"}
+              </AixiaBadge>
+            </AixiaTableBadgeCell>
+            <AixiaTableActionsCell>
+              <AixiaButton
+                type="button"
+                variant="primary"
+                onClick={() => onOpen(invoice.id)}
+              >
+                <Eye className="h-4 w-4" />
+                Open
+              </AixiaButton>
+            </AixiaTableActionsCell>
+          </tr>
+        ))}
+      </tbody>
+    </AixiaTableShell>
+  );
+}
+
+export default function PaymentsReceivedPage() {
   const navigate = useNavigate();
 
-  const [form, setForm] = useState<FormState>(initialFormState);
-  const [companies, setCompanies] = useState<CompanyRow[]>([]);
-  const [bankAccounts, setBankAccounts] = useState<BankAccountRow[]>([]);
-  const [currencies, setCurrencies] = useState<CurrencyRow[]>([]);
-  const [fundingProofFile, setFundingProofFile] = useState<File | null>(null);
   const [isLoading, setIsLoading] = useState(true);
-  const [isSaving, setIsSaving] = useState(false);
-  const [savingMode, setSavingMode] = useState<SaveMode | null>(null);
-  const [pageError, setPageError] = useState<string | null>(null);
-  const [pageMessage, setPageMessage] = useState<string | null>(null);
+  const [isBackgroundRefreshing, setIsBackgroundRefreshing] = useState(false);
+  const [payments, setPayments] = useState<PaymentReceivedListRow[]>([]);
+  const [openInvoices, setOpenInvoices] = useState<OpenInvoiceRow[]>([]);
+  const [search, setSearch] = useState("");
+  const [openInvoicesSearch, setOpenInvoicesSearch] = useState("");
+  const [errorMessage, setErrorMessage] = useState("");
 
-  const selectedCurrency = normalizeCurrencyCode(form.currencyCode || "USD");
-  const allocatedPayrollAmount = toNumber(form.allocatedPayrollAmount);
+  const [profileRole, setProfileRole] = useState<Role | null>(null);
+  const [effectivePermissions, setEffectivePermissions] =
+    useState<EffectivePermissions | null>(null);
 
-  const companyMap = useMemo(() => {
-    return new Map(companies.map((company) => [company.id, company]));
-  }, [companies]);
+  const [isArchiveModalOpen, setIsArchiveModalOpen] = useState(false);
+  const [archiveTab, setArchiveTab] = useState<ArchiveTab>("archived");
+  const [archivedPayments, setArchivedPayments] = useState<
+    PaymentReceivedListRow[]
+  >([]);
+  const [isArchiveLoading, setIsArchiveLoading] = useState(false);
 
-  const bankAccountMap = useMemo(() => {
-    return new Map(bankAccounts.map((bank) => [bank.id, bank]));
-  }, [bankAccounts]);
+  const [paymentSortKey, setPaymentSortKey] =
+    useState<PaymentSortKey>("payment_date");
+  const [paymentSortDirection, setPaymentSortDirection] =
+    useState<SortDirection>("desc");
+  const [openInvoiceSortKey, setOpenInvoiceSortKey] =
+    useState<OpenInvoiceSortKey>("due_date");
+  const [openInvoiceSortDirection, setOpenInvoiceSortDirection] =
+    useState<SortDirection>("asc");
 
-  const availableBankAccounts = useMemo(() => {
-    if (!form.fundingCompanyId) return [];
-    return bankAccounts.filter((bank) => bank.company_id === form.fundingCompanyId);
-  }, [bankAccounts, form.fundingCompanyId]);
+  const pagePermissionState = useMemo(() => {
+    return resolveFinancePagePermissionState({
+      profileRole,
+      permissions: effectivePermissions,
+      config: PAGE_ACCESS_CONFIG,
+    });
+  }, [effectivePermissions, profileRole]);
 
-  const currencyOptions = useMemo(() => {
-    return currencies.filter((currency) => currency.status === "active");
-  }, [currencies]);
+  const canReadPaymentsReceived = pagePermissionState.canRead;
+  const canCreatePaymentsReceived = pagePermissionState.canCreate;
+  const canArchivePaymentsReceived = pagePermissionState.canDeleteArchive;
 
-  const selectedCompanyName = getCompanyName(companyMap.get(form.fundingCompanyId));
-  const selectedBankLabel = getBankLabel(bankAccountMap.get(form.fundingBankAccountId));
-
-  const payrollPeriodLabel =
-    form.payrollPeriodFrom && form.payrollPeriodTo
-      ? `${formatDate(form.payrollPeriodFrom)} → ${formatDate(form.payrollPeriodTo)}`
-      : "Not selected";
-
-  const uploadAttachments = useMemo<AixiaDocumentUploadAttachment[]>(() => {
-    return fundingProofFile
-      ? [
-          {
-            id: fundingProofFile.name,
-            fileName: fundingProofFile.name,
-            badge: "Selected",
-            sizeLabel: `${(fundingProofFile.size / 1024 / 1024).toFixed(2)} MB`,
-            description: "This proof file will be uploaded after the funding pool is saved.",
-          },
-        ]
-      : [];
-  }, [fundingProofFile]);
-
-  const updateField = useCallback(
-    <Key extends keyof FormState>(key: Key, value: FormState[Key]) => {
-      setForm((current) => {
-        const next = {
-          ...current,
-          [key]: value,
-        };
-
-        if (key === "fundingCompanyId") {
-          const defaultBank =
-            bankAccounts.find((bank) => bank.company_id === value && bank.is_default)?.id ||
-            bankAccounts.find((bank) => bank.company_id === value)?.id ||
-            "";
-
-          next.fundingBankAccountId = defaultBank;
-        }
-
-        if (key === "currencyCode") {
-          next.currencyCode = normalizeCurrencyCode(String(value));
-        }
-
-        return next;
-      });
-
-      setPageError(null);
-      setPageMessage(null);
-    },
-    [bankAccounts],
-  );
-
-  const loadOptions = useCallback(async () => {
-    setIsLoading(true);
-    setPageError(null);
-
+  const loadPermissions = useCallback(async (mode: LoadMode = "initial") => {
     try {
-      const [companiesResult, bankAccountsResult, currenciesResult] = await Promise.all([
-        supabase.from("finance_companies").select("id, name, legal_name").order("name"),
+      const {
+        data: { user },
+      } = await supabase.auth.getUser();
+
+      if (!user?.id) {
+        if (mode === "initial") {
+          setProfileRole(null);
+          setEffectivePermissions(null);
+        }
+        return;
+      }
+
+      const [profileResult, permissions] = await Promise.all([
         supabase
-          .from("finance_bank_accounts")
-          .select(
-            "id, name, bank_name, institution_name, masked_account_number, currency_code, company_id, is_default",
-          )
-          .order("name"),
-        supabase
-          .from("finance_currencies")
-          .select(
-            "id, currency_code, currency_name, currency_symbol, decimal_places, is_base_currency, status",
-          )
-          .eq("status", "active")
-          .order("currency_code"),
+          .from("profiles")
+          .select("role")
+          .eq("user_id", user.id)
+          .maybeSingle(),
+        fetchFinanceEffectivePermissions(user.id, mode, "Payments Received"),
       ]);
 
-      if (companiesResult.error) throw companiesResult.error;
-      if (bankAccountsResult.error) throw bankAccountsResult.error;
-      if (currenciesResult.error) throw currenciesResult.error;
+      if (profileResult.error) throw profileResult.error;
 
-      const loadedCompanies = (companiesResult.data || []) as CompanyRow[];
-      const loadedBankAccounts = (bankAccountsResult.data || []) as BankAccountRow[];
-      const loadedCurrencies = (currenciesResult.data || []) as unknown as CurrencyRow[];
-
-      setCompanies(loadedCompanies);
-      setBankAccounts(loadedBankAccounts);
-      setCurrencies(loadedCurrencies);
-
-      const initialCompanyId = loadedCompanies[0]?.id || "";
-      const defaultBank =
-        loadedBankAccounts.find((bank) => bank.company_id === initialCompanyId && bank.is_default)
-          ?.id ||
-        loadedBankAccounts.find((bank) => bank.company_id === initialCompanyId)?.id ||
-        "";
-
-      const defaultCurrency =
-        loadedCurrencies.find((currency) => currency.is_base_currency)?.currency_code ||
-        loadedCurrencies[0]?.currency_code ||
-        "USD";
-
-      setForm((current) => ({
-        ...current,
-        fundingCompanyId: current.fundingCompanyId || initialCompanyId,
-        fundingBankAccountId: current.fundingBankAccountId || defaultBank,
-        currencyCode: current.currencyCode || defaultCurrency,
-      }));
-    } catch (error) {
-      console.error("Failed to load payroll funding pool setup:", error);
-      setPageError(
-        error instanceof Error ? error.message : "Failed to load payroll funding pool setup.",
+      setProfileRole(
+        (((profileResult.data || null) as { role?: Role | null } | null)?.role ||
+          null) as Role | null,
       );
-    } finally {
-      setIsLoading(false);
+      setEffectivePermissions(permissions);
+    } catch (error) {
+      console.error("Failed to load payments received permissions:", error);
+      if (mode === "initial") {
+        setErrorMessage("Failed to load permissions for Payments Received.");
+      }
     }
   }, []);
 
-  useEffect(() => {
-    void loadOptions();
-  }, [loadOptions]);
+  const loadPayments = useCallback(async (mode: LoadMode = "initial") => {
+    if (mode === "initial") {
+      setIsLoading(true);
+    } else {
+      setIsBackgroundRefreshing(true);
+    }
 
-  const validateForm = useCallback(
-    (saveMode: SaveMode) => {
-      if (!form.fundingCompanyId) return "Funding company is required.";
-      if (!form.allocationDate) return "Allocation date is required.";
-      if (!form.payrollPeriodFrom) return "Payroll period start date is required.";
-      if (!form.payrollPeriodTo) return "Payroll period end date is required.";
-
-      if (form.payrollPeriodTo < form.payrollPeriodFrom) {
-        return "Payroll period end date cannot be before the start date.";
+    try {
+      if (mode === "initial") {
+        setErrorMessage("");
       }
 
-      if (!selectedCurrency) return "Funding currency is required.";
+      const [paymentRows, invoiceRows] = await Promise.all([
+        getPaymentsReceived(),
+        getIssuedInvoicesList(),
+      ]);
 
-      if (allocatedPayrollAmount <= 0) {
-        return "Allocated payroll amount must be greater than zero.";
-      }
+      const openInvoiceRows = invoiceRows.filter((invoice) => {
+        const balanceDue = Number(invoice.balance_due ?? 0);
+        const status = String(invoice.status || "").toLowerCase();
+        const paymentStatus = String(
+          invoice.payment_status || "",
+        ).toLowerCase();
 
-      const selectedBank = form.fundingBankAccountId
-        ? bankAccountMap.get(form.fundingBankAccountId)
-        : null;
+        const isOpenDocumentStatus =
+          status === "issued" ||
+          status === "partially_paid" ||
+          status === "overdue";
 
-      if (selectedBank && selectedBank.company_id !== form.fundingCompanyId) {
-        return "Funding bank account must belong to the funding company.";
-      }
+        const isOpenPaymentStatus =
+          paymentStatus === "unpaid" ||
+          paymentStatus === "partial" ||
+          paymentStatus === "partially_paid" ||
+          paymentStatus === "";
 
-      if (saveMode === "confirmed" && !fundingProofFile) {
-        return "Payroll funding proof is required before confirming a payroll funding pool.";
-      }
+        const isExcludedStatus =
+          status === "draft" ||
+          status === "paid" ||
+          status === "void" ||
+          status === "voided" ||
+          status === "cancelled" ||
+          status === "canceled" ||
+          status === "archived" ||
+          status === "deleted";
 
-      return null;
-    },
-    [
-      allocatedPayrollAmount,
-      bankAccountMap,
-      form.allocationDate,
-      form.fundingBankAccountId,
-      form.fundingCompanyId,
-      form.payrollPeriodFrom,
-      form.payrollPeriodTo,
-      fundingProofFile,
-      selectedCurrency,
-    ],
-  );
-
-  const uploadFundingProof = useCallback(
-    async (batchId: string) => {
-      if (!fundingProofFile) return false;
-
-      const authResult = await supabase.auth.getUser();
-      if (authResult.error) throw authResult.error;
-
-      const userId = authResult.data.user?.id ?? null;
-      const resolvedMimeType = resolveMimeType(fundingProofFile);
-      const safeFileName = fundingProofFile.name.replace(/[^\w.\-]+/g, "_");
-      const filePath = `${batchId}/${Date.now()}-${safeFileName}`;
-
-      const uploadResult = await supabase.storage
-        .from("finance-paycheck-funding-batch-documents")
-        .upload(filePath, fundingProofFile, {
-          contentType: resolvedMimeType,
-          upsert: false,
-        });
-
-      if (uploadResult.error) throw uploadResult.error;
-
-      const fileUploadResult = await supabase
-        .from("file_uploads")
-        .insert({
-          user_id: userId,
-          file_name: fundingProofFile.name,
-          file_path: uploadResult.data.path,
-          file_size: fundingProofFile.size,
-          mime_type: resolvedMimeType,
-          entity_type: "finance_paycheck_funding_batch",
-        })
-        .select("id")
-        .single();
-
-      if (fileUploadResult.error) throw fileUploadResult.error;
-
-      const attachmentResult = await supabase.from("finance_record_attachments").insert({
-        entity_type: "finance_paycheck_funding_batch",
-        entity_id: batchId,
-        file_upload_id: fileUploadResult.data.id,
-        uploaded_by: userId,
-        notes: "Payroll funding pool proof",
-        metadata: {
-          bucket: "finance-paycheck-funding-batch-documents",
-          uploaded_from: "payroll_funding_pool_new_page",
-          resolved_mime_type: resolvedMimeType,
-        },
+        return (
+          balanceDue > 0 &&
+          isOpenDocumentStatus &&
+          isOpenPaymentStatus &&
+          !isExcludedStatus
+        );
       });
 
-      if (attachmentResult.error) throw attachmentResult.error;
+      setPayments((paymentRows || []) as PaymentReceivedListRow[]);
+      setOpenInvoices(openInvoiceRows as OpenInvoiceRow[]);
+    } catch (error) {
+      console.error("Failed to load payments received:", error);
 
-      const documentationResult = await supabase.rpc(
-        "finance_mark_paycheck_funding_batch_documentation",
-        {
-          p_batch_id: batchId,
-          p_documentation_status: "uploaded",
-          p_notes: "Payroll funding proof uploaded.",
-        },
-      );
+      if (mode === "initial") {
+        setPayments([]);
+        setOpenInvoices([]);
+        setErrorMessage("Failed to load payments received.");
+      }
+    } finally {
+      if (mode === "initial") {
+        setIsLoading(false);
+      } else {
+        setIsBackgroundRefreshing(false);
+      }
+    }
+  }, []);
 
-      if (documentationResult.error) throw documentationResult.error;
-
-      return true;
-    },
-    [fundingProofFile],
-  );
-
-  const saveFundingBatch = useCallback(
-    async (saveMode: SaveMode) => {
-      if (isSaving) return;
-
-      setIsSaving(true);
-      setSavingMode(saveMode);
-      setPageError(null);
-      setPageMessage(null);
+  const loadArchivedPayments = useCallback(
+    async (mode: LoadMode = "initial") => {
+      if (mode === "initial") {
+        setIsArchiveLoading(true);
+      }
 
       try {
-        const validationError = validateForm(saveMode);
-
-        if (validationError) {
-          setPageError(validationError);
-          return;
-        }
-
-        const authResult = await supabase.auth.getUser();
-        if (authResult.error) throw authResult.error;
-
-        const actorUserId = authResult.data.user?.id ?? null;
-
-        const insertResult = await supabase
-          .from("finance_paycheck_funding_batches")
-          .insert({
-            funding_company_id: form.fundingCompanyId,
-            funding_bank_account_id: form.fundingBankAccountId || null,
-            allocation_date: form.allocationDate,
-            period_start: form.payrollPeriodFrom,
-            period_end: form.payrollPeriodTo,
-            currency_code: selectedCurrency,
-            allocated_amount: allocatedPayrollAmount,
-            status: "draft",
-            documentation_status: "missing",
-            notes: form.notes.trim() || null,
-            metadata: {
-              allocation_mode: "payroll_funding_pool_reserve",
-              allocated_payroll_amount: allocatedPayrollAmount,
-              funding_pool_currency: selectedCurrency,
-              payroll_period_from: form.payrollPeriodFrom,
-              payroll_period_to: form.payrollPeriodTo,
-              created_from: "payroll_funding_pool_new_page",
-              process_scope: "paycheck_payment_execution_tools",
-              paycheck_selection_allowed: false,
-              paycheck_distribution_allowed: false,
-            },
-            created_by: actorUserId,
-            updated_by: actorUserId,
-          })
-          .select("id")
-          .single();
-
-        if (insertResult.error) throw insertResult.error;
-
-        const batchId = String(insertResult.data?.id || "");
-
-        if (!batchId) {
-          throw new Error("Payroll funding pool was created but no batch ID was returned.");
-        }
-
-        await uploadFundingProof(batchId);
-
-        if (saveMode === "confirmed") {
-          const confirmedResult = await supabase.rpc("finance_confirm_paycheck_funding_batch", {
-            p_batch_id: batchId,
-          });
-
-          if (confirmedResult.error) throw confirmedResult.error;
-        }
-
-        setPageMessage(
-          saveMode === "confirmed"
-            ? "Payroll funding pool created and confirmed."
-            : "Payroll funding pool draft created.",
-        );
-
-        navigate(`/finance/transactions/payroll/funding-batches/${batchId}`);
+        const rows =
+          (await getPaymentsReceivedArchiveList()) as PaymentReceivedListRow[];
+        setArchivedPayments(rows);
       } catch (error) {
-        console.error("Failed to save payroll funding pool:", error);
-        setPageError(
-          error instanceof Error ? error.message : "Failed to save payroll funding pool.",
-        );
+        console.error("Failed to load archived payments:", error);
+        if (mode === "initial") {
+          setArchivedPayments([]);
+        }
       } finally {
-        setIsSaving(false);
-        setSavingMode(null);
+        if (mode === "initial") {
+          setIsArchiveLoading(false);
+        }
       }
     },
-    [
-      allocatedPayrollAmount,
-      form.allocationDate,
-      form.fundingBankAccountId,
-      form.fundingCompanyId,
-      form.notes,
-      form.payrollPeriodFrom,
-      form.payrollPeriodTo,
-      isSaving,
-      navigate,
-      selectedCurrency,
-      uploadFundingProof,
-      validateForm,
-    ],
+    [],
   );
+
+  useEffect(() => {
+    void Promise.all([loadPermissions("initial"), loadPayments("initial")]);
+  }, [loadPayments, loadPermissions]);
+
+  useEffect(() => {
+    if (!isArchiveModalOpen) return;
+    void loadArchivedPayments("initial");
+  }, [isArchiveModalOpen, loadArchivedPayments]);
+
+  useEffect(() => {
+    const channel = supabase
+      .channel("finance-payments-received-list")
+      .on(
+        "postgres_changes",
+        { event: "*", schema: "public", table: "finance_payments_received" },
+        () => {
+          void loadPayments("silent");
+          if (isArchiveModalOpen) {
+            void loadArchivedPayments("silent");
+          }
+        },
+      )
+      .on(
+        "postgres_changes",
+        { event: "*", schema: "public", table: "finance_record_attachments" },
+        () => void loadPayments("silent"),
+      )
+      .on(
+        "postgres_changes",
+        { event: "*", schema: "public", table: "finance_invoices_issued" },
+        () => void loadPayments("silent"),
+      )
+      .subscribe();
+
+    const intervalId = window.setInterval(() => {
+      void loadPayments("silent");
+      void loadPermissions("silent");
+      if (isArchiveModalOpen) {
+        void loadArchivedPayments("silent");
+      }
+    }, 60000);
+
+    return () => {
+      window.clearInterval(intervalId);
+      void supabase.removeChannel(channel);
+    };
+  }, [loadPayments, loadPermissions, isArchiveModalOpen, loadArchivedPayments]);
+
+  const handleArchive = useCallback(
+    async (id: string) => {
+      await archivePaymentReceived(id);
+      await Promise.all([
+        loadPayments("silent"),
+        isArchiveModalOpen ? loadArchivedPayments("silent") : Promise.resolve(),
+      ]);
+    },
+    [isArchiveModalOpen, loadArchivedPayments, loadPayments],
+  );
+
+  const handleDelete = useCallback(
+    async (id: string) => {
+      await softDeletePaymentReceived(id);
+      await Promise.all([
+        loadPayments("silent"),
+        isArchiveModalOpen ? loadArchivedPayments("silent") : Promise.resolve(),
+      ]);
+    },
+    [isArchiveModalOpen, loadArchivedPayments, loadPayments],
+  );
+
+  const handleRestore = useCallback(
+    async (id: string) => {
+      await restorePaymentReceived(id);
+      await Promise.all([
+        loadPayments("silent"),
+        loadArchivedPayments("silent"),
+      ]);
+    },
+    [loadArchivedPayments, loadPayments],
+  );
+
+  const handleHardDelete = useCallback(
+    async (id: string) => {
+      await permanentlyDeletePaymentReceived(id);
+      await Promise.all([
+        loadPayments("silent"),
+        loadArchivedPayments("silent"),
+      ]);
+    },
+    [loadArchivedPayments, loadPayments],
+  );
+
+  const handlePaymentSort = useCallback(
+    (key: PaymentSortKey) => {
+      if (paymentSortKey === key) {
+        setPaymentSortDirection((current) =>
+          current === "asc" ? "desc" : "asc",
+        );
+        return;
+      }
+
+      setPaymentSortKey(key);
+      setPaymentSortDirection(key === "payment_date" ? "desc" : "asc");
+    },
+    [paymentSortKey],
+  );
+
+  const handleOpenInvoiceSort = useCallback(
+    (key: OpenInvoiceSortKey) => {
+      if (openInvoiceSortKey === key) {
+        setOpenInvoiceSortDirection((current) =>
+          current === "asc" ? "desc" : "asc",
+        );
+        return;
+      }
+
+      setOpenInvoiceSortKey(key);
+      setOpenInvoiceSortDirection(key === "due_date" ? "asc" : "desc");
+    },
+    [openInvoiceSortKey],
+  );
+
+  const filteredPayments = useMemo(() => {
+    const normalizedSearch = search.trim().toLowerCase();
+
+    if (!normalizedSearch) {
+      return payments;
+    }
+
+    return payments.filter((payment) => {
+      return (
+        (payment.reference_number || "")
+          .toLowerCase()
+          .includes(normalizedSearch) ||
+        (payment.invoice_number || "")
+          .toLowerCase()
+          .includes(normalizedSearch) ||
+        getPaymentClientName(payment)
+          .toLowerCase()
+          .includes(normalizedSearch) ||
+        (payment.status || "").toLowerCase().includes(normalizedSearch) ||
+        (payment.payment_currency_code || "")
+          .toLowerCase()
+          .includes(normalizedSearch) ||
+        (payment.invoice_currency_code || "")
+          .toLowerCase()
+          .includes(normalizedSearch)
+      );
+    });
+  }, [payments, search]);
+
+  const sortedPayments = useMemo(() => {
+    return [...filteredPayments].sort((first, second) => {
+      return compareSortValues(
+        getPaymentSortValue(first, paymentSortKey),
+        getPaymentSortValue(second, paymentSortKey),
+        paymentSortDirection,
+      );
+    });
+  }, [filteredPayments, paymentSortDirection, paymentSortKey]);
+
+  const visibleOpenInvoices = useMemo(() => {
+    const normalizedSearch = openInvoicesSearch.trim().toLowerCase();
+
+    if (!normalizedSearch) {
+      return openInvoices;
+    }
+
+    return openInvoices.filter((invoice) => {
+      return (
+        (invoice.invoice_number || "")
+          .toLowerCase()
+          .includes(normalizedSearch) ||
+        getOpenInvoiceClientName(invoice)
+          .toLowerCase()
+          .includes(normalizedSearch) ||
+        (invoice.currency_code || "")
+          .toLowerCase()
+          .includes(normalizedSearch) ||
+        String(invoice.status || "")
+          .toLowerCase()
+          .includes(normalizedSearch) ||
+        String(invoice.payment_status || "")
+          .toLowerCase()
+          .includes(normalizedSearch)
+      );
+    });
+  }, [openInvoices, openInvoicesSearch]);
+
+  const sortedOpenInvoices = useMemo(() => {
+    return [...visibleOpenInvoices].sort((first, second) => {
+      return compareSortValues(
+        getOpenInvoiceSortValue(first, openInvoiceSortKey),
+        getOpenInvoiceSortValue(second, openInvoiceSortKey),
+        openInvoiceSortDirection,
+      );
+    });
+  }, [openInvoiceSortDirection, openInvoiceSortKey, visibleOpenInvoices]);
+
+  const visibleArchivedPayments = useMemo(() => {
+    return archivedPayments.filter(
+      (payment) => String(payment.status) === archiveTab,
+    );
+  }, [archivedPayments, archiveTab]);
+
+  const sortedVisibleArchivedPayments = useMemo(() => {
+    return [...visibleArchivedPayments].sort((first, second) => {
+      const firstDate = first.payment_date
+        ? new Date(first.payment_date).getTime()
+        : 0;
+      const secondDate = second.payment_date
+        ? new Date(second.payment_date).getTime()
+        : 0;
+
+      return secondDate - firstDate;
+    });
+  }, [visibleArchivedPayments]);
+
+  const summary = useMemo(() => {
+    const activePayments = payments.filter(
+      (row) => row.status !== "archived" && row.status !== "deleted",
+    );
+    const draftPayments = activePayments.filter(
+      (row) => row.status === "draft",
+    ).length;
+    const confirmedPayments = activePayments.filter(
+      (row) => row.status === "confirmed",
+    );
+    const cancelledPayments = activePayments.filter(
+      (row) => row.status === "cancelled",
+    ).length;
+    const totalConverted = confirmedPayments.reduce(
+      (sum, row) => sum + Number(row.converted_amount ?? row.amount ?? 0),
+      0,
+    );
+    const multiCurrencyPayments = confirmedPayments.filter(
+      (row) =>
+        row.payment_currency_code &&
+        row.invoice_currency_code &&
+        row.payment_currency_code !== row.invoice_currency_code,
+    ).length;
+
+    return {
+      totalPayments: activePayments.length,
+      draftPayments,
+      confirmedPayments: confirmedPayments.length,
+      cancelledPayments,
+      totalConverted,
+      multiCurrencyPayments,
+    };
+  }, [payments]);
 
   if (isLoading) {
     return (
       <AixiaLoadingState
-        title="Loading payroll funding pool setup"
-        description="Companies, bank accounts, and currencies are being loaded."
+        title="Loading payments received"
+        description="Payments, open invoices, permissions, and archive controls are being loaded."
+      />
+    );
+  }
+
+  if (!canReadPaymentsReceived) {
+    return (
+      <AixiaAccessDeniedState
+        fullPage
+        title="Payments Received access required"
+        description="You need Finance read access to view incoming payment records."
+        action={
+          <AixiaButton
+            type="button"
+            variant="secondary"
+            onClick={() => navigate("/finance/transactions")}
+          >
+            Transactions
+          </AixiaButton>
+        }
       />
     );
   }
@@ -565,347 +1150,213 @@ export default function FinancePayrollFundingBatchNewPage() {
   return (
     <AixiaPage>
       <AixiaHero
-        parentLabel="Payroll"
-        parentPath="/finance/transactions/payroll"
+        parentLabel="Transactions"
+        parentPath="/finance/transactions"
         badges={[
-          { label: "New Payroll Funding Pool", tone: "violet" },
-          { label: "Reserve Only", tone: "cyan" },
-          { label: fundingProofFile ? "Proof Attached" : "Proof Optional For Draft", tone: fundingProofFile ? "emerald" : "amber" },
+          { label: "Payment Registry", tone: "cyan" },
+          { label: "Draft → Confirmed", tone: "emerald" },
+          { label: "Proof Based", tone: "violet" },
+          ...(isBackgroundRefreshing
+            ? [{ label: "Syncing", tone: "neutral" as const }]
+            : []),
         ]}
-        gradientTitle="Create"
-        title="Payroll Funding Pool"
-        subtitle="Payroll reserve setup"
-        description="Reserve a payroll money pool for a selected payroll period. This page does not select paycheck requests, distribute money, or connect this pool to one specific paycheck."
+        gradientTitle="Payments"
+        title="Received"
+        description="Payments Received tracks external client collections after invoice issuance, stores evidence, supports multi-currency settlement, and keeps archived and deleted records outside the active registry."
+        actions={
+          <>
+            {canCreatePaymentsReceived ? (
+              <AixiaButton
+                type="button"
+                variant="primary"
+                onClick={() =>
+                  navigate("/finance/transactions/payments-received/new")
+                }
+              >
+                <Plus className="h-4 w-4" />
+                New Payment
+              </AixiaButton>
+            ) : null}
+
+            {canArchivePaymentsReceived ? (
+              <AixiaButton
+                type="button"
+                variant="danger"
+                onClick={() => {
+                  setArchiveTab("archived");
+                  setIsArchiveModalOpen(true);
+                }}
+              >
+                <Archive className="h-4 w-4" />
+                Archive
+              </AixiaButton>
+            ) : null}
+          </>
+        }
         statusCards={[
           {
-            label: "Payroll Funding Pool",
-            value: `${selectedCurrency} ${formatMoney(allocatedPayrollAmount)}`,
-            description: "Total payroll money Finance is reserving for the selected period.",
-            icon: WalletCards,
-            tone: "violet",
+            label: "Active Records",
+            value: payments.length.toLocaleString(),
+            description: "Excludes archived and deleted payment records.",
+            icon: Receipt,
+            tone: "cyan",
           },
           {
-            label: "Payroll Period",
-            value: payrollPeriodLabel,
-            description: "The payroll period this pool is intended to cover.",
-            icon: CalendarDays,
+            label: "Open Invoices",
+            value: openInvoices.length.toLocaleString(),
+            description: "Issued invoices with remaining balance.",
+            icon: FileCheck2,
             tone: "amber",
           },
         ]}
-
       />
-
-      {pageError ? <AixiaAlert tone="error">{pageError}</AixiaAlert> : null}
-      {pageMessage ? <AixiaAlert tone="success">{pageMessage}</AixiaAlert> : null}
 
       <AixiaMetricGrid>
         <AixiaMetricCard
-          label="Funding Company"
-          value={selectedCompanyName}
-          description="The company reserving payroll money."
-          icon={Building2}
+          label="Payments Received"
+          value={summary.totalPayments.toLocaleString()}
+          description="Manual collection records."
+          icon={Receipt}
           tone="cyan"
         />
         <AixiaMetricCard
-          label="Funding Bank"
-          value={selectedBankLabel}
-          description="Optional funding account reference."
-          icon={Banknote}
+          label="Draft Payments"
+          value={summary.draftPayments.toLocaleString()}
+          description="Awaiting proof and confirmation."
+          icon={FileCheck2}
+          tone="amber"
+        />
+        <AixiaMetricCard
+          label="Confirmed Inflows"
+          value={summary.totalConverted.toLocaleString(undefined, {
+            minimumFractionDigits: 2,
+            maximumFractionDigits: 2,
+          })}
+          description={`${summary.confirmedPayments} confirmed payment records.`}
+          icon={Wallet}
           tone="emerald"
         />
         <AixiaMetricCard
-          label="Payroll Pool"
-          value={`${selectedCurrency} ${formatMoney(allocatedPayrollAmount)}`}
-          description="Total internal payroll money reserved."
-          icon={WalletCards}
+          label="Multi-Currency"
+          value={summary.multiCurrencyPayments.toLocaleString()}
+          description={`${summary.cancelledPayments} cancelled payment records.`}
+          icon={BadgeCheck}
           tone="violet"
-        />
-        <AixiaMetricCard
-          label="Proof Status"
-          value={fundingProofFile ? "Attached" : "Not Attached"}
-          description="Required before Confirm Funding Pool."
-          icon={UploadCloud}
-          tone={fundingProofFile ? "emerald" : "amber"}
         />
       </AixiaMetricGrid>
 
-      <AixiaSmartLayout
-        sidebar="normal"
-        balance="main"
-        sideRebalance="last-to-bottom"
-        main={
-          <>
-            <AixiaSection
-              title="Payroll Funding Pool Setup"
-              description="Create a Finance reserve for payroll. Paycheck matching and distribution happen later on the Paycheck Payment Distributions page."
-              icon={Sparkles}
-            >
-              <AixiaAlert tone="info">
-                This creates a payroll funding pool only. Paycheck request matching and payment distribution happen later from Paycheck Payment Distributions.
-              </AixiaAlert>
+      <AixiaAccessRule
+        title="Payments Received Access Rule"
+        description="Incoming Money Flow permissions control visibility, creation, update, archive, restore, and permanent delete behavior for received payments."
+      >
+        Read access opens this registry. Create access shows New Payment. Delete / Archive access shows Archive, Delete, Restore, and Delete Permanently actions. Permission checks use fetchFinanceEffectivePermissions and resolveFinancePagePermissionState from the shared Finance page access source of truth.
+      </AixiaAccessRule>
 
-              <AixiaFormGrid columns="three">
-                <AixiaFormField>
-                  <AixiaFieldLabel label="Funding Company" />
-                  <AixiaSelectField
-                    value={form.fundingCompanyId}
-                    onChange={(event) => updateField("fundingCompanyId", event.target.value)}
-                    disabled={isLoading || isSaving}
-                  >
-                    <option value="">Select company</option>
-                    {companies.map((company) => (
-                      <option key={company.id} value={company.id}>
-                        {getCompanyName(company)}
-                      </option>
-                    ))}
-                  </AixiaSelectField>
-                </AixiaFormField>
+      {errorMessage ? (
+        <AixiaAlert tone="error">{errorMessage}</AixiaAlert>
+      ) : null}
 
-                <AixiaFormField>
-                  <AixiaFieldLabel label="Funding Bank Account" />
-                  <AixiaSelectField
-                    value={form.fundingBankAccountId}
-                    onChange={(event) => updateField("fundingBankAccountId", event.target.value)}
-                    disabled={!form.fundingCompanyId || isLoading || isSaving}
-                  >
-                    <option value="">No bank selected</option>
-                    {availableBankAccounts.map((bank) => (
-                      <option key={bank.id} value={bank.id}>
-                        {getBankLabel(bank)}
-                      </option>
-                    ))}
-                  </AixiaSelectField>
-                </AixiaFormField>
-
-                <AixiaFormField>
-                  <AixiaFieldLabel
-                    label="Allocation Date"
-                    helper="The date Finance creates or approves this payroll reserve."
-                  />
-                  <AixiaInputField
-                    type="date"
-                    value={form.allocationDate}
-                    onChange={(event) => updateField("allocationDate", event.target.value)}
-                    disabled={isLoading || isSaving}
-                  />
-                </AixiaFormField>
-
-                <AixiaFormField>
-                  <AixiaFieldLabel label="Payroll Period From" />
-                  <AixiaInputField
-                    type="date"
-                    value={form.payrollPeriodFrom}
-                    onChange={(event) => updateField("payrollPeriodFrom", event.target.value)}
-                    disabled={isLoading || isSaving}
-                  />
-                </AixiaFormField>
-
-                <AixiaFormField>
-                  <AixiaFieldLabel label="Payroll Period To" />
-                  <AixiaInputField
-                    type="date"
-                    value={form.payrollPeriodTo}
-                    onChange={(event) => updateField("payrollPeriodTo", event.target.value)}
-                    disabled={isLoading || isSaving}
-                  />
-                </AixiaFormField>
-
-                <AixiaFormField>
-                  <AixiaFieldLabel label="Funding Currency" />
-                  <AixiaSelectField
-                    value={selectedCurrency}
-                    onChange={(event) => updateField("currencyCode", event.target.value)}
-                    disabled={isLoading || isSaving}
-                  >
-                    <option value="">Select currency</option>
-                    {currencyOptions.map((currency) => (
-                      <option key={currency.id} value={currency.currency_code}>
-                        {currency.currency_code} — {currency.currency_name}
-                      </option>
-                    ))}
-                  </AixiaSelectField>
-                </AixiaFormField>
-
-                <AixiaFormField>
-                  <AixiaFieldLabel
-                    label="Allocated Payroll Amount"
-                    helper="Total payroll money reserved for this period."
-                  />
-                  <AixiaInputField
-                    value={form.allocatedPayrollAmount}
-                    onChange={(event) =>
-                      updateField("allocatedPayrollAmount", event.target.value)
-                    }
-                    disabled={isLoading || isSaving}
-                    inputMode="decimal"
-                    placeholder="0.00"
-                  />
-                </AixiaFormField>
-
-                <AixiaFormField>
-                  <AixiaDisplayBlock
-                    label="Pool Meaning"
-                    value="Reserve only"
-                    detail="No paycheck request selection and no payment distribution on this page."
-                  />
-                </AixiaFormField>
-
-                <AixiaFormFullWidth>
-                  <AixiaFieldLabel label="Payroll Funding Notes" />
-                  <AixiaTextareaField
-                    value={form.notes}
-                    onChange={(event) => updateField("notes", event.target.value)}
-                    placeholder="Internal payroll funding notes, monthly context, approval reference, or reserve explanation"
-                    disabled={isLoading || isSaving}
-                  />
-                </AixiaFormFullWidth>
-              </AixiaFormGrid>
-            </AixiaSection>
-
-            <AixiaSection
-              title="Payroll Funding Proof"
-              description="Upload proof that this payroll money pool was approved, reserved, or transferred. Required before confirming a funding pool."
-              icon={UploadCloud}
-              badge={
-                fundingProofFile ? (
-                  <AixiaBadge tone="emerald">Selected</AixiaBadge>
-                ) : (
-                  <AixiaBadge tone="amber">Optional For Draft</AixiaBadge>
-                )
-              }
-            >
-              <AixiaDocumentUploadPanel
-                selectedFile={fundingProofFile}
-                attachments={uploadAttachments}
-                required={false}
-                disabled={isLoading || isSaving}
-                uploading={isSaving}
-                accept=".pdf,.png,.jpg,.jpeg,.webp,.doc,.docx,.xls,.xlsx"
-                dropTitle="Drop payroll funding proof here"
-                dropDescription="Upload bank confirmation, internal approval, payroll funding report, signed payroll reserve document, or management approval."
-                uploadLabel="Save Draft With Proof"
-                uploadingLabel="Saving..."
-                emptyTitle="No payroll funding proof selected"
-                emptyDescription="Proof is optional for draft and required for Confirm Funding Pool."
-                onFileSelect={setFundingProofFile}
-                onUpload={() => void saveFundingBatch("draft")}
-                onOpenAttachment={() => undefined}
-                onRemoveSelectedFile={() => setFundingProofFile(null)}
+      <AixiaSection
+        title="Invoices Waiting for Payment"
+        description="Open issued invoices with remaining balance. Open an invoice document or create a received payment from the payment workflow."
+        icon={FileCheck2}
+        badge={<AixiaBadge tone="amber">Open Invoices</AixiaBadge>}
+        actions={
+          <AixiaRegistryToolbar
+            search={
+              <AixiaSearchField
+                width="wide"
+                value={openInvoicesSearch}
+                onChange={(event) => setOpenInvoicesSearch(event.target.value)}
+                placeholder="Search open invoices..."
               />
-            </AixiaSection>
-          </>
+            }
+          />
         }
-        side={
-          <>
-            <AixiaSection
-              title="Payroll Funding Summary"
-              description="Review the reserved payroll money pool before saving."
-              icon={WalletCards}
-            >
-              <AixiaActionStack>
-                <AixiaButton
-                  type="button"
-                  variant="primary"
-                  disabled={isSaving || isLoading}
-                  onClick={() => void saveFundingBatch("confirmed")}
-                >
-                  {savingMode === "confirmed" ? (
-                    <Loader2 className="h-4 w-4 animate-spin" />
-                  ) : (
-                    <CheckCircle2 className="h-4 w-4" />
-                  )}
-                  {savingMode === "confirmed" ? "Confirming..." : "Confirm Funding Pool"}
-                </AixiaButton>
-                <AixiaButton
-                  type="button"
-                  variant="secondary"
-                  disabled={isSaving || isLoading}
-                  onClick={() => void saveFundingBatch("draft")}
-                >
-                  {savingMode === "draft" ? (
-                    <Loader2 className="h-4 w-4 animate-spin" />
-                  ) : (
-                    <Save className="h-4 w-4" />
-                  )}
-                  {savingMode === "draft" ? "Saving..." : "Save Draft"}
-                </AixiaButton>
-              </AixiaActionStack>
+      >
+        <OpenInvoicesTable
+          rows={sortedOpenInvoices}
+          sortKey={openInvoiceSortKey}
+          sortDirection={openInvoiceSortDirection}
+          onSort={handleOpenInvoiceSort}
+          onOpen={(invoiceId) =>
+            navigate(`/finance/transactions/invoices/${invoiceId}`)
+          }
+        />
+      </AixiaSection>
 
-              <AixiaFormGrid columns="one">
-                <AixiaValueBlock
-                  label="Funding Company"
-                  value={selectedCompanyName}
-                  detail="The company reserving payroll money."
-                />
-                <AixiaValueBlock
-                  label="Bank Account"
-                  value={selectedBankLabel}
-                  detail="Optional funding account reference."
-                />
-                <AixiaValueBlock
-                  label="Payroll Period"
-                  value={payrollPeriodLabel}
-                  detail="The paycheck period this pool should cover."
-                />
-                <AixiaValueBlock
-                  label="Payroll Pool"
-                  value={`${selectedCurrency} ${formatMoney(allocatedPayrollAmount)}`}
-                  detail="Total internal payroll money reserved."
-                />
-                <AixiaValueBlock
-                  label="Proof Status"
-                  value={fundingProofFile ? "Attached" : "Not Attached"}
-                  detail="Required before Confirm Funding Pool."
-                />
-              </AixiaFormGrid>
-            </AixiaSection>
-
-            <AixiaSection
-              title="Workflow Rules"
-              description="Funding pool creation rules and clean workflow split."
-              icon={ShieldCheck}
-            >
-              <AixiaFormGrid columns="one">
-                <AixiaActionCard
-                  label="Payroll Funding Pool"
-                  value="Reserve"
-                  description="Reserve a period-based payroll money pool from one company and optional bank account."
-                  icon={Coins}
-                  tone="violet"
-                />
-                <AixiaActionCard
-                  label="Paycheck Payment Distributions"
-                  value="Separate tool"
-                  description="Actual distribution across approved paycheck requests happens later on the Paycheck Payment Distributions page."
-                  icon={WalletCards}
-                  tone="cyan"
-                />
-                <AixiaActionCard
-                  label="Control Rule"
-                  value="Draft first"
-                  description="Draft can be saved without proof. Confirm Funding Pool requires proof."
-                  icon={ShieldCheck}
-                  tone="emerald"
-                />
-                <AixiaActionCard
-                  label="No Paycheck Selection"
-                  value="Locked split"
-                  description="This page does not select, match, or distribute money to individual paycheck requests."
-                  icon={Building2}
-                  tone="amber"
-                />
-                <AixiaActionCard
-                  label="Backend"
-                  value="Funding batch"
-                  description="Uses finance_paycheck_funding_batches, payroll funding proof upload, documentation RPC, and funding confirmation RPC."
-                  icon={FileCheck2}
-                  tone="neutral"
-                />
-              </AixiaFormGrid>
-            </AixiaSection>
-          </>
+      <AixiaSection
+        title="Payments Received Registry"
+        description="Manage active payment records, open details, archive old records, delete inactive records, and review settlement currency."
+        icon={Receipt}
+        badge={<AixiaBadge tone="cyan">Active Payments</AixiaBadge>}
+        actions={
+          <AixiaRegistryToolbar
+            search={
+              <AixiaSearchField
+                width="wide"
+                value={search}
+                onChange={(event) => setSearch(event.target.value)}
+                placeholder="Search reference, invoice, client, status..."
+              />
+            }
+          />
         }
-      />
+      >
+        <PaymentsTable
+          rows={sortedPayments}
+          sortKey={paymentSortKey}
+          sortDirection={paymentSortDirection}
+          onSort={handlePaymentSort}
+          onOpen={(paymentId) =>
+            navigate(`/finance/transactions/payments-received/${paymentId}`)
+          }
+          onArchive={handleArchive}
+          onDelete={handleDelete}
+          canArchive={canArchivePaymentsReceived}
+        />
+      </AixiaSection>
+
+      <AixiaArchiveManagerModal
+        open={isArchiveModalOpen}
+        title="Payments Received Archive"
+        description="Archived records can be restored. Deleted records can be restored or permanently deleted."
+        archivedCount={
+          archivedPayments.filter((payment) => payment.status === "archived")
+            .length
+        }
+        deletedCount={
+          archivedPayments.filter((payment) => payment.status === "deleted")
+            .length
+        }
+        countLabel="Payments"
+        activeTab={archiveTab}
+        onTabChange={setArchiveTab}
+        onClose={() => setIsArchiveModalOpen(false)}
+        maxWidthClassName="max-w-[1500px]"
+      >
+        {isArchiveLoading ? (
+          <AixiaLoadingState
+            fullPage={false}
+            title="Loading archived payments"
+            description="Archived and deleted received payments are being loaded."
+          />
+        ) : (
+          <PaymentsTable
+            rows={sortedVisibleArchivedPayments}
+            sortKey={paymentSortKey}
+            sortDirection={paymentSortDirection}
+            onSort={handlePaymentSort}
+            onOpen={(paymentId) =>
+              navigate(`/finance/transactions/payments-received/${paymentId}`)
+            }
+            archiveMode
+            archiveTab={archiveTab}
+            onRestore={handleRestore}
+            onHardDelete={handleHardDelete}
+          />
+        )}
+      </AixiaArchiveManagerModal>
     </AixiaPage>
   );
 }

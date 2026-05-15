@@ -502,45 +502,53 @@ function ExpenseHistoryModal({ onClose }: { onClose: () => void }) {
                     <div>{row.nextAction}</div>
 
                     <div className="aixia-process-history-table__actions">
-                      {tab === "active" ? (
-                        <>
-                          <AixiaButton type="button" variant="primary">
-                            Open
-                          </AixiaButton>
-                          {status === "Paid — Waiting Owner Confirmation" ? (
-                            <AixiaButton type="button" variant="primary">
-                              Confirm
-                            </AixiaButton>
-                          ) : null}
-                          {canShowArchiveDelete(row) ? (
+                      <details className="aixia-process-history-action-menu">
+                        <summary className="aixia-process-history-action-menu__summary">Actions</summary>
+
+                        <div className="aixia-process-history-action-menu__panel">
+                          {tab === "active" ? (
                             <>
-                              <AixiaButton type="button" variant="danger">
-                                Archive
-                              </AixiaButton>
-                              <AixiaButton type="button" variant="danger">
-                                Delete
-                              </AixiaButton>
+                              <button type="button" className="aixia-process-history-action-menu__item" data-tone="primary">
+                                Open
+                              </button>
+
+                              {status === "Paid — Waiting Owner Confirmation" ? (
+                                <button type="button" className="aixia-process-history-action-menu__item" data-tone="primary">
+                                  Confirm
+                                </button>
+                              ) : null}
+
+                              {canShowArchiveDelete(row) ? (
+                                <>
+                                  <button type="button" className="aixia-process-history-action-menu__item" data-tone="danger">
+                                    Archive
+                                  </button>
+                                  <button type="button" className="aixia-process-history-action-menu__item" data-tone="danger">
+                                    Delete
+                                  </button>
+                                </>
+                              ) : null}
                             </>
                           ) : null}
-                        </>
-                      ) : null}
 
-                      {tab === "archived" ? (
-                        <AixiaButton type="button" variant="secondary">
-                          Restore
-                        </AixiaButton>
-                      ) : null}
+                          {tab === "archived" ? (
+                            <button type="button" className="aixia-process-history-action-menu__item">
+                              Restore
+                            </button>
+                          ) : null}
 
-                      {tab === "deleted" ? (
-                        <>
-                          <AixiaButton type="button" variant="secondary">
-                            Restore
-                          </AixiaButton>
-                          <AixiaButton type="button" variant="danger">
-                            Delete Permanently
-                          </AixiaButton>
-                        </>
-                      ) : null}
+                          {tab === "deleted" ? (
+                            <>
+                              <button type="button" className="aixia-process-history-action-menu__item">
+                                Restore
+                              </button>
+                              <button type="button" className="aixia-process-history-action-menu__item" data-tone="danger">
+                                Delete Permanently
+                              </button>
+                            </>
+                          ) : null}
+                        </div>
+                      </details>
                     </div>
                   </div>
                 );

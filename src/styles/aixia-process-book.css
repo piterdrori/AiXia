@@ -803,20 +803,21 @@
 }
 
 .aixia-process-history-table__scroll {
-  max-height: 20rem;
+  max-height: 20.5rem;
   overflow-y: auto;
+  padding-bottom: 1rem;
 }
 
 .aixia-process-history-table__row {
   display: grid;
-  min-height: 4.6rem;
-  grid-template-columns: minmax(130px, 0.95fr) minmax(130px, 0.9fr) minmax(140px, 1fr) minmax(110px, 0.7fr) minmax(160px, 1fr) minmax(210px, 1.35fr) minmax(110px, 0.65fr);
+  min-height: 4.35rem;
+  grid-template-columns: minmax(138px, 1fr) minmax(138px, 0.92fr) minmax(148px, 1fr) minmax(110px, 0.72fr) minmax(170px, 1fr) minmax(220px, 1.25fr) minmax(128px, 0.7fr);
   align-items: center;
-  gap: 1rem;
+  gap: 0.9rem;
   border-bottom: 1px solid rgba(255, 255, 255, 0.08);
-  padding: 0.85rem 1rem;
+  padding: 0.78rem 1rem;
   color: rgba(203, 213, 225, 0.88);
-  font-size: 0.86rem;
+  font-size: 0.85rem;
 }
 
 .aixia-process-history-table__row:last-child {
@@ -827,7 +828,7 @@
   position: sticky;
   top: 0;
   z-index: 1;
-  min-height: 3.1rem;
+  min-height: 3rem;
   background: rgba(0, 0, 0, 0.42);
   color: rgba(148, 163, 184, 0.9);
   font-size: 0.68rem;
@@ -844,36 +845,42 @@
   display: flex;
   min-width: 0;
   flex-direction: column;
+  align-items: center;
   justify-content: center;
+  text-align: center;
 }
 
 .aixia-process-history-table__cell[data-align="right"] {
-  align-items: flex-end;
+  align-items: center;
 }
 
 .aixia-process-history-table__primary {
   color: rgba(255, 255, 255, 0.95);
   font-weight: 800;
-  line-height: 1.25;
+  line-height: 1.22;
+  text-align: center;
 }
 
 .aixia-process-history-table__secondary {
-  margin-top: 0.22rem;
+  margin-top: 0.2rem;
   color: rgba(148, 163, 184, 0.78);
-  font-size: 0.75rem;
-  line-height: 1.25;
+  font-size: 0.74rem;
+  line-height: 1.2;
+  text-align: center;
 }
 
 .aixia-process-history-table__amount {
   color: rgba(255, 255, 255, 0.94);
   font-weight: 800;
-  line-height: 1.25;
+  line-height: 1.22;
+  text-align: center;
 }
 
 .aixia-process-history-table__actions {
   position: relative;
   display: flex;
-  justify-content: flex-end;
+  justify-content: center;
+  width: 100%;
 }
 
 .aixia-process-history-action-menu {
@@ -882,15 +889,22 @@
 }
 
 .aixia-process-history-action-menu__summary {
-  min-height: 2.35rem;
+  min-height: 2.28rem;
+  min-width: 4.9rem;
   list-style: none;
   border-radius: 999px;
-  border: 1px solid rgba(255, 255, 255, 0.075);
-  background: rgba(255, 255, 255, 0.045);
-  padding: 0.58rem 0.95rem;
-  color: rgba(248, 250, 252, 0.92);
+  border: 1px solid rgba(103, 232, 249, 0.22);
+  background:
+    radial-gradient(circle at 30% 20%, rgba(34, 211, 238, 0.14), transparent 58%),
+    rgba(34, 211, 238, 0.1);
+  padding: 0.54rem 0.95rem;
+  color: rgba(207, 250, 254, 0.96);
   font-size: 0.78rem;
   font-weight: 800;
+  text-align: center;
+  box-shadow:
+    0 12px 24px rgba(0, 0, 0, 0.16),
+    inset 0 1px 0 rgba(255, 255, 255, 0.04);
   cursor: pointer;
 }
 
@@ -899,36 +913,43 @@
 }
 
 .aixia-process-history-action-menu[open] .aixia-process-history-action-menu__summary {
-  border-color: rgba(103, 232, 249, 0.28);
-  background: rgba(34, 211, 238, 0.12);
-  color: rgba(207, 250, 254, 0.96);
+  border-color: rgba(103, 232, 249, 0.36);
+  background:
+    radial-gradient(circle at 30% 20%, rgba(34, 211, 238, 0.22), transparent 60%),
+    rgba(8, 145, 178, 0.2);
+  color: rgba(207, 250, 254, 0.98);
 }
 
 .aixia-process-history-action-menu__panel {
   position: absolute;
-  right: 0;
-  top: calc(100% + 0.45rem);
-  z-index: 5;
+  right: 50%;
+  top: calc(100% + 0.55rem);
+  z-index: 8;
   display: grid;
-  min-width: 170px;
-  gap: 0.45rem;
-  border-radius: 1.1rem;
+  min-width: 196px;
+  gap: 0.5rem;
+  transform: translateX(50%);
+  border-radius: 1.2rem;
   border: 1px solid rgba(255, 255, 255, 0.1);
-  background: #070a12;
-  box-shadow: 0 22px 70px rgba(0, 0, 0, 0.48);
-  padding: 0.55rem;
+  background:
+    radial-gradient(circle at top left, rgba(34, 211, 238, 0.08), transparent 36%),
+    #070a12;
+  box-shadow:
+    0 24px 72px rgba(0, 0, 0, 0.5),
+    inset 0 1px 0 rgba(255, 255, 255, 0.04);
+  padding: 0.7rem;
 }
 
 .aixia-process-history-action-menu__item {
-  min-height: 2.15rem;
-  border-radius: 0.8rem;
+  min-height: 2.25rem;
+  border-radius: 0.9rem;
   border: 1px solid rgba(255, 255, 255, 0.065);
   background: rgba(255, 255, 255, 0.045);
-  padding: 0.45rem 0.65rem;
+  padding: 0.46rem 0.75rem;
   color: rgba(226, 232, 240, 0.92);
   font-size: 0.78rem;
   font-weight: 800;
-  text-align: left;
+  text-align: center;
   cursor: pointer;
 }
 
@@ -950,7 +971,7 @@
 
 .aixia-process-history-modal__footer {
   border-top: 1px solid rgba(255, 255, 255, 0.08);
-  padding: 0.9rem 1.25rem;
+  padding: 1.15rem 1.25rem 1.35rem;
   color: rgba(148, 163, 184, 0.82);
   font-size: 0.8rem;
 }

@@ -6,6 +6,8 @@ const SRC_DIR = path.join(ROOT, "src");
 const FINANCE_APP_DIR = path.join(ROOT, "src", "app", "finance");
 const AIXIA_COMPONENT_DIR = path.join(ROOT, "src", "components", "aixia");
 const AIXIA_STYLE_FILE = path.join(ROOT, "src", "styles", "aixia-design-system.css");
+const AIXIA_FINANCE_PRINT_STYLE_FILE = path.join(ROOT, "src", "styles", "aixia-finance-print.css");
+const AIXIA_FINANCE_PRINT_COMPONENT_FILE = path.join(ROOT, "src", "components", "aixia", "AixiaFinancePrint.tsx");
 const AIXIA_STANDARD_FILE = path.join(ROOT, "src", "components", "aixia", "AIXIA_STANDARD.md");
 const PAGE_ACCESS_FILE = path.join(ROOT, "src", "lib", "finance", "pageAccess.ts");
 const FINANCE_LIB_DIR = path.join(ROOT, "src", "lib", "finance");
@@ -30,6 +32,7 @@ const REQUIRED_AIXIA_COMPONENT_FILES = [
   "AixiaDocumentUploadPanel.tsx",
   "AixiaEmployeeIdentityCell.tsx",
   "AixiaEmptyState.tsx",
+  "AixiaFinancePrint.tsx",
   "AixiaFormFields.tsx",
   "AixiaHero.tsx",
   "AixiaMetricCard.tsx",
@@ -132,6 +135,18 @@ const REQUIRED_INDEX_EXPORTS = [
   "AixiaNotFoundState",
   "AixiaAlert",
   "AixiaAlertText",
+  "AixiaFinancePrintSheet",
+  "AixiaFinancePrintHeader",
+  "AixiaFinancePrintPartyBlock",
+  "AixiaFinancePrintLineTable",
+  "AixiaFinancePrintBottomGrid",
+  "AixiaFinancePrintTermsBlock",
+  "AixiaFinancePrintBankBlock",
+  "AixiaFinancePrintTotalsBlock",
+  "AixiaFinancePrintFooter",
+  "AixiaFinancePrintSection",
+  "aixiaPrintHasValue",
+  "aixiaPrintJoin",
 ];
 
 const ZERO_LOCAL_DESIGN_BANNED_PATTERNS = [
@@ -607,6 +622,108 @@ function inspectSharedCssSourceOfTruth() {
   }
 }
 
+function inspectSharedFinancePrintSourceOfTruth() {
+  if (!assertFileExists(AIXIA_FINANCE_PRINT_COMPONENT_FILE, "AiXia finance print source-of-truth rule")) return;
+  if (!assertFileExists(AIXIA_FINANCE_PRINT_STYLE_FILE, "AiXia finance print source-of-truth rule")) return;
+  if (!assertFileExists(AIXIA_STYLE_FILE, "AiXia finance print source-of-truth rule")) return;
+
+  const componentText = readText(AIXIA_FINANCE_PRINT_COMPONENT_FILE);
+  const printCssText = readText(AIXIA_FINANCE_PRINT_STYLE_FILE);
+  const designCssText = readText(AIXIA_STYLE_FILE);
+
+  const requiredComponentSnippets = [
+    "export function AixiaFinancePrintSheet",
+    "export function AixiaFinancePrintHeader",
+    "export function AixiaFinancePrintPartyBlock",
+    "export function AixiaFinancePrintLineTable",
+    "export function AixiaFinancePrintBottomGrid",
+    "export function AixiaFinancePrintTermsBlock",
+    "export function AixiaFinancePrintBankBlock",
+    "export function AixiaFinancePrintTotalsBlock",
+    "export function AixiaFinancePrintFooter",
+    "export function AixiaFinancePrintSection",
+    "export function aixiaPrintHasValue",
+    "export function aixiaPrintJoin",
+    "aixia-finance-print-sheet",
+    "aixia-finance-print-page",
+    "aixia-finance-print-header",
+    "aixia-finance-print-table",
+    "aixia-finance-print-bottom-grid",
+    "aixia-finance-print-summary-block",
+    "aixia-finance-print-footer",
+    "if (value === null || value === undefined || value === false) return false",
+    "normalized === \"undefined\"",
+    "normalized === \"null\"",
+    "visibleMetaRows",
+    "visibleRows",
+    "visibleItems",
+    "visibleRows.length",
+  ];
+
+  for (const snippet of requiredComponentSnippets) {
+    if (!componentText.includes(snippet)) {
+      addError(
+        AIXIA_FINANCE_PRINT_COMPONENT_FILE,
+        `AixiaFinancePrint.tsx must preserve the locked print component behavior/snippet: ${snippet}`,
+        "AiXia finance print source-of-truth rule"
+      );
+    }
+  }
+
+  const requiredPrintCssSnippets = [
+    "GLOBAL AIXIA FINANCE PRINT DOCUMENT STANDARD",
+    "@page",
+    "size: A4",
+    "margin: 0",
+    ".aixia-finance-print-sheet",
+    ".aixia-finance-print-page",
+    "width: 210mm",
+    "min-height: 297mm",
+    "body *",
+    "visibility: hidden",
+    ".aixia-finance-print-sheet,",
+    ".aixia-finance-print-sheet *",
+    "visibility: visible",
+    "@media screen",
+    "display: none",
+    ".aixia-finance-print-hero-band",
+    ".aixia-finance-print-content",
+    ".aixia-finance-print-header",
+    ".aixia-finance-print-logo",
+    ".aixia-finance-print-company-details",
+    ".aixia-finance-print-document-meta",
+    ".aixia-finance-print-party-card",
+    ".aixia-finance-print-table",
+    ".aixia-finance-print-bottom-grid",
+    ".aixia-finance-print-terms-block",
+    ".aixia-finance-print-bank-block",
+    ".aixia-finance-print-summary-block",
+    ".aixia-finance-print-grand-total-row",
+    ".aixia-finance-print-signature-block",
+    ".aixia-finance-print-footer",
+    ".aixia-finance-print-thank-you",
+    "break-inside: avoid",
+  ];
+
+  for (const snippet of requiredPrintCssSnippets) {
+    if (!printCssText.includes(snippet)) {
+      addError(
+        AIXIA_FINANCE_PRINT_STYLE_FILE,
+        `aixia-finance-print.css must preserve the locked print CSS behavior/snippet: ${snippet}`,
+        "AiXia finance print source-of-truth rule"
+      );
+    }
+  }
+
+  if (!designCssText.includes('@import "./aixia-finance-print.css";')) {
+    addError(
+      AIXIA_STYLE_FILE,
+      'src/styles/aixia-design-system.css must import the shared Finance print CSS with: @import "./aixia-finance-print.css";',
+      "AiXia finance print source-of-truth rule"
+    );
+  }
+}
+
 function inspectSharedComponentSourceOfTruth() {
   if (!assertDirExists(AIXIA_COMPONENT_DIR, "AiXia component source-of-truth rule")) return;
 
@@ -881,6 +998,36 @@ function inspectSharedComponentSourceOfTruth() {
         "AixiaSmartLayout explicit split behavior must stay connected to mainTopCount. Do not separate hasExplicitMainSplit from mainTopCount logic.",
         "AiXia SmartLayout explicit split rule"
       );
+    }
+  }
+
+  const financePrintFile = path.join(AIXIA_COMPONENT_DIR, "AixiaFinancePrint.tsx");
+  if (fileExists(financePrintFile)) {
+    const text = readText(financePrintFile);
+    const required = [
+      "export function AixiaFinancePrintSheet",
+      "export function AixiaFinancePrintHeader",
+      "export function AixiaFinancePrintPartyBlock",
+      "export function AixiaFinancePrintLineTable",
+      "export function AixiaFinancePrintBottomGrid",
+      "export function AixiaFinancePrintTermsBlock",
+      "export function AixiaFinancePrintBankBlock",
+      "export function AixiaFinancePrintTotalsBlock",
+      "export function AixiaFinancePrintFooter",
+      "export function AixiaFinancePrintSection",
+      "aixiaPrintHasValue",
+      "aixiaPrintJoin",
+      "aixia-finance-print-sheet",
+    ];
+
+    for (const snippet of required) {
+      if (!text.includes(snippet)) {
+        addError(
+          financePrintFile,
+          `AixiaFinancePrint.tsx must preserve shared finance print behavior/snippet: ${snippet}`,
+          "AiXia finance print source-of-truth rule"
+        );
+      }
     }
   }
 
@@ -2332,6 +2479,121 @@ function inspectChildAllocationLifecycleRules(filePath, text) {
   }
 }
 
+function inspectFinancePrintDocumentRules(filePath, text) {
+  const relativePath = getRelativePath(filePath);
+  const isFinancePrintDocument =
+    relativePath.startsWith("src/app/finance/") &&
+    /PrintDocument\.tsx$/.test(relativePath);
+
+  if (!isFinancePrintDocument) return;
+
+  const usesSharedPrintSheet = /AixiaFinancePrintSheet/.test(text);
+  const importsFromAixia = /from\s+["']@\/components\/aixia["']/.test(text);
+  const usesSharedPrintComponents =
+    /AixiaFinancePrint(Header|PartyBlock|LineTable|BottomGrid|TermsBlock|BankBlock|TotalsBlock|Footer|Section)/.test(
+      text
+    );
+
+  if (!usesSharedPrintSheet || !importsFromAixia || !usesSharedPrintComponents) {
+    addError(
+      filePath,
+      "Finance print documents must use the shared AiXia Finance print system from @/components/aixia: AixiaFinancePrintSheet plus shared print header/party/table/bottom/totals/footer components. Do not build local print layouts.",
+      "AiXia finance print document rule"
+    );
+  }
+
+  const bannedLocalPrintLayoutPatterns = [
+    /<style>\{\`[\s\S]*?@page[\s\S]*?\`\}<\/style>/m,
+    /@page\s*\{\s*size:\s*A4/i,
+    /width:\s*["']210mm["']/,
+    /minHeight:\s*["']297mm["']/,
+    /min-height:\s*297mm/i,
+    /body\s+\*\s*\{\s*visibility:\s*hidden/i,
+    /print-color-adjust:\s*exact/i,
+    /className=["'][^"']*(invoice|quotation|proforma|purchase-order|payment-receipt|paycheck)[^"']*print-sheet[^"']*["']/i,
+    /className=["'][^"']*aixia-paycheck-print-[^"']*["']/i,
+    /className=["'][^"']*payment-receipt-print-[^"']*["']/i,
+    /className=["'][^"']*purchase-order-print-sheet[^"']*["']/i,
+    /className=["'][^"']*quotation-print-sheet[^"']*["']/i,
+    /className=["'][^"']*proforma-print-sheet[^"']*["']/i,
+    /className=["'][^"']*invoice-print-sheet[^"']*["']/i,
+  ];
+
+  for (const pattern of bannedLocalPrintLayoutPatterns) {
+    if (pattern.test(text)) {
+      addError(
+        filePath,
+        "Finance print documents must not contain local print CSS, local @page rules, local 210mm/297mm sheet sizing, or document-specific print-sheet classes. Move all print layout to AixiaFinancePrint.tsx and aixia-finance-print.css.",
+        "AiXia finance print document rule"
+      );
+      break;
+    }
+  }
+
+  const bannedLocalPrintComponentNames = [
+    "InfoCard",
+    "AmountRow",
+    "CheckBoxLine",
+    "MiniSummary",
+    "SignatureBox",
+    "PrintHeader",
+    "PrintTable",
+    "PrintFooter",
+    "PrintTotals",
+    "PrintPartyBlock",
+  ];
+
+  for (const componentName of bannedLocalPrintComponentNames) {
+    const localFunctionPattern = new RegExp(`function\\s+${componentName}\\s*\\(`);
+    const localConstPattern = new RegExp(`const\\s+${componentName}\\s*=\\s*\\(`);
+
+    if (localFunctionPattern.test(text) || localConstPattern.test(text)) {
+      addError(
+        filePath,
+        `Finance print document defines local print component ${componentName}. Print structure must be shared globally through AixiaFinancePrint.tsx, not rebuilt inside individual print files.`,
+        "AiXia finance print document rule"
+      );
+    }
+  }
+
+  if (/className=["'][^"']*aixia-finance-print-[^"']*["']/.test(text) && !usesSharedPrintSheet) {
+    addError(
+      filePath,
+      "Finance print files must not manually use aixia-finance-print-* classes without AixiaFinancePrintSheet. Use the shared components instead of hand-writing the class structure.",
+      "AiXia finance print document rule"
+    );
+  }
+
+  const unsafeOptionalLabelPatterns = [
+    /<span[^>]*>\s*[^<:{]+:\s*<\/span>\s*<span[^>]*>\s*\{[^}]+\}\s*<\/span>/m,
+    /<p[^>]*>\s*[^<:{]+:\s*\{[^}]+\}\s*<\/p>/m,
+    /\|\|\s*["']—["']/,
+    /\?\?\s*["']—["']/,
+    /No bank details available/i,
+    /Not specified/i,
+    /Not uploaded/i,
+  ];
+
+  for (const pattern of unsafeOptionalLabelPatterns) {
+    if (pattern.test(text) && !/AixiaFinancePrint/.test(text)) {
+      addError(
+        filePath,
+        "Finance print documents must hide missing optional fields through shared AixiaFinancePrint components. Do not render local empty labels, em dash placeholders, No bank details available, Not specified, or other fake missing-field text.",
+        "AiXia finance print missing-field rule"
+      );
+      break;
+    }
+  }
+
+  if (/undefined|null/.test(text) && !/aixiaPrintHasValue|hasRenderableValue/.test(text)) {
+    addError(
+      filePath,
+      "Finance print documents must rely on shared missing-field handling so undefined/null never appears in printed documents.",
+      "AiXia finance print missing-field rule"
+    );
+  }
+}
+
 function inspectFinancePage(filePath) {
   const text = readText(filePath);
 
@@ -2351,6 +2613,7 @@ function inspectFinancePage(filePath) {
     );
   }
 
+  inspectFinancePrintDocumentRules(filePath, text);
   inspectPermissionPatterns(filePath, text);
   inspectBannedFinanceUiImports(filePath, text);
   inspectRegistryStandards(filePath, text);
@@ -2374,6 +2637,7 @@ function main() {
 
   inspectSharedStandardDocument();
   inspectSharedCssSourceOfTruth();
+  inspectSharedFinancePrintSourceOfTruth();
   inspectSharedComponentSourceOfTruth();
   inspectFinancePermissionHelperSourceOfTruth();
   inspectFinanceLibSafetyRules();
@@ -2406,7 +2670,7 @@ function main() {
     process.exit(1);
   }
 
-  console.log("AiXia guardrails completed. Navigation-card, action-card, child-allocation registry, document-upload, typography, button-symmetry, smart-layout auto-split/max-expansion, backend-first lifecycle, and shared-wrapper source-of-truth rules are active.");
+  console.log("AiXia guardrails completed. Navigation-card, action-card, child-allocation registry, document-upload, typography, button-symmetry, smart-layout auto-split/max-expansion, finance-print, backend-first lifecycle, and shared-wrapper source-of-truth rules are active.");
 }
 
 main();

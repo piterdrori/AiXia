@@ -3,6 +3,11 @@
    Premium guided workflow layout.
    Visual language stays AiXia Finance:
    dark glass, soft depth, quiet borders, premium alignment.
+   Global rules:
+   - No dead empty spaces.
+   - No cut stage text.
+   - Navigation stays easy to reach.
+   - Cards align automatically.
 ------------------------------------------------------- */
 
 .aixia-process-book {
@@ -10,6 +15,29 @@
   min-width: 0;
   flex-direction: column;
   gap: clamp(1rem, 1.25vw, 1.25rem);
+}
+
+/* -------------------------------------------------------
+   GLOBAL ORDER
+   The navigation is visually placed under the stage stepper,
+   before the main stage content, so users do not scroll down
+   just to press Next.
+------------------------------------------------------- */
+
+.aixia-process-book__cover {
+  order: 1;
+}
+
+.aixia-process-stepper {
+  order: 2;
+}
+
+.aixia-process-navigation {
+  order: 3;
+}
+
+.aixia-process-layout {
+  order: 4;
 }
 
 /* -------------------------------------------------------
@@ -52,7 +80,7 @@
 
 .aixia-process-book__eyebrow {
   margin: 0 0 0.45rem;
-  color: rgba(103, 232, 249, 0.76);
+  color: rgba(103, 232, 249, 0.78);
   font-size: 0.68rem;
   font-weight: 800;
   letter-spacing: 0.22em;
@@ -71,7 +99,7 @@
 .aixia-process-book__subtitle {
   margin: 0.7rem 0 0;
   max-width: 780px;
-  color: rgba(203, 213, 225, 0.74);
+  color: rgba(226, 232, 240, 0.82);
   font-size: 0.94rem;
   line-height: 1.72;
 }
@@ -93,7 +121,7 @@
   border: 1px solid rgba(255, 255, 255, 0.075);
   background: rgba(0, 0, 0, 0.2);
   padding: 0.35rem 0.72rem;
-  color: rgba(226, 232, 240, 0.86);
+  color: rgba(226, 232, 240, 0.9);
   box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.035);
   font-size: 0.7rem;
   font-weight: 800;
@@ -104,19 +132,19 @@
 .aixia-process-chip[data-tone="cyan"] {
   border-color: rgba(34, 211, 238, 0.2);
   background: rgba(8, 145, 178, 0.1);
-  color: rgba(207, 250, 254, 0.94);
+  color: rgba(207, 250, 254, 0.96);
 }
 
 .aixia-process-chip[data-tone="emerald"] {
   border-color: rgba(52, 211, 153, 0.2);
   background: rgba(5, 150, 105, 0.1);
-  color: rgba(209, 250, 229, 0.94);
+  color: rgba(209, 250, 229, 0.96);
 }
 
 .aixia-process-chip[data-tone="amber"] {
   border-color: rgba(251, 191, 36, 0.2);
   background: rgba(217, 119, 6, 0.1);
-  color: rgba(254, 243, 199, 0.94);
+  color: rgba(254, 243, 199, 0.96);
 }
 
 /* -------------------------------------------------------
@@ -128,7 +156,7 @@
   border-radius: clamp(1.45rem, 1.9vw, 2rem);
   border: 1px solid rgba(255, 255, 255, 0.075);
   background:
-    linear-gradient(135deg, rgba(255, 255, 255, 0.055), rgba(255, 255, 255, 0.026));
+    linear-gradient(135deg, rgba(255, 255, 255, 0.06), rgba(255, 255, 255, 0.03));
   box-shadow:
     0 18px 55px rgba(0, 0, 0, 0.22),
     inset 0 1px 0 rgba(255, 255, 255, 0.045);
@@ -152,10 +180,10 @@
   align-items: center;
   gap: 0.62rem;
   border-radius: 1.2rem;
-  border: 1px solid rgba(255, 255, 255, 0.065);
-  background: rgba(0, 0, 0, 0.16);
-  padding: 0.74rem 0.78rem;
-  color: rgba(203, 213, 225, 0.76);
+  border: 1px solid rgba(255, 255, 255, 0.075);
+  background: rgba(0, 0, 0, 0.2);
+  padding: 0.78rem 0.82rem;
+  color: rgba(226, 232, 240, 0.86);
   text-align: left;
   box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.026);
   transition:
@@ -172,7 +200,7 @@
 .aixia-process-step:not(:disabled):hover {
   transform: translateY(-1px);
   border-color: rgba(103, 232, 249, 0.22);
-  background: rgba(255, 255, 255, 0.052);
+  background: rgba(255, 255, 255, 0.06);
   box-shadow:
     0 16px 32px rgba(0, 0, 0, 0.18),
     inset 0 1px 0 rgba(255, 255, 255, 0.04);
@@ -180,7 +208,7 @@
 
 .aixia-process-step:disabled {
   cursor: not-allowed;
-  opacity: 0.48;
+  opacity: 0.62;
 }
 
 .aixia-process-step__number {
@@ -190,9 +218,9 @@
   align-items: center;
   justify-content: center;
   border-radius: 0.9rem;
-  border: 1px solid rgba(255, 255, 255, 0.075);
-  background: rgba(255, 255, 255, 0.04);
-  color: rgba(226, 232, 240, 0.88);
+  border: 1px solid rgba(255, 255, 255, 0.085);
+  background: rgba(255, 255, 255, 0.045);
+  color: rgba(248, 250, 252, 0.92);
   box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.035);
   font-size: 0.82rem;
   font-weight: 850;
@@ -204,18 +232,20 @@
 
 .aixia-process-step__title {
   display: block;
-  overflow: hidden;
-  color: rgba(248, 250, 252, 0.92);
-  font-size: 0.82rem;
+  overflow: visible;
+  color: rgba(248, 250, 252, 0.97);
+  font-size: 0.8rem;
   font-weight: 850;
-  text-overflow: ellipsis;
-  white-space: nowrap;
+  line-height: 1.22;
+  text-overflow: unset;
+  white-space: normal;
+  word-break: normal;
 }
 
 .aixia-process-step__status {
   display: block;
-  margin-top: 0.18rem;
-  color: rgba(148, 163, 184, 0.72);
+  margin-top: 0.22rem;
+  color: rgba(178, 190, 211, 0.82);
   font-size: 0.64rem;
   font-weight: 800;
   letter-spacing: 0.13em;
@@ -223,29 +253,29 @@
 }
 
 .aixia-process-step[data-status="current"] {
-  border-color: rgba(34, 211, 238, 0.28);
+  border-color: rgba(34, 211, 238, 0.32);
   background:
-    radial-gradient(circle at 20% 0%, rgba(34, 211, 238, 0.15), transparent 55%),
-    rgba(8, 145, 178, 0.11);
+    radial-gradient(circle at 20% 0%, rgba(34, 211, 238, 0.17), transparent 55%),
+    rgba(8, 145, 178, 0.13);
   box-shadow:
     0 18px 40px rgba(8, 145, 178, 0.1),
     inset 0 1px 0 rgba(255, 255, 255, 0.05);
 }
 
 .aixia-process-step[data-status="current"] .aixia-process-step__number {
-  border-color: rgba(103, 232, 249, 0.3);
-  background: rgba(34, 211, 238, 0.15);
+  border-color: rgba(103, 232, 249, 0.34);
+  background: rgba(34, 211, 238, 0.18);
   color: rgb(207, 250, 254);
 }
 
 .aixia-process-step[data-status="complete"] {
-  border-color: rgba(52, 211, 153, 0.22);
-  background: rgba(5, 150, 105, 0.1);
+  border-color: rgba(52, 211, 153, 0.24);
+  background: rgba(5, 150, 105, 0.12);
 }
 
 .aixia-process-step[data-status="warning"] {
-  border-color: rgba(251, 191, 36, 0.22);
-  background: rgba(217, 119, 6, 0.1);
+  border-color: rgba(251, 191, 36, 0.24);
+  background: rgba(217, 119, 6, 0.12);
 }
 
 /* -------------------------------------------------------
@@ -263,12 +293,12 @@
 .aixia-process-summary,
 .aixia-process-navigation {
   border-radius: clamp(1.6rem, 2vw, 2.1rem);
-  border: 1px solid rgba(255, 255, 255, 0.075);
+  border: 1px solid rgba(255, 255, 255, 0.08);
   background:
-    linear-gradient(135deg, rgba(255, 255, 255, 0.055), rgba(255, 255, 255, 0.026));
+    linear-gradient(135deg, rgba(255, 255, 255, 0.065), rgba(255, 255, 255, 0.035));
   box-shadow:
     0 28px 90px rgba(0, 0, 0, 0.3),
-    inset 0 1px 0 rgba(255, 255, 255, 0.045);
+    inset 0 1px 0 rgba(255, 255, 255, 0.055);
   backdrop-filter: blur(22px);
 }
 
@@ -281,13 +311,13 @@
 
 .aixia-process-stage__header {
   margin-bottom: 1.05rem;
-  border-bottom: 1px solid rgba(255, 255, 255, 0.065);
+  border-bottom: 1px solid rgba(255, 255, 255, 0.075);
   padding-bottom: 1.05rem;
 }
 
 .aixia-process-stage__eyebrow {
   margin: 0 0 0.42rem;
-  color: rgba(103, 232, 249, 0.78);
+  color: rgba(103, 232, 249, 0.82);
   font-size: 0.66rem;
   font-weight: 850;
   letter-spacing: 0.18em;
@@ -296,7 +326,7 @@
 
 .aixia-process-stage__title {
   margin: 0;
-  color: rgba(255, 255, 255, 0.98);
+  color: rgba(255, 255, 255, 0.99);
   font-size: clamp(1.35rem, 1.75vw, 1.82rem);
   font-weight: 850;
   letter-spacing: -0.035em;
@@ -306,7 +336,7 @@
 .aixia-process-stage__description {
   margin: 0.55rem 0 0;
   max-width: 760px;
-  color: rgba(203, 213, 225, 0.74);
+  color: rgba(226, 232, 240, 0.82);
   font-size: 0.9rem;
   line-height: 1.65;
 }
@@ -353,11 +383,11 @@
   flex-direction: column;
   justify-content: flex-start;
   border-radius: 1.35rem;
-  border: 1px solid rgba(255, 255, 255, 0.065);
+  border: 1px solid rgba(255, 255, 255, 0.08);
   background:
-    radial-gradient(circle at top left, rgba(34, 211, 238, 0.055), transparent 34%),
-    rgba(0, 0, 0, 0.16);
-  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.025);
+    radial-gradient(circle at top left, rgba(34, 211, 238, 0.06), transparent 34%),
+    rgba(0, 0, 0, 0.22);
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.035);
   padding: 1rem;
 }
 
@@ -374,7 +404,7 @@
 .aixia-process-smart-card__label,
 .aixia-process-placeholder-block__label {
   margin: 0 0 0.45rem;
-  color: rgba(103, 232, 249, 0.75);
+  color: rgba(103, 232, 249, 0.82);
   font-size: 0.68rem;
   font-weight: 850;
   letter-spacing: 0.14em;
@@ -384,7 +414,7 @@
 .aixia-process-smart-card__text,
 .aixia-process-placeholder-block__text {
   margin: 0;
-  color: rgba(203, 213, 225, 0.75);
+  color: rgba(226, 232, 240, 0.82);
   font-size: 0.84rem;
   line-height: 1.62;
 }
@@ -395,7 +425,7 @@
 
 .aixia-process-summary {
   position: sticky;
-  top: 1rem;
+  top: 6.5rem;
   display: flex;
   min-height: 560px;
   flex-direction: column;
@@ -405,11 +435,11 @@
 
 .aixia-process-summary__section {
   border-radius: 1.35rem;
-  border: 1px solid rgba(255, 255, 255, 0.065);
+  border: 1px solid rgba(255, 255, 255, 0.075);
   background:
-    radial-gradient(circle at top right, rgba(34, 211, 238, 0.07), transparent 35%),
-    rgba(0, 0, 0, 0.15);
-  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.026);
+    radial-gradient(circle at top right, rgba(34, 211, 238, 0.08), transparent 35%),
+    rgba(0, 0, 0, 0.19);
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.03);
   padding: 1rem;
 }
 
@@ -420,7 +450,7 @@
 .aixia-process-summary__title,
 .aixia-process-summary__subtitle {
   margin: 0 0 0.78rem;
-  color: rgba(226, 232, 240, 0.88);
+  color: rgba(248, 250, 252, 0.9);
   font-size: 0.72rem;
   font-weight: 850;
   letter-spacing: 0.17em;
@@ -442,22 +472,22 @@
   justify-content: space-between;
   gap: 0.75rem;
   border-radius: 1rem;
-  border: 1px solid rgba(255, 255, 255, 0.055);
-  background: rgba(0, 0, 0, 0.15);
-  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.02);
+  border: 1px solid rgba(255, 255, 255, 0.065);
+  background: rgba(0, 0, 0, 0.19);
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.025);
   padding: 0.72rem 0.78rem;
 }
 
 .aixia-process-summary__note {
   justify-content: flex-start;
-  color: rgba(203, 213, 225, 0.82);
+  color: rgba(226, 232, 240, 0.84);
   font-size: 0.82rem;
   line-height: 1.55;
 }
 
 .aixia-process-summary__label,
 .aixia-process-summary__check {
-  color: rgba(148, 163, 184, 0.88);
+  color: rgba(178, 190, 211, 0.9);
   font-size: 0.66rem;
   font-weight: 850;
   letter-spacing: 0.12em;
@@ -467,7 +497,7 @@
 .aixia-process-summary__value {
   min-width: 0;
   overflow-wrap: anywhere;
-  color: rgba(248, 250, 252, 0.92);
+  color: rgba(248, 250, 252, 0.96);
   font-size: 0.8rem;
   font-weight: 750;
   text-align: right;
@@ -484,10 +514,13 @@
 }
 
 /* -------------------------------------------------------
-   NAVIGATION
+   TOP COMMAND NAVIGATION
 ------------------------------------------------------- */
 
 .aixia-process-navigation {
+  position: sticky;
+  top: 0.75rem;
+  z-index: 20;
   display: flex;
   flex-wrap: wrap;
   align-items: center;

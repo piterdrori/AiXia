@@ -210,6 +210,7 @@ type CustomerPoLineItem = {
   quantity: number | string | null;
   unit_price: number | string | null;
   discount: number | string | null;
+  tax_rate?: number | string | null;
   line_total: number | string | null;
   sort_order: number | null;
   unit_of_measure_id: string | null;
@@ -372,6 +373,108 @@ async function getCurrentUserId() {
   } = await supabase.auth.getUser();
 
   return user?.id ?? null;
+}
+
+function getCustomerPoVerifiedDisplay(customerPo: CustomerPoRow) {
+  return (
+    formatDate(customerPo.verified_at) !== "—"
+      ? formatDate(customerPo.verified_at)
+      : formatDate(customerPo.linked_to_pi_at) !== "—"
+        ? formatDate(customerPo.linked_to_pi_at)
+        : customerPo.status === "linked_to_pi"
+          ? "Linked to PI"
+          : "—"
+  );
+}
+
+function getCustomerPoNotesDisplay(customerPo: CustomerPoRow) {
+  const metadataNotes =
+    typeof customerPo.metadata?.notes === "string"
+      ? customerPo.metadata.notes
+      : typeof customerPo.metadata?.source_notes === "string"
+        ? customerPo.metadata.source_notes
+        : typeof customerPo.metadata?.customer_po_notes === "string"
+          ? customerPo.metadata.customer_po_notes
+          : "";
+
+  return customerPo.notes || metadataNotes || "—";
+}
+
+function getCustomerPoLineItemDisplayName(
+  line: CustomerPoLineItem,
+  items: ItemOption[],
+) {
+  const selectedItem = items.find((item) => item.id === line.item_id);
+
+  return selectedItem?.name || line.item?.name || line.description || "—";
+}
+
+function getCustomerPoLineUnitDisplayName(
+  line: CustomerPoLineItem,
+  unitsOfMeasure: UnitOfMeasureOption[],
+) {
+  const selectedUnit = unitsOfMeasure.find(
+    (unit) => unit.id === line.unit_of_measure_id,
+  );
+
+  const name =
+    selectedUnit?.name ||
+    line.finance_units_of_measure?.name ||
+    line.finance_units_of_measure?.code ||
+    "";
+
+  const code = selectedUnit?.code || line.finance_units_of_measure?.code || "";
+
+  if (!name && !code) return "—";
+  if (name && code && name !== code) return `${name} — ${code}`;
+  return name || code;
+}
+
+function getCustomerPoLineTaxDisplayName(
+  line: CustomerPoLineItem,
+  taxCodes: TaxCodeOption[],
+) {
+  const selectedTaxCode = taxCodes.find((taxCode) => taxCode.id === line.tax_code_id);
+
+  if (selectedTaxCode) {
+    return selectedTaxCode.code
+      ? `${selectedTaxCode.name} — ${selectedTaxCode.code}`
+      : `${selectedTaxCode.name} — ${toNumber(selectedTaxCode.rate_percent).toFixed(2)}%`;
+  }
+
+  if (line.finance_tax_codes?.name || line.finance_tax_codes?.code) {
+    return line.finance_tax_codes.code
+      ? `${line.finance_tax_codes.name || line.finance_tax_codes.code} — ${line.finance_tax_codes.code}`
+      : line.finance_tax_codes.name || "—";
+  }
+
+  if (line.tax_rate !== null && line.tax_rate !== undefined) {
+    return `${toNumber(line.tax_rate).toFixed(2)}%`;
+  }
+
+  return "—";
+}
+
+function getCustomerPoLineRevenueDisplayName(
+  line: CustomerPoLineItem,
+  revenueCategories: RevenueCategoryOption[],
+) {
+  const selectedRevenueCategory = revenueCategories.find(
+    (category) => category.id === line.revenue_category_id,
+  );
+
+  const name =
+    selectedRevenueCategory?.name ||
+    line.finance_revenue_categories?.name ||
+    line.finance_revenue_categories?.code ||
+    "";
+
+  const code =
+    selectedRevenueCategory?.code || line.finance_revenue_categories?.code || "";
+
+  if (!name && !code) return "—";
+  if (name && code && name !== code) return `${name} — ${code}`;
+  return name || code;
 }
 
 export default function FinanceCustomerPoDetailPage() {
@@ -672,6 +775,7 @@ export default function FinanceCustomerPoDetailPage() {
           quantity,
           unit_price,
           discount,
+          tax_rate,
           line_total,
           sort_order,
           unit_of_measure_id,
@@ -2122,7 +2226,7 @@ export default function FinanceCustomerPoDetailPage() {
 
                 <AixiaDisplayBlock
                   label="Verified"
-                  value={formatDate(customerPo.verified_at)}
+                  value={getCustomerPoVerifiedDisplay(customerPo)}
                 />
 
                 <AixiaFormFullWidth>
@@ -2141,7 +2245,7 @@ export default function FinanceCustomerPoDetailPage() {
                   ) : (
                     <AixiaDisplayBlock
                       label="Notes"
-                      value={customerPo.notes || "—"}
+                      value={getCustomerPoNotesDisplay(customerPo)}
                     />
                   )}
                 </AixiaFormFullWidth>
@@ -2376,20 +2480,25 @@ export default function FinanceCustomerPoDetailPage() {
               ) : (
                 <div className="aixia-form-row-list">
                   {lineItems.map((line, index) => {
-                    const unitLabel =
-                      line.finance_units_of_measure?.code ||
-                      line.finance_units_of_measure?.name ||
-                      "—";
+                    const itemLabel = getCustomerPoLineItemDisplayName(
+                      line,
+                      items,
+                    );
 
-                    const taxLabel =
-                      line.finance_tax_codes?.name ||
-                      line.finance_tax_codes?.code ||
-                      "—";
+                    const unitLabel = getCustomerPoLineUnitDisplayName(
+                      line,
+                      unitsOfMeasure,
+                    );
 
-                    const revenueLabel =
-                      line.finance_revenue_categories?.name ||
-                      line.finance_revenue_categories?.code ||
-                      "—";
+                    const taxLabel = getCustomerPoLineTaxDisplayName(
+                      line,
+                      taxCodes,
+                    );
+
+                    const revenueLabel = getCustomerPoLineRevenueDisplayName(
+                      line,
+                      revenueCategories,
+                    );
 
                     return (
                       <AixiaFormRowCard
@@ -2400,7 +2509,7 @@ export default function FinanceCustomerPoDetailPage() {
                         <AixiaFormGrid columns="three">
                           <AixiaDisplayBlock
                             label="Item"
-                            value={line.item?.name || "—"}
+                            value={itemLabel}
                           />
 
                           <AixiaDisplayBlock

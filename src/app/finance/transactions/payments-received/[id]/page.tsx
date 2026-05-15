@@ -1211,7 +1211,7 @@ export default function PaymentReceivedDetailPage() {
             ) : (
               <AixiaDisplayBlock
                 label="Reference Number"
-                value={payment.reference_number || "—"}
+                value={displayReference}
               />
             )}
           </AixiaFormField>

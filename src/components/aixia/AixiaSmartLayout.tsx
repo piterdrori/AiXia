@@ -19,6 +19,7 @@ type AixiaSmartLayoutSideRebalance = "off" | "last" | "last-to-bottom";
 type AixiaSmartLayoutProps = HTMLAttributes<HTMLDivElement> & {
   main: ReactNode;
   side?: ReactNode;
+  top?: ReactNode;
   sidebar?: AixiaSmartLayoutSidebar;
   balance?: AixiaSmartLayoutBalance;
   matchColumns?: boolean;
@@ -200,6 +201,7 @@ function getBottomMainChildren(
 export function AixiaSmartLayout({
   main,
   side,
+  top,
   sidebar = "normal",
   balance = "normal",
   matchColumns = true,
@@ -209,12 +211,15 @@ export function AixiaSmartLayout({
   className = "",
   ...props
 }: AixiaSmartLayoutProps) {
- 
   const layoutRef = useRef<HTMLElement | null>(null);
   const mainRef = useRef<HTMLDivElement | null>(null);
   const sideRef = useRef<HTMLDivElement | null>(null);
   const [matchedFillHeight, setMatchedFillHeight] = useState<number | null>(null);
   const [matchedMainTailHeight, setMatchedMainTailHeight] = useState<number | null>(null);
+
+  const normalizedTopChildren = useMemo(() => {
+    return flattenLayoutChildren(top);
+  }, [top]);
 
   const normalizedMainChildren = useMemo(() => {
     return flattenLayoutChildren(main);
@@ -261,13 +266,11 @@ export function AixiaSmartLayout({
     ? normalizedSideChildren.slice(0, -1)
     : normalizedSideChildren;
 
-  const rebalancedSideChildren = sideRebalance === "last"
-    ? normalizedSideChildren.slice(-1)
-    : [];
+  const rebalancedSideChildren =
+    sideRebalance === "last" ? normalizedSideChildren.slice(-1) : [];
 
-  const bottomSideChildren = sideRebalance === "last-to-bottom"
-    ? normalizedSideChildren.slice(-1)
-    : [];
+  const bottomSideChildren =
+    sideRebalance === "last-to-bottom" ? normalizedSideChildren.slice(-1) : [];
 
   const bottomSpanChildren = [
     ...bottomMainChildren,
@@ -312,7 +315,9 @@ export function AixiaSmartLayout({
           const nextHeight = Math.max(minimumFillHeight, availableOppositeHeight);
 
           setMatchedFillHeight(
-            Number.isFinite(nextHeight) && nextHeight > 0 ? Math.round(nextHeight) : null
+            Number.isFinite(nextHeight) && nextHeight > 0
+              ? Math.round(nextHeight)
+              : null
           );
         } else {
           setMatchedFillHeight(null);
@@ -401,11 +406,13 @@ export function AixiaSmartLayout({
       data-side-rebalance={sideRebalance}
       data-main-count={getChildCount(main)}
       data-side-count={getChildCount(side)}
+      data-top-count={getChildCount(top)}
       data-main-top-count={mainColumnChildren.length}
       data-side-top-count={sideColumnChildren.length}
       data-side-rebalanced-count={rebalancedSideChildren.length}
       data-bottom-count={bottomSpanChildren.length}
       data-main-split-count={resolvedMainTopCount}
+      data-has-top-span={normalizedTopChildren.length > 0 ? "true" : "false"}
       data-has-bottom-span={bottomSpanChildren.length > 0 ? "true" : "false"}
       data-has-side-rebalance={useSideRebalance ? "true" : "false"}
       data-has-explicit-main-split={
@@ -416,6 +423,10 @@ export function AixiaSmartLayout({
       style={style}
       {...props}
     >
+      {normalizedTopChildren.length > 0 ? (
+        <div className="aixia-smart-top-span">{normalizedTopChildren}</div>
+      ) : null}
+
       <div ref={mainRef} className="aixia-smart-main">
         {hasExplicitMainSplit && mainColumnChildren.length > 0 ? (
           <>

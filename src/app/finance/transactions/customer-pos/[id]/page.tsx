@@ -210,7 +210,6 @@ type CustomerPoLineItem = {
   quantity: number | string | null;
   unit_price: number | string | null;
   discount: number | string | null;
-  tax_rate?: number | string | null;
   line_total: number | string | null;
   sort_order: number | null;
   unit_of_measure_id: string | null;
@@ -446,10 +445,6 @@ function getCustomerPoLineTaxDisplayName(
     return line.finance_tax_codes.code
       ? `${line.finance_tax_codes.name || line.finance_tax_codes.code} — ${line.finance_tax_codes.code}`
       : line.finance_tax_codes.name || "—";
-  }
-
-  if (line.tax_rate !== null && line.tax_rate !== undefined) {
-    return `${toNumber(line.tax_rate).toFixed(2)}%`;
   }
 
   return "—";
@@ -775,7 +770,6 @@ export default function FinanceCustomerPoDetailPage() {
           quantity,
           unit_price,
           discount,
-          tax_rate,
           line_total,
           sort_order,
           unit_of_measure_id,

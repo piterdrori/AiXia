@@ -1479,8 +1479,10 @@ function inspectFinanceDetailSmartLayoutConfiguration(filePath, text) {
   if (!usesMainContent || !usesSideContent) return;
 
   const hasNeverBottomSpan = /\bbottomSpan=["']never["']/.test(text);
+  const hasAutoBottomSpan = /\bbottomSpan=["']auto["']/.test(text);
   const hasLastToBottomRebalance =
     /\bsideRebalance=["']last-to-bottom["']/.test(text);
+  const hasMainTopCount = /\bmainTopCount=\{\d+\}/.test(text);
 
   if (hasNeverBottomSpan && hasLastToBottomRebalance) {
     addError(
@@ -1495,6 +1497,16 @@ function inspectFinanceDetailSmartLayoutConfiguration(filePath, text) {
       text
     );
 
+  const hasLineItemsInMain =
+    /main=\{[\s\S]{0,18000}(Line Items|Line items|Line Item|Customer PO Line Items|Customer PO line items|Purchase Order Line Items|Invoice Line Items|Bill Line Items)[\s\S]{0,18000}\}/i.test(
+      text
+    );
+
+  const hasLinkedDocumentsInMain =
+    /main=\{[\s\S]{0,18000}(Linked Documents|Source Documents|Related Documents)[\s\S]{0,18000}\}/i.test(
+      text
+    );
+
   if (hasNeverBottomSpan && likelyHasMultipleMainSections) {
     addError(
       filePath,
@@ -1502,11 +1514,6 @@ function inspectFinanceDetailSmartLayoutConfiguration(filePath, text) {
       "AiXia detail SmartLayout bottom-span rule"
     );
   }
-
-  const hasLineItemsInMain =
-    /main=\{[\s\S]{0,12000}(Line Items|Line items|Line Item|Customer PO Line Items|Customer PO line items)[\s\S]{0,12000}\}/i.test(
-      text
-    );
 
   if (hasNeverBottomSpan && hasLineItemsInMain) {
     addError(
@@ -1516,16 +1523,25 @@ function inspectFinanceDetailSmartLayoutConfiguration(filePath, text) {
     );
   }
 
-  const hasLinkedDocumentsInMain =
-    /main=\{[\s\S]{0,14000}(Linked Documents|Source Documents|Related Documents)[\s\S]{0,14000}\}/i.test(
-      text
-    );
-
   if (hasNeverBottomSpan && hasLinkedDocumentsInMain) {
     addError(
       filePath,
       'Finance detail pages with Linked Documents/Source Documents in the main column must not use bottomSpan="never" when side content exists. Let lower document sections expand full width with bottomSpan="auto".',
       "AiXia detail SmartLayout linked-documents expansion rule"
+    );
+  }
+
+  if (
+    hasAutoBottomSpan &&
+    hasLastToBottomRebalance &&
+    hasLineItemsInMain &&
+    likelyHasMultipleMainSections &&
+    !hasMainTopCount
+  ) {
+    addError(
+      filePath,
+      'Finance detail pages with bottomSpan="auto", sideRebalance="last-to-bottom", side content, and Line Items in the main column must set mainTopCount. Without mainTopCount, AixiaSmartLayout only sends the last main section to the full-width bottom span, leaving Line Items trapped in the left column. Usually use mainTopCount={1} so Document Overview stays top-left and Line Items/Linked Documents expand full width.',
+      "AiXia detail SmartLayout mainTopCount rule"
     );
   }
 }

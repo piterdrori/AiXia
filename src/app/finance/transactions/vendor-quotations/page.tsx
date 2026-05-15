@@ -1,27 +1,46 @@
+"use client";
+
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import {
   Archive,
-  ArrowRight,
+  CheckCircle,
   Eye,
   FileText,
-  FolderArchive,
   Plus,
+  Receipt,
   RotateCcw,
   Search,
+  ShieldCheck,
   Trash2,
+  Wallet,
 } from "lucide-react";
 
-import { supabase } from "@/lib/supabase";
-import { Badge } from "@/components/ui/badge";
-import { Button } from "@/components/ui/button";
 import {
-  Card,
-  CardContent,
-  CardDescription,
-  CardHeader,
-  CardTitle,
-} from "@/components/ui/card";
+  AixiaAccessRule,
+  AixiaAlert,
+  AixiaArchiveManagerModal,
+  AixiaBadge,
+  AixiaButton,
+  AixiaEmptyState,
+  AixiaHero,
+  AixiaLoadingState,
+  AixiaMetricCard,
+  AixiaMetricGrid,
+  AixiaPage,
+  AixiaRegistryToolbar,
+  AixiaSearchField,
+  AixiaSection,
+  AixiaSortableHeader,
+  AixiaStatusBadge,
+  AixiaTableActionsCell,
+  AixiaTableBadgeCell,
+  AixiaTableDateCell,
+  AixiaTableShell,
+  AixiaTableTextCell,
+} from "@/components/aixia";
+import { type FinanceLoadMode } from "@/lib/finance/pageAccess";
+import { supabase } from "@/lib/supabase";
 
 type VendorQuotationStatus =
   | "draft"
@@ -95,49 +114,87 @@ function formatDate(value: string | null | undefined) {
   });
 }
 
-function getStatusBadgeClass(status: VendorQuotationStatus) {
-  switch (status) {
-    case "draft":
-      return "border-slate-400/20 bg-slate-500/10 text-slate-300";
-    case "received":
-      return "border-cyan-400/20 bg-cyan-500/10 text-cyan-200";
-    case "under_review":
-      return "border-amber-400/20 bg-amber-500/10 text-amber-200";
-    case "accepted":
-      return "border-emerald-400/20 bg-emerald-500/10 text-emerald-200";
-    case "converted":
-      return "border-violet-400/20 bg-violet-500/10 text-violet-200";
-    case "rejected":
-    case "expired":
-    case "deleted":
-      return "border-rose-400/20 bg-rose-500/10 text-rose-200";
-    case "archived":
+function normalizeStatusLabel(status: string | null | undefined) {
+  if (!status) return "—";
+
+  return status
+    .split("_")
+    .filter(Boolean)
+    .map((part) => part.charAt(0).toUpperCase() + part.slice(1))
+    .join(" ");
+}
+
+function getVendorDisplayName(row: VendorQuotationRow) {
+  return row.vendor_legal_name || row.vendor_name || "Unknown vendor";
+}
+
+function getExternalReference(row: VendorQuotationRow) {
+  return row.external_quotation_number || "—";
+}
+
+function getSortableDate(value: string | null | undefined) {
+  if (!value) return 0;
+
+  const parsed = new Date(value).getTime();
+  return Number.isFinite(parsed) ? parsed : 0;
+}
+
+function compareSortValues(a: string | number, b: string | number) {
+  if (typeof a === "number" && typeof b === "number") {
+    return a - b;
+  }
+
+  return String(a).localeCompare(String(b), undefined, {
+    numeric: true,
+    sensitivity: "base",
+  });
+}
+
+function getVendorQuotationSortValue(row: VendorQuotationRow, key: SortKey) {
+  switch (key) {
+    case "vendor_quotation_number":
+      return String(row.vendor_quotation_number || "").toLowerCase();
+    case "external_quotation_number":
+      return getExternalReference(row).toLowerCase();
+    case "vendor_name":
+      return getVendorDisplayName(row).toLowerCase();
+    case "quotation_date":
+      return getSortableDate(row.quotation_date);
+    case "valid_until":
+      return getSortableDate(row.valid_until);
+    case "total_amount":
+      return toNumber(row.total_amount);
+    case "status":
+      return String(row.status || "").toLowerCase();
+    case "updated_at":
     default:
-      return "border-white/10 bg-white/[0.05] text-slate-300";
+      return getSortableDate(row.updated_at);
   }
 }
 
-function normalizeStatusLabel(status: string) {
-  return status.replaceAll("_", " ");
-}
+function mapVendorQuotationRows(records: unknown[]) {
+  return records.map((record) => {
+    const row = record as VendorQuotationRow & {
+      finance_vendors?: {
+        name?: string | null;
+        legal_name?: string | null;
+        code?: string | null;
+      } | null;
+      finance_companies?: {
+        name?: string | null;
+        legal_name?: string | null;
+      } | null;
+    };
 
-function compareValues(
-  firstValue: string | number | null | undefined,
-  secondValue: string | number | null | undefined,
-  direction: SortDirection
-) {
-  const first =
-    typeof firstValue === "number"
-      ? firstValue
-      : String(firstValue ?? "").toLowerCase();
-  const second =
-    typeof secondValue === "number"
-      ? secondValue
-      : String(secondValue ?? "").toLowerCase();
-
-  if (first < second) return direction === "asc" ? -1 : 1;
-  if (first > second) return direction === "asc" ? 1 : -1;
-  return 0;
+    return {
+      ...row,
+      vendor_name: row.finance_vendors?.name ?? null,
+      vendor_legal_name: row.finance_vendors?.legal_name ?? null,
+      vendor_code: row.finance_vendors?.code ?? null,
+      company_name:
+        row.finance_companies?.legal_name ?? row.finance_companies?.name ?? null,
+    };
+  });
 }
 
 export default function FinanceVendorQuotationsPage() {
@@ -154,36 +211,11 @@ export default function FinanceVendorQuotationsPage() {
   const [isArchiveOpen, setIsArchiveOpen] = useState(false);
   const [archiveTab, setArchiveTab] = useState<ArchiveTab>("archived");
 
-  const mapVendorQuotationRows = useCallback((records: unknown[]) => {
-    return records.map((record) => {
-      const row = record as VendorQuotationRow & {
-        finance_vendors?: {
-          name?: string | null;
-          legal_name?: string | null;
-          code?: string | null;
-        } | null;
-        finance_companies?: {
-          name?: string | null;
-          legal_name?: string | null;
-        } | null;
-      };
-
-      return {
-        ...row,
-        vendor_name: row.finance_vendors?.name ?? null,
-        vendor_legal_name: row.finance_vendors?.legal_name ?? null,
-        vendor_code: row.finance_vendors?.code ?? null,
-        company_name:
-          row.finance_companies?.legal_name ??
-          row.finance_companies?.name ??
-          null,
-      };
-    });
-  }, []);
-
-  const loadRows = useCallback(async () => {
+  const loadRows = useCallback(async (mode: FinanceLoadMode = "initial") => {
     try {
-      setIsLoading(true);
+      if (mode === "initial") {
+        setIsLoading(true);
+      }
       setErrorMessage("");
 
       const { data, error } = await supabase
@@ -216,15 +248,22 @@ export default function FinanceVendorQuotationsPage() {
       setRows(mapVendorQuotationRows((data || []) as unknown[]));
     } catch (error) {
       console.error("Failed to load vendor quotations:", error);
+      if (mode === "initial") {
+        setRows([]);
+      }
       setErrorMessage("Failed to load vendor quotations.");
     } finally {
-      setIsLoading(false);
+      if (mode === "initial") {
+        setIsLoading(false);
+      }
     }
-  }, [mapVendorQuotationRows]);
+  }, []);
 
-  const loadArchiveRows = useCallback(async () => {
+  const loadArchiveRows = useCallback(async (mode: FinanceLoadMode = "initial") => {
     try {
-      setIsArchiveLoading(true);
+      if (mode === "initial") {
+        setIsArchiveLoading(true);
+      }
       setErrorMessage("");
 
       const { data, error } = await supabase
@@ -249,7 +288,7 @@ export default function FinanceVendorQuotationsPage() {
             "finance_companies(name, legal_name)",
           ].join(", ")
         )
-        .eq("status", archiveTab)
+        .in("status", ["archived", "deleted"])
         .order("updated_at", { ascending: false });
 
       if (error) throw error;
@@ -257,19 +296,24 @@ export default function FinanceVendorQuotationsPage() {
       setArchiveRows(mapVendorQuotationRows((data || []) as unknown[]));
     } catch (error) {
       console.error("Failed to load archived vendor quotations:", error);
+      if (mode === "initial") {
+        setArchiveRows([]);
+      }
       setErrorMessage("Failed to load archive records.");
     } finally {
-      setIsArchiveLoading(false);
+      if (mode === "initial") {
+        setIsArchiveLoading(false);
+      }
     }
-  }, [archiveTab, mapVendorQuotationRows]);
+  }, []);
 
   useEffect(() => {
-    void loadRows();
+    void loadRows("initial");
   }, [loadRows]);
 
   useEffect(() => {
     if (!isArchiveOpen) return;
-    void loadArchiveRows();
+    void loadArchiveRows("initial");
   }, [isArchiveOpen, loadArchiveRows]);
 
   useEffect(() => {
@@ -283,17 +327,20 @@ export default function FinanceVendorQuotationsPage() {
           table: "finance_vendor_quotations",
         },
         () => {
-          void loadRows();
+          void loadRows("silent");
 
           if (isArchiveOpen) {
-            void loadArchiveRows();
+            void loadArchiveRows("silent");
           }
         }
       )
       .subscribe();
 
     const intervalId = window.setInterval(() => {
-      void loadRows();
+      void loadRows("silent");
+      if (isArchiveOpen) {
+        void loadArchiveRows("silent");
+      }
     }, 60000);
 
     return () => {
@@ -326,25 +373,26 @@ export default function FinanceVendorQuotationsPage() {
       : rows;
 
     return [...visibleRows].sort((firstRow, secondRow) => {
-      if (sortKey === "total_amount") {
-        return compareValues(
-          toNumber(firstRow.total_amount),
-          toNumber(secondRow.total_amount),
-          sortDirection
-        );
-      }
+      const firstValue = getVendorQuotationSortValue(firstRow, sortKey);
+      const secondValue = getVendorQuotationSortValue(secondRow, sortKey);
+      const multiplier = sortDirection === "asc" ? 1 : -1;
 
-      if (sortKey === "vendor_name") {
-        return compareValues(
-          firstRow.vendor_legal_name || firstRow.vendor_name,
-          secondRow.vendor_legal_name || secondRow.vendor_name,
-          sortDirection
-        );
-      }
-
-      return compareValues(firstRow[sortKey], secondRow[sortKey], sortDirection);
+      return compareSortValues(firstValue, secondValue) * multiplier;
     });
   }, [rows, searchTerm, sortDirection, sortKey]);
+
+  const visibleArchiveRows = useMemo(() => {
+    return archiveRows.filter((row) => row.status === archiveTab);
+  }, [archiveRows, archiveTab]);
+
+  const sortedArchiveRows = useMemo(() => {
+    return [...visibleArchiveRows].sort((firstRow, secondRow) => {
+      return compareSortValues(
+        getVendorQuotationSortValue(secondRow, "updated_at"),
+        getVendorQuotationSortValue(firstRow, "updated_at")
+      );
+    });
+  }, [visibleArchiveRows]);
 
   const summary = useMemo(() => {
     const activeRows = rows.filter(
@@ -363,18 +411,57 @@ export default function FinanceVendorQuotationsPage() {
     };
   }, [rows]);
 
-  const toggleSort = useCallback(
-    (nextSortKey: SortKey) => {
-      if (nextSortKey === sortKey) {
-        setSortDirection((current) => (current === "asc" ? "desc" : "asc"));
-        return;
-      }
+  const archivedArchiveCount = archiveRows.filter(
+    (row) => row.status === "archived"
+  ).length;
+  const deletedArchiveCount = archiveRows.filter(
+    (row) => row.status === "deleted"
+  ).length;
 
-      setSortKey(nextSortKey);
-      setSortDirection("asc");
+  const metricCards = [
+    {
+      key: "received",
+      label: "Received",
+      value: summary.received.toLocaleString(),
+      description: "Vendor quotations waiting for review.",
+      icon: Receipt,
+      tone: "cyan" as const,
     },
-    [sortKey]
-  );
+    {
+      key: "accepted",
+      label: "Accepted",
+      value: summary.accepted.toLocaleString(),
+      description: "Ready to convert into purchase orders.",
+      icon: CheckCircle,
+      tone: "emerald" as const,
+    },
+    {
+      key: "converted",
+      label: "Converted",
+      value: summary.converted.toLocaleString(),
+      description: "Already pushed to purchase order.",
+      icon: FileText,
+      tone: "violet" as const,
+    },
+    {
+      key: "flow",
+      label: "Flow",
+      value: "01",
+      description: "Vendor Quotation → Purchase Order.",
+      icon: Wallet,
+      tone: "amber" as const,
+    },
+  ];
+
+  function handleSort(nextSortKey: SortKey) {
+    if (nextSortKey === sortKey) {
+      setSortDirection((current) => (current === "asc" ? "desc" : "asc"));
+      return;
+    }
+
+    setSortKey(nextSortKey);
+    setSortDirection(nextSortKey === "updated_at" ? "desc" : "asc");
+  }
 
   const runArchiveAction = useCallback(
     async (
@@ -394,10 +481,10 @@ export default function FinanceVendorQuotationsPage() {
 
         if (error) throw error;
 
-        await loadRows();
+        await loadRows("silent");
 
         if (isArchiveOpen) {
-          await loadArchiveRows();
+          await loadArchiveRows("silent");
         }
       } catch (error) {
         console.error("Vendor quotation archive action failed:", error);
@@ -407,579 +494,353 @@ export default function FinanceVendorQuotationsPage() {
     [isArchiveOpen, loadArchiveRows, loadRows]
   );
 
-  const sortableHeaderClass =
-    "inline-flex items-center gap-2 text-[11px] font-semibold uppercase tracking-[0.18em] text-slate-500 transition hover:text-slate-300";
+  const renderRows = (items: VendorQuotationRow[], isArchive = false) => {
+    if (items.length === 0) {
+      return (
+        <tr>
+          <td colSpan={9}>
+            <AixiaEmptyState
+              icon={FileText}
+              title={isArchive ? `No ${archiveTab} vendor quotations` : "No active vendor quotations"}
+              description={
+                isArchive
+                  ? `No ${archiveTab} vendor quotation records are available.`
+                  : "No active vendor quotations match the current search."
+              }
+            />
+          </td>
+        </tr>
+      );
+    }
 
-  const renderSortMark = (key: SortKey) => {
-    if (sortKey !== key) return "↕";
-    return sortDirection === "asc" ? "↑" : "↓";
+    return items.map((row) => (
+      <tr key={row.id} className="aixia-table-row">
+        <AixiaTableTextCell
+          primary={row.vendor_quotation_number || "Vendor Quotation"}
+          secondary={row.company_name || "No company selected"}
+          width="lg"
+        />
+        <AixiaTableTextCell
+          primary={getVendorDisplayName(row)}
+          secondary={row.vendor_code || "—"}
+          width="lg"
+        />
+        <AixiaTableTextCell primary={getExternalReference(row)} width="md" />
+        <AixiaTableDateCell>{formatDate(row.quotation_date)}</AixiaTableDateCell>
+        <AixiaTableDateCell>{formatDate(row.valid_until)}</AixiaTableDateCell>
+        <AixiaTableTextCell
+          primary={formatMoney(row.total_amount, row.currency_code || "USD")}
+          secondary={row.currency_code || "USD"}
+          width="md"
+        />
+        <AixiaTableBadgeCell>
+          <AixiaStatusBadge value={normalizeStatusLabel(row.status)} />
+        </AixiaTableBadgeCell>
+        <AixiaTableDateCell>{formatDate(row.updated_at)}</AixiaTableDateCell>
+        <AixiaTableActionsCell>
+          <AixiaButton
+            type="button"
+            variant="primary"
+            title="Open vendor quotation"
+            onClick={() => navigate(`/finance/transactions/vendor-quotations/${row.id}`)}
+          >
+            <Eye className="h-4 w-4" />
+            Open
+          </AixiaButton>
+
+          {!isArchive ? (
+            <AixiaButton
+              type="button"
+              variant="danger"
+              title="Archive vendor quotation"
+              onClick={() =>
+                void runArchiveAction("finance_archive_vendor_quotation", row.id)
+              }
+            >
+              <Archive className="h-4 w-4" />
+              Archive
+            </AixiaButton>
+          ) : null}
+
+          {!isArchive ? (
+            <AixiaButton
+              type="button"
+              variant="danger"
+              title="Delete vendor quotation"
+              onClick={() =>
+                void runArchiveAction("finance_delete_vendor_quotation", row.id)
+              }
+            >
+              <Trash2 className="h-4 w-4" />
+              Delete
+            </AixiaButton>
+          ) : null}
+
+          {isArchive ? (
+            <AixiaButton
+              type="button"
+              variant="secondary"
+              title="Restore vendor quotation"
+              onClick={() =>
+                void runArchiveAction("finance_restore_vendor_quotation", row.id)
+              }
+            >
+              <RotateCcw className="h-4 w-4" />
+              Restore
+            </AixiaButton>
+          ) : null}
+
+          {isArchive && archiveTab === "deleted" ? (
+            <AixiaButton
+              type="button"
+              variant="danger"
+              title="Delete vendor quotation permanently"
+              onClick={() =>
+                void runArchiveAction("finance_hard_delete_vendor_quotation", row.id)
+              }
+            >
+              <Trash2 className="h-4 w-4" />
+              Delete Permanently
+            </AixiaButton>
+          ) : null}
+        </AixiaTableActionsCell>
+      </tr>
+    ));
   };
 
+  if (isLoading && rows.length === 0) {
+    return (
+      <AixiaLoadingState
+        title="Loading vendor quotations"
+        description="Vendor quotation registry data, metrics, and archive state are loading."
+      />
+    );
+  }
+
   return (
-    <div className="min-h-screen bg-[#05070d] px-4 py-4 text-white md:px-6 md:py-6">
-      <div className="mx-auto flex w-full max-w-[1600px] flex-col gap-6">
-        <header className="relative overflow-hidden rounded-[34px] border border-white/10 bg-white/[0.045] p-6 shadow-2xl shadow-black/30 backdrop-blur-xl">
-          <div className="pointer-events-none absolute inset-0 bg-[radial-gradient(circle_at_top_left,rgba(245,158,11,0.16),transparent_38%),radial-gradient(circle_at_top_right,rgba(139,92,246,0.12),transparent_34%)]" />
+    <AixiaPage>
+      <AixiaHero
+        parentLabel="Transactions"
+        parentPath="/finance/transactions"
+        badges={[
+          { label: "Supplier Procurement", tone: "amber" },
+          { label: "Step 01", tone: "cyan" },
+        ]}
+        gradientTitle="Vendor"
+        title="Quotations"
+        subtitle="Supplier quotation registry before purchase order creation."
+        description="Supplier quotation records received before AiXia issues a purchase order. This is the starting point of the supplier procurement flow."
+        statusCards={[
+          {
+            label: "Active Quotations",
+            value: isLoading ? "—" : summary.total.toLocaleString(),
+            description: "Active supplier quotation records.",
+            icon: FileText,
+            tone: "amber",
+          },
+          {
+            label: "Quotation Value",
+            value: isLoading ? "—" : formatMoney(summary.totalValue, "USD"),
+            description: "Approximate active value across currencies.",
+            icon: Wallet,
+            tone: "emerald",
+          },
+        ]}
+      >
+        <div className="aixia-action-system" data-align="start" data-density="compact">
+          <AixiaBadge tone="amber">Vendor quotation → PO</AixiaBadge>
+          <AixiaBadge tone="cyan">Document controlled</AixiaBadge>
+          <AixiaBadge tone="neutral">Auto-refresh enabled</AixiaBadge>
+        </div>
+      </AixiaHero>
 
-          <div className="relative">
-            <button
+      <AixiaMetricGrid>
+        {metricCards.map((metric) => (
+          <AixiaMetricCard
+            key={metric.key}
+            label={metric.label}
+            value={metric.value}
+            description={metric.description}
+            icon={metric.icon}
+            tone={metric.tone}
+          />
+        ))}
+      </AixiaMetricGrid>
+
+      <AixiaAccessRule
+        title="Locked access rule"
+        description="Vendor quotation registry access follows the shared Finance supplier procurement, registry, archive, and action-button standard."
+        icon={ShieldCheck}
+      >
+        This page uses shared AiXia components for page shell, hero, metrics, registry toolbar, table shell, sortable headers, archive modal, row actions, and lifecycle buttons. Page-local UI primitives and local Tailwind visual systems are intentionally removed.
+      </AixiaAccessRule>
+
+      {errorMessage ? <AixiaAlert tone="error">{errorMessage}</AixiaAlert> : null}
+
+      <AixiaSection
+        title="Vendor Quotation Registry"
+        description="Active vendor quotations only. Archived and deleted records are managed from the archive panel."
+        icon={FileText}
+        badge={<AixiaBadge tone="amber">Active Vendor Quotations</AixiaBadge>}
+      >
+        <AixiaRegistryToolbar
+          search={
+            <AixiaSearchField
+              width="wide"
+              value={searchTerm}
+              onChange={(event) => setSearchTerm(event.target.value)}
+              placeholder="Search vendor quotations..."
+            />
+          }
+          primaryAction={
+            <AixiaButton
               type="button"
-              onClick={() => navigate("/finance/transactions")}
-              className="mb-5 inline-flex items-center justify-center gap-2 rounded-full border border-white/10 bg-white/[0.05] px-5 py-2 text-[11px] font-semibold uppercase tracking-[0.22em] text-slate-300 transition hover:border-white/20 hover:bg-white/[0.08] hover:text-white"
+              variant="primary"
+              onClick={() => navigate("/finance/transactions/vendor-quotations/new")}
             >
-              <ArrowRight className="h-3.5 w-3.5 rotate-180" />
-              Transactions
-            </button>
+              <Plus className="h-4 w-4" />
+              New Vendor Quotation
+            </AixiaButton>
+          }
+          archiveAction={
+            <AixiaButton
+              type="button"
+              variant="danger"
+              onClick={() => {
+                setArchiveTab("archived");
+                setIsArchiveOpen(true);
+              }}
+            >
+              <Archive className="h-4 w-4" />
+              Archive
+            </AixiaButton>
+          }
+        />
 
-            <div className="grid gap-6 xl:grid-cols-[minmax(0,1fr)_520px]">
-              <div>
-                <div className="flex flex-wrap gap-2">
-                  <Badge className="w-fit rounded-full border border-amber-400/20 bg-amber-500/10 px-3 py-1 text-[11px] font-semibold uppercase tracking-[0.22em] text-amber-200 shadow-none">
-                    Supplier Procurement
-                  </Badge>
+        <AixiaTableShell variant="registry" minWidthClassName="min-w-[1240px]">
+          <thead className="aixia-table-head">
+            <tr>
+              <th>
+                <AixiaSortableHeader
+                  label="Quotation"
+                  sortKey="vendor_quotation_number"
+                  activeSortKey={sortKey}
+                  sortDirection={sortDirection}
+                  onSort={handleSort}
+                />
+              </th>
+              <th>
+                <AixiaSortableHeader
+                  label="Vendor"
+                  sortKey="vendor_name"
+                  activeSortKey={sortKey}
+                  sortDirection={sortDirection}
+                  onSort={handleSort}
+                />
+              </th>
+              <th>
+                <AixiaSortableHeader
+                  label="External Ref"
+                  sortKey="external_quotation_number"
+                  activeSortKey={sortKey}
+                  sortDirection={sortDirection}
+                  onSort={handleSort}
+                />
+              </th>
+              <th>
+                <AixiaSortableHeader
+                  label="Date"
+                  sortKey="quotation_date"
+                  activeSortKey={sortKey}
+                  sortDirection={sortDirection}
+                  onSort={handleSort}
+                />
+              </th>
+              <th>
+                <AixiaSortableHeader
+                  label="Valid Until"
+                  sortKey="valid_until"
+                  activeSortKey={sortKey}
+                  sortDirection={sortDirection}
+                  onSort={handleSort}
+                />
+              </th>
+              <th>
+                <AixiaSortableHeader
+                  label="Total"
+                  sortKey="total_amount"
+                  activeSortKey={sortKey}
+                  sortDirection={sortDirection}
+                  onSort={handleSort}
+                  align="right"
+                />
+              </th>
+              <th>
+                <AixiaSortableHeader
+                  label="Status"
+                  sortKey="status"
+                  activeSortKey={sortKey}
+                  sortDirection={sortDirection}
+                  onSort={handleSort}
+                />
+              </th>
+              <th>
+                <AixiaSortableHeader
+                  label="Updated"
+                  sortKey="updated_at"
+                  activeSortKey={sortKey}
+                  sortDirection={sortDirection}
+                  onSort={handleSort}
+                />
+              </th>
+              <th>Actions</th>
+            </tr>
+          </thead>
+          <tbody>{renderRows(filteredRows)}</tbody>
+        </AixiaTableShell>
+      </AixiaSection>
 
-                  <Badge className="w-fit rounded-full border border-cyan-400/20 bg-cyan-500/10 px-3 py-1 text-[11px] font-semibold uppercase tracking-[0.22em] text-cyan-200 shadow-none">
-                    Step 01
-                  </Badge>
-                </div>
-
-                <h1 className="mt-4 text-3xl font-semibold tracking-[-0.035em] text-white md:text-5xl">
-                  Vendor Quotations
-                </h1>
-
-                <p className="mt-3 max-w-4xl text-sm leading-6 text-slate-400 md:text-base md:leading-7">
-                  Supplier quotation records received before AiXia issues a
-                  purchase order. This is the starting point of the supplier
-                  procurement flow.
-                </p>
-                
-                <div className="mt-5 flex flex-wrap gap-3">
-                  <Button
-                    onClick={() =>
-                      navigate("/finance/transactions/vendor-quotations/new")
-                    }
-                    className="h-11 rounded-2xl border border-amber-400/20 bg-amber-500 px-4 text-sm font-semibold text-slate-950 transition hover:bg-amber-400"
-                  >
-                    <Plus className="mr-2 h-4 w-4" />
-                    New Vendor Quotation
-                  </Button>
-
-                  <Button
-                    variant="outline"
-                    onClick={() => {
-                      setArchiveTab("archived");
-                      setIsArchiveOpen(true);
-                    }}
-                    className="h-11 rounded-2xl border-white/10 bg-white/[0.05] px-4 text-white hover:bg-white/[0.08]"
-                  >
-                    <FolderArchive className="mr-2 h-4 w-4" />
-                    Archive
-                  </Button>
-                </div>
-              </div>
-
-              <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-1">
-                <div className="min-h-[148px] rounded-[24px] border border-white/10 bg-black/20 p-4">
-                  <div className="text-[11px] font-semibold uppercase tracking-[0.2em] text-slate-500">
-                    Active Quotations
-                  </div>
-                  <div className="mt-2 text-3xl font-semibold tracking-[-0.035em] text-white">
-                    {isLoading ? "—" : summary.total}
-                  </div>
-                  <div className="mt-3 text-xs leading-5 text-slate-500">
-                    Active supplier quotation records.
-                  </div>
-                </div>
-
-                <div className="min-h-[148px] rounded-[24px] border border-white/10 bg-black/20 p-4">
-                  <div className="text-[11px] font-semibold uppercase tracking-[0.2em] text-slate-500">
-                    Quotation Value
-                  </div>
-                  <div className="mt-2 text-3xl font-semibold tracking-[-0.035em] text-white">
-                    {isLoading ? "—" : formatMoney(summary.totalValue, "USD")}
-                  </div>
-                  <div className="mt-3 text-xs leading-5 text-slate-500">
-                    Approximate active value across currencies.
-                  </div>
-                </div>
-              </div>
-            </div>
-          </div>
-        </header>
-
-        <section className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
-          <div className="min-h-[156px] rounded-[28px] border border-white/10 bg-white/[0.045] p-5 backdrop-blur-xl">
-            <div className="text-[11px] font-semibold uppercase tracking-[0.2em] text-slate-500">
-              Received
-            </div>
-            <div className="mt-2 text-3xl font-semibold text-cyan-100">
-              {summary.received}
-            </div>
-            <div className="mt-2 text-sm leading-6 text-slate-400">
-              Vendor quotations waiting for review.
-            </div>
-          </div>
-
-          <div className="min-h-[156px] rounded-[28px] border border-white/10 bg-white/[0.045] p-5 backdrop-blur-xl">
-            <div className="text-[11px] font-semibold uppercase tracking-[0.2em] text-slate-500">
-              Accepted
-            </div>
-            <div className="mt-2 text-3xl font-semibold text-emerald-100">
-              {summary.accepted}
-            </div>
-            <div className="mt-2 text-sm leading-6 text-slate-400">
-              Ready to convert into purchase orders.
-            </div>
-          </div>
-
-          <div className="min-h-[156px] rounded-[28px] border border-white/10 bg-white/[0.045] p-5 backdrop-blur-xl">
-            <div className="text-[11px] font-semibold uppercase tracking-[0.2em] text-slate-500">
-              Converted
-            </div>
-            <div className="mt-2 text-3xl font-semibold text-violet-100">
-              {summary.converted}
-            </div>
-            <div className="mt-2 text-sm leading-6 text-slate-400">
-              Already pushed to purchase order.
-            </div>
-          </div>
-
-          <div className="min-h-[156px] rounded-[28px] border border-white/10 bg-white/[0.045] p-5 backdrop-blur-xl">
-            <div className="text-[11px] font-semibold uppercase tracking-[0.2em] text-slate-500">
-              Flow
-            </div>
-            <div className="mt-2 text-3xl font-semibold text-amber-100">01</div>
-            <div className="mt-2 text-sm leading-6 text-slate-400">
-              Vendor Quotation → Purchase Order.
-            </div>
-          </div>
-        </section>
-
-        <Card className="overflow-hidden rounded-[30px] border border-white/10 bg-white/[0.045] backdrop-blur-xl">
-          <CardHeader className="border-b border-white/10 px-5 py-4">
-            <div className="flex flex-col gap-4 xl:flex-row xl:items-center xl:justify-between">
-              <div className="flex min-w-0 items-center gap-3">
-                <div className="rounded-2xl border border-amber-400/15 bg-amber-500/10 p-3 text-amber-200">
-                  <FileText className="h-4 w-4" />
-                </div>
-
-                <div className="min-w-0">
-                  <CardTitle className="text-sm font-semibold uppercase tracking-[0.18em] text-slate-400">
-                    Vendor Quotation Registry
-                  </CardTitle>
-                  <CardDescription className="mt-1 text-xs text-slate-500">
-                    Active vendor quotations only. Archived and deleted records
-                    are managed from the archive panel.
-                  </CardDescription>
-                </div>
-              </div>
-
-              <div className="flex flex-col gap-3 sm:flex-row sm:items-center">
-                <div className="relative">
-                  <Search className="pointer-events-none absolute left-4 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-500" />
-                  <input
-                    value={searchTerm}
-                    onChange={(event) => setSearchTerm(event.target.value)}
-                    placeholder="Search vendor quotations..."
-                    className="h-11 w-full rounded-2xl border border-white/10 bg-black/20 pl-11 pr-4 text-sm text-white outline-none transition placeholder:text-slate-600 focus:border-amber-400/30 focus:bg-black/30 sm:w-[320px]"
-                  />
-                </div>
-              </div>
-            </div>
-          </CardHeader>
-
-          <CardContent className="p-0">
-            {errorMessage ? (
-              <div className="border-b border-rose-400/20 bg-rose-500/10 px-5 py-3 text-sm text-rose-200">
-                {errorMessage}
-              </div>
-            ) : null}
-
-            <div className="overflow-x-auto">
-              <div className="max-h-[720px] overflow-y-auto">
-                <table className="w-full min-w-[1240px] border-collapse">
-                  <thead className="sticky top-0 z-10 border-b border-white/10 bg-black/40 backdrop-blur-xl">
-                    <tr>
-                      <th className="px-5 py-4 text-left">
-                        <button
-                          type="button"
-                          onClick={() => toggleSort("vendor_quotation_number")}
-                          className={sortableHeaderClass}
-                        >
-                          Quotation {renderSortMark("vendor_quotation_number")}
-                        </button>
-                      </th>
-                      <th className="px-5 py-4 text-left">
-                        <button
-                          type="button"
-                          onClick={() => toggleSort("vendor_name")}
-                          className={sortableHeaderClass}
-                        >
-                          Vendor {renderSortMark("vendor_name")}
-                        </button>
-                      </th>
-                      <th className="px-5 py-4 text-left">
-                        <button
-                          type="button"
-                          onClick={() => toggleSort("external_quotation_number")}
-                          className={sortableHeaderClass}
-                        >
-                          External Ref{" "}
-                          {renderSortMark("external_quotation_number")}
-                        </button>
-                      </th>
-                      <th className="px-5 py-4 text-left">
-                        <button
-                          type="button"
-                          onClick={() => toggleSort("quotation_date")}
-                          className={sortableHeaderClass}
-                        >
-                          Date {renderSortMark("quotation_date")}
-                        </button>
-                      </th>
-                      <th className="px-5 py-4 text-left">
-                        <button
-                          type="button"
-                          onClick={() => toggleSort("valid_until")}
-                          className={sortableHeaderClass}
-                        >
-                          Valid Until {renderSortMark("valid_until")}
-                        </button>
-                      </th>
-                      <th className="px-5 py-4 text-left">
-                        <button
-                          type="button"
-                          onClick={() => toggleSort("total_amount")}
-                          className={sortableHeaderClass}
-                        >
-                          Total {renderSortMark("total_amount")}
-                        </button>
-                      </th>
-                      <th className="px-5 py-4 text-left">
-                        <button
-                          type="button"
-                          onClick={() => toggleSort("status")}
-                          className={sortableHeaderClass}
-                        >
-                          Status {renderSortMark("status")}
-                        </button>
-                      </th>
-                      <th className="px-5 py-4 text-right text-[11px] font-semibold uppercase tracking-[0.18em] text-slate-500">
-                        Actions
-                      </th>
-                    </tr>
-                  </thead>
-
-                  <tbody className="divide-y divide-white/5">
-                    {isLoading ? (
-                      <tr>
-                        <td
-                          colSpan={8}
-                          className="px-5 py-12 text-center text-sm text-slate-500"
-                        >
-                          Loading vendor quotations...
-                        </td>
-                      </tr>
-                    ) : filteredRows.length === 0 ? (
-                      <tr>
-                        <td
-                          colSpan={8}
-                          className="px-5 py-12 text-center text-sm text-slate-500"
-                        >
-                          No active vendor quotations found.
-                        </td>
-                      </tr>
-                    ) : (
-                      filteredRows.map((row) => (
-                        <tr
-                          key={row.id}
-                          className="text-sm text-slate-300 transition hover:bg-white/[0.035]"
-                        >
-                          <td className="px-5 py-4">
-                            <div className="font-semibold text-white">
-                              {row.vendor_quotation_number}
-                            </div>
-                            <div className="mt-1 text-xs text-slate-500">
-                              {row.company_name || "No company selected"}
-                            </div>
-                          </td>
-
-                          <td className="px-5 py-4">
-                            <div className="font-medium text-white">
-                              {row.vendor_legal_name ||
-                                row.vendor_name ||
-                                "Unknown vendor"}
-                            </div>
-                            <div className="mt-1 text-xs text-slate-500">
-                              {row.vendor_code || "—"}
-                            </div>
-                          </td>
-
-                          <td className="px-5 py-4 text-slate-400">
-                            {row.external_quotation_number || "—"}
-                          </td>
-
-                          <td className="px-5 py-4 text-slate-400">
-                            {formatDate(row.quotation_date)}
-                          </td>
-
-                          <td className="px-5 py-4 text-slate-400">
-                            {formatDate(row.valid_until)}
-                          </td>
-
-                          <td className="px-5 py-4">
-                            <div className="font-semibold text-white">
-                              {formatMoney(
-                                row.total_amount,
-                                row.currency_code || "USD"
-                              )}
-                            </div>
-                            <div className="mt-1 text-xs text-slate-500">
-                              {row.currency_code || "USD"}
-                            </div>
-                          </td>
-
-                          <td className="px-5 py-4">
-                            <Badge
-                              className={`rounded-full px-3 py-1 text-[11px] font-semibold uppercase tracking-[0.16em] shadow-none ${getStatusBadgeClass(
-                                row.status
-                              )}`}
-                            >
-                              {normalizeStatusLabel(row.status)}
-                            </Badge>
-                          </td>
-
-                          <td className="px-5 py-4">
-                            <div className="flex justify-end gap-2">
-                              <Button
-                                type="button"
-                                variant="outline"
-                                title="Open vendor quotation"
-                                onClick={() =>
-                                  navigate(
-                                    `/finance/transactions/vendor-quotations/${row.id}`
-                                  )
-                                }
-                                className="flex h-11 w-11 items-center justify-center rounded-full border-cyan-400/20 bg-cyan-500/10 p-0 text-cyan-200 hover:bg-cyan-500/20"
-                              >
-                                <Eye className="h-4 w-4" />
-                              </Button>
-
-                              <Button
-                                type="button"
-                                variant="outline"
-                                title="Archive vendor quotation"
-                                onClick={() =>
-                                  void runArchiveAction(
-                                    "finance_archive_vendor_quotation",
-                                    row.id
-                                  )
-                                }
-                                className="flex h-11 w-11 items-center justify-center rounded-full border-amber-400/20 bg-amber-500/10 p-0 text-amber-200 hover:bg-amber-500/20"
-                              >
-                                <Archive className="h-4 w-4" />
-                              </Button>
-
-                              <Button
-                                type="button"
-                                variant="outline"
-                                title="Delete vendor quotation"
-                                onClick={() =>
-                                  void runArchiveAction(
-                                    "finance_delete_vendor_quotation",
-                                    row.id
-                                  )
-                                }
-                                className="flex h-11 w-11 items-center justify-center rounded-full border-rose-400/20 bg-rose-500/10 p-0 text-rose-200 hover:bg-rose-500/20"
-                              >
-                                <Trash2 className="h-4 w-4" />
-                              </Button>
-                            </div>
-                          </td>
-                        </tr>
-                      ))
-                    )}
-                  </tbody>
-                </table>
-              </div>
-            </div>
-          </CardContent>
-        </Card>
-
-        {isArchiveOpen ? (
-          <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 p-4 backdrop-blur-sm">
-            <div className="flex max-h-[88vh] w-full max-w-[1300px] flex-col overflow-hidden rounded-[30px] border border-white/10 bg-[#070b14] shadow-2xl shadow-black/50">
-              <div className="flex flex-col gap-4 border-b border-white/10 p-5 lg:flex-row lg:items-center lg:justify-between">
-                <div>
-                  <div className="text-sm font-semibold uppercase tracking-[0.18em] text-slate-400">
-                    Vendor Quotation Archive
-                  </div>
-                  <div className="mt-1 text-xs text-slate-500">
-                    Archived records can be restored. Deleted records can be
-                    restored or permanently removed.
-                  </div>
-                </div>
-
-                <div className="flex flex-wrap gap-2">
-                  <Button
-                    variant="outline"
-                    onClick={() => setArchiveTab("archived")}
-                    className={`h-10 rounded-2xl px-4 ${
-                      archiveTab === "archived"
-                        ? "border-amber-400/30 bg-amber-500/15 text-amber-100"
-                        : "border-white/10 bg-white/[0.05] text-slate-300 hover:bg-white/[0.08]"
-                    }`}
-                  >
-                    Archived
-                  </Button>
-
-                  <Button
-                    variant="outline"
-                    onClick={() => setArchiveTab("deleted")}
-                    className={`h-10 rounded-2xl px-4 ${
-                      archiveTab === "deleted"
-                        ? "border-rose-400/30 bg-rose-500/15 text-rose-100"
-                        : "border-white/10 bg-white/[0.05] text-slate-300 hover:bg-white/[0.08]"
-                    }`}
-                  >
-                    Deleted
-                  </Button>
-
-                  <Button
-                    variant="outline"
-                    onClick={() => setIsArchiveOpen(false)}
-                    className="h-10 rounded-2xl border-white/10 bg-white/[0.05] px-4 text-white hover:bg-white/[0.08]"
-                  >
-                    Close
-                  </Button>
-                </div>
-              </div>
-
-              <div className="overflow-x-auto">
-                <div className="max-h-[620px] overflow-y-auto">
-                  <table className="w-full min-w-[1100px] border-collapse">
-                    <thead className="sticky top-0 z-10 border-b border-white/10 bg-black/40 backdrop-blur-xl">
-                      <tr>
-                        <th className="px-5 py-4 text-left text-[11px] font-semibold uppercase tracking-[0.18em] text-slate-500">
-                          Quotation
-                        </th>
-                        <th className="px-5 py-4 text-left text-[11px] font-semibold uppercase tracking-[0.18em] text-slate-500">
-                          Vendor
-                        </th>
-                        <th className="px-5 py-4 text-left text-[11px] font-semibold uppercase tracking-[0.18em] text-slate-500">
-                          External Ref
-                        </th>
-                        <th className="px-5 py-4 text-left text-[11px] font-semibold uppercase tracking-[0.18em] text-slate-500">
-                          Total
-                        </th>
-                        <th className="px-5 py-4 text-left text-[11px] font-semibold uppercase tracking-[0.18em] text-slate-500">
-                          Updated
-                        </th>
-                        <th className="px-5 py-4 text-right text-[11px] font-semibold uppercase tracking-[0.18em] text-slate-500">
-                          Actions
-                        </th>
-                      </tr>
-                    </thead>
-
-                    <tbody className="divide-y divide-white/5">
-                      {isArchiveLoading ? (
-                        <tr>
-                          <td
-                            colSpan={6}
-                            className="px-5 py-12 text-center text-sm text-slate-500"
-                          >
-                            Loading archive...
-                          </td>
-                        </tr>
-                      ) : archiveRows.length === 0 ? (
-                        <tr>
-                          <td
-                            colSpan={6}
-                            className="px-5 py-12 text-center text-sm text-slate-500"
-                          >
-                            No {archiveTab} vendor quotations.
-                          </td>
-                        </tr>
-                      ) : (
-                        archiveRows.map((row) => (
-                          <tr
-                            key={row.id}
-                            className="text-sm text-slate-300 transition hover:bg-white/[0.035]"
-                          >
-                            <td className="px-5 py-4">
-                              <div className="font-semibold text-white">
-                                {row.vendor_quotation_number}
-                              </div>
-                              <div className="mt-1 text-xs text-slate-500">
-                                {formatDate(row.quotation_date)}
-                              </div>
-                            </td>
-
-                            <td className="px-5 py-4">
-                              {row.vendor_legal_name ||
-                                row.vendor_name ||
-                                "Unknown vendor"}
-                            </td>
-
-                            <td className="px-5 py-4">
-                              {row.external_quotation_number || "—"}
-                            </td>
-
-                            <td className="px-5 py-4">
-                              {formatMoney(
-                                row.total_amount,
-                                row.currency_code || "USD"
-                              )}
-                            </td>
-
-                            <td className="px-5 py-4">
-                              {formatDate(row.updated_at)}
-                            </td>
-
-                            <td className="px-5 py-4">
-                              <div className="flex justify-end gap-2">
-                                <Button
-                                  variant="outline"
-                                  onClick={() =>
-                                    void runArchiveAction(
-                                      "finance_restore_vendor_quotation",
-                                      row.id
-                                    )
-                                  }
-                                  className="h-9 rounded-2xl border-emerald-400/20 bg-emerald-500/10 px-3 text-emerald-200 hover:bg-emerald-500/20"
-                                >
-                                  <RotateCcw className="mr-2 h-4 w-4" />
-                                  Restore
-                                </Button>
-
-                                {archiveTab === "deleted" ? (
-                                  <Button
-                                    variant="outline"
-                                    onClick={() =>
-                                      void runArchiveAction(
-                                        "finance_hard_delete_vendor_quotation",
-                                        row.id
-                                      )
-                                    }
-                                    className="h-9 rounded-2xl border-rose-400/20 bg-rose-500/10 px-3 text-rose-200 hover:bg-rose-500/20"
-                                  >
-                                    <Trash2 className="mr-2 h-4 w-4" />
-                                    Hard Delete
-                                  </Button>
-                                ) : null}
-                              </div>
-                            </td>
-                          </tr>
-                        ))
-                      )}
-                    </tbody>
-                  </table>
-                </div>
-              </div>
-            </div>
-          </div>
-        ) : null}
-      </div>
-    </div>
+      <AixiaArchiveManagerModal
+        open={isArchiveOpen}
+        title="Vendor Quotation Archive"
+        description="Archived records can be restored. Deleted records can be restored or permanently removed."
+        archivedCount={archivedArchiveCount}
+        deletedCount={deletedArchiveCount}
+        activeTab={archiveTab}
+        onTabChange={setArchiveTab}
+        onClose={() => setIsArchiveOpen(false)}
+        maxWidthClassName="max-w-[1300px]"
+      >
+        {isArchiveLoading ? (
+          <AixiaLoadingState
+            title="Loading vendor quotation archive"
+            description="Archived and deleted vendor quotation records are loading."
+          />
+        ) : sortedArchiveRows.length === 0 ? (
+          <AixiaEmptyState
+            icon={Search}
+            title={`No ${archiveTab} vendor quotations`}
+            description={`No ${archiveTab} vendor quotation records are available.`}
+          />
+        ) : (
+          <AixiaTableShell variant="archive" minWidthClassName="min-w-[1240px]">
+            <thead className="aixia-table-head">
+              <tr>
+                <th>Quotation</th>
+                <th>Vendor</th>
+                <th>External Ref</th>
+                <th>Date</th>
+                <th>Valid Until</th>
+                <th>Total</th>
+                <th>Status</th>
+                <th>Updated</th>
+                <th>Actions</th>
+              </tr>
+            </thead>
+            <tbody>{renderRows(sortedArchiveRows, true)}</tbody>
+          </AixiaTableShell>
+        )}
+      </AixiaArchiveManagerModal>
+    </AixiaPage>
   );
 }

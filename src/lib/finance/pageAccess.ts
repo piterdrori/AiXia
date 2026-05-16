@@ -36,6 +36,16 @@ const EMPTY_FINANCE_PAGE_PERMISSION_STATE: FinancePagePermissionState = {
   isAdmin: false,
 };
 
+/** Admin bypass: full finance module UI regardless of per-user finance RPC overrides. */
+const ADMIN_FINANCE_FULL_PAGE_ACCESS: FinancePagePermissionState = {
+  canRead: true,
+  canCreate: true,
+  canUpdate: true,
+  canDeleteArchive: true,
+  canApproveExecute: true,
+  isAdmin: true,
+};
+
 function hasPermission(
   permissions: Partial<Record<Permission, boolean>> | null | undefined,
   permission: Permission
@@ -65,6 +75,10 @@ export function resolveFinancePagePermissionState({
   }
 
   const isAdmin = String(profileRole || "").toLowerCase() === "admin";
+  if (isAdmin) {
+    return ADMIN_FINANCE_FULL_PAGE_ACCESS;
+  }
+
   const section = ACCESS_APPROVAL_SECTIONS.find(
     (accessSection) => accessSection.key === config.sectionKey
   );
@@ -107,7 +121,7 @@ export function resolveFinancePagePermissionState({
   const canRead = rawRead || canCreate;
 
   return {
-    isAdmin,
+    isAdmin: false,
     canRead,
     canCreate,
     canUpdate,

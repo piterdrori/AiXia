@@ -1,17 +1,21 @@
 import { supabase } from "@/lib/supabase";
+import { AixiaCommandMetrics, AixiaHero, AixiaPage, AixiaWorkspaceCard } from "@/components/aixia";
+import type { AixiaCommandMetricItem } from "@/components/aixia";
+import "@/styles/dashboard/tokens.css";
+import "@/styles/dashboard/layout.css";
+import "@/styles/dashboard/visual.css";
+
 import { useNavigate } from "react-router-dom";
 import {
   useEffect,
   useMemo,
   useRef,
   useState,
-  type ElementType,
   type RefObject,
 } from "react";
+import type { LucideIcon } from "lucide-react";
 import {
   Activity,
-  ArrowRight,
-  Bot,
   Brain,
   Database,
   FileCheck2,
@@ -45,7 +49,7 @@ type StudioModule = {
   label: string;
   description: string;
   route?: string;
-  icon: ElementType;
+  icon: LucideIcon;
   status: "live" | "ready" | "draft";
   group: "Behavior" | "Knowledge" | "Runtime" | "Experience";
 };
@@ -304,6 +308,14 @@ export default function AIManagementPage() {
     void loadStudioData();
   }, []);
 
+  const commandHeaderMetrics = useMemo<AixiaCommandMetricItem[]>(
+    () => [
+      { key: "live-modules-0", title: "Live Modules", value: String(String(liveModules)), tone: "cyan" },
+      { key: "draft-modules-1", title: "Draft Modules", value: String(String(draftModules)), tone: "amber" },
+    ],
+    [liveModules, draftModules]
+  );
+
   useEffect(() => {
     if (!previewMessagesRef.current) return;
 
@@ -425,45 +437,18 @@ export default function AIManagementPage() {
   }
 
   return (
-    <div className="min-h-screen bg-[#05070d] px-6 py-6 text-white">
-      <div className="mx-auto flex w-full max-w-[1600px] flex-col gap-6">
-        <header className="overflow-hidden rounded-[34px] border border-white/10 bg-white/[0.045] p-6 shadow-2xl shadow-black/30 backdrop-blur-xl">
-          <div className="flex flex-col gap-6 xl:flex-row xl:items-start xl:justify-between">
-            <div className="space-y-5">
-              <div className="inline-flex w-fit items-center gap-2 rounded-full border border-cyan-400/20 bg-cyan-500/10 px-3 py-1 text-[11px] font-semibold uppercase tracking-[0.22em] text-cyan-200">
-                <Bot className="h-3.5 w-3.5" />
-                AI Control Center
-              </div>
+    <AixiaPage surface="command" className="aixia-command-page aixia-ai-management-page"><AixiaHero
+        surface="command"
+        className="shrink-0 space-y-4"
+        
+        gradientTitle="AI Studio"
+        title="AI Studio"
+        subtitle="Manage the live AiXia assistant from one clean control center. Each module has one clear job: behavior, knowledge, runtime, logs, voice, or avatar experience."
+      >
+        <AixiaCommandMetrics items={commandHeaderMetrics} />
+      </AixiaHero>
 
-              <div>
-                <h1 className="text-3xl font-semibold tracking-[-0.035em] text-white md:text-5xl">
-                  AI Studio
-                </h1>
-                <p className="mt-3 max-w-4xl text-sm leading-6 text-slate-400 md:text-base md:leading-7">
-                  Manage the live AiXia assistant from one clean control center.
-                  Each module has one clear job: behavior, knowledge, runtime,
-                  logs, voice, or avatar experience.
-                </p>
-              </div>
-
-              <div className="flex flex-wrap gap-2">
-                <StatusPill label="Live settings" value="Immediate" tone="emerald" />
-                <StatusPill label="Publish layer" value="Not needed" tone="slate" />
-                <StatusPill label="Draft modules" value={String(draftModules)} tone="amber" />
-              </div>
-            </div>
-
-            <div className="grid gap-3 sm:grid-cols-3 xl:min-w-[620px]">
-              <MetricCard label="Live Modules" value={String(liveModules)} tone="cyan" />
-              <MetricCard label="Draft Modules" value={String(draftModules)} tone="amber" />
-              <MetricCard
-                label="Status"
-                value={loading ? "Loading" : "Ready"}
-                tone={loading ? "amber" : "emerald"}
-              />
-            </div>
-          </div>
-        </header>
+      <div className="aixia-command-scroll flex flex-col gap-6">
 
         {errorMessage ? (
           <div className="rounded-2xl border border-rose-400/20 bg-rose-500/10 px-4 py-3 text-sm text-rose-200">
@@ -529,10 +514,17 @@ export default function AIManagementPage() {
 
                 <div className="grid gap-4 p-5 md:grid-cols-2">
                   {group.modules.map((module) => (
-                    <ModuleCard
+                    <AixiaWorkspaceCard
                       key={module.id}
-                      module={module}
-                      onOpen={() => {
+                      label={module.label}
+                      eyebrow={group.group}
+                      description={module.description}
+                      icon={module.icon}
+                      statusLabel={module.status.toUpperCase()}
+                      summary={module.route ? "Open module" : "Planned module"}
+                      tone={getModuleTone(module.status)}
+                      disabled={!module.route}
+                      onClick={() => {
                         if (module.route) {
                           navigate(module.route);
                         }
@@ -570,9 +562,10 @@ export default function AIManagementPage() {
                 <button
                   type="button"
                   onClick={() => void loadStudioData()}
-                  className="inline-flex items-center gap-2 rounded-xl border border-white/10 bg-white/[0.05] px-3 py-2 text-xs font-medium text-slate-300 transition hover:border-white/20 hover:text-white"
+                  disabled={loading}
+                  className="inline-flex items-center gap-2 rounded-xl border border-white/10 bg-white/[0.05] px-3 py-2 text-xs font-medium text-slate-300 transition hover:border-white/20 hover:text-white disabled:cursor-not-allowed disabled:opacity-50"
                 >
-                  <RefreshCcw className="h-4 w-4" />
+                  <RefreshCcw className={`h-4 w-4 ${loading ? "animate-spin" : ""}`} />
                   Refresh
                 </button>
               </div>
@@ -632,7 +625,7 @@ export default function AIManagementPage() {
           </aside>
         </section>
       </div>
-    </div>
+    </AixiaPage>
   );
 }
 
@@ -652,56 +645,6 @@ function getGroupDescription(group: StudioModule["group"]) {
   return "Controls voice, avatar, and the user-facing assistant experience.";
 }
 
-function StatusPill({
-  label,
-  value,
-  tone,
-}: {
-  label: string;
-  value: string;
-  tone: "emerald" | "amber" | "slate";
-}) {
-  const toneClass =
-    tone === "emerald"
-      ? "border-emerald-400/20 bg-emerald-500/10 text-emerald-200"
-      : tone === "amber"
-        ? "border-amber-400/20 bg-amber-500/10 text-amber-200"
-        : "border-slate-400/20 bg-slate-500/10 text-slate-300";
-
-  return (
-    <div className={`rounded-full border px-3 py-1 text-xs ${toneClass}`}>
-      <span className="text-white/45">{label}:</span>{" "}
-      <span className="font-semibold">{value}</span>
-    </div>
-  );
-}
-
-function MetricCard({
-  label,
-  value,
-  tone,
-}: {
-  label: string;
-  value: string;
-  tone: "cyan" | "emerald" | "amber";
-}) {
-  const toneClass =
-    tone === "cyan"
-      ? "text-cyan-200"
-      : tone === "emerald"
-        ? "text-emerald-200"
-        : "text-amber-200";
-
-  return (
-    <div className="rounded-2xl border border-white/10 bg-white/[0.04] p-4">
-      <p className="text-[11px] uppercase tracking-[0.2em] text-slate-500">
-        {label}
-      </p>
-      <p className={`mt-2 text-3xl font-semibold ${toneClass}`}>{value}</p>
-    </div>
-  );
-}
-
 function StatCard({
   label,
   value,
@@ -712,7 +655,7 @@ function StatCard({
   label: string;
   value: string;
   description: string;
-  icon: ElementType;
+  icon: LucideIcon;
   tone: "emerald" | "cyan" | "violet" | "amber" | "rose";
 }) {
   const toneClass =
@@ -747,54 +690,10 @@ function StatCard({
   );
 }
 
-function ModuleCard({
-  module,
-  onOpen,
-}: {
-  module: StudioModule;
-  onOpen: () => void;
-}) {
-  const Icon = module.icon;
-
-  const statusClass =
-    module.status === "live"
-      ? "border-emerald-400/20 bg-emerald-500/10 text-emerald-200"
-      : module.status === "ready"
-        ? "border-cyan-400/20 bg-cyan-500/10 text-cyan-200"
-        : "border-amber-400/20 bg-amber-500/10 text-amber-200";
-
-  return (
-    <button
-      type="button"
-      onClick={onOpen}
-      disabled={!module.route}
-      className="group flex min-h-[170px] flex-col justify-between rounded-[26px] border border-white/10 bg-black/20 p-5 text-left transition hover:border-cyan-400/25 hover:bg-white/[0.055] disabled:cursor-not-allowed disabled:opacity-70 disabled:hover:border-white/10 disabled:hover:bg-black/20"
-    >
-      <div>
-        <div className="flex items-start justify-between gap-4">
-          <div className="rounded-2xl border border-cyan-400/15 bg-cyan-500/10 p-3 text-cyan-200">
-            <Icon className="h-5 w-5" />
-          </div>
-
-          <div className={`rounded-full border px-3 py-1 text-[11px] font-semibold uppercase tracking-[0.16em] ${statusClass}`}>
-            {module.status}
-          </div>
-        </div>
-
-        <div className="mt-4 text-base font-semibold text-white">
-          {module.label}
-        </div>
-        <p className="mt-2 text-sm leading-6 text-slate-400">
-          {module.description}
-        </p>
-      </div>
-
-      <div className="mt-5 flex items-center justify-between text-sm text-cyan-200">
-        <span>{module.route ? "Open module" : "Planned module"}</span>
-        <ArrowRight className="h-4 w-4 transition group-hover:translate-x-1" />
-      </div>
-    </button>
-  );
+function getModuleTone(status: StudioModule["status"]) {
+  if (status === "live") return "emerald" as const;
+  if (status === "ready") return "cyan" as const;
+  return "amber" as const;
 }
 
 function LiveTestConsole({

@@ -1,9 +1,6 @@
 import { useEffect, useMemo, useState } from "react";
-import { useNavigate } from "react-router-dom";
 import {
-  Activity,
   AlertTriangle,
-  ArrowLeft,
   Brain,
   RefreshCcw,
   Save,
@@ -12,6 +9,12 @@ import {
   ToggleRight,
 } from "lucide-react";
 import { supabase } from "@/lib/supabase";
+import { AixiaCommandMetrics, AixiaHero, AixiaPage } from "@/components/aixia";
+import type { AixiaCommandMetricItem } from "@/components/aixia";
+import "@/styles/dashboard/tokens.css";
+import "@/styles/dashboard/layout.css";
+import "@/styles/dashboard/visual.css";
+
 
 type StateSettings = {
   state_enabled: boolean;
@@ -193,7 +196,6 @@ function getPostureSummary(settings: StateSettings) {
 }
 
 export default function AIStateOfMindPage() {
-  const navigate = useNavigate();
 
   const [settings, setSettings] =
     useState<StateSettings>(defaultStateSettings);
@@ -221,6 +223,14 @@ export default function AIStateOfMindPage() {
     if (stateIntensity >= 45) return "Moderate";
     return "Low Intensity";
   }, [settings.state_enabled, stateIntensity]);
+
+  const commandHeaderMetrics = useMemo<AixiaCommandMetricItem[]>(
+    () => [
+      { key: "intensity-0", title: "Intensity", value: `${stateIntensity}%`, tone: "neutral" as const },
+      { key: "mode-1", title: "Mode", value: String(currentMode.label), tone: "amber" },
+    ],
+    [stateIntensity, currentMode]
+  );
 
   useEffect(() => {
     void loadSettings();
@@ -350,50 +360,19 @@ export default function AIStateOfMindPage() {
   }
 
   return (
-    <div className="min-h-screen bg-[#05070d] px-6 py-6 text-white">
-      <div className="mx-auto flex w-full max-w-[1600px] flex-col gap-6">
-        <header className="overflow-hidden rounded-[34px] border border-white/10 bg-white/[0.045] p-6 shadow-2xl shadow-black/30 backdrop-blur-xl">
-          <div className="flex flex-col gap-6 xl:flex-row xl:items-start xl:justify-between">
-            <div className="space-y-5">
-              <button
-                type="button"
-                onClick={() => navigate("/ai-management")}
-                className="inline-flex items-center gap-2 rounded-full border border-white/10 bg-white/[0.04] px-4 py-2 text-xs font-semibold uppercase tracking-[0.18em] text-slate-300 transition hover:border-cyan-300/40 hover:text-cyan-100"
-              >
-                <ArrowLeft className="h-4 w-4" />
-                AI Studio
-              </button>
+    <AixiaPage surface="command" className="aixia-command-page aixia-ai-management-page"><AixiaHero
+        surface="command"
+        className="shrink-0 space-y-4"
+        parentLabel="AI Studio"
+        parentPath="/ai-management"
+        gradientTitle="State of Mind"
+        title="State of Mind"
+        subtitle="Apply a temporary behavior overlay for tone, urgency, creativity, caution, detail level, and diagnostic depth. When disabled, it has no router effect."
+      >
+        <AixiaCommandMetrics items={commandHeaderMetrics} />
+      </AixiaHero>
 
-              <div className="space-y-3">
-                <div className="inline-flex w-fit items-center gap-2 rounded-full border border-amber-400/20 bg-amber-500/10 px-3 py-1 text-[11px] font-semibold uppercase tracking-[0.22em] text-amber-200">
-                  <Activity className="h-3.5 w-3.5" />
-                  Temporary Behavior
-                </div>
-
-                <div>
-                  <h1 className="text-3xl font-semibold tracking-[-0.035em] text-white md:text-5xl">
-                    State of Mind
-                  </h1>
-                  <p className="mt-3 max-w-4xl text-sm leading-6 text-slate-400 md:text-base md:leading-7">
-                    Apply a temporary behavior overlay for tone, urgency, creativity,
-                    caution, detail level, and diagnostic depth. When disabled, it has no
-                    router effect.
-                  </p>
-                </div>
-              </div>
-            </div>
-
-            <div className="grid gap-3 sm:grid-cols-3 xl:min-w-[620px]">
-              <MetricCard
-                label="Overlay"
-                value={settings.state_enabled ? "ON" : "OFF"}
-                tone={settings.state_enabled ? "emerald" : "rose"}
-              />
-              <MetricCard label="Mode" value={currentMode.label} tone="amber" />
-              <MetricCard label="Intensity" value={`${stateIntensity}%`} tone="white" />
-            </div>
-          </div>
-        </header>
+      <div className="aixia-command-scroll flex flex-col gap-6">
 
         {(errorMessage || actionMessage) && (
           <div className="space-y-2">
@@ -616,35 +595,7 @@ export default function AIStateOfMindPage() {
           </aside>
         </section>
       </div>
-    </div>
-  );
-}
-
-function MetricCard({
-  label,
-  value,
-  tone,
-}: {
-  label: string;
-  value: string;
-  tone: "emerald" | "rose" | "amber" | "white";
-}) {
-  const toneClass =
-    tone === "emerald"
-      ? "text-emerald-200"
-      : tone === "rose"
-        ? "text-rose-200"
-        : tone === "amber"
-          ? "text-amber-200"
-          : "text-white";
-
-  return (
-    <div className="rounded-2xl border border-white/10 bg-white/[0.04] p-4">
-      <p className="text-[11px] uppercase tracking-[0.2em] text-slate-500">
-        {label}
-      </p>
-      <p className={`mt-2 text-3xl font-semibold ${toneClass}`}>{value}</p>
-    </div>
+    </AixiaPage>
   );
 }
 

@@ -1,0 +1,25 @@
+export type FinanceQuotationRow = {
+  id: string;
+  quotation_number: string | null;
+  client_id?: string | null;
+  company_id?: string | null;
+  issue_date: string;
+  valid_until: string | null;
+  status: string;
+  subtotal?: number | string | null;
+  tax_amount?: number | string | null;
+  discount_amount?: number | string | null;
+  total_amount: number | string | null;
+  currency_id?: string | null;
+  currency_code: string | null;
+  project_id?: string | null;
+  task_id?: string | null;
+  notes?: string | null;
+  metadata?: Record<string, unknown> | null;
+  created_at: string;
+  updated_at?: string | null;
+  created_by?: string | null;
+  updated_by?: string | null;
+  client_name_snapshot: string | null;
+  company_name_snapshot: string | null;
+};

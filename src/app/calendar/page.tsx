@@ -1,5 +1,12 @@
-import { useEffect, useMemo, useRef, useState } from "react";
-import { useNavigate } from "react-router-dom";
+import {
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+  type KeyboardEvent,
+  type SyntheticEvent,
+} from "react";
+import { useNavigate, useSearchParams } from "react-router-dom";
 import {
   addDays,
   addMonths,
@@ -19,10 +26,22 @@ import { useLanguage } from "@/lib/i18n";
 import { getVisibleProjectIds } from "@/lib/permissions";
 
 import { useAppClock } from "@/lib/clock/provider";
-import { Button } from "@/components/ui/button";
-import { Card } from "@/components/ui/card";
-import { Badge } from "@/components/ui/badge";
-import { Plus, ChevronLeft, ChevronRight } from "lucide-react";
+import { AixiaButton, AixiaCommandMetrics, AixiaHero, AixiaPage } from "@/components/aixia";
+import { Card, CardContent } from "@/components/ui/card";
+import { PageError } from "@/components/ui/PageError";
+import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
+import {
+  Plus,
+  ChevronLeft,
+  ChevronRight,
+  RefreshCw,
+  Calendar,
+  CalendarDays,
+  CheckSquare,
+} from "lucide-react";
+import { getTaskCardTitle } from "@/lib/tasks/display";
+
+import "@/styles/calendar/calendar-visual.css";
 
 type CalendarEventRow = {
   id: string;
@@ -75,6 +94,211 @@ function toYYYYMMDD(date: Date, clock?: ReturnType<typeof useAppClock>) {
   return format(clock ? clock.shiftDate(date) : date, "yyyy-MM-dd");
 }
 
+const CALENDAR_SELECTED_DAY_KEY = "aixia-calendar-selected-day";
+const MONTH_CELL_PREVIEW_COUNT = 2;
+
+type CalendarDayItem =
+  | { kind: "event"; id: string; title: string }
+  | { kind: "task"; id: string; title: string };
+
+function buildDayItems(
+  dayEvents: CalendarEventRow[],
+  dayTasks: TaskRow[],
+  untitledTaskLabel: string
+): CalendarDayItem[] {
+  return [
+    ...dayEvents.map((event) => ({
+      kind: "event" as const,
+      id: event.id,
+      title: event.title,
+    })),
+    ...dayTasks.map((task) => ({
+      kind: "task" as const,
+      id: task.id,
+      title: getTaskCardTitle(task, untitledTaskLabel),
+    })),
+  ];
+}
+
+function stopDayCellNav(event: SyntheticEvent) {
+  event.preventDefault();
+  event.stopPropagation();
+}
+
+type CalendarMonthDayCellProps = {
+  dayKey: string;
+  dayLabel: number;
+  inMonth: boolean;
+  isTodayDate: boolean;
+  isSelectedDay: boolean;
+  dayEvents: CalendarEventRow[];
+  dayTasks: TaskRow[];
+  todayLabel: string;
+  onOpenDay: () => void;
+  t: ReturnType<typeof useLanguage>["t"];
+};
+
+function CalendarMonthDayCell({
+  dayKey,
+  dayLabel,
+  inMonth,
+  isTodayDate,
+  isSelectedDay,
+  dayEvents,
+  dayTasks,
+  todayLabel,
+  onOpenDay,
+  t,
+}: CalendarMonthDayCellProps) {
+  const dayItems = useMemo(
+    () =>
+      buildDayItems(
+        dayEvents,
+        dayTasks,
+        t("taskDetail.fallbacks.untitled", "Untitled task")
+      ),
+    [dayEvents, dayTasks, t]
+  );
+  const hiddenCount = Math.max(0, dayItems.length - MONTH_CELL_PREVIEW_COUNT);
+  const popoverDateLabel = useMemo(() => {
+    const [year, month, day] = dayKey.split("-").map(Number);
+    return format(new Date(year, month - 1, day), "EEE, MMM d");
+  }, [dayKey]);
+
+  const handleCellKeyDown = (event: KeyboardEvent<HTMLDivElement>) => {
+    if (event.key !== "Enter" && event.key !== " ") return;
+    if (event.target !== event.currentTarget) return;
+    event.preventDefault();
+    onOpenDay();
+  };
+
+  return (
+    <div
+      role="button"
+      tabIndex={0}
+      aria-label={popoverDateLabel}
+      onClick={onOpenDay}
+      onKeyDown={handleCellKeyDown}
+      className={[
+        "aixia-calendar-day-cell",
+        !inMonth ? "aixia-calendar-day-cell--outside" : "",
+        isTodayDate ? "aixia-calendar-day-cell--today" : "",
+        isSelectedDay ? "aixia-calendar-day-cell--selected" : "",
+        dayItems.length > MONTH_CELL_PREVIEW_COUNT
+          ? "aixia-calendar-day-cell--dense"
+          : "",
+      ]
+        .filter(Boolean)
+        .join(" ")}
+    >
+      <div className="aixia-calendar-day-cell-hd">
+        <div className="aixia-calendar-day-cell-date">{dayLabel}</div>
+
+        <div className="aixia-calendar-day-cell-meta">
+          {dayItems.length > 0 && (
+            <span className="aixia-calendar-day-cell-count">{dayItems.length}</span>
+          )}
+
+          {isTodayDate && (
+            <span className="aixia-dash-pill aixia-projects-pill--review text-[10px] px-1.5 py-0">
+              {todayLabel}
+            </span>
+          )}
+        </div>
+      </div>
+
+      {dayItems.length > 0 && (
+        <div className="aixia-calendar-day-cell-body">
+          <div className="aixia-calendar-day-cell-stack" aria-label={popoverDateLabel}>
+            {dayItems.map((item) => (
+              <div
+                key={`${item.kind}-${item.id}`}
+                className={[
+                  "aixia-calendar-chip",
+                  item.kind === "event"
+                    ? "aixia-calendar-chip--event"
+                    : "aixia-calendar-chip--task",
+                ].join(" ")}
+                title={item.title}
+              >
+                {item.title}
+              </div>
+            ))}
+          </div>
+
+          {hiddenCount > 0 && (
+            <Popover>
+              <PopoverTrigger asChild>
+                <button
+                  type="button"
+                  className="aixia-calendar-more-badge"
+                  onPointerDown={stopDayCellNav}
+                  onClick={stopDayCellNav}
+                  aria-label={t("calendar.labels.moreItems", undefined, {
+                    total: hiddenCount,
+                  })}
+                >
+                  {t("calendar.labels.moreItems", undefined, { total: hiddenCount })}
+                </button>
+              </PopoverTrigger>
+              <PopoverContent
+                align="start"
+                side="bottom"
+                sideOffset={8}
+                className="aixia-calendar-day-popover aixia-dash-panel aixia-dash-glass border-0 p-0 shadow-xl"
+                onPointerDown={stopDayCellNav}
+                onClick={stopDayCellNav}
+              >
+                <div className="aixia-calendar-day-popover-hd">
+                  <p className="aixia-calendar-day-popover-date">{popoverDateLabel}</p>
+                  <span className="aixia-calendar-day-cell-count">{dayItems.length}</span>
+                </div>
+
+                <div className="aixia-calendar-day-popover-list">
+                  {dayItems.map((item) => (
+                    <div
+                      key={`popover-${item.kind}-${item.id}`}
+                      className="aixia-calendar-day-popover-row"
+                    >
+                      <span
+                        className={[
+                          "aixia-calendar-day-popover-dot",
+                          item.kind === "event"
+                            ? "aixia-calendar-day-popover-dot--event"
+                            : "aixia-calendar-day-popover-dot--task",
+                        ].join(" ")}
+                        aria-hidden
+                      />
+                      <div className="aixia-calendar-day-popover-row-text">
+                        <span className="aixia-calendar-day-popover-kind">
+                          {item.kind === "event"
+                            ? t("calendar.labels.eventKind")
+                            : t("calendar.labels.taskKind")}
+                        </span>
+                        <span className="aixia-calendar-day-popover-title">{item.title}</span>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+
+                <div className="aixia-calendar-day-popover-ft">
+                  <button
+                    type="button"
+                    className="aixia-calendar-day-popover-open"
+                    onClick={() => onOpenDay()}
+                  >
+                    {t("calendar.labels.viewDay")}
+                  </button>
+                </div>
+              </PopoverContent>
+            </Popover>
+          )}
+        </div>
+      )}
+    </div>
+  );
+}
+
 function buildMonthGrid(cursor: Date) {
   const monthStart = startOfMonth(cursor);
   const monthEnd = endOfMonth(cursor);
@@ -94,6 +318,7 @@ function buildMonthGrid(cursor: Date) {
 
 export default function CalendarPage() {
   const navigate = useNavigate();
+  const [searchParams] = useSearchParams();
   const requestTracker = useRef(createRequestTracker());
   const { t } = useLanguage();
   const clock = useAppClock();
@@ -202,6 +427,7 @@ if (currentProfile.role !== "admin") {
           ? supabase
               .from("tasks")
               .select("id, title, due_date, status, project_id")
+              .is("deleted_at", null)
               .gte("due_date", monthStart)
               .lte("due_date", monthEnd)
               .order("due_date", { ascending: true })
@@ -209,6 +435,7 @@ if (currentProfile.role !== "admin") {
           ? supabase
               .from("tasks")
               .select("id, title, due_date, status, project_id")
+              .is("deleted_at", null)
               .gte("due_date", monthStart)
               .lte("due_date", monthEnd)
               .in("project_id", visibleProjectIdList)
@@ -216,6 +443,7 @@ if (currentProfile.role !== "admin") {
           : supabase
               .from("tasks")
               .select("id, title, due_date, status, project_id")
+              .is("deleted_at", null)
               .gte("due_date", monthStart)
               .lte("due_date", monthEnd)
               .eq("project_id", "__no_visible_projects__")
@@ -288,6 +516,26 @@ if (currentProfile.role !== "admin") {
 
   const todayKey = clock.todayKey;
 
+  const [activeSelectedDay, setActiveSelectedDay] = useState<string | null>(null);
+
+  useEffect(() => {
+    const fromQuery = searchParams.get("day");
+    if (fromQuery && /^\d{4}-\d{2}-\d{2}$/.test(fromQuery)) {
+      setActiveSelectedDay(fromQuery);
+      return;
+    }
+    try {
+      const stored = sessionStorage.getItem(CALENDAR_SELECTED_DAY_KEY);
+      if (stored && /^\d{4}-\d{2}-\d{2}$/.test(stored)) {
+        setActiveSelectedDay(stored);
+        return;
+      }
+    } catch {
+      /* ignore storage errors */
+    }
+    setActiveSelectedDay(null);
+  }, [searchParams]);
+
   const todayCount = useMemo(() => {
     const dayEvents = eventsByDay.get(todayKey) || [];
     const dayTasks = tasksByDay.get(todayKey) || [];
@@ -296,87 +544,103 @@ if (currentProfile.role !== "admin") {
 
   const monthLabel = format(clock.shiftDate(cursor), "MMMM yyyy");
 
+  const calendarMetricItems = useMemo(
+    () => [
+      {
+        key: "today",
+        title: t("calendar.badges.today"),
+        value: String(todayCount),
+        icon: Calendar,
+        tone: "violet" as const,
+      },
+      {
+        key: "events",
+        title: "Events",
+        value: String(events.length),
+        icon: CalendarDays,
+        tone: "indigo" as const,
+      },
+      {
+        key: "tasksDue",
+        title: "Tasks due",
+        value: String(tasks.length),
+        icon: CheckSquare,
+        tone: "emerald" as const,
+      },
+    ],
+    [todayCount, events.length, tasks.length, t]
+  );
+
   const goPrevMonth = () => setCursor((prev) => subMonths(prev, 1));
   const goNextMonth = () => setCursor((prev) => addMonths(prev, 1));
   const goToday = () => setCursor(clock.now);
 
   return (
-    <div className="space-y-6">
-      <div className="flex items-start justify-between gap-4">
-        <div>
-          <div className="flex items-center gap-3 flex-wrap">
-            <h1 className="text-3xl font-bold text-white">{t("calendar.header.title")}</h1>
-            {todayCount > 0 && (
-              <Badge className="bg-indigo-600 text-white">
-                {t("calendar.header.todayCount", undefined, { total: todayCount })}
-              </Badge>
-            )}
+    <AixiaPage
+      surface="command"
+      className="aixia-command-page aixia-calendar-page h-full flex flex-col overflow-hidden"
+    >
+      <AixiaHero
+        surface="command"
+        className="shrink-0 space-y-4"
+        gradientTitle={t("calendar.header.title")}
+        title={t("calendar.header.title")}
+        subtitle={t("calendar.header.subtitle")}
+        actions={
+          <>
+            <AixiaButton
+              type="button"
+              className="h-9"
+              onClick={() => void loadCalendar("refresh")}
+              disabled={isRefreshing}
+            >
+              <RefreshCw
+                className={`h-4 w-4 mr-2 ${isRefreshing ? "animate-spin" : ""}`}
+              />
+              {isRefreshing ? t("calendar.buttons.refreshing") : t("calendar.buttons.refresh")}
+            </AixiaButton>
+
+            <AixiaButton
+              variant="primary"
+              type="button"
+              className="h-9"
+              onClick={() => navigate("/calendar/new")}
+            >
+              <Plus className="w-4 h-4 mr-2" />
+              {t("calendar.buttons.newEvent")}
+            </AixiaButton>
+          </>
+        }
+      >
+        <AixiaCommandMetrics items={calendarMetricItems} />
+
+        <div className="aixia-command-toolbar">
+          <div className="aixia-calendar-nav">
+            <AixiaButton variant="icon" type="button" onClick={goPrevMonth}>
+              <ChevronLeft className="w-4 h-4" />
+            </AixiaButton>
+
+            <div className="aixia-calendar-nav-label">
+              {monthLabel}
+            </div>
+
+            <AixiaButton variant="icon" type="button" onClick={goNextMonth}>
+              <ChevronRight className="w-4 h-4" />
+            </AixiaButton>
+
+            <AixiaButton type="button" onClick={goToday}>
+              {t("calendar.buttons.today")}
+            </AixiaButton>
           </div>
-          <p className="text-slate-400">
-            {t("calendar.header.subtitle")}
-          </p>
         </div>
 
-        <div className="flex items-center gap-2">
-          <Button
-            variant="outline"
-            className="border-slate-800 text-slate-300 hover:bg-slate-900"
-            onClick={() => void loadCalendar("refresh")}
-            disabled={isRefreshing}
-          >
-            {isRefreshing ? t("calendar.buttons.refreshing") : t("calendar.buttons.refresh")}
-          </Button>
+        <PageError message={loadError} />
+      </AixiaHero>
 
-          <Button
-            className="bg-indigo-600 hover:bg-indigo-700 text-white"
-            onClick={() => navigate("/calendar/new")}
-          >
-            <Plus className="w-4 h-4 mr-2" />
-            {t("calendar.buttons.newEvent")}
-          </Button>
-        </div>
-      </div>
-
-      <div className="flex items-center gap-3">
-        <Button
-          variant="outline"
-          size="icon"
-          onClick={goPrevMonth}
-          className="border-slate-800 text-slate-300 hover:bg-slate-900"
-        >
-          <ChevronLeft className="w-4 h-4" />
-        </Button>
-
-        <div className="text-white font-semibold text-xl min-w-[170px]">
-          {monthLabel}
-        </div>
-
-        <Button
-          variant="outline"
-          size="icon"
-          onClick={goNextMonth}
-          className="border-slate-800 text-slate-300 hover:bg-slate-900"
-        >
-          <ChevronRight className="w-4 h-4" />
-        </Button>
-
-        <Button
-          variant="outline"
-          onClick={goToday}
-          className="border-slate-800 text-slate-300 hover:bg-slate-900"
-        >
-          {t("calendar.buttons.today")}
-        </Button>
-      </div>
-
-      {loadError && (
-        <Card className="bg-red-950/20 border-red-900/40 p-4 text-sm text-red-300">
-          {loadError}
-        </Card>
-      )}
-
-      <Card className="bg-slate-900/40 border-slate-800 p-4 h-[calc(100vh-250px)] min-h-0 flex flex-col">
-        <div className="grid grid-cols-7 gap-3 text-slate-400 text-sm mb-3">
+        <div className="aixia-command-scroll aixia-calendar-scroll">
+      <Card className="aixia-dash-panel aixia-dash-glass aixia-dash-tilt-panel aixia-projects-panel-card aixia-calendar-month-panel">
+        <CardContent className="flex min-h-0 flex-1 flex-col p-0">
+        <div className="aixia-calendar-weekdays">
           {[
             t("calendar.weekdays.sun"),
             t("calendar.weekdays.mon"),
@@ -386,27 +650,27 @@ if (currentProfile.role !== "admin") {
             t("calendar.weekdays.fri"),
             t("calendar.weekdays.sat"),
           ].map((dayName) => (
-            <div key={dayName} className="px-2">
+            <div key={dayName} className="aixia-calendar-weekday">
               {dayName}
             </div>
           ))}
         </div>
 
-        <div className="grid flex-1 min-h-0 grid-cols-7 gap-3 auto-rows-fr">
+        <div className="aixia-calendar-grid">
           {isBootstrapping
             ? Array.from({ length: 35 }).map((_, index) => (
                 <div
                   key={`skeleton-${index}`}
-                  className="rounded-xl border border-slate-800 bg-slate-950/30 p-3 min-h-[110px]"
+                  className="aixia-calendar-skeleton-cell"
                 >
                   <div className="animate-pulse space-y-3">
                     <div className="flex items-center justify-between">
-                      <div className="h-4 w-6 rounded bg-slate-800" />
-                      <div className="h-5 w-10 rounded bg-slate-800" />
+                      <div className="h-4 w-6 rounded aixia-projects-skeleton-bar" />
+                      <div className="h-5 w-10 rounded aixia-projects-skeleton-bar" />
                     </div>
                     <div className="space-y-2">
-                      <div className="h-5 w-full rounded bg-slate-800" />
-                      <div className="h-5 w-5/6 rounded bg-slate-800" />
+                      <div className="h-5 w-full rounded aixia-projects-skeleton-bar" />
+                      <div className="h-5 w-5/6 rounded aixia-projects-skeleton-bar" />
                     </div>
                   </div>
                 </div>
@@ -415,77 +679,39 @@ if (currentProfile.role !== "admin") {
                 const key = toYYYYMMDD(day, clock);
                 const inMonth = isSameMonth(day, cursor);
                 const isTodayDate = isSameDay(day, clock.now);
+                const isSelectedDay = activeSelectedDay === key;
 
                 const dayEvents = eventsByDay.get(key) || [];
                 const dayTasks = tasksByDay.get(key) || [];
-                const totalCount = dayEvents.length + dayTasks.length;
-
                 return (
-                                   <button
+                  <CalendarMonthDayCell
                     key={key}
-                    type="button"
-                    onClick={() => navigate(`/calendar/day/${key}`)}
-                    className={[
-                      "h-full min-h-0 text-left rounded-xl border p-3 transition",
-                      "bg-slate-950/30 border-slate-800 hover:border-indigo-500/40 hover:bg-slate-950/50",
-                      !inMonth ? "opacity-50" : "",
-                    ].join(" ")}
-                  >
-                    <div className="flex items-center justify-between gap-2">
-                      <div
-                        className={[
-                          "text-sm",
-                          isTodayDate ? "text-indigo-300 font-semibold" : "text-white",
-                        ].join(" ")}
-                      >
-                        {day.getDate()}
-                      </div>
-
-                      <div className="flex items-center gap-2">
-                        {totalCount > 0 && (
-                          <span className="min-w-[20px] h-5 px-1 rounded-full bg-indigo-600 text-white text-[11px] flex items-center justify-center">
-                            {totalCount}
-                          </span>
-                        )}
-
-                        {isTodayDate && (
-                          <Badge className="bg-indigo-500/20 text-indigo-300">
-                            {t("calendar.badges.today")}
-                          </Badge>
-                        )}
-                      </div>
-                    </div>
-
-                    <div className="mt-3 space-y-2">
-                      {dayEvents.slice(0, 2).map((event) => (
-                        <div
-                          key={event.id}
-                          className="text-xs rounded-md px-2 py-1 bg-indigo-500/15 text-indigo-200 truncate"
-                        >
-                          {event.title}
-                        </div>
-                      ))}
-
-                      {dayTasks.slice(0, 2).map((task) => (
-                        <div
-                          key={task.id}
-                          className="text-xs rounded-md px-2 py-1 bg-emerald-500/15 text-emerald-200 truncate"
-                        >
-                          {t("calendar.labels.taskPrefix", undefined, { title: task.title })}
-                        </div>
-                      ))}
-
-                      {totalCount > 4 && (
-                        <div className="text-[11px] text-slate-400">
-                          {t("calendar.labels.moreItems", undefined, { total: totalCount - 4 })}
-                        </div>
-                      )}
-                    </div>
-                  </button>
+                    dayKey={key}
+                    dayLabel={day.getDate()}
+                    inMonth={inMonth}
+                    isTodayDate={isTodayDate}
+                    isSelectedDay={isSelectedDay}
+                    dayEvents={dayEvents}
+                    dayTasks={dayTasks}
+                    todayLabel={t("calendar.badges.today")}
+                    t={t}
+                    onOpenDay={() => {
+                      setActiveSelectedDay(key);
+                      try {
+                        sessionStorage.setItem(CALENDAR_SELECTED_DAY_KEY, key);
+                      } catch {
+                        /* ignore storage errors */
+                      }
+                      navigate(`/calendar/day/${key}`);
+                    }}
+                  />
                 );
               })}
         </div>
+        </CardContent>
       </Card>
-    </div>
+        </div>
+    </AixiaPage>
   );
 }
+

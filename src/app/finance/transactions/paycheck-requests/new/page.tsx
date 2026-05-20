@@ -25,7 +25,7 @@ import {
   AixiaHero,
   AixiaInputField,
   AixiaLoadingState,
-  AixiaPage,
+  FinancePage,
   AixiaReviewGrid,
   AixiaSection,
   AixiaSelectField,
@@ -1144,45 +1144,19 @@ export default function NewPaycheckRequestPage() {
   }
 
         return (
-    <AixiaPage>
+    <FinancePage>
       <AixiaHero
+        className="shrink-0 space-y-4"
+        surface="command"
         parentLabel="Paycheck Requests"
         parentPath="/finance/transactions/paycheck-requests"
-        badges={[
-          { label: "New Paycheck Request", tone: "cyan" },
-          { label: "Employee Request", tone: "emerald" },
-          { label: "Finance Review Next", tone: "neutral" },
-        ]}
         gradientTitle="Create Paycheck"
         title="Request"
         subtitle="Employee paycheck request draft"
-        description="Create an employee paycheck request, pull pay profile defaults, generate the filled payslip form, upload the employee-signed form, and submit it to Finance/Admin review."
-        statusCards={[
-          {
-            label: "Net Requested",
-            value: `${form.requestedCurrencyCode || "USD"} ${formatMoney(netAmount)}`,
-            description: "Gross + bonus + reimbursement − deduction.",
-            icon: WalletCards,
-            tone: "cyan",
-          },
-          {
-            label: "Selected Employee",
-            value: buildEmployeeLabel(selectedEmployee),
-            description: buildEmployeeSubLabel(selectedEmployee),
-            icon: UserRound,
-            tone: "emerald",
-          },
-          {
-            label: "Next Step",
-            value: "Finance Review",
-            description: "Submitted requests move to Finance/Admin review.",
-            icon: ShieldCheck,
-            tone: "amber",
-          },
-        ]}
-      />
+        />
 
-      {actionError ? <AixiaAlert tone="error">{actionError}</AixiaAlert> : null}
+      <div className="aixia-command-scroll">
+{actionError ? <AixiaAlert tone="error">{actionError}</AixiaAlert> : null}
       {actionMessage ? <AixiaAlert tone="success">{actionMessage}</AixiaAlert> : null}
 
       <div className="aixia-grid-with-side">
@@ -1795,6 +1769,7 @@ export default function NewPaycheckRequestPage() {
         socialInsuranceContributionType={form.socialInsuranceContributionType}
         socialInsuranceContributionDetails={form.socialInsuranceContributionDetails}
       />
-    </AixiaPage>
+      </div>
+    </FinancePage>
   );
 }

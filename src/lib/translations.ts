@@ -18,6 +18,7 @@ export const translations = {
       calendar: "Calendar",
       chat: "Chat",
       inbox: "Inbox",
+      mail: "Mail",
       employees: "Employees",
       settings: "Settings",
       signOut: "Logout",
@@ -58,6 +59,12 @@ export const translations = {
       taskLabel: "Task",
       eventLabel: "Event",
       projectDeadline: "Project deadline",
+    },
+    mail: {
+      title: "Mail",
+      comingSoon: "Coming soon",
+      description:
+        "Integrated workspace mail is not available yet. We are building it into AiXia—check back soon.",
     },
     projects: {
       failedToLoadProfile: "Failed to load profile.",
@@ -223,6 +230,16 @@ export const translations = {
 
       projectActivity: "Project Activity",
       noActivityYet: "No activity yet.",
+
+      taskFields: {
+        title: "Custom task fields",
+        subtitle: "Define fields used when creating and editing tasks in this project.",
+        link: "Task fields",
+        sortOrder: "Sort order",
+        archive: "Archive",
+        restore: "Restore",
+        deleteBlocked: "This field has saved values. Archive it instead of deleting.",
+      },
     },
     settings: {
       settingsTitle: "Settings",
@@ -340,6 +357,14 @@ export const translations = {
         allStatus: "All Status",
         allPriorities: "All Priorities",
         allProjects: "All Projects",
+        registry: "View",
+        allTasks: "All tasks",
+        mainTasks: "Main tasks",
+        subtasks: "Subtasks",
+        myTasks: "My tasks",
+        overdue: "Overdue",
+        completed: "Completed",
+        archived: "Archived",
       },
       columns: {
         todo: "To Do",
@@ -359,10 +384,22 @@ export const translations = {
         high: "High",
         urgent: "Urgent",
       },
+      hierarchy: {
+        subtaskCount: "{{count}} subtasks",
+        subtaskProgress: "{{completed}}/{{total}} completed",
+        subtaskOf: "Subtask of",
+      },
+      lifecycle: {
+        archive: "Archive",
+        restore: "Restore",
+        archived: "Archived",
+        deleted: "Deleted",
+      },
       fallbacks: {
         userInitial: "U",
         noProject: "No project",
         unknownProject: "Unknown project",
+        unknownParent: "Parent task",
         noDescription: "No description",
       },
       confirmations: {
@@ -381,12 +418,19 @@ export const translations = {
     },
 
     taskNew: {
+      kicker: {
+        subtasks: "Subtasks",
+      },
+      subtitle: {
+        addSubtask: "Add a new Subtask to your project",
+      },
       header: {
         title: "Create New Task",
         subtitle: "Add a new task to your project",
       },
       form: {
         taskTitle: "Task Title",
+        subtaskTitle: "SubTask Title",
         taskTitlePlaceholder: "Enter task title",
         description: "Description",
         descriptionPlaceholder: "Describe the task...",
@@ -396,6 +440,7 @@ export const translations = {
         selectPriority: "Select priority",
         status: "Status",
         selectStatus: "Select status",
+        startDate: "Start Date",
         dueDate: "Due Date",
         assignMembers: "Assign Members",
         visibilityNote:
@@ -466,8 +511,13 @@ export const translations = {
         selectPriority: "Select priority",
         status: "Status",
         selectStatus: "Select status",
+        startDate: "Start Date",
         dueDate: "Due Date",
         assignees: "Assignees",
+        parentTask: "Parent task (optional)",
+        topLevel: "Top-level task",
+        noneTopLevel: "None (top-level)",
+        customFields: "Custom fields",
       },
       priority: {
         low: "Low",
@@ -480,6 +530,11 @@ export const translations = {
         inProgress: "In Progress",
         inReview: "In Review",
         done: "Done",
+      },
+      hierarchy: {
+        hasSubtasksHint: "This task has subtasks and must stay a top-level task.",
+        cannotReparentWithChildren:
+          "This task has subtasks and cannot be moved under another parent.",
       },
       assignees: {
         selectProjectFirst: "Select a project first.",
@@ -534,12 +589,36 @@ taskDetail: {
     title: "Overview",
     progress: "Progress",
     updateStatus: "Update Status",
+    parentTask: "Parent task",
+    customFields: "Custom fields",
+  },
+  subtasks: {
+    title: "Subtasks",
+    add: "Add subtask",
+    empty: "No subtasks yet.",
+    emptyHint: "Use Add subtask to create one.",
+    loadError: "Could not load subtasks.",
+  },
+  lifecycle: {
+    archive: "Archive",
+    restore: "Restore",
+    archiveConfirm: "Archive this task?",
+    archived: "Archived",
   },
   status: {
     todo: "To Do",
     inProgress: "In Progress",
     inReview: "In Review",
     done: "Done",
+    behindSchedule: "Behind schedule",
+    updateRequired: "Update required",
+  },
+  statusModal: {
+    title: "Update task status",
+    newStatus: "New status:",
+    placeholder: "Add a remark about this status change (min. 5 characters)...",
+    updating: "Updating...",
+    confirm: "Confirm status change",
   },
   files: {
     title: "Files",
@@ -550,6 +629,7 @@ taskDetail: {
   },
   discussion: {
     title: "Discussion",
+    taskDiscussion: "Task Discussion",
     addUpdate: "Add Update",
     addUpdateHelper:
       "Share updates, blockers, notes, and decisions with task participants.",
@@ -647,6 +727,9 @@ taskDetail: {
       labels: {
         taskPrefix: "Task: {{title}}",
         moreItems: "+{{total}} more",
+        viewDay: "View full day",
+        eventKind: "Event",
+        taskKind: "Task",
       },
       weekdays: {
         sun: "Sun",
@@ -1244,11 +1327,21 @@ employeePermissions: {
 inbox: {
   header: {
     title: "Inbox",
+    subtitle: "Notifications and alerts from across your workspace",
     unreadCount: "{{total}} unread notification(s)",
     allCaughtUp: "All caught up!",
   },
+  actions: {
+    refresh: "Refresh",
+    refreshing: "Refreshing...",
+  },
   buttons: {
     markAllRead: "Mark All Read",
+  },
+  metrics: {
+    unread: "Unread",
+    total: "Total",
+    today: "Today",
   },
   filters: {
     placeholder: "Filter",
@@ -1258,8 +1351,10 @@ inbox: {
     taskAssigned: "Task Assigned",
     taskUpdated: "Task Updated",
     comments: "Comments",
+    mentions: "Mentions",
     fileUploads: "File Uploads",
     projectUpdates: "Project Updates",
+    reminders: "Reminders",
   },
   states: {
     loading: {
@@ -1387,6 +1482,59 @@ chat: {
   },
 },
 
+financeModule: {
+  hub: {
+    studioTitle: "Finance",
+    studioName: "Studio",
+    commandCenter: "Finance Command Center",
+    workspaceMap: "Finance Workspace Map",
+    transactions: "Transactions",
+    masterData: "Master Data",
+    reports: "Reports",
+    accessApprovals: "Finance Access Approvals",
+    liveBackend: "Live backend",
+    updating: "Updating",
+    needsAttention: "Needs Attention",
+    needsAttentionDescription:
+      "Cross-flow blockers and overdue items with quick links where available.",
+    recentActivity: "Recent Activity",
+    recentActivityDescription:
+      "Latest permitted finance movement across company records.",
+  },
+  processBook: {
+    expensePipeline: "Expense workflow pipeline",
+    needsAction: "Needs Action",
+    needsActionDescription:
+      "Merged queue: pending review, documentation, ready to pay, and recipient confirmation.",
+    fundingPayments: "Funding & Payments",
+    fundingPaymentsDescription:
+      "Monthly funding pools and expense payment execution records.",
+    allocations: "Linked Allocations",
+    allocationsDescription:
+      "Backend allocation rows linking payments, funding pools, recipients, and covered expenses.",
+    apply: "Apply",
+    review: "Review",
+    fund: "Fund",
+    pay: "Pay",
+    application: "Apply Expense",
+    reviewExpenses: "Review Expenses",
+    fundingPool: "Funding Pool",
+    executePayments: "Execute Payments",
+    payrollReview: "Payroll Review",
+    payrollFunding: "Payroll Funding",
+    payrollPayment: "Payroll Payment",
+  },
+  registry: {
+    search: "Search...",
+    active: "Active",
+    configured: "Configured",
+    numberingSequences: "Numbering Sequences",
+    transactionUsage: "Transaction Usage",
+    documentChain: "Document Chain",
+    placeholderMode: "Placeholder mode",
+  },
+},
+
 timezone: {
   utc: "UTC",
   china: "China Standard Time",
@@ -1428,6 +1576,7 @@ timezone: {
       calendar: "日历",
       chat: "聊天",
       inbox: "收件箱",
+      mail: "邮件",
       employees: "成员",
       settings: "设置",
       signOut: "退出登录",
@@ -1468,6 +1617,11 @@ timezone: {
       taskLabel: "任务",
       eventLabel: "事件",
       projectDeadline: "项目截止日期",
+    },
+    mail: {
+      title: "邮件",
+      comingSoon: "即将推出",
+      description: "工作区邮件功能尚未上线，我们正在将其接入 AiXia，敬请期待。",
     },
     projects: {
       failedToLoadProfile: "加载个人资料失败。",
@@ -1779,12 +1933,19 @@ timezone: {
     },
 
     taskNew: {
+      kicker: {
+        subtasks: "子任务",
+      },
+      subtitle: {
+        addSubtask: "向您的项目中添加新子任务",
+      },
       header: {
         title: "创建新任务",
         subtitle: "向您的项目中添加新任务",
       },
       form: {
         taskTitle: "任务标题",
+        subtaskTitle: "子任务标题",
         taskTitlePlaceholder: "输入任务标题",
         description: "描述",
         descriptionPlaceholder: "描述该任务...",
@@ -1794,6 +1955,7 @@ timezone: {
         selectPriority: "选择优先级",
         status: "状态",
         selectStatus: "选择状态",
+        startDate: "开始日期",
         dueDate: "截止日期",
         assignMembers: "分配成员",
         visibilityNote:
@@ -1937,6 +2099,15 @@ timezone: {
     inProgress: "进行中",
     inReview: "审核中",
     done: "已完成",
+    behindSchedule: "进度落后",
+    updateRequired: "需要更新",
+  },
+  statusModal: {
+    title: "更新任务状态",
+    newStatus: "新状态：",
+    placeholder: "请填写此次状态变更的说明（至少 5 个字符）...",
+    updating: "更新中...",
+    confirm: "确认状态变更",
   },
   files: {
     title: "文件",
@@ -1947,6 +2118,7 @@ timezone: {
   },
   discussion: {
     title: "讨论",
+    taskDiscussion: "任务讨论",
     addUpdate: "添加更新",
     addUpdateHelper: "与任务参与者分享更新、阻碍、备注和决策。",
     placeholder: "编写更新、备注、阻碍或评论...",
@@ -2042,6 +2214,9 @@ timezone: {
       labels: {
         taskPrefix: "任务：{{title}}",
         moreItems: "还有 {{total}} 项",
+        viewDay: "查看全天",
+        eventKind: "事件",
+        taskKind: "任务",
       },
       weekdays: {
         sun: "日",
@@ -2638,11 +2813,21 @@ employeePermissions: {
 inbox: {
   header: {
     title: "收件箱",
+    subtitle: "来自工作区各模块的通知与提醒",
     unreadCount: "{{total}} 条未读通知",
     allCaughtUp: "全部已查看！",
   },
+  actions: {
+    refresh: "刷新",
+    refreshing: "刷新中...",
+  },
   buttons: {
     markAllRead: "全部标记为已读",
+  },
+  metrics: {
+    unread: "未读",
+    total: "全部",
+    today: "今日",
   },
   filters: {
     placeholder: "筛选",
@@ -2652,8 +2837,10 @@ inbox: {
     taskAssigned: "任务已分配",
     taskUpdated: "任务已更新",
     comments: "评论",
+    mentions: "提及",
     fileUploads: "文件上传",
     projectUpdates: "项目更新",
+    reminders: "提醒",
   },
   states: {
     loading: {
@@ -2780,6 +2967,54 @@ chat: {
   },
 },
 
+financeModule: {
+  hub: {
+    studioTitle: "财务",
+    studioName: "工作室",
+    commandCenter: "财务指挥中心",
+    workspaceMap: "财务工作区",
+    transactions: "交易",
+    masterData: "主数据",
+    reports: "报表",
+    accessApprovals: "财务权限审批",
+    liveBackend: "实时后端",
+    updating: "更新中",
+    needsAttention: "需要关注",
+    needsAttentionDescription: "跨流程阻塞项和逾期事项，可快速跳转。",
+    recentActivity: "最近活动",
+    recentActivityDescription: "已授权范围内的最新财务动态。",
+  },
+  processBook: {
+    expensePipeline: "费用流程管道",
+    needsAction: "待处理",
+    needsActionDescription: "合并队列：待审核、待补件、待付款和收款人确认。",
+    fundingPayments: "拨款与付款",
+    fundingPaymentsDescription: "月度资金池和费用付款执行记录。",
+    allocations: "关联分配",
+    allocationsDescription: "关联付款、资金池、收款人和覆盖费用的后端分配行。",
+    apply: "申请",
+    review: "审核",
+    fund: "拨款",
+    pay: "支付",
+    application: "费用申请",
+    reviewExpenses: "费用审核",
+    fundingPool: "资金池",
+    executePayments: "执行付款",
+    payrollReview: "工资审核",
+    payrollFunding: "工资拨款",
+    payrollPayment: "工资支付",
+  },
+  registry: {
+    search: "搜索...",
+    active: "启用",
+    configured: "已配置",
+    numberingSequences: "编号序列",
+    transactionUsage: "关联交易",
+    documentChain: "单据链",
+    placeholderMode: "占位模式",
+  },
+},
+
 timezone: {
   utc: "协调世界时",
   china: "中国标准时间",
@@ -2820,6 +3055,7 @@ timezone: {
       calendar: "Календарь",
       chat: "Чат",
       inbox: "Входящие",
+      mail: "Почта",
       employees: "Сотрудники",
       settings: "Настройки",
       signOut: "Выйти",
@@ -2860,6 +3096,12 @@ timezone: {
       taskLabel: "Задача",
       eventLabel: "Событие",
       projectDeadline: "Срок проекта",
+    },
+    mail: {
+      title: "Почта",
+      comingSoon: "Скоро",
+      description:
+        "Интегрированная рабочая почта пока недоступна. Мы добавим её в AiXia — загляните позже.",
     },
     projects: {
       failedToLoadProfile: "Не удалось загрузить профиль.",
@@ -3183,12 +3425,19 @@ timezone: {
     },
 
     taskNew: {
+      kicker: {
+        subtasks: "Подзадачи",
+      },
+      subtitle: {
+        addSubtask: "Добавьте новую подзадачу в ваш проект",
+      },
       header: {
         title: "Создать новую задачу",
         subtitle: "Добавьте новую задачу в ваш проект",
       },
       form: {
         taskTitle: "Название задачи",
+        subtaskTitle: "Название подзадачи",
         taskTitlePlaceholder: "Введите название задачи",
         description: "Описание",
         descriptionPlaceholder: "Опишите задачу...",
@@ -3198,6 +3447,7 @@ timezone: {
         selectPriority: "Выберите приоритет",
         status: "Статус",
         selectStatus: "Выберите статус",
+        startDate: "Дата начала",
         dueDate: "Срок",
         assignMembers: "Назначить участников",
         visibilityNote:
@@ -3342,6 +3592,15 @@ timezone: {
     inProgress: "В работе",
     inReview: "На проверке",
     done: "Готово",
+    behindSchedule: "Отстаёт от графика",
+    updateRequired: "Требуется обновление",
+  },
+  statusModal: {
+    title: "Обновить статус задачи",
+    newStatus: "Новый статус:",
+    placeholder: "Добавьте комментарий к смене статуса (мин. 5 символов)...",
+    updating: "Обновление...",
+    confirm: "Подтвердить смену статуса",
   },
   files: {
     title: "Файлы",
@@ -3352,6 +3611,7 @@ timezone: {
   },
   discussion: {
     title: "Обсуждение",
+    taskDiscussion: "Обсуждение задачи",
     addUpdate: "Добавить обновление",
     addUpdateHelper:
       "Делитесь обновлениями, блокерами, заметками и решениями с участниками задачи.",
@@ -3449,6 +3709,9 @@ timezone: {
       labels: {
         taskPrefix: "Задача: {{title}}",
         moreItems: "ещё {{total}}",
+        viewDay: "Открыть день",
+        eventKind: "Событие",
+        taskKind: "Задача",
       },
       weekdays: {
         sun: "Вс",
@@ -4049,11 +4312,21 @@ employeePermissions: {
 inbox: {
   header: {
     title: "Входящие",
+    subtitle: "Уведомления и оповещения со всего рабочего пространства",
     unreadCount: "{{total}} непрочитанное(-ых) уведомление(-ий)",
     allCaughtUp: "Все просмотрено!",
   },
+  actions: {
+    refresh: "Обновить",
+    refreshing: "Обновление...",
+  },
   buttons: {
     markAllRead: "Отметить все как прочитанные",
+  },
+  metrics: {
+    unread: "Непрочитанные",
+    total: "Всего",
+    today: "Сегодня",
   },
   filters: {
     placeholder: "Фильтр",
@@ -4063,8 +4336,10 @@ inbox: {
     taskAssigned: "Задача назначена",
     taskUpdated: "Задача обновлена",
     comments: "Комментарии",
+    mentions: "Упоминания",
     fileUploads: "Загрузки файлов",
     projectUpdates: "Обновления проектов",
+    reminders: "Напоминания",
   },
   states: {
     loading: {
@@ -4189,6 +4464,59 @@ inbox: {
   },
       time: {
     yesterday: "Вчера",
+  },
+},
+
+financeModule: {
+  hub: {
+    studioTitle: "Финансы",
+    studioName: "Студия",
+    commandCenter: "Финансовый центр управления",
+    workspaceMap: "Рабочая область финансов",
+    transactions: "Операции",
+    masterData: "Справочники",
+    reports: "Отчёты",
+    accessApprovals: "Согласование доступа",
+    liveBackend: "Живой бэкенд",
+    updating: "Обновление",
+    needsAttention: "Требует внимания",
+    needsAttentionDescription:
+      "Блокеры между процессами и просроченные элементы с быстрыми ссылками.",
+    recentActivity: "Недавняя активность",
+    recentActivityDescription:
+      "Последние финансовые события в рамках разрешённого доступа.",
+  },
+  processBook: {
+    expensePipeline: "Конвейер расходов",
+    needsAction: "Требует действия",
+    needsActionDescription:
+      "Объединённая очередь: проверка, документы, готовность к оплате и подтверждение получателя.",
+    fundingPayments: "Финансирование и платежи",
+    fundingPaymentsDescription:
+      "Ежемесячные пулы финансирования и записи исполнения платежей по расходам.",
+    allocations: "Связанные распределения",
+    allocationsDescription:
+      "Строки распределения, связывающие платежи, пулы, получателей и покрываемые расходы.",
+    apply: "Заявка",
+    review: "Проверка",
+    fund: "Фонд",
+    pay: "Оплата",
+    application: "Заявка на расход",
+    reviewExpenses: "Проверка расходов",
+    fundingPool: "Пул финансирования",
+    executePayments: "Выполнение платежей",
+    payrollReview: "Проверка зарплаты",
+    payrollFunding: "Финансирование зарплаты",
+    payrollPayment: "Выплата зарплаты",
+  },
+  registry: {
+    search: "Поиск...",
+    active: "Активно",
+    configured: "Настроено",
+    numberingSequences: "Нумерация документов",
+    transactionUsage: "Связанные операции",
+    documentChain: "Цепочка документов",
+    placeholderMode: "Режим-заглушка",
   },
 },
 

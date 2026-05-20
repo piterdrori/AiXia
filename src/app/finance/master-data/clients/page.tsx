@@ -1,20 +1,7 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import type { LucideIcon } from "lucide-react";
-import {
-  Archive,
-  ArrowRight,
-  Building2,
-  CheckCircle2,
-  Loader2,
-  LockKeyhole,
-  Mail,
-  Plus,
-  RotateCcw,
-  ShieldCheck,
-  Trash2,
-  Users,
-} from "lucide-react";
+import { Archive, ArrowRight, Building2, CheckCircle2, Loader2, Mail, Plus, RotateCcw, ShieldCheck, Trash2, Users } from "lucide-react";
 
 import {
   AixiaAccessDeniedState,
@@ -26,9 +13,7 @@ import {
   AixiaEmptyState,
   AixiaHero,
   AixiaLoadingState,
-  AixiaMetricCard,
-  AixiaMetricGrid,
-  AixiaPage,
+  FinancePage,
   AixiaRegistryToolbar,
   AixiaSearchField,
   AixiaSection,
@@ -39,6 +24,7 @@ import {
   AixiaTableDateCell,
   AixiaTableShell,
   AixiaTableTextCell,
+  AixiaCommandMetrics,
 } from "@/components/aixia";
 
 import {
@@ -98,13 +84,6 @@ type MetricCard = {
   tone: "cyan" | "emerald" | "amber" | "violet" | "rose";
 };
 
-type HeaderStatusCardData = {
-  label: string;
-  value: string;
-  description: string;
-  icon: LucideIcon;
-  tone: "emerald" | "cyan" | "amber" | "rose";
-};
 
 const CLIENT_ACCESS_CONFIG = {
   sectionKey: "masterData",
@@ -181,7 +160,7 @@ export default function FinanceMasterDataClientsPage() {
   const [isLoadingProfile, setIsLoadingProfile] = useState(true);
   const [isLoadingClients, setIsLoadingClients] = useState(true);
   const [isLoadingArchive, setIsLoadingArchive] = useState(false);
-  const [backgroundRefreshing, setBackgroundRefreshing] = useState(false);
+  const [, setBackgroundRefreshing] = useState(false);
   const [pageError, setPageError] = useState<string | null>(null);
   const [pageMessage, setPageMessage] = useState<string | null>(null);
   const [runningAction, setRunningAction] = useState<PageAction>(null);
@@ -554,42 +533,7 @@ export default function FinanceMasterDataClientsPage() {
     ];
   }, [counts, isLoadingClients]);
 
-  const headerStatusCards = useMemo<HeaderStatusCardData[]>(() => {
-    return [
-      {
-        label: "Read Access",
-        value: isLoadingProfile
-          ? "Checking"
-          : permissionState.canRead
-            ? "Enabled"
-            : "Locked",
-        description: "This page requires Client read access or Master Data admin access.",
-        icon: permissionState.canRead ? ShieldCheck : LockKeyhole,
-        tone: permissionState.canRead ? "emerald" : "rose",
-      },
-      {
-        label: "Lifecycle Access",
-        value: permissionState.canDeleteArchive
-          ? "Archive Enabled"
-          : permissionState.canCreate
-            ? "Create Enabled"
-            : "Read Only",
-        description: backgroundRefreshing
-          ? "Silent refresh is updating client records without resetting the registry."
-          : "Create and Delete/Archive actions follow the Finance template.",
-        icon: permissionState.canDeleteArchive ? Archive : Building2,
-        tone: permissionState.canDeleteArchive ? "amber" : "cyan",
-      },
-    ];
-  }, [
-    backgroundRefreshing,
-    isLoadingProfile,
-    permissionState.canCreate,
-    permissionState.canDeleteArchive,
-    permissionState.canRead,
-  ]);
-
-  const toggleSort = useCallback((nextKey: SortKey) => {
+const toggleSort = useCallback((nextKey: SortKey) => {
     setSortKey((currentKey) => {
       if (currentKey !== nextKey) {
         setSortDirection("asc");
@@ -725,38 +669,23 @@ export default function FinanceMasterDataClientsPage() {
   }
 
   return (
-    <AixiaPage>
+    <FinancePage>
       <AixiaHero
+        className="shrink-0 space-y-4"
+        surface="command"
         parentLabel="Master Data"
         parentPath="/finance/master-data"
-        badges={[
-          { label: "Finance Client Master Data", tone: "cyan" },
-          { label: "Live backend", tone: "emerald" },
-          { label: "Permission filtered", tone: "cyan" },
-          { label: "Realtime + 60s fallback", tone: "neutral" },
-        ]}
         gradientTitle="Clients"
         title="Registry"
-        subtitle="Finance Customer Master Data"
-        description="Permission-filtered registry for finance customers, billing entities, contacts, legal identity, and client lifecycle control."
-        statusCards={headerStatusCards}
-      />
+        subtitle="Finance Customer Master Data">
+        <AixiaCommandMetrics items={metricCards} />
+      </AixiaHero>
 
-      {pageError ? <AixiaAlert tone="error">{pageError}</AixiaAlert> : null}
+      <div className="aixia-command-scroll">
+{pageError ? <AixiaAlert tone="error">{pageError}</AixiaAlert> : null}
       {pageMessage ? <AixiaAlert tone="success">{pageMessage}</AixiaAlert> : null}
 
-      <AixiaMetricGrid>
-        {metricCards.map((metric) => (
-          <AixiaMetricCard
-            key={metric.key}
-            label={metric.title}
-            value={metric.value}
-            description={metric.subtitle}
-            icon={metric.icon}
-            tone={metric.tone}
-          />
-        ))}
-      </AixiaMetricGrid>
+      
 
       {!permissionState.canRead ? (
         <AixiaAccessDeniedState
@@ -1106,6 +1035,7 @@ export default function FinanceMasterDataClientsPage() {
           )}
         </div>
       </AixiaArchiveManagerModal>
-    </AixiaPage>
+      </div>
+    </FinancePage>
   );
 }

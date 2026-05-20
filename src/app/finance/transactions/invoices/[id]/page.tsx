@@ -1942,10 +1942,11 @@ export default function FinanceInvoiceDetailPage() {
     <>
       <AixiaPage>
         <AixiaHero
-          parentLabel="Invoices"
+          parentLabel="Proforma / Invoice"
           parentPath="/finance/transactions/invoices"
           badges={[
-            { label: "Invoice Workspace", tone: "cyan" },
+            { label: "Invoice", tone: "cyan" },
+            { label: "Invoice Workspace", tone: "neutral" },
             { label: getIssuedInvoiceStatusLabel(invoice.status), tone: "violet" },
             { label: getIssuedInvoicePaymentStatusLabel(invoice.payment_status), tone: "emerald" },
             { label: getPostingStatusLabel(displayState.postingStatus), tone: "neutral" },

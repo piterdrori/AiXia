@@ -7,6 +7,7 @@ import {
   FileSignature,
   MoreHorizontal,
   Plus,
+  Receipt,
   RotateCcw,
   ShieldCheck,
   Trash2,
@@ -15,15 +16,16 @@ import {
 } from "lucide-react";
 
 import {
+  AixiaAccessRule,
   AixiaAlert,
   AixiaArchiveManagerModal,
   AixiaBadge,
   AixiaButton,
   AixiaEmptyState,
+  AixiaFinanceHubControlPanel,
+  AixiaFinanceHubMetaStrip,
   AixiaHero,
-  AixiaMetricCard,
-  AixiaMetricGrid,
-  AixiaPage,
+  FinancePage,
   AixiaRegistryToolbar,
   AixiaSearchField,
   AixiaSection,
@@ -34,6 +36,7 @@ import {
   AixiaTableDateCell,
   AixiaTableShell,
   AixiaTableTextCell,
+  AixiaCommandMetrics
 } from "@/components/aixia";
 import { type FinanceLoadMode } from "@/lib/finance/pageAccess";
 import { supabase } from "@/lib/supabase";
@@ -905,84 +908,75 @@ export default function PaycheckRequestsPage() {
     />
   );
 
+  const paycheckMetricItems = useMemo(
+    () => [
+      { key: "total-active", title: "Total Active", value: isLoading ? "—" : formatCount(metrics.active), subtitle: "Visible active paycheck requests.", icon: FileSignature, tone: "cyan" as const },
+      { key: "pending-review", title: "Pending Review", value: isLoading ? "—" : formatCount(metrics.submitted), subtitle: "Submitted signed forms waiting for Finance review.", icon: ShieldCheck, tone: "amber" as const },
+      { key: "approved-for-payroll", title: "Approved For Payroll", value: isLoading ? "—" : formatCount(metrics.approved), subtitle: "Approved requests ready to link to payroll run.", icon: BadgeCheck, tone: "emerald" as const },
+      { key: "payment-sent", title: "Payment Sent", value: isLoading ? "—" : formatCount(metrics.paymentSent), subtitle: "Requests waiting for employee payment confirmation.", icon: WalletCards, tone: "violet" as const },
+      { key: "total-net", title: "Total Net", value: isLoading ? "—" : formatMoney(metrics.totalNet), subtitle: "Total requested net amount for active requests.", icon: WalletCards, tone: "gold" as const },
+    ],
+    [isLoading, metrics, formatCount, formatMoney]
+  );
+
+  const headerStatusCards = useMemo(
+    () => [
+      {
+        key: "system-status",
+        label: "System Status",
+        value: isLoading ? "Loading" : backgroundRefreshing ? "Syncing" : "Live",
+        detail: "Paycheck request registry refreshes silently with auto-refresh enabled.",
+        tone: "emerald" as const,
+      },
+      {
+        key: "access",
+        label: "Access",
+        value: "Enabled",
+        detail: "Personal paycheck request workflow follows the shared Finance permission standard.",
+        tone: "cyan" as const,
+      },
+      {
+        key: "active-records",
+        label: "Active Records",
+        value: formatCount(metrics.active),
+        detail: "Visible active paycheck requests in the main registry.",
+        tone: "amber" as const,
+      },
+    ],
+    [backgroundRefreshing, formatCount, isLoading, metrics.active]
+  );
+
   return (
-    <AixiaPage>
+    <FinancePage>
       <AixiaHero
+        className="shrink-0 space-y-4"
+        surface="command"
         parentLabel="Transactions"
         parentPath="/finance/transactions"
-        badges={[
-          { label: "Paycheck Requests", tone: "cyan" },
-          { label: "Signed Forms", tone: "emerald" },
-          { label: "Payroll Linking", tone: "violet" },
-          { label: "Payment Confirmation", tone: "amber" },
-        ]}
         gradientTitle="Employee"
         title="Paycheck Requests"
-        description="Employee-side paycheck request intake for signed forms, Finance review, payroll linking, payment execution, and employee payment confirmation."
-        statusCards={[
-          {
-            label: "Active Requests",
-            value: isLoading ? "—" : formatCount(metrics.active),
-            description: "Active paycheck requests excluding archived and deleted records.",
-            icon: FileSignature,
-            tone: "cyan",
-          },
-          {
-            label: "Submitted",
-            value: isLoading ? "—" : formatCount(metrics.submitted),
-            description: "Signed forms waiting for Finance review.",
-            icon: ShieldCheck,
-            tone: "amber",
-          },
-          {
-            label: "Approved",
-            value: isLoading ? "—" : formatCount(metrics.approved),
-            description: "Approved requests ready to link to payroll.",
-            icon: BadgeCheck,
-            tone: "emerald",
-          },
-        ]}
-      />
+      >
+        <AixiaCommandMetrics items={paycheckMetricItems} />
+      </AixiaHero>
 
-      <AixiaMetricGrid>
-        <AixiaMetricCard
-          label="Total Active"
-          value={isLoading ? "—" : formatCount(metrics.active)}
-          description="Visible active paycheck requests."
-          icon={FileSignature}
-          tone="cyan"
-        />
-        <AixiaMetricCard
-          label="Pending Review"
-          value={isLoading ? "—" : formatCount(metrics.submitted)}
-          description="Submitted signed forms waiting for Finance review."
+      <div className="aixia-command-scroll">
+        <AixiaFinanceHubMetaStrip items={headerStatusCards} />
+
+        <AixiaAccessRule
+          title="Paycheck request access rule"
+          description="Personal paycheck request registry follows the shared Finance payroll permission standard."
           icon={ShieldCheck}
-          tone="amber"
-        />
-        <AixiaMetricCard
-          label="Approved For Payroll"
-          value={isLoading ? "—" : formatCount(metrics.approved)}
-          description="Approved requests ready to link to payroll run."
-          icon={BadgeCheck}
-          tone="emerald"
-        />
-        <AixiaMetricCard
-          label="Payment Sent"
-          value={isLoading ? "—" : formatCount(metrics.paymentSent)}
-          description="Requests waiting for employee payment confirmation."
-          icon={WalletCards}
-          tone="violet"
-        />
-        <AixiaMetricCard
-          label="Total Net"
-          value={isLoading ? "—" : formatMoney(metrics.totalNet)}
-          description="Total requested net amount for active requests."
-          icon={WalletCards}
-          tone="gold"
-        />
-      </AixiaMetricGrid>
+        >
+          Active paycheck request records stay in the main registry. Archived and deleted records are managed only from the archive panel, with restore and permanent delete actions separated by lifecycle state.
+        </AixiaAccessRule>
 
-      <AixiaSection
+        <AixiaFinanceHubControlPanel
+          icon={Receipt}
+          title="Paycheck requests"
+          description="Personal paycheck request workflow."
+        />
+
+        <AixiaSection
         title="Paycheck Requests Registry"
         description="Active registry: Request, Employee, Period, Currency, Net Amount, Status, Review, Signed Form, Confirmation, and Actions."
         icon={FileSignature}
@@ -1080,6 +1074,7 @@ export default function PaycheckRequestsPage() {
           onHardDelete={hardDeleteRequest}
         />
       </AixiaArchiveManagerModal>
-    </AixiaPage>
+      </div>
+    </FinancePage>
   );
 }

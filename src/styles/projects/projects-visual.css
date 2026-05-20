@@ -1,0 +1,1043 @@
+/**
+ * Projects pages — unique widgets only (visual).
+ * Command shell + scroll: dashboard/layout.css (.aixia-command-page / .aixia-command-scroll).
+ */
+
+.aixia-projects-page .aixia-dash-action--danger {
+  color: #fca5a5 !important;
+  border-color: color-mix(in srgb, #f87171 38%, var(--aixia-dash-border)) !important;
+  background: color-mix(in srgb, #ef4444 8%, transparent) !important;
+}
+
+.aixia-projects-page .aixia-dash-action--danger:hover:not(:disabled) {
+  color: #fecaca !important;
+  background: color-mix(in srgb, #ef4444 16%, transparent) !important;
+  border-color: color-mix(in srgb, #f87171 52%, var(--aixia-dash-border)) !important;
+}
+
+.aixia-projects-new-form-footer .aixia-dash-action {
+  height: 2.25rem;
+  min-height: 2.25rem;
+}
+
+/* Project detail — kicker on top row; actions align with title */
+.aixia-projects-detail-hero {
+  flex-direction: column;
+  align-items: stretch;
+  gap: 0.4rem;
+}
+
+.aixia-projects-detail-hero-kicker {
+  margin: 0;
+  padding-inline-start: calc(2.25rem + 0.75rem);
+}
+
+.aixia-projects-detail-hero-title-row {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.65rem 0.85rem;
+}
+
+.aixia-projects-detail-hero-title-row .aixia-dash-title--hero {
+  margin: 0;
+  flex: 1 1 12rem;
+  min-width: min(100%, 12rem);
+  color: var(--foreground, #f8fafc);
+  -webkit-text-fill-color: currentColor;
+  background: none;
+  background-image: none;
+  background-clip: border-box;
+  -webkit-background-clip: border-box;
+}
+
+.aixia-projects-detail-hero-actions {
+  margin-inline-start: auto;
+}
+
+.aixia-projects-detail-hero-meta {
+  padding-inline-start: calc(2.25rem + 0.75rem);
+  min-width: 0;
+}
+
+.aixia-projects-detail-hero-meta .aixia-dash-subtitle--hero {
+  margin: 0.15rem 0 0;
+}
+
+@media (max-width: 720px) {
+  .aixia-projects-detail-hero-title-row .aixia-projects-detail-hero-actions {
+    width: 100%;
+    margin-inline-start: calc(2.25rem + 0.75rem);
+    justify-content: flex-start;
+  }
+}
+
+/* Tabs/toolbar: global rules in dashboard/layout.css (.aixia-command-tabs / .aixia-command-toolbar) */
+
+.aixia-projects-input {
+  height: 2.5rem;
+  border-radius: calc(var(--aixia-dash-radius) - 2px);
+  border: 1px solid var(--aixia-dash-border) !important;
+  background: color-mix(in srgb, var(--background, #09090b) 92%, transparent) !important;
+  color: var(--aixia-dash-title) !important;
+}
+
+.aixia-projects-input::placeholder {
+  color: color-mix(in srgb, var(--aixia-dash-muted) 75%, transparent);
+}
+
+.aixia-projects-textarea {
+  border-radius: calc(var(--aixia-dash-radius) - 2px);
+  border: 1px solid var(--aixia-dash-border) !important;
+  background: color-mix(in srgb, var(--background, #09090b) 92%, transparent) !important;
+  color: var(--aixia-dash-title) !important;
+}
+
+.aixia-projects-textarea::placeholder {
+  color: color-mix(in srgb, var(--aixia-dash-muted) 75%, transparent);
+}
+
+.aixia-projects-select-trigger {
+  border: 1px solid var(--aixia-dash-border) !important;
+  background: color-mix(in srgb, var(--background, #09090b) 92%, transparent) !important;
+  color: var(--aixia-dash-title) !important;
+}
+
+.aixia-projects-select-content {
+  border: 1px solid var(--aixia-dash-border) !important;
+  background: var(--aixia-dash-surface) !important;
+}
+
+.aixia-projects-panel-card {
+  border: none !important;
+  background: transparent !important;
+  box-shadow: none !important;
+}
+
+/* Project detail overview — label/value rows */
+.aixia-projects-detail-rows {
+  display: flex;
+  flex-direction: column;
+  gap: 1rem;
+}
+
+.aixia-projects-detail-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.75rem 1rem;
+}
+
+.aixia-projects-detail-row .aixia-dash-list-row-meta {
+  margin-top: 0;
+  flex-shrink: 0;
+}
+
+.aixia-projects-detail-row .aixia-dash-list-row-title {
+  text-align: right;
+}
+
+.aixia-projects-project-card {
+  cursor: pointer;
+}
+
+/* Projects list — subtle bento cards (reference: near-black + thin borders) */
+.aixia-projects-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(16.5rem, 1fr));
+  gap: 0.85rem;
+}
+
+@media (min-width: 1280px) {
+  .aixia-projects-grid {
+    grid-template-columns: repeat(auto-fill, minmax(15.5rem, 1fr));
+  }
+}
+
+.aixia-projects-grid-section {
+  display: flex;
+  flex-direction: column;
+  gap: 0.55rem;
+}
+
+/* Entity grid cards use AixiaWorkspaceCard (.aixia-workspace-card--compact) — legacy grid-card visuals removed. */
+
+.aixia-projects-section-title {
+  font-size: 0.65rem;
+  font-weight: 700;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  color: var(--aixia-dash-muted);
+}
+
+.aixia-projects-metric-value--success {
+  color: #7dd3fc;
+}
+
+.aixia-projects-metric-value--purple {
+  color: #c4b5fd;
+}
+
+.aixia-projects-metric-value--danger {
+  color: #fda4af;
+}
+
+.aixia-projects-list-row:hover {
+  background: color-mix(in srgb, var(--primary, #6366f1) 8%, transparent);
+}
+
+.aixia-projects-member-list {
+  border: 1px solid var(--aixia-dash-border);
+  border-radius: var(--aixia-dash-radius);
+  background: color-mix(in srgb, var(--background, #09090b) 88%, transparent);
+}
+
+/* Read-only / picker rows — matches new-project member tile typography */
+.aixia-projects-member-rows {
+  display: flex;
+  flex-direction: column;
+  gap: 0.35rem;
+}
+
+.aixia-projects-member-rows--divided {
+  gap: 0;
+}
+
+.aixia-projects-member-rows--divided .aixia-projects-member-row + .aixia-projects-member-row {
+  border-top: 1px solid var(--aixia-dash-border);
+  margin-top: 0.15rem;
+  padding-top: 0.85rem;
+}
+
+.aixia-projects-member-row {
+  display: flex;
+  align-items: center;
+  gap: 0.65rem;
+  min-width: 0;
+}
+
+.aixia-projects-member-row--pick {
+  padding: 0.45rem 0.5rem;
+  border-radius: var(--aixia-dash-radius-sm);
+  cursor: pointer;
+  transition: background 0.12s ease;
+}
+
+.aixia-projects-member-list .aixia-projects-member-row--pick {
+  padding-inline: 0.35rem;
+}
+
+/* New project form — tall member picker; footer stays below the list */
+.aixia-projects-page--new .aixia-projects-scroll {
+  overflow-y: auto;
+  overflow-x: hidden;
+}
+
+.aixia-projects-page--new .aixia-projects-new-form-card {
+  min-height: 0;
+}
+
+.aixia-projects-new-form {
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+}
+
+.aixia-projects-new-form-fields {
+  display: flex;
+  flex-direction: column;
+  gap: 1rem;
+}
+
+.aixia-projects-assign-section {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+}
+
+/* New project — selectable teammate roster (grouped tile grid) */
+.aixia-projects-member-picker {
+  display: flex;
+  flex-direction: column;
+  border: 1px solid var(--aixia-dash-border);
+  border-radius: var(--aixia-dash-radius);
+  background: color-mix(in srgb, var(--background, #020617) 42%, rgba(15, 23, 42, 0.55));
+  overflow: hidden;
+  box-shadow: inset 0 1px 0 color-mix(in srgb, white 6%, transparent);
+}
+
+.aixia-projects-member-picker-hd {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.5rem 0.75rem;
+  padding: clamp(0.65rem, 1.75vw, 0.9rem) clamp(0.85rem, 2.25vw, 1.15rem);
+  border-bottom: 1px solid var(--aixia-dash-border);
+}
+
+.aixia-projects-member-picker-body {
+  overflow-y: visible;
+  padding: clamp(0.65rem, 1.75vw, 0.85rem);
+}
+
+/* Scroll only when more than 9 members (3×3 tile grid) */
+.aixia-projects-member-picker-body--scroll {
+  max-height: calc(3 * 3.75rem + 2 * 0.5rem + 1.35rem);
+  overflow-y: auto;
+  scrollbar-gutter: stable;
+}
+
+.aixia-projects-member-picker-grid {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 0.5rem;
+  align-content: start;
+}
+
+@media (max-width: 720px) {
+  .aixia-projects-member-picker-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .aixia-projects-member-picker-body--scroll {
+    max-height: calc(5 * 3.75rem + 4 * 0.5rem + 1.35rem);
+  }
+}
+
+@media (max-width: 480px) {
+  .aixia-projects-member-picker-grid {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .aixia-projects-member-picker-body--scroll {
+    max-height: calc(9 * 3.75rem + 8 * 0.5rem + 1.35rem);
+  }
+}
+
+.aixia-projects-member-tile {
+  display: flex;
+  align-items: center;
+  gap: 0.55rem;
+  width: 100%;
+  min-width: 0;
+  padding: 0.6rem 0.65rem;
+  border-radius: var(--aixia-dash-radius-sm);
+  border: 1px solid color-mix(in srgb, var(--aixia-dash-border) 80%, transparent);
+  background: color-mix(in srgb, var(--background, #020617) 38%, transparent);
+  cursor: pointer;
+  text-align: left;
+  transition:
+    background 0.15s ease,
+    border-color 0.15s ease,
+    box-shadow 0.15s ease,
+    transform 0.12s ease;
+}
+
+.aixia-projects-member-tile:hover {
+  background: color-mix(in srgb, var(--foreground, #fff) 6%, transparent);
+  border-color: color-mix(in srgb, var(--primary, #6366f1) 30%, transparent);
+  transform: translateY(-1px);
+}
+
+.aixia-projects-member-tile--selected {
+  border-color: color-mix(in srgb, var(--primary, #6366f1) 48%, transparent);
+  background: color-mix(in srgb, var(--primary, #6366f1) 16%, transparent);
+  box-shadow:
+    inset 0 0 0 1px color-mix(in srgb, var(--primary, #6366f1) 22%, transparent),
+    0 10px 24px -18px color-mix(in srgb, var(--primary, #6366f1) 55%, transparent);
+}
+
+.aixia-projects-member-tile-check {
+  flex-shrink: 0;
+  width: 1rem;
+  height: 1rem;
+  border-radius: 4px;
+  border: 1px solid color-mix(in srgb, var(--aixia-dash-muted) 55%, var(--aixia-dash-border));
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  color: transparent;
+  background: color-mix(in srgb, var(--background, #020617) 70%, transparent);
+  transition:
+    background 0.12s ease,
+    border-color 0.12s ease,
+    color 0.12s ease;
+}
+
+.aixia-projects-member-tile--selected .aixia-projects-member-tile-check {
+  border-color: color-mix(in srgb, var(--primary, #6366f1) 70%, transparent);
+  background: color-mix(in srgb, var(--primary, #6366f1) 88%, #4f46e5);
+  color: #fff;
+}
+
+.aixia-projects-member-tile-check svg {
+  width: 0.65rem;
+  height: 0.65rem;
+}
+
+.aixia-projects-member-tile-avatar {
+  flex-shrink: 0;
+  width: 2.1rem;
+  height: 2.1rem;
+  border-radius: 999px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 0.65rem;
+  font-weight: 700;
+  letter-spacing: 0.03em;
+  line-height: 1;
+  color: color-mix(in srgb, var(--foreground, #f8fafc) 92%, transparent);
+  background: linear-gradient(
+    145deg,
+    color-mix(in srgb, var(--primary, #6366f1) 42%, #1e293b),
+    color-mix(in srgb, #2dd4bf 22%, #0f172a)
+  );
+  box-shadow: inset 0 0 0 1px color-mix(in srgb, white 12%, transparent);
+}
+
+.aixia-projects-member-tile-meta {
+  min-width: 0;
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  gap: 0.2rem;
+}
+
+.aixia-projects-member-tile-meta .aixia-dash-pill {
+  align-self: flex-start;
+  max-width: 100%;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.aixia-projects-assign-section + .aixia-projects-new-form-note {
+  margin-top: 0.35rem;
+}
+
+.aixia-projects-new-form-note {
+  margin: 0;
+}
+
+.aixia-projects-new-form-footer {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  flex-wrap: wrap;
+  gap: 0.75rem;
+  padding-top: 0.5rem;
+  margin-top: 0;
+  border-top: 1px solid var(--aixia-dash-border);
+}
+
+.aixia-projects-member-row--pick:hover {
+  background: color-mix(in srgb, var(--primary, #6366f1) 10%, transparent);
+}
+
+.aixia-projects-divider {
+  border-color: var(--aixia-dash-border) !important;
+}
+
+.aixia-projects-stat-cell {
+  border: 1px solid var(--aixia-dash-border);
+  border-radius: calc(var(--aixia-dash-radius) - 2px);
+  background: color-mix(in srgb, var(--background, #09090b) 88%, transparent);
+}
+
+.aixia-projects-page [data-slot="tabs-list"],
+.aixia-projects-page [role="tablist"] {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.15rem;
+  width: 100%;
+  height: auto;
+  padding: 0;
+  border: none;
+  border-bottom: 1px solid var(--aixia-dash-border);
+  border-radius: 0;
+  background: transparent;
+  backdrop-filter: none;
+}
+
+.aixia-projects-page [data-slot="tabs-trigger"],
+.aixia-projects-page [role="tab"] {
+  color: var(--aixia-dash-muted);
+  border: none !important;
+  border-bottom: 2px solid transparent !important;
+  border-radius: 0 !important;
+  background: transparent !important;
+  box-shadow: none !important;
+  margin-bottom: -1px;
+  font-size: 0.8125rem;
+  font-weight: 500;
+  padding: 0.5rem 0.75rem;
+  transition:
+    color 0.15s ease,
+    border-color 0.15s ease;
+}
+
+.aixia-projects-page [data-slot="tabs-trigger"]:hover,
+.aixia-projects-page [role="tab"]:hover {
+  color: var(--aixia-dash-title);
+}
+
+.aixia-projects-page [data-slot="tabs-trigger"][data-state="active"],
+.aixia-projects-page [role="tab"][data-state="active"] {
+  color: var(--aixia-dash-title) !important;
+  border-bottom-color: var(--aixia-dash-title) !important;
+  background: transparent !important;
+  box-shadow: none !important;
+}
+
+.aixia-projects-dialog {
+  border: 1px solid var(--aixia-dash-border) !important;
+  background: color-mix(in srgb, var(--background, #020617) 92%, rgba(15, 23, 42, 0.9)) !important;
+  color: var(--aixia-dash-title) !important;
+  backdrop-filter: blur(20px) saturate(1.35);
+}
+
+.aixia-projects-dialog-hd {
+  border-color: var(--aixia-dash-border) !important;
+}
+
+.aixia-projects-label {
+  color: color-mix(in srgb, var(--aixia-dash-title) 88%, transparent);
+}
+
+.aixia-projects-muted {
+  color: var(--aixia-dash-muted);
+}
+
+.aixia-projects-title-inline {
+  color: var(--aixia-dash-title);
+}
+
+.aixia-projects-empty-icon {
+  color: color-mix(in srgb, var(--aixia-dash-muted) 55%, transparent);
+}
+
+/* Status / urgency pills (use with aixia-dash-pill) */
+.aixia-projects-pill--active {
+  border-color: color-mix(in srgb, #38bdf8 35%, transparent);
+  background: color-mix(in srgb, #38bdf8 12%, transparent);
+  color: #7dd3fc;
+}
+
+.aixia-projects-pill--planning {
+  border-color: color-mix(in srgb, var(--aixia-dash-muted) 35%, transparent);
+  background: color-mix(in srgb, var(--aixia-dash-muted) 10%, transparent);
+  color: color-mix(in srgb, var(--aixia-dash-title) 75%, var(--aixia-dash-muted));
+}
+
+.aixia-projects-pill--on-hold {
+  border-color: color-mix(in srgb, #fbbf24 35%, transparent);
+  background: color-mix(in srgb, #fbbf24 12%, transparent);
+  color: #fcd34d;
+}
+
+.aixia-projects-pill--completed {
+  border-color: color-mix(in srgb, #a78bfa 35%, transparent);
+  background: color-mix(in srgb, #a78bfa 12%, transparent);
+  color: #c4b5fd;
+}
+
+.aixia-projects-pill--cancelled,
+.aixia-projects-pill--danger {
+  border-color: color-mix(in srgb, #f87171 38%, transparent);
+  background: color-mix(in srgb, #ef4444 12%, transparent);
+  color: #fca5a5;
+}
+
+.aixia-projects-pill--warning {
+  border-color: color-mix(in srgb, #fbbf24 38%, transparent);
+  background: color-mix(in srgb, #f59e0b 12%, transparent);
+  color: #fcd34d;
+}
+
+.aixia-projects-pill--progress {
+  border-color: color-mix(in srgb, #38bdf8 35%, transparent);
+  background: color-mix(in srgb, #38bdf8 12%, transparent);
+  color: #7dd3fc;
+}
+
+.aixia-projects-pill--review {
+  border-color: color-mix(in srgb, #a78bfa 35%, transparent);
+  background: color-mix(in srgb, #a78bfa 12%, transparent);
+  color: #c4b5fd;
+}
+
+.aixia-projects-pill--done {
+  border-color: color-mix(in srgb, #4ade80 35%, transparent);
+  background: color-mix(in srgb, #22c55e 12%, transparent);
+  color: #86efac;
+}
+
+.aixia-projects-pill--priority-high {
+  border-color: color-mix(in srgb, #fb923c 38%, transparent);
+  background: color-mix(in srgb, #f97316 12%, transparent);
+  color: #fdba74;
+}
+
+.aixia-projects-pill--priority-medium {
+  border-color: color-mix(in srgb, #fbbf24 38%, transparent);
+  background: color-mix(in srgb, #eab308 12%, transparent);
+  color: #fde047;
+}
+
+.aixia-projects-pill--you {
+  border-color: color-mix(in srgb, var(--primary, #6366f1) 42%, transparent);
+  background: color-mix(in srgb, var(--primary, #6366f1) 18%, transparent);
+  color: color-mix(in srgb, #a5b4fc 92%, white);
+}
+
+/* Skeleton placeholders */
+.aixia-projects-skeleton-bar {
+  border-radius: var(--aixia-dash-radius-sm);
+  background: color-mix(in srgb, var(--aixia-dash-border) 88%, transparent);
+}
+
+.aixia-projects-skeleton-panel {
+  border: 1px solid var(--aixia-dash-border);
+  border-radius: var(--aixia-dash-radius);
+  background: color-mix(in srgb, var(--background, #09090b) 88%, transparent);
+}
+
+/* Progress bar track */
+.aixia-projects-progress {
+  height: 0.625rem;
+  border-radius: 999px;
+  background: color-mix(in srgb, var(--aixia-dash-border) 90%, transparent) !important;
+}
+
+.aixia-projects-progress--sm {
+  height: 0.5rem;
+}
+
+/* Task stat cells — value colors */
+.aixia-projects-stat-value {
+  font-size: 1.25rem;
+  font-weight: 700;
+  color: var(--aixia-dash-title);
+  line-height: 1.2;
+}
+
+.aixia-projects-stat-value--muted {
+  color: color-mix(in srgb, var(--aixia-dash-title) 72%, var(--aixia-dash-muted));
+}
+
+.aixia-projects-stat-value--progress {
+  color: #7dd3fc;
+}
+
+.aixia-projects-stat-value--review {
+  color: #c4b5fd;
+}
+
+.aixia-projects-stat-value--done {
+  color: #86efac;
+}
+
+/* Tab section headings */
+.aixia-projects-tab-heading {
+  margin: 0;
+  font-size: 1rem;
+  font-weight: 600;
+  color: var(--aixia-dash-title);
+}
+
+/* Internal card titles — icon + title (Project Discussion reference) */
+.aixia-projects-card-heading {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  min-width: 0;
+}
+
+.aixia-projects-card-heading__icon {
+  width: 1.25rem;
+  height: 1.25rem;
+  flex-shrink: 0;
+  color: #818cf8;
+}
+
+.aixia-projects-card-heading .aixia-dash-panel-title {
+  min-width: 0;
+}
+
+/* List view */
+.aixia-projects-list-icon {
+  width: 2.5rem;
+  height: 2.5rem;
+  border-radius: 0.65rem;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+  background: color-mix(in srgb, var(--primary, #6366f1) 14%, transparent);
+  border: 1px solid color-mix(in srgb, var(--primary, #6366f1) 28%, transparent);
+  color: color-mix(in srgb, #a5b4fc 88%, white);
+}
+
+.aixia-projects-list-divider > * + * {
+  border-top: 1px solid var(--aixia-dash-border);
+}
+
+.aixia-projects-page [data-state="on"] {
+  background: color-mix(in srgb, var(--primary, #6366f1) 22%, var(--aixia-dash-surface)) !important;
+  color: var(--aixia-dash-title) !important;
+}
+
+/* Dialogs */
+.aixia-projects-dialog-body {
+  display: flex;
+  flex-direction: column;
+  gap: 1.25rem;
+  padding: 1.25rem 1.5rem 1.5rem;
+}
+
+.aixia-projects-dialog-lead-title {
+  margin: 0;
+  font-size: 1rem;
+  font-weight: 600;
+  color: var(--aixia-dash-title);
+}
+
+.aixia-projects-dialog-lead-meta {
+  margin: 0.25rem 0 0;
+  font-size: 0.875rem;
+  color: var(--aixia-dash-muted);
+}
+
+.aixia-projects-dialog-empty {
+  border: 1px dashed var(--aixia-dash-border);
+  border-radius: calc(var(--aixia-dash-radius) + 4px);
+  background: color-mix(in srgb, var(--background, #020617) 55%, transparent);
+  padding: 3rem 2rem;
+  text-align: center;
+}
+
+.aixia-projects-dialog-empty-icon {
+  width: 3rem;
+  height: 3rem;
+  margin: 0 auto 1rem;
+  color: color-mix(in srgb, var(--aixia-dash-muted) 55%, transparent);
+}
+
+.aixia-projects-dialog-empty-title {
+  margin: 0;
+  font-size: 1.125rem;
+  font-weight: 500;
+  color: var(--aixia-dash-title);
+}
+
+.aixia-projects-dialog-empty-meta {
+  margin: 0.5rem 0 0;
+  font-size: 0.875rem;
+  color: var(--aixia-dash-muted);
+}
+
+.aixia-projects-dialog-panel {
+  border: 1px solid var(--aixia-dash-border);
+  border-radius: calc(var(--aixia-dash-radius) + 4px);
+  background: color-mix(in srgb, var(--background, #020617) 42%, transparent);
+  overflow: hidden;
+}
+
+.aixia-projects-dialog-row {
+  display: flex;
+  flex-direction: column;
+  gap: 1rem;
+  padding: 1rem 1.25rem;
+  border-bottom: 1px solid var(--aixia-dash-border);
+}
+
+.aixia-projects-dialog-row:last-child {
+  border-bottom: none;
+}
+
+@media (min-width: 640px) {
+  .aixia-projects-dialog-row {
+    flex-direction: row;
+    align-items: center;
+    justify-content: space-between;
+  }
+}
+
+.aixia-projects-dialog-row-title {
+  margin: 0;
+  font-size: 0.875rem;
+  font-weight: 500;
+  color: var(--aixia-dash-title);
+}
+
+.aixia-projects-dialog-row-meta {
+  margin: 0.25rem 0 0;
+  font-size: 0.75rem;
+  color: var(--aixia-dash-muted);
+}
+
+.aixia-projects-dialog-actions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 0.5rem;
+}
+
+.aixia-projects-dialog-footer {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 0.75rem;
+  padding-top: 0.5rem;
+}
+
+/* File rows */
+.aixia-projects-file-row {
+  display: flex;
+  align-items: center;
+  gap: 1rem;
+  padding: 0.75rem;
+  border-radius: var(--aixia-dash-radius-sm);
+  border: 1px solid var(--aixia-dash-border);
+  background: color-mix(in srgb, var(--background, #020617) 55%, transparent);
+}
+
+.aixia-projects-file-row-icon {
+  width: 1.25rem;
+  height: 1.25rem;
+  flex-shrink: 0;
+  color: color-mix(in srgb, var(--primary, #6366f1) 75%, #a5b4fc);
+}
+
+/* Upload drop zone */
+.aixia-projects-upload-zone {
+  border: 2px dashed var(--aixia-dash-border);
+  border-radius: calc(var(--aixia-dash-radius) + 4px);
+  background: color-mix(in srgb, var(--background, #020617) 50%, transparent);
+  padding: 2.5rem 1.5rem;
+  text-align: center;
+  cursor: pointer;
+  transition:
+    border-color 0.15s ease,
+    background 0.15s ease;
+}
+
+.aixia-projects-upload-zone:hover:not(.aixia-projects-upload-zone--disabled) {
+  border-color: color-mix(in srgb, var(--primary, #6366f1) 45%, var(--aixia-dash-border));
+  background: color-mix(in srgb, var(--primary, #6366f1) 8%, transparent);
+}
+
+.aixia-projects-upload-zone--active {
+  border-color: color-mix(in srgb, var(--primary, #6366f1) 55%, transparent);
+  background: color-mix(in srgb, var(--primary, #6366f1) 12%, transparent);
+}
+
+.aixia-projects-upload-zone--disabled {
+  cursor: not-allowed;
+  opacity: 0.7;
+}
+
+.aixia-projects-upload-zone-icon {
+  width: 3.5rem;
+  height: 3.5rem;
+  margin: 0 auto 1rem;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 999px;
+  background: color-mix(in srgb, var(--aixia-dash-border) 65%, transparent);
+  color: color-mix(in srgb, var(--primary, #6366f1) 80%, #a5b4fc);
+}
+
+.aixia-projects-upload-zone-title {
+  margin: 0;
+  font-size: 1.25rem;
+  font-weight: 600;
+  color: var(--aixia-dash-title);
+}
+
+/* Mention picker */
+.aixia-projects-mention-list {
+  max-height: 8rem;
+  overflow-y: auto;
+  border-radius: var(--aixia-dash-radius-sm);
+  border: 1px solid var(--aixia-dash-border);
+  background: var(--aixia-dash-surface);
+}
+
+.aixia-projects-mention-item {
+  display: flex;
+  width: 100%;
+  align-items: center;
+  justify-content: space-between;
+  padding: 0.5rem 0.75rem;
+  text-align: left;
+  border: none;
+  background: transparent;
+  cursor: pointer;
+  transition: background 0.12s ease;
+}
+
+.aixia-projects-mention-item:hover {
+  background: color-mix(in srgb, var(--primary, #6366f1) 10%, transparent);
+}
+
+/* Discussion */
+.aixia-projects-discussion-hd {
+  border-bottom: 1px solid var(--aixia-dash-border);
+}
+
+.aixia-projects-comment {
+  border-radius: calc(var(--aixia-dash-radius) + 4px);
+  border: 1px solid var(--aixia-dash-border);
+  background: color-mix(in srgb, var(--background, #020617) 55%, transparent);
+  padding: 1rem;
+  transition: border-color 0.15s ease, background 0.15s ease;
+}
+
+.aixia-projects-comment--mine {
+  border-color: color-mix(in srgb, var(--primary, #6366f1) 38%, var(--aixia-dash-border));
+  background: color-mix(in srgb, var(--primary, #6366f1) 10%, transparent);
+}
+
+.aixia-projects-comment-avatar {
+  width: 2.5rem;
+  height: 2.5rem;
+  flex-shrink: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 999px;
+  font-size: 0.75rem;
+  font-weight: 600;
+  color: #fff;
+  background: color-mix(in srgb, var(--primary, #6366f1) 72%, #4f46e5);
+}
+
+.aixia-projects-comment-body {
+  margin-top: 1rem;
+  padding-left: calc(2.5rem + 0.75rem);
+}
+
+.aixia-projects-comment-text {
+  margin: 0;
+  white-space: pre-wrap;
+  font-size: 0.875rem;
+  line-height: 1.5;
+  color: color-mix(in srgb, var(--aixia-dash-title) 88%, var(--aixia-dash-muted));
+}
+
+.aixia-projects-comment-edit-box {
+  border-radius: var(--aixia-dash-radius-sm);
+  border: 1px solid var(--aixia-dash-border);
+  background: color-mix(in srgb, var(--background, #020617) 72%, transparent);
+  padding: 0.75rem;
+}
+
+.aixia-projects-comment-edit-box textarea {
+  border: 0 !important;
+  background: transparent !important;
+  color: var(--aixia-dash-title) !important;
+  box-shadow: none !important;
+  padding: 0 !important;
+}
+
+.aixia-projects-notice-banner {
+  margin-bottom: 1rem;
+  border-radius: var(--aixia-dash-radius-sm);
+  border: 1px solid var(--aixia-dash-border);
+  background: color-mix(in srgb, var(--background, #020617) 55%, transparent);
+  padding: 0.75rem 1rem;
+  font-size: 0.75rem;
+  color: var(--aixia-dash-muted);
+}
+
+/* Activity log rows */
+.aixia-projects-activity-row {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 1rem;
+  padding-bottom: 1rem;
+  border-bottom: 1px solid var(--aixia-dash-border);
+}
+
+.aixia-projects-activity-row:last-child {
+  padding-bottom: 0;
+  border-bottom: none;
+}
+
+.aixia-projects-activity-message {
+  margin: 0;
+  font-size: 0.875rem;
+  color: var(--aixia-dash-title);
+}
+
+.aixia-projects-activity-message-muted {
+  color: color-mix(in srgb, var(--aixia-dash-title) 78%, var(--aixia-dash-muted));
+}
+
+/* Report page metric cards */
+.aixia-projects-report-metric {
+  border: none !important;
+  background: transparent !important;
+  box-shadow: none !important;
+}
+
+.aixia-projects-report-metric .aixia-dash-metric-val {
+  font-size: 1.875rem;
+}
+
+/* Risk callout (report) */
+.aixia-projects-risk-card {
+  border-radius: var(--aixia-dash-radius-sm);
+  border: 1px solid color-mix(in srgb, #f87171 38%, transparent);
+  background: color-mix(in srgb, #ef4444 10%, transparent);
+  padding: 1rem;
+}
+
+.aixia-projects-risk-card-title {
+  margin: 0;
+  font-weight: 500;
+  color: #fca5a5;
+}
+
+.aixia-projects-risk-card-meta {
+  margin: 0.25rem 0 0;
+  font-size: 0.875rem;
+  color: color-mix(in srgb, #fecaca 75%, var(--aixia-dash-muted));
+}
+
+/* Task row icon */
+.aixia-projects-task-icon--done {
+  color: #86efac;
+}
+
+.aixia-projects-task-icon--pending {
+  color: var(--aixia-dash-muted);
+}
+
+.aixia-projects-task-title--done {
+  color: var(--aixia-dash-muted);
+  text-decoration: line-through;
+}
+
+.aixia-projects-link-action {
+  font-size: 0.75rem;
+  font-weight: 500;
+  color: color-mix(in srgb, var(--primary, #6366f1) 85%, #a5b4fc);
+}
+
+.aixia-projects-link-action:hover {
+  color: color-mix(in srgb, var(--primary, #6366f1) 95%, white);
+}
+
+.aixia-projects-alert-error {
+  border-color: color-mix(in srgb, #f87171 45%, transparent) !important;
+  background: color-mix(in srgb, #ef4444 12%, transparent) !important;
+  color: #fca5a5 !important;
+}

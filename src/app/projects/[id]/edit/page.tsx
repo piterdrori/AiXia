@@ -19,7 +19,13 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { Alert, AlertDescription } from "@/components/ui/alert";
-import { ArrowLeft, Loader2 } from "lucide-react";
+import { Loader2, Users } from "lucide-react";
+import { AixiaHero, AixiaPage } from "@/components/aixia";
+import { initialsFromDisplayName } from "@/app/dashboard/components/DashboardMemberStatusDot";
+import "@/styles/dashboard/tokens.css";
+import "@/styles/dashboard/layout.css";
+import "@/styles/dashboard/visual.css";
+import "@/styles/projects/projects-visual.css";
 
 type Role = "admin" | "manager" | "employee" | "guest";
 type ProjectStatus = "PLANNING" | "ACTIVE" | "ON_HOLD" | "COMPLETED" | "CANCELLED";
@@ -429,47 +435,38 @@ if (!canEdit) {
   }
 
  return (
-  <div className="flex h-[calc(100vh-420px)] min-h-0 w-full flex-col">
-    {/* HEADER */}
-    <div className="mb-3 flex items-center gap-3 shrink-0">
-      <Button
-        variant="ghost"
-        size="icon"
-        onClick={() => navigate(`/projects/${id}`)}
-        className="h-9 w-9 text-slate-400 hover:text-white"
+  <AixiaPage
+    surface="command"
+    className="aixia-command-page aixia-projects-page aixia-projects-page--new h-full flex flex-col overflow-hidden"
+  >
+      <AixiaHero
+        surface="command"
+        className="shrink-0"
+        parentLabel={name || t("projects.project", "Project")}
+        parentPath={`/projects/${id}`}
+        gradientTitle={t("projects.projectsTitle", "Projects")}
+        title={t("projects.editProject", "Edit Project")}
+        subtitle={t("projects.updateProjectDetailsAndTeam", "Update your project details and team")}
       >
-        <ArrowLeft className="h-4 w-4" />
-      </Button>
-
-      <div className="min-w-0">
-        <div className="flex items-center gap-3">
-          <h1 className="text-2xl font-bold text-white">
-            {t("projects.editProject", "Edit Project")}
-          </h1>
-          {isRefreshing && (
-            <span className="text-xs text-slate-500">
-              {t("projects.refreshing", "Refreshing...")}
-            </span>
-          )}
-        </div>
-        <p className="text-sm text-slate-400">
-          {t("projects.updateProjectDetailsAndTeam", "Update your project details and team")}
-        </p>
-      </div>
-    </div>
-
-    {/* FRAME */}
-    <Card className="w-full flex flex-col border-slate-800 bg-slate-900/50">
-      <CardContent className="flex min-h-0 flex-1 flex-col p-4 pb-4">
-        <form onSubmit={handleSubmit} className="flex flex-col gap-4 w-full">
+        {isRefreshing ? (
+          <span className="aixia-dash-list-row-meta text-xs">
+            {t("projects.refreshing", "Refreshing...")}
+          </span>
+        ) : null}
+      </AixiaHero>
+      <div className="aixia-command-scroll flex min-h-0 flex-1 flex-col">
+        <Card className="aixia-dash-panel aixia-dash-glass aixia-dash-tilt-panel aixia-projects-panel-card aixia-projects-new-form-card w-full">
+      <CardContent className="p-4 lg:p-6">
+        <form onSubmit={handleSubmit} className="aixia-projects-new-form">
+            <div className="aixia-projects-new-form-fields">
             {error && (
-              <Alert className="bg-red-900/20 border-red-800 text-red-300">
+              <Alert className="aixia-projects-alert-error py-2 shrink-0">
                 <AlertDescription>{error}</AlertDescription>
               </Alert>
             )}
 
-            <div className="space-y-2">
-              <Label htmlFor="name" className="text-slate-300">
+            <div className="space-y-1.5">
+              <Label htmlFor="name" className="aixia-projects-label">
                 {t("projects.projectName", "Project Name")}{" "}
                 <span className="text-red-400">*</span>
               </Label>
@@ -479,12 +476,12 @@ if (!canEdit) {
                 value={name}
                 onChange={(e) => setName(e.target.value)}
                 required
-                className="h-10 bg-slate-950 border-slate-800 text-white placeholder:text-slate-600"
+                className="aixia-projects-input h-10"
               />
             </div>
 
-            <div className="space-y-2">
-              <Label htmlFor="description" className="text-slate-300">
+            <div className="space-y-1.5">
+              <Label htmlFor="description" className="aixia-projects-label">
                 {t("projects.description", "Description")}
               </Label>
               <Textarea
@@ -493,21 +490,21 @@ if (!canEdit) {
                 value={description}
                 onChange={(e) => setDescription(e.target.value)}
                 rows={4}
-                className="min-h-[96px] max-h-[140px] shrink-0 resize-none bg-slate-950 text-white placeholder:text-slate-600 border-slate-800"
+                className="aixia-projects-textarea min-h-[96px] max-h-[140px] shrink-0 resize-none"
               />
             </div>
 
             <div className="grid grid-cols-1 gap-4 md:grid-cols-3">
 
   <div className="space-y-2">
-    <Label htmlFor="status" className="text-slate-300">
+    <Label htmlFor="status" className="aixia-projects-label">
       {t("projects.status", "Status")}
     </Label>
     <Select value={status} onValueChange={(v) => setStatus(v as ProjectStatus)}>
-      <SelectTrigger className="bg-slate-950 border-slate-800 text-white h-10">
+      <SelectTrigger className="aixia-projects-select-trigger h-10">
         <SelectValue placeholder={t("projects.selectStatus", "Select status")} />
       </SelectTrigger>
-      <SelectContent className="bg-slate-900 border-slate-800">
+      <SelectContent className="aixia-projects-select-content">
         <SelectItem value="PLANNING">
           {t("projects.statusPlanning", "Planning")}
         </SelectItem>
@@ -528,7 +525,7 @@ if (!canEdit) {
   </div>
 
   <div className="space-y-2">
-    <Label htmlFor="startDate" className="text-slate-300">
+    <Label htmlFor="startDate" className="aixia-projects-label">
       {t("projects.startDate", "Start Date")}
     </Label>
     <Input
@@ -536,12 +533,12 @@ if (!canEdit) {
       type="date"
       value={startDate}
       onChange={(e) => setStartDate(e.target.value)}
-      className="h-10 bg-slate-950 border-slate-800 text-white"
+      className="aixia-projects-input h-10"
     />
   </div>
 
   <div className="space-y-2">
-    <Label htmlFor="endDate" className="text-slate-300">
+    <Label htmlFor="endDate" className="aixia-projects-label">
       {t("projects.endDate", "End Date")}
     </Label>
     <Input
@@ -549,54 +546,61 @@ if (!canEdit) {
       type="date"
       value={endDate}
       onChange={(e) => setEndDate(e.target.value)}
-      className="h-10 bg-slate-950 border-slate-800 text-white"
+      className="aixia-projects-input h-10"
     />
   </div>
 
 </div>
+            </div>
 
-            <div className="flex flex-col space-y-2">
+            <div className="aixia-projects-assign-section">
   <div className="flex items-center justify-between gap-3">
-    <Label className="text-slate-300">
-      {t("projects.assignTeamMembers", "Assign Team Members")}
-    </Label>
-    <p className="text-[11px] text-slate-500">
+    <div className="aixia-projects-card-heading">
+      <Users className="aixia-projects-card-heading__icon" aria-hidden />
+      <span className="aixia-dash-panel-title">
+        {t("projects.assignTeamMembers", "Assign Team Members")}
+      </span>
+    </div>
+    <span className="aixia-dash-list-row-meta">
       {selectedMembers.length} selected
-    </p>
+    </span>
   </div>
 
               {teamMembers.length === 0 ? (
-                <div className="text-slate-500 text-sm">
+                <p className="aixia-dash-empty m-0 text-sm">
                   {t("projects.noActiveTeamMembersFound", "No active team members found.")}
-                </div>
+                </p>
               ) : (
-                <div className="max-h-[220px] overflow-y-auto rounded-lg border border-slate-800 bg-slate-950 p-2.5">
-                  {teamMembers.map((member) => (
-                    <label
-                      key={member.user_id}
-                      className="flex items-center justify-between gap-3 rounded-md px-3 py-2 hover:bg-slate-900 cursor-pointer"
-                    >
-                      <div>
-                        <div className="text-white text-sm font-medium">
-                          {member.full_name || t("projects.unnamedUser", "Unnamed user")}
-                        </div>
-                        <div className="text-slate-500 text-xs">
-                          {member.role.toUpperCase()}
-                        </div>
-                      </div>
+                <div className="aixia-projects-member-list aixia-projects-member-rows max-h-[220px] overflow-y-auto p-2.5">
+                  {teamMembers.map((member) => {
+                    const displayName =
+                      member.full_name || t("projects.unnamedUser", "Unnamed user");
 
-                      <input
-                        type="checkbox"
-                        checked={selectedMembers.includes(member.user_id)}
-                        onChange={() => toggleMember(member.user_id)}
-                        className="h-4 w-4"
-                      />
-                    </label>
-                  ))}
+                    return (
+                      <label
+                        key={member.user_id}
+                        className="aixia-projects-member-row aixia-projects-member-row--pick"
+                      >
+                        <span className="aixia-projects-member-tile-avatar" aria-hidden>
+                          {initialsFromDisplayName(displayName)}
+                        </span>
+                        <span className="aixia-projects-member-tile-meta">
+                          <span className="aixia-dash-list-row-title truncate">{displayName}</span>
+                          <span className="aixia-dash-pill">{member.role}</span>
+                        </span>
+                        <input
+                          type="checkbox"
+                          checked={selectedMembers.includes(member.user_id)}
+                          onChange={() => toggleMember(member.user_id)}
+                          className="h-4 w-4 shrink-0"
+                        />
+                      </label>
+                    );
+                  })}
                 </div>
               )}
 
-              <p className="text-slate-500 text-xs">
+              <p className="aixia-dash-empty aixia-projects-new-form-note text-xs">
                 {t(
                   "projects.projectVisibilityNote",
                   "Only assigned members, the creator, and admin will be able to see this project."
@@ -604,19 +608,19 @@ if (!canEdit) {
               </p>
             </div>
 
-            <div className="flex shrink-0 items-center justify-end gap-3 border-t border-slate-800 pt-3 pb-2">
+            <div className="aixia-projects-new-form-footer">
               <Button
                 type="button"
                 variant="outline"
                 onClick={() => navigate(`/projects/${id}`)}
-                className="border-slate-700 text-slate-300 hover:bg-slate-800"
+                className="aixia-dash-action h-9"
               >
                 {t("projects.cancel", "Cancel")}
               </Button>
 
               <Button
                 type="submit"
-                className="bg-indigo-600 hover:bg-indigo-700 text-white"
+                className="aixia-dash-action aixia-dash-action--primary h-9"
                 disabled={isSaving}
               >
                 {isSaving ? (
@@ -632,6 +636,7 @@ if (!canEdit) {
           </form>
         </CardContent>
       </Card>
-    </div>
+      </div>
+  </AixiaPage>
   );
 }

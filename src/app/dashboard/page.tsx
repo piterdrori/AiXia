@@ -1,24 +1,47 @@
-import { useEffect, useMemo, useRef, useState, type ReactNode } from "react";
+import { useEffect, useMemo, useState, type ReactNode } from "react";
 import { useNavigate } from "react-router-dom";
-import { addDays, format, isBefore, parseISO } from "date-fns";
-import { supabase } from "@/lib/supabase";
+import { addDays, format, isBefore, parseISO, startOfDay } from "date-fns";
 import {
   removeRealtimeChannel,
   subscribeToDashboardActivity,
   subscribeToDashboardTasks,
   subscribeToDashboardProjects,
 } from "@/lib/realtime";
-import { createRequestTracker } from "@/lib/safeAsync";
 import { useRequest } from "@/lib/useRequest";
 import { useLanguage } from "@/lib/i18n";
 import { useAppClock } from "@/lib/clock/provider";
-import { Button } from "@/components/ui/button";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Progress } from "@/components/ui/progress";
 import { ScrollArea } from "@/components/ui/scroll-area";
+import {
+  AixiaButton,
+  AixiaCommandMetrics,
+  type AixiaCommandMetricItem,
+  AixiaHero,
+  AixiaPage,
+} from "@/components/aixia";
 import { PageError } from "@/components/ui/PageError";
 import { PageLoader } from "@/components/ui/PageLoader";
+import "@/styles/dashboard/tokens.css";
+import "@/styles/dashboard/layout.css";
+import "@/styles/dashboard/visual.css";
+import "@/styles/dashboard/presence.css";
+import "@/styles/dashboard/admin-usage.css";
+import { subscribeAixiaOnlineUsers } from "@/lib/onlineUsers";
+import { loadFullDashboardData } from "@/lib/dashboard/loadDashboardWorkspaceData";
+import { supabase } from "@/lib/supabase";
+import {
+  canViewTask,
+  getEffectivePermissions,
+  isAdminRole,
+  type Permission,
+  type Role,
+} from "@/lib/permissions";
+import { DashboardProjectTeammatesCard } from "@/app/dashboard/components/DashboardProjectTeammatesCard";
+import { DashboardAdminEmployeeDirectoryCard } from "@/app/dashboard/components/DashboardAdminEmployeeDirectoryCard";
+import { DashboardAdminPlatformUsageCard } from "@/app/dashboard/components/DashboardAdminPlatformUsageCard";
+import { DashboardWorkspaceRail } from "@/app/dashboard/components/DashboardWorkspaceRail";
+import { DashboardEmailStatusCard } from "@/app/dashboard/components/DashboardEmailStatusCard";
 import {
   FolderKanban,
   CheckSquare,
@@ -30,8 +53,6 @@ import {
   CalendarDays,
   Activity,
 } from "lucide-react";
-
-type Role = "admin" | "manager" | "employee" | "guest";
 
 type ProjectRow = {
   id: string;
@@ -47,6 +68,14 @@ type ProjectRow = {
 type ProjectMemberRow = {
   id: string;
   project_id: string;
+  user_id: string;
+  role: string;
+  created_at: string;
+};
+
+type TaskMemberRow = {
+  id: string;
+  task_id: string;
   user_id: string;
   role: string;
   created_at: string;
@@ -97,15 +126,15 @@ type UpcomingItem = {
 
 function StatCardSkeleton() {
   return (
-    <Card>
-      <CardContent className="p-4 flex items-center gap-3">
-        <div className="w-10 h-10 rounded-xl bg-muted/50 animate-pulse shrink-0" />
-        <div className="w-full space-y-2">
-          <div className="h-6 w-16 rounded bg-muted/50 animate-pulse" />
-          <div className="h-4 w-28 rounded bg-muted/50 animate-pulse" />
-        </div>
-      </CardContent>
-    </Card>
+    <div className="aixia-dash-metric aixia-dash-metric--compact aixia-dash-glass">
+      <div className="aixia-dash-metric-icon opacity-50">
+        <div className="aixia-dash-skel-line !h-4 w-4 rounded-md" />
+      </div>
+      <div className="min-w-0 flex-1 space-y-2 py-0.5">
+        <div className="aixia-dash-skel-line w-10" />
+        <div className="aixia-dash-skel-line w-24 h-2.5" />
+      </div>
+    </div>
   );
 }
 
@@ -117,34 +146,29 @@ function PanelSkeleton({
   icon?: ReactNode;
 }) {
   return (
-    <Card className="flex flex-col overflow-hidden min-h-0 h-full">
-      <CardHeader className="shrink-0 pb-4">
-        <CardTitle className="text-foreground flex items-center gap-2">
+    <div className="aixia-dash-panel">
+      <div className="aixia-dash-panel-hd">
+        <h3 className="aixia-dash-panel-title">
           {icon}
           {title}
-        </CardTitle>
-      </CardHeader>
-
-      <CardContent className="flex-1 overflow-hidden">
-        <div className="space-y-3">
+        </h3>
+      </div>
+      <div className="aixia-dash-panel-body">
+        <div className="space-y-2">
           {Array.from({ length: 5 }).map((_, index) => (
-            <div
-              key={index}
-              className="p-3 rounded-xl border border-border bg-background/60 backdrop-blur-md"
-            >
-              <div className="h-4 w-2/3 rounded bg-muted/50 animate-pulse mb-2" />
-              <div className="h-3 w-1/3 rounded bg-muted/50 animate-pulse" />
+            <div key={index} className="rounded-lg border border-border/50 p-3">
+              <div className="aixia-dash-skel-line mb-2 w-2/3" />
+              <div className="aixia-dash-skel-line h-2 w-1/3" />
             </div>
           ))}
         </div>
-      </CardContent>
-    </Card>
+      </div>
+    </div>
   );
 }
 
 export default function DashboardPage() {
   const navigate = useNavigate();
-  const requestTracker = useRef(createRequestTracker());
   const { t } = useLanguage();
   const clock = useAppClock();
 
@@ -154,63 +178,71 @@ export default function DashboardPage() {
   const [currentUserId, setCurrentUserId] = useState<string | null>(null);
   const [currentUserName, setCurrentUserName] = useState("");
   const [currentUserRole, setCurrentUserRole] = useState<Role | null>(null);
+  const [userPermissionOverrides, setUserPermissionOverrides] = useState<Partial<
+    Record<Permission, boolean>
+  > | null>(null);
 
   const [projects, setProjects] = useState<ProjectRow[]>([]);
   const [projectMembers, setProjectMembers] = useState<ProjectMemberRow[]>([]);
+  const [taskMembers, setTaskMembers] = useState<TaskMemberRow[]>([]);
   const [tasks, setTasks] = useState<TaskRow[]>([]);
   const [activeMembersCount, setActiveMembersCount] = useState(0);
   const [calendarEvents, setCalendarEvents] = useState<CalendarEventRow[]>([]);
   const [activityLogs, setActivityLogs] = useState<ActivityLogRow[]>([]);
 
+  const [onlineUsers, setOnlineUsers] = useState<Record<string, boolean>>({});
+
+  const applyDashboardData = (data: NonNullable<Awaited<ReturnType<typeof loadFullDashboardData>>>) => {
+    setCurrentUserId(data.userId);
+    setCurrentUserName(data.fullName || t("common.user", "User"));
+    setCurrentUserRole(data.role);
+    setUserPermissionOverrides(
+      (data.permissions as Partial<Record<Permission, boolean>> | null) ?? null
+    );
+    setProjects(data.projects as ProjectRow[]);
+    setProjectMembers(data.projectMembers as ProjectMemberRow[]);
+    setTaskMembers(data.taskMembers as TaskMemberRow[]);
+    setTasks(data.tasks as TaskRow[]);
+    setActiveMembersCount(data.activeMembersCount);
+    setCalendarEvents(data.calendarEvents as CalendarEventRow[]);
+    setActivityLogs(data.activityLogs as ActivityLogRow[]);
+    setHasLoadedOnce(true);
+  };
+
   const loadDashboard = async () => {
-    const requestId = requestTracker.current.next();
-
-        try {
+    try {
       await dashboardRequest.run(async () => {
-       if (!requestTracker.current.isLatest(requestId)) return true;
-
-      const { data, error } = await supabase.functions.invoke("dashboard-summary");
-
-        if (!requestTracker.current.isLatest(requestId)) return true;
-
-        if (error || !data?.payload) {
-          throw new Error(
-            t("dashboard.someDataCouldNotBeLoaded", "Some dashboard data could not be loaded.")
-          );
+        const data = await loadFullDashboardData();
+        if (!data) {
+          throw new Error("Not authenticated");
         }
-
-        const {
-  currentUser,
-  projects,
-  projectMembers,
-  tasks,
-  activeMembersCount,
-  calendarEvents,
-  activityLogs,
-} = data.payload;
-
-        setCurrentUserId(currentUser?.id || null);
-        setCurrentUserName(currentUser?.full_name || t("common.user", "User"));
-        setCurrentUserRole((currentUser?.role as Role) || null);
-        setProjects((projects || []) as ProjectRow[]);
-        setProjectMembers((projectMembers || []) as ProjectMemberRow[]);
-        setTasks((tasks || []) as TaskRow[]);
-        setActiveMembersCount(activeMembersCount || 0);
-        setCalendarEvents((calendarEvents || []) as CalendarEventRow[]);
-        setActivityLogs((activityLogs || []) as ActivityLogRow[]);
-        setHasLoadedOnce(true);
-
+        applyDashboardData(data);
         return true;
-      }, "dashboard:load");
+      });
     } catch (error) {
-      if (!requestTracker.current.isLatest(requestId)) return;
       console.error("Dashboard load error:", error);
+      const fallback = await loadFullDashboardData();
+      if (fallback) {
+        applyDashboardData(fallback);
+      }
     }
   };
 
-    useEffect(() => {
+  useEffect(() => {
     void loadDashboard();
+
+    const {
+      data: { subscription },
+    } = supabase.auth.onAuthStateChange((event) => {
+      if (event === "SIGNED_IN" || event === "TOKEN_REFRESHED") {
+        void loadDashboard();
+      }
+    });
+
+    return () => subscription.unsubscribe();
   }, []);
+
+  useEffect(() => subscribeAixiaOnlineUsers(setOnlineUsers), []);
 
     useEffect(() => {
     if (!currentUserId) return;
@@ -298,7 +330,7 @@ export default function DashboardPage() {
   const visibleProjectIds = useMemo(() => {
     if (!currentUserId) return new Set<string>();
 
-    if (currentUserRole === "admin") {
+    if (isAdminRole(currentUserRole)) {
       return new Set(projects.map((project) => project.id));
     }
 
@@ -317,32 +349,31 @@ export default function DashboardPage() {
   }, [currentUserId, currentUserRole, projects, projectMembers]);
 
   const visibleProjects = useMemo(() => {
-    if (currentUserRole === "admin") return projects;
+    if (isAdminRole(currentUserRole)) return projects;
     return projects.filter((project) => visibleProjectIds.has(project.id));
   }, [currentUserRole, projects, visibleProjectIds]);
 
+  const effectiveRole = currentUserRole ?? "employee";
+
   const visibleTasks = useMemo(() => {
     if (!currentUserId) return [];
-    if (currentUserRole === "admin") return tasks;
+    if (isAdminRole(effectiveRole)) return tasks;
 
-    return tasks.filter(
-      (task) =>
-        task.created_by === currentUserId ||
-        task.assignee_id === currentUserId ||
-        (task.project_id ? visibleProjectIds.has(task.project_id) : false)
+    return tasks.filter((task) =>
+      canViewTask(task, currentUserId, effectiveRole, taskMembers, visibleProjectIds)
     );
-  }, [currentUserId, currentUserRole, tasks, visibleProjectIds]);
+  }, [currentUserId, effectiveRole, tasks, taskMembers, visibleProjectIds]);
 
   const visibleEvents = useMemo(() => {
     if (!currentUserId) return [];
-    if (currentUserRole === "admin") return calendarEvents;
+    if (isAdminRole(effectiveRole)) return calendarEvents;
 
     return calendarEvents.filter(
       (event) =>
         event.created_by === currentUserId ||
         (event.project_id ? visibleProjectIds.has(event.project_id) : false)
     );
-  }, [calendarEvents, currentUserId, currentUserRole, visibleProjectIds]);
+  }, [calendarEvents, currentUserId, effectiveRole, visibleProjectIds]);
 
   const activeProjectsForProgress = useMemo(() => {
     return visibleProjects.filter((project) => {
@@ -432,7 +463,7 @@ export default function DashboardPage() {
 
   const visibleActivity = useMemo(() => {
     const filtered = activityLogs.filter((log) => {
-      if (currentUserRole === "admin") return true;
+      if (isAdminRole(currentUserRole)) return true;
       if (!currentUserId) return false;
       if (log.project_id && visibleProjectIds.has(log.project_id)) return true;
       if (log.user_id && log.user_id === currentUserId) return true;
@@ -451,363 +482,479 @@ export default function DashboardPage() {
       ? 0
       : Math.round((completedTasks / totalRelevantTasks) * 100);
 
+  const effectivePermissions = useMemo(
+    () =>
+      currentUserRole
+        ? getEffectivePermissions(currentUserRole, userPermissionOverrides)
+        : null,
+    [currentUserRole, userPermissionOverrides]
+  );
+
+  const showAdminDashboardCards = useMemo(
+    () =>
+      isAdminRole(currentUserRole) || Boolean(effectivePermissions?.manageUsers),
+    [currentUserRole, effectivePermissions]
+  );
+
+  const presenceOnlineCount = useMemo(() => {
+    if (!showAdminDashboardCards) return 0;
+    return Object.values(onlineUsers).filter(Boolean).length;
+  }, [showAdminDashboardCards, onlineUsers]);
+
+  const overdueOpenTaskCount = useMemo(() => {
+    const today = startOfDay(clock.now);
+    return activeTasksForCompletion.filter((task) => {
+      if (!task.due_date) return false;
+      return isBefore(parseISO(task.due_date), today);
+    }).length;
+  }, [activeTasksForCompletion, clock.now]);
+
+  const eventsNextSevenDaysCount = useMemo(() => {
+    const start = startOfDay(clock.now);
+    const end = addDays(start, 7);
+    return visibleEvents.filter((event) => {
+      const when = startOfDay(parseISO(event.start_date));
+      return !isBefore(when, start) && isBefore(when, end);
+    }).length;
+  }, [visibleEvents, clock.now]);
+
+  const highPriorityOpenCount = useMemo(() => {
+    return activeTasksForCompletion.filter((task) => {
+      const p = (task.priority || "").toUpperCase();
+      return p === "HIGH" || p === "URGENT" || p === "CRITICAL";
+    }).length;
+  }, [activeTasksForCompletion]);
+
+  const liveMetricItems = useMemo<AixiaCommandMetricItem[]>(
+    () => [
+      {
+        key: "upcoming",
+        title: t("dashboard.liveChipUpcoming", "upcoming"),
+        value: String(upcomingItems.length),
+        icon: CalendarDays,
+        tone: "indigo",
+      },
+      {
+        key: "activity",
+        title: t("dashboard.liveChipActivity", "activity items"),
+        value: String(visibleActivity.length),
+        icon: Activity,
+        tone: "indigo",
+      },
+      {
+        key: "open-tasks",
+        title: t("dashboard.liveChipOpenTasks", "open tasks"),
+        value: String(activeTasksForCompletion.length),
+        icon: CheckSquare,
+        tone: "cyan",
+      },
+      {
+        key: "online",
+        title: t("dashboard.liveChipOnline", "online"),
+        value: String(presenceOnlineCount),
+        icon: Users,
+        tone: "emerald",
+      },
+      {
+        key: "overdue",
+        title: t("dashboard.liveChipOverdue", "overdue"),
+        value: String(overdueOpenTaskCount),
+        icon: AlertCircle,
+        tone: overdueOpenTaskCount > 0 ? "rose" : "neutral",
+      },
+      {
+        key: "events-week",
+        title: t("dashboard.liveChipEventsWeek", "events · 7d"),
+        value: String(eventsNextSevenDaysCount),
+        icon: CalendarDays,
+        tone: "violet",
+      },
+      {
+        key: "high-priority",
+        title: t("dashboard.liveChipHighPrio", "high priority"),
+        value: String(highPriorityOpenCount),
+        icon: TrendingUp,
+        tone: "amber",
+      },
+    ],
+    [
+      t,
+      upcomingItems.length,
+      visibleActivity.length,
+      activeTasksForCompletion.length,
+      presenceOnlineCount,
+      overdueOpenTaskCount,
+      eventsNextSevenDaysCount,
+      highPriorityOpenCount,
+    ]
+  );
+
   return (
-    <div className="h-[calc(100vh-126px)] flex flex-col gap-6 overflow-hidden pb-6">
-      <div className="flex flex-wrap items-start justify-between gap-4 shrink-0">
-        <div>
-          <h1 className="text-3xl font-semibold tracking-[-0.02em] text-foreground">
-                        {dashboardRequest.status === "loading" && !hasLoadedOnce
-              ? t("dashboard.welcome", "Welcome,")
-              : t("dashboard.welcomeUser", "Welcome, {{name}}", {
-                  name: currentUserName || t("common.user", "User"),
-                })}
-          </h1>
-          <p className="text-muted-foreground">
-            {t(
-              "dashboard.subtitle",
-              "Here is a live overview of your projects, tasks, and events"
-            )}
-          </p>
-        </div>
+    <AixiaPage surface="command" className="aixia-command-page aixia-dashboard-page">
+      <AixiaHero
+        surface="command"
+        className="shrink-0 space-y-4"
+        gradientTitle={t("dashboard.heroKicker", "Live workspace")}
+        title={
+          dashboardRequest.status === "loading" && !hasLoadedOnce
+            ? t("dashboard.welcome", "Welcome,")
+            : t("dashboard.welcomeUser", "Welcome, {{name}}", {
+                name: currentUserName || t("common.user", "User"),
+              })
+        }
+        subtitle={t(
+          "dashboard.subtitle",
+          "Here is a live overview of your projects, tasks, and events"
+        )}
+        actions={
+          <>
+            <AixiaButton
+              variant="primary"
+              type="button"
+              className="h-9"
+              onClick={() => navigate("/projects/new")}
+            >
+              <Plus className="w-4 h-4 mr-2" />
+              {t("dashboard.newProject", "New project")}
+            </AixiaButton>
+            <AixiaButton
+              type="button"
+              className="h-9"
+              onClick={() => navigate("/calendar/new")}
+            >
+              <CalendarDays className="w-4 h-4 mr-2" />
+              {t("dashboard.newEvent", "New event")}
+            </AixiaButton>
+            <AixiaButton
+              type="button"
+              className="h-9"
+              onClick={() => void loadDashboard()}
+              disabled={dashboardRequest.status === "loading"}
+            >
+              {dashboardRequest.status === "loading"
+                ? t("dashboard.refreshing", "Refreshing…")
+                : t("dashboard.refresh", "Refresh")}
+            </AixiaButton>
+          </>
+        }
+      >
+        <AixiaCommandMetrics items={liveMetricItems} />
+      </AixiaHero>
 
-        <div className="flex gap-2">
-          <Button
-            className=""
-            onClick={() => navigate("/projects/new")}
-          >
-            <Plus className="w-4 h-4 mr-2" />
-            {t("dashboard.newProject", "New Project")}
-          </Button>
-
-          <Button
-            variant="outline"
-            className=""
-            onClick={() => navigate("/calendar/new")}
-          >
-            <CalendarDays className="w-4 h-4 mr-2" />
-            {t("dashboard.newEvent", "New Event")}
-          </Button>
-
-                    <Button
-            variant="outline"
-            className=""
-            onClick={() => void loadDashboard()}
-            disabled={dashboardRequest.status === "loading"}
-          >
-            {dashboardRequest.status === "loading"
-              ? t("dashboard.refreshing", "Refreshing...")
-              : t("dashboard.refresh", "Refresh")}
-          </Button>
-        </div>
-      </div>
-
+      <div className="aixia-command-scroll">
       <PageError message={dashboardRequest.error || ""} />
 
-      <div className="grid md:grid-cols-2 xl:grid-cols-4 gap-4 shrink-0">
-  <PageLoader
-    loading={dashboardRequest.status === "loading" && !hasLoadedOnce}
-    fallback={
-      <>
-        <StatCardSkeleton />
-        <StatCardSkeleton />
-        <StatCardSkeleton />
-        <StatCardSkeleton />
-      </>
-    }
-  >
-    <>
-      <Card>
-        <CardContent className="p-4 flex items-center gap-3">
-          <div className="w-10 h-10 rounded-xl bg-primary/10 flex items-center justify-center shrink-0">
-            <FolderKanban className="w-5 h-5 text-primary" />
-          </div>
-          <div>
-            <div className="text-xl font-bold text-foreground">
-              {activeProjectsForProgress.length}
-            </div>
-            <div className="text-sm text-muted-foreground">
-              {t("dashboard.activeProjects", "Active Projects")}
-            </div>
-          </div>
-        </CardContent>
-      </Card>
-
-      <Card>
-        <CardContent className="p-4 flex items-center gap-3">
-          <div className="w-10 h-10 rounded-xl bg-primary/10 flex items-center justify-center shrink-0">
-            <CheckSquare className="w-5 h-5 text-primary" />
-          </div>
-          <div>
-            <div className="text-xl font-bold text-foreground">
-              {activeTasksForCompletion.length}
-            </div>
-            <div className="text-sm text-muted-foreground">
-              {t("dashboard.activeTasks", "Active Tasks")}
-            </div>
-          </div>
-        </CardContent>
-      </Card>
-
-      <Card>
-        <CardContent className="p-4 flex items-center gap-3">
-          <div className="w-10 h-10 rounded-xl bg-primary/10 flex items-center justify-center shrink-0">
-            <Users className="w-5 h-5 text-primary" />
-          </div>
-          <div>
-            <div className="text-xl font-bold text-foreground">{activeMembersCount}</div>
-            <div className="text-sm text-muted-foreground">
-              {t("dashboard.activeMembers", "Active Members")}
-            </div>
-          </div>
-        </CardContent>
-      </Card>
-
-      <Card>
-        <CardContent className="p-4 flex items-center gap-3">
-          <div className="w-10 h-10 rounded-xl bg-primary/10 flex items-center justify-center shrink-0">
-            <TrendingUp className="w-5 h-5 text-primary" />
-          </div>
-          <div className="w-full">
-            <div className="text-xl font-bold text-foreground">{averageProgress}%</div>
-            <div className="text-sm text-muted-foreground mb-2">
-              {t("dashboard.averageProjectProgress", "Average Project Progress")}
-            </div>
-            <Progress value={averageProgress} />
-          </div>
-        </CardContent>
-      </Card>
-    </>
-  </PageLoader>
-</div>
-
-     <div className="grid xl:grid-cols-2 gap-6 flex-1 min-h-0 overflow-y-auto pb-6">
-  <div className="grid gap-6 min-h-0 content-start xl:auto-rows-[520px]">
-    {dashboardRequest.status === "loading" && !hasLoadedOnce ? (
-      <>
-        <PanelSkeleton
-          title={t("dashboard.upcomingDeadlines", "Upcoming Deadlines")}
-          icon={<AlertCircle className="w-5 h-5 text-primary" />}
+      <div className="aixia-dash-widget-shell aixia-dash-glass aixia-dash-tilt-panel">
+        <DashboardProjectTeammatesCard
+          projects={visibleProjects}
+          projectMembers={projectMembers}
+          onlineUsers={onlineUsers}
         />
-        <PanelSkeleton title={t("dashboard.projectProgress", "Project Progress")} />
-      </>
-    ) : (
-      <>
-        <Card className="flex flex-col overflow-hidden min-h-0 h-full xl:h-[520px]">
-          <CardHeader className="flex flex-row items-center justify-between shrink-0 pb-4">
-            <CardTitle className="text-foreground flex items-center gap-2">
-              <AlertCircle className="w-5 h-5 text-primary" />
-              {t("dashboard.upcomingDeadlines", "Upcoming Deadlines")}
-            </CardTitle>
-            <Button
-              variant="ghost"
-              className="text-muted-foreground hover:text-foreground"
-              onClick={() => navigate("/calendar")}
-            >
-              {t("dashboard.viewCalendar", "View Calendar")}
-              <ArrowRight className="w-4 h-4 ml-2" />
-            </Button>
-          </CardHeader>
+      </div>
 
-          <CardContent className="flex-1 overflow-hidden">
-            {upcomingItems.length === 0 ? (
-              <div className="text-muted-foreground">
-                {t(
-                  "dashboard.noUpcomingDeadlinesOrEvents",
-                  "No upcoming deadlines or events."
-                )}
+      <div className="aixia-dash-widget-shell aixia-dash-glass aixia-dash-tilt-panel">
+        <DashboardAdminEmployeeDirectoryCard onlineUsers={onlineUsers} />
+      </div>
+
+      <div className="aixia-dash-widget-shell aixia-dash-glass aixia-dash-tilt-panel">
+        <DashboardAdminPlatformUsageCard />
+      </div>
+
+      <DashboardWorkspaceRail
+        role={currentUserRole}
+        permissionOverrides={userPermissionOverrides}
+      />
+
+      <DashboardEmailStatusCard />
+
+      <PageLoader
+        loading={dashboardRequest.status === "loading" && !hasLoadedOnce}
+        fallback={
+          <div className="aixia-dash-bento">
+            <StatCardSkeleton />
+            <StatCardSkeleton />
+            <StatCardSkeleton />
+            <StatCardSkeleton />
+          </div>
+        }
+      >
+        <div className="aixia-dash-bento">
+          <div
+            className="aixia-dash-metric aixia-dash-metric--featured aixia-dash-metric--tone-violet aixia-dash-glass aixia-dash-tilt-metric"
+            style={{ ["--aixia-dash-foot-pct" as string]: `${Math.min(100, averageProgress)}%` }}
+          >
+            <span className="aixia-dash-metric-deco" aria-hidden />
+            <div className="flex items-start gap-3 flex-1 min-h-0">
+              <div className="aixia-dash-metric-icon">
+                <FolderKanban />
               </div>
+              <div className="min-w-0 flex-1">
+                <div className="aixia-dash-metric-val">{activeProjectsForProgress.length}</div>
+                <div className="aixia-dash-metric-label">
+                  {t("dashboard.activeProjects", "Active Projects")}
+                </div>
+              </div>
+            </div>
+            <div className="aixia-dash-metric-foot">
+              <span />
+            </div>
+          </div>
+          <div className="aixia-dash-metric aixia-dash-metric--compact aixia-dash-metric--tone-teal aixia-dash-glass aixia-dash-tilt-metric">
+            <span className="aixia-dash-metric-deco" aria-hidden />
+            <div className="aixia-dash-metric-icon">
+              <CheckSquare />
+            </div>
+            <div className="min-w-0 flex-1">
+              <div className="aixia-dash-metric-val">{activeTasksForCompletion.length}</div>
+              <div className="aixia-dash-metric-label">
+                {t("dashboard.activeTasks", "Active Tasks")}
+              </div>
+            </div>
+          </div>
+          <div className="aixia-dash-metric aixia-dash-metric--compact aixia-dash-metric--tone-amber aixia-dash-glass aixia-dash-tilt-metric">
+            <span className="aixia-dash-metric-deco" aria-hidden />
+            <div className="aixia-dash-metric-icon">
+              <Users />
+            </div>
+            <div className="min-w-0 flex-1">
+              <div className="aixia-dash-metric-val">{activeMembersCount}</div>
+              <div className="aixia-dash-metric-label">
+                {t("dashboard.activeMembers", "Active Members")}
+              </div>
+            </div>
+          </div>
+          <div className="aixia-dash-metric aixia-dash-metric--compact aixia-dash-metric--tone-rose aixia-dash-glass aixia-dash-tilt-metric">
+            <span className="aixia-dash-metric-deco" aria-hidden />
+            <div className="aixia-dash-metric-icon">
+              <TrendingUp />
+            </div>
+            <div className="min-w-0 w-full">
+              <div className="aixia-dash-metric-val">{averageProgress}%</div>
+              <div className="aixia-dash-metric-label">
+                {t("dashboard.averageProjectProgress", "Avg. progress")}
+              </div>
+              <Progress value={averageProgress} className="h-1 mt-1.5" />
+            </div>
+          </div>
+        </div>
+      </PageLoader>
+
+      <div className="aixia-dash-scroll">
+        <div className="aixia-dash-main-grid">
+          <div className="aixia-dash-col">
+            {dashboardRequest.status === "loading" && !hasLoadedOnce ? (
+              <>
+                <PanelSkeleton
+                  title={t("dashboard.upcomingDeadlines", "Upcoming Deadlines")}
+                  icon={<AlertCircle className="w-3.5 h-3.5 text-primary" />}
+                />
+                <PanelSkeleton title={t("dashboard.projectProgress", "Project Progress")} />
+              </>
             ) : (
-              <ScrollArea className="h-full pr-3 pb-4">
-                <div className="space-y-3">
-                  {upcomingItems.map((item) => (
+              <>
+                <section className="aixia-dash-panel aixia-dash-panel--deadlines aixia-dash-glass aixia-dash-tilt-panel">
+                  <div className="aixia-dash-panel-hd">
+                    <h2 className="aixia-dash-panel-title">
+                      <AlertCircle className="text-primary" />
+                      {t("dashboard.upcomingDeadlines", "Upcoming")}
+                    </h2>
                     <button
-                      key={item.id}
                       type="button"
-                      onClick={() => navigate(item.link)}
-                      className="w-full text-left p-4 rounded-xl border border-border bg-background/60 backdrop-blur-md hover:border-primary/30 transition"
+                      className="aixia-dash-action"
+                      onClick={() => navigate("/calendar")}
                     >
-                      <div className="flex items-center justify-between gap-3">
-                        <div className="min-w-0">
-                          <div className="text-foreground font-medium truncate">
-                            {item.title}
-                          </div>
-                          <div className="text-sm text-muted-foreground">
-                            {format(parseISO(item.date), "MMM d, yyyy")}
-                          </div>
-                        </div>
-
-                        <div className="shrink-0">
-                          <Badge className="bg-primary/10 text-primary">
-                            {item.meta || item.type}
-                          </Badge>
-                        </div>
-                      </div>
+                      {t("dashboard.viewCalendar", "Calendar")}
+                      <ArrowRight className="w-3.5 h-3.5" />
                     </button>
-                  ))}
-                </div>
-              </ScrollArea>
-            )}
-          </CardContent>
-        </Card>
-
-        <Card className="flex flex-col overflow-hidden min-h-0 h-full xl:h-[520px]">
-          <CardHeader className="shrink-0 pb-4">
-            <CardTitle className="text-foreground">
-              {t("dashboard.projectProgress", "Project Progress")}
-            </CardTitle>
-          </CardHeader>
-
-          <CardContent className="flex-1 overflow-hidden">
-            {activeProjectsForProgress.length === 0 ? (
-              <div className="text-muted-foreground">
-                {t("dashboard.noActiveProjectsAvailable", "No active projects available.")}
-              </div>
-            ) : (
-              <ScrollArea className="h-full pr-3 pb-4">
-                <div className="space-y-4">
-                  {activeProjectsForProgress.map((project) => (
-                    <div key={project.id} className="space-y-2">
-                      <div className="flex items-center justify-between gap-3">
-                        <button
-                          className="text-foreground hover:text-primary truncate"
-                          onClick={() => navigate(`/projects/${project.id}`)}
-                        >
-                          {project.name}
-                        </button>
-                        <span className="text-sm text-muted-foreground">
-                          {project.progress || 0}%
-                        </span>
-                      </div>
-                      <Progress value={project.progress || 0} />
-                    </div>
-                  ))}
-                </div>
-              </ScrollArea>
-            )}
-          </CardContent>
-        </Card>
-      </>
-    )}
-  </div>
-
-  <div className="grid gap-6 min-h-0 content-start xl:auto-rows-[520px]">
-                    {dashboardRequest.status === "loading" && !hasLoadedOnce ? (
-            <>
-              <PanelSkeleton
-                title={t("dashboard.activityFeed", "Activity Feed")}
-                icon={<Activity className="w-5 h-5 text-primary" />}
-              />
-              <PanelSkeleton title={t("dashboard.taskCompletion", "Task Completion")} />
-            </>
-          ) : (
-            <>
-              <Card className="flex flex-col overflow-hidden min-h-0 h-full xl:h-[520px]">
-                <CardHeader className="shrink-0 pb-4">
-                  <CardTitle className="text-foreground flex items-center gap-2">
-                    <Activity className="w-5 h-5 text-primary" />
-                    {t("dashboard.activityFeed", "Activity Feed")}
-                  </CardTitle>
-                </CardHeader>
-
-                <CardContent className="flex-1 overflow-hidden">
-                  {visibleActivity.length === 0 ? (
-                    <div className="text-muted-foreground">
-                      {t("dashboard.noRecentActivityYet", "No recent activity yet.")}
-                    </div>
-                  ) : (
-                    <ScrollArea className="h-full pr-3 pb-4">
-                      <div className="space-y-3">
-                        {visibleActivity.map((log) => (
-                          <div
-                            key={log.id}
-                            className="p-3 rounded-xl border border-border bg-background/60 backdrop-blur-md"
-                          >
-                            <div className="text-foreground text-sm">{log.message}</div>
-                            <div className="text-xs text-muted-foreground mt-1">
-                              {format(parseISO(log.created_at), "MMM d, yyyy h:mm a")}
-                            </div>
-                          </div>
-                        ))}
-                      </div>
-                    </ScrollArea>
-                  )}
-                </CardContent>
-              </Card>
-
-              <Card className="flex flex-col overflow-hidden min-h-0 h-full xl:h-[520px]">
-                <CardHeader className="shrink-0 pb-3">
-                  <CardTitle className="text-foreground">
-                    {t("dashboard.taskCompletion", "Task Completion")}
-                  </CardTitle>
-                </CardHeader>
-
-                <CardContent className="flex flex-col flex-1 overflow-hidden">
-                  <div className="shrink-0 space-y-3 pb-3">
-                    <div className="text-foreground text-lg font-semibold">
-                      {t("dashboard.completedSummary", "{{completed}} / {{total}} completed", {
-                        completed: completedTasks,
-                        total: totalRelevantTasks,
-                      })}
-                    </div>
-
-                    <Progress value={completionPercent} />
-
-                    <div className="text-sm text-muted-foreground">
-                      {totalRelevantTasks === 0
-                        ? t("dashboard.noRelevantTasksYet", "No relevant tasks yet.")
-                        : t(
-                            "dashboard.percentTasksComplete",
-                            "{{percent}}% of tasks are complete",
-                            { percent: completionPercent }
-                          )}
-                    </div>
                   </div>
-
-                  <div className="flex-1 overflow-hidden">
-                    {activeTasksForCompletion.length > 0 ? (
-                      <ScrollArea className="h-full pr-3 pb-4">
-                        <div className="space-y-3">
-                          {activeTasksForCompletion.map((task) => (
+                  <div className="aixia-dash-panel-body">
+                    {upcomingItems.length === 0 ? (
+                      <p className="aixia-dash-empty">
+                        {t(
+                          "dashboard.noUpcomingDeadlinesOrEvents",
+                          "No upcoming deadlines or events."
+                        )}
+                      </p>
+                    ) : (
+                      <ScrollArea className="h-[min(62vh,620px)] pr-2">
+                        <div className="space-y-0.5">
+                          {upcomingItems.map((item) => (
                             <button
-                              key={task.id}
+                              key={item.id}
                               type="button"
-                              onClick={() => navigate(`/tasks/${task.id}`)}
-                              className="w-full text-left p-3 rounded-xl border border-border bg-background/60 backdrop-blur-md hover:border-primary/30 transition"
+                              className="aixia-dash-list-row"
+                              onClick={() => navigate(item.link)}
                             >
-                              <div className="flex items-center justify-between gap-3">
+                              <div className="flex items-start justify-between gap-2">
                                 <div className="min-w-0">
-                                  <div className="text-foreground truncate">{task.title}</div>
-                                  {task.due_date && (
-                                    <div className="text-xs text-muted-foreground">
-                                      {t("dashboard.dueLabel", "Due")}{" "}
-                                      {format(parseISO(task.due_date), "MMM d, yyyy")}
-                                    </div>
-                                  )}
+                                  <div className="aixia-dash-list-row-title">{item.title}</div>
+                                  <div className="aixia-dash-list-row-meta">
+                                    {format(parseISO(item.date), "MMM d, yyyy")}
+                                  </div>
                                 </div>
-
-                                <Badge className="bg-primary/10 text-primary shrink-0">
-                                  {(task.status || t("dashboard.taskLabel", "Task")).replaceAll(
-                                    "_",
-                                    " "
-                                  )}
-                                </Badge>
+                                <span className="aixia-dash-pill shrink-0">
+                                  {String(item.meta || item.type).replaceAll("_", " ")}
+                                </span>
                               </div>
                             </button>
                           ))}
                         </div>
                       </ScrollArea>
-                    ) : (
-                      <div className="text-muted-foreground">
-                        {t("dashboard.noActiveTasksToDisplay", "No active tasks to display.")}
-                      </div>
                     )}
                   </div>
-                </CardContent>
-              </Card>
-            </>
-          )}
+                </section>
+
+                <section className="aixia-dash-panel aixia-dash-panel--progress aixia-dash-glass aixia-dash-tilt-panel">
+                  <div className="aixia-dash-panel-hd">
+                    <h2 className="aixia-dash-panel-title">
+                      {t("dashboard.projectProgress", "Project progress")}
+                    </h2>
+                  </div>
+                  <div className="aixia-dash-panel-body">
+                    {activeProjectsForProgress.length === 0 ? (
+                      <p className="aixia-dash-empty">
+                        {t("dashboard.noActiveProjectsAvailable", "No active projects available.")}
+                      </p>
+                    ) : (
+                      <ScrollArea className="h-[min(62vh,620px)] pr-2">
+                        <div className="space-y-3">
+                          {activeProjectsForProgress.map((project) => (
+                            <div key={project.id} className="space-y-1.5">
+                              <div className="flex items-center justify-between gap-2">
+                                <button
+                                  type="button"
+                                  className="aixia-dash-list-row-title hover:text-primary text-left truncate bg-transparent border-none p-0 cursor-pointer"
+                                  onClick={() => navigate(`/projects/${project.id}`)}
+                                >
+                                  {project.name}
+                                </button>
+                                <span className="text-xs tabular-nums text-muted-foreground shrink-0">
+                                  {project.progress || 0}%
+                                </span>
+                              </div>
+                              <Progress value={project.progress || 0} className="h-1" />
+                            </div>
+                          ))}
+                        </div>
+                      </ScrollArea>
+                    )}
+                  </div>
+                </section>
+              </>
+            )}
+          </div>
+
+          <div className="aixia-dash-col">
+            {dashboardRequest.status === "loading" && !hasLoadedOnce ? (
+              <>
+                <PanelSkeleton
+                  title={t("dashboard.activityFeed", "Activity")}
+                  icon={<Activity className="w-3.5 h-3.5 text-primary" />}
+                />
+                <PanelSkeleton title={t("dashboard.taskCompletion", "Tasks")} />
+              </>
+            ) : (
+              <>
+                <section className="aixia-dash-panel aixia-dash-panel--activity aixia-dash-glass aixia-dash-tilt-panel">
+                  <div className="aixia-dash-panel-hd">
+                    <h2 className="aixia-dash-panel-title">
+                      <Activity className="text-primary" />
+                      {t("dashboard.activityFeed", "Activity")}
+                    </h2>
+                  </div>
+                  <div className="aixia-dash-panel-body">
+                    {visibleActivity.length === 0 ? (
+                      <p className="aixia-dash-empty">
+                        {t("dashboard.noRecentActivityYet", "No recent activity yet.")}
+                      </p>
+                    ) : (
+                      <ScrollArea className="h-[min(62vh,620px)] pr-2">
+                        <div className="space-y-2">
+                          {visibleActivity.map((log) => (
+                            <div key={log.id} className="aixia-dash-feed-item">
+                              <div className="text-sm text-foreground leading-snug">{log.message}</div>
+                              <div className="text-[0.65rem] text-muted-foreground mt-1 tabular-nums">
+                                {format(parseISO(log.created_at), "MMM d, yyyy h:mm a")}
+                              </div>
+                            </div>
+                          ))}
+                        </div>
+                      </ScrollArea>
+                    )}
+                  </div>
+                </section>
+
+                <section className="aixia-dash-panel aixia-dash-panel--tasks aixia-dash-glass aixia-dash-tilt-panel">
+                  <div className="aixia-dash-panel-hd">
+                    <h2 className="aixia-dash-panel-title">
+                      {t("dashboard.taskCompletion", "Task completion")}
+                    </h2>
+                  </div>
+                  <div className="aixia-dash-panel-body flex flex-col gap-3 min-h-0">
+                    <div className="shrink-0 space-y-2">
+                      <div className="text-sm font-medium text-foreground">
+                        {t("dashboard.completedSummary", "{{completed}} / {{total}} completed", {
+                          completed: completedTasks,
+                          total: totalRelevantTasks,
+                        })}
+                      </div>
+                      <Progress value={completionPercent} className="h-1" />
+                      <p className="text-xs text-muted-foreground">
+                        {totalRelevantTasks === 0
+                          ? t("dashboard.noRelevantTasksYet", "No relevant tasks yet.")
+                          : t(
+                              "dashboard.percentTasksComplete",
+                              "{{percent}}% of tasks are complete",
+                              { percent: completionPercent }
+                            )}
+                      </p>
+                    </div>
+                    <div className="flex-1 min-h-0">
+                      {activeTasksForCompletion.length > 0 ? (
+                        <ScrollArea className="h-[min(44vh,420px)] pr-2">
+                          <div className="space-y-0.5">
+                            {activeTasksForCompletion.map((task) => (
+                              <button
+                                key={task.id}
+                                type="button"
+                                className="aixia-dash-list-row"
+                                onClick={() => navigate(`/tasks/${task.id}`)}
+                              >
+                                <div className="flex items-start justify-between gap-2">
+                                  <div className="min-w-0">
+                                    <div className="aixia-dash-list-row-title">{task.title}</div>
+                                    {task.due_date ? (
+                                      <div className="aixia-dash-list-row-meta">
+                                        {t("dashboard.dueLabel", "Due")}{" "}
+                                        {format(parseISO(task.due_date), "MMM d, yyyy")}
+                                      </div>
+                                    ) : null}
+                                  </div>
+                                  <Badge className="bg-primary/12 text-primary text-[0.6rem] shrink-0 h-5 px-2 font-medium border-0">
+                                    {(task.status || t("dashboard.taskLabel", "Task")).replaceAll(
+                                      "_",
+                                      " "
+                                    )}
+                                  </Badge>
+                                </div>
+                              </button>
+                            ))}
+                          </div>
+                        </ScrollArea>
+                      ) : (
+                        <p className="aixia-dash-empty">
+                          {t("dashboard.noActiveTasksToDisplay", "No active tasks to display.")}
+                        </p>
+                      )}
+                    </div>
+                  </div>
+                </section>
+              </>
+            )}
+          </div>
         </div>
       </div>
-    </div>
+      </div>
+    </AixiaPage>
   );
 }

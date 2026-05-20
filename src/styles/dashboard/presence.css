@@ -1,0 +1,320 @@
+/* Presence strip — peers / org online */
+.aixia-dash-presence {
+  border: 1px solid var(--aixia-dash-border);
+  border-radius: var(--aixia-dash-radius);
+  background: var(--aixia-dash-surface);
+  flex-shrink: 0;
+  width: 100%;
+  min-width: 0;
+}
+
+.aixia-dash-presence-hd {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 0.65rem 1rem;
+  padding: clamp(0.65rem, 1.75vw, 0.95rem) clamp(0.85rem, 2.25vw, 1.25rem)
+    clamp(0.45rem, 1.25vw, 0.6rem);
+  flex-wrap: wrap;
+}
+
+.aixia-dash-presence-title {
+  margin: 0;
+  font-size: 0.875rem;
+  font-weight: 600;
+  color: var(--aixia-dash-title);
+}
+
+.aixia-dash-presence-caption {
+  font-size: 0.72rem;
+  color: var(--aixia-dash-muted);
+}
+
+/* Auto-fit tiles: each card keeps name + role together (no stretched columns). */
+.aixia-dash-presence-scroll {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(15rem, 1fr));
+  gap: 0.55rem;
+  padding: 0.35rem clamp(0.65rem, 2vw, 1.1rem) clamp(0.75rem, 2vw, 1.15rem);
+  max-height: min(48vh, 420px);
+  min-height: 11rem;
+  overflow-y: auto;
+  overflow-x: hidden;
+  scrollbar-gutter: stable;
+  align-content: start;
+}
+
+@media (max-width: 439px) {
+  .aixia-dash-presence-scroll {
+    grid-template-columns: 1fr;
+  }
+}
+
+.aixia-dash-presence-scroll--plain {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+}
+
+.aixia-dash-presence-scroll--tiles {
+  grid-template-columns: repeat(auto-fill, minmax(15rem, 1fr));
+}
+
+.aixia-dash-admin-directory-grid {
+  min-height: 12rem;
+}
+
+.aixia-dash-presence-tile {
+  appearance: none;
+  font: inherit;
+  display: flex;
+  align-items: center;
+  gap: 0.55rem;
+  padding: 0.55rem 0.65rem;
+  border-radius: var(--aixia-dash-radius-sm);
+  border: 1px solid color-mix(in srgb, var(--aixia-dash-border) 75%, transparent);
+  width: 100%;
+  min-width: 0;
+  text-align: left;
+  background: color-mix(in srgb, var(--background, #020617) 32%, transparent);
+  cursor: pointer;
+  transition:
+    background 0.15s ease,
+    border-color 0.15s ease,
+    box-shadow 0.15s ease,
+    transform 0.15s ease;
+}
+
+.aixia-dash-presence-tile:hover {
+  background: color-mix(in srgb, var(--foreground, #fff) 7%, transparent);
+  border-color: color-mix(in srgb, var(--primary, #6366f1) 32%, transparent);
+  transform: translateY(-1px);
+}
+
+.aixia-dash-presence-tile--online {
+  border-color: color-mix(in srgb, var(--aixia-dash-online) 36%, transparent);
+  box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--aixia-dash-online) 12%, transparent);
+}
+
+.aixia-dash-presence-tile--online:hover {
+  border-color: color-mix(in srgb, var(--aixia-dash-online) 48%, transparent);
+}
+
+/* Admin-only project teammates card */
+.aixia-dash-admin-teammates-filters {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem 0.75rem;
+  padding: 0  clamp(0.85rem, 2.25vw, 1.25rem) 0.65rem;
+}
+
+.aixia-dash-admin-teammates-filters label {
+  font-size: 0.72rem;
+  color: var(--aixia-dash-muted);
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
+}
+
+.aixia-dash-admin-teammates-filters input[type="date"],
+.aixia-dash-admin-teammates-filters select {
+  font-size: 0.8125rem;
+  padding: 0.35rem 0.5rem;
+  border-radius: 8px;
+  border: 1px solid var(--aixia-dash-border);
+  background: color-mix(in srgb, var(--background, #09090b) 92%, transparent);
+  color: var(--aixia-dash-title);
+  min-height: 2.25rem;
+}
+
+.aixia-dash-admin-teammates-filters select {
+  min-width: min(12rem, 40vw);
+}
+
+.aixia-dash-admin-teammates-usage {
+  padding: 0 clamp(0.85rem, 2.25vw, 1.25rem) 0.75rem;
+}
+
+.aixia-dash-admin-teammates-usage-line {
+  margin: 0;
+  font-size: 0.8125rem;
+  color: var(--aixia-dash-muted);
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 0.35rem 0.5rem;
+}
+
+.aixia-dash-admin-teammates-usage-line--error {
+  color: #fbbf24;
+}
+
+.aixia-dash-admin-teammates-usage-label {
+  font-weight: 600;
+  color: var(--aixia-dash-title);
+}
+
+.aixia-dash-admin-teammates-usage-value {
+  font-size: 1rem;
+  font-weight: 700;
+  color: var(--aixia-dash-title);
+}
+
+.aixia-dash-admin-teammates-list {
+  display: flex;
+  flex-direction: column;
+  gap: 0.35rem;
+  max-height: min(40vh, 360px);
+}
+
+.aixia-dash-admin-teammates-row {
+  display: flex;
+  align-items: center;
+  gap: 0.55rem;
+  padding: 0.45rem 0.65rem;
+  border-radius: var(--aixia-dash-radius-sm);
+  border: 1px solid color-mix(in srgb, var(--aixia-dash-border) 75%, transparent);
+  background: color-mix(in srgb, var(--background, #020617) 32%, transparent);
+}
+
+.aixia-dash-status-pill {
+  width: 0.65rem;
+  height: 0.65rem;
+  border-radius: 999px;
+  flex-shrink: 0;
+  border: 1px solid color-mix(in srgb, white 20%, transparent);
+}
+
+.aixia-dash-status-pill--online {
+  background: linear-gradient(145deg, #4ade80, #16a34a);
+  box-shadow:
+    0 0 0 1px color-mix(in srgb, #86efac 55%, transparent),
+    0 2px 6px rgba(22, 163, 74, 0.45),
+    0 0 14px rgba(34, 197, 94, 0.55);
+}
+
+.aixia-dash-status-pill--live {
+  width: 0.72rem;
+  height: 0.72rem;
+  animation: aixia-dash-status-pulse 1.6s ease-in-out infinite;
+}
+
+@keyframes aixia-dash-status-pulse {
+  0%,
+  100% {
+    transform: scale(1);
+    box-shadow:
+      0 0 0 1px color-mix(in srgb, #86efac 55%, transparent),
+      0 2px 6px rgba(22, 163, 74, 0.45),
+      0 0 12px rgba(34, 197, 94, 0.45);
+  }
+  50% {
+    transform: scale(1.12);
+    box-shadow:
+      0 0 0 1px color-mix(in srgb, #bbf7d0 70%, transparent),
+      0 3px 10px rgba(22, 163, 74, 0.55),
+      0 0 22px rgba(74, 222, 128, 0.85);
+  }
+}
+
+.aixia-dash-admin-teammates-name {
+  font-size: 0.8125rem;
+  font-weight: 600;
+  color: var(--aixia-dash-title);
+}
+
+.aixia-dash-admin-teammates-role {
+  margin-left: auto;
+  font-size: 0.68rem;
+  text-transform: capitalize;
+  color: var(--aixia-dash-muted);
+}
+
+.aixia-dash-presence-tile--skeleton {
+  cursor: default;
+  pointer-events: none;
+}
+
+.aixia-dash-presence-tile--skeleton:hover {
+  transform: none;
+}
+
+.aixia-dash-presence-dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 999px;
+  flex-shrink: 0;
+  background: var(--aixia-dash-offline);
+  box-shadow: 0 0 0 2px color-mix(in srgb, var(--aixia-dash-offline) 40%, transparent);
+}
+
+.aixia-dash-presence-dot--on {
+  background: var(--aixia-dash-online);
+  box-shadow:
+    0 0 0 2px color-mix(in srgb, var(--aixia-dash-online) 38%, transparent),
+    0 0 10px color-mix(in srgb, var(--aixia-dash-online) 45%, transparent);
+}
+
+.aixia-dash-presence-avatar {
+  width: 2.35rem;
+  height: 2.35rem;
+  border-radius: 999px;
+  flex-shrink: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 0.65rem;
+  font-weight: 700;
+  letter-spacing: 0.03em;
+  line-height: 1;
+  background: linear-gradient(
+    145deg,
+    color-mix(in srgb, var(--primary, #6366f1) 32%, rgba(15, 23, 42, 0.85)),
+    color-mix(in srgb, var(--primary, #6366f1) 14%, rgba(15, 23, 42, 0.65))
+  );
+  color: color-mix(in srgb, var(--primary, #e0e7ff) 92%, white);
+  border: 1px solid color-mix(in srgb, white 14%, transparent);
+}
+
+.aixia-dash-presence-meta {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  justify-content: center;
+  gap: 0.12rem;
+  min-width: 0;
+  flex: 1;
+}
+
+.aixia-dash-presence-name {
+  font-size: 0.8125rem;
+  font-weight: 600;
+  line-height: 1.25;
+  color: var(--aixia-dash-title);
+  max-width: 100%;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.aixia-dash-presence-role {
+  font-size: 0.65rem;
+  font-weight: 500;
+  line-height: 1.2;
+  color: color-mix(in srgb, var(--aixia-dash-muted) 95%, var(--aixia-dash-title));
+  text-transform: capitalize;
+  max-width: 100%;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .aixia-dash-presence-tile:hover {
+    transform: none;
+  }
+
+  .aixia-dash-status-pill--live {
+    animation: none;
+  }
+}

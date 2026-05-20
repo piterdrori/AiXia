@@ -28,7 +28,7 @@ export function AixiaModal({
 
   return (
     <div className="aixia-modal-backdrop">
-      <div className={`aixia-modal ${maxWidthClassName}`}>
+      <div className={`aixia-modal aixia-card-shell ${maxWidthClassName}`}>
         <div className="aixia-modal-header">
           <div className="pointer-events-none absolute inset-0">
             <div className="absolute -left-20 -top-20 h-64 w-64 rounded-full bg-[#6366F1]/20 blur-[80px]" />

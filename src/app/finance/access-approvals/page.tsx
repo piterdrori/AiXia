@@ -17,12 +17,11 @@ import {
   AixiaAlert,
   AixiaBadge,
   AixiaButton,
+  AixiaFinanceHubMetaStrip,
   AixiaHero,
   AixiaInfoBlock,
   AixiaLoadingState,
-  AixiaMetricCard,
-  AixiaMetricGrid,
-  AixiaPage,
+  FinancePage,
   AixiaRegistryToolbar,
   AixiaSearchField,
   AixiaSection,
@@ -33,7 +32,7 @@ import {
   AixiaTableDateCell,
   AixiaTableShell,
   AixiaTableTextCell,
-  AixiaValueBlock,
+  AixiaCommandMetrics
 } from "@/components/aixia";
 import {
   ACCESS_APPROVAL_GROUPS,
@@ -636,32 +635,6 @@ export default function FinanceAccessApprovalsPage() {
       });
   }, [searchValue, sortDirection, sortKey, templateFilter, userRows]);
 
-  const overviewItems = useMemo(() => {
-    return [
-      {
-        label: "Base Roles",
-        value: "Admin / Manager / Employee / Guest",
-        detail: "System role remains separate from Finance template access.",
-      },
-      {
-        label: "Finance Templates",
-        value: formatCount(financeTemplates.length),
-        detail:
-          "Finance Admin, Finance Manager, Finance Viewer, Procurement Operator, Expense Approver, Payroll Operator, Reports Viewer, and Custom.",
-      },
-      {
-        label: "Visible Rows",
-        value: formatCount(filteredRows.length),
-        detail: "Only active profiles after current search and filter settings.",
-      },
-      {
-        label: "Auto Refresh",
-        value: isRefreshing ? "Refreshing" : "Realtime + 60s",
-        detail: "Profiles, templates, and template assignments refresh automatically.",
-      },
-    ];
-  }, [filteredRows.length, financeTemplates.length, isRefreshing]);
-
   const toggleSort = useCallback((nextKey: SortKey) => {
     setSortKey((currentKey) => {
       if (currentKey !== nextKey) {
@@ -675,6 +648,44 @@ export default function FinanceAccessApprovalsPage() {
       return currentKey;
     });
   }, []);
+
+  const __registryCommandMetrics = useMemo(
+    () => [
+    { key: "active-users", title: "Active Users", value: String(isLoading ? "—" : formatCount(userRows.length)), subtitle: "Only active profiles are shown in this registry.", icon: UsersRound, tone: "cyan", },
+    { key: "template-assigned", title: "Template Assigned", value: String(isLoading ? "—" : formatCount(financeTemplateAssignedCount)), subtitle: "Users assigned to non-Custom Finance templates.", icon: ShieldCheck, tone: "violet", },
+    { key: "approve-execute", title: "Approve / Execute", value: String(isLoading ? "—" : formatCount(approveExecuteUserCount)), subtitle: "Users with final workflow action access.", icon: KeyRound, tone: "emerald", },
+    { key: "user-overrides", title: "User Overrides", value: String(isLoading ? "—" : formatCount(overrideUserCount)), subtitle: "Users with direct exception permissions.", icon: UserRound, tone: "rose", }
+    
+    ],
+    [isLoading, userRows, financeTemplateAssignedCount, approveExecuteUserCount, overrideUserCount, formatCount]
+  );
+
+  const headerStatusCards = useMemo(
+    () => [
+      {
+        key: "system-status",
+        label: "System Status",
+        value: isRefreshing ? "Syncing" : "Live",
+        detail: "Access approval registry refreshes silently on demand.",
+        tone: "emerald" as const,
+      },
+      {
+        key: "admin-access",
+        label: "Admin Access",
+        value: hasAdminAccess ? "Enabled" : "Restricted",
+        detail: "Finance Access Approvals requires admin manageUsers permission.",
+        tone: hasAdminAccess ? ("cyan" as const) : ("rose" as const),
+      },
+      {
+        key: "visible-users",
+        label: "Visible Users",
+        value: formatCount(filteredRows.length),
+        detail: "Active profiles matching current search and template filters.",
+        tone: "amber" as const,
+      },
+    ],
+    [filteredRows.length, hasAdminAccess, isRefreshing]
+  );
 
   if (isLoading) {
     return (
@@ -706,47 +717,28 @@ export default function FinanceAccessApprovalsPage() {
     );
   }
 
-  return (
-    <AixiaPage>
+return (
+    <FinancePage>
       <AixiaHero
+        className="shrink-0 space-y-4"
+        surface="command"
         parentLabel="Finance"
         parentPath="/finance"
         gradientTitle="Finance Access"
         title="Approvals"
-        description="Review active users through a clean base role plus Finance role template model. Open a user to adjust the selected template and user-specific permission exceptions."
-        badges={[
-          { label: "Admin Finance Access Control", tone: "cyan" },
-          { label: "Active profiles only", tone: "cyan" },
-          { label: "Finance templates enabled", tone: "violet" },
-          { label: "Own records default protected", tone: "emerald" },
-          ...(isRefreshing ? [{ label: "Silent refresh", tone: "neutral" as const }] : []),
-        ]}
-        statusCards={[
-          {
-            label: "Registry Scope",
-            value: "Active Users",
-            description:
-              "Pending, rejected, and inactive profiles are excluded from this Finance access registry.",
-            icon: UserRound,
-            tone: "cyan",
-          },
-          {
-            label: "Finance Templates",
-            value: formatCount(financeTemplates.length),
-            description:
-              "Templates define the baseline Finance access. User overrides are exceptions only.",
-            icon: ShieldCheck,
-            tone: "violet",
-          },
-        ]}
-      >
+        >
+        <AixiaCommandMetrics items={__registryCommandMetrics} />
+      
         <AixiaBadge tone="cyan">
           <Sparkles className="h-3.5 w-3.5" />
           Permission registry
         </AixiaBadge>
       </AixiaHero>
 
-      {pageError ? <AixiaAlert tone="error">{pageError}</AixiaAlert> : null}
+      <div className="aixia-command-scroll">
+        <AixiaFinanceHubMetaStrip items={headerStatusCards} />
+
+{pageError ? <AixiaAlert tone="error">{pageError}</AixiaAlert> : null}
 
       {!hasAdminAccess && !pageError ? (
         <AixiaAlert tone="error">
@@ -754,47 +746,15 @@ export default function FinanceAccessApprovalsPage() {
         </AixiaAlert>
       ) : null}
 
-      <AixiaMetricGrid>
-        <AixiaMetricCard
-          label="Active Users"
-          value={isLoading ? "—" : formatCount(userRows.length)}
-          description="Only active profiles are shown in this registry."
-          icon={UsersRound}
-          tone="cyan"
-        />
-        <AixiaMetricCard
-          label="Template Assigned"
-          value={isLoading ? "—" : formatCount(financeTemplateAssignedCount)}
-          description="Users assigned to non-Custom Finance templates."
-          icon={ShieldCheck}
-          tone="violet"
-        />
-        <AixiaMetricCard
-          label="Approve / Execute"
-          value={isLoading ? "—" : formatCount(approveExecuteUserCount)}
-          description="Users with final workflow action access."
-          icon={KeyRound}
-          tone="emerald"
-        />
-        <AixiaMetricCard
-          label="User Overrides"
-          value={isLoading ? "—" : formatCount(overrideUserCount)}
-          description="Users with direct exception permissions."
-          icon={UserRound}
-          tone="rose"
-        />
-      </AixiaMetricGrid>
-
-      <AixiaMetricGrid>
-        {overviewItems.map((item) => (
-          <AixiaValueBlock
-            key={item.label}
-            label={item.label}
-            value={item.value}
-            detail={item.detail}
-          />
-        ))}
-      </AixiaMetricGrid>
+      <AixiaAccessRule
+        title="Locked access rule"
+        description="Finance registry pages must show the shared Locked access rule block."
+      >
+        Base system role remains admin, manager, employee, or guest. Finance role template
+        controls the company-level Finance baseline. User overrides should only be used for
+        exceptions. This registry only shows active profiles; detailed analysis belongs in the
+        user ID page.
+      </AixiaAccessRule>
 
       <AixiaSection
         title="Finance Access Approval Registry"
@@ -982,16 +942,7 @@ export default function FinanceAccessApprovalsPage() {
           )}
         </div>
       </AixiaSection>
-
-      <AixiaAccessRule
-        title="Locked access rule"
-        description="Finance registry pages must show the shared Locked access rule block."
-      >
-        Base system role remains admin, manager, employee, or guest. Finance role template
-        controls the company-level Finance baseline. User overrides should only be used for
-        exceptions. This registry only shows active profiles; detailed analysis belongs in the
-        user ID page.
-      </AixiaAccessRule>
-    </AixiaPage>
+      </div>
+    </FinancePage>
   );
 }

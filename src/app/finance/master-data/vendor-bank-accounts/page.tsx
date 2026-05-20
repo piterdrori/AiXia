@@ -1,20 +1,6 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { useNavigate } from "react-router-dom";
-import {
-  Archive,
-  ArrowRight,
-  CheckCircle2,
-  CreditCard,
-  Landmark,
-  Loader2,
-  LockKeyhole,
-  Plus,
-  RotateCcw,
-  Search,
-  ShieldCheck,
-  Trash2,
-  WalletCards,
-} from "lucide-react";
+import { Archive, ArrowRight, CheckCircle2, Landmark, Loader2, Plus, RotateCcw, Search, Trash2, WalletCards } from "lucide-react";
 
 import {
   AixiaAccessDeniedState,
@@ -26,9 +12,7 @@ import {
   AixiaEmptyState,
   AixiaHero,
   AixiaLoadingState,
-  AixiaMetricCard,
-  AixiaMetricGrid,
-  AixiaPage,
+  FinancePage,
   AixiaRegistryToolbar,
   AixiaSearchField,
   AixiaSection,
@@ -39,6 +23,7 @@ import {
   AixiaTableDateCell,
   AixiaTableShell,
   AixiaTableTextCell,
+  AixiaCommandMetrics
 } from "@/components/aixia";
 
 import {
@@ -185,7 +170,7 @@ export default function FinanceMasterDataVendorBankAccountsPage() {
   const [isLoadingProfile, setIsLoadingProfile] = useState(true);
   const [isLoadingRows, setIsLoadingRows] = useState(true);
   const [isLoadingArchive, setIsLoadingArchive] = useState(false);
-  const [backgroundRefreshing, setBackgroundRefreshing] = useState(false);
+  const [, setBackgroundRefreshing] = useState(false);
 
   const [pageError, setPageError] = useState<string | null>(null);
   const [pageMessage, setPageMessage] = useState<string | null>(null);
@@ -619,6 +604,17 @@ export default function FinanceMasterDataVendorBankAccountsPage() {
   const isPageLoading = isLoadingProfile || isLoadingRows;
   const isActionRunning = Boolean(runningAction);
 
+  const __registryCommandMetrics = useMemo(
+    () => [
+    { key: "visible-accounts", title: "Visible Accounts", value: String(formatCount(counts.totalVisible)), subtitle: "Active and inactive vendor bank accounts.", icon: WalletCards, tone: "cyan", },
+    { key: "active", title: "Active", value: String(formatCount(counts.active)), subtitle: "Available for vendor payout and AP payment flows.", icon: CheckCircle2, tone: "emerald", },
+    { key: "default-accounts", title: "Default Accounts", value: String(formatCount(counts.defaultAccounts)), subtitle: "Default payout accounts across vendors.", icon: Landmark, tone: "violet", },
+    { key: "archived", title: "Archived", value: String(formatCount(counts.archived)), subtitle: "Hidden from active operational use.", icon: Archive, tone: "rose", }
+    
+    ],
+    [counts, formatCount]
+  );
+
   if (isPageLoading) {
     return (
       <AixiaLoadingState
@@ -628,83 +624,24 @@ export default function FinanceMasterDataVendorBankAccountsPage() {
     );
   }
 
-  return (
-    <AixiaPage>
+return (
+    <FinancePage>
       <AixiaHero
+        className="shrink-0 space-y-4"
+        surface="command"
         parentLabel="Master Data"
         parentPath="/finance/master-data"
-        badges={[
-          { label: "Vendor Banking Master Data", tone: "cyan" },
-          { label: "Permission Filtered", tone: "emerald" },
-          {
-            label: backgroundRefreshing ? "Updating Silently" : "Realtime + 60s",
-            tone: backgroundRefreshing ? "gold" : "neutral",
-          },
-        ]}
         gradientTitle="Vendor Bank"
         title="Accounts"
-        subtitle="Vendor Payout Account Registry"
-        description="Permission-filtered registry for vendor payout bank accounts used by procurement, accounts payable, payment execution, and vendor payment snapshots."
-        statusCards={[
-          {
-            label: "Read Access",
-            value: permissionState.canRead ? "Enabled" : "Locked",
-            description:
-              "This page requires Vendor, Bank Account, Payables, Finance, or Master Data read access.",
-            icon: permissionState.canRead ? ShieldCheck : LockKeyhole,
-            tone: permissionState.canRead ? "emerald" : "rose",
-          },
-          {
-            label: "Lifecycle Access",
-            value: permissionState.canDeleteArchive
-              ? "Archive Enabled"
-              : permissionState.canCreate
-              ? "Create Enabled"
-              : "Read Only",
-            description:
-              "Create and Delete/Archive actions follow the selected Finance template.",
-            icon: permissionState.canDeleteArchive ? Archive : CreditCard,
-            tone: permissionState.canDeleteArchive ? "amber" : "cyan",
-          },
-        ]}
-      />
+        subtitle="Vendor Payout Account Registry">
+        <AixiaCommandMetrics items={__registryCommandMetrics} />
+      </AixiaHero>
 
-      {pageError ? <AixiaAlert tone="error">{pageError}</AixiaAlert> : null}
+      <div className="aixia-command-scroll">
+{pageError ? <AixiaAlert tone="error">{pageError}</AixiaAlert> : null}
       {pageMessage ? <AixiaAlert tone="success">{pageMessage}</AixiaAlert> : null}
 
-      <AixiaMetricGrid>
-        <AixiaMetricCard
-          label="Visible Accounts"
-          value={formatCount(counts.totalVisible)}
-          description="Active and inactive vendor bank accounts."
-          icon={WalletCards}
-          tone="cyan"
-        />
-
-        <AixiaMetricCard
-          label="Active"
-          value={formatCount(counts.active)}
-          description="Available for vendor payout and AP payment flows."
-          icon={CheckCircle2}
-          tone="emerald"
-        />
-
-        <AixiaMetricCard
-          label="Default Accounts"
-          value={formatCount(counts.defaultAccounts)}
-          description="Default payout accounts across vendors."
-          icon={Landmark}
-          tone="violet"
-        />
-
-        <AixiaMetricCard
-          label="Archived"
-          value={formatCount(counts.archived)}
-          description="Hidden from active operational use."
-          icon={Archive}
-          tone="rose"
-        />
-      </AixiaMetricGrid>
+      
 
       {!permissionState.canRead ? (
         <AixiaAccessDeniedState
@@ -1059,6 +996,7 @@ export default function FinanceMasterDataVendorBankAccountsPage() {
           )}
         </div>
       </AixiaArchiveManagerModal>
-    </AixiaPage>
+      </div>
+    </FinancePage>
   );
 }

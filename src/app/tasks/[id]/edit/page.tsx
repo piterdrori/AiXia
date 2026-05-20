@@ -20,24 +20,32 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { Alert, AlertDescription } from "@/components/ui/alert";
-import { ArrowLeft, Loader2 } from "lucide-react";
+import { Loader2 } from "lucide-react";
+import { AixiaButton, AixiaHero, AixiaPage } from "@/components/aixia";
+import { TaskCustomFieldsForm } from "@/components/tasks/TaskCustomFieldsForm";
+import {
+  loadDefinitionsForTaskForm,
+  upsertTaskCustomFieldValues,
+  validateRequiredCustomFields,
+  valuesFromRows,
+} from "@/lib/tasks/customFields";
+import { loadTopLevelTasksForProject } from "@/lib/tasks/taskLifecycle";
+import type {
+  CustomFieldFormValue,
+  ProjectTaskFieldDefinitionRow,
+  TaskRowExtended,
+} from "@/lib/tasks/types";
+import "@/styles/dashboard/tokens.css";
+import "@/styles/dashboard/layout.css";
+import "@/styles/dashboard/visual.css";
+import "@/styles/tasks/tasks-visual.css";
+
 
 type Role = "admin" | "manager" | "employee" | "guest";
 type TaskStatus = "TODO" | "IN_PROGRESS" | "IN_REVIEW" | "DONE";
 type TaskPriority = "LOW" | "MEDIUM" | "HIGH" | "URGENT";
 
-type TaskRow = {
-  id: string;
-  title: string;
-  description: string | null;
-  status: string | null;
-  priority: string | null;
-  start_date: string | null;
-  due_date: string | null;
-  project_id: string | null;
-  assignee_id: string | null;
-  created_by: string | null;
-};
+type TaskRow = TaskRowExtended;
 
 type ProjectRow = {
   id: string;
@@ -89,6 +97,13 @@ export default function TaskEditPage() {
   const [profiles, setProfiles] = useState<ProfileRow[]>([]);
   const [existingTaskMembers, setExistingTaskMembers] = useState<TaskMemberRow[]>([]);
   const [selectedAssignees, setSelectedAssignees] = useState<string[]>([]);
+  const [parentTaskId, setParentTaskId] = useState("");
+  const [parentTaskOptions, setParentTaskOptions] = useState<TaskRow[]>([]);
+  const [hasSubtasks, setHasSubtasks] = useState(false);
+  const [fieldDefinitions, setFieldDefinitions] = useState<ProjectTaskFieldDefinitionRow[]>([]);
+  const [customFieldValues, setCustomFieldValues] = useState<
+    Record<string, CustomFieldFormValue>
+  >({});
 
   const [, setCurrentUserId] = useState<string | null>(null);
   const [, setCurrentUserRole] = useState<Role | null>(null);
@@ -244,6 +259,33 @@ if (!canEdit) {
       setStatus((task.status as TaskStatus) || "TODO");
       setStartDate(task.start_date || "");
       setDueDate(task.due_date || "");
+      setParentTaskId(task.parent_task_id || "");
+
+      const { count: subtaskCount } = await supabase
+        .from("tasks")
+        .select("id", { count: "exact", head: true })
+        .eq("parent_task_id", id)
+        .is("deleted_at", null);
+
+      if (pageRequestTracker.current.isLatest(requestId)) {
+        setHasSubtasks((subtaskCount ?? 0) > 0);
+      }
+
+      if (task.project_id) {
+        const [parents, formDefs] = await Promise.all([
+          loadTopLevelTasksForProject(task.project_id),
+          loadDefinitionsForTaskForm(task.project_id, id, "edit"),
+        ]);
+        if (pageRequestTracker.current.isLatest(requestId)) {
+          setParentTaskOptions(
+            parents.filter((parent: TaskRow) => parent.id !== task.id)
+          );
+          setFieldDefinitions(formDefs.definitions);
+          setCustomFieldValues(
+            valuesFromRows(formDefs.definitions, formDefs.valuesByDefinitionId)
+          );
+        }
+      }
 
       setProjects(visibleProjects);
       setProfiles(profilesData);
@@ -317,6 +359,35 @@ if (!canEdit) {
     };
   }, [projectId]);
 
+  useEffect(() => {
+    let mounted = true;
+    const reloadExtras = async () => {
+      if (!projectId || !id) return;
+      try {
+        const [parents, formDefs] = await Promise.all([
+          loadTopLevelTasksForProject(projectId),
+          loadDefinitionsForTaskForm(projectId, id, "edit"),
+        ]);
+        if (!mounted) return;
+        setParentTaskOptions(parents.filter((parent: TaskRow) => parent.id !== id));
+        setFieldDefinitions(formDefs.definitions);
+        setCustomFieldValues((prev) => {
+          const next = valuesFromRows(formDefs.definitions, formDefs.valuesByDefinitionId);
+          for (const def of formDefs.definitions) {
+            if (prev[def.id]) next[def.id] = prev[def.id];
+          }
+          return next;
+        });
+      } catch (err) {
+        console.error("Reload task edit extras:", err);
+      }
+    };
+    void reloadExtras();
+    return () => {
+      mounted = false;
+    };
+  }, [projectId, id]);
+
   const availableAssignees = useMemo(() => {
     return projectMembers
       .map((member) => profiles.find((profile) => profile.user_id === member.user_id))
@@ -359,6 +430,16 @@ const handleSubmit = async (e: React.FormEvent) => {
 
   if (startDate && dueDate && startDate > dueDate) {
     setError(t("taskEdit.errors.startDateAfterDueDate"));
+    return;
+  }
+
+  if (hasSubtasks && parentTaskId) {
+    setError(
+      t(
+        "taskEdit.hierarchy.cannotReparentWithChildren",
+        "This task has subtasks and cannot be moved under another parent."
+      )
+    );
     return;
   }
 
@@ -407,12 +488,23 @@ if (!canEdit) {
   return;
 }
 
+    const missingField = validateRequiredCustomFields(
+      fieldDefinitions,
+      customFieldValues
+    );
+    if (missingField) {
+      setError(`"${missingField}" is required.`);
+      setIsSaving(false);
+      return;
+    }
+
     const { error: updateError } = await supabase
       .from("tasks")
        .update({
         title: title.trim(),
         description: description.trim() || null,
         project_id: projectId,
+        parent_task_id: hasSubtasks ? null : parentTaskId || null,
         priority,
         status,
         start_date: startDate || null,
@@ -427,6 +519,17 @@ if (!canEdit) {
 
     if (updateError) {
       setError(updateError.message || t("taskEdit.errors.updateTask"));
+      return;
+    }
+
+    try {
+      await upsertTaskCustomFieldValues(id, fieldDefinitions, customFieldValues);
+    } catch (fieldsError) {
+      setError(
+        fieldsError instanceof Error
+          ? fieldsError.message
+          : t("taskEdit.errors.updateTask")
+      );
       return;
     }
 
@@ -522,23 +625,23 @@ if (!canEdit) {
     return (
       <div className="w-full max-w-[calc(100vw-360px)] mx-auto space-y-6">
         <div className="animate-pulse space-y-3">
-          <div className="h-8 w-40 rounded bg-slate-800" />
-          <div className="h-4 w-56 rounded bg-slate-800" />
+          <div className="h-8 w-40 rounded aixia-tasks-skeleton-bar" />
+          <div className="h-4 w-56 rounded aixia-tasks-skeleton-bar" />
         </div>
 
-        <Card className="w-full bg-slate-900/50 border border-slate-800 h-[calc(100vh-200px)] min-h-0">
+        <Card className="w-full aixia-dash-panel aixia-dash-glass aixia-dash-tilt-panel aixia-tasks-panel-card h-[calc(100vh-200px)] min-h-0">
           <CardContent className="flex h-full min-h-0 flex-col p-6">
             <div className="animate-pulse space-y-4">
-              <div className="h-10 w-full rounded bg-slate-800" />
-              <div className="h-28 w-full rounded bg-slate-800" />
+              <div className="h-10 w-full rounded aixia-tasks-skeleton-bar" />
+              <div className="h-28 w-full rounded aixia-tasks-skeleton-bar" />
               <div className="grid grid-cols-1 gap-6 md:grid-cols-2 lg:grid-cols-5">
-                <div className="h-10 w-full rounded bg-slate-800" />
-                <div className="h-10 w-full rounded bg-slate-800" />
-                <div className="h-10 w-full rounded bg-slate-800" />
-                <div className="h-10 w-full rounded bg-slate-800" />
-                <div className="h-10 w-full rounded bg-slate-800" />
+                <div className="h-10 w-full rounded aixia-tasks-skeleton-bar" />
+                <div className="h-10 w-full rounded aixia-tasks-skeleton-bar" />
+                <div className="h-10 w-full rounded aixia-tasks-skeleton-bar" />
+                <div className="h-10 w-full rounded aixia-tasks-skeleton-bar" />
+                <div className="h-10 w-full rounded aixia-tasks-skeleton-bar" />
               </div>
-              <div className="h-full min-h-[220px] w-full rounded bg-slate-800" />
+              <div className="h-full min-h-[220px] w-full rounded aixia-tasks-skeleton-bar" />
             </div>
           </CardContent>
         </Card>
@@ -546,43 +649,41 @@ if (!canEdit) {
     );
   }
     return (
-    <div className="w-full max-w-[calc(100vw-360px)] mx-auto">
-      <div className="flex items-center gap-4 mb-6">
-        <Button
-          variant="ghost"
-          size="icon"
-          onClick={() => navigate(`/tasks/${id}`)}
-          className="text-slate-400 hover:text-white"
-        >
-          <ArrowLeft className="w-5 h-5" />
-        </Button>
-
-        <div className="flex-1">
-          <h1 className="text-2xl font-bold text-white">{t("taskEdit.header.title")}</h1>
-          <p className="text-slate-400">{t("taskEdit.header.subtitle")}</p>
-        </div>
-
-        <Button
-          variant="outline"
-          className="border-slate-700 text-slate-300 hover:bg-slate-800"
-          onClick={() => void loadPage("refresh")}
-          disabled={isRefreshing}
-        >
-          {isRefreshing ? t("taskEdit.actions.refreshing") : t("taskEdit.actions.refresh")}
-        </Button>
-      </div>
-
-      <Card className="w-full bg-slate-900/50 border border-slate-800 h-[calc(100vh-200px)] min-h-0">
+    <AixiaPage
+      surface="command"
+      className="aixia-command-page aixia-tasks-page aixia-tasks-page--new h-full flex flex-col overflow-hidden"
+    >
+      <AixiaHero
+        surface="command"
+        className="shrink-0"
+        parentLabel={t("tasks.header.title", "Tasks")}
+        parentPath={`/tasks/${id}`}
+        gradientTitle={t("tasks.header.title", "Tasks")}
+        title={t("taskEdit.header.title")}
+        subtitle={t("taskEdit.header.subtitle")}
+        actions={
+          <AixiaButton
+            type="button"
+            className="h-9"
+            onClick={() => void loadPage("refresh")}
+            disabled={isRefreshing}
+          >
+            {isRefreshing ? t("taskEdit.actions.refreshing") : t("taskEdit.actions.refresh")}
+          </AixiaButton>
+        }
+      />
+      <div className="aixia-command-scroll flex min-h-0 flex-1 flex-col">
+      <Card className="aixia-dash-panel aixia-dash-glass aixia-dash-tilt-panel aixia-tasks-panel-card aixia-tasks-new-form-card w-full">
         <CardContent className="flex h-full min-h-0 flex-col p-6">
-          <form onSubmit={handleSubmit} className="flex h-full min-h-0 flex-col gap-4">
+          <form onSubmit={handleSubmit} className="aixia-tasks-new-form flex h-full min-h-0 flex-col gap-4">
             {error && (
-              <Alert className="bg-red-900/20 border-red-800 text-red-300">
+              <Alert className="aixia-tasks-alert-error">
                 <AlertDescription>{error}</AlertDescription>
               </Alert>
             )}
 
             <div className="space-y-2">
-              <Label htmlFor="title" className="text-slate-300">
+              <Label htmlFor="title" className="aixia-tasks-label">
                 {t("taskEdit.form.taskTitle")} <span className="text-red-400">*</span>
               </Label>
               <Input
@@ -591,12 +692,12 @@ if (!canEdit) {
                 value={title}
                 onChange={(e) => setTitle(e.target.value)}
                 required
-                className="bg-slate-950 border-slate-800 text-white placeholder:text-slate-600"
+                className="aixia-tasks-input"
               />
             </div>
 
             <div className="space-y-2">
-              <Label htmlFor="description" className="text-slate-300">
+              <Label htmlFor="description" className="aixia-tasks-label">
                 {t("taskEdit.form.description")}
               </Label>
               <Textarea
@@ -605,20 +706,20 @@ if (!canEdit) {
                 value={description}
                 onChange={(e) => setDescription(e.target.value)}
                 rows={4}
-                className="bg-slate-950 border-slate-800 text-white placeholder:text-slate-600 resize-none"
+                className="bg-slate-950 aixia-tasks-divider text-white placeholder:aixia-tasks-empty-icon resize-none"
               />
             </div>
 
             <div className="grid grid-cols-1 gap-6 md:grid-cols-2 lg:grid-cols-5">
               <div className="space-y-2">
-                <Label className="text-slate-300">
+                <Label className="aixia-tasks-label">
                   {t("taskEdit.form.project")} <span className="text-red-400">*</span>
                 </Label>
                 <Select value={projectId} onValueChange={setProjectId}>
-                  <SelectTrigger className="bg-slate-950 border-slate-800 text-white">
+                  <SelectTrigger className="aixia-tasks-input">
                     <SelectValue placeholder={t("taskEdit.form.selectProject")} />
                   </SelectTrigger>
-                  <SelectContent className="bg-slate-900 border-slate-800">
+                  <SelectContent className="aixia-tasks-select-content">
                     {projects.map((project) => (
                       <SelectItem key={project.id} value={project.id}>
                         {project.name}
@@ -629,12 +730,12 @@ if (!canEdit) {
               </div>
 
               <div className="space-y-2">
-                <Label className="text-slate-300">{t("taskEdit.form.priority")}</Label>
+                <Label className="aixia-tasks-label">{t("taskEdit.form.priority")}</Label>
                 <Select value={priority} onValueChange={(v) => setPriority(v as TaskPriority)}>
-                  <SelectTrigger className="bg-slate-950 border-slate-800 text-white">
+                  <SelectTrigger className="aixia-tasks-input">
                     <SelectValue placeholder={t("taskEdit.form.selectPriority")} />
                   </SelectTrigger>
-                  <SelectContent className="bg-slate-900 border-slate-800">
+                  <SelectContent className="aixia-tasks-select-content">
                     <SelectItem value="LOW">{t("taskEdit.priority.low")}</SelectItem>
                     <SelectItem value="MEDIUM">{t("taskEdit.priority.medium")}</SelectItem>
                     <SelectItem value="HIGH">{t("taskEdit.priority.high")}</SelectItem>
@@ -644,12 +745,12 @@ if (!canEdit) {
               </div>
 
               <div className="space-y-2">
-                <Label className="text-slate-300">{t("taskEdit.form.status")}</Label>
+                <Label className="aixia-tasks-label">{t("taskEdit.form.status")}</Label>
                 <Select value={status} onValueChange={(v) => setStatus(v as TaskStatus)}>
-                  <SelectTrigger className="bg-slate-950 border-slate-800 text-white">
+                  <SelectTrigger className="aixia-tasks-input">
                     <SelectValue placeholder={t("taskEdit.form.selectStatus")} />
                   </SelectTrigger>
-                  <SelectContent className="bg-slate-900 border-slate-800">
+                  <SelectContent className="aixia-tasks-select-content">
                     <SelectItem value="TODO">{t("taskEdit.status.todo")}</SelectItem>
                     <SelectItem value="IN_PROGRESS">{t("taskEdit.status.inProgress")}</SelectItem>
                     <SelectItem value="IN_REVIEW">{t("taskEdit.status.inReview")}</SelectItem>
@@ -659,7 +760,7 @@ if (!canEdit) {
               </div>
 
               <div className="space-y-2">
-                <Label htmlFor="startDate" className="text-slate-300">
+                <Label htmlFor="startDate" className="aixia-tasks-label">
                   {t("taskEdit.form.startDate")}
                 </Label>
                 <Input
@@ -667,12 +768,12 @@ if (!canEdit) {
                   type="date"
                   value={startDate}
                   onChange={(e) => setStartDate(e.target.value)}
-                  className="bg-slate-950 border-slate-800 text-white"
+                  className="aixia-tasks-input"
                 />
               </div>
 
               <div className="space-y-2">
-                <Label htmlFor="dueDate" className="text-slate-300">
+                <Label htmlFor="dueDate" className="aixia-tasks-label">
                   {t("taskEdit.form.dueDate")}
                 </Label>
                 <Input
@@ -680,48 +781,93 @@ if (!canEdit) {
                   type="date"
                   value={dueDate}
                   onChange={(e) => setDueDate(e.target.value)}
-                  className="bg-slate-950 border-slate-800 text-white"
+                  className="aixia-tasks-input"
                 />
               </div>
             </div>
 
-            <div className="flex-1 min-h-0 rounded-lg border border-slate-800 bg-slate-950/40 p-4">
+            {projectId && hasSubtasks ? (
+              <p className="text-sm aixia-tasks-muted">
+                {t(
+                  "taskEdit.hierarchy.hasSubtasksHint",
+                  "This task has subtasks and must stay a top-level task."
+                )}
+              </p>
+            ) : null}
+
+            {projectId && !hasSubtasks && parentTaskOptions.length > 0 ? (
+              <div className="space-y-2">
+                <Label className="aixia-tasks-label">
+                  {t("taskEdit.form.parentTask", "Parent task (optional)")}
+                </Label>
+                <Select
+                  value={parentTaskId || "__none__"}
+                  onValueChange={(v) => setParentTaskId(v === "__none__" ? "" : v)}
+                >
+                  <SelectTrigger className="aixia-tasks-input">
+                    <SelectValue placeholder={t("taskEdit.form.topLevel", "Top-level task")} />
+                  </SelectTrigger>
+                  <SelectContent className="aixia-tasks-select-content">
+                    <SelectItem value="__none__">
+                      {t("taskEdit.form.noneTopLevel", "None (top-level)")}
+                    </SelectItem>
+                    {parentTaskOptions.map((task) => (
+                      <SelectItem key={task.id} value={task.id}>
+                        {task.title}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+            ) : null}
+
+            {fieldDefinitions.length > 0 ? (
+              <div className="rounded-lg border aixia-tasks-divider bg-slate-950/40 p-4 space-y-3">
+                <Label className="aixia-tasks-label">Custom fields</Label>
+                <TaskCustomFieldsForm
+                  definitions={fieldDefinitions}
+                  values={customFieldValues}
+                  onChange={setCustomFieldValues}
+                />
+              </div>
+            ) : null}
+            <div className="flex-1 min-h-0 rounded-lg border aixia-tasks-divider bg-slate-950/40 p-4">
               <div className="flex h-full min-h-0 flex-col">
                 <div className="shrink-0 space-y-1">
-                  <Label className="text-slate-300">
+                  <Label className="aixia-tasks-label">
                     {t("taskEdit.form.assignees")}
                   </Label>
-                  <div className="text-xs text-slate-400">
+                  <div className="text-xs aixia-tasks-muted">
                     {t("taskEdit.assignees.projectRequirement")}
                   </div>
                 </div>
 
                 <div className="mt-3 flex-1 min-h-0">
                   {!projectId ? (
-                    <div className="text-slate-500 text-sm">
+                    <div className="aixia-tasks-muted text-sm">
                       {t("taskEdit.assignees.selectProjectFirst")}
                     </div>
                   ) : isMembersLoading ? (
-                    <div className="text-slate-500 text-sm">
+                    <div className="aixia-tasks-muted text-sm">
                       {t("taskEdit.assignees.loadingProjectMembers")}
                     </div>
                   ) : availableAssignees.length === 0 ? (
-                    <div className="text-slate-500 text-sm">
+                    <div className="aixia-tasks-muted text-sm">
                       {t("taskEdit.assignees.noneAvailable")}
                     </div>
                   ) : (
-                    <div className="h-full min-h-0 rounded-lg border border-slate-800 bg-slate-950 p-2 overflow-y-auto">
+                    <div className="h-full min-h-0 rounded-lg border aixia-tasks-divider bg-slate-950 p-2 overflow-y-auto">
                       <div className="space-y-2">
                         {availableAssignees.map((member) => (
                           <label
                             key={member.user_id}
-                            className="flex items-center justify-between gap-3 rounded-md px-3 py-2 hover:bg-slate-900 cursor-pointer"
+                            className="flex items-center justify-between gap-3 rounded-md px-3 py-2 aixia-tasks-member-row--pick cursor-pointer"
                           >
                             <div>
                               <div className="text-white text-sm font-medium">
                                 {member.full_name || t("taskEdit.assignees.unnamedUser")}
                               </div>
-                              <div className="text-slate-500 text-xs">
+                              <div className="aixia-tasks-muted text-xs">
                                 {member.role.toUpperCase()}
                               </div>
                             </div>
@@ -741,19 +887,19 @@ if (!canEdit) {
               </div>
             </div>
 
-            <div className="shrink-0 flex items-center justify-end gap-4 border-t border-slate-800 pt-3">
+            <div className="aixia-tasks-new-form-footer shrink-0">
               <Button
                 type="button"
                 variant="outline"
                 onClick={() => navigate(`/tasks/${id}`)}
-                className="border-slate-700 text-slate-300 hover:bg-slate-800"
+                className="aixia-dash-action h-9"
               >
                 {t("taskEdit.actions.cancel")}
               </Button>
 
               <Button
                 type="submit"
-                className="bg-indigo-600 hover:bg-indigo-700 text-white"
+                className="aixia-dash-action aixia-dash-action--primary h-9"
                 disabled={isSaving}
               >
                 {isSaving ? (
@@ -769,6 +915,7 @@ if (!canEdit) {
           </form>
         </CardContent>
       </Card>
-    </div>
+      </div>
+    </AixiaPage>
   );
 }

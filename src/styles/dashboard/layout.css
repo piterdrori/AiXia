@@ -1,0 +1,464 @@
+/* AiXia dashboard — page shell & scrolling */
+
+/* Command page shell — Projects, Inbox, Tasks, Finance, Calendar, Chat */
+.aixia-command-page,
+.aixia-projects-page,
+.aixia-inbox-page,
+.aixia-tasks-page,
+.aixia-finance-page {
+  height: 100%;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+}
+
+.aixia-command-page > .aixia-dash-3d-stack,
+.aixia-projects-page > .aixia-dash-3d-stack,
+.aixia-inbox-page > .aixia-dash-3d-stack,
+.aixia-tasks-page > .aixia-dash-3d-stack,
+.aixia-finance-page > .aixia-dash-3d-stack {
+  flex: 1;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+  gap: clamp(0.85rem, 2vw, 1.35rem);
+}
+
+.aixia-command-page .aixia-dash-hero,
+.aixia-projects-page .aixia-dash-hero,
+.aixia-inbox-page .aixia-dash-hero,
+.aixia-tasks-page .aixia-dash-hero,
+.aixia-finance-page .aixia-dash-hero {
+  flex-shrink: 0;
+}
+
+.aixia-command-page .aixia-dash-actions,
+.aixia-projects-page .aixia-dash-actions,
+.aixia-tasks-page .aixia-dash-actions {
+  gap: 0.4rem;
+}
+
+.aixia-command-page .aixia-dash-actions .aixia-dash-action,
+.aixia-projects-page .aixia-dash-actions .aixia-dash-action,
+.aixia-tasks-page .aixia-dash-actions .aixia-dash-action {
+  height: 2.25rem;
+  min-height: 2.25rem;
+  padding-inline: 0.8rem;
+  border-radius: 999px;
+  font-size: 0.8125rem;
+  font-weight: 500;
+  gap: 0.35rem;
+}
+
+.aixia-command-page .aixia-dash-actions .aixia-dash-action svg,
+.aixia-projects-page .aixia-dash-actions .aixia-dash-action svg,
+.aixia-tasks-page .aixia-dash-actions .aixia-dash-action svg {
+  width: 1rem;
+  height: 1rem;
+  flex-shrink: 0;
+}
+
+/* Single scroll region for ALL command-surface pages */
+.aixia-command-scroll,
+.aixia-projects-scroll,
+.aixia-inbox-scroll,
+.aixia-tasks-scroll,
+.aixia-finance-scroll {
+  flex: 1;
+  min-height: 0;
+  overflow-y: auto;
+  padding-inline-end: 0.25rem;
+  scrollbar-gutter: stable;
+  position: relative;
+}
+
+.aixia-command-scroll::before,
+.aixia-projects-scroll::before,
+.aixia-tasks-scroll::before {
+  content: "";
+  position: absolute;
+  left: -8%;
+  bottom: 0;
+  width: min(52rem, 85%);
+  height: min(28rem, 70%);
+  pointer-events: none;
+  z-index: 0;
+  background: radial-gradient(
+    ellipse 100% 80% at 18% 88%,
+    color-mix(in srgb, #6366f1 9%, transparent),
+    color-mix(in srgb, #a78bfa 5%, transparent) 42%,
+    transparent 72%
+  );
+}
+
+.aixia-command-scroll > *,
+.aixia-projects-scroll > *,
+.aixia-tasks-scroll > * {
+  position: relative;
+  z-index: 1;
+}
+
+/* Command filter tabs — list hubs (Projects pattern; global source of truth) */
+.aixia-command-tabs,
+.aixia-projects-tabs {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.15rem;
+  border-bottom: 1px solid var(--aixia-dash-border);
+}
+
+.aixia-command-tab,
+.aixia-projects-tab {
+  appearance: none;
+  border: none;
+  border-bottom: 2px solid transparent;
+  border-radius: 0;
+  background: transparent;
+  color: var(--aixia-dash-muted);
+  font-size: 0.8125rem;
+  font-weight: 500;
+  padding: 0.5rem 0.75rem;
+  margin-bottom: -1px;
+  cursor: pointer;
+  box-shadow: none;
+  transition:
+    color 0.15s ease,
+    border-color 0.15s ease;
+}
+
+.aixia-command-tab:hover,
+.aixia-projects-tab:hover {
+  color: var(--aixia-dash-title);
+}
+
+.aixia-command-tab--active,
+.aixia-command-tab[data-state="active"],
+.aixia-projects-tab--active,
+.aixia-projects-tab[data-state="active"] {
+  color: var(--aixia-dash-title);
+  border-bottom-color: var(--aixia-dash-title);
+  background: transparent;
+  box-shadow: none;
+}
+
+/* Command list toolbar — search, sort, view toggles */
+.aixia-command-toolbar,
+.aixia-projects-toolbar {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.65rem;
+  align-items: center;
+}
+
+.aixia-dash-page {
+  box-sizing: border-box;
+  width: 100%;
+  max-width: none;
+  margin-inline: 0;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: clamp(1rem, 2.2vw, 1.65rem);
+  padding-bottom: clamp(1.25rem, 3vh, 2.25rem);
+  padding-inline: 0;
+  /* Scroll with the app shell on small / short viewports; avoids clipped sections */
+  height: auto;
+  min-height: 0;
+  overflow: visible;
+}
+
+.aixia-dash-scroll {
+  width: 100%;
+  min-width: 0;
+  flex: none;
+  overflow: visible;
+  padding-inline-end: 0;
+  scrollbar-gutter: stable;
+}
+
+.aixia-dash-header {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 0.75rem 1.25rem;
+  flex-shrink: 0;
+}
+
+.aixia-dash-title {
+  font-size: 1.5rem;
+  font-weight: 600;
+  letter-spacing: -0.02em;
+  color: var(--aixia-dash-title);
+  line-height: 1.2;
+  margin: 0;
+}
+
+.aixia-dash-subtitle {
+  margin: 0.2rem 0 0;
+  font-size: 0.8125rem;
+  line-height: 1.45;
+  color: var(--aixia-dash-muted);
+  max-width: 36rem;
+}
+
+.aixia-dash-actions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.35rem 0.25rem;
+}
+
+.aixia-dash-action {
+  appearance: none;
+  border: none;
+  background: transparent;
+  color: var(--aixia-dash-muted);
+  font-size: 0.8125rem;
+  font-weight: 500;
+  padding: 0.35rem 0.65rem;
+  border-radius: 999px;
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
+  transition: color 0.15s ease, background 0.15s ease;
+}
+
+.aixia-dash-action:hover:not(:disabled) {
+  color: var(--aixia-dash-title);
+  background: color-mix(in srgb, var(--foreground, #fff) 6%, transparent);
+}
+
+.aixia-dash-action:disabled {
+  opacity: 0.45;
+  cursor: not-allowed;
+}
+
+.aixia-dash-action--primary {
+  color: var(--aixia-dash-title);
+  background: color-mix(in srgb, var(--primary, #3b82f6) 18%, transparent);
+}
+
+.aixia-dash-action--primary:hover:not(:disabled) {
+  background: color-mix(in srgb, var(--primary, #3b82f6) 28%, transparent);
+}
+
+.aixia-dash-action--danger {
+  color: #fecaca;
+  background: color-mix(in srgb, #ef4444 18%, transparent);
+}
+
+.aixia-dash-action--danger:hover:not(:disabled) {
+  background: color-mix(in srgb, #ef4444 28%, transparent);
+}
+
+.aixia-dash-metrics {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 0.5rem;
+  flex-shrink: 0;
+}
+
+@media (min-width: 900px) {
+  .aixia-dash-metrics {
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+  }
+}
+
+.aixia-dash-metrics--auto {
+  grid-template-columns: repeat(auto-fit, minmax(min(100%, 11rem), 1fr));
+}
+
+@media (min-width: 900px) {
+  .aixia-dash-metrics--auto {
+    grid-template-columns: repeat(auto-fit, minmax(10.5rem, 1fr));
+  }
+}
+
+.aixia-dash-metric {
+  border: 1px solid var(--aixia-dash-border);
+  border-radius: var(--aixia-dash-radius);
+  padding: clamp(0.72rem, 1.75vw, 1rem) clamp(0.8rem, 2vw, 1.05rem);
+  background: var(--aixia-dash-surface);
+  display: flex;
+  align-items: flex-start;
+  gap: 0.55rem;
+}
+
+.aixia-dash-metric-icon {
+  flex-shrink: 0;
+  width: 2rem;
+  height: 2rem;
+  border-radius: var(--aixia-dash-radius-sm);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: color-mix(in srgb, var(--primary, #3b82f6) 14%, transparent);
+  color: var(--primary, #3b82f6);
+}
+
+.aixia-dash-metric-icon svg {
+  width: 1rem;
+  height: 1rem;
+}
+
+.aixia-dash-metric-val {
+  font-size: 1.125rem;
+  font-weight: 600;
+  color: var(--aixia-dash-title);
+  line-height: 1.15;
+}
+
+.aixia-dash-metric-label {
+  font-size: 0.6875rem;
+  font-weight: 500;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  color: var(--aixia-dash-muted);
+  margin-top: 0.1rem;
+}
+
+.aixia-dash-main-grid {
+  display: grid;
+  gap: clamp(0.85rem, 2vw, 1.35rem);
+}
+
+@media (min-width: 1024px) {
+  .aixia-dash-main-grid {
+    grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+    align-items: stretch;
+  }
+}
+
+.aixia-dash-col {
+  display: flex;
+  flex-direction: column;
+  gap: clamp(0.85rem, 2vw, 1.35rem);
+  min-height: 0;
+  min-width: 0;
+}
+
+.aixia-dash-panel {
+  border: 1px solid var(--aixia-dash-border);
+  border-radius: var(--aixia-dash-radius);
+  background: var(--aixia-dash-surface);
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+  flex: 1;
+  max-height: min(70vh, 640px);
+}
+
+@media (max-width: 640px) {
+  .aixia-dash-panel {
+    max-height: min(85vh, 720px);
+  }
+}
+
+.aixia-dash-panel-hd {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.65rem;
+  padding: clamp(0.65rem, 1.5vw, 0.9rem) clamp(0.75rem, 2vw, 1.1rem);
+  border-bottom: 1px solid var(--aixia-dash-border);
+  flex-shrink: 0;
+}
+
+.aixia-dash-panel-title {
+  margin: 0;
+  font-size: 0.8125rem;
+  font-weight: 600;
+  color: var(--aixia-dash-title);
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
+}
+
+.aixia-dash-panel-title svg {
+  width: 0.9rem;
+  height: 0.9rem;
+  opacity: 0.85;
+}
+
+.aixia-dash-panel-body {
+  flex: 1;
+  min-height: 0;
+  padding: clamp(0.55rem, 1.5vw, 0.85rem) clamp(0.65rem, 2vw, 1rem)
+    clamp(0.75rem, 2vw, 1.1rem);
+  overflow: hidden;
+}
+
+.aixia-dash-list-row {
+  width: 100%;
+  text-align: left;
+  border: none;
+  background: transparent;
+  padding: 0.55rem 0.5rem;
+  border-radius: var(--aixia-dash-radius-sm);
+  cursor: pointer;
+  transition: background 0.12s ease;
+  display: block;
+}
+
+.aixia-dash-list-row:hover {
+  background: color-mix(in srgb, var(--foreground, #fff) 5%, transparent);
+}
+
+.aixia-dash-list-row-title {
+  font-size: 0.8125rem;
+  font-weight: 500;
+  color: var(--aixia-dash-title);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.aixia-dash-list-row-meta {
+  font-size: 0.6875rem;
+  color: var(--aixia-dash-muted);
+  margin-top: 0.15rem;
+}
+
+.aixia-dash-pill {
+  font-size: 0.625rem;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  padding: 0.15rem 0.45rem;
+  border-radius: 999px;
+  background: color-mix(in srgb, var(--primary, #3b82f6) 16%, transparent);
+  color: var(--primary, #93c5fd);
+}
+
+.aixia-dash-empty {
+  font-size: 0.8125rem;
+  color: var(--aixia-dash-muted);
+  padding: 0.35rem 0.25rem;
+}
+
+.aixia-dash-skel {
+  border-radius: var(--aixia-dash-radius);
+  border: 1px solid var(--aixia-dash-border);
+  padding: 0.65rem 0.75rem;
+  background: var(--aixia-dash-surface);
+}
+
+.aixia-dash-skel-line {
+  height: 0.65rem;
+  border-radius: 4px;
+  background: color-mix(in srgb, var(--muted-foreground, #9ca3af) 16%, transparent);
+  animation: aixia-dash-pulse 1.2s ease-in-out infinite;
+}
+
+@keyframes aixia-dash-pulse {
+  0%,
+  100% {
+    opacity: 0.45;
+  }
+  50% {
+    opacity: 0.9;
+  }
+}

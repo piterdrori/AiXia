@@ -17,6 +17,10 @@ import {
   Square,
   Activity,
 } from "lucide-react";
+import { AixiaButton, AixiaHero, AixiaPage } from "@/components/aixia";
+import "@/styles/dashboard/tokens.css";
+import "@/styles/dashboard/layout.css";
+import "@/styles/dashboard/visual.css";
 
 type Role = "admin" | "manager" | "employee" | "guest";
 
@@ -377,48 +381,49 @@ export default function ActivityPage() {
   };
 
   return (
-    <div className="h-[calc(100vh-140px)] flex flex-col gap-6 overflow-hidden">
-      <div className="flex flex-wrap items-start justify-between gap-4 shrink-0">
-        <div>
-          <h1 className="text-3xl font-bold text-white">Activity Log</h1>
-          <p className="text-slate-400">
-            {isAdmin
-              ? "Monitor and manage all system activity logs"
-              : "Monitor and manage your accessible activity logs"}
-          </p>
-        </div>
+    <AixiaPage
+      surface="command"
+      className="aixia-command-page aixia-activity-page h-[calc(100vh-140px)] flex flex-col overflow-hidden"
+    >
+      <AixiaHero
+        surface="command"
+        className="shrink-0"
+        gradientTitle="Activity"
+        title="Activity Log"
+        subtitle={
+          isAdmin
+            ? "Monitor and manage all system activity logs"
+            : "Monitor and manage your accessible activity logs"
+        }
+        actions={
+          <>
+            <AixiaButton
+              type="button"
+              className="h-9"
+              onClick={() => void loadActivity()}
+              disabled={isLoading}
+            >
+              <RefreshCw className="h-4 w-4 mr-2" />
+              Refresh
+            </AixiaButton>
+            <AixiaButton type="button" className="h-9" onClick={toggleSelectionMode}>
+              {isSelectionMode ? (
+                <>
+                  <Square className="h-4 w-4 mr-2" />
+                  Cancel Selection
+                </>
+              ) : (
+                <>
+                  <CheckSquare className="h-4 w-4 mr-2" />
+                  Select Logs
+                </>
+              )}
+            </AixiaButton>
+          </>
+        }
+      />
 
-        <div className="flex gap-2">
-          <Button
-            variant="outline"
-            className="border-slate-700 text-slate-300 hover:bg-slate-800"
-            onClick={() => void loadActivity()}
-            disabled={isLoading}
-          >
-            <RefreshCw className="w-4 h-4 mr-2" />
-            Refresh
-          </Button>
-
-          <Button
-            variant="outline"
-            className="border-slate-700 text-slate-300 hover:bg-slate-800"
-            onClick={toggleSelectionMode}
-          >
-            {isSelectionMode ? (
-              <>
-                <Square className="w-4 h-4 mr-2" />
-                Cancel Selection
-              </>
-            ) : (
-              <>
-                <CheckSquare className="w-4 h-4 mr-2" />
-                Select Logs
-              </>
-            )}
-          </Button>
-        </div>
-      </div>
-
+      <div className="aixia-command-scroll flex flex-col gap-6 min-h-0 flex-1">
       {error && (
         <Alert className="bg-red-900/20 border-red-800 text-red-300 shrink-0">
           <AlertDescription>{error}</AlertDescription>
@@ -569,6 +574,7 @@ export default function ActivityPage() {
           )}
         </CardContent>
       </Card>
-    </div>
+      </div>
+    </AixiaPage>
   );
 }

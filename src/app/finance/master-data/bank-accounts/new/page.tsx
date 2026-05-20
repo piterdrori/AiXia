@@ -1,20 +1,7 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import type { FormEvent } from "react";
 import { useNavigate, useSearchParams } from "react-router-dom";
-import type { LucideIcon } from "lucide-react";
-import {
-  Building2,
-  CreditCard,
-  FileText,
-  Landmark,
-  Loader2,
-  LockKeyhole,
-  RotateCcw,
-  Save,
-  ShieldCheck,
-  Sparkles,
-  WalletCards,
-} from "lucide-react";
+import { Building2, CreditCard, FileText, Landmark, Loader2, RotateCcw, Save, Sparkles, WalletCards } from "lucide-react";
 
 import {
   AixiaAccessDeniedState,
@@ -31,7 +18,7 @@ import {
   AixiaHero,
   AixiaInputField,
   AixiaLoadingState,
-  AixiaPage,
+  FinancePage,
   AixiaReviewBlock,
   AixiaReviewGrid,
   AixiaSection,
@@ -85,13 +72,6 @@ type FormState = {
   notes: string;
 };
 
-type HeaderStatusCardData = {
-  label: string;
-  value: string;
-  description: string;
-  icon: LucideIcon;
-  tone: "emerald" | "cyan" | "amber" | "rose";
-};
 
 type SummaryItem = {
   label: string;
@@ -166,7 +146,7 @@ export default function FinanceMasterDataBankAccountCreatePage() {
     useState<Record<Permission, boolean> | null>(null);
   const [isLoadingProfile, setIsLoadingProfile] = useState(true);
   const [isLoadingCompanies, setIsLoadingCompanies] = useState(true);
-  const [backgroundRefreshing, setBackgroundRefreshing] = useState(false);
+  const [, setBackgroundRefreshing] = useState(false);
   const [isSaving, setIsSaving] = useState(false);
   const [formError, setFormError] = useState<string | null>(null);
   const [formMessage, setFormMessage] = useState<string | null>(null);
@@ -377,40 +357,7 @@ export default function FinanceMasterDataBankAccountCreatePage() {
 
   const isPageLoading = isLoadingProfile || isLoadingCompanies;
 
-  const headerStatusCards = useMemo<HeaderStatusCardData[]>(() => {
-    return [
-      {
-        label: "Create Access",
-        value: isLoadingProfile
-          ? "Checking"
-          : permissionState.canCreate
-            ? "Enabled"
-            : "Locked",
-        description:
-          "Bank Account create access follows the Finance role template and user-specific exceptions.",
-        icon: permissionState.canCreate ? ShieldCheck : LockKeyhole,
-        tone: permissionState.canCreate ? "emerald" : "rose",
-      },
-      {
-        label: "Company Source",
-        value: isLoadingCompanies ? "Loading" : `${companies.length} Options`,
-        description:
-          backgroundRefreshing
-            ? "Reference data is refreshing silently without resetting the form."
-            : "Company options are pulled from Finance Companies and used to prefill beneficiary and currency.",
-        icon: Building2,
-        tone: "cyan",
-      },
-    ];
-  }, [
-    backgroundRefreshing,
-    companies.length,
-    isLoadingCompanies,
-    isLoadingProfile,
-    permissionState.canCreate,
-  ]);
-
-  const summaryItems = useMemo<SummaryItem[]>(() => {
+const summaryItems = useMemo<SummaryItem[]>(() => {
     return [
       {
         label: "Company",
@@ -520,24 +467,19 @@ export default function FinanceMasterDataBankAccountCreatePage() {
   }
 
   return (
-    <AixiaPage>
+    <FinancePage>
       <AixiaHero
+        className="shrink-0 space-y-4"
+        surface="command"
         parentLabel="Bank Accounts"
         parentPath="/finance/master-data/bank-accounts"
-        badges={[
-          { label: "New Company Bank Account", tone: "cyan" },
-          { label: "Company linked", tone: "emerald" },
-          { label: "Permission protected", tone: "cyan" },
-          { label: "Opens ID page after create", tone: "neutral" },
-        ]}
         gradientTitle="Create"
         title="Bank Account"
         subtitle="Company Payment Master Data"
-        description="Create a company-linked bank account for treasury, payment instructions, and future finance document snapshots. After saving, the new bank account record opens directly."
-        statusCards={headerStatusCards}
-      />
+        />
 
-      {formError ? <AixiaAlert tone="error">{formError}</AixiaAlert> : null}
+      <div className="aixia-command-scroll">
+{formError ? <AixiaAlert tone="error">{formError}</AixiaAlert> : null}
       {formMessage ? <AixiaAlert tone="success">{formMessage}</AixiaAlert> : null}
 
       {isPageLoading ? (
@@ -866,6 +808,7 @@ export default function FinanceMasterDataBankAccountCreatePage() {
           />
         </form>
       )}
-    </AixiaPage>
+      </div>
+    </FinancePage>
   );
 }

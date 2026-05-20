@@ -1,5 +1,7 @@
 import fs from "node:fs";
 import path from "node:path";
+import { runDashboardPageGuardrails } from "./guardrails/aixia-dashboard-page.mjs";
+import { runVisualParityGuardrails } from "./guardrails/aixia-visual-parity.mjs";
 
 const ROOT = process.cwd();
 const SRC_DIR = path.join(ROOT, "src");
@@ -40,6 +42,7 @@ const REQUIRED_AIXIA_COMPONENT_FILES = [
   "AixiaModal.tsx",
   "AixiaNavigationCard.tsx",
   "AixiaPage.tsx",
+  "FinancePage.tsx",
   "AixiaPageStates.tsx",
   "AixiaRegistryToolbar.tsx",
   "AixiaReviewBlocks.tsx",
@@ -2641,6 +2644,9 @@ function main() {
   inspectSharedComponentSourceOfTruth();
   inspectFinancePermissionHelperSourceOfTruth();
   inspectFinanceLibSafetyRules();
+
+  runDashboardPageGuardrails({ ROOT, addError });
+  runVisualParityGuardrails({ ROOT, addWarning: addError, addError });
 
   const financeFiles = walkFiles(FINANCE_APP_DIR, [".tsx", ".ts"]);
 

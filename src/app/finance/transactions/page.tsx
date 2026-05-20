@@ -9,29 +9,13 @@ import {
   FileText,
   LockKeyhole,
   Receipt,
+  RefreshCw,
   ShieldCheck,
   UserRound,
   Wallet,
 } from "lucide-react";
 
-import {
-  AixiaAccessRule,
-  AixiaAlert,
-  AixiaBadge,
-  AixiaButton,
-  AixiaEmptyState,
-  AixiaHero,
-  AixiaLoadingState,
-  AixiaMetricCard,
-  AixiaMetricGrid,
-  AixiaNavigationInfoPanel,
-  AixiaNavigationStatBlock,
-  AixiaPage,
-  AixiaReviewGrid,
-  AixiaSideList,
-  AixiaSideListRow,
-  AixiaValueBlock,
-} from "@/components/aixia";
+import { AixiaAccessRule, AixiaAlert, AixiaBadge, AixiaButton, AixiaEmptyState, AixiaFinanceHubControlPanel, AixiaFinanceHubMetaStrip, AixiaFinanceHubOverviewGrid, AixiaHero, AixiaLoadingState, AixiaNavigationInfoPanel, AixiaNavigationStatBlock, AixiaCommandMetrics, FinancePage, AixiaReviewGrid, AixiaSideList, AixiaSideListRow, AixiaValueBlock } from "@/components/aixia";
 import {
   fetchFinanceEffectivePermissions,
   resolveFinancePagePermissionState,
@@ -55,6 +39,7 @@ type TransactionModuleKey =
   | "customer-pos"
   | "vendor-quotations"
   | "invoices"
+  | "issued-pi-invoices"
   | "bills"
   | "proforma-invoices"
   | "expenses"
@@ -205,7 +190,9 @@ type AccessFlags = {
   canSeeSupplierProcurement: boolean;
   canMonitorSupplierProcurement: boolean;
   canSeeOwnExpenses: boolean;
+  canSeeExpenseReview: boolean;
   canSeeExpenseFunding: boolean;
+  canSeeExpensePayments: boolean;
   canMonitorExpenseFunding: boolean;
   canSeeOwnPaychecks: boolean;
   canSeePayrollBasket: boolean;
@@ -346,7 +333,9 @@ const EMPTY_ACCESS_FLAGS: AccessFlags = {
   canSeeSupplierProcurement: false,
   canMonitorSupplierProcurement: false,
   canSeeOwnExpenses: true,
+  canSeeExpenseReview: false,
   canSeeExpenseFunding: false,
+  canSeeExpensePayments: false,
   canMonitorExpenseFunding: false,
   canSeeOwnPaychecks: true,
   canSeePayrollBasket: false,
@@ -438,7 +427,16 @@ function resolveAccessFlags(
     supplierPermission.canUpdate || supplierPermission.canApproveExecute;
 
   const canSeeOwnExpenses = true;
-  const canSeeExpenseFunding = expensePermission.canRead;
+  const isAdmin = String(profileRole || "").toLowerCase() === "admin";
+  const canSeeExpenseReview =
+    isAdmin ||
+    Boolean(effectivePermissions?.approveExpenses) ||
+    expensePermission.canUpdate;
+  const canSeeExpenseFunding =
+    isAdmin ||
+    Boolean(effectivePermissions?.recordReimbursementPayments) ||
+    expensePermission.canRead;
+  const canSeeExpensePayments = canSeeExpenseFunding;
   const canMonitorExpenseFunding =
     expensePermission.canUpdate || expensePermission.canApproveExecute;
 
@@ -457,7 +455,9 @@ function resolveAccessFlags(
     canSeeIncomingMoney ||
     canSeeSupplierProcurement ||
     canSeeOwnExpenses ||
+    canSeeExpenseReview ||
     canSeeExpenseFunding ||
+    canSeeExpensePayments ||
     canSeeOwnPaychecks ||
     canSeePayrollBasket;
 
@@ -468,7 +468,9 @@ function resolveAccessFlags(
     canSeeSupplierProcurement,
     canMonitorSupplierProcurement,
     canSeeOwnExpenses,
+    canSeeExpenseReview,
     canSeeExpenseFunding,
+    canSeeExpensePayments,
     canMonitorExpenseFunding,
     canSeeOwnPaychecks,
     canSeePayrollBasket,
@@ -1138,6 +1140,18 @@ export default function FinanceTransactionsPage() {
         lastUpdatedLabel: "Company",
         tone: "emerald",
       },
+      "issued-pi-invoices": {
+        key: "issued-pi-invoices",
+        title: "Proforma / Invoice",
+        description:
+          "Receivable documents your company issues to clients — proforma confirmation or final invoice.",
+        route: "/finance/transactions/invoices",
+        icon: FileText,
+        count: data.counts.proformaInvoices + data.counts.invoices,
+        statusLabel: "Live",
+        lastUpdatedLabel: "Company",
+        tone: "emerald",
+      },
       bills: {
         key: "bills",
         title: "Vendor PI / Invoices",
@@ -1248,15 +1262,18 @@ export default function FinanceTransactionsPage() {
         key: "incoming",
         title: "Incoming Money Flow",
         subtitle:
-          "Customer-side receivable flow from quotation and customer commitment through proforma, final invoice, and payment collection.",
+          "Customer-side receivable flow from quotation and customer commitment through proforma or invoice issuance and payment collection.",
         tone: "incoming",
         icon: Wallet,
         modules: [
           { module: allModuleCards.quotations, sequenceLabel: "01" },
           { module: allModuleCards["customer-pos"], sequenceLabel: "02" },
-          { module: allModuleCards["proforma-invoices"], sequenceLabel: "03" },
-          { module: allModuleCards.invoices, sequenceLabel: "04" },
-          { module: allModuleCards["payments-received"], sequenceLabel: "05" },
+          {
+            module: allModuleCards["issued-pi-invoices"],
+            sequenceLabel: "03",
+            titleOverride: "Proforma / Invoice",
+          },
+          { module: allModuleCards["payments-received"], sequenceLabel: "04" },
         ],
       });
     }
@@ -1292,20 +1309,42 @@ export default function FinanceTransactionsPage() {
       expenseModules.push({
         module: allModuleCards.expenses,
         sequenceLabel: "01",
-        titleOverride: "My Expense / Reimbursement Requests",
+        titleOverride: "Apply Expense",
         descriptionOverride:
-          "Default own access: create, edit, submit, upload, and confirm your own expense and reimbursement records.",
+          "Submit and confirm your expenses",
+      });
+    }
+
+    if (accessFlags.canSeeExpenseReview) {
+      expenseModules.push({
+        module: allModuleCards.expenses,
+        sequenceLabel: "02",
+        titleOverride: "Review Expenses",
+        descriptionOverride:
+          "Approve or reject submitted expenses",
+        routeOverride: "/finance/transactions/expense-review",
       });
     }
 
     if (accessFlags.canSeeExpenseFunding) {
       expenseModules.push({
         module: allModuleCards["payments-made"],
-        sequenceLabel: "02",
-        titleOverride: "Funding Pool / Payment Distribution",
+        sequenceLabel: "03",
+        titleOverride: "Allocate Funds",
         descriptionOverride:
-          "Finance/Admin execution area for expense funding pools, payment distribution, proof review, and recipient confirmation monitoring.",
-        routeOverride: "/finance/transactions/expenses-payments-made",
+          "Set aside money for expense payments",
+        routeOverride: "/finance/transactions/expense-funding",
+      });
+    }
+
+    if (accessFlags.canSeeExpensePayments) {
+      expenseModules.push({
+        module: allModuleCards["payments-made"],
+        sequenceLabel: "04",
+        titleOverride: "Use Allocated Funds",
+        descriptionOverride:
+          "Pay expenses from allocated funds",
+        routeOverride: "/finance/transactions/expense-payments",
       });
     }
 
@@ -1379,15 +1418,13 @@ export default function FinanceTransactionsPage() {
       {
         label: "System Status",
         value: isLoading ? "Loading" : isRefreshing ? "Syncing" : "Live",
-        description: "Transaction hub refreshes silently every 60 seconds.",
-        icon: ShieldCheck,
+        detail: "Transaction hub refreshes silently every 60 seconds.",
         tone: "emerald" as const,
       },
       {
         label: "Personal Access",
         value: "Enabled",
-        description: "Own expenses and paycheck requests are available by default.",
-        icon: UserRound,
+        detail: "Own expenses and paycheck requests are available by default.",
         tone: "cyan" as const,
       },
       {
@@ -1397,12 +1434,54 @@ export default function FinanceTransactionsPage() {
             section.modules.some((item) => !item.module.isPersonalDefault)
           ).length
         )}`,
-        description: "Company-level sections enabled for this user.",
-        icon: LockKeyhole,
+        detail: "Company-level sections enabled for this user.",
         tone: "amber" as const,
       },
     ];
   }, [isLoading, isRefreshing, transactionSections]);
+
+  const overviewMetrics = useMemo(() => {
+    if (!accessFlags.canMonitorAnyCompanyFinance) {
+      return [];
+    }
+
+    const items = [];
+
+    if (accessFlags.canMonitorIncomingMoney) {
+      items.push({
+        key: "overdue-invoices",
+        label: "Overdue Invoices",
+        value: isLoading ? "—" : formatCount(data.alerts.overdueInvoices),
+        description: "Receivables requiring collection attention",
+        icon: FileText,
+        tone: "rose" as const,
+      });
+    }
+
+    if (accessFlags.canMonitorSupplierProcurement) {
+      items.push({
+        key: "overdue-bills",
+        label: "Overdue Bills",
+        value: isLoading ? "—" : formatCount(data.alerts.overdueBills),
+        description: "Payables requiring payment attention",
+        icon: Receipt,
+        tone: "amber" as const,
+      });
+    }
+
+    if (accessFlags.canMonitorExpenseFunding) {
+      items.push({
+        key: "pending-expenses",
+        label: "Pending Expenses",
+        value: isLoading ? "—" : formatCount(data.alerts.pendingExpenses),
+        description: "Expense items waiting for Finance/Admin action",
+        icon: CreditCard,
+        tone: "cyan" as const,
+      });
+    }
+
+    return items;
+  }, [accessFlags, data.alerts, isLoading]);
 
   const openRoute = useCallback(
     (route: string) => {
@@ -1421,21 +1500,49 @@ export default function FinanceTransactionsPage() {
   }
 
   return (
-    <AixiaPage>
+    <FinancePage>
       <AixiaHero
+        className="shrink-0 space-y-4"
+        surface="command"
         parentLabel="Finance"
         parentPath="/finance"
-        badges={[
-          { label: "Permission-Aware Transactions", tone: "cyan" },
-          { label: "Own Records Enabled", tone: "emerald" },
-          { label: isRefreshing ? "Silent Sync" : "Auto Refresh", tone: "neutral" },
-        ]}
         gradientTitle="Transactions"
-        title="Studio"
+        title="Transactions"
         subtitle="Finance transaction workflows filtered by approved access"
-        description="This page only shows transaction areas available to the logged-in user. Personal expense and paycheck request access is enabled by default. Company-level workflows appear only when Finance Access Approvals permits them."
-        statusCards={headerStatusCards}
-      />
+        actions={
+          <AixiaButton
+            type="button"
+            variant="secondary"
+            disabled={isRefreshing}
+            onClick={() => void loadTransactionsData("initial")}
+          >
+            <RefreshCw className={`h-4 w-4 ${isRefreshing ? "animate-spin" : ""}`} />
+            Refresh
+          </AixiaButton>
+        }
+      >
+        <AixiaCommandMetrics
+          items={metricCards.map((metric) => ({
+            key: metric.key,
+            title: metric.title,
+            value: metric.value,
+            subtitle: metric.subtitle,
+            icon: metric.icon,
+            tone: metric.tone,
+          }))}
+        />
+      </AixiaHero>
+
+      <div className="aixia-command-scroll">
+        <AixiaFinanceHubMetaStrip
+          items={headerStatusCards.map((card) => ({
+            key: card.label,
+            label: card.label,
+            value: card.value,
+            detail: card.detail,
+            tone: card.tone,
+          }))}
+        />
 
       {pageError ? <AixiaAlert tone="error">{pageError}</AixiaAlert> : null}
 
@@ -1449,61 +1556,16 @@ export default function FinanceTransactionsPage() {
         resolved through fetchFinanceEffectivePermissions and resolveFinancePagePermissionState.
       </AixiaAccessRule>
 
-      {metricCards.length > 0 ? (
-        <AixiaMetricGrid>
-          {metricCards.map((metric) => (
-            <AixiaMetricCard
-              key={metric.key}
-              label={metric.title}
-              value={metric.value}
-              description={metric.subtitle}
-              icon={metric.icon}
-              tone={metric.tone}
-            />
-          ))}
-        </AixiaMetricGrid>
+      {accessFlags.canMonitorAnyCompanyFinance ? (
+        <AixiaFinanceHubControlPanel
+          icon={BadgeAlert}
+          description="Visible only for company-level monitoring permissions."
+        />
       ) : null}
 
+      <AixiaFinanceHubOverviewGrid items={overviewMetrics} />
+
       <div className="aixia-transactions-hub-layout xl:grid-cols-[minmax(0,1fr)_430px]">
-        <div className="aixia-transactions-hub-span">
-          {accessFlags.canMonitorAnyCompanyFinance ? (
-            <div className="aixia-stack">
-              <AixiaNavigationInfoPanel
-                tone="amber"
-                icon={BadgeAlert}
-                title="Control Signals"
-                description="Visible only for company-level monitoring permissions."
-              />
-
-              <AixiaReviewGrid variant="cards">
-                {accessFlags.canMonitorIncomingMoney ? (
-                  <AixiaValueBlock
-                    label="Overdue Invoices"
-                    value={isLoading ? "—" : formatCount(data.alerts.overdueInvoices)}
-                    detail="Receivables requiring collection attention"
-                  />
-                ) : null}
-
-                {accessFlags.canMonitorSupplierProcurement ? (
-                  <AixiaValueBlock
-                    label="Overdue Bills"
-                    value={isLoading ? "—" : formatCount(data.alerts.overdueBills)}
-                    detail="Payables requiring payment attention"
-                  />
-                ) : null}
-
-                {accessFlags.canMonitorExpenseFunding ? (
-                  <AixiaValueBlock
-                    label="Pending Expenses"
-                    value={isLoading ? "—" : formatCount(data.alerts.pendingExpenses)}
-                    detail="Expense items waiting for Finance/Admin action"
-                  />
-                ) : null}
-              </AixiaReviewGrid>
-            </div>
-          ) : null}
-        </div>
-
         <div className="aixia-transactions-hub-span">
           {transactionSections.length > 0 ? (
             <div className="aixia-stack">
@@ -1634,6 +1696,6 @@ export default function FinanceTransactionsPage() {
           Finance
         </AixiaButton>
       </div>
-    </AixiaPage>
+      </div></FinancePage>
   );
 }

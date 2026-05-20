@@ -8,20 +8,23 @@ import {
   Plus,
   Receipt,
   RotateCcw,
+  ShieldCheck,
   Trash2,
   WalletCards,
 } from "lucide-react";
 
 import {
+  AixiaAccessRule,
   AixiaAlert,
   AixiaArchiveManagerModal,
   AixiaBadge,
   AixiaButton,
   AixiaEmptyState,
+  AixiaFinanceHubControlPanel,
+  AixiaFinanceHubMetaStrip,
   AixiaHero,
-  AixiaMetricCard,
-  AixiaMetricGrid,
-  AixiaPage,
+  AixiaCommandMetrics,
+  FinancePage,
   AixiaRegistryToolbar,
   AixiaSearchField,
   AixiaSection,
@@ -889,24 +892,93 @@ export default function FinancePaymentsMadePage() {
     [navigate],
   );
 
+  const paymentMadeMetrics = useMemo(
+    () => [
+      {
+        key: "draft",
+        title: "Draft",
+        value: formatCount(summary.draft),
+        subtitle: "Created but not confirmed.",
+        icon: Receipt,
+        tone: "neutral" as const,
+      },
+      {
+        key: "confirmed",
+        title: "Confirmed",
+        value: formatCount(summary.confirmed),
+        subtitle: "Posted against vendor bill balances.",
+        icon: CreditCard,
+        tone: "emerald" as const,
+      },
+      {
+        key: "cancelled",
+        title: "Cancelled",
+        value: formatCount(summary.cancelled),
+        subtitle: "Cancelled outgoing payment records.",
+        icon: Archive,
+        tone: "rose" as const,
+      },
+      {
+        key: "flow",
+        title: "Flow",
+        value: "04",
+        subtitle: "Vendor PI / Invoice → Payment Made.",
+        icon: WalletCards,
+        tone: "cyan" as const,
+      },
+    ],
+    [summary],
+  );
+
+  const headerStatusCards = useMemo(
+    () => [
+      {
+        key: "system-status",
+        label: "System Status",
+        value: isLoading ? "Loading" : isBackgroundRefreshing ? "Syncing" : "Live",
+        detail: "Outgoing payments registry refreshes silently with auto-refresh enabled.",
+        tone: "emerald" as const,
+      },
+      {
+        key: "access",
+        label: "Access",
+        value: "Enabled",
+        detail: "Company payment execution records follow the shared Finance permission standard.",
+        tone: "cyan" as const,
+      },
+      {
+        key: "active-records",
+        label: "Active Records",
+        value: summary.total.toLocaleString(),
+        detail: "Outgoing payment records in the main registry.",
+        tone: "amber" as const,
+      },
+    ],
+    [isBackgroundRefreshing, isLoading, summary.total],
+  );
+
   return (
-    <AixiaPage>
+    <FinancePage>
       <AixiaHero
+        className="shrink-0 space-y-4"
+        surface="command"
         parentLabel="Transactions"
         parentPath="/finance/transactions"
-        badges={[
-          { label: "Supplier Procurement", tone: "emerald" },
-          { label: "Step 04", tone: "cyan" },
-          {
-            label: isBackgroundRefreshing ? "Syncing" : "Live",
-            tone: "neutral",
-          },
-        ]}
-        gradientTitle="Payments"
-        title="Made"
-        description="Outgoing payment records linked to approved vendor PI / invoice documents. Confirmed payments update the payable bill paid amount and balance due."
+        gradientTitle="Payments Made"
+        title="Payments Made"
+        subtitle="Outgoing payment registry for vendor bills and purchase flows"
         actions={
           <>
+            <AixiaButton
+              type="button"
+              variant="secondary"
+              disabled={isLoading}
+              onClick={() => void loadRows("initial")}
+            >
+              <RotateCcw className="h-4 w-4" />
+              Refresh
+            </AixiaButton>
+
             <AixiaButton
               type="button"
               variant="primary"
@@ -931,56 +1003,30 @@ export default function FinancePaymentsMadePage() {
             </AixiaButton>
           </>
         }
-        statusCards={[
-          {
-            label: "Active Payments",
-            value: isLoading ? "—" : formatCount(summary.total),
-            description: "Active outgoing payment records.",
-            icon: CreditCard,
-            tone: "emerald",
-          },
-          {
-            label: "Confirmed Paid",
-            value: isLoading ? "—" : formatMoney(summary.totalPaid, "USD"),
-            description: "Approximate confirmed outgoing value.",
-            icon: WalletCards,
-            tone: "cyan",
-          },
-        ]}
-      />
+      >
+        <AixiaCommandMetrics items={paymentMadeMetrics} />
+      </AixiaHero>
 
-      <AixiaMetricGrid>
-        <AixiaMetricCard
-          label="Draft"
-          value={formatCount(summary.draft)}
-          description="Created but not confirmed."
-          icon={Receipt}
-          tone="neutral"
-        />
-        <AixiaMetricCard
-          label="Confirmed"
-          value={formatCount(summary.confirmed)}
-          description="Posted against vendor bill balances."
-          icon={CreditCard}
-          tone="emerald"
-        />
-        <AixiaMetricCard
-          label="Cancelled"
-          value={formatCount(summary.cancelled)}
-          description="Cancelled outgoing payment records."
-          icon={Archive}
-          tone="rose"
-        />
-        <AixiaMetricCard
-          label="Flow"
-          value="04"
-          description="Vendor PI / Invoice → Payment Made."
+      <div className="aixia-command-scroll">
+        <AixiaFinanceHubMetaStrip items={headerStatusCards} />
+
+        {errorMessage ? <AixiaAlert tone="error">{errorMessage}</AixiaAlert> : null}
+
+        <AixiaAccessRule
+          title="Payments Made Access Rule"
+          description="Outgoing payment registry permissions control creation, archive, restore, and permanent delete behavior."
+          icon={ShieldCheck}
+        >
+          Active outgoing payment records stay in the main registry. Archived and deleted records are managed only from the archive panel, with restore and permanent delete actions separated by lifecycle state.
+        </AixiaAccessRule>
+
+        <AixiaFinanceHubControlPanel
           icon={WalletCards}
-          tone="cyan"
+          title="Outgoing payments"
+          description="Company payment execution records. Auto-refresh enabled."
         />
-      </AixiaMetricGrid>
 
-      <AixiaSection
+        <AixiaSection
         title="Payment Made Registry"
         description="Active outgoing payments only. Archived and deleted records are managed from the archive panel."
         icon={CreditCard}
@@ -1083,6 +1129,7 @@ export default function FinancePaymentsMadePage() {
           isLoading={isArchiveLoading}
         />
       </AixiaArchiveManagerModal>
-    </AixiaPage>
+      </div>
+    </FinancePage>
   );
 }

@@ -2,27 +2,7 @@ import { useCallback, useEffect, useMemo, useState } from "react";
 import type { FormEvent } from "react";
 import { useNavigate } from "react-router-dom";
 import type { LucideIcon } from "lucide-react";
-import {
-  Archive,
-  BadgeDollarSign,
-  Briefcase,
-  CalendarDays,
-  Clock3,
-  Edit3,
-  ExternalLink,
-  Landmark,
-  Loader2,
-  LockKeyhole,
-  Plus,
-  RotateCcw,
-  Save,
-  Shield,
-  ShieldCheck,
-  Trash2,
-  User2,
-  Users,
-  WalletCards,
-} from "lucide-react";
+import { Archive, BadgeDollarSign, Briefcase, CalendarDays, Clock3, Edit3, ExternalLink, Landmark, Loader2, Plus, RotateCcw, Save, Shield, Trash2, User2, Users, WalletCards } from "lucide-react";
 
 import {
   AixiaAccessDeniedState,
@@ -45,7 +25,7 @@ import {
   AixiaInputField,
   AixiaLoadingState,
   AixiaModal,
-  AixiaPage,
+  FinancePage,
   AixiaProfileCard,
   AixiaRegistryToolbar,
   AixiaReviewBlock,
@@ -188,13 +168,6 @@ const EMPLOYEE_ACCESS_CONFIG = {
   deleteArchivePermissions: ["archiveFinanceRecords"],
 } as const;
 
-type HeaderStatusCardData = {
-  label: string;
-  value: string;
-  description: string;
-  icon: LucideIcon;
-  tone: "emerald" | "cyan" | "amber" | "rose";
-};
 
 type MetricCardData = {
   label: string;
@@ -764,7 +737,7 @@ export default function FinanceMasterDataEmployeesPage() {
 
   const [isLoadingProfile, setIsLoadingProfile] = useState(true);
   const [isLoadingData, setIsLoadingData] = useState(true);
-  const [backgroundRefreshing, setBackgroundRefreshing] = useState(false);
+  const [, setBackgroundRefreshing] = useState(false);
   const [profileSaving, setProfileSaving] = useState(false);
 
   const [search, setSearch] = useState("");
@@ -1305,46 +1278,7 @@ export default function FinanceMasterDataEmployeesPage() {
     };
   }, [payProfiles, rows]);
 
-  const headerStatusCards = useMemo<HeaderStatusCardData[]>(() => {
-    return [
-      {
-        label: "Read Access",
-        value: isLoadingProfile
-          ? "Checking"
-          : permissionState.canRead
-            ? "Enabled"
-            : "Locked",
-        description:
-          "Employee pay profile management requires Finance read or Master Data access.",
-        icon: permissionState.canRead ? ShieldCheck : LockKeyhole,
-        tone: permissionState.canRead ? "emerald" : "rose",
-      },
-      {
-        label: "Payroll Defaults",
-        value: `${stats.activeProfiles} Active`,
-        description: "Active global paycheck profiles available for payroll defaults.",
-        icon: WalletCards,
-        tone: "cyan",
-      },
-      {
-        label: "Hourly Add-On",
-        value: `${stats.hourlyEnabled} Enabled`,
-        description: backgroundRefreshing
-          ? "Silent refresh is updating records without disturbing the page."
-          : "Hourly structure remains optional and separate from gross pay.",
-        icon: Clock3,
-        tone: "amber",
-      },
-    ];
-  }, [
-    backgroundRefreshing,
-    isLoadingProfile,
-    permissionState.canRead,
-    stats.activeProfiles,
-    stats.hourlyEnabled,
-  ]);
-
-  const metricCards = useMemo<MetricCardData[]>(
+const metricCards = useMemo<MetricCardData[]>(
     () => [
       {
         label: "Total Employees",
@@ -1737,24 +1671,19 @@ export default function FinanceMasterDataEmployeesPage() {
   }
 
   return (
-    <AixiaPage>
+    <FinancePage>
       <AixiaHero
+        className="shrink-0 space-y-4"
+        surface="command"
         parentLabel="Master Data"
         parentPath="/finance/master-data"
-        badges={[
-          { label: "Master Data", tone: "cyan" },
-          { label: "Employees", tone: "emerald" },
-          { label: "Payroll Defaults", tone: "cyan" },
-          { label: "Silent refresh", tone: "neutral" },
-        ]}
         gradientTitle="Employee Pay"
         title="Profiles"
         subtitle="Finance Employee Master Data"
-        description="Finance employee master data for payroll defaults, global paycheck profiles, and optional hourly structures. Each employee keeps a clear global paycheck setup while hourly calculation remains optional."
-        statusCards={headerStatusCards}
-      />
+        />
 
-      {actionError ? <AixiaAlert tone="error">{actionError}</AixiaAlert> : null}
+      <div className="aixia-command-scroll">
+{actionError ? <AixiaAlert tone="error">{actionError}</AixiaAlert> : null}
       {actionMessage ? (
         <AixiaAlert tone="success">{actionMessage}</AixiaAlert>
       ) : null}
@@ -2447,6 +2376,7 @@ export default function FinanceMasterDataEmployeesPage() {
           </>
         ) : null}
       </AixiaModal>
-    </AixiaPage>
+      </div>
+    </FinancePage>
   );
 }

@@ -17,6 +17,10 @@ import {
   X,
 } from "lucide-react";
 import { supabase } from "@/lib/supabase";
+import { AixiaHero, AixiaPage } from "@/components/aixia";
+import "@/styles/dashboard/tokens.css";
+import "@/styles/dashboard/layout.css";
+import "@/styles/dashboard/visual.css";
 
 type CacheItem = {
   id: string;
@@ -159,7 +163,7 @@ function scoreCacheQuality(item: CacheItem) {
   if (answer.length < 30) score -= 18;
   if (answer.length > 1200) score -= 10;
   if (usage === 0) score -= 8;
-  if (Boolean(item.is_blocked)) score -= 50;
+  if (item.is_blocked) score -= 50;
   if (provider === "openai") score -= 6;
   if (provider === "semantic-cache") score += 4;
   if (normalized !== normalizeQuestion(question)) score -= 12;
@@ -179,7 +183,7 @@ function inferCacheRisk(item: CacheItem) {
   const question = (item.question ?? "").trim();
   const normalized = (item.normalized_question ?? "").trim();
 
-  if (Boolean(item.is_blocked)) return "blocked";
+  if (item.is_blocked) return "blocked";
   if (!answer) return "empty-answer";
   if (!question) return "empty-question";
   if (normalized !== normalizeQuestion(question)) return "normalization-mismatch";
@@ -232,7 +236,7 @@ function getPromotionBlockReason(item: CacheItem) {
   const quality = scoreCacheQuality(item);
   const risk = inferCacheRisk(item);
 
-  if (Boolean(item.is_blocked)) {
+  if (item.is_blocked) {
     return "This saved reply is blocked. Unblock it before approving it.";
   }
 
@@ -523,7 +527,7 @@ export default function AICacheReviewPage() {
     setPageError(null);
     setActionMessage(null);
 
-    const nextBlocked = !Boolean(item.is_blocked);
+    const nextBlocked = !item.is_blocked;
 
     const { error } = await supabase
       .from("ai_qa_cache")
@@ -795,7 +799,7 @@ export default function AICacheReviewPage() {
       const quality = scoreCacheQuality(bestItem);
       const risk = inferCacheRisk(bestItem);
 
-      if (Boolean(bestItem.is_blocked)) {
+      if (bestItem.is_blocked) {
         skippedBlocked += 1;
         skippedCount += 1;
         continue;
@@ -1090,8 +1094,20 @@ export default function AICacheReviewPage() {
   }
 
   return (
-       <div className="h-[calc(100vh-64px)] overflow-hidden bg-[#05070d] px-6 py-6 text-white">
-      <div className="mx-auto grid h-full w-full max-w-[1600px] gap-6 xl:grid-cols-[minmax(0,1fr)_440px]">
+    <AixiaPage
+      surface="command"
+      className="aixia-command-page aixia-ai-management-page h-[calc(100vh-64px)] overflow-hidden px-6 py-6"
+    >
+      <AixiaHero
+        surface="command"
+        className="shrink-0 mb-6"
+        parentLabel="AI Studio"
+        parentPath="/ai-management"
+        gradientTitle="Saved Replies"
+        title="Cache Review"
+        subtitle="Review answers the assistant learned before they are reused too often. Approve strong answers, pause bad ones, clean duplicates, and inspect similar matches."
+      />
+      <div className="aixia-command-scroll mx-auto grid h-full w-full max-w-[1600px] gap-6 xl:grid-cols-[minmax(0,1fr)_440px] min-h-0 flex-1">
         <section className="flex min-h-0 flex-col overflow-hidden rounded-[32px] border border-white/10 bg-white/[0.045] shadow-2xl shadow-black/30 backdrop-blur-xl">
           <div className="border-b border-white/10 px-6 py-6">
             <button
@@ -1317,7 +1333,7 @@ export default function AICacheReviewPage() {
           onChange={setEditorForm}
         />
       )}
-    </div>
+    </AixiaPage>
   );
 }
 

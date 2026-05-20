@@ -30,10 +30,8 @@ import {
   AixiaHero,
   AixiaInputField,
   AixiaLoadingState,
-  AixiaMetricCard,
-  AixiaMetricGrid,
   AixiaModal,
-  AixiaPage,
+  FinancePage,
   AixiaRegistryToolbar,
   AixiaSearchField,
   AixiaSection,
@@ -46,6 +44,7 @@ import {
   AixiaTableShell,
   AixiaTableTextCell,
   AixiaTextareaField,
+  AixiaCommandMetrics
 } from "@/components/aixia";
 
 import { supabase } from "@/lib/supabase";
@@ -312,7 +311,7 @@ function ShippingTermFormModal({
 export default function FinanceShippingTermsPage() {
   const [rows, setRows] = useState<FinanceShippingTermRow[]>([]);
   const [initialLoading, setInitialLoading] = useState(true);
-  const [backgroundRefreshing, setBackgroundRefreshing] = useState(false);
+  const [, setBackgroundRefreshing] = useState(false);
   const [saving, setSaving] = useState(false);
   const [actionLoadingId, setActionLoadingId] = useState<string | null>(null);
 
@@ -710,6 +709,17 @@ export default function FinanceShippingTermsPage() {
     setError("");
   }
 
+  const __registryCommandMetrics = useMemo(
+    () => [
+    { key: "active-terms", title: "Active Terms", value: String(formatCount(stats.active)), subtitle: "Shipping terms available for document selection.", icon: CheckCircle2, tone: "emerald", },
+    { key: "inactive", title: "Inactive", value: String(formatCount(stats.inactive)), subtitle: "Shipping terms disabled from normal selection.", icon: Ship, tone: "gold", },
+    { key: "default", title: "Default", value: String(formatCount(stats.defaultTerms)), subtitle: "Active default shipping term records.", icon: Star, tone: "cyan", },
+    { key: "archived", title: "Archived", value: String(formatCount(stats.archived)), subtitle: "Historical shipping terms managed through archive controls.", icon: Archive, tone: "violet", }
+    
+    ],
+    [stats, formatCount]
+  );
+
   if (initialLoading) {
     return (
       <AixiaLoadingState
@@ -719,45 +729,21 @@ export default function FinanceShippingTermsPage() {
     );
   }
 
-  return (
-    <AixiaPage>
+return (
+    <FinancePage>
       <AixiaHero
+        className="shrink-0 space-y-4"
+        surface="command"
         parentLabel="Master Data"
         parentPath="/finance/master-data"
-        badges={[
-          { label: "Finance Master Data", tone: "cyan" },
-          { label: "Shipping Terms", tone: "violet" },
-          { label: "Logistics Reference", tone: "emerald" },
-          {
-            label: backgroundRefreshing ? "Updating Silently" : "Realtime + 60s",
-            tone: backgroundRefreshing ? "gold" : "neutral",
-          },
-        ]}
         gradientTitle="Shipping"
         title="Terms"
-        subtitle="Delivery and Logistics Standards"
-        description="Define standardized delivery and shipment terms for invoices, bills, logistics references, and commercial documents."
-        statusCards={[
-          {
-            label: "Read Access",
-            value: permissionState.canRead ? "Enabled" : "Locked",
-            description:
-              "This registry requires Finance read access or Master Data admin access.",
-            icon: permissionState.canRead ? ShieldCheck : Archive,
-            tone: permissionState.canRead ? "emerald" : "rose",
-          },
-          {
-            label: "Lifecycle Access",
-            value: canArchive ? "Archive Enabled" : canCreate ? "Create Enabled" : "Read Only",
-            description:
-              "Create, Edit, Archive, Restore, and Permanent Delete follow Finance permissions.",
-            icon: canArchive ? Archive : Ship,
-            tone: canArchive ? "amber" : "cyan",
-          },
-        ]}
-      />
+        subtitle="Delivery and Logistics Standards">
+        <AixiaCommandMetrics items={__registryCommandMetrics} />
+      </AixiaHero>
 
-      {error ? <AixiaAlert tone="error">{error}</AixiaAlert> : null}
+      <div className="aixia-command-scroll">
+{error ? <AixiaAlert tone="error">{error}</AixiaAlert> : null}
       {pageMessage ? <AixiaAlert tone="success">{pageMessage}</AixiaAlert> : null}
 
       {!permissionState.canRead ? (
@@ -767,39 +753,7 @@ export default function FinanceShippingTermsPage() {
         />
       ) : (
         <>
-          <AixiaMetricGrid>
-            <AixiaMetricCard
-              label="Active Terms"
-              value={formatCount(stats.active)}
-              description="Shipping terms available for document selection."
-              icon={CheckCircle2}
-              tone="emerald"
-            />
-
-            <AixiaMetricCard
-              label="Inactive"
-              value={formatCount(stats.inactive)}
-              description="Shipping terms disabled from normal selection."
-              icon={Ship}
-              tone="gold"
-            />
-
-            <AixiaMetricCard
-              label="Default"
-              value={formatCount(stats.defaultTerms)}
-              description="Active default shipping term records."
-              icon={Star}
-              tone="cyan"
-            />
-
-            <AixiaMetricCard
-              label="Archived"
-              value={formatCount(stats.archived)}
-              description="Historical shipping terms managed through archive controls."
-              icon={Archive}
-              tone="violet"
-            />
-          </AixiaMetricGrid>
+          
 
           <AixiaSection
             title="Shipping Terms Registry"
@@ -1135,6 +1089,7 @@ export default function FinanceShippingTermsPage() {
         onChange={updateForm}
         onSave={() => void handleSave()}
       />
-    </AixiaPage>
+      </div>
+    </FinancePage>
   );
 }

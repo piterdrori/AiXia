@@ -1,19 +1,6 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { useNavigate } from "react-router-dom";
-import {
-  Archive,
-  CheckCircle2,
-  Eye,
-  FolderArchive,
-  Loader2,
-  Plus,
-  Receipt,
-  RotateCcw,
-  Search,
-  ShieldCheck,
-  Trash2,
-  Wallet,
-} from "lucide-react";
+import { Archive, CheckCircle2, Eye, FolderArchive, Loader2, Plus, Receipt, RotateCcw, Search, ShieldCheck, Trash2 } from "lucide-react";
 
 import {
   AixiaAccessRule,
@@ -22,11 +9,11 @@ import {
   AixiaBadge,
   AixiaButton,
   AixiaEmptyState,
+  AixiaFinanceHubControlPanel,
+  AixiaFinanceHubMetaStrip,
   AixiaHero,
   AixiaLoadingState,
-  AixiaMetricCard,
-  AixiaMetricGrid,
-  AixiaPage,
+  FinancePage,
   AixiaRegistryToolbar,
   AixiaSearchField,
   AixiaSection,
@@ -37,6 +24,7 @@ import {
   AixiaTableDateCell,
   AixiaTableShell,
   AixiaTableTextCell,
+  AixiaCommandMetrics
 } from "@/components/aixia";
 
 import type { FinanceLoadMode } from "@/lib/finance/pageAccess";
@@ -188,7 +176,7 @@ export default function FinanceBillsPage() {
   const [archiveRows, setArchiveRows] = useState<BillRow[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [isArchiveLoading, setIsArchiveLoading] = useState(false);
-  const [isBackgroundRefreshing, setIsBackgroundRefreshing] = useState(false);
+  const [, setIsBackgroundRefreshing] = useState(false);
   const [errorMessage, setErrorMessage] = useState("");
   const [pageMessage, setPageMessage] = useState("");
   const [searchTerm, setSearchTerm] = useState("");
@@ -604,6 +592,44 @@ export default function FinanceBillsPage() {
 
   const isActionRunning = Boolean(runningAction);
 
+  const __registryCommandMetrics = useMemo(
+    () => [
+    { key: "vendor-pi", title: "Vendor PI", value: String(summary.vendorPi), subtitle: "Proforma invoice documents received from suppliers.", icon: Receipt, tone: "violet", },
+    { key: "vendor-invoice", title: "Vendor Invoice", value: String(summary.vendorInvoice), subtitle: "Official vendor invoices / bills received.", icon: Receipt, tone: "cyan", },
+    { key: "approved", title: "Approved", value: String(summary.approved), subtitle: "Approved for outgoing payment.", icon: CheckCircle2, tone: "emerald", },
+    { key: "flow", title: "Flow", value: "03", subtitle: "Purchase Order → Vendor PI / Invoice.", icon: Receipt, tone: "gold", }
+    
+    ],
+    [summary]
+  );
+
+  const headerStatusCards = useMemo(
+    () => [
+      {
+        key: "system-status",
+        label: "System Status",
+        value: isLoading ? "Loading" : "Live",
+        detail: "Vendor PI / invoice registry refreshes silently with auto-refresh enabled.",
+        tone: "emerald" as const,
+      },
+      {
+        key: "access",
+        label: "Access",
+        value: "Enabled",
+        detail: "Supplier payables registry follows the shared Finance permission standard.",
+        tone: "cyan" as const,
+      },
+      {
+        key: "active-records",
+        label: "Active Records",
+        value: summary.total.toLocaleString(),
+        detail: "Vendor documents in the main registry.",
+        tone: "amber" as const,
+      },
+    ],
+    [isLoading, summary.total]
+  );
+
   if (isLoading) {
     return (
       <AixiaLoadingState
@@ -613,79 +639,26 @@ export default function FinanceBillsPage() {
     );
   }
 
-  return (
-    <AixiaPage>
+return (
+    <FinancePage>
       <AixiaHero
+        className="shrink-0 space-y-4"
+        surface="command"
         parentLabel="Transactions"
         parentPath="/finance/transactions"
-        badges={[
-          { label: "Supplier Procurement", tone: "violet" },
-          { label: "Vendor PI / Invoices", tone: "cyan" },
-          {
-            label: isBackgroundRefreshing ? "Updating Silently" : "Realtime + 60s",
-            tone: isBackgroundRefreshing ? "gold" : "neutral",
-          },
-        ]}
         gradientTitle="Vendor PI"
         title="/ Invoices"
-        subtitle="Supplier Procurement Flow — Step 03"
-        description="Vendor proforma invoices and vendor invoices received from suppliers after AiXia sends a purchase order. This is the supplier procurement step before outgoing payment execution."
-        statusCards={[
-          {
-            label: "Active Documents",
-            value: String(summary.total),
-            description: "Active vendor PI / invoice records.",
-            icon: Receipt,
-            tone: "violet",
-          },
-          {
-            label: "Open Payable",
-            value: formatMoney(summary.openPayable, "USD"),
-            description: "Approximate payable balance across currencies.",
-            icon: Wallet,
-            tone: "gold",
-          },
-        ]}
-      />
+        subtitle="Supplier Procurement Flow — Step 03">
+        <AixiaCommandMetrics items={__registryCommandMetrics} />
+      </AixiaHero>
 
-      {errorMessage ? <AixiaAlert tone="error">{errorMessage}</AixiaAlert> : null}
-      {pageMessage ? <AixiaAlert tone="success">{pageMessage}</AixiaAlert> : null}
+      <div className="aixia-command-scroll">
+        <AixiaFinanceHubMetaStrip items={headerStatusCards} />
 
-      <AixiaMetricGrid>
-        <AixiaMetricCard
-          label="Vendor PI"
-          value={summary.vendorPi}
-          description="Proforma invoice documents received from suppliers."
-          icon={Receipt}
-          tone="violet"
-        />
+        {errorMessage ? <AixiaAlert tone="error">{errorMessage}</AixiaAlert> : null}
+        {pageMessage ? <AixiaAlert tone="success">{pageMessage}</AixiaAlert> : null}
 
-        <AixiaMetricCard
-          label="Vendor Invoice"
-          value={summary.vendorInvoice}
-          description="Official vendor invoices / bills received."
-          icon={Receipt}
-          tone="cyan"
-        />
-
-        <AixiaMetricCard
-          label="Approved"
-          value={summary.approved}
-          description="Approved for outgoing payment."
-          icon={CheckCircle2}
-          tone="emerald"
-        />
-
-        <AixiaMetricCard
-          label="Flow"
-          value="03"
-          description="Purchase Order → Vendor PI / Invoice."
-          icon={Receipt}
-          tone="gold"
-        />
-      </AixiaMetricGrid>
-
-      <AixiaAccessRule
+        <AixiaAccessRule
         title="Vendor PI / Invoice Registry Access Rule"
         description="This registry follows the locked AiXia transaction registry rule for vendor PI / invoice records."
         icon={ShieldCheck}
@@ -697,7 +670,13 @@ export default function FinanceBillsPage() {
         sorting, archive tabs, modal state, or visible records.
       </AixiaAccessRule>
 
-      <AixiaSection
+        <AixiaFinanceHubControlPanel
+          icon={Receipt}
+          title="Vendor PI / invoice registry"
+          description="Supplier payables workflow. Auto-refresh enabled."
+        />
+
+        <AixiaSection
         title="Vendor PI / Invoice Registry"
         description="Active vendor documents only. Archived and deleted records are managed from the archive panel."
         icon={Receipt}
@@ -1133,6 +1112,7 @@ export default function FinanceBillsPage() {
           )}
         </div>
       </AixiaArchiveManagerModal>
-    </AixiaPage>
+      </div>
+    </FinancePage>
   );
 }

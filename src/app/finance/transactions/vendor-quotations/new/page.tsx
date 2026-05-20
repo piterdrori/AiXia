@@ -28,7 +28,7 @@ import {
   AixiaLoadingState,
   AixiaMetricCard,
   AixiaMetricGrid,
-  AixiaPage,
+  FinancePage,
   AixiaReviewGrid,
   AixiaSection,
   AixiaSelectField,
@@ -871,54 +871,25 @@ export default function FinanceNewVendorQuotationPage() {
   );
 
   return (
-    <AixiaPage>
+    <FinancePage>
       <AixiaHero
+        className="shrink-0 space-y-4"
+        surface="command"
         parentLabel="Vendor Quotations"
         parentPath="/finance/transactions/vendor-quotations"
-        badges={[
-          { label: "New Vendor Quotation", tone: "amber" },
-          { label: "Step 01", tone: "cyan" },
-        ]}
         gradientTitle="Register"
         title="Vendor Quotation"
         subtitle="Record a supplier quotation and store its original document."
-        description="Register a quotation received from a vendor and issued to one of your AiXia companies. Attach the original vendor document, review the commercial lines, then accept it and convert it into an AiXia purchase order."
-        statusCards={[
-          {
-            label: "Vendor / Issued From",
-            value: selectedVendor?.legal_name || selectedVendor?.name || "Not selected",
-            description: selectedVendor?.code || "Choose the quotation supplier.",
-            icon: Receipt,
-            tone: "amber",
-          },
-          {
-            label: "Issued To / AiXia Company",
-            value: selectedCompany?.legal_name || selectedCompany?.name || "Not selected",
-            description: "This is your company receiving the vendor quotation.",
-            icon: FileText,
-            tone: "cyan",
-          },
-          {
-            label: "Draft Value",
-            value: formatMoney(totalAmount, currencyCode || "USD"),
-            description: "Calculated from line items.",
-            icon: Wallet,
-            tone: "emerald",
-          },
-        ]}
-      >
+        >
         <div className="aixia-action-system" data-align="start" data-density="compact">
           <AixiaBadge tone="amber">Document required</AixiaBadge>
           <AixiaBadge tone="cyan">Vendor quotation → Purchase order</AixiaBadge>
           <AixiaBadge tone="neutral">Save received quotation</AixiaBadge>
         </div>
-      </AixiaHero>
-
-      <AixiaMetricGrid>
+        <AixiaMetricGrid>
         <AixiaMetricCard
           label="Lines"
           value={lines.length.toLocaleString()}
-          description="Received vendor quotation line items."
           icon={FileText}
           tone="cyan"
         />
@@ -944,6 +915,9 @@ export default function FinanceNewVendorQuotationPage() {
           tone="amber"
         />
       </AixiaMetricGrid>
+      </AixiaHero>
+
+      <div className="aixia-command-scroll">
 
       {errorMessage ? <AixiaAlert tone="error">{errorMessage}</AixiaAlert> : null}
 
@@ -964,6 +938,6 @@ export default function FinanceNewVendorQuotationPage() {
       </AixiaSection>
 
       <AixiaSmartLayout main={mainContent} side={sideContent} sidebar="narrow" />
-    </AixiaPage>
+      </div></FinancePage>
   );
 }

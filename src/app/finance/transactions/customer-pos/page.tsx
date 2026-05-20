@@ -2,23 +2,7 @@
 
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { useNavigate } from "react-router-dom";
-import {
-  Archive,
-  CheckCircle2,
-  Eye,
-  FileText,
-  FolderArchive,
-  Link2,
-  Loader2,
-  Paperclip,
-  Plus,
-  Receipt,
-  RotateCcw,
-  Search,
-  ShieldCheck,
-  Trash2,
-  Wallet,
-} from "lucide-react";
+import { Archive, CheckCircle2, Eye, FileText, FolderArchive, Loader2, Paperclip, Plus, Receipt, RotateCcw, Search, ShieldCheck, Trash2, Wallet } from "lucide-react";
 
 import {
   AixiaAccessRule,
@@ -27,11 +11,11 @@ import {
   AixiaBadge,
   AixiaButton,
   AixiaEmptyState,
+  AixiaFinanceHubControlPanel,
+  AixiaFinanceHubMetaStrip,
   AixiaHero,
   AixiaLoadingState,
-  AixiaMetricCard,
-  AixiaMetricGrid,
-  AixiaPage,
+  FinancePage,
   AixiaRegistryToolbar,
   AixiaSearchField,
   AixiaSection,
@@ -42,6 +26,7 @@ import {
   AixiaTableDateCell,
   AixiaTableShell,
   AixiaTableTextCell,
+  AixiaCommandMetrics
 } from "@/components/aixia";
 
 import type { FinanceLoadMode } from "@/lib/finance/pageAccess";
@@ -233,7 +218,7 @@ export default function FinanceCustomerPosPage() {
   >({});
 
   const [isLoading, setIsLoading] = useState(true);
-  const [isBackgroundRefreshing, setIsBackgroundRefreshing] = useState(false);
+  const [, setIsBackgroundRefreshing] = useState(false);
   const [isArchiveLoading, setIsArchiveLoading] = useState(false);
   const [showArchivePanel, setShowArchivePanel] = useState(false);
   const [archiveTab, setArchiveTab] = useState<ArchiveTab>("archived");
@@ -660,6 +645,44 @@ export default function FinanceCustomerPosPage() {
 
   const isActionRunning = Boolean(runningAction);
 
+  const __registryCommandMetrics = useMemo(
+    () => [
+    { key: "customer-pos", title: "Customer POs", value: String(metrics.total.toLocaleString()), subtitle: "Active customer commitments.", icon: FileText, tone: "cyan", },
+    { key: "received", title: "Received", value: String(metrics.received.toLocaleString()), subtitle: "Customer PO received.", icon: Paperclip, tone: "gold", },
+    { key: "verified", title: "Verified", value: String(metrics.verified.toLocaleString()), subtitle: "Validated for next step.", icon: CheckCircle2, tone: "emerald", },
+    { key: "awaiting-pi", title: "Awaiting PI", value: String(metrics.awaitingPi.toLocaleString()), subtitle: "Ready for proforma invoice.", icon: Wallet, tone: "violet", }
+    
+    ],
+    [metrics]
+  );
+
+  const headerStatusCards = useMemo(
+    () => [
+      {
+        key: "system-status",
+        label: "System Status",
+        value: isLoading ? "Loading" : "Live",
+        detail: "Customer PO registry refreshes silently with realtime and 60-second fallback.",
+        tone: "emerald" as const,
+      },
+      {
+        key: "access",
+        label: "Access",
+        value: "Enabled",
+        detail: "Registry lifecycle controls follow the shared Finance permission standard.",
+        tone: "cyan" as const,
+      },
+      {
+        key: "active-records",
+        label: "Active Records",
+        value: metrics.total.toLocaleString(),
+        detail: "Customer purchase orders in the main registry.",
+        tone: "amber" as const,
+      },
+    ],
+    [isLoading, metrics.total]
+  );
+
   if (isLoading) {
     return (
       <AixiaLoadingState
@@ -669,77 +692,24 @@ export default function FinanceCustomerPosPage() {
     );
   }
 
-  return (
-    <AixiaPage>
+return (
+    <FinancePage>
       <AixiaHero
+        className="shrink-0 space-y-4"
+        surface="command"
         parentLabel="Transactions"
         parentPath="/finance/transactions"
-        badges={[
-          { label: "Incoming Money Flow", tone: "cyan" },
-          { label: "Customer PO Registry", tone: "violet" },
-          {
-            label: isBackgroundRefreshing ? "Updating Silently" : "Realtime + 60s",
-            tone: isBackgroundRefreshing ? "gold" : "neutral",
-          },
-        ]}
         gradientTitle="Customer POs"
         title=""
-        subtitle="Customer purchase orders received after quotation approval"
-        description="Customer POs confirm client commitment before proforma invoice creation. Active records stay in the main registry, while archived and deleted records are controlled from the archive manager."
-        statusCards={[
-          {
-            label: "Active Records",
-            value: metrics.total.toLocaleString(),
-            description: "Excludes archived and deleted customer POs.",
-            icon: FileText,
-            tone: "cyan",
-          },
-          {
-            label: "Awaiting PI",
-            value: metrics.awaitingPi.toLocaleString(),
-            description: "Received or verified records not yet linked to a PI.",
-            icon: Link2,
-            tone: "violet",
-          },
-        ]}
-      />
+        subtitle="Customer purchase orders received after quotation approval">
+        <AixiaCommandMetrics items={__registryCommandMetrics} />
+      </AixiaHero>
 
-      {error ? <AixiaAlert tone="error">{error}</AixiaAlert> : null}
+      <div className="aixia-command-scroll">
+      <AixiaFinanceHubMetaStrip items={headerStatusCards} />
+
+{error ? <AixiaAlert tone="error">{error}</AixiaAlert> : null}
       {pageMessage ? <AixiaAlert tone="success">{pageMessage}</AixiaAlert> : null}
-
-      <AixiaMetricGrid>
-        <AixiaMetricCard
-          label="Customer POs"
-          value={metrics.total.toLocaleString()}
-          description="Active customer commitments."
-          icon={FileText}
-          tone="cyan"
-        />
-
-        <AixiaMetricCard
-          label="Received"
-          value={metrics.received.toLocaleString()}
-          description="Customer PO received."
-          icon={Paperclip}
-          tone="gold"
-        />
-
-        <AixiaMetricCard
-          label="Verified"
-          value={metrics.verified.toLocaleString()}
-          description="Validated for next step."
-          icon={CheckCircle2}
-          tone="emerald"
-        />
-
-        <AixiaMetricCard
-          label="Awaiting PI"
-          value={metrics.awaitingPi.toLocaleString()}
-          description="Ready for proforma invoice."
-          icon={Wallet}
-          tone="violet"
-        />
-      </AixiaMetricGrid>
 
       <AixiaAccessRule
         title="Locked access rule"
@@ -752,6 +722,12 @@ export default function FinanceCustomerPosPage() {
         60-second fallback refresh must stay silent and must not reset search,
         sorting, archive tabs, modal state, or visible records.
       </AixiaAccessRule>
+
+      <AixiaFinanceHubControlPanel
+        icon={Receipt}
+        title="Customer PO lifecycle"
+        description="Received → Verified → Linked to PI. Realtime and 60-second silent refresh enabled."
+      />
 
       <AixiaSection
         title="Customer PO Registry"
@@ -1190,6 +1166,7 @@ export default function FinanceCustomerPosPage() {
           )}
         </div>
       </AixiaArchiveManagerModal>
-    </AixiaPage>
+      </div>
+    </FinancePage>
   );
 }

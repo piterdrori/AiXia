@@ -17,10 +17,8 @@ import {
   AixiaEmptyState,
   AixiaHero,
   AixiaLoadingState,
-  AixiaMetricCard,
-  AixiaMetricGrid,
   AixiaModal,
-  AixiaPage,
+  FinancePage,
   AixiaRegistryToolbar,
   AixiaSearchField,
   AixiaSection,
@@ -33,6 +31,7 @@ import {
   AixiaTableShell,
   AixiaTableTextCell,
   AixiaValueBlock,
+  AixiaCommandMetrics
 } from "@/components/aixia";
 
 import { supabase } from "@/lib/supabase";
@@ -310,6 +309,17 @@ export default function FinanceMasterDataProjectsPage() {
     setSortDirection(nextKey === "created_at" ? "desc" : "asc");
   }
 
+  const __registryCommandMetrics = useMemo(
+    () => [
+    { key: "total-projects", title: "Total Projects", value: String(loading ? "—" : formatCount(stats.total)), subtitle: "All finance project reference records.", icon: FolderKanban, tone: "cyan", },
+    { key: "active", title: "Active", value: String(loading ? "—" : formatCount(stats.active)), subtitle: "Finance project references currently active.", icon: Target, tone: "emerald", },
+    { key: "inactive", title: "Inactive", value: String(loading ? "—" : formatCount(stats.inactive)), subtitle: "Inactive finance project references.", icon: Users, tone: "gold", },
+    { key: "archived", title: "Archived", value: String(loading ? "—" : formatCount(stats.archived)), subtitle: "Archived finance project references.", icon: Users, tone: "rose", }
+    
+    ],
+    [loading, stats, formatCount]
+  );
+
   if (loading) {
     return (
       <AixiaLoadingState
@@ -319,75 +329,21 @@ export default function FinanceMasterDataProjectsPage() {
     );
   }
 
-  return (
-    <AixiaPage>
+return (
+    <FinancePage>
       <AixiaHero
+        className="shrink-0 space-y-4"
+        surface="command"
         parentLabel="Master Data"
         parentPath="/finance/master-data"
-        badges={[
-          { label: "Master Data", tone: "cyan" },
-          { label: "Finance Projects", tone: "violet" },
-          { label: "Reference Registry", tone: "emerald" },
-          {
-            label: backgroundRefreshing ? "Updating Silently" : "Realtime + 60s",
-            tone: backgroundRefreshing ? "gold" : "neutral",
-          },
-        ]}
         gradientTitle="Projects"
         title="Reference Registry"
-        subtitle="Finance Project Reference View"
-        description="Finance reference view of operational projects, aligned to finance project codes, marks, project status, progress, and source project records."
-        statusCards={[
-          {
-            label: "Registry Scope",
-            value: formatCount(rows.length),
-            description: "Finance project reference records loaded from finance_project_refs.",
-            icon: FolderKanban,
-            tone: "cyan",
-          },
-          {
-            label: "Source Links",
-            value: "Projects",
-            description: "Each record links back to the operational source project.",
-            icon: ExternalLink,
-            tone: "violet",
-          },
-        ]}
-      />
+        subtitle="Finance Project Reference View">
+        <AixiaCommandMetrics items={__registryCommandMetrics} />
+      </AixiaHero>
 
-      <AixiaMetricGrid>
-        <AixiaMetricCard
-          label="Total Projects"
-          value={loading ? "—" : formatCount(stats.total)}
-          description="All finance project reference records."
-          icon={FolderKanban}
-          tone="cyan"
-        />
+      <div className="aixia-command-scroll">
 
-        <AixiaMetricCard
-          label="Active"
-          value={loading ? "—" : formatCount(stats.active)}
-          description="Finance project references currently active."
-          icon={Target}
-          tone="emerald"
-        />
-
-        <AixiaMetricCard
-          label="Inactive"
-          value={loading ? "—" : formatCount(stats.inactive)}
-          description="Inactive finance project references."
-          icon={Users}
-          tone="gold"
-        />
-
-        <AixiaMetricCard
-          label="Archived"
-          value={loading ? "—" : formatCount(stats.archived)}
-          description="Archived finance project references."
-          icon={Users}
-          tone="rose"
-        />
-      </AixiaMetricGrid>
 
       <AixiaSection
         title="Project Reference Records"
@@ -679,6 +635,7 @@ export default function FinanceMasterDataProjectsPage() {
           </div>
         ) : null}
       </AixiaModal>
-    </AixiaPage>
+      </div>
+    </FinancePage>
   );
 }

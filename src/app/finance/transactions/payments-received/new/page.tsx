@@ -6,7 +6,6 @@ import { FileText, Link2, Save, Upload, Wallet } from "lucide-react";
 
 import {
   AixiaAlert,
-  AixiaBadge,
   AixiaButton,
   AixiaDisplayBlock,
   AixiaDocumentUploadPanel,
@@ -17,20 +16,26 @@ import {
   AixiaHero,
   AixiaInputField,
   AixiaLoadingState,
-  AixiaMetricCard,
-  AixiaMetricGrid,
-  AixiaPage,
+  AixiaCommandMetrics,
+  type AixiaCommandMetricItem,
+  FinancePage,
   AixiaSection,
   AixiaSelectField,
   AixiaSmartLayout,
   AixiaTextareaField,
 } from "@/components/aixia";
+import {
+  getCustomerDocumentTypeLabel,
+  parseIssuedDocumentType,
+} from "@/lib/finance/customerDocuments";
 import { createPaymentReceived } from "@/lib/finance/paymentsReceived";
 import { supabase } from "@/lib/supabase";
 
-type InvoiceOption = {
+type ReceivableDocumentType = "proforma" | "invoice";
+
+type ReceivableOption = {
   id: string;
-  invoice_number: string;
+  document_number: string;
   client_id: string | null;
   counterparty_type: "client" | "company";
   counterparty_company_id: string | null;
@@ -92,9 +97,7 @@ async function uploadPaymentProofFile(
 
   const { error: uploadError } = await supabase.storage
     .from("finance-payment-proofs")
-    .upload(storagePath, proofFile, {
-      upsert: false,
-    });
+    .upload(storagePath, proofFile, { upsert: false });
 
   if (uploadError) throw uploadError;
 
@@ -134,16 +137,22 @@ export default function NewPaymentReceivedPage() {
   const navigate = useNavigate();
   const [searchParams] = useSearchParams();
   const sourceInvoiceId = searchParams.get("invoice_id");
+  const sourceProformaInvoiceId = searchParams.get("proforma_invoice_id");
+  const initialDocumentType: ReceivableDocumentType = sourceProformaInvoiceId
+    ? "proforma"
+    : parseIssuedDocumentType(searchParams.get("document_type"));
 
   const [isLoading, setIsLoading] = useState(true);
   const [isSaving, setIsSaving] = useState(false);
   const [errorMessage, setErrorMessage] = useState("");
-
-  const [invoices, setInvoices] = useState<InvoiceOption[]>([]);
+  const [documentType, setDocumentType] =
+    useState<ReceivableDocumentType>(initialDocumentType);
+  const [receivables, setReceivables] = useState<ReceivableOption[]>([]);
   const [currencies, setCurrencies] = useState<CurrencyOption[]>([]);
   const [paymentMethods, setPaymentMethods] = useState<PaymentMethodOption[]>([]);
-
-  const [invoiceId, setInvoiceId] = useState(sourceInvoiceId || "");
+  const [receivableId, setReceivableId] = useState(
+    sourceProformaInvoiceId || sourceInvoiceId || ""
+  );
   const [paymentDate, setPaymentDate] = useState(
     new Date().toISOString().slice(0, 10)
   );
@@ -154,9 +163,13 @@ export default function NewPaymentReceivedPage() {
   const [notes, setNotes] = useState("");
   const [proofFile, setProofFile] = useState<File | null>(null);
 
-  const selectedInvoice = useMemo(
-    () => invoices.find((invoice) => invoice.id === invoiceId) ?? null,
-    [invoiceId, invoices]
+  const documentTypeLabel = getCustomerDocumentTypeLabel(
+    documentType === "proforma" ? "customer_pi" : "customer_invoice"
+  );
+
+  const selectedReceivable = useMemo(
+    () => receivables.find((entry) => entry.id === receivableId) ?? null,
+    [receivableId, receivables]
   );
 
   const selectedPaymentMethod = useMemo(
@@ -169,43 +182,28 @@ export default function NewPaymentReceivedPage() {
       setIsLoading(true);
       setErrorMessage("");
 
-      const [invoicesResult, currenciesResult, paymentMethodsResult] =
+      const receivableQuery =
+        documentType === "proforma"
+          ? supabase
+              .from("finance_proforma_invoices")
+              .select(
+                "id, client_id, counterparty_type, counterparty_company_id, client_name_snapshot, client_contact_person_snapshot, client_email_snapshot, client_phone_snapshot, counterparty_name_snapshot, counterparty_legal_name_snapshot, counterparty_contact_person_snapshot, counterparty_email_snapshot, counterparty_phone_snapshot, billing_address_snapshot, company_name_snapshot, company_contact_person_snapshot, company_email_snapshot, company_phone_snapshot, company_address_snapshot, currency_code, total_amount, paid_amount, balance_due, status, payment_status, proforma_number"
+              )
+              .in("status", ["issued", "confirmed"])
+              .gt("balance_due", 0)
+              .order("created_at", { ascending: false })
+          : supabase
+              .from("finance_invoices_issued")
+              .select(
+                "id, client_id, counterparty_type, counterparty_company_id, client_name_snapshot, client_contact_person_snapshot, client_email_snapshot, client_phone_snapshot, counterparty_name_snapshot, counterparty_legal_name_snapshot, counterparty_contact_person_snapshot, counterparty_email_snapshot, counterparty_phone_snapshot, billing_address_snapshot, company_name_snapshot, company_contact_person_snapshot, company_email_snapshot, company_phone_snapshot, company_address_snapshot, currency_code, total_amount, paid_amount, balance_due, status, payment_status, invoice_number"
+              )
+              .in("status", ["issued", "partially_paid", "overdue"])
+              .gt("balance_due", 0)
+              .order("created_at", { ascending: false });
+
+      const [receivablesResult, currenciesResult, paymentMethodsResult] =
         await Promise.all([
-          supabase
-            .from("finance_invoices_issued")
-            .select(
-              [
-                "id",
-                "invoice_number",
-                "client_id",
-                "counterparty_type",
-                "counterparty_company_id",
-                "client_name_snapshot",
-                "client_contact_person_snapshot",
-                "client_email_snapshot",
-                "client_phone_snapshot",
-                "counterparty_name_snapshot",
-                "counterparty_legal_name_snapshot",
-                "counterparty_contact_person_snapshot",
-                "counterparty_email_snapshot",
-                "counterparty_phone_snapshot",
-                "billing_address_snapshot",
-                "company_name_snapshot",
-                "company_contact_person_snapshot",
-                "company_email_snapshot",
-                "company_phone_snapshot",
-                "company_address_snapshot",
-                "currency_code",
-                "total_amount",
-                "paid_amount",
-                "balance_due",
-                "status",
-                "payment_status",
-              ].join(", ")
-            )
-            .in("status", ["issued", "partially_paid", "overdue"])
-            .gt("balance_due", 0)
-            .order("created_at", { ascending: false }),
+          receivableQuery,
           supabase
             .from("finance_currencies")
             .select("id, currency_code, currency_name")
@@ -218,141 +216,117 @@ export default function NewPaymentReceivedPage() {
             .order("name", { ascending: true }),
         ]);
 
-      if (invoicesResult.error) throw invoicesResult.error;
+      if (receivablesResult.error) throw receivablesResult.error;
       if (currenciesResult.error) throw currenciesResult.error;
       if (paymentMethodsResult.error) throw paymentMethodsResult.error;
 
-      setInvoices((invoicesResult.data || []) as unknown as InvoiceOption[]);
-      setCurrencies((currenciesResult.data || []) as CurrencyOption[]);
-      setPaymentMethods(
-        (paymentMethodsResult.data || []) as PaymentMethodOption[]
+      const mappedReceivables = (
+        (receivablesResult.data || []) as unknown as Record<string, unknown>[]
+      ).map(
+        (row) => ({
+          ...(row as ReceivableOption),
+          document_number:
+            documentType === "proforma"
+              ? String(row.proforma_number || "Proforma Invoice")
+              : String(row.invoice_number || "Invoice"),
+        })
       );
+
+      setReceivables(mappedReceivables);
+      setCurrencies((currenciesResult.data || []) as CurrencyOption[]);
+      setPaymentMethods((paymentMethodsResult.data || []) as PaymentMethodOption[]);
     } catch (error) {
       console.error("Failed to load payment received form data:", error);
       setErrorMessage("Failed to load payment form data.");
     } finally {
       setIsLoading(false);
     }
-  }, []);
+  }, [documentType]);
 
   useEffect(() => {
     void loadFormData();
   }, [loadFormData]);
 
   useEffect(() => {
-    if (sourceInvoiceId) {
-      setInvoiceId(sourceInvoiceId);
+    if (sourceProformaInvoiceId) {
+      setDocumentType("proforma");
+      setReceivableId(sourceProformaInvoiceId);
+      return;
     }
-  }, [sourceInvoiceId]);
+    if (sourceInvoiceId) {
+      setDocumentType("invoice");
+      setReceivableId(sourceInvoiceId);
+    }
+  }, [sourceInvoiceId, sourceProformaInvoiceId]);
 
   useEffect(() => {
-    if (!selectedInvoice) return;
-
+    if (!selectedReceivable) return;
     setPaymentCurrencyCode(
-      (current) => current || selectedInvoice.currency_code || "USD"
+      (current) => current || selectedReceivable.currency_code || "USD"
     );
-
     setAmount((current) => {
       if (current) return current;
-
-      const openBalance = toNumber(selectedInvoice.balance_due);
-      return openBalance > 0 ? String(openBalance) : "";
+      const openBalanceValue = toNumber(selectedReceivable.balance_due);
+      return openBalanceValue > 0 ? String(openBalanceValue) : "";
     });
-  }, [selectedInvoice]);
+  }, [selectedReceivable]);
 
-  const invoiceCurrencyCode = selectedInvoice?.currency_code || "USD";
+  const documentCurrencyCode = selectedReceivable?.currency_code || "USD";
   const numericAmount = toNumber(amount);
-  const openBalance = toNumber(selectedInvoice?.balance_due);
-
-  const invoiceFromName = selectedInvoice?.company_name_snapshot || "—";
-  const invoiceFromContact = selectedInvoice?.company_contact_person_snapshot || "";
-  const invoiceFromEmail = selectedInvoice?.company_email_snapshot || "";
-  const invoiceFromPhone = selectedInvoice?.company_phone_snapshot || "";
-  const invoiceFromAddress = selectedInvoice?.company_address_snapshot || "";
-
-  const invoiceToName =
-    selectedInvoice?.counterparty_legal_name_snapshot ||
-    selectedInvoice?.counterparty_name_snapshot ||
-    selectedInvoice?.client_name_snapshot ||
+  const openBalance = toNumber(selectedReceivable?.balance_due);
+  const documentFromName = selectedReceivable?.company_name_snapshot || "—";
+  const documentFromContact =
+    selectedReceivable?.company_contact_person_snapshot || "";
+  const documentFromEmail = selectedReceivable?.company_email_snapshot || "";
+  const documentFromPhone = selectedReceivable?.company_phone_snapshot || "";
+  const documentFromAddress = selectedReceivable?.company_address_snapshot || "";
+  const documentToName =
+    selectedReceivable?.counterparty_legal_name_snapshot ||
+    selectedReceivable?.counterparty_name_snapshot ||
+    selectedReceivable?.client_name_snapshot ||
     "—";
-
-  const invoiceToContact =
-    selectedInvoice?.counterparty_contact_person_snapshot ||
-    selectedInvoice?.client_contact_person_snapshot ||
+  const documentToContact =
+    selectedReceivable?.counterparty_contact_person_snapshot ||
+    selectedReceivable?.client_contact_person_snapshot ||
     "";
-
-  const invoiceToEmail =
-    selectedInvoice?.counterparty_email_snapshot ||
-    selectedInvoice?.client_email_snapshot ||
+  const documentToEmail =
+    selectedReceivable?.counterparty_email_snapshot ||
+    selectedReceivable?.client_email_snapshot ||
     "";
-
-  const invoiceToPhone =
-    selectedInvoice?.counterparty_phone_snapshot ||
-    selectedInvoice?.client_phone_snapshot ||
+  const documentToPhone =
+    selectedReceivable?.counterparty_phone_snapshot ||
+    selectedReceivable?.client_phone_snapshot ||
     "";
-
-  const invoiceToAddress = selectedInvoice?.billing_address_snapshot || "";
-
+  const documentToAddress = selectedReceivable?.billing_address_snapshot || "";
   const isCrossCurrency =
     !!paymentCurrencyCode &&
-    !!invoiceCurrencyCode &&
-    paymentCurrencyCode !== invoiceCurrencyCode;
-
+    !!documentCurrencyCode &&
+    paymentCurrencyCode !== documentCurrencyCode;
   const enteredAmountExceedsOpenBalance =
-    selectedInvoice &&
+    selectedReceivable &&
     !isCrossCurrency &&
     numericAmount > openBalance &&
     openBalance > 0;
 
-  const metricSummary = useMemo(() => {
-    return {
-      invoiceNumber: selectedInvoice?.invoice_number || "—",
-      clientName:
-        selectedInvoice?.counterparty_legal_name_snapshot ||
-        selectedInvoice?.counterparty_name_snapshot ||
-        selectedInvoice?.client_name_snapshot ||
-        selectedInvoice?.invoice_number ||
-        "Intercompany",
-      invoiceCurrency: invoiceCurrencyCode,
-      paymentCurrency: paymentCurrencyCode || "—",
-      openBalance,
-      enteredAmount: numericAmount,
-      paymentMethod: selectedPaymentMethod?.name || "—",
-      invoiceStatus: selectedInvoice?.status || "—",
-      paymentStatus: selectedInvoice?.payment_status || "—",
-    };
-  }, [
-    invoiceCurrencyCode,
-    numericAmount,
-    openBalance,
-    paymentCurrencyCode,
-    selectedInvoice,
-    selectedPaymentMethod,
-  ]);
-
   const handleSaveDraft = useCallback(async () => {
-    if (!selectedInvoice) {
-      setErrorMessage("Select an invoice.");
+    if (!selectedReceivable) {
+      setErrorMessage(`Select a ${documentTypeLabel.toLowerCase()}.`);
       return;
     }
-
     if (!paymentCurrencyCode) {
       setErrorMessage("Select payment currency.");
       return;
     }
-
     if (!paymentDate) {
       setErrorMessage("Select payment date.");
       return;
     }
-
     if (!Number.isFinite(numericAmount) || numericAmount <= 0) {
       setErrorMessage("Amount must be greater than 0.");
       return;
     }
-
     if (!isCrossCurrency && numericAmount > openBalance) {
-      setErrorMessage("Amount cannot exceed the invoice open balance.");
+      setErrorMessage("Amount cannot exceed the document open balance.");
       return;
     }
 
@@ -363,20 +337,19 @@ export default function NewPaymentReceivedPage() {
       const {
         data: { user },
       } = await supabase.auth.getUser();
-
-      if (!user?.id) {
-        throw new Error("User not authenticated");
-      }
+      if (!user?.id) throw new Error("User not authenticated");
 
       const {
         data: { session },
       } = await supabase.auth.getSession();
 
       const created = await createPaymentReceived({
-        invoice_id: selectedInvoice.id,
+        invoice_id: documentType === "invoice" ? selectedReceivable.id : null,
+        proforma_invoice_id:
+          documentType === "proforma" ? selectedReceivable.id : null,
         client_id:
-          selectedInvoice.counterparty_type === "client"
-            ? selectedInvoice.client_id ?? undefined
+          selectedReceivable.counterparty_type === "client"
+            ? selectedReceivable.client_id ?? undefined
             : undefined,
         amount: numericAmount,
         payment_date: paymentDate,
@@ -384,11 +357,11 @@ export default function NewPaymentReceivedPage() {
         payment_method_id: paymentMethodId || undefined,
         notes: notes || undefined,
         payment_currency_code: paymentCurrencyCode,
-        invoice_currency_code: selectedInvoice.currency_code || undefined,
+        invoice_currency_code: selectedReceivable.currency_code || undefined,
         exchange_rate: 1,
         converted_amount: numericAmount,
         exchange_rate_source:
-          paymentCurrencyCode === (selectedInvoice.currency_code || "")
+          paymentCurrencyCode === (selectedReceivable.currency_code || "")
             ? "system_same_currency"
             : "pending_backend_conversion",
         exchange_rate_date: paymentDate,
@@ -396,32 +369,20 @@ export default function NewPaymentReceivedPage() {
         updated_by: user.id,
         posted_to_ledger: false,
         metadata: {
-          creation_mode: sourceInvoiceId
-            ? "invoice_prefill_draft"
-            : "manual_draft",
-          source: "invoice",
-          source_invoice_id: selectedInvoice.id,
-          source_invoice_number: selectedInvoice.invoice_number || null,
-          source_invoice_status: selectedInvoice.status || null,
-          source_invoice_payment_status: selectedInvoice.payment_status || null,
-          source_invoice_currency_code: selectedInvoice.currency_code || null,
-          source_invoice_total_amount: selectedInvoice.total_amount ?? null,
-          source_invoice_paid_amount: selectedInvoice.paid_amount ?? null,
-          source_invoice_balance_due: selectedInvoice.balance_due ?? null,
-          source_invoice_from_name: invoiceFromName || null,
-          source_invoice_to_name: invoiceToName || null,
+          creation_mode:
+            sourceInvoiceId || sourceProformaInvoiceId
+              ? "document_prefill_draft"
+              : "manual_draft",
+          source: documentType,
+          source_document_id: selectedReceivable.id,
+          source_document_number: selectedReceivable.document_number,
           proof_required_before_confirmation: true,
           proof_uploaded_on_create: Boolean(proofFile),
         },
       });
 
-      if (!created?.id) {
-        throw new Error("Payment creation failed: no id returned");
-      }
-
-      if (proofFile) {
-        await uploadPaymentProofFile(created.id, proofFile, user.id);
-      }
+      if (!created?.id) throw new Error("Payment creation failed: no id returned");
+      if (proofFile) await uploadPaymentProofFile(created.id, proofFile, user.id);
 
       const { error: fxError } = await supabase.functions.invoke(
         "finance-payment-received-convert",
@@ -430,33 +391,28 @@ export default function NewPaymentReceivedPage() {
             payment_id: created.id,
             amount: numericAmount,
             payment_currency_code: paymentCurrencyCode,
-            invoice_id: selectedInvoice.id,
+            invoice_id: documentType === "invoice" ? selectedReceivable.id : null,
+            proforma_invoice_id:
+              documentType === "proforma" ? selectedReceivable.id : null,
             payment_date: paymentDate,
           },
-          headers: {
-            Authorization: `Bearer ${session?.access_token ?? ""}`,
-          },
+          headers: { Authorization: `Bearer ${session?.access_token ?? ""}` },
         }
       );
-
-      if (fxError) {
-        console.error("FX conversion failed:", fxError);
-      }
+      if (fxError) console.error("FX conversion failed:", fxError);
 
       navigate(`/finance/transactions/payments-received/${created.id}`);
     } catch (error) {
       console.error("Failed to create payment received:", error);
       setErrorMessage(
-        error instanceof Error
-          ? error.message
-          : "Failed to create payment received."
+        error instanceof Error ? error.message : "Failed to create payment received."
       );
     } finally {
       setIsSaving(false);
     }
   }, [
-    invoiceFromName,
-    invoiceToName,
+    documentType,
+    documentTypeLabel,
     isCrossCurrency,
     navigate,
     notes,
@@ -467,49 +423,76 @@ export default function NewPaymentReceivedPage() {
     paymentMethodId,
     proofFile,
     referenceNumber,
-    selectedInvoice,
+    selectedReceivable,
     sourceInvoiceId,
+    sourceProformaInvoiceId,
   ]);
+
+  const paymentMetrics = useMemo<AixiaCommandMetricItem[]>(
+    () => [
+      {
+        key: "document-total",
+        title: "Document Total",
+        value: formatMoney(selectedReceivable?.total_amount, documentCurrencyCode),
+        subtitle: `Original ${documentTypeLabel.toLowerCase()} value.`,
+        icon: FileText,
+        tone: "cyan",
+      },
+      {
+        key: "paid",
+        title: "Paid",
+        value: formatMoney(selectedReceivable?.paid_amount, documentCurrencyCode),
+        subtitle: "Confirmed payments already applied.",
+        icon: Wallet,
+        tone: "emerald",
+      },
+      {
+        key: "open-balance",
+        title: "Open Balance",
+        value: formatMoney(openBalance, documentCurrencyCode),
+        subtitle: "Remaining amount available for payment.",
+        icon: Wallet,
+        tone: "amber",
+      },
+      {
+        key: "settlement",
+        title: "Settlement",
+        value: isCrossCurrency ? "FX" : "Same",
+        subtitle: `${paymentCurrencyCode || "—"} → ${documentCurrencyCode || "—"}`,
+        icon: Link2,
+        tone: "violet",
+      },
+    ],
+    [
+      documentCurrencyCode,
+      documentTypeLabel,
+      isCrossCurrency,
+      openBalance,
+      paymentCurrencyCode,
+      selectedReceivable,
+    ]
+  );
 
   if (isLoading) {
     return (
-      <AixiaPage>
-        <AixiaLoadingState title="Loading payment sources" description="Preparing invoices, currencies, and payment methods." />
-      </AixiaPage>
+      <FinancePage>
+        <AixiaLoadingState
+          title="Loading payment sources"
+          description="Preparing proforma invoices, invoices, currencies, and payment methods."
+        />
+      </FinancePage>
     );
   }
 
   return (
-    <AixiaPage>
+    <FinancePage>
       <AixiaHero
+        className="shrink-0 space-y-4"
+        surface="command"
         parentLabel="Payments Received"
         parentPath="/finance/transactions/payments-received"
-        badges={[
-          { label: "New Payment Draft", tone: "cyan" },
-          { label: "Receivables", tone: "emerald" },
-          ...(sourceInvoiceId
-            ? [{ label: "Invoice prefilled", tone: "violet" as const }]
-            : []),
-        ]}
         gradientTitle="Create"
         title="Payment Received Draft"
-        description="Register a manual incoming payment against one issued or partially paid invoice. Save the draft, upload proof now or later, then confirm from the payment detail page."
-        statusCards={[
-          {
-            label: "Linked Invoice",
-            value: metricSummary.invoiceNumber,
-            description: "Payment draft will be saved against this invoice.",
-            icon: FileText,
-            tone: "cyan",
-          },
-          {
-            label: "Entered Amount",
-            value: formatMoney(numericAmount, paymentCurrencyCode || "USD"),
-            description: "Current draft payment amount.",
-            icon: Wallet,
-            tone: "emerald",
-          },
-        ]}
         actions={
           <AixiaButton
             type="button"
@@ -521,298 +504,220 @@ export default function NewPaymentReceivedPage() {
             {isSaving ? "Saving..." : "Save Draft"}
           </AixiaButton>
         }
-      />
+      >
+        <AixiaCommandMetrics items={paymentMetrics} />
+      </AixiaHero>
 
-      <AixiaMetricGrid>
-        <AixiaMetricCard
-          label="Invoice Total"
-          value={formatMoney(selectedInvoice?.total_amount, invoiceCurrencyCode)}
-          description="Original invoice value."
-          icon={FileText}
-          tone="cyan"
-        />
-        <AixiaMetricCard
-          label="Paid"
-          value={formatMoney(selectedInvoice?.paid_amount, invoiceCurrencyCode)}
-          description="Confirmed payments already applied."
-          icon={Wallet}
-          tone="emerald"
-        />
-        <AixiaMetricCard
-          label="Open Balance"
-          value={formatMoney(openBalance, invoiceCurrencyCode)}
-          description="Remaining amount available for payment."
-          icon={Wallet}
-          tone="amber"
-        />
-        <AixiaMetricCard
-          label="Settlement"
-          value={isCrossCurrency ? "FX" : "Same"}
-          description={`${paymentCurrencyCode || "—"} → ${invoiceCurrencyCode || "—"}`}
-          icon={Link2}
-          tone="violet"
-        />
-      </AixiaMetricGrid>
+      <div className="aixia-command-scroll">
+        {errorMessage ? <AixiaAlert tone="error">{errorMessage}</AixiaAlert> : null}
+        {enteredAmountExceedsOpenBalance ? (
+          <AixiaAlert tone="error">
+            Same-currency payment cannot exceed the open document balance.
+          </AixiaAlert>
+        ) : null}
 
-      {errorMessage ? <AixiaAlert tone="error">{errorMessage}</AixiaAlert> : null}
-      {enteredAmountExceedsOpenBalance ? (
-        <AixiaAlert tone="error">
-          Same-currency payment cannot exceed the open invoice balance.
-        </AixiaAlert>
-      ) : null}
+        <AixiaSmartLayout
+          main={
+            <>
+              <AixiaSection
+                title="Payment Header"
+                description="Link this draft to one open proforma invoice or invoice."
+                icon={Link2}
+              >
+                <AixiaFormGrid>
+                  <AixiaFormField>
+                    <AixiaFieldLabel label="Document Type" />
+                    <AixiaSelectField
+                      value={documentType}
+                      disabled={Boolean(sourceInvoiceId || sourceProformaInvoiceId)}
+                      onChange={(event) => {
+                        const nextType = event.target.value as ReceivableDocumentType;
+                        setDocumentType(nextType);
+                        setReceivableId("");
+                        setAmount("");
+                        setPaymentCurrencyCode("");
+                      }}
+                    >
+                      <option value="proforma">Proforma Invoice</option>
+                      <option value="invoice">Invoice</option>
+                    </AixiaSelectField>
+                  </AixiaFormField>
 
-      <AixiaSmartLayout
-        main={
-          <>
-            <AixiaSection
-              title="Payment Header"
-              description="Link this draft to one open invoice and capture amount, currency, date, method, reference, and notes."
-              icon={Link2}
-            >
-              <AixiaFormGrid>
-                <AixiaFormFullWidth>
-                  <AixiaFieldLabel
-                    label="Linked Invoice"
-                    helper="After confirmation, the linked invoice balance updates from this payment."
-                  />
-                  <AixiaSelectField
-                    value={invoiceId}
-                    onChange={(event) => {
-                      setInvoiceId(event.target.value);
-                      setAmount("");
-                      setPaymentCurrencyCode("");
-                    }}
-                  >
-                    <option value="">Select invoice</option>
-                    {invoices.map((invoice) => {
-                      const recipientName =
-                        invoice.counterparty_legal_name_snapshot ||
-                        invoice.counterparty_name_snapshot ||
-                        invoice.client_name_snapshot ||
-                        "Intercompany";
+                  <AixiaFormFullWidth>
+                    <AixiaFieldLabel label={`Linked ${documentTypeLabel}`} />
+                    <AixiaSelectField
+                      value={receivableId}
+                      onChange={(event) => {
+                        setReceivableId(event.target.value);
+                        setAmount("");
+                        setPaymentCurrencyCode("");
+                      }}
+                    >
+                      <option value="">Select {documentTypeLabel.toLowerCase()}</option>
+                      {receivables.map((receivable) => {
+                        const recipientName =
+                          receivable.counterparty_legal_name_snapshot ||
+                          receivable.counterparty_name_snapshot ||
+                          receivable.client_name_snapshot ||
+                          "Intercompany";
+                        return (
+                          <option key={receivable.id} value={receivable.id}>
+                            {receivable.document_number} —{" "}
+                            {receivable.company_name_snapshot || "From company"} → {recipientName}{" "}
+                            — {formatMoney(receivable.balance_due, receivable.currency_code || "USD")}{" "}
+                            open
+                          </option>
+                        );
+                      })}
+                    </AixiaSelectField>
+                  </AixiaFormFullWidth>
 
-                      return (
-                        <option key={invoice.id} value={invoice.id}>
-                          {invoice.invoice_number} — {invoice.company_name_snapshot || "From company"} → {recipientName} — {formatMoney(invoice.balance_due, invoice.currency_code || "USD")} open
+                  {selectedReceivable ? (
+                    <>
+                      <AixiaFormField>
+                        <AixiaDisplayBlock
+                          label="Document From"
+                          value={documentFromName}
+                          detail={[documentFromContact, documentFromEmail, documentFromPhone, documentFromAddress]
+                            .filter(Boolean)
+                            .join(" • ")}
+                        />
+                      </AixiaFormField>
+                      <AixiaFormField>
+                        <AixiaDisplayBlock
+                          label="Document To"
+                          value={documentToName}
+                          detail={[documentToContact, documentToEmail, documentToPhone, documentToAddress]
+                            .filter(Boolean)
+                            .join(" • ")}
+                        />
+                      </AixiaFormField>
+                    </>
+                  ) : null}
+
+                  <AixiaFormField>
+                    <AixiaFieldLabel label="Payment Date" />
+                    <AixiaInputField
+                      type="date"
+                      value={paymentDate}
+                      onChange={(event) => setPaymentDate(event.target.value)}
+                    />
+                  </AixiaFormField>
+                  <AixiaFormField>
+                    <AixiaFieldLabel label="Amount" />
+                    <AixiaInputField
+                      value={amount}
+                      onChange={(event) => setAmount(event.target.value)}
+                    />
+                  </AixiaFormField>
+                  <AixiaFormField>
+                    <AixiaFieldLabel label="Payment Currency" />
+                    <AixiaSelectField
+                      value={paymentCurrencyCode}
+                      onChange={(event) => setPaymentCurrencyCode(event.target.value)}
+                    >
+                      <option value="">Select currency</option>
+                      {currencies.map((currency) => (
+                        <option key={currency.id} value={currency.currency_code}>
+                          {currency.currency_code} — {currency.currency_name}
                         </option>
-                      );
-                    })}
-                  </AixiaSelectField>
-                </AixiaFormFullWidth>
+                      ))}
+                    </AixiaSelectField>
+                  </AixiaFormField>
+                  <AixiaFormField>
+                    <AixiaDisplayBlock label="Document Currency" value={documentCurrencyCode} />
+                  </AixiaFormField>
+                  <AixiaFormField>
+                    <AixiaFieldLabel label="Reference Number" />
+                    <AixiaInputField
+                      value={referenceNumber}
+                      onChange={(event) => setReferenceNumber(event.target.value)}
+                    />
+                  </AixiaFormField>
+                  <AixiaFormField>
+                    <AixiaFieldLabel label="Payment Method" />
+                    <AixiaSelectField
+                      value={paymentMethodId}
+                      onChange={(event) => setPaymentMethodId(event.target.value)}
+                    >
+                      <option value="">Select payment method</option>
+                      {paymentMethods.map((method) => (
+                        <option key={method.id} value={method.id}>
+                          {method.name}
+                        </option>
+                      ))}
+                    </AixiaSelectField>
+                  </AixiaFormField>
+                  <AixiaFormFullWidth>
+                    <AixiaFieldLabel label="Notes" />
+                    <AixiaTextareaField
+                      value={notes}
+                      onChange={(event) => setNotes(event.target.value)}
+                      rows={4}
+                    />
+                  </AixiaFormFullWidth>
+                </AixiaFormGrid>
+              </AixiaSection>
 
-                {selectedInvoice ? (
-                  <>
-                    <AixiaFormField>
-                      <AixiaDisplayBlock
-                        label="Invoice From"
-                        value={invoiceFromName}
-                        detail={[invoiceFromContact, invoiceFromEmail, invoiceFromPhone, invoiceFromAddress]
-                          .filter(Boolean)
-                          .join(" • ")}
-                      />
-                    </AixiaFormField>
+              <AixiaSection title="Proof of Payment" icon={Upload}>
+                <AixiaDocumentUploadPanel
+                  selectedFile={proofFile}
+                  attachments={[]}
+                  required={false}
+                  disabled={isSaving}
+                  uploading={isSaving}
+                  dropTitle="Attach payment proof"
+                  dropDescription="Upload transfer confirmation or remittance advice."
+                  uploadLabel="Save Draft With Proof"
+                  uploadingLabel="Saving..."
+                  emptyTitle="No proof selected"
+                  emptyDescription="You can upload proof now or later from the detail page."
+                  onFileSelect={setProofFile}
+                  onRemoveSelectedFile={() => setProofFile(null)}
+                  onUpload={() => void handleSaveDraft()}
+                />
+              </AixiaSection>
 
-                    <AixiaFormField>
-                      <AixiaDisplayBlock
-                        label="Invoice To"
-                        value={invoiceToName}
-                        detail={[invoiceToContact, invoiceToEmail, invoiceToPhone, invoiceToAddress]
-                          .filter(Boolean)
-                          .join(" • ")}
-                      />
-                    </AixiaFormField>
-                  </>
-                ) : null}
-
-                <AixiaFormField>
-                  <AixiaFieldLabel label="Payment Date" />
-                  <AixiaInputField
-                    type="date"
-                    value={paymentDate}
-                    onChange={(event) => setPaymentDate(event.target.value)}
-                  />
-                </AixiaFormField>
-
-                <AixiaFormField>
-                  <AixiaFieldLabel label="Amount" />
-                  <AixiaInputField
-                    value={amount}
-                    onChange={(event) => setAmount(event.target.value)}
-                    placeholder="Enter received amount"
-                  />
-                </AixiaFormField>
-
-                <AixiaFormField>
-                  <AixiaFieldLabel label="Payment Currency" />
-                  <AixiaSelectField
-                    value={paymentCurrencyCode}
-                    onChange={(event) => setPaymentCurrencyCode(event.target.value)}
-                  >
-                    <option value="">Select currency</option>
-                    {currencies.map((currency) => (
-                      <option key={currency.id} value={currency.currency_code}>
-                        {currency.currency_code} — {currency.currency_name}
-                      </option>
-                    ))}
-                  </AixiaSelectField>
-                </AixiaFormField>
-
-                <AixiaFormField>
-                  <AixiaDisplayBlock label="Invoice Currency" value={invoiceCurrencyCode} />
-                </AixiaFormField>
-
-                <AixiaFormField>
-                  <AixiaFieldLabel label="Reference Number" />
-                  <AixiaInputField
-                    value={referenceNumber}
-                    onChange={(event) => setReferenceNumber(event.target.value)}
-                    placeholder="Bank reference / transfer reference"
-                  />
-                </AixiaFormField>
-
-                <AixiaFormField>
-                  <AixiaFieldLabel label="Payment Method" />
-                  <AixiaSelectField
-                    value={paymentMethodId}
-                    onChange={(event) => setPaymentMethodId(event.target.value)}
-                  >
-                    <option value="">Select payment method</option>
-                    {paymentMethods.map((method) => (
-                      <option key={method.id} value={method.id}>
-                        {method.name}
-                      </option>
-                    ))}
-                  </AixiaSelectField>
-                </AixiaFormField>
-
-                <AixiaFormField>
-                  <AixiaDisplayBlock
-                    label="Settlement Type"
-                    value={isCrossCurrency ? "Cross-currency settlement" : "Same-currency settlement"}
-                  />
-                </AixiaFormField>
-
-                <AixiaFormFullWidth>
-                  <AixiaFieldLabel label="Notes" />
-                  <AixiaTextareaField
-                    value={notes}
-                    onChange={(event) => setNotes(event.target.value)}
-                    rows={4}
-                  />
-                </AixiaFormFullWidth>
-              </AixiaFormGrid>
-            </AixiaSection>
-
-            <AixiaSection
-              title="Proof of Payment"
-              description="Optional here, required before confirmation. If selected, the proof file is uploaded immediately after the draft is created."
-              icon={Upload}
-              badge={proofFile ? <AixiaBadge tone="emerald">Selected</AixiaBadge> : <AixiaBadge tone="amber">Optional Now</AixiaBadge>}
-            >
-              <AixiaDocumentUploadPanel
-                selectedFile={proofFile}
-                attachments={[]}
-                required={false}
-                disabled={isSaving}
-                uploading={isSaving}
-                dropTitle="Attach payment proof"
-                dropDescription="Upload transfer confirmation, remittance advice, or payment slip."
-                uploadLabel="Save Draft With Proof"
-                uploadingLabel="Saving..."
-                emptyTitle="No proof selected"
-                emptyDescription="You can upload proof now or later from the payment detail page."
-                onFileSelect={setProofFile}
-                onRemoveSelectedFile={() => setProofFile(null)}
-                onUpload={() => void handleSaveDraft()}
-              />
-            </AixiaSection>
-
-            <AixiaSection
-              title="Locked Behavior"
-              description="Payment creation rules."
-              icon={FileText}
-            >
-              <AixiaAlert tone="info">
-                Payments are created as draft only. Every payment must be linked to one invoice. Proof may be uploaded now or later. Confirmation is blocked until proof exists. Confirmed payments update the linked invoice balance. Multi-currency conversion is calculated by backend.
-              </AixiaAlert>
-            </AixiaSection>
-          </>
-        }
-        side={
-          <>
-            <AixiaSection
-              title="Draft Summary"
-              description="Review the linked invoice, amount, payment method, and settlement direction before saving."
-              icon={FileText}
-            >
+              <AixiaSection title="Locked Behavior" icon={FileText}>
+                <AixiaAlert tone="info">
+                  Payments are draft-only and must link to one Proforma Invoice or Invoice.
+                  Confirmation requires proof and updates the linked document balance.
+                </AixiaAlert>
+              </AixiaSection>
+            </>
+          }
+          side={
+            <AixiaSection title="Draft Summary" icon={FileText}>
               <AixiaFormGrid>
                 <AixiaFormField>
                   <AixiaDisplayBlock
-                    label="Linked Invoice"
-                    value={metricSummary.invoiceNumber}
-                    detail={`Status: ${metricSummary.invoiceStatus} · Payment: ${metricSummary.paymentStatus}`}
+                    label={`Linked ${documentTypeLabel}`}
+                    value={selectedReceivable?.document_number || "—"}
                   />
                 </AixiaFormField>
-
-                <AixiaFormField>
-                  <AixiaDisplayBlock
-                    label="Invoice From / To"
-                    value={`${invoiceFromName} → ${invoiceToName}`}
-                    detail={invoiceToEmail || invoiceToPhone || metricSummary.clientName}
-                  />
-                </AixiaFormField>
-
                 <AixiaFormField>
                   <AixiaDisplayBlock
                     label="Open Balance"
-                    value={formatMoney(metricSummary.openBalance, metricSummary.invoiceCurrency)}
+                    value={formatMoney(openBalance, documentCurrencyCode)}
                   />
                 </AixiaFormField>
-
                 <AixiaFormField>
                   <AixiaDisplayBlock
                     label="Entered Amount"
-                    value={formatMoney(metricSummary.enteredAmount, paymentCurrencyCode || "USD")}
+                    value={formatMoney(numericAmount, paymentCurrencyCode || "USD")}
                   />
                 </AixiaFormField>
-
                 <AixiaFormField>
                   <AixiaDisplayBlock
                     label="Payment Method"
-                    value={metricSummary.paymentMethod}
-                  />
-                </AixiaFormField>
-
-                <AixiaFormField>
-                  <AixiaDisplayBlock
-                    label="Settlement Direction"
-                    value={`${paymentCurrencyCode || "—"} → ${invoiceCurrencyCode || "—"}`}
-                    detail={
-                      !selectedInvoice
-                        ? "Select invoice first."
-                        : isCrossCurrency
-                          ? "Cross-currency payment. Backend will calculate converted amount."
-                          : "Same-currency payment."
-                    }
+                    value={selectedPaymentMethod?.name || "—"}
                   />
                 </AixiaFormField>
               </AixiaFormGrid>
-
-              {proofFile ? (
-                <AixiaAlert tone="success">Proof will be uploaded with the draft.</AixiaAlert>
-              ) : (
-                <AixiaAlert tone="info">Proof is not attached yet.</AixiaAlert>
-              )}
             </AixiaSection>
-
-            <AixiaSection title="Workflow Reminder" icon={Link2}>
-              <AixiaAlert tone="info">
-                Select the invoice first. Save the payment as draft against that invoice. Upload the transfer proof now or on the detail page. Confirm only after proof exists. Confirmed payments update the linked invoice balance. Multi-currency conversion runs after draft creation.
-              </AixiaAlert>
-            </AixiaSection>
-          </>
-        }
-      />
-    </AixiaPage>
+          }
+        />
+      </div>
+    </FinancePage>
   );
 }

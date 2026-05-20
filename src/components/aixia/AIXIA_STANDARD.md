@@ -288,3 +288,129 @@ Do not guess database columns. Ask for schema/sample SQL if uncertain.
 ## 18. Final acceptance rule
 
 A page is not finished just because the build passes. It must pass visual standard checks, logic-preservation checks, permission checks, silent-refresh checks, table/header alignment checks, archive/delete behavior checks, and TypeScript build checks.
+
+## 19. Platform Visual Parity (command surface)
+
+Golden reference modules: Dashboard, Projects, Tasks, Calendar, Chat, Inbox. Finance and all other app modules must converge to the same command-surface spec.
+
+### Command surface API
+
+- Page shell: `AixiaPage surface="command"` or `FinancePage` (finance wrapper)
+- Hero: `AixiaHero surface="command"` — renders `aixia-dash-hero` DOM (kicker, title, subtitle, actions)
+- Hero child order (fixed): **metrics → filter tabs → search/toolbar** (only include layers the page needs)
+- Hub KPI row: `AixiaCommandMetrics` — icons, tone classes, `aixia-dash-metrics--auto` (Finance card chrome)
+- Filter tabs: `aixia-command-tabs` / `aixia-command-tab` (Projects underline pattern; `aixia-projects-tabs` alias retained)
+- List toolbar: `aixia-command-toolbar` (search, sort, view toggles; `aixia-projects-toolbar` alias retained)
+- Buttons: `AixiaButton` only — maps to `aixia-dash-action` classes
+- Section panels: `AixiaSection surface="command"` — `aixia-card-shell aixia-dash-panel`
+- Registry metrics in scroll: migrate to `AixiaCommandMetrics` inside `AixiaHero` when they are page-level KPIs
+- Tables/lists: `AixiaTableShell` + shared cells; inbox/task rows use same row tokens
+
+### Layout fill (no dead empty space)
+
+- Two-column detail pages: `AixiaSmartLayout` with `bottomSpan="auto"`, `sideRebalance="last-to-bottom"`, and `mainTopCount` when line-items or linked-docs must expand full width
+- Tall table sections beside side column: `AixiaSection` with `smartScroll`, `fill`, and `visibleCards`
+- Metric rows: `AixiaSmartGrid surface="command"` or `aixia-dash-bento` — no orphan half-width cards at breakpoints
+- Hub pages: no local `min-h-screen` manual grids; use command page shell + shared layout components
+
+### CSS source of truth
+
+Global load via `main.tsx`: `dashboard/tokens.css`, `layout.css`, `visual.css`, `projects/projects-visual.css`. Module CSS files are layout extensions only (chat columns, calendar grid), not duplicate button/hero/card rules.
+
+### Drift prevention
+
+Do not use raw `aixia-dash-hero` HTML, shadcn `Button` with `aixia-dash-action`, or shadcn `Card` for new/edited standardized pages. Use shared AiXia components with `surface="command"`.
+
+## 20. Workspace grid cards (hub + entity tiles)
+
+Golden reference: Finance hub card on `/finance` (`AixiaWorkspaceCard`).
+
+### Required shell
+
+All hub navigation tiles and entity grid cards must use **`AixiaWorkspaceCard`** (or **`AixiaNavigationCard`**, which wraps it). Do not build local card shells with shadcn `Card`, inline Tailwind glass cards, or `.aixia-projects-grid-card*`.
+
+### Fixed structure (order)
+
+1. **Top** — icon (left), optional `topRightSlot` (pin/menu), status pill, arrow
+2. **Body** — eyebrow, title, description
+3. **Middle** (optional) — `children` preview slot (reports)
+4. **Footer** — fixed **Access** label, summary, Open action pill
+
+### API
+
+- `size`: `default` | `compact` (entity grids) | `tall` (report previews)
+- `as`: `button` for pure nav tiles; `div` when `topRightSlot` contains nested controls (pin, menu)
+- `tone`: shared workspace tone classes only — no page-level color overrides
+
+### Entity field mapping
+
+| Slot | Projects | Tasks | Employees | Reports |
+|------|----------|-------|-----------|---------|
+| eyebrow | Status group | Column / lane | Role | Module category |
+| label | Project name | Task title | Full name | Report title |
+| description | Description | Description | Email / dept | Report blurb |
+| statusLabel | ACTIVE / OVERDUE | Status | ACTIVE / RESTRICTED | Live |
+| summary | Progress + due date | Priority + due | Access scope | Preview row count |
+| children | — | — | — | Preview list |
+
+Out of scope for this card: form panels, dashboard section panels, KPI rows (`AixiaCommandMetrics`), registry tables.
+
+## 21. Finance hub scroll intro (meta strip + spacing)
+
+Finance hub pages must use **`AixiaFinanceHubMetaStrip`** as the **first child** of `aixia-command-scroll` (after hero). Do not render raw `.aixia-finance-hub-meta` markup on hub pages.
+
+### Block order in scroll body (canonical — do not reorder)
+
+| Step | Block | Component |
+|------|-------|-----------|
+| 1 | Status meta row | `AixiaFinanceHubMetaStrip` |
+| 2 | Access rule | `AixiaAccessRule` (when the page defines one) |
+| 3 | Control signals strip | `AixiaFinanceHubControlPanel` → `AixiaNavigationInfoPanel` (standalone row, no nested overview tiles) |
+| 4 | Overview metrics | `AixiaFinanceHubOverviewGrid` → `AixiaReviewGrid variant="metrics"` + `AixiaMetricCard` |
+| 5 | Main hub content | Page-specific (`AixiaSmartLayout`, transaction flows, registries, report grids) |
+
+Optional `AixiaAlert` blocks may appear after step 1.
+
+**Forbidden in steps 1–4:** `AixiaValueBlock` for overview KPIs, `AixiaReviewGrid variant="cards"` for step 4, nesting overview metrics inside the control panel, placing overview metrics before `AixiaAccessRule`.
+
+Hero `AixiaCommandMetrics` (Receivables/Payables totals) stays in the hero only — not duplicated in step 4.
+
+### Spacing (single token)
+
+All block-level gaps in the finance scroll intro zone use **`--aixia-stack-gap`**:
+
+- Vertical gap between scroll direct children: `.aixia-finance-page .aixia-command-scroll { gap: var(--aixia-stack-gap) }`
+- Horizontal and vertical gap between the three meta cards: `.aixia-finance-hub-meta { gap: var(--aixia-stack-gap) }`
+- Nested stacks: `.aixia-stack { gap: var(--aixia-stack-gap) }`
+
+Do not add ad-hoc Tailwind `gap-*`, `space-y-*`, or `pr-*` / `pb-*` on finance `aixia-command-scroll` — shared CSS owns rhythm.
+
+## 22. Finance registry list scroll intro
+
+Registry **list** pages (`/finance/transactions/*`, `/finance/master-data/*` list routes) use a shorter scroll intro than hub pages (§21). KPI counts live in the hero only — do not duplicate them in the scroll body.
+
+### Hub vs registry
+
+| | Hub (§21) | Registry list (§22) |
+|---|-----------|---------------------|
+| Hero | `AixiaCommandMetrics` (totals) | `AixiaCommandMetrics` (registry KPIs) |
+| Scroll step 4 | `AixiaFinanceHubOverviewGrid` | Registry section (table) — no overview grid |
+
+### Block order in scroll body (canonical — do not reorder)
+
+| Step | Block | Component |
+|------|-------|-----------|
+| 1 | Status meta row | `AixiaFinanceHubMetaStrip` — System Status, Access, Active records |
+| 2 | Access rule | `AixiaAccessRule` |
+| 3 | Workflow / lifecycle strip | `AixiaFinanceHubControlPanel` — replaces ad-hoc hero badge pills |
+| 4 | Registry body | `AixiaSection` + `AixiaRegistryToolbar` + table |
+
+Optional `AixiaAlert` blocks may appear after step 1.
+
+**Forbidden on registry list pages:**
+
+- Ad-hoc `aixia-action-system` + `AixiaBadge` pill rows inside `AixiaHero`
+- `AixiaFinanceHubOverviewGrid` or duplicate KPI rows in scroll (hero owns metrics)
+- Placing `AixiaAccessRule` before `AixiaFinanceHubMetaStrip`
+
+Reuse the same `--aixia-stack-gap` spacing rules from §21.

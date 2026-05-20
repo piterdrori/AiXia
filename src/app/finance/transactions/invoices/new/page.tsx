@@ -32,6 +32,12 @@ import {
   AixiaValueBlock,
 } from "@/components/aixia";
 import { supabase } from "@/lib/supabase";
+import {
+  getCustomerDocumentTypeLabel,
+  parseIssuedDocumentType,
+} from "@/lib/finance/customerDocuments";
+
+type IssuedDocumentType = "proforma" | "invoice";
 
 type ClientOption = {
   id: string;
@@ -340,9 +346,14 @@ export default function FinanceNewInvoicePage() {
   const navigate = useNavigate();
   const [searchParams] = useSearchParams();
   const sourceProformaInvoiceId = searchParams.get("proforma_invoice_id");
+  const initialDocumentType: IssuedDocumentType = sourceProformaInvoiceId
+    ? "invoice"
+    : parseIssuedDocumentType(searchParams.get("document_type"));
 
   const [isLoading, setIsLoading] = useState(true);
   const [isSaving, setIsSaving] = useState(false);
+  const [issuedDocumentType, setIssuedDocumentType] =
+    useState<IssuedDocumentType>(initialDocumentType);
 
   const [clients, setClients] = useState<ClientOption[]>([]);
   const [companies, setCompanies] = useState<CompanyOption[]>([]);
@@ -928,6 +939,166 @@ export default function FinanceNewInvoicePage() {
   const handleSaveDraft = useCallback(async () => {
     setErrorMessage("");
 
+    if (issuedDocumentType === "proforma") {
+      if (!clientId) {
+        setErrorMessage("Select a client.");
+        return;
+      }
+
+      if (!companyId) {
+        setErrorMessage("Select an issuing company.");
+        return;
+      }
+
+      const trimmedRows = rows.map((row) => ({ ...row, description: row.description.trim() }));
+      const hasAtLeastOneValidRow = trimmedRows.some(
+        (row) => row.description && toNumber(row.quantity) > 0 && toNumber(row.unitPrice) >= 0
+      );
+
+      if (!hasAtLeastOneValidRow) {
+        setErrorMessage("Add at least one valid line item.");
+        return;
+      }
+
+      const hasInvalidRow = trimmedRows.some(
+        (row) =>
+          !row.description || toNumber(row.quantity) <= 0 || toNumber(row.unitPrice) < 0
+      );
+
+      if (hasInvalidRow) {
+        setErrorMessage(
+          "Every line item must have a description, quantity greater than 0, and unit price 0 or higher."
+        );
+        return;
+      }
+
+      setIsSaving(true);
+
+      try {
+        const { data, error } = await supabase.rpc("finance_create_proforma_invoice", {
+          p_client_id: clientId,
+          p_issue_date: issueDate,
+          p_valid_until: dueDate || null,
+          p_currency_id: currencyId || null,
+          p_project_id: projectId || null,
+          p_task_id: taskId || null,
+          p_notes: notes || null,
+          p_metadata: {
+            currency_code: currencyCode || "USD",
+            issuing_company_id: companyId,
+            payment_terms_id: paymentTermsId || null,
+            payment_terms_name: selectedPaymentTerm?.name || null,
+            payment_terms_code: selectedPaymentTerm?.code || null,
+            payment_terms_due_days: selectedPaymentTerm?.due_days ?? null,
+            shipping_term_id: shippingTermId || null,
+            shipping_term_name: selectedShippingTerm?.name || null,
+            shipping_term_code: selectedShippingTerm?.code || null,
+            client_address_snapshot: getClientAddress(selectedClient),
+            bank_account_id: bankAccountId || null,
+            bank_account_name: selectedBankAccount?.name || null,
+            bank_name:
+              selectedBankAccount?.bank_name ||
+              selectedBankAccount?.institution_name ||
+              null,
+            beneficiary_name: selectedBankAccount?.beneficiary_name || null,
+            bank_address_snapshot: getBankAddress(selectedBankAccount),
+            iban: selectedBankAccount?.iban || null,
+            swift_code:
+              selectedBankAccount?.swift_code ||
+              (selectedBankAccount?.account_identifier_type?.toLowerCase() === "swift"
+                ? selectedBankAccount?.account_identifier_value
+                : null),
+            bank_identifier_type: selectedBankAccount?.account_identifier_type || null,
+            bank_identifier_value: selectedBankAccount?.account_identifier_value || null,
+            account_number:
+              selectedBankAccount?.account_number ||
+              selectedBankAccount?.masked_account_number ||
+              null,
+            bank_account_currency_code: selectedBankAccount?.currency_code || null,
+            preferred_payment_method_id: paymentMethodId || null,
+            preferred_payment_method_name: selectedPaymentMethod?.name || null,
+            preferred_payment_method_code: selectedPaymentMethod?.code || null,
+            creation_mode: "manual_draft",
+          },
+          p_lines: trimmedRows.map((row) => ({
+            item_id: row.itemId || null,
+            description: row.description.trim(),
+            quantity: toNumber(row.quantity),
+            unit_price: toNumber(row.unitPrice),
+            discount: toNumber(row.discount),
+            tax_code_id: row.taxCodeId || null,
+            unit_of_measure_id: row.unitOfMeasureId || null,
+            revenue_category_id: row.revenueCategoryId || null,
+          })),
+        });
+
+        if (error) throw error;
+        if (!data) throw new Error("Proforma invoice was not created");
+
+        const userResult = await supabase.auth.getUser();
+
+        const { error: proformaCommercialSetupError } = await supabase
+          .from("finance_proforma_invoices")
+          .update({
+            company_id: companyId || null,
+            payment_terms_id: paymentTermsId || null,
+            shipping_term_id: shippingTermId || null,
+            bank_account_id: bankAccountId || null,
+            currency_code: currencyCode || "USD",
+            metadata: {
+              currency_code: currencyCode || "USD",
+              issuing_company_id: companyId,
+              payment_terms_id: paymentTermsId || null,
+              payment_terms_name: selectedPaymentTerm?.name || null,
+              payment_terms_code: selectedPaymentTerm?.code || null,
+              payment_terms_due_days: selectedPaymentTerm?.due_days ?? null,
+              shipping_term_id: shippingTermId || null,
+              shipping_term_name: selectedShippingTerm?.name || null,
+              shipping_term_code: selectedShippingTerm?.code || null,
+              client_address_snapshot: getClientAddress(selectedClient),
+              bank_account_id: bankAccountId || null,
+              bank_account_name: selectedBankAccount?.name || null,
+              bank_name:
+                selectedBankAccount?.bank_name ||
+                selectedBankAccount?.institution_name ||
+                null,
+              beneficiary_name: selectedBankAccount?.beneficiary_name || null,
+              bank_address_snapshot: getBankAddress(selectedBankAccount),
+              iban: selectedBankAccount?.iban || null,
+              swift_code:
+                selectedBankAccount?.swift_code ||
+                (selectedBankAccount?.account_identifier_type?.toLowerCase() === "swift"
+                  ? selectedBankAccount?.account_identifier_value
+                  : null),
+              bank_identifier_type: selectedBankAccount?.account_identifier_type || null,
+              bank_identifier_value: selectedBankAccount?.account_identifier_value || null,
+              account_number:
+                selectedBankAccount?.account_number ||
+                selectedBankAccount?.masked_account_number ||
+                null,
+              bank_account_currency_code: selectedBankAccount?.currency_code || null,
+              preferred_payment_method_id: paymentMethodId || null,
+              preferred_payment_method_name: selectedPaymentMethod?.name || null,
+              preferred_payment_method_code: selectedPaymentMethod?.code || null,
+              creation_mode: "manual_draft",
+            },
+            updated_by: userResult.data.user?.id || null,
+          })
+          .eq("id", data);
+
+        if (proformaCommercialSetupError) throw proformaCommercialSetupError;
+
+        navigate(`/finance/transactions/proforma-invoices/${data}`);
+        return;
+      } catch (error) {
+        console.error("Failed to save proforma invoice draft:", error);
+        setErrorMessage("Failed to save proforma invoice draft.");
+        return;
+      } finally {
+        setIsSaving(false);
+      }
+    }
+
     if (counterpartyType === "client" && !clientId) {
       setErrorMessage("Select a client.");
       return;
@@ -1098,12 +1269,18 @@ export default function FinanceNewInvoicePage() {
     currencyId,
     dueDate,
     issueDate,
+    issuedDocumentType,
     navigate,
     notes,
     paymentMethodId,
     paymentTermsId,
     projectId,
     rows,
+    selectedBankAccount,
+    selectedClient,
+    selectedPaymentMethod,
+    selectedPaymentTerm,
+    selectedShippingTerm,
     shippingTermId,
     sourceProformaInvoice,
     taskId,
@@ -1121,17 +1298,39 @@ export default function FinanceNewInvoicePage() {
   return (
     <AixiaPage>
       <AixiaHero
-        parentLabel="Invoices"
+        parentLabel="Proforma / Invoice"
         parentPath="/finance/transactions/invoices"
         badges={[
-          { label: "New Invoice Draft", tone: "cyan" },
+          {
+            label:
+              issuedDocumentType === "proforma"
+                ? "New Proforma Invoice Draft"
+                : "New Invoice Draft",
+            tone: issuedDocumentType === "proforma" ? "violet" : "cyan",
+          },
           { label: "Receivables", tone: "emerald" },
-          { label: sourceMode === "proforma_invoice" ? "From PI" : "Manual", tone: "neutral" },
+          {
+            label:
+              issuedDocumentType === "invoice" && sourceMode === "proforma_invoice"
+                ? "From PI"
+                : "Manual",
+            tone: "neutral",
+          },
         ]}
-        gradientTitle="Create"
-        title="Invoice Draft"
-        subtitle="Draft-only receivables creation"
-        description="Build a draft invoice from master data or a confirmed proforma invoice. Issue the invoice later from the invoice detail page."
+        gradientTitle={issuedDocumentType === "proforma" ? "Proforma" : "Create"}
+        title={
+          issuedDocumentType === "proforma" ? "Proforma Invoice Draft" : "Invoice Draft"
+        }
+        subtitle={
+          issuedDocumentType === "proforma"
+            ? "Draft-only proforma creation"
+            : "Draft-only receivables creation"
+        }
+        description={
+          issuedDocumentType === "proforma"
+            ? "Build a draft proforma invoice from master data. Confirm and convert to a final invoice later from the proforma detail page."
+            : "Build a draft invoice from master data or a confirmed proforma invoice. Issue the invoice later from the invoice detail page."
+        }
         statusCards={[
           {
             label: "Recipient",
@@ -1167,6 +1366,16 @@ export default function FinanceNewInvoicePage() {
 
       <AixiaMetricGrid>
         <AixiaMetricCard
+          label="Document Type"
+          value={getCustomerDocumentTypeLabel(
+            issuedDocumentType === "proforma" ? "customer_pi" : "customer_invoice"
+          )}
+          description="Choose proforma or final invoice before saving."
+          icon={Receipt}
+          tone={issuedDocumentType === "proforma" ? "violet" : "cyan"}
+        />
+
+        <AixiaMetricCard
           label="Subtotal"
           value={formatMoney(totals.subtotal, currencyCode)}
           description="Before discount and tax."
@@ -1201,10 +1410,31 @@ export default function FinanceNewInvoicePage() {
           <>
             <AixiaSection
               title="Document Overview"
-              description="Issuing company, recipient, commercial terms, dates, currency, source mode, project, and task."
+              description="Document type, issuing company, recipient, commercial terms, dates, currency, source mode, project, and task."
               icon={SquarePen}
             >
               <AixiaFormGrid columns="three">
+                <AixiaFormField>
+                  <AixiaFieldLabel label="Document Type" required />
+                  <AixiaSelectField
+                    value={issuedDocumentType}
+                    disabled={Boolean(sourceProformaInvoiceId)}
+                    onChange={(event) => {
+                      const nextType = event.target.value as IssuedDocumentType;
+                      setIssuedDocumentType(nextType);
+                      if (nextType === "proforma") {
+                        setCounterpartyType("client");
+                        setSourceMode("manual");
+                        setSourceProformaId("");
+                        setSourceProformaInvoice(null);
+                      }
+                    }}
+                  >
+                    <option value="proforma">Proforma Invoice</option>
+                    <option value="invoice">Invoice</option>
+                  </AixiaSelectField>
+                </AixiaFormField>
+
                 <AixiaFormField>
                   <AixiaFieldLabel label="Issuing Company" required />
                   <AixiaSelectField
@@ -1224,6 +1454,7 @@ export default function FinanceNewInvoicePage() {
                   <AixiaFieldLabel label="Recipient Type" required />
                   <AixiaSelectField
                     value={counterpartyType}
+                    disabled={issuedDocumentType === "proforma"}
                     onChange={(event) =>
                       setCounterpartyType(event.target.value as "client" | "company")
                     }
@@ -1337,7 +1568,9 @@ export default function FinanceNewInvoicePage() {
                 </AixiaFormField>
 
                 <AixiaFormField>
-                  <AixiaFieldLabel label="Due Date" />
+                  <AixiaFieldLabel
+                    label={issuedDocumentType === "proforma" ? "Valid Until" : "Due Date"}
+                  />
                   <AixiaInputField
                     type="date"
                     value={dueDate}
@@ -1395,30 +1628,32 @@ export default function FinanceNewInvoicePage() {
                   </AixiaSelectField>
                 </AixiaFormField>
 
-                <AixiaFormField>
-                  <AixiaFieldLabel label="Source Mode" />
-                  <AixiaSelectField
-                    value={sourceMode}
-                    onChange={(event) => {
-                      const nextMode = event.target.value as "manual" | "proforma_invoice";
-                      if (nextMode === "manual") {
-                        resetManualSource();
-                        return;
-                      }
+                {issuedDocumentType === "invoice" ? (
+                  <AixiaFormField>
+                    <AixiaFieldLabel label="Source Mode" />
+                    <AixiaSelectField
+                      value={sourceMode}
+                      onChange={(event) => {
+                        const nextMode = event.target.value as "manual" | "proforma_invoice";
+                        if (nextMode === "manual") {
+                          resetManualSource();
+                          return;
+                        }
 
-                      setSourceMode("proforma_invoice");
-                      setSourceProformaId("");
-                      setSourceProformaInvoice(null);
-                      setRows([createRow()]);
-                      setNotes("");
-                    }}
-                  >
-                    <option value="manual">Manual</option>
-                    <option value="proforma_invoice">From Proforma Invoice</option>
-                  </AixiaSelectField>
-                </AixiaFormField>
+                        setSourceMode("proforma_invoice");
+                        setSourceProformaId("");
+                        setSourceProformaInvoice(null);
+                        setRows([createRow()]);
+                        setNotes("");
+                      }}
+                    >
+                      <option value="manual">Manual</option>
+                      <option value="proforma_invoice">From Proforma Invoice</option>
+                    </AixiaSelectField>
+                  </AixiaFormField>
+                ) : null}
 
-                {sourceMode === "proforma_invoice" ? (
+                {issuedDocumentType === "invoice" && sourceMode === "proforma_invoice" ? (
                   <AixiaFormField>
                     <AixiaFieldLabel label="Proforma Invoice Source" />
                     <AixiaSelectField
@@ -1619,7 +1854,9 @@ export default function FinanceNewInvoicePage() {
         side={
           <>
             <AixiaSection
-              title="Invoice Summary"
+              title={
+                issuedDocumentType === "proforma" ? "Proforma Summary" : "Invoice Summary"
+              }
               description="Live commercial summary before saving."
               icon={Wallet}
             >

@@ -1,8 +1,8 @@
-import type { ReactNode } from "react";
+import type { DragEventHandler, KeyboardEvent, ReactNode } from "react";
 import type { LucideIcon } from "lucide-react";
 import { ArrowRight } from "lucide-react";
 
-type AixiaWorkspaceTone =
+export type AixiaWorkspaceTone =
   | "indigo"
   | "violet"
   | "gold"
@@ -12,7 +12,9 @@ type AixiaWorkspaceTone =
   | "rose"
   | "neutral";
 
-type AixiaWorkspaceCardProps = {
+export type AixiaWorkspaceCardSize = "default" | "tall" | "compact";
+
+export type AixiaWorkspaceCardProps = {
   label: ReactNode;
   eyebrow?: ReactNode;
   description?: ReactNode;
@@ -21,6 +23,12 @@ type AixiaWorkspaceCardProps = {
   summary?: ReactNode;
   actionLabel?: ReactNode;
   tone?: AixiaWorkspaceTone;
+  size?: AixiaWorkspaceCardSize;
+  children?: ReactNode;
+  topRightSlot?: ReactNode;
+  as?: "button" | "div";
+  draggable?: boolean;
+  onDragStart?: DragEventHandler<HTMLButtonElement | HTMLDivElement>;
   onClick?: () => void;
   disabled?: boolean;
   className?: string;
@@ -37,6 +45,21 @@ function getToneClass(tone: AixiaWorkspaceTone) {
   return "aixia-workspace-card-indigo";
 }
 
+function getSizeClass(size: AixiaWorkspaceCardSize) {
+  if (size === "tall") return "aixia-workspace-card--tall";
+  if (size === "compact") return "aixia-workspace-card--compact";
+  return "";
+}
+
+function handleDivKeyDown(event: KeyboardEvent<HTMLDivElement>, onClick?: () => void) {
+  if (!onClick || event.currentTarget !== event.target) return;
+
+  if (event.key === "Enter" || event.key === " ") {
+    event.preventDefault();
+    onClick();
+  }
+}
+
 export function AixiaWorkspaceCard({
   label,
   eyebrow,
@@ -46,17 +69,28 @@ export function AixiaWorkspaceCard({
   summary,
   actionLabel = "Open",
   tone = "indigo",
+  size = "default",
+  children,
+  topRightSlot,
+  as = "button",
+  draggable = false,
+  onDragStart,
   onClick,
   disabled = false,
   className = "",
 }: AixiaWorkspaceCardProps) {
-  return (
-    <button
-      type="button"
-      onClick={onClick}
-      disabled={disabled}
-      className={`aixia-workspace-card ${getToneClass(tone)} ${className}`}
-    >
+  const rootClassName = [
+    "aixia-workspace-card",
+    getToneClass(tone),
+    getSizeClass(size),
+    as === "div" && onClick && !disabled ? "aixia-workspace-card--interactive" : "",
+    className,
+  ]
+    .filter(Boolean)
+    .join(" ");
+
+  const content = (
+    <>
       <div className="aixia-workspace-card-glow" />
 
       <div className="aixia-workspace-card-top">
@@ -65,6 +99,9 @@ export function AixiaWorkspaceCard({
         </div>
 
         <div className="aixia-workspace-card-status-wrap">
+          {topRightSlot ? (
+            <div className="aixia-workspace-card-top-right">{topRightSlot}</div>
+          ) : null}
           {statusLabel ? (
             <span className="aixia-workspace-card-status">{statusLabel}</span>
           ) : null}
@@ -80,6 +117,10 @@ export function AixiaWorkspaceCard({
         ) : null}
       </div>
 
+      {children ? (
+        <div className="aixia-workspace-card-body-slot">{children}</div>
+      ) : null}
+
       <div className="aixia-workspace-card-footer">
         <div className="min-w-0">
           <div className="aixia-workspace-card-footer-label">Access</div>
@@ -88,6 +129,36 @@ export function AixiaWorkspaceCard({
 
         <span className="aixia-workspace-card-action">{actionLabel}</span>
       </div>
+    </>
+  );
+
+  if (as === "div") {
+    return (
+      <div
+        role={onClick ? "button" : undefined}
+        tabIndex={onClick && !disabled ? 0 : undefined}
+        aria-disabled={disabled || undefined}
+        draggable={draggable}
+        onDragStart={onDragStart}
+        onClick={disabled ? undefined : onClick}
+        onKeyDown={(event) => handleDivKeyDown(event, disabled ? undefined : onClick)}
+        className={rootClassName}
+      >
+        {content}
+      </div>
+    );
+  }
+
+  return (
+    <button
+      type="button"
+      draggable={draggable}
+      onDragStart={onDragStart}
+      onClick={onClick}
+      disabled={disabled}
+      className={rootClassName}
+    >
+      {content}
     </button>
   );
 }

@@ -3,6 +3,15 @@ import type { FinancePaymentReceived } from "./types";
 
 import { convertCurrencyLive } from "@/lib/integrations/frankfurter";
 
+export type PaymentReceivedListRow = FinancePaymentReceived & {
+  counterparty_name: string | null;
+  client_name: string | null;
+  invoice_number: string | null;
+  proforma_number: string | null;
+  document_type: "customer_pi" | "customer_invoice" | null;
+  document_number: string | null;
+};
+
 async function getCurrentUserId() {
   const {
     data: { user },
@@ -11,6 +20,79 @@ async function getCurrentUserId() {
   return user?.id ?? null;
 }
 
+function mapPaymentReceivedRow(row: Record<string, unknown>): PaymentReceivedListRow {
+  const invoice = row.finance_invoices_issued as
+    | {
+        invoice_number?: string | null;
+        counterparty_type?: string | null;
+        counterparty_name_snapshot?: string | null;
+      }
+    | null
+    | undefined;
+  const proforma = row.finance_proforma_invoices as
+    | {
+        proforma_number?: string | null;
+        counterparty_name_snapshot?: string | null;
+        client_name_snapshot?: string | null;
+      }
+    | null
+    | undefined;
+  const client = row.finance_clients as { name?: string | null } | null | undefined;
+
+  const documentType = row.proforma_invoice_id
+    ? ("customer_pi" as const)
+    : row.invoice_id
+      ? ("customer_invoice" as const)
+      : null;
+
+  return {
+    ...(row as unknown as FinancePaymentReceived),
+    counterparty_name:
+      invoice?.counterparty_name_snapshot ||
+      proforma?.counterparty_name_snapshot ||
+      proforma?.client_name_snapshot ||
+      client?.name ||
+      null,
+    client_name: client?.name || null,
+    invoice_number: invoice?.invoice_number || null,
+    proforma_number: proforma?.proforma_number || null,
+    document_type: documentType,
+    document_number:
+      documentType === "customer_pi"
+        ? proforma?.proforma_number || null
+        : invoice?.invoice_number || null,
+  };
+}
+
+const PAYMENT_LIST_SELECT = `
+  id,
+  amount,
+  converted_amount,
+  payment_date,
+  status,
+  reference_number,
+  client_id,
+  invoice_id,
+  proforma_invoice_id,
+  created_at,
+  payment_currency_code,
+  invoice_currency_code,
+  exchange_rate,
+  exchange_rate_source,
+  metadata,
+  finance_clients(name),
+  finance_invoices_issued(
+    invoice_number,
+    counterparty_type,
+    counterparty_name_snapshot
+  ),
+  finance_proforma_invoices(
+    proforma_number,
+    counterparty_name_snapshot,
+    client_name_snapshot
+  )
+`;
+
 // ==============================
 // LIST PAYMENTS
 // ==============================
@@ -18,28 +100,7 @@ async function getCurrentUserId() {
 export async function getPaymentsReceived() {
   const { data, error } = await supabase
     .from("finance_payments_received")
-    .select(`
-      id,
-      amount,
-      converted_amount,
-      payment_date,
-      status,
-      reference_number,
-      client_id,
-      invoice_id,
-      created_at,
-      payment_currency_code,
-      invoice_currency_code,
-      exchange_rate,
-      exchange_rate_source,
-      metadata,
-      finance_clients(name),
-      finance_invoices_issued(
-     invoice_number,
-     counterparty_type,
-     counterparty_name_snapshot
-)
-    `)
+    .select(PAYMENT_LIST_SELECT)
     .not("status", "in", '("archived","deleted")')
     .order("payment_date", { ascending: false });
 
@@ -48,42 +109,13 @@ export async function getPaymentsReceived() {
     throw error;
   }
 
-  return (data || []).map((row: any) => ({
-  ...row,
-  counterparty_name:
-    row.finance_invoices_issued?.counterparty_name_snapshot ||
-    row.finance_clients?.name ||
-    null,
-  client_name: row.finance_clients?.name || null,
-  invoice_number: row.finance_invoices_issued?.invoice_number || null,
-}));
+  return (data || []).map((row) => mapPaymentReceivedRow(row as Record<string, unknown>));
 }
 
 export async function getPaymentsReceivedArchiveList() {
   const { data, error } = await supabase
     .from("finance_payments_received")
-    .select(`
-      id,
-      amount,
-      converted_amount,
-      payment_date,
-      status,
-      reference_number,
-      client_id,
-      invoice_id,
-      created_at,
-      payment_currency_code,
-      invoice_currency_code,
-      exchange_rate,
-      exchange_rate_source,
-      metadata,
-      finance_clients(name),
-      finance_invoices_issued(
-        invoice_number,
-        counterparty_type,
-        counterparty_name_snapshot
-      )
-    `)
+    .select(PAYMENT_LIST_SELECT)
     .in("status", ["archived", "deleted"])
     .order("payment_date", { ascending: false });
 
@@ -92,17 +124,8 @@ export async function getPaymentsReceivedArchiveList() {
     throw error;
   }
 
-return (data || []).map((row: any) => ({
-  ...row,
-  counterparty_name:
-    row.finance_invoices_issued?.counterparty_name_snapshot ||
-    row.finance_clients?.name ||
-    null,
-  client_name: row.finance_clients?.name || null,
-  invoice_number: row.finance_invoices_issued?.invoice_number || null,
-}));
+  return (data || []).map((row) => mapPaymentReceivedRow(row as Record<string, unknown>));
 }
-
 
 // ==============================
 // GET SINGLE PAYMENT
@@ -127,9 +150,10 @@ export async function getPaymentReceivedById(id: string) {
   }
 
   return {
-  ...data,
-  payment_method_name: (data as any)?.finance_payment_methods?.name || null,
-} as FinancePaymentReceived & { payment_method_name?: string | null };
+    ...data,
+    payment_method_name: (data as { finance_payment_methods?: { name?: string | null } })
+      ?.finance_payment_methods?.name || null,
+  } as FinancePaymentReceived & { payment_method_name?: string | null };
 }
 
 // ==============================
@@ -139,8 +163,12 @@ export async function getPaymentReceivedById(id: string) {
 export async function createPaymentReceived(
   payload: Partial<FinancePaymentReceived>
 ): Promise<{ id: string }> {
-  if (!payload.invoice_id) {
-    throw new Error("Invoice is required.");
+  if (!payload.invoice_id && !payload.proforma_invoice_id) {
+    throw new Error("A Proforma Invoice or Invoice is required.");
+  }
+
+  if (payload.invoice_id && payload.proforma_invoice_id) {
+    throw new Error("Payment can be linked to only one document.");
   }
 
   if (!payload.payment_date) {
@@ -148,7 +176,7 @@ export async function createPaymentReceived(
   }
 
   if (!payload.invoice_currency_code) {
-    throw new Error("Invoice currency is required.");
+    throw new Error("Document currency is required.");
   }
 
   if (!payload.payment_currency_code) {
@@ -182,7 +210,7 @@ export async function createPaymentReceived(
   const { data, error } = await supabase.rpc(
     "finance_create_payment_received_draft",
     {
-      p_invoice_id: payload.invoice_id,
+      p_invoice_id: payload.invoice_id ?? null,
       p_client_id: payload.client_id ?? null,
       p_payment_date: payload.payment_date,
       p_amount: payload.amount,
@@ -196,6 +224,7 @@ export async function createPaymentReceived(
       p_payment_method_id: payload.payment_method_id ?? null,
       p_notes: payload.notes ?? null,
       p_created_by: userId,
+      p_proforma_invoice_id: payload.proforma_invoice_id ?? null,
     }
   );
 
@@ -248,7 +277,7 @@ export async function updatePaymentReceived(
     "finance_update_payment_received",
     {
       p_payment_id: id,
-      p_invoice_id: updates.invoice_id,
+      p_invoice_id: updates.invoice_id ?? null,
       p_client_id: updates.client_id,
       p_payment_date: updates.payment_date,
       p_amount: updates.amount,
@@ -262,6 +291,7 @@ export async function updatePaymentReceived(
       p_payment_method_id: updates.payment_method_id,
       p_notes: updates.notes,
       p_updated_by: userId,
+      p_proforma_invoice_id: updates.proforma_invoice_id ?? null,
     }
   );
 

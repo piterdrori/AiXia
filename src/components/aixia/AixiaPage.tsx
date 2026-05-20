@@ -1,11 +1,33 @@
 import type { ReactNode } from "react";
 
+import type { AixiaCommandSurface } from "./commandSurface";
+
 type AixiaPageProps = {
   children: ReactNode;
   className?: string;
+  surface?: AixiaCommandSurface;
+  scrollClassName?: string;
 };
 
-export function AixiaPage({ children, className = "" }: AixiaPageProps) {
+export function AixiaPage({
+  children,
+  className = "",
+  surface = "default",
+  scrollClassName = "",
+}: AixiaPageProps) {
+  if (surface === "command") {
+    return (
+      <div className={`aixia-dash-page aixia-dash-page--command ${className}`.trim()}>
+        <div className="aixia-dash-3d-decor" aria-hidden>
+          <span className="aixia-dash-orb aixia-dash-orb--a" />
+          <span className="aixia-dash-orb aixia-dash-orb--b" />
+          <span className="aixia-dash-orb aixia-dash-orb--c" />
+        </div>
+        <div className={`aixia-dash-3d-stack ${scrollClassName}`.trim()}>{children}</div>
+      </div>
+    );
+  }
+
   return (
     <div className={`aixia-page ${className}`}>
       <div className="pointer-events-none fixed inset-0 z-0 overflow-hidden">

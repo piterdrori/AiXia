@@ -2,19 +2,7 @@
 
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { useNavigate } from "react-router-dom";
-import {
-  Archive,
-  CheckCircle,
-  Eye,
-  FileText,
-  Plus,
-  Receipt,
-  RotateCcw,
-  Search,
-  ShieldCheck,
-  Trash2,
-  Wallet,
-} from "lucide-react";
+import { Archive, CheckCircle, Eye, FileText, Plus, Receipt, RotateCcw, ShieldCheck, Trash2, Wallet } from "lucide-react";
 
 import {
   AixiaAccessRule,
@@ -23,11 +11,11 @@ import {
   AixiaBadge,
   AixiaButton,
   AixiaEmptyState,
+  AixiaFinanceHubControlPanel,
+  AixiaFinanceHubMetaStrip,
   AixiaHero,
   AixiaLoadingState,
-  AixiaMetricCard,
-  AixiaMetricGrid,
-  AixiaPage,
+  FinancePage,
   AixiaRegistryToolbar,
   AixiaSearchField,
   AixiaSection,
@@ -37,6 +25,7 @@ import {
   AixiaTableDateCell,
   AixiaTableShell,
   AixiaTableTextCell,
+  AixiaCommandMetrics,
 } from "@/components/aixia";
 import {
   fetchFinanceEffectivePermissions,
@@ -534,6 +523,40 @@ export default function FinanceQuotationsPage() {
     ];
   }, [activeQuotations]);
 
+  const headerStatusCards = useMemo(
+    () => [
+      {
+        key: "system-status",
+        label: "System Status",
+        value: isLoading ? "Loading" : "Live",
+        detail: "Quotation registry refreshes silently with realtime and 60-second fallback.",
+        tone: "emerald" as const,
+      },
+      {
+        key: "access",
+        label: "Access",
+        value: permissionState.canRead ? "Enabled" : "Limited",
+        detail: permissionState.canCreate
+          ? "Create, archive, and lifecycle controls resolved through Finance page access."
+          : "Read-only or restricted by Finance page-access resolution.",
+        tone: permissionState.canRead ? ("cyan" as const) : ("amber" as const),
+      },
+      {
+        key: "active-records",
+        label: "Active Records",
+        value: activeQuotations.length.toLocaleString(),
+        detail: "Commercial offer records in the main registry.",
+        tone: "amber" as const,
+      },
+    ],
+    [
+      activeQuotations.length,
+      isLoading,
+      permissionState.canCreate,
+      permissionState.canRead,
+    ]
+  );
+
   const archivedArchiveCount = archivedQuotations.filter(
     (quotation) => quotation.status === "archived"
   ).length;
@@ -774,51 +797,25 @@ export default function FinanceQuotationsPage() {
   }
 
   return (
-    <AixiaPage>
+    <FinancePage>
       <AixiaHero
+        className="shrink-0 space-y-4"
+        surface="command"
         parentLabel="Transactions"
         parentPath="/finance/transactions"
-        badges={[{ label: "Quotation Registry", tone: "cyan" }]}
         gradientTitle="Quotations"
         title="Registry"
         subtitle="Commercial offers before client PO, PI, invoice, and payment."
-        description="Quotations are editable negotiation documents. The simplified workflow is Draft → Sent → Accepted, while legacy issued records remain supported and editable."
-        statusCards={[
-          {
-            label: "Active Records",
-            value: activeQuotations.length.toLocaleString(),
-            description: "Excludes archived and deleted quotations.",
-            icon: FileText,
-            tone: "cyan",
-          },
-          {
-            label: "Visible Results",
-            value: sortedQuotations.length.toLocaleString(),
-            description: "Filtered by quotation, client, status, company, or currency.",
-            icon: Search,
-            tone: "emerald",
-          },
-        ]}
-      >
-        <div className="aixia-action-system" data-align="start" data-density="compact">
-          <AixiaBadge tone="emerald">Accepted still editable</AixiaBadge>
-          <AixiaBadge tone="cyan">Draft → Sent → Accepted</AixiaBadge>
-          <AixiaBadge tone="neutral">Auto-refresh enabled</AixiaBadge>
-        </div>
+        >
+        <AixiaCommandMetrics items={metricCards} />
+      
       </AixiaHero>
 
-      <AixiaMetricGrid>
-        {metricCards.map((metric) => (
-          <AixiaMetricCard
-            key={metric.key}
-            label={metric.label}
-            value={metric.value}
-            description={metric.description}
-            icon={metric.icon}
-            tone={metric.tone}
-          />
-        ))}
-      </AixiaMetricGrid>
+      <div className="aixia-command-scroll">
+
+      <AixiaFinanceHubMetaStrip items={headerStatusCards} />
+
+      {pageError ? <AixiaAlert tone="error">{pageError}</AixiaAlert> : null}
 
       <AixiaAccessRule
         title="Locked access rule"
@@ -828,7 +825,11 @@ export default function FinanceQuotationsPage() {
         This page uses fetchFinanceEffectivePermissions and resolveFinancePagePermissionState from @/lib/finance/pageAccess. Search, creation, archive, restore, delete, and hard-delete controls are rendered only through shared AiXia registry, table, archive, and button components.
       </AixiaAccessRule>
 
-      {pageError ? <AixiaAlert tone="error">{pageError}</AixiaAlert> : null}
+      <AixiaFinanceHubControlPanel
+        icon={FileText}
+        title="Quotation lifecycle"
+        description="Accepted quotations remain editable. Draft → Sent → Accepted. Auto-refresh enabled."
+      />
 
       <AixiaSection
         title="Quotation Registry"
@@ -1003,6 +1004,6 @@ export default function FinanceQuotationsPage() {
           </AixiaTableShell>
         )}
       </AixiaArchiveManagerModal>
-    </AixiaPage>
+      </div></FinancePage>
   );
 }

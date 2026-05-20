@@ -1,26 +1,6 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { useNavigate, useParams } from "react-router-dom";
-import {
-  Archive,
-  Banknote,
-  Building2,
-  FileText,
-  Loader2,
-  LockKeyhole,
-  Mail,
-  MapPin,
-  Pencil,
-  Phone,
-  Plus,
-  RotateCcw,
-  Save,
-  ShieldCheck,
-  Trash2,
-  Truck,
-  UserRound,
-  Users,
-  X,
-} from "lucide-react";
+import { Archive, Banknote, Building2, FileText, Loader2, Mail, MapPin, Pencil, Phone, Plus, RotateCcw, Save, ShieldCheck, Trash2, Truck, UserRound, Users, X } from "lucide-react";
 
 import {
   AixiaAccessDeniedState,
@@ -36,9 +16,7 @@ import {
   AixiaHero,
   AixiaInputField,
   AixiaLoadingState,
-  AixiaMetricCard,
-  AixiaMetricGrid,
-  AixiaPage,
+  FinancePage,
   AixiaReviewBlock,
   AixiaReviewGrid,
   AixiaSection,
@@ -279,18 +257,6 @@ function formatDateTimeLabel(value: string | null | undefined) {
 function getVendorDisplayName(vendor: VendorDetailRecord | null) {
   if (!vendor) return "Vendor";
   return vendor.legal_name || vendor.name || "Vendor";
-}
-
-function getVendorContactLabel(vendor: VendorDetailRecord | null) {
-  return vendor?.contact_person || "No primary contact";
-}
-
-function getVendorEmailLabel(vendor: VendorDetailRecord | null) {
-  return vendor?.company_email || "No email";
-}
-
-function getVendorPhoneLabel(vendor: VendorDetailRecord | null) {
-  return vendor?.company_phone || "No phone";
 }
 
 function getPrimaryAddressSummary(addresses: AddressRow[]) {
@@ -736,32 +702,7 @@ export default function FinanceMasterDataVendorDetailPage() {
     }));
   }, [addressDraft]);
 
-  const headerStatusCards = useMemo(() => {
-    return [
-      {
-        label: "Read Access",
-        value: isLoadingProfile
-          ? "Checking"
-          : permissionState.canRead
-          ? "Enabled"
-          : "Locked",
-        description:
-          "Viewing this record requires Vendor, Payables, Finance, or Master Data read access.",
-        icon: permissionState.canRead ? ShieldCheck : LockKeyhole,
-        tone: permissionState.canRead ? ("emerald" as const) : ("rose" as const),
-      },
-      {
-        label: "Edit Access",
-        value: permissionState.canUpdate ? "Enabled" : "Read Only",
-        description:
-          "Section edits require Vendor update access or Master Data admin access.",
-        icon: permissionState.canUpdate ? Pencil : LockKeyhole,
-        tone: permissionState.canUpdate ? ("cyan" as const) : ("gold" as const),
-      },
-    ];
-  }, [isLoadingProfile, permissionState.canRead, permissionState.canUpdate]);
-
-  function cancelEditing() {
+function cancelEditing() {
     setEditingSection(null);
     setPageError(null);
   }
@@ -1412,7 +1353,7 @@ export default function FinanceMasterDataVendorDetailPage() {
 
   if (!vendor) {
     return (
-      <AixiaPage>
+      <FinancePage>
         <AixiaSection
           title="Vendor not found"
           description="The vendor record could not be loaded or no longer exists."
@@ -1433,94 +1374,50 @@ export default function FinanceMasterDataVendorDetailPage() {
             description="The vendor record could not be loaded or no longer exists."
           />
         </AixiaSection>
-      </AixiaPage>
+      </FinancePage>
     );
   }
 
   if (!permissionState.canRead) {
     return (
-      <AixiaPage>
+      <FinancePage>
         <AixiaHero
+        className="shrink-0 space-y-4"
+        surface="command"
           parentLabel="Vendors"
           parentPath="/finance/master-data/vendors"
-          badges={[
-            { label: "Access Locked", tone: "rose" },
-            { label: "Vendor Detail", tone: "cyan" },
-          ]}
           gradientTitle="Vendor"
           title="Access Locked"
-          subtitle="Permission Protected Detail Page"
-          description="This page requires Vendor, Payables, Finance, or Master Data read access."
-          statusCards={headerStatusCards}
-        />
+          subtitle="Permission Protected Detail Page">
+</AixiaHero>
 
-        <AixiaAccessDeniedState
+      <div className="aixia-command-scroll">
+<AixiaAccessDeniedState
           title="No vendor read access"
           description="Ask an Admin to assign a Finance role template or user-specific exception with Vendor, Payables, Finance, or Master Data read access."
         />
-      </AixiaPage>
+      </div>
+    </FinancePage>
     );
   }
 
   return (
-    <AixiaPage>
+    <FinancePage>
       <AixiaHero
+        className="shrink-0 space-y-4"
+        surface="command"
         parentLabel="Vendors"
         parentPath="/finance/master-data/vendors"
-        badges={[
-          { label: "Vendor Detail", tone: "cyan" },
-          { label: vendor.code || "No Vendor Code", tone: "neutral" },
-          { label: vendor.country || "No Country", tone: "violet" },
-          { label: vendor.status, tone: vendor.status === "archived" ? "rose" : "emerald" },
-        ]}
         gradientTitle={getVendorDisplayName(vendor)}
         title="Vendor"
         subtitle="External Vendor Master Data"
-        description="External vendor master-data record with same-place section editing, vendor identity, personnel, primary addresses, shipping addresses, vendor bank accounts, notes, and lifecycle control."
-        statusCards={headerStatusCards}
-      />
+        />
 
-      {pageError ? <AixiaAlert tone="error">{pageError}</AixiaAlert> : null}
+      <div className="aixia-command-scroll">
+{pageError ? <AixiaAlert tone="error">{pageError}</AixiaAlert> : null}
       {pageMessage ? <AixiaAlert tone="success">{pageMessage}</AixiaAlert> : null}
 
-      <AixiaMetricGrid>
-        <AixiaMetricCard
-          label="Vendor"
-          value={getVendorDisplayName(vendor)}
-          description={vendor.code || "No vendor code"}
-          icon={Building2}
-          tone="cyan"
-        />
-
-        <AixiaMetricCard
-          label="Contact"
-          value={getVendorContactLabel(vendor)}
-          description={`${getVendorEmailLabel(vendor)} • ${getVendorPhoneLabel(vendor)}`}
-          icon={UserRound}
-          tone="emerald"
-        />
-
-        <AixiaMetricCard
-          label="Personnel"
-          value={personnel.length}
-          description={`${addresses.length} primary address row${
-            addresses.length === 1 ? "" : "s"
-          }`}
-          icon={Users}
-          tone="violet"
-        />
-
-        <AixiaMetricCard
-          label="Bank Accounts"
-          value={vendorBankAccounts.length}
-          description={
-            vendorBankAccounts.find((account) => account.is_default)?.bank_name ||
-            "No default vendor bank account"
-          }
-          icon={Banknote}
-          tone="gold"
-        />
-      </AixiaMetricGrid>
+      
 
       <AixiaSmartLayout
         sidebar="wide"
@@ -2452,6 +2349,6 @@ export default function FinanceMasterDataVendorDetailPage() {
           </>
         }
       />
-    </AixiaPage>
+      </div></FinancePage>
   );
 }

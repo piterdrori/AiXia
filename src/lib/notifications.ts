@@ -7,7 +7,56 @@ export type NotificationType =
   | "COMMENT"
   | "FILE_UPLOAD"
   | "PROJECT_UPDATE"
-  | "MENTION";
+  | "MENTION"
+  | "REMINDER";
+
+export type NotificationRow = {
+  id: string;
+  user_id: string;
+  actor_user_id: string | null;
+  type: string;
+  title: string;
+  message: string | null;
+  link: string | null;
+  is_read: boolean;
+  entity_type: string | null;
+  entity_id: string | null;
+  created_at: string;
+};
+
+const KNOWN_NOTIFICATION_TYPES = new Set<string>([
+  "MESSAGE",
+  "TASK_ASSIGNED",
+  "TASK_UPDATED",
+  "COMMENT",
+  "MENTION",
+  "FILE_UPLOAD",
+  "PROJECT_UPDATE",
+  "REMINDER",
+]);
+
+export function isKnownNotificationType(
+  value: string
+): value is NotificationType {
+  return KNOWN_NOTIFICATION_TYPES.has(value);
+}
+
+export function normalizeNotificationRows(
+  data: unknown[] | null | undefined
+): NotificationRow[] {
+  return (data || []).filter((item): item is NotificationRow => {
+    if (!item || typeof item !== "object") return false;
+    const row = item as NotificationRow;
+    return (
+      typeof row.id === "string" &&
+      typeof row.user_id === "string" &&
+      typeof row.title === "string" &&
+      typeof row.created_at === "string" &&
+      typeof row.is_read === "boolean" &&
+      typeof row.type === "string"
+    );
+  });
+}
 
 export interface CreateNotificationInput {
   userId: string;

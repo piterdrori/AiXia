@@ -1,15 +1,13 @@
 import type { ReactNode } from "react";
 import type { LucideIcon } from "lucide-react";
 
-type AixiaMetricTone =
-  | "indigo"
-  | "violet"
-  | "gold"
-  | "amber"
-  | "emerald"
-  | "cyan"
-  | "rose"
-  | "neutral";
+import {
+  getCommandMetricToneClass,
+  type AixiaCommandSurface,
+  type AixiaCommandTone,
+} from "./commandSurface";
+
+type AixiaMetricTone = AixiaCommandTone;
 
 type AixiaMetricCardProps = {
   label: string;
@@ -18,6 +16,7 @@ type AixiaMetricCardProps = {
   icon: LucideIcon;
   tone?: AixiaMetricTone;
   className?: string;
+  surface?: AixiaCommandSurface;
 };
 
 function getToneClass(tone: AixiaMetricTone) {
@@ -55,7 +54,32 @@ export function AixiaMetricCard({
   icon: Icon,
   tone = "indigo",
   className = "",
+  surface = "default",
 }: AixiaMetricCardProps) {
+  if (surface === "command") {
+    return (
+      <article
+        className={[
+          "aixia-card-shell",
+          "aixia-dash-metric",
+          "aixia-dash-glass",
+          getCommandMetricToneClass(tone),
+          className,
+        ]
+          .filter(Boolean)
+          .join(" ")}
+      >
+        <div className="aixia-dash-metric-deco" aria-hidden />
+        <div className="aixia-dash-metric-icon">
+          <Icon className="h-4 w-4" />
+        </div>
+        <div className="aixia-dash-metric-label">{label}</div>
+        <div className="aixia-dash-metric-val">{value}</div>
+        {description ? <p className="aixia-dash-metric-foot">{description}</p> : null}
+      </article>
+    );
+  }
+
   return (
     <div className={`aixia-summary-card aixia-smart-box ${className}`}>
       <div className="aixia-smart-box-content">

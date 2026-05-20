@@ -1,22 +1,7 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import type { FormEvent } from "react";
 import type { LucideIcon } from "lucide-react";
-import {
-  Archive,
-  Calculator,
-  Coins,
-  Database,
-  Globe2,
-  Landmark,
-  Loader2,
-  LockKeyhole,
-  Pencil,
-  Plus,
-  RefreshCcw,
-  Save,
-  ShieldCheck,
-  Trash2,
-} from "lucide-react";
+import { Archive, Calculator, Coins, Database, Landmark, Loader2, Pencil, Plus, RefreshCcw, Save, Trash2 } from "lucide-react";
 
 import {
   AixiaAccessDeniedState,
@@ -39,7 +24,7 @@ import {
   AixiaInputField,
   AixiaLoadingState,
   AixiaModal,
-  AixiaPage,
+  FinancePage,
   AixiaRegistryToolbar,
   AixiaReviewBlock,
   AixiaReviewGrid,
@@ -124,13 +109,6 @@ type CurrencyPreset = {
   region: string;
 };
 
-type HeaderStatusCardData = {
-  label: string;
-  value: string;
-  description: string;
-  icon: LucideIcon;
-  tone: "emerald" | "cyan" | "amber" | "rose";
-};
 
 type MetricCardData = {
   label: string;
@@ -314,7 +292,7 @@ export default function FinanceMasterDataCurrenciesPage() {
   const [isLoadingProfile, setIsLoadingProfile] = useState(true);
   const [isLoadingData, setIsLoadingData] = useState(true);
   const [isLoadingArchive, setIsLoadingArchive] = useState(false);
-  const [backgroundRefreshing, setBackgroundRefreshing] = useState(false);
+  const [, setBackgroundRefreshing] = useState(false);
 
   const [currencyDialogOpen, setCurrencyDialogOpen] = useState(false);
   const [rateDialogOpen, setRateDialogOpen] = useState(false);
@@ -813,37 +791,7 @@ export default function FinanceMasterDataCurrenciesPage() {
     ]
   );
 
-  const headerStatusCards = useMemo<HeaderStatusCardData[]>(() => {
-    return [
-      {
-        label: "Read Access",
-        value: isLoadingProfile
-          ? "Checking"
-          : permissionState.canRead
-            ? "Enabled"
-            : "Locked",
-        description: "Requires Finance view and Master Data access.",
-        icon: permissionState.canRead ? ShieldCheck : LockKeyhole,
-        tone: permissionState.canRead ? "emerald" : "rose",
-      },
-      {
-        label: "Currency Presets",
-        value: `${MAJOR_CURRENCY_PRESETS.length} Major`,
-        description: "Presets auto-fill code, name, symbol, and decimal places.",
-        icon: Globe2,
-        tone: "cyan",
-      },
-      {
-        label: "Live Rates",
-        value: backgroundRefreshing ? "Refreshing" : "Ready",
-        description: "Live converter and automatic snapshots use Frankfurter.",
-        icon: Calculator,
-        tone: "amber",
-      },
-    ];
-  }, [backgroundRefreshing, isLoadingProfile, permissionState.canRead]);
-
-  const canUseConverter =
+const canUseConverter =
     activeCurrencies.length >= 2 &&
     Boolean(convertFrom) &&
     Boolean(convertTo) &&
@@ -1368,24 +1316,19 @@ export default function FinanceMasterDataCurrenciesPage() {
   }
 
   return (
-    <AixiaPage>
+    <FinancePage>
       <AixiaHero
+        className="shrink-0 space-y-4"
+        surface="command"
         parentLabel="Master Data"
         parentPath="/finance/master-data"
-        badges={[
-          { label: "Rates / Currency", tone: "cyan" },
-          { label: "General master data", tone: "emerald" },
-          { label: "Prominent live converter", tone: "cyan" },
-          { label: "Automatic rates", tone: "violet" },
-        ]}
         gradientTitle="Rates / Currency"
         title="Master Data"
         subtitle="Currency Engine"
-        description="Manage general currency master data, automatic exchange-rate snapshots, and a prominent live currency converter for daily finance operations."
-        statusCards={headerStatusCards}
-      />
+        />
 
-      {pageError ? <AixiaAlert tone="error">{pageError}</AixiaAlert> : null}
+      <div className="aixia-command-scroll">
+{pageError ? <AixiaAlert tone="error">{pageError}</AixiaAlert> : null}
       {pageMessage ? <AixiaAlert tone="success">{pageMessage}</AixiaAlert> : null}
 
       {!permissionState.canRead ? (
@@ -2490,6 +2433,7 @@ export default function FinanceMasterDataCurrenciesPage() {
           )}
         </div>
       </AixiaArchiveManagerModal>
-    </AixiaPage>
+      </div>
+    </FinancePage>
   );
 }

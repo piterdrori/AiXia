@@ -29,7 +29,7 @@ export function AixiaAlert({
   const Icon = getIcon(tone);
 
   return (
-    <div className={`aixia-alert ${getToneClass(tone)} ${className}`}>
+    <div className={`aixia-card-shell aixia-alert ${getToneClass(tone)} ${className}`}>
       <Icon className="mt-0.5 h-4 w-4 shrink-0" />
       <div className="min-w-0">{children}</div>
     </div>

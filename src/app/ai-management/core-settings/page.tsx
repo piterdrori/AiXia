@@ -1,7 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from "react";
-import { useNavigate } from "react-router-dom";
 import {
-  ArrowLeft,
   Brain,
   Database,
   Gauge,
@@ -14,6 +12,12 @@ import {
   Wrench,
 } from "lucide-react";
 import { supabase } from "@/lib/supabase";
+import { AixiaCommandMetrics, AixiaHero, AixiaPage } from "@/components/aixia";
+import type { AixiaCommandMetricItem } from "@/components/aixia";
+import "@/styles/dashboard/tokens.css";
+import "@/styles/dashboard/layout.css";
+import "@/styles/dashboard/visual.css";
+
 
 type RuntimeSettingKey =
   | "openai_enabled"
@@ -221,7 +225,6 @@ function getNumberValue(value: string | number | boolean) {
 }
 
 export default function AICoreSettingsPage() {
-  const navigate = useNavigate();
 
   const [settings, setSettings] =
     useState<CoreRuntimeSettings>(defaultSettings);
@@ -262,6 +265,15 @@ export default function AICoreSettingsPage() {
     if (settings.semantic_threshold >= 0.65) return "Balanced";
     return "Flexible";
   }, [settings.semantic_enabled, settings.semantic_threshold]);
+
+  const commandHeaderMetrics = useMemo<AixiaCommandMetricItem[]>(
+    () => [
+      { key: "enabled-0", title: "Enabled", value: `${enabledCount}/7`, tone: "emerald" as const },
+      { key: "runtime-1", title: "Runtime", value: String(runtimeMode), tone: "cyan" },
+      { key: "semantic-2", title: "Semantic", value: String(semanticGate), tone: "neutral" },
+    ],
+    [enabledCount, runtimeMode, semanticGate]
+  );
 
   useEffect(() => {
     void loadSettings();
@@ -393,44 +405,19 @@ export default function AICoreSettingsPage() {
   }
 
   return (
-    <div className="min-h-screen bg-[#05070d] px-6 py-6 text-white">
-      <div className="mx-auto flex w-full max-w-[1600px] flex-col gap-6">
-        <header className="overflow-hidden rounded-[30px] border border-white/10 bg-white/[0.045] p-6 shadow-2xl shadow-black/30 backdrop-blur-xl">
-          <div className="flex flex-col gap-5 lg:flex-row lg:items-start lg:justify-between">
-            <div className="space-y-4">
-              <button
-                type="button"
-                onClick={() => navigate("/ai-management")}
-                className="inline-flex items-center gap-2 rounded-full border border-white/10 bg-white/[0.04] px-4 py-2 text-xs font-semibold uppercase tracking-[0.18em] text-slate-300 transition hover:border-cyan-300/40 hover:text-cyan-100"
-              >
-                <ArrowLeft className="h-4 w-4" />
-                AI Studio
-              </button>
+    <AixiaPage surface="command" className="aixia-command-page aixia-ai-management-page"><AixiaHero
+        surface="command"
+        className="shrink-0 space-y-4"
+        parentLabel="AI Studio"
+        parentPath="/ai-management"
+        gradientTitle="Core AI Settings"
+        title="Core AI Settings"
+        subtitle="Configure only the AI runtime engine: provider, model, cache, semantic matching, learning runtime, and diagnostics. Guardrails, identity, mood, and exact answers live in their own modules."
+      >
+        <AixiaCommandMetrics items={commandHeaderMetrics} />
+      </AixiaHero>
 
-              <div className="space-y-3">
-                <div className="inline-flex w-fit items-center gap-2 rounded-full border border-cyan-400/20 bg-cyan-500/10 px-3 py-1 text-[11px] font-semibold uppercase tracking-[0.22em] text-cyan-200">
-                  <Gauge className="h-3.5 w-3.5" />
-                  Runtime Engine Layer
-                </div>
-
-                <div>
-                  <h1 className="text-3xl font-semibold tracking-[-0.03em] text-white md:text-4xl">
-                    Core AI Settings
-                  </h1>
-                  <p className="mt-2 max-w-3xl text-sm leading-6 text-slate-400">
-                    Configure only the AI runtime engine: provider, model, cache, semantic matching, learning runtime, and diagnostics. Guardrails, identity, mood, and exact answers live in their own modules.
-                  </p>
-                </div>
-              </div>
-            </div>
-
-            <div className="grid gap-3 sm:grid-cols-3 lg:min-w-[620px]">
-              <MetricCard label="Runtime" value={runtimeMode} tone="cyan" />
-              <MetricCard label="Enabled" value={`${enabledCount}/7`} tone="emerald" />
-              <MetricCard label="Semantic" value={semanticGate} tone="white" />
-            </div>
-          </div>
-        </header>
+      <div className="aixia-command-scroll flex flex-col gap-6">
 
         {(errorMessage || actionMessage) && (
           <div className="space-y-2">
@@ -560,33 +547,7 @@ export default function AICoreSettingsPage() {
           </aside>
         </section>
       </div>
-    </div>
-  );
-}
-
-function MetricCard({
-  label,
-  value,
-  tone,
-}: {
-  label: string;
-  value: string;
-  tone: "cyan" | "emerald" | "white";
-}) {
-  const toneClass =
-    tone === "cyan"
-      ? "text-cyan-200"
-      : tone === "emerald"
-        ? "text-emerald-200"
-        : "text-white";
-
-  return (
-    <div className="rounded-2xl border border-white/10 bg-white/[0.04] p-4">
-      <p className="text-[11px] uppercase tracking-[0.2em] text-slate-500">
-        {label}
-      </p>
-      <p className={`mt-2 text-2xl font-semibold ${toneClass}`}>{value}</p>
-    </div>
+    </AixiaPage>
   );
 }
 
@@ -690,7 +651,7 @@ function RuntimeSettingRow({
         {setting.type === "toggle" ? (
           <button
             type="button"
-            onClick={() => onChange(!Boolean(value))}
+            onClick={() => onChange(!value)}
             className={`inline-flex w-full items-center justify-between rounded-2xl border px-4 py-3 text-sm font-semibold transition ${
               value
                 ? "border-emerald-400/30 bg-emerald-500/10 text-emerald-200"

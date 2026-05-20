@@ -1,165 +1,358 @@
-import { useEffect, useMemo, useRef, useState } from "react";
-import { CheckSquare, FolderKanban, Plus, Search, Trash2, Users } from "lucide-react";
-import { Avatar, AvatarFallback } from "@/components/ui/avatar";
-import { Button } from "@/components/ui/button";
-import { Card, CardContent } from "@/components/ui/card";
-import { Input } from "@/components/ui/input";
-import { ScrollArea } from "@/components/ui/scroll-area";
-import { useLanguage } from "@/lib/i18n";
-import type { ChatGroupRow, ChatGroupMemberRow, ChatMessageRow, ProfileRow } from "../types";
 import {
+  useCallback,
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+  type CSSProperties,
+  type MouseEvent as ReactMouseEvent,
+} from "react";
+
+import { CheckSquare, FolderKanban, Plus, Search, Trash2, Users } from "lucide-react";
+
+import { Button } from "@/components/ui/button";
+
+import { Input } from "@/components/ui/input";
+
+import { useLanguage } from "@/lib/i18n";
+
+import type { ChatGroupRow, ChatGroupMemberRow, ChatMessageRow, ProfileRow } from "../types";
+
+import {
+
   getConversationInitials,
+
   getConversationName,
+
   getMembersForGroup,
+
 } from "../utils";
 
+
+
 type Props = {
+
   currentUserId: string | null;
+
   currentUserRole: string | null;
+
   groups: ChatGroupRow[];
+
   groupMembers: ChatGroupMemberRow[];
+
   profiles: ProfileRow[];
+
   searchQuery: string;
+
   selectedConversationId: string | null;
+
   groupActionLoading: string | null;
+
   unreadCounts: Record<string, number>;
+
   latestMessageByGroup: Record<string, ChatMessageRow | null>;
+
   onSearchChange: (value: string) => void;
+
   onOpenCreateGroup: () => void;
+
   onOpenConversation: (groupId: string) => void;
+
   onDeleteChat: (group: ChatGroupRow) => void;
+
 };
 
-const MIN_SECTION_PERCENT = 20;
-const MAX_SECTION_PERCENT = 80;
+
 
 function getLatestPreview(
+
   message: ChatMessageRow | null | undefined,
+
   currentUserId: string | null
+
 ) {
+
   if (!message) return "";
 
+
+
   const hasText = Boolean(message.content?.trim());
+
   const hasAttachment = Boolean(message.attachments?.length);
 
+
+
   if (hasText && hasAttachment) {
+
     return message.user_id === currentUserId
+
       ? `You: ${message.content}`
+
       : message.content;
+
   }
+
+
 
   if (hasText) {
+
     return message.user_id === currentUserId
+
       ? `You: ${message.content}`
+
       : message.content;
+
   }
+
+
 
   if (hasAttachment) {
+
     const fileName = message.attachments?.[0]?.file_name || "Attachment";
+
     return message.user_id === currentUserId
+
       ? `You: 📎 ${fileName}`
+
       : `📎 ${fileName}`;
+
   }
+
+
 
   return "";
+
 }
+
+
 
 function getConversationSortTime(
+
   group: ChatGroupRow,
+
   latestMessageByGroup: Record<string, ChatMessageRow | null>
+
 ) {
+
   const latestMessage = latestMessageByGroup[group.id];
 
+
+
   if (latestMessage?.created_at) {
+
     return new Date(latestMessage.created_at).getTime();
+
   }
 
+
+
   return new Date(group.created_at).getTime();
+
 }
 
+
+
 export default function ChatSidebar({
+
   currentUserId,
+
   currentUserRole,
+
   groups,
+
   groupMembers,
+
   profiles,
+
   searchQuery,
+
   selectedConversationId,
+
   groupActionLoading,
+
   unreadCounts,
+
   latestMessageByGroup,
+
   onSearchChange,
+
   onOpenCreateGroup,
+
   onOpenConversation,
+
   onDeleteChat,
+
 }: Props) {
+
   const { t } = useLanguage();
-  const containerRef = useRef<HTMLDivElement | null>(null);
-  const [topSectionPercent, setTopSectionPercent] = useState(45);
-  const [isDragging, setIsDragging] = useState(false);
+
+
 
   const q = searchQuery.trim().toLowerCase();
 
+
+
   const filteredConversations = useMemo(() => {
+
     return groups.filter((group) => {
+
       const name = getConversationName(group, currentUserId, profiles, groupMembers, t)
+
         .toLowerCase();
+
       const latestPreview = getLatestPreview(latestMessageByGroup[group.id], currentUserId)
+
         .toLowerCase();
+
+
 
       return name.includes(q) || latestPreview.includes(q);
+
     });
+
   }, [currentUserId, groupMembers, groups, latestMessageByGroup, profiles, q, t]);
 
+
+
   const sortedConversations = useMemo(() => {
-  return [...filteredConversations].sort((a, b) => {
-    const aUnread = (unreadCounts[a.id] || 0) > 0 ? 1 : 0;
-    const bUnread = (unreadCounts[b.id] || 0) > 0 ? 1 : 0;
 
-    if (bUnread !== aUnread) {
-      return bUnread - aUnread;
-    }
+    return [...filteredConversations].sort((a, b) => {
 
-    const bTime = getConversationSortTime(b, latestMessageByGroup);
-    const aTime = getConversationSortTime(a, latestMessageByGroup);
+      const aUnread = (unreadCounts[a.id] || 0) > 0 ? 1 : 0;
 
-    if (bTime !== aTime) {
-      return bTime - aTime;
-    }
+      const bUnread = (unreadCounts[b.id] || 0) > 0 ? 1 : 0;
 
-    return a.id.localeCompare(b.id);
-  });
-}, [filteredConversations, latestMessageByGroup, unreadCounts]);
 
-const directConversations = sortedConversations.filter(
-  (group) => group.type === "DIRECT"
-);
 
-const groupChats = sortedConversations.filter(
-  (group) => group.type !== "DIRECT"
-);
+      if (bUnread !== aUnread) {
+
+        return bUnread - aUnread;
+
+      }
+
+
+
+      const bTime = getConversationSortTime(b, latestMessageByGroup);
+
+      const aTime = getConversationSortTime(a, latestMessageByGroup);
+
+
+
+      if (bTime !== aTime) {
+
+        return bTime - aTime;
+
+      }
+
+
+
+      return a.id.localeCompare(b.id);
+
+    });
+
+  }, [filteredConversations, latestMessageByGroup, unreadCounts]);
+
+  const sidebarBodyRef = useRef<HTMLDivElement>(null);
+  const isDraggingSplitterRef = useRef(false);
+  const hasInitializedSplitRef = useRef(false);
+  const [topSectionPercent, setTopSectionPercent] = useState(62);
+
+  const getSidebarLayoutPx = useCallback((element?: HTMLElement | null) => {
+    const metricsRoot =
+      element?.closest(".aixia-chat-page") ??
+      sidebarBodyRef.current?.closest(".aixia-chat-page") ??
+      document.documentElement;
+    const styles = getComputedStyle(metricsRoot);
+    const rootFontSize = parseFloat(styles.fontSize);
+    const rem = (value: string, fallbackRem: number) =>
+      (parseFloat(value) || fallbackRem) * rootFontSize;
+
+    return {
+      rowPx: rem(
+        styles.getPropertyValue("--aixia-chat-conversation-row-height"),
+        4.25
+      ),
+      headerPx: rem(
+        styles.getPropertyValue("--aixia-chat-conversation-section-hd-height"),
+        2.125
+      ),
+      splitterPx: rem(
+        styles.getPropertyValue("--aixia-chat-sidebar-splitter-height"),
+        0.75
+      ),
+    };
+  }, []);
+
+  const clampTopPercent = useCallback(
+    (percent: number, bodyHeight: number) => {
+      if (bodyHeight <= 0) return percent;
+
+      const { rowPx, headerPx, splitterPx } = getSidebarLayoutPx();
+      const minSectionPx = 2 * rowPx + headerPx;
+      const minPercent = (minSectionPx / bodyHeight) * 100;
+      const maxPercent =
+        ((bodyHeight - splitterPx - minSectionPx) / bodyHeight) * 100;
+
+      return Math.min(maxPercent, Math.max(minPercent, percent));
+    },
+    [getSidebarLayoutPx]
+  );
 
   useEffect(() => {
-    if (!isDragging) return;
+    const body = sidebarBodyRef.current;
+    if (!body) return;
 
-    const handleMouseMove = (event: MouseEvent) => {
-      const container = containerRef.current;
-      if (!container) return;
+    const syncDefaultSplit = () => {
+      const bodyHeight = body.clientHeight;
+      if (bodyHeight <= 0 || hasInitializedSplitRef.current) return;
 
-      const rect = container.getBoundingClientRect();
-      const offsetY = event.clientY - rect.top;
-      const nextPercent = (offsetY / rect.height) * 100;
+      const { rowPx, headerPx } = getSidebarLayoutPx(body);
+      const defaultDmPx = 5 * rowPx + headerPx;
+      const defaultPercent = (defaultDmPx / bodyHeight) * 100;
 
-      const clamped = Math.max(
-        MIN_SECTION_PERCENT,
-        Math.min(MAX_SECTION_PERCENT, nextPercent)
+      setTopSectionPercent(clampTopPercent(defaultPercent, bodyHeight));
+      hasInitializedSplitRef.current = true;
+    };
+
+    syncDefaultSplit();
+
+    const observer = new ResizeObserver(() => {
+      const bodyHeight = body.clientHeight;
+      if (bodyHeight <= 0) return;
+
+      if (!hasInitializedSplitRef.current) {
+        syncDefaultSplit();
+        return;
+      }
+
+      setTopSectionPercent((current) =>
+        clampTopPercent(current, bodyHeight)
       );
+    });
 
-      setTopSectionPercent(clamped);
+    observer.observe(body);
+    return () => observer.disconnect();
+  }, [clampTopPercent, getSidebarLayoutPx]);
+
+  useEffect(() => {
+    const handleMouseMove = (event: MouseEvent) => {
+      if (!isDraggingSplitterRef.current) return;
+
+      const body = sidebarBodyRef.current;
+      if (!body) return;
+
+      const rect = body.getBoundingClientRect();
+      const nextPercent =
+        ((event.clientY - rect.top) / rect.height) * 100;
+
+      setTopSectionPercent(clampTopPercent(nextPercent, rect.height));
     };
 
     const handleMouseUp = () => {
-      setIsDragging(false);
+      if (!isDraggingSplitterRef.current) return;
+      isDraggingSplitterRef.current = false;
+      document.body.style.cursor = "";
+      document.body.style.userSelect = "";
     };
 
     window.addEventListener("mousemove", handleMouseMove);
@@ -169,220 +362,383 @@ const groupChats = sortedConversations.filter(
       window.removeEventListener("mousemove", handleMouseMove);
       window.removeEventListener("mouseup", handleMouseUp);
     };
-  }, [isDragging]);
+  }, [clampTopPercent]);
+
+  const handleSplitterMouseDown = (event: ReactMouseEvent<HTMLDivElement>) => {
+    event.preventDefault();
+    isDraggingSplitterRef.current = true;
+    document.body.style.cursor = "row-resize";
+    document.body.style.userSelect = "none";
+  };
+
+  const directConversations = sortedConversations.filter(
+
+    (group) => group.type === "DIRECT"
+
+  );
+
+
+
+  const groupChats = sortedConversations.filter((group) => group.type !== "DIRECT");
+
+
 
   const canDeleteChat = (group: ChatGroupRow) => {
+
     if (!currentUserId) return false;
 
+
+
     if (currentUserRole === "admin") {
+
       return true;
+
     }
+
+
 
     if (group.type === "DIRECT") {
+
       return groupMembers.some(
+
         (member) =>
+
           member.group_id === group.id && member.user_id === currentUserId
+
       );
+
     }
 
+
+
     return group.created_by === currentUserId;
+
   };
+
+
 
   const renderConversationButton = (group: ChatGroupRow) => {
+
     const iconType =
+
       group.type === "PROJECT"
+
         ? "project"
+
         : group.type === "TASK"
+
           ? "task"
+
           : group.type === "GROUP"
+
             ? "group"
+
             : null;
 
+
+
     const unreadCount = unreadCounts[group.id] || 0;
+
     const hasUnread = unreadCount > 0 && selectedConversationId !== group.id;
-    const preview = getLatestPreview(
-      latestMessageByGroup[group.id],
-      currentUserId
-    );
+
+    const preview = getLatestPreview(latestMessageByGroup[group.id], currentUserId);
+
     const canDelete = canDeleteChat(group);
 
+    const isActive = selectedConversationId === group.id;
+
+
+
     return (
+
       <div
+
         key={group.id}
-        className={`w-full rounded-lg transition-all ${
-          selectedConversationId === group.id
-            ? "border border-indigo-500/30 bg-indigo-600/20"
+
+        className={`aixia-chat-conversation-item ${
+
+          isActive
+
+            ? "aixia-chat-conversation-item--active"
+
             : hasUnread
-              ? "border border-indigo-500/20 bg-indigo-500/10 shadow-[0_0_18px_rgba(99,102,241,0.18)]"
-              : "border border-transparent hover:bg-slate-800/50"
+
+              ? "aixia-chat-conversation-item--unread"
+
+              : ""
+
         }`}
+
       >
+
         <div className="flex items-center gap-3 p-3">
+
           <button
+
             type="button"
+
             onClick={() => onOpenConversation(group.id)}
+
             className="flex min-w-0 flex-1 items-center gap-3 text-left"
+
           >
+
             {iconType ? (
-              <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg bg-indigo-500/10">
-                {iconType === "project" && (
-                  <FolderKanban className="h-5 w-5 text-indigo-400" />
-                )}
-                {iconType === "task" && (
-                  <CheckSquare className="h-5 w-5 text-indigo-400" />
-                )}
-                {iconType === "group" && (
-                  <Users className="h-5 w-5 text-indigo-400" />
-                )}
+
+              <div className="aixia-chat-conversation-icon">
+
+                {iconType === "project" && <FolderKanban className="h-5 w-5" />}
+
+                {iconType === "task" && <CheckSquare className="h-5 w-5" />}
+
+                {iconType === "group" && <Users className="h-5 w-5" />}
+
               </div>
+
             ) : (
-              <Avatar className="h-10 w-10 shrink-0">
-                <AvatarFallback className="bg-indigo-600 text-white">
-                  {getConversationInitials(
-                    group,
-                    currentUserId,
-                    profiles,
-                    groupMembers,
-                    t
-                  )}
-                </AvatarFallback>
-              </Avatar>
+
+              <span className="aixia-projects-member-tile-avatar shrink-0">
+
+                {getConversationInitials(
+
+                  group,
+
+                  currentUserId,
+
+                  profiles,
+
+                  groupMembers,
+
+                  t
+
+                )}
+
+              </span>
+
             )}
 
-            <div className="min-w-0 flex-1">
-              <p
-                className={`truncate text-sm ${
-                  hasUnread
-                    ? "font-semibold text-white"
-                    : "font-medium text-white"
-                }`}
-              >
-                {getConversationName(
-                  group,
-                  currentUserId,
-                  profiles,
-                  groupMembers,
-                  t
-                )}
-              </p>
 
-              <p
-                className={`truncate text-xs ${
-                  hasUnread ? "text-indigo-200" : "text-slate-500"
+
+            <span className="aixia-projects-member-tile-meta min-w-0 flex-1">
+
+              <span
+
+                className={`aixia-dash-list-row-title truncate ${
+
+                  hasUnread ? "font-semibold" : ""
+
                 }`}
+
               >
-                {preview ||
+
+                {getConversationName(
+
+                  group,
+
+                  currentUserId,
+
+                  profiles,
+
+                  groupMembers,
+
+                  t
+
+                )}
+
+              </span>
+
+              <span className="aixia-dash-list-row-meta truncate">{preview ||
+
                   t("chat.sidebar.participantsCount", undefined, {
+
                     total: getMembersForGroup(groupMembers, group.id).length,
-                  })}
-              </p>
-            </div>
+
+                  })}</span>
+
+            </span>
+
           </button>
 
+
+
           <div className="flex shrink-0 items-center gap-2 self-center">
+
             {hasUnread ? (
-              <div className="flex h-5 min-w-[20px] items-center justify-center rounded-full bg-indigo-500 px-1.5 text-[10px] font-semibold text-white">
+
+              <span className="aixia-chat-unread-badge">
+
                 {unreadCount > 99 ? "99+" : unreadCount}
-              </div>
+
+              </span>
+
             ) : null}
+
+
 
             {canDelete ? (
+
               <Button
+
                 variant="ghost"
+
                 size="icon"
-                className="shrink-0 text-slate-400 hover:text-red-400"
+
+                className="shrink-0 text-muted-foreground hover:text-red-400"
+
                 onClick={() => onDeleteChat(group)}
+
                 disabled={groupActionLoading === group.id}
+
               >
+
                 <Trash2 className="h-4 w-4" />
+
               </Button>
+
             ) : null}
+
           </div>
+
         </div>
+
       </div>
+
     );
+
   };
 
-  return (
-    <Card className="w-80 bg-slate-900/50 border-slate-800 flex flex-col h-full overflow-hidden min-h-0 shrink-0">
-      <CardContent className="p-4 flex flex-col h-full min-h-0">
-        <div className="relative mb-4 shrink-0">
-          <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-500" />
-          <Input
-            placeholder={t("chat.sidebar.searchPlaceholder")}
-            value={searchQuery}
-            onChange={(e) => onSearchChange(e.target.value)}
-            className="pl-10 bg-slate-950 border-slate-800 text-white placeholder:text-slate-600"
-          />
+
+
+  const renderConversationSection = (
+
+    title: string,
+
+    conversations: ChatGroupRow[],
+
+    emptyLabel: string,
+
+    sectionClassName: string,
+
+    sectionStyle?: CSSProperties
+
+  ) => (
+
+    <div
+
+      className={`aixia-chat-conversations aixia-chat-sidebar-section ${sectionClassName}`}
+
+      style={sectionStyle}
+
+    >
+
+      <div className="aixia-chat-conversations-section-hd">{title}</div>
+
+      <div className="aixia-chat-sidebar-section-scroll">
+
+        <div className="space-y-1 p-2">
+
+          {conversations.length > 0 ? (
+
+            conversations.map((group) => renderConversationButton(group))
+
+          ) : (
+
+            <div className="px-2 py-6 text-center text-sm aixia-projects-muted">
+
+              {emptyLabel}
+
+            </div>
+
+          )}
+
         </div>
 
-        <div className="mb-3 shrink-0">
-          <Button
-            onClick={onOpenCreateGroup}
-            className="w-full bg-indigo-600 hover:bg-indigo-700 text-white"
-          >
-            <Plus className="w-4 h-4 mr-2" />
-            {t("chat.sidebar.newGroupChat")}
-          </Button>
+      </div>
+
+    </div>
+
+  );
+
+
+
+  return (
+
+    <aside className="aixia-chat-panel aixia-chat-panel--sidebar aixia-dash-panel aixia-dash-glass aixia-projects-panel-card flex min-h-0 flex-col">
+
+      <div className="aixia-chat-panel-hd space-y-3">
+
+        <div className="relative">
+
+          <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
+
+          <Input
+
+            placeholder={t("chat.sidebar.searchPlaceholder")}
+
+            value={searchQuery}
+
+            onChange={(e) => onSearchChange(e.target.value)}
+
+            className="aixia-projects-input pl-10"
+
+          />
+
         </div>
+
+
+
+        <Button
+
+          onClick={onOpenCreateGroup}
+
+          className="aixia-dash-action aixia-dash-action--primary h-9 w-full"
+
+        >
+
+          <Plus className="mr-2 h-4 w-4" />
+
+          {t("chat.sidebar.newGroupChat")}
+
+        </Button>
+
+      </div>
+
+
+
+      <div
+        ref={sidebarBodyRef}
+        className="aixia-chat-panel-body aixia-chat-sidebar-body aixia-chat-sidebar-body--split"
+      >
+        {renderConversationSection(
+          t("chat.sidebar.directMessages"),
+          directConversations,
+          "No direct messages",
+          "aixia-chat-sidebar-section--dm",
+          { flex: `0 0 ${topSectionPercent}%` }
+        )}
 
         <div
-          ref={containerRef}
-          className="flex-1 min-h-0 flex flex-col rounded-lg border border-slate-800 bg-slate-950/40 overflow-hidden"
-        >
-          <div
-            className="min-h-0 flex flex-col"
-            style={{ height: `${topSectionPercent}%` }}
-          >
-            <div className="px-4 py-3 border-b border-slate-800 shrink-0">
-              <h3 className="text-xs font-medium text-slate-500 uppercase">
-                {t("chat.sidebar.directMessages")}
-              </h3>
-            </div>
+          role="separator"
+          aria-orientation="horizontal"
+          aria-valuenow={Math.round(topSectionPercent)}
+          tabIndex={0}
+          className="aixia-chat-conversations-splitter"
+          onMouseDown={handleSplitterMouseDown}
+        />
 
-            <ScrollArea className="flex-1 min-h-0">
-              <div className="p-2 space-y-1">
-                {directConversations.length > 0 ? (
-                  directConversations.map((group) => renderConversationButton(group))
-                ) : (
-                  <div className="px-2 py-6 text-center text-sm text-slate-500">
-                    No direct messages
-                  </div>
-                )}
-              </div>
-            </ScrollArea>
-          </div>
+        {renderConversationSection(
+          t("chat.sidebar.groupChats"),
+          groupChats,
+          "No group chats",
+          "aixia-chat-sidebar-section--group",
+          { flex: "1 1 0", minHeight: 0 }
+        )}
+      </div>
 
-          <div
-            role="separator"
-            aria-orientation="horizontal"
-            onMouseDown={() => setIsDragging(true)}
-            className="h-3 shrink-0 cursor-row-resize bg-slate-900 border-y border-slate-700 relative group"
-          >
-            <div className="absolute inset-x-0 top-1/2 -translate-y-1/2 h-px bg-slate-600 group-hover:bg-indigo-500" />
-          </div>
+    </aside>
 
-          <div className="flex-1 min-h-0 flex flex-col">
-            <div className="px-4 py-3 border-b border-slate-800 shrink-0">
-              <h3 className="text-xs font-medium text-slate-500 uppercase">
-                {t("chat.sidebar.groupChats")}
-              </h3>
-            </div>
-
-            <ScrollArea className="flex-1 min-h-0">
-              <div className="p-2 space-y-1">
-                {groupChats.length > 0 ? (
-                  groupChats.map((group) => renderConversationButton(group))
-                ) : (
-                  <div className="px-2 py-6 text-center text-sm text-slate-500">
-                    No group chats
-                  </div>
-                )}
-              </div>
-            </ScrollArea>
-          </div>
-        </div>
-      </CardContent>
-    </Card>
   );
+
 }
+
+

@@ -15,7 +15,11 @@ import { useRequest } from "@/lib/useRequest";
 
 import { uploadProfilePhoto } from "@/lib/profilePhotoUpload";
 import { useLanguage } from "@/lib/i18n";
+import { AixiaButton, AixiaHero, AixiaPage } from "@/components/aixia";
 import { useAppClock } from "@/lib/clock/provider";
+import "@/styles/dashboard/tokens.css";
+import "@/styles/dashboard/layout.css";
+import "@/styles/dashboard/visual.css";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
@@ -32,7 +36,6 @@ import {
 } from "@/components/ui/select";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import {
-  ArrowLeft,
   Edit,
   Save,
   X,
@@ -1193,80 +1196,78 @@ if (!effective.manageUsers && !effective.viewEmployeeDetail && authUser.id !== i
   }
 
   return (
-    <div className="h-[calc(100vh-126px)] max-w-7xl mx-auto flex flex-col gap-6 overflow-hidden">
-      <div className="flex items-center justify-between gap-4 flex-wrap shrink-0">
-        <div className="flex items-center gap-3">
-          <Button
-            variant="ghost"
-            className="text-slate-300 hover:bg-slate-800"
-            onClick={() => navigate("/employees")}
-            disabled={isSaving || isUploadingPhoto || isDeactivating || isDeleting}
-          >
-            <ArrowLeft className="w-4 h-4 mr-2" />
-            {t("employeeDetail.actions.back")}
-          </Button>
-
-          <div>
-            <h1 className="text-2xl font-bold text-white">{t("employeeDetail.header.title")}</h1>
-            <p className="text-slate-400">{t("employeeDetail.header.subtitle")}</p>
-          </div>
-        </div>
-
-        <div className="flex items-center gap-2 flex-wrap">
-          <Button
-            variant="outline"
-            className="border-slate-700 text-slate-300 hover:bg-slate-800"
-            onClick={() => void loadUser()}
-disabled={
-  employeeRequest.status === "loading" ||
-              isSaving ||
-              isUploadingPhoto ||
-              isDeactivating ||
-              isDeleting
-            }
-          >
-            {employeeRequest.status === "loading"
-  ? t("employeeDetail.actions.refreshing")
-  : t("employeeDetail.actions.refresh")}
-          </Button>
-
-          {canManage && (
-            <Button
-              variant="outline"
-              className="border-slate-700 text-slate-300 hover:bg-slate-800"
-              onClick={() => navigate(`/employees/${id}/permissions`)}
-              disabled={isSaving || isUploadingPhoto || isDeactivating || isDeleting}
+    <AixiaPage
+      surface="command"
+      className="aixia-command-page aixia-employee-detail-page h-[calc(100vh-126px)] max-w-7xl mx-auto flex flex-col overflow-hidden"
+    >
+      <AixiaHero
+        surface="command"
+        className="shrink-0"
+        parentLabel={t("employees.header.title")}
+        parentPath="/employees"
+        gradientTitle={t("employeeDetail.header.title")}
+        title={t("employeeDetail.header.title")}
+        subtitle={t("employeeDetail.header.subtitle")}
+        actions={
+          <>
+            <AixiaButton
+              type="button"
+              className="h-9"
+              onClick={() => void loadUser()}
+              disabled={
+                employeeRequest.status === "loading" ||
+                isSaving ||
+                isUploadingPhoto ||
+                isDeactivating ||
+                isDeleting
+              }
             >
-              <Shield className="w-4 h-4 mr-2" />
-              {t("employeeDetail.actions.permissions")}
-            </Button>
-          )}
+              {employeeRequest.status === "loading"
+                ? t("employeeDetail.actions.refreshing")
+                : t("employeeDetail.actions.refresh")}
+            </AixiaButton>
+            {canManage ? (
+              <AixiaButton
+                type="button"
+                className="h-9"
+                onClick={() => navigate(`/employees/${id}/permissions`)}
+                disabled={isSaving || isUploadingPhoto || isDeactivating || isDeleting}
+              >
+                <Shield className="w-4 h-4 mr-2" />
+                {t("employeeDetail.actions.permissions")}
+              </AixiaButton>
+            ) : null}
+            {canManage ? (
+              <AixiaButton
+                type="button"
+                className="h-9"
+                onClick={() => void handleDeactivateUser()}
+                disabled={isDeactivating || isSaving || isUploadingPhoto || isDeleting}
+              >
+                <Trash2 className="w-4 h-4 mr-2" />
+                {isDeactivating
+                  ? t("employeeDetail.actions.deactivating")
+                  : t("employeeDetail.actions.deactivate")}
+              </AixiaButton>
+            ) : null}
+            {canManage ? (
+              <AixiaButton
+                variant="primary"
+                type="button"
+                className="h-9"
+                onClick={() => void handleDeleteUser()}
+                disabled={isDeleting || isSaving || isUploadingPhoto || isDeactivating}
+              >
+                {isDeleting
+                  ? t("employeeDetail.actions.deleting")
+                  : t("employeeDetail.actions.deleteUser")}
+              </AixiaButton>
+            ) : null}
+          </>
+        }
+      />
 
-          {canManage && (
-            <Button
-              variant="outline"
-              className="border-red-800 text-red-400 hover:bg-red-900/20"
-              onClick={() => void handleDeactivateUser()}
-              disabled={isDeactivating || isSaving || isUploadingPhoto || isDeleting}
-            >
-              <Trash2 className="w-4 h-4 mr-2" />
-              {isDeactivating ? t("employeeDetail.actions.deactivating") : t("employeeDetail.actions.deactivate")}
-            </Button>
-          )}
-
-          {canManage && (
-            <Button
-              variant="destructive"
-              className="bg-red-700 hover:bg-red-800 text-white"
-              onClick={() => void handleDeleteUser()}
-              disabled={isDeleting || isSaving || isUploadingPhoto || isDeactivating}
-            >
-              {isDeleting ? t("employeeDetail.actions.deleting") : t("employeeDetail.actions.deleteUser")}
-            </Button>
-          )}
-        </div>
-      </div>
-
+      <div className="aixia-command-scroll flex flex-col gap-6 min-h-0 flex-1">
       {saved && (
         <Alert className="bg-green-900/20 border-green-800 text-green-400 shrink-0">
           <AlertDescription>{t("employeeDetail.success.saved")}</AlertDescription>
@@ -2191,6 +2192,7 @@ disabled={
           </CardContent>
         </Card>
       </div>
-    </div>
+      </div>
+    </AixiaPage>
   );
 }

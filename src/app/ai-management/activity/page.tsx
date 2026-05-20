@@ -1,9 +1,7 @@
 import { useEffect, useMemo, useState } from "react";
-import { useNavigate } from "react-router-dom";
 import {
   Activity,
   AlertCircle,
-  ArrowLeft,
   Brain,
   Database,
   FileCheck2,
@@ -13,6 +11,12 @@ import {
   Shield,
 } from "lucide-react";
 import { supabase } from "@/lib/supabase";
+import { AixiaCommandMetrics, AixiaHero, AixiaPage } from "@/components/aixia";
+import type { AixiaCommandMetricItem } from "@/components/aixia";
+import "@/styles/dashboard/tokens.css";
+import "@/styles/dashboard/layout.css";
+import "@/styles/dashboard/visual.css";
+
 
 type AILog = {
   id: string;
@@ -170,8 +174,6 @@ function renderLogRows(logs: AILog[], tone: LogTone) {
 }
 
 export default function AIActivityLogsPage() {
-  const navigate = useNavigate();
-
   const [logs, setLogs] = useState<AILog[]>([]);
   const [loading, setLoading] = useState(true);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
@@ -321,14 +323,10 @@ export default function AIActivityLogsPage() {
     };
   }, [logs]);
 
-  useEffect(() => {
-    void loadLogs();
-  }, []);
-
-  async function loadLogs() {
-    setLoading(true);
-    setErrorMessage(null);
-
+  async function fetchActivityLogs(): Promise<
+    | { ok: true; logs: AILog[] }
+    | { ok: false; message: string }
+  > {
     const { data, error } = await supabase
       .from("ai_admin_activity_logs")
       .select("id, action_type, entity_type, entity_id, details, created_at")
@@ -336,57 +334,81 @@ export default function AIActivityLogsPage() {
       .limit(200);
 
     if (error) {
-      setErrorMessage(error.message);
+      return { ok: false, message: error.message };
+    }
+
+    return { ok: true, logs: (data ?? []) as AILog[] };
+  }
+
+  const commandHeaderMetrics = useMemo<AixiaCommandMetricItem[]>(
+    () => [
+      { key: "total-0", title: "Total", value: String(metrics.total), tone: "neutral" },
+      { key: "settings-1", title: "Settings", value: String(metrics.settingsChanges), tone: "cyan" },
+      { key: "knowledge-2", title: "Knowledge", value: String(metrics.knowledgeChanges), tone: "emerald" },
+      { key: "errors-3", title: "Errors", value: String(metrics.errors), tone: "rose" },
+    ],
+    [metrics, loading]
+  );
+
+  useEffect(() => {
+    let cancelled = false;
+
+    void (async () => {
+      await Promise.resolve();
+      if (cancelled) return;
+
+      setLoading(true);
+      setErrorMessage(null);
+
+      const result = await fetchActivityLogs();
+
+      if (cancelled) return;
+
+      if (!result.ok) {
+        setErrorMessage(result.message);
+        setLoading(false);
+        return;
+      }
+
+      setLogs(result.logs);
+      setLoading(false);
+    })();
+
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+
+  async function loadLogs() {
+    setLoading(true);
+    setErrorMessage(null);
+
+    const result = await fetchActivityLogs();
+
+    if (!result.ok) {
+      setErrorMessage(result.message);
       setLoading(false);
       return;
     }
 
-    setLogs((data ?? []) as AILog[]);
+    setLogs(result.logs);
     setLoading(false);
   }
 
   return (
-    <div className="min-h-screen bg-[#05070d] px-6 py-6 text-white">
-      <div className="mx-auto flex w-full max-w-[1600px] flex-col gap-6">
-        <header className="overflow-hidden rounded-[34px] border border-white/10 bg-white/[0.045] p-6 shadow-2xl shadow-black/30 backdrop-blur-xl">
-          <div className="flex flex-col gap-6 xl:flex-row xl:items-start xl:justify-between">
-            <div className="space-y-5">
-              <button
-                type="button"
-                onClick={() => navigate("/ai-management")}
-                className="inline-flex items-center gap-2 rounded-full border border-white/10 bg-white/[0.04] px-4 py-2 text-xs font-semibold uppercase tracking-[0.18em] text-slate-300 transition hover:border-cyan-300/40 hover:text-cyan-100"
-              >
-                <ArrowLeft className="h-4 w-4" />
-                AI Studio
-              </button>
+    <AixiaPage surface="command" className="aixia-command-page aixia-ai-management-page"><AixiaHero
+        surface="command"
+        className="shrink-0 space-y-4"
+        parentLabel="AI Studio"
+        parentPath="/ai-management"
+        gradientTitle="Activity & Logs"
+        title="Activity & Logs"
+        subtitle="Review what changed across AI Studio: router decisions, trusted answers, saved replies, knowledge, guardrails, settings, and system actions."
+      >
+        <AixiaCommandMetrics items={commandHeaderMetrics} />
+      </AixiaHero>
 
-              <div className="space-y-3">
-                <div className="inline-flex w-fit items-center gap-2 rounded-full border border-cyan-400/20 bg-cyan-500/10 px-3 py-1 text-[11px] font-semibold uppercase tracking-[0.22em] text-cyan-200">
-                  <Activity className="h-3.5 w-3.5" />
-                  Audit Timeline
-                </div>
-
-                <div>
-                  <h1 className="text-3xl font-semibold tracking-[-0.035em] text-white md:text-5xl">
-                    Activity & Logs
-                  </h1>
-                  <p className="mt-3 max-w-4xl text-sm leading-6 text-slate-400 md:text-base md:leading-7">
-                    Review what changed across AI Studio: router decisions, trusted
-                    answers, saved replies, knowledge, guardrails, settings, and system
-                    actions.
-                  </p>
-                </div>
-              </div>
-            </div>
-
-            <div className="grid gap-3 sm:grid-cols-4 xl:min-w-[720px]">
-              <MetricCard label="Total" value={metrics.total} tone="white" />
-              <MetricCard label="Settings" value={metrics.settingsChanges} tone="cyan" />
-              <MetricCard label="Knowledge" value={metrics.knowledgeChanges} tone="emerald" />
-              <MetricCard label="Errors" value={metrics.errors} tone="rose" />
-            </div>
-          </div>
-        </header>
+      <div className="aixia-command-scroll flex flex-col gap-6">
 
         {errorMessage ? (
           <div className="rounded-2xl border border-rose-400/20 bg-rose-500/10 px-4 py-3 text-sm text-rose-200">
@@ -449,35 +471,7 @@ export default function AIActivityLogsPage() {
           )}
         </section>
       </div>
-    </div>
-  );
-}
-
-function MetricCard({
-  label,
-  value,
-  tone,
-}: {
-  label: string;
-  value: number;
-  tone: "white" | "cyan" | "emerald" | "rose";
-}) {
-  const toneClass =
-    tone === "cyan"
-      ? "text-cyan-200"
-      : tone === "emerald"
-        ? "text-emerald-200"
-        : tone === "rose"
-          ? "text-rose-200"
-          : "text-white";
-
-  return (
-    <div className="rounded-2xl border border-white/10 bg-white/[0.04] p-4">
-      <p className="text-[11px] uppercase tracking-[0.2em] text-slate-500">
-        {label}
-      </p>
-      <p className={`mt-2 text-3xl font-semibold ${toneClass}`}>{value}</p>
-    </div>
+    </AixiaPage>
   );
 }
 

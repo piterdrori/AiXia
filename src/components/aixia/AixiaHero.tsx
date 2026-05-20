@@ -5,16 +5,13 @@ import { useNavigate } from "react-router-dom";
 
 import { AixiaBadge } from "./AixiaBadge";
 import { AixiaStatusCard } from "./AixiaStatusCard";
+import {
+  getCommandMetricToneClass,
+  type AixiaCommandSurface,
+  type AixiaCommandTone,
+} from "./commandSurface";
 
-type AixiaHeroTone =
-  | "indigo"
-  | "violet"
-  | "gold"
-  | "amber"
-  | "emerald"
-  | "cyan"
-  | "rose"
-  | "neutral";
+type AixiaHeroTone = AixiaCommandTone;
 
 type AixiaHeroBadge = {
   label: ReactNode;
@@ -39,6 +36,7 @@ type AixiaHeroProps = {
   description?: string;
   statusCards?: AixiaHeroStatusCard[];
   actions?: ReactNode;
+  surface?: AixiaCommandSurface;
 
   /**
    * Legacy escape hatch only.
@@ -61,11 +59,96 @@ export function AixiaHero({
   description,
   statusCards = [],
   actions,
+  surface = "default",
   rightContent,
   children,
   className = "",
 }: AixiaHeroProps) {
   const navigate = useNavigate();
+
+  if (surface === "command") {
+    const heroSubtitle = subtitle || description;
+
+    return (
+      <header
+        className={`aixia-dash-hero aixia-dash-glass aixia-dash-3d-hero ${className}`.trim()}
+      >
+        <div className="aixia-dash-hero-inner">
+          <div>
+            {parentLabel && parentPath ? (
+              <button
+                type="button"
+                onClick={() => navigate(parentPath)}
+                className="aixia-parent-pill mb-2"
+              >
+                <ArrowLeft className="h-3.5 w-3.5" />
+                {parentLabel}
+              </button>
+            ) : null}
+
+            {badges.length > 0 ? (
+              <div
+                className="aixia-action-system aixia-hero-badges mb-2"
+                data-align="start"
+                data-density="compact"
+              >
+                {badges.map((badge, index) => (
+                  <AixiaBadge key={index} tone={badge.tone}>
+                    {badge.label}
+                  </AixiaBadge>
+                ))}
+              </div>
+            ) : null}
+
+            <p className="aixia-dash-kicker">{gradientTitle}</p>
+            <h1 className="aixia-dash-title--hero">{title}</h1>
+            {heroSubtitle ? (
+              <p className="aixia-dash-subtitle--hero">{heroSubtitle}</p>
+            ) : null}
+          </div>
+
+          {actions ? <div className="aixia-dash-actions">{actions}</div> : null}
+        </div>
+
+        {statusCards.length > 0 ? (
+          <div className="aixia-dash-metrics aixia-dash-bento">
+            {statusCards.map((card, index) => {
+              const Icon = card.icon;
+              const featured = index === 0;
+
+              return (
+                <div
+                  key={card.label}
+                  className={[
+                    "aixia-card-shell",
+                    "aixia-dash-metric",
+                    "aixia-dash-glass",
+                    getCommandMetricToneClass(card.tone),
+                    featured ? "aixia-dash-metric--featured" : "aixia-dash-metric--compact",
+                  ]
+                    .filter(Boolean)
+                    .join(" ")}
+                >
+                  <div className="aixia-dash-metric-deco" aria-hidden />
+                  <div className="aixia-dash-metric-icon">
+                    <Icon className="h-4 w-4" />
+                  </div>
+                  <div className="aixia-dash-metric-label">{card.label}</div>
+                  <div className="aixia-dash-metric-val">{card.value}</div>
+                  {card.description ? (
+                    <p className="aixia-dash-metric-foot">{card.description}</p>
+                  ) : null}
+                </div>
+              );
+            })}
+          </div>
+        ) : null}
+
+        {children}
+      </header>
+    );
+  }
+
   const hasStatusCards = statusCards.length > 0;
   const hasSide = hasStatusCards || Boolean(rightContent);
 

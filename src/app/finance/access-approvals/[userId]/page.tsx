@@ -2,23 +2,7 @@ import { useCallback, useEffect, useMemo, useState } from "react";
 import type { ReactNode } from "react";
 import { useNavigate, useParams } from "react-router-dom";
 import type { LucideIcon } from "lucide-react";
-import {
-  ArrowRight,
-  BarChart3,
-  Database,
-  Eye,
-  Info,
-  KeyRound,
-  Loader2,
-  RefreshCw,
-  Search,
-  Settings as SettingsIcon,
-  ShieldCheck,
-  Sparkles,
-  UserRound,
-  X,
-  ReceiptText,
-} from "lucide-react";
+import { ArrowRight, BarChart3, Database, Eye, Info, KeyRound, Loader2, RefreshCw, Search, Settings, ShieldCheck, Sparkles, X, ReceiptText } from "lucide-react";
 
 import {
   AixiaAlert,
@@ -30,7 +14,7 @@ import {
   AixiaMetricCard,
   AixiaMetricGrid,
   AixiaNotFoundState,
-  AixiaPage,
+  FinancePage,
   AixiaSection,
   AixiaStatusBadge,
   AixiaValueBlock,
@@ -177,7 +161,7 @@ const groupIconMap: Record<AccessApprovalGroupKey, LucideIcon> = {
   masterData: Database,
   transactions: ReceiptText,
   reports: BarChart3,
-  settings: SettingsIcon,
+  settings: Settings,
 };
 
 function formatLabel(value: string | null | undefined) {
@@ -562,7 +546,7 @@ export default function FinanceAccessApprovalUserDetailPage() {
   const [targetFinanceTemplate, setTargetFinanceTemplate] =
     useState<FinancePermissionTemplateRow | null>(null);
   const [isLoading, setIsLoading] = useState(true);
-  const [isRefreshing, setIsRefreshing] = useState(false);
+  const [, setIsRefreshing] = useState(false);
   const [runningAction, setRunningAction] = useState<RunningAction | null>(null);
   const [pageError, setPageError] = useState<string | null>(null);
   const [pageMessage, setPageMessage] = useState<string | null>(null);
@@ -1124,43 +1108,16 @@ export default function FinanceAccessApprovalUserDetailPage() {
   const isTargetAdmin = isAdminRole(targetUser.role);
 
   return (
-    <AixiaPage>
+    <FinancePage>
       <AixiaHero
+        className="shrink-0 space-y-4"
+        surface="command"
         parentLabel="Finance Access Approvals"
         parentPath="/finance/access-approvals"
         gradientTitle="User Finance"
         title="Access Approval"
         subtitle={targetUser.full_name || "Unnamed user"}
-        description="Assign a base system role and a Finance role template, then use the permission matrix only for user-specific exceptions."
-        badges={[
-          { label: "User Finance Access Approval", tone: "cyan" },
-          { label: formatLabel(targetUser.role), tone: "cyan" },
-          {
-            label: targetFinanceTemplate?.template_name || "No Finance Template",
-            tone: "violet",
-          },
-          { label: formatLabel(targetUser.status), tone: "neutral" },
-          ...(isRefreshing ? [{ label: "Silent Refresh", tone: "neutral" as const }] : []),
-        ]}
-        statusCards={[
-          {
-            label: "Base System Role",
-            value: formatLabel(targetUser.role),
-            description:
-              "Admin-only Finance controls still require the base system role to be Admin.",
-            icon: UserRound,
-            tone: "cyan",
-          },
-          {
-            label: "Current Power",
-            value: highestAccessLabel,
-            description:
-              "Highest effective Finance access after role, template, and overrides are combined.",
-            icon: ShieldCheck,
-            tone: effectiveAccessToneMap[highestAccessLabel],
-          },
-        ]}
-      >
+        >
         <div className="aixia-action-system" data-align="start" data-density="compact">
           <AixiaBadge tone="cyan">
             <Sparkles className="h-3.5 w-3.5" />
@@ -1169,7 +1126,8 @@ export default function FinanceAccessApprovalUserDetailPage() {
         </div>
       </AixiaHero>
 
-      {pageError ? <AixiaAlert tone="error">{pageError}</AixiaAlert> : null}
+      <div className="aixia-command-scroll">
+{pageError ? <AixiaAlert tone="error">{pageError}</AixiaAlert> : null}
       {pageMessage ? <AixiaAlert tone="success">{pageMessage}</AixiaAlert> : null}
 
       {!hasAdminAccess ? (
@@ -1345,6 +1303,7 @@ export default function FinanceAccessApprovalUserDetailPage() {
       <AixiaInfoBlock tone="cyan" title="Locked default rule">
         Normal users can see, create, edit, submit, upload, and confirm their own expenses and paycheck requests by default. This page only grants or removes additional company-level Finance access through templates and user-specific exceptions.
       </AixiaInfoBlock>
-    </AixiaPage>
+      </div>
+    </FinancePage>
   );
 }

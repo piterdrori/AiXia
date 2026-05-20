@@ -1,0 +1,707 @@
+/**
+ * Chat pages — dashboard command-surface styling (visual only).
+ * Requires dashboard tokens, layout, visual, and projects-visual CSS loaded first.
+ */
+
+/* Chat shell — fill dashboard main; workspace columns share one bottom edge */
+.aixia-chat-page.aixia-projects-page {
+  height: 100%;
+  min-height: calc(100dvh - var(--aixia-chat-shell-offset));
+  overflow: hidden;
+}
+
+.aixia-chat-page {
+  /* Dashboard main chrome: sticky header + scroll-area vertical padding */
+  --aixia-chat-main-header: 3.5rem;
+  --aixia-chat-main-pad: clamp(1.25rem, 2.5vw, 2rem);
+  --aixia-chat-hero-block: 6.75rem;
+  --aixia-chat-stack-gap: clamp(0.85rem, 2vw, 1.35rem);
+  --aixia-chat-shell-offset: calc(
+    var(--aixia-chat-main-header) + var(--aixia-chat-main-pad)
+  );
+  --aixia-chat-workspace-offset: calc(
+    var(--aixia-chat-shell-offset) + var(--aixia-chat-hero-block) + var(--aixia-chat-stack-gap)
+  );
+  --aixia-chat-conversation-row-height: 4.25rem;
+  --aixia-chat-conversation-section-hd-height: 2.125rem;
+  --aixia-chat-sidebar-section-scroll-max: calc(
+    7 * var(--aixia-chat-conversation-row-height)
+  );
+  --aixia-chat-sidebar-section-max: calc(
+    var(--aixia-chat-sidebar-section-scroll-max)
+    + var(--aixia-chat-conversation-section-hd-height)
+  );
+  --aixia-chat-sidebar-section-gap: clamp(0.5rem, 1.2vw, 0.75rem);
+  --aixia-chat-sidebar-splitter-height: 0.75rem;
+  display: flex;
+  flex-direction: column;
+  flex: 1 1 auto;
+  width: 100%;
+  min-height: calc(100dvh - var(--aixia-chat-shell-offset));
+  padding-bottom: 0;
+  gap: 0;
+}
+
+.aixia-chat-page > .aixia-dash-3d-stack {
+  flex: 1 1 auto;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+  gap: var(--aixia-chat-stack-gap);
+  overflow: hidden;
+}
+
+.aixia-chat-page .aixia-dash-hero {
+  flex-shrink: 0;
+}
+
+.aixia-chat-page .aixia-dash-actions {
+  gap: 0.4rem;
+}
+
+.aixia-chat-page .aixia-dash-actions .aixia-dash-action {
+  height: 2.25rem;
+  min-height: 2.25rem;
+  padding-inline: 0.8rem;
+  border-radius: 999px;
+  font-size: 0.8125rem;
+  font-weight: 500;
+  gap: 0.35rem;
+}
+
+.aixia-chat-page .aixia-dash-actions .aixia-dash-action svg {
+  width: 1rem;
+  height: 1rem;
+  flex-shrink: 0;
+}
+
+/* Three-column workspace — stretch to viewport bottom; internal lists scroll inside panels */
+.aixia-chat-workspace {
+  flex: 1 1 auto;
+  height: 100%;
+  min-height: max(20rem, calc(100dvh - var(--aixia-chat-workspace-offset)));
+  display: flex;
+  gap: clamp(0.65rem, 1.5vw, 1rem);
+  align-items: stretch;
+  align-content: stretch;
+}
+
+.aixia-chat-workspace > .aixia-chat-panel,
+.aixia-chat-workspace > aside.aixia-chat-panel {
+  align-self: stretch;
+}
+
+@media (max-width: 1100px) {
+  .aixia-chat-workspace {
+    flex-wrap: wrap;
+    align-content: stretch;
+    min-height: max(18rem, calc(100dvh - var(--aixia-chat-workspace-offset)));
+  }
+}
+
+/* layout.css caps .aixia-dash-panel at 70vh — remove for chat columns */
+.aixia-chat-page .aixia-chat-panel.aixia-dash-panel {
+  max-height: none;
+  min-height: 0;
+  height: auto;
+  flex: 1 1 0;
+  align-self: stretch;
+}
+
+.aixia-chat-workspace .aixia-chat-panel--sidebar.aixia-dash-panel,
+.aixia-chat-workspace .aixia-chat-panel--team.aixia-dash-panel {
+  flex: 0 0 20rem;
+}
+
+/* Side columns + main thread — equal height in workspace row */
+.aixia-chat-panel {
+  display: flex;
+  flex-direction: column;
+  flex: 1 1 0;
+  align-self: stretch;
+  min-height: 0;
+  height: 100%;
+  overflow: hidden;
+  border-radius: var(--aixia-dash-radius);
+  border: 1px solid var(--aixia-dash-border);
+  background: color-mix(in srgb, var(--background, #020617) 55%, rgba(15, 23, 42, 0.45));
+  box-shadow:
+    inset 0 1px 0 color-mix(in srgb, white 5%, transparent),
+    0 18px 40px -28px color-mix(in srgb, #6366f1 22%, transparent);
+}
+
+.aixia-chat-panel--sidebar,
+.aixia-chat-panel--team {
+  flex: 0 0 20rem;
+  width: 20rem;
+  max-width: 20rem;
+  height: 100%;
+  min-height: 0;
+}
+
+.aixia-chat-panel--main {
+  flex: 1 1 0;
+  min-width: min(100%, 22rem);
+}
+
+.aixia-chat-panel [data-slot="scroll-area"] {
+  flex: 1 1 auto;
+  min-height: 0;
+}
+
+@media (max-width: 1100px) {
+  .aixia-chat-panel--sidebar,
+  .aixia-chat-panel--team {
+    flex: 1 1 100%;
+    width: 100%;
+    max-width: 100%;
+    min-height: 18rem;
+    max-height: none;
+  }
+
+  .aixia-chat-panel--main {
+    flex: 1 1 100%;
+    width: 100%;
+    min-height: 24rem;
+  }
+}
+
+.aixia-chat-panel-hd {
+  flex-shrink: 0;
+  padding: clamp(0.85rem, 2vw, 1rem);
+  border-bottom: 1px solid var(--aixia-dash-border);
+}
+
+.aixia-chat-panel-body {
+  flex: 1;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+}
+
+.aixia-chat-panel-scroll {
+  flex: 1;
+  min-height: 0;
+}
+
+/* Left sidebar — DM + Group as separate cards; draggable split between them */
+.aixia-chat-panel--sidebar .aixia-chat-sidebar-body {
+  flex: 1 1 0;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+  gap: var(--aixia-chat-sidebar-section-gap);
+  padding: 0 clamp(0.65rem, 1.5vw, 0.85rem) clamp(0.65rem, 1.5vw, 0.85rem);
+}
+
+.aixia-chat-panel--sidebar .aixia-chat-sidebar-body--split {
+  gap: 0;
+  overflow: hidden;
+}
+
+.aixia-chat-conversations,
+.aixia-chat-sidebar-section {
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+  border-radius: var(--aixia-dash-radius-sm);
+  border: 1px solid var(--aixia-dash-border);
+  background: color-mix(in srgb, var(--background, #020617) 42%, rgba(15, 23, 42, 0.55));
+  overflow: hidden;
+  box-shadow:
+    inset 0 1px 0 color-mix(in srgb, white 4%, transparent),
+    0 10px 24px -20px color-mix(in srgb, #6366f1 18%, transparent);
+}
+
+.aixia-chat-sidebar-section--dm {
+  flex: 0 1 auto;
+  max-height: var(--aixia-chat-sidebar-section-max);
+}
+
+.aixia-chat-sidebar-section--group {
+  flex: 0 0 auto;
+  margin-top: auto;
+  max-height: var(--aixia-chat-sidebar-section-max);
+}
+
+.aixia-chat-sidebar-body--split .aixia-chat-sidebar-section--dm,
+.aixia-chat-sidebar-body--split .aixia-chat-sidebar-section--group {
+  max-height: none;
+  min-height: 0;
+  overflow: hidden;
+}
+
+.aixia-chat-sidebar-body--split .aixia-chat-sidebar-section--group {
+  margin-top: 0;
+}
+
+.aixia-chat-sidebar-section-scroll {
+  flex: 1 1 auto;
+  min-height: 0;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  scrollbar-gutter: stable;
+}
+
+.aixia-chat-sidebar-section--dm .aixia-chat-sidebar-section-scroll {
+  max-height: var(--aixia-chat-sidebar-section-scroll-max);
+}
+
+.aixia-chat-sidebar-section--group .aixia-chat-sidebar-section-scroll {
+  max-height: var(--aixia-chat-sidebar-section-scroll-max);
+}
+
+.aixia-chat-sidebar-body--split .aixia-chat-sidebar-section-scroll {
+  max-height: none;
+}
+
+.aixia-chat-panel--sidebar .aixia-chat-panel-body {
+  flex: 1 1 0;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+  padding: 0;
+}
+
+/* Team sidebar — header fixed, member list scrolls inside full-height panel */
+.aixia-chat-panel--team .aixia-chat-panel-body {
+  flex: 1 1 0;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+  padding: 0;
+}
+
+.aixia-chat-panel--team .aixia-chat-panel-scroll {
+  flex: 1 1 0;
+  min-height: 0;
+}
+
+.aixia-chat-panel--team .aixia-chat-panel-scroll [data-slot="scroll-area-viewport"] {
+  max-height: 100%;
+}
+
+.aixia-chat-conversations-section-hd {
+  padding: 0.65rem 0.85rem;
+  border-bottom: 1px solid var(--aixia-dash-border);
+  font-size: 0.6875rem;
+  font-weight: 600;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--aixia-dash-muted);
+}
+
+.aixia-chat-conversations-splitter {
+  height: var(--aixia-chat-sidebar-splitter-height);
+  flex-shrink: 0;
+  cursor: row-resize;
+  touch-action: none;
+  border-block: 1px solid var(--aixia-dash-border);
+  background: color-mix(in srgb, var(--background, #020617) 72%, transparent);
+  position: relative;
+  z-index: 1;
+}
+
+.aixia-chat-sidebar-body--split .aixia-chat-conversations-splitter {
+  margin-block: clamp(0.35rem, 0.8vw, 0.5rem);
+}
+
+.aixia-chat-conversations-splitter::after {
+  content: "";
+  position: absolute;
+  inset-inline: 20%;
+  top: 50%;
+  height: 1px;
+  transform: translateY(-50%);
+  background: color-mix(in srgb, var(--aixia-dash-muted) 45%, transparent);
+  transition: background 0.12s ease;
+}
+
+.aixia-chat-conversations-splitter:hover::after {
+  background: color-mix(in srgb, var(--primary, #6366f1) 65%, transparent);
+}
+
+.aixia-chat-conversation-item {
+  width: 100%;
+  border-radius: var(--aixia-dash-radius-sm);
+  border: 1px solid transparent;
+  transition:
+    background 0.12s ease,
+    border-color 0.12s ease,
+    box-shadow 0.12s ease;
+}
+
+.aixia-chat-conversation-item--active {
+  border-color: color-mix(in srgb, var(--primary, #6366f1) 38%, var(--aixia-dash-border));
+  background: color-mix(in srgb, var(--primary, #6366f1) 14%, transparent);
+}
+
+.aixia-chat-conversation-item--unread:not(.aixia-chat-conversation-item--active) {
+  border-color: color-mix(in srgb, var(--primary, #6366f1) 22%, transparent);
+  background: color-mix(in srgb, var(--primary, #6366f1) 8%, transparent);
+  box-shadow: 0 0 18px -8px color-mix(in srgb, var(--primary, #6366f1) 35%, transparent);
+}
+
+.aixia-chat-conversation-item:not(.aixia-chat-conversation-item--active):hover {
+  background: color-mix(in srgb, var(--foreground, #fff) 5%, transparent);
+}
+
+.aixia-chat-conversation-icon {
+  width: 2.5rem;
+  height: 2.5rem;
+  flex-shrink: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 0.65rem;
+  background: color-mix(in srgb, var(--primary, #6366f1) 14%, transparent);
+  border: 1px solid color-mix(in srgb, var(--primary, #6366f1) 28%, transparent);
+  color: color-mix(in srgb, #a5b4fc 88%, white);
+}
+
+.aixia-chat-unread-badge {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 1.25rem;
+  height: 1.25rem;
+  padding-inline: 0.35rem;
+  border-radius: 999px;
+  font-size: 0.625rem;
+  font-weight: 700;
+  color: #fff;
+  background: color-mix(in srgb, var(--primary, #6366f1) 88%, #4f46e5);
+}
+
+/* Thread header */
+.aixia-chat-thread-hd {
+  flex-shrink: 0;
+  border-bottom: 1px solid var(--aixia-dash-border);
+}
+
+.aixia-chat-thread-hd-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.75rem;
+  padding: clamp(0.85rem, 2vw, 1rem);
+}
+
+.aixia-chat-thread-search {
+  padding: 0 1rem 1rem;
+}
+
+/* Messages */
+.aixia-chat-messages {
+  flex: 1;
+  min-height: 0;
+}
+
+.aixia-chat-message-row {
+  display: flex;
+  gap: 0.75rem;
+  align-items: flex-start;
+}
+
+.aixia-chat-message-row--own {
+  flex-direction: row-reverse;
+}
+
+.aixia-chat-message-col {
+  display: flex;
+  flex-direction: column;
+  max-width: min(70%, 36rem);
+  min-width: 0;
+}
+
+.aixia-chat-message-col--own {
+  align-items: flex-end;
+}
+
+.aixia-chat-message-bubble {
+  border-radius: calc(var(--aixia-dash-radius) + 4px);
+  border: 1px solid var(--aixia-dash-border);
+  background: color-mix(in srgb, var(--background, #020617) 55%, transparent);
+  padding: 0.75rem 1rem;
+  transition: border-color 0.15s ease, background 0.15s ease;
+}
+
+.aixia-chat-message-bubble--own {
+  border-color: color-mix(in srgb, var(--primary, #6366f1) 38%, var(--aixia-dash-border));
+  background: color-mix(in srgb, var(--primary, #6366f1) 12%, transparent);
+}
+
+.aixia-chat-message-bubble--selected {
+  border-color: color-mix(in srgb, var(--primary, #6366f1) 55%, var(--aixia-dash-border)) !important;
+}
+
+.aixia-chat-message-bubble--highlight {
+  animation: aixia-chat-message-flash 0.9s ease;
+}
+
+@keyframes aixia-chat-message-flash {
+  0%,
+  100% {
+    background: color-mix(in srgb, var(--primary, #6366f1) 12%, transparent);
+  }
+  50% {
+    background: color-mix(in srgb, var(--primary, #6366f1) 22%, transparent);
+  }
+}
+
+.aixia-chat-message-text {
+  margin: 0;
+  white-space: pre-wrap;
+  word-break: break-word;
+  font-size: 0.875rem;
+  line-height: 1.5;
+  color: color-mix(in srgb, var(--aixia-dash-title) 88%, var(--aixia-dash-muted));
+}
+
+.aixia-chat-message-bubble--own .aixia-chat-message-text {
+  color: color-mix(in srgb, var(--foreground, #f8fafc) 94%, transparent);
+}
+
+/* Composer */
+.aixia-chat-composer {
+  flex-shrink: 0;
+  padding: clamp(0.85rem, 2vw, 1rem);
+  border-top: 1px solid var(--aixia-dash-border);
+  background: color-mix(in srgb, var(--background, #020617) 48%, transparent);
+}
+
+.aixia-chat-composer-row {
+  display: flex;
+  align-items: flex-end;
+  gap: 0.5rem;
+}
+
+.aixia-chat-composer-attach {
+  width: 2.75rem;
+  height: 2.75rem;
+  flex-shrink: 0;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: var(--aixia-dash-radius-sm);
+  border: 1px solid var(--aixia-dash-border);
+  background: color-mix(in srgb, var(--background, #020617) 72%, transparent);
+  color: var(--aixia-dash-title);
+  cursor: pointer;
+  transition: background 0.12s ease, border-color 0.12s ease;
+}
+
+.aixia-chat-composer-attach:hover {
+  background: color-mix(in srgb, var(--primary, #6366f1) 10%, transparent);
+  border-color: color-mix(in srgb, var(--primary, #6366f1) 32%, var(--aixia-dash-border));
+}
+
+.aixia-chat-mention-menu {
+  border-radius: var(--aixia-dash-radius-sm);
+  border: 1px solid var(--aixia-dash-border);
+  background: var(--aixia-dash-surface);
+  overflow: hidden;
+}
+
+.aixia-chat-mention-item {
+  width: 100%;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.75rem;
+  padding: 0.55rem 0.75rem;
+  text-align: left;
+  background: transparent;
+  border: 0;
+  cursor: pointer;
+  transition: background 0.12s ease;
+}
+
+.aixia-chat-mention-item:hover {
+  background: color-mix(in srgb, var(--primary, #6366f1) 10%, transparent);
+}
+
+/* Participants modal — viewport-centered; no dash-panel (position:relative breaks fixed) */
+.aixia-chat-participants-dialog {
+  position: fixed !important;
+  top: 50% !important;
+  left: 50% !important;
+  transform: translate(-50%, -50%) !important;
+  gap: 0;
+  flex: none;
+  max-height: 85vh !important;
+  z-index: 51 !important;
+  background: var(--aixia-dash-surface, var(--background, #020617)) !important;
+  border: 1px solid var(--aixia-dash-border) !important;
+  box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.55) !important;
+}
+
+.aixia-chat-participants-dialog[data-state="open"],
+.aixia-chat-participants-dialog[data-state="closed"] {
+  transform: translate(-50%, -50%) !important;
+}
+
+.aixia-chat-participants-dialog .aixia-projects-new-form-footer {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.75rem;
+}
+
+@media (max-width: 480px) {
+  .aixia-chat-participants-dialog .aixia-projects-member-row {
+    flex-wrap: wrap;
+  }
+
+  .aixia-chat-participants-dialog .aixia-dash-action.h-8 {
+    width: 100%;
+    justify-content: center;
+  }
+}
+
+/* Selection / status bars */
+.aixia-chat-toolbar-bar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.75rem;
+  padding: 0.65rem 1rem;
+  border-bottom: 1px solid var(--aixia-dash-border);
+  background: color-mix(in srgb, var(--background, #020617) 62%, transparent);
+  flex-shrink: 0;
+}
+
+.aixia-chat-status-bar {
+  padding: 0.5rem 1rem 0;
+  flex-shrink: 0;
+}
+
+/* Empty + loading */
+.aixia-chat-empty {
+  flex: 1;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 0.5rem;
+  padding: 2rem;
+  text-align: center;
+}
+
+.aixia-chat-empty-icon {
+  width: 4rem;
+  height: 4rem;
+  border-radius: 999px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: color-mix(in srgb, var(--primary, #6366f1) 12%, transparent);
+  border: 1px solid color-mix(in srgb, var(--primary, #6366f1) 24%, transparent);
+  color: color-mix(in srgb, #a5b4fc 80%, white);
+}
+
+.aixia-chat-loading {
+  flex: 1 1 auto;
+  height: 100%;
+  min-height: max(20rem, calc(100dvh - var(--aixia-chat-workspace-offset)));
+  display: flex;
+  align-items: stretch;
+  align-content: stretch;
+  gap: clamp(0.65rem, 1.5vw, 1rem);
+  overflow: hidden;
+}
+
+.aixia-chat-loading .aixia-chat-panel.aixia-dash-panel,
+.aixia-chat-loading .aixia-projects-skeleton-panel {
+  max-height: none;
+  height: 100%;
+}
+
+.aixia-chat-loading .aixia-chat-panel,
+.aixia-chat-loading .aixia-projects-skeleton-panel {
+  flex: 1 1 0;
+  min-width: 0;
+}
+
+.aixia-chat-loading .aixia-chat-panel:first-child,
+.aixia-chat-loading .aixia-projects-skeleton-panel:first-child,
+.aixia-chat-loading .aixia-chat-panel:last-child,
+.aixia-chat-loading .aixia-projects-skeleton-panel:last-child {
+  flex: 0 0 20rem;
+  max-width: 20rem;
+}
+
+@media (max-width: 1100px) {
+  .aixia-chat-loading {
+    flex-wrap: wrap;
+    overflow: visible;
+  }
+
+  .aixia-chat-loading .aixia-chat-panel,
+  .aixia-chat-loading .aixia-projects-skeleton-panel,
+  .aixia-chat-loading .aixia-chat-panel:first-child,
+  .aixia-chat-loading .aixia-projects-skeleton-panel:first-child,
+  .aixia-chat-loading .aixia-chat-panel:last-child,
+  .aixia-chat-loading .aixia-projects-skeleton-panel:last-child {
+    flex: 1 1 100%;
+    max-width: 100%;
+    min-height: 18rem;
+  }
+}
+
+.aixia-chat-loading .aixia-projects-skeleton-panel {
+  min-height: 18rem;
+  padding: 1rem;
+  display: flex;
+  flex-direction: column;
+  gap: 0.65rem;
+}
+
+.aixia-chat-error {
+  margin: 0.75rem 1rem 0;
+  border-radius: var(--aixia-dash-radius-sm);
+  border: 1px solid color-mix(in srgb, #f87171 38%, transparent);
+  background: color-mix(in srgb, #ef4444 10%, transparent);
+  padding: 0.65rem 0.85rem;
+  font-size: 0.8125rem;
+  color: #fecaca;
+  flex-shrink: 0;
+}
+
+/* Team member row */
+.aixia-chat-team-row {
+  width: 100%;
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  padding: 0.5rem 0.55rem;
+  border-radius: var(--aixia-dash-radius-sm);
+  border: 0;
+  background: transparent;
+  text-align: left;
+  cursor: pointer;
+  transition: background 0.12s ease;
+}
+
+.aixia-chat-team-row:hover {
+  background: color-mix(in srgb, var(--primary, #6366f1) 10%, transparent);
+}
+
+.aixia-chat-online-dot {
+  position: absolute;
+  right: 0;
+  bottom: 0;
+  width: 0.625rem;
+  height: 0.625rem;
+  border-radius: 999px;
+  border: 2px solid color-mix(in srgb, var(--background, #020617) 92%, transparent);
+}
+
+.aixia-chat-online-dot--on {
+  background: #22c55e;
+}
+
+.aixia-chat-online-dot--off {
+  background: color-mix(in srgb, var(--aixia-dash-muted) 70%, transparent);
+}

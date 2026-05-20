@@ -23,11 +23,11 @@ import {
   AixiaBadge,
   AixiaButton,
   AixiaEmptyState,
+  AixiaFinanceHubControlPanel,
+  AixiaFinanceHubMetaStrip,
   AixiaHero,
   AixiaLoadingState,
-  AixiaMetricCard,
-  AixiaMetricGrid,
-  AixiaPage,
+  FinancePage,
   AixiaRegistryToolbar,
   AixiaSearchField,
   AixiaSection,
@@ -38,6 +38,7 @@ import {
   AixiaTableDateCell,
   AixiaTableShell,
   AixiaTableTextCell,
+  AixiaCommandMetrics,
 } from "@/components/aixia";
 import { type FinanceLoadMode } from "@/lib/finance/pageAccess";
 import { supabase } from "@/lib/supabase";
@@ -418,6 +419,33 @@ export default function FinanceVendorQuotationsPage() {
     (row) => row.status === "deleted"
   ).length;
 
+  const headerStatusCards = useMemo(
+    () => [
+      {
+        key: "system-status",
+        label: "System Status",
+        value: isLoading ? "Loading" : "Live",
+        detail: "Vendor quotation registry refreshes silently with auto-refresh enabled.",
+        tone: "emerald" as const,
+      },
+      {
+        key: "access",
+        label: "Access",
+        value: "Enabled",
+        detail: "Supplier procurement registry follows the shared Finance permission standard.",
+        tone: "cyan" as const,
+      },
+      {
+        key: "active-records",
+        label: "Active Records",
+        value: summary.total.toLocaleString(),
+        detail: "Vendor quotations in the main registry.",
+        tone: "amber" as const,
+      },
+    ],
+    [isLoading, summary.total]
+  );
+
   const metricCards = [
     {
       key: "received",
@@ -618,66 +646,40 @@ export default function FinanceVendorQuotationsPage() {
   }
 
   return (
-    <AixiaPage>
+    <FinancePage>
       <AixiaHero
+        className="shrink-0 space-y-4"
+        surface="command"
         parentLabel="Transactions"
         parentPath="/finance/transactions"
-        badges={[
-          { label: "Supplier Procurement", tone: "amber" },
-          { label: "Step 01", tone: "cyan" },
-        ]}
         gradientTitle="Vendor"
         title="Quotations"
         subtitle="Supplier quotation registry before purchase order creation."
-        description="Supplier quotation records received before AiXia issues a purchase order. This is the starting point of the supplier procurement flow."
-        statusCards={[
-          {
-            label: "Active Quotations",
-            value: isLoading ? "—" : summary.total.toLocaleString(),
-            description: "Active supplier quotation records.",
-            icon: FileText,
-            tone: "amber",
-          },
-          {
-            label: "Quotation Value",
-            value: isLoading ? "—" : formatMoney(summary.totalValue, "USD"),
-            description: "Approximate active value across currencies.",
-            icon: Wallet,
-            tone: "emerald",
-          },
-        ]}
-      >
-        <div className="aixia-action-system" data-align="start" data-density="compact">
-          <AixiaBadge tone="amber">Vendor quotation → PO</AixiaBadge>
-          <AixiaBadge tone="cyan">Document controlled</AixiaBadge>
-          <AixiaBadge tone="neutral">Auto-refresh enabled</AixiaBadge>
-        </div>
+        >
+        <AixiaCommandMetrics items={metricCards} />
+      
       </AixiaHero>
 
-      <AixiaMetricGrid>
-        {metricCards.map((metric) => (
-          <AixiaMetricCard
-            key={metric.key}
-            label={metric.label}
-            value={metric.value}
-            description={metric.description}
-            icon={metric.icon}
-            tone={metric.tone}
-          />
-        ))}
-      </AixiaMetricGrid>
+      <div className="aixia-command-scroll">
+        <AixiaFinanceHubMetaStrip items={headerStatusCards} />
 
-      <AixiaAccessRule
-        title="Locked access rule"
-        description="Vendor quotation registry access follows the shared Finance supplier procurement, registry, archive, and action-button standard."
-        icon={ShieldCheck}
-      >
-        This page uses shared AiXia components for page shell, hero, metrics, registry toolbar, table shell, sortable headers, archive modal, row actions, and lifecycle buttons. Page-local UI primitives and local Tailwind visual systems are intentionally removed.
-      </AixiaAccessRule>
+        {errorMessage ? <AixiaAlert tone="error">{errorMessage}</AixiaAlert> : null}
 
-      {errorMessage ? <AixiaAlert tone="error">{errorMessage}</AixiaAlert> : null}
+        <AixiaAccessRule
+          title="Locked access rule"
+          description="Vendor quotation registry access follows the shared Finance supplier procurement, registry, archive, and action-button standard."
+          icon={ShieldCheck}
+        >
+          This page uses shared AiXia components for page shell, hero, metrics, registry toolbar, table shell, sortable headers, archive modal, row actions, and lifecycle buttons. Page-local UI primitives and local Tailwind visual systems are intentionally removed.
+        </AixiaAccessRule>
 
-      <AixiaSection
+        <AixiaFinanceHubControlPanel
+          icon={FileText}
+          title="Vendor quotation workflow"
+          description="Vendor quotation → PO. Document controlled. Auto-refresh enabled."
+        />
+
+        <AixiaSection
         title="Vendor Quotation Registry"
         description="Active vendor quotations only. Archived and deleted records are managed from the archive panel."
         icon={FileText}
@@ -841,6 +843,6 @@ export default function FinanceVendorQuotationsPage() {
           </AixiaTableShell>
         )}
       </AixiaArchiveManagerModal>
-    </AixiaPage>
+      </div></FinancePage>
   );
 }

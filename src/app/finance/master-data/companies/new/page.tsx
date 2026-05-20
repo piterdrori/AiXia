@@ -1,23 +1,7 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import type { FormEvent } from "react";
 import { useNavigate } from "react-router-dom";
-import type { LucideIcon } from "lucide-react";
-import {
-  Building2,
-  FileText,
-  Globe,
-  Landmark,
-  Loader2,
-  LockKeyhole,
-  MapPin,
-  Plus,
-  RotateCcw,
-  Save,
-  ShieldCheck,
-  Sparkles,
-  Truck,
-  Users,
-} from "lucide-react";
+import { Building2, FileText, Landmark, Loader2, MapPin, Plus, RotateCcw, Save, Sparkles, Truck, Users } from "lucide-react";
 
 import {
   AixiaAccessDeniedState,
@@ -35,7 +19,7 @@ import {
   AixiaHero,
   AixiaInputField,
   AixiaLoadingState,
-  AixiaPage,
+  FinancePage,
   AixiaReviewBlock,
   AixiaReviewGrid,
   AixiaSection,
@@ -112,13 +96,6 @@ type FormState = {
   notes: string;
 };
 
-type HeaderStatusCardData = {
-  label: string;
-  value: string;
-  description: string;
-  icon: LucideIcon;
-  tone: "emerald" | "cyan" | "amber" | "rose";
-};
 
 type SummaryItem = {
   label: string;
@@ -280,7 +257,7 @@ export default function FinanceMasterDataCompanyCreatePage() {
   const [currencyOptions, setCurrencyOptions] = useState<CurrencyOption[]>([]);
   const [isLoadingProfile, setIsLoadingProfile] = useState(true);
   const [isLoadingCurrencies, setIsLoadingCurrencies] = useState(true);
-  const [backgroundRefreshing, setBackgroundRefreshing] = useState(false);
+  const [, setBackgroundRefreshing] = useState(false);
   const [isSaving, setIsSaving] = useState(false);
   const [formError, setFormError] = useState<string | null>(null);
   const [formMessage, setFormMessage] = useState<string | null>(null);
@@ -505,46 +482,7 @@ export default function FinanceMasterDataCompanyCreatePage() {
     }));
   }, [form.addresses]);
 
-  const headerStatusCards = useMemo<HeaderStatusCardData[]>(() => {
-    return [
-      {
-        label: "Create Access",
-        value: isLoadingProfile
-          ? "Checking"
-          : permissionState.canCreate
-            ? "Enabled"
-            : "Locked",
-        description:
-          "Company create access follows the Finance role template and user-specific exceptions.",
-        icon: permissionState.canCreate ? ShieldCheck : LockKeyhole,
-        tone: permissionState.canCreate ? "emerald" : "rose",
-      },
-      {
-        label: "Currency Source",
-        value: isLoadingCurrencies ? "Loading" : `${currencyOptions.length} Active`,
-        description: backgroundRefreshing
-          ? "Currency master data is refreshing silently without disturbing the form."
-          : "Company currency is selected from Finance Currency master data.",
-        icon: Globe,
-        tone: "cyan",
-      },
-      {
-        label: "Save Result",
-        value: "ID Page",
-        description: "After successful creation, the new company detail page opens directly.",
-        icon: Landmark,
-        tone: "amber",
-      },
-    ];
-  }, [
-    backgroundRefreshing,
-    currencyOptions.length,
-    isLoadingCurrencies,
-    isLoadingProfile,
-    permissionState.canCreate,
-  ]);
-
-  const summaryItems = useMemo<SummaryItem[]>(() => {
+const summaryItems = useMemo<SummaryItem[]>(() => {
     const filledPersonnel = countFilledPersonnel(form.personnel);
     const filledAddresses = countFilledAddresses(form.addresses);
     const filledShipping = countFilledShippingRows(form.shipping_addresses);
@@ -982,24 +920,19 @@ export default function FinanceMasterDataCompanyCreatePage() {
   const isPageLoading = isLoadingProfile;
 
   return (
-    <AixiaPage>
+    <FinancePage>
       <AixiaHero
+        className="shrink-0 space-y-4"
+        surface="command"
         parentLabel="Companies"
         parentPath="/finance/master-data/companies"
-        badges={[
-          { label: "New Internal Company", tone: "cyan" },
-          { label: "Company master data", tone: "emerald" },
-          { label: "Permission protected", tone: "cyan" },
-          { label: "Opens ID page after create", tone: "neutral" },
-        ]}
         gradientTitle="Create"
         title="Company"
         subtitle="Internal Legal Entity Master Data"
-        description="Create an internal finance company with legal identity, default currency, registration details, personnel, primary addresses, shipping addresses, and internal notes."
-        statusCards={headerStatusCards}
-      />
+        />
 
-      {formError ? <AixiaAlert tone="error">{formError}</AixiaAlert> : null}
+      <div className="aixia-command-scroll">
+{formError ? <AixiaAlert tone="error">{formError}</AixiaAlert> : null}
       {formMessage ? <AixiaAlert tone="success">{formMessage}</AixiaAlert> : null}
 
       {isPageLoading ? (
@@ -1670,6 +1603,7 @@ export default function FinanceMasterDataCompanyCreatePage() {
           />
         </form>
       )}
-    </AixiaPage>
+      </div>
+    </FinancePage>
   );
 }

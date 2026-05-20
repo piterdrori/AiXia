@@ -1,7 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from "react";
-import { useNavigate } from "react-router-dom";
 import {
-  ArrowLeft,
   Ban,
   CheckCircle2,
   Database,
@@ -17,6 +15,12 @@ import {
   X,
 } from "lucide-react";
 import { supabase } from "@/lib/supabase";
+import { AixiaCommandMetrics, AixiaHero, AixiaPage } from "@/components/aixia";
+import type { AixiaCommandMetricItem } from "@/components/aixia";
+import "@/styles/dashboard/tokens.css";
+import "@/styles/dashboard/layout.css";
+import "@/styles/dashboard/visual.css";
+
 
 type KnowledgeStrictness = "open" | "hybrid" | "strict";
 type RefusalMode = "soft" | "standard" | "strict";
@@ -169,7 +173,6 @@ function normalizeGuardrailValue(
 }
 
 export default function AIGuardrailsPage() {
-  const navigate = useNavigate();
 
   const guardrailsRef = useRef<GuardrailSettings>(defaultGuardrails);
 
@@ -210,6 +213,16 @@ export default function AIGuardrailsPage() {
 
   const blockedCount = guardrails.blocked_topics.length;
   const allowedCount = guardrails.allowed_topics.length;
+
+  const commandHeaderMetrics = useMemo<AixiaCommandMetricItem[]>(
+    () => [
+      { key: "mode-0", title: "Mode", value: guardrailMode, tone: "neutral" },
+      { key: "active-guards-1", title: "Active Guards", value: String(visibleGuardCount), tone: "rose" },
+      { key: "blocked-2", title: "Blocked", value: String(blockedCount), tone: "amber" },
+      { key: "allowed-3", title: "Allowed", value: String(allowedCount), tone: "emerald" },
+    ],
+    [guardrailMode, visibleGuardCount, blockedCount, allowedCount]
+  );
 
   useEffect(() => {
     void loadGuardrails();
@@ -372,45 +385,19 @@ export default function AIGuardrailsPage() {
   }
 
   return (
-    <div className="min-h-screen bg-[#05070d] px-6 py-6 text-white">
-      <div className="mx-auto flex w-full max-w-[1600px] flex-col gap-6">
-        <header className="overflow-hidden rounded-[30px] border border-white/10 bg-white/[0.045] p-6 shadow-2xl shadow-black/30 backdrop-blur-xl">
-          <div className="flex flex-col gap-5 lg:flex-row lg:items-start lg:justify-between">
-            <div className="space-y-4">
-              <button
-                type="button"
-                onClick={() => navigate("/ai-management")}
-                className="inline-flex items-center gap-2 rounded-full border border-white/10 bg-white/[0.04] px-4 py-2 text-xs font-semibold uppercase tracking-[0.18em] text-slate-300 transition hover:border-cyan-300/40 hover:text-cyan-100"
-              >
-                <ArrowLeft className="h-4 w-4" />
-                AI Studio
-              </button>
+    <AixiaPage surface="command" className="aixia-command-page aixia-ai-management-page"><AixiaHero
+        surface="command"
+        className="shrink-0 space-y-4"
+        parentLabel="AI Studio"
+        parentPath="/ai-management"
+        gradientTitle="Guardrails"
+        title="Guardrails"
+        subtitle="Central control for all visible AI business guardrails. The router should execute these settings from the database, not hidden hardcoded product guards."
+      >
+        <AixiaCommandMetrics items={commandHeaderMetrics} />
+      </AixiaHero>
 
-              <div className="space-y-3">
-                <div className="inline-flex w-fit items-center gap-2 rounded-full border border-rose-400/20 bg-rose-500/10 px-3 py-1 text-[11px] font-semibold uppercase tracking-[0.22em] text-rose-200">
-                  <Shield className="h-3.5 w-3.5" />
-                  Central Guardrail Control Layer
-                </div>
-
-                <div>
-                  <h1 className="text-3xl font-semibold tracking-[-0.03em] text-white md:text-4xl">
-                    Guardrails
-                  </h1>
-                  <p className="mt-2 max-w-3xl text-sm leading-6 text-slate-400">
-                    Central control for all visible AI business guardrails. The router should execute these settings from the database, not hidden hardcoded product guards.
-                  </p>
-                </div>
-              </div>
-            </div>
-
-            <div className="grid gap-3 sm:grid-cols-4 lg:min-w-[760px]">
-              <MetricCard label="Mode" value={guardrailMode} tone="white" />
-              <MetricCard label="Active Guards" value={String(visibleGuardCount)} tone="rose" />
-              <MetricCard label="Blocked" value={String(blockedCount)} tone="amber" />
-              <MetricCard label="Allowed" value={String(allowedCount)} tone="emerald" />
-            </div>
-          </div>
-        </header>
+      <div className="aixia-command-scroll flex flex-col gap-6">
 
         {(errorMessage || actionMessage) && (
           <div className="space-y-2">
@@ -759,35 +746,7 @@ export default function AIGuardrailsPage() {
           </aside>
         </section>
       </div>
-    </div>
-  );
-}
-
-function MetricCard({
-  label,
-  value,
-  tone,
-}: {
-  label: string;
-  value: string;
-  tone: "white" | "rose" | "amber" | "emerald";
-}) {
-  const toneClass =
-    tone === "rose"
-      ? "text-rose-200"
-      : tone === "amber"
-        ? "text-amber-200"
-        : tone === "emerald"
-          ? "text-emerald-200"
-          : "text-white";
-
-  return (
-    <div className="rounded-2xl border border-white/10 bg-white/[0.04] p-4">
-      <p className="text-[11px] uppercase tracking-[0.2em] text-slate-500">
-        {label}
-      </p>
-      <p className={`mt-2 text-2xl font-semibold ${toneClass}`}>{value}</p>
-    </div>
+    </AixiaPage>
   );
 }
 

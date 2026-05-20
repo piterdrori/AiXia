@@ -18,7 +18,26 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import { ArrowLeft, Loader2, Trash2 } from "lucide-react";
+import { Loader2, Trash2, RefreshCw } from "lucide-react";
+import { AixiaButton, AixiaHero, AixiaPage } from "@/components/aixia";
+
+import {
+  calendarFormSelectContentClassName,
+  calendarFormSelectContentProps,
+  calendarFormSelectItemClassName,
+} from "@/app/calendar/formSelectContentProps";
+import {
+  inferMeetingDuration,
+  parseCheckboxChecked,
+  resolveAllDayFromEvent,
+  type MeetingDurationValue as SharedMeetingDurationValue,
+} from "@/app/calendar/calendarEventFormTime";
+
+import "@/styles/dashboard/tokens.css";
+import "@/styles/dashboard/layout.css";
+import "@/styles/dashboard/visual.css";
+import "@/styles/projects/projects-visual.css";
+import "@/styles/calendar/calendar-visual.css";
 
 type EventType =
   | "meeting"
@@ -30,7 +49,7 @@ type EventType =
   | "other";
 
 type ReminderValue = "NONE" | "5" | "10" | "15" | "30" | "60";
-type MeetingDurationValue = "30" | "60" | "90" | "120";
+type MeetingDurationValue = SharedMeetingDurationValue;
 
 type CalendarEventRow = {
   id: string;
@@ -100,14 +119,14 @@ function TimeInput({
   disabled?: boolean;
 }) {
   return (
-    <div className="space-y-2">
-      <Label className="text-slate-300">{label}</Label>
+    <div className="space-y-1.5">
+      <Label className="aixia-projects-label">{label}</Label>
       <Input
         type="time"
         value={normalizeTime(value)}
         onChange={(e) => onChange(e.target.value)}
         disabled={disabled}
-        className="bg-slate-950 border-slate-800 text-white"
+        className="aixia-projects-input h-10"
       />
     </div>
   );
@@ -223,6 +242,7 @@ export default function CalendarEditPage() {
           supabase
             .from("tasks")
             .select("id, title, project_id")
+            .is("deleted_at", null)
             .order("created_at", { ascending: false }),
         ]);
 
@@ -264,7 +284,12 @@ if (!canEdit) {
       setStartTime(event.start_time || "09:00");
       setEndDate(event.end_date || event.start_date || "");
       setEndTime(event.end_time || "10:00");
-      setAllDay(Boolean(event.all_day));
+      setAllDay(resolveAllDayFromEvent(event.all_day, event.start_time));
+      if ((event.event_type || "meeting") === "meeting") {
+        setMeetingDuration(
+          inferMeetingDuration(event.start_time, event.end_time)
+        );
+      }
       setSelectedProjectId(event.project_id || "NONE");
       setSelectedTaskId(event.task_id || "NONE");
       setReminderMinutes(
@@ -367,6 +392,50 @@ if (!canEdit) {
     needsStartAndEnd,
     meetingDuration,
   ]);
+
+  const clearAllDayForTimedFields = () => {
+    if (allDay) setAllDay(false);
+  };
+
+  const handleAllDayChange = (checked: boolean | "indeterminate") => {
+    const nextAllDay = parseCheckboxChecked(checked);
+    setAllDay(nextAllDay);
+
+    if (nextAllDay) {
+      setEndDate((prevEndDate) => prevEndDate || startDate);
+      return;
+    }
+
+    const duration = usesDuration ? Number(meetingDuration || 60) : 60;
+    const nextStartTime = startTime || "09:00";
+    setStartTime(nextStartTime);
+    setEndTime(addMinutesToTime(nextStartTime, duration));
+    setEndDate(startDate);
+  };
+
+  const handleMeetingDurationChange = (value: MeetingDurationValue) => {
+    setMeetingDuration(value);
+    clearAllDayForTimedFields();
+  };
+
+  const handleStartTimeChange = (nextStartTime: string) => {
+    clearAllDayForTimedFields();
+    setStartTime(nextStartTime);
+
+    const autoDuration = usesDuration ? Number(meetingDuration || 60) : 60;
+    const nextEndTime = addMinutesToTime(nextStartTime, autoDuration);
+    setEndTime(nextEndTime);
+
+    const [startHour, startMinute] = normalizeTime(nextStartTime).split(":").map(Number);
+    const startTotal = startHour * 60 + startMinute;
+    const endTotal = startTotal + autoDuration;
+
+    if (endTotal >= 1440) {
+      setEndDate(addDaysToDate(startDate, 1));
+    } else {
+      setEndDate(startDate);
+    }
+  };
 
   const handleSave = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -587,301 +656,325 @@ if (!canDelete) return;
     }
   };
   return (
-    <div className="max-w-4xl mx-auto space-y-6">
-      <div className="flex items-center justify-between gap-3">
-        <div className="flex items-center gap-3">
-          <Button
-            variant="ghost"
-            size="icon"
-            onClick={() => navigate("/calendar")}
-            className="text-slate-400 hover:text-white"
+    <AixiaPage
+      surface="command"
+      className="aixia-command-page aixia-calendar-page aixia-calendar-page--edit h-full flex flex-col overflow-hidden"
+    >
+      <AixiaHero
+        surface="command"
+        className="shrink-0"
+        parentLabel={t("calendar.header.title", "Calendar")}
+        parentPath="/calendar"
+        gradientTitle={t("calendar.header.title", "Calendar")}
+        title={t("calendarEdit.header.title")}
+        subtitle={t("calendarEdit.header.subtitle")}
+        actions={
+          <AixiaButton
+            type="button"
+            className="h-9"
+            onClick={() => void loadPage("refresh")}
+            disabled={isRefreshing}
           >
-            <ArrowLeft className="w-5 h-5" />
-          </Button>
+            <RefreshCw
+              className={`mr-2 h-4 w-4 ${isRefreshing ? "animate-spin" : ""}`}
+            />
+            {isRefreshing ? t("calendarEdit.buttons.refreshing") : t("calendarEdit.buttons.refresh")}
+          </AixiaButton>
+        }
+      />
+      <div className="aixia-command-scroll flex min-h-0 flex-1 flex-col">
+          <Card className="aixia-dash-panel aixia-dash-glass aixia-dash-tilt-panel aixia-projects-panel-card w-full">
+            <CardContent className="p-4 lg:p-6">
+              <form onSubmit={handleSave} className="aixia-calendar-new-form">
+                {error && (
+                  <Alert className="aixia-calendar-alert-error py-2 shrink-0">
+                    <AlertDescription>{error}</AlertDescription>
+                  </Alert>
+                )}
 
-          <div>
-            <h1 className="text-2xl font-bold text-white">{t("calendarEdit.header.title")}</h1>
-            <p className="text-slate-400">{t("calendarEdit.header.subtitle")}</p>
-          </div>
-        </div>
+                {isPageBusy && (
+                  <Alert className="bg-indigo-900/20 border-indigo-800 text-indigo-200 py-2 shrink-0">
+                    <AlertDescription className="flex items-center gap-2">
+                      <Loader2 className="h-4 w-4 animate-spin" />
+                      {t("calendarEdit.status.loadingEventDetails")}
+                    </AlertDescription>
+                  </Alert>
+                )}
 
-        <Button
-          type="button"
-          variant="outline"
-          className="border-slate-700 text-slate-300 hover:bg-slate-800"
-          onClick={() => void loadPage("refresh")}
-          disabled={isRefreshing}
-        >
-          {isRefreshing ? t("calendarEdit.buttons.refreshing") : t("calendarEdit.buttons.refresh")}
-        </Button>
-      </div>
+                <div className="aixia-calendar-new-form-fields">
+                  <div className="grid gap-4 md:grid-cols-2">
+                    <div className="space-y-1.5 md:col-span-2">
+                      <Label className="aixia-projects-label">{t("calendarEdit.fields.title")}</Label>
+                      <Input
+                        value={title}
+                        onChange={(e) => setTitle(e.target.value)}
+                        className="aixia-projects-input h-10"
+                        disabled={isPageBusy}
+                      />
+                    </div>
 
-      {error && (
-        <Alert className="bg-red-900/20 border-red-800 text-red-300">
-          <AlertDescription>{error}</AlertDescription>
-        </Alert>
-      )}
+                    <div className="space-y-1.5 md:col-span-2">
+                      <Label className="aixia-projects-label">{t("calendarEdit.fields.description")}</Label>
+                      <Textarea
+                        value={description}
+                        onChange={(e) => setDescription(e.target.value)}
+                        rows={4}
+                        className="aixia-projects-textarea min-h-[96px] resize-none"
+                        disabled={isPageBusy}
+                      />
+                    </div>
 
-      <Card className="bg-slate-900/50 border-slate-800">
-        <CardContent className="p-6">
-          <form onSubmit={handleSave} className="space-y-6">
-            {isPageBusy && (
-              <Alert className="bg-indigo-900/20 border-indigo-800 text-indigo-200">
-                <AlertDescription className="flex items-center gap-2">
-                  <Loader2 className="w-4 h-4 animate-spin" />
-                  {t("calendarEdit.status.loadingEventDetails")}
-                </AlertDescription>
-              </Alert>
-            )}
+                    <div className="space-y-1.5">
+                      <Label className="aixia-projects-label">{t("calendarEdit.fields.eventType")}</Label>
+                      <Select
+                        value={eventType}
+                        onValueChange={(value) => setEventType(value as EventType)}
+                        disabled={isPageBusy}
+                      >
+                        <SelectTrigger className="aixia-projects-select-trigger h-10">
+                          <SelectValue />
+                        </SelectTrigger>
+                        <SelectContent
+                          {...calendarFormSelectContentProps}
+                          className={calendarFormSelectContentClassName}
+                        >
+                          <SelectItem value="meeting">{t("calendarEdit.eventTypes.meeting")}</SelectItem>
+                          <SelectItem value="task">{t("calendarEdit.eventTypes.task")}</SelectItem>
+                          <SelectItem value="reminder">{t("calendarEdit.eventTypes.reminder")}</SelectItem>
+                          <SelectItem value="deadline">{t("calendarEdit.eventTypes.deadline")}</SelectItem>
+                          <SelectItem value="call">{t("calendarEdit.eventTypes.call")}</SelectItem>
+                          <SelectItem value="personal">{t("calendarEdit.eventTypes.personal")}</SelectItem>
+                          <SelectItem value="other">{t("calendarEdit.eventTypes.other")}</SelectItem>
+                        </SelectContent>
+                      </Select>
+                    </div>
 
-            <div className="grid md:grid-cols-2 gap-4">
-              <div className="space-y-2 md:col-span-2">
-                <Label className="text-slate-300">{t("calendarEdit.fields.title")}</Label>
-                <Input
-                  value={title}
-                  onChange={(e) => setTitle(e.target.value)}
-                  className="bg-slate-950 border-slate-800 text-white"
-                  disabled={isPageBusy}
-                />
-              </div>
+                    <div className="space-y-1.5">
+                      <Label className="aixia-projects-label">{t("calendarEdit.fields.reminder")}</Label>
+                      <Select
+                        value={reminderMinutes}
+                        onValueChange={(value) => setReminderMinutes(value as ReminderValue)}
+                        disabled={isPageBusy}
+                      >
+                        <SelectTrigger className="aixia-projects-select-trigger h-10">
+                          <SelectValue />
+                        </SelectTrigger>
+                        <SelectContent
+                          {...calendarFormSelectContentProps}
+                          className={calendarFormSelectContentClassName}
+                        >
+                          <SelectItem value="NONE">{t("calendarEdit.reminders.none")}</SelectItem>
+                          <SelectItem value="5">{t("calendarEdit.reminders.fiveMinutes")}</SelectItem>
+                          <SelectItem value="10">{t("calendarEdit.reminders.tenMinutes")}</SelectItem>
+                          <SelectItem value="15">{t("calendarEdit.reminders.fifteenMinutes")}</SelectItem>
+                          <SelectItem value="30">{t("calendarEdit.reminders.thirtyMinutes")}</SelectItem>
+                          <SelectItem value="60">{t("calendarEdit.reminders.oneHour")}</SelectItem>
+                        </SelectContent>
+                      </Select>
+                    </div>
 
-              <div className="space-y-2 md:col-span-2">
-                <Label className="text-slate-300">{t("calendarEdit.fields.description")}</Label>
-                <Textarea
-                  value={description}
-                  onChange={(e) => setDescription(e.target.value)}
-                  rows={4}
-                  className="bg-slate-950 border-slate-800 text-white resize-none"
-                  disabled={isPageBusy}
-                />
-              </div>
+                    <div className="flex items-center gap-3 md:col-span-2">
+                      <Checkbox
+                        id="calendar-edit-all-day"
+                        className="aixia-calendar-all-day-checkbox"
+                        checked={allDay}
+                        onCheckedChange={handleAllDayChange}
+                        disabled={isPageBusy}
+                      />
+                      <Label
+                        htmlFor="calendar-edit-all-day"
+                        className="aixia-projects-label cursor-pointer"
+                      >
+                        {t("calendarEdit.fields.allDayEvent")}
+                      </Label>
+                    </div>
 
-              <div className="space-y-2">
-                <Label className="text-slate-300">{t("calendarEdit.fields.eventType")}</Label>
-                <Select
-                  value={eventType}
-                  onValueChange={(value) => setEventType(value as EventType)}
-                  disabled={isPageBusy}
-                >
-                  <SelectTrigger className="bg-slate-950 border-slate-800 text-white">
-                    <SelectValue />
-                  </SelectTrigger>
-                  <SelectContent className="bg-slate-950 border-slate-800 text-white">
-                    <SelectItem value="meeting">{t("calendarEdit.eventTypes.meeting")}</SelectItem>
-                    <SelectItem value="task">{t("calendarEdit.eventTypes.task")}</SelectItem>
-                    <SelectItem value="reminder">{t("calendarEdit.eventTypes.reminder")}</SelectItem>
-                    <SelectItem value="deadline">{t("calendarEdit.eventTypes.deadline")}</SelectItem>
-                    <SelectItem value="call">{t("calendarEdit.eventTypes.call")}</SelectItem>
-                    <SelectItem value="personal">{t("calendarEdit.eventTypes.personal")}</SelectItem>
-                    <SelectItem value="other">{t("calendarEdit.eventTypes.other")}</SelectItem>
-                  </SelectContent>
-                </Select>
-              </div>
+                    <div className="space-y-1.5">
+                      <Label className="aixia-projects-label">{t("calendarEdit.fields.startDate")}</Label>
+                      <Input
+                        type="date"
+                        value={startDate}
+                        onChange={(e) => {
+                          const nextStartDate = e.target.value;
+                          setStartDate(nextStartDate);
 
-              <div className="space-y-2">
-                <Label className="text-slate-300">{t("calendarEdit.fields.reminder")}</Label>
-                <Select
-                  value={reminderMinutes}
-                  onValueChange={(value) => setReminderMinutes(value as ReminderValue)}
-                  disabled={isPageBusy}
-                >
-                  <SelectTrigger className="bg-slate-950 border-slate-800 text-white">
-                    <SelectValue />
-                  </SelectTrigger>
-                  <SelectContent className="bg-slate-950 border-slate-800 text-white">
-                    <SelectItem value="NONE">{t("calendarEdit.reminders.none")}</SelectItem>
-                    <SelectItem value="5">{t("calendarEdit.reminders.fiveMinutes")}</SelectItem>
-                    <SelectItem value="10">{t("calendarEdit.reminders.tenMinutes")}</SelectItem>
-                    <SelectItem value="15">{t("calendarEdit.reminders.fifteenMinutes")}</SelectItem>
-                    <SelectItem value="30">{t("calendarEdit.reminders.thirtyMinutes")}</SelectItem>
-                    <SelectItem value="60">{t("calendarEdit.reminders.oneHour")}</SelectItem>
-                  </SelectContent>
-                </Select>
-              </div>
+                          setEndDate((prevEndDate) => {
+                            if (!prevEndDate || prevEndDate < nextStartDate) {
+                              return nextStartDate;
+                            }
+                            return prevEndDate;
+                          });
+                        }}
+                        className="aixia-projects-input h-10"
+                        disabled={isPageBusy}
+                      />
+                    </div>
 
-              <div className="flex items-center gap-3 md:col-span-2">
-                <Checkbox
-                  checked={allDay}
-                  onCheckedChange={(checked) => setAllDay(Boolean(checked))}
-                  disabled={isPageBusy}
-                />
-                <Label className="text-slate-300">{t("calendarEdit.fields.allDayEvent")}</Label>
-              </div>
+                    {!allDay && (
+                      <TimeInput
+                        label={t("calendarEdit.fields.startTime")}
+                        value={startTime}
+                        onChange={handleStartTimeChange}
+                        disabled={isPageBusy}
+                      />
+                    )}
 
-              <div className="space-y-2">
-                <Label className="text-slate-300">{t("calendarEdit.fields.startDate")}</Label>
-                <Input
-                  type="date"
-                  value={startDate}
-                  onChange={(e) => {
-                    const nextStartDate = e.target.value;
-                    setStartDate(nextStartDate);
+                    {usesDuration && !allDay && (
+                      <div className="space-y-1.5">
+                        <Label className="aixia-projects-label">{t("calendarEdit.fields.duration")}</Label>
+                        <Select
+                          value={meetingDuration}
+                          onValueChange={(value) =>
+                            handleMeetingDurationChange(value as MeetingDurationValue)
+                          }
+                          disabled={isPageBusy}
+                        >
+                          <SelectTrigger className="aixia-projects-select-trigger h-10">
+                            <SelectValue />
+                          </SelectTrigger>
+                          <SelectContent
+                          {...calendarFormSelectContentProps}
+                          className={calendarFormSelectContentClassName}
+                        >
+                            <SelectItem value="30">{t("calendarEdit.durations.thirtyMinutes")}</SelectItem>
+                            <SelectItem value="60">{t("calendarEdit.durations.oneHour")}</SelectItem>
+                            <SelectItem value="90">{t("calendarEdit.durations.oneAndHalfHours")}</SelectItem>
+                            <SelectItem value="120">{t("calendarEdit.durations.twoHours")}</SelectItem>
+                          </SelectContent>
+                        </Select>
+                      </div>
+                    )}
 
-                    setEndDate((prevEndDate) => {
-                      if (!prevEndDate || prevEndDate < nextStartDate) {
-                        return nextStartDate;
-                      }
-                      return prevEndDate;
-                    });
-                  }}
-                  className="bg-slate-950 border-slate-800 text-white"
-                  disabled={isPageBusy}
-                />
-              </div>
+                    {(needsStartAndEnd || usesDuration) && (
+                      <div className="space-y-1.5">
+                        <Label className="aixia-projects-label">{t("calendarEdit.fields.endDate")}</Label>
+                        <Input
+                          type="date"
+                          value={endDate}
+                          min={startDate}
+                          onChange={(e) => setEndDate(e.target.value)}
+                          className="aixia-projects-input h-10"
+                          disabled={usesDuration || isPageBusy}
+                        />
+                      </div>
+                    )}
 
-                            {!allDay && (
-                <TimeInput
-                  label={t("calendarEdit.fields.startTime")}
-                  value={startTime}
-                  onChange={(nextStartTime) => {
-                    setStartTime(nextStartTime);
+                    {needsStartAndEnd && !allDay && (
+                      <TimeInput
+                        label={t("calendarEdit.fields.endTime")}
+                        value={endTime}
+                        onChange={(nextEndTime) => {
+                          clearAllDayForTimedFields();
+                          setEndTime(nextEndTime);
+                        }}
+                        disabled={isPageBusy}
+                      />
+                    )}
 
-                    const autoDuration = usesDuration ? Number(meetingDuration || 60) : 60;
-                    const nextEndTime = addMinutesToTime(nextStartTime, autoDuration);
-                    setEndTime(nextEndTime);
+                    <div className="space-y-1.5">
+                      <Label className="aixia-projects-label">{t("calendarEdit.fields.relatedProject")}</Label>
+                      <Select
+                        value={selectedProjectId}
+                        onValueChange={(value) => {
+                          setSelectedProjectId(value);
+                          setSelectedTaskId("NONE");
+                        }}
+                        disabled={isPageBusy}
+                      >
+                        <SelectTrigger className="aixia-projects-select-trigger h-10">
+                          <SelectValue />
+                        </SelectTrigger>
+                        <SelectContent
+                          {...calendarFormSelectContentProps}
+                          className={calendarFormSelectContentClassName}
+                        >
+                          <SelectItem value="NONE" className={calendarFormSelectItemClassName}>
+                            {t("calendarEdit.common.none")}
+                          </SelectItem>
+                          {projects.map((project) => (
+                            <SelectItem
+                              key={project.id}
+                              value={project.id}
+                              className={calendarFormSelectItemClassName}
+                            >
+                              {project.name}
+                            </SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                    </div>
 
-                    const [startHour, startMinute] = normalizeTime(nextStartTime).split(":").map(Number);
-                    const startTotal = startHour * 60 + startMinute;
-                    const endTotal = startTotal + autoDuration;
+                    <div className="space-y-1.5">
+                      <Label className="aixia-projects-label">{t("calendarEdit.fields.relatedTask")}</Label>
+                      <Select
+                        value={selectedTaskId}
+                        onValueChange={setSelectedTaskId}
+                        disabled={selectedProjectId === "NONE" || isLoadingRelatedData || isPageBusy}
+                      >
+                        <SelectTrigger className="aixia-projects-select-trigger h-10">
+                          <SelectValue />
+                        </SelectTrigger>
+                        <SelectContent
+                          {...calendarFormSelectContentProps}
+                          className={calendarFormSelectContentClassName}
+                        >
+                          <SelectItem value="NONE" className={calendarFormSelectItemClassName}>
+                            {t("calendarEdit.common.none")}
+                          </SelectItem>
+                          {filteredTasks.map((task) => (
+                            <SelectItem
+                              key={task.id}
+                              value={task.id}
+                              className={calendarFormSelectItemClassName}
+                            >
+                              {task.title}
+                            </SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                    </div>
+                  </div>
+                </div>
 
-                    if (endTotal >= 1440) {
-                      setEndDate(addDaysToDate(startDate, 1));
-                    } else {
-                      setEndDate(startDate);
-                    }
-                  }}
-                  disabled={isPageBusy}
-                />
-              )}
-
-              {usesDuration && !allDay && (
-                <div className="space-y-2">
-                  <Label className="text-slate-300">{t("calendarEdit.fields.duration")}</Label>
-                  <Select
-                    value={meetingDuration}
-                    onValueChange={(value) => setMeetingDuration(value as MeetingDurationValue)}
-                    disabled={isPageBusy}
+                <div className="aixia-calendar-new-form-footer aixia-calendar-new-form-footer--split">
+                  <Button
+                    type="button"
+                    variant="outline"
+                    className="aixia-dash-action aixia-dash-action--danger h-9"
+                    onClick={() => void handleDelete()}
+                    disabled={isDeleting || isPageBusy}
                   >
-                    <SelectTrigger className="bg-slate-950 border-slate-800 text-white">
-                      <SelectValue />
-                    </SelectTrigger>
-                    <SelectContent className="bg-slate-950 border-slate-800 text-white">
-                      <SelectItem value="30">{t("calendarEdit.durations.thirtyMinutes")}</SelectItem>
-                      <SelectItem value="60">{t("calendarEdit.durations.oneHour")}</SelectItem>
-                      <SelectItem value="90">{t("calendarEdit.durations.oneAndHalfHours")}</SelectItem>
-                      <SelectItem value="120">{t("calendarEdit.durations.twoHours")}</SelectItem>
-                    </SelectContent>
-                  </Select>
+                    <Trash2 className="mr-2 h-4 w-4" />
+                    {isDeleting ? t("calendarEdit.buttons.deleting") : t("calendarEdit.buttons.delete")}
+                  </Button>
+
+                  <div className="flex flex-wrap gap-3">
+                    <Button
+                      type="button"
+                      variant="outline"
+                      onClick={() => navigate("/calendar")}
+                      className="aixia-dash-action h-9"
+                    >
+                      {t("calendarEdit.buttons.cancel")}
+                    </Button>
+
+                    <Button
+                      type="submit"
+                      className="aixia-dash-action aixia-dash-action--primary h-9"
+                      disabled={isSaving || isPageBusy}
+                    >
+                      {isSaving
+                        ? t("calendarEdit.buttons.saving")
+                        : isPageBusy
+                          ? t("calendarEdit.buttons.loading")
+                          : t("calendarEdit.buttons.saveChanges")}
+                    </Button>
+                  </div>
                 </div>
-              )}
-
-              {(needsStartAndEnd || usesDuration) && (
-                <div className="space-y-2">
-                  <Label className="text-slate-300">{t("calendarEdit.fields.endDate")}</Label>
-                  <Input
-                    type="date"
-                    value={endDate}
-                    min={startDate}
-                    onChange={(e) => setEndDate(e.target.value)}
-                    className="bg-slate-950 border-slate-800 text-white"
-                    disabled={usesDuration || isPageBusy}
-                  />
-                </div>
-              )}
-
-                            {needsStartAndEnd && !allDay && (
-                <TimeInput
-                  label={t("calendarEdit.fields.endTime")}
-                  value={endTime}
-                  onChange={setEndTime}
-                  disabled={isPageBusy}
-                />
-              )}
-
-              <div className="space-y-2">
-                <Label className="text-slate-300">{t("calendarEdit.fields.relatedProject")}</Label>
-                <Select
-                  value={selectedProjectId}
-                  onValueChange={(value) => {
-                    setSelectedProjectId(value);
-                    setSelectedTaskId("NONE");
-                  }}
-                  disabled={isPageBusy}
-                >
-                  <SelectTrigger className="bg-slate-950 border-slate-800 text-white">
-                    <SelectValue />
-                  </SelectTrigger>
-                  <SelectContent className="bg-slate-950 border-slate-800 text-white">
-                    <SelectItem value="NONE">{t("calendarEdit.common.none")}</SelectItem>
-                    {projects.map((project) => (
-                      <SelectItem key={project.id} value={project.id}>
-                        {project.name}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-              </div>
-
-              <div className="space-y-2">
-                <Label className="text-slate-300">{t("calendarEdit.fields.relatedTask")}</Label>
-                <Select
-                  value={selectedTaskId}
-                  onValueChange={setSelectedTaskId}
-                  disabled={selectedProjectId === "NONE" || isLoadingRelatedData || isPageBusy}
-                >
-                  <SelectTrigger className="bg-slate-950 border-slate-800 text-white">
-                    <SelectValue />
-                  </SelectTrigger>
-                  <SelectContent className="bg-slate-950 border-slate-800 text-white">
-                    <SelectItem value="NONE">{t("calendarEdit.common.none")}</SelectItem>
-                    {filteredTasks.map((task) => (
-                      <SelectItem key={task.id} value={task.id}>
-                        {task.title}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-              </div>
-            </div>
-
-            <div className="flex justify-between gap-3">
-              <Button
-                type="button"
-                variant="outline"
-                className="border-red-800 text-red-400 hover:bg-red-900/20"
-                onClick={() => void handleDelete()}
-                disabled={isDeleting || isPageBusy}
-              >
-                <Trash2 className="w-4 h-4 mr-2" />
-                {isDeleting ? t("calendarEdit.buttons.deleting") : t("calendarEdit.buttons.delete")}
-              </Button>
-
-              <div className="flex gap-3">
-                <Button
-                  type="button"
-                  variant="outline"
-                  className="border-slate-700 text-slate-300 hover:bg-slate-800"
-                  onClick={() => navigate("/calendar")}
-                >
-                  {t("calendarEdit.buttons.cancel")}
-                </Button>
-
-                <Button
-                  type="submit"
-                  className="bg-indigo-600 hover:bg-indigo-700 text-white"
-                  disabled={isSaving || isPageBusy}
-                >
-                  {isSaving
-                    ? t("calendarEdit.buttons.saving")
-                    : isPageBusy
-                      ? t("calendarEdit.buttons.loading")
-                      : t("calendarEdit.buttons.saveChanges")}
-                </Button>
-              </div>
-            </div>
-          </form>
-        </CardContent>
-      </Card>
-    </div>
+              </form>
+            </CardContent>
+          </Card>
+      </div>
+    </AixiaPage>
   );
 }

@@ -1,23 +1,6 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { useNavigate } from "react-router-dom";
-import {
-  Archive,
-  ArrowRight,
-  Building2,
-  CheckCircle2,
-  Landmark,
-  Loader2,
-  LockKeyhole,
-  Mail,
-  MapPin,
-  Phone,
-  Plus,
-  RotateCcw,
-  Search,
-  ShieldCheck,
-  Trash2,
-  Users,
-} from "lucide-react";
+import { Archive, ArrowRight, Building2, CheckCircle2, Loader2, Mail, MapPin, Phone, Plus, RotateCcw, Search, Trash2, Users } from "lucide-react";
 
 import {
   AixiaAccessDeniedState,
@@ -29,9 +12,7 @@ import {
   AixiaEmptyState,
   AixiaHero,
   AixiaLoadingState,
-  AixiaMetricCard,
-  AixiaMetricGrid,
-  AixiaPage,
+  FinancePage,
   AixiaRegistryToolbar,
   AixiaSearchField,
   AixiaSection,
@@ -42,6 +23,7 @@ import {
   AixiaTableDateCell,
   AixiaTableShell,
   AixiaTableTextCell,
+  AixiaCommandMetrics
 } from "@/components/aixia";
 
 import {
@@ -191,7 +173,7 @@ export default function FinanceMasterDataVendorsPage() {
   const [isLoadingProfile, setIsLoadingProfile] = useState(true);
   const [isLoadingVendors, setIsLoadingVendors] = useState(true);
   const [isLoadingArchive, setIsLoadingArchive] = useState(false);
-  const [backgroundRefreshing, setBackgroundRefreshing] = useState(false);
+  const [, setBackgroundRefreshing] = useState(false);
 
   const [pageError, setPageError] = useState<string | null>(null);
   const [pageMessage, setPageMessage] = useState<string | null>(null);
@@ -620,6 +602,17 @@ export default function FinanceMasterDataVendorsPage() {
   const isPageLoading = isLoadingProfile || isLoadingVendors;
   const isActionRunning = Boolean(runningAction);
 
+  const __registryCommandMetrics = useMemo(
+    () => [
+    { key: "visible-vendors", title: "Visible Vendors", value: String(formatCount(counts.totalVisible)), subtitle: "Active and inactive vendor master records.", icon: Building2, tone: "cyan", },
+    { key: "active", title: "Active", value: String(formatCount(counts.active)), subtitle: "Available for procurement and payables.", icon: CheckCircle2, tone: "emerald", },
+    { key: "with-contact", title: "With Contact", value: String(formatCount(counts.withContact)), subtitle: "Vendors with a saved contact person.", icon: Users, tone: "violet", },
+    { key: "archived", title: "Archived", value: String(formatCount(counts.archived)), subtitle: "Hidden from active operational use.", icon: Archive, tone: "rose", }
+    
+    ],
+    [counts, formatCount]
+  );
+
   if (isPageLoading) {
     return (
       <AixiaLoadingState
@@ -629,83 +622,24 @@ export default function FinanceMasterDataVendorsPage() {
     );
   }
 
-  return (
-    <AixiaPage>
+return (
+    <FinancePage>
       <AixiaHero
+        className="shrink-0 space-y-4"
+        surface="command"
         parentLabel="Master Data"
         parentPath="/finance/master-data"
-        badges={[
-          { label: "Vendor Master Data", tone: "cyan" },
-          { label: "Permission Filtered", tone: "emerald" },
-          {
-            label: backgroundRefreshing ? "Updating Silently" : "Realtime + 60s",
-            tone: backgroundRefreshing ? "gold" : "neutral",
-          },
-        ]}
         gradientTitle="Vendors"
         title="Registry"
-        subtitle="External Supplier Master Data"
-        description="Permission-filtered registry for external suppliers, vendor legal identity, contact details, country, communication channels, and procurement/payables readiness."
-        statusCards={[
-          {
-            label: "Read Access",
-            value: permissionState.canRead ? "Enabled" : "Locked",
-            description:
-              "This page requires Vendor, Payables, Finance, or Master Data read access.",
-            icon: permissionState.canRead ? ShieldCheck : LockKeyhole,
-            tone: permissionState.canRead ? "emerald" : "rose",
-          },
-          {
-            label: "Lifecycle Access",
-            value: permissionState.canDeleteArchive
-              ? "Archive Enabled"
-              : permissionState.canCreate
-              ? "Create Enabled"
-              : "Read Only",
-            description:
-              "Create and Delete/Archive actions follow the Finance template.",
-            icon: permissionState.canDeleteArchive ? Archive : Landmark,
-            tone: permissionState.canDeleteArchive ? "amber" : "cyan",
-          },
-        ]}
-      />
+        subtitle="External Supplier Master Data">
+        <AixiaCommandMetrics items={__registryCommandMetrics} />
+      </AixiaHero>
 
-      {pageError ? <AixiaAlert tone="error">{pageError}</AixiaAlert> : null}
+      <div className="aixia-command-scroll">
+{pageError ? <AixiaAlert tone="error">{pageError}</AixiaAlert> : null}
       {pageMessage ? <AixiaAlert tone="success">{pageMessage}</AixiaAlert> : null}
 
-      <AixiaMetricGrid>
-        <AixiaMetricCard
-          label="Visible Vendors"
-          value={formatCount(counts.totalVisible)}
-          description="Active and inactive vendor master records."
-          icon={Building2}
-          tone="cyan"
-        />
-
-        <AixiaMetricCard
-          label="Active"
-          value={formatCount(counts.active)}
-          description="Available for procurement and payables."
-          icon={CheckCircle2}
-          tone="emerald"
-        />
-
-        <AixiaMetricCard
-          label="With Contact"
-          value={formatCount(counts.withContact)}
-          description="Vendors with a saved contact person."
-          icon={Users}
-          tone="violet"
-        />
-
-        <AixiaMetricCard
-          label="Archived"
-          value={formatCount(counts.archived)}
-          description="Hidden from active operational use."
-          icon={Archive}
-          tone="rose"
-        />
-      </AixiaMetricGrid>
+      
 
       {!permissionState.canRead ? (
         <AixiaAccessDeniedState
@@ -1089,6 +1023,7 @@ export default function FinanceMasterDataVendorsPage() {
           )}
         </div>
       </AixiaArchiveManagerModal>
-    </AixiaPage>
+      </div>
+    </FinancePage>
   );
 }

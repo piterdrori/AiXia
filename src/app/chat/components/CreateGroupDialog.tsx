@@ -38,42 +38,44 @@ export default function CreateGroupDialog({
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="bg-slate-950 border-slate-800 text-white max-w-lg">
+      <DialogContent className="aixia-dash-panel border-[var(--aixia-dash-border)] bg-[var(--aixia-dash-surface)] text-[var(--aixia-dash-title)] max-w-lg">
         <DialogHeader>
-          <DialogTitle>{t("chat.createGroupDialog.title")}</DialogTitle>
+          <DialogTitle className="aixia-dash-panel-title">
+            {t("chat.createGroupDialog.title")}
+          </DialogTitle>
         </DialogHeader>
 
         <div className="space-y-4">
           <div>
-            <label className="text-sm text-slate-300 mb-2 block">
+            <label className="aixia-projects-label mb-2 block text-sm">
               {t("chat.createGroupDialog.groupName")}
             </label>
             <Input
               value={groupName}
               onChange={(e) => onGroupNameChange(e.target.value)}
               placeholder={t("chat.createGroupDialog.groupNamePlaceholder")}
-              className="bg-slate-900 border-slate-800 text-white"
+              className="aixia-projects-input"
             />
           </div>
 
           <div>
-            <label className="text-sm text-slate-300 mb-2 block">
+            <label className="aixia-projects-label mb-2 block text-sm">
               {t("chat.createGroupDialog.selectMembers")}
             </label>
-            <div className="max-h-64 overflow-y-auto rounded-lg border border-slate-800 bg-slate-900 p-2 space-y-2">
+            <div className="aixia-projects-member-list max-h-64 overflow-y-auto p-2 space-y-2">
               {profiles
                 .filter((user) => user.user_id !== currentUserId && user.status === "active")
                 .map((user) => (
                   <label
                     key={user.user_id}
-                    className="flex items-center justify-between gap-3 rounded-md px-3 py-2 hover:bg-slate-800 cursor-pointer"
+                    className="aixia-projects-member-row aixia-projects-member-row--pick cursor-pointer rounded-md px-3 py-2"
                   >
-                    <div>
-                      <div className="text-white text-sm font-medium">
+                    <span className="aixia-projects-member-tile-meta flex-1">
+                      <span className="aixia-dash-list-row-title">
                         {user.full_name || t("chat.common.unknown")}
-                      </div>
-                      <div className="text-slate-500 text-xs">{user.role}</div>
-                    </div>
+                      </span>
+                      <span className="aixia-dash-pill">{user.role}</span>
+                    </span>
 
                     <Checkbox
                       checked={selectedGroupMembers.includes(user.user_id)}
@@ -84,16 +86,12 @@ export default function CreateGroupDialog({
             </div>
           </div>
 
-           {error ? (
-            <div className="rounded-md border border-red-800 bg-red-900/20 px-3 py-2 text-sm text-red-300">
-              {error}
-            </div>
-          ) : null}
+          {error ? <div className="aixia-chat-error">{error}</div> : null}
 
-          <div className="flex justify-end gap-2 pt-2">
+          <div className="aixia-projects-new-form-footer">
             <Button
               variant="outline"
-              className="border-slate-700 text-slate-300 hover:bg-slate-800"
+              className="aixia-dash-action h-9"
               onClick={onCancel}
             >
               {t("chat.createGroupDialog.cancel")}
@@ -102,7 +100,7 @@ export default function CreateGroupDialog({
             <Button
               onClick={onCreate}
               disabled={isCreatingGroup}
-              className="bg-indigo-600 hover:bg-indigo-700 text-white"
+              className="aixia-dash-action aixia-dash-action--primary h-9"
             >
               {isCreatingGroup
                 ? t("chat.createGroupDialog.creating")

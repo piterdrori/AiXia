@@ -38,7 +38,11 @@ import {
   CheckCircle2,
 } from "lucide-react";
 import { useLanguage } from "@/lib/i18n";
+import { AixiaButton, AixiaHero, AixiaPage, AixiaWorkspaceCard } from "@/components/aixia";
 import { useAppClock } from "@/lib/clock/provider";
+import "@/styles/dashboard/tokens.css";
+import "@/styles/dashboard/layout.css";
+import "@/styles/dashboard/visual.css";
 import {
   getEffectivePermissions,
   type Role,
@@ -1235,21 +1239,6 @@ const handleResendInvite = async (invitation: InvitationRow) => {
     }
   };
 
-  const getStatusColor = (status: Status) => {
-    switch (status) {
-      case "active":
-        return "bg-green-500/20 text-green-400 border-green-500/30";
-      case "pending_approval":
-        return "bg-amber-500/20 text-amber-400 border-amber-500/30";
-      case "rejected":
-        return "bg-red-500/20 text-red-400 border-red-500/30";
-      case "pending_verification":
-      case "pending_profile":
-      default:
-        return "bg-slate-500/20 text-slate-400 border-slate-500/30";
-    }
-  };
-
   const getStatusLabel = (status: Status) => {
     switch (status) {
       case "pending_verification":
@@ -1290,39 +1279,41 @@ const handleResendInvite = async (invitation: InvitationRow) => {
   }
   
   return (
-    <div className="space-y-6">
-      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
-        <div>
-          <h1 className="text-2xl font-bold text-white">{t("employees.header.title")}</h1>
-          <p className="text-slate-400">
-            {t("employees.header.subtitle")}
-          </p>
-        </div>
-
-        <div className="flex items-center gap-2">
-          <Button
-            variant="outline"
-            className="border-slate-700 text-slate-300 hover:bg-slate-800"
-            onClick={() => void loadProfiles()}
-disabled={employeesRequest.status === "loading"}
-          >
-            {employeesRequest.status === "loading"
-  ? t("employees.actions.refreshing")
-  : t("employees.actions.refresh")}
-          </Button>
-
-          {canManageUsers && (
-            <Button
-              className="bg-indigo-600 hover:bg-indigo-700 text-white"
-              onClick={() => setInviteDialogOpen(true)}
+    <AixiaPage surface="command" className="aixia-command-page aixia-employees-page">
+      <AixiaHero
+        surface="command"
+        className="shrink-0"
+        gradientTitle={t("employees.header.title")}
+        title={t("employees.header.title")}
+        subtitle={t("employees.header.subtitle")}
+        actions={
+          <>
+            <AixiaButton
+              type="button"
+              className="h-9"
+              onClick={() => void loadProfiles()}
+              disabled={employeesRequest.status === "loading"}
             >
-              <Plus className="w-4 h-4 mr-2" />
-              {t("employees.actions.inviteMember")}
-            </Button>
-          )}
-        </div>
-      </div>
+              {employeesRequest.status === "loading"
+                ? t("employees.actions.refreshing")
+                : t("employees.actions.refresh")}
+            </AixiaButton>
+            {canManageUsers ? (
+              <AixiaButton
+                variant="primary"
+                type="button"
+                className="h-9"
+                onClick={() => setInviteDialogOpen(true)}
+              >
+                <Plus className="h-4 w-4 mr-2" />
+                {t("employees.actions.inviteMember")}
+              </AixiaButton>
+            ) : null}
+          </>
+        }
+      />
 
+      <div className="aixia-command-scroll space-y-6">
       {error && (
         <Card className="bg-red-900/10 border-red-800/30">
           <CardContent className="p-4 flex items-start gap-3">
@@ -1847,148 +1838,118 @@ disabled={employeesRequest.status === "loading"}
         </div>
       ) : visibleUsers.length > 0 ? (
         <div className="grid xl:grid-cols-2 gap-4">
-          {visibleUsers.map((user) => (
-            <Card
-  key={user.user_id}
- className={`bg-slate-900/50 border-slate-800 transition-all cursor-pointer ${
-  canOpenEmployeeDetail(user.user_id)
-    ? "hover:border-indigo-500/30"
-    : "hover:border-slate-700"
-}`}
-                            onClick={() => {
-  const allowed = canOpenEmployeeDetail(user.user_id);
+          {visibleUsers.map((user) => {
+            const employeeFields = buildEmployeeFields(user);
+            const canOpen = canOpenEmployeeDetail(user.user_id);
 
-    if (!allowed) {
-    setRequestAccessTargetUserId(user.user_id);
-    setHasRequestedAccess(false);
-    setAccessRequestError("");
-    setShowAccessDenied(true);
-    return;
-  }
+            return (
+              <AixiaWorkspaceCard
+                key={user.user_id}
+                as="div"
+                size="compact"
+                label={user.full_name || t("employees.empty.unnamedUser")}
+                eyebrow={user.role.toUpperCase()}
+                description={
+                  user.email ||
+                  user.job_title ||
+                  user.company ||
+                  t("employees.empty.noProfileDetails")
+                }
+                icon={user.role === "admin" ? Shield : UserIcon}
+                statusLabel={
+                  !canOpen
+                    ? "RESTRICTED"
+                    : getStatusLabel(user.status).toUpperCase()
+                }
+                summary={
+                  canOpen
+                    ? t("employees.access.fullDirectory", "Full directory access")
+                    : t("employees.access.requestRequired", "Request access required")
+                }
+                tone={
+                  !canOpen
+                    ? "neutral"
+                    : user.role === "admin"
+                      ? "rose"
+                      : user.role === "manager"
+                        ? "cyan"
+                        : "indigo"
+                }
+                onClick={() => {
+                  if (!canOpen) {
+                    setRequestAccessTargetUserId(user.user_id);
+                    setHasRequestedAccess(false);
+                    setAccessRequestError("");
+                    setShowAccessDenied(true);
+                    return;
+                  }
 
-  navigate(`/employees/${user.user_id}`);
-}}
-             
-            >
-              <CardContent className="p-4">
-                <div className="flex items-start gap-3">
-                  <Avatar className="w-10 h-10 shrink-0">
-                    <AvatarFallback className="bg-indigo-600 text-white text-sm">
-                      {getInitials(user.full_name)}
-                    </AvatarFallback>
-                  </Avatar>
-
-                  <div className="flex-1 min-w-0 space-y-3">
-                    <div className="flex items-start justify-between gap-3">
-                      <div className="min-w-0">
-                        <div className="flex items-center gap-2 flex-wrap">
-                          <h3 className="text-white font-semibold text-sm break-words">
-                            {user.full_name || t("employees.empty.unnamedUser")}
-                          </h3>
-                          {user.role === "admin" ? (
-                            <Shield className="w-4 h-4 text-red-400 shrink-0" />
-                          ) : (
-                            <UserIcon className="w-4 h-4 text-slate-400 shrink-0" />
-                          )}
-                        </div>
-
-                        <div className="mt-2 flex items-center gap-2 flex-wrap">
-  <Badge className={getRoleColor(user.role)}>
-    {user.role.toUpperCase()}
-  </Badge>
-  <Badge className={getStatusColor(user.status)}>
-    {getStatusLabel(user.status)}
-  </Badge>
-
-  {!canOpenEmployeeDetail(user.user_id) && (
-    <Badge className="bg-slate-800 text-slate-200 border-slate-700 flex items-center gap-1">
-      <Lock className="w-3 h-3" />
-      Restricted
-    </Badge>
-  )}
-
-  {!user.profile_completed && user.status === "active" && (
-    <Badge className="bg-amber-500/20 text-amber-400 border-amber-500/30">
-      {t("employees.badges.profileIncomplete")}
-    </Badge>
-  )}
-</div>
-                      </div>
-
-                      <Button
-                        size="sm"
-                        variant="outline"
-                        className="border-slate-700 text-slate-300 hover:bg-slate-800 shrink-0"
-                        onClick={(e) => {
-                          e.stopPropagation();
-                          void handleStartDirectMessage(user.user_id);
-                        }}
-                        disabled={directMessageLoadingUserId === user.user_id}
+                  navigate(`/employees/${user.user_id}`);
+                }}
+                topRightSlot={
+                  <AixiaButton
+                    type="button"
+                    className="h-8 px-2 text-xs"
+                    onClick={(event) => {
+                      event.stopPropagation();
+                      void handleStartDirectMessage(user.user_id);
+                    }}
+                    disabled={directMessageLoadingUserId === user.user_id}
+                  >
+                    <MessageSquare className="w-4 h-4 mr-1" />
+                    {directMessageLoadingUserId === user.user_id
+                      ? t("employees.actions.opening")
+                      : t("employees.actions.sendMessage")}
+                  </AixiaButton>
+                }
+              >
+                {employeeFields.length > 0 ? (
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-2 text-sm">
+                    {employeeFields.map((field) => (
+                      <div
+                        key={`${user.user_id}-${field.key}`}
+                        className={[
+                          "rounded-lg border border-slate-800 bg-slate-950/50 px-3 py-2 min-w-0",
+                          field.fullWidth ? "md:col-span-2" : "",
+                        ]
+                          .filter(Boolean)
+                          .join(" ")}
                       >
-                        <MessageSquare className="w-4 h-4 mr-2" />
-                        {directMessageLoadingUserId === user.user_id
-                          ? t("employees.actions.opening")
-                          : t("employees.actions.sendMessage")}
-                      </Button>
-                    </div>
-
-                    {(() => {
-                      const employeeFields = buildEmployeeFields(user);
-
-                      return employeeFields.length > 0 ? (
-                        <div className="grid grid-cols-1 md:grid-cols-2 gap-2 text-sm">
-                          {employeeFields.map((field) => (
-                            <div
-                              key={`${user.user_id}-${field.key}`}
-                              className={[
-                                "rounded-lg border border-slate-800 bg-slate-950/50 px-3 py-2 min-w-0",
-                                field.fullWidth ? "md:col-span-2" : "",
-                              ]
-                                .filter(Boolean)
-                                .join(" ")}
-                            >
-                              <div className="flex items-start gap-2 min-w-0">
-                                <div className="mt-0.5 shrink-0">
-                                  {getFieldIcon(field.icon)}
-                                </div>
-                                <div className="min-w-0 flex-1">
-                                  <p className="text-slate-500 mb-1 text-[10px] uppercase tracking-[0.12em]">
-                                    {field.key === "member-type"
-                                      ? getEmployeeFieldLabel(field.key)
-                                      : getEmployeeFieldLabel(field.key)}
-                                  </p>
-                                  <div className="space-y-1">
-                                    {field.values.map((value, index) => (
-                                      <p
-                                        key={`${user.user_id}-${field.key}-${index}`}
-                                        className={
-                                          field.key === "bio"
-                                            ? "text-slate-300 leading-relaxed break-words whitespace-pre-wrap text-xs"
-                                            : "text-slate-300 break-words text-xs"
-                                        }
-                                      >
-                                        {field.key === "member-type"
-                                          ? getTranslatedMemberTypeLabel(value)
-                                          : value}
-                                      </p>
-                                    ))}
-                                  </div>
-                                </div>
-                              </div>
+                        <div className="flex items-start gap-2 min-w-0">
+                          <div className="mt-0.5 shrink-0">{getFieldIcon(field.icon)}</div>
+                          <div className="min-w-0 flex-1">
+                            <p className="text-slate-500 mb-1 text-[10px] uppercase tracking-[0.12em]">
+                              {getEmployeeFieldLabel(field.key)}
+                            </p>
+                            <div className="space-y-1">
+                              {field.values.map((value, index) => (
+                                <p
+                                  key={`${user.user_id}-${field.key}-${index}`}
+                                  className={
+                                    field.key === "bio"
+                                      ? "text-slate-300 leading-relaxed break-words whitespace-pre-wrap text-xs"
+                                      : "text-slate-300 break-words text-xs"
+                                  }
+                                >
+                                  {field.key === "member-type"
+                                    ? getTranslatedMemberTypeLabel(value)
+                                    : value}
+                                </p>
+                              ))}
                             </div>
-                          ))}
+                          </div>
                         </div>
-                      ) : (
-                        <p className="text-sm text-slate-500">
-                          {t("employees.empty.noProfileDetails")}
-                        </p>
-                      );
-                    })()}
+                      </div>
+                    ))}
                   </div>
-                </div>
-              </CardContent>
-            </Card>
-          ))}
+                ) : (
+                  <p className="aixia-workspace-card-preview-empty">
+                    {t("employees.empty.noProfileDetails")}
+                  </p>
+                )}
+              </AixiaWorkspaceCard>
+            );
+          })}
         </div>
                  ) : (
         <Card className="bg-slate-900/50 border-slate-800">
@@ -2197,6 +2158,7 @@ disabled={employeesRequest.status === "loading"}
     </div>
   </div>
 )}
-    </div>
+      </div>
+    </AixiaPage>
     );
 }

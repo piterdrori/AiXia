@@ -1,0 +1,208 @@
+/**
+ * Finance module — unique widgets only (visual).
+ * Global command surface: dashboard tokens, layout, visual (loaded via main.tsx).
+ */
+
+/* Tabular nums for finance amounts */
+.aixia-command-page.aixia-finance-page,
+.aixia-finance-page {
+  font-variant-numeric: tabular-nums;
+}
+
+/* Process book token bridge */
+.aixia-finance-page .aixia-process-book {
+  --aixia-process-border: var(--aixia-dash-border);
+  --aixia-process-surface: var(--aixia-dash-surface);
+  --aixia-process-accent: color-mix(in srgb, var(--primary, #6366f1) 88%, #818cf8);
+}
+
+/* Finance scroll body — even block rhythm (meta, access rule, main content) */
+.aixia-finance-page .aixia-command-scroll {
+  display: grid;
+  align-content: start;
+  gap: var(--aixia-stack-gap);
+  padding-bottom: var(--aixia-stack-gap);
+}
+
+/* Hub overview metric grid — match scroll block rhythm */
+.aixia-finance-page .aixia-review-grid[data-review-grid-variant="metrics"] {
+  gap: var(--aixia-stack-gap);
+}
+
+/* Hub status meta strip (scroll body, not hero) */
+.aixia-finance-hub-meta {
+  display: grid;
+  gap: var(--aixia-stack-gap);
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+}
+
+@media (max-width: 900px) {
+  .aixia-finance-hub-meta {
+    grid-template-columns: 1fr;
+  }
+}
+
+.aixia-finance-hub-meta .aixia-signal-row {
+  display: grid;
+  gap: 0.35rem;
+  align-items: start;
+  align-content: start;
+  min-width: 0;
+  height: 100%;
+  padding: 0.65rem 0.85rem;
+}
+
+.aixia-finance-hub-meta .aixia-signal-row-label {
+  font-size: 0.6875rem;
+  font-weight: 600;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--aixia-dash-muted);
+  line-height: 1.3;
+  white-space: normal;
+}
+
+.aixia-finance-hub-meta .aixia-signal-row-value {
+  flex-shrink: 1;
+  min-width: 0;
+  font-size: 0.8125rem;
+  font-weight: 600;
+  line-height: 1.45;
+  white-space: normal;
+  overflow-wrap: anywhere;
+}
+
+.aixia-finance-hub-meta__item {
+  display: grid;
+  gap: 0.1rem;
+  padding: 0.55rem 0.75rem;
+  border-radius: var(--aixia-dash-radius-sm);
+  border: 1px solid var(--aixia-dash-border);
+  background: var(--aixia-dash-surface);
+}
+
+.aixia-finance-hub-meta__label {
+  font-size: 0.6875rem;
+  font-weight: 600;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--aixia-dash-muted);
+}
+
+.aixia-finance-hub-meta__value {
+  font-size: 0.875rem;
+  font-weight: 600;
+  color: var(--aixia-dash-title);
+}
+
+.aixia-finance-hub-summary {
+  display: grid;
+  gap: 0.75rem;
+  padding: var(--aixia-dash-pad, 1rem);
+  border-radius: var(--aixia-dash-radius);
+  border: 1px solid var(--aixia-dash-border);
+  background: linear-gradient(
+    135deg,
+    color-mix(in srgb, var(--primary, #6366f1) 12%, transparent),
+    color-mix(in srgb, var(--background, #020617) 92%, transparent)
+  );
+}
+
+.aixia-finance-hub-summary__title {
+  margin: 0;
+  font-size: 0.72rem;
+  font-weight: 700;
+  letter-spacing: 0.16em;
+  text-transform: uppercase;
+  color: color-mix(in srgb, var(--primary, #6366f1) 85%, white);
+}
+
+.aixia-finance-hub-summary__grid {
+  display: grid;
+  gap: 0.65rem;
+  grid-template-columns: repeat(auto-fit, minmax(min(100%, 160px), 1fr));
+}
+
+.aixia-finance-hub-summary__stat {
+  display: grid;
+  gap: 0.15rem;
+  padding: 0.65rem 0.75rem;
+  border-radius: var(--aixia-dash-radius-sm);
+  border: 1px solid var(--aixia-dash-border);
+  background: var(--aixia-dash-surface);
+}
+
+.aixia-finance-hub-summary__label {
+  font-size: 0.68rem;
+  font-weight: 600;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--aixia-dash-muted);
+}
+
+.aixia-finance-hub-summary__value {
+  font-size: 1.1rem;
+  font-weight: 650;
+  color: var(--aixia-dash-title);
+}
+
+.aixia-finance-hub-summary__detail {
+  font-size: 0.78rem;
+  color: var(--aixia-dash-muted);
+}
+
+.aixia-finance-module-section {
+  display: grid;
+  gap: 0.85rem;
+}
+
+.aixia-finance-module-section__header {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-end;
+  justify-content: space-between;
+  gap: 0.35rem 0.75rem;
+  padding-bottom: 0.35rem;
+  border-bottom: 1px solid var(--aixia-dash-border);
+}
+
+.aixia-finance-module-section__title {
+  margin: 0;
+  font-size: 0.95rem;
+  font-weight: 650;
+  letter-spacing: -0.02em;
+  color: var(--aixia-dash-title);
+}
+
+.aixia-finance-module-section__meta {
+  font-size: 0.75rem;
+  color: var(--aixia-dash-muted);
+}
+
+.aixia-finance-module-section__grid {
+  display: grid;
+  gap: 0.85rem;
+}
+
+.aixia-finance-workspace--disabled {
+  opacity: 0.72;
+}
+
+.aixia-signal-row-button {
+  display: block;
+  width: 100%;
+  padding: 0;
+  margin: 0;
+  border: none;
+  background: transparent;
+  text-align: left;
+  cursor: pointer;
+}
+
+.aixia-signal-row-button:hover .aixia-signal-row {
+  border-color: color-mix(in srgb, var(--primary, #6366f1) 35%, transparent);
+}
+
+.aixia-issued-documents-registry .aixia-table-scroll {
+  max-height: calc(3.25rem + (15 * 3.25rem));
+}

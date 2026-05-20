@@ -1,0 +1,802 @@
+/**
+ * TaskFlow dashboard — distinctive “command surface” layer (visual only).
+ * Loaded after tokens + layout.
+ */
+
+/* --- Page atmosphere ---------------------------------------------------- */
+.aixia-dash-page.aixia-dash-page--command {
+  position: relative;
+  isolation: isolate;
+}
+
+.aixia-dash-page.aixia-dash-page--command::before {
+  content: "";
+  position: fixed;
+  inset: 0;
+  z-index: -2;
+  pointer-events: none;
+  background:
+    radial-gradient(ellipse 100% 80% at 12% 0%, rgba(99, 102, 241, 0.22), transparent 55%),
+    radial-gradient(ellipse 90% 70% at 88% 8%, rgba(45, 212, 191, 0.14), transparent 52%),
+    radial-gradient(ellipse 70% 50% at 50% 100%, rgba(244, 63, 94, 0.09), transparent 48%),
+    linear-gradient(180deg, color-mix(in srgb, var(--background, #020617) 88%, #0f172a), var(--background, #020617));
+  opacity: 1;
+}
+
+.aixia-dash-page.aixia-dash-page--command::after {
+  content: "";
+  position: fixed;
+  inset: 0;
+  z-index: -1;
+  pointer-events: none;
+  background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 256 256' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.8' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)' opacity='0.035'/%3E%3C/svg%3E");
+  mix-blend-mode: overlay;
+}
+
+/* --- Canonical card shell (shared by all card types) -------------------- */
+.aixia-card-shell {
+  border-radius: var(--aixia-card-radius);
+  border: 1px solid var(--aixia-card-border);
+  background: var(--aixia-card-surface);
+  backdrop-filter: blur(20px) saturate(1.35);
+  -webkit-backdrop-filter: blur(20px) saturate(1.35);
+  box-shadow: var(--aixia-card-shadow);
+}
+
+.aixia-card-shell.aixia-dash-glass,
+.aixia-dash-panel.aixia-card-shell,
+.aixia-dash-metric.aixia-card-shell,
+.aixia-section.aixia-card-shell,
+.aixia-summary-card.aixia-card-shell,
+.aixia-status-card.aixia-card-shell,
+.aixia-workspace-card.aixia-card-shell,
+.aixia-action-card.aixia-card-shell {
+  border-radius: var(--aixia-card-radius);
+  border-color: var(--aixia-card-border);
+  background: var(--aixia-card-surface);
+  box-shadow: var(--aixia-card-shadow);
+}
+
+/* --- Glass / chrome ----------------------------------------------------- */
+.aixia-dash-glass {
+  background: color-mix(in srgb, var(--background, #020617) 55%, rgba(15, 23, 42, 0.65));
+  backdrop-filter: blur(20px) saturate(1.35);
+  -webkit-backdrop-filter: blur(20px) saturate(1.35);
+  box-shadow:
+    0 0 0 1px color-mix(in srgb, white 10%, transparent),
+    0 18px 48px -24px rgba(0, 0, 0, 0.55);
+}
+
+/* Metric tiles: glass wins over layout surface */
+.aixia-dash-metric.aixia-dash-glass {
+  background: color-mix(in srgb, var(--background, #020617) 55%, rgba(15, 23, 42, 0.65));
+  border-color: color-mix(in srgb, white 10%, transparent);
+}
+
+/* --- Hero band ---------------------------------------------------------- */
+.aixia-dash-hero {
+  position: relative;
+  border-radius: calc(var(--aixia-dash-radius) + 4px);
+  padding: clamp(1.05rem, 2.5vw, 1.45rem) clamp(1rem, 2.8vw, 1.55rem) clamp(0.95rem, 2.2vw, 1.25rem);
+  overflow: hidden;
+}
+
+.aixia-dash-hero::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  border-radius: inherit;
+  background: linear-gradient(
+    135deg,
+    color-mix(in srgb, var(--primary, #6366f1) 24%, transparent) 0%,
+    transparent 46%,
+    color-mix(in srgb, #2dd4bf 16%, transparent) 100%
+  );
+  opacity: 0.35;
+  pointer-events: none;
+}
+
+.aixia-dash-hero-inner {
+  position: relative;
+  z-index: 1;
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 0.85rem 1.25rem;
+}
+
+.aixia-dash-kicker {
+  font-size: 0.65rem;
+  font-weight: 700;
+  letter-spacing: 0.2em;
+  text-transform: uppercase;
+  color: color-mix(in srgb, var(--primary, #a5b4fc) 90%, transparent);
+  margin: 0 0 0.2rem;
+}
+
+.aixia-dash-title--hero {
+  font-size: clamp(1.35rem, 2.5vw, 1.75rem);
+  font-weight: 650;
+  letter-spacing: -0.03em;
+  line-height: 1.15;
+  margin: 0;
+  color: var(--foreground, #f8fafc);
+  -webkit-text-fill-color: currentColor;
+  background: none;
+  background-image: none;
+  background-clip: border-box;
+  -webkit-background-clip: border-box;
+}
+
+.aixia-dash-subtitle--hero {
+  margin: 0.35rem 0 0;
+  font-size: 0.8125rem;
+  line-height: 1.5;
+  max-width: min(48rem, 100%);
+  color: color-mix(in srgb, var(--foreground, #e2e8f0) 72%, transparent);
+}
+
+/* Live ribbon — purely presentational container for derived stats */
+.aixia-dash-live-ribbon {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+  margin-top: 0.85rem;
+}
+
+.aixia-dash-live-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
+  font-size: 0.6875rem;
+  font-weight: 600;
+  padding: 0.25rem 0.6rem;
+  border-radius: 999px;
+  background: color-mix(in srgb, var(--background, #020617) 40%, rgba(15, 23, 42, 0.75));
+  border: 1px solid color-mix(in srgb, white 12%, transparent);
+  color: color-mix(in srgb, var(--foreground, #f1f5f9) 88%, transparent);
+  box-shadow: 0 2px 12px rgba(0, 0, 0, 0.12);
+}
+
+.aixia-dash-live-chip-dot {
+  width: 6px;
+  height: 6px;
+  border-radius: 999px;
+  background: var(--aixia-dash-online);
+  box-shadow: 0 0 10px color-mix(in srgb, var(--aixia-dash-online) 70%, transparent);
+  animation: aixia-dash-live-pulse 2.2s ease-in-out infinite;
+}
+
+@keyframes aixia-dash-live-pulse {
+  0%,
+  100% {
+    opacity: 1;
+    transform: scale(1);
+  }
+  50% {
+    opacity: 0.65;
+    transform: scale(0.92);
+  }
+}
+
+.aixia-dash-live-chip strong {
+  font-weight: 700;
+  color: var(--foreground, #f8fafc);
+}
+
+/* --- Bento metrics ------------------------------------------------------ */
+.aixia-dash-bento {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: clamp(0.55rem, 1.8vw, 0.9rem);
+  flex-shrink: 0;
+  width: 100%;
+  min-width: 0;
+}
+
+@media (max-width: 479px) {
+  .aixia-dash-bento {
+    grid-template-columns: 1fr;
+  }
+}
+
+@media (min-width: 900px) {
+  .aixia-dash-bento {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    grid-template-rows: auto auto;
+    grid-auto-flow: row;
+    gap: 0.6rem;
+  }
+
+  .aixia-dash-metric--featured {
+    grid-column: 1;
+    grid-row: 1 / span 2;
+    min-height: 7.25rem;
+    display: flex;
+    flex-direction: column;
+    align-items: stretch;
+    justify-content: space-between;
+  }
+
+  .aixia-dash-bento > .aixia-dash-metric--compact:nth-of-type(2) {
+    grid-column: 2;
+    grid-row: 1;
+  }
+
+  .aixia-dash-bento > .aixia-dash-metric--compact:nth-of-type(3) {
+    grid-column: 3;
+    grid-row: 1;
+  }
+
+  .aixia-dash-bento > .aixia-dash-metric--compact:nth-of-type(4) {
+    grid-column: 2 / span 2;
+    grid-row: 2;
+  }
+}
+
+.aixia-dash-metric {
+  position: relative;
+  overflow: hidden;
+}
+
+.aixia-dash-metric::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  opacity: 0.22;
+  pointer-events: none;
+  background: var(--aixia-dash-metric-glow, transparent);
+}
+
+.aixia-dash-metric--tone-violet {
+  --aixia-dash-metric-glow: radial-gradient(
+    circle at 30% 20%,
+    rgba(167, 139, 250, 0.45),
+    transparent 65%
+  );
+}
+.aixia-dash-metric--tone-teal {
+  --aixia-dash-metric-glow: radial-gradient(
+    circle at 30% 20%,
+    rgba(45, 212, 191, 0.4),
+    transparent 65%
+  );
+}
+.aixia-dash-metric--tone-amber {
+  --aixia-dash-metric-glow: radial-gradient(
+    circle at 30% 20%,
+    rgba(251, 191, 36, 0.35),
+    transparent 65%
+  );
+}
+.aixia-dash-metric--tone-rose {
+  --aixia-dash-metric-glow: radial-gradient(
+    circle at 30% 20%,
+    rgba(251, 113, 133, 0.38),
+    transparent 65%
+  );
+}
+
+.aixia-dash-metric-deco {
+  position: absolute;
+  right: -12%;
+  bottom: -18%;
+  width: 46%;
+  height: 54%;
+  border-radius: 40% 60% 50% 50%;
+  background: var(--aixia-dash-metric-glow, rgba(255, 255, 255, 0.06));
+  filter: blur(28px);
+  pointer-events: none;
+}
+
+.aixia-dash-metric-icon {
+  position: relative;
+  z-index: 1;
+}
+
+.aixia-dash-metric-val {
+  position: relative;
+  z-index: 1;
+  font-size: 1.35rem;
+  font-weight: 700;
+  letter-spacing: -0.02em;
+}
+
+.aixia-dash-metric--featured .aixia-dash-metric-val {
+  font-size: 2rem;
+}
+
+.aixia-dash-metric-foot {
+  position: relative;
+  z-index: 1;
+  margin-top: 0.35rem;
+  height: 3px;
+  border-radius: 999px;
+  background: linear-gradient(
+    90deg,
+    color-mix(in srgb, white 22%, transparent),
+    transparent
+  );
+  overflow: hidden;
+}
+
+.aixia-dash-metric-foot > span {
+  display: block;
+  height: 100%;
+  border-radius: inherit;
+  background: linear-gradient(90deg, #a78bfa, #2dd4bf);
+  width: var(--aixia-dash-foot-pct, 40%);
+  opacity: 0.85;
+}
+
+/* --- Panels (richer) ---------------------------------------------------- */
+.aixia-dash-panel {
+  position: relative;
+  box-shadow:
+    0 0 0 1px color-mix(in srgb, white 8%, transparent),
+    0 16px 40px -28px rgba(0, 0, 0, 0.5);
+  border-left: 3px solid color-mix(in srgb, var(--primary) 50%, transparent);
+}
+
+.aixia-dash-panel--deadlines {
+  border-left-color: #f59e0b;
+}
+.aixia-dash-panel--progress {
+  border-left-color: #2dd4bf;
+}
+.aixia-dash-panel--activity {
+  border-left-color: #818cf8;
+}
+.aixia-dash-panel--tasks {
+  border-left-color: #fb7185;
+}
+
+.aixia-dash-panel-hd {
+  background: color-mix(in srgb, var(--background, #020617) 35%, transparent);
+}
+
+/* --- List rows (cards) --------------------------------------------------- */
+.aixia-dash-list-row {
+  border: 1px solid color-mix(in srgb, white 7%, transparent);
+  background: color-mix(in srgb, var(--background, #020617) 42%, rgba(15, 23, 42, 0.45));
+  margin-bottom: 0.35rem;
+}
+
+.aixia-dash-list-row:hover {
+  border-color: color-mix(in srgb, var(--primary) 38%, transparent);
+  background: color-mix(in srgb, var(--primary) 8%, rgba(15, 23, 42, 0.5));
+}
+
+.aixia-dash-feed-item {
+  border: 1px solid color-mix(in srgb, white 8%, transparent);
+  background: linear-gradient(
+    125deg,
+    color-mix(in srgb, var(--background, #020617) 50%, rgba(30, 27, 75, 0.35)),
+    color-mix(in srgb, var(--background, #020617) 40%, rgba(15, 118, 110, 0.12))
+  );
+  border-radius: var(--aixia-dash-radius-sm);
+  padding: 0.65rem 0.75rem;
+  box-shadow: 0 2px 16px rgba(0, 0, 0, 0.12);
+}
+
+.aixia-dash-pill {
+  border: 1px solid color-mix(in srgb, var(--primary) 35%, transparent);
+}
+
+/* --- Scroll area (softer) ----------------------------------------------- */
+.aixia-dash-scroll {
+  scroll-behavior: smooth;
+}
+
+/* --- Companion widgets (presence / admin) ------------------------------ */
+.aixia-dash-widget-shell {
+  border-radius: calc(var(--aixia-dash-radius) + 2px);
+  overflow: hidden;
+  width: 100%;
+  min-width: 0;
+}
+
+.aixia-dash-widget-shell .aixia-dash-presence,
+.aixia-dash-widget-shell .aixia-dash-usage {
+  border-radius: 0;
+  border: none;
+  box-shadow: none;
+  background: transparent;
+}
+
+/* --- 3D scene + depth (CSS-only, respects reduced motion) ------------- */
+.aixia-dash-3d-decor {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  z-index: 0;
+  overflow: hidden;
+}
+
+.aixia-dash-3d-stack {
+  position: relative;
+  z-index: 1;
+  display: flex;
+  flex-direction: column;
+  gap: clamp(1rem, 2.2vw, 1.65rem);
+  flex: 1 1 auto;
+  min-height: 0;
+  width: 100%;
+  min-width: 0;
+}
+
+.aixia-dash-orb {
+  position: absolute;
+  border-radius: 40% 60% 50% 50%;
+  filter: blur(48px);
+  opacity: 0.38;
+  mix-blend-mode: screen;
+  animation: aixia-dash-orb-drift 22s ease-in-out infinite;
+}
+
+.aixia-dash-orb--a {
+  width: min(46vmin, 380px);
+  height: min(46vmin, 380px);
+  left: -12%;
+  top: 4%;
+  background: radial-gradient(circle at 35% 35%, rgba(129, 140, 248, 0.65), transparent 68%);
+}
+
+.aixia-dash-orb--b {
+  width: min(38vmin, 320px);
+  height: min(38vmin, 320px);
+  right: -6%;
+  top: 18%;
+  background: radial-gradient(circle at 50% 50%, rgba(45, 212, 191, 0.45), transparent 70%);
+  animation-duration: 28s;
+  animation-delay: -6s;
+}
+
+.aixia-dash-orb--c {
+  width: min(52vmin, 440px);
+  height: min(36vmin, 280px);
+  left: 18%;
+  bottom: -8%;
+  background: radial-gradient(circle at 40% 40%, rgba(244, 63, 94, 0.28), transparent 72%);
+  animation-duration: 26s;
+  animation-delay: -12s;
+}
+
+@keyframes aixia-dash-orb-drift {
+  0%,
+  100% {
+    transform: translate3d(0, 0, 0) scale(1) rotate(0deg);
+  }
+  33% {
+    transform: translate3d(2%, -3%, 0) scale(1.04) rotate(4deg);
+  }
+  66% {
+    transform: translate3d(-3%, 2%, 0) scale(0.97) rotate(-3deg);
+  }
+}
+
+.aixia-dash-3d-hero {
+  transform-style: preserve-3d;
+  animation: aixia-dash-hero-float 8s ease-in-out infinite;
+}
+
+@keyframes aixia-dash-hero-float {
+  0%,
+  100% {
+    transform: perspective(1400px) translateZ(0) rotateX(0deg);
+  }
+  50% {
+    transform: perspective(1400px) translateZ(6px) rotateX(0.8deg);
+  }
+}
+
+.aixia-dash-tilt-metric {
+  transform-style: preserve-3d;
+  transition:
+    transform 0.4s cubic-bezier(0.22, 1, 0.36, 1),
+    box-shadow 0.4s ease;
+  will-change: transform;
+}
+
+.aixia-dash-tilt-metric:hover {
+  transform: perspective(1000px) rotateX(5deg) rotateY(-7deg) translateY(-5px) translateZ(18px);
+  box-shadow:
+    0 0 0 1px color-mix(in srgb, white 14%, transparent),
+    0 28px 56px -20px rgba(0, 0, 0, 0.65),
+    0 0 80px -30px color-mix(in srgb, var(--primary, #6366f1) 35%, transparent);
+}
+
+.aixia-dash-tilt-panel {
+  transform-style: preserve-3d;
+  transition:
+    transform 0.35s cubic-bezier(0.22, 1, 0.36, 1),
+    box-shadow 0.35s ease;
+}
+
+.aixia-dash-tilt-panel:hover {
+  transform: perspective(1200px) translateY(-3px) translateZ(8px);
+  box-shadow:
+    0 0 0 1px color-mix(in srgb, white 12%, transparent),
+    0 22px 50px -22px rgba(0, 0, 0, 0.55);
+}
+
+.aixia-dash-page.aixia-dash-page--command .aixia-dash-panel {
+  transition:
+    transform 0.35s cubic-bezier(0.22, 1, 0.36, 1),
+    box-shadow 0.35s ease;
+  transform-style: preserve-3d;
+}
+
+.aixia-dash-page.aixia-dash-page--command .aixia-dash-panel:hover {
+  transform: perspective(1400px) translateY(-2px) translateZ(6px);
+  box-shadow:
+    0 0 0 1px color-mix(in srgb, white 10%, transparent),
+    0 20px 48px -24px rgba(0, 0, 0, 0.55);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .aixia-dash-orb,
+  .aixia-dash-3d-hero {
+    animation: none !important;
+  }
+
+  .aixia-dash-email::before {
+    animation: none;
+  }
+
+  .aixia-dash-tilt-metric:hover,
+  .aixia-dash-tilt-panel:hover,
+  .aixia-dash-page.aixia-dash-page--command .aixia-dash-panel:hover {
+    transform: none;
+  }
+}
+
+/* Live chips: warning tone */
+.aixia-dash-live-chip--alert {
+  border-color: color-mix(in srgb, #f59e0b 45%, transparent);
+  background: color-mix(in srgb, #f59e0b 14%, rgba(15, 23, 42, 0.75));
+}
+
+.aixia-dash-live-chip--alert .aixia-dash-live-chip-dot {
+  background: #fbbf24;
+  box-shadow: 0 0 12px rgba(251, 191, 36, 0.55);
+}
+
+/* Workspace shortcut rail */
+.aixia-dash-rail {
+  border-radius: calc(var(--aixia-dash-radius) + 4px);
+  padding: clamp(0.75rem, 2vw, 1rem) clamp(0.85rem, 2.25vw, 1.25rem)
+    clamp(0.85rem, 2.25vw, 1.25rem);
+}
+
+.aixia-dash-rail-label {
+  font-size: 0.58rem;
+  font-weight: 700;
+  letter-spacing: 0.18em;
+  text-transform: uppercase;
+  color: color-mix(in srgb, var(--foreground, #e2e8f0) 55%, transparent);
+  margin-bottom: 0.45rem;
+}
+
+.aixia-dash-rail-tracks {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+}
+
+.aixia-dash-rail-chip {
+  appearance: none;
+  border: 1px solid color-mix(in srgb, white 10%, transparent);
+  background: color-mix(in srgb, var(--background, #020617) 35%, rgba(15, 23, 42, 0.5));
+  border-radius: 999px;
+  padding: 0.28rem 0.55rem 0.28rem 0.4rem;
+  font-size: 0.6875rem;
+  font-weight: 600;
+  color: color-mix(in srgb, var(--foreground, #f1f5f9) 92%, transparent);
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
+  transition:
+    background 0.15s ease,
+    border-color 0.15s ease,
+    transform 0.2s ease;
+}
+
+.aixia-dash-rail-chip:hover {
+  border-color: color-mix(in srgb, var(--primary, #818cf8) 45%, transparent);
+  background: color-mix(in srgb, var(--primary, #6366f1) 12%, rgba(15, 23, 42, 0.55));
+  transform: translateY(-1px);
+}
+
+.aixia-dash-rail-chip-icon {
+  width: 1.65rem;
+  height: 1.65rem;
+  border-radius: 999px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  background: color-mix(in srgb, var(--primary, #6366f1) 18%, transparent);
+  color: var(--primary, #a5b4fc);
+}
+
+.aixia-dash-rail-chip-text {
+  padding-right: 0.15rem;
+  line-height: 1.2;
+}
+
+/* Mail workspace preview card */
+.aixia-dash-email {
+  border-radius: calc(var(--aixia-dash-radius) + 6px);
+  padding: clamp(1rem, 2.5vw, 1.35rem) clamp(1rem, 2.8vw, 1.45rem) clamp(1.05rem, 2.6vw, 1.4rem);
+  position: relative;
+  overflow: hidden;
+}
+
+.aixia-dash-email::before {
+  content: "";
+  position: absolute;
+  inset: -40% -20%;
+  background: conic-gradient(
+    from 200deg at 70% 40%,
+    rgba(99, 102, 241, 0.14),
+    transparent 42%,
+    rgba(45, 212, 191, 0.1),
+    transparent 68%
+  );
+  opacity: 0.6;
+  pointer-events: none;
+  animation: aixia-dash-email-sheen 14s linear infinite;
+}
+
+@keyframes aixia-dash-email-sheen {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+.aixia-dash-email-hd,
+.aixia-dash-email-body,
+.aixia-dash-email-hint {
+  position: relative;
+  z-index: 1;
+}
+
+.aixia-dash-email-hd {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-start;
+  gap: 0.5rem 0.75rem;
+  margin-bottom: 0.65rem;
+}
+
+.aixia-dash-email-icon {
+  width: 2.35rem;
+  height: 2.35rem;
+  border-radius: 14px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: linear-gradient(145deg, rgba(99, 102, 241, 0.35), rgba(15, 23, 42, 0.5));
+  border: 1px solid color-mix(in srgb, white 12%, transparent);
+  color: #c7d2fe;
+  transform: translateZ(12px);
+  box-shadow: 0 12px 28px rgba(0, 0, 0, 0.35);
+}
+
+.aixia-dash-email-title {
+  margin: 0;
+  font-size: 0.9rem;
+  font-weight: 650;
+  letter-spacing: -0.02em;
+  color: var(--foreground, #f8fafc);
+}
+
+.aixia-dash-email-caption {
+  margin: 0.15rem 0 0;
+  font-size: 0.7rem;
+  line-height: 1.35;
+  color: color-mix(in srgb, var(--foreground, #e2e8f0) 62%, transparent);
+  max-width: 26rem;
+}
+
+.aixia-dash-email-badge {
+  margin-left: auto;
+  font-size: 0.58rem;
+  font-weight: 700;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  padding: 0.25rem 0.5rem;
+  border-radius: 999px;
+  border: 1px solid color-mix(in srgb, white 12%, transparent);
+}
+
+.aixia-dash-email-badge--ok {
+  color: #6ee7b7;
+  border-color: color-mix(in srgb, #34d399 40%, transparent);
+  background: color-mix(in srgb, #34d399 12%, transparent);
+}
+
+.aixia-dash-email-badge--idle {
+  color: color-mix(in srgb, var(--foreground, #e2e8f0) 72%, transparent);
+  background: color-mix(in srgb, var(--background, #020617) 40%, transparent);
+}
+
+.aixia-dash-email-body {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(7.5rem, 1fr));
+  gap: 0.5rem;
+}
+
+.aixia-dash-email-stat {
+  display: flex;
+  align-items: flex-start;
+  gap: 0.45rem;
+  padding: 0.45rem 0.5rem;
+  border-radius: var(--aixia-dash-radius-sm);
+  border: 1px solid color-mix(in srgb, white 8%, transparent);
+  background: color-mix(in srgb, var(--background, #020617) 40%, rgba(15, 23, 42, 0.45));
+}
+
+.aixia-dash-email-stat-icon {
+  width: 1rem;
+  height: 1rem;
+  flex-shrink: 0;
+  opacity: 0.85;
+  color: var(--primary, #a5b4fc);
+}
+
+.aixia-dash-email-stat-label {
+  font-size: 0.58rem;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  color: color-mix(in srgb, var(--foreground, #cbd5e1) 55%, transparent);
+}
+
+.aixia-dash-email-stat-val {
+  font-size: 0.78rem;
+  font-weight: 600;
+  color: var(--foreground, #f1f5f9);
+  margin-top: 0.08rem;
+}
+
+.aixia-dash-email-hint {
+  margin: 0.6rem 0 0;
+  font-size: 0.65rem;
+  line-height: 1.45;
+  color: color-mix(in srgb, var(--foreground, #cbd5e1) 58%, transparent);
+}
+
+/* --- Shared card shell (canonical surface) ------------------------------- */
+.aixia-card-shell {
+  position: relative;
+  border-radius: var(--aixia-card-radius, calc(var(--aixia-dash-radius) + 2px));
+  border: 1px solid var(--aixia-card-border, color-mix(in srgb, white 10%, transparent));
+  background: var(--aixia-card-surface, color-mix(in srgb, var(--background, #020617) 55%, rgba(15, 23, 42, 0.65)));
+  box-shadow: var(--aixia-card-shadow, 0 0 0 1px color-mix(in srgb, white 8%, transparent), 0 16px 40px -28px rgba(0, 0, 0, 0.5));
+  overflow: hidden;
+}
+
+.aixia-dash-panel.aixia-card-shell,
+.aixia-dash-metric.aixia-card-shell {
+  border-radius: var(--aixia-card-radius, calc(var(--aixia-dash-radius) + 2px));
+  border-color: var(--aixia-card-border, color-mix(in srgb, white 10%, transparent));
+  box-shadow: var(--aixia-card-shadow, 0 0 0 1px color-mix(in srgb, white 8%, transparent), 0 16px 40px -28px rgba(0, 0, 0, 0.5));
+}
+
+.aixia-dash-panel-hd.aixia-card-shell-header,
+.aixia-dash-panel .aixia-dash-panel-hd {
+  padding: var(--aixia-card-header-pad, clamp(0.75rem, 1.4vw, 0.95rem) clamp(0.85rem, 1.6vw, 1.1rem));
+}
+
+.aixia-dash-panel-body,
+.aixia-card-shell-body {
+  padding: var(--aixia-card-body-pad, clamp(0.75rem, 1.4vw, 1rem));
+}
+
+.aixia-dash-panel-title,
+.aixia-card-shell-title {
+  font-size: var(--aixia-card-title-size, 0.8125rem);
+}

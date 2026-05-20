@@ -1,0 +1,99 @@
+/* AiXia dashboard — design tokens (minimal / calm density) */
+
+.aixia-dash-page,
+
+.aixia-dash-sidebar-chrome {
+
+  /* Sidebar rail width — keep expanded/collapsed in sync (desktop layout uses in-flow flex; mobile drawer uses expanded width only). */
+
+  --aixia-dash-sidebar-w-expanded: 13rem;
+
+  --aixia-dash-sidebar-w-collapsed: 3.25rem;
+
+  --aixia-dash-radius: 12px;
+
+  --aixia-dash-radius-sm: 8px;
+
+  --aixia-dash-border: color-mix(in srgb, var(--foreground, #fff) 9%, transparent);
+
+  --aixia-dash-surface: color-mix(in srgb, var(--card, #1a1a1c) 88%, transparent);
+
+  --aixia-dash-muted: var(--muted-foreground, #9ca3af);
+
+  --aixia-dash-title: var(--foreground, #f4f4f5);
+
+  --aixia-dash-online: #34c759;
+
+  --aixia-dash-offline: color-mix(in srgb, var(--muted-foreground, #9ca3af) 65%, transparent);
+
+  --aixia-dash-pad: 1rem;
+
+  --aixia-dash-pad-sm: 0.625rem;
+
+  font-variant-numeric: tabular-nums;
+
+
+
+  /* Canonical platform tokens (command surface / shared components) */
+
+  --aixia-btn-height: 2.25rem;
+
+  --aixia-btn-radius: 999px;
+
+  --aixia-btn-font-size: 0.8125rem;
+
+  --aixia-btn-pad-x: 0.65rem;
+
+  --aixia-btn-pad-y: 0.35rem;
+
+
+
+  --aixia-card-radius: calc(var(--aixia-dash-radius) + 2px);
+
+  --aixia-card-radius-sm: var(--aixia-dash-radius-sm);
+
+  --aixia-card-border: color-mix(in srgb, white 10%, transparent);
+
+  --aixia-card-surface: color-mix(in srgb, var(--background, #020617) 55%, rgba(15, 23, 42, 0.65));
+
+  --aixia-card-shadow:
+
+    0 0 0 1px color-mix(in srgb, white 8%, transparent),
+
+    0 16px 40px -28px rgba(0, 0, 0, 0.5);
+
+  --aixia-card-header-pad: clamp(0.75rem, 1.4vw, 0.95rem) clamp(0.85rem, 1.6vw, 1.1rem);
+
+  --aixia-card-body-pad: clamp(0.75rem, 1.4vw, 1rem);
+
+  --aixia-card-title-size: 0.8125rem;
+
+
+
+  --aixia-table-row-pad-y: 0.55rem;
+
+  --aixia-table-row-pad-x: 0.75rem;
+
+  --aixia-table-row-radius: var(--aixia-dash-radius-sm);
+
+
+
+  --aixia-bento-gap: clamp(0.55rem, 1.8vw, 0.9rem);
+
+  --aixia-stack-gap: clamp(1rem, 2.2vw, 1.65rem);
+
+
+
+  --aixia-typography-hero: clamp(1.35rem, 2.5vw, 1.75rem);
+
+  --aixia-typography-hero-weight: 650;
+
+  --aixia-typography-hero-tracking: -0.03em;
+
+  --aixia-typography-kicker: 0.65rem;
+
+  --aixia-typography-subtitle: 0.8125rem;
+
+}
+
+

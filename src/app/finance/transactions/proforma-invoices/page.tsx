@@ -2,19 +2,7 @@
 
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { useNavigate } from "react-router-dom";
-import {
-  Archive,
-  CheckCircle,
-  Eye,
-  FileText,
-  Plus,
-  Receipt,
-  RotateCcw,
-  Search,
-  ShieldCheck,
-  Trash2,
-  Wallet,
-} from "lucide-react";
+import { Archive, CheckCircle, Eye, FileText, Plus, Receipt, RotateCcw, ShieldCheck, Trash2, Wallet } from "lucide-react";
 
 import {
   AixiaAccessRule,
@@ -23,11 +11,11 @@ import {
   AixiaBadge,
   AixiaButton,
   AixiaEmptyState,
+  AixiaFinanceHubControlPanel,
+  AixiaFinanceHubMetaStrip,
   AixiaHero,
   AixiaLoadingState,
-  AixiaMetricCard,
-  AixiaMetricGrid,
-  AixiaPage,
+  FinancePage,
   AixiaRegistryToolbar,
   AixiaSearchField,
   AixiaSection,
@@ -37,6 +25,7 @@ import {
   AixiaTableDateCell,
   AixiaTableShell,
   AixiaTableTextCell,
+  AixiaCommandMetrics,
 } from "@/components/aixia";
 import {
   fetchFinanceEffectivePermissions,
@@ -539,6 +528,44 @@ export default function FinanceProformaInvoicesPage() {
     (proforma) => proforma.status === "deleted"
   ).length;
 
+  const headerStatusCards = useMemo(
+    () => [
+      {
+        key: "system-status",
+        label: "System Status",
+        value: isLoading ? "Loading" : "Live",
+        detail: "Proforma registry refreshes silently with auto-refresh enabled.",
+        tone: "emerald" as const,
+      },
+      {
+        key: "access",
+        label: "Access",
+        value: permissionState.canRead
+          ? permissionState.canCreate
+            ? "Enabled"
+            : "Read-only"
+          : "Limited",
+        detail: permissionState.canCreate
+          ? "Create, convert, archive, and lifecycle controls resolved through Finance page access."
+          : "Read-only or restricted by Finance page-access resolution.",
+        tone: permissionState.canRead ? ("cyan" as const) : ("amber" as const),
+      },
+      {
+        key: "active-records",
+        label: "Active Records",
+        value: activeProformas.length.toLocaleString(),
+        detail: "Pre-invoice commercial records in the main registry.",
+        tone: "amber" as const,
+      },
+    ],
+    [
+      activeProformas.length,
+      isLoading,
+      permissionState.canCreate,
+      permissionState.canRead,
+    ]
+  );
+
   function handleSort(nextKey: ProformaSortKey) {
     if (sortKey === nextKey) {
       setSortDirection((current) => (current === "asc" ? "desc" : "asc"));
@@ -734,53 +761,26 @@ export default function FinanceProformaInvoicesPage() {
   }
 
   return (
-    <AixiaPage>
+    <FinancePage>
       <AixiaHero
+        className="shrink-0 space-y-4"
+        surface="command"
         parentLabel="Transactions"
         parentPath="/finance/transactions"
-        badges={[{ label: "Proforma Registry", tone: "cyan" }]}
         gradientTitle="Proforma"
         title="Invoices"
         subtitle="Pre-invoice commercial records before formal invoice issuance."
-        description="Proforma invoices track draft, sent, accepted, and converted commercial records before the formal receivable invoice is created. The active registry stays separate from archived and deleted records."
-        statusCards={[
-          {
-            label: "Active Records",
-            value: activeProformas.length.toLocaleString(),
-            description: "Excludes archived and deleted proformas.",
-            icon: FileText,
-            tone: "cyan",
-          },
-          {
-            label: "Visible Results",
-            value: sortedProformas.length.toLocaleString(),
-            description: "Filtered by proforma, client, status, or currency.",
-            icon: Search,
-            tone: "emerald",
-          },
-        ]}
-      >
-        <div className="aixia-action-system" data-align="start" data-density="compact">
-          <AixiaBadge tone="emerald">Conversion controlled</AixiaBadge>
-          <AixiaBadge tone="cyan">Draft → Sent → Accepted</AixiaBadge>
-          <AixiaBadge tone="neutral">Auto-refresh enabled</AixiaBadge>
-        </div>
+        >
+        <AixiaCommandMetrics items={metricCards} />
+      
       </AixiaHero>
 
-      <AixiaMetricGrid>
-        {metricCards.map((metric) => (
-          <AixiaMetricCard
-            key={metric.key}
-            label={metric.label}
-            value={metric.value}
-            description={metric.description}
-            icon={metric.icon}
-            tone={metric.tone}
-          />
-        ))}
-      </AixiaMetricGrid>
+      <div className="aixia-command-scroll">
+        <AixiaFinanceHubMetaStrip items={headerStatusCards} />
 
-      <AixiaAccessRule
+        {pageError ? <AixiaAlert tone="error">{pageError}</AixiaAlert> : null}
+
+        <AixiaAccessRule
         title="Locked access rule"
         description="Proforma invoice registry access follows the shared Finance incoming-money, registry, archive, and permission standard."
         icon={ShieldCheck}
@@ -788,9 +788,13 @@ export default function FinanceProformaInvoicesPage() {
         This page uses fetchFinanceEffectivePermissions and resolveFinancePagePermissionState from @/lib/finance/pageAccess. Search, creation, archive, restore, delete, and conversion controls are rendered only through shared AiXia registry, table, archive, and button components.
       </AixiaAccessRule>
 
-      {pageError ? <AixiaAlert tone="error">{pageError}</AixiaAlert> : null}
+        <AixiaFinanceHubControlPanel
+          icon={FileText}
+          title="Proforma lifecycle"
+          description="Conversion controlled. Draft → Sent → Accepted. Auto-refresh enabled."
+        />
 
-      <AixiaSection
+        <AixiaSection
         title="Proforma Registry"
         description="Search, sort, open, convert, archive, and delete active proforma invoice records."
         icon={FileText}
@@ -952,6 +956,7 @@ export default function FinanceProformaInvoicesPage() {
           </AixiaTableShell>
         )}
       </AixiaArchiveManagerModal>
-    </AixiaPage>
+      </div>
+    </FinancePage>
   );
 }

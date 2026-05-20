@@ -10,7 +10,6 @@ import {
 } from "lucide-react";
 import { formatMessageTime, getProfileByUserId, getUserInitials } from "../utils";
 import type { ChatMessageRow, MessageListProps } from "../types";
-import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import { Button } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
 import { ScrollArea } from "@/components/ui/scroll-area";
@@ -120,8 +119,8 @@ export default function MessageList({
   return (
     <>
       {(isSelectionMode || selectedMessageIds.length > 0) && (
-        <div className="flex items-center justify-between gap-3 px-4 py-3 border-b border-slate-800 bg-slate-950/60 shrink-0">
-          <div className="text-sm text-slate-300">
+        <div className="aixia-chat-toolbar-bar">
+          <div className="text-sm aixia-projects-muted">
             {t("chat.messageList.selectedCount", undefined, {
               total: selectedMessageIds.length,
             })}
@@ -131,7 +130,7 @@ export default function MessageList({
             <Button
               type="button"
               variant="outline"
-              className="border-slate-700 text-slate-200 hover:bg-slate-800"
+              className="aixia-dash-action h-9"
               onClick={() => {
                 if (allSelected) {
                   allSelectableIds.forEach((id) => {
@@ -166,7 +165,7 @@ export default function MessageList({
         </div>
       )}
 
-      <ScrollArea ref={scrollAreaRef} className="flex-1 min-h-0">
+      <ScrollArea ref={scrollAreaRef} className="aixia-chat-messages flex-1 min-h-0">
         <div className="px-4 py-4">
           <div className="flex justify-center mb-4">
             {hasMore ? (
@@ -174,14 +173,14 @@ export default function MessageList({
                 type="button"
                 onClick={onLoadOlder}
                 disabled={isLoadingOlder}
-                className="bg-slate-800 hover:bg-slate-700 text-white border border-slate-700"
+                className="aixia-dash-action h-9"
               >
                 {isLoadingOlder
                   ? t("chat.messageList.loadingOlderMessages")
                   : t("chat.messageList.loadOlderMessages")}
               </Button>
             ) : (
-              <div className="text-xs text-slate-500 px-3 py-1 rounded-md bg-slate-900/80 border border-slate-800">
+              <div className="aixia-dash-pill px-3 py-1 text-xs">
                 {t("chat.messageList.beginningOfConversation")}
               </div>
             )}
@@ -218,10 +217,12 @@ export default function MessageList({
   )
 );
 
+              const authorRole = user?.role;
+
               return (
                 <div
                   key={message.id}
-                  className={`flex gap-3 ${isOwn ? "flex-row-reverse" : ""}`}
+                  className={`aixia-chat-message-row ${isOwn ? "aixia-chat-message-row--own" : ""}`}
                 >
                   {isSelectionMode && (
                     <div className={`pt-2 ${canSelect ? "" : "opacity-40"}`}>
@@ -234,33 +235,33 @@ export default function MessageList({
                   )}
 
                   {showAvatar ? (
-                    <Avatar className="w-8 h-8 flex-shrink-0">
-                      <AvatarFallback className="bg-indigo-600 text-white text-xs">
-                        {getUserInitials(user?.full_name)}
-                      </AvatarFallback>
-                    </Avatar>
+                    <span className="aixia-projects-member-tile-avatar shrink-0 !h-8 !w-8 !text-[0.65rem]">
+                      {getUserInitials(user?.full_name)}
+                    </span>
                   ) : (
-                    <div className="w-8 flex-shrink-0" />
+                    <span className="w-8 shrink-0" aria-hidden />
                   )}
 
-                  <div className={`flex flex-col max-w-[70%] ${isOwn ? "items-end" : "items-start"}`}>
+                  <div className={`aixia-chat-message-col ${isOwn ? "aixia-chat-message-col--own" : ""}`}>
                     {showAvatar && (
-                      <p className="text-xs text-slate-500 mb-1">
-                        {user?.full_name || t("chat.common.unknown")} • {formatMessageTime(message.created_at, t)}
-                      </p>
+                      <span className="mb-1 flex flex-wrap items-center gap-2">
+                        <span className="aixia-dash-list-row-title text-sm">
+                          {user?.full_name || t("chat.common.unknown")}
+                        </span>
+                        {authorRole ? (
+                          <span className="aixia-dash-pill">{authorRole.toUpperCase()}</span>
+                        ) : null}
+                        <span className="aixia-dash-list-row-meta text-xs">
+                          {formatMessageTime(message.created_at, t)}
+                        </span>
+                      </span>
                     )}
 
                    <div
-  className={`px-4 py-2 rounded-2xl border ${
-    isSelected ? "border-indigo-400" : "border-transparent"
-  } ${
-    isOwn
-      ? "bg-indigo-600 text-white rounded-br-none"
-      : "bg-slate-800 text-slate-200 rounded-bl-none"
-  } ${
-    message.id === lastIncomingMessageId
-      ? "bg-indigo-500/10 transition-colors duration-500"
-      : ""
+  className={`aixia-chat-message-bubble ${
+    isOwn ? "aixia-chat-message-bubble--own" : ""
+  } ${isSelected ? "aixia-chat-message-bubble--selected" : ""} ${
+    message.id === lastIncomingMessageId ? "aixia-chat-message-bubble--highlight" : ""
   }`}
 >
                       {isEditing ? (
@@ -269,12 +270,12 @@ export default function MessageList({
                             value={editingMessageText}
                             onChange={(e) => onEditTextChange(e.target.value)}
                             rows={3}
-                            className="bg-slate-900 border-slate-700 text-white resize-none"
+                            className="aixia-projects-textarea resize-none"
                           />
                           <div className="flex items-center gap-2 justify-end">
                             <Button
                               size="sm"
-                              className="bg-white text-black hover:bg-slate-200"
+                              className="aixia-dash-action aixia-dash-action--primary h-8"
                               onClick={() => onSaveEdit(message)}
                               disabled={
                                 messageActionLoading === message.id ||
@@ -287,7 +288,7 @@ export default function MessageList({
                             <Button
                               size="sm"
                               variant="outline"
-                              className="border-slate-500 text-white hover:bg-slate-700"
+                              className="aixia-dash-action h-8"
                               onClick={onCancelEdit}
                               disabled={messageActionLoading === message.id}
                             >
@@ -299,7 +300,7 @@ export default function MessageList({
                       ) : (
                         <div className="space-y-1">
                           {message.content?.trim() ? (
-                            <p className="whitespace-pre-wrap break-words">
+                            <p className="aixia-chat-message-text">
                               {translatedMessages[message.id]?.text || message.content}
                             </p>
                           ) : null}
@@ -480,22 +481,22 @@ export default function MessageList({
             })}
 
             {filteredMessages.length === 0 && (
-              <div className="text-center py-12">
-                <div className="w-16 h-16 rounded-full bg-slate-800 flex items-center justify-center mx-auto mb-4">
-                  <MessageSquare className="w-8 h-8 text-slate-500" />
+              <div className="aixia-chat-empty py-12">
+                <div className="aixia-chat-empty-icon mb-4">
+                  <MessageSquare className="h-8 w-8" />
                 </div>
-                <p className="text-slate-500">
+                <p className="aixia-dash-list-row-title">
                   {messageSearchQuery.trim()
                     ? "No matching messages found"
                     : t("chat.messageList.noMessagesYet")}
                 </p>
-                <p className="text-slate-600 text-sm">
+                <p className="aixia-projects-muted text-sm">
                   {messageSearchQuery.trim()
                     ? "Try a different keyword"
                     : t("chat.messageList.startConversation")}
                 </p>
-                </div>
-               )}
+              </div>
+            )}
             <div ref={messagesEndRef} />
           </div>
         </div>

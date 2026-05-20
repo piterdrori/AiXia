@@ -1,36 +1,22 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import type { LucideIcon } from "lucide-react";
-import {
-  Banknote,
-  BriefcaseBusiness,
-  Building2,
-  CreditCard,
-  Database,
-  FolderKanban,
-  Landmark,
-  LockKeyhole,
-  Package2,
-  Receipt,
-  ShieldCheck,
-  UserRound,
-  Users,
-  WalletCards,
-} from "lucide-react";
+import { Banknote, BriefcaseBusiness, Building2, CreditCard, Database, FolderKanban, Landmark, Package2, Receipt, ShieldCheck, Users, WalletCards } from "lucide-react";
 
 import {
   AixiaAccessDeniedState,
   AixiaAccessRule,
   AixiaEmptyState,
+  AixiaFinanceHubControlPanel,
+  AixiaFinanceHubMetaStrip,
+  AixiaFinanceHubOverviewGrid,
   AixiaHero,
   AixiaLoadingState,
-  AixiaMetricCard,
   AixiaNavigationCard,
   AixiaNavigationGrid,
   AixiaNavigationInfoPanel,
   AixiaNavigationStatBlock,
-  AixiaPage,
-  AixiaReviewGrid,
+  FinancePage,
   AixiaSearchField,
   AixiaSmartLayout,
 } from "@/components/aixia";
@@ -348,7 +334,7 @@ export default function FinanceMasterDataPage() {
   const [effectivePermissions, setEffectivePermissions] =
     useState<Partial<Record<Permission, boolean>> | null>(null);
   const [initialLoading, setInitialLoading] = useState(true);
-  const [backgroundRefreshing, setBackgroundRefreshing] = useState(false);
+  const [, setBackgroundRefreshing] = useState(false);
   const [moduleSearch, setModuleSearch] = useState("");
 
   const permissionState = useMemo(() => {
@@ -1000,35 +986,44 @@ export default function FinanceMasterDataPage() {
       );
   }, [data.recentChanges, moduleCards]);
 
-  const headerStatusCards = useMemo(() => {
-    return [
+const totalConfiguredDomains = useMemo(() => {
+    return moduleCards.filter((module) => module.count > 0).length;
+  }, [moduleCards]);
+
+  const headerStatusCards = useMemo(
+    () => [
       {
+        key: "system-status",
         label: "System Status",
         value: initialLoading ? "Loading" : "Live",
-        description: "Master data refreshes silently without resetting page state.",
-        icon: ShieldCheck,
+        detail: "Master Data hub refreshes silently with permission-filtered domains.",
         tone: "emerald" as const,
       },
       {
-        label: "Visible Domains",
-        value: formatCount(moduleCards.length),
-        description: "Domains visible to this user after permission filtering.",
-        icon: Database,
-        tone: "indigo" as const,
+        key: "personal-access",
+        label: "Personal Access",
+        value:
+          permissionState.canRead && hasMasterDataAccess ? "Enabled" : "Limited",
+        detail:
+          "Visible domains are controlled by Finance templates and user exceptions.",
+        tone: "cyan" as const,
       },
       {
-        label: "Access Model",
-        value: hasMasterDataAccess ? "Filtered" : "Locked",
-        description: "Visibility follows Finance templates and user-specific exceptions.",
-        icon: hasMasterDataAccess ? UserRound : LockKeyhole,
-        tone: "gold" as const,
+        key: "master-data-domains",
+        label: "Master Data Domains",
+        value: formatCount(moduleCards.length),
+        detail: `${formatCount(totalConfiguredDomains)} domains with configured records.`,
+        tone: "amber" as const,
       },
-    ];
-  }, [hasMasterDataAccess, initialLoading, moduleCards.length]);
-
-  const totalConfiguredDomains = useMemo(() => {
-    return moduleCards.filter((module) => module.count > 0).length;
-  }, [moduleCards]);
+    ],
+    [
+      hasMasterDataAccess,
+      initialLoading,
+      moduleCards.length,
+      permissionState.canRead,
+      totalConfiguredDomains,
+    ]
+  );
 
   const openRoute = useCallback(
     (route: string) => {
@@ -1047,38 +1042,29 @@ export default function FinanceMasterDataPage() {
   }
 
   return (
-    <AixiaPage>
+    <FinancePage>
       <AixiaHero
+        className="shrink-0 space-y-4"
+        surface="command"
         parentLabel="Finance"
         parentPath="/finance"
-        badges={[
-          { label: "Master Data Control Center", tone: "indigo" },
-          {
-            label: backgroundRefreshing ? "Updating silently" : "Live backend",
-            tone: backgroundRefreshing ? "gold" : "emerald",
-          },
-          { label: "Permission filtered", tone: "emerald" },
-          { label: "Realtime + 60s fallback", tone: "gold" },
-        ]}
         gradientTitle="Master Data"
-        title="Studio"
+        title={"Master Data"}
         subtitle="Finance Reference Layer"
-        description="Permission-filtered finance reference layer for clients, vendors, companies, banking, commercial terms, tax codes, categories, units, items, projects, employees, and currency controls."
-        statusCards={headerStatusCards}
-      />
+        />
 
-      <AixiaReviewGrid variant="metrics">
-        {overviewCards.map((metric) => (
-          <AixiaMetricCard
-            key={metric.key}
-            label={metric.title}
-            value={metric.value}
-            description={metric.subtitle}
-            icon={metric.icon}
-            tone={metric.tone}
-          />
-        ))}
-      </AixiaReviewGrid>
+      <div className="aixia-command-scroll">
+        <AixiaFinanceHubMetaStrip items={headerStatusCards} />
+
+      <AixiaAccessRule
+        title="Locked access rule"
+        description="Finance master-data visibility is permission filtered."
+      >
+        Showing {formatCount(moduleCards.length)} of{" "}
+        {formatCount(Object.keys(EMPTY_MASTER_DATA_ACCESS).length)}{" "}
+        master-data domains for this user. Hidden domains require the correct
+        Finance template baseline or user-specific exception.
+      </AixiaAccessRule>
 
       {!permissionState.canRead || !hasMasterDataAccess ? (
         <AixiaAccessDeniedState
@@ -1086,23 +1072,32 @@ export default function FinanceMasterDataPage() {
           description="Master Data domains are hidden until a Finance template or user-specific exception grants the required read access."
         />
       ) : (
-        <AixiaSmartLayout
+        <>
+          <AixiaFinanceHubControlPanel
+            icon={Database}
+            title="Master Data Overview"
+            description="Domain counts and recent movement across visible master-data areas."
+            tone="cyan"
+          />
+
+          <AixiaFinanceHubOverviewGrid
+            items={overviewCards.map((metric) => ({
+              key: metric.key,
+              label: metric.title,
+              value: metric.value,
+              description: metric.subtitle,
+              icon: metric.icon,
+              tone: metric.tone,
+            }))}
+          />
+
+          <AixiaSmartLayout
           sidebar="normal"
           balance="main"
           matchColumns={false}
           bottomSpan="never"
           main={
             <>
-              <AixiaAccessRule
-                title="Locked access rule"
-                description="Finance master-data visibility is permission filtered."
-              >
-                Showing {formatCount(moduleCards.length)} of{" "}
-                {formatCount(Object.keys(EMPTY_MASTER_DATA_ACCESS).length)}{" "}
-                master-data domains for this user. Hidden domains require the correct
-                Finance template baseline or user-specific exception.
-              </AixiaAccessRule>
-
               <AixiaNavigationInfoPanel
                 title="Master Data Navigation"
                 description="Open each dedicated finance master-data domain available to this user."
@@ -1240,7 +1235,9 @@ export default function FinanceMasterDataPage() {
             </>
           }
         />
+        </>
       )}
-    </AixiaPage>
+      </div>
+    </FinancePage>
   );
 }

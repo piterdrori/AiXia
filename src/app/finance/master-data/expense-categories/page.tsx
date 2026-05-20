@@ -1,6 +1,5 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import type { FormEvent } from "react";
-import type { LucideIcon } from "lucide-react";
 import {
   Archive,
   CheckCircle2,
@@ -23,6 +22,7 @@ import {
   AixiaArchiveManagerModal,
   AixiaBadge,
   AixiaButton,
+  AixiaCommandMetrics,
   AixiaEmptyState,
   AixiaFieldLabel,
   AixiaFormField,
@@ -31,10 +31,8 @@ import {
   AixiaHero,
   AixiaInputField,
   AixiaLoadingState,
-  AixiaMetricCard,
-  AixiaMetricGrid,
   AixiaModal,
-  AixiaPage,
+  FinancePage,
   AixiaRegistryToolbar,
   AixiaReviewGrid,
   AixiaSearchField,
@@ -50,6 +48,7 @@ import {
   AixiaTableTextCell,
   AixiaTextareaField,
 } from "@/components/aixia";
+import type { AixiaCommandMetricItem } from "@/components/aixia";
 
 import { type Permission, type Role } from "@/lib/permissions";
 
@@ -111,23 +110,6 @@ type PageAction =
   | "archive-modal"
   | "restore"
   | "hard-delete";
-
-type HeaderStatusCardData = {
-  label: string;
-  value: string;
-  description: string;
-  icon: LucideIcon;
-  tone: "emerald" | "cyan" | "amber" | "rose";
-};
-
-type MetricCardData = {
-  key: string;
-  label: string;
-  value: string | number;
-  description: string;
-  icon: LucideIcon;
-  tone: "cyan" | "emerald" | "amber" | "violet" | "rose";
-};
 
 const EMPTY_FORM: FormState = {
   code: "",
@@ -397,7 +379,7 @@ export default function FinanceExpenseCategoriesPage() {
 
   const [isLoadingProfile, setIsLoadingProfile] = useState(true);
   const [isLoadingData, setIsLoadingData] = useState(true);
-  const [backgroundRefreshing, setBackgroundRefreshing] = useState(false);
+  const [, setBackgroundRefreshing] = useState(false);
   const [saving, setSaving] = useState(false);
 
   const [search, setSearch] = useState("");
@@ -736,84 +718,47 @@ export default function FinanceExpenseCategoriesPage() {
     return sorted;
   }, [filteredRows, ledgerAccounts, sortDirection, sortKey]);
 
-  const headerStatusCards = useMemo<HeaderStatusCardData[]>(() => {
-    return [
-      {
-        label: "Classification Layer",
-        value: "Expense & AP",
-        description: "Used across expenses, bills, purchase flows, and reporting.",
-        icon: Layers3,
-        tone: "cyan",
-      },
-      {
-        label: "Accounting Link",
-        value: `${stats.ledgerLinked} Linked`,
-        description: "Optional chart-of-accounts mapping can be added when ready.",
-        icon: Landmark,
-        tone: "amber",
-      },
-      {
-        label: "Permission State",
-        value: isLoadingProfile
-          ? "Checking"
-          : permissionState.canRead
-            ? "Enabled"
-            : "Locked",
-        description: backgroundRefreshing
-          ? "Silent refresh is updating without disturbing the page."
-          : "Finance master-data permissions control create, edit, archive, and delete.",
-        icon: permissionState.canRead ? ShieldCheck : Archive,
-        tone: permissionState.canRead ? "emerald" : "rose",
-      },
-    ];
-  }, [
-    backgroundRefreshing,
-    isLoadingProfile,
-    permissionState.canRead,
-    stats.ledgerLinked,
-  ]);
-
-  const metricCards = useMemo<MetricCardData[]>(
+const metricCards = useMemo<AixiaCommandMetricItem[]>(
     () => [
       {
         key: "total",
-        label: "Total Categories",
-        value: isLoadingData ? "—" : stats.total,
+        title: "Total Categories",
+        value: isLoadingData ? "—" : String(stats.total),
         icon: Layers3,
         tone: "cyan",
-        description: "All configured categories.",
+        subtitle: "All configured categories.",
       },
       {
         key: "active",
-        label: "Active",
-        value: isLoadingData ? "—" : stats.active,
+        title: "Active",
+        value: isLoadingData ? "—" : String(stats.active),
         icon: CheckCircle2,
         tone: "emerald",
-        description: "Available in workflows.",
+        subtitle: "Available in workflows.",
       },
       {
         key: "inactive",
-        label: "Inactive",
-        value: isLoadingData ? "—" : stats.inactive,
+        title: "Inactive",
+        value: isLoadingData ? "—" : String(stats.inactive),
         icon: ShieldCheck,
         tone: "amber",
-        description: "Kept but not preferred.",
+        subtitle: "Kept but not preferred.",
       },
       {
         key: "archived",
-        label: "Archived",
-        value: isLoadingData ? "—" : stats.archived,
+        title: "Archived",
+        value: isLoadingData ? "—" : String(stats.archived),
         icon: Archive,
         tone: "rose",
-        description: "Managed in archive manager.",
+        subtitle: "Managed in archive manager.",
       },
       {
         key: "ledger",
-        label: "Ledger Linked",
-        value: isLoadingData ? "—" : stats.ledgerLinked,
+        title: "Ledger Linked",
+        value: isLoadingData ? "—" : String(stats.ledgerLinked),
         icon: Landmark,
         tone: "violet",
-        description: "Mapped to accounts.",
+        subtitle: "Mapped to accounts.",
       },
     ],
     [isLoadingData, stats]
@@ -1027,24 +972,20 @@ export default function FinanceExpenseCategoriesPage() {
   }
 
   return (
-    <AixiaPage>
+    <FinancePage>
       <AixiaHero
+        className="shrink-0 space-y-4"
+        surface="command"
         parentLabel="Master Data"
         parentPath="/finance/master-data"
-        badges={[
-          { label: "Master Data", tone: "cyan" },
-          { label: "Expense Categories", tone: "emerald" },
-          { label: "Ledger Ready", tone: "violet" },
-          { label: "Silent refresh", tone: "neutral" },
-        ]}
         gradientTitle="Expense"
         title="Categories"
-        subtitle="Finance Classification Layer"
-        description="Master classification for operating expenses, vendor bills, purchase flows, reporting, and optional ledger mapping. Keep categories clean so every finance workflow can classify spend consistently."
-        statusCards={headerStatusCards}
-      />
+        subtitle="Finance Classification Layer">
+        <AixiaCommandMetrics items={metricCards} />
+      </AixiaHero>
 
-      {error ? <AixiaAlert tone="error">{error}</AixiaAlert> : null}
+      <div className="aixia-command-scroll">
+{error ? <AixiaAlert tone="error">{error}</AixiaAlert> : null}
       {pageMessage ? (
         <AixiaAlert tone="success">{pageMessage}</AixiaAlert>
       ) : null}
@@ -1056,18 +997,7 @@ export default function FinanceExpenseCategoriesPage() {
         />
       ) : (
         <>
-          <AixiaMetricGrid>
-            {metricCards.map((metric) => (
-              <AixiaMetricCard
-                key={metric.key}
-                label={metric.label}
-                value={metric.value}
-                description={metric.description}
-                icon={metric.icon}
-                tone={metric.tone}
-              />
-            ))}
-          </AixiaMetricGrid>
+          
 
           <AixiaSection
             title="Expense Category Registry"
@@ -1401,6 +1331,7 @@ export default function FinanceExpenseCategoriesPage() {
         onChange={updateForm}
         onSave={() => void handleSave()}
       />
-    </AixiaPage>
+      </div>
+    </FinancePage>
   );
 }

@@ -1,22 +1,6 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import type { LucideIcon } from "lucide-react";
-import {
-  Archive,
-  Boxes,
-  CheckCircle2,
-  Edit3,
-  Factory,
-  Landmark,
-  Loader2,
-  LockKeyhole,
-  Package,
-  Plus,
-  RotateCcw,
-  Save,
-  ShieldCheck,
-  ShoppingCart,
-  Trash2,
-} from "lucide-react";
+import { Archive, Boxes, CheckCircle2, Edit3, Factory, Landmark, Loader2, Package, Plus, RotateCcw, Save, ShoppingCart, Trash2 } from "lucide-react";
 
 import {
   AixiaAccessDeniedState,
@@ -34,10 +18,8 @@ import {
   AixiaHero,
   AixiaInputField,
   AixiaLoadingState,
-  AixiaMetricCard,
-  AixiaMetricGrid,
   AixiaModal,
-  AixiaPage,
+  FinancePage,
   AixiaRegistryToolbar,
   AixiaReviewGrid,
   AixiaSearchField,
@@ -52,6 +34,7 @@ import {
   AixiaTableShell,
   AixiaTableTextCell,
   AixiaTextareaField,
+  AixiaCommandMetrics,
 } from "@/components/aixia";
 
 import { type Permission, type Role } from "@/lib/permissions";
@@ -155,13 +138,6 @@ type MetricCardData = {
   tone: "cyan" | "emerald" | "amber" | "violet" | "rose";
 };
 
-type HeaderStatusCardData = {
-  label: string;
-  value: string;
-  description: string;
-  icon: LucideIcon;
-  tone: "emerald" | "cyan" | "amber" | "rose";
-};
 
 const EMPTY_FORM: FormState = {
   code: "",
@@ -713,7 +689,7 @@ export default function FinanceItemsPage() {
 
   const [isLoadingProfile, setIsLoadingProfile] = useState(true);
   const [isLoadingData, setIsLoadingData] = useState(true);
-  const [backgroundRefreshing, setBackgroundRefreshing] = useState(false);
+  const [, setBackgroundRefreshing] = useState(false);
   const [saving, setSaving] = useState(false);
 
   const [search, setSearch] = useState("");
@@ -1144,42 +1120,7 @@ export default function FinanceItemsPage() {
     ];
   }, [isLoadingData, stats]);
 
-  const headerStatusCards = useMemo<HeaderStatusCardData[]>(() => {
-    return [
-      {
-        label: "Read Access",
-        value: isLoadingProfile
-          ? "Checking"
-          : permissionState.canRead
-            ? "Enabled"
-            : "Locked",
-        description: "This page requires Finance read access or Master Data admin access.",
-        icon: permissionState.canRead ? ShieldCheck : LockKeyhole,
-        tone: permissionState.canRead ? "emerald" : "rose",
-      },
-      {
-        label: "Lifecycle Access",
-        value: permissionState.canDeleteArchive
-          ? "Archive Enabled"
-          : permissionState.canCreate
-            ? "Create Enabled"
-            : "Read Only",
-        description: backgroundRefreshing
-          ? "Silent refresh is updating items without resetting filters, table state, or modals."
-          : "Create, Edit, Archive, Restore, and Permanent Delete follow Finance permissions.",
-        icon: permissionState.canDeleteArchive ? Archive : Landmark,
-        tone: permissionState.canDeleteArchive ? "amber" : "cyan",
-      },
-    ];
-  }, [
-    backgroundRefreshing,
-    isLoadingProfile,
-    permissionState.canCreate,
-    permissionState.canDeleteArchive,
-    permissionState.canRead,
-  ]);
-
-  const isPageLoading = isLoadingProfile || isLoadingData;
+const isPageLoading = isLoadingProfile || isLoadingData;
   const isActionRunning = Boolean(runningAction);
 
   function toggleSort(nextKey: SortKey) {
@@ -1413,38 +1354,23 @@ export default function FinanceItemsPage() {
   }
 
   return (
-    <AixiaPage>
+    <FinancePage>
       <AixiaHero
+        className="shrink-0 space-y-4"
+        surface="command"
         parentLabel="Master Data"
         parentPath="/finance/master-data"
-        badges={[
-          { label: "Item Master Data", tone: "cyan" },
-          { label: "Sales & Procurement", tone: "emerald" },
-          { label: "Permission filtered", tone: "cyan" },
-          { label: "Realtime + 60s fallback", tone: "neutral" },
-        ]}
         gradientTitle="Items"
         title="Registry"
-        subtitle="Product, Service, Component & Assembly Master Data"
-        description="Master records for products, services, components, and assemblies used across quotations, invoices, purchasing, costing, sourcing, and future inventory or manufacturing workflows."
-        statusCards={headerStatusCards}
-      />
+        subtitle="Product, Service, Component & Assembly Master Data">
+        <AixiaCommandMetrics items={metricCards} />
+      </AixiaHero>
 
-      {pageError ? <AixiaAlert tone="error">{pageError}</AixiaAlert> : null}
+      <div className="aixia-command-scroll">
+{pageError ? <AixiaAlert tone="error">{pageError}</AixiaAlert> : null}
       {pageMessage ? <AixiaAlert tone="success">{pageMessage}</AixiaAlert> : null}
 
-      <AixiaMetricGrid>
-        {metricCards.map((metric) => (
-          <AixiaMetricCard
-            key={metric.key}
-            label={metric.label}
-            value={metric.value}
-            description={metric.description}
-            icon={metric.icon}
-            tone={metric.tone}
-          />
-        ))}
-      </AixiaMetricGrid>
+      
 
       {!permissionState.canRead ? (
         <AixiaAccessDeniedState
@@ -1836,6 +1762,7 @@ export default function FinanceItemsPage() {
         onChange={updateForm}
         onSave={() => void handleSave()}
       />
-    </AixiaPage>
+      </div>
+    </FinancePage>
   );
 }

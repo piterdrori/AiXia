@@ -1,21 +1,6 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { useNavigate, useParams } from "react-router-dom";
-import type { LucideIcon } from "lucide-react";
-import {
-  Archive,
-  ArrowRight,
-  Building2,
-  CreditCard,
-  FileText,
-  Landmark,
-  Loader2,
-  LockKeyhole,
-  Pencil,
-  RotateCcw,
-  ShieldCheck,
-  Sparkles,
-  WalletCards,
-} from "lucide-react";
+import { Archive, ArrowRight, Building2, CreditCard, FileText, Landmark, Loader2, RotateCcw, Sparkles, WalletCards } from "lucide-react";
 
 import {
   AixiaAccessDeniedState,
@@ -35,7 +20,7 @@ import {
   AixiaInputField,
   AixiaLoadingState,
   AixiaNotFoundState,
-  AixiaPage,
+  FinancePage,
   AixiaReviewBlock,
   AixiaReviewGrid,
   AixiaSection,
@@ -100,13 +85,6 @@ type ControlDraft = {
   status: FinanceBankAccountStatus;
 };
 
-type HeaderStatusCardData = {
-  label: string;
-  value: string;
-  description: string;
-  icon: LucideIcon;
-  tone: "emerald" | "cyan" | "amber" | "rose";
-};
 
 type SummaryItem = {
   label: string;
@@ -244,7 +222,7 @@ export default function FinanceMasterDataBankAccountDetailPage() {
   const [companies, setCompanies] = useState<CompanyOption[]>([]);
   const [isLoadingProfile, setIsLoadingProfile] = useState(true);
   const [isLoadingRecord, setIsLoadingRecord] = useState(true);
-  const [backgroundRefreshing, setBackgroundRefreshing] = useState(false);
+  const [, setBackgroundRefreshing] = useState(false);
   const [isSaving, setIsSaving] = useState(false);
   const [isLifecycleRunning, setIsLifecycleRunning] = useState(false);
   const [editingSection, setEditingSection] = useState<EditSection>(null);
@@ -466,45 +444,7 @@ export default function FinanceMasterDataBankAccountDetailPage() {
 
   const isPageLoading = isLoadingProfile || isLoadingRecord;
 
-  const headerStatusCards = useMemo<HeaderStatusCardData[]>(() => {
-    return [
-      {
-        label: "Read Access",
-        value: isLoadingProfile
-          ? "Checking"
-          : permissionState.canRead
-            ? "Enabled"
-            : "Locked",
-        description: "Viewing this record requires Bank Account read access.",
-        icon: permissionState.canRead ? ShieldCheck : LockKeyhole,
-        tone: permissionState.canRead ? "emerald" : "rose",
-      },
-      {
-        label: "Edit Access",
-        value: permissionState.canUpdate ? "Enabled" : "Read Only",
-        description: "Section edits require Update access or Master Data admin access.",
-        icon: permissionState.canUpdate ? Pencil : LockKeyhole,
-        tone: permissionState.canUpdate ? "cyan" : "amber",
-      },
-      {
-        label: "Lifecycle Access",
-        value: permissionState.canDeleteArchive ? "Archive Enabled" : "Locked",
-        description: backgroundRefreshing
-          ? "Silent refresh is updating reference data without resetting the page."
-          : "Archive and Restore require Delete/Archive access.",
-        icon: permissionState.canDeleteArchive ? Archive : LockKeyhole,
-        tone: permissionState.canDeleteArchive ? "amber" : "rose",
-      },
-    ];
-  }, [
-    backgroundRefreshing,
-    isLoadingProfile,
-    permissionState.canDeleteArchive,
-    permissionState.canRead,
-    permissionState.canUpdate,
-  ]);
-
-  const summaryItems = useMemo<SummaryItem[]>(() => {
+const summaryItems = useMemo<SummaryItem[]>(() => {
     return [
       {
         label: "Company",
@@ -827,7 +767,7 @@ export default function FinanceMasterDataBankAccountDetailPage() {
 
   if (!record) {
     return (
-      <AixiaPage>
+      <FinancePage>
         <AixiaNotFoundState
           title="Bank account not found"
           description="The bank account record could not be loaded or no longer exists."
@@ -842,63 +782,47 @@ export default function FinanceMasterDataBankAccountDetailPage() {
             </AixiaButton>
           }
         />
-      </AixiaPage>
+      </FinancePage>
     );
   }
 
   if (!permissionState.canRead) {
     return (
-      <AixiaPage>
+      <FinancePage>
         <AixiaHero
+        className="shrink-0 space-y-4"
+        surface="command"
           parentLabel="Bank Accounts"
           parentPath="/finance/master-data/bank-accounts"
-          badges={[
-            { label: "Access Locked", tone: "rose" },
-            { label: "Permission protected", tone: "cyan" },
-          ]}
           gradientTitle="Bank Account"
           title="Access Locked"
           subtitle="Read Permission Required"
-          description="This page requires Bank Account read access or Master Data admin access."
-          statusCards={[
-            {
-              label: "Read Access",
-              value: "Locked",
-              description:
-                "Ask an Admin to assign a Finance role template or user-specific exception with Bank Account read access.",
-              icon: LockKeyhole,
-              tone: "rose",
-            },
-          ]}
-        />
+          />
 
-        <AixiaAccessDeniedState
+      <div className="aixia-command-scroll">
+<AixiaAccessDeniedState
           title="No bank account read access"
           description="Ask an Admin to assign a Finance role template or user-specific exception with Bank Account read access."
         />
-      </AixiaPage>
+      </div>
+    </FinancePage>
     );
   }
 
   return (
-    <AixiaPage>
+    <FinancePage>
       <AixiaHero
+        className="shrink-0 space-y-4"
+        surface="command"
         parentLabel="Bank Accounts"
         parentPath="/finance/master-data/bank-accounts"
-        badges={[
-          { label: "Bank Account Detail", tone: "cyan" },
-          { label: record.bank_id || "No Bank ID", tone: "neutral" },
-          { label: getCompanyCodeLabel(record, selectedCompany), tone: "emerald" },
-          { label: formatStatus(record.status), tone: "amber" },
-        ]}
         gradientTitle={record.bank_name || "Company Bank"}
         title="Account"
         subtitle="Company Payment Master Data"
-        description="Company-linked bank account record with same-place section editing, lifecycle control, and permission-protected actions."
-        statusCards={headerStatusCards}
-      />
+        />
 
-      {pageError ? <AixiaAlert tone="error">{pageError}</AixiaAlert> : null}
+      <div className="aixia-command-scroll">
+{pageError ? <AixiaAlert tone="error">{pageError}</AixiaAlert> : null}
       {pageMessage ? <AixiaAlert tone="success">{pageMessage}</AixiaAlert> : null}
 
       <AixiaSmartLayout
@@ -1350,6 +1274,6 @@ export default function FinanceMasterDataBankAccountDetailPage() {
           </>
         }
       />
-    </AixiaPage>
+      </div></FinancePage>
   );
 }

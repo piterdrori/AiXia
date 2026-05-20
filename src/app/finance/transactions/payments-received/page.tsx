@@ -22,10 +22,11 @@ import {
   AixiaBadge,
   AixiaButton,
   AixiaEmptyState,
+  AixiaFinanceHubControlPanel,
+  AixiaFinanceHubMetaStrip,
   AixiaHero,
-  AixiaMetricCard,
-  AixiaMetricGrid,
-  AixiaPage,
+  AixiaCommandMetrics,
+  FinancePage,
   AixiaRegistryToolbar,
   AixiaSearchField,
   AixiaSection,
@@ -52,57 +53,33 @@ import {
   permanentlyDeletePaymentReceived,
   restorePaymentReceived,
   softDeletePaymentReceived,
+  type PaymentReceivedListRow,
 } from "@/lib/finance/paymentsReceived";
-import { getIssuedInvoicesList } from "@/lib/finance/invoicesIssued";
+import {
+  getCustomerDocumentDetailPath,
+  getCustomerDocumentTypeLabel,
+  getCustomerDocumentsList,
+  type CustomerDocumentListRow,
+} from "@/lib/finance/customerDocuments";
 import { supabase } from "@/lib/supabase";
 
 type LoadMode = FinanceLoadMode;
 
-type PaymentReceivedListRow = {
-  id: string;
-  amount: number;
-  converted_amount?: number | null;
-  payment_date: string;
-  status: string;
-  reference_number: string | null;
-  payment_method_id?: string | null;
-  counterparty_name: string | null;
-  client_name: string | null;
-  invoice_number: string | null;
-  payment_currency_code?: string | null;
-  invoice_currency_code?: string | null;
-  exchange_rate?: number | null;
-  exchange_rate_source?: string | null;
-};
-
-type OpenInvoiceRow = {
-  id: string;
-  invoice_number: string | null;
-  issue_date: string | null;
-  due_date: string | null;
-  status: string;
-  payment_status: string | null;
-  counterparty_name_snapshot?: string | null;
-  client_name_snapshot?: string | null;
-  client_name?: string | null;
-  total_amount: number | string | null;
-  paid_amount: number | string | null;
-  balance_due: number | string | null;
-  currency_code: string | null;
-};
+type OpenReceivableRow = CustomerDocumentListRow;
 
 type PaymentSortKey =
   | "reference_number"
   | "client"
-  | "invoice_number"
+  | "document_number"
   | "amount"
   | "converted_amount"
   | "payment_date"
   | "status"
   | "currency";
 
-type OpenInvoiceSortKey =
-  | "invoice_number"
+type OpenReceivableSortKey =
+  | "document_number"
+  | "document_type"
   | "client"
   | "due_date"
   | "total_amount"
@@ -195,13 +172,47 @@ function getPaymentClientName(payment: PaymentReceivedListRow) {
   return payment.counterparty_name || payment.client_name || "—";
 }
 
-function getOpenInvoiceClientName(invoice: OpenInvoiceRow) {
-  return (
-    invoice.counterparty_name_snapshot ||
-    invoice.client_name_snapshot ||
-    invoice.client_name ||
-    "—"
-  );
+function isOpenReceivableDocument(row: CustomerDocumentListRow) {
+  const balanceDue = Number(row.balance_due ?? 0);
+  const status = String(row.status || "").toLowerCase();
+  const paymentStatus = String(row.payment_status || "").toLowerCase();
+
+  if (balanceDue <= 0) return false;
+
+  if (row.document_type === "customer_pi") {
+    return status === "issued" || status === "confirmed";
+  }
+
+  const isOpenDocumentStatus =
+    status === "issued" ||
+    status === "partially_paid" ||
+    status === "overdue";
+
+  const isOpenPaymentStatus =
+    paymentStatus === "unpaid" ||
+    paymentStatus === "partial" ||
+    paymentStatus === "partially_paid" ||
+    paymentStatus === "";
+
+  const isExcludedStatus =
+    status === "draft" ||
+    status === "paid" ||
+    status === "void" ||
+    status === "voided" ||
+    status === "cancelled" ||
+    status === "canceled" ||
+    status === "archived" ||
+    status === "deleted";
+
+  return isOpenDocumentStatus && isOpenPaymentStatus && !isExcludedStatus;
+}
+
+function getNewPaymentPath(row: CustomerDocumentListRow) {
+  if (row.document_type === "customer_pi") {
+    return `/finance/transactions/payments-received/new?proforma_invoice_id=${row.id}&document_type=proforma`;
+  }
+
+  return `/finance/transactions/payments-received/new?invoice_id=${row.id}&document_type=invoice`;
 }
 
 function getPaymentSortValue(
@@ -213,8 +224,8 @@ function getPaymentSortValue(
       return (payment.reference_number || "Payment Record").toLowerCase();
     case "client":
       return getPaymentClientName(payment).toLowerCase();
-    case "invoice_number":
-      return (payment.invoice_number || "").toLowerCase();
+    case "document_number":
+      return (payment.document_number || payment.invoice_number || payment.proforma_number || "").toLowerCase();
     case "amount":
       return Number(payment.amount ?? 0);
     case "converted_amount":
@@ -235,25 +246,27 @@ function getPaymentSortValue(
   }
 }
 
-function getOpenInvoiceSortValue(
-  invoice: OpenInvoiceRow,
-  key: OpenInvoiceSortKey,
+function getOpenReceivableSortValue(
+  row: OpenReceivableRow,
+  key: OpenReceivableSortKey,
 ) {
   switch (key) {
-    case "invoice_number":
-      return (invoice.invoice_number || "Invoice").toLowerCase();
+    case "document_number":
+      return row.document_number.toLowerCase();
+    case "document_type":
+      return getCustomerDocumentTypeLabel(row.document_type).toLowerCase();
     case "client":
-      return getOpenInvoiceClientName(invoice).toLowerCase();
+      return row.client_name.toLowerCase();
     case "due_date":
-      return invoice.due_date ? new Date(invoice.due_date).getTime() : 0;
+      return row.due_date ? new Date(row.due_date).getTime() : 0;
     case "total_amount":
-      return Number(invoice.total_amount ?? 0);
+      return Number(row.total_amount ?? 0);
     case "paid_amount":
-      return Number(invoice.paid_amount ?? 0);
+      return Number(row.total_amount ?? 0) - Number(row.balance_due ?? 0);
     case "balance_due":
-      return Number(invoice.balance_due ?? 0);
+      return Number(row.balance_due ?? 0);
     case "currency_code":
-      return String(invoice.currency_code || "").toLowerCase();
+      return String(row.currency_code || "").toLowerCase();
     default:
       return "";
   }
@@ -348,8 +361,8 @@ function PaymentsTable({
           </th>
           <th>
             <AixiaSortableHeader
-              label="Invoice"
-              sortKey="invoice_number"
+              label="Document"
+              sortKey="document_number"
               activeSortKey={sortKey}
               sortDirection={sortDirection}
               onSort={onSort}
@@ -429,8 +442,17 @@ function PaymentsTable({
               />
               <AixiaTableTextCell
                 width="md"
-                primary={payment.invoice_number || "—"}
-                secondary="Linked invoice"
+                primary={
+                  payment.document_number ||
+                  payment.invoice_number ||
+                  payment.proforma_number ||
+                  "—"
+                }
+                secondary={
+                  payment.document_type
+                    ? getCustomerDocumentTypeLabel(payment.document_type)
+                    : "Linked document"
+                }
               />
               <AixiaTableTextCell
                 width="md"
@@ -533,25 +555,29 @@ function PaymentsTable({
   );
 }
 
-function OpenInvoicesTable({
+function OpenReceivablesTable({
   rows,
   sortKey,
   sortDirection,
   onSort,
-  onOpen,
+  onOpenDocument,
+  onRecordPayment,
+  canCreatePayment,
 }: {
-  rows: OpenInvoiceRow[];
-  sortKey: OpenInvoiceSortKey;
+  rows: OpenReceivableRow[];
+  sortKey: OpenReceivableSortKey;
   sortDirection: SortDirection;
-  onSort: (key: OpenInvoiceSortKey) => void;
-  onOpen: (id: string) => void;
+  onSort: (key: OpenReceivableSortKey) => void;
+  onOpenDocument: (row: OpenReceivableRow) => void;
+  onRecordPayment: (row: OpenReceivableRow) => void;
+  canCreatePayment: boolean;
 }) {
   if (rows.length === 0) {
     return (
       <AixiaEmptyState
         icon={FileCheck2}
-        title="No open invoices found"
-        description="Issued invoices with open balance will appear here."
+        title="No open receivables found"
+        description="Issued proforma invoices and invoices with open balance will appear here."
       />
     );
   }
@@ -559,15 +585,24 @@ function OpenInvoicesTable({
   return (
     <AixiaTableShell
       variant="registry"
-      minWidthClassName="min-w-[1180px]"
+      minWidthClassName="min-w-[1280px]"
       maxHeightClassName="max-h-[520px]"
     >
       <thead className="aixia-table-head">
         <tr>
           <th>
             <AixiaSortableHeader
-              label="Invoice No."
-              sortKey="invoice_number"
+              label="Document"
+              sortKey="document_number"
+              activeSortKey={sortKey}
+              sortDirection={sortDirection}
+              onSort={onSort}
+            />
+          </th>
+          <th>
+            <AixiaSortableHeader
+              label="Type"
+              sortKey="document_type"
               activeSortKey={sortKey}
               sortDirection={sortDirection}
               onSort={onSort}
@@ -632,59 +667,67 @@ function OpenInvoicesTable({
       </thead>
 
       <tbody>
-        {rows.map((invoice) => (
-          <tr key={invoice.id} className="aixia-table-row">
-            <AixiaTableTextCell
-              width="lg"
-              primary={invoice.invoice_number || "Invoice"}
-              secondary={getPaymentStatusLabel(invoice.status)}
-            />
-            <AixiaTableTextCell
-              width="lg"
-              primary={getOpenInvoiceClientName(invoice)}
-              secondary={invoice.payment_status || undefined}
-            />
-            <AixiaTableDateCell>
-              {formatFinanceDate(invoice.due_date)}
-            </AixiaTableDateCell>
-            <AixiaTableTextCell
-              width="md"
-              primary={formatFinanceMoney(
-                invoice.total_amount,
-                invoice.currency_code || "USD",
-              )}
-            />
-            <AixiaTableTextCell
-              width="md"
-              primary={formatFinanceMoney(
-                invoice.paid_amount,
-                invoice.currency_code || "USD",
-              )}
-            />
-            <AixiaTableTextCell
-              width="md"
-              primary={formatFinanceMoney(
-                invoice.balance_due,
-                invoice.currency_code || "USD",
-              )}
-            />
-            <AixiaTableBadgeCell>
-              <AixiaBadge tone="neutral">
-                {invoice.currency_code || "USD"}
-              </AixiaBadge>
-            </AixiaTableBadgeCell>
-            <AixiaTableActionsCell>
-              <AixiaButton
-                type="button"
-                variant="primary"
-                onClick={() => onOpen(invoice.id)}
-              >
-                <Eye className="h-4 w-4" />
-                Open
-              </AixiaButton>
-            </AixiaTableActionsCell>
-          </tr>
-        ))}
+        {rows.map((row) => {
+          const paidAmount = Number(row.total_amount ?? 0) - Number(row.balance_due ?? 0);
+
+          return (
+            <tr key={`${row.document_type}-${row.id}`} className="aixia-table-row">
+              <AixiaTableTextCell
+                width="lg"
+                primary={row.document_number}
+                secondary={getPaymentStatusLabel(row.status)}
+              />
+              <AixiaTableBadgeCell width="sm">
+                <AixiaBadge tone={row.document_type === "customer_pi" ? "violet" : "cyan"}>
+                  {getCustomerDocumentTypeLabel(row.document_type)}
+                </AixiaBadge>
+              </AixiaTableBadgeCell>
+              <AixiaTableTextCell
+                width="lg"
+                primary={row.client_name}
+                secondary={row.payment_status || undefined}
+              />
+              <AixiaTableDateCell>
+                {formatFinanceDate(row.due_date)}
+              </AixiaTableDateCell>
+              <AixiaTableTextCell
+                width="md"
+                primary={formatFinanceMoney(row.total_amount, row.currency_code || "USD")}
+              />
+              <AixiaTableTextCell
+                width="md"
+                primary={formatFinanceMoney(paidAmount, row.currency_code || "USD")}
+              />
+              <AixiaTableTextCell
+                width="md"
+                primary={formatFinanceMoney(row.balance_due, row.currency_code || "USD")}
+              />
+              <AixiaTableBadgeCell>
+                <AixiaBadge tone="neutral">{row.currency_code || "USD"}</AixiaBadge>
+              </AixiaTableBadgeCell>
+              <AixiaTableActionsCell>
+                <AixiaButton
+                  type="button"
+                  variant="secondary"
+                  onClick={() => onOpenDocument(row)}
+                >
+                  <Eye className="h-4 w-4" />
+                  Open
+                </AixiaButton>
+                {canCreatePayment ? (
+                  <AixiaButton
+                    type="button"
+                    variant="primary"
+                    onClick={() => onRecordPayment(row)}
+                  >
+                    <Plus className="h-4 w-4" />
+                    Record Payment
+                  </AixiaButton>
+                ) : null}
+              </AixiaTableActionsCell>
+            </tr>
+          );
+        })}
       </tbody>
     </AixiaTableShell>
   );
@@ -696,9 +739,9 @@ export default function PaymentsReceivedPage() {
   const [isLoading, setIsLoading] = useState(true);
   const [isBackgroundRefreshing, setIsBackgroundRefreshing] = useState(false);
   const [payments, setPayments] = useState<PaymentReceivedListRow[]>([]);
-  const [openInvoices, setOpenInvoices] = useState<OpenInvoiceRow[]>([]);
+  const [openReceivables, setOpenReceivables] = useState<OpenReceivableRow[]>([]);
   const [search, setSearch] = useState("");
-  const [openInvoicesSearch, setOpenInvoicesSearch] = useState("");
+  const [openReceivablesSearch, setOpenReceivablesSearch] = useState("");
   const [errorMessage, setErrorMessage] = useState("");
 
   const [profileRole, setProfileRole] = useState<Role | null>(null);
@@ -716,9 +759,9 @@ export default function PaymentsReceivedPage() {
     useState<PaymentSortKey>("payment_date");
   const [paymentSortDirection, setPaymentSortDirection] =
     useState<SortDirection>("desc");
-  const [openInvoiceSortKey, setOpenInvoiceSortKey] =
-    useState<OpenInvoiceSortKey>("due_date");
-  const [openInvoiceSortDirection, setOpenInvoiceSortDirection] =
+  const [openReceivableSortKey, setOpenReceivableSortKey] =
+    useState<OpenReceivableSortKey>("due_date");
+  const [openReceivableSortDirection, setOpenReceivableSortDirection] =
     useState<SortDirection>("asc");
 
   const pagePermissionState = useMemo(() => {
@@ -783,55 +826,21 @@ export default function PaymentsReceivedPage() {
         setErrorMessage("");
       }
 
-      const [paymentRows, invoiceRows] = await Promise.all([
+      const [paymentRows, customerDocuments] = await Promise.all([
         getPaymentsReceived(),
-        getIssuedInvoicesList(),
+        getCustomerDocumentsList(),
       ]);
 
-      const openInvoiceRows = invoiceRows.filter((invoice) => {
-        const balanceDue = Number(invoice.balance_due ?? 0);
-        const status = String(invoice.status || "").toLowerCase();
-        const paymentStatus = String(
-          invoice.payment_status || "",
-        ).toLowerCase();
+      const openReceivableRows = customerDocuments.filter(isOpenReceivableDocument);
 
-        const isOpenDocumentStatus =
-          status === "issued" ||
-          status === "partially_paid" ||
-          status === "overdue";
-
-        const isOpenPaymentStatus =
-          paymentStatus === "unpaid" ||
-          paymentStatus === "partial" ||
-          paymentStatus === "partially_paid" ||
-          paymentStatus === "";
-
-        const isExcludedStatus =
-          status === "draft" ||
-          status === "paid" ||
-          status === "void" ||
-          status === "voided" ||
-          status === "cancelled" ||
-          status === "canceled" ||
-          status === "archived" ||
-          status === "deleted";
-
-        return (
-          balanceDue > 0 &&
-          isOpenDocumentStatus &&
-          isOpenPaymentStatus &&
-          !isExcludedStatus
-        );
-      });
-
-      setPayments((paymentRows || []) as PaymentReceivedListRow[]);
-      setOpenInvoices(openInvoiceRows as OpenInvoiceRow[]);
+      setPayments(paymentRows || []);
+      setOpenReceivables(openReceivableRows);
     } catch (error) {
       console.error("Failed to load payments received:", error);
 
       if (mode === "initial") {
         setPayments([]);
-        setOpenInvoices([]);
+        setOpenReceivables([]);
         setErrorMessage("Failed to load payments received.");
       }
     } finally {
@@ -897,6 +906,11 @@ export default function PaymentsReceivedPage() {
       .on(
         "postgres_changes",
         { event: "*", schema: "public", table: "finance_invoices_issued" },
+        () => void loadPayments("silent"),
+      )
+      .on(
+        "postgres_changes",
+        { event: "*", schema: "public", table: "finance_proforma_invoices" },
         () => void loadPayments("silent"),
       )
       .subscribe();
@@ -974,19 +988,19 @@ export default function PaymentsReceivedPage() {
     [paymentSortKey],
   );
 
-  const handleOpenInvoiceSort = useCallback(
-    (key: OpenInvoiceSortKey) => {
-      if (openInvoiceSortKey === key) {
-        setOpenInvoiceSortDirection((current) =>
+  const handleOpenReceivableSort = useCallback(
+    (key: OpenReceivableSortKey) => {
+      if (openReceivableSortKey === key) {
+        setOpenReceivableSortDirection((current) =>
           current === "asc" ? "desc" : "asc",
         );
         return;
       }
 
-      setOpenInvoiceSortKey(key);
-      setOpenInvoiceSortDirection(key === "due_date" ? "asc" : "desc");
+      setOpenReceivableSortKey(key);
+      setOpenReceivableSortDirection(key === "due_date" ? "asc" : "desc");
     },
-    [openInvoiceSortKey],
+    [openReceivableSortKey],
   );
 
   const filteredPayments = useMemo(() => {
@@ -1001,7 +1015,7 @@ export default function PaymentsReceivedPage() {
         (payment.reference_number || "")
           .toLowerCase()
           .includes(normalizedSearch) ||
-        (payment.invoice_number || "")
+        (payment.document_number || payment.invoice_number || payment.proforma_number || "")
           .toLowerCase()
           .includes(normalizedSearch) ||
         getPaymentClientName(payment)
@@ -1028,43 +1042,38 @@ export default function PaymentsReceivedPage() {
     });
   }, [filteredPayments, paymentSortDirection, paymentSortKey]);
 
-  const visibleOpenInvoices = useMemo(() => {
-    const normalizedSearch = openInvoicesSearch.trim().toLowerCase();
+  const visibleOpenReceivables = useMemo(() => {
+    const normalizedSearch = openReceivablesSearch.trim().toLowerCase();
 
     if (!normalizedSearch) {
-      return openInvoices;
+      return openReceivables;
     }
 
-    return openInvoices.filter((invoice) => {
+    return openReceivables.filter((row) => {
       return (
-        (invoice.invoice_number || "")
+        row.document_number.toLowerCase().includes(normalizedSearch) ||
+        getCustomerDocumentTypeLabel(row.document_type)
           .toLowerCase()
           .includes(normalizedSearch) ||
-        getOpenInvoiceClientName(invoice)
-          .toLowerCase()
-          .includes(normalizedSearch) ||
-        (invoice.currency_code || "")
-          .toLowerCase()
-          .includes(normalizedSearch) ||
-        String(invoice.status || "")
-          .toLowerCase()
-          .includes(normalizedSearch) ||
-        String(invoice.payment_status || "")
+        row.client_name.toLowerCase().includes(normalizedSearch) ||
+        (row.currency_code || "").toLowerCase().includes(normalizedSearch) ||
+        String(row.status || "").toLowerCase().includes(normalizedSearch) ||
+        String(row.payment_status || "")
           .toLowerCase()
           .includes(normalizedSearch)
       );
     });
-  }, [openInvoices, openInvoicesSearch]);
+  }, [openReceivables, openReceivablesSearch]);
 
-  const sortedOpenInvoices = useMemo(() => {
-    return [...visibleOpenInvoices].sort((first, second) => {
+  const sortedOpenReceivables = useMemo(() => {
+    return [...visibleOpenReceivables].sort((first, second) => {
       return compareSortValues(
-        getOpenInvoiceSortValue(first, openInvoiceSortKey),
-        getOpenInvoiceSortValue(second, openInvoiceSortKey),
-        openInvoiceSortDirection,
+        getOpenReceivableSortValue(first, openReceivableSortKey),
+        getOpenReceivableSortValue(second, openReceivableSortKey),
+        openReceivableSortDirection,
       );
     });
-  }, [openInvoiceSortDirection, openInvoiceSortKey, visibleOpenInvoices]);
+  }, [openReceivableSortDirection, openReceivableSortKey, visibleOpenReceivables]);
 
   const visibleArchivedPayments = useMemo(() => {
     return archivedPayments.filter(
@@ -1119,6 +1128,86 @@ export default function PaymentsReceivedPage() {
     };
   }, [payments]);
 
+  const paymentReceivedMetrics = useMemo(
+    () => [
+      {
+        key: "total",
+        title: "Payments Received",
+        value: summary.totalPayments.toLocaleString(),
+        subtitle: "Manual collection records.",
+        icon: Receipt,
+        tone: "cyan" as const,
+      },
+      {
+        key: "draft",
+        title: "Draft Payments",
+        value: summary.draftPayments.toLocaleString(),
+        subtitle: "Awaiting proof and confirmation.",
+        icon: FileCheck2,
+        tone: "amber" as const,
+      },
+      {
+        key: "confirmed",
+        title: "Confirmed Inflows",
+        value: summary.totalConverted.toLocaleString(undefined, {
+          minimumFractionDigits: 2,
+          maximumFractionDigits: 2,
+        }),
+        subtitle: `${summary.confirmedPayments} confirmed payment records.`,
+        icon: Wallet,
+        tone: "emerald" as const,
+      },
+      {
+        key: "multi-currency",
+        title: "Multi-Currency",
+        value: summary.multiCurrencyPayments.toLocaleString(),
+        subtitle: `${summary.cancelledPayments} cancelled payment records.`,
+        icon: BadgeCheck,
+        tone: "violet" as const,
+      },
+    ],
+    [summary],
+  );
+
+  const headerStatusCards = useMemo(
+    () => [
+      {
+        key: "system-status",
+        label: "System Status",
+        value: isLoading ? "Loading" : isBackgroundRefreshing ? "Syncing" : "Live",
+        detail: "Payments received registry refreshes silently with auto-refresh enabled.",
+        tone: "emerald" as const,
+      },
+      {
+        key: "access",
+        label: "Access",
+        value: pagePermissionState.canRead
+          ? pagePermissionState.canCreate
+            ? "Enabled"
+            : "Read-only"
+          : "Limited",
+        detail: pagePermissionState.canCreate
+          ? "Create, archive, and collection controls resolved through Finance page access."
+          : "Read-only or restricted by Finance page-access resolution.",
+        tone: pagePermissionState.canRead ? ("cyan" as const) : ("amber" as const),
+      },
+      {
+        key: "active-records",
+        label: "Active Records",
+        value: summary.totalPayments.toLocaleString(),
+        detail: "Incoming payment records in the main registry.",
+        tone: "amber" as const,
+      },
+    ],
+    [
+      isBackgroundRefreshing,
+      isLoading,
+      pagePermissionState.canCreate,
+      pagePermissionState.canRead,
+      summary.totalPayments,
+    ],
+  );
+
   if (isLoading) {
     return (
       <AixiaLoadingState
@@ -1148,23 +1237,26 @@ export default function PaymentsReceivedPage() {
   }
 
   return (
-    <AixiaPage>
+    <FinancePage>
       <AixiaHero
+        className="shrink-0 space-y-4"
+        surface="command"
         parentLabel="Transactions"
         parentPath="/finance/transactions"
-        badges={[
-          { label: "Payment Registry", tone: "cyan" },
-          { label: "Draft → Confirmed", tone: "emerald" },
-          { label: "Proof Based", tone: "violet" },
-          ...(isBackgroundRefreshing
-            ? [{ label: "Syncing", tone: "neutral" as const }]
-            : []),
-        ]}
-        gradientTitle="Payments"
-        title="Received"
-        description="Payments Received tracks external client collections after invoice issuance, stores evidence, supports multi-currency settlement, and keeps archived and deleted records outside the active registry."
+        gradientTitle="Payments Received"
+        title="Payments Received"
+        subtitle="Incoming payment registry for issued invoices and collections"
         actions={
           <>
+            <AixiaButton
+              type="button"
+              variant="secondary"
+              onClick={() => void loadPayments("initial")}
+            >
+              <RotateCcw className="h-4 w-4" />
+              Refresh
+            </AixiaButton>
+
             {canCreatePaymentsReceived ? (
               <AixiaButton
                 type="button"
@@ -1193,95 +1285,56 @@ export default function PaymentsReceivedPage() {
             ) : null}
           </>
         }
-        statusCards={[
-          {
-            label: "Active Records",
-            value: payments.length.toLocaleString(),
-            description: "Excludes archived and deleted payment records.",
-            icon: Receipt,
-            tone: "cyan",
-          },
-          {
-            label: "Open Invoices",
-            value: openInvoices.length.toLocaleString(),
-            description: "Issued invoices with remaining balance.",
-            icon: FileCheck2,
-            tone: "amber",
-          },
-        ]}
-      />
-
-      <AixiaMetricGrid>
-        <AixiaMetricCard
-          label="Payments Received"
-          value={summary.totalPayments.toLocaleString()}
-          description="Manual collection records."
-          icon={Receipt}
-          tone="cyan"
-        />
-        <AixiaMetricCard
-          label="Draft Payments"
-          value={summary.draftPayments.toLocaleString()}
-          description="Awaiting proof and confirmation."
-          icon={FileCheck2}
-          tone="amber"
-        />
-        <AixiaMetricCard
-          label="Confirmed Inflows"
-          value={summary.totalConverted.toLocaleString(undefined, {
-            minimumFractionDigits: 2,
-            maximumFractionDigits: 2,
-          })}
-          description={`${summary.confirmedPayments} confirmed payment records.`}
-          icon={Wallet}
-          tone="emerald"
-        />
-        <AixiaMetricCard
-          label="Multi-Currency"
-          value={summary.multiCurrencyPayments.toLocaleString()}
-          description={`${summary.cancelledPayments} cancelled payment records.`}
-          icon={BadgeCheck}
-          tone="violet"
-        />
-      </AixiaMetricGrid>
-
-      <AixiaAccessRule
-        title="Payments Received Access Rule"
-        description="Incoming Money Flow permissions control visibility, creation, update, archive, restore, and permanent delete behavior for received payments."
       >
-        Read access opens this registry. Create access shows New Payment. Delete / Archive access shows Archive, Delete, Restore, and Delete Permanently actions. Permission checks use fetchFinanceEffectivePermissions and resolveFinancePagePermissionState from the shared Finance page access source of truth.
-      </AixiaAccessRule>
+        <AixiaCommandMetrics items={paymentReceivedMetrics} />
+      </AixiaHero>
 
-      {errorMessage ? (
-        <AixiaAlert tone="error">{errorMessage}</AixiaAlert>
-      ) : null}
+      <div className="aixia-command-scroll">
+        <AixiaFinanceHubMetaStrip items={headerStatusCards} />
 
-      <AixiaSection
-        title="Invoices Waiting for Payment"
-        description="Open issued invoices with remaining balance. Open an invoice document or create a received payment from the payment workflow."
+        {errorMessage ? (
+          <AixiaAlert tone="error">{errorMessage}</AixiaAlert>
+        ) : null}
+
+        <AixiaAccessRule
+          title="Payments Received Access Rule"
+          description="Incoming Money Flow permissions control visibility, creation, update, archive, restore, and permanent delete behavior for received payments."
+        >
+          Read access opens this registry. Create access shows New Payment. Delete / Archive access shows Archive, Delete, Restore, and Delete Permanently actions. Permission checks use fetchFinanceEffectivePermissions and resolveFinancePagePermissionState from the shared Finance page access source of truth.
+        </AixiaAccessRule>
+
+        <AixiaFinanceHubControlPanel
+          icon={Wallet}
+          title="Payment collection"
+          description="Incoming payments mapped to receivables. Auto-refresh enabled."
+        />
+
+        <AixiaSection
+        title="Proforma / Invoice Waiting for Payment"
+        description="Open proforma invoices and invoices with remaining balance. Open the source document or record a payment against it."
         icon={FileCheck2}
-        badge={<AixiaBadge tone="amber">Open Invoices</AixiaBadge>}
+        badge={<AixiaBadge tone="amber">Open Receivables</AixiaBadge>}
         actions={
           <AixiaRegistryToolbar
             search={
               <AixiaSearchField
                 width="wide"
-                value={openInvoicesSearch}
-                onChange={(event) => setOpenInvoicesSearch(event.target.value)}
-                placeholder="Search open invoices..."
+                value={openReceivablesSearch}
+                onChange={(event) => setOpenReceivablesSearch(event.target.value)}
+                placeholder="Search open receivables..."
               />
             }
           />
         }
       >
-        <OpenInvoicesTable
-          rows={sortedOpenInvoices}
-          sortKey={openInvoiceSortKey}
-          sortDirection={openInvoiceSortDirection}
-          onSort={handleOpenInvoiceSort}
-          onOpen={(invoiceId) =>
-            navigate(`/finance/transactions/invoices/${invoiceId}`)
-          }
+        <OpenReceivablesTable
+          rows={sortedOpenReceivables}
+          sortKey={openReceivableSortKey}
+          sortDirection={openReceivableSortDirection}
+          onSort={handleOpenReceivableSort}
+          onOpenDocument={(row) => navigate(getCustomerDocumentDetailPath(row))}
+          onRecordPayment={(row) => navigate(getNewPaymentPath(row))}
+          canCreatePayment={canCreatePaymentsReceived}
         />
       </AixiaSection>
 
@@ -1297,7 +1350,7 @@ export default function PaymentsReceivedPage() {
                 width="wide"
                 value={search}
                 onChange={(event) => setSearch(event.target.value)}
-                placeholder="Search reference, invoice, client, status..."
+                placeholder="Search reference, document, client, status..."
               />
             }
           />
@@ -1357,6 +1410,7 @@ export default function PaymentsReceivedPage() {
           />
         )}
       </AixiaArchiveManagerModal>
-    </AixiaPage>
+      </div>
+    </FinancePage>
   );
 }

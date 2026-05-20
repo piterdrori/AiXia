@@ -5,6 +5,7 @@ import { useNavigate, useParams } from "react-router-dom";
 import {
   Archive,
   CheckCircle,
+  CreditCard,
   FileText,
   Link2,
   Printer,
@@ -12,6 +13,7 @@ import {
   Save,
   SquarePen,
   Trash2,
+  WalletCards,
 } from "lucide-react";
 
 import { supabase } from "@/lib/supabase";
@@ -85,6 +87,9 @@ type ProformaRecord = {
   tax_amount: number | string | null;
   discount_amount: number | string | null;
   total_amount: number | string | null;
+  paid_amount: number | string | null;
+  balance_due: number | string | null;
+  payment_status: string | null;
   currency_id: string | null;
   exchange_rate: number | string | null;
   project_id: string | null;
@@ -136,6 +141,17 @@ type InvoiceLinkRow = {
   issue_date: string | null;
   due_date: string | null;
   currency_code: string | null;
+};
+
+type PaymentRow = {
+  id: string;
+  amount: number;
+  converted_amount: number;
+  payment_currency_code: string;
+  invoice_currency_code: string;
+  payment_date: string;
+  status: string;
+  reference_number: string | null;
 };
 
 type CustomerPoSource = {
@@ -622,6 +638,7 @@ export default function FinanceProformaInvoiceDetailPage() {
 
   const [proforma, setProforma] = useState<ProformaRecord | null>(null);
   const [lineItems, setLineItems] = useState<ProformaLineItemRow[]>([]);
+  const [payments, setPayments] = useState<PaymentRow[]>([]);
   const [linkedInvoice, setLinkedInvoice] = useState<InvoiceLinkRow | null>(
     null
   );
@@ -705,7 +722,7 @@ export default function FinanceProformaInvoiceDetailPage() {
       setError("");
 
       try {
-        const [proformaRecord, proformaLines, invoiceResult] =
+        const [proformaRecord, proformaLines, invoiceResult, paymentsResult] =
           await Promise.all([
             getProformaInvoiceById(id),
             getProformaInvoiceLineItems(id),
@@ -716,10 +733,21 @@ export default function FinanceProformaInvoiceDetailPage() {
               )
               .eq("proforma_invoice_id", id)
               .limit(1),
+            supabase
+              .from("finance_payments_received")
+              .select(
+                "id, amount, converted_amount, payment_currency_code, invoice_currency_code, payment_date, status, reference_number"
+              )
+              .eq("proforma_invoice_id", id)
+              .eq("status", "confirmed")
+              .order("payment_date", { ascending: false }),
           ]);
 
         if (invoiceResult.error) {
           throw invoiceResult.error;
+        }
+        if (paymentsResult.error) {
+          throw paymentsResult.error;
         }
 
         let typedProforma = proformaRecord as unknown as ProformaRecord;
@@ -780,6 +808,7 @@ export default function FinanceProformaInvoiceDetailPage() {
 
         setProforma(typedProforma);
         setLineItems(typedLineItems);
+        setPayments((paymentsResult.data || []) as PaymentRow[]);
         setLinkedInvoice(linkedInvoiceRow);
         setLinkedCustomerPo(customerPoRow);
 
@@ -1161,6 +1190,8 @@ export default function FinanceProformaInvoiceDetailPage() {
       discount: toNumber(proforma.discount_amount),
       tax: toNumber(proforma.tax_amount),
       total: toNumber(proforma.total_amount),
+      paid: toNumber(proforma.paid_amount),
+      balance: toNumber(proforma.balance_due),
     };
   }, [proforma]);
 
@@ -1207,16 +1238,23 @@ export default function FinanceProformaInvoiceDetailPage() {
   const canArchive =
     !!proforma &&
     !["archived", "deleted", "converted"].includes(proforma.status);
+  const canRecordPayment =
+    !!proforma &&
+    ["issued", "confirmed"].includes(proforma.status) &&
+    toNumber(proforma.balance_due) > 0;
 
   const financialSummary = useMemo(() => {
     if (!proforma || !totals) return null;
 
     if (canEditDraft) {
+      const paid = totals.paid;
       return {
         subtotal: draftTotals.subtotal,
         discount: draftTotals.discount,
         tax: draftTotals.tax,
         total: draftTotals.total,
+        paid,
+        balance: draftTotals.total - paid,
       };
     }
 
@@ -1727,6 +1765,16 @@ export default function FinanceProformaInvoiceDetailPage() {
     setError("");
 
     try {
+      const { data: confirmedPayments, error: paymentsError } = await supabase
+        .from("finance_payments_received")
+        .select("id")
+        .eq("proforma_invoice_id", id)
+        .eq("status", "confirmed");
+      if (paymentsError) throw paymentsError;
+      if (confirmedPayments && confirmedPayments.length > 0) {
+        throw new Error("Cannot delete proforma invoice with existing payments.");
+      }
+
       await softDeleteProformaInvoice(id);
 
       setEditingOverview(false);
@@ -1737,9 +1785,9 @@ export default function FinanceProformaInvoiceDetailPage() {
       await loadProforma(true);
       await loadArchiveItems();
       setShowArchivePopup(true);
-    } catch (err) {
+    } catch (err: any) {
       console.error(err);
-      setError("Failed to delete proforma invoice.");
+      setError(err?.message || "Failed to delete proforma invoice.");
     } finally {
       setIsDeleting(false);
     }
@@ -1794,6 +1842,16 @@ export default function FinanceProformaInvoiceDetailPage() {
       setError("");
 
       try {
+        const { data: confirmedPayments, error: paymentsError } = await supabase
+          .from("finance_payments_received")
+          .select("id")
+          .eq("proforma_invoice_id", proformaId)
+          .eq("status", "confirmed");
+        if (paymentsError) throw paymentsError;
+        if (confirmedPayments && confirmedPayments.length > 0) {
+          throw new Error("Cannot delete proforma invoice with existing payments.");
+        }
+
         await permanentlyDeleteProformaInvoice(proformaId);
 
         if (proformaId === id) {
@@ -1802,9 +1860,9 @@ export default function FinanceProformaInvoiceDetailPage() {
         }
 
         await loadArchiveItems();
-      } catch (err) {
+      } catch (err: any) {
         console.error(err);
-        setError("Failed to permanently delete archived proforma invoice.");
+        setError(err?.message || "Failed to permanently delete archived proforma invoice.");
       } finally {
         setIsDeleting(false);
       }
@@ -2202,6 +2260,13 @@ export default function FinanceProformaInvoiceDetailPage() {
       </AixiaPage>
     );
   }
+
+  const paymentProgressPercent = (() => {
+    const total = Number(proforma.total_amount || 0);
+    const paid = Number(proforma.paid_amount || 0);
+    if (total <= 0) return 0;
+    return Math.max(0, Math.min((paid / total) * 100, 100));
+  })();
 
   const overviewActions = canEditDraft ? (
     editingOverview ? (
@@ -3019,7 +3084,7 @@ export default function FinanceProformaInvoiceDetailPage() {
 
       <AixiaSection
         title="Linked Documents"
-        description="Source Customer PO and converted invoice relationship."
+        description="Source Customer PO, converted invoice, and confirmed payments."
         icon={Link2}
       >
         <div className="aixia-stack">
@@ -3068,6 +3133,71 @@ export default function FinanceProformaInvoiceDetailPage() {
             }
           />
         </div>
+
+        <AixiaReviewGrid variant="cards">
+          <AixiaValueBlock
+            label="Payment Progress"
+            value={`${Math.round(paymentProgressPercent)}%`}
+            detail={`${formatFinanceMoney(toNumber(proforma.paid_amount), printableCurrencyCode)} paid · ${formatFinanceMoney(toNumber(proforma.balance_due), printableCurrencyCode)} remaining`}
+          />
+          <AixiaValueBlock
+            label="Payments Received"
+            value={payments.length}
+            detail="Confirmed payments linked to this proforma invoice."
+          />
+        </AixiaReviewGrid>
+
+        {payments.length === 0 ? (
+          <AixiaEmptyState
+            icon={FileText}
+            title="No payments yet"
+            description="Confirmed payments linked to this proforma invoice will appear here."
+          />
+        ) : (
+          <AixiaTableShell variant="default" minWidthClassName="min-w-[680px]">
+            <thead className="aixia-table-head">
+              <tr>
+                <th>Payment</th>
+                <th>Amount</th>
+                <th>Status</th>
+                <th>Actions</th>
+              </tr>
+            </thead>
+            <tbody>
+              {payments.map((payment) => (
+                <tr key={payment.id} className="aixia-table-row">
+                  <AixiaTableTextCell
+                    width="md"
+                    primary={payment.reference_number || payment.id}
+                    secondary={formatFinanceDate(payment.payment_date)}
+                  />
+                  <AixiaTableTextCell
+                    width="sm"
+                    primary={formatFinanceMoney(
+                      toNumber(payment.amount),
+                      payment.payment_currency_code || printableCurrencyCode
+                    )}
+                    secondary={payment.invoice_currency_code}
+                  />
+                  <AixiaTableBadgeCell width="sm">
+                    <AixiaStatusBadge value={payment.status} />
+                  </AixiaTableBadgeCell>
+                  <AixiaTableActionsCell>
+                    <AixiaButton
+                      type="button"
+                      variant="primary"
+                      onClick={() =>
+                        navigate(`/finance/transactions/payments-received/${payment.id}`)
+                      }
+                    >
+                      Open
+                    </AixiaButton>
+                  </AixiaTableActionsCell>
+                </tr>
+              ))}
+            </tbody>
+          </AixiaTableShell>
+        )}
       </AixiaSection>
     </>
   );
@@ -3076,10 +3206,10 @@ export default function FinanceProformaInvoiceDetailPage() {
     <>
       <AixiaPage>
         <AixiaHero
-          parentLabel="Proforma Invoices"
-          parentPath="/finance/transactions/proforma-invoices"
+          parentLabel="Proforma / Invoice"
+          parentPath="/finance/transactions/invoices"
           badges={[
-            { label: "Proforma Workspace", tone: "cyan" },
+            { label: "Proforma Invoice", tone: "violet" },
             { label: getProformaStatusLabel(proforma.status), tone: proforma.status === "confirmed" ? "emerald" : "neutral" },
             ...(linkedCustomerPo ? [{ label: "Source Customer PO", tone: "emerald" as const }] : []),
             ...(linkedInvoice ? [{ label: "Linked Invoice", tone: "violet" as const }] : []),
@@ -3100,13 +3230,36 @@ export default function FinanceProformaInvoiceDetailPage() {
               tone: "cyan",
             },
             {
-              label: "Total",
-              value: formatFinanceMoney(financialSummary?.total ?? 0, printableCurrencyCode),
-              description: "Current proforma commercial value.",
-              icon: FileText,
+              label: "Balance Due",
+              value: formatFinanceMoney(financialSummary?.balance ?? 0, printableCurrencyCode),
+              description: "Remaining amount after confirmed payments.",
+              icon: WalletCards,
+              tone: "amber",
+            },
+            {
+              label: "Payment Progress",
+              value: `${Math.round(paymentProgressPercent)}%`,
+              description: "Confirmed payments against proforma total.",
+              icon: CreditCard,
               tone: "emerald",
             },
           ]}
+          actions={
+            canRecordPayment ? (
+              <AixiaButton
+                type="button"
+                variant="primary"
+                onClick={() =>
+                  navigate(
+                    `/finance/transactions/payments-received/new?proforma_invoice_id=${proforma.id}&document_type=proforma`
+                  )
+                }
+              >
+                <CheckCircle className="h-4 w-4" />
+                Record Payment
+              </AixiaButton>
+            ) : undefined
+          }
         />
 
         <AixiaMetricGrid>

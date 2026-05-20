@@ -30,54 +30,51 @@ export default function MessageComposer({
   const { t } = useLanguage();
 
   return (
-    <div className="p-4 border-t border-slate-800 shrink-0">
+    <footer className="aixia-chat-composer">
       <div className="space-y-2">
-        <div className="flex gap-2 items-end">
-  {/* Upload button */}
-  <label className="cursor-pointer">
-    <input
-      type="file"
-      className="hidden"
-      onChange={(e) => {
-        const file = e.target.files?.[0];
-        if (file) {
-          onUploadFile(file);
-          e.target.value = "";
-        }
-      }}
-    />
-    <div className="h-11 w-11 flex items-center justify-center rounded-md bg-slate-800 hover:bg-slate-700">
-      <Paperclip className="w-4 h-4 text-white" />
-    </div>
-  </label>
+        <div className="aixia-chat-composer-row">
+          <label className="aixia-chat-composer-attach cursor-pointer">
+            <input
+              type="file"
+              className="hidden"
+              onChange={(e) => {
+                const file = e.target.files?.[0];
+                if (file) {
+                  onUploadFile(file);
+                  e.target.value = "";
+                }
+              }}
+            />
+            <Paperclip className="h-4 w-4" />
+          </label>
 
-  <Textarea
-    placeholder={t("chat.composer.placeholder")}
-    value={messageInput}
-    onChange={(e) => onChange(e.target.value)}
-    onKeyDown={(e) => {
-      if (e.key === "Enter" && !e.shiftKey) {
-        e.preventDefault();
-        onSend();
-      }
-    }}
-    rows={2}
-    className="min-h-[44px] max-h-40 bg-slate-950 border-slate-800 text-white placeholder:text-slate-600 resize-none"
-  />
+          <Textarea
+            placeholder={t("chat.composer.placeholder")}
+            value={messageInput}
+            onChange={(e) => onChange(e.target.value)}
+            onKeyDown={(e) => {
+              if (e.key === "Enter" && !e.shiftKey) {
+                e.preventDefault();
+                onSend();
+              }
+            }}
+            rows={2}
+            className="aixia-projects-textarea min-h-[44px] max-h-40 flex-1 resize-none"
+          />
 
-  <Button
-    onClick={onSend}
-    disabled={isSending || isUploadingFile || !messageInput.trim()}
-    className="bg-indigo-600 hover:bg-indigo-700 text-white h-11"
-  >
-    <Send className="w-4 h-4" />
-  </Button>
-</div>
+          <Button
+            onClick={onSend}
+            disabled={isSending || isUploadingFile || !messageInput.trim()}
+            className="aixia-dash-action aixia-dash-action--primary h-11 shrink-0"
+          >
+            <Send className="h-4 w-4" />
+          </Button>
+        </div>
 
         {showMentionDropdown && (
-          <div className="rounded-lg border border-slate-800 bg-slate-900 shadow-lg overflow-hidden">
+          <div className="aixia-chat-mention-menu">
             {filteredMentionCandidates.length === 0 ? (
-              <div className="px-3 py-2 text-sm text-slate-500">
+              <div className="px-3 py-2 text-sm aixia-projects-muted">
                 {t("chat.composer.noMatchingParticipants")}
               </div>
             ) : (
@@ -86,22 +83,20 @@ export default function MessageComposer({
                   key={profile.user_id}
                   type="button"
                   onClick={() => onInsertMention(profile.full_name || "")}
-                  className="w-full flex items-center justify-between px-3 py-2 text-left hover:bg-slate-800 transition-colors"
+                  className="aixia-chat-mention-item"
                 >
-                  <div>
-                    <div className="text-sm font-medium text-white">
+                  <span className="aixia-projects-member-tile-meta">
+                    <span className="aixia-dash-list-row-title">
                       {profile.full_name || t("chat.common.unknown")}
-                    </div>
-                    <div className="text-xs text-slate-500">
-                      {profile.role.toUpperCase()}
-                    </div>
-                  </div>
+                    </span>
+                    <span className="aixia-dash-pill">{profile.role.toUpperCase()}</span>
+                  </span>
                 </button>
               ))
             )}
           </div>
         )}
       </div>
-    </div>
+    </footer>
   );
 }

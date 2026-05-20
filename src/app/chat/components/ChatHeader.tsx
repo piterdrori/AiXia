@@ -1,6 +1,5 @@
 import { CheckSquare, Search, Users, X } from "lucide-react";
 import { Button } from "@/components/ui/button";
-import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import { Input } from "@/components/ui/input";
 import { useLanguage } from "@/lib/i18n";
 
@@ -30,50 +29,48 @@ export default function ChatHeader({
   const { t } = useLanguage();
 
   return (
-    <div className="border-b border-slate-800 shrink-0">
-      <div className="flex items-center justify-between gap-3 p-4">
-        <div className="flex items-center gap-3 min-w-0">
-          <Avatar className="w-10 h-10 shrink-0">
-            <AvatarFallback className="bg-indigo-600 text-white">
-              {initials}
-            </AvatarFallback>
-          </Avatar>
+    <header className="aixia-chat-thread-hd">
+      <div className="aixia-chat-thread-hd-row">
+        <div className="flex min-w-0 items-center gap-3">
+          <span className="aixia-projects-member-tile-avatar shrink-0">{initials}</span>
 
-          <div className="min-w-0">
-            <h3 className="text-white font-medium truncate">{title}</h3>
-            <p className="text-slate-500 text-sm">
+          <span className="aixia-projects-member-tile-meta min-w-0">
+            <span className="aixia-dash-list-row-title truncate">{title}</span>
+            <span className="aixia-dash-list-row-meta">
               {t("chat.header.participantsCount", undefined, {
                 total: participantCount,
               })}
-            </p>
-          </div>
+            </span>
+          </span>
         </div>
 
-        <div className="flex items-center gap-2 shrink-0">
+        <div className="flex shrink-0 items-center gap-2">
           <Button
             type="button"
             variant="outline"
-            className="border-slate-700 text-slate-200 hover:bg-slate-800"
+            className="aixia-dash-action h-9"
             onClick={onToggleParticipantsPanel}
           >
-            <Users className="w-4 h-4 mr-2" />
-            {isParticipantsPanelOpen ? "Hide Participants" : "Participants"}
+            <Users className="mr-2 h-4 w-4" />
+            {isParticipantsPanelOpen
+              ? "Hide Participants"
+              : `Participants (${participantCount})`}
           </Button>
 
           <Button
             type="button"
             variant="outline"
-            className="border-slate-700 text-slate-200 hover:bg-slate-800"
+            className="aixia-dash-action h-9"
             onClick={onToggleSelectionMode}
           >
             {isSelectionMode ? (
               <>
-                <X className="w-4 h-4 mr-2" />
+                <X className="mr-2 h-4 w-4" />
                 {t("chat.header.cancelSelection")}
               </>
             ) : (
               <>
-                <CheckSquare className="w-4 h-4 mr-2" />
+                <CheckSquare className="mr-2 h-4 w-4" />
                 {t("chat.header.selectMessages")}
               </>
             )}
@@ -81,17 +78,17 @@ export default function ChatHeader({
         </div>
       </div>
 
-      <div className="px-4 pb-4">
+      <div className="aixia-chat-thread-search">
         <div className="relative">
-          <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-500" />
+          <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
           <Input
             value={messageSearchQuery}
             onChange={(e) => onMessageSearchChange(e.target.value)}
             placeholder="Search in this chat..."
-            className="pl-10 bg-slate-950 border-slate-800 text-white placeholder:text-slate-600"
+            className="aixia-projects-input pl-10"
           />
         </div>
       </div>
-    </div>
+    </header>
   );
 }

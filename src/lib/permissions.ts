@@ -1,5 +1,20 @@
 export type Role = "admin" | "manager" | "employee" | "guest";
 
+const VALID_ROLES: Role[] = ["admin", "manager", "employee", "guest"];
+
+/** Lowercase trim; unknown values default to employee. */
+export function normalizeRole(value: string | null | undefined): Role {
+  const normalized = String(value ?? "").trim().toLowerCase();
+  if (VALID_ROLES.includes(normalized as Role)) {
+    return normalized as Role;
+  }
+  return "employee";
+}
+
+export function isAdminRole(value: string | null | undefined): boolean {
+  return normalizeRole(value) === "admin";
+}
+
 export type Permission =
   | "createProjects"
   | "editAllProjects"
@@ -142,6 +157,9 @@ export type TaskRow = {
   created_by: string | null;
   assignee_id?: string | null;
   project_id?: string | null;
+  parent_task_id?: string | null;
+  archived_at?: string | null;
+  deleted_at?: string | null;
 };
 
 export type ProjectMemberRow = {
@@ -658,6 +676,7 @@ const ROUTE_PERMISSIONS: Record<string, RoutePermission> = {
   "/projects/new": { permission: "createProjects" },
   "/projects/:id": { roles: ["admin", "manager", "employee", "guest"] },
   "/projects/:id/edit": { permission: "editAllProjects" },
+  "/projects/:id/task-fields": { roles: ["admin", "manager", "employee", "guest"] },
 
   "/tasks": { roles: ["admin", "manager", "employee", "guest"] },
   "/tasks/new": { permission: "createTasks" },
@@ -681,58 +700,110 @@ const ROUTE_PERMISSIONS: Record<string, RoutePermission> = {
   "/finance/transactions": { permission: "accessFinance" },
   "/finance/master-data": { permission: "manageFinanceMasterData" },
   "/finance/reports": { permission: "exportFinanceReports" },
-  "/finance/clients": { permission: "viewClients" },
-  "/finance/vendors": { permission: "viewVendors" },
+  "/finance/settings": { roles: ["admin"], permission: "manageUsers" },
+
+  "/finance/master-data/projects": { permission: "viewFinance" },
+  "/finance/master-data/employees": { permission: "viewEmployeeDirectory" },
   "/finance/master-data/clients": { permission: "viewClients" },
+  "/finance/master-data/clients/new": { permission: "createFinanceRecords" },
   "/finance/master-data/clients/:id": { permission: "viewClients" },
 
   "/finance/master-data/vendors": { permission: "viewVendors" },
   "/finance/master-data/vendors/new": { permission: "createFinanceRecords" },
+  "/finance/master-data/vendors/:id": { permission: "viewVendors" },
+
+  "/finance/master-data/companies": { permission: "viewFinance" },
+  "/finance/master-data/companies/new": { permission: "createFinanceRecords" },
+  "/finance/master-data/companies/:id": { permission: "viewFinance" },
+
+  "/finance/master-data/payment-methods": { permission: "viewPaymentMethods" },
+  "/finance/master-data/expense-categories": { permission: "viewExpenseCategories" },
+  "/finance/master-data/revenue-categories": { permission: "viewRevenueCategories" },
+  "/finance/master-data/items": { permission: "viewItems" },
+  "/finance/master-data/currencies": { permission: "viewFinance" },
+
   "/finance/master-data/bank-accounts": { permission: "viewBankAccounts" },
   "/finance/master-data/bank-accounts/new": { permission: "createFinanceRecords" },
   "/finance/master-data/bank-accounts/:id": { permission: "viewBankAccounts" },
   "/finance/master-data/vendor-bank-accounts": { permission: "viewBankAccounts" },
   "/finance/master-data/vendor-bank-accounts/new": { permission: "createFinanceRecords" },
   "/finance/master-data/vendor-bank-accounts/:id": { permission: "viewBankAccounts" },
-  "/finance/payment-methods": { permission: "viewPaymentMethods" },
-  "/finance/master-data/payment-methods": { permission: "viewPaymentMethods" },
-    "/finance/expense-categories": { permission: "viewExpenseCategories" },
-  "/finance/master-data/expense-categories": { permission: "viewExpenseCategories" },
-  "/finance/revenue-categories": { permission: "viewRevenueCategories" },
-  "/finance/master-data/revenue-categories": { permission: "viewRevenueCategories" },
-  "/finance/master-data/items": { permission: "viewItems" },
-  "/finance/master-data/currencies": { permission: "viewFinance" },
-  "/finance/master-data/projects": { permission: "viewFinance" },
-"/finance/master-data/employees": { permission: "viewEmployeeDirectory" },
-  "/finance/settings": { permission: "manageFinanceMasterData" },
-  "/finance/payment-terms": { permission: "viewPaymentTerms" },
+
   "/finance/master-data/payment-terms": { permission: "viewPaymentTerms" },
-    "/finance/shipping-terms": { permission: "viewShippingTerms" },
   "/finance/master-data/shipping-terms": { permission: "viewShippingTerms" },
-    "/finance/units-of-measure": { permission: "viewUnitsOfMeasure" },
   "/finance/master-data/units-of-measure": { permission: "viewUnitsOfMeasure" },
-  "/finance/tax-codes": { permission: "viewTaxCodes" },
   "/finance/master-data/tax-codes": { permission: "viewTaxCodes" },
 
-  "/finance/invoices": { permission: "viewInvoices" },
-  "/finance/invoices/new": { permission: "createInvoices" },
-  "/finance/invoices/:id": { permission: "viewInvoices" },
+  "/finance/transactions/customer-pos": { permission: "viewInvoices" },
+  "/finance/transactions/customer-pos/new": { permission: "createInvoices" },
+  "/finance/transactions/customer-pos/:id": { permission: "viewInvoices" },
 
-  "/finance/bills": { permission: "viewBills" },
-  "/finance/bills/:id": { permission: "viewBills" },
-  "/finance/payments-made": { permission: "viewPaymentsMade" },
+  "/finance/transactions/invoices": { permission: "viewInvoices" },
+  "/finance/transactions/invoices/new": { permission: "createInvoices" },
+  "/finance/transactions/invoices/:id": { permission: "viewInvoices" },
+
+  "/finance/transactions/quotations": { permission: "viewInvoices" },
+  "/finance/transactions/quotations/new": { permission: "createInvoices" },
+  "/finance/transactions/quotations/:id": { permission: "viewInvoices" },
+
+  "/finance/transactions/proforma-invoices": { permission: "viewInvoices" },
+  "/finance/transactions/proforma-invoices/new": { permission: "createInvoices" },
+  "/finance/transactions/proforma-invoices/:id": { permission: "viewInvoices" },
+
+  "/finance/transactions/vendor-quotations": { permission: "viewBills" },
+  "/finance/transactions/vendor-quotations/new": { permission: "createBills" },
+  "/finance/transactions/vendor-quotations/:id": { permission: "viewBills" },
+
+  "/finance/transactions/purchase-orders": { permission: "viewBills" },
+  "/finance/transactions/purchase-orders/new": { permission: "createBills" },
+  "/finance/transactions/purchase-orders/:id": { permission: "viewBills" },
+
+  "/finance/transactions/bills": { permission: "viewBills" },
+  "/finance/transactions/bills/new": { permission: "createBills" },
+  "/finance/transactions/bills/:id": { permission: "viewBills" },
+
+  "/finance/transactions/payments-made": { permission: "viewPaymentsMade" },
+  "/finance/transactions/payments-made/new": { permission: "recordPaymentsMade" },
+  "/finance/transactions/payments-made/:id": { permission: "viewPaymentsMade" },
+
+  "/finance/transactions/payments-received": { permission: "viewReceivedPayments" },
+  "/finance/transactions/payments-received/new": { permission: "recordPaymentsReceived" },
+  "/finance/transactions/payments-received/:id": { permission: "viewReceivedPayments" },
 
   "/settings": { permission: "changeSettings" },
 
   "/finance/transactions/expenses": { permission: "viewExpenses" },
   "/finance/transactions/expenses/new": { permission: "createExpenses" },
+  "/finance/transactions/expenses/process": { permission: "viewExpenses" },
+  "/finance/transactions/expenses/process/form": { permission: "createExpenses" },
+  "/finance/transactions/expenses/process/:id": { permission: "viewExpenses" },
   "/finance/transactions/expenses/:id": { permission: "viewExpenses" },
 
+  "/finance/transactions/expense-review": { permission: "approveExpenses" },
+  "/finance/transactions/expense-review/:id": { permission: "approveExpenses" },
+
+  "/finance/transactions/expense-funding": { permission: "recordReimbursementPayments" },
+  "/finance/transactions/expense-funding/new": { permission: "recordReimbursementPayments" },
+  "/finance/transactions/expense-funding/:id": { permission: "recordReimbursementPayments" },
+
+  "/finance/transactions/expense-payments": { permission: "recordReimbursementPayments" },
+  "/finance/transactions/expense-payments/new": { permission: "recordReimbursementPayments" },
+  "/finance/transactions/expense-payments/:id": { permission: "recordReimbursementPayments" },
+
   "/finance/transactions/expenses-payments-made": { permission: "recordReimbursementPayments" },
+  "/finance/transactions/expenses-payments-made/process-book-template": {
+    permission: "recordReimbursementPayments",
+  },
   "/finance/transactions/expenses-payments-made/new": { permission: "recordReimbursementPayments" },
-  "/finance/transactions/expenses-payments-made/review/:id": { permission: "recordReimbursementPayments" },
-  "/finance/transactions/expenses-payments-made/funding-batches/new": { permission: "recordReimbursementPayments" },
-  "/finance/transactions/expenses-payments-made/funding-batches/:id": { permission: "recordReimbursementPayments" },
+  "/finance/transactions/expenses-payments-made/review/:id": {
+    permission: "recordReimbursementPayments",
+  },
+  "/finance/transactions/expenses-payments-made/funding-batches/new": {
+    permission: "recordReimbursementPayments",
+  },
+  "/finance/transactions/expenses-payments-made/funding-batches/:id": {
+    permission: "recordReimbursementPayments",
+  },
   "/finance/transactions/expenses-payments-made/:id": { permission: "recordReimbursementPayments" },
 
   "/finance/transactions/paycheck-requests": { permission: "viewOwnPaychecks" },
@@ -741,11 +812,13 @@ const ROUTE_PERMISSIONS: Record<string, RoutePermission> = {
 
   "/finance/transactions/payroll": { permission: "viewAllPaychecks" },
   "/finance/transactions/payroll/new": { permission: "createPayrollRuns" },
+  "/finance/transactions/payroll/review/:id": { permission: "viewAllPaychecks" },
+  "/finance/transactions/payroll/funding-batches/new": { permission: "viewAllPaychecks" },
+  "/finance/transactions/payroll/funding-batches/:id": { permission: "viewAllPaychecks" },
   "/finance/transactions/payroll/:id": { permission: "viewAllPaychecks" },
 
-    "/finance/access-approvals": { roles: ["admin"], permission: "manageUsers" },
-    "/finance/access-approvals/:userId": { roles: ["admin"], permission: "manageUsers" },
-
+  "/finance/access-approvals": { roles: ["admin"], permission: "manageUsers" },
+  "/finance/access-approvals/:userId": { roles: ["admin"], permission: "manageUsers" },
 };
 
 function applyBooleanPermissionOverrides(
@@ -1036,33 +1109,47 @@ export function canPerform(
   return !!perms[permission];
 }
 
+function routeMatchesPattern(route: string, pattern: string): boolean {
+  const normRoute = route.replace(/\/+$/, "") || "/";
+  const normPattern = pattern.replace(/\/+$/, "") || "/";
+
+  if (normPattern.includes(":")) {
+    const patternParts = normPattern.split("/");
+    const routeParts = normRoute.split("/");
+    if (patternParts.length !== routeParts.length) return false;
+    return patternParts.every(
+      (part, index) => part.startsWith(":") || part === routeParts[index]
+    );
+  }
+
+  if (normRoute === normPattern) return true;
+  if (normRoute.startsWith(normPattern + "/")) return true;
+  return false;
+}
+
+/** Prefer static segments over :param routes when multiple patterns match (e.g. .../new vs .../:id). */
+function routePatternSpecificity(pattern: string): number {
+  const parts = pattern.split("/").filter(Boolean);
+  const literalSegments = parts.filter((part) => !part.startsWith(":")).length;
+  return literalSegments * 10_000 + parts.length * 100 + pattern.length;
+}
+
 export function canAccessRoute(
   role: Role,
   route: string,
   overrides?: Partial<PermissionMap> | null
 ): boolean {
-  const sortedRoutes = Object.entries(ROUTE_PERMISSIONS).sort(
-    ([a], [b]) => b.length - a.length
+  const normalizedRoute = route.replace(/\/+$/, "") || "/";
+
+  const matchingEntries = Object.entries(ROUTE_PERMISSIONS).filter(([pattern]) =>
+    routeMatchesPattern(normalizedRoute, pattern)
   );
 
-  const entry = sortedRoutes.find(([pattern]) => {
-    if (pattern.includes(":")) {
-      const patternParts = pattern.split("/");
-      const routeParts = route.split("/");
+  if (matchingEntries.length === 0) return true;
 
-      if (patternParts.length !== routeParts.length) return false;
-
-      return patternParts.every((part, index) => {
-        return part.startsWith(":") || part === routeParts[index];
-      });
-    }
-
-    return route.replace(/\/+$/, "") === pattern.replace(/\/+$/, "");
-  });
-
-  if (!entry) return true;
-
-  const [, config] = entry;
+  const [, config] = matchingEntries.reduce((best, current) =>
+    routePatternSpecificity(current[0]) > routePatternSpecificity(best[0]) ? current : best
+  );
 
   if (config.roles && !config.roles.includes(role)) {
     return false;

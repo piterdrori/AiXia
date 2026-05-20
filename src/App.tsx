@@ -4,6 +4,7 @@ import {
   Route,
   Navigate,
   useLocation,
+  useParams,
 } from "react-router-dom";
 import {
   createContext,
@@ -36,6 +37,7 @@ import ProjectsPage from "@/app/projects/page";
 import ProjectDetailPage from "@/app/projects/[id]/page";
 import ProjectNewPage from "@/app/projects/new/page";
 import ProjectEditPage from "@/app/projects/[id]/edit/page";
+import ProjectTaskFieldsPage from "@/app/projects/[id]/task-fields/page";
 import ProjectReportDetailPage from "@/app/projects/[id]/reports/[reportId]/page";
 import TasksPage from "@/app/tasks/page";
 import TaskDetailPage from "@/app/tasks/[id]/page";
@@ -47,6 +49,7 @@ import CalendarEditPage from "@/app/calendar/[id]/edit/page";
 import CalendarDayPage from "@/app/calendar/day/page";
 import ChatPage from "@/app/chat/page";
 import InboxPage from "@/app/inbox/page";
+import MailPage from "@/app/mail/page";
 import EmployeesPage from "@/app/employees/page";
 import EmployeeDetailPage from "@/app/employees/[id]/page";
 import EmployeePermissionsPage from "@/app/employees/[id]/permissions/page";
@@ -80,20 +83,20 @@ import FinancePaymentTermsPage from "@/app/finance/master-data/payment-terms/pag
 import FinanceShippingTermsPage from "@/app/finance/master-data/shipping-terms/page";
 import FinanceUnitsOfMeasurePage from "@/app/finance/master-data/units-of-measure/page";
 import FinanceTaxCodesPage from "@/app/finance/master-data/tax-codes/page";
+import FinanceNumberingSequencesPage from "@/app/finance/master-data/numbering-sequences/page";
 import FinanceTransactionsPage from "@/app/finance/transactions/page";
 import FinanceCustomerPosPage from "@/app/finance/transactions/customer-pos/page";
 import FinanceNewCustomerPoPage from "@/app/finance/transactions/customer-pos/new/page";
 import FinanceCustomerPoDetailPage from "@/app/finance/transactions/customer-pos/[id]/page";
 import FinanceReportsPage from "@/app/finance/reports/page";
-import FinanceSettingsPage from "@/app/finance/settings/page";
+import FinanceReportRunnerPage from "@/app/finance/reports/[reportKey]/page";
+import FinanceReportsExportPage from "@/app/finance/reports/export/page";
 import FinanceInvoicesPage from "@/app/finance/transactions/invoices/page";
 import FinanceNewInvoicePage from "@/app/finance/transactions/invoices/new/page";
 import FinanceInvoiceDetailPage from "@/app/finance/transactions/invoices/[id]/page";
 import FinanceQuotationsPage from "@/app/finance/transactions/quotations/page";
 import FinanceNewQuotationPage from "@/app/finance/transactions/quotations/new/page";
 import FinanceQuotationDetailPage from "@/app/finance/transactions/quotations/[id]/page";
-import FinanceProformaInvoicesPage from "@/app/finance/transactions/proforma-invoices/page";
-import FinanceNewProformaInvoicePage from "@/app/finance/transactions/proforma-invoices/new/page";
 import FinanceProformaInvoiceDetailPage from "@/app/finance/transactions/proforma-invoices/[id]/page";
 import FinanceVendorQuotationsPage from "@/app/finance/transactions/vendor-quotations/page";
 import FinanceNewVendorQuotationPage from "@/app/finance/transactions/vendor-quotations/new/page";
@@ -107,15 +110,16 @@ import BillDetailPage from "@/app/finance/transactions/bills/[id]/page";
 import FinancePaymentsMadePage from "@/app/finance/transactions/payments-made/page";
 import FinanceNewPaymentMadePage from "@/app/finance/transactions/payments-made/new/page";
 import PaymentMadeDetailPage from "@/app/finance/transactions/payments-made/[id]/page";
-import FinanceExpenseProcessBookTemplatePage from "@/app/finance/transactions/expenses-payments-made/process-book-template/page";
-
 
 import FinanceExpensePaymentsMadePage from "@/app/finance/transactions/expenses-payments-made/page";
-import FinanceNewExpensePaymentMadePage from "@/app/finance/transactions/expenses-payments-made/new/page";
-import ExpensePaymentMadeDetailPage from "@/app/finance/transactions/expenses-payments-made/[id]/page";
-import FinanceExpensePaymentReviewPage from "@/app/finance/transactions/expenses-payments-made/review/[id]/page";
-import FinanceExpenseFundingBatchNewPage from "@/app/finance/transactions/expenses-payments-made/funding-batches/new/page";
-import FinanceExpenseFundingBatchDetailPage from "@/app/finance/transactions/expenses-payments-made/funding-batches/[id]/page";
+import FinanceExpenseReviewPage from "@/app/finance/transactions/expense-review/page";
+import FinanceExpensePaymentReviewPage from "@/app/finance/transactions/expense-review/[id]/page";
+import FinanceExpenseFundingPage from "@/app/finance/transactions/expense-funding/page";
+import FinanceExpenseFundingBatchNewPage from "@/app/finance/transactions/expense-funding/new/page";
+import FinanceExpenseFundingBatchDetailPage from "@/app/finance/transactions/expense-funding/[id]/page";
+import FinanceExpensePaymentsPage from "@/app/finance/transactions/expense-payments/page";
+import FinanceNewExpensePaymentMadePage from "@/app/finance/transactions/expense-payments/new/page";
+import ExpensePaymentMadeDetailPage from "@/app/finance/transactions/expense-payments/[id]/page";
 import PaymentsReceivedPage from "@/app/finance/transactions/payments-received/page";
 import PaymentReceivedDetailPage from "@/app/finance/transactions/payments-received/[id]/page";
 import NewPaymentReceivedPage from "@/app/finance/transactions/payments-received/new/page";
@@ -131,7 +135,8 @@ import FinancePayrollFundingBatchNewPage from "@/app/finance/transactions/payrol
 import FinancePayrollFundingBatchDetailPage from "@/app/finance/transactions/payroll/funding-batches/[id]/page";
 
 import FinanceExpensesPage from "@/app/finance/transactions/expenses/page";
-import FinanceNewExpensePage from "@/app/finance/transactions/expenses/new/page";
+import FinanceExpenseProcessPage from "@/app/finance/transactions/expenses/process/page";
+import FinanceExpenseProcessDetailPage from "@/app/finance/transactions/expenses/process/[id]/page";
 import FinanceExpenseDetailPage from "@/app/finance/transactions/expenses/[id]/page";
 
 import FinanceAccessApprovalsPage from "@/app/finance/access-approvals/page";
@@ -303,11 +308,9 @@ function AuthAccessProvider({ children }: { children: ReactNode }) {
       setRole(null);
       setPermissions({});
     } finally {
-      if (!mountedRef.current || requestId !== requestIdRef.current) {
-        return;
+      if (mountedRef.current && requestId === requestIdRef.current) {
+        setIsBootstrapping(false);
       }
-
-      setIsBootstrapping(false);
     }
   };
 
@@ -545,6 +548,48 @@ function PublicRoute({ children }: { children: ReactNode }) {
   return <>{children}</>;
 }
 
+function RedirectProformaNew() {
+  const { search } = useLocation();
+  const params = new URLSearchParams(search);
+  params.set("document_type", "proforma");
+  return (
+    <Navigate
+      to={`/finance/transactions/invoices/new?${params.toString()}`}
+      replace
+    />
+  );
+}
+
+function LegacyExpenseReviewRedirect() {
+  const { id } = useParams();
+  return (
+    <Navigate
+      to={`/finance/transactions/expense-review/${id ?? ""}`}
+      replace
+    />
+  );
+}
+
+function LegacyExpenseFundingBatchRedirect() {
+  const { id } = useParams();
+  return (
+    <Navigate
+      to={`/finance/transactions/expense-funding/${id ?? ""}`}
+      replace
+    />
+  );
+}
+
+function LegacyExpensePaymentRedirect() {
+  const { id } = useParams();
+  return (
+    <Navigate
+      to={`/finance/transactions/expense-payments/${id ?? ""}`}
+      replace
+    />
+  );
+}
+
 function AppRoutes() {
   return (
     <Routes>
@@ -641,6 +686,16 @@ function AppRoutes() {
           <ProtectedRoute>
             <DashboardLayout>
               <ProjectEditPage />
+            </DashboardLayout>
+          </ProtectedRoute>
+        }
+      />
+      <Route
+        path="/projects/:id/task-fields"
+        element={
+          <ProtectedRoute>
+            <DashboardLayout>
+              <ProjectTaskFieldsPage />
             </DashboardLayout>
           </ProtectedRoute>
         }
@@ -765,6 +820,17 @@ function AppRoutes() {
           <ProtectedRoute>
             <DashboardLayout>
               <InboxPage />
+            </DashboardLayout>
+          </ProtectedRoute>
+        }
+      />
+
+      <Route
+        path="/mail"
+        element={
+          <ProtectedRoute>
+            <DashboardLayout>
+              <MailPage />
             </DashboardLayout>
           </ProtectedRoute>
         }
@@ -1054,15 +1120,108 @@ function AppRoutes() {
   }
 />
 
-      <Route
-  path="/finance/settings"
+<Route
+  path="/finance/reports/trial-balance"
   element={
     <ProtectedRoute>
       <DashboardLayout>
-        <FinanceSettingsPage />
+        <FinanceReportRunnerPage />
       </DashboardLayout>
     </ProtectedRoute>
   }
+/>
+
+<Route
+  path="/finance/reports/ar-aging"
+  element={
+    <ProtectedRoute>
+      <DashboardLayout>
+        <FinanceReportRunnerPage />
+      </DashboardLayout>
+    </ProtectedRoute>
+  }
+/>
+
+<Route
+  path="/finance/reports/ap-aging"
+  element={
+    <ProtectedRoute>
+      <DashboardLayout>
+        <FinanceReportRunnerPage />
+      </DashboardLayout>
+    </ProtectedRoute>
+  }
+/>
+
+<Route
+  path="/finance/reports/ledger"
+  element={
+    <ProtectedRoute>
+      <DashboardLayout>
+        <FinanceReportRunnerPage />
+      </DashboardLayout>
+    </ProtectedRoute>
+  }
+/>
+
+<Route
+  path="/finance/reports/categories"
+  element={
+    <ProtectedRoute>
+      <DashboardLayout>
+        <FinanceReportRunnerPage />
+      </DashboardLayout>
+    </ProtectedRoute>
+  }
+/>
+
+<Route
+  path="/finance/reports/payroll"
+  element={
+    <ProtectedRoute>
+      <DashboardLayout>
+        <FinanceReportRunnerPage />
+      </DashboardLayout>
+    </ProtectedRoute>
+  }
+/>
+
+<Route
+  path="/finance/reports/project"
+  element={
+    <ProtectedRoute>
+      <DashboardLayout>
+        <FinanceReportRunnerPage />
+      </DashboardLayout>
+    </ProtectedRoute>
+  }
+/>
+
+<Route
+  path="/finance/reports/export"
+  element={
+    <ProtectedRoute>
+      <DashboardLayout>
+        <FinanceReportsExportPage />
+      </DashboardLayout>
+    </ProtectedRoute>
+  }
+/>
+
+<Route
+  path="/finance/reports/:reportKey"
+  element={
+    <ProtectedRoute>
+      <DashboardLayout>
+        <FinanceReportRunnerPage />
+      </DashboardLayout>
+    </ProtectedRoute>
+  }
+/>
+
+      <Route
+  path="/finance/settings"
+  element={<Navigate to="/finance/access-approvals" replace />}
 />
 
               <Route
@@ -1275,24 +1434,12 @@ function AppRoutes() {
 
       <Route
   path="/finance/transactions/proforma-invoices"
-  element={
-    <ProtectedRoute>
-      <DashboardLayout>
-        <FinanceProformaInvoicesPage />
-      </DashboardLayout>
-    </ProtectedRoute>
-  }
+  element={<Navigate to="/finance/transactions/invoices" replace />}
 />
 
 <Route
   path="/finance/transactions/proforma-invoices/new"
-  element={
-    <ProtectedRoute>
-      <DashboardLayout>
-        <FinanceNewProformaInvoicePage />
-      </DashboardLayout>
-    </ProtectedRoute>
-  }
+  element={<RedirectProformaNew />}
 />
 
 <Route
@@ -1439,6 +1586,94 @@ function AppRoutes() {
 />
 
 <Route
+  path="/finance/transactions/expense-review"
+  element={
+    <ProtectedRoute>
+      <DashboardLayout>
+        <FinanceExpenseReviewPage />
+      </DashboardLayout>
+    </ProtectedRoute>
+  }
+/>
+
+<Route
+  path="/finance/transactions/expense-review/:id"
+  element={
+    <ProtectedRoute>
+      <DashboardLayout>
+        <FinanceExpensePaymentReviewPage />
+      </DashboardLayout>
+    </ProtectedRoute>
+  }
+/>
+
+<Route
+  path="/finance/transactions/expense-funding"
+  element={
+    <ProtectedRoute>
+      <DashboardLayout>
+        <FinanceExpenseFundingPage />
+      </DashboardLayout>
+    </ProtectedRoute>
+  }
+/>
+
+<Route
+  path="/finance/transactions/expense-funding/new"
+  element={
+    <ProtectedRoute>
+      <DashboardLayout>
+        <FinanceExpenseFundingBatchNewPage />
+      </DashboardLayout>
+    </ProtectedRoute>
+  }
+/>
+
+<Route
+  path="/finance/transactions/expense-funding/:id"
+  element={
+    <ProtectedRoute>
+      <DashboardLayout>
+        <FinanceExpenseFundingBatchDetailPage />
+      </DashboardLayout>
+    </ProtectedRoute>
+  }
+/>
+
+<Route
+  path="/finance/transactions/expense-payments"
+  element={
+    <ProtectedRoute>
+      <DashboardLayout>
+        <FinanceExpensePaymentsPage />
+      </DashboardLayout>
+    </ProtectedRoute>
+  }
+/>
+
+<Route
+  path="/finance/transactions/expense-payments/new"
+  element={
+    <ProtectedRoute>
+      <DashboardLayout>
+        <FinanceNewExpensePaymentMadePage />
+      </DashboardLayout>
+    </ProtectedRoute>
+  }
+/>
+
+<Route
+  path="/finance/transactions/expense-payments/:id"
+  element={
+    <ProtectedRoute>
+      <DashboardLayout>
+        <ExpensePaymentMadeDetailPage />
+      </DashboardLayout>
+    </ProtectedRoute>
+  }
+/>
+
+<Route
   path="/finance/transactions/expenses-payments-made"
   element={
     <ProtectedRoute>
@@ -1451,68 +1686,32 @@ function AppRoutes() {
 
       <Route
   path="/finance/transactions/expenses-payments-made/process-book-template"
-  element={
-    <ProtectedRoute>
-      <DashboardLayout>
-        <FinanceExpenseProcessBookTemplatePage />
-      </DashboardLayout>
-    </ProtectedRoute>
-  }
+  element={<Navigate to="/finance/transactions/expense-review" replace />}
 />
 
 <Route
   path="/finance/transactions/expenses-payments-made/new"
-  element={
-    <ProtectedRoute>
-      <DashboardLayout>
-        <FinanceNewExpensePaymentMadePage />
-      </DashboardLayout>
-    </ProtectedRoute>
-  }
+  element={<Navigate to="/finance/transactions/expense-payments/new" replace />}
 />
 
 <Route
   path="/finance/transactions/expenses-payments-made/review/:id"
-  element={
-    <ProtectedRoute>
-      <DashboardLayout>
-        <FinanceExpensePaymentReviewPage />
-      </DashboardLayout>
-    </ProtectedRoute>
-  }
+  element={<LegacyExpenseReviewRedirect />}
 />
 
 <Route
   path="/finance/transactions/expenses-payments-made/funding-batches/new"
-  element={
-    <ProtectedRoute>
-      <DashboardLayout>
-        <FinanceExpenseFundingBatchNewPage />
-      </DashboardLayout>
-    </ProtectedRoute>
-  }
+  element={<Navigate to="/finance/transactions/expense-funding/new" replace />}
 />
 
 <Route
   path="/finance/transactions/expenses-payments-made/funding-batches/:id"
-  element={
-    <ProtectedRoute>
-      <DashboardLayout>
-        <FinanceExpenseFundingBatchDetailPage />
-      </DashboardLayout>
-    </ProtectedRoute>
-  }
+  element={<LegacyExpenseFundingBatchRedirect />}
 />
 
 <Route
   path="/finance/transactions/expenses-payments-made/:id"
-  element={
-    <ProtectedRoute>
-      <DashboardLayout>
-        <ExpensePaymentMadeDetailPage />
-      </DashboardLayout>
-    </ProtectedRoute>
-  }
+  element={<LegacyExpensePaymentRedirect />}
 />
 
       <Route
@@ -1561,10 +1760,31 @@ function AppRoutes() {
 
 <Route
   path="/finance/transactions/expenses/new"
+  element={<Navigate to="/finance/transactions/expenses/process" replace />}
+/>
+
+<Route
+  path="/finance/transactions/expenses/process/form"
+  element={<Navigate to="/finance/transactions/expenses/process" replace />}
+/>
+
+<Route
+  path="/finance/transactions/expenses/process"
   element={
     <ProtectedRoute>
       <DashboardLayout>
-        <FinanceNewExpensePage />
+        <FinanceExpenseProcessPage />
+      </DashboardLayout>
+    </ProtectedRoute>
+  }
+/>
+
+<Route
+  path="/finance/transactions/expenses/process/:id"
+  element={
+    <ProtectedRoute>
+      <DashboardLayout>
+        <FinanceExpenseProcessDetailPage />
       </DashboardLayout>
     </ProtectedRoute>
   }
@@ -1807,6 +2027,17 @@ function AppRoutes() {
     <ProtectedRoute>
       <DashboardLayout>
         <FinanceTaxCodesPage />
+      </DashboardLayout>
+    </ProtectedRoute>
+  }
+/>
+
+      <Route
+  path="/finance/master-data/numbering-sequences"
+  element={
+    <ProtectedRoute>
+      <DashboardLayout>
+        <FinanceNumberingSequencesPage />
       </DashboardLayout>
     </ProtectedRoute>
   }

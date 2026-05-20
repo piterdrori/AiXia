@@ -1,7 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from "react";
-import { useNavigate } from "react-router-dom";
 import {
-  ArrowLeft,
   Bot,
   CircleStop,
   Mic,
@@ -9,12 +7,15 @@ import {
   RefreshCcw,
   Save,
   Send,
-  Timer,
   ToggleLeft,
   ToggleRight,
-  Zap,
 } from "lucide-react";
 import { supabase } from "@/lib/supabase";
+import { AixiaHero, AixiaPage } from "@/components/aixia";
+import "@/styles/dashboard/tokens.css";
+import "@/styles/dashboard/layout.css";
+import "@/styles/dashboard/visual.css";
+
 import { askAI } from "@/lib/ai/aiRouter";
 import {
   connectRealtimeVoice,
@@ -266,9 +267,6 @@ function nowLabel() {
   return new Date().toLocaleTimeString();
 }
 
-function formatPercent(value: boolean) {
-  return value ? "ON" : "OFF";
-}
 
 function formatMs(value: number | null) {
   if (value === null || !Number.isFinite(value)) return "-";
@@ -310,7 +308,6 @@ function getMetricTone(value: number | null, good: number, ok: number) {
 }
 
 export default function AIVoicePage() {
-  const navigate = useNavigate();
   const realtimeConnectionRef = useRef<RealtimeConnection | null>(null);
   const chatScrollRef = useRef<HTMLDivElement | null>(null);
   const userTranscriptDraftsRef = useRef<Record<string, string>>({});
@@ -1260,76 +1257,18 @@ export default function AIVoicePage() {
   }
 
   return (
-    <div className="min-h-screen bg-[#05070d] px-4 py-4 text-white md:px-6 md:py-6">
-      <div className="mx-auto flex w-full max-w-[1720px] flex-col gap-5">
-        <header className="overflow-hidden rounded-[34px] border border-white/10 bg-white/[0.045] p-5 shadow-2xl shadow-black/30 backdrop-blur-xl md:p-6">
-          <div className="flex flex-col gap-5 xl:flex-row xl:items-start xl:justify-between">
-            <div className="space-y-5">
-              <button
-                type="button"
-                onClick={() => navigate("/ai-management")}
-                className="inline-flex items-center gap-2 rounded-full border border-white/10 bg-white/[0.04] px-4 py-2 text-xs font-semibold uppercase tracking-[0.18em] text-slate-300 transition hover:border-cyan-300/40 hover:text-cyan-100"
-              >
-                <ArrowLeft className="h-4 w-4" />
-                AI Studio
-              </button>
+    <AixiaPage surface="command" className="aixia-command-page aixia-ai-management-page"><AixiaHero
+        surface="command"
+        className="shrink-0 space-y-4"
+        parentLabel="AI Studio"
+        parentPath="/ai-management"
+        gradientTitle="Voice Testing Studio"
+        title="Voice Testing Studio"
+        subtitle="Unified realtime testing workspace for avatar state, transcript, router-first answers, VAD tuning, debug events, and latency metrics."
+      >
+      </AixiaHero>
 
-              <div className="space-y-3">
-                <div className="inline-flex w-fit items-center gap-2 rounded-full border border-cyan-400/20 bg-cyan-500/10 px-3 py-1 text-[11px] font-semibold uppercase tracking-[0.22em] text-cyan-200">
-                  <Radio className="h-3.5 w-3.5" />
-                  Router-First Realtime Voice
-                </div>
-
-                <div>
-                  <h1 className="text-3xl font-semibold tracking-[-0.035em] text-white md:text-5xl">
-                    Voice Testing Studio
-                  </h1>
-                  <p className="mt-3 max-w-4xl text-sm leading-6 text-slate-400 md:text-base md:leading-7">
-                    Unified realtime testing workspace for avatar state, transcript,
-                    router-first answers, VAD tuning, debug events, and latency metrics.
-                  </p>
-                </div>
-              </div>
-            </div>
-
-            <div className="grid gap-3 sm:grid-cols-4 xl:min-w-[820px]">
-              <MetricCard
-                icon={Radio}
-                label="Realtime"
-                value={formatPercent(settings.voice_enabled)}
-                tone={settings.voice_enabled ? "emerald" : "rose"}
-              />
-              <MetricCard
-                icon={Zap}
-                label="Connection"
-                value={realtimeOpen ? "LIVE" : "OFF"}
-                tone={realtimeOpen ? "emerald" : "slate"}
-              />
-              <MetricCard
-                icon={Bot}
-                label="Avatar"
-                value={getAvatarStateLabel(avatarState)}
-                tone={
-                  avatarState === "speaking"
-                    ? "cyan"
-                    : avatarState === "listening"
-                      ? "violet"
-                      : avatarState === "thinking"
-                        ? "rose"
-                        : sessionOpen
-                          ? "emerald"
-                          : "slate"
-                }
-              />
-              <MetricCard
-                icon={Timer}
-                label="Turn Time"
-                value={formatMs(latencyMetrics.totalTurnMs)}
-                tone={getMetricTone(latencyMetrics.totalTurnMs, 2500, 4500)}
-              />
-            </div>
-          </div>
-        </header>
+      <div className="aixia-command-scroll flex flex-col gap-6">
 
         {(errorMessage || actionMessage) && (
           <div className="space-y-2">
@@ -1870,44 +1809,7 @@ export default function AIVoicePage() {
           </aside>
         </section>
       </div>
-    </div>
-  );
-}
-
-function MetricCard({
-  icon: Icon,
-  label,
-  value,
-  tone,
-}: {
-  icon: typeof Radio;
-  label: string;
-  value: string;
-  tone: "emerald" | "rose" | "cyan" | "violet" | "slate";
-}) {
-  const toneClass =
-    tone === "emerald"
-      ? "text-emerald-200"
-      : tone === "rose"
-        ? "text-rose-200"
-        : tone === "violet"
-          ? "text-violet-200"
-          : tone === "cyan"
-            ? "text-cyan-200"
-            : "text-slate-300";
-
-  return (
-    <div className="rounded-2xl border border-white/10 bg-white/[0.04] p-4">
-      <div className="flex items-center justify-between gap-3">
-        <p className="text-[11px] uppercase tracking-[0.2em] text-slate-500">
-          {label}
-        </p>
-        <Icon className={`h-4 w-4 ${toneClass}`} />
-      </div>
-      <p className={`mt-2 truncate text-3xl font-semibold ${toneClass}`}>
-        {value}
-      </p>
-    </div>
+    </AixiaPage>
   );
 }
 

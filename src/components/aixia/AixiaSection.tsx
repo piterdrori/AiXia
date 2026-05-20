@@ -1,6 +1,8 @@
 import type { ReactNode } from "react";
 import type { LucideIcon } from "lucide-react";
 
+import type { AixiaCommandSurface } from "./commandSurface";
+
 type AixiaSectionProps = {
   title: string;
   description?: string;
@@ -16,6 +18,7 @@ type AixiaSectionProps = {
   matchOpposite?: boolean;
   itemCount?: number;
   forceSmartScroll?: boolean;
+  surface?: AixiaCommandSurface;
 };
 
 export function AixiaSection({
@@ -33,11 +36,45 @@ export function AixiaSection({
   matchOpposite = false,
   itemCount,
   forceSmartScroll = false,
+  surface = "default",
 }: AixiaSectionProps) {
   const shouldUseSmartScroll =
     smartScroll &&
     (forceSmartScroll ||
       (typeof itemCount === "number" && itemCount > visibleCards));
+
+  if (surface === "command") {
+    const resolvedBodyClassName = bodyClassName || "aixia-dash-panel-body";
+
+    return (
+      <section
+        className={`aixia-card-shell aixia-dash-panel aixia-dash-glass ${className}`.trim()}
+      >
+        <div className="aixia-dash-panel-hd">
+          <div className="flex flex-wrap items-start justify-between gap-3">
+            <div className="flex min-w-0 items-start gap-3">
+              {Icon ? (
+                <div className="aixia-dash-metric-icon shrink-0">
+                  <Icon className="h-4 w-4" />
+                </div>
+              ) : null}
+              <div className="min-w-0">
+                <div className="flex flex-wrap items-center gap-2">
+                  <h2 className="aixia-dash-panel-title">{title}</h2>
+                  {badge ? <div>{badge}</div> : null}
+                </div>
+                {description ? (
+                  <p className="aixia-caption mt-1 max-w-[680px]">{description}</p>
+                ) : null}
+              </div>
+            </div>
+            {actions ? <div className="aixia-dash-actions shrink-0">{actions}</div> : null}
+          </div>
+        </div>
+        <div className={resolvedBodyClassName}>{children}</div>
+      </section>
+    );
+  }
 
   const resolvedClassName = [
     "aixia-section",

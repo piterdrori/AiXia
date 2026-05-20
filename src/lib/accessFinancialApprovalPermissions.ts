@@ -13,7 +13,6 @@ export type AccessApprovalSectionKey =
   | "expensesFundingPayment"
   | "payrollFundBasket"
   | "reports"
-  | "financeSettings"
   | "accessApprovals";
 
 export type AccessApprovalLevel =
@@ -384,32 +383,6 @@ const reportsApproveExecute: Permission[] = [
   "exportReimbursementReports",
 ];
 
-const financeSettingsRead: Permission[] = [
-  "accessFinance",
-  "viewFinance",
-  "manageFinanceMasterData",
-];
-
-const financeSettingsCreate: Permission[] = [
-  "manageFinanceMasterData",
-  "createFinanceRecords",
-];
-
-const financeSettingsUpdate: Permission[] = [
-  "manageFinanceMasterData",
-  "editFinanceRecords",
-];
-
-const financeSettingsDeleteArchive: Permission[] = [
-  "manageFinanceMasterData",
-  "archiveFinanceRecords",
-];
-
-const financeSettingsApproveExecute: Permission[] = [
-  "manageFinanceMasterData",
-  "approveFinanceRecords",
-];
-
 const accessApprovalsRead: Permission[] = [
   "accessApprovals",
   "viewApprovalQueue",
@@ -677,43 +650,6 @@ export const ACCESS_APPROVAL_SECTIONS: AccessApprovalSection[] = [
     },
   },
   {
-    key: "financeSettings",
-    groupKey: "settings",
-    title: "Settings",
-    shortTitle: "Settings",
-    scope: "Finance configuration and workflow setup",
-    controls: [
-      "Finance Settings",
-      "Workflow Settings",
-      "Numbering Settings",
-      "System Configuration",
-    ],
-    tooltip: {
-      title: "Settings",
-      description:
-        "Controls finance configuration, workflow settings, numbering/settings, and permission-sensitive finance setup.",
-      permits: [
-        "Read Finance Settings when Read is enabled.",
-        "Create finance configuration records where supported when Create is enabled.",
-        "Update finance configuration when Update is enabled.",
-        "Archive, delete, or restore configurable records when Delete / Archive is enabled.",
-        "Apply dangerous or final configuration actions when Approve / Execute is enabled.",
-      ],
-      doesNotPermit: [
-        "Managing user access approvals.",
-        "Executing transaction payments.",
-        "Approving transaction workflow records unless the relevant transaction section is also enabled.",
-      ],
-    },
-    levels: {
-      read: financeSettingsRead,
-      create: financeSettingsCreate,
-      update: financeSettingsUpdate,
-      deleteArchive: financeSettingsDeleteArchive,
-      approveExecute: financeSettingsApproveExecute,
-    },
-  },
-  {
     key: "accessApprovals",
     groupKey: "settings",
     title: "Finance Access Approvals",
@@ -787,8 +723,8 @@ export const ACCESS_APPROVAL_GROUPS: AccessApprovalGroup[] = [
     title: "Settings",
     shortTitle: "Settings",
     description:
-      "Finance configuration, settings, and Admin-only Finance Access Approvals.",
-    sections: ["financeSettings", "accessApprovals"],
+      "Admin-only Finance Access Approvals and permission matrix controls.",
+    sections: ["accessApprovals"],
   },
 ];
 

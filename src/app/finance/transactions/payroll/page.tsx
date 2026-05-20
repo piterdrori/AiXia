@@ -1,16 +1,6 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { useNavigate } from "react-router-dom";
-import {
-  Archive,
-  CheckCircle2,
-  Clock3,
-  Eye,
-  FileText,
-  RotateCcw,
-  ShieldCheck,
-  Trash2,
-  WalletCards,
-} from "lucide-react";
+import { Archive, BriefcaseBusiness, Clock3, Eye, FileText, RotateCcw, ShieldCheck, Trash2, WalletCards } from "lucide-react";
 
 import {
   AixiaAccessRule,
@@ -20,11 +10,12 @@ import {
   AixiaButton,
   AixiaEmployeeIdentityCell,
   AixiaEmptyState,
+  AixiaFinanceHubControlPanel,
+  AixiaFinanceHubMetaStrip,
   AixiaHero,
   AixiaLoadingState,
-  AixiaMetricCard,
-  AixiaMetricGrid,
-  AixiaPage,
+  AixiaCommandMetrics,
+  FinancePage,
   AixiaRegistryToolbar,
   AixiaSearchField,
   AixiaSection,
@@ -960,7 +951,7 @@ export default function FinancePayrollControlPage() {
   const [archiveTab, setArchiveTab] = useState<ArchiveTab>("archived");
   const [archiveModalOpen, setArchiveModalOpen] = useState(false);
   const [isLoading, setIsLoading] = useState(true);
-  const [isRefreshing, setIsRefreshing] = useState(false);
+  const [, setIsRefreshing] = useState(false);
   const [hasLoadedOnce, setHasLoadedOnce] = useState(false);
   const [isRunningAction, setIsRunningAction] = useState(false);
   const [pageError, setPageError] = useState<string | null>(null);
@@ -1933,6 +1924,76 @@ export default function FinancePayrollControlPage() {
     }
   })();
 
+  const payrollCommandMetrics = useMemo(
+    () => [
+      {
+        key: "pending-review",
+        title: "Pending Review",
+        value: metrics.pendingReview.toLocaleString(),
+        subtitle: "Submitted paycheck requests waiting for Finance/Admin decision.",
+        icon: Clock3,
+        tone: "amber" as const,
+      },
+      {
+        key: "payroll-docs",
+        title: "Payroll Docs",
+        value: metrics.documentIssues.toLocaleString(),
+        subtitle: "Missing, incomplete, or pending payroll documentation records.",
+        icon: FileText,
+        tone: "rose" as const,
+      },
+      {
+        key: "funding-pools",
+        title: "Funding Pools",
+        value: metrics.activeFundingBatches.toLocaleString(),
+        subtitle: "Active payroll funding pools available for payment distribution.",
+        icon: Archive,
+        tone: "violet" as const,
+      },
+      {
+        key: "employee-pending",
+        title: "Employee Pending",
+        value: metrics.confirmationPending.toLocaleString(),
+        subtitle: "Employees waiting to confirm payment received or report a problem.",
+        icon: ShieldCheck,
+        tone: "cyan" as const,
+      },
+    ],
+    [
+      metrics.pendingReview,
+      metrics.documentIssues,
+      metrics.activeFundingBatches,
+      metrics.confirmationPending,
+    ],
+  );
+
+  const headerStatusCards = useMemo(
+    () => [
+      {
+        key: "system-status",
+        label: "System Status",
+        value: isLoading ? "Loading" : "Live",
+        detail: "Payroll fund basket refreshes silently with realtime and 60-second fallback.",
+        tone: "emerald" as const,
+      },
+      {
+        key: "access",
+        label: "Access",
+        value: "Enabled",
+        detail: "Payroll funding and paycheck execution monitoring follow the shared Finance permission standard.",
+        tone: "cyan" as const,
+      },
+      {
+        key: "active-records",
+        label: "Active Records",
+        value: activeRequestRows.length.toLocaleString(),
+        detail: "Active paycheck workflow records in the payroll workbench.",
+        tone: "amber" as const,
+      },
+    ],
+    [activeRequestRows.length, isLoading]
+  );
+
   if (isLoading && !hasLoadedOnce) {
     return (
       <AixiaLoadingState
@@ -1943,79 +2004,38 @@ export default function FinancePayrollControlPage() {
   }
 
   return (
-    <AixiaPage>
+    <FinancePage>
       <AixiaHero
+        className="shrink-0 space-y-4"
+        surface="command"
         parentLabel="Transactions"
         parentPath="/finance/transactions"
-        badges={[
-          { label: "Payroll Control", tone: "cyan" },
-          { label: "Main Workflow", tone: "emerald" },
-          { label: "Payment Execution Tools", tone: "violet" },
-          ...(isRefreshing ? [{ label: "Syncing", tone: "neutral" as const }] : []),
-        ]}
         gradientTitle="Payroll"
         title="Paycheck Workflow & Payment Execution"
-        description="The payroll equivalent of the operating expense workbench. Track paycheck requests, payroll documents, Finance review, payment readiness, funding pools, payment distributions, and employee confirmation in one control page."
-        statusCards={[
-          {
-            label: "Ready to Pay",
-            value: metrics.readyForPayment.toLocaleString(),
-            description: "Approved paycheck requests waiting for payroll payment distribution.",
-            icon: CheckCircle2,
-            tone: "emerald",
-          },
-          {
-            label: "Remaining Funds",
-            value: formatMoney(metrics.remainingAmount),
-            description: "Active payroll funding pools minus confirmed paycheck distributions.",
-            icon: WalletCards,
-            tone: "cyan",
-          },
-        ]}
-      />
-
-      <AixiaMetricGrid>
-        <AixiaMetricCard
-          label="Pending Review"
-          value={metrics.pendingReview.toLocaleString()}
-          description="Submitted paycheck requests waiting for Finance/Admin decision."
-          icon={Clock3}
-          tone="amber"
-        />
-        <AixiaMetricCard
-          label="Payroll Docs"
-          value={metrics.documentIssues.toLocaleString()}
-          description="Missing, incomplete, or pending payroll documentation records."
-          icon={FileText}
-          tone="rose"
-        />
-        <AixiaMetricCard
-          label="Funding Pools"
-          value={metrics.activeFundingBatches.toLocaleString()}
-          description="Active payroll funding pools available for payment distribution."
-          icon={Archive}
-          tone="violet"
-        />
-        <AixiaMetricCard
-          label="Employee Pending"
-          value={metrics.confirmationPending.toLocaleString()}
-          description="Employees waiting to confirm payment received or report a problem."
-          icon={ShieldCheck}
-          tone="cyan"
-        />
-      </AixiaMetricGrid>
-
-      <AixiaAccessRule
-        title="Payroll Control Access Rule"
-        description="Payroll workflow and payment execution records use shared Finance registry, archive, table, action, and employee identity source-of-truth components."
       >
-        This page loads finance_employee_refs together with finance_employee_identity_v and displays employees through the global employee identity helper/component. Archive and delete behavior stays split between workflow records and execution records.
-      </AixiaAccessRule>
+        <AixiaCommandMetrics items={payrollCommandMetrics} />
+      </AixiaHero>
 
-      {pageError ? <AixiaAlert tone="error">{pageError}</AixiaAlert> : null}
-      {pageMessage ? <AixiaAlert tone="success">{pageMessage}</AixiaAlert> : null}
+      <div className="aixia-command-scroll">
+        <AixiaFinanceHubMetaStrip items={headerStatusCards} />
 
-      <AixiaSection
+        {pageError ? <AixiaAlert tone="error">{pageError}</AixiaAlert> : null}
+        {pageMessage ? <AixiaAlert tone="success">{pageMessage}</AixiaAlert> : null}
+
+        <AixiaAccessRule
+          title="Payroll Control Access Rule"
+          description="Payroll workflow and payment execution records use shared Finance registry, archive, table, action, and employee identity source-of-truth components."
+        >
+          This page loads finance_employee_refs together with finance_employee_identity_v and displays employees through the global employee identity helper/component. Archive and delete behavior stays split between workflow records and execution records.
+        </AixiaAccessRule>
+
+        <AixiaFinanceHubControlPanel
+          icon={BriefcaseBusiness}
+          title="Payroll fund basket"
+          description="Payroll funding and paycheck execution monitoring."
+        />
+
+        <AixiaSection
         title={activeTabMeta.label}
         description={activeTabMeta.description}
         icon={WalletCards}
@@ -2146,6 +2166,7 @@ export default function FinancePayrollControlPage() {
           />
         )}
       </AixiaArchiveManagerModal>
-    </AixiaPage>
+      </div>
+    </FinancePage>
   );
 }

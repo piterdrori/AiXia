@@ -11,6 +11,10 @@
 ------------------------------------------------------- */
 
 .aixia-process-book {
+  --aixia-process-nav-sticky-top: 0.75rem;
+  --aixia-process-border: var(--aixia-finance-border, color-mix(in srgb, var(--foreground, #fff) 10%, transparent));
+  --aixia-process-surface: var(--aixia-finance-surface, color-mix(in srgb, var(--card, #111827) 82%, transparent));
+  --aixia-process-accent: var(--aixia-finance-accent, color-mix(in srgb, var(--primary, #6366f1) 88%, #818cf8));
   display: flex;
   min-width: 0;
   flex-direction: column;
@@ -551,14 +555,18 @@
 
 .aixia-process-navigation {
   position: sticky;
-  top: 0.75rem;
-  z-index: 20;
+  top: var(--aixia-process-nav-sticky-top);
+  z-index: 24;
   display: flex;
   flex-wrap: wrap;
   align-items: center;
   justify-content: space-between;
   gap: 0.75rem;
   padding: 0.9rem;
+  border-radius: 1rem;
+  border: 1px solid var(--aixia-process-border);
+  background: color-mix(in srgb, var(--aixia-process-surface) 94%, transparent);
+  backdrop-filter: blur(10px);
 }
 
 .aixia-process-navigation__group {
@@ -984,6 +992,115 @@
   font-size: 0.8rem;
 }
 
+.aixia-process-history-table__empty {
+  padding: 2rem 1.25rem;
+  color: rgba(148, 163, 184, 0.86);
+  font-size: 0.88rem;
+  text-align: center;
+}
+
+/* -------------------------------------------------------
+   PIPELINE STRIP (hub pages)
+------------------------------------------------------- */
+
+.aixia-process-pipeline {
+  margin-bottom: 0.25rem;
+}
+
+.aixia-process-pipeline__track {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: stretch;
+  gap: 0.55rem;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.aixia-process-pipeline__item {
+  display: flex;
+  min-width: min(100%, 220px);
+  flex: 1 1 180px;
+  align-items: center;
+  gap: 0.45rem;
+}
+
+.aixia-process-pipeline__step {
+  display: flex;
+  width: 100%;
+  min-height: 4.6rem;
+  align-items: center;
+  gap: 0.75rem;
+  border-radius: 1.25rem;
+  border: 1px solid rgba(255, 255, 255, 0.075);
+  background: rgba(255, 255, 255, 0.035);
+  padding: 0.85rem 1rem;
+  color: rgba(226, 232, 240, 0.92);
+  text-align: left;
+  cursor: pointer;
+  transition: border-color 180ms ease, transform 180ms ease;
+}
+
+.aixia-process-pipeline__step:not(:disabled):hover {
+  transform: translateY(-1px);
+  border-color: rgba(103, 232, 249, 0.22);
+}
+
+.aixia-process-pipeline__step[data-active="true"] {
+  border-color: rgba(34, 211, 238, 0.34);
+  background:
+    radial-gradient(circle at 12% 0%, rgba(34, 211, 238, 0.16), transparent 55%),
+    rgba(8, 145, 178, 0.12);
+}
+
+.aixia-process-pipeline__step:disabled {
+  cursor: default;
+  opacity: 0.88;
+}
+
+.aixia-process-pipeline__index {
+  font-size: 0.72rem;
+  font-weight: 850;
+  letter-spacing: 0.12em;
+  color: rgba(103, 232, 249, 0.82);
+}
+
+.aixia-process-pipeline__content {
+  display: grid;
+  min-width: 0;
+  flex: 1;
+  gap: 0.2rem;
+}
+
+.aixia-process-pipeline__label {
+  font-size: 0.86rem;
+  font-weight: 850;
+  color: rgba(248, 250, 252, 0.96);
+}
+
+.aixia-process-pipeline__description {
+  overflow: hidden;
+  color: rgba(148, 163, 184, 0.86);
+  font-size: 0.72rem;
+  line-height: 1.35;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.aixia-process-pipeline__count {
+  min-width: 1.85rem;
+  border-radius: 999px;
+  background: rgba(0, 0, 0, 0.24);
+  padding: 0.25rem 0.55rem;
+  font-size: 0.72rem;
+  font-weight: 850;
+  text-align: center;
+}
+
+.aixia-process-pipeline__connector {
+  display: none;
+}
+
 /* -------------------------------------------------------
    RESPONSIVE
 ------------------------------------------------------- */
@@ -1008,6 +1125,8 @@
 @media (max-width: 900px) {
   .aixia-process-stepper {
     overflow-x: auto;
+    scroll-snap-type: x mandatory;
+    -webkit-overflow-scrolling: touch;
   }
 
   .aixia-process-stepper__track {
@@ -1017,6 +1136,11 @@
 
   .aixia-process-step {
     min-width: 156px;
+    scroll-snap-align: start;
+  }
+
+  .aixia-process-navigation {
+    top: 0.5rem;
   }
 
   .aixia-process-smart-grid,

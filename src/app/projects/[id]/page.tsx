@@ -32,7 +32,6 @@ import { Progress } from "@/components/ui/progress";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import {
-  ArrowLeft,
   Edit,
   Trash2,
   Plus,
@@ -47,6 +46,11 @@ import {
   Save,
   X,
 } from "lucide-react";
+
+import { AixiaButton, AixiaHero, AixiaPage, type AixiaCommandTone } from "@/components/aixia";
+import "@/styles/dashboard/tokens.css";
+import "@/styles/dashboard/layout.css";
+import "@/styles/dashboard/visual.css";
 
 type Role = "admin" | "manager" | "employee" | "guest";
 
@@ -135,6 +139,20 @@ type ProjectReportRow = {
   file_path: string | null;
   created_at: string;
 };
+
+function statusBadgeTone(status: string | null): AixiaCommandTone {
+  switch ((status || "").toUpperCase()) {
+    case "ACTIVE":
+    case "COMPLETED":
+      return "emerald";
+    case "CANCELLED":
+      return "rose";
+    case "ON_HOLD":
+      return "amber";
+    default:
+      return "neutral";
+  }
+}
 
 function ProjectDetailSkeleton() {
   return (
@@ -1063,7 +1081,7 @@ setNewComment("");
 setMentionQuery("");
 setShowMentionDropdown(false);
 
-// NO full reload — only logs refresh
+// NO full reload ΓÇö only logs refresh
 await refreshActivityLogs(project.id);
       
     } catch (err) {
@@ -1259,92 +1277,118 @@ setTranslatedComments((prev) => ({
     );
   }
 
-    const pageBusy = isRefreshing && hasLoadedOnce;
+  const pageBusy = isRefreshing && hasLoadedOnce;
   return (
-    <div className="flex h-full min-h-0 w-full flex-col gap-4">
-      {error && (
-        <Alert className="border-red-800 bg-red-900/20 py-2 text-red-300">
+    <AixiaPage
+      surface="command"
+      className="aixia-command-page aixia-projects-page h-full flex flex-col overflow-hidden"
+    >
+      <Tabs value={activeTab} onValueChange={setActiveTab} className="flex min-h-0 flex-1 flex-col">
+      <AixiaHero
+        surface="command"
+        className="shrink-0 space-y-4"
+        parentLabel={t("projects.projectsTitle", "Projects")}
+        parentPath="/projects"
+        gradientTitle={t("projects.projectsTitle", "Projects")}
+        title={project.name}
+        subtitle={project.description || t("projects.noDescription", "No description")}
+        badges={[
+          {
+            label: project.status || t("projects.unknownUpper", "UNKNOWN"),
+            tone: statusBadgeTone(project.status),
+          },
+        ]}
+        actions={
+          <>
+            {pageBusy ? (
+              <span className="text-xs text-slate-500">
+                {t("projects.refreshing", "Refreshing...")}
+              </span>
+            ) : null}
+            <AixiaButton
+              type="button"
+              className="h-9"
+              onClick={() => void loadProjectPage("refresh")}
+              disabled={isRefreshing}
+            >
+              {isRefreshing
+                ? t("projects.refreshing", "Refreshing...")
+                : t("projects.refresh", "Refresh")}
+            </AixiaButton>
+            {canGenerateReports ? (
+              <AixiaButton
+                variant="primary"
+                type="button"
+                className="h-9"
+                onClick={() => setIsReportsDialogOpen(true)}
+              >
+                <FileText className="mr-2 h-4 w-4" />
+                {t("projects.reports", "Reports")}
+              </AixiaButton>
+            ) : null}
+            {canEdit ? (
+              <AixiaButton
+                type="button"
+                className="h-9"
+                onClick={() => navigate(`/projects/${project.id}/edit`)}
+              >
+                <Edit className="mr-2 h-4 w-4" />
+                {t("projects.edit", "Edit")}
+              </AixiaButton>
+            ) : null}
+            {canEdit ? (
+              <AixiaButton
+                type="button"
+                className="h-9"
+                onClick={() => navigate(`/projects/${project.id}/task-fields`)}
+              >
+                <CheckSquare className="mr-2 h-4 w-4" />
+                {t("projects.taskFields.link", "Task fields")}
+              </AixiaButton>
+            ) : null}
+            {canDelete ? (
+              <AixiaButton
+                type="button"
+                className="h-9 border-red-800 text-red-400 hover:bg-red-900/20"
+                onClick={() => void handleDelete()}
+                disabled={isDeleting}
+              >
+                <Trash2 className="mr-2 h-4 w-4" />
+                {isDeleting
+                  ? t("projects.deleting", "Deleting...")
+                  : t("projects.delete", "Delete")}
+              </AixiaButton>
+            ) : null}
+          </>
+        }
+      >
+        <TabsList className="aixia-projects-tabs w-full">
+          <TabsTrigger value="overview" className="aixia-projects-tab">
+            {t("projects.overview", "Overview")}
+          </TabsTrigger>
+          <TabsTrigger value="tasks" className="aixia-projects-tab">
+            {t("projects.tasks", "Tasks")}
+          </TabsTrigger>
+          <TabsTrigger value="team" className="aixia-projects-tab">
+            {t("projects.team", "Team")}
+          </TabsTrigger>
+          <TabsTrigger value="files" className="aixia-projects-tab">
+            {t("projects.files", "Files")}
+          </TabsTrigger>
+          <TabsTrigger value="discussion" className="aixia-projects-tab">
+            {t("projects.discussion", "Discussion")}
+          </TabsTrigger>
+          <TabsTrigger value="activity" className="aixia-projects-tab">
+            {t("projects.activity", "Activity")}
+          </TabsTrigger>
+        </TabsList>
+      </AixiaHero>
+      <div className="aixia-command-scroll flex min-h-0 flex-1 flex-col gap-4">
+      {error ? (
+        <Alert className="border-red-800 bg-red-900/20 py-2 text-red-300 shrink-0">
           <AlertDescription>{error}</AlertDescription>
         </Alert>
-      )}
-
-      <div className="flex flex-col gap-3 lg:flex-row lg:items-start lg:justify-between">
-        <div className="flex min-w-0 items-start gap-3">
-          <Button
-            variant="ghost"
-            size="icon"
-            onClick={() => navigate("/projects")}
-            className="mt-0.5 h-9 w-9 shrink-0 text-slate-400 hover:text-white"
-          >
-            <ArrowLeft className="h-4 w-4" />
-          </Button>
-
-          <div className="min-w-0">
-            <div className="flex flex-wrap items-center gap-2">
-              <h1 className="truncate text-2xl font-bold text-white">{project.name}</h1>
-              <Badge className={getStatusColor(project.status)}>
-                {project.status || t("projects.unknownUpper", "UNKNOWN")}
-              </Badge>
-              {pageBusy && (
-                <span className="text-xs text-slate-500">
-                  {t("projects.refreshing", "Refreshing...")}
-                </span>
-              )}
-            </div>
-            <p className="mt-1 text-sm text-slate-400">
-              {project.description || t("projects.noDescription", "No description")}
-            </p>
-          </div>
-        </div>
-
-        <div className="flex flex-wrap items-center gap-2">
-          <Button
-            variant="outline"
-            className="h-9 border-slate-700 px-3 text-slate-300 hover:bg-slate-800"
-            onClick={() => void loadProjectPage("refresh")}
-            disabled={isRefreshing}
-          >
-            {isRefreshing
-              ? t("projects.refreshing", "Refreshing...")
-              : t("projects.refresh", "Refresh")}
-          </Button>
-
-          {canGenerateReports && (
-            <Button
-              className="h-9 bg-indigo-600 px-3 text-white hover:bg-indigo-700"
-              onClick={() => setIsReportsDialogOpen(true)}
-            >
-              <FileText className="mr-2 h-4 w-4" />
-              {t("projects.reports", "Reports")}
-            </Button>
-          )}
-
-          {canEdit && (
-            <Button
-              variant="outline"
-              className="h-9 border-slate-700 px-3 text-slate-300 hover:bg-slate-800"
-              onClick={() => navigate(`/projects/${project.id}/edit`)}
-            >
-              <Edit className="mr-2 h-4 w-4" />
-              {t("projects.edit", "Edit")}
-            </Button>
-          )}
-
-          {canDelete && (
-            <Button
-              variant="outline"
-              className="h-9 border-red-800 px-3 text-red-400 hover:bg-red-900/20"
-              onClick={() => void handleDelete()}
-              disabled={isDeleting}
-            >
-              <Trash2 className="mr-2 h-4 w-4" />
-              {isDeleting
-                ? t("projects.deleting", "Deleting...")
-                : t("projects.delete", "Delete")}
-            </Button>
-          )}
-        </div>
-      </div>
+      ) : null}
 
       <Card className="border-slate-800 bg-slate-900/50">
         <CardContent className="p-4 lg:p-5">
@@ -1443,7 +1487,7 @@ setTranslatedComments((prev) => ({
                   <p className="text-sm font-medium text-white">
                     {format(
                       clock.shiftDate(report.generated_at || report.created_at),
-                      "MMM d, yyyy • h:mm a"
+                      "MMM d, yyyy ΓÇó h:mm a"
                     )}
                   </p>
                   <p className="text-xs text-slate-500">
@@ -1490,28 +1534,6 @@ setTranslatedComments((prev) => ({
     </div>
   </DialogContent>
 </Dialog>
-
-            <Tabs value={activeTab} onValueChange={setActiveTab} className="flex min-h-0 flex-1 flex-col">
-        <TabsList className="h-auto flex-wrap gap-1 border border-slate-800 bg-slate-900 p-1">
-          <TabsTrigger value="overview" className="h-9 px-3 data-[state=active]:bg-slate-800">
-            {t("projects.overview", "Overview")}
-          </TabsTrigger>
-          <TabsTrigger value="tasks" className="h-9 px-3 data-[state=active]:bg-slate-800">
-            {t("projects.tasks", "Tasks")}
-          </TabsTrigger>
-          <TabsTrigger value="team" className="h-9 px-3 data-[state=active]:bg-slate-800">
-            {t("projects.team", "Team")}
-          </TabsTrigger>
-          <TabsTrigger value="files" className="h-9 px-3 data-[state=active]:bg-slate-800">
-            {t("projects.files", "Files")}
-          </TabsTrigger>
-          <TabsTrigger value="discussion" className="h-9 px-3 data-[state=active]:bg-slate-800">
-            {t("projects.discussion", "Discussion")}
-          </TabsTrigger>
-          <TabsTrigger value="activity" className="h-9 px-3 data-[state=active]:bg-slate-800">
-            {t("projects.activity", "Activity")}
-          </TabsTrigger>
-        </TabsList>
 
               <TabsContent value="overview" className="mt-4 min-h-0 flex-1">
   <div className="h-full max-h-[calc(100vh-360px)] overflow-y-auto pr-1">
@@ -2013,7 +2035,7 @@ setTranslatedComments((prev) => ({
                           <div className="min-w-0">
                             <p className="truncate text-sm text-white">{file.file_name}</p>
                             <p className="text-xs text-slate-500">
-                              {uploader?.full_name || t("projects.unknownUser", "Unknown user")} •{" "}
+                              {uploader?.full_name || t("projects.unknownUser", "Unknown user")} ΓÇó{" "}
                               {format(clock.shiftDate(file.created_at), "MMM d, yyyy h:mm a")}
                             </p>
                           </div>
@@ -2264,7 +2286,7 @@ setTranslatedComments((prev) => ({
                             <span>
                               {format(
                                 clock.shiftDate(comment.created_at),
-                                "MMM d, yyyy • h:mm a"
+                                "MMM d, yyyy ΓÇó h:mm a"
                               )}
                             </span>
                           </div>
@@ -2411,7 +2433,7 @@ setTranslatedComments((prev) => ({
                             )}
                           </p>
                           <p className="text-xs text-slate-500 mt-1">
-                            {log.action_type} • {log.entity_type}
+                            {log.action_type} ΓÇó {log.entity_type}
                           </p>
                         </div>
 
@@ -2428,7 +2450,8 @@ setTranslatedComments((prev) => ({
            </div>
   </div>
 </TabsContent>
+      </div>
       </Tabs>
-    </div>
+    </AixiaPage>
   );
 }

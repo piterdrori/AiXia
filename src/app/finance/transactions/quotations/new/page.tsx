@@ -29,9 +29,9 @@ import {
   AixiaHero,
   AixiaInputField,
   AixiaLoadingState,
-  AixiaMetricCard,
-  AixiaMetricGrid,
-  AixiaPage,
+  AixiaCommandMetrics,
+  type AixiaCommandMetricItem,
+  FinancePage,
   AixiaReviewBlock,
   AixiaReviewGrid,
   AixiaSection,
@@ -906,14 +906,49 @@ export default function FinanceNewQuotationPage() {
     validUntil,
   ]);
 
+  const draftMetrics = useMemo<AixiaCommandMetricItem[]>(
+    () => [
+      {
+        key: "subtotal",
+        title: "Subtotal",
+        value: formatMoney(totals.subtotal, currencyCode),
+        subtitle: "Before discount and tax.",
+        icon: FileText,
+        tone: "cyan",
+      },
+      {
+        key: "discount",
+        title: "Discount",
+        value: formatMoney(totals.discount, currencyCode),
+        subtitle: "Draft commercial discount.",
+        icon: Wallet,
+        tone: "amber",
+      },
+      {
+        key: "tax",
+        title: "Tax",
+        value: formatMoney(totals.tax, currencyCode),
+        subtitle: "Based on selected tax codes.",
+        icon: CalendarDays,
+        tone: "violet",
+      },
+      {
+        key: "total",
+        title: "Total",
+        value: formatMoney(totals.total, currencyCode),
+        subtitle: "Draft quotation value.",
+        icon: Wallet,
+        tone: "emerald",
+      },
+    ],
+    [totals, currencyCode]
+  );
+
   if (isLoading) {
     return (
-      <AixiaPage>
-        <AixiaLoadingState
-          title="Loading quotation sources"
-          description="Loading quotation master data, clients, companies, terms, bank accounts, and line-item references."
-        />
-      </AixiaPage>
+      <FinancePage>
+        <AixiaLoadingState title="Loading quotation sources" />
+      </FinancePage>
     );
   }
 
@@ -923,80 +958,31 @@ export default function FinanceNewQuotationPage() {
       : getCompanyName(selectedCounterpartyCompany);
 
   return (
-    <AixiaPage>
+    <FinancePage>
       <AixiaHero
+        surface="command"
+        className="shrink-0 space-y-4"
         parentLabel="Quotations"
         parentPath="/finance/transactions/quotations"
-        badges={[
-          { label: "New Quotation", tone: "cyan" },
-          { label: "Draft Only", tone: "emerald" },
-          { label: "No Manual Refresh", tone: "neutral" },
-        ]}
-        gradientTitle="Create"
-        title="Quotation Draft"
-        description="Create a draft commercial offer. This page only saves the quotation draft; sending, accepting, rejecting, archiving, and conversion happen later from the quotation detail workflow."
-        statusCards={[
-          {
-            label: "Counterparty",
-            value: counterpartyName,
-            description: "Client or intercompany receiving entity.",
-            icon: Users,
-            tone: "cyan",
-          },
-          {
-            label: "Draft Total",
-            value: formatMoney(totals.total, currencyCode),
-            description: "Live total from draft line items.",
-            icon: Wallet,
-            tone: "emerald",
-          },
-        ]}
+        gradientTitle="Quotations"
+        title="Quotations"
+        subtitle={`Draft quotation for ${counterpartyName || "selected counterparty"}`}
         actions={
-          <>
-            <AixiaButton
-              variant="primary"
-              onClick={handleSaveDraft}
-              disabled={isSaving}
-            >
-              <Save className="h-4 w-4" />
-              {isSaving ? "Saving..." : "Save Draft"}
-            </AixiaButton>
-          </>
+          <AixiaButton
+            variant="primary"
+            onClick={handleSaveDraft}
+            disabled={isSaving}
+          >
+            <Save className="h-4 w-4" />
+            {isSaving ? "Saving..." : "Save Draft"}
+          </AixiaButton>
         }
-      />
+      >
+        <AixiaCommandMetrics items={draftMetrics} />
+      </AixiaHero>
 
+      <div className="aixia-command-scroll">
       {errorMessage ? <AixiaAlert tone="error">{errorMessage}</AixiaAlert> : null}
-
-      <AixiaMetricGrid>
-        <AixiaMetricCard
-          label="Subtotal"
-          value={formatMoney(totals.subtotal, currencyCode)}
-          description="Before discount and tax."
-          icon={FileText}
-          tone="cyan"
-        />
-        <AixiaMetricCard
-          label="Discount"
-          value={formatMoney(totals.discount, currencyCode)}
-          description="Draft commercial discount."
-          icon={Wallet}
-          tone="amber"
-        />
-        <AixiaMetricCard
-          label="Tax"
-          value={formatMoney(totals.tax, currencyCode)}
-          description="Based on selected tax codes."
-          icon={CalendarDays}
-          tone="violet"
-        />
-        <AixiaMetricCard
-          label="Total"
-          value={formatMoney(totals.total, currencyCode)}
-          description="Draft quotation value."
-          icon={Wallet}
-          tone="emerald"
-        />
-      </AixiaMetricGrid>
 
       <AixiaSmartLayout
         main={
@@ -1556,6 +1542,7 @@ export default function FinanceNewQuotationPage() {
           </>
         }
       />
-    </AixiaPage>
+      </div>
+    </FinancePage>
   );
 }

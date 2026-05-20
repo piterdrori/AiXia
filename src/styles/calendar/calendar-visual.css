@@ -1,0 +1,716 @@
+/**
+ * Calendar pages — dashboard command-surface styling (visual only).
+ * Requires dashboard tokens, layout, visual, and projects CSS loaded first.
+ */
+
+.aixia-calendar-page {
+  /* Fixed dashboard indigo/violet — not theme accent (avoids emerald/teal “today” rings) */
+  --aixia-cal-accent: #6366f1;
+  --aixia-cal-accent-soft: #818cf8;
+  --aixia-cal-accent-glow: #a78bfa;
+  --aixia-cal-selected-ring: color-mix(in srgb, var(--aixia-dash-title, #f8fafc) 42%, transparent);
+
+  height: 100%;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+}
+
+.aixia-calendar-page > .aixia-dash-3d-stack {
+  flex: 1;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+  gap: clamp(0.85rem, 2vw, 1.35rem);
+}
+
+.aixia-calendar-page .aixia-dash-hero {
+  flex-shrink: 0;
+}
+
+.aixia-calendar-page .aixia-dash-actions {
+  gap: 0.4rem;
+}
+
+.aixia-calendar-page .aixia-dash-actions .aixia-dash-action {
+  height: 2.25rem;
+  min-height: 2.25rem;
+  padding-inline: 0.8rem;
+  border-radius: 999px;
+  font-size: 0.8125rem;
+  font-weight: 500;
+  gap: 0.35rem;
+}
+
+.aixia-calendar-page .aixia-dash-actions .aixia-dash-action svg {
+  width: 1rem;
+  height: 1rem;
+  flex-shrink: 0;
+}
+
+.aixia-calendar-scroll {
+  flex: 1;
+  min-height: 0;
+  overflow-y: auto;
+  padding-inline-end: 0.25rem;
+  scrollbar-gutter: stable;
+  position: relative;
+}
+
+.aixia-calendar-scroll::before {
+  content: "";
+  position: absolute;
+  left: -8%;
+  bottom: 0;
+  width: min(52rem, 85%);
+  height: min(28rem, 70%);
+  pointer-events: none;
+  z-index: 0;
+  background: radial-gradient(
+    ellipse 100% 80% at 18% 88%,
+    color-mix(in srgb, #6366f1 9%, transparent),
+    color-mix(in srgb, #a78bfa 5%, transparent) 42%,
+    transparent 72%
+  );
+}
+
+.aixia-calendar-scroll > * {
+  position: relative;
+  z-index: 1;
+}
+
+.aixia-calendar-page--new .aixia-calendar-scroll,
+.aixia-calendar-page--edit .aixia-calendar-scroll,
+.aixia-calendar-page--day .aixia-calendar-scroll {
+  overflow-y: auto;
+  overflow-x: hidden;
+  scroll-padding-bottom: 12rem;
+}
+
+.aixia-calendar-page--new .aixia-calendar-scroll,
+.aixia-calendar-page--edit .aixia-calendar-scroll {
+  padding-bottom: 1rem;
+}
+
+/* Month navigation */
+.aixia-calendar-nav {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.5rem 0.75rem;
+}
+
+.aixia-calendar-nav-label {
+  min-width: 10.5rem;
+  font-size: 1.05rem;
+  font-weight: 600;
+  color: var(--aixia-dash-title);
+  letter-spacing: -0.01em;
+}
+
+.aixia-calendar-nav .aixia-dash-action {
+  height: 2.25rem;
+  min-height: 2.25rem;
+  width: 2.25rem;
+  padding: 0;
+}
+
+.aixia-calendar-nav .aixia-dash-action--text {
+  width: auto;
+  padding-inline: 0.85rem;
+}
+
+/* Month grid panel */
+.aixia-calendar-month-panel {
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+  height: calc(100vh - 18.5rem);
+  padding: 1rem !important;
+}
+
+.aixia-calendar-weekdays {
+  display: grid;
+  grid-template-columns: repeat(7, minmax(0, 1fr));
+  gap: 0.65rem;
+  margin-bottom: 0.65rem;
+  font-size: 0.8125rem;
+  font-weight: 500;
+  color: var(--aixia-dash-muted);
+}
+
+.aixia-calendar-weekday {
+  padding-inline: 0.35rem;
+}
+
+.aixia-calendar-grid {
+  display: grid;
+  flex: 1;
+  min-height: 0;
+  grid-template-columns: repeat(7, minmax(0, 1fr));
+  grid-auto-rows: 1fr;
+  gap: 0.65rem;
+}
+
+/* Day cells — bento mini-cards */
+.aixia-calendar-day-cell {
+  appearance: none;
+  display: flex;
+  flex-direction: column;
+  min-height: 5.75rem;
+  height: 100%;
+  text-align: left;
+  cursor: pointer;
+  position: relative;
+  overflow: hidden;
+  isolation: isolate;
+  border-radius: calc(var(--aixia-dash-radius) + 4px);
+  border: 1px solid color-mix(in srgb, var(--aixia-dash-border) 88%, transparent);
+  background: color-mix(
+    in srgb,
+    var(--aixia-dash-surface, #1a1a1c) 72%,
+    color-mix(in srgb, var(--background, #0a0a0b) 96%, transparent)
+  );
+  backdrop-filter: blur(10px);
+  padding: 0.6rem 0.65rem;
+  box-shadow:
+    inset 0 1px 0 color-mix(in srgb, white 5%, transparent),
+    0 8px 24px -20px rgba(0, 0, 0, 0.5);
+  transition:
+    transform 0.2s ease,
+    border-color 0.2s ease,
+    box-shadow 0.2s ease,
+    background 0.2s ease;
+}
+
+.aixia-calendar-day-cell::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  border-radius: inherit;
+  pointer-events: none;
+  opacity: 0;
+  transition: opacity 0.2s ease;
+}
+
+.aixia-calendar-day-cell::after {
+  content: "";
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  height: 2px;
+  pointer-events: none;
+  opacity: 0;
+  background: linear-gradient(
+    90deg,
+    color-mix(in srgb, var(--aixia-cal-accent-soft) 70%, transparent),
+    transparent 85%
+  );
+  transition: opacity 0.2s ease;
+}
+
+.aixia-calendar-day-cell:hover {
+  transform: translateY(-2px);
+  border-color: color-mix(in srgb, var(--aixia-dash-border) 100%, white 6%);
+  box-shadow:
+    inset 0 1px 0 color-mix(in srgb, white 7%, transparent),
+    0 14px 32px -26px rgba(0, 0, 0, 0.62);
+}
+
+.aixia-calendar-day-cell--outside {
+  opacity: 0.42;
+}
+
+/* Today — indigo double ring + soft glow (projects-card style) */
+.aixia-calendar-day-cell--today {
+  border-color: color-mix(in srgb, var(--aixia-cal-accent) 44%, var(--aixia-dash-border));
+  background: color-mix(
+    in srgb,
+    var(--background, #0a0a0b) 91%,
+    color-mix(in srgb, var(--aixia-cal-accent) 9%, transparent)
+  );
+  box-shadow:
+    inset 0 1px 0 color-mix(in srgb, white 8%, transparent),
+    0 0 0 1px color-mix(in srgb, var(--aixia-cal-accent) 22%, transparent),
+    0 0 0 3px color-mix(in srgb, var(--aixia-cal-accent) 11%, transparent),
+    0 12px 30px -20px color-mix(in srgb, var(--aixia-cal-accent) 24%, transparent);
+}
+
+.aixia-calendar-day-cell--today::before {
+  opacity: 1;
+  box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--aixia-cal-accent-soft) 18%, transparent);
+  background: radial-gradient(
+    ellipse 120% 80% at 10% 0%,
+    color-mix(in srgb, var(--aixia-cal-accent) 10%, transparent),
+    transparent 62%
+  );
+}
+
+.aixia-calendar-day-cell--today::after {
+  opacity: 0.65;
+}
+
+/* Selected day — neutral foreground ring (distinct from today) */
+.aixia-calendar-day-cell--selected {
+  border-color: color-mix(in srgb, var(--aixia-cal-selected-ring) 55%, var(--aixia-dash-border));
+  box-shadow:
+    inset 0 1px 0 color-mix(in srgb, white 8%, transparent),
+    0 0 0 1px color-mix(in srgb, var(--aixia-cal-selected-ring) 28%, transparent),
+    0 0 0 3px color-mix(in srgb, var(--aixia-cal-selected-ring) 10%, transparent),
+    0 12px 30px -22px rgba(0, 0, 0, 0.55);
+}
+
+.aixia-calendar-day-cell--selected:not(.aixia-calendar-day-cell--today)::before {
+  opacity: 1;
+  background: radial-gradient(
+    ellipse 110% 75% at 90% 6%,
+    color-mix(in srgb, var(--aixia-dash-title, #f8fafc) 6%, transparent),
+    transparent 58%
+  );
+}
+
+.aixia-calendar-day-cell--selected:not(.aixia-calendar-day-cell--today)::after {
+  opacity: 0.35;
+  background: linear-gradient(
+    90deg,
+    color-mix(in srgb, var(--aixia-dash-title, #f8fafc) 35%, transparent),
+    transparent 85%
+  );
+}
+
+/* Both today and selected — layered rings */
+.aixia-calendar-day-cell--today.aixia-calendar-day-cell--selected {
+  border-color: color-mix(
+    in srgb,
+    var(--aixia-cal-accent) 48%,
+    color-mix(in srgb, var(--aixia-cal-selected-ring) 22%, var(--aixia-dash-border))
+  );
+  box-shadow:
+    inset 0 1px 0 color-mix(in srgb, white 9%, transparent),
+    0 0 0 1px color-mix(in srgb, var(--aixia-cal-accent) 26%, transparent),
+    0 0 0 3px color-mix(in srgb, var(--aixia-cal-accent) 12%, transparent),
+    0 0 0 5px color-mix(in srgb, var(--aixia-cal-selected-ring) 8%, transparent),
+    0 14px 34px -20px color-mix(in srgb, var(--aixia-cal-accent) 22%, transparent);
+}
+
+.aixia-calendar-day-cell--today.aixia-calendar-day-cell--selected::after {
+  opacity: 0.72;
+}
+
+.aixia-calendar-day-cell-hd {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.35rem;
+}
+
+.aixia-calendar-day-cell-date {
+  font-size: 0.8125rem;
+  font-weight: 500;
+  color: var(--aixia-dash-title);
+}
+
+.aixia-calendar-day-cell--today .aixia-calendar-day-cell-date {
+  color: color-mix(in srgb, var(--aixia-cal-accent-soft) 92%, white);
+  font-weight: 600;
+}
+
+.aixia-calendar-day-cell-meta {
+  display: flex;
+  align-items: center;
+  gap: 0.35rem;
+}
+
+.aixia-calendar-day-cell-count {
+  min-width: 1.25rem;
+  height: 1.25rem;
+  padding-inline: 0.3rem;
+  border-radius: 999px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 0.6875rem;
+  font-weight: 600;
+  color: #fff;
+  background: color-mix(in srgb, var(--aixia-cal-accent) 82%, #4f46e5);
+}
+
+.aixia-calendar-day-cell-body {
+  margin-top: 0.55rem;
+  display: flex;
+  flex-direction: column;
+  gap: 0.35rem;
+  min-height: 0;
+  flex: 1;
+  overflow: hidden;
+}
+
+.aixia-calendar-day-cell-stack {
+  display: flex;
+  flex-direction: column;
+  gap: 0.35rem;
+  min-height: 0;
+  max-height: 3.15rem;
+  overflow: hidden;
+  transition: max-height 0.22s ease;
+  scrollbar-width: thin;
+  scrollbar-color: color-mix(in srgb, var(--aixia-cal-accent) 42%, transparent) transparent;
+}
+
+.aixia-calendar-day-cell:hover .aixia-calendar-day-cell-stack,
+.aixia-calendar-day-cell:focus-within .aixia-calendar-day-cell-stack {
+  max-height: min(7.25rem, 42vh);
+  overflow-y: auto;
+  padding-inline-end: 0.1rem;
+}
+
+.aixia-calendar-day-cell--dense:hover .aixia-calendar-more-badge,
+.aixia-calendar-day-cell--dense:focus-within .aixia-calendar-more-badge {
+  opacity: 0;
+  pointer-events: none;
+  transform: translateY(2px);
+}
+
+.aixia-calendar-more-badge {
+  align-self: flex-start;
+  margin-top: 0.05rem;
+  border: 0;
+  cursor: pointer;
+  font-size: 0.6875rem;
+  font-weight: 600;
+  line-height: 1.2;
+  padding: 0.2rem 0.55rem;
+  border-radius: 999px;
+  color: var(--aixia-dash-muted);
+  background: color-mix(in srgb, var(--aixia-dash-border) 72%, transparent);
+  box-shadow: inset 0 1px 0 color-mix(in srgb, white 5%, transparent);
+  transition:
+    opacity 0.18s ease,
+    transform 0.18s ease,
+    color 0.18s ease,
+    background 0.18s ease;
+}
+
+.aixia-calendar-more-badge:hover {
+  color: var(--aixia-dash-title);
+  background: color-mix(in srgb, var(--aixia-cal-accent) 14%, var(--aixia-dash-border));
+}
+
+.aixia-calendar-day-popover {
+  width: min(18.5rem, calc(100vw - 1.5rem)) !important;
+  padding: 0 !important;
+  border-radius: calc(var(--aixia-dash-radius) + 4px) !important;
+  border: 1px solid color-mix(in srgb, var(--aixia-dash-border) 94%, transparent) !important;
+  background: color-mix(in srgb, var(--background, #0a0a0b) 92%, rgba(255, 255, 255, 0.03)) !important;
+  box-shadow:
+    inset 0 1px 0 color-mix(in srgb, white 5%, transparent),
+    0 18px 48px -24px rgba(0, 0, 0, 0.62) !important;
+  overflow: hidden;
+}
+
+.aixia-calendar-day-popover-hd {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.5rem;
+  padding: 0.7rem 0.8rem;
+  border-bottom: 1px solid color-mix(in srgb, var(--aixia-dash-border) 88%, transparent);
+}
+
+.aixia-calendar-day-popover-date {
+  margin: 0;
+  font-size: 0.8125rem;
+  font-weight: 600;
+  color: var(--aixia-dash-title);
+}
+
+.aixia-calendar-day-popover-list {
+  display: flex;
+  flex-direction: column;
+  gap: 0.45rem;
+  max-height: min(16rem, 48vh);
+  overflow-y: auto;
+  padding: 0.55rem 0.65rem;
+  scrollbar-width: thin;
+}
+
+.aixia-calendar-day-popover-row {
+  display: flex;
+  align-items: flex-start;
+  gap: 0.5rem;
+}
+
+.aixia-calendar-day-popover-dot {
+  width: 0.45rem;
+  height: 0.45rem;
+  margin-top: 0.35rem;
+  border-radius: 999px;
+  flex-shrink: 0;
+}
+
+.aixia-calendar-day-popover-dot--event {
+  background: color-mix(in srgb, var(--aixia-cal-accent) 88%, var(--aixia-cal-accent-soft));
+  box-shadow: 0 0 0 2px color-mix(in srgb, var(--aixia-cal-accent) 22%, transparent);
+}
+
+.aixia-calendar-day-popover-dot--task {
+  background: var(--aixia-cal-accent-glow);
+  box-shadow: 0 0 0 2px color-mix(in srgb, var(--aixia-cal-accent-glow) 22%, transparent);
+}
+
+.aixia-calendar-day-popover-row-text {
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 0.1rem;
+}
+
+.aixia-calendar-day-popover-kind {
+  font-size: 0.625rem;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  color: var(--aixia-dash-muted);
+}
+
+.aixia-calendar-day-popover-title {
+  font-size: 0.8125rem;
+  line-height: 1.35;
+  color: var(--aixia-dash-title);
+  overflow-wrap: anywhere;
+}
+
+.aixia-calendar-day-popover-ft {
+  padding: 0.55rem 0.65rem 0.65rem;
+  border-top: 1px solid color-mix(in srgb, var(--aixia-dash-border) 88%, transparent);
+}
+
+.aixia-calendar-day-popover-open {
+  width: 100%;
+  border: 0;
+  cursor: pointer;
+  border-radius: calc(var(--aixia-dash-radius-sm, 6px) + 2px);
+  padding: 0.45rem 0.65rem;
+  font-size: 0.8125rem;
+  font-weight: 600;
+  color: color-mix(in srgb, var(--aixia-cal-accent-soft) 92%, white);
+  background: color-mix(in srgb, var(--aixia-cal-accent) 14%, transparent);
+  transition: background 0.18s ease, color 0.18s ease;
+}
+
+.aixia-calendar-day-popover-open:hover {
+  background: color-mix(in srgb, var(--aixia-cal-accent) 22%, transparent);
+}
+
+.aixia-calendar-chip {
+  font-size: 0.6875rem;
+  line-height: 1.25;
+  border-radius: calc(var(--aixia-dash-radius-sm, 6px) + 1px);
+  padding: 0.22rem 0.5rem;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  box-shadow: inset 0 1px 0 color-mix(in srgb, white 5%, transparent);
+  transition:
+    transform 0.15s ease,
+    border-color 0.15s ease,
+    box-shadow 0.15s ease;
+}
+
+.aixia-calendar-day-cell:hover .aixia-calendar-chip {
+  transform: translateY(-1px);
+}
+
+.aixia-calendar-chip--event {
+  color: #c7d2fe;
+  background: color-mix(in srgb, var(--aixia-cal-accent) 16%, transparent);
+  border: 1px solid color-mix(in srgb, var(--aixia-cal-accent) 24%, transparent);
+}
+
+.aixia-calendar-chip--task {
+  color: #a5b4fc;
+  background: color-mix(in srgb, var(--aixia-cal-accent-glow) 12%, transparent);
+  border: 1px solid color-mix(in srgb, var(--aixia-cal-accent-soft) 22%, transparent);
+}
+
+.aixia-calendar-day-cell-more {
+  font-size: 0.6875rem;
+  color: var(--aixia-dash-muted);
+}
+
+@media (hover: none) {
+  .aixia-calendar-day-cell--dense:hover .aixia-calendar-more-badge,
+  .aixia-calendar-day-cell--dense:focus-within .aixia-calendar-more-badge {
+    opacity: 1;
+    pointer-events: auto;
+    transform: none;
+  }
+
+  .aixia-calendar-day-cell:hover .aixia-calendar-day-cell-stack,
+  .aixia-calendar-day-cell:focus-within .aixia-calendar-day-cell-stack {
+    max-height: 3.15rem;
+    overflow: hidden;
+  }
+}
+
+.aixia-calendar-skeleton-cell {
+  border-radius: calc(var(--aixia-dash-radius) + 4px);
+  border: 1px solid var(--aixia-dash-border);
+  background: color-mix(in srgb, var(--background, #0a0a0b) 92%, transparent);
+  padding: 0.65rem 0.7rem;
+  min-height: 6.5rem;
+}
+
+/* Day view — hero date frame */
+.aixia-calendar-day-hero {
+  position: relative;
+}
+
+.aixia-calendar-day-hero--selected {
+  box-shadow:
+    0 0 0 1px color-mix(in srgb, var(--aixia-cal-selected-ring) 22%, transparent),
+    0 0 0 3px color-mix(in srgb, var(--aixia-cal-selected-ring) 8%, transparent),
+    0 18px 48px -24px rgba(0, 0, 0, 0.55);
+}
+
+.aixia-calendar-day-hero--today {
+  box-shadow:
+    0 0 0 1px color-mix(in srgb, var(--aixia-cal-accent) 24%, transparent),
+    0 0 0 3px color-mix(in srgb, var(--aixia-cal-accent) 10%, transparent),
+    0 18px 48px -24px color-mix(in srgb, var(--aixia-cal-accent) 16%, transparent);
+}
+
+/* Day view — section panels & item cards */
+.aixia-calendar-day-sections {
+  display: grid;
+  grid-template-columns: 1fr;
+  gap: 1rem;
+}
+
+@media (min-width: 1024px) {
+  .aixia-calendar-day-sections {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+
+.aixia-calendar-section-card {
+  min-height: 0;
+}
+
+.aixia-calendar-section-card .aixia-dash-panel-hd {
+  padding-bottom: 0.35rem;
+}
+
+.aixia-calendar-item-list {
+  display: flex;
+  flex-direction: column;
+  gap: 0.65rem;
+}
+
+.aixia-calendar-item-card-meta {
+  font-size: 0.75rem;
+  color: color-mix(in srgb, var(--aixia-dash-muted) 92%, transparent);
+  display: flex;
+  flex-direction: column;
+  gap: 0.2rem;
+}
+
+.aixia-calendar-empty {
+  margin: 0;
+  font-size: 0.875rem;
+  color: var(--aixia-dash-muted);
+}
+
+.aixia-calendar-alert-error {
+  border-color: color-mix(in srgb, #f87171 38%, var(--aixia-dash-border)) !important;
+  background: color-mix(in srgb, #ef4444 10%, transparent) !important;
+  color: #fca5a5 !important;
+}
+
+/* Forms (new / edit) */
+.aixia-calendar-new-form {
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+}
+
+.aixia-calendar-new-form-fields {
+  display: flex;
+  flex-direction: column;
+  gap: 1rem;
+}
+
+.aixia-calendar-new-form-footer {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  flex-wrap: wrap;
+  gap: 0.75rem;
+  padding-top: 0.5rem;
+  margin-top: 0;
+  border-top: 1px solid var(--aixia-dash-border);
+}
+
+.aixia-calendar-new-form-footer--split {
+  justify-content: space-between;
+}
+
+.aixia-calendar-new-form-footer .aixia-dash-action {
+  height: 2.25rem;
+  min-height: 2.25rem;
+}
+
+/* All-day checkbox — clear unchecked vs checked on dark dashboard surfaces */
+.aixia-calendar-all-day-checkbox[data-state="unchecked"] {
+  background: color-mix(in srgb, var(--aixia-dash-surface, #1a1a1c) 88%, transparent);
+  border-color: var(--aixia-dash-border);
+}
+
+.aixia-calendar-all-day-checkbox[data-state="unchecked"] [data-slot="checkbox-indicator"] {
+  opacity: 0;
+}
+
+/* Select dropdowns — stable popper scroll (avoid item-aligned jump inside scroll areas) */
+.aixia-calendar-page--new .aixia-projects-select-trigger,
+.aixia-calendar-page--edit .aixia-projects-select-trigger {
+  width: 100%;
+}
+
+/* Portaled to document body — do not scope under .aixia-calendar-page */
+.aixia-calendar-form-select-content[data-slot="select-content"] {
+  z-index: 100;
+  overscroll-behavior: contain;
+  max-height: min(20rem, var(--radix-select-content-available-height));
+  overflow-y: auto;
+  color: var(--aixia-dash-title) !important;
+}
+
+/* Popper mode pins viewport to trigger height — expand so list items are visible */
+.aixia-calendar-form-select-content [data-radix-select-viewport] {
+  height: auto !important;
+  min-height: 2.25rem;
+  max-height: min(18.5rem, var(--radix-select-content-available-height));
+  overflow-y: auto;
+}
+
+.aixia-calendar-form-select-content [data-slot="select-item"] {
+  color: var(--aixia-dash-title) !important;
+}
+
+.aixia-calendar-form-select-content [data-slot="select-item"][data-highlighted] {
+  background: color-mix(in srgb, var(--primary, #6366f1) 18%, transparent) !important;
+  color: var(--aixia-dash-title) !important;
+}
+
+@media (max-width: 900px) {
+  .aixia-calendar-month-panel {
+    height: auto;
+    min-height: 28rem;
+  }
+
+  .aixia-calendar-grid {
+    grid-auto-rows: minmax(6.5rem, auto);
+  }
+}

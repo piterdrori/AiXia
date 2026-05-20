@@ -1,4 +1,6 @@
 @import "./aixia-finance-print.css";
+@import "./finance/finance-visual.css";
+@import "./finance/master-data-visual.css";
 
 .aixia-page {
   min-height: 100vh;
@@ -426,11 +428,11 @@
   display: grid;
   min-height: 148px;
   grid-template-rows: auto 1fr;
-  border-radius: clamp(1.25rem, 1.6vw, 1.5rem);
-  border: 1px solid rgba(255, 255, 255, 0.1);
-  background: rgba(0, 0, 0, 0.2);
-  padding: clamp(1rem, 1.2vw, 1.25rem);
-  box-shadow: 0 24px 70px rgba(0, 0, 0, 0.24);
+  border-radius: var(--aixia-card-radius, clamp(1.25rem, 1.6vw, 1.5rem));
+  border: 1px solid var(--aixia-card-border, rgba(255, 255, 255, 0.1));
+  background: var(--aixia-card-surface, rgba(0, 0, 0, 0.2));
+  padding: var(--aixia-card-body-pad, clamp(1rem, 1.2vw, 1.25rem));
+  box-shadow: var(--aixia-card-shadow, 0 24px 70px rgba(0, 0, 0, 0.24));
   backdrop-filter: blur(16px);
   transition:
     border-color 300ms ease,
@@ -998,14 +1000,15 @@
 }
 
 .aixia-search-input {
-  height: 3rem;
+  height: var(--aixia-btn-height, 2.25rem);
+  min-height: var(--aixia-btn-height, 2.25rem);
   width: 100%;
-  border-radius: 1rem;
+  border-radius: var(--aixia-input-radius, var(--aixia-dash-radius-sm));
   border: 1px solid rgba(255, 255, 255, 0.1);
   background: rgba(255, 255, 255, 0.06);
   padding-left: 2.75rem;
   padding-right: 1rem;
-  font-size: 0.875rem;
+  font-size: var(--aixia-input-font-size, 0.8125rem);
   color: white;
   outline: none;
   transition: all 300ms ease;
@@ -1032,10 +1035,10 @@
 .aixia-section {
   position: relative;
   overflow: hidden;
-  border-radius: clamp(1.5rem, 2vw, 1.875rem);
-  border: 1px solid rgba(255, 255, 255, 0.1);
-  background: rgba(255, 255, 255, 0.045);
-  box-shadow: 0 24px 80px rgba(0, 0, 0, 0.28);
+  border-radius: var(--aixia-card-radius, clamp(1.5rem, 2vw, 1.875rem));
+  border: 1px solid var(--aixia-card-border, rgba(255, 255, 255, 0.1));
+  background: var(--aixia-card-surface, rgba(255, 255, 255, 0.045));
+  box-shadow: var(--aixia-card-shadow, 0 24px 80px rgba(0, 0, 0, 0.28));
   backdrop-filter: blur(16px);
 }
 
@@ -1114,7 +1117,7 @@
 .aixia-stack {
   display: grid;
   min-width: 0;
-  gap: 1.5rem;
+  gap: var(--aixia-stack-gap);
 }
 
 .aixia-side-card-list {
@@ -1165,10 +1168,10 @@
 
 .aixia-title-xl {
   max-width: 980px;
-  font-size: clamp(2.4rem, 5vw, 5.6rem);
-  font-weight: 900;
-  line-height: 0.95;
-  letter-spacing: -0.055em;
+  font-size: var(--aixia-typography-hero, clamp(1.35rem, 2.5vw, 1.75rem));
+  font-weight: var(--aixia-typography-hero-weight, 650);
+  line-height: 1.15;
+  letter-spacing: var(--aixia-typography-hero-tracking, -0.03em);
 }
 
 .aixia-gradient-text {
@@ -1334,6 +1337,49 @@
   background: rgba(244, 63, 94, 0.25);
 }
 
+/* Legacy aixia-btn-* aliases → command toolbar (dash-action) density */
+.aixia-btn-primary.aixia-dash-action,
+.aixia-btn-secondary.aixia-dash-action,
+.aixia-btn-danger.aixia-dash-action,
+.aixia-dash-action {
+  min-height: var(--aixia-btn-height, 2.25rem);
+  height: var(--aixia-btn-height, 2.25rem);
+  border-radius: var(--aixia-btn-radius, 999px);
+  font-size: var(--aixia-btn-font-size, 0.8125rem);
+  padding: var(--aixia-btn-pad-y, 0.35rem) var(--aixia-btn-pad-x, 0.65rem);
+  font-weight: 500;
+  letter-spacing: normal;
+  box-shadow: none;
+}
+
+.aixia-btn-primary.aixia-dash-action,
+.aixia-dash-action--primary {
+  color: var(--aixia-dash-title, var(--foreground, #f4f4f5));
+  background: color-mix(in srgb, var(--primary, #3b82f6) 18%, transparent);
+  border: 1px solid color-mix(in srgb, var(--primary, #3b82f6) 28%, transparent);
+}
+
+.aixia-btn-primary.aixia-dash-action:hover,
+.aixia-dash-action--primary:hover:not(:disabled) {
+  transform: none;
+  background: color-mix(in srgb, var(--primary, #3b82f6) 28%, transparent);
+  box-shadow: none;
+}
+
+.aixia-btn-secondary.aixia-dash-action,
+.aixia-dash-action:not(.aixia-dash-action--primary):not(.aixia-dash-action--danger) {
+  color: var(--aixia-dash-muted, rgba(255, 255, 255, 0.65));
+  background: transparent;
+  border: 1px solid color-mix(in srgb, var(--foreground, #fff) 10%, transparent);
+}
+
+.aixia-btn-danger.aixia-dash-action,
+.aixia-dash-action--danger {
+  color: rgb(255, 228, 230);
+  background: color-mix(in srgb, rgb(244, 63, 94) 18%, transparent);
+  border: 1px solid color-mix(in srgb, rgb(244, 63, 94) 35%, transparent);
+}
+
 .aixia-icon-btn {
   display: flex;
   height: 2.75rem;
@@ -1444,11 +1490,11 @@
 
 .aixia-summary-card {
   min-height: 156px;
-  border-radius: clamp(1.25rem, 1.8vw, 1.75rem);
-  border: 1px solid rgba(255, 255, 255, 0.1);
-  background: rgba(255, 255, 255, 0.045);
-  padding: clamp(1rem, 1.4vw, 1.25rem);
-  box-shadow: 0 24px 80px rgba(0, 0, 0, 0.28);
+  border-radius: var(--aixia-card-radius, clamp(1.25rem, 1.8vw, 1.75rem));
+  border: 1px solid var(--aixia-card-border, rgba(255, 255, 255, 0.1));
+  background: var(--aixia-card-surface, rgba(255, 255, 255, 0.045));
+  padding: var(--aixia-card-body-pad, clamp(1rem, 1.4vw, 1.25rem));
+  box-shadow: var(--aixia-card-shadow, 0 24px 80px rgba(0, 0, 0, 0.28));
   backdrop-filter: blur(16px);
   transition:
     border-color 300ms ease,
@@ -1798,15 +1844,15 @@
 }
 
 .aixia-table-row {
-  min-height: 3.25rem;
+  min-height: var(--aixia-table-row-height, 2.75rem);
   border-bottom: 1px solid rgba(255, 255, 255, 0.045);
-  font-size: 0.8125rem;
+  font-size: var(--aixia-table-header-font-size, 0.8125rem);
   color: rgba(255, 255, 255, 0.68);
   transition: background-color 300ms ease;
 }
 
 .aixia-table-row:hover {
-  background: rgba(255, 255, 255, 0.045);
+  background: var(--aixia-table-row-hover, rgba(255, 255, 255, 0.045));
 }
 
 .aixia-sortable-header {
@@ -2800,6 +2846,98 @@
   letter-spacing: 0.12em;
   text-transform: uppercase;
   color: rgba(255, 255, 255, 0.82);
+}
+
+.aixia-workspace-card--compact {
+  min-height: 240px;
+}
+
+.aixia-workspace-card--tall {
+  display: flex;
+  flex-direction: column;
+  min-height: 420px;
+}
+
+@media (min-width: 1280px) {
+  .aixia-workspace-card--tall {
+    min-height: 480px;
+  }
+}
+
+@media (min-width: 1536px) {
+  .aixia-workspace-card--tall {
+    min-height: 540px;
+  }
+}
+
+.aixia-workspace-card--interactive {
+  cursor: pointer;
+}
+
+.aixia-workspace-card--interactive:focus-visible {
+  outline: 2px solid rgba(99, 102, 241, 0.55);
+  outline-offset: 2px;
+}
+
+.aixia-workspace-card-top-right {
+  display: inline-flex;
+  flex-shrink: 0;
+  align-items: center;
+  gap: 0.35rem;
+}
+
+.aixia-workspace-card-body-slot {
+  position: relative;
+  margin-top: 0.75rem;
+  min-height: 0;
+  flex: 1 1 auto;
+  overflow-y: auto;
+  border-radius: 1rem;
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  background: rgba(0, 0, 0, 0.18);
+  padding: 0.75rem;
+}
+
+.aixia-workspace-card--tall .aixia-workspace-card-body-slot {
+  flex: 1 1 auto;
+}
+
+.aixia-workspace-card-preview-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.75rem;
+  border-radius: 0.875rem;
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  background: rgba(0, 0, 0, 0.15);
+  padding: 0.65rem 0.75rem;
+  font-size: 0.8125rem;
+  color: rgba(203, 213, 225, 0.92);
+}
+
+.aixia-workspace-card-preview-row + .aixia-workspace-card-preview-row {
+  margin-top: 0.5rem;
+}
+
+.aixia-workspace-card-preview-empty {
+  padding: 1.5rem 0.75rem;
+  text-align: center;
+  font-size: 0.8125rem;
+  line-height: 1.5;
+  color: rgba(148, 163, 184, 0.86);
+}
+
+.aixia-workspace-card-pin-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border: none;
+  background: transparent;
+  color: rgba(255, 255, 255, 0.72);
+  cursor: pointer;
+  font-size: 1rem;
+  line-height: 1;
+  padding: 0.15rem;
 }
 
 .aixia-value-block {
@@ -5864,6 +6002,29 @@ button.aixia-action-card:disabled {
 }
 
 /* -------------------------------------------------------
+   GLOBAL AIXIA SMART LAYOUT MAX-EXPANSION STANDARD
+   Compatibility source-of-truth marker for the guardrail.
+
+   When explicit main/side split and bottom-span are both active,
+   bottom-span regions must span the full grid width and absorb
+   remaining horizontal space. Concrete selectors live in the
+   LOCKED SMART LAYOUT SOURCE OF TRUTH block above (XL breakpoint).
+
+   Max-expansion pairs with GLOBAL AIXIA SMART DETAIL LAYOUT
+   COMPACTION STANDARD — compaction trims vertical waste;
+   max-expansion preserves full-width analytical surfaces.
+------------------------------------------------------- */
+
+@media (min-width: 1280px) {
+  .aixia-smart-layout[data-has-explicit-main-split="true"][data-has-bottom-span="true"]
+    > .aixia-smart-bottom-span {
+    width: 100% !important;
+    max-width: none !important;
+    justify-self: stretch !important;
+  }
+}
+
+/* -------------------------------------------------------
    GLOBAL AIXIA SMART DETAIL LAYOUT COMPACTION STANDARD
    Compatibility source-of-truth marker for the guardrail.
 
@@ -6101,7 +6262,7 @@ button.aixia-action-card:disabled {
 
 .aixia-transactions-hub-layout {
   display: grid;
-  gap: clamp(1rem, 1.5vw, 1.5rem);
+  gap: var(--aixia-stack-gap);
 }
 
 @media (min-width: 1280px) {
@@ -6194,6 +6355,10 @@ button.aixia-action-card:disabled {
     transform 200ms ease,
     border-color 200ms ease,
     background-color 200ms ease;
+}
+
+.aixia-transaction-flow-module-clickable {
+  cursor: pointer;
 }
 
 .aixia-transaction-flow-module-clickable:hover {

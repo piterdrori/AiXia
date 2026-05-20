@@ -1,24 +1,6 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { useNavigate, useParams } from "react-router-dom";
-import type { LucideIcon } from "lucide-react";
-import {
-  Archive,
-  ArrowRight,
-  Building2,
-  FileText,
-  Landmark,
-  Loader2,
-  LockKeyhole,
-  MapPin,
-  Pencil,
-  Plus,
-  RotateCcw,
-  ShieldCheck,
-  Sparkles,
-  Truck,
-  UserRound,
-  Users,
-} from "lucide-react";
+import { Archive, ArrowRight, Building2, FileText, Landmark, Loader2, MapPin, Plus, RotateCcw, Sparkles, Truck, UserRound, Users } from "lucide-react";
 
 import {
   AixiaAccessDeniedState,
@@ -39,7 +21,7 @@ import {
   AixiaInputField,
   AixiaLoadingState,
   AixiaNotFoundState,
-  AixiaPage,
+  FinancePage,
   AixiaReviewBlock,
   AixiaReviewGrid,
   AixiaSection,
@@ -161,13 +143,6 @@ type ShippingDraftRow = {
   address_line_2: string;
 };
 
-type HeaderStatusCardData = {
-  label: string;
-  value: string;
-  description: string;
-  icon: LucideIcon;
-  tone: "emerald" | "cyan" | "amber" | "rose";
-};
 
 type SummaryItem = {
   label: string;
@@ -378,7 +353,7 @@ export default function FinanceMasterDataClientDetailPage() {
   const [shippingAddresses, setShippingAddresses] = useState<AddressRow[]>([]);
   const [isLoadingProfile, setIsLoadingProfile] = useState(true);
   const [isLoadingClient, setIsLoadingClient] = useState(true);
-  const [backgroundRefreshing, setBackgroundRefreshing] = useState(false);
+  const [, setBackgroundRefreshing] = useState(false);
   const [isSaving, setIsSaving] = useState(false);
   const [isLifecycleRunning, setIsLifecycleRunning] = useState(false);
   const [editingSection, setEditingSection] = useState<EditSection>(null);
@@ -682,45 +657,7 @@ export default function FinanceMasterDataClientDetailPage() {
     }));
   }, [addressDraft]);
 
-  const headerStatusCards = useMemo<HeaderStatusCardData[]>(() => {
-    return [
-      {
-        label: "Read Access",
-        value: isLoadingProfile
-          ? "Checking"
-          : permissionState.canRead
-            ? "Enabled"
-            : "Locked",
-        description: "Viewing this record requires Client read access.",
-        icon: permissionState.canRead ? ShieldCheck : LockKeyhole,
-        tone: permissionState.canRead ? "emerald" : "rose",
-      },
-      {
-        label: "Edit Access",
-        value: permissionState.canUpdate ? "Enabled" : "Read Only",
-        description: "Section edits require Update access or Master Data admin access.",
-        icon: permissionState.canUpdate ? Pencil : LockKeyhole,
-        tone: permissionState.canUpdate ? "cyan" : "amber",
-      },
-      {
-        label: "Lifecycle Access",
-        value: permissionState.canDeleteArchive ? "Archive Enabled" : "Locked",
-        description: backgroundRefreshing
-          ? "Silent refresh is updating data without disturbing the page."
-          : "Archive and Restore require Delete/Archive access.",
-        icon: permissionState.canDeleteArchive ? Archive : LockKeyhole,
-        tone: permissionState.canDeleteArchive ? "amber" : "rose",
-      },
-    ];
-  }, [
-    backgroundRefreshing,
-    isLoadingProfile,
-    permissionState.canDeleteArchive,
-    permissionState.canRead,
-    permissionState.canUpdate,
-  ]);
-
-  const summaryItems = useMemo<SummaryItem[]>(() => {
+const summaryItems = useMemo<SummaryItem[]>(() => {
     return [
       {
         label: "Client",
@@ -1335,7 +1272,7 @@ export default function FinanceMasterDataClientDetailPage() {
 
   if (!client) {
     return (
-      <AixiaPage>
+      <FinancePage>
         <AixiaNotFoundState
           title="Client not found"
           description="The client record could not be loaded or no longer exists."
@@ -1350,63 +1287,47 @@ export default function FinanceMasterDataClientDetailPage() {
             </AixiaButton>
           }
         />
-      </AixiaPage>
+      </FinancePage>
     );
   }
 
   if (!permissionState.canRead) {
     return (
-      <AixiaPage>
+      <FinancePage>
         <AixiaHero
+        className="shrink-0 space-y-4"
+        surface="command"
           parentLabel="Clients"
           parentPath="/finance/master-data/clients"
-          badges={[
-            { label: "Access Locked", tone: "rose" },
-            { label: "Permission protected", tone: "cyan" },
-          ]}
           gradientTitle="Client"
           title="Access Locked"
           subtitle="Read Permission Required"
-          description="This page requires Client read access or Master Data admin access."
-          statusCards={[
-            {
-              label: "Read Access",
-              value: "Locked",
-              description:
-                "Ask an Admin to assign a Finance role template or user-specific exception with Client read access.",
-              icon: LockKeyhole,
-              tone: "rose",
-            },
-          ]}
-        />
+          />
 
-        <AixiaAccessDeniedState
+      <div className="aixia-command-scroll">
+<AixiaAccessDeniedState
           title="No client read access"
           description="Ask an Admin to assign a Finance role template or user-specific exception with Client read access."
         />
-      </AixiaPage>
+      </div>
+    </FinancePage>
     );
   }
 
   return (
-    <AixiaPage>
+    <FinancePage>
       <AixiaHero
+        className="shrink-0 space-y-4"
+        surface="command"
         parentLabel="Clients"
         parentPath="/finance/master-data/clients"
-        badges={[
-          { label: "Client Detail", tone: "cyan" },
-          { label: client.code || "No Client Code", tone: "neutral" },
-          { label: getClientContactLabel(client), tone: "emerald" },
-          { label: formatStatus(client.status), tone: "amber" },
-        ]}
         gradientTitle={getClientDisplayName(client)}
         title="Client"
         subtitle="Finance Customer Master Data"
-        description="Finance client record with same-place section editing, personnel, primary addresses, shipping addresses, notes, and lifecycle control."
-        statusCards={headerStatusCards}
-      />
+        />
 
-      {pageError ? <AixiaAlert tone="error">{pageError}</AixiaAlert> : null}
+      <div className="aixia-command-scroll">
+{pageError ? <AixiaAlert tone="error">{pageError}</AixiaAlert> : null}
       {pageMessage ? <AixiaAlert tone="success">{pageMessage}</AixiaAlert> : null}
 
       <AixiaSmartLayout
@@ -2194,6 +2115,6 @@ export default function FinanceMasterDataClientDetailPage() {
           </>
         }
       />
-    </AixiaPage>
+      </div></FinancePage>
   );
 }

@@ -8,10 +8,9 @@ import { canPerform, canDeleteProject as canDeleteProjectPermission } from "@/li
 import { useRequest } from "@/lib/useRequest";
 
 import { useAppClock } from "@/lib/clock/provider";
-import { Button } from "@/components/ui/button";
+import { AixiaButton, AixiaCommandMetrics, AixiaHero, AixiaPage, AixiaWorkspaceCard } from "@/components/aixia";
 import { Input } from "@/components/ui/input";
 import { Card, CardContent } from "@/components/ui/card";
-import { Badge } from "@/components/ui/badge";
 import { Progress } from "@/components/ui/progress";
 import { PageError } from "@/components/ui/PageError";
 import { PageLoader } from "@/components/ui/PageLoader";
@@ -26,13 +25,16 @@ import { ToggleGroup, ToggleGroupItem } from "@/components/ui/toggle-group";
 import {
   FolderKanban,
   Plus,
+  RefreshCw,
   Search,
   Grid3X3,
   List,
   MoreVertical,
   Edit,
   Trash2,
-  Calendar,
+  Activity,
+  CheckCircle2,
+  AlertTriangle,
 } from "lucide-react";
 import {
   DropdownMenu,
@@ -41,6 +43,15 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import { format } from "date-fns";
+
+import {
+  getProjectCardDescription,
+  getProjectCardTitle,
+} from "@/lib/projects/display";
+import "@/styles/dashboard/tokens.css";
+import "@/styles/dashboard/layout.css";
+import "@/styles/dashboard/visual.css";
+import "@/styles/projects/projects-visual.css";
 
 type Role = "admin" | "manager" | "employee" | "guest";
 
@@ -268,7 +279,7 @@ return matchesSearch && matchesStatus && matchesTab;
   }, [projects, searchQuery, statusFilter, sortBy, activeTab, currentUserId, pinnedIds]);
 
   const kpi = useMemo(() => {
-  let total = projects.length;
+  const total = projects.length;
   let active = 0;
   let completed = 0;
   let overdue = 0;
@@ -292,20 +303,30 @@ return matchesSearch && matchesStatus && matchesTab;
   return { total, active, completed, overdue };
 }, [projects]);
 
-  const getStatusColor = (status: string | null) => {
+  const projectMetricItems = useMemo(
+    () => [
+      { key: "total", title: "Total", value: String(kpi.total), icon: FolderKanban, tone: "indigo" as const },
+      { key: "active", title: "Active", value: String(kpi.active), icon: Activity, tone: "emerald" as const },
+      { key: "completed", title: "Completed", value: String(kpi.completed), icon: CheckCircle2, tone: "violet" as const },
+      { key: "overdue", title: "Overdue", value: String(kpi.overdue), icon: AlertTriangle, tone: "rose" as const },
+    ],
+    [kpi]
+  );
+
+  const getStatusPillClass = (status: string | null) => {
     switch ((status || "").toUpperCase()) {
       case "ACTIVE":
-        return "bg-green-500/20 text-green-400 border-green-500/30";
+        return "aixia-projects-pill--active";
       case "PLANNING":
-        return "bg-blue-500/20 text-blue-400 border-blue-500/30";
+        return "aixia-projects-pill--planning";
       case "ON_HOLD":
-        return "bg-amber-500/20 text-amber-400 border-amber-500/30";
+        return "aixia-projects-pill--on-hold";
       case "COMPLETED":
-        return "bg-purple-500/20 text-purple-400 border-purple-500/30";
+        return "aixia-projects-pill--completed";
       case "CANCELLED":
-        return "bg-red-500/20 text-red-400 border-red-500/30";
+        return "aixia-projects-pill--cancelled";
       default:
-        return "bg-slate-500/20 text-slate-400 border-slate-500/30";
+        return "aixia-projects-pill--planning";
     }
   };
   
@@ -337,6 +358,22 @@ return matchesSearch && matchesStatus && matchesTab;
   if (diffDays <= 3) return "SOON";
 
   return null;
+}
+
+function getProjectWorkspaceTone(status: string | null, urgency: ReturnType<typeof getUrgency>) {
+  if (urgency === "OVERDUE") return "rose" as const;
+  switch ((status || "").toUpperCase()) {
+    case "ACTIVE":
+      return "emerald" as const;
+    case "COMPLETED":
+      return "violet" as const;
+    case "ON_HOLD":
+      return "amber" as const;
+    case "CANCELLED":
+      return "rose" as const;
+    default:
+      return "cyan" as const;
+  }
 }
 
 function getPriorityScore(project: ProjectRow) {
@@ -381,201 +418,167 @@ function getPriorityScore(project: ProjectRow) {
   };
 
     return (
-    <div className="h-full flex flex-col overflow-hidden">
-      <div className="shrink-0 space-y-6 pb-4">
-        <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
-        <div>
-          <h1 className="text-2xl font-bold text-white">
-            {t("projects.projectsTitle", "Projects")}
-          </h1>
-          <p className="text-slate-400">
-            {t("projects.projectsSubtitle", "Manage and track your projects")}
-          </p>
-        </div>
-
-        <div className="flex items-center gap-2">
-         <Button
-  variant="outline"
-  className="border-slate-700 text-slate-300 hover:bg-slate-800"
-  onClick={() => void loadProjects()}
-  disabled={projectsRequest.status === "loading"}
->
-  {projectsRequest.status === "loading"
-    ? t("projects.refreshing", "Refreshing...")
-    : t("projects.refresh", "Refresh")}
-</Button>
-
-          {canCreateProjects && (
-            <Button
-              className="bg-indigo-600 hover:bg-indigo-700 text-white"
-              onClick={() => navigate("/projects/new")}
-            >
-              <Plus className="w-4 h-4 mr-2" />
-              {t("projects.newProject", "New Project")}
-            </Button>
-          )}
-        </div>
-      </div>
-
-     <div className="flex gap-2 overflow-x-auto">
-  {[
-    { key: "ALL", label: "All" },
-    { key: "ACTIVE", label: "Active" },
-    { key: "MINE", label: "My Projects" },
-    { key: "COMPLETED", label: "Completed" },
-  ].map((tab) => (
-    <button
-      key={tab.key}
-      onClick={() => setActiveTab(tab.key as any)}
-      className={`px-3 py-1.5 rounded-lg text-sm border transition ${
-        activeTab === tab.key
-          ? "bg-indigo-600 text-white border-indigo-500"
-          : "bg-slate-900 text-slate-400 border-slate-800 hover:bg-slate-800"
-      }`}
+    <AixiaPage
+      surface="command"
+      className="aixia-command-page aixia-projects-page"
     >
-      {tab.label}
-    </button>
-  ))}
-</div>
-        
-        <div className="flex flex-col sm:flex-row gap-4">
-        <div className="relative flex-1">
-          <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-500" />
-          <Input
-            placeholder={t("projects.searchProjectsPlaceholder", "Search projects...")}
-            value={searchQuery}
-            onChange={(e) => setSearchQuery(e.target.value)}
-            className="pl-10 bg-slate-900 border-slate-800 text-white placeholder:text-slate-600"
-          />
+      <AixiaHero
+        surface="command"
+        className="shrink-0 space-y-4"
+        gradientTitle={t("projects.projectsTitle", "Projects")}
+        title={t("projects.projectsTitle", "Projects")}
+        subtitle={t("projects.projectsSubtitle", "Manage and track your projects")}
+        actions={
+          <>
+            <AixiaButton
+              type="button"
+              className="h-9"
+              onClick={() => void loadProjects()}
+              disabled={projectsRequest.status === "loading"}
+            >
+              <RefreshCw
+                className={`h-4 w-4 mr-2 ${projectsRequest.status === "loading" ? "animate-spin" : ""}`}
+              />
+              {projectsRequest.status === "loading"
+                ? t("projects.refreshing", "Refreshing...")
+                : t("projects.refresh", "Refresh")}
+            </AixiaButton>
+
+            {canCreateProjects ? (
+              <AixiaButton
+                variant="primary"
+                type="button"
+                className="h-9"
+                onClick={() => navigate("/projects/new")}
+              >
+                <Plus className="h-4 w-4 mr-2" />
+                {t("projects.newProject", "New Project")}
+              </AixiaButton>
+            ) : null}
+          </>
+        }
+      >
+        <AixiaCommandMetrics items={projectMetricItems} />
+
+        <div className="aixia-command-tabs">
+          {[
+            { key: "ALL", label: "All" },
+            { key: "ACTIVE", label: "Active" },
+            { key: "MINE", label: "My Projects" },
+            { key: "COMPLETED", label: "Completed" },
+          ].map((tab) => (
+            <button
+              key={tab.key}
+              type="button"
+              onClick={() => setActiveTab(tab.key as typeof activeTab)}
+              className={`aixia-command-tab ${
+                activeTab === tab.key ? "aixia-command-tab--active" : ""
+              }`}
+            >
+              {tab.label}
+            </button>
+          ))}
         </div>
 
-        <Select value={statusFilter} onValueChange={setStatusFilter}>
-          <SelectTrigger className="w-full sm:w-40 bg-slate-900 border-slate-800 text-white">
-            <SelectValue placeholder={t("projects.status", "Status")} />
-          </SelectTrigger>
-                    <SelectContent
-            position="popper"
-            side="bottom"
-            align="start"
-            sideOffset={6}
-            avoidCollisions={false}
-            className="bg-slate-900 border-slate-800"
+        <div className="aixia-command-toolbar">
+          <div className="relative flex-1 min-w-[12rem]">
+            <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 aixia-projects-muted" />
+            <Input
+              placeholder={t("projects.searchProjectsPlaceholder", "Search projects...")}
+              value={searchQuery}
+              onChange={(e) => setSearchQuery(e.target.value)}
+              className="pl-10 aixia-projects-input"
+            />
+          </div>
+
+          <Select value={statusFilter} onValueChange={setStatusFilter}>
+            <SelectTrigger className="w-full sm:w-40 aixia-projects-select-trigger">
+              <SelectValue placeholder={t("projects.status", "Status")} />
+            </SelectTrigger>
+            <SelectContent
+              position="popper"
+              side="bottom"
+              align="start"
+              sideOffset={6}
+              avoidCollisions={false}
+              className="aixia-projects-select-content"
+            >
+              <SelectItem value="ALL">{t("projects.allStatus", "All Status")}</SelectItem>
+              <SelectItem value="PLANNING">{t("projects.statusPlanning", "Planning")}</SelectItem>
+              <SelectItem value="ACTIVE">{t("projects.statusActive", "Active")}</SelectItem>
+              <SelectItem value="ON_HOLD">{t("projects.statusOnHold", "On Hold")}</SelectItem>
+              <SelectItem value="COMPLETED">{t("projects.statusCompleted", "Completed")}</SelectItem>
+              <SelectItem value="CANCELLED">{t("projects.statusCancelled", "Cancelled")}</SelectItem>
+            </SelectContent>
+          </Select>
+
+          <Select value={sortBy} onValueChange={setSortBy}>
+            <SelectTrigger className="w-full sm:w-40 aixia-projects-select-trigger">
+              <SelectValue placeholder={t("projects.sortBy", "Sort by")} />
+            </SelectTrigger>
+            <SelectContent
+              position="popper"
+              side="bottom"
+              align="start"
+              sideOffset={6}
+              avoidCollisions={false}
+              className="aixia-projects-select-content"
+            >
+              <SelectItem value="newest">{t("projects.newestFirst", "Newest First")}</SelectItem>
+              <SelectItem value="oldest">{t("projects.oldestFirst", "Oldest First")}</SelectItem>
+              <SelectItem value="name">{t("projects.name", "Name")}</SelectItem>
+              <SelectItem value="progress">{t("projects.progress", "Progress")}</SelectItem>
+            </SelectContent>
+          </Select>
+
+          <ToggleGroup
+            type="single"
+            value={viewMode}
+            onValueChange={(v) => {
+              if (v) setViewMode(v as "grid" | "list");
+            }}
           >
-            <SelectItem value="ALL">{t("projects.allStatus", "All Status")}</SelectItem>
-            <SelectItem value="PLANNING">{t("projects.statusPlanning", "Planning")}</SelectItem>
-            <SelectItem value="ACTIVE">{t("projects.statusActive", "Active")}</SelectItem>
-            <SelectItem value="ON_HOLD">{t("projects.statusOnHold", "On Hold")}</SelectItem>
-            <SelectItem value="COMPLETED">{t("projects.statusCompleted", "Completed")}</SelectItem>
-            <SelectItem value="CANCELLED">{t("projects.statusCancelled", "Cancelled")}</SelectItem>
-          </SelectContent>
-        </Select>
+            <ToggleGroupItem value="grid">
+              <Grid3X3 className="w-4 h-4" />
+            </ToggleGroupItem>
+            <ToggleGroupItem value="list">
+              <List className="w-4 h-4" />
+            </ToggleGroupItem>
+          </ToggleGroup>
+        </div>
 
-        <Select value={sortBy} onValueChange={setSortBy}>
-          <SelectTrigger className="w-full sm:w-40 bg-slate-900 border-slate-800 text-white">
-            <SelectValue placeholder={t("projects.sortBy", "Sort by")} />
-          </SelectTrigger>
-                    <SelectContent
-            position="popper"
-            side="bottom"
-            align="start"
-            sideOffset={6}
-            avoidCollisions={false}
-            className="bg-slate-900 border-slate-800"
-          >
-            <SelectItem value="newest">{t("projects.newestFirst", "Newest First")}</SelectItem>
-            <SelectItem value="oldest">{t("projects.oldestFirst", "Oldest First")}</SelectItem>
-            <SelectItem value="name">{t("projects.name", "Name")}</SelectItem>
-            <SelectItem value="progress">{t("projects.progress", "Progress")}</SelectItem>
-          </SelectContent>
-        </Select>
+        <PageError message={projectsRequest.error || ""} />
+      </AixiaHero>
 
-        <ToggleGroup
-          type="single"
-          value={viewMode}
-          onValueChange={(v) => {
-            if (v) setViewMode(v as "grid" | "list");
-          }}
-        >
-          <ToggleGroupItem value="grid" className="data-[state=on]:bg-slate-800">
-            <Grid3X3 className="w-4 h-4" />
-          </ToggleGroupItem>
-          <ToggleGroupItem value="list" className="data-[state=on]:bg-slate-800">
-            <List className="w-4 h-4" />
-          </ToggleGroupItem>
-        </ToggleGroup>
-      </div>
-
-              <PageError message={projectsRequest.error || ""} />
-        <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
-  <div className="bg-slate-900/60 border border-slate-800 rounded-xl p-3">
-    <div className="text-xs text-slate-400">Total</div>
-    <div className="text-lg font-semibold text-white">{kpi.total}</div>
-  </div>
-
-  <div className="bg-slate-900/60 border border-slate-800 rounded-xl p-3">
-    <div className="text-xs text-slate-400">Active</div>
-    <div className="text-lg font-semibold text-green-400">{kpi.active}</div>
-  </div>
-
-  <div className="bg-slate-900/60 border border-slate-800 rounded-xl p-3">
-    <div className="text-xs text-slate-400">Completed</div>
-    <div className="text-lg font-semibold text-purple-400">{kpi.completed}</div>
-  </div>
-
-  <div className="bg-slate-900/60 border border-slate-800 rounded-xl p-3">
-    <div className="text-xs text-slate-400">Overdue</div>
-    <div className="text-lg font-semibold text-red-400">{kpi.overdue}</div>
-  </div>
-</div>
-      </div>
-
-      <div className="flex-1 overflow-y-auto pr-1">
+      <div className="aixia-command-scroll">
         <PageLoader
   loading={projectsRequest.status === "loading"}
   fallback={
     viewMode === "grid" ? (
-      <div className="grid grid-cols-[repeat(auto-fit,minmax(220px,1fr))] gap-3">
+      <div className="aixia-projects-grid">
         {Array.from({ length: 6 }).map((_, index) => (
-          <Card key={index} className="bg-slate-900/50 border-slate-800">
-            <CardContent className="p-4">
-              <div className="animate-pulse space-y-4">
-                <div className="flex items-start justify-between">
-                  <div className="w-10 h-10 rounded-lg bg-slate-800" />
-                  <div className="w-8 h-8 rounded bg-slate-800" />
-                </div>
-                <div className="h-5 w-2/3 rounded bg-slate-800" />
-                <div className="h-4 w-full rounded bg-slate-800" />
-                <div className="h-4 w-3/4 rounded bg-slate-800" />
-                <div className="h-6 w-24 rounded bg-slate-800" />
-                <div className="space-y-2">
-                  <div className="flex justify-between">
-                    <div className="h-4 w-16 rounded bg-slate-800" />
-                    <div className="h-4 w-10 rounded bg-slate-800" />
-                  </div>
-                  <div className="h-2 w-full rounded bg-slate-800" />
-                </div>
-                <div className="h-4 w-20 rounded bg-slate-800" />
-              </div>
-            </CardContent>
-          </Card>
+          <div
+            key={index}
+            className="aixia-workspace-card aixia-workspace-card-neutral aixia-workspace-card--compact animate-pulse"
+          />
         ))}
       </div>
     ) : (
-      <Card className="bg-slate-900/50 border-slate-800">
+      <Card className="aixia-dash-panel aixia-dash-glass aixia-dash-tilt-panel aixia-projects-panel-card">
         <CardContent className="p-0">
-          <div className="divide-y divide-slate-800">
+          <div className="aixia-projects-list-divider">
             {Array.from({ length: 6 }).map((_, index) => (
               <div key={index} className="p-4">
                 <div className="animate-pulse flex items-center gap-4">
-                  <div className="w-10 h-10 rounded-lg bg-slate-800" />
+                  <div className="w-10 h-10 rounded-lg aixia-projects-skeleton-bar" />
                   <div className="flex-1 space-y-2">
-                    <div className="h-4 w-48 rounded bg-slate-800" />
-                    <div className="h-4 w-72 rounded bg-slate-800" />
+                    <div className="h-4 w-48 rounded aixia-projects-skeleton-bar" />
+                    <div className="h-4 w-72 rounded aixia-projects-skeleton-bar" />
                   </div>
-                  <div className="hidden sm:block h-6 w-20 rounded bg-slate-800" />
-                  <div className="hidden sm:block h-2 w-32 rounded bg-slate-800" />
-                  <div className="hidden sm:block h-4 w-16 rounded bg-slate-800" />
-                  <div className="h-8 w-8 rounded bg-slate-800" />
+                  <div className="hidden sm:block h-6 w-20 rounded aixia-projects-skeleton-bar" />
+                  <div className="hidden sm:block h-2 w-32 rounded aixia-projects-skeleton-bar" />
+                  <div className="hidden sm:block h-4 w-16 rounded aixia-projects-skeleton-bar" />
+                  <div className="h-8 w-8 rounded aixia-projects-skeleton-bar" />
                 </div>
               </div>
             ))}
@@ -595,132 +598,114 @@ function getPriorityScore(project: ProjectRow) {
       if (sectionProjects.length === 0) return null;
 
       return (
-        <div key={status} className="space-y-3">
-          <h2 className="text-xs font-semibold text-slate-400 uppercase tracking-wider">
+        <div key={status} className={`aixia-projects-grid-section aixia-projects-grid-section--${status}`}>
+          <h2 className="aixia-projects-section-title">
             {getStatusLabel(status)}
           </h2>
 
-          <div className="grid grid-cols-[repeat(auto-fit,minmax(220px,1fr))] gap-3">
-            {sectionProjects.map((project) => (
-              <Card
-                key={project.id}
-                className="bg-slate-900/50 border-slate-800 hover:border-indigo-500/40 transition-all duration-300 cursor-pointer group hover:-translate-y-1 hover:scale-[1.02] hover:shadow-[0_0_30px_rgba(99,102,241,0.18)]"
-                onClick={() => navigate(`/projects/${project.id}`)}
-              >
-                <CardContent className="p-4">
-                  <div className="flex items-start justify-between mb-3">
-  <button
-    onClick={(e) => {
-      e.stopPropagation();
-      setPinnedIds((prev) =>
-        prev.includes(project.id)
-          ? prev.filter((id) => id !== project.id)
-          : [...prev, project.id]
-      );
-    }}
-    className="text-yellow-400 hover:scale-110 transition"
-  >
-    {pinnedIds.includes(project.id) ? "⭐" : "☆"}
-  </button>
-                    <div className="w-9 h-9 rounded-lg bg-indigo-500/10 flex items-center justify-center shrink-0 transition-transform duration-300 group-hover:scale-110">
-                      <FolderKanban className="w-4 h-4 text-indigo-400" />
-                    </div>
+          <div className="aixia-projects-grid">
+            {sectionProjects.map((project) => {
+              const urgency = getUrgency(project);
+              const accessSummary = `${project.progress || 0}% ${t("projects.progress", "Progress").toLowerCase()} • ${
+                project.end_date
+                  ? format(clock.shiftDate(project.end_date), "MMM d")
+                  : t("projects.noDate", "No date")
+              }`;
+              const statusLabel =
+                urgency === "OVERDUE"
+                  ? "OVERDUE"
+                  : (project.status || t("projects.statusUnknown", "Unknown")).toUpperCase();
 
-                    <DropdownMenu>
-                      <DropdownMenuTrigger asChild onClick={(e) => e.stopPropagation()}>
-                        <Button variant="ghost" size="icon" className="h-8 w-8">
-                          <MoreVertical className="w-4 h-4 text-slate-400" />
-                        </Button>
-                      </DropdownMenuTrigger>
+              return (
+                <AixiaWorkspaceCard
+                  key={project.id}
+                  as="div"
+                  size="compact"
+                  label={getProjectCardTitle(
+                    project,
+                    t("projects.unnamedProject", "Untitled project"),
+                  )}
+                  eyebrow={getStatusLabel(status)}
+                  description={getProjectCardDescription(
+                    project,
+                    t("projects.noDescription", "No description"),
+                  )}
+                  icon={FolderKanban}
+                  statusLabel={statusLabel}
+                  summary={accessSummary}
+                  tone={getProjectWorkspaceTone(project.status, urgency)}
+                  onClick={() => navigate(`/projects/${project.id}`)}
+                  topRightSlot={
+                    <>
+                      <button
+                        type="button"
+                        onClick={(event) => {
+                          event.stopPropagation();
+                          setPinnedIds((prev) =>
+                            prev.includes(project.id)
+                              ? prev.filter((id) => id !== project.id)
+                              : [...prev, project.id],
+                          );
+                        }}
+                        className="aixia-workspace-card-pin-btn"
+                        aria-label={
+                          pinnedIds.includes(project.id) ? "Unpin project" : "Pin project"
+                        }
+                      >
+                        {pinnedIds.includes(project.id) ? "★" : "☆"}
+                      </button>
 
-                      <DropdownMenuContent align="end" className="bg-slate-900 border-slate-800">
-                        <DropdownMenuItem
-                          onClick={(e) => {
-                            e.stopPropagation();
-                            navigate(`/projects/${project.id}/edit`);
-                          }}
-                        >
-                          <Edit className="w-4 h-4 mr-2" />
-                          {t("projects.edit", "Edit")}
-                        </DropdownMenuItem>
+                      <DropdownMenu>
+                        <DropdownMenuTrigger asChild onClick={(event) => event.stopPropagation()}>
+                          <AixiaButton variant="icon" className="h-8 w-8">
+                            <MoreVertical className="w-4 h-4" />
+                          </AixiaButton>
+                        </DropdownMenuTrigger>
 
-                        {canDeleteProject(project) && (
+                        <DropdownMenuContent align="end" className="aixia-projects-select-content">
                           <DropdownMenuItem
-                            onClick={(e) => {
-                              e.stopPropagation();
-                              void handleDelete(project.id);
+                            onClick={(event) => {
+                              event.stopPropagation();
+                              navigate(`/projects/${project.id}/edit`);
                             }}
-                            className="text-red-400"
                           >
-                            <Trash2 className="w-4 h-4 mr-2" />
-                            {t("projects.delete", "Delete")}
+                            <Edit className="w-4 h-4 mr-2" />
+                            {t("projects.edit", "Edit")}
                           </DropdownMenuItem>
-                        )}
-                      </DropdownMenuContent>
-                    </DropdownMenu>
-                  </div>
 
-                  <h3 className="text-base font-semibold text-white mb-1 truncate group-hover:text-indigo-400 transition-colors">
-                    {project.name}
-                  </h3>
-
-                  <p className="text-slate-400 text-xs mb-3 line-clamp-2 min-h-[2.5rem]">
-                    {project.description || t("projects.noDescription", "No description")}
-                  </p>
-
-                  <div className="flex items-center gap-2 mb-3">
-  <Badge className={getStatusColor(project.status)}>
-    {getStatusLabel(project.status)}
-  </Badge>
-
-  {getUrgency(project) === "OVERDUE" && (
-    <Badge className="bg-red-500/20 text-red-400 border-red-500/30">
-      Overdue
-    </Badge>
-  )}
-
-  {getUrgency(project) === "SOON" && (
-    <Badge className="bg-amber-500/20 text-amber-400 border-amber-500/30">
-      Due Soon
-    </Badge>
-  )}
-</div>
-
-                  <div className="space-y-2">
-                    <div className="flex items-center justify-between text-xs">
-                      <span className="text-slate-500">{t("projects.progress", "Progress")}</span>
-                      <span className="text-white">{project.progress || 0}%</span>
-                    </div>
-                    <Progress value={project.progress || 0} className="h-1.5 bg-slate-800" />
-                  </div>
-
-                  <div className="flex items-center justify-between mt-3 pt-3 border-t border-slate-800">
-                    <div className="flex items-center gap-4 text-sm text-slate-500">
-                      <span className="flex items-center gap-1">
-                        <Calendar className="w-3.5 h-3.5" />
-                        {project.end_date
-                          ? format(clock.shiftDate(project.end_date), "MMM d")
-                          : t("projects.noDate", "No date")}
-                      </span>
-                    </div>
-                  </div>
-                </CardContent>
-              </Card>
-            ))}
+                          {canDeleteProject(project) && (
+                            <DropdownMenuItem
+                              onClick={(event) => {
+                                event.stopPropagation();
+                                void handleDelete(project.id);
+                              }}
+                              className="text-red-400"
+                            >
+                              <Trash2 className="w-4 h-4 mr-2" />
+                              {t("projects.delete", "Delete")}
+                            </DropdownMenuItem>
+                          )}
+                        </DropdownMenuContent>
+                      </DropdownMenu>
+                    </>
+                  }
+                />
+              );
+            })}
           </div>
         </div>
       );
     })}
   </div>
 ) : (
-    <Card className="bg-slate-900/50 border-slate-800">
+    <Card className="aixia-dash-panel aixia-dash-glass aixia-dash-tilt-panel aixia-projects-panel-card">
       <CardContent className="p-0">
-        <div className="divide-y divide-slate-800">
+        <div className="aixia-projects-list-divider">
           {filteredProjects.map((project) => (
   <div
     key={project.id}
     onClick={() => navigate(`/projects/${project.id}`)}
-    className="flex items-center gap-4 p-4 hover:bg-slate-800/50 cursor-pointer transition-colors"
+    className="aixia-projects-list-row flex items-center gap-4 p-4 cursor-pointer transition-colors"
   >
     <button
       onClick={(e) => {
@@ -735,41 +720,45 @@ function getPriorityScore(project: ProjectRow) {
     >
       {pinnedIds.includes(project.id) ? "⭐" : "☆"}
     </button>
-              <div className="w-10 h-10 rounded-lg bg-indigo-500/10 flex items-center justify-center flex-shrink-0">
-                <FolderKanban className="w-5 h-5 text-indigo-400" />
+              <div className="aixia-projects-list-icon">
+                <FolderKanban className="w-5 h-5" />
               </div>
 
               <div className="flex-1 min-w-0">
-                <h4 className="text-white font-medium truncate">{project.name}</h4>
-                <p className="text-slate-500 text-sm truncate">
-                  {project.description || t("projects.noDescription", "No description")}
+                <h4 className="aixia-dash-list-row-title truncate">
+                  {getProjectCardTitle(
+                    project,
+                    t("projects.unnamedProject", "Untitled project"),
+                  )}
+                </h4>
+                <p className="aixia-dash-list-row-meta truncate">
+                  {getProjectCardDescription(
+                    project,
+                    t("projects.noDescription", "No description"),
+                  )}
                 </p>
               </div>
 
               <div className="hidden sm:flex items-center gap-4">
   <div className="flex items-center gap-2">
-    <Badge className={getStatusColor(project.status)}>
+    <span className={`aixia-dash-pill ${getStatusPillClass(project.status)}`}>
       {getStatusLabel(project.status)}
-    </Badge>
+    </span>
 
     {getUrgency(project) === "OVERDUE" && (
-      <Badge className="bg-red-500/20 text-red-400 border-red-500/30">
-        Overdue
-      </Badge>
+      <span className="aixia-dash-pill aixia-projects-pill--danger">Overdue</span>
     )}
 
     {getUrgency(project) === "SOON" && (
-      <Badge className="bg-amber-500/20 text-amber-400 border-amber-500/30">
-        Due Soon
-      </Badge>
+      <span className="aixia-dash-pill aixia-projects-pill--warning">Due Soon</span>
     )}
   </div>
 
   <div className="w-32">
-    <Progress value={project.progress || 0} className="h-2 bg-slate-800" />
+    <Progress value={project.progress || 0} className="aixia-projects-progress aixia-projects-progress--sm" />
   </div>
 
-  <span className="text-sm text-slate-500">
+  <span className="aixia-dash-list-row-meta text-sm">
     {project.end_date
       ? format(clock.shiftDate(project.end_date), "MMM d")
       : t("projects.noDate", "No date")}
@@ -778,12 +767,12 @@ function getPriorityScore(project: ProjectRow) {
 
               <DropdownMenu>
                 <DropdownMenuTrigger asChild onClick={(e) => e.stopPropagation()}>
-                  <Button variant="ghost" size="icon" className="h-8 w-8">
-                    <MoreVertical className="w-4 h-4 text-slate-400" />
-                  </Button>
+                  <AixiaButton variant="icon" className="h-8 w-8">
+                    <MoreVertical className="w-4 h-4" />
+                  </AixiaButton>
                 </DropdownMenuTrigger>
 
-                <DropdownMenuContent align="end" className="bg-slate-900 border-slate-800">
+                <DropdownMenuContent align="end" className="aixia-projects-select-content">
                   <DropdownMenuItem
                     onClick={(e) => {
                       e.stopPropagation();
@@ -817,12 +806,12 @@ function getPriorityScore(project: ProjectRow) {
         </PageLoader>
 
         {filteredProjects.length === 0 && (
-          <div className="text-center py-12">
-            <FolderKanban className="w-12 h-12 text-slate-600 mx-auto mb-4" />
-            <h3 className="text-lg font-medium text-white mb-2">
+          <div className="text-center py-12 aixia-projects-empty">
+            <FolderKanban className="w-12 h-12 aixia-projects-empty-icon mx-auto mb-4" />
+            <h3 className="text-lg font-medium aixia-projects-title-inline mb-2">
               {t("projects.noProjectsFound", "No projects found")}
             </h3>
-            <p className="text-slate-500 mb-4">
+            <p className="aixia-projects-muted mb-4">
               {searchQuery || statusFilter !== "ALL"
                 ? t("projects.tryAdjustingYourFilters", "Try adjusting your filters")
                 : t(
@@ -832,18 +821,18 @@ function getPriorityScore(project: ProjectRow) {
             </p>
 
             {!searchQuery && statusFilter === "ALL" && canCreateProjects && (
-              <Button
-                className="bg-indigo-600 hover:bg-indigo-700 text-white"
+              <AixiaButton
+                variant="primary"
                 onClick={() => navigate("/projects/new")}
               >
                 <Plus className="w-4 h-4 mr-2" />
                 {t("projects.createProject", "Create Project")}
-              </Button>
+              </AixiaButton>
             )}
           </div>
         )}
       </div>
-    </div>
+    </AixiaPage>
   );
 }
     

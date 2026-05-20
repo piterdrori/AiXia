@@ -1,18 +1,5 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
-import {
-  Archive,
-  BarChart3,
-  Edit3,
-  Landmark,
-  Loader2,
-  Plus,
-  RotateCcw,
-  Save,
-  Search,
-  ShieldCheck,
-  Trash2,
-  WalletCards,
-} from "lucide-react";
+import { Archive, BarChart3, Edit3, Landmark, Loader2, Plus, RotateCcw, Save, Search, Trash2, WalletCards } from "lucide-react";
 
 import {
   AixiaAccessDeniedState,
@@ -29,10 +16,8 @@ import {
   AixiaHero,
   AixiaInputField,
   AixiaLoadingState,
-  AixiaMetricCard,
-  AixiaMetricGrid,
   AixiaModal,
-  AixiaPage,
+  FinancePage,
   AixiaRegistryToolbar,
   AixiaSearchField,
   AixiaSection,
@@ -45,6 +30,7 @@ import {
   AixiaTableShell,
   AixiaTableTextCell,
   AixiaTextareaField,
+  AixiaCommandMetrics
 } from "@/components/aixia";
 
 import { supabase } from "@/lib/supabase";
@@ -342,7 +328,7 @@ export default function FinanceRevenueCategoriesPage() {
     []
   );
   const [initialLoading, setInitialLoading] = useState(true);
-  const [backgroundRefreshing, setBackgroundRefreshing] = useState(false);
+  const [, setBackgroundRefreshing] = useState(false);
   const [saving, setSaving] = useState(false);
   const [actionLoadingId, setActionLoadingId] = useState<string | null>(null);
 
@@ -779,6 +765,17 @@ export default function FinanceRevenueCategoriesPage() {
     setError("");
   }
 
+  const __registryCommandMetrics = useMemo(
+    () => [
+    { key: "active-categories", title: "Active Categories", value: String(formatCount(stats.active)), subtitle: "Revenue categories available for finance document classification.", icon: BarChart3, tone: "emerald", },
+    { key: "inactive", title: "Inactive", value: String(formatCount(stats.inactive)), subtitle: "Revenue categories disabled from normal selection.", icon: WalletCards, tone: "gold", },
+    { key: "ledger-linked", title: "Ledger Linked", value: String(formatCount(stats.linked)), subtitle: "Categories connected to active chart-of-account records.", icon: Landmark, tone: "cyan", },
+    { key: "archived", title: "Archived", value: String(formatCount(stats.archived)), subtitle: "Historical revenue categories managed through archive controls.", icon: Archive, tone: "violet", }
+    
+    ],
+    [stats, formatCount]
+  );
+
   if (initialLoading) {
     return (
       <AixiaLoadingState
@@ -788,45 +785,21 @@ export default function FinanceRevenueCategoriesPage() {
     );
   }
 
-  return (
-    <AixiaPage>
+return (
+    <FinancePage>
       <AixiaHero
+        className="shrink-0 space-y-4"
+        surface="command"
         parentLabel="Master Data"
         parentPath="/finance/master-data"
-        badges={[
-          { label: "Finance Master Data", tone: "cyan" },
-          { label: "Revenue Categories", tone: "violet" },
-          { label: "Ledger Link Ready", tone: "emerald" },
-          {
-            label: backgroundRefreshing ? "Updating Silently" : "Realtime + 60s",
-            tone: backgroundRefreshing ? "gold" : "neutral",
-          },
-        ]}
         gradientTitle="Revenue"
         title="Categories"
-        subtitle="Finance Classification Registry"
-        description="Define and manage finance revenue categories with status control, ledger linkage readiness, and reusable classification for AR, invoices, and reporting flows."
-        statusCards={[
-          {
-            label: "Read Access",
-            value: permissionState.canRead ? "Enabled" : "Locked",
-            description:
-              "This registry requires Finance read access or Master Data admin access.",
-            icon: permissionState.canRead ? ShieldCheck : Archive,
-            tone: permissionState.canRead ? "emerald" : "rose",
-          },
-          {
-            label: "Lifecycle Access",
-            value: canArchive ? "Archive Enabled" : canCreate ? "Create Enabled" : "Read Only",
-            description:
-              "Create, Edit, Archive, Restore, and Permanent Delete follow Finance permissions.",
-            icon: canArchive ? Archive : WalletCards,
-            tone: canArchive ? "amber" : "cyan",
-          },
-        ]}
-      />
+        subtitle="Finance Classification Registry">
+        <AixiaCommandMetrics items={__registryCommandMetrics} />
+      </AixiaHero>
 
-      {error ? <AixiaAlert tone="error">{error}</AixiaAlert> : null}
+      <div className="aixia-command-scroll">
+{error ? <AixiaAlert tone="error">{error}</AixiaAlert> : null}
       {pageMessage ? <AixiaAlert tone="success">{pageMessage}</AixiaAlert> : null}
 
       {!permissionState.canRead ? (
@@ -836,39 +809,7 @@ export default function FinanceRevenueCategoriesPage() {
         />
       ) : (
         <>
-          <AixiaMetricGrid>
-            <AixiaMetricCard
-              label="Active Categories"
-              value={formatCount(stats.active)}
-              description="Revenue categories available for finance document classification."
-              icon={BarChart3}
-              tone="emerald"
-            />
-
-            <AixiaMetricCard
-              label="Inactive"
-              value={formatCount(stats.inactive)}
-              description="Revenue categories disabled from normal selection."
-              icon={WalletCards}
-              tone="gold"
-            />
-
-            <AixiaMetricCard
-              label="Ledger Linked"
-              value={formatCount(stats.linked)}
-              description="Categories connected to active chart-of-account records."
-              icon={Landmark}
-              tone="cyan"
-            />
-
-            <AixiaMetricCard
-              label="Archived"
-              value={formatCount(stats.archived)}
-              description="Historical revenue categories managed through archive controls."
-              icon={Archive}
-              tone="violet"
-            />
-          </AixiaMetricGrid>
+          
 
           <AixiaSection
             title="Revenue Categories Registry"
@@ -1226,6 +1167,7 @@ export default function FinanceRevenueCategoriesPage() {
         onChange={updateForm}
         onSave={() => void handleSave()}
       />
-    </AixiaPage>
+      </div>
+    </FinancePage>
   );
 }

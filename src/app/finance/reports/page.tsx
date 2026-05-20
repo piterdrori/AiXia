@@ -1,8 +1,7 @@
-import { useCallback, useEffect, useMemo, useState, type ReactNode } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import {
   ArrowLeft,
-  ArrowRight,
   BarChart3,
   BriefcaseBusiness,
   FileBarChart2,
@@ -18,7 +17,19 @@ import {
 
 import { supabase } from "@/lib/supabase";
 
-import { Button } from "@/components/ui/button";
+import {
+  AixiaButton,
+  AixiaCommandMetrics,
+  AixiaFinanceHubMetaStrip,
+  AixiaHero,
+  AixiaWorkspaceCard,
+  FinancePage,
+} from "@/components/aixia";
+import type { AixiaCommandMetricItem } from "@/components/aixia";
+import "@/styles/dashboard/tokens.css";
+import "@/styles/dashboard/layout.css";
+import "@/styles/dashboard/visual.css";
+
 import { Badge } from "@/components/ui/badge";
 import {
   Card,
@@ -193,159 +204,6 @@ function formatCount(value: number) {
 function formatSignedMoney(value: number) {
   const abs = formatMoney(Math.abs(value));
   return value < 0 ? `-$${abs}` : `$${abs}`;
-}
-
-function getToneClasses(
-  tone: ReportMetricTone
-): {
-  glow: string;
-  iconWrap: string;
-  accent: string;
-} {
-  switch (tone) {
-    case "emerald":
-      return {
-        glow: "from-emerald-500/20 via-emerald-400/10 to-transparent",
-        iconWrap:
-          "border-emerald-400/20 bg-emerald-500/10 text-emerald-300 shadow-[0_0_30px_rgba(16,185,129,0.18)]",
-        accent: "bg-emerald-400",
-      };
-    case "blue":
-      return {
-        glow: "from-sky-500/20 via-sky-400/10 to-transparent",
-        iconWrap:
-          "border-sky-400/20 bg-sky-500/10 text-sky-300 shadow-[0_0_30px_rgba(56,189,248,0.18)]",
-        accent: "bg-sky-400",
-      };
-    case "amber":
-      return {
-        glow: "from-amber-500/20 via-amber-400/10 to-transparent",
-        iconWrap:
-          "border-amber-400/20 bg-amber-500/10 text-amber-300 shadow-[0_0_30px_rgba(245,158,11,0.18)]",
-        accent: "bg-amber-400",
-      };
-    case "violet":
-      return {
-        glow: "from-violet-500/20 via-violet-400/10 to-transparent",
-        iconWrap:
-          "border-violet-400/20 bg-violet-500/10 text-violet-300 shadow-[0_0_30px_rgba(139,92,246,0.18)]",
-        accent: "bg-violet-400",
-      };
-    case "rose":
-      return {
-        glow: "from-rose-500/20 via-rose-400/10 to-transparent",
-        iconWrap:
-          "border-rose-400/20 bg-rose-500/10 text-rose-300 shadow-[0_0_30px_rgba(244,63,94,0.18)]",
-        accent: "bg-rose-400",
-      };
-    case "cyan":
-    default:
-      return {
-        glow: "from-cyan-500/20 via-cyan-400/10 to-transparent",
-        iconWrap:
-          "border-cyan-400/20 bg-cyan-500/10 text-cyan-300 shadow-[0_0_30px_rgba(34,211,238,0.18)]",
-        accent: "bg-cyan-400",
-      };
-  }
-}
-
-function ReportsMetricCard({ metric }: { metric: ReportMetricCard }) {
-  const Icon = metric.icon;
-  const tone = getToneClasses(metric.tone);
-
-  return (
-    <div className="group relative overflow-hidden rounded-[26px] border border-white/10 bg-white/[0.045] backdrop-blur-xl">
-      <div
-        className={`pointer-events-none absolute inset-0 bg-gradient-to-br ${tone.glow}`}
-      />
-      <div className="relative flex h-full flex-col gap-5 p-5">
-        <div className="flex items-start justify-between gap-4">
-          <div className="space-y-2">
-            <div className="text-[11px] font-medium uppercase tracking-[0.22em] text-white/45">
-              {metric.title}
-            </div>
-            <div className="text-3xl font-semibold tracking-tight text-white">
-              {metric.value}
-            </div>
-          </div>
-
-          <div
-            className={`flex h-11 w-11 items-center justify-center rounded-2xl border ${tone.iconWrap}`}
-          >
-            <Icon className="h-5 w-5" />
-          </div>
-        </div>
-
-        <div className="mt-auto flex items-center justify-between gap-3">
-          <div className="text-sm text-white/55">{metric.subtitle}</div>
-          <div className={`h-2 w-2 rounded-full ${tone.accent}`} />
-        </div>
-      </div>
-    </div>
-  );
-}
-
-function ReportWorkspaceCard({
-  module,
-  children,
-  actionLabel,
-  onOpen,
-}: {
-  module: ReportModuleCard;
-  children: ReactNode;
-  actionLabel: string;
-  onOpen: (route: string) => void;
-}) {
-  const Icon = module.icon;
-
-  return (
-    <Card className="group relative flex h-[420px] xl:h-[480px] 2xl:h-[540px] min-h-0 flex-col overflow-hidden rounded-[24px] border border-white/10 bg-white/[0.04] backdrop-blur-xl transition-all duration-200 hover:border-white/20 hover:bg-white/[0.055]">
-      <div className="pointer-events-none absolute inset-0 bg-[radial-gradient(circle_at_top_left,rgba(255,255,255,0.12),transparent_45%)] opacity-80" />
-
-      <CardHeader className="relative flex-shrink-0 border-b border-white/8 pb-3 pt-4">
-        <div className="flex items-start justify-between gap-4">
-          <div className="flex h-11 w-11 items-center justify-center rounded-2xl border border-white/10 bg-black/20 text-white/80">
-            <Icon className="h-5 w-5" />
-          </div>
-
-          <div className="flex items-center gap-3">
-            <Badge className="rounded-full border border-white/10 bg-white/8 px-2.5 py-1 text-[11px] text-white/70 shadow-none">
-              {module.statusLabel}
-            </Badge>
-            <ArrowRight className="h-4 w-4 text-white/35 transition-transform duration-200 group-hover:translate-x-1 group-hover:text-white/70" />
-          </div>
-        </div>
-
-        <div className="mt-4 space-y-2">
-          <CardTitle className="text-base font-semibold text-white">
-            {module.title}
-          </CardTitle>
-          <CardDescription className="text-sm leading-6 text-white/50">
-            {module.description}
-          </CardDescription>
-          <div className="pt-1 text-[11px] uppercase tracking-[0.18em] text-white/35">
-            {module.footerLabel}
-          </div>
-        </div>
-      </CardHeader>
-
-      <CardContent className="relative flex min-h-0 flex-1 flex-col p-0">
-        <div className="flex-1 overflow-y-auto px-4 py-3 sm:px-4">
-          {children}
-        </div>
-
-        <div className="border-t border-white/8 p-3">
-          <Button
-            variant="outline"
-            onClick={() => onOpen(module.route)}
-            className="h-11 w-full rounded-2xl border-white/10 bg-white/5 px-4 text-white hover:bg-white/10"
-          >
-            {actionLabel}
-          </Button>
-        </div>
-      </CardContent>
-    </Card>
-  );
 }
 
 export default function FinanceReportsPage() {
@@ -565,6 +423,30 @@ export default function FinanceReportsPage() {
     ];
   }, [data, isLoading]);
 
+  const commandMetricItems = useMemo<AixiaCommandMetricItem[]>(
+    () =>
+      metricCards.map((metric) => ({
+        key: metric.key,
+        title: metric.title,
+        value: metric.value,
+        subtitle: metric.subtitle,
+        icon: metric.icon,
+        tone:
+          metric.tone === "emerald"
+            ? "emerald"
+            : metric.tone === "rose"
+              ? "rose"
+              : metric.tone === "amber"
+                ? "amber"
+                : metric.tone === "violet"
+                  ? "violet"
+                  : metric.tone === "cyan"
+                    ? "cyan"
+                    : "indigo",
+      })),
+    [metricCards]
+  );
+
   const moduleCards = useMemo<ReportModuleCard[]>(() => {
     return [
       {
@@ -654,6 +536,33 @@ export default function FinanceReportsPage() {
     ];
   }, [data]);
 
+  const headerStatusCards = useMemo(
+    () => [
+      {
+        key: "system-status",
+        label: "System Status",
+        value: isLoading ? "Loading" : "Live",
+        detail: "Read-only analytics refresh from live finance reporting functions.",
+        tone: "emerald" as const,
+      },
+      {
+        key: "access-mode",
+        label: "Access Mode",
+        value: "Read-Only",
+        detail: "Reports analyze data without creating or editing finance records.",
+        tone: "cyan" as const,
+      },
+      {
+        key: "report-workspaces",
+        label: "Report Workspaces",
+        value: formatCount(moduleCards.length),
+        detail: "Finance report areas available in this hub.",
+        tone: "amber" as const,
+      },
+    ],
+    [isLoading, moduleCards.length]
+  );
+
     const openRoute = useCallback(
     (route: string) => {
       navigate(route);
@@ -689,7 +598,7 @@ export default function FinanceReportsPage() {
       switch (key) {
         case "trial-balance":
           return data.trialBalancePreview.length === 0 ? (
-            <div className="text-sm text-white/50">
+            <div className="aixia-workspace-card-preview-empty">
               No non-zero trial balance rows found yet.
             </div>
           ) : (
@@ -697,7 +606,7 @@ export default function FinanceReportsPage() {
               {data.trialBalancePreview.map((row) => (
                 <div
                   key={row.account_id}
-                  className="rounded-[18px] border border-white/8 bg-black/15 px-4 py-3"
+                  className="aixia-workspace-card-preview-row"
                 >
                   <div className="flex items-start justify-between gap-4">
                     <div>
@@ -746,7 +655,7 @@ export default function FinanceReportsPage() {
 
         case "ar-aging":
           return data.arAgingPreview.length === 0 ? (
-            <div className="text-sm text-white/50">
+            <div className="aixia-workspace-card-preview-empty">
               No open receivables found.
             </div>
           ) : (
@@ -754,7 +663,7 @@ export default function FinanceReportsPage() {
               {data.arAgingPreview.map((row) => (
                 <div
                   key={row.invoice_id}
-                  className="rounded-[18px] border border-white/8 bg-black/15 px-4 py-3"
+                  className="aixia-workspace-card-preview-row"
                 >
                   <div className="flex items-start justify-between gap-4">
                     <div>
@@ -777,7 +686,7 @@ export default function FinanceReportsPage() {
 
         case "ap-aging":
           return data.apAgingPreview.length === 0 ? (
-            <div className="text-sm text-white/50">
+            <div className="aixia-workspace-card-preview-empty">
               No open payables found.
             </div>
           ) : (
@@ -785,7 +694,7 @@ export default function FinanceReportsPage() {
               {data.apAgingPreview.map((row) => (
                 <div
                   key={row.bill_id}
-                  className="rounded-[18px] border border-white/8 bg-black/15 px-4 py-3"
+                  className="aixia-workspace-card-preview-row"
                 >
                   <div className="flex items-start justify-between gap-4">
                     <div>
@@ -808,7 +717,7 @@ export default function FinanceReportsPage() {
 
         case "project":
           return data.projectPreview.length === 0 ? (
-            <div className="text-sm text-white/50">
+            <div className="aixia-workspace-card-preview-empty">
               No project finance rows found yet.
             </div>
           ) : (
@@ -816,7 +725,7 @@ export default function FinanceReportsPage() {
               {data.projectPreview.map((row) => (
                 <div
                   key={row.project_id}
-                  className="rounded-[18px] border border-white/8 bg-black/15 px-4 py-3"
+                  className="aixia-workspace-card-preview-row"
                 >
                   <div className="text-sm font-medium text-white">
                     {row.project_name}
@@ -842,7 +751,7 @@ export default function FinanceReportsPage() {
 
         case "payroll":
           return data.payrollPreview.length === 0 ? (
-            <div className="text-sm text-white/50">
+            <div className="aixia-workspace-card-preview-empty">
               No payroll runs found yet.
             </div>
           ) : (
@@ -850,7 +759,7 @@ export default function FinanceReportsPage() {
               {data.payrollPreview.map((row) => (
                 <div
                   key={row.payroll_run_id}
-                  className="rounded-[18px] border border-white/8 bg-black/15 px-4 py-3"
+                  className="aixia-workspace-card-preview-row"
                 >
                   <div className="flex items-start justify-between gap-4">
                     <div>
@@ -880,7 +789,7 @@ export default function FinanceReportsPage() {
                   Revenue by Category
                 </div>
                 {data.revenueCategoryPreview.length === 0 ? (
-                  <div className="text-sm text-white/50">
+                  <div className="aixia-workspace-card-preview-empty">
                     No revenue category rows found.
                   </div>
                 ) : (
@@ -888,7 +797,7 @@ export default function FinanceReportsPage() {
                     {data.revenueCategoryPreview.map((row, index) => (
                       <div
                         key={`${row.revenue_category_id ?? "revenue-null"}-${index}`}
-                        className="rounded-[18px] border border-white/8 bg-black/15 px-4 py-3"
+                        className="aixia-workspace-card-preview-row"
                       >
                         <div className="flex items-start justify-between gap-4">
                           <div>
@@ -915,7 +824,7 @@ export default function FinanceReportsPage() {
                   Expense by Category
                 </div>
                 {data.expenseCategoryPreview.length === 0 ? (
-                  <div className="text-sm text-white/50">
+                  <div className="aixia-workspace-card-preview-empty">
                     No expense category rows found.
                   </div>
                 ) : (
@@ -923,7 +832,7 @@ export default function FinanceReportsPage() {
                     {data.expenseCategoryPreview.map((row, index) => (
                       <div
                         key={`${row.expense_category_id ?? "expense-null"}-${row.source_type}-${index}`}
-                        className="rounded-[18px] border border-white/8 bg-black/15 px-4 py-3"
+                        className="aixia-workspace-card-preview-row"
                       >
                         <div className="flex items-start justify-between gap-4">
                           <div>
@@ -985,77 +894,33 @@ export default function FinanceReportsPage() {
   );
 
   return (
-    <div className="flex h-full min-h-0 flex-col overflow-hidden">
-      <div className="mx-auto flex h-full w-full max-w-[1920px] min-h-0 flex-col gap-6 px-4 pb-4 pt-2 sm:px-6 xl:px-8">
-        <section className="relative z-10 rounded-[30px] border border-white/10 bg-[linear-gradient(135deg,rgba(255,255,255,0.08),rgba(255,255,255,0.03))] backdrop-blur-xl">
-          <div className="pointer-events-none absolute inset-0 bg-[radial-gradient(circle_at_top_left,rgba(255,255,255,0.10),transparent_32%),radial-gradient(circle_at_top_right,rgba(59,130,246,0.12),transparent_26%),radial-gradient(circle_at_bottom_left,rgba(16,185,129,0.10),transparent_24%)]" />
+    <FinancePage className="flex h-full min-h-0 flex-col overflow-hidden px-4 pb-4 pt-2 sm:px-6 xl:px-8 max-w-[1920px] mx-auto w-full">
+      <AixiaHero
+        surface="command"
+        className="shrink-0 space-y-4"
+        parentLabel="Finance"
+        parentPath="/finance"
+        gradientTitle="Read-Only Analytics"
+        title="Finance Reports Hub"
+        subtitle="Analyze your financial situation across accounting, receivables, payables, payroll, projects, and categories without creating or editing anything."
+        actions={
+          <>
+            <AixiaButton type="button" className="h-9" onClick={() => navigate("/finance")}>
+              <ArrowLeft className="mr-2 h-4 w-4" />
+              Back
+            </AixiaButton>
+            <AixiaButton type="button" className="h-9" onClick={() => void loadReportsData()}>
+              <RefreshCw className="mr-2 h-4 w-4" />
+              Refresh
+            </AixiaButton>
+          </>
+        }
+      >
+        <AixiaCommandMetrics items={commandMetricItems} />
+      </AixiaHero>
 
-          <div className="relative flex items-center justify-between gap-4 px-5 py-5 sm:px-6 xl:px-7">
-            <div className="min-w-0">
-              <div className="inline-flex items-center rounded-full border border-cyan-400/15 bg-cyan-500/10 px-3 py-1 text-[11px] uppercase tracking-[0.22em] text-cyan-200">
-                Read-Only Analytics
-              </div>
-
-              <h1 className="mt-3 text-2xl font-semibold tracking-tight text-white sm:text-3xl">
-                Finance Reports Hub
-              </h1>
-
-              <div className="mt-2 text-sm text-white/45">
-                Analyze your financial situation across accounting, receivables,
-                payables, payroll, projects, and categories without creating or
-                editing anything.
-              </div>
-            </div>
-
-            <div className="flex shrink-0 items-center gap-3">
-              <Button
-                variant="outline"
-                onClick={() => navigate("/finance")}
-                className="h-11 rounded-2xl border-white/10 bg-white/5 px-4 text-white hover:bg-white/10"
-              >
-                <ArrowLeft className="mr-2 h-4 w-4" />
-                Back
-              </Button>
-
-              <Button
-                variant="outline"
-                onClick={() => void loadReportsData()}
-                className="h-11 rounded-2xl border-white/10 bg-white/5 px-4 text-white hover:bg-white/10"
-              >
-                <RefreshCw className="mr-2 h-4 w-4" />
-                Refresh
-              </Button>
-            </div>
-          </div>
-        </section>
-
-        <div className="flex min-h-0 flex-1 flex-col gap-6 overflow-y-auto overflow-x-hidden pr-1 pb-2">
-          <section>
-            <Card className="overflow-hidden rounded-[30px] border border-white/10 bg-white/[0.045] backdrop-blur-xl">
-              <CardHeader className="border-b border-white/8 pb-4">
-                <div className="space-y-2">
-                  <Badge className="w-fit rounded-full border border-cyan-400/15 bg-cyan-500/10 px-3 py-1 text-[11px] uppercase tracking-[0.22em] text-cyan-200 shadow-none">
-                    Global Analytics
-                  </Badge>
-                  <CardTitle className="text-white">
-                    Financial Situation Overview
-                  </CardTitle>
-                  <CardDescription className="text-white/45">
-                    Revenue, expenses, receivables, payables, payroll, and cash
-                    movement from your live finance reporting functions.
-                  </CardDescription>
-                </div>
-              </CardHeader>
-
-              <CardContent className="p-4 sm:p-5 xl:p-6">
-                <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-3 2xl:grid-cols-6">
-                  {metricCards.map((metric) => (
-                    <ReportsMetricCard key={metric.key} metric={metric} />
-                  ))}
-                </div>
-              </CardContent>
-            </Card>
-          </section>
+      <div className="aixia-command-scroll flex min-h-0 flex-1 flex-col">
+        <AixiaFinanceHubMetaStrip items={headerStatusCards} />
 
                     <section>
             <Card className="overflow-hidden rounded-[30px] border border-white/10 bg-white/[0.045] backdrop-blur-xl">
@@ -1084,14 +949,21 @@ export default function FinanceReportsPage() {
               <CardContent className="p-4 sm:p-5 xl:p-6">
                 <div className="grid grid-cols-1 gap-4 md:grid-cols-2 xl:grid-cols-3 2xl:grid-cols-4">
                   {moduleCards.map((module) => (
-                    <ReportWorkspaceCard
+                    <AixiaWorkspaceCard
                       key={module.key}
-                      module={module}
+                      size="tall"
+                      label={module.title}
+                      eyebrow="Read-Only Analytics"
+                      description={module.description}
+                      icon={module.icon}
+                      statusLabel={module.statusLabel}
+                      summary={module.footerLabel}
                       actionLabel={getActionLabel(module.key)}
-                      onOpen={openRoute}
+                      tone={module.statusLabel === "Planned" ? "amber" : "cyan"}
+                      onClick={() => openRoute(module.route)}
                     >
                       {renderReportPreview(module.key)}
-                    </ReportWorkspaceCard>
+                    </AixiaWorkspaceCard>
                   ))}
                 </div>
               </CardContent>
@@ -1143,8 +1015,7 @@ export default function FinanceReportsPage() {
                 </CardContent>
                </Card>
               </section>
-        </div>
       </div>
-    </div>
+    </FinancePage>
   );
 }

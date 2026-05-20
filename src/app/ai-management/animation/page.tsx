@@ -1,10 +1,7 @@
 import { useEffect, useMemo, useState } from "react";
 import type { CSSProperties, ElementType, ReactNode } from "react";
-import { useNavigate } from "react-router-dom";
 import {
-  ArrowLeft,
   Bot,
-  Box,
   Brain,
   CheckCircle2,
   CircleDot,
@@ -25,6 +22,11 @@ import {
   Zap,
 } from "lucide-react";
 import { supabase } from "@/lib/supabase";
+import { AixiaHero, AixiaPage } from "@/components/aixia";
+import "@/styles/dashboard/tokens.css";
+import "@/styles/dashboard/layout.css";
+import "@/styles/dashboard/visual.css";
+
 import {
   detectFaceLandmarksFromImageUrl,
   isAiAvatarFaceLandmarks,
@@ -404,7 +406,6 @@ function makeAvatarPackStoragePath(
 }
 
 export default function AIAnimationPage() {
-  const navigate = useNavigate();
   const [settings, setSettings] = useState<AnimationSettings>(defaultSettings);
   const [loadingSettings, setLoadingSettings] = useState(true);
   const [savingSettings, setSavingSettings] = useState(false);
@@ -428,8 +429,6 @@ export default function AIAnimationPage() {
       null,
     [assets, settings.selectedAssetId]
   );
-
-  const engineLabel = settings.zegoEnabled ? "ZEGO Digital Human" : "Internal AiXia";
 
   useEffect(() => {
     void loadSettings();
@@ -1071,58 +1070,18 @@ export default function AIAnimationPage() {
     }
   }
   return (
-    <div className="min-h-screen bg-[#05070d] px-4 py-4 text-white md:px-5">
-      <div className="mx-auto grid w-full max-w-[1540px] gap-4">
-        <header className="rounded-[28px] border border-white/10 bg-white/[0.045] p-5 shadow-2xl shadow-black/30 backdrop-blur-xl">
-          <div className="grid gap-5 xl:grid-cols-[minmax(0,1fr)_560px]">
-            <div>
-              <div className="flex flex-wrap items-center gap-2">
-                <button
-                  type="button"
-                  onClick={() => navigate("/ai-management")}
-                  className="inline-flex items-center gap-2 rounded-full border border-white/10 bg-white/[0.04] px-4 py-2 text-xs font-semibold uppercase tracking-[0.18em] text-slate-300 transition hover:border-cyan-300/40 hover:text-cyan-100"
-                >
-                  <ArrowLeft className="h-4 w-4" />
-                  AI Studio
-                </button>
+    <AixiaPage surface="command" className="aixia-command-page aixia-ai-management-page"><AixiaHero
+        surface="command"
+        className="shrink-0 space-y-4"
+        parentLabel="AI Studio"
+        parentPath="/ai-management"
+        gradientTitle="Animation Studio"
+        title="Animation Studio"
+        subtitle="Internal AiXia animation is the default. Uploaded avatar assets are stored in the private Supabase bucket and loaded with signed URLs."
+      >
+      </AixiaHero>
 
-                <div className="inline-flex items-center gap-2 rounded-full border border-cyan-400/25 bg-cyan-500/10 px-4 py-2 text-xs font-semibold uppercase tracking-[0.18em] text-cyan-200">
-                  <Waves className="h-4 w-4" />
-                  Animation / Avatar
-                </div>
-              </div>
-
-              <h1 className="mt-4 text-4xl font-semibold tracking-[-0.04em] text-white">
-                Animation Studio
-              </h1>
-
-              <p className="mt-3 max-w-3xl text-sm leading-6 text-slate-400">
-                Internal AiXia animation is the default. Uploaded avatar assets are stored in the private Supabase bucket and loaded with signed URLs.
-              </p>
-            </div>
-
-            <div className="grid gap-3 sm:grid-cols-3">
-              <MetricCard
-                icon={MonitorPlay}
-                label="Engine"
-                value={engineLabel}
-                tone={settings.zegoEnabled ? "amber" : "cyan"}
-              />
-              <MetricCard
-                icon={CircleDot}
-                label="State"
-                value={getStateLabel(settings.previewState)}
-                tone={getStateTone(settings.previewState)}
-              />
-              <MetricCard
-                icon={Box}
-                label="Assets"
-                value={`${assets.length}`}
-                tone="violet"
-              />
-            </div>
-          </div>
-        </header>
+      <div className="aixia-command-scroll flex flex-col gap-6">
 
         {(errorMessage || savedMessage) && (
           <div className="grid gap-2">
@@ -1396,7 +1355,7 @@ export default function AIAnimationPage() {
           </div>
         </section>
       </div>
-    </div>
+    </AixiaPage>
   );
 }
 
@@ -1938,28 +1897,6 @@ function RobotPreview({
           className={`absolute left-1/2 top-[59px] -translate-x-1/2 rounded-full bg-cyan-100 transition-all ${mouthClass}`}
         />
       </div>
-    </div>
-  );
-}
-
-function MetricCard({
-  icon: Icon,
-  label,
-  value,
-  tone,
-}: {
-  icon: ElementType;
-  label: string;
-  value: string;
-  tone: "cyan" | "emerald" | "amber" | "violet" | "rose" | "slate";
-}) {
-  return (
-    <div className="min-h-[120px] rounded-2xl border border-white/10 bg-white/[0.04] p-4">
-      <div className="flex items-center justify-between gap-3">
-        <p className="text-[11px] uppercase tracking-[0.2em] text-slate-500">{label}</p>
-        <Icon className={`h-4 w-4 ${toneColor(tone)}`} />
-      </div>
-      <p className={`mt-3 truncate text-2xl font-semibold ${toneColor(tone)}`}>{value}</p>
     </div>
   );
 }

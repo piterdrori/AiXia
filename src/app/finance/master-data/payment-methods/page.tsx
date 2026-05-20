@@ -1,21 +1,7 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import type { FormEvent } from "react";
 import type { LucideIcon } from "lucide-react";
-import {
-  Archive,
-  CheckCircle2,
-  CreditCard,
-  FileText,
-  Loader2,
-  LockKeyhole,
-  Pencil,
-  Plus,
-  RotateCcw,
-  Save,
-  ShieldCheck,
-  Trash2,
-  WalletCards,
-} from "lucide-react";
+import { Archive, CheckCircle2, CreditCard, FileText, Loader2, Pencil, Plus, RotateCcw, Save, ShieldCheck, Trash2, WalletCards } from "lucide-react";
 
 import {
   AixiaAccessDeniedState,
@@ -32,10 +18,8 @@ import {
   AixiaHero,
   AixiaInputField,
   AixiaLoadingState,
-  AixiaMetricCard,
-  AixiaMetricGrid,
   AixiaModal,
-  AixiaPage,
+  FinancePage,
   AixiaRegistryToolbar,
   AixiaSearchField,
   AixiaSection,
@@ -48,6 +32,7 @@ import {
   AixiaTableShell,
   AixiaTableTextCell,
   AixiaTextareaField,
+  AixiaCommandMetrics,
 } from "@/components/aixia";
 
 import {
@@ -110,13 +95,6 @@ type MetricCard = {
   tone: "cyan" | "emerald" | "amber" | "violet" | "rose";
 };
 
-type HeaderStatusCardData = {
-  label: string;
-  value: string;
-  description: string;
-  icon: LucideIcon;
-  tone: "emerald" | "cyan" | "amber" | "rose";
-};
 
 const EMPTY_FORM: FormState = {
   code: "",
@@ -330,7 +308,7 @@ export default function FinancePaymentMethodsPage() {
   const [isLoadingProfile, setIsLoadingProfile] = useState(true);
   const [isLoadingMethods, setIsLoadingMethods] = useState(true);
   const [isLoadingArchive, setIsLoadingArchive] = useState(false);
-  const [backgroundRefreshing, setBackgroundRefreshing] = useState(false);
+  const [, setBackgroundRefreshing] = useState(false);
   const [runningAction, setRunningAction] = useState<PageAction>(null);
   const [activeActionId, setActiveActionId] = useState<string | null>(null);
   const [pageError, setPageError] = useState<string | null>(null);
@@ -617,43 +595,7 @@ export default function FinancePaymentMethodsPage() {
     ];
   }, [counts, isLoadingMethods]);
 
-  const headerStatusCards = useMemo<HeaderStatusCardData[]>(() => {
-    return [
-      {
-        label: "Read Access",
-        value: isLoadingProfile
-          ? "Checking"
-          : permissionState.canRead
-            ? "Enabled"
-            : "Locked",
-        description:
-          "This page requires Finance read access or Master Data admin access.",
-        icon: permissionState.canRead ? ShieldCheck : LockKeyhole,
-        tone: permissionState.canRead ? "emerald" : "rose",
-      },
-      {
-        label: "Lifecycle Access",
-        value: permissionState.canDeleteArchive
-          ? "Archive Enabled"
-          : permissionState.canCreate
-            ? "Create Enabled"
-            : "Read Only",
-        description: backgroundRefreshing
-          ? "Silent refresh is updating payment methods without resetting the registry."
-          : "Create, Edit, Archive, Restore, and Permanent Delete follow Finance permissions.",
-        icon: permissionState.canDeleteArchive ? Archive : CreditCard,
-        tone: permissionState.canDeleteArchive ? "amber" : "cyan",
-      },
-    ];
-  }, [
-    backgroundRefreshing,
-    isLoadingProfile,
-    permissionState.canCreate,
-    permissionState.canDeleteArchive,
-    permissionState.canRead,
-  ]);
-
-  const filteredRows = useMemo(() => {
+const filteredRows = useMemo(() => {
     const query = search.trim().toLowerCase();
 
     return activeRows
@@ -944,38 +886,23 @@ export default function FinancePaymentMethodsPage() {
   }
 
   return (
-    <AixiaPage>
+    <FinancePage>
       <AixiaHero
+        className="shrink-0 space-y-4"
+        surface="command"
         parentLabel="Master Data"
         parentPath="/finance/master-data"
-        badges={[
-          { label: "Payment Methods", tone: "cyan" },
-          { label: "Live backend", tone: "emerald" },
-          { label: "Permission filtered", tone: "cyan" },
-          { label: "Realtime + 60s fallback", tone: "neutral" },
-        ]}
         gradientTitle="Payment Methods"
         title="Registry"
-        subtitle="Finance Payment Method Master Data"
-        description="Permission-filtered registry for payment methods used across incoming money, outgoing payments, payroll, reimbursements, procurement, and finance execution flows."
-        statusCards={headerStatusCards}
-      />
+        subtitle="Finance Payment Method Master Data">
+        <AixiaCommandMetrics items={metricCards} />
+      </AixiaHero>
 
-      {pageError ? <AixiaAlert tone="error">{pageError}</AixiaAlert> : null}
+      <div className="aixia-command-scroll">
+{pageError ? <AixiaAlert tone="error">{pageError}</AixiaAlert> : null}
       {pageMessage ? <AixiaAlert tone="success">{pageMessage}</AixiaAlert> : null}
 
-      <AixiaMetricGrid className="xl:grid-cols-5">
-        {metricCards.map((metric) => (
-          <AixiaMetricCard
-            key={metric.key}
-            label={metric.title}
-            value={metric.value}
-            description={metric.subtitle}
-            icon={metric.icon}
-            tone={metric.tone}
-          />
-        ))}
-      </AixiaMetricGrid>
+      
 
       {!permissionState.canRead ? (
         <AixiaAccessDeniedState
@@ -1292,6 +1219,7 @@ export default function FinancePaymentMethodsPage() {
         onChange={updateForm}
         onSave={() => void handleSave()}
       />
-    </AixiaPage>
+      </div>
+    </FinancePage>
   );
 }

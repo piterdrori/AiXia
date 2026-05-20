@@ -29,10 +29,8 @@ import {
   AixiaHero,
   AixiaInputField,
   AixiaLoadingState,
-  AixiaMetricCard,
-  AixiaMetricGrid,
   AixiaModal,
-  AixiaPage,
+  FinancePage,
   AixiaRegistryToolbar,
   AixiaReviewGrid,
   AixiaSearchField,
@@ -48,6 +46,7 @@ import {
   AixiaTableTextCell,
   AixiaTextareaField,
   AixiaValueBlock,
+  AixiaCommandMetrics
 } from "@/components/aixia";
 
 import { type Permission, type Role } from "@/lib/permissions";
@@ -667,7 +666,7 @@ function PaymentTermFormModal({
 export default function FinancePaymentTermsPage() {
   const [rows, setRows] = useState<FinancePaymentTermRow[]>([]);
   const [initialLoading, setInitialLoading] = useState(true);
-  const [backgroundRefreshing, setBackgroundRefreshing] = useState(false);
+  const [, setBackgroundRefreshing] = useState(false);
   const [actionLoadingId, setActionLoadingId] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
 
@@ -1153,6 +1152,17 @@ export default function FinancePaymentTermsPage() {
     setError("");
   }
 
+  const __registryCommandMetrics = useMemo(
+    () => [
+    { key: "active-terms", title: "Active Terms", value: String(stats.active), subtitle: "Available payment terms that can be selected on finance documents.", icon: CheckCircle2, tone: "emerald", },
+    { key: "deposit-terms", title: "Deposit Terms", value: String(stats.deposit), subtitle: "Terms that require a deposit before the remaining balance.", icon: Percent, tone: "gold", },
+    { key: "default-term", title: "Default Term", value: String(stats.defaultTerm), subtitle: "The active default payment term for document creation.", icon: WalletCards, tone: "indigo", },
+    { key: "archived", title: "Archived", value: String(stats.archived), subtitle: "Inactive historical terms stored in the archive area.", icon: Archive, tone: "violet", }
+    
+    ],
+    [stats]
+  );
+
   if (initialLoading) {
     return (
       <AixiaLoadingState
@@ -1162,45 +1172,21 @@ export default function FinancePaymentTermsPage() {
     );
   }
 
-  return (
-    <AixiaPage>
+return (
+    <FinancePage>
       <AixiaHero
+        className="shrink-0 space-y-4"
+        surface="command"
         parentLabel="Master Data"
         parentPath="/finance/master-data"
-        badges={[
-          { label: "Finance Master Data", tone: "cyan" },
-          { label: "Payment Terms", tone: "violet" },
-          { label: "Document Wording", tone: "emerald" },
-          {
-            label: backgroundRefreshing ? "Updating Silently" : "Realtime + 60s",
-            tone: backgroundRefreshing ? "gold" : "neutral",
-          },
-        ]}
         gradientTitle="Payment"
         title="Terms"
-        subtitle="Controlled Finance Document Terms"
-        description="Manage reusable payment terms used across finance documents. Terms control document wording, due logic, deposit rules, default selection, and partial payment behavior."
-        statusCards={[
-          {
-            label: "Read Access",
-            value: permissionState.canRead ? "Enabled" : "Locked",
-            description:
-              "This registry requires Finance read access or Master Data admin access.",
-            icon: permissionState.canRead ? ShieldCheck : Archive,
-            tone: permissionState.canRead ? "emerald" : "rose",
-          },
-          {
-            label: "Lifecycle Access",
-            value: canArchive ? "Archive Enabled" : canCreate ? "Create Enabled" : "Read Only",
-            description:
-              "Create, Edit, Archive, Restore, and Permanent Delete follow Finance permissions.",
-            icon: canArchive ? Archive : WalletCards,
-            tone: canArchive ? "amber" : "cyan",
-          },
-        ]}
-      />
+        subtitle="Controlled Finance Document Terms">
+        <AixiaCommandMetrics items={__registryCommandMetrics} />
+      </AixiaHero>
 
-      {error ? <AixiaAlert tone="error">{error}</AixiaAlert> : null}
+      <div className="aixia-command-scroll">
+{error ? <AixiaAlert tone="error">{error}</AixiaAlert> : null}
       {pageMessage ? <AixiaAlert tone="success">{pageMessage}</AixiaAlert> : null}
 
       {!permissionState.canRead ? (
@@ -1210,39 +1196,7 @@ export default function FinancePaymentTermsPage() {
         />
       ) : (
         <>
-          <AixiaMetricGrid>
-            <AixiaMetricCard
-              label="Active Terms"
-              value={stats.active}
-              description="Available payment terms that can be selected on finance documents."
-              icon={CheckCircle2}
-              tone="emerald"
-            />
-
-            <AixiaMetricCard
-              label="Deposit Terms"
-              value={stats.deposit}
-              description="Terms that require a deposit before the remaining balance."
-              icon={Percent}
-              tone="gold"
-            />
-
-            <AixiaMetricCard
-              label="Default Term"
-              value={stats.defaultTerm}
-              description="The active default payment term for document creation."
-              icon={WalletCards}
-              tone="indigo"
-            />
-
-            <AixiaMetricCard
-              label="Archived"
-              value={stats.archived}
-              description="Inactive historical terms stored in the archive area."
-              icon={Archive}
-              tone="violet"
-            />
-          </AixiaMetricGrid>
+          
 
           <AixiaSection
             title="Payment Terms Registry"
@@ -1588,6 +1542,7 @@ export default function FinancePaymentTermsPage() {
         onChange={updateForm}
         onSave={() => void handleSave()}
       />
-    </AixiaPage>
+      </div>
+    </FinancePage>
   );
 }

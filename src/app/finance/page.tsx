@@ -9,9 +9,11 @@ import {
   CreditCard,
   Database,
   FileBarChart2,
+  FileText,
   KeyRound,
   LockKeyhole,
   Receipt,
+  RefreshCw,
   Settings2,
   ShieldCheck,
   TrendingDown,
@@ -22,16 +24,18 @@ import {
 
 import {
   AixiaBadge,
+  AixiaButton,
   AixiaEmptyState,
   AixiaFeaturePanel,
+  AixiaFinanceHubControlPanel,
+  AixiaFinanceHubMetaStrip,
+  AixiaFinanceHubOverviewGrid,
   AixiaHero,
-  AixiaMetricCard,
-  AixiaMetricGrid,
-  AixiaPage,
+  AixiaCommandMetrics,
+  FinancePage,
   AixiaSection,
   AixiaSideList,
   AixiaSideListRow,
-  AixiaSignalRow,
   AixiaSmartGrid,
   AixiaSmartLayout,
   AixiaValueBlock,
@@ -44,21 +48,12 @@ import {
   fetchFinanceEffectivePermissions,
   resolveFinancePagePermissionState,
   type FinanceLoadMode,
+  type FinancePageAccessConfig,
 } from "@/lib/finance/pageAccess";
 
 type LoadMode = FinanceLoadMode;
 
 type DashboardTone = "emerald" | "cyan" | "amber" | "violet" | "rose";
-
-type SignalTone =
-  | "indigo"
-  | "violet"
-  | "gold"
-  | "amber"
-  | "emerald"
-  | "cyan"
-  | "rose"
-  | "neutral";
 
 type WorkspaceKey =
   | "transactions"
@@ -563,7 +558,7 @@ function buildAccessFlags(
   const settings = resolveFinancePagePermissionState({
     profileRole: profile.role,
     permissions,
-    config: FINANCE_SETTINGS_ACCESS_CONFIG,
+    config: FINANCE_SETTINGS_ACCESS_CONFIG as unknown as FinancePageAccessConfig,
   });
 
   const accessApprovals = resolveFinancePagePermissionState({
@@ -737,7 +732,7 @@ async function safeSelect<T>(
   }
 }
 
-export default function FinancePage() {
+export default function FinanceDashboardPage() {
   const navigate = useNavigate();
 
   const [currentProfile, setCurrentProfile] = useState<CurrentUserProfile | null>(
@@ -1379,47 +1374,70 @@ export default function FinancePage() {
     ];
   }, [accessFlags, isBackgroundRefreshing, isInitialLoading]);
 
-  const insightAlerts = useMemo(() => {
-    const alerts: {
-      label: string;
-      value: string;
-      tone: SignalTone;
-    }[] = [];
+  const overviewMetrics = useMemo(() => {
+    const items = [];
 
     if (accessFlags.canMonitorIncomingMoney) {
-      alerts.push({
-        label: "Overdue invoices",
+      items.push({
+        key: "overdue-invoices",
+        label: "Overdue Invoices",
         value: formatCount(dashboardData.alerts.overdueInvoices),
-        tone: dashboardData.alerts.overdueInvoices > 0 ? "rose" : "neutral",
+        description: "Receivables requiring collection attention",
+        icon: FileText,
+        tone:
+          dashboardData.alerts.overdueInvoices > 0
+            ? ("rose" as const)
+            : ("neutral" as const),
       });
     }
 
     if (accessFlags.canMonitorSupplierProcurement) {
-      alerts.push({
-        label: "Overdue bills",
+      items.push({
+        key: "overdue-bills",
+        label: "Overdue Bills",
         value: formatCount(dashboardData.alerts.overdueBills),
-        tone: dashboardData.alerts.overdueBills > 0 ? "amber" : "neutral",
+        description: "Payables requiring payment attention",
+        icon: Receipt,
+        tone:
+          dashboardData.alerts.overdueBills > 0
+            ? ("amber" as const)
+            : ("neutral" as const),
       });
     }
 
     if (accessFlags.canMonitorExpenseFunding) {
-      alerts.push({
-        label: "Pending expenses",
+      items.push({
+        key: "pending-expenses",
+        label: "Pending Expenses",
         value: formatCount(dashboardData.alerts.pendingExpenses),
-        tone: dashboardData.alerts.pendingExpenses > 0 ? "cyan" : "neutral",
+        description: "Expense items waiting for Finance/Admin action",
+        icon: CreditCard,
+        tone:
+          dashboardData.alerts.pendingExpenses > 0
+            ? ("cyan" as const)
+            : ("neutral" as const),
       });
     }
 
     if (accessFlags.canSeeAccessApprovals) {
-      alerts.push({
-        label: "Access reviews",
+      items.push({
+        key: "access-reviews",
+        label: "Access Reviews",
         value: formatCount(dashboardData.alerts.pendingAccessReviews),
-        tone: dashboardData.alerts.pendingAccessReviews > 0 ? "violet" : "neutral",
+        description: "Finance access approvals awaiting review",
+        icon: ShieldCheck,
+        tone:
+          dashboardData.alerts.pendingAccessReviews > 0
+            ? ("violet" as const)
+            : ("neutral" as const),
       });
     }
 
-    return alerts;
+    return items;
   }, [accessFlags, dashboardData.alerts]);
+
+  const showFinanceControlIntro =
+    accessFlags.canMonitorAnyCompanyFinance || accessFlags.canSeeAccessApprovals;
 
   const openBalances = useMemo(() => {
     const balances: {
@@ -1486,41 +1504,53 @@ export default function FinancePage() {
   );
 
   return (
-    <AixiaPage>
+    <FinancePage>
       <AixiaHero
-        badges={[
-          { label: "Finance Control Center", tone: "indigo" },
-          { label: "Live backend", tone: "emerald" },
-          { label: "Permission filtered", tone: "cyan" },
-          { label: "Realtime + 60s fallback", tone: "gold" },
-        ]}
+        className="shrink-0 space-y-4"
+        surface="command"
         gradientTitle="Finance"
-        title="Studio"
-        subtitle="Finance Command Center"
-        description="Permission-aware Finance command layer for Master Data, Transactions, Reports, Settings, and Finance Access Approvals. Each user sees only the areas enabled for their role and profile."
-        statusCards={headerStatusCards.map((card) => ({
-          label: card.label,
-          value: card.value,
-          description: card.detail,
-          icon: card.icon,
-          tone: card.tone,
-        }))}
-      />
+        title="Finance"
+        subtitle="Permission-aware command layer for master data, transactions, reports, and settings"
+        actions={
+          <AixiaButton
+            type="button"
+            variant="secondary"
+            disabled={isBackgroundRefreshing}
+            onClick={() => void loadDashboard("initial")}
+          >
+            <RefreshCw className={`h-4 w-4 ${isBackgroundRefreshing ? "animate-spin" : ""}`} />
+            Refresh
+          </AixiaButton>
+        }
+      >
+        <AixiaCommandMetrics
+          items={dashboardMetricCards.map((metric) => ({
+            key: metric.key,
+            title: metric.title,
+            value: metric.value,
+            subtitle: metric.subtitle,
+            icon: metric.icon,
+            tone: metric.tone,
+          }))}
+        />
+      </AixiaHero>
 
-      {dashboardMetricCards.length > 0 ? (
-        <AixiaMetricGrid>
-          {dashboardMetricCards.map((metric) => (
-            <AixiaMetricCard
-              key={metric.key}
-              label={metric.title}
-              value={metric.value}
-              description={metric.subtitle}
-              icon={metric.icon}
-              tone={metric.tone}
-            />
-          ))}
-        </AixiaMetricGrid>
+      <div className="aixia-command-scroll">
+        <AixiaFinanceHubMetaStrip
+          items={headerStatusCards.map((card) => ({
+            key: card.label,
+            label: card.label,
+            value: card.value,
+            detail: card.detail,
+            tone: card.tone,
+          }))}
+        />
+
+      {showFinanceControlIntro ? (
+        <AixiaFinanceHubControlPanel icon={BadgeAlert} />
       ) : null}
+
+      <AixiaFinanceHubOverviewGrid items={overviewMetrics} />
 
       <AixiaSmartLayout
         sidebar="normal"
@@ -1594,25 +1624,6 @@ export default function FinancePage() {
         }
         side={
           <>
-            {insightAlerts.length > 0 ? (
-              <AixiaSection
-                title="Control Signals"
-                description="Live finance risks and operating blockers visible to this user."
-                icon={BadgeAlert}
-              >
-                <div className="aixia-stack">
-                  {insightAlerts.map((item) => (
-                    <AixiaSignalRow
-                      key={item.label}
-                      label={item.label}
-                      value={item.value}
-                      tone={item.tone}
-                    />
-                  ))}
-                </div>
-              </AixiaSection>
-            ) : null}
-
             {recentActivity.length > 0 ? (
               <AixiaSection
                 title="Recent Activity"
@@ -1652,6 +1663,7 @@ export default function FinancePage() {
           </>
         }
       />
-    </AixiaPage>
+      </div>
+    </FinancePage>
   );
 }

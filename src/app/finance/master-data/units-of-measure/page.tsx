@@ -1,20 +1,5 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
-import {
-  Archive,
-  Boxes,
-  CheckCircle2,
-  Edit3,
-  Loader2,
-  Package2,
-  Plus,
-  Ruler,
-  RotateCcw,
-  Save,
-  Search,
-  ShieldCheck,
-  Star,
-  Trash2,
-} from "lucide-react";
+import { Archive, Boxes, CheckCircle2, Edit3, Loader2, Package2, Plus, Ruler, RotateCcw, Save, Search, Star, Trash2 } from "lucide-react";
 
 import {
   AixiaAccessDeniedState,
@@ -31,10 +16,8 @@ import {
   AixiaHero,
   AixiaInputField,
   AixiaLoadingState,
-  AixiaMetricCard,
-  AixiaMetricGrid,
   AixiaModal,
-  AixiaPage,
+  FinancePage,
   AixiaRegistryToolbar,
   AixiaSearchField,
   AixiaSection,
@@ -47,6 +30,7 @@ import {
   AixiaTableShell,
   AixiaTableTextCell,
   AixiaTextareaField,
+  AixiaCommandMetrics
 } from "@/components/aixia";
 
 import { supabase } from "@/lib/supabase";
@@ -351,7 +335,7 @@ function UnitOfMeasureFormModal({
 export default function FinanceUnitsOfMeasurePage() {
   const [rows, setRows] = useState<FinanceUnitOfMeasureRow[]>([]);
   const [initialLoading, setInitialLoading] = useState(true);
-  const [backgroundRefreshing, setBackgroundRefreshing] = useState(false);
+  const [, setBackgroundRefreshing] = useState(false);
   const [saving, setSaving] = useState(false);
   const [actionLoadingId, setActionLoadingId] = useState<string | null>(null);
 
@@ -749,6 +733,17 @@ export default function FinanceUnitsOfMeasurePage() {
     setError("");
   }
 
+  const __registryCommandMetrics = useMemo(
+    () => [
+    { key: "active-units", title: "Active Units", value: String(formatCount(stats.active)), subtitle: "Units available for finance items and document lines.", icon: CheckCircle2, tone: "emerald", },
+    { key: "inactive", title: "Inactive", value: String(formatCount(stats.inactive)), subtitle: "Units disabled from normal selection.", icon: Package2, tone: "gold", },
+    { key: "default", title: "Default", value: String(formatCount(stats.defaultUnits)), subtitle: "Active default unit records.", icon: Star, tone: "cyan", },
+    { key: "archived", title: "Archived", value: String(formatCount(stats.archived)), subtitle: "Historical units managed through archive controls.", icon: Archive, tone: "violet", }
+    
+    ],
+    [stats, formatCount]
+  );
+
   if (initialLoading) {
     return (
       <AixiaLoadingState
@@ -758,45 +753,21 @@ export default function FinanceUnitsOfMeasurePage() {
     );
   }
 
-  return (
-    <AixiaPage>
+return (
+    <FinancePage>
       <AixiaHero
+        className="shrink-0 space-y-4"
+        surface="command"
         parentLabel="Master Data"
         parentPath="/finance/master-data"
-        badges={[
-          { label: "Finance Master Data", tone: "cyan" },
-          { label: "Units of Measure", tone: "violet" },
-          { label: "Item Reference", tone: "emerald" },
-          {
-            label: backgroundRefreshing ? "Updating Silently" : "Realtime + 60s",
-            tone: backgroundRefreshing ? "gold" : "neutral",
-          },
-        ]}
         gradientTitle="Units"
         title="of Measure"
-        subtitle="Reusable Measurement Standards"
-        description="Define standardized units like pieces, sets, kilograms, liters, hours, and other reusable measurement references for finance records and items."
-        statusCards={[
-          {
-            label: "Read Access",
-            value: permissionState.canRead ? "Enabled" : "Locked",
-            description:
-              "This registry requires Finance read access or Master Data admin access.",
-            icon: permissionState.canRead ? ShieldCheck : Archive,
-            tone: permissionState.canRead ? "emerald" : "rose",
-          },
-          {
-            label: "Lifecycle Access",
-            value: canArchive ? "Archive Enabled" : canCreate ? "Create Enabled" : "Read Only",
-            description:
-              "Create, Edit, Archive, Restore, and Permanent Delete follow Finance permissions.",
-            icon: canArchive ? Archive : Ruler,
-            tone: canArchive ? "amber" : "cyan",
-          },
-        ]}
-      />
+        subtitle="Reusable Measurement Standards">
+        <AixiaCommandMetrics items={__registryCommandMetrics} />
+      </AixiaHero>
 
-      {error ? <AixiaAlert tone="error">{error}</AixiaAlert> : null}
+      <div className="aixia-command-scroll">
+{error ? <AixiaAlert tone="error">{error}</AixiaAlert> : null}
       {pageMessage ? <AixiaAlert tone="success">{pageMessage}</AixiaAlert> : null}
 
       {!permissionState.canRead ? (
@@ -806,39 +777,7 @@ export default function FinanceUnitsOfMeasurePage() {
         />
       ) : (
         <>
-          <AixiaMetricGrid>
-            <AixiaMetricCard
-              label="Active Units"
-              value={formatCount(stats.active)}
-              description="Units available for finance items and document lines."
-              icon={CheckCircle2}
-              tone="emerald"
-            />
-
-            <AixiaMetricCard
-              label="Inactive"
-              value={formatCount(stats.inactive)}
-              description="Units disabled from normal selection."
-              icon={Package2}
-              tone="gold"
-            />
-
-            <AixiaMetricCard
-              label="Default"
-              value={formatCount(stats.defaultUnits)}
-              description="Active default unit records."
-              icon={Star}
-              tone="cyan"
-            />
-
-            <AixiaMetricCard
-              label="Archived"
-              value={formatCount(stats.archived)}
-              description="Historical units managed through archive controls."
-              icon={Archive}
-              tone="violet"
-            />
-          </AixiaMetricGrid>
+          
 
           <AixiaSection
             title="Units of Measure Registry"
@@ -1172,6 +1111,7 @@ export default function FinanceUnitsOfMeasurePage() {
         onChange={updateForm}
         onSave={() => void handleSave()}
       />
-    </AixiaPage>
+      </div>
+    </FinancePage>
   );
 }

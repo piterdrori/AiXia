@@ -1,10 +1,14 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useNavigate, useParams } from "react-router-dom";
-import { ArrowLeft, Shield, AlertCircle } from "lucide-react";
+import { Shield, AlertCircle } from "lucide-react";
 
 import { supabase } from "@/lib/supabase";
 import { createRequestTracker } from "@/lib/safeAsync";
 import { useLanguage } from "@/lib/i18n";
+import { AixiaButton, AixiaHero, AixiaPage } from "@/components/aixia";
+import "@/styles/dashboard/tokens.css";
+import "@/styles/dashboard/layout.css";
+import "@/styles/dashboard/visual.css";
 import {
   getEffectivePermissions,
   type Permission,
@@ -689,43 +693,35 @@ export default function EmployeePermissionsPage() {
   }
 
   return (
-    <div className="flex h-full min-h-0 flex-col">
-      <div className="mx-auto flex min-h-0 w-full max-w-2xl flex-1 flex-col space-y-6 overflow-y-auto pb-6 pr-1">
-        <div className="flex items-center gap-4">
-          <Button
-            variant="ghost"
-            size="icon"
-            onClick={() => navigate(`/employees/${id}`)}
-            className="text-slate-400 hover:text-white"
-          >
-            <ArrowLeft className="h-5 w-5" />
-          </Button>
-
-          <div className="flex-1">
-            <h1 className="text-2xl font-bold text-white">
-              {t("employeePermissions.header.title")}
-            </h1>
-            <p className="text-slate-400">
-              {t("employeePermissions.header.subtitle", undefined, {
-                name:
-                  user?.full_name ||
-                  t("employeePermissions.empty.unnamedUser"),
-              })}
-            </p>
-          </div>
-
-          <Button
-            variant="outline"
-            className="border-slate-700 text-slate-300 hover:bg-slate-800"
+    <AixiaPage
+      surface="command"
+      className="aixia-command-page aixia-employee-permissions-page flex h-full min-h-0 flex-col"
+    >
+      <AixiaHero
+        surface="command"
+        className="shrink-0"
+        parentLabel={t("employeeDetail.header.title")}
+        parentPath={`/employees/${id}`}
+        gradientTitle={t("employeePermissions.header.title")}
+        title={t("employeePermissions.header.title")}
+        subtitle={t("employeePermissions.header.subtitle", undefined, {
+          name: user?.full_name || t("employeePermissions.empty.unnamedUser"),
+        })}
+        actions={
+          <AixiaButton
+            type="button"
+            className="h-9"
             onClick={() => void loadData("refresh")}
             disabled={isRefreshing}
           >
             {isRefreshing
               ? t("employeePermissions.actions.refreshing")
               : t("employeePermissions.actions.refresh")}
-          </Button>
-        </div>
+          </AixiaButton>
+        }
+      />
 
+      <div className="aixia-command-scroll mx-auto flex min-h-0 w-full max-w-2xl flex-1 flex-col space-y-6 pb-6 pr-1">
         {saveError && user ? (
           <Alert className="border-red-800 bg-red-900/20 text-red-400">
             <AlertDescription>{saveError}</AlertDescription>
@@ -816,6 +812,6 @@ export default function EmployeePermissionsPage() {
           </CardContent>
         </Card>
       </div>
-    </div>
+    </AixiaPage>
   );
 }

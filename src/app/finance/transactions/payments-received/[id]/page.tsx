@@ -17,15 +17,6 @@ import {
 } from "lucide-react";
 
 import {
-  archivePaymentReceived,
-  cancelPaymentReceived,
-  confirmPaymentReceived,
-  getPaymentReceivedById,
-  softDeletePaymentReceived,
-  updatePaymentReceived,
-} from "@/lib/finance/paymentsReceived";
-import { supabase } from "@/lib/supabase";
-import {
   AixiaActionCard,
   AixiaAlert,
   AixiaBadge,
@@ -52,7 +43,22 @@ import {
   AixiaTextareaField,
   AixiaValueBlock,
 } from "@/components/aixia";
+import {
+  getCustomerDocumentTypeLabel,
+  getCustomerDocumentTone,
+} from "@/lib/finance/customerDocuments";
+import {
+  archivePaymentReceived,
+  cancelPaymentReceived,
+  confirmPaymentReceived,
+  getPaymentReceivedById,
+  softDeletePaymentReceived,
+  updatePaymentReceived,
+} from "@/lib/finance/paymentsReceived";
+import { supabase } from "@/lib/supabase";
 import PaymentReceivedPrintDocument from "./PaymentReceivedPrintDocument";
+
+type ReceivableDocumentType = "proforma" | "invoice";
 
 type PaymentReceivedDetail = {
   id: string;
@@ -68,6 +74,7 @@ type PaymentReceivedDetail = {
   reference_number: string | null;
   notes: string | null;
   invoice_id: string | null;
+  proforma_invoice_id: string | null;
   client_id: string;
   payment_method_id: string | null;
   metadata?: Record<string, unknown> | null;
@@ -113,9 +120,56 @@ type InvoiceLinkRow = {
   company_address_snapshot: string | null;
 };
 
+type ProformaLinkRow = {
+  id: string;
+  proforma_number: string | null;
+  currency_code: string | null;
+  total_amount: number | string | null;
+  paid_amount: number | string | null;
+  balance_due: number | string | null;
+  status: string;
+  payment_status: string | null;
+  issue_date: string | null;
+  valid_until: string | null;
+  payment_terms_id: string | null;
+  payment_terms_snapshot: string | null;
+  payment_terms_document_text?: string | null;
+  terms_and_conditions_snapshot: string | null;
+  counterparty_type: "client" | "company" | null;
+  counterparty_name_snapshot: string | null;
+  counterparty_legal_name_snapshot: string | null;
+  counterparty_contact_person_snapshot: string | null;
+  counterparty_email_snapshot: string | null;
+  counterparty_phone_snapshot: string | null;
+  client_name_snapshot: string | null;
+  client_contact_person_snapshot: string | null;
+  client_email_snapshot: string | null;
+  client_phone_snapshot: string | null;
+  billing_address_snapshot: string | null;
+  company_name_snapshot: string | null;
+  company_contact_person_snapshot: string | null;
+  company_email_snapshot: string | null;
+  company_phone_snapshot: string | null;
+  company_address_snapshot: string | null;
+};
+
 type PaymentInvoiceOption = {
   id: string;
   invoice_number: string | null;
+  currency_code: string | null;
+  client_name_snapshot: string | null;
+  counterparty_name_snapshot: string | null;
+  counterparty_legal_name_snapshot: string | null;
+  company_name_snapshot: string | null;
+  total_amount: number | string | null;
+  paid_amount: number | string | null;
+  balance_due: number | string | null;
+  status: string;
+};
+
+type PaymentProformaOption = {
+  id: string;
+  proforma_number: string | null;
   currency_code: string | null;
   client_name_snapshot: string | null;
   counterparty_name_snapshot: string | null;
@@ -206,6 +260,7 @@ export default function PaymentReceivedDetailPage() {
 
   const [payment, setPayment] = useState<PaymentReceivedDetail | null>(null);
   const [invoiceLink, setInvoiceLink] = useState<InvoiceLinkRow | null>(null);
+  const [proformaLink, setProformaLink] = useState<ProformaLinkRow | null>(null);
   const [attachments, setAttachments] = useState<PaymentAttachmentRow[]>([]);
   const [loading, setLoading] = useState(true);
   const [isRefreshing, setIsRefreshing] = useState(false);
@@ -223,11 +278,16 @@ export default function PaymentReceivedDetailPage() {
   const [referenceNumberDraft, setReferenceNumberDraft] = useState("");
   const [amountDraft, setAmountDraft] = useState("");
   const [notesDraft, setNotesDraft] = useState("");
-  const [invoiceIdDraft, setInvoiceIdDraft] = useState("");
+  const [documentTypeDraft, setDocumentTypeDraft] =
+    useState<ReceivableDocumentType>("invoice");
+  const [receivableIdDraft, setReceivableIdDraft] = useState("");
   const [paymentCurrencyCodeDraft, setPaymentCurrencyCodeDraft] = useState("");
   const [paymentMethodIdDraft, setPaymentMethodIdDraft] = useState("");
 
   const [invoiceOptions, setInvoiceOptions] = useState<PaymentInvoiceOption[]>(
+    [],
+  );
+  const [proformaOptions, setProformaOptions] = useState<PaymentProformaOption[]>(
     [],
   );
   const [paymentMethodOptions, setPaymentMethodOptions] = useState<
@@ -237,9 +297,15 @@ export default function PaymentReceivedDetailPage() {
 
   const hasProof = attachments.length > 0;
   const convertedAmount = toNumber(payment?.converted_amount);
-  const invoiceBalance = toNumber(invoiceLink?.balance_due);
-  const sourceInvoiceBalanceBeforePayment = toNumber(
-    payment?.metadata?.source_invoice_balance_due as
+  const documentLink = proformaLink || invoiceLink;
+  const linkedDocumentType: ReceivableDocumentType = payment?.proforma_invoice_id
+    ? "proforma"
+    : "invoice";
+
+  const documentBalance = toNumber(documentLink?.balance_due);
+  const sourceDocumentBalanceBeforePayment = toNumber(
+    (payment?.metadata?.source_document_balance_due ??
+      payment?.metadata?.source_invoice_balance_due) as
       | number
       | string
       | null
@@ -247,12 +313,12 @@ export default function PaymentReceivedDetailPage() {
   );
 
   const effectiveConfirmBalance =
-    payment?.status === "draft" && sourceInvoiceBalanceBeforePayment > 0
-      ? sourceInvoiceBalanceBeforePayment
-      : invoiceBalance;
+    payment?.status === "draft" && sourceDocumentBalanceBeforePayment > 0
+      ? sourceDocumentBalanceBeforePayment
+      : documentBalance;
 
   const isFxExceeding =
-    !!invoiceLink &&
+    !!documentLink &&
     !!payment &&
     payment.status === "draft" &&
     payment.exchange_rate_source !== "pending_backend_conversion" &&
@@ -264,34 +330,37 @@ export default function PaymentReceivedDetailPage() {
     payment?.status !== "archived" &&
     payment?.status !== "confirmed";
 
-  const invoiceFromName = invoiceLink?.company_name_snapshot || "—";
-  const invoiceFromContact = invoiceLink?.company_contact_person_snapshot || "";
-  const invoiceFromEmail = invoiceLink?.company_email_snapshot || "";
-  const invoiceFromPhone = invoiceLink?.company_phone_snapshot || "";
-  const invoiceFromAddress = invoiceLink?.company_address_snapshot || "";
+  const documentFromName = documentLink?.company_name_snapshot || "—";
+  const documentFromContact = documentLink?.company_contact_person_snapshot || "";
+  const documentFromEmail = documentLink?.company_email_snapshot || "";
+  const documentFromPhone = documentLink?.company_phone_snapshot || "";
+  const documentFromAddress = documentLink?.company_address_snapshot || "";
 
-  const invoiceToName =
-    invoiceLink?.counterparty_legal_name_snapshot ||
-    invoiceLink?.counterparty_name_snapshot ||
-    invoiceLink?.client_name_snapshot ||
+  const documentToName =
+    documentLink?.counterparty_legal_name_snapshot ||
+    documentLink?.counterparty_name_snapshot ||
+    documentLink?.client_name_snapshot ||
     "—";
 
-  const invoiceToContact =
-    invoiceLink?.counterparty_contact_person_snapshot ||
-    invoiceLink?.client_contact_person_snapshot ||
+  const documentToContact =
+    documentLink?.counterparty_contact_person_snapshot ||
+    documentLink?.client_contact_person_snapshot ||
     "";
 
-  const invoiceToEmail =
-    invoiceLink?.counterparty_email_snapshot ||
-    invoiceLink?.client_email_snapshot ||
+  const documentToEmail =
+    documentLink?.counterparty_email_snapshot ||
+    documentLink?.client_email_snapshot ||
     "";
 
-  const invoiceToPhone =
-    invoiceLink?.counterparty_phone_snapshot ||
-    invoiceLink?.client_phone_snapshot ||
+  const documentToPhone =
+    documentLink?.counterparty_phone_snapshot ||
+    documentLink?.client_phone_snapshot ||
     "";
 
-  const invoiceToAddress = invoiceLink?.billing_address_snapshot || "";
+  const documentToAddress = documentLink?.billing_address_snapshot || "";
+
+  const linkedDocumentNumber =
+    proformaLink?.proforma_number || invoiceLink?.invoice_number || "—";
 
   const paymentMethodName = useMemo(() => {
     if (!payment?.payment_method_id) return null;
@@ -313,15 +382,15 @@ export default function PaymentReceivedDetailPage() {
   }, [payment, paymentMethodName]);
 
   const paymentProgressPercent = useMemo(() => {
-    if (!invoiceLink) return 0;
+    if (!documentLink) return 0;
 
-    const total = toNumber(invoiceLink.total_amount);
-    const paid = toNumber(invoiceLink.paid_amount);
+    const total = toNumber(documentLink.total_amount);
+    const paid = toNumber(documentLink.paid_amount);
 
     if (total <= 0) return 0;
 
     return Math.max(0, Math.min((paid / total) * 100, 100));
-  }, [invoiceLink]);
+  }, [documentLink]);
 
   const loadPayment = useCallback(
     async (refreshOnly = false) => {
@@ -346,12 +415,96 @@ export default function PaymentReceivedDetailPage() {
           setReferenceNumberDraft(typedPayment.reference_number || "");
           setAmountDraft(String(typedPayment.amount ?? ""));
           setNotesDraft(typedPayment.notes || "");
-          setInvoiceIdDraft(typedPayment.invoice_id || "");
+          setDocumentTypeDraft(
+            typedPayment.proforma_invoice_id ? "proforma" : "invoice",
+          );
+          setReceivableIdDraft(
+            typedPayment.proforma_invoice_id ||
+              typedPayment.invoice_id ||
+              "",
+          );
           setPaymentCurrencyCodeDraft(typedPayment.payment_currency_code || "");
           setPaymentMethodIdDraft(typedPayment.payment_method_id || "");
         }
 
-        if (typedPayment.invoice_id) {
+        if (typedPayment.proforma_invoice_id) {
+          const { data: linkedProforma, error: linkedProformaError } =
+            await supabase
+              .from("finance_proforma_invoices")
+              .select(
+                [
+                  "id",
+                  "proforma_number",
+                  "currency_code",
+                  "total_amount",
+                  "paid_amount",
+                  "balance_due",
+                  "status",
+                  "payment_status",
+                  "issue_date",
+                  "valid_until",
+                  "payment_terms_id",
+                  "payment_terms_snapshot",
+                  "terms_and_conditions_snapshot",
+                  "counterparty_type",
+                  "counterparty_name_snapshot",
+                  "counterparty_legal_name_snapshot",
+                  "counterparty_contact_person_snapshot",
+                  "counterparty_email_snapshot",
+                  "counterparty_phone_snapshot",
+                  "client_name_snapshot",
+                  "client_contact_person_snapshot",
+                  "client_email_snapshot",
+                  "client_phone_snapshot",
+                  "billing_address_snapshot",
+                  "company_name_snapshot",
+                  "company_contact_person_snapshot",
+                  "company_email_snapshot",
+                  "company_phone_snapshot",
+                  "company_address_snapshot",
+                ].join(", "),
+              )
+              .eq("id", typedPayment.proforma_invoice_id)
+              .maybeSingle();
+
+          if (linkedProformaError) {
+            throw linkedProformaError;
+          }
+
+          let enrichedProforma = (linkedProforma || null) as ProformaLinkRow | null;
+
+          if (enrichedProforma?.payment_terms_id) {
+            const { data: paymentTermData, error: paymentTermError } =
+              await supabase
+                .from("finance_payment_terms")
+                .select("name, document_label, document_terms_text")
+                .eq("id", enrichedProforma.payment_terms_id)
+                .maybeSingle();
+
+            if (paymentTermError) {
+              console.warn(
+                "Failed to load linked proforma payment term wording:",
+                paymentTermError,
+              );
+            }
+
+            if (paymentTermData) {
+              enrichedProforma = {
+                ...enrichedProforma,
+                payment_terms_snapshot:
+                  enrichedProforma.payment_terms_snapshot ||
+                  paymentTermData.document_label ||
+                  paymentTermData.name ||
+                  null,
+                payment_terms_document_text:
+                  paymentTermData.document_terms_text || null,
+              };
+            }
+          }
+
+          setProformaLink(enrichedProforma);
+          setInvoiceLink(null);
+        } else if (typedPayment.invoice_id) {
           const { data: linkedInvoice, error: linkedInvoiceError } =
             await supabase
               .from("finance_invoices_issued")
@@ -480,6 +633,7 @@ export default function PaymentReceivedDetailPage() {
 
         if (!refreshOnly) {
           setInvoiceLink(null);
+          setProformaLink(null);
           setAttachments([]);
           setErrorMessage("Failed to load payment received record.");
         }
@@ -561,33 +715,64 @@ export default function PaymentReceivedDetailPage() {
 
   useEffect(() => {
     async function loadLookups() {
-      let invoiceQuery = supabase
-        .from("finance_invoices_issued")
-        .select(
-          [
-            "id",
-            "invoice_number",
-            "currency_code",
-            "client_name_snapshot",
-            "counterparty_name_snapshot",
-            "counterparty_legal_name_snapshot",
-            "company_name_snapshot",
-            "total_amount",
-            "paid_amount",
-            "balance_due",
-            "status",
-          ].join(", "),
-        )
-        .in("status", ["issued", "partially_paid", "overdue"])
-        .order("created_at", { ascending: false });
+      const activeDocumentType = isEditMode
+        ? documentTypeDraft
+        : payment?.proforma_invoice_id
+          ? "proforma"
+          : "invoice";
 
-      invoiceQuery = payment?.invoice_id
-        ? invoiceQuery.or(`balance_due.gt.0,id.eq.${payment.invoice_id}`)
-        : invoiceQuery.gt("balance_due", 0);
+      let receivableQuery =
+        activeDocumentType === "proforma"
+          ? supabase
+              .from("finance_proforma_invoices")
+              .select(
+                [
+                  "id",
+                  "proforma_number",
+                  "currency_code",
+                  "client_name_snapshot",
+                  "counterparty_name_snapshot",
+                  "counterparty_legal_name_snapshot",
+                  "company_name_snapshot",
+                  "total_amount",
+                  "paid_amount",
+                  "balance_due",
+                  "status",
+                ].join(", "),
+              )
+              .in("status", ["issued", "confirmed"])
+              .order("created_at", { ascending: false })
+          : supabase
+              .from("finance_invoices_issued")
+              .select(
+                [
+                  "id",
+                  "invoice_number",
+                  "currency_code",
+                  "client_name_snapshot",
+                  "counterparty_name_snapshot",
+                  "counterparty_legal_name_snapshot",
+                  "company_name_snapshot",
+                  "total_amount",
+                  "paid_amount",
+                  "balance_due",
+                  "status",
+                ].join(", "),
+              )
+              .in("status", ["issued", "partially_paid", "overdue"])
+              .order("created_at", { ascending: false });
 
-      const [{ data: invoices }, { data: methods }, { data: currencies }] =
+      const linkedReceivableId = isEditMode
+        ? receivableIdDraft
+        : payment?.proforma_invoice_id || payment?.invoice_id;
+
+      receivableQuery = linkedReceivableId
+        ? receivableQuery.or(`balance_due.gt.0,id.eq.${linkedReceivableId}`)
+        : receivableQuery.gt("balance_due", 0);
+
+      const [{ data: receivables }, { data: methods }, { data: currencies }] =
         await Promise.all([
-          invoiceQuery,
+          receivableQuery,
           supabase
             .from("finance_payment_methods")
             .select("id, name, status")
@@ -600,13 +785,26 @@ export default function PaymentReceivedDetailPage() {
             .order("currency_code", { ascending: true }),
         ]);
 
-      setInvoiceOptions((invoices || []) as unknown as PaymentInvoiceOption[]);
+      if (activeDocumentType === "proforma") {
+        setProformaOptions((receivables || []) as unknown as PaymentProformaOption[]);
+        setInvoiceOptions([]);
+      } else {
+        setInvoiceOptions((receivables || []) as unknown as PaymentInvoiceOption[]);
+        setProformaOptions([]);
+      }
+
       setPaymentMethodOptions((methods || []) as PaymentMethodOption[]);
       setCurrencyOptions((currencies || []) as CurrencyOption[]);
     }
 
     void loadLookups();
-  }, [payment?.invoice_id]);
+  }, [
+    documentTypeDraft,
+    isEditMode,
+    payment?.invoice_id,
+    payment?.proforma_invoice_id,
+    receivableIdDraft,
+  ]);
 
   useEffect(() => {
     if (!id) return;
@@ -687,8 +885,11 @@ export default function PaymentReceivedDetailPage() {
       setErrorMessage("");
       setFxErrorMessage("");
 
+      const isProforma = documentTypeDraft === "proforma";
+
       await updatePaymentReceived(payment.id, {
-        invoice_id: invoiceIdDraft || null,
+        invoice_id: isProforma ? null : receivableIdDraft || null,
+        proforma_invoice_id: isProforma ? receivableIdDraft || null : null,
         payment_date: paymentDateDraft,
         reference_number: referenceNumberDraft || null,
         amount: Number(amountDraft),
@@ -708,7 +909,9 @@ export default function PaymentReceivedDetailPage() {
             payment_id: payment.id,
             amount: Number(amountDraft),
             payment_currency_code: paymentCurrencyCodeDraft,
-            invoice_id: invoiceIdDraft || null,
+            ...(isProforma
+              ? { proforma_invoice_id: receivableIdDraft || null }
+              : { invoice_id: receivableIdDraft || null }),
             payment_date: paymentDateDraft,
           },
           headers: {
@@ -855,7 +1058,12 @@ export default function PaymentReceivedDetailPage() {
     setReferenceNumberDraft(payment?.reference_number || "");
     setAmountDraft(String(payment?.amount ?? ""));
     setNotesDraft(payment?.notes || "");
-    setInvoiceIdDraft(payment?.invoice_id || "");
+    setDocumentTypeDraft(
+      payment?.proforma_invoice_id ? "proforma" : "invoice",
+    );
+    setReceivableIdDraft(
+      payment?.proforma_invoice_id || payment?.invoice_id || "",
+    );
     setPaymentCurrencyCodeDraft(payment?.payment_currency_code || "");
     setPaymentMethodIdDraft(payment?.payment_method_id || "");
     setErrorMessage("");
@@ -899,7 +1107,7 @@ export default function PaymentReceivedDetailPage() {
     return (
       <AixiaLoadingState
         title="Loading payment received"
-        description="Payment, invoice, proof, and settlement data are being loaded."
+        description="Payment, linked document, proof, and settlement data are being loaded."
       />
     );
   }
@@ -924,21 +1132,26 @@ export default function PaymentReceivedDetailPage() {
   }
 
   const paymentCurrencyCode = payment.payment_currency_code || "USD";
-  const invoiceCurrencyCode =
-    payment.invoice_currency_code || invoiceLink?.currency_code || "USD";
+  const documentCurrencyCode =
+    payment.invoice_currency_code || documentLink?.currency_code || "USD";
 
   const isCrossCurrency =
     !!paymentCurrencyCode &&
-    !!invoiceCurrencyCode &&
-    paymentCurrencyCode !== invoiceCurrencyCode;
+    !!documentCurrencyCode &&
+    paymentCurrencyCode !== documentCurrencyCode;
 
-  const sourceInvoiceNumber =
+  const sourceDocumentNumber =
+    (payment.metadata?.source_document_number as string | undefined) ||
     (payment.metadata?.source_invoice_number as string | undefined) ||
-    invoiceLink?.invoice_number ||
+    linkedDocumentNumber ||
     "—";
 
   const displayReference =
-    payment.reference_number || sourceInvoiceNumber || "Payment Record";
+    payment.reference_number || sourceDocumentNumber || "Payment Record";
+
+  const linkedDocumentTypeLabel = getCustomerDocumentTypeLabel(
+    linkedDocumentType === "proforma" ? "customer_pi" : "customer_invoice",
+  );
 
   const heroActions = (
     <>
@@ -1051,7 +1264,7 @@ export default function PaymentReceivedDetailPage() {
     <>
       <AixiaDetailSection
         title="Payment Overview"
-        description="Payment identity, linked invoice, received amount, currency path, reference, and notes."
+        description="Payment identity, linked document, received amount, currency path, reference, and notes."
         icon={FileText}
         isEditing={isEditMode}
         canEdit={false}
@@ -1064,45 +1277,101 @@ export default function PaymentReceivedDetailPage() {
         ) : null}
 
         <AixiaFormGrid columns="three">
+          {isEditMode ? (
+            <AixiaFormField>
+              <AixiaFieldLabel label="Document Type" required />
+              <AixiaSelectField
+                value={documentTypeDraft}
+                onChange={(event) => {
+                  const nextType = event.target.value as ReceivableDocumentType;
+                  setDocumentTypeDraft(nextType);
+                  setReceivableIdDraft("");
+                }}
+              >
+                <option value="proforma">Proforma Invoice</option>
+                <option value="invoice">Invoice</option>
+              </AixiaSelectField>
+            </AixiaFormField>
+          ) : (
+            <AixiaFormField>
+              <AixiaDisplayBlock
+                label="Document Type"
+                value={linkedDocumentTypeLabel}
+              />
+            </AixiaFormField>
+          )}
+
           <AixiaFormFullWidth>
-            <AixiaFieldLabel label="Linked Invoice" />
+            <AixiaFieldLabel label="Linked Document" />
             {isEditMode ? (
               <AixiaSelectField
-                value={invoiceIdDraft || ""}
-                onChange={(event) => setInvoiceIdDraft(event.target.value)}
+                value={receivableIdDraft || ""}
+                onChange={(event) => setReceivableIdDraft(event.target.value)}
               >
-                <option value="">Select invoice</option>
-                {invoiceOptions.map((invoiceOption) => {
-                  const recipientName =
-                    invoiceOption.counterparty_legal_name_snapshot ||
-                    invoiceOption.counterparty_name_snapshot ||
-                    invoiceOption.client_name_snapshot ||
-                    "Intercompany";
+                <option value="">
+                  Select {documentTypeDraft === "proforma" ? "proforma" : "invoice"}
+                </option>
+                {documentTypeDraft === "proforma"
+                  ? proformaOptions.map((proformaOption) => {
+                      const recipientName =
+                        proformaOption.counterparty_legal_name_snapshot ||
+                        proformaOption.counterparty_name_snapshot ||
+                        proformaOption.client_name_snapshot ||
+                        "Intercompany";
 
-                  return (
-                    <option key={invoiceOption.id} value={invoiceOption.id}>
-                      {invoiceOption.invoice_number} —{" "}
-                      {invoiceOption.company_name_snapshot || "From company"} →{" "}
-                      {recipientName} —{" "}
-                      {formatMoney(
-                        invoiceOption.balance_due,
-                        invoiceOption.currency_code || "USD",
-                      )}{" "}
-                      open
-                    </option>
-                  );
-                })}
+                      return (
+                        <option key={proformaOption.id} value={proformaOption.id}>
+                          {proformaOption.proforma_number} —{" "}
+                          {proformaOption.company_name_snapshot || "From company"} →{" "}
+                          {recipientName} —{" "}
+                          {formatMoney(
+                            proformaOption.balance_due,
+                            proformaOption.currency_code || "USD",
+                          )}{" "}
+                          open
+                        </option>
+                      );
+                    })
+                  : invoiceOptions.map((invoiceOption) => {
+                      const recipientName =
+                        invoiceOption.counterparty_legal_name_snapshot ||
+                        invoiceOption.counterparty_name_snapshot ||
+                        invoiceOption.client_name_snapshot ||
+                        "Intercompany";
+
+                      return (
+                        <option key={invoiceOption.id} value={invoiceOption.id}>
+                          {invoiceOption.invoice_number} —{" "}
+                          {invoiceOption.company_name_snapshot || "From company"} →{" "}
+                          {recipientName} —{" "}
+                          {formatMoney(
+                            invoiceOption.balance_due,
+                            invoiceOption.currency_code || "USD",
+                          )}{" "}
+                          open
+                        </option>
+                      );
+                    })}
               </AixiaSelectField>
             ) : (
               <AixiaDisplayBlock
-                label="Invoice"
-                value={invoiceLink?.invoice_number || "—"}
+                label="Document"
+                value={linkedDocumentNumber}
                 detail={
-                  invoiceLink ? (
+                  documentLink ? (
                     <>
-                      <AixiaStatusBadge value={invoiceLink.status} />{" "}
+                      <AixiaBadge
+                        tone={getCustomerDocumentTone(
+                          linkedDocumentType === "proforma"
+                            ? "customer_pi"
+                            : "customer_invoice",
+                        )}
+                      >
+                        {linkedDocumentTypeLabel}
+                      </AixiaBadge>{" "}
+                      <AixiaStatusBadge value={documentLink.status} />{" "}
                       <AixiaBadge tone="neutral">
-                        {getPaymentStatusMiniLabel(invoiceLink.payment_status)}
+                        {getPaymentStatusMiniLabel(documentLink.payment_status)}
                       </AixiaBadge>
                     </>
                   ) : null
@@ -1226,13 +1495,13 @@ export default function PaymentReceivedDetailPage() {
 
           <AixiaFormFullWidth>
             <AixiaDisplayBlock
-              label="Invoice From"
-              value={invoiceFromName}
+              label="Document From"
+              value={documentFromName}
               detail={[
-                invoiceFromContact ? `Contact: ${invoiceFromContact}` : null,
-                invoiceFromEmail ? `Email: ${invoiceFromEmail}` : null,
-                invoiceFromPhone ? `Phone: ${invoiceFromPhone}` : null,
-                invoiceFromAddress || null,
+                documentFromContact ? `Contact: ${documentFromContact}` : null,
+                documentFromEmail ? `Email: ${documentFromEmail}` : null,
+                documentFromPhone ? `Phone: ${documentFromPhone}` : null,
+                documentFromAddress || null,
               ]
                 .filter(Boolean)
                 .join(" · ")}
@@ -1241,13 +1510,13 @@ export default function PaymentReceivedDetailPage() {
 
           <AixiaFormFullWidth>
             <AixiaDisplayBlock
-              label="Invoice To"
-              value={invoiceToName}
+              label="Document To"
+              value={documentToName}
               detail={[
-                invoiceToContact ? `Contact: ${invoiceToContact}` : null,
-                invoiceToEmail ? `Email: ${invoiceToEmail}` : null,
-                invoiceToPhone ? `Phone: ${invoiceToPhone}` : null,
-                invoiceToAddress || null,
+                documentToContact ? `Contact: ${documentToContact}` : null,
+                documentToEmail ? `Email: ${documentToEmail}` : null,
+                documentToPhone ? `Phone: ${documentToPhone}` : null,
+                documentToAddress || null,
               ]
                 .filter(Boolean)
                 .join(" · ")}
@@ -1305,8 +1574,8 @@ export default function PaymentReceivedDetailPage() {
             value="Payments are created as draft first."
           />
           <AixiaDisplayBlock
-            label="Invoice link"
-            value="Each payment is linked to one invoice through invoice_id."
+            label="Document link"
+            value="Each payment is linked to one proforma invoice or invoice."
           />
           <AixiaDisplayBlock
             label="Proof control"
@@ -1314,7 +1583,7 @@ export default function PaymentReceivedDetailPage() {
           />
           <AixiaDisplayBlock
             label="Settlement"
-            value="Only confirmed payments affect invoice settlement. Confirmed payments update the linked invoice balance."
+            value="Only confirmed payments affect document settlement. Confirmed payments update the linked document balance."
           />
           <AixiaDisplayBlock
             label="Editing"
@@ -1329,7 +1598,7 @@ export default function PaymentReceivedDetailPage() {
     <>
       <AixiaSection
         title="Payment Summary"
-        description="Financial view of this payment with invoice-currency settlement."
+        description="Financial view of this payment with document-currency settlement."
         icon={CreditCard}
       >
         <AixiaFormGrid columns="one">
@@ -1344,7 +1613,7 @@ export default function PaymentReceivedDetailPage() {
                 ? fxErrorMessage
                   ? "Conversion failed"
                   : "Pending FX conversion"
-                : formatMoney(payment.converted_amount, invoiceCurrencyCode)
+                : formatMoney(payment.converted_amount, documentCurrencyCode)
             }
           />
           <AixiaValueBlock
@@ -1369,67 +1638,73 @@ export default function PaymentReceivedDetailPage() {
           />
           <AixiaValueBlock
             label="Settlement Direction"
-            value={`${paymentCurrencyCode || "—"} → ${invoiceCurrencyCode || "—"}`}
+            value={`${paymentCurrencyCode || "—"} → ${documentCurrencyCode || "—"}`}
           />
         </AixiaFormGrid>
       </AixiaSection>
 
       <AixiaSection
-        title="Linked Invoice"
-        description="Invoice source context and live settlement state."
+        title="Linked Document"
+        description="Receivable source context and live settlement state."
         icon={Link2}
       >
-        {!invoiceLink ? (
-          <AixiaAlert tone="info">No linked invoice.</AixiaAlert>
+        {!documentLink ? (
+          <AixiaAlert tone="info">No linked document.</AixiaAlert>
         ) : (
           <AixiaFormGrid columns="one">
             <AixiaActionCard
-              label="Invoice"
-              value={invoiceLink.invoice_number || "—"}
-              description={`${invoiceFromName} → ${invoiceToName}`}
+              label={linkedDocumentTypeLabel}
+              value={linkedDocumentNumber}
+              description={`${documentFromName} → ${documentToName}`}
               icon={FileText}
-              tone="cyan"
-              actionLabel="Open Invoice"
+              tone={linkedDocumentType === "proforma" ? "violet" : "cyan"}
+              actionLabel={
+                linkedDocumentType === "proforma" ? "Open Proforma" : "Open Invoice"
+              }
               onClick={() =>
-                navigate(`/finance/transactions/invoices/${invoiceLink.id}`)
+                navigate(
+                  linkedDocumentType === "proforma"
+                    ? `/finance/transactions/proforma-invoices/${documentLink.id}`
+                    : `/finance/transactions/invoices/${documentLink.id}`,
+                )
               }
               meta={[
                 {
                   label: "Status",
-                  value: <AixiaStatusBadge value={invoiceLink.status} />,
+                  value: <AixiaStatusBadge value={documentLink.status} />,
                 },
                 {
                   label: "Payment",
-                  value: getPaymentStatusMiniLabel(invoiceLink.payment_status),
+                  value: getPaymentStatusMiniLabel(documentLink.payment_status),
                 },
               ]}
             />
 
             <AixiaValueBlock
               label="Payment Terms"
-              value={invoiceLink.payment_terms_snapshot || "—"}
-              detail={invoiceLink.payment_terms_document_text || undefined}
+              value={documentLink.payment_terms_snapshot || "—"}
+              detail={documentLink.payment_terms_document_text || undefined}
             />
             <AixiaValueBlock
-              label="Invoice Total"
+              label="Document Total"
               value={formatMoney(
-                invoiceLink.total_amount,
-                invoiceLink.currency_code || "USD",
+                documentLink.total_amount,
+                documentLink.currency_code || "USD",
               )}
             />
             <AixiaValueBlock
               label="Paid"
               value={formatMoney(
-                invoiceLink.paid_amount,
-                invoiceLink.currency_code || "USD",
+                documentLink.paid_amount,
+                documentLink.currency_code || "USD",
               )}
               detail={`${Math.round(paymentProgressPercent)}% settled`}
             />
             <AixiaValueBlock
               label="Open Balance"
               value={formatMoney(
-                invoiceLink.balance_due,
-                invoiceLink.currency_code || "USD",
+                documentLink.balance_due,
+                documentLink.currency_code || "USD",
               )}
             />
           </AixiaFormGrid>
@@ -1442,7 +1717,7 @@ export default function PaymentReceivedDetailPage() {
 
       {isFxExceeding ? (
         <AixiaAlert tone="error">
-          Converted amount exceeds the available invoice balance before this
+          Converted amount exceeds the available document balance before this
           payment is applied. Reduce payment or adjust currency.
         </AixiaAlert>
       ) : null}
@@ -1474,8 +1749,8 @@ export default function PaymentReceivedDetailPage() {
               label: hasProof ? "Proof uploaded" : "Proof required",
               tone: hasProof ? "emerald" : "rose",
             },
-            ...(invoiceLink
-              ? [{ label: "Linked invoice", tone: "emerald" as const }]
+            ...(documentLink
+              ? [{ label: "Linked document", tone: "emerald" as const }]
               : []),
             ...(isRefreshing
               ? [{ label: "Syncing", tone: "neutral" as const }]
@@ -1483,20 +1758,20 @@ export default function PaymentReceivedDetailPage() {
           ]}
           gradientTitle="Payment"
           title={displayReference}
-          description="Manual incoming payment linked to an invoice. Draft payments can be edited, proof must be uploaded before confirmation, and confirmed payments update the linked invoice balance."
+          description="Manual incoming payment linked to a proforma or invoice. Draft payments can be edited, proof must be uploaded before confirmation, and confirmed payments update the linked document balance."
           actions={heroActions}
           statusCards={[
             {
-              label: "Linked Invoice",
-              value: sourceInvoiceNumber,
-              description: "Payment is saved against this invoice.",
+              label: "Linked Document",
+              value: sourceDocumentNumber,
+              description: `Payment is saved against this ${linkedDocumentTypeLabel.toLowerCase()}.`,
               icon: Link2,
-              tone: "cyan",
+              tone: linkedDocumentType === "proforma" ? "violet" : "cyan",
             },
             {
               label: "Balance Due",
-              value: formatMoney(invoiceLink?.balance_due, invoiceCurrencyCode),
-              description: "Current open balance on linked invoice.",
+              value: formatMoney(documentLink?.balance_due, documentCurrencyCode),
+              description: "Current open balance on linked document.",
               icon: CreditCard,
               tone: "amber",
             },
@@ -1516,16 +1791,16 @@ export default function PaymentReceivedDetailPage() {
             value={
               payment.exchange_rate_source === "pending_backend_conversion"
                 ? "Pending"
-                : formatMoney(payment.converted_amount, invoiceCurrencyCode)
+                : formatMoney(payment.converted_amount, documentCurrencyCode)
             }
-            description="Invoice-currency settlement value."
+            description="Document-currency settlement value."
             icon={CreditCard}
             tone="violet"
           />
           <AixiaMetricCard
             label="Open Balance"
-            value={formatMoney(invoiceLink?.balance_due, invoiceCurrencyCode)}
-            description="Current linked invoice balance."
+            value={formatMoney(documentLink?.balance_due, documentCurrencyCode)}
+            description="Current linked document balance."
             icon={CreditCard}
             tone="amber"
           />
@@ -1549,7 +1824,16 @@ export default function PaymentReceivedDetailPage() {
 
       <PaymentReceivedPrintDocument
         payment={printablePayment}
-        invoiceLink={invoiceLink}
+        invoiceLink={
+          invoiceLink ||
+          (proformaLink
+            ? {
+                ...proformaLink,
+                invoice_number: proformaLink.proforma_number,
+                due_date: proformaLink.valid_until,
+              }
+            : null)
+        }
         hasProof={hasProof || undefined}
       />
     </>

@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState } from "react";
+﻿import { useEffect, useMemo, useRef, useState } from "react";
 import { useNavigate, useParams } from "react-router-dom";
 import { format } from "date-fns";
 import { supabase } from "@/lib/supabase";
@@ -45,7 +45,6 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import {
-  ArrowLeft,
   Edit,
   Trash2,
   Send,
@@ -64,6 +63,11 @@ import {
   UserPlus,
   UserMinus,
 } from "lucide-react";
+import { AixiaButton, AixiaHero, AixiaPage, type AixiaCommandTone } from "@/components/aixia";
+import "@/styles/dashboard/tokens.css";
+import "@/styles/dashboard/layout.css";
+import "@/styles/dashboard/visual.css";
+import "@/styles/projects/projects-visual.css";
 
 type Role = "admin" | "manager" | "employee" | "guest";
 
@@ -147,6 +151,21 @@ type TaskActivityRow = {
   message: string | null;
   created_at: string;
 };
+
+function taskStatusBadgeTone(status: string | null): AixiaCommandTone {
+  switch ((status || "").toUpperCase()) {
+    case "DONE":
+      return "emerald";
+    case "IN_PROGRESS":
+      return "indigo";
+    case "IN_REVIEW":
+      return "violet";
+    case "BLOCKED":
+      return "rose";
+    default:
+      return "neutral";
+  }
+}
 
 function InfoRow({
   icon,
@@ -1155,9 +1174,22 @@ setTranslatedComments((prev) => ({
     }
   };
 
-if (isBootstrapping) {
+  if (isBootstrapping) {
   return (
-    <div className="space-y-6">
+    <AixiaPage
+      surface="command"
+      className="aixia-command-page aixia-tasks-page h-full flex flex-col overflow-hidden"
+    >
+      <AixiaHero
+        surface="command"
+        className="shrink-0"
+        parentLabel={t("tasks.header.title", "Tasks")}
+        parentPath="/tasks"
+        gradientTitle={t("tasks.header.title", "Tasks")}
+        title={t("taskDetail.header.taskDetails")}
+        subtitle={t("taskDetail.actions.refreshing")}
+      />
+      <div className="aixia-command-scroll flex min-h-0 flex-1 flex-col space-y-6">
       <div className="animate-pulse space-y-4">
         <div className="h-8 w-64 rounded bg-slate-800" />
         <div className="h-4 w-40 rounded bg-slate-800" />
@@ -1195,73 +1227,90 @@ if (isBootstrapping) {
         </div>
       </div>
     </div>
+    </AixiaPage>
   );
 }
 
-    if (!task) return null;
+  if (!task) return null;
+
   return (
-    <>
-      <div className="h-[calc(100vh-126px)] flex flex-col gap-6 overflow-hidden">
-      <div className="flex items-center gap-4 shrink-0">
-        <Button
-          variant="ghost"
-          size="icon"
-          onClick={() => navigate("/tasks")}
-          className="text-slate-400 hover:text-white"
-        >
-          <ArrowLeft className="w-5 h-5" />
-        </Button>
-
-        <div className="flex-1">
-          <h1 className="text-2xl font-bold text-white">{task.title}</h1>
-          <p className="text-slate-400">
-            {project ? (
-  t(
-    "taskDetail.header.projectLabel",
-    undefined,
-    { name: project.name }
-  )
-) : (
-  t("taskDetail.header.taskDetails")
-)}
-          </p>
-        </div>
-
-        <div className="flex items-center gap-2">
-          <Button
-            variant="outline"
-            className="border-slate-700 text-slate-300 hover:bg-slate-800"
-            onClick={() => void loadTaskPage("refresh")}
-            disabled={isRefreshing}
-          >
-            {isRefreshing ? t("taskDetail.actions.refreshing") : t("taskDetail.actions.refresh")}
-          </Button>
-
-          {canEditTask && (
-            <Button
-              variant="outline"
-              onClick={() => navigate(`/tasks/${task.id}/edit`)}
-              className="border-slate-700 text-slate-300 hover:bg-slate-800"
+    <AixiaPage
+      surface="command"
+      className="aixia-command-page aixia-tasks-page h-full flex flex-col overflow-hidden"
+    >
+      <Tabs value={activeTab} onValueChange={setActiveTab} className="flex min-h-0 flex-1 flex-col">
+      <AixiaHero
+        surface="command"
+        className="shrink-0 space-y-4"
+        parentLabel={t("tasks.header.title", "Tasks")}
+        parentPath="/tasks"
+        gradientTitle={t("tasks.header.title", "Tasks")}
+        title={task.title}
+        subtitle={
+          project
+            ? t("taskDetail.header.projectLabel", undefined, { name: project.name })
+            : t("taskDetail.header.taskDetails")
+        }
+        badges={[
+          {
+            label: task.status || "-",
+            tone: taskStatusBadgeTone(task.status),
+          },
+          {
+            label: task.priority || "LOW",
+            tone: "amber",
+          },
+        ]}
+        actions={
+          <>
+            <AixiaButton
+              type="button"
+              className="h-9"
+              onClick={() => void loadTaskPage("refresh")}
+              disabled={isRefreshing}
             >
-              <Edit className="w-4 h-4 mr-2" />
-              {t("taskDetail.actions.edit")}
-            </Button>
-          )}
-
-          {canDeleteTask && (
-            <Button
-              variant="outline"
-              onClick={() => void handleDelete()}
-              disabled={deleteSaving}
-              className="border-red-800 text-red-400 hover:bg-red-900/20"
-            >
-              <Trash2 className="w-4 h-4 mr-2" />
-              {t("taskDetail.actions.delete")}
-            </Button>
-          )}
-        </div>
-      </div>
-
+              {isRefreshing ? t("taskDetail.actions.refreshing") : t("taskDetail.actions.refresh")}
+            </AixiaButton>
+            {canEditTask ? (
+              <AixiaButton
+                type="button"
+                className="h-9"
+                onClick={() => navigate(`/tasks/${task.id}/edit`)}
+              >
+                <Edit className="w-4 h-4 mr-2" />
+                {t("taskDetail.actions.edit")}
+              </AixiaButton>
+            ) : null}
+            {canDeleteTask ? (
+              <AixiaButton
+                type="button"
+                className="h-9 border-red-800 text-red-400 hover:bg-red-900/20"
+                onClick={() => void handleDelete()}
+                disabled={deleteSaving}
+              >
+                <Trash2 className="w-4 h-4 mr-2" />
+                {t("taskDetail.actions.delete")}
+              </AixiaButton>
+            ) : null}
+          </>
+        }
+      >
+        <TabsList className="aixia-projects-tabs w-full">
+          <TabsTrigger value="overview" className="aixia-projects-tab">
+            {t("taskDetail.tabs.overview", "Overview")}
+          </TabsTrigger>
+          <TabsTrigger value="files" className="aixia-projects-tab">
+            {t("taskDetail.tabs.files", "Files")}
+          </TabsTrigger>
+          <TabsTrigger value="discussion" className="aixia-projects-tab">
+            {t("taskDetail.tabs.discussion", "Discussion")}
+          </TabsTrigger>
+          <TabsTrigger value="activity" className="aixia-projects-tab">
+            {t("taskDetail.tabs.activity", "Activity")}
+          </TabsTrigger>
+        </TabsList>
+      </AixiaHero>
+      <div className="aixia-command-scroll flex min-h-0 flex-1 flex-col gap-6">
       {error && (
         <Alert className="bg-red-900/20 border-red-800 text-red-300">
           <AlertDescription>{error}</AlertDescription>
@@ -1270,22 +1319,6 @@ if (isBootstrapping) {
 
             <div className="grid lg:grid-cols-3 gap-6 flex-1 min-h-0">
         <div className="lg:col-span-2 min-h-0 flex flex-col">
-          <Tabs value={activeTab} onValueChange={setActiveTab} className="flex h-full min-h-0 flex-col">
-                       <TabsList className="bg-slate-900 border border-slate-800 flex-wrap h-auto shrink-0">
-              <TabsTrigger value="overview" className="data-[state=active]:bg-slate-800">
-                Overview
-              </TabsTrigger>
-              <TabsTrigger value="files" className="data-[state=active]:bg-slate-800">
-                Files
-              </TabsTrigger>
-              <TabsTrigger value="discussion" className="data-[state=active]:bg-slate-800">
-                Discussion
-              </TabsTrigger>
-              <TabsTrigger value="activity" className="data-[state=active]:bg-slate-800">
-                Activity
-              </TabsTrigger>
-            </TabsList>
-
             <TabsContent value="overview" className="mt-4 flex-1 min-h-0">
               <div className="h-full min-h-0 overflow-y-auto pr-2 pb-6 scrollbar-thin scrollbar-thumb-slate-700 hover:scrollbar-thumb-slate-600">
                 <div className="space-y-6">
@@ -1302,7 +1335,7 @@ if (isBootstrapping) {
 
                         {task.due_date && (
                           <Badge className={dueDateBadgeClassName}>
-                            {dueDateLabel ? `${dueDateLabel} • ${dueDateDisplay}` : dueDateDisplay}
+                            {dueDateLabel ? `${dueDateLabel} ΓÇó ${dueDateDisplay}` : dueDateDisplay}
                           </Badge>
                         )}
 
@@ -1544,7 +1577,7 @@ if (isBootstrapping) {
                         <div className="min-w-0">
                           <p className="truncate text-sm text-white">{file.file_name}</p>
                           <p className="text-xs text-slate-500">
-                            {getProfileName(file.user_id)} •{" "}
+                            {getProfileName(file.user_id)} ΓÇó{" "}
                             {format(clock.shiftDate(file.created_at), "MMM d, yyyy h:mm a")}
                           </p>
                         </div>
@@ -1748,7 +1781,7 @@ if (isBootstrapping) {
                                       <div className="mt-1 flex items-center gap-1 text-xs text-slate-500">
                                         <Clock3 className="h-3 w-3" />
                                         <span>
-                                          {format(clock.shiftDate(comment.created_at), "MMM d, yyyy • h:mm a")}
+                                          {format(clock.shiftDate(comment.created_at), "MMM d, yyyy ΓÇó h:mm a")}
                                         </span>
                                       </div>
                                     </div>
@@ -1947,7 +1980,6 @@ if (isBootstrapping) {
                 </div>
               </div>
             </TabsContent>
-          </Tabs>
         </div>
 
         <div className="flex h-full min-h-0 flex-col gap-6">
@@ -2093,10 +2125,11 @@ if (isBootstrapping) {
             </CardContent>
           </Card>
         </div>
-      </div>  
+      </div>
     </div>
-      
- <Dialog open={statusModalOpen} onOpenChange={setStatusModalOpen}>
+      </Tabs>
+
+      <Dialog open={statusModalOpen} onOpenChange={setStatusModalOpen}>
   <DialogContent className="bg-slate-950 border-slate-800 text-white">
     <DialogHeader>
       <DialogTitle>{t("taskDetail.statusModal.title")}</DialogTitle>
@@ -2166,6 +2199,6 @@ if (isBootstrapping) {
     </div>
   </DialogContent>
     </Dialog>
-     </>
+    </AixiaPage>
   );
 }

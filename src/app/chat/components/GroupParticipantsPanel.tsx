@@ -1,11 +1,18 @@
 import { useMemo, useState } from "react";
-import { Trash2, UserPlus, Users } from "lucide-react";
+import { Search, UserMinus, UserPlus, Users } from "lucide-react";
 import { Button } from "@/components/ui/button";
-import { ScrollArea } from "@/components/ui/scroll-area";
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
+import { Input } from "@/components/ui/input";
 import type { ChatGroupMemberRow, ChatGroupRow, ProfileRow } from "../types";
 
 type Props = {
   open: boolean;
+  onClose: () => void;
   group: ChatGroupRow | null;
   currentUserId: string | null;
   currentUserRole: string | null;
@@ -21,8 +28,34 @@ function getDisplayName(profile: ProfileRow | undefined) {
   return profile?.full_name || "Unknown";
 }
 
+function getInitials(name: string | null | undefined) {
+  return (name || "U")
+    .split(" ")
+    .map((part) => part[0])
+    .join("")
+    .toUpperCase()
+    .slice(0, 2);
+}
+
+function matchesSearch(
+  query: string,
+  name: string,
+  role: string | undefined,
+  extra?: string
+) {
+  const q = query.trim().toLowerCase();
+  if (!q) return true;
+
+  return (
+    name.toLowerCase().includes(q) ||
+    (role || "").toLowerCase().includes(q) ||
+    (extra || "").toLowerCase().includes(q)
+  );
+}
+
 export default function GroupParticipantsPanel({
   open,
+  onClose,
   group,
   currentUserId,
   currentUserRole,
@@ -33,7 +66,7 @@ export default function GroupParticipantsPanel({
   onRemoveParticipant,
   memberActionLoading,
 }: Props) {
-  const [selectedUserId, setSelectedUserId] = useState("");
+  const [searchQuery, setSearchQuery] = useState("");
 
   const isGroupChat = group?.type === "GROUP";
 
@@ -62,10 +95,6 @@ export default function GroupParticipantsPanel({
 
     return result;
   }, [group, groupMembers, onlineUsers, profiles]);
-
-  const canManageAll =
-    currentUserRole === "admin" ||
-    (group?.created_by && currentUserId === group.created_by);
 
   const canAddParticipants =
     isGroupChat &&
@@ -98,6 +127,35 @@ export default function GroupParticipantsPanel({
     return result;
   }, [members, profiles, onlineUsers]);
 
+  const filteredMembers = useMemo(() => {
+    return members.filter((member) => {
+      const profile = profiles.find((item) => item.user_id === member.user_id);
+      const invitedByProfile = profiles.find(
+        (item) => item.user_id === member.invited_by
+      );
+      const isCreator = group?.created_by === member.user_id;
+
+      return matchesSearch(
+        searchQuery,
+        getDisplayName(profile),
+        profile?.role,
+        [
+          onlineUsers[member.user_id] ? "online" : "offline",
+          isCreator ? "creator" : "",
+          member.invited_by
+            ? `added by ${getDisplayName(invitedByProfile)}`
+            : "",
+        ].join(" ")
+      );
+    });
+  }, [members, profiles, searchQuery, onlineUsers, group?.created_by]);
+
+  const filteredAvailable = useMemo(() => {
+    return availableProfiles.filter((profile) =>
+      matchesSearch(searchQuery, getDisplayName(profile), profile.role)
+    );
+  }, [availableProfiles, searchQuery]);
+
   const canRemoveMember = (member: ChatGroupMemberRow) => {
     if (!isGroupChat || !group || !currentUserId) return false;
 
@@ -120,118 +178,209 @@ export default function GroupParticipantsPanel({
     return false;
   };
 
-  if (!open) return null;
+  const handleOpenChange = (nextOpen: boolean) => {
+    if (!nextOpen) {
+      setSearchQuery("");
+      onClose();
+    }
+  };
+
+  const participantLabel =
+    members.length === 1 ? "1 participant" : `${members.length} participants`;
 
   return (
-    <div className="mx-4 mb-4 rounded-xl border border-slate-800 bg-slate-950/70 overflow-hidden shrink-0">
-      <div className="flex items-center gap-2 px-4 py-3 border-b border-slate-800">
-        <Users className="w-4 h-4 text-indigo-400" />
-        <div className="text-white font-medium">Participants</div>
-      </div>
+    <Dialog open={open} onOpenChange={handleOpenChange}>
+      <DialogContent className="aixia-chat-participants-dialog border-[var(--aixia-dash-border)] bg-[var(--aixia-dash-surface)] text-[var(--aixia-dash-title)] flex max-h-[85vh] w-full max-w-lg flex-col gap-0 overflow-hidden p-0 shadow-none sm:max-w-lg">
+        <DialogHeader className="shrink-0 border-b border-[var(--aixia-dash-border)] px-5 py-4">
+          <DialogTitle className="aixia-dash-panel-title flex items-center gap-2">
+            <Users className="h-4 w-4 text-primary" aria-hidden />
+            Participants
+            {members.length > 0 ? (
+              <span className="aixia-dash-pill font-normal normal-case tracking-normal">
+                {members.length}
+              </span>
+            ) : null}
+          </DialogTitle>
+        </DialogHeader>
 
-      {!group ? null : !isGroupChat ? (
-        <div className="px-4 py-4 text-sm text-slate-400">
-          Viewing participants is available here. Add / remove is only enabled for group chats.
-        </div>
-      ) : (
-        <div className="px-4 py-4 border-b border-slate-800">
-          <div className="text-xs text-slate-500 mb-3">
-            Rules: admin and group creator can add/remove. Participants can add. Participants can remove only people they added.
-          </div>
-
-          <div className="flex items-center gap-2">
-            <select
-              value={selectedUserId}
-              onChange={(e) => setSelectedUserId(e.target.value)}
-              className="flex-1 h-10 rounded-md border border-slate-800 bg-slate-900 px-3 text-sm text-white outline-none"
-              disabled={!canAddParticipants}
-            >
-              <option value="">Select team member</option>
-              {availableProfiles.map((profile) => (
-                <option key={profile.user_id} value={profile.user_id}>
-                  {getDisplayName(profile)} ({profile.role}) {onlineUsers[profile.user_id] ? "• online" : ""}
-                </option>
-              ))}
-            </select>
-
-            <Button
-              type="button"
-              className="bg-indigo-600 hover:bg-indigo-700 text-white"
-              disabled={!canAddParticipants || !selectedUserId || memberActionLoading === "add"}
-              onClick={() => {
-                if (!selectedUserId) return;
-                onAddParticipant(selectedUserId);
-                setSelectedUserId("");
-              }}
-            >
-              <UserPlus className="w-4 h-4 mr-2" />
-              Add
-            </Button>
-          </div>
-        </div>
-      )}
-
-      <ScrollArea className="max-h-64">
-        <div className="p-2 space-y-1">
-          {members.map((member) => {
-            const profile = profiles.find((item) => item.user_id === member.user_id);
-            const invitedByProfile = profiles.find(
-              (item) => item.user_id === member.invited_by
-            );
-            const isCreator = group?.created_by === member.user_id;
-
-            return (
-              <div
-                key={member.id}
-                className="flex items-center justify-between gap-3 rounded-lg p-3 hover:bg-slate-900/70"
-              >
-                <div className="min-w-0 flex items-center gap-3">
-                  <span
-                    className={`w-2.5 h-2.5 rounded-full shrink-0 ${
-                      onlineUsers[member.user_id] ? "bg-green-500" : "bg-slate-500"
-                    }`}
-                  />
-
-                  <div className="min-w-0">
-                    <div className="text-sm text-white truncate">
-                      {getDisplayName(profile)}
-                    </div>
-                    <div className="text-xs text-slate-500 truncate">
-                      {profile?.role || "unknown"}
-                      {onlineUsers[member.user_id] ? " • online" : " • offline"}
-                      {isCreator ? " • creator" : ""}
-                      {member.invited_by
-                        ? ` • added by ${getDisplayName(invitedByProfile)}`
-                        : ""}
-                    </div>
-                  </div>
-                </div>
-
-                {canRemoveMember(member) ? (
-                  <Button
-                    type="button"
-                    variant="ghost"
-                    size="icon"
-                    className="text-slate-400 hover:text-red-400"
-                    disabled={memberActionLoading === member.id}
-                    onClick={() => onRemoveParticipant(member)}
-                  >
-                    <Trash2 className="w-4 h-4" />
-                  </Button>
-                ) : isCreator ? null : canManageAll ? null : (
-                  <div className="text-[11px] text-slate-600">locked</div>
-                )}
+        {!group ? (
+          <p className="px-5 py-6 text-sm aixia-projects-muted">No conversation selected.</p>
+        ) : !isGroupChat ? (
+          <p className="px-5 py-6 text-sm aixia-projects-muted">
+            Viewing participants is available here. Add and remove is only enabled for group
+            chats.
+          </p>
+        ) : (
+          <div className="flex min-h-0 flex-1 flex-col overflow-hidden">
+            <div className="shrink-0 border-b border-[var(--aixia-dash-border)] px-5 py-3">
+              <div className="relative">
+                <Search
+                  className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground"
+                  aria-hidden
+                />
+                <Input
+                  value={searchQuery}
+                  onChange={(e) => setSearchQuery(e.target.value)}
+                  placeholder="Search members..."
+                  className="aixia-projects-input pl-9"
+                />
               </div>
-            );
-          })}
-
-          {members.length === 0 ? (
-            <div className="px-3 py-6 text-center text-sm text-slate-500">
-              No participants
             </div>
-          ) : null}
+
+            <div className="min-h-0 flex-1 overflow-y-auto px-5 py-4">
+              <section className="mb-5">
+                <h3 className="aixia-projects-label mb-2 text-sm">
+                  Current members ({filteredMembers.length})
+                </h3>
+                <div className="aixia-projects-member-rows aixia-projects-member-rows--divided">
+                  {filteredMembers.length === 0 ? (
+                    <p className="aixia-dash-empty m-0 py-4 text-sm">
+                      {searchQuery.trim()
+                        ? "No members match your search."
+                        : "No participants yet."}
+                    </p>
+                  ) : (
+                    filteredMembers.map((member) => {
+                      const profile = profiles.find(
+                        (item) => item.user_id === member.user_id
+                      );
+                      const isCreator = group.created_by === member.user_id;
+                      const removable = canRemoveMember(member);
+
+                      return (
+                        <div
+                          key={member.id}
+                          className="aixia-projects-member-row gap-3 py-2"
+                        >
+                          <span className="relative shrink-0">
+                            <span className="aixia-projects-member-tile-avatar">
+                              {getInitials(profile?.full_name)}
+                            </span>
+                            <span
+                              className={`aixia-chat-online-dot ${
+                                onlineUsers[member.user_id]
+                                  ? "aixia-chat-online-dot--on"
+                                  : "aixia-chat-online-dot--off"
+                              }`}
+                            />
+                          </span>
+
+                          <span className="aixia-projects-member-tile-meta min-w-0 flex-1">
+                            <span className="aixia-dash-list-row-title truncate">
+                              {getDisplayName(profile)}
+                            </span>
+                            <span className="flex flex-wrap items-center gap-1.5">
+                              <span className="aixia-dash-pill capitalize">
+                                {profile?.role || "unknown"}
+                              </span>
+                              {isCreator ? (
+                                <span className="aixia-dash-pill">creator</span>
+                              ) : null}
+                              <span className="aixia-dash-list-row-meta">
+                                {onlineUsers[member.user_id] ? "online" : "offline"}
+                              </span>
+                            </span>
+                          </span>
+
+                          {removable ? (
+                            <Button
+                              type="button"
+                              variant="outline"
+                              className="aixia-dash-action aixia-dash-action--danger h-8 shrink-0 px-2.5 text-xs"
+                              disabled={memberActionLoading === member.id}
+                              onClick={() => onRemoveParticipant(member)}
+                            >
+                              <UserMinus className="mr-1.5 h-3.5 w-3.5" />
+                              Remove
+                            </Button>
+                          ) : isCreator ? (
+                            <span className="shrink-0 text-[11px] aixia-projects-muted">
+                              Owner
+                            </span>
+                          ) : null}
+                        </div>
+                      );
+                    })
+                  )}
+                </div>
+              </section>
+
+              {canAddParticipants ? (
+                <section>
+                  <h3 className="aixia-projects-label mb-2 text-sm">
+                    Add members ({filteredAvailable.length})
+                  </h3>
+                  <div className="aixia-projects-member-list aixia-projects-member-rows p-0">
+                    {filteredAvailable.length === 0 ? (
+                      <p className="aixia-dash-empty m-0 py-4 text-sm">
+                        {searchQuery.trim()
+                          ? "No available members match your search."
+                          : "Everyone on the team is already in this group."}
+                      </p>
+                    ) : (
+                      filteredAvailable.map((profile) => (
+                        <div
+                          key={profile.user_id}
+                          className="aixia-projects-member-row aixia-projects-member-row--pick gap-3 rounded-md px-1 py-2"
+                        >
+                          <span className="relative shrink-0">
+                            <span className="aixia-projects-member-tile-avatar">
+                              {getInitials(profile.full_name)}
+                            </span>
+                            <span
+                              className={`aixia-chat-online-dot ${
+                                onlineUsers[profile.user_id]
+                                  ? "aixia-chat-online-dot--on"
+                                  : "aixia-chat-online-dot--off"
+                              }`}
+                            />
+                          </span>
+
+                          <span className="aixia-projects-member-tile-meta min-w-0 flex-1">
+                            <span className="aixia-dash-list-row-title truncate">
+                              {getDisplayName(profile)}
+                            </span>
+                            <span className="flex flex-wrap items-center gap-1.5">
+                              <span className="aixia-dash-pill capitalize">
+                                {profile.role}
+                              </span>
+                              <span className="aixia-dash-list-row-meta">
+                                {onlineUsers[profile.user_id] ? "online" : "offline"}
+                              </span>
+                            </span>
+                          </span>
+
+                          <Button
+                            type="button"
+                            variant="outline"
+                            className="aixia-dash-action aixia-dash-action--primary h-8 shrink-0 px-2.5 text-xs"
+                            disabled={memberActionLoading === "add"}
+                            onClick={() => onAddParticipant(profile.user_id)}
+                          >
+                            <UserPlus className="mr-1.5 h-3.5 w-3.5" />
+                            Add
+                          </Button>
+                        </div>
+                      ))
+                    )}
+                  </div>
+                </section>
+              ) : null}
+            </div>
+          </div>
+        )}
+
+        <div className="aixia-projects-new-form-footer shrink-0 border-t border-[var(--aixia-dash-border)] px-5 py-4">
+          <span className="text-sm aixia-projects-muted">{participantLabel}</span>
+          <Button
+            type="button"
+            className="aixia-dash-action aixia-dash-action--primary h-9"
+            onClick={() => handleOpenChange(false)}
+          >
+            Done
+          </Button>
         </div>
-      </ScrollArea>
-    </div>
+      </DialogContent>
+    </Dialog>
   );
 }

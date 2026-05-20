@@ -11,6 +11,10 @@ import { createRequestTracker } from "@/lib/safeAsync";
 import { uploadProfilePhoto } from "@/lib/profilePhotoUpload";
 
 import { useLanguage } from "@/lib/i18n";
+import { AixiaButton, AixiaHero, AixiaPage } from "@/components/aixia";
+import "@/styles/dashboard/tokens.css";
+import "@/styles/dashboard/layout.css";
+import "@/styles/dashboard/visual.css";
 import { useAppClock } from "@/lib/clock/provider";
 import type { Language } from "@/lib/translations";
 import { notifyUserPreferencesUpdated } from "@/lib/useUserPreferences";
@@ -646,32 +650,31 @@ const handleSaveAccount = async () => {
   );
 
   return (
-    <div className="mx-auto w-full max-w-[calc(100vw-360px)] space-y-6">
-      <div className="flex flex-wrap items-start justify-between gap-4">
-        <div>
-          <h1 className="text-2xl font-bold text-white">
-            {t("settings.settingsTitle", "Settings")}
-          </h1>
-          <p className="text-slate-400">
-            {t(
-              "settings.settingsSubtitle",
-              "Manage your account settings and preferences"
-            )}
-          </p>
-        </div>
+    <AixiaPage surface="command" className="aixia-command-page aixia-settings-page mx-auto w-full max-w-[calc(100vw-360px)]">
+      <AixiaHero
+        surface="command"
+        className="shrink-0"
+        gradientTitle={t("settings.settingsTitle", "Settings")}
+        title={t("settings.settingsTitle", "Settings")}
+        subtitle={t(
+          "settings.settingsSubtitle",
+          "Manage your account settings and preferences"
+        )}
+        actions={
+          <AixiaButton
+            type="button"
+            className="h-9"
+            onClick={() => void loadSettings("refresh")}
+            disabled={isRefreshing || savingSection !== null || isUploadingPhoto}
+          >
+            {isRefreshing
+              ? t("settings.refreshing", "Refreshing...")
+              : t("settings.refresh", "Refresh")}
+          </AixiaButton>
+        }
+      />
 
-        <Button
-          variant="outline"
-          className="border-slate-700 text-slate-300 hover:bg-slate-800"
-          onClick={() => void loadSettings("refresh")}
-          disabled={isRefreshing || savingSection !== null || isUploadingPhoto}
-        >
-          {isRefreshing
-            ? t("settings.refreshing", "Refreshing...")
-            : t("settings.refresh", "Refresh")}
-        </Button>
-      </div>
-
+      <div className="aixia-command-scroll space-y-6">
       {saved && (
         <Alert className="border-green-800 bg-green-900/20 text-green-400">
           <AlertDescription>
@@ -1517,6 +1520,7 @@ const handleSaveAccount = async () => {
           </Card>
         </TabsContent>
       </Tabs>
-    </div>
+      </div>
+    </AixiaPage>
   );
 }

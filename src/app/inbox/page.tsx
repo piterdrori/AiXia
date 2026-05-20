@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useRef, useState, useCallback } from "react";
 import type { ElementType } from "react";
 import { useNavigate } from "react-router-dom";
-import { format } from "date-fns";
+import { format, isToday, parseISO } from "date-fns";
 import {
   Bell,
   Check,
@@ -14,12 +14,18 @@ import {
   Info,
   FolderKanban,
   FileText,
+  RefreshCw,
+  Inbox,
+  Calendar,
 } from "lucide-react";
 
 import { supabase } from "@/lib/supabase";
 import {
   markAllNotificationsRead,
   markNotificationRead,
+  normalizeNotificationRows,
+  type NotificationRow,
+  type NotificationType,
 } from "@/lib/notifications";
 import { createRequestTracker } from "@/lib/safeAsync";
 import { useRequest } from "@/lib/useRequest";
@@ -30,8 +36,9 @@ import {
 import { useLanguage } from "@/lib/i18n";
 
 import { Button } from "@/components/ui/button";
+import { AixiaButton, AixiaCommandMetrics, AixiaHero, AixiaPage } from "@/components/aixia";
 import { Card, CardContent } from "@/components/ui/card";
-import { ScrollArea } from "@/components/ui/scroll-area";
+import { PageError } from "@/components/ui/PageError";
 import {
   Select,
   SelectContent,
@@ -40,31 +47,11 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 
-type NotificationType =
-  | "MESSAGE"
-  | "TASK_ASSIGNED"
-  | "TASK_UPDATED"
-  | "COMMENT"
-  | "MENTION"
-  | "FILE_UPLOAD"
-  | "PROJECT_UPDATE"
-  | "REMINDER";
+import "@/styles/inbox/inbox-visual.css";
 
-type NotificationRow = {
-  id: string;
-  user_id: string;
-  actor_user_id: string | null;
-  type: NotificationType;
-  title: string;
-  message: string | null;
-  link: string | null;
-  is_read: boolean;
-  entity_type: string | null;
-  entity_id: string | null;
-  created_at: string;
-};
+type InboxFilter = "ALL" | "UNREAD" | NotificationType;
 
-const notificationIcons: Record<NotificationType, ElementType> = {
+const notificationIcons: Record<string, ElementType> = {
   MESSAGE: MessageSquare,
   TASK_ASSIGNED: CheckSquare,
   TASK_UPDATED: Info,
@@ -75,7 +62,7 @@ const notificationIcons: Record<NotificationType, ElementType> = {
   REMINDER: Bell,
 };
 
-const notificationColors: Record<NotificationType, string> = {
+const notificationColors: Record<string, string> = {
   MESSAGE: "bg-indigo-500/20 text-indigo-400",
   TASK_ASSIGNED: "bg-blue-500/20 text-blue-400",
   TASK_UPDATED: "bg-green-500/20 text-green-400",
@@ -85,19 +72,6 @@ const notificationColors: Record<NotificationType, string> = {
   PROJECT_UPDATE: "bg-slate-500/20 text-slate-300",
   REMINDER: "bg-yellow-500/20 text-yellow-400",
 };
-
-function isValidNotificationType(value: string): value is NotificationType {
-  return (
-    value === "MESSAGE" ||
-    value === "TASK_ASSIGNED" ||
-    value === "TASK_UPDATED" ||
-    value === "COMMENT" ||
-    value === "MENTION" ||
-    value === "FILE_UPLOAD" ||
-    value === "PROJECT_UPDATE" ||
-    value === "REMINDER"
-  );
-}
 
 function formatNotificationDate(value: string) {
   try {
@@ -111,6 +85,23 @@ function formatNotificationDate(value: string) {
   }
 }
 
+function InboxListSkeleton() {
+  return (
+    <div className="aixia-inbox-skeleton-list" aria-busy="true">
+      {Array.from({ length: 6 }).map((_, index) => (
+        <div key={index} className="aixia-inbox-skeleton-row">
+          <div className="aixia-projects-skeleton-bar h-10 w-10 rounded-lg shrink-0" />
+          <div className="flex-1 space-y-2">
+            <div className="aixia-projects-skeleton-bar h-4 w-2/3" />
+            <div className="aixia-projects-skeleton-bar h-3 w-full" />
+            <div className="aixia-projects-skeleton-bar h-3 w-1/3" />
+          </div>
+        </div>
+      ))}
+    </div>
+  );
+}
+
 export default function InboxPage() {
   const navigate = useNavigate();
   const requestTracker = useRef(createRequestTracker());
@@ -118,14 +109,40 @@ export default function InboxPage() {
 
   const [currentUserId, setCurrentUserId] = useState<string | null>(null);
   const [notifications, setNotifications] = useState<NotificationRow[]>([]);
-  const [filter, setFilter] = useState<"ALL" | "UNREAD" | NotificationType>("ALL");
+  const [filter, setFilter] = useState<InboxFilter>("ALL");
 
-    const inboxRequest = useRequest<boolean>();
+  const inboxRequest = useRequest<boolean>();
   const inboxRequestRef = useRef(inboxRequest);
 
   useEffect(() => {
     inboxRequestRef.current = inboxRequest;
   }, [inboxRequest]);
+
+  const getTypeLabel = useCallback(
+    (type: string) => {
+      switch (type) {
+        case "MESSAGE":
+          return t("inbox.filters.messages");
+        case "TASK_ASSIGNED":
+          return t("inbox.filters.taskAssigned");
+        case "TASK_UPDATED":
+          return t("inbox.filters.taskUpdated");
+        case "COMMENT":
+          return t("inbox.filters.comments");
+        case "MENTION":
+          return t("inbox.filters.mentions");
+        case "FILE_UPLOAD":
+          return t("inbox.filters.fileUploads");
+        case "PROJECT_UPDATE":
+          return t("inbox.filters.projectUpdates");
+        case "REMINDER":
+          return t("inbox.filters.reminders");
+        default:
+          return type.replace(/_/g, " ");
+      }
+    },
+    [t]
+  );
 
   const fetchNotifications = useCallback(
     async (
@@ -138,7 +155,7 @@ export default function InboxPage() {
       const requestId = options?.requestId ?? requestTracker.current.next();
       const shouldSetLoading = options?.setLoading ?? false;
 
-            if (shouldSetLoading) {
+      if (shouldSetLoading) {
         inboxRequestRef.current.setState((prev) => ({
           ...prev,
           status: "loading",
@@ -159,7 +176,7 @@ export default function InboxPage() {
 
         if (notificationsError) {
           console.error("Load inbox notifications error:", notificationsError);
-                    inboxRequestRef.current.setState((prev) => ({
+          inboxRequestRef.current.setState((prev) => ({
             ...prev,
             status: "error",
             error:
@@ -169,19 +186,7 @@ export default function InboxPage() {
           return;
         }
 
-        const safeNotifications = ((data || []) as NotificationRow[]).filter(
-          (item) =>
-            !!item &&
-            typeof item.id === "string" &&
-            typeof item.user_id === "string" &&
-            typeof item.title === "string" &&
-            typeof item.created_at === "string" &&
-            typeof item.is_read === "boolean" &&
-            typeof item.type === "string" &&
-            isValidNotificationType(item.type)
-        );
-
-        setNotifications(safeNotifications);
+        setNotifications(normalizeNotificationRows(data));
 
         if (shouldSetLoading) {
           inboxRequestRef.current.setState((prev) => ({
@@ -203,6 +208,11 @@ export default function InboxPage() {
     },
     [t]
   );
+
+  const handleRefresh = useCallback(() => {
+    if (!currentUserId) return;
+    void fetchNotifications(currentUserId, { setLoading: true });
+  }, [currentUserId, fetchNotifications]);
 
   useEffect(() => {
     let mounted = true;
@@ -278,7 +288,7 @@ export default function InboxPage() {
             table: "notifications",
             filter: `user_id=eq.${currentUserId}`,
           },
-                    () => {
+          () => {
             void fetchNotifications(currentUserId, { setLoading: false });
           }
         )
@@ -298,11 +308,51 @@ export default function InboxPage() {
     });
   }, [notifications, filter]);
 
-  const unreadCount = useMemo(() => {
-    return notifications.filter((notification) => !notification.is_read).length;
-  }, [notifications]);
+  const unreadCount = useMemo(
+    () => notifications.filter((notification) => !notification.is_read).length,
+    [notifications]
+  );
 
-const handleNotificationClick = async (notification: NotificationRow) => {
+  const todayCount = useMemo(
+    () =>
+      notifications.filter((notification) => {
+        try {
+          return isToday(parseISO(notification.created_at));
+        } catch {
+          return false;
+        }
+      }).length,
+    [notifications]
+  );
+
+  const inboxMetricItems = useMemo(
+    () => [
+      {
+        key: "unread",
+        title: t("inbox.metrics.unread", "Unread"),
+        value: String(unreadCount),
+        icon: Bell,
+        tone: "rose" as const,
+      },
+      {
+        key: "total",
+        title: t("inbox.metrics.total", "Total"),
+        value: String(notifications.length),
+        icon: Inbox,
+        tone: "indigo" as const,
+      },
+      {
+        key: "today",
+        title: t("inbox.metrics.today", "Today"),
+        value: String(todayCount),
+        icon: Calendar,
+        tone: "emerald" as const,
+      },
+    ],
+    [unreadCount, notifications.length, todayCount, t]
+  );
+
+  const handleNotificationClick = async (notification: NotificationRow) => {
     try {
       if (!notification.is_read) {
         await markNotificationRead(notification.id);
@@ -373,190 +423,226 @@ const handleNotificationClick = async (notification: NotificationRow) => {
     }
   };
 
+  const isLoading = inboxRequest.status === "loading";
   return (
-    <div className="space-y-6">
-      <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
-        <div>
-          <h1 className="text-2xl font-bold text-white">
-            {t("inbox.header.title")}
-          </h1>
-          <p className="text-slate-400">
-            {unreadCount > 0
-              ? t("inbox.header.unreadCount", undefined, { total: unreadCount })
-              : t("inbox.header.allCaughtUp")}
-          </p>
-        </div>
-
-        <div className="flex items-center gap-2">
-          {unreadCount > 0 && (
-            <Button
-              variant="outline"
-              className="border-slate-700 text-slate-300 hover:bg-slate-800"
-              onClick={() => void handleMarkAllRead()}
+    <AixiaPage
+      surface="command"
+      className="aixia-command-page aixia-inbox-page"
+    >
+      <AixiaHero
+        surface="command"
+        className="shrink-0 space-y-4"
+        gradientTitle="INBOX"
+        title={t("inbox.header.title", "Inbox")}
+        subtitle={t(
+          "inbox.header.subtitle",
+          "Notifications and alerts from across your workspace"
+        )}
+        actions={
+          <>
+            <AixiaButton
+              type="button"
+              className="h-9"
+              onClick={handleRefresh}
+              disabled={isLoading}
             >
-              <CheckCheck className="mr-2 h-4 w-4" />
-              {t("inbox.buttons.markAllRead")}
-            </Button>
-          )}
+              <RefreshCw
+                className={`h-4 w-4 mr-2 ${isLoading ? "animate-spin" : ""}`}
+              />
+              {isLoading
+                ? t("inbox.actions.refreshing", "Refreshing...")
+                : t("inbox.actions.refresh", "Refresh")}
+            </AixiaButton>
+
+            {unreadCount > 0 ? (
+              <AixiaButton
+                type="button"
+                className="h-9"
+                onClick={() => void handleMarkAllRead()}
+              >
+                <CheckCheck className="h-4 w-4 mr-2" />
+                {t("inbox.buttons.markAllRead")}
+              </AixiaButton>
+            ) : null}
+          </>
+        }
+      >
+        <AixiaCommandMetrics items={inboxMetricItems} />
+
+        <div className="aixia-command-toolbar">
+          <Select
+            value={filter}
+            onValueChange={(value) => setFilter(value as InboxFilter)}
+          >
+            <SelectTrigger className="aixia-inbox-filter-trigger aixia-projects-select-trigger">
+              <Filter className="mr-2 h-4 w-4 shrink-0" />
+              <SelectValue placeholder={t("inbox.filters.placeholder")} />
+            </SelectTrigger>
+            <SelectContent
+              position="popper"
+              side="bottom"
+              align="start"
+              sideOffset={6}
+              avoidCollisions={false}
+              className="aixia-projects-select-content"
+            >
+              <SelectItem value="ALL">{t("inbox.filters.all")}</SelectItem>
+              <SelectItem value="UNREAD">{t("inbox.filters.unread")}</SelectItem>
+              <SelectItem value="MESSAGE">
+                {t("inbox.filters.messages")}
+              </SelectItem>
+              <SelectItem value="TASK_ASSIGNED">
+                {t("inbox.filters.taskAssigned")}
+              </SelectItem>
+              <SelectItem value="TASK_UPDATED">
+                {t("inbox.filters.taskUpdated")}
+              </SelectItem>
+              <SelectItem value="COMMENT">
+                {t("inbox.filters.comments")}
+              </SelectItem>
+              <SelectItem value="MENTION">
+                {t("inbox.filters.mentions", "Mentions")}
+              </SelectItem>
+              <SelectItem value="FILE_UPLOAD">
+                {t("inbox.filters.fileUploads")}
+              </SelectItem>
+              <SelectItem value="PROJECT_UPDATE">
+                {t("inbox.filters.projectUpdates")}
+              </SelectItem>
+              <SelectItem value="REMINDER">
+                {t("inbox.filters.reminders", "Reminders")}
+              </SelectItem>
+            </SelectContent>
+          </Select>
         </div>
-      </div>
 
-      <div className="flex flex-wrap items-center gap-4">
-        <Select
-          value={filter}
-          onValueChange={(value) =>
-            setFilter(value as "ALL" | "UNREAD" | NotificationType)
-          }
-        >
-          <SelectTrigger className="w-48 border-slate-800 bg-slate-900 text-white">
-            <Filter className="mr-2 h-4 w-4" />
-            <SelectValue placeholder={t("inbox.filters.placeholder")} />
-          </SelectTrigger>
+        <PageError message={inboxRequest.error || ""} />
+      </AixiaHero>
 
-                      <SelectContent className="border-slate-800 bg-slate-900">
-            <SelectItem value="ALL">{t("inbox.filters.all")}</SelectItem>
-            <SelectItem value="UNREAD">{t("inbox.filters.unread")}</SelectItem>
-            <SelectItem value="MESSAGE">{t("inbox.filters.messages")}</SelectItem>
-            <SelectItem value="TASK_ASSIGNED">
-              {t("inbox.filters.taskAssigned")}
-            </SelectItem>
-            <SelectItem value="TASK_UPDATED">
-              {t("inbox.filters.taskUpdated")}
-            </SelectItem>
-            <SelectItem value="COMMENT">{t("inbox.filters.comments")}</SelectItem>
-            <SelectItem value="MENTION">Mentions</SelectItem>
-            <SelectItem value="FILE_UPLOAD">
-              {t("inbox.filters.fileUploads")}
-            </SelectItem>
-            <SelectItem value="PROJECT_UPDATE">
-              {t("inbox.filters.projectUpdates")}
-            </SelectItem>
-            <SelectItem value="REMINDER">Reminders</SelectItem>
-          </SelectContent>
-        </Select>
-      </div>
-
-      <Card className="border-slate-800 bg-slate-900/50">
-        <CardContent className="p-0">
-          <ScrollArea className="h-[calc(100vh-300px)]">
-            <div className="divide-y divide-slate-800">
-              {inboxRequest.status === "loading" ? (
-                <div className="py-12 text-center">
-                  <Bell className="mx-auto mb-4 h-12 w-12 text-slate-600" />
-                  <h3 className="mb-2 text-lg font-medium text-white">
-                    {t("inbox.states.loading.title")}
-                  </h3>
-                  <p className="text-slate-500">
-                    {t("inbox.states.loading.description")}
-                  </p>
-                </div>
+        <div className="aixia-command-scroll">
+          <Card className="aixia-dash-panel aixia-dash-glass aixia-inbox-panel">
+            <CardContent className="aixia-inbox-panel-body p-0">
+              {isLoading && notifications.length === 0 ? (
+                <InboxListSkeleton />
               ) : inboxRequest.status === "error" ? (
-                <div className="py-12 text-center">
-                  <AlertCircle className="mx-auto mb-4 h-12 w-12 text-red-500" />
-                  <h3 className="mb-2 text-lg font-medium text-white">
+                <div className="aixia-inbox-state">
+                  <AlertCircle className="mb-2 h-12 w-12 text-red-500" />
+                  <h3 className="aixia-dash-panel-title m-0">
                     {t("inbox.states.error.title")}
                   </h3>
-                  <p className="text-slate-500">{inboxRequest.error}</p>
+                  <p className="aixia-dash-list-row-meta">{inboxRequest.error}</p>
                 </div>
               ) : filteredNotifications.length === 0 ? (
-                <div className="py-12 text-center">
-                  <Bell className="mx-auto mb-4 h-12 w-12 text-slate-600" />
-                  <h3 className="mb-2 text-lg font-medium text-white">
+                <div className="aixia-inbox-empty">
+                  <Bell className="mb-2 h-12 w-12 opacity-40" />
+                  <h3 className="aixia-dash-panel-title m-0">
                     {t("inbox.states.empty.title")}
                   </h3>
-                  <p className="text-slate-500">
+                  <p className="aixia-dash-list-row-meta">
                     {filter === "ALL"
                       ? t("inbox.states.empty.all")
                       : t("inbox.states.empty.filtered")}
                   </p>
                 </div>
               ) : (
-                filteredNotifications.map((notification) => {
-                  const Icon = notificationIcons[notification.type] || Bell;
-                  const colorClass =
-                    notificationColors[notification.type] ||
-                    "bg-slate-500/20 text-slate-400";
+                <div className="aixia-inbox-list">
+                  {filteredNotifications.map((notification) => {
+                    const Icon = notificationIcons[notification.type] || Bell;
+                    const colorClass =
+                      notificationColors[notification.type] ||
+                      "bg-slate-500/20 text-slate-400";
 
-                  return (
-                    <div
-                      key={notification.id}
-                      className={`flex cursor-pointer items-start gap-4 p-4 transition-colors hover:bg-slate-800/50 ${
-                        !notification.is_read ? "bg-indigo-900/5" : ""
-                      }`}
-                      onClick={() => void handleNotificationClick(notification)}
-                    >
+                    return (
                       <div
-                        className={`flex h-10 w-10 flex-shrink-0 items-center justify-center rounded-lg ${colorClass}`}
+                        key={notification.id}
+                        className={`aixia-inbox-row ${
+                          !notification.is_read ? "aixia-inbox-row--unread" : ""
+                        }`}
+                        onClick={() => void handleNotificationClick(notification)}
+                        onKeyDown={(event) => {
+                          if (event.key === "Enter" || event.key === " ") {
+                            event.preventDefault();
+                            void handleNotificationClick(notification);
+                          }
+                        }}
+                        role="button"
+                        tabIndex={0}
                       >
-                        <Icon className="h-5 w-5" />
-                      </div>
+                        <div
+                          className={`aixia-inbox-row-icon ${colorClass}`}
+                        >
+                          <Icon className="h-5 w-5" />
+                        </div>
 
-                      <div className="min-w-0 flex-1">
-                        <div className="flex items-start justify-between gap-2">
-                          <div className="min-w-0 flex-1">
-                            <h4
-                              className={`font-medium ${
-                                !notification.is_read
-                                  ? "text-white"
-                                  : "text-slate-300"
-                              }`}
-                            >
-                              {notification.title}
-                            </h4>
-
-                            {notification.message && (
-                              <p className="mt-1 text-sm text-slate-400">
-                                {notification.message}
-                              </p>
-                            )}
-                          </div>
-
-                          <div className="flex flex-shrink-0 items-center gap-2">
-                            {!notification.is_read && (
-                              <div className="h-2 w-2 rounded-full bg-indigo-500" />
-                            )}
-                            <span className="text-xs text-slate-500">
-                              {formatNotificationDate(notification.created_at)}
-                            </span>
+                        <div className="aixia-inbox-row-main">
+                          <div className="flex items-start justify-between gap-2">
+                            <div className="min-w-0 flex-1">
+                              <h4
+                                className={`aixia-dash-list-row-title text-sm ${
+                                  !notification.is_read ? "" : "opacity-80"
+                                }`}
+                              >
+                                {notification.title}
+                              </h4>
+                              {notification.message && (
+                                <p className="mt-1 text-sm aixia-dash-list-row-meta line-clamp-2">
+                                  {notification.message}
+                                </p>
+                              )}
+                              <span className="aixia-inbox-type-pill">
+                                {getTypeLabel(notification.type)}
+                              </span>
+                            </div>
+                            <div className="flex shrink-0 items-center gap-2">
+                              {!notification.is_read && (
+                                <span
+                                  className="h-2 w-2 rounded-full bg-indigo-500"
+                                  aria-hidden
+                                />
+                              )}
+                              <span className="text-xs aixia-dash-list-row-meta whitespace-nowrap">
+                                {formatNotificationDate(notification.created_at)}
+                              </span>
+                            </div>
                           </div>
                         </div>
-                      </div>
 
-                      <div className="flex flex-shrink-0 items-center gap-1">
-                        {!notification.is_read && (
+                        <div className="aixia-inbox-row-actions">
+                          {!notification.is_read && (
+                            <Button
+                              variant="ghost"
+                              size="icon"
+                              className="h-8 w-8"
+                              aria-label={t("inbox.buttons.markAllRead")}
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                void handleMarkOneRead(notification.id);
+                              }}
+                            >
+                              <Check className="h-4 w-4" />
+                            </Button>
+                          )}
                           <Button
                             variant="ghost"
                             size="icon"
-                            className="h-8 w-8 text-slate-400 hover:text-white"
+                            className="h-8 w-8 text-red-400/80 hover:text-red-300"
+                            aria-label="Delete"
                             onClick={(e) => {
                               e.stopPropagation();
-                              void handleMarkOneRead(notification.id);
+                              void handleDeleteNotification(notification.id);
                             }}
                           >
-                            <Check className="h-4 w-4" />
+                            <Trash2 className="h-4 w-4" />
                           </Button>
-                        )}
-
-                        <Button
-                          variant="ghost"
-                          size="icon"
-                          className="h-8 w-8 text-slate-400 hover:text-red-400"
-                          onClick={(e) => {
-                            e.stopPropagation();
-                            void handleDeleteNotification(notification.id);
-                          }}
-                        >
-                          <Trash2 className="h-4 w-4" />
-                        </Button>
+                        </div>
                       </div>
-                    </div>
-                  );
-                })
+                    );
+                  })}
+                </div>
               )}
-            </div>
-          </ScrollArea>
-        </CardContent>
-      </Card>
-    </div>
+            </CardContent>
+          </Card>
+        </div>
+    </AixiaPage>
   );
 }

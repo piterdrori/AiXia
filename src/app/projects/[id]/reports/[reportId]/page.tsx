@@ -1,17 +1,15 @@
-import { useEffect, useMemo, useRef, useState } from "react";
+﻿import { useEffect, useMemo, useRef, useState } from "react";
 import { useNavigate, useParams } from "react-router-dom";
 import { format } from "date-fns";
 import { supabase } from "@/lib/supabase";
 import { createRequestTracker } from "@/lib/safeAsync";
 import { useLanguage } from "@/lib/i18n";
 import { useAppClock } from "@/lib/clock/provider";
-import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import {
-  ArrowLeft,
   Download,
   FileText,
   Users,
@@ -19,6 +17,8 @@ import {
   Clock3,
   Shield,
 } from "lucide-react";
+import { AixiaButton, AixiaHero, AixiaPage } from "@/components/aixia";
+import type { AixiaCommandTone } from "@/components/aixia/commandSurface";
 
 type Role = "admin" | "manager" | "employee" | "guest";
 
@@ -245,8 +245,24 @@ function getStatusBadgeClass(status: string | null) {
   }
 }
 
+function statusBadgeTone(status: string | null): AixiaCommandTone {
+  switch ((status || "").toUpperCase()) {
+    case "ACTIVE":
+    case "COMPLETED":
+    case "DONE":
+      return "emerald";
+    case "FAILED":
+    case "CANCELLED":
+      return "rose";
+    case "PENDING":
+      return "neutral";
+    default:
+      return "amber";
+  }
+}
+
 function formatFileSize(bytes: number | null) {
-  if (!bytes || bytes <= 0) return "—";
+  if (!bytes || bytes <= 0) return "ΓÇö";
   const units = ["B", "KB", "MB", "GB"];
   let size = bytes;
   let unitIndex = 0;
@@ -407,74 +423,85 @@ const limitedActivity = useMemo(
 
   if (!report || !payload) {
     return (
-      <div className="space-y-4">
-        {error && (
-          <Alert className="bg-red-900/20 border-red-800 text-red-300">
-            <AlertDescription>{error}</AlertDescription>
-          </Alert>
-        )}
-
-        {!error && (
-          <Alert className="bg-slate-900/50 border-slate-800 text-slate-300">
-            <AlertDescription>
-              {t("projects.reportNotFound", "Report not found.")}
-            </AlertDescription>
-          </Alert>
-        )}
-
-        <Button
-          variant="outline"
-          className="border-slate-700 text-slate-300 hover:bg-slate-800"
-          onClick={() => navigate(`/projects/${id}`)}
-        >
-          <ArrowLeft className="w-4 h-4 mr-2" />
-          {t("projects.backToProject", "Back to Project")}
-        </Button>
-      </div>
+      <AixiaPage
+        surface="command"
+        className="aixia-command-page aixia-projects-page h-full flex flex-col overflow-hidden"
+      >
+        <AixiaHero
+          surface="command"
+          className="shrink-0"
+          gradientTitle={t("projects.projectsTitle", "Projects")}
+          title={t("projects.projectReport", "Project Report")}
+          subtitle={t("projects.reportNotFound", "Report not found.")}
+        />
+        <div className="aixia-command-scroll flex min-h-0 flex-1 flex-col gap-4">
+          {error ? (
+            <Alert className="bg-red-900/20 border-red-800 text-red-300">
+              <AlertDescription>{error}</AlertDescription>
+            </Alert>
+          ) : (
+            <Alert className="bg-slate-900/50 border-slate-800 text-slate-300">
+              <AlertDescription>
+                {t("projects.reportNotFound", "Report not found.")}
+              </AlertDescription>
+            </Alert>
+          )}
+          <AixiaButton type="button" className="h-9 w-fit" onClick={() => navigate(`/projects/${id}`)}>
+            {t("projects.backToProject", "Back to Project")}
+          </AixiaButton>
+        </div>
+      </AixiaPage>
     );
   }
 
   return (
-    <div className="space-y-6">
+    <AixiaPage
+      surface="command"
+      className="aixia-command-page aixia-projects-page h-full flex flex-col overflow-hidden"
+    >
+      <AixiaHero
+        surface="command"
+        className="shrink-0"
+        parentLabel={payload.project.name}
+        parentPath={`/projects/${id}`}
+        gradientTitle={t("projects.projectsTitle", "Projects")}
+        title={`${payload.project.name} — ${t("projects.projectReport", "Project Report")}`}
+        subtitle={
+          payload.project.description || t("projects.noDescription", "No description")
+        }
+        badges={[
+          {
+            label: payload.project.status || t("projects.unknownUpper", "UNKNOWN"),
+            tone: statusBadgeTone(payload.project.status),
+          },
+          {
+            label: report.status.toUpperCase(),
+            tone: statusBadgeTone(report.status),
+          },
+        ]}
+        actions={
+          <AixiaButton
+            variant="primary"
+            type="button"
+            className="h-9"
+            onClick={() => void handleDownloadJson()}
+            disabled={isDownloading}
+          >
+            <Download className="w-4 h-4 mr-2" />
+            {isDownloading
+              ? t("projects.downloading", "Downloading...")
+              : t("projects.downloadJson", "Download JSON")}
+          </AixiaButton>
+        }
+      />
+      <div className="aixia-command-scroll flex min-h-0 flex-1 flex-col gap-4">
       {error && (
         <Alert className="bg-red-900/20 border-red-800 text-red-300">
           <AlertDescription>{error}</AlertDescription>
         </Alert>
       )}
 
-      <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
-  <div className="space-y-3">
-          <Button
-            variant="ghost"
-            className="w-fit px-0 text-slate-400 hover:text-white hover:bg-transparent"
-            onClick={() => navigate(`/projects/${id}`)}
-          >
-            <ArrowLeft className="w-4 h-4 mr-2" />
-            {t("projects.backToProject", "Back to Project")}
-          </Button>
-
-          <div>
-            <div className="flex flex-wrap items-center gap-3">
-              <h1 className="text-2xl font-bold text-white">
-                {payload.project.name} — {t("projects.projectReport", "Project Report")}
-              </h1>
-
-              <Badge className={getStatusBadgeClass(payload.project.status)}>
-                {payload.project.status || t("projects.unknownUpper", "UNKNOWN")}
-              </Badge>
-
-              <Badge className={getStatusBadgeClass(report.status)}>
-                {report.status.toUpperCase()}
-              </Badge>
-            </div>
-
-            <p className="mt-2 text-slate-400">
-              {payload.project.description ||
-                t("projects.noDescription", "No description")}
-            </p>
-          </div>
-
-          <div className="flex flex-wrap items-center gap-4 text-sm text-slate-400">
+      <div className="flex flex-wrap items-center gap-4 text-sm text-slate-400">
             <span>
               {t("projects.reportType", "Report Type")}:{" "}
               <span className="text-slate-200">{report.report_type}</span>
@@ -495,21 +522,6 @@ const limitedActivity = useMemo(
               </span>
             </span>
           </div>
-        </div>
-
-        <div className="flex items-center gap-2">
-          <Button
-            className="bg-indigo-600 hover:bg-indigo-700 text-white"
-            onClick={() => void handleDownloadJson()}
-            disabled={isDownloading}
-          >
-            <Download className="w-4 h-4 mr-2" />
-            {isDownloading
-              ? t("projects.downloading", "Downloading...")
-              : t("projects.downloadJson", "Download JSON")}
-          </Button>
-        </div>
-      </div>
 
       {overviewStats && (
         <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
@@ -563,7 +575,7 @@ const limitedActivity = useMemo(
               <CardContent className="space-y-4 text-sm">
                 <div className="flex justify-between gap-4">
                   <span className="text-slate-400">{t("projects.status", "Status")}</span>
-                  <span className="text-white">{payload.project.status || "—"}</span>
+                  <span className="text-white">{payload.project.status || "ΓÇö"}</span>
                 </div>
                 <div className="flex justify-between gap-4">
                   <span className="text-slate-400">{t("projects.progress", "Progress")}</span>
@@ -574,7 +586,7 @@ const limitedActivity = useMemo(
                   <span className="text-white">
                     {payload.project.start_date
                       ? format(clock.shiftDate(payload.project.start_date), "MMM d, yyyy")
-                      : "—"}
+                      : "ΓÇö"}
                   </span>
                 </div>
                 <div className="flex justify-between gap-4">
@@ -582,7 +594,7 @@ const limitedActivity = useMemo(
                   <span className="text-white">
                     {payload.project.end_date
                       ? format(clock.shiftDate(payload.project.end_date), "MMM d, yyyy")
-                      : "—"}
+                      : "ΓÇö"}
                   </span>
                 </div>
                 <div className="flex justify-between gap-4">
@@ -677,7 +689,7 @@ const limitedActivity = useMemo(
                               "MMM d, yyyy",
                             )}`
                           : t("projects.noDueDate", "No due date")}
-                        {risk.status ? ` • ${risk.status}` : ""}
+                        {risk.status ? ` ΓÇó ${risk.status}` : ""}
                       </p>
                     </div>
                   ))}
@@ -772,13 +784,13 @@ const limitedActivity = useMemo(
                     <div>
                       <p className="text-slate-500">{t("projects.assignee", "Assignee")}</p>
                       <p className="mt-1 text-white">
-                        {task.assignee?.full_name || "—"}
+                        {task.assignee?.full_name || "ΓÇö"}
                       </p>
                     </div>
                     <div>
                       <p className="text-slate-500">{t("projects.createdBy", "Created By")}</p>
                       <p className="mt-1 text-white">
-                        {task.creator?.full_name || "—"}
+                        {task.creator?.full_name || "ΓÇö"}
                       </p>
                     </div>
                     <div>
@@ -786,7 +798,7 @@ const limitedActivity = useMemo(
                       <p className="mt-1 text-white">
                         {task.due_date
                           ? format(clock.shiftDate(task.due_date), "MMM d, yyyy")
-                          : "—"}
+                          : "ΓÇö"}
                       </p>
                     </div>
                   </div>
@@ -838,8 +850,8 @@ const limitedActivity = useMemo(
                         <div className="min-w-0">
                           <p className="truncate text-white font-medium">{file.file_name}</p>
                           <p className="mt-1 text-sm text-slate-500">
-                            {file.uploader?.full_name || t("projects.unknown", "Unknown")} •{" "}
-                            {format(clock.shiftDate(file.created_at), "MMM d, yyyy • h:mm a")} •{" "}
+                            {file.uploader?.full_name || t("projects.unknown", "Unknown")} ΓÇó{" "}
+                            {format(clock.shiftDate(file.created_at), "MMM d, yyyy ΓÇó h:mm a")} ΓÇó{" "}
                             {formatFileSize(file.file_size)}
                           </p>
                         </div>
@@ -877,8 +889,8 @@ const limitedActivity = useMemo(
                         <div className="min-w-0">
                           <p className="truncate text-white font-medium">{file.file_name}</p>
                           <p className="mt-1 text-sm text-slate-500">
-                            {file.uploader?.full_name || t("projects.unknown", "Unknown")} •{" "}
-                            {format(clock.shiftDate(file.created_at), "MMM d, yyyy • h:mm a")} •{" "}
+                            {file.uploader?.full_name || t("projects.unknown", "Unknown")} ΓÇó{" "}
+                            {format(clock.shiftDate(file.created_at), "MMM d, yyyy ΓÇó h:mm a")} ΓÇó{" "}
                             {formatFileSize(file.file_size)}
                           </p>
                         </div>
@@ -926,8 +938,8 @@ const limitedActivity = useMemo(
                     >
                       <p className="text-white whitespace-pre-wrap">{comment.content}</p>
                       <p className="mt-2 text-xs text-slate-500">
-                        {comment.author?.full_name || t("projects.unknown", "Unknown")} •{" "}
-                        {format(clock.shiftDate(comment.created_at), "MMM d, yyyy • h:mm a")}
+                        {comment.author?.full_name || t("projects.unknown", "Unknown")} ΓÇó{" "}
+                        {format(clock.shiftDate(comment.created_at), "MMM d, yyyy ΓÇó h:mm a")}
                       </p>
                     </div>
                    ))}
@@ -963,8 +975,8 @@ const limitedActivity = useMemo(
                     >
                       <p className="text-white whitespace-pre-wrap">{comment.content}</p>
                       <p className="mt-2 text-xs text-slate-500">
-                        {comment.author?.full_name || t("projects.unknown", "Unknown")} •{" "}
-                        {format(clock.shiftDate(comment.created_at), "MMM d, yyyy • h:mm a")}
+                        {comment.author?.full_name || t("projects.unknown", "Unknown")} ΓÇó{" "}
+                        {format(clock.shiftDate(comment.created_at), "MMM d, yyyy ΓÇó h:mm a")}
                       </p>
                     </div>
                       ))}
@@ -1016,8 +1028,8 @@ const limitedActivity = useMemo(
                         )}
                       </p>
                       <p className="mt-1 text-xs text-slate-500">
-                        {entry.action_type} • {entry.entity_type} •{" "}
-                        {format(clock.shiftDate(entry.created_at), "MMM d, yyyy • h:mm a")}
+                        {entry.action_type} ΓÇó {entry.entity_type} ΓÇó{" "}
+                        {format(clock.shiftDate(entry.created_at), "MMM d, yyyy ΓÇó h:mm a")}
                       </p>
                     </div>
                     ))}
@@ -1060,15 +1072,15 @@ const limitedActivity = useMemo(
               <div className="flex justify-between gap-4">
                 <span className="text-slate-400">{t("projects.storagePath", "Storage Path")}</span>
                 <span className="text-white break-all text-right">
-                  {report.file_path || "—"}
+                  {report.file_path || "ΓÇö"}
                 </span>
               </div>
               <div className="flex justify-between gap-4">
                 <span className="text-slate-400">{t("projects.latestActivity", "Latest Activity")}</span>
                 <span className="text-white">
                   {payload.kpis.latestActivityAt
-                    ? format(clock.shiftDate(payload.kpis.latestActivityAt), "MMM d, yyyy • h:mm a")
-                    : "—"}
+                    ? format(clock.shiftDate(payload.kpis.latestActivityAt), "MMM d, yyyy ΓÇó h:mm a")
+                    : "ΓÇö"}
                 </span>
               </div>
             </CardContent>
@@ -1090,6 +1102,7 @@ const limitedActivity = useMemo(
   </div>
 </TabsContent>
       </Tabs>
-    </div>
+      </div>
+    </AixiaPage>
   );
 }

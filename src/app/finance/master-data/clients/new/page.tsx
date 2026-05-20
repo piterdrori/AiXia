@@ -1,21 +1,7 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import type { FormEvent } from "react";
 import { useNavigate } from "react-router-dom";
-import type { LucideIcon } from "lucide-react";
-import {
-  Building2,
-  FileText,
-  Loader2,
-  LockKeyhole,
-  MapPin,
-  Plus,
-  RotateCcw,
-  Save,
-  ShieldCheck,
-  Sparkles,
-  Truck,
-  Users,
-} from "lucide-react";
+import { Building2, FileText, Loader2, MapPin, Plus, RotateCcw, Save, Sparkles, Truck, Users } from "lucide-react";
 
 import {
   AixiaAccessDeniedState,
@@ -33,7 +19,7 @@ import {
   AixiaHero,
   AixiaInputField,
   AixiaLoadingState,
-  AixiaPage,
+  FinancePage,
   AixiaReviewBlock,
   AixiaReviewGrid,
   AixiaSection,
@@ -105,13 +91,6 @@ type FormState = {
   notes: string;
 };
 
-type HeaderStatusCardData = {
-  label: string;
-  value: string;
-  description: string;
-  icon: LucideIcon;
-  tone: "emerald" | "cyan" | "amber" | "rose";
-};
 
 type SummaryItem = {
   label: string;
@@ -236,7 +215,7 @@ export default function FinanceMasterDataClientCreatePage() {
   const [effectivePermissions, setEffectivePermissions] =
     useState<Record<Permission, boolean> | null>(null);
   const [isLoadingProfile, setIsLoadingProfile] = useState(true);
-  const [backgroundRefreshing, setBackgroundRefreshing] = useState(false);
+  const [, setBackgroundRefreshing] = useState(false);
   const [isSaving, setIsSaving] = useState(false);
   const [formError, setFormError] = useState<string | null>(null);
   const [formMessage, setFormMessage] = useState<string | null>(null);
@@ -388,33 +367,7 @@ export default function FinanceMasterDataClientCreatePage() {
     }));
   }, [form.addresses]);
 
-  const headerStatusCards = useMemo<HeaderStatusCardData[]>(() => {
-    return [
-      {
-        label: "Create Access",
-        value: isLoadingProfile
-          ? "Checking"
-          : permissionState.canCreate
-            ? "Enabled"
-            : "Locked",
-        description:
-          "Client create access follows the Finance role template and user-specific exceptions.",
-        icon: permissionState.canCreate ? ShieldCheck : LockKeyhole,
-        tone: permissionState.canCreate ? "emerald" : "rose",
-      },
-      {
-        label: "Save Result",
-        value: "ID Page",
-        description: backgroundRefreshing
-          ? "Permission state is refreshing silently without disturbing the form."
-          : "After successful creation, the new client detail page opens directly.",
-        icon: Building2,
-        tone: "cyan",
-      },
-    ];
-  }, [backgroundRefreshing, isLoadingProfile, permissionState.canCreate]);
-
-  const summaryItems = useMemo<SummaryItem[]>(() => {
+const summaryItems = useMemo<SummaryItem[]>(() => {
     const filledPersonnel = countFilledPersonnel(form.personnel);
     const filledAddresses = countFilledAddresses(form.addresses);
     const filledShipping = countFilledShippingRows(form.shipping_addresses);
@@ -832,24 +785,19 @@ export default function FinanceMasterDataClientCreatePage() {
   const isPageLoading = isLoadingProfile;
 
   return (
-    <AixiaPage>
+    <FinancePage>
       <AixiaHero
+        className="shrink-0 space-y-4"
+        surface="command"
         parentLabel="Clients"
         parentPath="/finance/master-data/clients"
-        badges={[
-          { label: "New Finance Client", tone: "cyan" },
-          { label: "Client master data", tone: "emerald" },
-          { label: "Permission protected", tone: "cyan" },
-          { label: "Opens ID page after create", tone: "neutral" },
-        ]}
         gradientTitle="Create"
         title="Client"
         subtitle="Finance Customer Master Data"
-        description="Create a finance client with legal identity, personnel, primary addresses, shipping addresses, and internal notes. After saving, the new client ID page opens directly."
-        statusCards={headerStatusCards}
-      />
+        />
 
-      {formError ? <AixiaAlert tone="error">{formError}</AixiaAlert> : null}
+      <div className="aixia-command-scroll">
+{formError ? <AixiaAlert tone="error">{formError}</AixiaAlert> : null}
       {formMessage ? <AixiaAlert tone="success">{formMessage}</AixiaAlert> : null}
 
       {isPageLoading ? (
@@ -1430,6 +1378,7 @@ export default function FinanceMasterDataClientCreatePage() {
           />
         </form>
       )}
-    </AixiaPage>
+      </div>
+    </FinancePage>
   );
 }

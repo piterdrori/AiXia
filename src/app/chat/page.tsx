@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useNavigate, useParams } from "react-router-dom";
-import { Check, Square, Trash2 } from "lucide-react";
+import { Check, MessageSquare, Plus, RefreshCw, Square, Trash2 } from "lucide-react";
 
 import { supabase } from "@/lib/supabase";
 import { extractMentionedUserIds } from "@/lib/notifications";
@@ -31,9 +31,13 @@ import MessageList from "./components/MessageList";
 import MessageComposer from "./components/MessageComposer";
 import CreateGroupDialog from "./components/CreateGroupDialog";
 
-import { Button } from "@/components/ui/button";
-import { Card } from "@/components/ui/card";
+import { AixiaButton, AixiaHero, AixiaPage } from "@/components/aixia";
 import TeamMembersSidebar from "./components/TeamMembersSidebar";
+
+import "@/styles/dashboard/tokens.css";
+import "@/styles/dashboard/layout.css";
+import "@/styles/dashboard/visual.css";
+import "@/styles/chat/chat-visual.css";
 
 import GroupParticipantsPanel from "./components/GroupParticipantsPanel";
 
@@ -111,6 +115,7 @@ const {
 
     const notificationRealtimeChannelKeyRef = useRef<string | null>(null);
 
+  const [isRefreshing, setIsRefreshing] = useState(false);
   const [isParticipantsPanelOpen, setIsParticipantsPanelOpen] = useState(false);
   const [memberActionLoading, setMemberActionLoading] = useState<string | null>(
     null
@@ -1450,9 +1455,76 @@ const handleRemoveParticipant = async (member: ChatGroupMemberRow) => {
     };
   }, []);
 
+  const handleRefresh = async () => {
+    setIsRefreshing(true);
+    try {
+      await reloadChatShell(selectedConversationId);
+    } finally {
+      setIsRefreshing(false);
+    }
+  };
+
   return (
     <>
-      <div className="h-[calc(100vh-140px)] flex gap-4 overflow-hidden min-h-0">
+      <AixiaPage
+        surface="command"
+        className="aixia-command-page aixia-projects-page aixia-chat-page flex w-full flex-1 flex-col min-h-0"
+      >
+        <AixiaHero
+          surface="command"
+          className="shrink-0 space-y-4"
+          gradientTitle={t("chat.header.title", "Chat")}
+          title={t("chat.header.title", "Chat")}
+          subtitle={t(
+            "chat.header.subtitle",
+            "Message teammates, groups, and project threads"
+          )}
+          actions={
+            <>
+              <AixiaButton
+                type="button"
+                className="h-9"
+                onClick={() => void handleRefresh()}
+                disabled={isRefreshing || isBootstrapping}
+              >
+                <RefreshCw
+                  className={`h-4 w-4 mr-2 ${isRefreshing || isBootstrapping ? "animate-spin" : ""}`}
+                />
+                {isRefreshing || isBootstrapping
+                  ? t("chat.actions.refreshing", "Refreshing...")
+                  : t("chat.actions.refresh", "Refresh")}
+              </AixiaButton>
+              <AixiaButton
+                variant="primary"
+                type="button"
+                className="h-9"
+                onClick={() => setIsCreateGroupOpen(true)}
+              >
+                <Plus className="h-4 w-4 mr-2" />
+                {t("chat.sidebar.newGroupChat", "New Group Chat")}
+              </AixiaButton>
+            </>
+          }
+        />
+
+        <div className="aixia-command-scroll flex min-h-0 flex-1 flex-col">
+          {isBootstrapping && groups.length === 0 ? (
+            <div className="aixia-chat-loading" aria-busy="true">
+              {[0, 1, 2].map((slot) => (
+                <div
+                  key={slot}
+                  className="aixia-projects-skeleton-panel aixia-chat-panel"
+                >
+                  <div className="aixia-projects-skeleton-bar h-6 w-2/5" />
+                  <div className="aixia-projects-skeleton-bar h-10 w-full" />
+                  <div className="aixia-projects-skeleton-bar h-4 w-4/5" />
+                  <div className="aixia-projects-skeleton-bar h-4 w-3/5" />
+                  <div className="aixia-projects-skeleton-bar h-24 w-full mt-2" />
+                </div>
+              ))}
+            </div>
+          ) : (
+            <section className="aixia-chat-workspace">
         <ChatSidebar
   currentUserId={currentUserId}
   currentUserRole={currentUserRole}
@@ -1471,7 +1543,7 @@ const handleRemoveParticipant = async (member: ChatGroupMemberRow) => {
 />
 
         {selectedConversation ? (
-          <Card className="flex-1 bg-slate-900/50 border-slate-800 flex flex-col h-full overflow-hidden min-h-0">
+          <section className="aixia-chat-panel aixia-chat-panel--main aixia-dash-panel aixia-dash-glass aixia-projects-panel-card flex flex-col min-h-0">
             <ChatHeader
   title={conversationTitle}
   participantCount={getMembers(selectedConversation.id).length}
@@ -1489,32 +1561,18 @@ const handleRemoveParticipant = async (member: ChatGroupMemberRow) => {
   }
 />
 
-            <GroupParticipantsPanel
-  open={isParticipantsPanelOpen}
-  group={selectedConversation}
-  currentUserId={currentUserId}
-  currentUserRole={currentUserRole}
-  profiles={profiles}
-  groupMembers={groupMembers}
-  onlineUsers={onlineUsers}
-  onAddParticipant={(userId) => void handleAddParticipant(userId)}
-  onRemoveParticipant={(member) => void handleRemoveParticipant(member)}
-  memberActionLoading={memberActionLoading}
-/>
-            
             {(isSelectionMode || selectedMessageIds.length > 0) && (
-              <div className="flex items-center justify-between gap-3 px-4 py-3 border-b border-slate-800 bg-slate-950/60 shrink-0">
-                <div className="text-sm text-slate-300">
+              <div className="aixia-chat-toolbar-bar">
+                <div className="text-sm aixia-projects-muted">
                   {t("chat.selection.selectedCount", undefined, {
                     total: selectedMessageIds.length,
                   })}
                 </div>
 
                 <div className="flex items-center gap-2">
-                  <Button
+                  <AixiaButton
                     type="button"
-                    variant="outline"
-                    className="border-slate-700 text-slate-200 hover:bg-slate-800"
+                    className="h-9"
                     onClick={() =>
                       setSelectedMessageIds(allSelected ? [] : allSelectableIds)
                     }
@@ -1530,11 +1588,12 @@ const handleRemoveParticipant = async (member: ChatGroupMemberRow) => {
                         {t("chat.selection.selectAll")}
                       </>
                     )}
-                  </Button>
+                  </AixiaButton>
 
-                  <Button
+                  <AixiaButton
+                    variant="danger"
                     type="button"
-                    className="bg-red-600 hover:bg-red-700 text-white"
+                    className="h-9"
                     disabled={bulkDeleteLoading || selectedMessageIds.length === 0}
                     onClick={() => void handleBulkDeleteMessages()}
                   >
@@ -1542,16 +1601,12 @@ const handleRemoveParticipant = async (member: ChatGroupMemberRow) => {
                     {bulkDeleteLoading
                       ? t("chat.selection.deleting")
                       : t("chat.selection.deleteSelected")}
-                  </Button>
+                  </AixiaButton>
                 </div>
               </div>
             )}
 
-            {error && (
-              <div className="mx-4 mt-4 rounded-md border border-red-800 bg-red-900/20 px-3 py-2 text-sm text-red-300">
-                {error}
-              </div>
-            )}
+            {error && <div className="aixia-chat-error">{error}</div>}
 
             <MessageList
   currentUserId={currentUserId}
@@ -1589,8 +1644,8 @@ const handleRemoveParticipant = async (member: ChatGroupMemberRow) => {
   }
 />
 
-                       <div className="px-4 py-2 space-y-1">
-              <div className="text-xs text-slate-500">
+            <div className="aixia-chat-status-bar space-y-1">
+              <div className="text-xs aixia-projects-muted">
                 {isLoadingMessages && !messages[selectedConversation.id]
                   ? t("chat.status.openingConversation")
                   : t("chat.status.loadedMessages", undefined, {
@@ -1599,9 +1654,7 @@ const handleRemoveParticipant = async (member: ChatGroupMemberRow) => {
               </div>
 
               {typingLabel ? (
-                <div className="text-xs text-indigo-300">
-                  {typingLabel}
-                </div>
+                <div className="text-xs aixia-dash-list-row-meta">{typingLabel}</div>
               ) : null}
             </div>
 
@@ -1616,31 +1669,53 @@ const handleRemoveParticipant = async (member: ChatGroupMemberRow) => {
   onInsertMention={insertMention}
   onUploadFile={(file) => void handleUploadFile(file)}
 />
-          </Card>
+          </section>
         ) : (
-          <Card className="flex-1 bg-slate-900/50 border-slate-800 flex items-center justify-center min-h-0">
-            <div className="text-center">
-              <div className="text-white text-lg font-medium mb-2">
+          <section className="aixia-chat-panel aixia-chat-panel--main aixia-dash-panel aixia-dash-glass aixia-projects-panel-card flex flex-col min-h-0">
+            <div className="aixia-chat-empty">
+              <div className="aixia-chat-empty-icon" aria-hidden>
+                <MessageSquare className="h-8 w-8" />
+              </div>
+              <p className="aixia-dash-list-row-title">
                 {isBootstrapping
                   ? t("chat.empty.loadingTitle")
                   : t("chat.empty.selectTitle")}
-              </div>
-              <p className="text-slate-500">
+              </p>
+              <p className="aixia-projects-muted text-sm">
                 {isBootstrapping
                   ? t("chat.empty.loadingDescription")
                   : t("chat.empty.selectDescription")}
               </p>
             </div>
-          </Card>
+          </section>
         )}
 
- <TeamMembersSidebar
-  profiles={profiles}
-  currentUserId={currentUserId}
-  onlineUsers={onlineUsers}
-  onStartDM={(userId) => void startDirectMessage(userId)}
-/>
-      </div>
+        <TeamMembersSidebar
+          profiles={profiles}
+          currentUserId={currentUserId}
+          onlineUsers={onlineUsers}
+          onStartDM={(userId) => void startDirectMessage(userId)}
+        />
+            </section>
+          )}
+        </div>
+      </AixiaPage>
+
+      {selectedConversation && isParticipantsPanelOpen ? (
+        <GroupParticipantsPanel
+          open
+          onClose={() => setIsParticipantsPanelOpen(false)}
+          group={selectedConversation}
+          currentUserId={currentUserId}
+          currentUserRole={currentUserRole}
+          profiles={profiles}
+          groupMembers={groupMembers}
+          onlineUsers={onlineUsers}
+          onAddParticipant={(userId) => void handleAddParticipant(userId)}
+          onRemoveParticipant={(member) => void handleRemoveParticipant(member)}
+          memberActionLoading={memberActionLoading}
+        />
+      ) : null}
 
       <CreateGroupDialog
   open={isCreateGroupOpen}

@@ -1,19 +1,6 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { useNavigate, useParams } from "react-router-dom";
-import {
-  Archive,
-  Building2,
-  CreditCard,
-  FileText,
-  Loader2,
-  LockKeyhole,
-  Pencil,
-  RotateCcw,
-  Save,
-  ShieldCheck,
-  WalletCards,
-  X,
-} from "lucide-react";
+import { Archive, Building2, CreditCard, FileText, Loader2, Pencil, RotateCcw, Save, ShieldCheck, WalletCards, X } from "lucide-react";
 
 import {
   AixiaAccessDeniedState,
@@ -29,7 +16,7 @@ import {
   AixiaHero,
   AixiaInputField,
   AixiaLoadingState,
-  AixiaPage,
+  FinancePage,
   AixiaReviewBlock,
   AixiaReviewGrid,
   AixiaSection,
@@ -572,32 +559,7 @@ export default function FinanceMasterDataVendorBankAccountDetailPage() {
 
   const isPageLoading = isLoadingProfile || isLoadingRecord || isLoadingCurrencies;
 
-  const headerStatusCards = useMemo(() => {
-    return [
-      {
-        label: "Read Access",
-        value: isLoadingProfile
-          ? "Checking"
-          : permissionState.canRead
-          ? "Enabled"
-          : "Locked",
-        description:
-          "Viewing this record requires Vendor, Bank Account, Payables, Finance, or Master Data read access.",
-        icon: permissionState.canRead ? ShieldCheck : LockKeyhole,
-        tone: permissionState.canRead ? ("emerald" as const) : ("rose" as const),
-      },
-      {
-        label: "Edit Access",
-        value: permissionState.canUpdate ? "Enabled" : "Read Only",
-        description:
-          "Section edits require Vendor management, Update access, or Master Data admin access.",
-        icon: permissionState.canUpdate ? Pencil : LockKeyhole,
-        tone: permissionState.canUpdate ? ("cyan" as const) : ("gold" as const),
-      },
-    ];
-  }, [isLoadingProfile, permissionState.canRead, permissionState.canUpdate]);
-
-  function cancelEditing() {
+function cancelEditing() {
     setEditingSection(null);
     setPageError(null);
   }
@@ -905,7 +867,7 @@ export default function FinanceMasterDataVendorBankAccountDetailPage() {
 
   if (!record) {
     return (
-      <AixiaPage>
+      <FinancePage>
         <AixiaSection
           title="Vendor bank account not found"
           description="The vendor bank-account record could not be loaded or no longer exists."
@@ -926,57 +888,47 @@ export default function FinanceMasterDataVendorBankAccountDetailPage() {
             description="The vendor bank-account record could not be loaded or no longer exists."
           />
         </AixiaSection>
-      </AixiaPage>
+      </FinancePage>
     );
   }
 
   if (!permissionState.canRead) {
     return (
-      <AixiaPage>
+      <FinancePage>
         <AixiaHero
+        className="shrink-0 space-y-4"
+        surface="command"
           parentLabel="Vendor Bank Accounts"
           parentPath="/finance/master-data/vendor-bank-accounts"
-          badges={[
-            { label: "Access Locked", tone: "rose" },
-            { label: "Vendor Bank Account", tone: "cyan" },
-          ]}
           gradientTitle="Vendor Bank Account"
           title="Access Locked"
           subtitle="Permission Protected Detail Page"
-          description="This page requires Vendor, Bank Account, Payables, Finance, or Master Data read access."
-          statusCards={headerStatusCards}
-        />
+          />
 
-        <AixiaAccessDeniedState
+      <div className="aixia-command-scroll">
+<AixiaAccessDeniedState
           title="No vendor bank-account read access"
           description="Ask an Admin to assign a Finance role template or user-specific exception with Vendor, Payables, Finance, Bank Account, or Master Data read access."
         />
-      </AixiaPage>
+      </div>
+    </FinancePage>
     );
   }
 
   return (
-    <AixiaPage>
+    <FinancePage>
       <AixiaHero
+        className="shrink-0 space-y-4"
+        surface="command"
         parentLabel="Vendor Bank Accounts"
         parentPath="/finance/master-data/vendor-bank-accounts"
-        badges={[
-          { label: "Vendor Bank Account Detail", tone: "cyan" },
-          { label: record.bank_id || "No Bank ID", tone: "neutral" },
-          { label: getVendorCodeLabel(record, selectedVendor), tone: "violet" },
-          { label: formatStatus(record.status), tone: "emerald" },
-          ...(record.is_default
-            ? [{ label: "Default", tone: "emerald" as const }]
-            : []),
-        ]}
         gradientTitle={record.bank_name || "Vendor Bank"}
         title="Account"
         subtitle="Vendor Payout Bank Account"
-        description="Vendor payout bank-account record with same-place section editing, lifecycle control, general currency master-data selection, and permission-protected actions."
-        statusCards={headerStatusCards}
-      />
+        />
 
-      {pageError ? <AixiaAlert tone="error">{pageError}</AixiaAlert> : null}
+      <div className="aixia-command-scroll">
+{pageError ? <AixiaAlert tone="error">{pageError}</AixiaAlert> : null}
       {pageMessage ? <AixiaAlert tone="success">{pageMessage}</AixiaAlert> : null}
 
       <AixiaReviewGrid variant="metrics">
@@ -1533,6 +1485,6 @@ export default function FinanceMasterDataVendorBankAccountDetailPage() {
           </>
         }
       />
-    </AixiaPage>
+      </div></FinancePage>
   );
 }

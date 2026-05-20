@@ -1,16 +1,18 @@
 import { useEffect, useMemo, useState } from "react";
-import { useNavigate } from "react-router-dom";
 import {
-  ArrowLeft,
   Brain,
   RefreshCcw,
   Save,
   Shield,
   Sparkles,
   SlidersHorizontal,
-  Wand2,
 } from "lucide-react";
 import { supabase } from "@/lib/supabase";
+import { AixiaCommandMetrics, AixiaHero, AixiaPage } from "@/components/aixia";
+import type { AixiaCommandMetricItem } from "@/components/aixia";
+import "@/styles/dashboard/tokens.css";
+import "@/styles/dashboard/layout.css";
+import "@/styles/dashboard/visual.css";
 
 type CharacterSettings = {
   ai_name: string;
@@ -152,7 +154,6 @@ function getBehaviorSummary(settings: CharacterSettings) {
 }
 
 export default function AICharacterPage() {
-  const navigate = useNavigate();
 
   const [settings, setSettings] = useState<CharacterSettings>(defaultSettings);
   const [loading, setLoading] = useState(true);
@@ -190,6 +191,30 @@ export default function AICharacterPage() {
   const behaviorSummary = useMemo(
     () => getBehaviorSummary(settings),
     [settings]
+  );
+
+  const commandHeaderMetrics = useMemo<AixiaCommandMetricItem[]>(
+    () => [
+      {
+        key: "identity",
+        title: "Identity",
+        value: `${identityCompleteness}%`,
+        tone: "cyan",
+      },
+      {
+        key: "personality",
+        title: "Personality",
+        value: `${averagePersonality}%`,
+        tone: "violet",
+      },
+      {
+        key: "behavior",
+        title: "Behavior",
+        value: `${averageBehavior}%`,
+        tone: "emerald",
+      },
+    ],
+    [identityCompleteness, averagePersonality, averageBehavior]
   );
 
   useEffect(() => {
@@ -284,47 +309,21 @@ export default function AICharacterPage() {
   }
 
   return (
-    <div className="min-h-screen bg-[#05070d] px-6 py-6 text-white">
-      <div className="mx-auto flex w-full max-w-[1600px] flex-col gap-6">
-        <header className="overflow-hidden rounded-[34px] border border-white/10 bg-white/[0.045] p-6 shadow-2xl shadow-black/30 backdrop-blur-xl">
-          <div className="flex flex-col gap-6 xl:flex-row xl:items-start xl:justify-between">
-            <div className="space-y-5">
-              <button
-                type="button"
-                onClick={() => navigate("/ai-management")}
-                className="inline-flex items-center gap-2 rounded-full border border-white/10 bg-white/[0.04] px-4 py-2 text-xs font-semibold uppercase tracking-[0.18em] text-slate-300 transition hover:border-cyan-300/40 hover:text-cyan-100"
-              >
-                <ArrowLeft className="h-4 w-4" />
-                AI Studio
-              </button>
+    <AixiaPage surface="command" className="aixia-command-page aixia-ai-management-page">
+      <AixiaHero
+        surface="command"
+        className="shrink-0 space-y-4"
+        parentLabel="AI Studio"
+        parentPath="/ai-management"
+        gradientTitle="Assistant Behavior"
+        title="Character / Identity"
+        subtitle="Set the assistant's name, role, mission, tone, and work style. This controls general behavior, not exact answers or memory."
+      >
+        <AixiaCommandMetrics items={commandHeaderMetrics} />
+      </AixiaHero>
 
-              <div className="space-y-3">
-                <div className="inline-flex w-fit items-center gap-2 rounded-full border border-cyan-400/20 bg-cyan-500/10 px-3 py-1 text-[11px] font-semibold uppercase tracking-[0.22em] text-cyan-200">
-                  <Wand2 className="h-3.5 w-3.5" />
-                  Assistant Behavior
-                </div>
-
-                <div>
-                  <h1 className="text-3xl font-semibold tracking-[-0.035em] text-white md:text-5xl">
-                    Character / Identity
-                  </h1>
-                  <p className="mt-3 max-w-4xl text-sm leading-6 text-slate-400 md:text-base md:leading-7">
-                    Set the assistant&apos;s name, role, mission, tone, and work style.
-                    This controls general behavior, not exact answers or memory.
-                  </p>
-                </div>
-              </div>
-            </div>
-
-            <div className="grid gap-3 sm:grid-cols-3 xl:min-w-[620px]">
-              <MetricCard label="Identity" value={`${identityCompleteness}%`} tone="cyan" />
-              <MetricCard label="Personality" value={`${averagePersonality}%`} tone="violet" />
-              <MetricCard label="Behavior" value={`${averageBehavior}%`} tone="emerald" />
-            </div>
-          </div>
-        </header>
-
-        {(errorMessage || actionMessage) && (
+      <div className="aixia-command-scroll flex flex-col gap-6">
+                {(errorMessage || actionMessage) && (
           <div className="space-y-2">
             {errorMessage ? (
               <div className="rounded-2xl border border-rose-400/20 bg-rose-500/10 px-4 py-3 text-sm text-rose-200">
@@ -497,33 +496,7 @@ export default function AICharacterPage() {
           </aside>
         </section>
       </div>
-    </div>
-  );
-}
-
-function MetricCard({
-  label,
-  value,
-  tone,
-}: {
-  label: string;
-  value: string;
-  tone: "cyan" | "violet" | "emerald";
-}) {
-  const toneClass =
-    tone === "emerald"
-      ? "text-emerald-200"
-      : tone === "violet"
-        ? "text-violet-200"
-        : "text-cyan-200";
-
-  return (
-    <div className="rounded-2xl border border-white/10 bg-white/[0.04] p-4">
-      <p className="text-[11px] uppercase tracking-[0.2em] text-slate-500">
-        {label}
-      </p>
-      <p className={`mt-2 text-3xl font-semibold ${toneClass}`}>{value}</p>
-    </div>
+    </AixiaPage>
   );
 }
 

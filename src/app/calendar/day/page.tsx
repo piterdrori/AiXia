@@ -8,9 +8,18 @@ import { useUserPreferences } from "@/lib/useUserPreferences";
 import { formatDateTimeInTimezone, formatTimeInTimezone } from "@/lib/datetime";
 import { useAppClock } from "@/lib/clock/provider";
 import { Button } from "@/components/ui/button";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { Badge } from "@/components/ui/badge";
-import { ArrowLeft, Plus, Pencil } from "lucide-react";
+import { Card, CardContent } from "@/components/ui/card";
+import { PageError } from "@/components/ui/PageError";
+import { Plus, Pencil, RefreshCw, CalendarDays, CheckSquare } from "lucide-react";
+import { AixiaButton, AixiaHero, AixiaPage, AixiaWorkspaceCard } from "@/components/aixia";
+import type { AixiaWorkspaceTone } from "@/components/aixia/AixiaWorkspaceCard";
+import { getTaskCardDescription, getTaskCardTitle } from "@/lib/tasks/display";
+
+import "@/styles/dashboard/tokens.css";
+import "@/styles/dashboard/layout.css";
+import "@/styles/dashboard/visual.css";
+import "@/styles/projects/projects-visual.css";
+import "@/styles/calendar/calendar-visual.css";
 
 type CalendarEventRow = {
   id: string;
@@ -30,6 +39,7 @@ type CalendarEventRow = {
 type TaskRow = {
   id: string;
   title: string;
+  description: string | null;
   due_date: string | null;
   status: string | null;
   project_id: string | null;
@@ -52,7 +62,8 @@ type ProjectMemberRow = {
   user_id: string;
 };
 
-const CHINA_TIMEZONE = "Asia/Shanghai";
+const CALENDAR_SELECTED_DAY_KEY = "aixia-calendar-selected-day";
+
 function parseYYYYMMDD(value: string | undefined) {
   if (!value) return null;
   const [year, month, day] = value.split("-").map(Number);
@@ -60,6 +71,16 @@ function parseYYYYMMDD(value: string | undefined) {
 
   const parsed = new Date(year, month - 1, day);
   return Number.isNaN(parsed.getTime()) ? null : parsed;
+}
+
+
+function getTaskWorkspaceTone(status: string | null): AixiaWorkspaceTone {
+  if (!status) return "indigo";
+  const normalized = status.toUpperCase();
+  if (normalized === "DONE" || normalized === "COMPLETED") return "emerald";
+  if (normalized === "IN_PROGRESS") return "cyan";
+  if (normalized === "IN_REVIEW" || normalized === "REVIEW") return "violet";
+  return "amber";
 }
 
 export default function CalendarDayPage() {
@@ -79,9 +100,9 @@ export default function CalendarDayPage() {
   const [loadError, setLoadError] = useState("");
 
   const selectedDate = useMemo(() => {
-  const parsed = parseYYYYMMDD(date);
-  return parsed ? clock.shiftDate(parsed) : null;
-}, [date, clock]);
+    const parsed = parseYYYYMMDD(date);
+    return parsed ? clock.shiftDate(parsed) : null;
+  }, [date, clock]);
   const dateStr = date || "";
 
   const loadDay = async (mode: "initial" | "refresh" = "initial") => {
@@ -137,13 +158,13 @@ export default function CalendarDayPage() {
       const membershipList = (memberRows || []) as ProjectMemberRow[];
 
       const visibleProjectIds = getVisibleProjectIds(
-  user.id,
-  profile.role,
-  projectList,
-  membershipList
-);
+        user.id,
+        profile.role,
+        projectList,
+        membershipList
+      );
 
-            const [
+      const [
         { data: eventsData, error: eventsError },
         { data: tasksData, error: tasksError },
         { data: projectsFull },
@@ -159,17 +180,14 @@ export default function CalendarDayPage() {
 
         supabase
           .from("tasks")
-          .select("id, title, due_date, status, project_id")
+          .select("id, title, description, due_date, status, project_id")
+          .is("deleted_at", null)
           .eq("due_date", date)
           .order("created_at", { ascending: false }),
 
-        supabase
-          .from("projects")
-          .select("id, name"),
+        supabase.from("projects").select("id, name"),
 
-        supabase
-          .from("tasks")
-          .select("id, title, project_id"),
+        supabase.from("tasks").select("id, title, project_id"),
       ]);
 
       if (!requestTracker.current.isLatest(requestId)) return;
@@ -197,12 +215,12 @@ export default function CalendarDayPage() {
       setEvents(safeEvents);
       setTasks(safeTasks);
 
-            const projectMap: Record<string, string> = {};
+      const projectMap: Record<string, string> = {};
       ((projectsFull || []) as Array<{ id: string; name: string }>).forEach((project) => {
         projectMap[project.id] = project.name;
       });
 
-            const taskMap: Record<string, string> = {};
+      const taskMap: Record<string, string> = {};
       ((allVisibleTasksForNames || []) as Array<{
         id: string;
         title: string;
@@ -214,7 +232,10 @@ export default function CalendarDayPage() {
           return visibleProjectIds.has(task.project_id);
         })
         .forEach((task) => {
-          taskMap[task.id] = task.title;
+          taskMap[task.id] = getTaskCardTitle(
+            task,
+            t("taskDetail.fallbacks.untitled", "Untitled task"),
+          );
         });
 
       setProjectsMap(projectMap);
@@ -240,22 +261,49 @@ export default function CalendarDayPage() {
     void loadDay("initial");
   }, [date]);
 
+  useEffect(() => {
+    if (!date || !/^\d{4}-\d{2}-\d{2}$/.test(date)) return;
+    try {
+      sessionStorage.setItem(CALENDAR_SELECTED_DAY_KEY, date);
+    } catch {
+      /* ignore storage errors */
+    }
+  }, [date]);
+
+  const isTodayDate = date === clock.todayKey;
+
   if (!selectedDate) {
     return (
-      <div className="max-w-3xl mx-auto p-6">
-        <Card className="bg-slate-900/50 border-slate-800">
-          <CardHeader>
-            <CardTitle className="text-white">{t("calendarDay.invalidDate.title")}</CardTitle>
-          </CardHeader>
-          <CardContent className="text-slate-300">
-            {t("calendarDay.invalidDate.description")}
-            <div className="mt-4">
-              <Button onClick={() => navigate("/calendar")}>
-                {t("calendarDay.invalidDate.back")}
-              </Button>
-            </div>
-          </CardContent>
-        </Card>
+      <div className="aixia-dash-page aixia-dash-page--command aixia-calendar-page aixia-calendar-page--day h-full flex flex-col overflow-hidden">
+        <div className="aixia-dash-3d-decor" aria-hidden>
+          <span className="aixia-dash-orb aixia-dash-orb--a" />
+          <span className="aixia-dash-orb aixia-dash-orb--b" />
+          <span className="aixia-dash-orb aixia-dash-orb--c" />
+        </div>
+        <div className="aixia-dash-3d-stack flex min-h-0 flex-1 flex-col">
+          <div className="aixia-calendar-scroll flex min-h-0 flex-1 flex-col">
+            <Card className="aixia-dash-panel aixia-dash-glass aixia-dash-tilt-panel aixia-projects-panel-card w-full">
+              <CardContent className="p-4 lg:p-6">
+                <div className="aixia-dash-panel-hd">
+                  <h2 className="aixia-dash-panel-title">
+                    {t("calendarDay.invalidDate.title")}
+                  </h2>
+                </div>
+                <p className="aixia-calendar-empty mt-3">
+                  {t("calendarDay.invalidDate.description")}
+                </p>
+                <div className="mt-4">
+                  <Button
+                    onClick={() => navigate("/calendar")}
+                    className="aixia-dash-action aixia-dash-action--primary h-9"
+                  >
+                    {t("calendarDay.invalidDate.back")}
+                  </Button>
+                </div>
+              </CardContent>
+            </Card>
+          </div>
+        </div>
       </div>
     );
   }
@@ -270,231 +318,200 @@ export default function CalendarDayPage() {
     }
   ).format(clock.shiftDate(selectedDate));
 
+  const totalItems = events.length + tasks.length;
+  const dayHeroClassName = [
+    "shrink-0",
+    "aixia-calendar-day-hero",
+    isTodayDate ? "aixia-calendar-day-hero--today" : "aixia-calendar-day-hero--selected",
+  ].join(" ");
+
   return (
-    <div className="max-w-5xl mx-auto space-y-6">
-      <div className="flex items-center gap-3">
-        <Button
-          variant="ghost"
-          size="icon"
-          onClick={() => navigate("/calendar")}
-          className="text-slate-400 hover:text-white"
-        >
-          <ArrowLeft className="w-5 h-5" />
-        </Button>
+    <AixiaPage
+      surface="command"
+      className="aixia-command-page aixia-calendar-page aixia-calendar-page--day h-full flex flex-col overflow-hidden"
+    >
+      <AixiaHero
+        surface="command"
+        className={dayHeroClassName}
+        parentLabel={t("calendar.header.title", "Calendar")}
+        parentPath="/calendar"
+        gradientTitle={t("calendar.header.title", "Calendar")}
+        title={dateLabel}
+        subtitle={t("calendarDay.header.subtitle")}
+        badges={[
+          {
+            label: t("calendarDay.header.itemsCount", undefined, { total: totalItems }),
+            tone: "indigo",
+          },
+        ]}
+        actions={
+          <>
+            <AixiaButton
+              type="button"
+              className="h-9"
+              onClick={() => void loadDay("refresh")}
+              disabled={isRefreshing}
+            >
+              <RefreshCw
+                className={`mr-2 h-4 w-4 ${isRefreshing ? "animate-spin" : ""}`}
+              />
+              {isRefreshing
+                ? t("calendarDay.buttons.refreshing")
+                : t("calendarDay.buttons.refresh")}
+            </AixiaButton>
 
-        <div className="flex-1">
-          <div className="flex items-center gap-3 flex-wrap">
-            <h1 className="text-2xl font-bold text-white">{dateLabel}</h1>
-            <Badge className="bg-indigo-600 text-white">
-              {t("calendarDay.header.itemsCount", undefined, {
-                total: events.length + tasks.length,
-              })}
-            </Badge>
-          </div>
-          <p className="text-slate-400">{t("calendarDay.header.subtitle")}</p>
-        </div>
+            <AixiaButton
+              variant="primary"
+              type="button"
+              className="h-9"
+              onClick={() => navigate(`/calendar/new?date=${encodeURIComponent(dateStr)}`)}
+            >
+              <Plus className="mr-2 h-4 w-4" />
+              {t("calendarDay.buttons.newEvent")}
+            </AixiaButton>
+          </>
+        }
+      />
+      <div className="aixia-command-scroll aixia-calendar-scroll flex min-h-0 flex-1 flex-col">
+          <PageError message={loadError} />
 
-        <div className="flex items-center gap-2">
-          <Button
-            variant="outline"
-            className="border-slate-800 text-slate-300 hover:bg-slate-900"
-            onClick={() => void loadDay("refresh")}
-            disabled={isRefreshing}
-          >
-            {isRefreshing
-              ? t("calendarDay.buttons.refreshing")
-              : t("calendarDay.buttons.refresh")}
-          </Button>
-
-          <Button
-            className="bg-indigo-600 hover:bg-indigo-700 text-white"
-            onClick={() => navigate(`/calendar/new?date=${encodeURIComponent(dateStr)}`)}
-          >
-            <Plus className="w-4 h-4 mr-2" />
-            {t("calendarDay.buttons.newEvent")}
-          </Button>
-        </div>
-      </div>
-
-      {loadError && (
-        <Card className="bg-red-950/20 border-red-900/40 p-4 text-sm text-red-300">
-          {loadError}
-        </Card>
-      )}
-
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-        <Card className="bg-slate-900/50 border-slate-800">
-          <CardHeader>
-            <CardTitle className="text-white">{t("calendarDay.sections.events")}</CardTitle>
-          </CardHeader>
-
-          <CardContent className="space-y-3">
-            {isBootstrapping ? (
-              Array.from({ length: 4 }).map((_, index) => (
-                <div
-                  key={`event-skeleton-${index}`}
-                  className="p-4 rounded-lg border border-slate-800 bg-slate-950/40"
-                >
-                  <div className="animate-pulse space-y-3">
-                    <div className="flex items-center justify-between gap-3">
-                      <div className="h-4 w-40 rounded bg-slate-800" />
-                      <div className="h-6 w-16 rounded bg-slate-800" />
-                    </div>
-                    <div className="h-5 w-24 rounded bg-slate-800" />
-                    <div className="h-4 w-full rounded bg-slate-800" />
-                  </div>
+          <div className="aixia-calendar-day-sections">
+            <Card className="aixia-dash-panel aixia-dash-glass aixia-dash-tilt-panel aixia-projects-panel-card aixia-calendar-section-card">
+              <CardContent className="p-4 lg:p-6">
+                <div className="aixia-dash-panel-hd">
+                  <h2 className="aixia-dash-panel-title">
+                    {t("calendarDay.sections.events")}
+                  </h2>
                 </div>
-              ))
-            ) : events.length === 0 ? (
-              <p className="text-slate-400">{t("calendarDay.empty.noEvents")}</p>
-            ) : (
-              events.map((event) => (
-                <div
-                  key={event.id}
-                  className="p-4 rounded-lg border border-slate-800 bg-slate-950/40 space-y-2"
-                >
-                  <div className="flex items-center justify-between gap-3">
-                    <div className="text-white font-medium truncate">{event.title}</div>
 
-                    <div className="flex items-center gap-2">
-                      {event.all_day ? (
-  <Badge className="bg-indigo-500/20 text-indigo-300">
-    {t("calendarDay.badges.allDay")}
-  </Badge>
-) : (
-  <div className="text-right">
-    <div className="text-sm text-slate-200">
-      {formatTimeInTimezone(
-        `${event.start_date}T${event.start_time || "00:00"}`,
-        language,
-        timezone
-      )}
-    </div>
-    <div className="text-xs text-slate-500">
-      {t("timezone.chinaTimeLabel", "China")}:{" "}
-      {formatTimeInTimezone(
-        `${event.start_date}T${event.start_time || "00:00"}`,
-        language,
-        CHINA_TIMEZONE
-      )}
-    </div>
-  </div>
-)}
-
-                      <Button
-                        size="icon"
-                        variant="ghost"
-                        className="text-slate-400 hover:text-white"
-                        onClick={() => navigate(`/calendar/${event.id}/edit`)}
+                <div className="aixia-calendar-item-list mt-3">
+                  {isBootstrapping ? (
+                    Array.from({ length: 4 }).map((_, index) => (
+                      <div
+                        key={`event-skeleton-${index}`}
+                        className="aixia-workspace-card aixia-workspace-card-neutral aixia-workspace-card--compact animate-pulse"
                       >
-                        <Pencil className="w-4 h-4" />
-                      </Button>
-                    </div>
-                  </div>
+                        <div className="aixia-workspace-card-body">
+                          <div className="h-3 w-24 rounded aixia-projects-skeleton-bar mb-2" />
+                          <div className="h-5 w-48 rounded aixia-projects-skeleton-bar mb-2" />
+                          <div className="h-4 w-full rounded aixia-projects-skeleton-bar" />
+                        </div>
+                      </div>
+                    ))
+                  ) : events.length === 0 ? (
+                    <p className="aixia-calendar-empty">{t("calendarDay.empty.noEvents")}</p>
+                  ) : (
+                    events.map((event) => {
+                      const eventStart = `${event.start_date}T${event.start_time || "00:00"}`;
+                      const timeSummary = event.all_day
+                        ? t("calendarDay.badges.allDay")
+                        : `${formatTimeInTimezone(eventStart, language, timezone)} • ${formatDateTimeInTimezone(eventStart, language, timezone)}`;
 
-                  <Badge className="bg-slate-800 text-slate-300 border border-slate-700">
-                    {(event.event_type || t("calendarDay.common.other"))
-                      .toUpperCase()}
-                  </Badge>
-
-                  <div className="text-xs text-slate-500 space-y-1">
-  <div>
-    {formatDateTimeInTimezone(
-      `${event.start_date}T${event.start_time || "00:00"}`,
-      language,
-      timezone
-    )}
-  </div>
-  <div>
-    {t("timezone.chinaTimeLabel", "China")}:{" "}
-    {formatDateTimeInTimezone(
-      `${event.start_date}T${event.start_time || "00:00"}`,
-      language,
-      CHINA_TIMEZONE
-    )}
-  </div>
-</div>
-
-{event.description && (
-  <div className="text-slate-400 text-sm">{event.description}</div>
-)}
-
-{(event.project_id || event.task_id) && (
-  <div className="text-xs text-slate-500 space-y-1">
-    {event.project_id && (
-      <div>{projectsMap[event.project_id] || "Unknown Project"}</div>
-    )}
-    {event.task_id && (
-      <div>{tasksMap[event.task_id] || "Unknown Task"}</div>
-    )}
-  </div>
-)}
+                      return (
+                        <AixiaWorkspaceCard
+                          key={event.id}
+                          as="div"
+                          size="compact"
+                          icon={CalendarDays}
+                          eyebrow={(event.event_type || t("calendarDay.common.other")).toUpperCase()}
+                          label={event.title}
+                          description={event.description || undefined}
+                          statusLabel={
+                            event.all_day
+                              ? t("calendarDay.badges.allDay").toUpperCase()
+                              : formatTimeInTimezone(eventStart, language, timezone)
+                          }
+                          summary={timeSummary}
+                          tone="cyan"
+                          onClick={() => navigate(`/calendar/${event.id}/edit`)}
+                          topRightSlot={
+                            <AixiaButton
+                              variant="icon"
+                              className="h-8 w-8"
+                              onClick={(clickEvent) => {
+                                clickEvent.stopPropagation();
+                                navigate(`/calendar/${event.id}/edit`);
+                              }}
+                            >
+                              <Pencil className="h-4 w-4" />
+                            </AixiaButton>
+                          }
+                        >
+                          {(event.project_id || event.task_id) && (
+                            <div className="aixia-calendar-item-card-meta text-xs text-[var(--aixia-dash-muted)] space-y-1">
+                              {event.project_id && (
+                                <div>{projectsMap[event.project_id] || "Unknown Project"}</div>
+                              )}
+                              {event.task_id && (
+                                <div>{tasksMap[event.task_id] || "Unknown Task"}</div>
+                              )}
+                            </div>
+                          )}
+                        </AixiaWorkspaceCard>
+                      );
+                    })
+                  )}
                 </div>
-              ))
-            )}
-          </CardContent>
-        </Card>
+              </CardContent>
+            </Card>
 
-        <Card className="bg-slate-900/50 border-slate-800">
-          <CardHeader>
-            <CardTitle className="text-white">{t("calendarDay.sections.tasksDue")}</CardTitle>
-          </CardHeader>
-
-          <CardContent className="space-y-3">
-            {isBootstrapping ? (
-              Array.from({ length: 4 }).map((_, index) => (
-                <div
-                  key={`task-skeleton-${index}`}
-                  className="p-4 rounded-lg border border-slate-800 bg-slate-950/40"
-                >
-                  <div className="animate-pulse space-y-3">
-                    <div className="flex items-center justify-between gap-3">
-                      <div className="h-4 w-40 rounded bg-slate-800" />
-                      <div className="h-6 w-20 rounded bg-slate-800" />
-                    </div>
-                    <div className="h-4 w-28 rounded bg-slate-800" />
-                    <div className="h-9 w-24 rounded bg-slate-800" />
-                  </div>
+            <Card className="aixia-dash-panel aixia-dash-glass aixia-dash-tilt-panel aixia-projects-panel-card aixia-calendar-section-card">
+              <CardContent className="p-4 lg:p-6">
+                <div className="aixia-dash-panel-hd">
+                  <h2 className="aixia-dash-panel-title">
+                    {t("calendarDay.sections.tasksDue")}
+                  </h2>
                 </div>
-              ))
-            ) : tasks.length === 0 ? (
-              <p className="text-slate-400">{t("calendarDay.empty.noTasksDue")}</p>
-            ) : (
-              tasks.map((task) => (
-                <div
-                  key={task.id}
-                  className="p-4 rounded-lg border border-slate-800 bg-slate-950/40 space-y-2"
-                >
-                  <div className="flex items-center justify-between gap-3">
-                    <div className="text-white font-medium truncate">{task.title}</div>
 
-                    {task.status && (
-                      <Badge className="bg-emerald-500/20 text-emerald-300">
-                        {task.status.replaceAll("_", " ")}
-                      </Badge>
-                    )}
-                  </div>
-
-                  {task.project_id && (
-  <div className="text-xs text-slate-500">
-    {projectsMap[task.project_id] || "Unknown Project"}
-  </div>
-)}
-
-                  <Button
-                    size="sm"
-                    variant="outline"
-                    className="border-slate-700 text-slate-300 hover:bg-slate-800"
-                    onClick={() => navigate(`/tasks/${task.id}`)}
-                  >
-                    {t("calendarDay.buttons.openTask")}
-                  </Button>
+                <div className="aixia-calendar-item-list mt-3">
+                  {isBootstrapping ? (
+                    Array.from({ length: 4 }).map((_, index) => (
+                      <div
+                        key={`task-skeleton-${index}`}
+                        className="aixia-workspace-card aixia-workspace-card-neutral aixia-workspace-card--compact animate-pulse"
+                      >
+                        <div className="aixia-workspace-card-body">
+                          <div className="h-3 w-20 rounded aixia-projects-skeleton-bar mb-2" />
+                          <div className="h-5 w-44 rounded aixia-projects-skeleton-bar mb-2" />
+                          <div className="h-4 w-full rounded aixia-projects-skeleton-bar" />
+                        </div>
+                      </div>
+                    ))
+                  ) : tasks.length === 0 ? (
+                    <p className="aixia-calendar-empty">{t("calendarDay.empty.noTasksDue")}</p>
+                  ) : (
+                    tasks.map((task) => (
+                      <AixiaWorkspaceCard
+                        key={task.id}
+                        as="div"
+                        size="compact"
+                        icon={CheckSquare}
+                        eyebrow={t("calendarDay.sections.tasksDue", "TASKS DUE").toUpperCase()}
+                        label={getTaskCardTitle(
+                          task,
+                          t("taskDetail.fallbacks.untitled", "Untitled task"),
+                        )}
+                        description={
+                          (task.description ?? "").trim()
+                            ? getTaskCardDescription(task, "")
+                            : undefined
+                        }
+                        statusLabel={task.status?.replaceAll("_", " ").toUpperCase() || "OPEN"}
+                        summary={
+                          task.project_id
+                            ? projectsMap[task.project_id] || "Unknown Project"
+                            : t("calendarDay.empty.noProject", "No project")
+                        }
+                        tone={getTaskWorkspaceTone(task.status)}
+                        onClick={() => navigate(`/tasks/${task.id}`)}
+                      />
+                    ))
+                  )}
                 </div>
-              ))
-            )}
-          </CardContent>
-        </Card>
+              </CardContent>
+            </Card>
+          </div>
       </div>
-    </div>
+    </AixiaPage>
   );
 }

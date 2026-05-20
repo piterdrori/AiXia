@@ -1,19 +1,21 @@
 import { useEffect, useMemo, useState } from "react";
-import { useNavigate } from "react-router-dom";
 import {
-  ArrowLeft,
   CheckCircle2,
   FileCheck2,
   Plus,
   RefreshCcw,
   Save,
   Search,
-  ShieldCheck,
   SlidersHorizontal,
   Trash2,
   XCircle,
 } from "lucide-react";
 import { supabase } from "@/lib/supabase";
+import { AixiaHero, AixiaPage } from "@/components/aixia";
+import "@/styles/dashboard/tokens.css";
+import "@/styles/dashboard/layout.css";
+import "@/styles/dashboard/visual.css";
+
 
 type ApprovedAnswerRow = {
   id: string;
@@ -105,7 +107,6 @@ function priorityChipClass(priority: number) {
 }
 
 export default function AIApprovedAnswersPage() {
-  const navigate = useNavigate();
 
   const [answers, setAnswers] = useState<ApprovedAnswerRow[]>([]);
   const [selectedId, setSelectedId] = useState<string | null>(null);
@@ -173,27 +174,6 @@ export default function AIApprovedAnswersPage() {
       return matchesSearch && matchesStatus && matchesCategory;
     });
   }, [answers, categoryFilter, search, statusFilter]);
-
-  const activeCount = useMemo(
-    () => answers.filter((answer) => answer.is_active).length,
-    [answers]
-  );
-
-  const inactiveCount = answers.length - activeCount;
-
-  const topPriorityCount = useMemo(
-    () => answers.filter((answer) => answer.priority <= 10).length,
-    [answers]
-  );
-
-  const totalUsage = useMemo(
-    () =>
-      answers.reduce(
-        (total, answer) => total + Number(answer.usage_count ?? 0),
-        0
-      ),
-    [answers]
-  );
 
   useEffect(() => {
     void loadApprovedAnswers();
@@ -598,46 +578,22 @@ export default function AIApprovedAnswersPage() {
       : "Select Approved Answer";
 
   return (
-    <div className="h-[calc(100vh-64px)] overflow-hidden bg-[#05070d] px-6 py-6 text-white">
-      <div className="mx-auto flex h-full w-full max-w-[1600px] flex-col gap-6">
-        <header className="overflow-hidden rounded-[30px] border border-white/10 bg-white/[0.045] p-6 shadow-2xl shadow-black/30 backdrop-blur-xl">
-          <div className="flex flex-col gap-5 lg:flex-row lg:items-start lg:justify-between">
-            <div className="space-y-4">
-              <button
-                type="button"
-                onClick={() => navigate("/ai-management")}
-                className="inline-flex items-center gap-2 rounded-full border border-white/10 bg-white/[0.04] px-4 py-2 text-xs font-semibold uppercase tracking-[0.18em] text-slate-300 transition hover:border-cyan-300/40 hover:text-cyan-100"
-              >
-                <ArrowLeft className="h-4 w-4" />
-                AI Studio
-              </button>
+    <AixiaPage
+      surface="command"
+      className="aixia-command-page aixia-ai-management-page h-[calc(100vh-64px)] overflow-hidden px-6 py-6"
+    >
+        <AixiaHero
+        surface="command"
+        className="shrink-0 space-y-4"
+        parentLabel="AI Studio"
+        parentPath="/ai-management"
+        gradientTitle="Approved Answers"
+        title="Approved Answers"
+        subtitle="Manage answers the assistant should trust first. These responses are checked before saved replies, similar matches, and AI fallback."
+      >
+      </AixiaHero>
 
-              <div className="space-y-3">
-                <div className="inline-flex w-fit items-center gap-2 rounded-full border border-emerald-400/20 bg-emerald-500/10 px-3 py-1 text-[11px] font-semibold uppercase tracking-[0.22em] text-emerald-200">
-                  <ShieldCheck className="h-3.5 w-3.5" />
-                  Trusted Answers
-                </div>
-
-                <div>
-                  <h1 className="text-3xl font-semibold tracking-[-0.03em] text-white md:text-4xl">
-                    Approved Answers
-                  </h1>
-                  <p className="mt-2 max-w-3xl text-sm leading-6 text-slate-400">
-                    Manage answers the assistant should trust first. These responses are checked before saved replies,
-                    similar matches, and AI fallback.
-                  </p>
-                </div>
-              </div>
-            </div>
-
-            <div className="grid gap-3 sm:grid-cols-2 lg:min-w-[460px]">
-              <SummaryCard label="Active" value={activeCount} tone="emerald" />
-              <SummaryCard label="Paused" value={inactiveCount} tone="amber" />
-              <SummaryCard label="Top Priority" value={topPriorityCount} tone="cyan" />
-              <SummaryCard label="Total Uses" value={totalUsage} tone="white" />
-            </div>
-          </div>
-        </header>
+      <div className="aixia-command-scroll flex flex-col gap-6">
 
                 <section className="grid min-h-0 flex-1 gap-6 lg:grid-cols-[minmax(0,1.15fr)_minmax(0,1fr)]">
           <div className="flex min-h-0 flex-col">
@@ -1039,35 +995,7 @@ export default function AIApprovedAnswersPage() {
           </div>
         </section>
       </div>
-    </div>
-  );
-}
-
-function SummaryCard({
-  label,
-  value,
-  tone,
-}: {
-  label: string;
-  value: number;
-  tone: "emerald" | "amber" | "cyan" | "white";
-}) {
-  const toneClass =
-    tone === "emerald"
-      ? "text-emerald-200"
-      : tone === "amber"
-        ? "text-amber-200"
-        : tone === "cyan"
-          ? "text-cyan-200"
-          : "text-white";
-
-  return (
-    <div className="rounded-2xl border border-white/10 bg-white/[0.04] p-4">
-      <p className="text-[11px] uppercase tracking-[0.2em] text-slate-500">
-        {label}
-      </p>
-      <p className={`mt-2 text-3xl font-semibold ${toneClass}`}>{value}</p>
-    </div>
+    </AixiaPage>
   );
 }
 

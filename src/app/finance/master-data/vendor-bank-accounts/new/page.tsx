@@ -1,19 +1,7 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import type { FormEvent } from "react";
 import { useNavigate, useSearchParams } from "react-router-dom";
-import {
-  Banknote,
-  Building2,
-  CreditCard,
-  FileText,
-  Landmark,
-  Loader2,
-  LockKeyhole,
-  RotateCcw,
-  Save,
-  ShieldCheck,
-  WalletCards,
-} from "lucide-react";
+import { Building2, CreditCard, FileText, Landmark, Loader2, RotateCcw, Save, WalletCards } from "lucide-react";
 
 import {
   AixiaAccessDeniedState,
@@ -27,7 +15,7 @@ import {
   AixiaHero,
   AixiaInputField,
   AixiaLoadingState,
-  AixiaPage,
+  FinancePage,
   AixiaReviewBlock,
   AixiaReviewGrid,
   AixiaSection,
@@ -450,39 +438,7 @@ export default function FinanceMasterDataVendorBankAccountCreatePage() {
   const isPageLoading =
     isLoadingProfile || isLoadingVendors || isLoadingCurrencies;
 
-  const headerStatusCards = useMemo(() => {
-    return [
-      {
-        label: "Create Access",
-        value: isLoadingProfile
-          ? "Checking"
-          : permissionState.canCreate
-          ? "Enabled"
-          : "Locked",
-        description:
-          "Vendor bank-account create access follows the Finance role template and user-specific exceptions.",
-        icon: permissionState.canCreate ? ShieldCheck : LockKeyhole,
-        tone: permissionState.canCreate ? ("emerald" as const) : ("rose" as const),
-      },
-      {
-        label: "Currency Source",
-        value: isLoadingCurrencies
-          ? "Loading"
-          : `${currencyOptions.length} Options`,
-        description:
-          "Currency options are pulled from the general finance_currencies master-data table.",
-        icon: Banknote,
-        tone: "cyan" as const,
-      },
-    ];
-  }, [
-    currencyOptions.length,
-    isLoadingCurrencies,
-    isLoadingProfile,
-    permissionState.canCreate,
-  ]);
-
-  function updateForm<K extends keyof FormState>(key: K, value: FormState[K]) {
+function updateForm<K extends keyof FormState>(key: K, value: FormState[K]) {
     setForm((previousForm) => ({
       ...previousForm,
       [key]: value,
@@ -595,24 +551,19 @@ export default function FinanceMasterDataVendorBankAccountCreatePage() {
   }
 
   return (
-    <AixiaPage>
+    <FinancePage>
       <AixiaHero
+        className="shrink-0 space-y-4"
+        surface="command"
         parentLabel="Vendor Bank Accounts"
         parentPath="/finance/master-data/vendor-bank-accounts"
-        badges={[
-          { label: "New Vendor Bank Account", tone: "cyan" },
-          { label: "Vendor Payout Account", tone: "emerald" },
-          { label: "Currency Master Data", tone: "violet" },
-          { label: "Opens ID Page After Create", tone: "neutral" },
-        ]}
         gradientTitle="Create Vendor"
         title="Bank Account"
         subtitle="Vendor Payout Bank Account"
-        description="Create a vendor payout bank-account record from vendor-provided payment details. Currency is selected from the general currency master data and saved directly on the vendor bank-account record."
-        statusCards={headerStatusCards}
-      />
+        />
 
-      {formError ? <AixiaAlert tone="error">{formError}</AixiaAlert> : null}
+      <div className="aixia-command-scroll">
+{formError ? <AixiaAlert tone="error">{formError}</AixiaAlert> : null}
       {formMessage ? <AixiaAlert tone="success">{formMessage}</AixiaAlert> : null}
 
       {!permissionState.canCreate ? (
@@ -1007,6 +958,7 @@ export default function FinanceMasterDataVendorBankAccountCreatePage() {
           />
         </form>
       )}
-    </AixiaPage>
+      </div>
+    </FinancePage>
   );
 }

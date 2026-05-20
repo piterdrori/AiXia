@@ -22,11 +22,11 @@ import {
   AixiaBadge,
   AixiaButton,
   AixiaEmptyState,
+  AixiaFinanceHubControlPanel,
+  AixiaFinanceHubMetaStrip,
   AixiaHero,
   AixiaLoadingState,
-  AixiaMetricCard,
-  AixiaMetricGrid,
-  AixiaPage,
+  FinancePage,
   AixiaRegistryToolbar,
   AixiaSearchField,
   AixiaSection,
@@ -37,6 +37,7 @@ import {
   AixiaTableDateCell,
   AixiaTableShell,
   AixiaTableTextCell,
+  AixiaCommandMetrics,
 } from "@/components/aixia";
 import type { FinanceLoadMode } from "@/lib/finance/pageAccess";
 import { supabase } from "@/lib/supabase";
@@ -440,6 +441,33 @@ export default function FinancePurchaseOrdersPage() {
     (row) => row.status === "deleted"
   ).length;
 
+  const headerStatusCards = useMemo(
+    () => [
+      {
+        key: "system-status",
+        label: "System Status",
+        value: isLoading ? "Loading" : "Live",
+        detail: "Purchase order registry refreshes silently with auto-refresh enabled.",
+        tone: "emerald" as const,
+      },
+      {
+        key: "access",
+        label: "Access",
+        value: "Enabled",
+        detail: "Supplier procurement registry follows the shared Finance permission standard.",
+        tone: "cyan" as const,
+      },
+      {
+        key: "active-records",
+        label: "Active Records",
+        value: summary.total.toLocaleString(),
+        detail: "Purchase orders in the main registry.",
+        tone: "amber" as const,
+      },
+    ],
+    [isLoading, summary.total]
+  );
+
   const metricCards = [
     {
       key: "draft",
@@ -640,54 +668,25 @@ export default function FinancePurchaseOrdersPage() {
   }
 
   return (
-    <AixiaPage>
+    <FinancePage>
       <AixiaHero
+        className="shrink-0 space-y-4"
+        surface="command"
         parentLabel="Transactions"
         parentPath="/finance/transactions"
-        badges={[
-          { label: "Supplier Procurement", tone: "cyan" },
-          { label: "Step 02", tone: "amber" },
-        ]}
         gradientTitle="Purchase"
         title="Orders"
         subtitle="Official supplier-side purchase order registry."
-        description="Official purchase orders sent by AiXia to suppliers after a vendor quotation is accepted. This is the second step of the supplier procurement flow."
-        statusCards={[
-          {
-            label: "Active POs",
-            value: isLoading ? "—" : summary.total.toLocaleString(),
-            description: "Active purchase order records.",
-            icon: FileText,
-            tone: "cyan",
-          },
-          {
-            label: "PO Value",
-            value: isLoading ? "—" : formatMoney(summary.totalValue, "USD"),
-            description: "Approximate active value across currencies.",
-            icon: Wallet,
-            tone: "emerald",
-          },
-        ]}
-      >
-        <div className="aixia-action-system" data-align="start" data-density="compact">
-          <AixiaBadge tone="cyan">Vendor quotation → PO</AixiaBadge>
-          <AixiaBadge tone="emerald">Vendor PI / invoice next</AixiaBadge>
-          <AixiaBadge tone="neutral">Auto-refresh enabled</AixiaBadge>
-        </div>
+        >
+        <AixiaCommandMetrics items={metricCards} />
+      
       </AixiaHero>
 
-      <AixiaMetricGrid>
-        {metricCards.map((metric) => (
-          <AixiaMetricCard
-            key={metric.key}
-            label={metric.label}
-            value={metric.value}
-            description={metric.description}
-            icon={metric.icon}
-            tone={metric.tone}
-          />
-        ))}
-      </AixiaMetricGrid>
+      <div className="aixia-command-scroll">
+
+      <AixiaFinanceHubMetaStrip items={headerStatusCards} />
+
+      {errorMessage ? <AixiaAlert tone="error">{errorMessage}</AixiaAlert> : null}
 
       <AixiaAccessRule
         title="Locked access rule"
@@ -697,7 +696,11 @@ export default function FinancePurchaseOrdersPage() {
         This page uses shared AiXia components for page shell, hero, metrics, registry toolbar, table shell, sortable headers, archive modal, row actions, and lifecycle buttons. Page-local UI primitives and local Tailwind visual systems are intentionally removed.
       </AixiaAccessRule>
 
-      {errorMessage ? <AixiaAlert tone="error">{errorMessage}</AixiaAlert> : null}
+      <AixiaFinanceHubControlPanel
+        icon={Truck}
+        title="Purchase order workflow"
+        description="Vendor quotation → PO. Vendor PI / invoice next. Auto-refresh enabled."
+      />
 
       <AixiaSection
         title="Purchase Order Registry"
@@ -863,6 +866,6 @@ export default function FinancePurchaseOrdersPage() {
           </AixiaTableShell>
         )}
       </AixiaArchiveManagerModal>
-    </AixiaPage>
+      </div></FinancePage>
   );
 }

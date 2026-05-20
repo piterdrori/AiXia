@@ -26,6 +26,10 @@ import {
   X,
 } from "lucide-react";
 import { supabase } from "@/lib/supabase";
+import { AixiaHero, AixiaPage } from "@/components/aixia";
+import "@/styles/dashboard/tokens.css";
+import "@/styles/dashboard/layout.css";
+import "@/styles/dashboard/visual.css";
 
 type KnowledgeSource = "github" | "manual" | "upload";
 type KnowledgeStatus = "active" | "draft" | "inactive" | "archived";
@@ -758,8 +762,20 @@ export default function AIKnowledgeBankPage() {
   }
 
   return (
-        <div className="h-[calc(100vh-64px)] overflow-hidden bg-[#05070d] px-6 py-6 text-white">
-      <div className="mx-auto grid h-full w-full max-w-[1600px] gap-6 xl:grid-cols-[minmax(0,1fr)_430px]">
+    <AixiaPage
+      surface="command"
+      className="aixia-command-page aixia-ai-management-page h-[calc(100vh-64px)] overflow-hidden px-6 py-6"
+    >
+      <AixiaHero
+        surface="command"
+        className="shrink-0 mb-6"
+        parentLabel="AI Studio"
+        parentPath="/ai-management"
+        gradientTitle="Assistant Knowledge"
+        title="Knowledge Bank"
+        subtitle="Control the information the AiXia assistant can use. Add knowledge, import files, review content, and decide what is active for the AI."
+      />
+      <div className="aixia-command-scroll mx-auto grid h-full w-full max-w-[1600px] gap-6 xl:grid-cols-[minmax(0,1fr)_430px] min-h-0 flex-1">
         <section className="flex min-h-0 flex-col overflow-hidden rounded-[32px] border border-white/10 bg-white/[0.045] shadow-2xl shadow-black/30 backdrop-blur-xl">
           <div className="border-b border-white/10 px-6 py-6">
             <button
@@ -1001,7 +1017,7 @@ export default function AIKnowledgeBankPage() {
           onChange={setEditorForm}
         />
       )}
-    </div>
+    </AixiaPage>
   );
 }
 

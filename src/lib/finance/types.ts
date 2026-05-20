@@ -228,6 +228,9 @@ export interface FinanceProformaInvoice
   tax_amount: number | null;
   discount_amount: number | null;
   total_amount: number;
+  paid_amount: number;
+  balance_due: number;
+  payment_status: FinanceInvoiceIssuedPaymentStatus;
   currency_id: string | null;
   exchange_rate: number | null;
 }
@@ -253,6 +256,7 @@ export interface FinancePaymentReceived
   payment_method_id: string | null;
   client_id: string;
   invoice_id: string | null;
+  proforma_invoice_id: string | null;
   bank_account_id: string | null;
 
   payment_currency_id: string | null;

@@ -8,11 +8,15 @@ type AixiaButtonProps = ButtonHTMLAttributes<HTMLButtonElement> & {
 };
 
 function getVariantClass(variant: AixiaButtonVariant) {
-  if (variant === "primary") return "aixia-btn-primary";
-  if (variant === "danger") return "aixia-btn-danger";
-  if (variant === "icon") return "aixia-icon-btn";
+  if (variant === "primary") {
+    return "aixia-dash-action aixia-dash-action--primary aixia-btn aixia-btn-primary";
+  }
+  if (variant === "danger") {
+    return "aixia-dash-action aixia-dash-action--danger aixia-btn aixia-btn-danger";
+  }
+  if (variant === "icon") return "aixia-dash-action aixia-icon-btn";
 
-  return "aixia-btn-secondary";
+  return "aixia-dash-action aixia-btn aixia-btn-secondary";
 }
 
 export function AixiaButton({
@@ -25,7 +29,7 @@ export function AixiaButton({
   return (
     <button
       type={type}
-      className={`${getVariantClass(variant)} ${className}`}
+      className={`${getVariantClass(variant)} ${className}`.trim()}
       {...props}
     >
       {children}

@@ -1,7 +1,5 @@
 import { useEffect, useMemo, useState } from "react";
-import { useNavigate } from "react-router-dom";
 import {
-  ArrowLeft,
   Brain,
   CheckCircle2,
   Database,
@@ -16,6 +14,12 @@ import {
   XCircle,
 } from "lucide-react";
 import { supabase } from "@/lib/supabase";
+import { AixiaCommandMetrics, AixiaHero, AixiaPage } from "@/components/aixia";
+import type { AixiaCommandMetricItem } from "@/components/aixia";
+import "@/styles/dashboard/tokens.css";
+import "@/styles/dashboard/layout.css";
+import "@/styles/dashboard/visual.css";
+
 
 type AISession = {
   id: string;
@@ -173,7 +177,6 @@ function getSessionTitle(session: AISession) {
 }
 
 export default function AIMemoryPage() {
-  const navigate = useNavigate();
 
   const [sessions, setSessions] = useState<AISession[]>([]);
   const [messages, setMessages] = useState<AIMessage[]>([]);
@@ -277,6 +280,16 @@ export default function AIMemoryPage() {
   useEffect(() => {
     void loadSessions();
   }, []);
+
+  const commandHeaderMetrics = useMemo<AixiaCommandMetricItem[]>(
+    () => [
+      { key: "sessions-0", title: "Sessions", value: String(String(metrics.total)), tone: "neutral" },
+      { key: "active-1", title: "Active", value: String(String(metrics.active)), tone: "emerald" },
+      { key: "ended-2", title: "Ended", value: String(String(metrics.ended)), tone: "cyan" },
+      { key: "reviewed-3", title: "Reviewed", value: String(String(metrics.reviewed)), tone: "amber" },
+    ],
+    [metrics]
+  );
 
   useEffect(() => {
     if (!selectedSessionId) return;
@@ -440,45 +453,19 @@ export default function AIMemoryPage() {
   }
 
   return (
-    <div className="min-h-screen bg-[#05070d] px-6 py-6 text-white">
-      <div className="mx-auto flex w-full max-w-[1600px] flex-col gap-6">
-        <header className="overflow-hidden rounded-[30px] border border-white/10 bg-white/[0.045] p-6 shadow-2xl shadow-black/30 backdrop-blur-xl">
-          <div className="flex flex-col gap-5 lg:flex-row lg:items-start lg:justify-between">
-            <div className="space-y-4">
-              <button
-                type="button"
-                onClick={() => navigate("/ai-management")}
-                className="inline-flex items-center gap-2 rounded-full border border-white/10 bg-white/[0.04] px-4 py-2 text-xs font-semibold uppercase tracking-[0.18em] text-slate-300 transition hover:border-cyan-300/40 hover:text-cyan-100"
-              >
-                <ArrowLeft className="h-4 w-4" />
-                AI Studio
-              </button>
+    <AixiaPage surface="command" className="aixia-command-page aixia-ai-management-page"><AixiaHero
+        surface="command"
+        className="shrink-0 space-y-4"
+        parentLabel="AI Studio"
+        parentPath="/ai-management"
+        gradientTitle="Memory / Session Intelligence"
+        title="Memory / Session Intelligence"
+        subtitle="Review real AI conversations, router behavior, feedback, refusals, errors, and quality signals collected from the floating AI assistant."
+      >
+        <AixiaCommandMetrics items={commandHeaderMetrics} />
+      </AixiaHero>
 
-              <div className="space-y-3">
-                <div className="inline-flex w-fit items-center gap-2 rounded-full border border-purple-400/20 bg-purple-500/10 px-3 py-1 text-[11px] font-semibold uppercase tracking-[0.22em] text-purple-200">
-                  <Brain className="h-3.5 w-3.5" />
-                  Session Intelligence Layer
-                </div>
-
-                <div>
-                  <h1 className="text-3xl font-semibold tracking-[-0.03em] text-white md:text-4xl">
-                    Memory / Session Intelligence
-                  </h1>
-                  <p className="mt-2 max-w-3xl text-sm leading-6 text-slate-400">
-                    Review real AI conversations, router behavior, feedback, refusals, errors, and quality signals collected from the floating AI assistant.
-                  </p>
-                </div>
-              </div>
-            </div>
-
-            <div className="grid gap-3 sm:grid-cols-4 lg:min-w-[720px]">
-              <MetricCard label="Sessions" value={String(metrics.total)} tone="white" />
-              <MetricCard label="Active" value={String(metrics.active)} tone="emerald" />
-              <MetricCard label="Ended" value={String(metrics.ended)} tone="cyan" />
-              <MetricCard label="Reviewed" value={String(metrics.reviewed)} tone="amber" />
-            </div>
-          </div>
-        </header>
+      <div className="aixia-command-scroll flex flex-col gap-6">
 
         {errorMessage ? (
           <div className="rounded-2xl border border-rose-400/20 bg-rose-500/10 px-4 py-3 text-sm text-rose-200">
@@ -949,35 +936,7 @@ export default function AIMemoryPage() {
           </div>
         </section>
       </div>
-    </div>
-  );
-}
-
-function MetricCard({
-  label,
-  value,
-  tone,
-}: {
-  label: string;
-  value: string;
-  tone: "emerald" | "amber" | "cyan" | "white";
-}) {
-  const toneClass =
-    tone === "emerald"
-      ? "text-emerald-200"
-      : tone === "amber"
-        ? "text-amber-200"
-        : tone === "cyan"
-          ? "text-cyan-200"
-          : "text-white";
-
-  return (
-    <div className="rounded-2xl border border-white/10 bg-white/[0.04] p-4">
-      <p className="text-[11px] uppercase tracking-[0.2em] text-slate-500">
-        {label}
-      </p>
-      <p className={`mt-2 text-3xl font-semibold ${toneClass}`}>{value}</p>
-    </div>
+    </AixiaPage>
   );
 }
 

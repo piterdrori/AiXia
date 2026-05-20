@@ -18,7 +18,28 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { Alert, AlertDescription } from "@/components/ui/alert";
-import { ArrowLeft, Loader2 } from "lucide-react";
+import { Check, Loader2, Users } from "lucide-react";
+import { AixiaHero, AixiaPage } from "@/components/aixia";
+import { initialsFromDisplayName } from "@/app/dashboard/components/DashboardMemberStatusDot";
+import { TaskCustomFieldsForm } from "@/components/tasks/TaskCustomFieldsForm";
+import {
+  buildCustomFieldPayload,
+  loadDefinitionsForTaskForm,
+  validateRequiredCustomFields,
+  valuesFromRows,
+} from "@/lib/tasks/customFields";
+import { loadTopLevelTasksForProject } from "@/lib/tasks/taskLifecycle";
+import type {
+  CustomFieldFormValue,
+  ProjectTaskFieldDefinitionRow,
+  TaskRowExtended,
+} from "@/lib/tasks/types";
+import "@/styles/dashboard/tokens.css";
+import "@/styles/dashboard/layout.css";
+import "@/styles/dashboard/visual.css";
+import "@/styles/projects/projects-visual.css";
+import "@/styles/tasks/tasks-visual.css";
+
 
 type Role = "admin" | "manager" | "employee" | "guest";
 type TaskStatus = "TODO" | "IN_PROGRESS" | "IN_REVIEW" | "DONE";
@@ -45,6 +66,17 @@ type ProfileRow = {
   status: "active" | "pending" | "inactive" | "denied";
 };
 
+function normalizeTaskId(value: unknown): string | null {
+  if (value == null) return null;
+  const trimmed = String(value).trim();
+  return trimmed ? trimmed.toLowerCase() : null;
+}
+
+function readCreatedParentTaskId(task: Record<string, unknown> | undefined): string | null {
+  if (!task) return null;
+  return normalizeTaskId(task.parent_task_id ?? task.parentTaskId);
+}
+
 export default function TaskNewPage() {
   const navigate = useNavigate();
   const [searchParams] = useSearchParams();
@@ -54,6 +86,8 @@ export default function TaskNewPage() {
   const membersRequestTracker = useRef(createRequestTracker());
 
   const initialProjectId = searchParams.get("projectId") || "";
+  const initialParentTaskId = searchParams.get("parentTaskId") || "";
+  const isSubtaskFlow = Boolean(initialParentTaskId);
 
   const [title, setTitle] = useState("");
   const [description, setDescription] = useState("");
@@ -68,6 +102,12 @@ export default function TaskNewPage() {
   const [allProjectMembers, setAllProjectMembers] = useState<ProjectMemberRow[]>([]);
   const [profiles, setProfiles] = useState<ProfileRow[]>([]);
   const [selectedAssignees, setSelectedAssignees] = useState<string[]>([]);
+  const [parentTaskId, setParentTaskId] = useState(initialParentTaskId);
+  const [parentTaskOptions, setParentTaskOptions] = useState<TaskRowExtended[]>([]);
+  const [fieldDefinitions, setFieldDefinitions] = useState<ProjectTaskFieldDefinitionRow[]>([]);
+  const [customFieldValues, setCustomFieldValues] = useState<
+    Record<string, CustomFieldFormValue>
+  >({});
 
   const [currentUserId, setCurrentUserId] = useState<string | null>(null);
   const [currentUserRole, setCurrentUserRole] = useState<Role | null>(null);
@@ -170,16 +210,34 @@ export default function TaskNewPage() {
         setProfiles(profilesData);
         setAllProjectMembers(projectMembersData);
 
-        const safeProjectId =
+        let resolvedProjectId =
           initialProjectId && visibleProjects.some((p) => p.id === initialProjectId)
             ? initialProjectId
             : "";
 
-        setProjectId(safeProjectId);
+        if (!resolvedProjectId && initialParentTaskId) {
+          const { data: parentRow } = await supabase
+            .from("tasks")
+            .select("project_id")
+            .eq("id", initialParentTaskId)
+            .is("parent_task_id", null)
+            .is("deleted_at", null)
+            .maybeSingle();
 
-        if (safeProjectId) {
+          const parentProjectId = (parentRow?.project_id as string | null) || "";
+          if (
+            parentProjectId &&
+            visibleProjects.some((p) => p.id === parentProjectId)
+          ) {
+            resolvedProjectId = parentProjectId;
+          }
+        }
+
+        setProjectId(resolvedProjectId);
+
+        if (resolvedProjectId) {
           const initialMembers = projectMembersData.filter(
-            (member) => member.project_id === safeProjectId
+            (member) => member.project_id === resolvedProjectId
           );
           setProjectMembers(initialMembers);
         } else {
@@ -200,7 +258,7 @@ export default function TaskNewPage() {
     return () => {
       mounted = false;
     };
-  }, [navigate, initialProjectId, t]);
+  }, [navigate, initialProjectId, initialParentTaskId, t]);
 
   useEffect(() => {
     let mounted = true;
@@ -275,6 +333,75 @@ export default function TaskNewPage() {
       mounted = false;
     };
   }, [projectId, allProjectMembers]);
+
+  useEffect(() => {
+    let mounted = true;
+
+    const loadProjectTaskExtras = async () => {
+      if (!projectId) {
+        setParentTaskOptions([]);
+        setFieldDefinitions([]);
+        setCustomFieldValues({});
+        if (!isSubtaskFlow) {
+          setParentTaskId("");
+        }
+        return;
+      }
+
+      try {
+        const [parents, formDefs] = await Promise.all([
+          loadTopLevelTasksForProject(projectId),
+          loadDefinitionsForTaskForm(projectId, null, "create"),
+        ]);
+
+        if (!mounted) return;
+
+        let parentOptions = parents;
+
+        if (
+          isSubtaskFlow &&
+          initialParentTaskId &&
+          !parents.some((task) => task.id === initialParentTaskId)
+        ) {
+          const { data: lockedParent } = await supabase
+            .from("tasks")
+            .select("*")
+            .eq("id", initialParentTaskId)
+            .eq("project_id", projectId)
+            .is("parent_task_id", null)
+            .is("deleted_at", null)
+            .is("archived_at", null)
+            .maybeSingle();
+
+          if (lockedParent) {
+            parentOptions = [lockedParent as TaskRowExtended, ...parents];
+          }
+        }
+
+        setParentTaskOptions(parentOptions);
+        setFieldDefinitions(formDefs.definitions);
+        setCustomFieldValues(valuesFromRows(formDefs.definitions, {}));
+
+        if (isSubtaskFlow && initialParentTaskId) {
+          setParentTaskId(initialParentTaskId);
+        } else if (
+          parentTaskId &&
+          !parentOptions.some((task) => task.id === parentTaskId)
+        ) {
+          setParentTaskId("");
+        }
+      } catch (err) {
+        if (!mounted) return;
+        console.error("Load project task extras:", err);
+      }
+    };
+
+    void loadProjectTaskExtras();
+
+    return () => {
+      mounted = false;
+    };
+  }, [projectId, initialParentTaskId, isSubtaskFlow]);
 
   const availableAssignees = useMemo(() => {
     return projectMembers
@@ -351,6 +478,29 @@ if (!validation.success) {
         return;
       }
 
+      const missingField = validateRequiredCustomFields(
+        fieldDefinitions,
+        customFieldValues
+      );
+      if (missingField) {
+        setError(`"${missingField}" is required.`);
+        return;
+      }
+
+      const resolvedParentTaskId = normalizeTaskId(
+        parentTaskId || initialParentTaskId || null
+      );
+
+      if (isSubtaskFlow && !resolvedParentTaskId) {
+        setError(
+          t(
+            "taskNew.errors.parentTaskRequired",
+            "Parent task is required for subtasks."
+          )
+        );
+        return;
+      }
+
       const { data, error: invokeError } = await supabase.functions.invoke(
         "task-create",
         {
@@ -362,7 +512,13 @@ if (!validation.success) {
             status,
             startDate: startDate || null,
             dueDate: dueDate || null,
+            parentTaskId: resolvedParentTaskId,
+            parent_task_id: resolvedParentTaskId,
             assigneeIds: selectedAssignees,
+            customFieldValues: buildCustomFieldPayload(
+              fieldDefinitions,
+              customFieldValues
+            ),
           },
         }
       );
@@ -380,8 +536,29 @@ if (!validation.success) {
         return;
       }
 
+      const createdParentId = readCreatedParentTaskId(
+        data?.task as Record<string, unknown> | undefined
+      );
+      if (resolvedParentTaskId && createdParentId !== resolvedParentTaskId) {
+        setError(
+          (typeof data?.error === "string" && data.error) ||
+            t(
+              "taskNew.errors.parentLinkFailed",
+              "Subtask was created without a parent link. Please try again."
+            )
+        );
+        return;
+      }
+
       if (!pageRequestTracker.current.isLatest(requestId)) return;
-      navigate(`/projects/${projectId}`);
+      const createdTaskId = data?.task?.id as string | undefined;
+      if (isSubtaskFlow && initialParentTaskId) {
+        navigate(`/tasks/${initialParentTaskId}`, {
+          state: { subtaskCreated: createdTaskId ?? true },
+        });
+        return;
+      }
+      navigate(createdTaskId ? `/tasks/${createdTaskId}` : `/projects/${projectId}`);
     } catch (err) {
       if (!pageRequestTracker.current.isLatest(requestId)) return;
       console.error("Create task submit error:", err);
@@ -391,47 +568,64 @@ if (!validation.success) {
       setIsSaving(false);
     }
   };
+
+  const taskParentPath = initialParentTaskId
+    ? `/tasks/${initialParentTaskId}`
+    : projectId
+      ? `/projects/${projectId}`
+      : "/tasks";
+  const taskParentLabel = initialParentTaskId
+    ? t("taskNew.kicker.subtasks", "Subtasks")
+    : t("tasks.header.title", "Tasks");
+
   return (
-    <div className="w-full max-w-[calc(100vw-360px)] mx-auto">
-      <div className="flex items-center gap-4 mb-6">
-        <Button
-          variant="ghost"
-          size="icon"
-          onClick={() => navigate(projectId ? `/projects/${projectId}` : "/tasks")}
-          className="text-slate-400 hover:text-white"
-        >
-          <ArrowLeft className="w-5 h-5" />
-        </Button>
-
-        <div>
-          <h1 className="text-2xl font-bold text-white">{t("taskNew.header.title")}</h1>
-          <p className="text-slate-400">{t("taskNew.header.subtitle")}</p>
-        </div>
-      </div>
-
-      <Card className="w-full bg-slate-900/50 border border-slate-800 h-[calc(100vh-200px)] min-h-0">
-        <CardContent className="flex h-full min-h-0 flex-col p-6">
-          <form onSubmit={handleSubmit} className="flex h-full min-h-0 flex-col gap-4">
+    <AixiaPage
+      surface="command"
+      className="aixia-command-page aixia-tasks-page aixia-tasks-page--new h-full flex flex-col overflow-hidden"
+    >
+      <AixiaHero
+        surface="command"
+        className="shrink-0"
+        parentLabel={taskParentLabel}
+        parentPath={taskParentPath}
+        gradientTitle={taskParentLabel}
+        title={t("taskNew.header.title")}
+        subtitle={t(
+          initialParentTaskId
+            ? "taskNew.subtitle.addSubtask"
+            : "taskNew.header.subtitle"
+        )}
+      />
+      <div className="aixia-command-scroll flex min-h-0 flex-1 flex-col">
+          <form onSubmit={handleSubmit} className="aixia-tasks-new-form space-y-4">
   {error && (
-    <Alert className="bg-red-900/20 border-red-800 text-red-300">
+    <Alert className="aixia-tasks-alert-error shrink-0">
       <AlertDescription>{error}</AlertDescription>
     </Alert>
   )}
 
   {isBootstrapping && (
-    <div className="rounded-lg border border-slate-800 bg-slate-950/50 p-4">
+    <div className="rounded-lg border aixia-tasks-divider bg-slate-950/50 p-4 shrink-0">
       <div className="animate-pulse space-y-4">
-        <div className="h-4 w-28 rounded bg-slate-800" />
-        <div className="h-10 w-full rounded bg-slate-800" />
-        <div className="h-4 w-24 rounded bg-slate-800" />
-        <div className="h-28 w-full rounded bg-slate-800" />
+        <div className="h-4 w-28 rounded aixia-tasks-skeleton-bar" />
+        <div className="h-10 w-full rounded aixia-tasks-skeleton-bar" />
+        <div className="h-4 w-24 rounded aixia-tasks-skeleton-bar" />
+        <div className="h-28 w-full rounded aixia-tasks-skeleton-bar" />
       </div>
     </div>
   )}
 
-  <div className="space-y-2">
-    <Label htmlFor="title" className="text-slate-300">
-      {t("taskNew.form.taskTitle")} <span className="text-red-400">*</span>
+            <Card className="aixia-dash-panel aixia-dash-glass aixia-dash-tilt-panel aixia-projects-panel-card aixia-tasks-panel-card aixia-tasks-new-form-card w-full py-0">
+              <CardContent className="p-4 lg:p-6">
+                <div className="aixia-tasks-new-form-fields">
+                  <div className="space-y-1.5">
+                    <Label htmlFor="title" className="aixia-tasks-label">
+      {t(
+        initialParentTaskId
+          ? "taskNew.form.subtaskTitle"
+          : "taskNew.form.taskTitle"
+      )}{" "}
+      <span className="text-red-400">*</span>
     </Label>
     <Input
       id="title"
@@ -440,12 +634,12 @@ if (!validation.success) {
       onChange={(e) => setTitle(e.target.value)}
       required
       disabled={isBootstrapping || isSaving}
-      className="bg-slate-950 border-slate-800 text-white placeholder:text-slate-600"
+      className="aixia-tasks-input"
     />
   </div>
 
-  <div className="space-y-2">
-    <Label htmlFor="description" className="text-slate-300">
+              <div className="space-y-1.5">
+    <Label htmlFor="description" className="aixia-tasks-label">
       {t("taskNew.form.description")}
     </Label>
     <Textarea
@@ -455,24 +649,30 @@ if (!validation.success) {
       onChange={(e) => setDescription(e.target.value)}
       rows={4}
       disabled={isBootstrapping || isSaving}
-      className="bg-slate-950 border-slate-800 text-white placeholder:text-slate-600 resize-none"
+      className="aixia-tasks-textarea min-h-[96px] resize-none"
     />
-  </div>
+                  </div>
+                </div>
+              </CardContent>
+            </Card>
 
-  <div className="grid grid-cols-1 gap-6 md:grid-cols-2 lg:grid-cols-5">
-    <div className="space-y-2">
-      <Label className="text-slate-300">
+            <Card className="aixia-dash-panel aixia-dash-glass aixia-dash-tilt-panel aixia-projects-panel-card aixia-tasks-panel-card aixia-tasks-new-form-card w-full py-0">
+              <CardContent className="p-4 lg:p-6">
+                <div className="aixia-tasks-new-form-fields">
+                  <div className="grid grid-cols-1 gap-4 md:grid-cols-2 lg:grid-cols-5">
+    <div className="space-y-1.5">
+      <Label className="aixia-tasks-label">
         {t("taskNew.form.project")} <span className="text-red-400">*</span>
       </Label>
       <Select
         value={projectId}
         onValueChange={setProjectId}
-        disabled={isBootstrapping || isSaving}
+        disabled={isBootstrapping || isSaving || isSubtaskFlow}
       >
-        <SelectTrigger className="bg-slate-950 border-slate-800 text-white">
+        <SelectTrigger className="aixia-tasks-input">
           <SelectValue placeholder={t("taskNew.form.selectProject")} />
         </SelectTrigger>
-        <SelectContent className="bg-slate-900 border-slate-800">
+        <SelectContent className="aixia-tasks-select-content">
           {projects.map((project) => (
             <SelectItem key={project.id} value={project.id}>
               {project.name}
@@ -482,17 +682,17 @@ if (!validation.success) {
       </Select>
     </div>
 
-    <div className="space-y-2">
-      <Label className="text-slate-300">{t("taskNew.form.priority")}</Label>
+    <div className="space-y-1.5">
+      <Label className="aixia-tasks-label">{t("taskNew.form.priority")}</Label>
       <Select
         value={priority}
         onValueChange={(v) => setPriority(v as TaskPriority)}
         disabled={isBootstrapping || isSaving}
       >
-        <SelectTrigger className="bg-slate-950 border-slate-800 text-white">
+        <SelectTrigger className="aixia-tasks-input">
           <SelectValue placeholder={t("taskNew.form.selectPriority")} />
         </SelectTrigger>
-        <SelectContent className="bg-slate-900 border-slate-800">
+        <SelectContent className="aixia-tasks-select-content">
           <SelectItem value="LOW">{t("taskNew.priority.low")}</SelectItem>
           <SelectItem value="MEDIUM">{t("taskNew.priority.medium")}</SelectItem>
           <SelectItem value="HIGH">{t("taskNew.priority.high")}</SelectItem>
@@ -501,17 +701,17 @@ if (!validation.success) {
       </Select>
     </div>
 
-    <div className="space-y-2">
-      <Label className="text-slate-300">{t("taskNew.form.status")}</Label>
+    <div className="space-y-1.5">
+      <Label className="aixia-tasks-label">{t("taskNew.form.status")}</Label>
       <Select
         value={status}
         onValueChange={(v) => setStatus(v as TaskStatus)}
         disabled={isBootstrapping || isSaving}
       >
-        <SelectTrigger className="bg-slate-950 border-slate-800 text-white">
+        <SelectTrigger className="aixia-tasks-input">
           <SelectValue placeholder={t("taskNew.form.selectStatus")} />
         </SelectTrigger>
-        <SelectContent className="bg-slate-900 border-slate-800">
+        <SelectContent className="aixia-tasks-select-content">
           <SelectItem value="TODO">{t("taskNew.status.todo")}</SelectItem>
           <SelectItem value="IN_PROGRESS">{t("taskNew.status.inProgress")}</SelectItem>
           <SelectItem value="IN_REVIEW">{t("taskNew.status.inReview")}</SelectItem>
@@ -520,8 +720,8 @@ if (!validation.success) {
       </Select>
     </div>
 
-    <div className="space-y-2">
-      <Label htmlFor="startDate" className="text-slate-300">
+    <div className="space-y-1.5">
+      <Label htmlFor="startDate" className="aixia-tasks-label">
         {t("taskNew.form.startDate")}
       </Label>
       <Input
@@ -530,12 +730,12 @@ if (!validation.success) {
         value={startDate}
         onChange={(e) => setStartDate(e.target.value)}
         disabled={isBootstrapping || isSaving}
-        className="bg-slate-950 border-slate-800 text-white"
+        className="aixia-tasks-input"
       />
     </div>
 
-    <div className="space-y-2">
-      <Label htmlFor="dueDate" className="text-slate-300">
+    <div className="space-y-1.5">
+      <Label htmlFor="dueDate" className="aixia-tasks-label">
         {t("taskNew.form.dueDate")}
       </Label>
       <Input
@@ -544,81 +744,170 @@ if (!validation.success) {
         value={dueDate}
         onChange={(e) => setDueDate(e.target.value)}
         disabled={isBootstrapping || isSaving}
-        className="bg-slate-950 border-slate-800 text-white"
+        className="aixia-tasks-input"
       />
     </div>
   </div>
 
-      <div className="flex-1 min-h-0 rounded-lg border border-slate-800 bg-slate-950/40 p-4">
-    <div className="flex h-full min-h-0 flex-col">
-      <Label className="shrink-0 text-slate-300">
-        {t("taskNew.form.assignMembers")}
+  {projectId && (parentTaskOptions.length > 0 || isSubtaskFlow) ? (
+    <div className="space-y-1.5">
+      <Label className="aixia-tasks-label">
+        {isSubtaskFlow ? "Parent task" : "Parent task (optional)"}
       </Label>
-
-      <div className="mt-3 flex-1 min-h-0">
-        {!projectId ? (
-          <div className="text-slate-500 text-sm">
-            {t("taskNew.assignees.selectProjectFirst")}
-          </div>
-        ) : isMembersLoading ? (
-          <div className="text-slate-500 text-sm">
-            {t("taskNew.assignees.loadingProjectMembers")}
-          </div>
-        ) : availableAssignees.length === 0 ? (
-          <div className="text-slate-500 text-sm">
-            {t("taskNew.assignees.noAvailableMembers")}
-          </div>
-        ) : (
-          <div className="h-full min-h-0 rounded-lg border border-slate-800 bg-slate-950 p-2 overflow-y-auto">
-            <div className="space-y-2">
-              {availableAssignees.map((member) => (
-                <label
-                  key={member.user_id}
-                  className="flex items-center justify-between gap-3 rounded-md px-3 py-2 hover:bg-slate-900 cursor-pointer"
-                >
-                  <div>
-                    <div className="text-white text-sm font-medium">
-                      {member.full_name || t("taskNew.assignees.unnamedUser")}
-                    </div>
-                    <div className="text-slate-500 text-xs">
-                      {member.role.toUpperCase()}
-                    </div>
-                  </div>
-
-                  <input
-                    type="checkbox"
-                    checked={selectedAssignees.includes(member.user_id)}
-                    onChange={() => toggleAssignee(member.user_id)}
-                    disabled={isSaving}
-                    className="h-4 w-4"
-                  />
-                </label>
-              ))}
-            </div>
-          </div>
-        )}
-      </div>
-
-      <p className="mt-3 shrink-0 text-slate-500 text-xs">
-        {t("taskNew.form.visibilityNote")}
-      </p>
+      <Select
+        value={parentTaskId || initialParentTaskId || "__none__"}
+        onValueChange={(v) => setParentTaskId(v === "__none__" ? "" : v)}
+        disabled={isBootstrapping || isSaving || isSubtaskFlow}
+      >
+        <SelectTrigger className="aixia-tasks-input">
+          <SelectValue placeholder="Top-level task" />
+        </SelectTrigger>
+        <SelectContent className="aixia-tasks-select-content">
+          {!isSubtaskFlow ? (
+            <SelectItem value="__none__">None (top-level)</SelectItem>
+          ) : null}
+          {parentTaskOptions.map((task) => (
+            <SelectItem key={task.id} value={task.id}>
+              {task.title}
+            </SelectItem>
+          ))}
+        </SelectContent>
+      </Select>
     </div>
-  </div>
+  ) : null}
 
-  <div className="shrink-0 flex items-center justify-end gap-4 border-t border-slate-800 pt-3">
-    <Button
+  {projectId && parentTaskOptions.length === 0 && !isSubtaskFlow ? (
+    <p className="text-sm aixia-tasks-muted m-0">
+      Create a top-level task first, then add subtasks from its task detail page.
+    </p>
+  ) : null}
+
+  {fieldDefinitions.length > 0 ? (
+    <div className="rounded-lg border aixia-tasks-divider bg-slate-950/40 p-4 space-y-3">
+      <Label className="aixia-tasks-label">Custom fields</Label>
+      <TaskCustomFieldsForm
+        definitions={fieldDefinitions}
+        values={customFieldValues}
+        onChange={setCustomFieldValues}
+        disabled={isBootstrapping || isSaving}
+      />
+    </div>
+  ) : null}
+                </div>
+              </CardContent>
+            </Card>
+
+            <Card className="aixia-dash-panel aixia-dash-glass aixia-dash-tilt-panel aixia-projects-panel-card aixia-tasks-panel-card aixia-tasks-new-form-card w-full py-0">
+              <CardContent className="p-4 lg:p-6">
+                <div className="aixia-tasks-assign-section">
+              <div className="aixia-tasks-member-picker aixia-dash-glass">
+                <div className="aixia-tasks-member-picker-hd">
+                  <div className="aixia-tasks-card-heading">
+                    <Users className="aixia-tasks-card-heading__icon" aria-hidden />
+                    <span className="aixia-dash-panel-title">
+                      {t("taskNew.form.assignMembers")}
+                    </span>
+                  </div>
+                  <span
+                    className={
+                      selectedAssignees.length > 0
+                        ? "aixia-dash-pill"
+                        : "aixia-dash-list-row-meta"
+                    }
+                  >
+                    {selectedAssignees.length} selected
+                  </span>
+                </div>
+
+                <div
+                  className={`aixia-tasks-member-picker-body${
+                    availableAssignees.length > 9
+                      ? " aixia-tasks-member-picker-body--scroll"
+                      : ""
+                  }`}
+                >
+                  {!projectId ? (
+                    <p className="aixia-dash-empty m-0 flex min-h-[6rem] items-center justify-center">
+                      {t("taskNew.assignees.selectProjectFirst")}
+                    </p>
+                  ) : isMembersLoading ? (
+                    <p className="aixia-dash-empty m-0 flex min-h-[6rem] items-center justify-center">
+                      {t("taskNew.assignees.loadingProjectMembers")}
+                    </p>
+                  ) : availableAssignees.length === 0 ? (
+                    <p className="aixia-dash-empty m-0 flex min-h-[6rem] items-center justify-center">
+                      {t("taskNew.assignees.noAvailableMembers")}
+                    </p>
+                  ) : (
+                    <div className="aixia-tasks-member-picker-grid">
+                      {availableAssignees.map((member) => {
+                        const displayName =
+                          member.full_name || t("taskNew.assignees.unnamedUser");
+                        const isSelected = selectedAssignees.includes(member.user_id);
+
+                        return (
+                          <label
+                            key={member.user_id}
+                            className={
+                              isSelected
+                                ? "aixia-tasks-member-tile aixia-tasks-member-tile--selected"
+                                : "aixia-tasks-member-tile"
+                            }
+                          >
+                            <span className="aixia-tasks-member-tile-check" aria-hidden>
+                              {isSelected ? <Check strokeWidth={3} /> : null}
+                            </span>
+                            <span className="aixia-tasks-member-tile-avatar" aria-hidden>
+                              {initialsFromDisplayName(displayName)}
+                            </span>
+                            <span className="aixia-tasks-member-tile-meta">
+                              <span className="aixia-dash-list-row-title truncate">
+                                {displayName}
+                              </span>
+                              <span className="aixia-dash-pill">{member.role}</span>
+                            </span>
+                            <input
+                              type="checkbox"
+                              checked={isSelected}
+                              onChange={() => toggleAssignee(member.user_id)}
+                              disabled={isBootstrapping || isSaving}
+                              className="sr-only"
+                            />
+                          </label>
+                        );
+                      })}
+                    </div>
+                  )}
+                </div>
+              </div>
+            </div>
+
+            <p className="aixia-tasks-new-form-note aixia-tasks-muted text-xs">
+              {t("taskNew.form.visibilityNote")}
+            </p>
+
+            <div className="aixia-tasks-new-form-footer">
+              <Button
       type="button"
       variant="outline"
-      onClick={() => navigate(projectId ? `/projects/${projectId}` : "/tasks")}
+      onClick={() =>
+        navigate(
+          initialParentTaskId
+            ? `/tasks/${initialParentTaskId}`
+            : projectId
+              ? `/projects/${projectId}`
+              : "/tasks"
+        )
+      }
       disabled={isSaving}
-      className="border-slate-700 text-slate-300 hover:bg-slate-800"
+      className="aixia-dash-action h-9"
     >
       {t("taskNew.actions.cancel")}
     </Button>
 
     <Button
       type="submit"
-      className="bg-indigo-600 hover:bg-indigo-700 text-white"
+      className="aixia-dash-action aixia-dash-action--primary h-9"
       disabled={
         isBootstrapping ||
         isSaving ||
@@ -635,10 +924,11 @@ if (!validation.success) {
         t("taskNew.actions.createTask")
       )}
     </Button>
-  </div>
-</form>
-        </CardContent>
-      </Card>
-    </div>
+            </div>
+              </CardContent>
+            </Card>
+          </form>
+      </div>
+    </AixiaPage>
   );
 }

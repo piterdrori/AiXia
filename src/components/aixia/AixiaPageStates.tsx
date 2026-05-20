@@ -24,7 +24,7 @@ export function AixiaPageState({
   className = "",
 }: AixiaPageStateProps) {
   const content = (
-    <section className={`aixia-page-state ${className}`}>
+    <section className={`aixia-card-shell aixia-page-state ${className}`}>
       <div className="aixia-page-state-icon">
         {loading ? (
           <Loader2 className="h-6 w-6 animate-spin" />

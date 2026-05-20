@@ -18,6 +18,17 @@ export { AixiaMetricCard } from "./AixiaMetricCard";
 export { AixiaMetricGrid } from "./AixiaMetricGrid";
 export { AixiaModal } from "./AixiaModal";
 export { AixiaPage } from "./AixiaPage";
+export { FinancePage } from "./FinancePage";
+export {
+  AixiaCommandMetrics,
+  type AixiaCommandMetricItem,
+} from "./AixiaCommandMetrics";
+export { FinanceHubMetrics, type FinanceHubMetricItem } from "./FinanceHubMetrics";
+export {
+  getCommandMetricToneClass,
+  type AixiaCommandSurface,
+  type AixiaCommandTone,
+} from "./commandSurface";
 export { AixiaEmptyState } from "./AixiaEmptyState";
 export { AixiaEmployeeIdentityCell } from "./AixiaEmployeeIdentityCell";
 export { AixiaSearchField } from "./AixiaSearchField";
@@ -28,6 +39,15 @@ export { AixiaSmartLayout } from "./AixiaSmartLayout";
 export { AixiaStatusBadge } from "./AixiaStatusBadge";
 export { AixiaStatusCard } from "./AixiaStatusCard";
 export { AixiaFeaturePanel } from "./AixiaFeaturePanel";
+export {
+  AixiaFinanceHubMetaStrip,
+  type AixiaFinanceHubMetaItem,
+} from "./AixiaFinanceHubMetaStrip";
+export { AixiaFinanceHubControlPanel } from "./AixiaFinanceHubControlPanel";
+export {
+  AixiaFinanceHubOverviewGrid,
+  type AixiaFinanceHubOverviewItem,
+} from "./AixiaFinanceHubOverviewGrid";
 export { AixiaSignalRow } from "./AixiaSignalRow";
 export { AixiaSideList, AixiaSideListRow } from "./AixiaSideList";
 export { AixiaValueBlock } from "./AixiaValueBlock";

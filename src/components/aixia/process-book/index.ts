@@ -4,3 +4,6 @@ export * from "./AixiaProcessStage";
 export * from "./AixiaProcessSummaryPanel";
 export * from "./AixiaProcessNavigation";
 export * from "./AixiaProcessInfo";
+export * from "./AixiaProcessPipeline";
+export * from "./AixiaProcessHistoryModal";
+export * from "./AixiaPayrollProcessHistoryModal";

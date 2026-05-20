@@ -15,7 +15,7 @@ export function AixiaEmptyState({
   className = "",
 }: AixiaEmptyStateProps) {
   return (
-    <div className={`aixia-empty-state ${className}`}>
+    <div className={`aixia-card-shell aixia-empty-state ${className}`}>
       <div className="aixia-empty-state-icon">
         <Icon className="h-6 w-6" />
       </div>

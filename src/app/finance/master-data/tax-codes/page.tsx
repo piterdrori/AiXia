@@ -1,19 +1,5 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
-import {
-  Archive,
-  Calculator,
-  CheckCircle2,
-  Edit3,
-  Loader2,
-  Percent,
-  Plus,
-  RotateCcw,
-  Save,
-  Search,
-  ShieldCheck,
-  Star,
-  Trash2,
-} from "lucide-react";
+import { Archive, Calculator, CheckCircle2, Edit3, Loader2, Percent, Plus, RotateCcw, Save, Search, Star, Trash2 } from "lucide-react";
 
 import {
   AixiaAccessDeniedState,
@@ -30,10 +16,8 @@ import {
   AixiaHero,
   AixiaInputField,
   AixiaLoadingState,
-  AixiaMetricCard,
-  AixiaMetricGrid,
   AixiaModal,
-  AixiaPage,
+  FinancePage,
   AixiaRegistryToolbar,
   AixiaSearchField,
   AixiaSection,
@@ -46,6 +30,7 @@ import {
   AixiaTableShell,
   AixiaTableTextCell,
   AixiaTextareaField,
+  AixiaCommandMetrics
 } from "@/components/aixia";
 
 import { supabase } from "@/lib/supabase";
@@ -316,7 +301,7 @@ function TaxCodeFormModal({
 export default function FinanceTaxCodesPage() {
   const [rows, setRows] = useState<FinanceTaxCodeRow[]>([]);
   const [initialLoading, setInitialLoading] = useState(true);
-  const [backgroundRefreshing, setBackgroundRefreshing] = useState(false);
+  const [, setBackgroundRefreshing] = useState(false);
   const [saving, setSaving] = useState(false);
   const [actionLoadingId, setActionLoadingId] = useState<string | null>(null);
 
@@ -712,6 +697,17 @@ export default function FinanceTaxCodesPage() {
     setError("");
   }
 
+  const __registryCommandMetrics = useMemo(
+    () => [
+    { key: "active-codes", title: "Active Codes", value: String(formatCount(stats.active)), subtitle: "Tax codes available for document and item selection.", icon: CheckCircle2, tone: "emerald", },
+    { key: "inactive", title: "Inactive", value: String(formatCount(stats.inactive)), subtitle: "Tax codes disabled from normal selection.", icon: Calculator, tone: "gold", },
+    { key: "default", title: "Default", value: String(formatCount(stats.defaultCodes)), subtitle: "Active default tax code records.", icon: Star, tone: "cyan", },
+    { key: "archived", title: "Archived", value: String(formatCount(stats.archived)), subtitle: "Historical tax codes managed through archive controls.", icon: Archive, tone: "violet", }
+    
+    ],
+    [stats, formatCount]
+  );
+
   if (initialLoading) {
     return (
       <AixiaLoadingState
@@ -721,45 +717,21 @@ export default function FinanceTaxCodesPage() {
     );
   }
 
-  return (
-    <AixiaPage>
+return (
+    <FinancePage>
       <AixiaHero
+        className="shrink-0 space-y-4"
+        surface="command"
         parentLabel="Master Data"
         parentPath="/finance/master-data"
-        badges={[
-          { label: "Finance Master Data", tone: "cyan" },
-          { label: "Tax Codes", tone: "violet" },
-          { label: "Tax Treatment", tone: "emerald" },
-          {
-            label: backgroundRefreshing ? "Updating Silently" : "Realtime + 60s",
-            tone: backgroundRefreshing ? "gold" : "neutral",
-          },
-        ]}
         gradientTitle="Tax"
         title="Codes"
-        subtitle="Controlled Tax Treatment Registry"
-        description="Define standard tax rates and tax treatments used across invoices, bills, items, and other finance records."
-        statusCards={[
-          {
-            label: "Read Access",
-            value: permissionState.canRead ? "Enabled" : "Locked",
-            description:
-              "This registry requires Finance read access or Master Data admin access.",
-            icon: permissionState.canRead ? ShieldCheck : Archive,
-            tone: permissionState.canRead ? "emerald" : "rose",
-          },
-          {
-            label: "Lifecycle Access",
-            value: canArchive ? "Archive Enabled" : canCreate ? "Create Enabled" : "Read Only",
-            description:
-              "Create, Edit, Archive, Restore, and Permanent Delete follow Finance permissions.",
-            icon: canArchive ? Archive : Calculator,
-            tone: canArchive ? "amber" : "cyan",
-          },
-        ]}
-      />
+        subtitle="Controlled Tax Treatment Registry">
+        <AixiaCommandMetrics items={__registryCommandMetrics} />
+      </AixiaHero>
 
-      {error ? <AixiaAlert tone="error">{error}</AixiaAlert> : null}
+      <div className="aixia-command-scroll">
+{error ? <AixiaAlert tone="error">{error}</AixiaAlert> : null}
       {pageMessage ? <AixiaAlert tone="success">{pageMessage}</AixiaAlert> : null}
 
       {!permissionState.canRead ? (
@@ -769,39 +741,7 @@ export default function FinanceTaxCodesPage() {
         />
       ) : (
         <>
-          <AixiaMetricGrid>
-            <AixiaMetricCard
-              label="Active Codes"
-              value={formatCount(stats.active)}
-              description="Tax codes available for document and item selection."
-              icon={CheckCircle2}
-              tone="emerald"
-            />
-
-            <AixiaMetricCard
-              label="Inactive"
-              value={formatCount(stats.inactive)}
-              description="Tax codes disabled from normal selection."
-              icon={Calculator}
-              tone="gold"
-            />
-
-            <AixiaMetricCard
-              label="Default"
-              value={formatCount(stats.defaultCodes)}
-              description="Active default tax code records."
-              icon={Star}
-              tone="cyan"
-            />
-
-            <AixiaMetricCard
-              label="Archived"
-              value={formatCount(stats.archived)}
-              description="Historical tax codes managed through archive controls."
-              icon={Archive}
-              tone="violet"
-            />
-          </AixiaMetricGrid>
+          
 
           <AixiaSection
             title="Tax Codes Registry"
@@ -1135,6 +1075,7 @@ export default function FinanceTaxCodesPage() {
         onChange={updateForm}
         onSave={() => void handleSave()}
       />
-    </AixiaPage>
+      </div>
+    </FinancePage>
   );
 }

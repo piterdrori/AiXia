@@ -1,0 +1,163 @@
+/* Admin usage report */
+.aixia-dash-usage {
+  border: 1px solid var(--aixia-dash-border);
+  border-radius: var(--aixia-dash-radius);
+  background: var(--aixia-dash-surface);
+  flex-shrink: 0;
+  width: 100%;
+  min-width: 0;
+  min-height: 16.5rem;
+  display: flex;
+  flex-direction: column;
+}
+
+.aixia-dash-usage-hd {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.65rem 1rem;
+  padding: clamp(0.65rem, 1.75vw, 0.95rem) clamp(0.85rem, 2.25vw, 1.25rem);
+  border-bottom: 1px solid var(--aixia-dash-border);
+  flex-shrink: 0;
+}
+
+.aixia-dash-usage-title {
+  margin: 0;
+  font-size: 0.875rem;
+  font-weight: 600;
+  color: var(--aixia-dash-title);
+}
+
+.aixia-dash-usage-subtitle {
+  margin: 0.2rem 0 0;
+  font-size: 0.72rem;
+  line-height: 1.4;
+  color: var(--aixia-dash-muted);
+  max-width: 28rem;
+}
+
+.aixia-dash-usage-select {
+  font-size: 0.8125rem;
+  padding: 0.35rem 0.5rem;
+  border-radius: 8px;
+  border: 1px solid var(--aixia-dash-border);
+  background: color-mix(in srgb, var(--background, #09090b) 92%, transparent);
+  color: var(--aixia-dash-title);
+  min-height: 2.25rem;
+  min-width: min(14rem, 42vw);
+  max-width: 18rem;
+}
+
+.aixia-dash-usage-period-total {
+  margin: 0 0 0.65rem;
+  font-size: 0.8125rem;
+  color: var(--aixia-dash-muted);
+}
+
+.aixia-dash-usage-period-total strong {
+  color: var(--aixia-dash-title);
+  font-weight: 650;
+}
+
+.aixia-platform-usage-report .aixia-dash-usage-hd {
+  align-items: flex-start;
+}
+
+.aixia-dash-usage-filters {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.5rem 0.75rem;
+}
+
+.aixia-dash-usage-filters label {
+  font-size: 0.72rem;
+  color: var(--aixia-dash-muted);
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
+}
+
+.aixia-dash-usage-filters input[type="date"] {
+  font-size: 0.8125rem;
+  padding: 0.35rem 0.5rem;
+  border-radius: 8px;
+  border: 1px solid var(--aixia-dash-border);
+  background: color-mix(in srgb, var(--background, #09090b) 92%, transparent);
+  color: var(--aixia-dash-title);
+  min-height: 2.25rem;
+}
+
+.aixia-dash-usage-body {
+  flex: 1;
+  min-height: 12rem;
+  padding: clamp(0.75rem, 2vw, 1.15rem) clamp(0.75rem, 2.25vw, 1.25rem);
+  max-height: min(52vh, 520px);
+  overflow: auto;
+}
+
+.aixia-dash-usage-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 0.8125rem;
+}
+
+.aixia-dash-usage-table th,
+.aixia-dash-usage-table td {
+  text-align: left;
+  padding: 0.5rem 0.55rem;
+  border-bottom: 1px solid color-mix(in srgb, var(--aixia-dash-border) 85%, transparent);
+}
+
+.aixia-dash-usage-table th {
+  font-size: 0.625rem;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  color: var(--aixia-dash-muted);
+}
+
+.aixia-dash-usage-table tr:last-child td {
+  border-bottom: none;
+}
+
+.aixia-dash-usage-loading {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+}
+
+.aixia-dash-usage-loading-row {
+  display: flex;
+  gap: 0.5rem;
+}
+
+.aixia-dash-usage-empty {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  justify-content: center;
+  gap: 0.5rem;
+  min-height: 10rem;
+  padding: 1rem 1.1rem 1.25rem;
+  text-align: left;
+  border-radius: var(--aixia-dash-radius-sm);
+  border: 1px dashed color-mix(in srgb, var(--aixia-dash-border) 95%, transparent);
+  background: color-mix(in srgb, var(--background, #020617) 38%, rgba(15, 23, 42, 0.35));
+}
+
+.aixia-dash-usage-empty-title {
+  margin: 0;
+  font-size: 0.875rem;
+  font-weight: 600;
+  color: var(--aixia-dash-title);
+}
+
+.aixia-dash-usage-empty-copy {
+  margin: 0;
+  font-size: 0.78rem;
+  line-height: 1.45;
+  color: var(--aixia-dash-muted);
+  max-width: 40rem;
+}

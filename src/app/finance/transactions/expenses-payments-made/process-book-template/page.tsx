@@ -1,12 +1,12 @@
 "use client";
 
 import { useMemo, useState } from "react";
-import { BookOpen, CheckCircle2, Layers3, WalletCards } from "lucide-react";
+
 
 import {
   AixiaButton,
   AixiaHero,
-  AixiaPage,
+  FinancePage,
   AixiaProcessBook,
   AixiaProcessInfo,
   type AixiaProcessStageItem,
@@ -618,27 +618,19 @@ export default function FinanceExpensePaymentProcessBookTemplatePage() {
   };
 
   return (
-    <AixiaPage>
+    <FinancePage>
       <AixiaHero
+        className="shrink-0 space-y-4"
+        surface="command"
         parentLabel="Transactions"
         parentPath="/finance/transactions"
         gradientTitle="Expense Workflow"
         title="Admin Process Preview"
         subtitle="Expenses / Payments Made"
-        description="This preview prepares the four expense workflow processes for real permission control. Admin can see every process. Employees will only see Apply Expense and their own expense status."
-        badges={[
-          { label: "Admin preview", tone: "cyan" },
-          { label: "Permission-ready", tone: "emerald" },
-        ]}
-        statusCards={[
-          { label: "Processes", value: "4", description: "Role controlled", icon: BookOpen, tone: "cyan" },
-          { label: "Layout", value: "1 stage", description: "Visible at a time", icon: Layers3, tone: "violet" },
-          { label: "Money Flow", value: "Pool → Pay", description: "Funding then execution", icon: WalletCards, tone: "gold" },
-          { label: "Status", value: "Preview", description: "Ready for review", icon: CheckCircle2, tone: "emerald" },
-        ]}
-      />
+        />
 
-      <div className="aixia-process-selector">
+      <div className="aixia-command-scroll">
+<div className="aixia-process-selector">
         {visibleProcesses.map((process) => (
           <span className="aixia-process-action-with-info" key={process.key}>
             <AixiaButton
@@ -695,6 +687,7 @@ export default function FinanceExpensePaymentProcessBookTemplatePage() {
       />
 
       {historyOpen ? <ExpenseHistoryModal onClose={() => setHistoryOpen(false)} /> : null}
-    </AixiaPage>
+      </div>
+    </FinancePage>
   );
 }

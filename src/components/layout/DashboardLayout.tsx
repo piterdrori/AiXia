@@ -18,6 +18,7 @@ import {
   FolderKanban,
   LayoutDashboard,
   LogOut,
+  Mail,
   Menu,
   MessageSquare,
   Search,
@@ -25,6 +26,10 @@ import {
   Users,
   X,
 } from "lucide-react";
+
+import "@/styles/dashboard/tokens.css";
+import "@/styles/dashboard/sidebar-chrome.css";
+import "@/styles/dashboard/visual.css";
 
 import { supabase } from "@/lib/supabase";
 import { useLanguage } from "@/lib/i18n";
@@ -44,6 +49,7 @@ import {
   initNotificationSound,
   playNotificationSound,
 } from "@/lib/sound";
+import { usePlatformUsageHeartbeat } from "@/hooks/usePlatformUsageHeartbeat";
 
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -221,6 +227,8 @@ export default function DashboardLayout({
     userProfileRef.current = userProfile;
   }, [userProfile]);
 
+  usePlatformUsageHeartbeat(Boolean(userProfile?.userId));
+
     useEffect(() => {
     notificationsRef.current = notifications;
   }, [notifications]);
@@ -357,6 +365,7 @@ export default function DashboardLayout({
         supabase
           .from("tasks")
           .select("id", { count: "exact", head: true })
+          .is("deleted_at", null)
           .eq("due_date", today),
         supabase
           .from("calendar_events")
@@ -777,6 +786,11 @@ const navItems: NavItem[] = useMemo(
         href: "/inbox",
         badge: unreadCount || undefined,
       },
+      {
+        label: t("common.mail", "Mail"),
+        icon: Mail,
+        href: "/mail",
+      },
       ...(effectivePermissions?.viewEmployeeDirectory
   ? [
       {
@@ -825,6 +839,7 @@ const navItems: NavItem[] = useMemo(
 
   const isActive = (href: string) => {
     if (href === "/dashboard") return location.pathname === "/dashboard";
+    if (href === "/mail") return location.pathname === "/mail";
     return location.pathname.startsWith(href);
   };
 
@@ -894,11 +909,11 @@ const handleNotificationClick = async (notification: NotificationRow) => {
 
   const renderSidebarContent = () => (
     <div className="grid h-full min-h-0 grid-rows-[auto,minmax(0,1fr),auto] overflow-hidden">
-      <div className="relative flex items-center justify-center border-b border-border px-4 py-5">
+      <div className="relative flex items-center justify-center border-b border-[var(--aixia-dash-border)] px-4 py-4">
         <img
           src="https://leoilrrnwlquunsbulok.supabase.co/storage/v1/object/public/Branding/aixia-logo.png"
           alt="AiXia Logo"
-          className="h-40 w-auto object-contain"
+          className="h-10 w-auto max-w-[85%] object-contain opacity-[0.96]"
         />
 
         {isMobile && (
@@ -913,8 +928,8 @@ const handleNotificationClick = async (notification: NotificationRow) => {
         )}
       </div>
 
-      <nav className="min-h-0 overflow-y-auto overscroll-y-contain px-4 py-4 [scrollbar-gutter:stable]">
-        <div className="space-y-1">
+      <nav className="min-h-0 overflow-y-auto overscroll-y-contain px-2 py-3 [scrollbar-gutter:stable]">
+        <div className="space-y-0.5">
           <TooltipProvider delayDuration={0}>
             {navItems.map((item) => (
               <Tooltip key={item.href}>
@@ -924,14 +939,14 @@ const handleNotificationClick = async (notification: NotificationRow) => {
                       navigate(item.href);
                       if (isMobile) setMobileMenuOpen(false);
                     }}
-                    className={`flex w-full items-center gap-3 rounded-lg px-3 py-2.5 transition-all duration-200 ${
+                    className={`aixia-dash-sidebar-nav-item flex w-full items-center gap-2.5 rounded-[var(--aixia-dash-radius-sm)] px-2 py-2 text-[13px] font-medium leading-snug transition-all duration-200 ${
                       isActive(item.href)
-                        ? "bg-primary/10 text-primary backdrop-blur-md shadow-sm"
-                        : "text-muted-foreground hover:bg-white/5 hover:text-foreground"
+                        ? "aixia-dash-sidebar-nav-active border border-primary/25 bg-primary/[0.09] text-primary backdrop-blur-md"
+                        : "border border-transparent hover:border-[color-mix(in_srgb,var(--foreground)_9%,transparent)] hover:bg-background/45 hover:backdrop-blur-sm"
                     }`}
                   >
                     <item.icon
-                      className={`h-5 w-5 ${isActive(item.href) ? "text-primary" : ""}`}
+                      className={`h-5 w-5 shrink-0 ${isActive(item.href) ? "text-primary" : ""}`}
                     />
                     <span className="flex-1 text-left">{item.label}</span>
 
@@ -961,19 +976,19 @@ const handleNotificationClick = async (notification: NotificationRow) => {
         </div>
       </nav>
 
-      <div className="border-t border-border bg-background/80 p-4 backdrop-blur-2xl">
-        <div className="flex flex-col gap-3">
-          <div className="rounded-xl border border-border bg-background/40 px-3 py-2 backdrop-blur-md">
+      <div className="aixia-dash-sidebar-footer px-2 py-2 sm:px-2.5 sm:py-2.5">
+        <div className="flex flex-col gap-2">
+          <div className="aixia-dash-sidebar-footer__clock px-2 py-1.5">
             <p className="text-[11px] uppercase tracking-wide text-muted-foreground">
               {t("clock.systemTime", "System Time")}
             </p>
-            <p className="mt-1 text-sm font-medium text-foreground">
+            <p className="mt-0.5 text-sm font-medium text-foreground">
               {format(clock.now, "PPP")}
             </p>
             <p className="text-xs text-muted-foreground">{format(clock.now, "p")}</p>
           </div>
 
-          <div className="rounded-xl border border-border bg-background/40 px-3 py-2 backdrop-blur-md">
+          <div className="aixia-dash-sidebar-footer__clock px-2 py-1.5">
             <p className="text-[11px] uppercase tracking-wide text-muted-foreground">
               {t("clock.localTime", "My Local Time")}
             </p>
@@ -984,7 +999,7 @@ const handleNotificationClick = async (notification: NotificationRow) => {
 
         <DropdownMenu>
           <DropdownMenuTrigger asChild>
-            <button className="mt-4 flex w-full items-center gap-3 rounded-lg px-3 py-2 transition-colors hover:bg-muted">
+            <button className="mt-2 flex w-full items-center gap-2 rounded-[var(--aixia-dash-radius-sm)] border border-transparent px-2 py-1.5 transition-colors hover:border-[color-mix(in_srgb,var(--foreground)_9%,transparent)] hover:bg-background/35 hover:backdrop-blur-sm">
               <Avatar className="h-8 w-8">
                 <AvatarImage src={userProfile?.avatarUrl || undefined} />
                 <AvatarFallback className="bg-primary text-sm text-primary-foreground">
@@ -1037,34 +1052,36 @@ const handleNotificationClick = async (notification: NotificationRow) => {
     <div className="flex h-dvh overflow-hidden bg-background text-foreground">
       {!isMobile && (
         <aside
-          className={`fixed left-0 top-0 z-40 h-dvh min-h-0 overflow-hidden border-r border-border bg-background/60 backdrop-blur-2xl shadow-[0_10px_40px_rgba(0,0,0,0.25)] transition-all duration-300 ${
-            sidebarOpen ? "w-64" : "w-16"
+          className={`aixia-dash-sidebar-chrome h-dvh shrink-0 transition-[width] duration-300 ease-out ${
+            sidebarOpen
+              ? "w-[var(--aixia-dash-sidebar-w-expanded)]"
+              : "w-[var(--aixia-dash-sidebar-w-collapsed)]"
           }`}
         >
                    {sidebarOpen ? (
             renderSidebarContent()
           ) : (
             <div className="grid h-full min-h-0 grid-rows-[auto,minmax(0,1fr),auto] overflow-hidden">
-              <div className="flex justify-center border-b border-border p-4">
+              <div className="flex justify-center border-b border-[var(--aixia-dash-border)] px-2 py-3">
                 <img
                   src="https://leoilrrnwlquunsbulok.supabase.co/storage/v1/object/public/Branding/aixia-logo.png"
                   alt="AiXia Logo"
-                  className="h-8 w-auto object-contain"
+                  className="h-8 w-auto object-contain opacity-[0.96]"
                 />
               </div>
 
-              <nav className="min-h-0 overflow-y-auto overscroll-y-contain p-2 [scrollbar-gutter:stable]">
-                <div className="space-y-1">
+              <nav className="min-h-0 overflow-y-auto overscroll-y-contain px-1 py-2 [scrollbar-gutter:stable]">
+                <div className="space-y-0.5">
                   <TooltipProvider delayDuration={0}>
                     {navItems.map((item) => (
                       <Tooltip key={item.href}>
                         <TooltipTrigger asChild>
                           <button
                             onClick={() => navigate(item.href)}
-                            className={`relative flex w-full items-center justify-center rounded-lg p-2.5 transition-all duration-200 ${
+                            className={`aixia-dash-sidebar-nav-item relative flex w-full items-center justify-center rounded-[var(--aixia-dash-radius-sm)] border p-1.5 transition-all duration-200 ${
                               isActive(item.href)
-                                ? "bg-primary/15 text-primary"
-                                : "text-muted-foreground hover:bg-white/5 hover:text-foreground"
+                                ? "aixia-dash-sidebar-nav-active border-primary/25 bg-primary/[0.09] text-primary backdrop-blur-md"
+                                : "border-transparent hover:border-[color-mix(in_srgb,var(--foreground)_9%,transparent)] hover:bg-background/45 hover:backdrop-blur-sm"
                             }`}
                           >
                             <item.icon className="h-5 w-5" />
@@ -1090,10 +1107,10 @@ const handleNotificationClick = async (notification: NotificationRow) => {
                 </div>
               </nav>
 
-              <div className="border-t border-border bg-background/80 p-2 backdrop-blur-2xl">
+              <div className="aixia-dash-sidebar-footer px-1.5 py-1.5">
                 <DropdownMenu>
                   <DropdownMenuTrigger asChild>
-                    <button className="flex w-full justify-center rounded-lg p-2 transition-colors hover:bg-muted">
+                    <button className="flex w-full justify-center rounded-[var(--aixia-dash-radius-sm)] border border-transparent p-1.5 transition-colors hover:border-[color-mix(in_srgb,var(--foreground)_9%,transparent)] hover:bg-background/35 hover:backdrop-blur-sm">
                       <Avatar className="h-8 w-8">
                         <AvatarImage src={userProfile?.avatarUrl || undefined} />
                         <AvatarFallback className="bg-primary text-sm text-primary-foreground">
@@ -1139,17 +1156,13 @@ const handleNotificationClick = async (notification: NotificationRow) => {
             className="fixed inset-0 z-40 bg-black/50"
             onClick={() => setMobileMenuOpen(false)}
           />
-          <aside className="fixed left-0 top-0 z-50 h-dvh min-h-0 w-64 overflow-hidden border-r border-border bg-background/70 backdrop-blur-2xl shadow-[0_10px_40px_rgba(0,0,0,0.25)]">
+          <aside className="aixia-dash-sidebar-chrome fixed left-0 top-0 z-50 h-dvh w-56">
             {renderSidebarContent()}
           </aside>
         </>
       )}
 
-      <main
-        className={`flex flex-1 min-h-0 flex-col overflow-hidden transition-all duration-300 ${
-          !isMobile && sidebarOpen ? "ml-64" : !isMobile ? "ml-16" : ""
-        }`}
-      >
+      <main className="flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden transition-all duration-300">
         <header className="sticky top-0 z-30 shrink-0 border-b border-border bg-background/60 backdrop-blur-2xl shadow-[0_1px_0_rgba(255,255,255,0.03)]">
           <div className="flex items-center justify-between px-4 py-3">
             <div className="flex items-center gap-4">
@@ -1302,8 +1315,8 @@ const handleNotificationClick = async (notification: NotificationRow) => {
           </div>
         </header>
 
-        <div className="flex-1 min-h-0 overflow-y-auto overscroll-y-contain p-5 [scrollbar-gutter:stable] lg:p-8">
-          <div className="space-y-6">
+        <div className="flex-1 min-h-0 overflow-y-auto overscroll-y-contain p-2.5 [scrollbar-gutter:stable] sm:p-3.5 lg:p-4">
+          <div className="w-full min-w-0 max-w-[100%] space-y-4">
             {children}
           </div>
         </div>

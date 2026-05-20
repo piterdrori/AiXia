@@ -1,20 +1,7 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import type { LucideIcon } from "lucide-react";
-import {
-  ArrowRight,
-  Archive,
-  CheckCircle2,
-  CreditCard,
-  Landmark,
-  Loader2,
-  LockKeyhole,
-  Plus,
-  RotateCcw,
-  ShieldCheck,
-  Trash2,
-  WalletCards,
-} from "lucide-react";
+import { ArrowRight, Archive, CheckCircle2, CreditCard, Landmark, Loader2, LockKeyhole, Plus, RotateCcw, Trash2, WalletCards } from "lucide-react";
 
 import {
   AixiaAccessRule,
@@ -25,9 +12,7 @@ import {
   AixiaDefaultBadge,
   AixiaEmptyState,
   AixiaHero,
-  AixiaMetricCard,
-  AixiaMetricGrid,
-  AixiaPage,
+  FinancePage,
   AixiaRegistryToolbar,
   AixiaSearchField,
   AixiaSection,
@@ -38,6 +23,7 @@ import {
   AixiaTableDateCell,
   AixiaTableShell,
   AixiaTableTextCell,
+  AixiaCommandMetrics,
 } from "@/components/aixia";
 
 import {
@@ -169,12 +155,6 @@ function compareDates(first: string | null | undefined, second: string | null | 
   return new Date(first || 0).getTime() - new Date(second || 0).getTime();
 }
 
-function getMetricTone(tone: MetricCard["tone"]) {
-  if (tone === "cyan") return "indigo";
-  if (tone === "amber") return "gold";
-
-  return tone;
-}
 
 export default function FinanceMasterDataBankAccountsPage() {
   const navigate = useNavigate();
@@ -725,59 +705,24 @@ export default function FinanceMasterDataBankAccountsPage() {
   const isActionRunning = Boolean(runningAction);
 
   return (
-    <AixiaPage>
+    <FinancePage>
       <AixiaHero
+        className="shrink-0 space-y-4"
+        surface="command"
         parentLabel="Master Data"
         parentPath="/finance/master-data"
-        badges={[
-          { label: "Company Banking Master Data", tone: "indigo" },
-          { label: "Permission filtered", tone: "emerald" },
-          { label: "Realtime + 60s fallback", tone: "gold" },
-        ]}
         gradientTitle="Company Bank"
         title="Accounts"
-        subtitle="Treasury Reference Registry"
-        description="Permission-filtered registry for company-linked bank accounts used by treasury, payment instructions, and finance document snapshots."
-        statusCards={[
-          {
-            label: "Read Access",
-            value: isLoadingProfile ? "Checking" : permissionState.canRead ? "Enabled" : "Locked",
-            description:
-              "This page requires Bank Account read access or Master Data admin access.",
-            icon: permissionState.canRead ? ShieldCheck : LockKeyhole,
-            tone: permissionState.canRead ? "emerald" : "rose",
-          },
-          {
-            label: "Lifecycle Access",
-            value: permissionState.canDeleteArchive
-              ? "Archive Enabled"
-              : permissionState.canCreate
-                ? "Create Enabled"
-                : "Read Only",
-            description:
-              "Create and Delete/Archive actions follow the selected Finance template.",
-            icon: permissionState.canDeleteArchive ? Archive : CreditCard,
-            tone: permissionState.canDeleteArchive ? "gold" : "indigo",
-          },
-        ]}
-      />
+        subtitle="Treasury Reference Registry">
+        <AixiaCommandMetrics items={metricCards} />
+      </AixiaHero>
 
-      {pageError ? <AixiaAlert tone="error">{pageError}</AixiaAlert> : null}
+      <div className="aixia-command-scroll">
+{pageError ? <AixiaAlert tone="error">{pageError}</AixiaAlert> : null}
 
       {pageMessage ? <AixiaAlert tone="success">{pageMessage}</AixiaAlert> : null}
 
-      <AixiaMetricGrid>
-        {metricCards.map((metric) => (
-          <AixiaMetricCard
-            key={metric.key}
-            label={metric.title}
-            value={metric.value}
-            description={metric.subtitle}
-            icon={metric.icon}
-            tone={getMetricTone(metric.tone)}
-          />
-        ))}
-      </AixiaMetricGrid>
+      
 
       {!permissionState.canRead && !isPageLoading ? (
         <AixiaSection
@@ -1120,6 +1065,7 @@ export default function FinanceMasterDataBankAccountsPage() {
           )}
         </div>
       </AixiaArchiveManagerModal>
-    </AixiaPage>
+      </div>
+    </FinancePage>
   );
 }

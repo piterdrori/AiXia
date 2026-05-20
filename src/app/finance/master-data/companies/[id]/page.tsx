@@ -1,25 +1,6 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { useNavigate, useParams } from "react-router-dom";
-import type { LucideIcon } from "lucide-react";
-import {
-  Archive,
-  ArrowRight,
-  Banknote,
-  Building2,
-  FileText,
-  Landmark,
-  Loader2,
-  LockKeyhole,
-  MapPin,
-  Pencil,
-  Plus,
-  RotateCcw,
-  ShieldCheck,
-  Sparkles,
-  Truck,
-  UserRound,
-  Users,
-} from "lucide-react";
+import { Archive, ArrowRight, Banknote, Building2, FileText, Landmark, Loader2, MapPin, Plus, RotateCcw, ShieldCheck, Sparkles, Truck, UserRound, Users } from "lucide-react";
 
 import {
   AixiaAccessDeniedState,
@@ -41,7 +22,7 @@ import {
   AixiaInputField,
   AixiaLoadingState,
   AixiaNotFoundState,
-  AixiaPage,
+  FinancePage,
   AixiaReviewBlock,
   AixiaReviewGrid,
   AixiaSection,
@@ -198,13 +179,6 @@ type ShippingDraftRow = {
   address_line_2: string;
 };
 
-type HeaderStatusCardData = {
-  label: string;
-  value: string;
-  description: string;
-  icon: LucideIcon;
-  tone: "emerald" | "cyan" | "amber" | "rose";
-};
 
 type SummaryItem = {
   label: string;
@@ -305,16 +279,6 @@ function formatDateTimeLabel(value: string | null | undefined) {
     hour: "2-digit",
     minute: "2-digit",
   });
-}
-
-function formatStatus(value: string | null | undefined) {
-  if (!value) return "Unknown";
-
-  return value
-    .split("_")
-    .filter(Boolean)
-    .map((part) => part.charAt(0).toUpperCase() + part.slice(1))
-    .join(" ");
 }
 
 function getCompanyDisplayName(company: CompanyDetailRecord | null) {
@@ -436,7 +400,7 @@ export default function FinanceMasterDataCompanyDetailPage() {
   const [currencyOptions, setCurrencyOptions] = useState<CurrencyOption[]>([]);
   const [isLoadingProfile, setIsLoadingProfile] = useState(true);
   const [isLoadingCompany, setIsLoadingCompany] = useState(true);
-  const [backgroundRefreshing, setBackgroundRefreshing] = useState(false);
+  const [, setBackgroundRefreshing] = useState(false);
   const [isSaving, setIsSaving] = useState(false);
   const [isLifecycleRunning, setIsLifecycleRunning] = useState(false);
   const [activeBankActionId, setActiveBankActionId] = useState<string | null>(null);
@@ -852,45 +816,7 @@ export default function FinanceMasterDataCompanyDetailPage() {
     ];
   }, [company?.currency_code, currencyOptions, identityDraft.currency_code]);
 
-  const headerStatusCards = useMemo<HeaderStatusCardData[]>(() => {
-    return [
-      {
-        label: "Read Access",
-        value: isLoadingProfile
-          ? "Checking"
-          : permissionState.canRead
-            ? "Enabled"
-            : "Locked",
-        description: "Viewing this record requires Finance read access.",
-        icon: permissionState.canRead ? ShieldCheck : LockKeyhole,
-        tone: permissionState.canRead ? "emerald" : "rose",
-      },
-      {
-        label: "Edit Access",
-        value: permissionState.canUpdate ? "Enabled" : "Read Only",
-        description: "Section edits require Update access or Master Data admin access.",
-        icon: permissionState.canUpdate ? Pencil : LockKeyhole,
-        tone: permissionState.canUpdate ? "cyan" : "amber",
-      },
-      {
-        label: "Lifecycle Access",
-        value: permissionState.canDeleteArchive ? "Archive Enabled" : "Locked",
-        description: backgroundRefreshing
-          ? "Silent refresh is updating data without disturbing the page."
-          : "Archive and Restore require Delete/Archive access.",
-        icon: permissionState.canDeleteArchive ? Archive : LockKeyhole,
-        tone: permissionState.canDeleteArchive ? "amber" : "rose",
-      },
-    ];
-  }, [
-    backgroundRefreshing,
-    isLoadingProfile,
-    permissionState.canDeleteArchive,
-    permissionState.canRead,
-    permissionState.canUpdate,
-  ]);
-
-  const summaryItems = useMemo<SummaryItem[]>(() => {
+const summaryItems = useMemo<SummaryItem[]>(() => {
     return [
       {
         label: "Company",
@@ -1597,7 +1523,7 @@ export default function FinanceMasterDataCompanyDetailPage() {
 
   if (!company) {
     return (
-      <AixiaPage>
+      <FinancePage>
         <AixiaNotFoundState
           title="Company not found"
           description="The company record could not be loaded or no longer exists."
@@ -1612,63 +1538,47 @@ export default function FinanceMasterDataCompanyDetailPage() {
             </AixiaButton>
           }
         />
-      </AixiaPage>
+      </FinancePage>
     );
   }
 
   if (!permissionState.canRead) {
     return (
-      <AixiaPage>
+      <FinancePage>
         <AixiaHero
+        className="shrink-0 space-y-4"
+        surface="command"
           parentLabel="Companies"
           parentPath="/finance/master-data/companies"
-          badges={[
-            { label: "Access Locked", tone: "rose" },
-            { label: "Permission protected", tone: "cyan" },
-          ]}
           gradientTitle="Company"
           title="Access Locked"
           subtitle="Read Permission Required"
-          description="This page requires Finance read access or Master Data admin access."
-          statusCards={[
-            {
-              label: "Read Access",
-              value: "Locked",
-              description:
-                "Ask an Admin to assign a Finance role template or user-specific exception with Finance read access.",
-              icon: LockKeyhole,
-              tone: "rose",
-            },
-          ]}
-        />
+          />
 
-        <AixiaAccessDeniedState
+      <div className="aixia-command-scroll">
+<AixiaAccessDeniedState
           title="No company read access"
           description="Ask an Admin to assign a Finance role template or user-specific exception with Finance read access."
         />
-      </AixiaPage>
+      </div>
+    </FinancePage>
     );
   }
 
   return (
-    <AixiaPage>
+    <FinancePage>
       <AixiaHero
+        className="shrink-0 space-y-4"
+        surface="command"
         parentLabel="Companies"
         parentPath="/finance/master-data/companies"
-        badges={[
-          { label: "Company Detail", tone: "cyan" },
-          { label: company.company_code || company.code || "No Company Code", tone: "neutral" },
-          { label: company.currency_code || "No Currency", tone: "emerald" },
-          { label: formatStatus(company.status), tone: "amber" },
-        ]}
         gradientTitle={getCompanyDisplayName(company)}
         title="Company"
         subtitle="Internal Legal Entity Master Data"
-        description="Internal company record with same-place section editing, company identity, personnel, primary addresses, shipping addresses, linked bank accounts, notes, and lifecycle control."
-        statusCards={headerStatusCards}
-      />
+        />
 
-      {pageError ? <AixiaAlert tone="error">{pageError}</AixiaAlert> : null}
+      <div className="aixia-command-scroll">
+{pageError ? <AixiaAlert tone="error">{pageError}</AixiaAlert> : null}
       {pageMessage ? <AixiaAlert tone="success">{pageMessage}</AixiaAlert> : null}
 
       <AixiaSmartLayout
@@ -2708,6 +2618,6 @@ export default function FinanceMasterDataCompanyDetailPage() {
           </>
         }
       />
-    </AixiaPage>
+      </div></FinancePage>
   );
 }

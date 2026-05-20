@@ -13,6 +13,7 @@ import {
   Eye,
   FileCheck2,
   FolderArchive,
+  History,
   Landmark,
   Loader2,
   Pencil,
@@ -63,13 +64,35 @@ import {
   AixiaTextareaField,
   AixiaValueBlock,
 } from "@/components/aixia";
+import { AixiaProcessHistoryModal, AixiaProcessPipeline } from "@/components/aixia/process-book";
+import {
+  ExpenseActionFooter,
+  ExpenseNextActionBanner,
+  ExpensePaymentProgress,
+} from "@/components/finance/expenses";
 import {
   getFinanceEmployeePrimaryName,
   getFinanceEmployeeReferenceLabel,
   getFinanceEmployeeSecondaryLabel,
   type FinanceEmployeeIdentity,
 } from "@/lib/finance/employeeIdentity";
+import { EXPENSE_PIPELINE_STEPS } from "@/lib/finance/processBook/expenseProcesses";
+import { fetchExpenseHistoryRows } from "@/lib/finance/processBook/fetchExpenseHistory";
+import {
+  getExpenseEmployeeStatus,
+  getExpenseNextAction,
+  resolveExpenseStage,
+} from "@/lib/finance/processBook/resolveExpenseStage";
+import type { ExpenseHistoryRow } from "@/lib/finance/processBook/types";
+import { fetchFinanceEffectivePermissions } from "@/lib/finance/pageAccess";
 import { supabase } from "@/lib/supabase";
+import {
+  assertOwnExpenseAccess,
+  isOwnExpense,
+  resolveCurrentUserEmployeeRefIds,
+} from "@/lib/finance/expenses/ownership";
+import { hasDocumentationProof } from "@/lib/finance/expenses/documentationProof";
+import { useExpenseModuleRefresh } from "@/lib/finance/expenses/useExpenseModuleRefresh";
 
 type ExpenseRow = {
   id: string;
@@ -1746,8 +1769,14 @@ export default function FinanceExpenseDetailPage() {
   const [isEditingOverview, setIsEditingOverview] = useState(false);
   const [isSavingOverview, setIsSavingOverview] = useState(false);
   const [editForm, setEditForm] = useState<ExpenseEditFormState | null>(null);
+  const [currentUserId, setCurrentUserId] = useState<string | null>(null);
+  const [employeeRefIds, setEmployeeRefIds] = useState<string[]>([]);
+  const [canSeeExpenseReview, setCanSeeExpenseReview] = useState(false);
   const [pageError, setPageError] = useState<string | null>(null);
   const [pageMessage, setPageMessage] = useState<string | null>(null);
+  const [historyModalOpen, setHistoryModalOpen] = useState(false);
+  const [historyRows, setHistoryRows] = useState<ExpenseHistoryRow[]>([]);
+  const [isHistoryLoading, setIsHistoryLoading] = useState(false);
   const [allocationSearchQuery, setAllocationSearchQuery] = useState("");
   const [allocationArchiveSearchQuery, setAllocationArchiveSearchQuery] =
     useState("");
@@ -1999,12 +2028,17 @@ export default function FinanceExpenseDetailPage() {
 
   const needsSpendAndUploadProof = useMemo(() => {
     if (!expense) return false;
+    const hasProof = hasDocumentationProof({
+      documentation_status: expense.documentation_status,
+      metadata: expense.metadata,
+      attachmentCount: attachments.length,
+    });
 
     return (
       expense.request_status === "approved_to_spend" &&
-      (!expense.documentation_status || expense.documentation_status === "missing")
+      !hasProof
     );
-  }, [expense]);
+  }, [attachments.length, expense]);
 
   const needsDocumentationCorrection = useMemo(() => {
     if (!expense) return false;
@@ -2013,11 +2047,12 @@ export default function FinanceExpenseDetailPage() {
 
   const hasSubmittedDocumentation = useMemo(() => {
     if (!expense) return false;
-
-    return ["uploaded", "linked", "files_and_links", "verified"].includes(
-      expense.documentation_status || ""
-    );
-  }, [expense]);
+    return hasDocumentationProof({
+      documentation_status: expense.documentation_status,
+      metadata: expense.metadata,
+      attachmentCount: attachments.length,
+    });
+  }, [attachments.length, expense]);
 
   const generatedExpenseIdentity = useMemo(() => {
     if (!editForm) return null;
@@ -2100,6 +2135,87 @@ export default function FinanceExpenseDetailPage() {
       },
     ];
   }, [calculatedCoverageStatus, coveredAmount, expense]);
+
+  const isEmployeeView = useMemo(() => {
+    if (!expense || !currentUserId) return false;
+    return (
+      isOwnExpense(expense, currentUserId, new Set(employeeRefIds)) &&
+      !canSeeExpenseReview
+    );
+  }, [canSeeExpenseReview, currentUserId, employeeRefIds, expense]);
+
+  const employeeStatus = useMemo(() => {
+    if (!expense) return "";
+    return getExpenseEmployeeStatus(expense);
+  }, [expense]);
+
+  const employeeNextActionMessage = useMemo(() => {
+    if (!expense) return "";
+    if (
+      getExpenseEmployeeStatus(expense) === "Paid — Waiting Owner Confirmation"
+    ) {
+      return "Confirm below when you received the money.";
+    }
+    return getExpenseNextAction(expense, "employee");
+  }, [expense]);
+
+  const employeeBannerDetail = useMemo(() => {
+    if (!expense) return "";
+    const status = getExpenseEmployeeStatus(expense);
+    if (status !== "Paid — Waiting Owner Confirmation") {
+      return `Current status: ${status}`;
+    }
+    if (!canSubmitRecipientConfirmation) {
+      return "Finance has paid; confirmation will unlock when your expense status updates.";
+    }
+    return `Current status: ${status}`;
+  }, [canSubmitRecipientConfirmation, expense]);
+
+  const expenseStage = useMemo(() => {
+    if (!expense) return null;
+
+    return resolveExpenseStage({
+      id: expense.id,
+      status: expense.status,
+      approval_status: expense.approval_status,
+      payment_status: expense.payment_status,
+      request_status: expense.request_status,
+      documentation_status: expense.documentation_status,
+      recipient_confirmation_status: expense.recipient_confirmation_status,
+      finance_review_status: expense.finance_review_status,
+      coverage_status: expense.coverage_status,
+    });
+  }, [expense]);
+
+  const pipelineActiveStepKey = expenseStage?.processKey ?? "application";
+
+  const openHistoryModal = useCallback(async () => {
+    setIsHistoryLoading(true);
+    setPageError(null);
+
+    try {
+      const {
+        data: { user },
+      } = await supabase.auth.getUser();
+
+      if (!user) {
+        throw new Error("You must be signed in to view expense history.");
+      }
+
+      const rows = await fetchExpenseHistoryRows({ employeeUserId: user.id });
+      setHistoryRows(rows);
+      setHistoryModalOpen(true);
+    } catch (error) {
+      console.error("Failed to load expense history:", error);
+      setPageError(error instanceof Error ? error.message : "Failed to load expense history.");
+    } finally {
+      setIsHistoryLoading(false);
+    }
+  }, []);
+
+  const closeHistoryModal = useCallback(() => {
+    setHistoryModalOpen(false);
+  }, []);
 
   const updateEditField = useCallback(
     <Key extends keyof ExpenseEditFormState>(
@@ -2524,6 +2640,7 @@ export default function FinanceExpenseDetailPage() {
               "notes",
               "metadata",
               "submitter_user_id",
+              "created_by",
               "created_at",
               "updated_at",
             ].join(", ")
@@ -2534,6 +2651,44 @@ export default function FinanceExpenseDetailPage() {
         if (expenseResult.error) throw expenseResult.error;
 
         const loadedExpense = expenseResult.data as unknown as ExpenseRow;
+
+        const authResult = await supabase.auth.getUser();
+        const currentUserId = authResult.data.user?.id;
+        if (!currentUserId) {
+          throw new Error("You must be signed in to view this expense.");
+        }
+
+        const employeeRefIds = await resolveCurrentUserEmployeeRefIds(
+          supabase,
+          currentUserId,
+        );
+        setCurrentUserId(currentUserId);
+        setEmployeeRefIds(employeeRefIds);
+
+        const [profileResult, effectivePermissions] = await Promise.all([
+          supabase
+            .from("profiles")
+            .select("role")
+            .eq("user_id", currentUserId)
+            .maybeSingle(),
+          fetchFinanceEffectivePermissions(currentUserId, "initial", "ExpenseDetail"),
+        ]);
+
+        const isAdmin =
+          String(profileResult.data?.role ?? "").toLowerCase() === "admin";
+        setCanSeeExpenseReview(
+          isAdmin || Boolean(effectivePermissions?.approveExpenses),
+        );
+
+        if (
+          !assertOwnExpenseAccess(
+            loadedExpense,
+            currentUserId,
+            new Set(employeeRefIds),
+          )
+        ) {
+          throw new Error("You do not have access to this expense.");
+        }
 
         const [
           companyResult,
@@ -2743,52 +2898,30 @@ export default function FinanceExpenseDetailPage() {
     void loadExpense("initial");
   }, [loadExpense]);
 
-  useEffect(() => {
-    if (!expenseId) return undefined;
+  const expenseDetailRefreshTables = useMemo(
+    () =>
+      expenseId
+        ? [
+            { table: "finance_expenses" as const, filter: `id=eq.${expenseId}` },
+            {
+              table: "finance_payment_made_expense_allocations" as const,
+              filter: `expense_id=eq.${expenseId}`,
+            },
+            {
+              table: "finance_record_attachments" as const,
+              filter: `entity_id=eq.${expenseId}`,
+            },
+          ]
+        : [],
+    [expenseId],
+  );
 
-    const channel = supabase
-      .channel(`finance-expense-detail-${expenseId}`)
-      .on(
-        "postgres_changes",
-        {
-          event: "*",
-          schema: "public",
-          table: "finance_expenses",
-          filter: `id=eq.${expenseId}`,
-        },
-        () => void loadExpense("silent")
-      )
-      .on(
-        "postgres_changes",
-        {
-          event: "*",
-          schema: "public",
-          table: "finance_payment_made_expense_allocations",
-          filter: `expense_id=eq.${expenseId}`,
-        },
-        () => void loadExpense("silent")
-      )
-      .on(
-        "postgres_changes",
-        {
-          event: "*",
-          schema: "public",
-          table: "finance_record_attachments",
-          filter: `entity_id=eq.${expenseId}`,
-        },
-        () => void loadExpense("silent")
-      )
-      .subscribe();
-
-    const intervalId = window.setInterval(() => {
-      void loadExpense("silent");
-    }, 60000);
-
-    return () => {
-      window.clearInterval(intervalId);
-      void supabase.removeChannel(channel);
-    };
-  }, [expenseId, loadExpense]);
+  useExpenseModuleRefresh({
+    channelName: `finance-expense-detail-${expenseId ?? "detail"}`,
+    enabled: Boolean(expenseId),
+    tables: expenseDetailRefreshTables,
+    onRefresh: () => void loadExpense("silent"),
+  });
 
   const saveOverviewEdits = useCallback(async () => {
     if (!expense || !editForm || !generatedExpenseIdentity) return;
@@ -3351,6 +3484,43 @@ export default function FinanceExpenseDetailPage() {
     },
     [confirmationNotes, expense, loadExpense]
   );
+
+  const employeePrimaryAction = useMemo(() => {
+    if (!expense || !isEmployeeView) return null;
+
+    if (employeeStatus === "Draft") {
+      return {
+        label: "Continue Application",
+        onClick: () => navigate(`/finance/transactions/expenses/process/${expense.id}`),
+      };
+    }
+
+    if (employeeStatus === "Needs Correction") {
+      return {
+        label: "Edit Expense",
+        onClick: () => navigate(`/finance/transactions/expenses/process/${expense.id}`),
+      };
+    }
+
+    if (employeeStatus === "Paid — Waiting Owner Confirmation" && canSubmitRecipientConfirmation) {
+      return {
+        label: "Confirm Received",
+        onClick: () => void confirmReceived("received_confirmed"),
+        loading: isConfirmingReceipt,
+        disabled: isConfirmingReceipt || !canSubmitRecipientConfirmation,
+      };
+    }
+
+    return null;
+  }, [
+    canSubmitRecipientConfirmation,
+    confirmReceived,
+    employeeStatus,
+    expense,
+    isConfirmingReceipt,
+    isEmployeeView,
+    navigate,
+  ]);
 
   function renderSelectField({
     label,
@@ -4634,57 +4804,98 @@ export default function FinanceExpenseDetailPage() {
           expense.description ||
           "Expense detail page for review, documentation, funding coverage, payment allocation, and recipient confirmation."
         }
-        statusCards={[
-          {
-            label: "Amount",
-            value: `${currencyCode} ${formatMoney(expenseAmount)}`,
-            description: "Requested/final expense amount.",
-            icon: Receipt,
-            tone: "cyan",
-          },
-          {
-            label: "Covered",
-            value: `${currencyCode} ${formatMoney(coveredAmount)}`,
-            description: "Confirmed payment allocations.",
-            icon: WalletCards,
-            tone: "emerald",
-          },
-          {
-            label: "Remaining",
-            value: `${currencyCode} ${formatMoney(remainingAmount)}`,
-            description: "Remaining uncovered amount.",
-            icon: CreditCard,
-            tone: remainingAmount > 0 ? "amber" : "emerald",
-          },
-        ]}
-      />
+        statusCards={
+          isEmployeeView
+            ? [
+                {
+                  label: "Amount",
+                  value: `${currencyCode} ${formatMoney(expenseAmount)}`,
+                  description: "Requested expense amount.",
+                  icon: Receipt,
+                  tone: "cyan" as const,
+                },
+              ]
+            : [
+                {
+                  label: "Amount",
+                  value: `${currencyCode} ${formatMoney(expenseAmount)}`,
+                  description: "Requested/final expense amount.",
+                  icon: Receipt,
+                  tone: "cyan" as const,
+                },
+                {
+                  label: "Covered",
+                  value: `${currencyCode} ${formatMoney(coveredAmount)}`,
+                  description: "Confirmed payment allocations.",
+                  icon: WalletCards,
+                  tone: "emerald" as const,
+                },
+                {
+                  label: "Remaining",
+                  value: `${currencyCode} ${formatMoney(remainingAmount)}`,
+                  description: "Remaining uncovered amount.",
+                  icon: CreditCard,
+                  tone: remainingAmount > 0 ? "amber" : "emerald",
+                },
+              ]
+        }
+        actions={
+          <AixiaButton type="button" variant="secondary" onClick={() => void openHistoryModal()} disabled={isHistoryLoading}>
+            <History className="h-4 w-4" />
+            History
+          </AixiaButton>
+        }
+      >
+        <AixiaProcessPipeline steps={EXPENSE_PIPELINE_STEPS} activeStepKey={pipelineActiveStepKey} />
+      </AixiaHero>
 
       {pageError ? <AixiaAlert tone="error">{pageError}</AixiaAlert> : null}
       {pageMessage ? <AixiaAlert tone="success">{pageMessage}</AixiaAlert> : null}
 
-      <AixiaMetricGrid>
-        {timelineItems.map((item) => (
-          <AixiaMetricCard
-            key={item.label}
-            label={item.label}
-            value={item.value}
-            description={item.detail}
-            icon={
-              item.label === "Request"
-                ? Receipt
-                : item.label === "Docs"
-                  ? FileCheck2
-                  : item.label === "Review"
-                    ? ShieldCheck
-                    : item.label === "Coverage"
-                      ? WalletCards
-                      : CheckCircle2
-            }
-            tone={item.tone}
-          />
-        ))}
-      </AixiaMetricGrid>
+      {isEmployeeView ? (
+        <ExpenseNextActionBanner
+          message={employeeNextActionMessage}
+          detail={employeeBannerDetail}
+          actionLabel={employeePrimaryAction?.label}
+          onAction={employeePrimaryAction?.onClick}
+          tone={
+            employeeStatus === "Needs Correction"
+              ? "error"
+              : employeeStatus === "Paid — Waiting Owner Confirmation"
+                ? "success"
+                : "info"
+          }
+        />
+      ) : null}
 
+      {isEmployeeView && expense ? (
+        <ExpensePaymentProgress expense={expense} />
+      ) : (
+        <AixiaMetricGrid>
+          {timelineItems.map((item) => (
+            <AixiaMetricCard
+              key={item.label}
+              label={item.label}
+              value={item.value}
+              description={item.detail}
+              icon={
+                item.label === "Request"
+                  ? Receipt
+                  : item.label === "Docs"
+                    ? FileCheck2
+                    : item.label === "Review"
+                      ? ShieldCheck
+                      : item.label === "Coverage"
+                        ? WalletCards
+                        : CheckCircle2
+              }
+              tone={item.tone}
+            />
+          ))}
+        </AixiaMetricGrid>
+      )}
+
+      {!isEmployeeView ? (
       <AixiaAccessRule
         title="Locked child allocation registry rule"
         description="Expense detail financial child allocation records must use the shared AiXia registry and lifecycle standard."
@@ -4700,6 +4911,7 @@ export default function FinanceExpenseDetailPage() {
         Realtime plus 60-second fallback refresh must stay silent without
         resetting search, sort, archive tabs, edit state, or visible records.
       </AixiaAccessRule>
+      ) : null}
 
 <AixiaSmartLayout
         sidebar="normal"
@@ -5224,6 +5436,7 @@ export default function FinanceExpenseDetailPage() {
               />
             </AixiaSection>
 
+            {!isEmployeeView ? (
             <AixiaChildAllocationRegistry
               title="Funding & Payment Coverage"
               description="Shows Funding Pool usage and Expense Payment Distribution records covering this expense."
@@ -5241,7 +5454,7 @@ export default function FinanceExpenseDetailPage() {
                   type="button"
                   variant="secondary"
                   onClick={() =>
-                    navigate("/finance/transactions/expenses-payments-made")
+                    navigate("/finance/transactions/expense-payments")
                   }
                 >
                   Payment Control
@@ -5418,7 +5631,7 @@ export default function FinanceExpenseDetailPage() {
                               variant="primary"
                               onClick={() =>
                                 navigate(
-                                  `/finance/transactions/expenses-payments-made/${allocation.payment_made_id}`
+                                  `/finance/transactions/expense-payments/${allocation.payment_made_id}`
                                 )
                               }
                             >
@@ -5473,21 +5686,28 @@ export default function FinanceExpenseDetailPage() {
                 </AixiaTableShell>
               )}
             </AixiaChildAllocationRegistry>
+            ) : null}
           </>
         }
         side={
           <>
             <AixiaSection
-              title="Finance Status"
-              description="Read-only Finance/Admin workflow status."
+              title={isEmployeeView ? "Your Expense Status" : "Finance Status"}
+              description={
+                isEmployeeView
+                  ? "Track where your expense is in the payment process."
+                  : "Read-only Finance/Admin workflow status."
+              }
               icon={ShieldCheck}
             >
               <AixiaReviewGrid variant="cards">
-                <AixiaValueBlock
-                  label="Request Type"
-                  value={<AixiaStatusBadge value={getExpenseRequestType(expense)} />}
-                  detail={getExpenseRequestTypeDescription(expense)}
-                />
+                {!isEmployeeView ? (
+                  <AixiaValueBlock
+                    label="Request Type"
+                    value={<AixiaStatusBadge value={getExpenseRequestType(expense)} />}
+                    detail={getExpenseRequestTypeDescription(expense)}
+                  />
+                ) : null}
                 <AixiaValueBlock
                   label="Request Status"
                   value={
@@ -5496,6 +5716,8 @@ export default function FinanceExpenseDetailPage() {
                     />
                   }
                 />
+                {!isEmployeeView ? (
+                  <>
                 <AixiaValueBlock
                   label="Documentation"
                   value={<AixiaStatusBadge value={expense.documentation_status} />}
@@ -5508,6 +5730,8 @@ export default function FinanceExpenseDetailPage() {
                   label="Coverage"
                   value={<AixiaStatusBadge value={calculatedCoverageStatus} />}
                 />
+                  </>
+                ) : null}
                 <AixiaValueBlock
                   label="Recipient Confirmation"
                   value={
@@ -5583,6 +5807,7 @@ export default function FinanceExpenseDetailPage() {
         }
       />
 
+      {!isEmployeeView ? (
       <AixiaArchiveManagerModal
         open={allocationArchiveOpen}
         title="Allocation Archive"
@@ -5678,7 +5903,7 @@ export default function FinanceExpenseDetailPage() {
                           variant="primary"
                           onClick={() =>
                             navigate(
-                              `/finance/transactions/expenses-payments-made/${allocation.payment_made_id}`
+                              `/finance/transactions/expense-payments/${allocation.payment_made_id}`
                             )
                           }
                         >
@@ -5736,6 +5961,29 @@ export default function FinanceExpenseDetailPage() {
           )}
         </AixiaChildAllocationRegistry>
       </AixiaArchiveManagerModal>
+      ) : null}
+
+      {isEmployeeView && employeePrimaryAction ? (
+        <ExpenseActionFooter
+          right={
+            <AixiaButton
+              type="button"
+              variant="primary"
+              disabled={employeePrimaryAction.disabled}
+              onClick={employeePrimaryAction.onClick}
+            >
+              {employeePrimaryAction.loading ? (
+                <Loader2 className="h-4 w-4 animate-spin" />
+              ) : null}
+              {employeePrimaryAction.label}
+            </AixiaButton>
+          }
+        />
+      ) : null}
+
+      {historyModalOpen ? (
+        <AixiaProcessHistoryModal role="employee" rows={historyRows} onClose={closeHistoryModal} />
+      ) : null}
     </AixiaPage>
   );
 }

@@ -4,6 +4,8 @@ export * from "./ownership";
 export * from "./lifecycleActions";
 export * from "./reviewQueues";
 export * from "./status";
+export * from "./pipeline";
+export * from "./payable";
 export * from "./useExpenseModuleRefresh";
 export * from "./workbench";
 export * from "./useExpenseApplicationForm";

@@ -1,3 +1,61 @@
 ---
+description: AiXia major project workflow rules
 alwaysApply: true
 ---
+
+# AiXia Major Project Workflow Rules
+
+You are working on the AiXia project, a React + TypeScript + Vite frontend with Supabase backend and Vercel deployment.
+
+## Absolute rules
+
+1. Do not delete or rewrite existing business logic unless the user explicitly requests it.
+2. Do not remove Supabase queries, permissions, routing, validation, state, handlers, realtime subscriptions, or backend flows unless explicitly requested.
+3. Before major changes, inspect the relevant files first.
+4. For major changes, first explain:
+   - which files will change
+   - what problem will be fixed
+   - what will not be changed
+   - what commands should be run after changes
+5. Do not make blind changes.
+6. Do not expose, print, commit, or request secret keys, Supabase service role keys, tokens, database passwords, or private environment variables.
+7. Keep `.env`, `.env.local`, `.vercel`, and `node_modules` out of Git.
+8. Use Git carefully. Prefer a new branch for major work.
+9. After changes, run:
+   - npm run build
+   - git status
+10. If there are TypeScript, ESLint, Supabase, Vercel, or routing errors, fix the root cause, not only the visible symptom.
+
+## AiXia design and code rules
+
+1. Use the shared AiXia component system as the source of truth.
+2. Do not invent local visual systems when shared components exist.
+3. Preserve existing API calls, Supabase logic, permissions, routing, validation, handlers, and state unless explicitly requested.
+4. For Finance pages, use shared AiXia components and shared CSS.
+5. Do not import from generic UI components inside Finance pages unless the project already wraps them through shared AiXia components.
+6. Avoid page-level hacks when the issue belongs in shared components or shared CSS.
+7. For repeated UI patterns, fix or extend the shared component first.
+8. Keep refresh/realtime behavior silent and stable. Do not reset scroll, filters, forms, modals, tabs, or visible data during background refresh.
+9. Never replace real visible data with empty arrays or zero counts during silent refresh failure.
+10. Clean unused imports and variables before build.
+
+## Git workflow
+
+For major changes:
+1. Create a new branch:
+   git checkout -b feature/descriptive-name
+
+2. Make changes.
+
+3. Run:
+   npm run build
+
+4. Check:
+   git status
+
+5. Commit only after the project builds.
+
+6. Push the branch:
+   git push origin feature/descriptive-name
+
+7. Do not push major unfinished work directly to main unless the user explicitly asks.

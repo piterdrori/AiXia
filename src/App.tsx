@@ -17,6 +17,7 @@ import {
 import type { ReactNode } from "react";
 import { supabase } from "@/lib/supabase";
 import { Toaster } from "@/components/ui/sonner";
+import { AiXiaAnalyticsTracker } from "@/components/analytics/AiXiaAnalyticsTracker";
 
 import { LanguageProvider, useLanguage } from "@/lib/i18n";
 import type { Language } from "@/lib/translations";
@@ -2218,7 +2219,9 @@ function AppContent() {
     <Router>
       <AuthAccessProvider>
         <SessionTimeoutManager />
-        <AppRoutes />
+        <AiXiaAnalyticsTracker>
+          <AppRoutes />
+        </AiXiaAnalyticsTracker>
         <Toaster />
       </AuthAccessProvider>
     </Router>

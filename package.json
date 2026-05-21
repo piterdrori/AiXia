@@ -8,7 +8,8 @@
   "prebuild": "node scripts/prepare-mediapipe-assets.cjs",
   "build": "node scripts/aixia-guardrails.mjs && tsc -b && vite build",
   "lint": "eslint .",
-  "preview": "vite preview"
+  "preview": "vite preview",
+  "export:analytics": "node scripts/export-analytics-for-hermes.mjs"
 },
   "dependencies": {
     "@hookform/resolvers": "^5.2.2",

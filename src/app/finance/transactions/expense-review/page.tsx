@@ -387,7 +387,9 @@ function getNextStep(
 
   if (requestStatus === "documentation_submitted") {
     return {
-      label: "Ready for Finance document review",
+      label: hasProof
+        ? "Proof submitted; Finance review or pay in Section 4"
+        : "Ready for Finance document review",
       tone: "cyan",
     };
   }

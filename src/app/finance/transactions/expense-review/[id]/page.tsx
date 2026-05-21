@@ -1311,8 +1311,8 @@ export default function FinanceExpenseReviewPage() {
     if (isDocumentationReadyForFinanceReview) {
       return (
         <AixiaAlert tone="info">
-          Documentation proof is already available. Finance can verify documentation now without
-          waiting for another upload.
+          Documentation proof is already available. Finance can verify documentation here, or
+          allocate payment in Section 4 (Pay Expenses) when funding is ready.
         </AixiaAlert>
       );
     }

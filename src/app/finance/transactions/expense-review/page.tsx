@@ -39,16 +39,45 @@ import {
 } from "@/lib/finance/expenses/lifecycleActions";
 import { EXPENSE_LIST_SELECT, FUNDING_BATCH_SELECT } from "@/lib/finance/expenses/queries";
 import {
-  EMPLOYER_REVIEW_TABS,
-  filterEmployerReviewTab,
-  type EmployerReviewTab,
-} from "@/lib/finance/expenses/status";
+  describeExpenseStage,
+  groupExpenseForEmployerReview,
+  type EmployerReviewGroup,
+} from "@/lib/finance/expenses/pipeline";
 import { hasDocumentationProof } from "@/lib/finance/expenses/documentationProof";
 import { useExpenseModuleRefresh } from "@/lib/finance/expenses/useExpenseModuleRefresh";
 import { supabase } from "@/lib/supabase";
 
 type ArchiveScope = "workflow" | "execution" | "allocations";
 type ArchiveTab = "archived" | "deleted";
+
+type ReviewSectionTab = EmployerReviewGroup;
+
+const REVIEW_SECTION_TABS: Array<{
+  key: ReviewSectionTab;
+  label: string;
+  description: string;
+}> = [
+  {
+    key: "step2_approval",
+    label: "Step 2 — Pending approval",
+    description: "Submitted requests waiting for employer approval.",
+  },
+  {
+    key: "step4_doc_review",
+    label: "Step 4 — Pending document review",
+    description: "Submitted receipts and documentation issues awaiting verification.",
+  },
+  {
+    key: "verified_awaiting_payment",
+    label: "Verified — awaiting payment",
+    description: "Read-only here; pay these in Pay Expenses (Section 4).",
+  },
+  {
+    key: "closed",
+    label: "Closed",
+    description: "Rejected requests.",
+  },
+];
 
 type ExpenseRow = {
   id: string;
@@ -453,7 +482,7 @@ function getExpenseSecondaryLabel(expense: ExpenseRow) {
 export default function FinanceExpensesPaymentsMadePage() {
   const navigate = useNavigate();
 
-  const [activeTab, setActiveTab] = useState<EmployerReviewTab>("pending_approval");
+  const [activeTab, setActiveTab] = useState<ReviewSectionTab>("step2_approval");
   const [expenses, setExpenses] = useState<ExpenseRow[]>([]);
   const [companies, setCompanies] = useState<CompanyRow[]>([]);
   const [employees, setEmployees] = useState<EmployeeRefRow[]>([]);
@@ -749,45 +778,57 @@ export default function FinanceExpensesPaymentsMadePage() {
     return filteredExpenses.filter(isWorkflowDeleted);
   }, [filteredExpenses]);
 
-  const pendingApprovalRows = useMemo(
-    () => filterEmployerReviewTab(activeExpenseRows, "pending_approval"),
-    [activeExpenseRows],
-  );
+  const expenseGroupMap = useMemo(() => {
+    const map = new Map<string, ReviewSectionTab | null>();
+    for (const expense of activeExpenseRows) {
+      const stage = describeExpenseStage(expense).stage;
+      map.set(expense.id, groupExpenseForEmployerReview(stage));
+    }
+    return map;
+  }, [activeExpenseRows]);
 
-  const approvedRows = useMemo(
-    () => filterEmployerReviewTab(activeExpenseRows, "approved"),
-    [activeExpenseRows],
+  const filterByTab = useCallback(
+    (rows: EnrichedExpense[], tab: ReviewSectionTab) => {
+      return rows.filter((expense) => expenseGroupMap.get(expense.id) === tab);
+    },
+    [expenseGroupMap],
   );
 
   const tabbedExpenseRows = useMemo(
-    () => filterEmployerReviewTab(activeExpenseRows, activeTab),
-    [activeExpenseRows, activeTab],
+    () => filterByTab(activeExpenseRows, activeTab),
+    [activeExpenseRows, activeTab, filterByTab],
   );
 
   const employerTabCounts = useMemo(
     () => ({
-      pending_approval: pendingApprovalRows.length,
-      approved: approvedRows.length,
+      step2_approval: filterByTab(activeExpenseRows, "step2_approval").length,
+      step4_doc_review: filterByTab(activeExpenseRows, "step4_doc_review").length,
+      verified_awaiting_payment: filterByTab(activeExpenseRows, "verified_awaiting_payment").length,
+      closed: filterByTab(activeExpenseRows, "closed").length,
     }),
-    [approvedRows.length, pendingApprovalRows.length],
+    [activeExpenseRows, filterByTab],
   );
 
   const metrics = useMemo(() => {
     return {
-      pendingApproval: pendingApprovalRows.length,
-      approved: approvedRows.length,
+      pendingApproval: employerTabCounts.step2_approval,
+      docReview: employerTabCounts.step4_doc_review,
+      verifiedAwaitingPayment: employerTabCounts.verified_awaiting_payment,
+      closed: employerTabCounts.closed,
       workflowArchived: archivedExpenseRows.length,
       workflowDeleted: deletedExpenseRows.length,
     };
   }, [
-    approvedRows.length,
     archivedExpenseRows.length,
     deletedExpenseRows.length,
-    pendingApprovalRows.length,
+    employerTabCounts.closed,
+    employerTabCounts.step2_approval,
+    employerTabCounts.step4_doc_review,
+    employerTabCounts.verified_awaiting_payment,
   ]);
 
   const activeTabMeta =
-    EMPLOYER_REVIEW_TABS.find((tab) => tab.key === activeTab) || EMPLOYER_REVIEW_TABS[0];
+    REVIEW_SECTION_TABS.find((tab) => tab.key === activeTab) || REVIEW_SECTION_TABS[0];
 
   const loadWorkbench = useCallback(
     async (mode: "initial" | "silent" = "initial") => {
@@ -1047,7 +1088,7 @@ export default function FinanceExpensesPaymentsMadePage() {
     allocationArchiveTab === "archived" ? archivedAllocationRows : deletedAllocationRows;
 
   const renderExpenseRows = useCallback(
-    (rows: EnrichedExpense[], mode: "active" | "archive", listTab: EmployerReviewTab = activeTab) => {
+    (rows: EnrichedExpense[], mode: "active" | "archive", listTab: ReviewSectionTab = activeTab) => {
       if (rows.length === 0) {
         return (
           <tr>
@@ -1065,7 +1106,9 @@ export default function FinanceExpensesPaymentsMadePage() {
       return rows.map((expense) => {
         const reviewRoute = `/finance/transactions/expense-review/${expense.id}`;
         const rowActionDisabled = isRunningAction;
-        const isPendingTab = listTab === "pending_approval";
+        const isApprovalTab = listTab === "step2_approval";
+        const isDocReviewTab = listTab === "step4_doc_review";
+        const isVerifiedTab = listTab === "verified_awaiting_payment";
 
         return (
           <tr key={expense.id} className="aixia-table-row">
@@ -1104,7 +1147,7 @@ export default function FinanceExpensesPaymentsMadePage() {
             </AixiaTableBadgeCell>
 
             <AixiaTableActionsCell>
-              {mode === "active" && isPendingTab ? (
+              {mode === "active" && (isApprovalTab || isDocReviewTab) ? (
                 <AixiaButton
                   type="button"
                   variant="primary"
@@ -1113,6 +1156,19 @@ export default function FinanceExpensesPaymentsMadePage() {
                 >
                   <FileSearch className="h-3.5 w-3.5" />
                   Review
+                </AixiaButton>
+              ) : mode === "active" && isVerifiedTab ? (
+                <AixiaButton
+                  type="button"
+                  variant="primary"
+                  disabled={rowActionDisabled}
+                  onClick={() =>
+                    navigate(
+                      `/finance/transactions/expense-payments/new?expenseId=${expense.id}`,
+                    )
+                  }
+                >
+                  Pay in Section 4
                 </AixiaButton>
               ) : mode === "active" ? (
                 <AixiaButton
@@ -1166,7 +1222,7 @@ export default function FinanceExpensesPaymentsMadePage() {
   );
 
   const renderExpenseTable = useCallback(
-    (rows: EnrichedExpense[], mode: "active" | "archive" = "active", listTab: EmployerReviewTab = activeTab) => {
+    (rows: EnrichedExpense[], mode: "active" | "archive" = "active", listTab: ReviewSectionTab = activeTab) => {
       return (
         <AixiaTableShell variant={mode === "archive" ? "archive" : "registry"}>
           <thead className="aixia-table-head">
@@ -1362,17 +1418,24 @@ export default function FinanceExpensesPaymentsMadePage() {
   const headerStatusCards = useMemo(
     () => [
       {
-        key: "pending",
-        label: "Pending approval",
+        key: "step2",
+        label: "Step 2 — Pending approval",
         value: metrics.pendingApproval.toLocaleString(),
         detail: "Submitted expenses waiting for your review.",
         tone: "cyan" as const,
       },
       {
-        key: "approved",
-        label: "Approved",
-        value: metrics.approved.toLocaleString(),
-        detail: "Approved expenses moving through funding and payment.",
+        key: "step4",
+        label: "Step 4 — Pending document review",
+        value: metrics.docReview.toLocaleString(),
+        detail: "Receipts to verify and documentation issues.",
+        tone: "amber" as const,
+      },
+      {
+        key: "verified",
+        label: "Verified — awaiting payment",
+        value: metrics.verifiedAwaitingPayment.toLocaleString(),
+        detail: "Pay these in Section 4 (Pay Expenses).",
         tone: "emerald" as const,
       },
       {
@@ -1383,7 +1446,12 @@ export default function FinanceExpensesPaymentsMadePage() {
         tone: "amber" as const,
       },
     ],
-    [metrics.approved, metrics.pendingApproval, metrics.workflowArchived]
+    [
+      metrics.docReview,
+      metrics.pendingApproval,
+      metrics.verifiedAwaitingPayment,
+      metrics.workflowArchived,
+    ]
   );
 
 
@@ -1451,7 +1519,7 @@ return (
         />
 
         <ExpenseHubTabs
-          tabs={EMPLOYER_REVIEW_TABS.map((tab) => ({
+          tabs={REVIEW_SECTION_TABS.map((tab) => ({
             key: tab.key,
             label: tab.label,
             count: employerTabCounts[tab.key],

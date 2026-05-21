@@ -1,8 +1,7 @@
-import { useCallback, useEffect, useMemo, useState, type ReactNode } from "react";
+﻿import { useCallback, useEffect, useMemo, useState, type ReactNode } from "react";
 import { useNavigate, useParams } from "react-router-dom";
 import {
   AlertTriangle,
-  Archive,
   ArrowRight,
   Building2,
   CalendarClock,
@@ -13,10 +12,8 @@ import {
   Landmark,
   Loader2,
   Receipt,
-  RotateCcw,
   ShieldCheck,
   ShoppingCart,
-  Trash2,
   WalletCards,
   Wrench,
   XCircle,
@@ -30,9 +27,7 @@ import {
 import {
   AixiaAccessRule,
   AixiaAlert,
-  AixiaArchiveManagerModal,
   AixiaButton,
-  AixiaChildAllocationRegistry,
   AixiaEmployeeIdentityCell,
   AixiaEmptyState,
   AixiaFieldLabel,
@@ -42,13 +37,9 @@ import {
   AixiaMetricCard,
   AixiaMetricGrid,
   AixiaPage,
-  AixiaRegistryToolbar,
   AixiaReviewGrid,
   AixiaSection,
-  AixiaSortableHeader,
   AixiaStatusBadge,
-  AixiaTableActionsCell,
-  AixiaTableBadgeCell,
   AixiaTableDateCell,
   AixiaTableShell,
   AixiaTableTextCell,
@@ -230,16 +221,6 @@ type AttachmentWithFile = AttachmentRow & {
   fileUpload: FileUploadRow | null;
 };
 
-type EnrichedAllocation = AllocationRow & {
-  payment: PaymentMadeRow | null;
-  fundingBatch: FundingBatchRow | null;
-  fundingCompanyName: string;
-  bankLabel: string;
-  recipientIdentity: FinanceEmployeeIdentity | null;
-  recipientPrimary: string;
-  recipientSecondary: string;
-  recipientReference: string;
-};
 
 type ActionKey =
   | "approve"
@@ -250,18 +231,6 @@ type ActionKey =
   | "online_confirmed"
   | "online_issue"
   | "online_cancelled";
-
-type AllocationLifecycleAction = "archive" | "delete" | "restore" | "hard_delete";
-type AllocationArchiveTab = "archived" | "deleted";
-type AllocationSortDirection = "asc" | "desc";
-type AllocationSortKey =
-  | "payment"
-  | "funding_company"
-  | "recipient"
-  | "amount"
-  | "recipient_status"
-  | "lifecycle"
-  | "updated_at";
 
 type DetailItem = {
   label: string;
@@ -342,26 +311,6 @@ function isActiveAllocation(allocation: AllocationRow) {
   return lifecycle !== "archived" && lifecycle !== "deleted";
 }
 
-function isArchivedAllocation(allocation: AllocationRow) {
-  return allocation.lifecycle_status === "archived";
-}
-
-function isDeletedAllocation(allocation: AllocationRow) {
-  return allocation.lifecycle_status === "deleted";
-}
-
-function getBankLabel(bank: BankAccountRow | null | undefined) {
-  if (!bank) return "—";
-
-  return [
-    bank.name || bank.bank_name || bank.institution_name || "Bank account",
-    bank.currency_code,
-    bank.masked_account_number,
-  ]
-    .filter(Boolean)
-    .join(" • ");
-}
-
 function getEmployeeIdentity(
   employee: EmployeeRefRow | null | undefined,
   identityMap: Map<string, FinanceEmployeeIdentity>
@@ -373,16 +322,6 @@ function getEmployeeIdentity(
     (employee.user_id ? identityMap.get(employee.user_id) : null) ||
     null
   );
-}
-
-function getEmployeeIdentityByRef(
-  employeeRefId: string | null | undefined,
-  employeeMap: Map<string, EmployeeRefRow>,
-  identityMap: Map<string, FinanceEmployeeIdentity>
-) {
-  if (!employeeRefId) return null;
-
-  return getEmployeeIdentity(employeeMap.get(employeeRefId), identityMap) || null;
 }
 
 function getExpenseMadeByPrimaryLabel(
@@ -429,29 +368,6 @@ function getExpenseMadeByReferenceLabel(
 ) {
   const identity = getEmployeeIdentity(employee, identityMap);
   return identity ? getFinanceEmployeeReferenceLabel(identity) : employee?.code || "";
-}
-
-function getAllocationSortValue(
-  allocation: EnrichedAllocation,
-  sortKey: AllocationSortKey
-) {
-  switch (sortKey) {
-    case "payment":
-      return allocation.payment?.reference_number || allocation.payment_made_id;
-    case "funding_company":
-      return allocation.fundingCompanyName;
-    case "recipient":
-      return `${allocation.recipientPrimary} ${allocation.recipientSecondary} ${allocation.recipientReference}`;
-    case "amount":
-      return toNumber(allocation.converted_amount || allocation.allocated_amount);
-    case "recipient_status":
-      return allocation.recipient_confirmation_status || "";
-    case "lifecycle":
-      return allocation.lifecycle_status || "active";
-    case "updated_at":
-    default:
-      return allocation.updated_at || allocation.created_at || "";
-  }
 }
 
 function buildExpenseTypeDetails(expense: ExpenseRow): {
@@ -754,37 +670,18 @@ export default function FinanceExpenseReviewPage() {
   >([]);
   const [allocations, setAllocations] = useState<AllocationRow[]>([]);
   const [payments, setPayments] = useState<PaymentMadeRow[]>([]);
-  const [fundingBatches, setFundingBatches] = useState<FundingBatchRow[]>([]);
-  const [companies, setCompanies] = useState<CompanyRow[]>([]);
-  const [employees, setEmployees] = useState<EmployeeRefRow[]>([]);
-  const [bankAccounts, setBankAccounts] = useState<BankAccountRow[]>([]);
+  const [, setFundingBatches] = useState<FundingBatchRow[]>([]);
+  const [, setCompanies] = useState<CompanyRow[]>([]);
+  const [, setEmployees] = useState<EmployeeRefRow[]>([]);
+  const [, setBankAccounts] = useState<BankAccountRow[]>([]);
   const [attachments, setAttachments] = useState<AttachmentWithFile[]>([]);
   const [financeNotes, setFinanceNotes] = useState("");
-  const [allocationArchiveOpen, setAllocationArchiveOpen] = useState(false);
-  const [allocationArchiveTab, setAllocationArchiveTab] =
-    useState<AllocationArchiveTab>("archived");
-  const [allocationSortKey, setAllocationSortKey] =
-    useState<AllocationSortKey>("updated_at");
-  const [allocationSortDirection, setAllocationSortDirection] =
-    useState<AllocationSortDirection>("desc");
-  const [runningAllocationAction, setRunningAllocationAction] =
-    useState<AllocationLifecycleAction | null>(null);
-  const [runningAllocationActionId, setRunningAllocationActionId] =
-    useState<string | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [isRefreshing, setIsRefreshing] = useState(false);
   const [hasLoadedOnce, setHasLoadedOnce] = useState(false);
   const [runningAction, setRunningAction] = useState<ActionKey | null>(null);
   const [pageError, setPageError] = useState<string | null>(null);
   const [pageMessage, setPageMessage] = useState<string | null>(null);
-
-  const companyMap = useMemo(() => {
-    return new Map(companies.map((item) => [item.id, item]));
-  }, [companies]);
-
-  const employeeMap = useMemo(() => {
-    return new Map(employees.map((item) => [item.id, item]));
-  }, [employees]);
 
   const employeeIdentityMap = useMemo(() => {
     const entries: Array<[string, FinanceEmployeeIdentity]> = [];
@@ -799,18 +696,6 @@ export default function FinanceExpenseReviewPage() {
 
     return new Map(entries);
   }, [employeeIdentities]);
-
-  const bankAccountMap = useMemo(() => {
-    return new Map(bankAccounts.map((item) => [item.id, item]));
-  }, [bankAccounts]);
-
-  const paymentMap = useMemo(() => {
-    return new Map(payments.map((item) => [item.id, item]));
-  }, [payments]);
-
-  const fundingBatchMap = useMemo(() => {
-    return new Map(fundingBatches.map((item) => [item.id, item]));
-  }, [fundingBatches]);
 
   const employeeIdentity = useMemo(() => {
     return getEmployeeIdentity(employee, employeeIdentityMap);
@@ -837,14 +722,6 @@ export default function FinanceExpenseReviewPage() {
     return allocations.filter(isActiveAllocation);
   }, [allocations]);
 
-  const archivedAllocations = useMemo(() => {
-    return allocations.filter(isArchivedAllocation);
-  }, [allocations]);
-
-  const deletedAllocations = useMemo(() => {
-    return allocations.filter(isDeletedAllocation);
-  }, [allocations]);
-
   const confirmedAllocations = useMemo(() => {
     return activeAllocations.filter((allocation) =>
       confirmedPaymentIdSet.has(allocation.payment_made_id)
@@ -857,86 +734,6 @@ export default function FinanceExpenseReviewPage() {
       0
     );
   }, [confirmedAllocations]);
-
-  const enrichedAllocations = useMemo<EnrichedAllocation[]>(() => {
-    return allocations.map((allocation) => {
-      const payment = paymentMap.get(allocation.payment_made_id) || null;
-      const fundingBatch = allocation.funding_batch_id
-        ? fundingBatchMap.get(allocation.funding_batch_id) || null
-        : null;
-      const fundingCompany = allocation.funding_company_id
-        ? companyMap.get(allocation.funding_company_id) || null
-        : fundingBatch?.funding_company_id
-          ? companyMap.get(fundingBatch.funding_company_id) || null
-          : null;
-      const bank = allocation.paid_from_bank_account_id
-        ? bankAccountMap.get(allocation.paid_from_bank_account_id) || null
-        : fundingBatch?.funding_bank_account_id
-          ? bankAccountMap.get(fundingBatch.funding_bank_account_id) || null
-          : null;
-      const recipientIdentity = getEmployeeIdentityByRef(
-        allocation.recipient_employee_ref_id,
-        employeeMap,
-        employeeIdentityMap
-      );
-      const recipientReference = recipientIdentity
-        ? getFinanceEmployeeReferenceLabel(recipientIdentity)
-        : "";
-      const recipientSecondary = recipientIdentity
-        ? getFinanceEmployeeSecondaryLabel(recipientIdentity)
-        : "No role/company saved";
-      const recipientPrimary = recipientIdentity
-        ? getFinanceEmployeePrimaryName(recipientIdentity, allocation.recipient_person_name)
-        : allocation.recipient_person_name?.trim() || "Unresolved employee";
-
-      return {
-        ...allocation,
-        payment,
-        fundingBatch,
-        fundingCompanyName: fundingCompany?.name || "—",
-        bankLabel: getBankLabel(bank),
-        recipientIdentity,
-        recipientPrimary,
-        recipientSecondary,
-        recipientReference,
-      };
-    });
-  }, [allocations, bankAccountMap, companyMap, employeeIdentityMap, employeeMap, fundingBatchMap, paymentMap]);
-
-  const activeEnrichedAllocations = useMemo(() => {
-    return enrichedAllocations.filter(isActiveAllocation);
-  }, [enrichedAllocations]);
-
-  const archiveEnrichedAllocations = useMemo(() => {
-    return enrichedAllocations.filter((allocation) => {
-      return allocationArchiveTab === "archived"
-        ? isArchivedAllocation(allocation)
-        : isDeletedAllocation(allocation);
-    });
-  }, [allocationArchiveTab, enrichedAllocations]);
-
-  const sortedActiveAllocations = useMemo(() => {
-    return [...activeEnrichedAllocations].sort((a, b) => {
-      const valueA = getAllocationSortValue(a, allocationSortKey);
-      const valueB = getAllocationSortValue(b, allocationSortKey);
-
-      if (typeof valueA === "number" && typeof valueB === "number") {
-        return allocationSortDirection === "asc" ? valueA - valueB : valueB - valueA;
-      }
-
-      return allocationSortDirection === "asc"
-        ? String(valueA).localeCompare(String(valueB))
-        : String(valueB).localeCompare(String(valueA));
-    });
-  }, [activeEnrichedAllocations, allocationSortDirection, allocationSortKey]);
-
-  const sortedArchiveAllocations = useMemo(() => {
-    return [...archiveEnrichedAllocations].sort((a, b) =>
-      String(b.updated_at || b.created_at || "").localeCompare(
-        String(a.updated_at || a.created_at || "")
-      )
-    );
-  }, [archiveEnrichedAllocations]);
 
   const remainingAmount = Math.max(expenseAmount - coveredAmount, 0);
   const currencyCode = expense?.currency_code || "USD";
@@ -1056,19 +853,6 @@ export default function FinanceExpenseReviewPage() {
       },
     ];
   }, [coveredAmount, currencyCode, expense]);
-
-  const handleAllocationSort = useCallback(
-    (nextSortKey: AllocationSortKey) => {
-      if (nextSortKey === allocationSortKey) {
-        setAllocationSortDirection((current) => (current === "asc" ? "desc" : "asc"));
-        return;
-      }
-
-      setAllocationSortKey(nextSortKey);
-      setAllocationSortDirection(nextSortKey === "updated_at" ? "desc" : "asc");
-    },
-    [allocationSortKey]
-  );
 
   const loadExpense = useCallback(
     async (mode: "initial" | "silent" = "initial") => {
@@ -1378,40 +1162,6 @@ export default function FinanceExpenseReviewPage() {
     [loadExpense, runningAction]
   );
 
-  const runAllocationLifecycleAction = useCallback(
-    async (
-      action: AllocationLifecycleAction,
-      allocationId: string,
-      rpcName: string,
-      successMessage: string
-    ) => {
-      if (runningAllocationActionId) return;
-
-      setRunningAllocationAction(action);
-      setRunningAllocationActionId(allocationId);
-      setPageError(null);
-      setPageMessage(null);
-
-      try {
-        const result = await supabase.rpc(rpcName, {
-          p_allocation_id: allocationId,
-        });
-
-        if (result.error) throw result.error;
-
-        setPageMessage(successMessage);
-        await loadExpense("silent");
-      } catch (error) {
-        console.error(`Failed to run ${rpcName}:`, error);
-        setPageError(error instanceof Error ? error.message : "Allocation action failed.");
-      } finally {
-        setRunningAllocationAction(null);
-        setRunningAllocationActionId(null);
-      }
-    },
-    [loadExpense, runningAllocationActionId]
-  );
-
   const approveExpense = useCallback(() => {
     if (!expense) return;
 
@@ -1569,10 +1319,21 @@ export default function FinanceExpenseReviewPage() {
 
     if (isVerifiedForPayment) {
       return (
-        <AixiaAlert tone="success">
-          This expense is verified and ready to be included in the monthly payment cycle. Finance
-          will allocate funds and distribute payments later from the separate Payment Execution Tools.
-        </AixiaAlert>
+        <div className="aixia-stack">
+          <AixiaAlert tone="success">
+            This expense is verified and ready to pay. Move to Section 4 (Pay Expenses) to allocate
+            funds, upload payment proof, and confirm distribution.
+          </AixiaAlert>
+          <AixiaButton
+            type="button"
+            variant="primary"
+            onClick={() =>
+              navigate(`/finance/transactions/expense-payments/new?expenseId=${expense.id}`)
+            }
+          >
+            Pay this in Section 4
+          </AixiaButton>
+        </div>
       );
     }
 
@@ -1723,172 +1484,6 @@ export default function FinanceExpenseReviewPage() {
         </AixiaButton>
       </div>
     );
-  };
-
-  const renderAllocationRows = (
-    rows: EnrichedAllocation[],
-    mode: "active" | "archive"
-  ) => {
-    if (rows.length === 0) {
-      return (
-        <tr>
-          <td colSpan={8}>
-            <AixiaEmptyState
-              icon={Receipt}
-              title="No payment allocations yet"
-              description="Once verified, this expense can be included in a funding allocation or Expense Payment record."
-            />
-          </td>
-        </tr>
-      );
-    }
-
-    return rows.map((allocation) => {
-      const isActionRunning = allocation.id === runningAllocationActionId;
-
-      return (
-        <tr key={allocation.id} className="aixia-table-row">
-          <AixiaTableTextCell
-            width="xl"
-            primary={allocation.payment?.reference_number || "Expense Payment Distribution"}
-            secondary={allocation.payment ? formatDate(allocation.payment.payment_date) : "—"}
-          />
-
-          <AixiaTableTextCell
-            width="lg"
-            primary={allocation.fundingCompanyName}
-            secondary="Funding company"
-          />
-
-          <AixiaTableTextCell width="lg" primary={allocation.bankLabel} secondary="Bank account" />
-
-          <AixiaTableTextCell
-            width="lg"
-            primary={allocation.fundingBatch?.batch_number || "—"}
-            secondary={allocation.fundingBatch ? formatDate(allocation.fundingBatch.allocation_date) : "Funding pool"}
-          />
-
-          <AixiaTableTextCell
-            width="md"
-            primary={`${allocation.currency_code || currencyCode} ${formatMoney(
-              allocation.converted_amount || allocation.allocated_amount
-            )}`}
-            secondary={`${allocation.payment_currency_code || "—"} ${formatMoney(allocation.converted_amount)}`}
-          />
-
-          <AixiaEmployeeIdentityCell
-            width="lg"
-            identity={allocation.recipientIdentity}
-            primary={allocation.recipientPrimary}
-            secondary={allocation.recipientSecondary}
-            reference={allocation.recipientReference}
-          />
-
-          <AixiaTableBadgeCell width="sm">
-            <AixiaStatusBadge value={allocation.recipient_confirmation_status} />
-          </AixiaTableBadgeCell>
-
-          <AixiaTableDateCell width="sm">
-            {formatDate(allocation.updated_at || allocation.created_at)}
-          </AixiaTableDateCell>
-
-          <AixiaTableActionsCell>
-            <AixiaButton
-              type="button"
-              variant="primary"
-              onClick={() =>
-                navigate(
-                  `/finance/transactions/expense-payments/${allocation.payment_made_id}`
-                )
-              }
-            >
-              <ExternalLink className="h-3.5 w-3.5" />
-              Open Payment
-            </AixiaButton>
-
-            {mode === "active" ? (
-              <>
-                <AixiaButton
-                  type="button"
-                  variant="danger"
-                  disabled={Boolean(runningAllocationActionId)}
-                  onClick={() =>
-                    void runAllocationLifecycleAction(
-                      "archive",
-                      allocation.id,
-                      "finance_archive_payment_made_expense_allocation",
-                      "Allocation archived."
-                    )
-                  }
-                >
-                  {isActionRunning && runningAllocationAction === "archive" ? (
-                    <RotateCcw className="h-3.5 w-3.5 animate-spin" />
-                  ) : (
-                    <Archive className="h-3.5 w-3.5" />
-                  )}
-                  Archive
-                </AixiaButton>
-
-                <AixiaButton
-                  type="button"
-                  variant="danger"
-                  disabled={Boolean(runningAllocationActionId)}
-                  onClick={() =>
-                    void runAllocationLifecycleAction(
-                      "delete",
-                      allocation.id,
-                      "finance_soft_delete_payment_made_expense_allocation",
-                      "Allocation moved to deleted."
-                    )
-                  }
-                >
-                  <Trash2 className="h-3.5 w-3.5" />
-                  Delete
-                </AixiaButton>
-              </>
-            ) : (
-              <>
-                <AixiaButton
-                  type="button"
-                  variant="secondary"
-                  disabled={Boolean(runningAllocationActionId)}
-                  onClick={() =>
-                    void runAllocationLifecycleAction(
-                      "restore",
-                      allocation.id,
-                      "finance_restore_payment_made_expense_allocation",
-                      "Allocation restored."
-                    )
-                  }
-                >
-                  <RotateCcw className="h-3.5 w-3.5" />
-                  Restore
-                </AixiaButton>
-
-                {allocationArchiveTab === "deleted" ? (
-                  <AixiaButton
-                    type="button"
-                    variant="danger"
-                    disabled={Boolean(runningAllocationActionId)}
-                    onClick={() =>
-                      void runAllocationLifecycleAction(
-                        "hard_delete",
-                        allocation.id,
-                        "finance_permanently_delete_payment_made_expense_allocation",
-                        "Allocation permanently deleted."
-                      )
-                    }
-                  >
-                    <Trash2 className="h-3.5 w-3.5" />
-                    Delete Permanently
-                  </AixiaButton>
-                ) : null}
-              </>
-            )}
-          </AixiaTableActionsCell>
-        </tr>
-      );
-    });
   };
 
   if (isLoading) {
@@ -2170,87 +1765,6 @@ export default function FinanceExpenseReviewPage() {
             </div>
           </AixiaSection>
 
-          <AixiaChildAllocationRegistry
-            title="Funding & Payment Coverage"
-            description="Funding Pool usage and Expense Payment Distribution records covering this expense."
-            icon={WalletCards}
-            search={null}
-            archiveAction={
-              <AixiaButton
-                type="button"
-                variant="danger"
-                onClick={() => setAllocationArchiveOpen(true)}
-              >
-                <Archive className="h-4 w-4" />
-                Allocation Archive
-              </AixiaButton>
-            }
-          >
-            <AixiaTableShell variant="registry" minWidthClassName="min-w-[1480px]">
-              <thead className="aixia-table-head">
-                <tr>
-                  <th>
-                    <AixiaSortableHeader
-                      label="Payment"
-                      sortKey="payment"
-                      activeSortKey={allocationSortKey}
-                      sortDirection={allocationSortDirection}
-                      onSort={handleAllocationSort}
-                    />
-                  </th>
-                  <th>
-                    <AixiaSortableHeader
-                      label="Funding Company"
-                      sortKey="funding_company"
-                      activeSortKey={allocationSortKey}
-                      sortDirection={allocationSortDirection}
-                      onSort={handleAllocationSort}
-                    />
-                  </th>
-                  <th>Bank</th>
-                  <th>Funding Pool</th>
-                  <th>
-                    <AixiaSortableHeader
-                      label="Amount"
-                      sortKey="amount"
-                      activeSortKey={allocationSortKey}
-                      sortDirection={allocationSortDirection}
-                      onSort={handleAllocationSort}
-                    />
-                  </th>
-                  <th>
-                    <AixiaSortableHeader
-                      label="Recipient"
-                      sortKey="recipient"
-                      activeSortKey={allocationSortKey}
-                      sortDirection={allocationSortDirection}
-                      onSort={handleAllocationSort}
-                    />
-                  </th>
-                  <th>
-                    <AixiaSortableHeader
-                      label="Recipient Status"
-                      sortKey="recipient_status"
-                      activeSortKey={allocationSortKey}
-                      sortDirection={allocationSortDirection}
-                      onSort={handleAllocationSort}
-                    />
-                  </th>
-                  <th>
-                    <AixiaSortableHeader
-                      label="Updated"
-                      sortKey="updated_at"
-                      activeSortKey={allocationSortKey}
-                      sortDirection={allocationSortDirection}
-                      onSort={handleAllocationSort}
-                    />
-                  </th>
-                  <th>Actions</th>
-                </tr>
-              </thead>
-              <tbody>{renderAllocationRows(sortedActiveAllocations, "active")}</tbody>
-            </AixiaTableShell>
-          </AixiaChildAllocationRegistry>
         </div>
 
         <aside className="aixia-stack">
@@ -2376,54 +1890,6 @@ export default function FinanceExpenseReviewPage() {
         </aside>
       </div>
 
-      <AixiaArchiveManagerModal
-        open={allocationArchiveOpen}
-        title="Linked Expense Allocations Archive"
-        description="Archived allocation rows can be restored. Deleted allocation rows can be restored or permanently deleted."
-        archivedCount={archivedAllocations.length}
-        onClose={() => setAllocationArchiveOpen(false)}
-      >
-        <div className="aixia-stack">
-          <AixiaRegistryToolbar
-            search={null}
-            secondaryActions={
-              <AixiaButton
-                type="button"
-                variant={allocationArchiveTab === "archived" ? "primary" : "secondary"}
-                onClick={() => setAllocationArchiveTab("archived")}
-              >
-                Archived ({archivedAllocations.length})
-              </AixiaButton>
-            }
-            archiveAction={
-              <AixiaButton
-                type="button"
-                variant={allocationArchiveTab === "deleted" ? "danger" : "secondary"}
-                onClick={() => setAllocationArchiveTab("deleted")}
-              >
-                Deleted ({deletedAllocations.length})
-              </AixiaButton>
-            }
-          />
-
-          <AixiaTableShell variant="archive" minWidthClassName="min-w-[1480px]">
-            <thead className="aixia-table-head">
-              <tr>
-                <th>Payment</th>
-                <th>Funding Company</th>
-                <th>Bank</th>
-                <th>Funding Pool</th>
-                <th>Amount</th>
-                <th>Recipient</th>
-                <th>Recipient Status</th>
-                <th>Updated</th>
-                <th>Actions</th>
-              </tr>
-            </thead>
-            <tbody>{renderAllocationRows(sortedArchiveAllocations, "archive")}</tbody>
-          </AixiaTableShell>
-        </div>
-      </AixiaArchiveManagerModal>
     </AixiaPage>
   );
 }

@@ -1,21 +1,11 @@
 import {
+  AixiaAlert,
   AixiaFieldLabel,
   AixiaFormFullWidth,
   AixiaFormGrid,
-  AixiaInputField,
   AixiaSelectField,
-  AixiaTextareaField,
 } from "@/components/aixia";
-import {
-  EXPENSE_MADE_BY_OPTIONS,
-  type CompanyRow,
-  type EmployeeRefRow,
-  type ExpenseApplicationFormState,
-} from "@/lib/finance/expenses/expenseApplicationTypes";
-import {
-  getFinanceEmployeePrimaryName,
-  type FinanceEmployeeIdentity,
-} from "@/lib/finance/employeeIdentity";
+import type { CompanyRow, ExpenseApplicationFormState } from "@/lib/finance/expenses/expenseApplicationTypes";
 
 type PayeeStageProps = {
   form: ExpenseApplicationFormState;
@@ -24,29 +14,36 @@ type PayeeStageProps = {
     value: ExpenseApplicationFormState[Key],
   ) => void;
   companies: CompanyRow[];
-  employees: EmployeeRefRow[];
-  employeeIdentities: FinanceEmployeeIdentity[];
+  employeeDisplayName: string;
+  employeeSecondaryLabel?: string;
 };
 
 export function PayeeStage({
   form,
   updateField,
   companies,
-  employees,
-  employeeIdentities,
+  employeeDisplayName,
+  employeeSecondaryLabel,
 }: PayeeStageProps) {
-  const employeeIdentityByRefId = new Map(
-    employeeIdentities.map((identity) => [
-      String(identity.employee_ref_id ?? identity.id ?? ""),
-      identity,
-    ]),
-  );
-  const employeeIdentityByUserId = new Map(
-    employeeIdentities.map((identity) => [String(identity.user_id ?? ""), identity]),
-  );
-
   return (
     <AixiaFormGrid>
+      <AixiaFormFullWidth>
+        <AixiaAlert tone="info">
+          This request is for you. Your name is recorded automatically — you only choose which
+          company the expense belongs to.
+        </AixiaAlert>
+      </AixiaFormFullWidth>
+
+      <AixiaFormFullWidth>
+        <AixiaFieldLabel label="Employee" />
+        <div className="rounded-xl border border-white/10 bg-black/20 px-4 py-3">
+          <p className="text-sm font-semibold text-foreground">{employeeDisplayName}</p>
+          {employeeSecondaryLabel ? (
+            <p className="mt-1 text-xs text-muted-foreground">{employeeSecondaryLabel}</p>
+          ) : null}
+        </div>
+      </AixiaFormFullWidth>
+
       <AixiaFormFullWidth>
         <AixiaFieldLabel label="Company" required />
         <AixiaSelectField
@@ -61,69 +58,6 @@ export function PayeeStage({
           ))}
         </AixiaSelectField>
       </AixiaFormFullWidth>
-
-      <AixiaFormFullWidth>
-        <AixiaFieldLabel label="Expense Made By" required />
-        <AixiaSelectField
-          value={form.expenseMadeByType}
-          onChange={(event) =>
-            updateField(
-              "expenseMadeByType",
-              event.target.value as ExpenseApplicationFormState["expenseMadeByType"],
-            )
-          }
-        >
-          {EXPENSE_MADE_BY_OPTIONS.map((option) => (
-            <option key={option.value} value={option.value}>
-              {option.label}
-            </option>
-          ))}
-        </AixiaSelectField>
-      </AixiaFormFullWidth>
-
-      {form.expenseMadeByType === "employee" ? (
-        <AixiaFormFullWidth>
-          <AixiaFieldLabel label="Employee / Payee" required />
-          <AixiaSelectField
-            value={form.employeeRefId}
-            onChange={(event) => updateField("employeeRefId", event.target.value)}
-          >
-            <option value="">Select employee</option>
-            {employees.map((employee) => (
-              <option key={employee.id} value={employee.id}>
-                {getFinanceEmployeePrimaryName(
-                  employeeIdentityByRefId.get(employee.id) ??
-                    employeeIdentityByUserId.get(employee.user_id) ??
-                    null,
-                  employee.code || employee.id,
-                )}
-              </option>
-            ))}
-          </AixiaSelectField>
-        </AixiaFormFullWidth>
-      ) : null}
-
-      {form.expenseMadeByType === "owner_management" ? (
-        <AixiaFormFullWidth>
-          <AixiaFieldLabel label="Responsible Person" required />
-          <AixiaInputField
-            value={form.responsiblePersonName}
-            onChange={(event) => updateField("responsiblePersonName", event.target.value)}
-            placeholder="Name of owner or manager"
-          />
-        </AixiaFormFullWidth>
-      ) : null}
-
-      {form.expenseMadeByType === "other" ? (
-        <AixiaFormFullWidth>
-          <AixiaFieldLabel label="Other Explanation" required />
-          <AixiaTextareaField
-            value={form.otherMadeByExplanation}
-            onChange={(event) => updateField("otherMadeByExplanation", event.target.value)}
-            placeholder="Explain who made this expense"
-          />
-        </AixiaFormFullWidth>
-      ) : null}
     </AixiaFormGrid>
   );
 }

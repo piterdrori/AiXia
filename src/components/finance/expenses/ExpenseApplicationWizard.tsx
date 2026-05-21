@@ -9,6 +9,10 @@ import { AixiaButton } from "@/components/aixia";
 import { WIZARD_STAGE_IDS } from "@/lib/finance/expenses/expenseApplicationTypes";
 import { useExpenseApplicationForm } from "@/lib/finance/expenses/useExpenseApplicationForm";
 import { EXPENSE_PROCESSES } from "@/lib/finance/processBook";
+import {
+  getFinanceEmployeePrimaryName,
+  getFinanceEmployeeSecondaryLabel,
+} from "@/lib/finance/employeeIdentity";
 
 import {
   AmountStage,
@@ -28,6 +32,21 @@ export function ExpenseApplicationWizard({ expenseId }: ExpenseApplicationWizard
   const applicationProcess = EXPENSE_PROCESSES.find((process) => process.key === "application")!;
   const wizard = useExpenseApplicationForm({ expenseId });
 
+  const employeeDisplay = useMemo(() => {
+    const ownRef = wizard.employees.find(
+      (employee) => employee.id === wizard.form.employeeRefId,
+    );
+    const identity =
+      wizard.employeeIdentities.find(
+        (row) => row.employee_ref_id === ownRef?.id || row.user_id === ownRef?.user_id,
+      ) ?? null;
+
+    return {
+      primary: getFinanceEmployeePrimaryName(identity, "Employee"),
+      secondary: identity ? getFinanceEmployeeSecondaryLabel(identity) : "",
+    };
+  }, [wizard.employeeIdentities, wizard.employees, wizard.form.employeeRefId]);
+
   const stages = useMemo(() => {
     const wizardStages = applicationProcess.stages.filter((stage) =>
       WIZARD_STAGE_IDS.includes(stage.id as (typeof WIZARD_STAGE_IDS)[number]),
@@ -46,8 +65,8 @@ export function ExpenseApplicationWizard({ expenseId }: ExpenseApplicationWizard
               form={wizard.form}
               updateField={wizard.updateField}
               companies={wizard.companies}
-              employees={wizard.employees}
-              employeeIdentities={wizard.employeeIdentities}
+              employeeDisplayName={employeeDisplay.primary}
+              employeeSecondaryLabel={employeeDisplay.secondary}
             />
           );
           break;
@@ -90,7 +109,7 @@ export function ExpenseApplicationWizard({ expenseId }: ExpenseApplicationWizard
 
       return { ...stage, content };
     });
-  }, [applicationProcess.stages, wizard]);
+  }, [applicationProcess.stages, employeeDisplay.primary, employeeDisplay.secondary, wizard]);
 
   const handleSaveDraft = useCallback(async () => {
     const result = await wizard.saveExpense("draft");

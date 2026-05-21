@@ -57,6 +57,22 @@ export type ExpenseApplicationFormState = {
   reimbursementPaymentMethod: string;
   reimbursementPaymentMethodOther: string;
   reimbursementReason: string;
+  travelType: string;
+  travelFrom: string;
+  travelTo: string;
+  travelDate: string;
+  travelReason: string;
+  onlinePlatform: string;
+  onlineOrderNumber: string;
+  onlineOrderDate: string;
+  mealVendorName: string;
+  mealType: string;
+  mealDate: string;
+  utilityType: string;
+  utilityProviderName: string;
+  subscriptionProviderName: string;
+  repairProviderName: string;
+  repairIssueDescription: string;
 };
 
 export type SelectOption = {
@@ -136,5 +152,21 @@ export function createInitialExpenseApplicationFormState(): ExpenseApplicationFo
     reimbursementPaymentMethod: "personal_card",
     reimbursementPaymentMethodOther: "",
     reimbursementReason: "",
+    travelType: "taxi",
+    travelFrom: "",
+    travelTo: "",
+    travelDate: new Date().toISOString().slice(0, 10),
+    travelReason: "",
+    onlinePlatform: "",
+    onlineOrderNumber: "",
+    onlineOrderDate: new Date().toISOString().slice(0, 10),
+    mealVendorName: "",
+    mealType: "business_meal",
+    mealDate: new Date().toISOString().slice(0, 10),
+    utilityType: "electricity",
+    utilityProviderName: "",
+    subscriptionProviderName: "",
+    repairProviderName: "",
+    repairIssueDescription: "",
   };
 }

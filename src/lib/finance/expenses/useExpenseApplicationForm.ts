@@ -193,11 +193,19 @@ export function useExpenseApplicationForm(options: UseExpenseApplicationFormOpti
       const reimbursementFlow =
         (metadata.reimbursement_flow as Record<string, unknown> | null) ?? {};
 
+      const typeDetails =
+        (metadata.expense_type_details as Record<string, Record<string, unknown>> | null) ?? {};
+      const travel = typeDetails.travel ?? {};
+      const online = typeDetails.online_shopping ?? {};
+      const meals = typeDetails.meals ?? {};
+      const utilities = typeDetails.utilities ?? {};
+      const software = typeDetails.software_subscription ?? {};
+      const repair = typeDetails.repair_service ?? {};
+
       setForm({
+        ...createInitialExpenseApplicationFormState(),
         companyId: String(data.company_id ?? ""),
-        expenseMadeByType:
-          (data.expense_made_by_type as ExpenseApplicationFormState["expenseMadeByType"]) ??
-          "employee",
+        expenseMadeByType: "employee",
         employeeRefId: String(data.employee_ref_id ?? ""),
         responsiblePersonName: String(data.responsible_person_name ?? ""),
         otherMadeByExplanation: String(data.other_made_by_explanation ?? ""),
@@ -216,6 +224,22 @@ export function useExpenseApplicationForm(options: UseExpenseApplicationFormOpti
         reimbursementPaymentMethod: String(reimbursementFlow.payment_method ?? "personal_card"),
         reimbursementPaymentMethodOther: "",
         reimbursementReason: String(reimbursementFlow.reimbursement_reason ?? ""),
+        travelType: String(travel.travel_type ?? "taxi"),
+        travelFrom: String(travel.from ?? ""),
+        travelTo: String(travel.to ?? ""),
+        travelDate: String(travel.travel_date ?? data.expense_date ?? ""),
+        travelReason: String(travel.reason ?? ""),
+        onlinePlatform: String(data.online_platform ?? online.platform ?? ""),
+        onlineOrderNumber: String(data.online_order_number ?? online.order_number ?? ""),
+        onlineOrderDate: String(data.online_order_date ?? online.order_date ?? ""),
+        mealVendorName: String(meals.vendor_name ?? ""),
+        mealType: String(meals.meal_type ?? "business_meal"),
+        mealDate: String(meals.meal_date ?? data.expense_date ?? ""),
+        utilityType: String(utilities.utility_type ?? "electricity"),
+        utilityProviderName: String(utilities.provider_name ?? ""),
+        subscriptionProviderName: String(software.provider_name ?? ""),
+        repairProviderName: String(repair.provider_name ?? ""),
+        repairIssueDescription: String(repair.issue_description ?? ""),
       });
     } catch (error) {
       console.error("Failed to load expense for wizard:", error);
@@ -230,6 +254,28 @@ export function useExpenseApplicationForm(options: UseExpenseApplicationFormOpti
     hasMountedRef.current = true;
     void loadOptions();
   }, [loadOptions]);
+
+  useEffect(() => {
+    if (employees.length === 0) return;
+
+    void (async () => {
+      const authResult = await supabase.auth.getUser();
+      const userId = authResult.data.user?.id;
+      if (!userId) return;
+
+      const ownEmployee =
+        employees.find((employee) => employee.user_id === userId) ?? employees[0] ?? null;
+
+      if (!ownEmployee) return;
+
+      setForm((current) => ({
+        ...current,
+        expenseMadeByType: "employee",
+        employeeRefId: current.employeeRefId || ownEmployee.id,
+        companyId: current.companyId || companies[0]?.id || "",
+      }));
+    })();
+  }, [companies, employees]);
 
   useEffect(() => {
     if (!options.expenseId) return;

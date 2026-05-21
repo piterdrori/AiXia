@@ -21,9 +21,9 @@ import {
   AixiaAlert,
   AixiaArchiveManagerModal,
   AixiaButton,
-  AixiaCommandMetrics,
-  AixiaFinanceHubControlPanel,
+  AixiaFieldLabel,
   AixiaHero,
+  AixiaInputField,
   AixiaLoadingState,
   FinancePage,
   AixiaRegistryToolbar,
@@ -38,16 +38,18 @@ import {
 } from "@/components/aixia";
 import { AixiaProcessHistoryModal } from "@/components/aixia/process-book";
 import {
+  EmployeeExpenseHubCards,
   ExpenseEmptyState,
   ExpenseHubTabs,
   ExpenseStatusCell,
 } from "@/components/finance/expenses";
+import { computeEmployeeExpenseMoneyStats } from "@/lib/finance/expenses/employeeStats";
+import { getFinanceEmployeePrimaryName } from "@/lib/finance/employeeIdentity";
 import { runExpenseLifecycleAction } from "@/lib/finance/expenses/lifecycleActions";
 import { fetchOwnExpenses } from "@/lib/finance/expenses/ownership";
 import {
   describeExpenseStage,
   groupExpenseForEmployee,
-  type EmployeePipelineGroup,
 } from "@/lib/finance/expenses/pipeline";
 import { EXPENSE_MODULE1_SELECT } from "@/lib/finance/expenses/queries";
 import { isWorkflowActive } from "@/lib/finance/expenses/reviewQueues";
@@ -79,7 +81,7 @@ const EMPLOYEE_PIPELINE_STEPS = [
   { key: "confirm", label: "Confirm", description: "Confirm you received payment" },
 ] as const;
 
-type EmployeeSectionTab = EmployeePipelineGroup;
+type EmployeeSectionTab = "action_needed" | "in_progress" | "completed";
 
 const EMPLOYEE_SECTION_TABS: Array<{
   key: EmployeeSectionTab;
@@ -100,11 +102,6 @@ const EMPLOYEE_SECTION_TABS: Array<{
     key: "completed",
     label: "Completed",
     description: "Confirmed payments you received.",
-  },
-  {
-    key: "closed",
-    label: "Closed",
-    description: "Rejected requests and archived records.",
   },
 ];
 
@@ -203,6 +200,9 @@ export default function FinanceExpensesPage() {
   const [, setIsRefreshing] = useState(false);
   const [hasLoadedOnce, setHasLoadedOnce] = useState(false);
   const [activeTab, setActiveTab] = useState<EmployeeSectionTab>("action_needed");
+  const [employeeDisplayName, setEmployeeDisplayName] = useState("My Expenses");
+  const [dateFrom, setDateFrom] = useState("");
+  const [dateTo, setDateTo] = useState("");
   const [searchQuery, setSearchQuery] = useState("");
   const [archiveSearchQuery, setArchiveSearchQuery] = useState("");
   const [sortKey, setSortKey] = useState<ExpenseSortKey>("updated_at");
@@ -238,6 +238,28 @@ export default function FinanceExpensesPage() {
 
         const loadedExpenses = await fetchOwnExpenses(supabase, EXPENSE_MODULE1_SELECT, user.id);
         setExpenses(loadedExpenses as unknown as ExpenseRow[]);
+
+        const identityResult = await supabase
+          .from("finance_employee_identity_v")
+          .select("display_name, profile_display_name, full_name, email")
+          .eq("user_id", user.id)
+          .limit(1)
+          .maybeSingle();
+
+        if (!identityResult.error && identityResult.data) {
+          setEmployeeDisplayName(
+            getFinanceEmployeePrimaryName(identityResult.data, user.email ?? "Employee"),
+          );
+        } else {
+          const metaName =
+            typeof user.user_metadata?.full_name === "string"
+              ? user.user_metadata.full_name
+              : typeof user.user_metadata?.name === "string"
+                ? user.user_metadata.name
+                : "";
+          setEmployeeDisplayName(metaName.trim() || user.email || "My Expenses");
+        }
+
         setHasLoadedOnce(true);
       } catch (error) {
         console.error("Failed to load operating expenses:", error);
@@ -272,20 +294,24 @@ export default function FinanceExpensesPage() {
     }));
   }, [expenses]);
 
+  const moneyStats = useMemo(
+    () => computeEmployeeExpenseMoneyStats(enrichedExpenses),
+    [enrichedExpenses],
+  );
+
   const tabCounts = useMemo(() => {
     const counts: Record<EmployeeSectionTab, number> = {
       action_needed: 0,
       in_progress: 0,
       completed: 0,
-      closed: 0,
     };
 
     for (const row of enrichedExpenses) {
-      if (!isWorkflowActive(row)) {
-        counts.closed += 1;
-        continue;
-      }
-      const group = groupExpenseForEmployee(describeExpenseStage(row).stage);
+      if (!isWorkflowActive(row)) continue;
+      const stage = describeExpenseStage(row).stage;
+      if (stage === "rejected") continue;
+      const group = groupExpenseForEmployee(stage);
+      if (group === "closed") continue;
       counts[group] += 1;
     }
 
@@ -327,17 +353,30 @@ export default function FinanceExpensesPage() {
 
   const tabFilteredExpenses = useMemo(() => {
     return enrichedExpenses.filter((row) => {
-      if (!isWorkflowActive(row)) {
-        return activeTab === "closed";
-      }
-      const group = groupExpenseForEmployee(describeExpenseStage(row).stage);
+      if (!isWorkflowActive(row)) return false;
+      const stage = describeExpenseStage(row).stage;
+      if (stage === "rejected") return false;
+      const group = groupExpenseForEmployee(stage);
+      if (group === "closed") return false;
       return group === activeTab;
     });
   }, [activeTab, enrichedExpenses]);
 
+  const dateFilteredExpenses = useMemo(() => {
+    if (!dateFrom && !dateTo) return tabFilteredExpenses;
+
+    return tabFilteredExpenses.filter((row) => {
+      if (!row.expense_date) return false;
+      const expenseDay = row.expense_date.slice(0, 10);
+      if (dateFrom && expenseDay < dateFrom) return false;
+      if (dateTo && expenseDay > dateTo) return false;
+      return true;
+    });
+  }, [dateFrom, dateTo, tabFilteredExpenses]);
+
   const filteredExpenses = useMemo(
-    () => searchExpenses(tabFilteredExpenses, searchQuery),
-    [searchExpenses, tabFilteredExpenses, searchQuery],
+    () => searchExpenses(dateFilteredExpenses, searchQuery),
+    [dateFilteredExpenses, searchQuery, searchExpenses],
   );
 
   const archivedRows = useMemo(
@@ -363,39 +402,6 @@ export default function FinanceExpensesPage() {
   const archiveRows = useMemo(
     () => searchExpenses(archiveRowsBase, archiveSearchQuery),
     [archiveRowsBase, archiveSearchQuery, searchExpenses],
-  );
-
-  const expenseCommandMetrics = useMemo(
-    () => [
-      {
-        key: "action-needed",
-        title: "Action needed",
-        value: tabCounts.action_needed.toLocaleString(),
-        subtitle:
-          EMPLOYEE_SECTION_TABS.find((tab) => tab.key === "action_needed")?.description ?? "",
-        icon: Receipt,
-        tone: "gold" as const,
-      },
-      {
-        key: "in-progress",
-        title: "In progress",
-        value: tabCounts.in_progress.toLocaleString(),
-        subtitle:
-          EMPLOYEE_SECTION_TABS.find((tab) => tab.key === "in_progress")?.description ?? "",
-        icon: History,
-        tone: "cyan" as const,
-      },
-      {
-        key: "completed",
-        title: "Completed",
-        value: tabCounts.completed.toLocaleString(),
-        subtitle:
-          EMPLOYEE_SECTION_TABS.find((tab) => tab.key === "completed")?.description ?? "",
-        icon: Archive,
-        tone: "emerald" as const,
-      },
-    ],
-    [tabCounts],
   );
 
   const handleExpenseSort = useCallback(
@@ -494,50 +500,49 @@ export default function FinanceExpensesPage() {
   return (
     <FinancePage>
       <AixiaHero
-        className="shrink-0 space-y-4"
+        className="shrink-0"
         surface="command"
         parentLabel="Transactions"
         parentPath="/finance/transactions"
-        gradientTitle="My Expenses"
+        gradientTitle={employeeDisplayName}
         title=""
-        subtitle="Apply, attach receipts, confirm money received."
-      >
-        <AixiaCommandMetrics items={expenseCommandMetrics} />
-        <nav className="aixia-process-pipeline" aria-label="Expense progress">
-          <ol className="aixia-process-pipeline__track">
-            {EMPLOYEE_PIPELINE_STEPS.map((step, index) => (
-              <li className="aixia-process-pipeline__item" key={step.key}>
-                <span className="aixia-process-pipeline__step" data-active="false">
-                  <span className="aixia-process-pipeline__index">
-                    {String(index + 1).padStart(2, "0")}
-                  </span>
-                  <span className="aixia-process-pipeline__content">
-                    <span className="aixia-process-pipeline__label">{step.label}</span>
-                    <span className="aixia-process-pipeline__description">{step.description}</span>
-                  </span>
-                </span>
-                {index < EMPLOYEE_PIPELINE_STEPS.length - 1 ? (
-                  <span className="aixia-process-pipeline__connector" aria-hidden="true" />
-                ) : null}
-              </li>
-            ))}
-          </ol>
-        </nav>
-      </AixiaHero>
+        subtitle="Apply for approval, upload receipts after spending, confirm when paid."
+      />
 
       <div className="aixia-command-scroll">
         {actionError ? <AixiaAlert tone="error">{actionError}</AixiaAlert> : null}
         {pageMessage ? <AixiaAlert tone="success">{pageMessage}</AixiaAlert> : null}
 
-        <p className="aixia-caption">
-          Submit an expense, wait for review and payment, then confirm you received the money.
-        </p>
+        <EmployeeExpenseHubCards employeeName={employeeDisplayName} stats={moneyStats} />
 
-        <AixiaFinanceHubControlPanel
+        <AixiaSection
+          title="Your expense flow"
+          description="Request → approval → spend & receipt → payment → confirm received."
           icon={Receipt}
-          title="My expenses"
-          description="Track drafts, submissions, and payment confirmation."
-        />
+        >
+          <nav className="aixia-process-pipeline" aria-label="Expense progress">
+            <ol className="aixia-process-pipeline__track">
+              {EMPLOYEE_PIPELINE_STEPS.map((step, index) => (
+                <li className="aixia-process-pipeline__item" key={step.key}>
+                  <span className="aixia-process-pipeline__step" data-active="false">
+                    <span className="aixia-process-pipeline__index">
+                      {String(index + 1).padStart(2, "0")}
+                    </span>
+                    <span className="aixia-process-pipeline__content">
+                      <span className="aixia-process-pipeline__label">{step.label}</span>
+                      <span className="aixia-process-pipeline__description">
+                        {step.description}
+                      </span>
+                    </span>
+                  </span>
+                  {index < EMPLOYEE_PIPELINE_STEPS.length - 1 ? (
+                    <span className="aixia-process-pipeline__connector" aria-hidden="true" />
+                  ) : null}
+                </li>
+              ))}
+            </ol>
+          </nav>
+        </AixiaSection>
 
         <AixiaSection
           title="Expenses & Reimbursements"
@@ -545,6 +550,37 @@ export default function FinanceExpensesPage() {
           icon={Receipt}
         >
           <ExpenseHubTabs tabs={hubTabs} activeTab={activeTab} onChange={setActiveTab} />
+
+          <div className="my-5 flex flex-wrap items-end gap-3">
+            <div className="min-w-[11rem]">
+              <AixiaFieldLabel label="From date" />
+              <AixiaInputField
+                type="date"
+                value={dateFrom}
+                onChange={(event) => setDateFrom(event.target.value)}
+              />
+            </div>
+            <div className="min-w-[11rem]">
+              <AixiaFieldLabel label="To date" />
+              <AixiaInputField
+                type="date"
+                value={dateTo}
+                onChange={(event) => setDateTo(event.target.value)}
+              />
+            </div>
+            {dateFrom || dateTo ? (
+              <AixiaButton
+                type="button"
+                variant="secondary"
+                onClick={() => {
+                  setDateFrom("");
+                  setDateTo("");
+                }}
+              >
+                Clear dates
+              </AixiaButton>
+            ) : null}
+          </div>
 
           <AixiaRegistryToolbar
             search={
@@ -606,101 +642,130 @@ export default function FinanceExpensesPage() {
               }
             />
           ) : (
-            <AixiaTableShell variant="registry">
-              <thead className="aixia-table-head">
-                <tr>
-                  <th>
-                    <AixiaSortableHeader
-                      label="Date"
-                      sortKey="expense_date"
-                      activeSortKey={sortKey}
-                      sortDirection={sortDirection}
-                      onSort={handleExpenseSort}
-                    />
-                  </th>
-                  <th>
-                    <AixiaSortableHeader
-                      label="Expense"
-                      sortKey="expense"
-                      activeSortKey={sortKey}
-                      sortDirection={sortDirection}
-                      onSort={handleExpenseSort}
-                    />
-                  </th>
-                  <th>
-                    <AixiaSortableHeader
-                      label="Amount"
-                      sortKey="amount"
-                      activeSortKey={sortKey}
-                      sortDirection={sortDirection}
-                      onSort={handleExpenseSort}
-                    />
-                  </th>
-                  <th>Status</th>
-                  <th>Open</th>
-                </tr>
-              </thead>
-
-              <tbody>
-                {sortedRows.map((row) => {
-                  const stageInfo = describeExpenseStage(row);
-                  const ctaLabel = stageInfo.employeeCta;
-                  const ctaIcon = (() => {
-                    switch (stageInfo.employeeAction) {
-                      case "edit":
-                        return <Pencil className="h-3.5 w-3.5" />;
-                      case "upload":
-                        return <Upload className="h-3.5 w-3.5" />;
-                      case "confirm_receipt":
-                        return <CheckCircle2 className="h-3.5 w-3.5" />;
-                      default:
-                        return null;
-                    }
-                  })();
-
-                  return (
-                    <tr key={row.id} className="aixia-table-row">
-                      <AixiaTableDateCell width="sm">{formatDate(row.expense_date)}</AixiaTableDateCell>
-                      <AixiaTableTextCell
-                        width="xl"
-                        primary={row.expenseLabel}
-                        secondary={stageInfo.employeeLabel}
+            <div className="aixia-employee-expense-registry">
+              <AixiaTableShell variant="registry">
+                <thead className="aixia-table-head">
+                  <tr>
+                    <th>
+                      <AixiaSortableHeader
+                        label="Date"
+                        sortKey="expense_date"
+                        activeSortKey={sortKey}
+                        sortDirection={sortDirection}
+                        onSort={handleExpenseSort}
                       />
-                      <AixiaTableTextCell
-                        width="md"
-                        primary={`${getCurrencyCode(row)} ${formatMoney(row.amount)}`}
+                    </th>
+                    <th>
+                      <AixiaSortableHeader
+                        label="Expense"
+                        sortKey="expense"
+                        activeSortKey={sortKey}
+                        sortDirection={sortDirection}
+                        onSort={handleExpenseSort}
                       />
-                      <AixiaTableBadgeCell width="md">
-                        <ExpenseStatusCell expense={row} role="employee" />
-                      </AixiaTableBadgeCell>
-                      <AixiaTableActionsCell>
-                        {ctaLabel ? (
+                    </th>
+                    <th>
+                      <AixiaSortableHeader
+                        label="Amount"
+                        sortKey="amount"
+                        activeSortKey={sortKey}
+                        sortDirection={sortDirection}
+                        onSort={handleExpenseSort}
+                      />
+                    </th>
+                    <th>Status</th>
+                    <th>Actions</th>
+                  </tr>
+                </thead>
+
+                <tbody>
+                  {sortedRows.map((row) => {
+                    const stageInfo = describeExpenseStage(row);
+                    const ctaLabel = stageInfo.employeeCta;
+                    const isRowBusy = isExpenseActionRunning && activeExpenseActionId === row.id;
+                    const ctaIcon = (() => {
+                      switch (stageInfo.employeeAction) {
+                        case "edit":
+                          return <Pencil className="h-3.5 w-3.5" />;
+                        case "upload":
+                          return <Upload className="h-3.5 w-3.5" />;
+                        case "confirm_receipt":
+                          return <CheckCircle2 className="h-3.5 w-3.5" />;
+                        default:
+                          return null;
+                      }
+                    })();
+
+                    return (
+                      <tr key={row.id} className="aixia-table-row">
+                        <AixiaTableDateCell width="sm">{formatDate(row.expense_date)}</AixiaTableDateCell>
+                        <AixiaTableTextCell
+                          width="lg"
+                          primary={row.expenseLabel}
+                          secondary={stageInfo.employeeLabel}
+                        />
+                        <AixiaTableTextCell
+                          width="sm"
+                          primary={`${getCurrencyCode(row)} ${formatMoney(row.amount)}`}
+                        />
+                        <AixiaTableBadgeCell width="sm">
+                          <ExpenseStatusCell expense={row} role="employee" />
+                        </AixiaTableBadgeCell>
+                        <AixiaTableActionsCell>
+                          {ctaLabel ? (
+                            <AixiaButton
+                              type="button"
+                              variant="primary"
+                              title={ctaLabel}
+                              disabled={isRowBusy}
+                              onClick={() => navigate(`/finance/transactions/expenses/${row.id}`)}
+                            >
+                              {ctaIcon}
+                              {ctaLabel}
+                            </AixiaButton>
+                          ) : (
+                            <AixiaButton
+                              type="button"
+                              variant="primary"
+                              title="Open expense"
+                              disabled={isRowBusy}
+                              onClick={() => navigate(`/finance/transactions/expenses/${row.id}`)}
+                            >
+                              <Eye className="h-3.5 w-3.5" />
+                              Open
+                            </AixiaButton>
+                          )}
+
+                          {stageInfo.stage === "received_confirmed" ? (
+                            <AixiaButton
+                              type="button"
+                              variant="danger"
+                              title="Archive completed expense"
+                              disabled={isExpenseActionRunning}
+                              onClick={() => void runExpenseAction("archive", row.id)}
+                            >
+                              <Archive className="h-3.5 w-3.5" />
+                              Archive
+                            </AixiaButton>
+                          ) : null}
+
                           <AixiaButton
                             type="button"
-                            variant="primary"
-                            title={ctaLabel}
-                            onClick={() => navigate(`/finance/transactions/expenses/${row.id}`)}
+                            variant="danger"
+                            title="Move expense to deleted"
+                            disabled={isExpenseActionRunning}
+                            onClick={() => void runExpenseAction("delete", row.id)}
                           >
-                            {ctaIcon}
-                            {ctaLabel}
+                            <Trash2 className="h-3.5 w-3.5" />
+                            Delete
                           </AixiaButton>
-                        ) : (
-                          <AixiaButton
-                            type="button"
-                            variant="secondary"
-                            title="Open expense"
-                            onClick={() => navigate(`/finance/transactions/expenses/${row.id}`)}
-                          >
-                            <Eye className="h-3.5 w-3.5" />
-                            Open
-                          </AixiaButton>
-                        )}
-                      </AixiaTableActionsCell>
-                    </tr>
-                  );
-                })}
-              </tbody>
-            </AixiaTableShell>
+                        </AixiaTableActionsCell>
+                      </tr>
+                    );
+                  })}
+                </tbody>
+              </AixiaTableShell>
+            </div>
           )}
         </AixiaSection>
 
@@ -748,77 +813,98 @@ export default function FinanceExpensesPage() {
                 description={`No ${archiveTab} expense or reimbursement records match the current filter.`}
               />
             ) : (
-              <AixiaTableShell variant="archive">
-                <thead className="aixia-table-head">
-                  <tr>
-                    <th>Date</th>
-                    <th>Expense</th>
-                    <th>Amount</th>
-                    <th>Status</th>
-                    <th>Actions</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {archiveRows.map((row) => {
-                    const isRowActionRunning = activeExpenseActionId === row.id;
+              <div className="aixia-employee-expense-registry aixia-employee-expense-registry--archive">
+                <AixiaTableShell variant="archive">
+                  <thead className="aixia-table-head">
+                    <tr>
+                      <th>Date</th>
+                      <th>Expense</th>
+                      <th>Amount</th>
+                      <th>Status</th>
+                      <th>Actions</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {archiveRows.map((row) => {
+                      const isRowBusy = isExpenseActionRunning && activeExpenseActionId === row.id;
 
-                    return (
-                      <tr key={row.id} className="aixia-table-row">
-                        <AixiaTableDateCell width="sm">{formatDate(row.expense_date)}</AixiaTableDateCell>
-                        <AixiaTableTextCell
-                          width="xl"
-                          primary={row.expenseLabel}
-                          secondary={row.expenseSubLabel}
-                        />
-                        <AixiaTableTextCell
-                          width="md"
-                          primary={`${getCurrencyCode(row)} ${formatMoney(row.amount)}`}
-                        />
-                        <AixiaTableBadgeCell width="md">
-                          <ExpenseStatusCell expense={row} role="employee" />
-                        </AixiaTableBadgeCell>
-                        <AixiaTableActionsCell>
-                          <AixiaButton
-                            type="button"
-                            variant="primary"
-                            title="Open expense"
-                            onClick={() => navigate(`/finance/transactions/expenses/${row.id}`)}
-                          >
-                            <Eye className="h-3.5 w-3.5" />
-                            Open
-                          </AixiaButton>
-                          <AixiaButton
-                            type="button"
-                            variant="secondary"
-                            title="Restore expense"
-                            onClick={() => void runExpenseAction("restore", row.id)}
-                            disabled={isExpenseActionRunning}
-                          >
-                            {isRowActionRunning && expenseRunningAction === "restore" ? (
-                              <RotateCcw className="h-3.5 w-3.5 animate-spin" />
-                            ) : (
-                              <RotateCcw className="h-3.5 w-3.5" />
-                            )}
-                            Restore
-                          </AixiaButton>
-                          {archiveTab === "deleted" ? (
+                      return (
+                        <tr key={row.id} className="aixia-table-row">
+                          <AixiaTableDateCell width="sm">{formatDate(row.expense_date)}</AixiaTableDateCell>
+                          <AixiaTableTextCell
+                            width="lg"
+                            primary={row.expenseLabel}
+                            secondary={row.expenseSubLabel}
+                          />
+                          <AixiaTableTextCell
+                            width="sm"
+                            primary={`${getCurrencyCode(row)} ${formatMoney(row.amount)}`}
+                          />
+                          <AixiaTableBadgeCell width="sm">
+                            <ExpenseStatusCell expense={row} role="employee" />
+                          </AixiaTableBadgeCell>
+                          <AixiaTableActionsCell>
                             <AixiaButton
                               type="button"
-                              variant="danger"
-                              title="Permanently delete expense"
-                              onClick={() => void runExpenseAction("hard_delete", row.id)}
-                              disabled={isExpenseActionRunning}
+                              variant="primary"
+                              title="Open expense"
+                              disabled={isRowBusy}
+                              onClick={() => navigate(`/finance/transactions/expenses/${row.id}`)}
                             >
-                              <Trash2 className="h-3.5 w-3.5" />
-                              Delete Permanently
+                              <Eye className="h-3.5 w-3.5" />
+                              Open
                             </AixiaButton>
-                          ) : null}
-                        </AixiaTableActionsCell>
-                      </tr>
-                    );
-                  })}
-                </tbody>
-              </AixiaTableShell>
+
+                            {archiveTab === "archived" ? (
+                              <AixiaButton
+                                type="button"
+                                variant="secondary"
+                                title="Restore expense"
+                                disabled={isExpenseActionRunning}
+                                onClick={() => void runExpenseAction("restore", row.id)}
+                              >
+                                {isRowBusy && expenseRunningAction === "restore" ? (
+                                  <RotateCcw className="h-3.5 w-3.5 animate-spin" />
+                                ) : (
+                                  <RotateCcw className="h-3.5 w-3.5" />
+                                )}
+                                Restore
+                              </AixiaButton>
+                            ) : (
+                              <>
+                                <AixiaButton
+                                  type="button"
+                                  variant="secondary"
+                                  title="Restore expense"
+                                  disabled={isExpenseActionRunning}
+                                  onClick={() => void runExpenseAction("restore", row.id)}
+                                >
+                                  {isRowBusy && expenseRunningAction === "restore" ? (
+                                    <RotateCcw className="h-3.5 w-3.5 animate-spin" />
+                                  ) : (
+                                    <RotateCcw className="h-3.5 w-3.5" />
+                                  )}
+                                  Restore
+                                </AixiaButton>
+                                <AixiaButton
+                                  type="button"
+                                  variant="danger"
+                                  title="Permanently delete expense"
+                                  disabled={isExpenseActionRunning}
+                                  onClick={() => void runExpenseAction("hard_delete", row.id)}
+                                >
+                                  <Trash2 className="h-3.5 w-3.5" />
+                                  Delete Permanently
+                                </AixiaButton>
+                              </>
+                            )}
+                          </AixiaTableActionsCell>
+                        </tr>
+                      );
+                    })}
+                  </tbody>
+                </AixiaTableShell>
+              </div>
             )}
           </div>
         </AixiaArchiveManagerModal>

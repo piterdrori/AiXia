@@ -206,3 +206,48 @@
 .aixia-issued-documents-registry .aixia-table-scroll {
   max-height: calc(3.25rem + (15 * 3.25rem));
 }
+
+/* Employee expense hub — tighter registry (no wide empty gaps) */
+.aixia-employee-expense-registry {
+  width: 100%;
+  min-width: 0;
+}
+
+.aixia-employee-expense-registry .aixia-table-wrap[data-table-variant="registry"] .aixia-table {
+  min-width: 920px;
+  width: 100%;
+}
+
+.aixia-employee-expense-registry .aixia-table-row {
+  height: auto;
+}
+
+.aixia-employee-expense-registry .aixia-table td,
+.aixia-employee-expense-registry .aixia-table th {
+  padding: 0.55rem 0.65rem;
+  vertical-align: middle;
+}
+
+.aixia-employee-expense-registry .aixia-table-cell-text,
+.aixia-employee-expense-registry .aixia-table-cell-badge,
+.aixia-employee-expense-registry .aixia-table-cell-date {
+  min-width: 0 !important;
+}
+
+.aixia-employee-expense-registry .aixia-table-cell-actions {
+  width: 1%;
+  min-width: max-content;
+  white-space: nowrap;
+}
+
+.aixia-employee-expense-registry .aixia-table-actions {
+  display: inline-flex;
+  align-items: center;
+  justify-content: flex-end;
+  flex-wrap: nowrap;
+  gap: 0.45rem;
+}
+
+.aixia-employee-expense-registry--archive .aixia-table-wrap[data-table-variant="archive"] {
+  --aixia-archive-table-min-width: 1080px;
+}

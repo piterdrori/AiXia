@@ -30,19 +30,37 @@ export function AixiaProcessNavigation({
   return (
     <footer className="aixia-process-navigation" aria-label="Process navigation">
       <div className="aixia-process-navigation__group">
-        <AixiaButton type="button" variant="secondary" onClick={onPrevious} disabled={previousDisabled}>
+        <AixiaButton
+          type="button"
+          variant="secondary"
+          className="aixia-process-nav-btn aixia-process-nav-btn--previous"
+          onClick={onPrevious}
+          disabled={previousDisabled}
+        >
           {previousLabel}
         </AixiaButton>
       </div>
 
       <div className="aixia-process-navigation__group">
         {onSaveDraft ? (
-          <AixiaButton type="button" variant="secondary" onClick={onSaveDraft} disabled={saveDisabled}>
+          <AixiaButton
+            type="button"
+            variant="secondary"
+            className="aixia-process-nav-btn aixia-process-nav-btn--draft"
+            onClick={onSaveDraft}
+            disabled={saveDisabled}
+          >
             {saveLabel}
           </AixiaButton>
         ) : null}
         {onNext ? (
-          <AixiaButton type="button" variant="primary" onClick={onNext} disabled={nextDisabled}>
+          <AixiaButton
+            type="button"
+            variant="primary"
+            className="aixia-process-nav-btn aixia-process-nav-btn--next"
+            onClick={onNext}
+            disabled={nextDisabled}
+          >
             {nextLabel}
           </AixiaButton>
         ) : null}

@@ -2,7 +2,6 @@ import {
   AixiaFieldLabel,
   AixiaFormFullWidth,
   AixiaFormGrid,
-  AixiaInputField,
   AixiaSelectField,
   AixiaTextareaField,
 } from "@/components/aixia";
@@ -10,6 +9,8 @@ import {
   REIMBURSEMENT_PAYMENT_METHODS,
   type ExpenseApplicationFormState,
 } from "@/lib/finance/expenses/expenseApplicationTypes";
+
+import { ExpenseTypeDetailsFields } from "./expense-type-details-fields";
 
 type DetailsStageProps = {
   form: ExpenseApplicationFormState;
@@ -22,29 +23,10 @@ type DetailsStageProps = {
 export function DetailsStage({ form, updateField }: DetailsStageProps) {
   return (
     <AixiaFormGrid>
-      {form.expenseType === "other" ? (
-        <>
-          <AixiaFormFullWidth>
-            <AixiaFieldLabel label="Expense Title" required />
-            <AixiaInputField
-              value={form.title}
-              onChange={(event) => updateField("title", event.target.value)}
-              placeholder="Short title for this expense"
-            />
-          </AixiaFormFullWidth>
-          <AixiaFormFullWidth>
-            <AixiaFieldLabel label="Expense Source" required />
-            <AixiaInputField
-              value={form.expenseSourceName}
-              onChange={(event) => updateField("expenseSourceName", event.target.value)}
-              placeholder="Vendor, merchant, or payee name"
-            />
-          </AixiaFormFullWidth>
-        </>
-      ) : null}
+      <ExpenseTypeDetailsFields form={form} updateField={updateField} />
 
       <AixiaFormFullWidth>
-        <AixiaFieldLabel label="Business Purpose / Description" />
+        <AixiaFieldLabel label="Business purpose / description" />
         <AixiaTextareaField
           value={form.description}
           onChange={(event) => updateField("description", event.target.value)}
@@ -55,7 +37,7 @@ export function DetailsStage({ form, updateField }: DetailsStageProps) {
       {form.expenseType === "reimbursement" ? (
         <>
           <AixiaFormFullWidth>
-            <AixiaFieldLabel label="Reimbursement Reason" required />
+            <AixiaFieldLabel label="Reimbursement reason" required />
             <AixiaTextareaField
               value={form.reimbursementReason}
               onChange={(event) => updateField("reimbursementReason", event.target.value)}
@@ -63,7 +45,7 @@ export function DetailsStage({ form, updateField }: DetailsStageProps) {
             />
           </AixiaFormFullWidth>
           <AixiaFormFullWidth>
-            <AixiaFieldLabel label="How You Paid" />
+            <AixiaFieldLabel label="How you paid" />
             <AixiaSelectField
               value={form.reimbursementPaymentMethod}
               onChange={(event) =>
@@ -81,7 +63,7 @@ export function DetailsStage({ form, updateField }: DetailsStageProps) {
       ) : null}
 
       <AixiaFormFullWidth>
-        <AixiaFieldLabel label="Internal Notes" />
+        <AixiaFieldLabel label="Internal notes" />
         <AixiaTextareaField
           value={form.notes}
           onChange={(event) => updateField("notes", event.target.value)}

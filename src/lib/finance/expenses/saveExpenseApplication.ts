@@ -41,6 +41,59 @@ function getOptionLabel(
   return options.find((option) => option.value === value)?.label || value || "Not selected";
 }
 
+function buildExpenseTypeDetailsMetadata(form: ExpenseApplicationFormState) {
+  switch (form.expenseType) {
+    case "travel":
+      return {
+        travel: {
+          travel_type: form.travelType,
+          from: form.travelFrom.trim(),
+          to: form.travelTo.trim(),
+          travel_date: form.travelDate || null,
+          reason: form.travelReason.trim(),
+        },
+      };
+    case "online_shopping":
+      return {
+        online_shopping: {
+          platform: form.onlinePlatform,
+          order_number: form.onlineOrderNumber.trim() || null,
+          order_date: form.onlineOrderDate || null,
+        },
+      };
+    case "meals":
+      return {
+        meals: {
+          vendor_name: form.mealVendorName.trim(),
+          meal_type: form.mealType,
+          meal_date: form.mealDate || null,
+        },
+      };
+    case "utilities":
+      return {
+        utilities: {
+          utility_type: form.utilityType,
+          provider_name: form.utilityProviderName.trim(),
+        },
+      };
+    case "software_subscription":
+      return {
+        software_subscription: {
+          provider_name: form.subscriptionProviderName.trim(),
+        },
+      };
+    case "repair_service":
+      return {
+        repair_service: {
+          provider_name: form.repairProviderName.trim(),
+          issue_description: form.repairIssueDescription.trim(),
+        },
+      };
+    default:
+      return {};
+  }
+}
+
 function resolveMimeType(file: File) {
   if (file.type && file.type !== "application/octet-stream") return file.type;
   const extension = file.name.split(".").pop()?.toLowerCase();
@@ -86,8 +139,8 @@ export function validateExpenseApplicationForm(
   if (submitMode === "request" && amountValue <= 0) {
     return "Requested amount must be greater than zero.";
   }
-  if (form.expenseMadeByType === "employee" && !form.employeeRefId) {
-    return "Employee is required when Expense Made By is Employee.";
+  if (!form.employeeRefId) {
+    return "Your employee profile must be linked before submitting.";
   }
   if (
     form.expenseMadeByType === "owner_management" &&
@@ -123,9 +176,7 @@ export function validateExpenseWizardStage(
       return form.expenseType ? null : "Choose an expense type.";
     case "payee":
       if (!form.companyId) return "Company is required.";
-      if (form.expenseMadeByType === "employee" && !form.employeeRefId) {
-        return "Employee is required.";
-      }
+      if (!form.employeeRefId) return "Your employee profile could not be linked. Contact Finance.";
       return null;
     case "details":
       if (form.expenseType === "reimbursement" && !form.reimbursementReason.trim()) {
@@ -133,6 +184,31 @@ export function validateExpenseWizardStage(
       }
       if (form.expenseType === "other" && !form.title.trim()) {
         return "Title is required for Other expense type.";
+      }
+      if (form.expenseType === "other" && !form.expenseSourceName.trim()) {
+        return "Vendor is required for Other expense type.";
+      }
+      if (form.expenseType === "travel") {
+        if (!form.travelFrom.trim()) return "Travel from is required.";
+        if (!form.travelTo.trim()) return "Travel to is required.";
+        if (!form.travelDate) return "Travel date is required.";
+        if (!form.travelReason.trim()) return "Travel reason is required.";
+      }
+      if (form.expenseType === "online_shopping" && !form.onlinePlatform) {
+        return "Platform is required for online shopping.";
+      }
+      if (form.expenseType === "meals" && !form.mealVendorName.trim()) {
+        return "Restaurant / vendor is required for meals.";
+      }
+      if (form.expenseType === "utilities" && !form.utilityProviderName.trim()) {
+        return "Utility provider is required.";
+      }
+      if (form.expenseType === "software_subscription" && !form.subscriptionProviderName.trim()) {
+        return "Subscription provider name is required.";
+      }
+      if (form.expenseType === "repair_service") {
+        if (!form.repairProviderName.trim()) return "Service provider is required.";
+        if (!form.repairIssueDescription.trim()) return "Issue description is required.";
       }
       return null;
     case "amount":
@@ -303,6 +379,7 @@ export async function saveExpenseApplication(
       ? getFinanceEmployeeSecondaryLabel(selectedEmployeeIdentity)
       : null,
     intake_context: intakeContext ?? "expenses_process_wizard",
+    expense_type_details: buildExpenseTypeDetailsMetadata(form),
   };
 
   const insertResult = await supabase
@@ -318,8 +395,14 @@ export async function saveExpenseApplication(
       expense_type: form.expenseType,
       currency_code: form.currencyCode.trim().toUpperCase(),
       company_id: form.companyId,
-      employee_ref_id: form.expenseMadeByType === "employee" ? form.employeeRefId : null,
-      expense_made_by_type: form.expenseMadeByType,
+      employee_ref_id: form.employeeRefId,
+      expense_made_by_type: "employee",
+      online_platform:
+        form.expenseType === "online_shopping" ? form.onlinePlatform || null : null,
+      online_order_number:
+        form.expenseType === "online_shopping" ? form.onlineOrderNumber.trim() || null : null,
+      online_order_date:
+        form.expenseType === "online_shopping" ? form.onlineOrderDate || null : null,
       responsible_person_name:
         form.expenseMadeByType === "owner_management"
           ? form.responsiblePersonName.trim()

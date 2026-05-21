@@ -128,16 +128,6 @@ type FundingBatchRow = {
   updated_at: string;
 };
 
-type FundingBatchLineRow = {
-  id: string;
-  funding_batch_id: string;
-  expense_id: string;
-  approved_amount: number | string | null;
-  allocated_amount: number | string | null;
-  currency_code: string | null;
-  status: string;
-};
-
 type PaymentMadeRow = {
   id: string;
   amount: number | string | null;
@@ -446,7 +436,6 @@ export default function FinanceExpensesPaymentsMadePage() {
   >([]);
   const [bankAccounts, setBankAccounts] = useState<BankAccountRow[]>([]);
   const [fundingBatches, setFundingBatches] = useState<FundingBatchRow[]>([]);
-  const [fundingBatchLines, setFundingBatchLines] = useState<FundingBatchLineRow[]>([]);
   const [payments, setPayments] = useState<PaymentMadeRow[]>([]);
   const [expenseAllocations, setExpenseAllocations] = useState<ExpenseAllocationRow[]>([]);
   const [searchQuery, setSearchQuery] = useState("");
@@ -584,11 +573,9 @@ export default function FinanceExpensesPaymentsMadePage() {
       bankLabel: batch.funding_bank_account_id
         ? getBankLabel(bankAccountMap.get(batch.funding_bank_account_id))
         : "No bank selected",
-      lineCount: fundingBatchLines.filter(
-        (line) => line.funding_batch_id === batch.id && line.status !== "cancelled"
-      ).length,
+      lineCount: 0,
     }));
-  }, [bankAccountMap, companyMap, fundingBatchLines, fundingBatches]);
+  }, [bankAccountMap, companyMap, fundingBatches]);
 
   const fundingBatchMap = useMemo(() => {
     return new Map(enrichedFundingBatches.map((batch) => [batch.id, batch]));
@@ -794,7 +781,6 @@ export default function FinanceExpensesPaymentsMadePage() {
           employeeIdentitiesResult,
           bankAccountsResult,
           fundingBatchesResult,
-          fundingBatchLinesResult,
           paymentsResult,
           allocationsResult,
         ] = await Promise.all([
@@ -866,13 +852,6 @@ export default function FinanceExpensesPaymentsMadePage() {
             .limit(300),
 
           supabase
-            .from("finance_expense_funding_batch_lines")
-            .select(
-              "id, funding_batch_id, expense_id, approved_amount, allocated_amount, currency_code, status"
-            )
-            .limit(1000),
-
-          supabase
             .from("finance_payments_made")
             .select(
               [
@@ -934,7 +913,6 @@ export default function FinanceExpensesPaymentsMadePage() {
         if (employeeIdentitiesResult.error) throw employeeIdentitiesResult.error;
         if (bankAccountsResult.error) throw bankAccountsResult.error;
         if (fundingBatchesResult.error) throw fundingBatchesResult.error;
-        if (fundingBatchLinesResult.error) throw fundingBatchLinesResult.error;
         if (paymentsResult.error) throw paymentsResult.error;
         if (allocationsResult.error) throw allocationsResult.error;
 
@@ -946,7 +924,6 @@ export default function FinanceExpensesPaymentsMadePage() {
         );
         setBankAccounts((bankAccountsResult.data || []) as BankAccountRow[]);
         setFundingBatches((fundingBatchesResult.data || []) as FundingBatchRow[]);
-        setFundingBatchLines((fundingBatchLinesResult.data || []) as FundingBatchLineRow[]);
         setPayments((paymentsResult.data || []) as unknown as PaymentMadeRow[]);
         setExpenseAllocations(
           (allocationsResult.data || []) as unknown as ExpenseAllocationRow[]
@@ -1146,6 +1123,22 @@ export default function FinanceExpensesPaymentsMadePage() {
                 <Eye className="h-3.5 w-3.5" />
                 Open
               </AixiaButton>
+
+              {mode === "active" && isBatch ? (
+                <AixiaButton
+                  type="button"
+                  variant="primary"
+                  disabled={isRunningAction}
+                  onClick={() =>
+                    navigate(
+                      `/finance/transactions/expense-payments/new?source=batch&batchId=${record.id}`,
+                    )
+                  }
+                >
+                  <WalletCards className="h-3.5 w-3.5" />
+                  Use to pay
+                </AixiaButton>
+              ) : null}
 
               {mode === "active" ? (
                 <>

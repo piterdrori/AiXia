@@ -111,7 +111,6 @@ import FinancePaymentsMadePage from "@/app/finance/transactions/payments-made/pa
 import FinanceNewPaymentMadePage from "@/app/finance/transactions/payments-made/new/page";
 import PaymentMadeDetailPage from "@/app/finance/transactions/payments-made/[id]/page";
 
-import FinanceExpensePaymentsMadePage from "@/app/finance/transactions/expenses-payments-made/page";
 import FinanceExpenseReviewPage from "@/app/finance/transactions/expense-review/page";
 import FinanceExpensePaymentReviewPage from "@/app/finance/transactions/expense-review/[id]/page";
 import FinanceExpenseFundingPage from "@/app/finance/transactions/expense-funding/page";
@@ -1675,13 +1674,7 @@ function AppRoutes() {
 
 <Route
   path="/finance/transactions/expenses-payments-made"
-  element={
-    <ProtectedRoute>
-      <DashboardLayout>
-        <FinanceExpensePaymentsMadePage />
-      </DashboardLayout>
-    </ProtectedRoute>
-  }
+  element={<Navigate to="/finance/transactions/expense-payments" replace />}
 />
 
       <Route

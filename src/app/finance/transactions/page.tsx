@@ -1309,9 +1309,9 @@ export default function FinanceTransactionsPage() {
       expenseModules.push({
         module: allModuleCards.expenses,
         sequenceLabel: "01",
-        titleOverride: "Apply Expense",
+        titleOverride: "My Expenses",
         descriptionOverride:
-          "Submit and confirm your expenses",
+          "Apply for an expense, upload receipts, and confirm money received. Personal access only.",
       });
     }
 
@@ -1319,9 +1319,9 @@ export default function FinanceTransactionsPage() {
       expenseModules.push({
         module: allModuleCards.expenses,
         sequenceLabel: "02",
-        titleOverride: "Review Expenses",
+        titleOverride: "Expense Review",
         descriptionOverride:
-          "Approve or reject submitted expenses",
+          "Approve or reject expense requests and verify receipts before payment. Finance / Admin only.",
         routeOverride: "/finance/transactions/expense-review",
       });
     }
@@ -1330,9 +1330,9 @@ export default function FinanceTransactionsPage() {
       expenseModules.push({
         module: allModuleCards["payments-made"],
         sequenceLabel: "03",
-        titleOverride: "Allocate Funds",
+        titleOverride: "Funding Pools",
         descriptionOverride:
-          "Set aside money for expense payments",
+          "Reserve company money in funding pools so it is available to pay verified expenses.",
         routeOverride: "/finance/transactions/expense-funding",
       });
     }
@@ -1341,9 +1341,9 @@ export default function FinanceTransactionsPage() {
       expenseModules.push({
         module: allModuleCards["payments-made"],
         sequenceLabel: "04",
-        titleOverride: "Use Allocated Funds",
+        titleOverride: "Expense Payments",
         descriptionOverride:
-          "Pay expenses from allocated funds",
+          "Pay verified expenses from funding pools, upload payment proof, and follow recipient confirmation.",
         routeOverride: "/finance/transactions/expense-payments",
       });
     }

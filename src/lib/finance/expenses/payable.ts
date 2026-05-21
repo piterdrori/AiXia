@@ -1,7 +1,20 @@
 import { hasDocumentationProof } from "@/lib/finance/expenses/documentationProof";
 import type { ExpenseRow } from "./types";
 
-export type PayableExpense<T extends ExpenseRow = ExpenseRow> = T & {
+export type ExpensePayableInput = Pick<
+  ExpenseRow,
+  | "id"
+  | "request_status"
+  | "finance_review_status"
+  | "documentation_status"
+  | "metadata"
+  | "final_amount"
+  | "approved_amount"
+  | "requested_amount"
+  | "amount"
+>;
+
+export type PayableExpense<T extends ExpensePayableInput = ExpenseRow> = T & {
   remainingPayableAmount: number;
 };
 
@@ -19,12 +32,12 @@ function getCount(
   return source[key] ?? 0;
 }
 
-function toExpenseAmount(expense: ExpenseRow): number {
+function toExpenseAmount(expense: ExpensePayableInput): number {
   const candidates = [
     expense.final_amount,
     expense.approved_amount,
-    expense.amount,
     expense.requested_amount,
+    expense.amount,
   ];
   for (const candidate of candidates) {
     const numeric = Number(candidate ?? NaN);
@@ -40,7 +53,7 @@ function normalize(value: string | null | undefined) {
 }
 
 export function isExpensePayable(
-  expense: ExpenseRow,
+  expense: ExpensePayableInput,
   context: PayableExpenseContext = {},
 ): boolean {
   const attachmentCount = getCount(context.attachmentCountByExpenseId, expense.id);
@@ -69,7 +82,7 @@ export function isExpensePayable(
   return remaining > 0.01;
 }
 
-export function selectPayableExpenses<T extends ExpenseRow>(
+export function selectPayableExpenses<T extends ExpensePayableInput>(
   expenses: T[],
   context: PayableExpenseContext = {},
 ): PayableExpense<T>[] {

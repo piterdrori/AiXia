@@ -43,6 +43,7 @@ import {
   runPaymentMadeLifecycleAction,
 } from "@/lib/finance/expenses/lifecycleActions";
 import { filterRecipientTrackingRows } from "@/lib/finance/expenses/reviewQueues";
+import { selectPayableExpenses } from "@/lib/finance/expenses/payable";
 import {
   EXPENSE_PAYMENT_TABS,
   filterExpensePaymentTab,
@@ -51,7 +52,7 @@ import {
 import { useExpenseModuleRefresh } from "@/lib/finance/expenses/useExpenseModuleRefresh";
 import { supabase } from "@/lib/supabase";
 
-type WorkbenchTab = ExpensePaymentTab;
+type WorkbenchTab = ExpensePaymentTab | "ready_to_pay";
 
 type ArchiveScope = "workflow" | "execution" | "allocations";
 type ArchiveTab = "archived" | "deleted";
@@ -253,7 +254,20 @@ type AllocationSortKey =
 
 type AllocationAction = "archive" | "delete" | "restore" | "hard_delete";
 
-const allTabs = EXPENSE_PAYMENT_TABS;
+const READY_TO_PAY_TAB = {
+  key: "ready_to_pay" as const,
+  label: "Ready to pay",
+  description:
+    "Verified expenses that have proof of documentation and a remaining balance. Allocate from a funding pool and record payment.",
+};
+
+const ALL_PAYMENT_TABS: Array<{
+  key: WorkbenchTab;
+  label: string;
+  description: string;
+}> = [READY_TO_PAY_TAB, ...EXPENSE_PAYMENT_TABS];
+
+const allTabs = ALL_PAYMENT_TABS;
 
 function toNumber(value: number | string | null | undefined) {
   const parsed = Number(value ?? 0);
@@ -504,7 +518,7 @@ function getAllocationSortValue(
 export default function FinanceExpensesPaymentsMadePage() {
   const navigate = useNavigate();
 
-  const [activeTab, setActiveTab] = useState<WorkbenchTab>("pay_expenses");
+  const [activeTab, setActiveTab] = useState<WorkbenchTab>("ready_to_pay");
   const [advancedOpen, setAdvancedOpen] = useState(false);
   const [expenses, setExpenses] = useState<ExpenseRow[]>([]);
   const [companies, setCompanies] = useState<CompanyRow[]>([]);
@@ -910,19 +924,45 @@ export default function FinanceExpensesPaymentsMadePage() {
     [activeExpenseRows],
   );
 
+  const existingExpenseCoverageMap = useMemo(() => {
+    const map = new Map<string, number>();
+    for (const allocation of confirmedExpenseAllocations) {
+      const expenseId = allocation.expense_id;
+      if (!expenseId) continue;
+      const previous = map.get(expenseId) ?? 0;
+      map.set(expenseId, previous + toNumber(allocation.allocated_amount));
+    }
+    return map;
+  }, [confirmedExpenseAllocations]);
+
+  const readyToPayRows = useMemo(
+    () =>
+      selectPayableExpenses(activeExpenseRows, {
+        existingExpenseCoverageMap,
+      }),
+    [activeExpenseRows, existingExpenseCoverageMap],
+  );
+
   const paymentTabCounts = useMemo(
     () => ({
+      ready_to_pay: readyToPayRows.length,
       pay_expenses: payExpenseRows.length,
       waiting_confirmation:
         waitingConfirmationPayments.length > 0
           ? waitingConfirmationPayments.length
           : recipientTrackingRows.length,
     }),
-    [payExpenseRows.length, recipientTrackingRows.length, waitingConfirmationPayments.length],
+    [
+      payExpenseRows.length,
+      readyToPayRows.length,
+      recipientTrackingRows.length,
+      waitingConfirmationPayments.length,
+    ],
   );
 
   const metrics = useMemo(() => {
     return {
+      readyToPay: readyToPayRows.length,
       payExpenses: payExpenseRows.length,
       waitingConfirmation: paymentTabCounts.waiting_confirmation,
       executionArchived: archivedExecutionRows.length,
@@ -939,6 +979,7 @@ export default function FinanceExpensesPaymentsMadePage() {
     deletedExecutionRows.length,
     payExpenseRows.length,
     paymentTabCounts.waiting_confirmation,
+    readyToPayRows.length,
   ]);
 
   const activeTabMeta = allTabs.find((tab) => tab.key === activeTab) || allTabs[0];
@@ -1677,6 +1718,123 @@ export default function FinanceExpensesPaymentsMadePage() {
     [renderExecutionRows]
   );
 
+  const renderReadyToPayTable = useCallback(
+    (rows: ReadonlyArray<EnrichedExpense & { remainingPayableAmount: number }>) => {
+      return (
+        <AixiaTableShell variant="registry">
+          <thead className="aixia-table-head">
+            <tr>
+              <th>Expense</th>
+              <th>Made By</th>
+              <th>Type</th>
+              <th>Amount</th>
+              <th>Remaining</th>
+              <th>Documentation</th>
+              <th>Stage</th>
+              <th>Actions</th>
+            </tr>
+          </thead>
+
+          <tbody>
+            {rows.length === 0 ? (
+              <tr>
+                <td colSpan={8}>
+                  <AixiaEmptyState
+                    icon={WalletCards}
+                    title="Nothing ready to pay"
+                    description="Expenses will appear here once they have approved spend, valid documentation proof, and a remaining balance."
+                  />
+                </td>
+              </tr>
+            ) : (
+              rows.map((expense) => {
+                const currency = expense.currency_code || "USD";
+                const target = expense.targetAmount;
+                const remaining = expense.remainingPayableAmount;
+                const allocateRoute = `/finance/transactions/expense-payments/new?expenseId=${expense.id}`;
+                const expenseRoute = `/finance/transactions/expenses/${expense.id}`;
+
+                return (
+                  <tr key={expense.id} className="aixia-table-row">
+                    <AixiaTableTextCell
+                      width="xl"
+                      primary={expense.expense_number || "Expense"}
+                      secondary={`${expense.title} • ${formatDate(expense.expense_date)} • ${expense.companyName}`}
+                    />
+
+                    {expense.expense_made_by_type === "employee" ? (
+                      <AixiaEmployeeIdentityCell
+                        width="lg"
+                        identity={expense.madeByIdentity}
+                        primary={expense.madeByPrimary}
+                        secondary={expense.madeBySecondary}
+                        reference={expense.madeByReference}
+                      />
+                    ) : (
+                      <AixiaTableTextCell
+                        width="lg"
+                        primary={expense.madeByFallback}
+                        secondary={formatLabel(expense.expense_made_by_type)}
+                      />
+                    )}
+
+                    <AixiaTableTextCell
+                      width="md"
+                      primary={formatLabel(expense.expense_type)}
+                      secondary={expense.expense_source_name || "—"}
+                    />
+
+                    <AixiaTableTextCell
+                      width="md"
+                      primary={`${currency} ${formatMoney(target)}`}
+                      secondary={`Covered ${currency} ${formatMoney(expense.allocatedAmount)}`}
+                    />
+
+                    <AixiaTableTextCell
+                      width="md"
+                      primary={`${currency} ${formatMoney(remaining)}`}
+                      secondary="Remaining payable"
+                    />
+
+                    <AixiaTableBadgeCell width="sm">
+                      <AixiaStatusBadge value={expense.documentation_status} />
+                    </AixiaTableBadgeCell>
+
+                    <AixiaTableBadgeCell width="sm">
+                      <AixiaStatusBadge value={expense.request_status || expense.status} />
+                    </AixiaTableBadgeCell>
+
+                    <AixiaTableActionsCell>
+                      <AixiaButton
+                        type="button"
+                        variant="primary"
+                        disabled={isRunningAction}
+                        onClick={() => navigate(allocateRoute)}
+                      >
+                        <WalletCards className="h-3.5 w-3.5" />
+                        Allocate &amp; pay
+                      </AixiaButton>
+                      <AixiaButton
+                        type="button"
+                        variant="secondary"
+                        disabled={isRunningAction}
+                        onClick={() => navigate(expenseRoute)}
+                      >
+                        <Eye className="h-3.5 w-3.5" />
+                        Open
+                      </AixiaButton>
+                    </AixiaTableActionsCell>
+                  </tr>
+                );
+              })
+            )}
+          </tbody>
+        </AixiaTableShell>
+      );
+    },
+    [isRunningAction, navigate]
+  );
+
   const renderAllocationRows = useCallback(
     (rows: EnrichedAllocation[], mode: "active" | "archive") => {
       if (rows.length === 0) {
@@ -1941,7 +2099,7 @@ return (
         />
 
         <ExpenseHubTabs
-          tabs={EXPENSE_PAYMENT_TABS.map((tab) => ({
+          tabs={ALL_PAYMENT_TABS.map((tab) => ({
             key: tab.key,
             label: tab.label,
             count: paymentTabCounts[tab.key],
@@ -1950,6 +2108,7 @@ return (
           onChange={setActiveTab}
         />
 
+        {activeTab === "ready_to_pay" ? renderReadyToPayTable(readyToPayRows) : null}
         {activeTab === "pay_expenses"
           ? renderExecutionTable(payExpenseRows)
           : null}

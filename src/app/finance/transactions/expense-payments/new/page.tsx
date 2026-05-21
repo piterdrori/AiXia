@@ -6,6 +6,7 @@ import {
   Archive,
   CheckCircle2,
   Eye,
+  FileText,
   Loader2,
   Plus,
   Receipt,
@@ -14,6 +15,7 @@ import {
   Search,
   ShieldCheck,
   Trash2,
+  UploadCloud,
   WalletCards,
 } from "lucide-react";
 
@@ -246,6 +248,101 @@ const initialFormState: FormState = {
 };
 
 const FX_ROUNDING_TOLERANCE = 0.05;
+
+const PAYMENT_PROOF_BUCKET = "finance-payment-made-proofs";
+
+function resolveProofMimeType(file: File) {
+  const currentType = file.type?.trim();
+  if (currentType && currentType !== "application/octet-stream") return currentType;
+
+  const extension = file.name.split(".").pop()?.toLowerCase();
+  switch (extension) {
+    case "pdf":
+      return "application/pdf";
+    case "png":
+      return "image/png";
+    case "jpg":
+    case "jpeg":
+      return "image/jpeg";
+    case "webp":
+      return "image/webp";
+    case "doc":
+      return "application/msword";
+    case "docx":
+      return "application/vnd.openxmlformats-officedocument.wordprocessingml.document";
+    case "xls":
+      return "application/vnd.ms-excel";
+    case "xlsx":
+      return "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet";
+    default:
+      return currentType || "application/octet-stream";
+  }
+}
+
+async function uploadExpensePaymentProof(
+  paymentId: string,
+  selectedFile: File,
+  userId: string,
+): Promise<{
+  bucket: string;
+  path: string;
+  file_name: string;
+  mime_type: string;
+  uploaded_at: string;
+}> {
+  const safeFileName = selectedFile.name.replace(/\s+/g, "-");
+  const storagePath = `expense-payments/${paymentId}/${Date.now()}-${safeFileName}`;
+  const resolvedMimeType = resolveProofMimeType(selectedFile);
+
+  const { error: uploadError } = await supabase.storage
+    .from(PAYMENT_PROOF_BUCKET)
+    .upload(storagePath, selectedFile, {
+      upsert: false,
+      contentType: resolvedMimeType,
+    });
+
+  if (uploadError) throw uploadError;
+
+  const { data: fileUploadRow, error: fileUploadError } = await supabase
+    .from("file_uploads")
+    .insert({
+      user_id: userId,
+      file_name: selectedFile.name,
+      file_path: storagePath,
+      file_size: selectedFile.size,
+      mime_type: resolvedMimeType,
+      entity_type: "finance_payment_made",
+    })
+    .select("id")
+    .single();
+
+  if (fileUploadError) throw fileUploadError;
+
+  const { error: attachmentError } = await supabase
+    .from("finance_record_attachments")
+    .insert({
+      entity_type: "finance_payment_made",
+      entity_id: paymentId,
+      file_upload_id: fileUploadRow.id,
+      uploaded_by: userId,
+      notes: "Expense payment proof",
+      metadata: {
+        bucket: PAYMENT_PROOF_BUCKET,
+        uploaded_from: "new_expense_payment_page",
+        document_role: "expense_payment_proof",
+      },
+    });
+
+  if (attachmentError) throw attachmentError;
+
+  return {
+    bucket: PAYMENT_PROOF_BUCKET,
+    path: storagePath,
+    file_name: selectedFile.name,
+    mime_type: resolvedMimeType,
+    uploaded_at: new Date().toISOString(),
+  };
+}
 
 function buildReferenceNumber() {
   const datePart = new Date().toISOString().slice(0, 10).replaceAll("-", "");
@@ -750,6 +847,7 @@ export default function FinanceExpensesPaymentsMadeNewPage() {
     useState<AllocationLifecycleAction | null>(null);
   const [pageError, setPageError] = useState<string | null>(null);
   const [pageMessage, setPageMessage] = useState<string | null>(null);
+  const [proofFile, setProofFile] = useState<File | null>(null);
 
   const companyMap = useMemo(() => {
     return new Map(companies.map((company) => [company.id, company]));
@@ -1807,6 +1905,41 @@ export default function FinanceExpensesPaymentsMadeNewPage() {
 
         if (allocationsResult.error) throw allocationsResult.error;
 
+        if (proofFile && userId) {
+          try {
+            const proofMetadata = await uploadExpensePaymentProof(
+              paymentId,
+              proofFile,
+              userId,
+            );
+
+            const updateResult = await supabase
+              .from("finance_payments_made")
+              .update({
+                metadata: {
+                  ...paymentMetadata,
+                  accounting_amount_basis: "expense_currency_coverage",
+                  payment_currency_amount: totalPaymentCurrencyAllocated,
+                  payment_currency_code: paymentCurrencyCode,
+                  expense_currency_coverage_total: totalExpenseCurrencyCovered,
+                  payment_proof: proofMetadata,
+                },
+                updated_by: userId,
+              })
+              .eq("id", paymentId);
+
+            if (updateResult.error) throw updateResult.error;
+          } catch (proofError) {
+            console.error("Failed to upload payment proof:", proofError);
+            setPageError(
+              proofError instanceof Error
+                ? `Payment saved but proof upload failed: ${proofError.message}`
+                : "Payment saved but proof upload failed."
+            );
+            return;
+          }
+        }
+
         if (saveMode === "confirm") {
           const confirmResult = await supabase.rpc("finance_confirm_payment_made", {
             p_payment_id: paymentId,
@@ -1848,6 +1981,7 @@ export default function FinanceExpensesPaymentsMadeNewPage() {
       navigate,
       paymentCurrencyCode,
       previousFundingPoolUsage,
+      proofFile,
       savingMode,
       selectedExpenseIds,
       selectedExpenses,
@@ -2049,6 +2183,44 @@ export default function FinanceExpensesPaymentsMadeNewPage() {
                     onChange={(event) => updateField("notes", event.target.value)}
                     placeholder="Internal payment notes"
                   />
+                </AixiaFormFullWidth>
+
+                <AixiaFormFullWidth>
+                  <AixiaFieldLabel
+                    label="Payment Proof (optional)"
+                    helper="Upload bank receipt, transfer confirmation, or any payment evidence. Stored on the payment record so it appears on the detail page."
+                  />
+                  <div className="aixia-stack">
+                    <input
+                      type="file"
+                      accept="application/pdf,image/png,image/jpeg,image/webp,application/msword,application/vnd.openxmlformats-officedocument.wordprocessingml.document,application/vnd.ms-excel,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+                      onChange={(event) => {
+                        const file = event.target.files?.[0] || null;
+                        setProofFile(file);
+                      }}
+                    />
+                    {proofFile ? (
+                      <div className="aixia-text-meta" style={{ display: "flex", alignItems: "center", gap: 8 }}>
+                        <FileText className="h-3.5 w-3.5" aria-hidden />
+                        <span>
+                          {proofFile.name} ({Math.round(proofFile.size / 1024)} KB)
+                        </span>
+                        <AixiaButton
+                          type="button"
+                          variant="secondary"
+                          onClick={() => setProofFile(null)}
+                        >
+                          <Trash2 className="h-3.5 w-3.5" />
+                          Remove
+                        </AixiaButton>
+                      </div>
+                    ) : (
+                      <div className="aixia-text-meta" style={{ display: "flex", alignItems: "center", gap: 8 }}>
+                        <UploadCloud className="h-3.5 w-3.5" aria-hidden />
+                        <span>No proof selected. You can also upload it later from the payment detail page.</span>
+                      </div>
+                    )}
+                  </div>
                 </AixiaFormFullWidth>
               </AixiaFormGrid>
             </AixiaSection>

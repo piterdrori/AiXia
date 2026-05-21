@@ -298,7 +298,38 @@ type RunningAction =
   | "archive_allocation"
   | "restore_allocation"
   | "delete_allocation"
-  | "hard_delete_allocation";
+  | "hard_delete_allocation"
+  | "upload_payment_proof";
+
+const PAYMENT_PROOF_BUCKET = "finance-payment-made-proofs";
+
+function resolveProofMimeType(file: File) {
+  const currentType = file.type?.trim();
+  if (currentType && currentType !== "application/octet-stream") return currentType;
+
+  const extension = file.name.split(".").pop()?.toLowerCase();
+  switch (extension) {
+    case "pdf":
+      return "application/pdf";
+    case "png":
+      return "image/png";
+    case "jpg":
+    case "jpeg":
+      return "image/jpeg";
+    case "webp":
+      return "image/webp";
+    case "doc":
+      return "application/msword";
+    case "docx":
+      return "application/vnd.openxmlformats-officedocument.wordprocessingml.document";
+    case "xls":
+      return "application/vnd.ms-excel";
+    case "xlsx":
+      return "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet";
+    default:
+      return currentType || "application/octet-stream";
+  }
+}
 
 function toNumber(value: number | string | null | undefined) {
   const parsed = Number(value ?? 0);
@@ -1242,6 +1273,102 @@ export default function FinanceExpensesPaymentsMadeDetailPage() {
     }
   }, [loadPayment, payment, runningAction]);
 
+  const uploadLatePaymentProof = useCallback(
+    async (file: File) => {
+      if (!payment || runningAction) return;
+
+      setRunningAction("upload_payment_proof");
+      setPageError(null);
+      setPageMessage(null);
+
+      try {
+        const authResult = await supabase.auth.getUser();
+        if (authResult.error) throw authResult.error;
+        const userId = authResult.data.user?.id ?? null;
+        if (!userId) throw new Error("User is not authenticated.");
+
+        const safeFileName = file.name.replace(/\s+/g, "-");
+        const storagePath = `expense-payments/${payment.id}/${Date.now()}-${safeFileName}`;
+        const resolvedMimeType = resolveProofMimeType(file);
+
+        const uploadResult = await supabase.storage
+          .from(PAYMENT_PROOF_BUCKET)
+          .upload(storagePath, file, {
+            upsert: false,
+            contentType: resolvedMimeType,
+          });
+
+        if (uploadResult.error) throw uploadResult.error;
+
+        const fileUploadResult = await supabase
+          .from("file_uploads")
+          .insert({
+            user_id: userId,
+            file_name: file.name,
+            file_path: storagePath,
+            file_size: file.size,
+            mime_type: resolvedMimeType,
+            entity_type: "finance_payment_made",
+          })
+          .select("id")
+          .single();
+
+        if (fileUploadResult.error) throw fileUploadResult.error;
+
+        const attachmentResult = await supabase
+          .from("finance_record_attachments")
+          .insert({
+            entity_type: "finance_payment_made",
+            entity_id: payment.id,
+            file_upload_id: fileUploadResult.data.id,
+            uploaded_by: userId,
+            notes: "Late payment proof",
+            metadata: {
+              bucket: PAYMENT_PROOF_BUCKET,
+              uploaded_from: "expense_payment_detail_page",
+              document_role: "expense_payment_proof",
+            },
+          });
+
+        if (attachmentResult.error) throw attachmentResult.error;
+
+        const proofMetadata = {
+          bucket: PAYMENT_PROOF_BUCKET,
+          path: storagePath,
+          file_name: file.name,
+          mime_type: resolvedMimeType,
+          uploaded_at: new Date().toISOString(),
+        };
+
+        const updatedMetadata = {
+          ...(payment.metadata || {}),
+          payment_proof: proofMetadata,
+        };
+
+        const updateResult = await supabase
+          .from("finance_payments_made")
+          .update({
+            metadata: updatedMetadata,
+            updated_by: userId,
+          })
+          .eq("id", payment.id);
+
+        if (updateResult.error) throw updateResult.error;
+
+        setPageMessage("Payment proof uploaded.");
+        await loadPayment("silent");
+      } catch (error) {
+        console.error("Failed to upload payment proof:", error);
+        setPageError(
+          error instanceof Error ? error.message : "Failed to upload payment proof.",
+        );
+      } finally {
+        setRunningAction(null);
+      }
+    },
+    [loadPayment, payment, runningAction],
+  );
+
   const paymentRecipientEmployee = useMemo(() => {
     if (!payment?.recipient_employee_ref_id) return null;
     return employeeMap.get(payment.recipient_employee_ref_id) || null;
@@ -2048,11 +2175,33 @@ export default function FinanceExpensesPaymentsMadeDetailPage() {
                   />
                 </AixiaReviewGrid>
               ) : (
-                <AixiaEmptyState
-                  icon={FileText}
-                  title="No payment proof metadata"
-                  description="Payment proof can be uploaded during payment creation or added later if the workflow allows it."
-                />
+                <div className="aixia-stack">
+                  <AixiaEmptyState
+                    icon={FileText}
+                    title="No payment proof metadata"
+                    description="Payment proof was not uploaded during payment creation. You can attach proof now and the metadata will be persisted on the payment record."
+                  />
+                  <div className="aixia-stack" style={{ display: "flex", gap: 8, alignItems: "center", flexWrap: "wrap" }}>
+                    <input
+                      type="file"
+                      accept="application/pdf,image/png,image/jpeg,image/webp,application/msword,application/vnd.openxmlformats-officedocument.wordprocessingml.document,application/vnd.ms-excel,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+                      disabled={Boolean(runningAction)}
+                      onChange={(event) => {
+                        const file = event.target.files?.[0] || null;
+                        if (file) {
+                          void uploadLatePaymentProof(file);
+                          event.target.value = "";
+                        }
+                      }}
+                    />
+                    {runningAction === "upload_payment_proof" ? (
+                      <span className="aixia-text-meta" style={{ display: "inline-flex", alignItems: "center", gap: 8 }}>
+                        <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                        Uploading proof...
+                      </span>
+                    ) : null}
+                  </div>
+                </div>
               )}
             </AixiaSection>
           </>

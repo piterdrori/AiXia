@@ -2,7 +2,20 @@
 
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { useNavigate } from "react-router-dom";
-import { Archive, Eye, FolderArchive, History, Plus, Receipt, RotateCcw, Search, Trash2 } from "lucide-react";
+import {
+  Archive,
+  CheckCircle2,
+  Eye,
+  FolderArchive,
+  History,
+  Pencil,
+  Plus,
+  Receipt,
+  RotateCcw,
+  Search,
+  Trash2,
+  Upload,
+} from "lucide-react";
 
 import {
   AixiaAlert,
@@ -31,13 +44,13 @@ import {
 } from "@/components/finance/expenses";
 import { runExpenseLifecycleAction } from "@/lib/finance/expenses/lifecycleActions";
 import { fetchOwnExpenses } from "@/lib/finance/expenses/ownership";
-import { EXPENSE_MODULE1_SELECT } from "@/lib/finance/expenses/queries";
 import {
-  countEmployeeHubTabs,
-  EMPLOYEE_HUB_TABS,
-  filterEmployeeHubTab,
-  type EmployeeHubTab,
-} from "@/lib/finance/expenses/status";
+  describeExpenseStage,
+  groupExpenseForEmployee,
+  type EmployeePipelineGroup,
+} from "@/lib/finance/expenses/pipeline";
+import { EXPENSE_MODULE1_SELECT } from "@/lib/finance/expenses/queries";
+import { isWorkflowActive } from "@/lib/finance/expenses/reviewQueues";
 import type { LifecycleAction, ExpenseRow as SharedExpenseRow } from "@/lib/finance/expenses/types";
 import { useExpenseModuleRefresh } from "@/lib/finance/expenses/useExpenseModuleRefresh";
 import type { FinanceLoadMode } from "@/lib/finance/pageAccess";
@@ -65,6 +78,35 @@ const EMPLOYEE_PIPELINE_STEPS = [
   { key: "pay", label: "Pay", description: "Company sends reimbursement" },
   { key: "confirm", label: "Confirm", description: "Confirm you received payment" },
 ] as const;
+
+type EmployeeSectionTab = EmployeePipelineGroup;
+
+const EMPLOYEE_SECTION_TABS: Array<{
+  key: EmployeeSectionTab;
+  label: string;
+  description: string;
+}> = [
+  {
+    key: "action_needed",
+    label: "Action needed",
+    description: "Drafts, corrections, receipts to upload, and payments to confirm.",
+  },
+  {
+    key: "in_progress",
+    label: "In progress",
+    description: "Submitted or in review — finance is working on it.",
+  },
+  {
+    key: "completed",
+    label: "Completed",
+    description: "Confirmed payments you received.",
+  },
+  {
+    key: "closed",
+    label: "Closed",
+    description: "Rejected requests and archived records.",
+  },
+];
 
 function toNumber(value: number | string | null | undefined) {
   const parsed = Number(value ?? 0);
@@ -160,7 +202,7 @@ export default function FinanceExpensesPage() {
   const [isLoading, setIsLoading] = useState(true);
   const [, setIsRefreshing] = useState(false);
   const [hasLoadedOnce, setHasLoadedOnce] = useState(false);
-  const [activeTab, setActiveTab] = useState<EmployeeHubTab>("needs_action");
+  const [activeTab, setActiveTab] = useState<EmployeeSectionTab>("action_needed");
   const [searchQuery, setSearchQuery] = useState("");
   const [archiveSearchQuery, setArchiveSearchQuery] = useState("");
   const [sortKey, setSortKey] = useState<ExpenseSortKey>("updated_at");
@@ -230,11 +272,29 @@ export default function FinanceExpensesPage() {
     }));
   }, [expenses]);
 
-  const tabCounts = useMemo(() => countEmployeeHubTabs(enrichedExpenses), [enrichedExpenses]);
+  const tabCounts = useMemo(() => {
+    const counts: Record<EmployeeSectionTab, number> = {
+      action_needed: 0,
+      in_progress: 0,
+      completed: 0,
+      closed: 0,
+    };
+
+    for (const row of enrichedExpenses) {
+      if (!isWorkflowActive(row)) {
+        counts.closed += 1;
+        continue;
+      }
+      const group = groupExpenseForEmployee(describeExpenseStage(row).stage);
+      counts[group] += 1;
+    }
+
+    return counts;
+  }, [enrichedExpenses]);
 
   const hubTabs = useMemo(
     () =>
-      EMPLOYEE_HUB_TABS.map((tab) => ({
+      EMPLOYEE_SECTION_TABS.map((tab) => ({
         key: tab.key,
         label: tab.label,
         count: tabCounts[tab.key],
@@ -265,10 +325,15 @@ export default function FinanceExpensesPage() {
     );
   }, []);
 
-  const tabFilteredExpenses = useMemo(
-    () => filterEmployeeHubTab(enrichedExpenses, activeTab),
-    [activeTab, enrichedExpenses],
-  );
+  const tabFilteredExpenses = useMemo(() => {
+    return enrichedExpenses.filter((row) => {
+      if (!isWorkflowActive(row)) {
+        return activeTab === "closed";
+      }
+      const group = groupExpenseForEmployee(describeExpenseStage(row).stage);
+      return group === activeTab;
+    });
+  }, [activeTab, enrichedExpenses]);
 
   const filteredExpenses = useMemo(
     () => searchExpenses(tabFilteredExpenses, searchQuery),
@@ -303,26 +368,29 @@ export default function FinanceExpensesPage() {
   const expenseCommandMetrics = useMemo(
     () => [
       {
-        key: "needs-action",
-        title: "Needs my action",
-        value: tabCounts.needs_action.toLocaleString(),
-        subtitle: EMPLOYEE_HUB_TABS.find((tab) => tab.key === "needs_action")?.description ?? "",
+        key: "action-needed",
+        title: "Action needed",
+        value: tabCounts.action_needed.toLocaleString(),
+        subtitle:
+          EMPLOYEE_SECTION_TABS.find((tab) => tab.key === "action_needed")?.description ?? "",
         icon: Receipt,
         tone: "gold" as const,
       },
       {
-        key: "waiting",
-        title: "Waiting on company",
-        value: tabCounts.waiting.toLocaleString(),
-        subtitle: EMPLOYEE_HUB_TABS.find((tab) => tab.key === "waiting")?.description ?? "",
+        key: "in-progress",
+        title: "In progress",
+        value: tabCounts.in_progress.toLocaleString(),
+        subtitle:
+          EMPLOYEE_SECTION_TABS.find((tab) => tab.key === "in_progress")?.description ?? "",
         icon: History,
         tone: "cyan" as const,
       },
       {
-        key: "done",
-        title: "Done",
-        value: tabCounts.done.toLocaleString(),
-        subtitle: EMPLOYEE_HUB_TABS.find((tab) => tab.key === "done")?.description ?? "",
+        key: "completed",
+        title: "Completed",
+        value: tabCounts.completed.toLocaleString(),
+        subtitle:
+          EMPLOYEE_SECTION_TABS.find((tab) => tab.key === "completed")?.description ?? "",
         icon: Archive,
         tone: "emerald" as const,
       },
@@ -412,7 +480,7 @@ export default function FinanceExpensesPage() {
   }, []);
 
   const isExpenseActionRunning = Boolean(expenseRunningAction);
-  const activeTabMeta = EMPLOYEE_HUB_TABS.find((tab) => tab.key === activeTab);
+  const activeTabMeta = EMPLOYEE_SECTION_TABS.find((tab) => tab.key === activeTab);
 
   if (isLoading) {
     return (
@@ -430,9 +498,9 @@ export default function FinanceExpensesPage() {
         surface="command"
         parentLabel="Transactions"
         parentPath="/finance/transactions"
-        gradientTitle="Expenses & Reimbursements"
+        gradientTitle="My Expenses"
         title=""
-        subtitle="Submit expenses and confirm when payment arrives."
+        subtitle="Apply, attach receipts, confirm money received."
       >
         <AixiaCommandMetrics items={expenseCommandMetrics} />
         <nav className="aixia-process-pipeline" aria-label="Expense progress">
@@ -504,7 +572,7 @@ export default function FinanceExpensesPage() {
                   onClick={() => navigate("/finance/transactions/expenses/process")}
                 >
                   <Plus className="h-4 w-4" />
-                  New expense
+                  New expense request
                 </AixiaButton>
               </>
             }
@@ -526,13 +594,13 @@ export default function FinanceExpensesPage() {
               icon={Search}
               title={`No ${activeTabMeta?.label.toLowerCase() ?? "matching"} expenses`}
               description={
-                activeTab === "needs_action"
-                  ? "Start a new expense or open an existing draft to continue."
+                activeTab === "action_needed"
+                  ? "Start a new expense request or open an existing draft to continue."
                   : "Expenses matching this filter will appear here."
               }
-              primaryLabel={activeTab === "needs_action" ? "New expense" : undefined}
+              primaryLabel={activeTab === "action_needed" ? "New expense request" : undefined}
               onPrimary={
-                activeTab === "needs_action"
+                activeTab === "action_needed"
                   ? () => navigate("/finance/transactions/expenses/process")
                   : undefined
               }
@@ -574,34 +642,63 @@ export default function FinanceExpensesPage() {
               </thead>
 
               <tbody>
-                {sortedRows.map((row) => (
-                  <tr key={row.id} className="aixia-table-row">
-                    <AixiaTableDateCell width="sm">{formatDate(row.expense_date)}</AixiaTableDateCell>
-                    <AixiaTableTextCell
-                      width="xl"
-                      primary={row.expenseLabel}
-                      secondary={row.expenseSubLabel}
-                    />
-                    <AixiaTableTextCell
-                      width="md"
-                      primary={`${getCurrencyCode(row)} ${formatMoney(row.amount)}`}
-                    />
-                    <AixiaTableBadgeCell width="md">
-                      <ExpenseStatusCell expense={row} role="employee" />
-                    </AixiaTableBadgeCell>
-                    <AixiaTableActionsCell>
-                      <AixiaButton
-                        type="button"
-                        variant="primary"
-                        title="Open expense"
-                        onClick={() => navigate(`/finance/transactions/expenses/${row.id}`)}
-                      >
-                        <Eye className="h-3.5 w-3.5" />
-                        Open
-                      </AixiaButton>
-                    </AixiaTableActionsCell>
-                  </tr>
-                ))}
+                {sortedRows.map((row) => {
+                  const stageInfo = describeExpenseStage(row);
+                  const ctaLabel = stageInfo.employeeCta;
+                  const ctaIcon = (() => {
+                    switch (stageInfo.employeeAction) {
+                      case "edit":
+                        return <Pencil className="h-3.5 w-3.5" />;
+                      case "upload":
+                        return <Upload className="h-3.5 w-3.5" />;
+                      case "confirm_receipt":
+                        return <CheckCircle2 className="h-3.5 w-3.5" />;
+                      default:
+                        return null;
+                    }
+                  })();
+
+                  return (
+                    <tr key={row.id} className="aixia-table-row">
+                      <AixiaTableDateCell width="sm">{formatDate(row.expense_date)}</AixiaTableDateCell>
+                      <AixiaTableTextCell
+                        width="xl"
+                        primary={row.expenseLabel}
+                        secondary={stageInfo.employeeLabel}
+                      />
+                      <AixiaTableTextCell
+                        width="md"
+                        primary={`${getCurrencyCode(row)} ${formatMoney(row.amount)}`}
+                      />
+                      <AixiaTableBadgeCell width="md">
+                        <ExpenseStatusCell expense={row} role="employee" />
+                      </AixiaTableBadgeCell>
+                      <AixiaTableActionsCell>
+                        {ctaLabel ? (
+                          <AixiaButton
+                            type="button"
+                            variant="primary"
+                            title={ctaLabel}
+                            onClick={() => navigate(`/finance/transactions/expenses/${row.id}`)}
+                          >
+                            {ctaIcon}
+                            {ctaLabel}
+                          </AixiaButton>
+                        ) : (
+                          <AixiaButton
+                            type="button"
+                            variant="secondary"
+                            title="Open expense"
+                            onClick={() => navigate(`/finance/transactions/expenses/${row.id}`)}
+                          >
+                            <Eye className="h-3.5 w-3.5" />
+                            Open
+                          </AixiaButton>
+                        )}
+                      </AixiaTableActionsCell>
+                    </tr>
+                  );
+                })}
               </tbody>
             </AixiaTableShell>
           )}

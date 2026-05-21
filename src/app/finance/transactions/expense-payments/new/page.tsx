@@ -58,7 +58,10 @@ import {
   getFinanceEmployeeSecondaryLabel,
   type FinanceEmployeeIdentity,
 } from "@/lib/finance/employeeIdentity";
-import { hasDocumentationProof } from "@/lib/finance/expenses/documentationProof";
+import {
+  isExpensePayable,
+  type ExpensePayableInput,
+} from "@/lib/finance/expenses/payable";
 import { convertCurrencyAtDate } from "@/lib/integrations/frankfurter";
 import { supabase } from "@/lib/supabase";
 
@@ -203,6 +206,21 @@ type EnrichedExpense = ExpenseRow & {
   remainingAmount: number;
   activeAllocation: ExistingExpenseAllocationRow | null;
 };
+
+/** Map page-local enriched row to shared payable input (fields used by isExpensePayable). */
+function toExpensePayableInput(expense: EnrichedExpense): ExpensePayableInput {
+  return {
+    id: expense.id,
+    request_status: expense.request_status,
+    finance_review_status: expense.finance_review_status,
+    documentation_status: expense.documentation_status,
+    metadata: expense.metadata as ExpensePayableInput["metadata"],
+    final_amount: expense.final_amount,
+    approved_amount: expense.approved_amount,
+    requested_amount: expense.requested_amount,
+    amount: expense.amount,
+  };
+}
 
 type ConversionPreview = {
   expenseId: string;
@@ -1036,20 +1054,14 @@ export default function FinanceExpensesPaymentsMadeNewPage() {
 
   const filteredExpenses = useMemo(() => {
     return enrichedExpenses.filter((expense) => {
-      const hasProof = hasDocumentationProof({
-        documentation_status: expense.documentation_status,
-        metadata: expense.metadata,
-        attachmentCount: attachmentCountByExpenseId.get(expense.id) ?? 0,
-      });
-      const isReady =
-        (expense.request_status === "approved_to_spend" && hasProof) ||
-        (expense.request_status === "documentation_submitted" && hasProof) ||
-        expense.request_status === "verified_for_payment" ||
-        expense.finance_review_status === "approved_for_payment";
-
-      const hasRemainingBalance = expense.remainingAmount > 0.01;
-
-      if (!isReady || !hasRemainingBalance) return false;
+      if (
+        !isExpensePayable(toExpensePayableInput(expense), {
+          attachmentCountByExpenseId,
+          existingExpenseCoverageMap,
+        })
+      ) {
+        return false;
+      }
 
       if (!normalizedSearch) return true;
 
@@ -1074,7 +1086,12 @@ export default function FinanceExpensesPaymentsMadeNewPage() {
 
       return content.includes(normalizedSearch);
     });
-  }, [attachmentCountByExpenseId, enrichedExpenses, normalizedSearch]);
+  }, [
+    attachmentCountByExpenseId,
+    enrichedExpenses,
+    existingExpenseCoverageMap,
+    normalizedSearch,
+  ]);
 
   const sortedFilteredExpenses = useMemo(() => {
     return [...filteredExpenses].sort((a, b) => {

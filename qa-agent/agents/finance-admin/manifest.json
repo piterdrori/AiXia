@@ -1,0 +1,21 @@
+{
+  "agentId": "finance-admin",
+  "displayName": "Finance Admin QA",
+  "syntheticEmail": "qa+agentops-finance-admin@aixia.local",
+  "appRole": "admin",
+  "qaSpecialty": "Business Logic and Operations Agent",
+  "purpose": "Finance module workflows, visibility, reports, master data",
+  "allowedModules": [
+    "dashboard",
+    "finance",
+    "finance-transactions",
+    "finance-master-data",
+    "finance-reports"
+  ],
+  "blockedModules": [
+    "system-agent-ops"
+  ],
+  "agentOpsOwnerAccess": false,
+  "jobStatus": "placeholder",
+  "folderPath": "qa-agent/agents/finance-admin"
+}

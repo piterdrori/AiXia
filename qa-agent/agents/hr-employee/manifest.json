@@ -1,0 +1,21 @@
+{
+  "agentId": "hr-employee",
+  "displayName": "HR Employee QA",
+  "syntheticEmail": "qa+agentops-hr-employee@aixia.local",
+  "appRole": "employee",
+  "qaSpecialty": "HR and People Operations Agent",
+  "purpose": "Employee HR self-service and privacy boundaries",
+  "allowedModules": [
+    "dashboard",
+    "projects",
+    "tasks",
+    "expenses"
+  ],
+  "blockedModules": [
+    "employees-directory-admin",
+    "system-agent-ops"
+  ],
+  "agentOpsOwnerAccess": false,
+  "jobStatus": "placeholder",
+  "folderPath": "qa-agent/agents/hr-employee"
+}

@@ -1,0 +1,23 @@
+{
+  "agentId": "agentops-owner",
+  "displayName": "AgentOps Owner QA",
+  "syntheticEmail": "qa+agentops-owner@aixia.local",
+  "appRole": "admin",
+  "qaSpecialty": "Final Council Chair and Implementation Planner",
+  "purpose": "Owner-level AgentOps smoke, global visibility, final review",
+  "allowedModules": [
+    "dashboard",
+    "projects",
+    "tasks",
+    "calendar",
+    "chat",
+    "finance",
+    "employees",
+    "ai-management",
+    "system-agent-ops"
+  ],
+  "blockedModules": [],
+  "agentOpsOwnerAccess": true,
+  "jobStatus": "placeholder",
+  "folderPath": "qa-agent/agents/agentops-owner"
+}

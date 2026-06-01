@@ -1,0 +1,1 @@
+# Creativity Brief\n\nWatch for problems in your domain (Security, Permissions, and Tenant Isolation Agent).\n

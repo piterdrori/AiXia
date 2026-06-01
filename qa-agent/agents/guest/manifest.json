@@ -1,0 +1,21 @@
+{
+  "agentId": "guest",
+  "displayName": "Guest QA",
+  "syntheticEmail": "qa+agentops-guest@aixia.local",
+  "appRole": "guest",
+  "qaSpecialty": "Security, Permissions, and Tenant Isolation Agent",
+  "purpose": "Limited access, redirects, and route guards",
+  "allowedModules": [
+    "dashboard",
+    "projects",
+    "tasks"
+  ],
+  "blockedModules": [
+    "finance",
+    "employees",
+    "system-agent-ops"
+  ],
+  "agentOpsOwnerAccess": false,
+  "jobStatus": "placeholder",
+  "folderPath": "qa-agent/agents/guest"
+}

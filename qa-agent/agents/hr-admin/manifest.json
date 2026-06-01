@@ -1,0 +1,19 @@
+{
+  "agentId": "hr-admin",
+  "displayName": "HR Admin QA",
+  "syntheticEmail": "qa+agentops-hr-admin@aixia.local",
+  "appRole": "manager",
+  "qaSpecialty": "HR and People Operations Agent",
+  "purpose": "HR/employee directory workflows and payroll visibility",
+  "allowedModules": [
+    "dashboard",
+    "employees",
+    "finance-master-data-employees"
+  ],
+  "blockedModules": [
+    "system-agent-ops"
+  ],
+  "agentOpsOwnerAccess": false,
+  "jobStatus": "placeholder",
+  "folderPath": "qa-agent/agents/hr-admin"
+}

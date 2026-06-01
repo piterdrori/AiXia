@@ -1,0 +1,24 @@
+{
+  "agentId": "platform-admin",
+  "displayName": "Platform Admin QA",
+  "syntheticEmail": "qa+agentops-admin@aixia.local",
+  "appRole": "admin",
+  "qaSpecialty": "Design and UX Excellence Agent",
+  "purpose": "Admin platform behavior without Owner AgentOps",
+  "allowedModules": [
+    "dashboard",
+    "projects",
+    "tasks",
+    "calendar",
+    "chat",
+    "finance",
+    "employees",
+    "ai-management"
+  ],
+  "blockedModules": [
+    "system-agent-ops"
+  ],
+  "agentOpsOwnerAccess": false,
+  "jobStatus": "placeholder",
+  "folderPath": "qa-agent/agents/platform-admin"
+}

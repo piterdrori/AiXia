@@ -1,0 +1,19 @@
+{
+  "agentId": "ai-user",
+  "displayName": "AI User QA",
+  "syntheticEmail": "qa+agentops-ai-user@aixia.local",
+  "appRole": "employee",
+  "qaSpecialty": "Personal AI Productivity Agent",
+  "purpose": "AI features, chat, assistant visibility without Owner memory",
+  "allowedModules": [
+    "dashboard",
+    "chat",
+    "ai-management"
+  ],
+  "blockedModules": [
+    "system-agent-ops"
+  ],
+  "agentOpsOwnerAccess": false,
+  "jobStatus": "placeholder",
+  "folderPath": "qa-agent/agents/ai-user"
+}

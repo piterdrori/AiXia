@@ -1,0 +1,22 @@
+{
+  "agentId": "manager",
+  "displayName": "Manager QA",
+  "syntheticEmail": "qa+agentops-manager@aixia.local",
+  "appRole": "manager",
+  "qaSpecialty": "Business Logic and Operations Agent",
+  "purpose": "Manager review, approval, and team visibility",
+  "allowedModules": [
+    "dashboard",
+    "projects",
+    "tasks",
+    "calendar",
+    "chat"
+  ],
+  "blockedModules": [
+    "system-agent-ops",
+    "finance"
+  ],
+  "agentOpsOwnerAccess": false,
+  "jobStatus": "placeholder",
+  "folderPath": "qa-agent/agents/manager"
+}

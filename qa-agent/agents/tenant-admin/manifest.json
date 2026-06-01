@@ -1,0 +1,21 @@
+{
+  "agentId": "tenant-admin",
+  "displayName": "Tenant Admin QA",
+  "syntheticEmail": "qa+agentops-tenant-admin@aixia.local",
+  "appRole": "admin",
+  "qaSpecialty": "Security, Permissions, and Tenant Isolation Agent",
+  "purpose": "Tenant/company admin behavior without AgentOps owner access",
+  "allowedModules": [
+    "dashboard",
+    "projects",
+    "finance",
+    "employees",
+    "settings"
+  ],
+  "blockedModules": [
+    "system-agent-ops"
+  ],
+  "agentOpsOwnerAccess": false,
+  "jobStatus": "placeholder",
+  "folderPath": "qa-agent/agents/tenant-admin"
+}

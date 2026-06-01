@@ -1,0 +1,22 @@
+{
+  "agentId": "employee",
+  "displayName": "Employee QA",
+  "syntheticEmail": "qa+agentops-employee@aixia.local",
+  "appRole": "employee",
+  "qaSpecialty": "Synthetic User QA Agent",
+  "purpose": "Employee visibility, self-service, restricted internal data",
+  "allowedModules": [
+    "dashboard",
+    "projects",
+    "tasks",
+    "calendar",
+    "chat"
+  ],
+  "blockedModules": [
+    "finance",
+    "system-agent-ops"
+  ],
+  "agentOpsOwnerAccess": false,
+  "jobStatus": "placeholder",
+  "folderPath": "qa-agent/agents/employee"
+}

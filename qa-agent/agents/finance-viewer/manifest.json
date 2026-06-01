@@ -1,0 +1,20 @@
+{
+  "agentId": "finance-viewer",
+  "displayName": "Finance Viewer QA",
+  "syntheticEmail": "qa+agentops-finance-viewer@aixia.local",
+  "appRole": "employee",
+  "qaSpecialty": "Finance Workflow Agent",
+  "purpose": "Read-only finance access and blocked write actions",
+  "allowedModules": [
+    "dashboard",
+    "finance",
+    "finance-reports"
+  ],
+  "blockedModules": [
+    "system-agent-ops",
+    "finance-master-data-write"
+  ],
+  "agentOpsOwnerAccess": false,
+  "jobStatus": "placeholder",
+  "folderPath": "qa-agent/agents/finance-viewer"
+}

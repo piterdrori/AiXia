@@ -1,0 +1,20 @@
+{
+  "agentId": "vendor-external",
+  "displayName": "Vendor External QA",
+  "syntheticEmail": "qa+agentops-vendor-external@aixia.local",
+  "appRole": "guest",
+  "qaSpecialty": "Security, Permissions, and Tenant Isolation Agent",
+  "purpose": "External-party boundaries and restricted visibility",
+  "allowedModules": [
+    "dashboard"
+  ],
+  "blockedModules": [
+    "finance",
+    "employees",
+    "projects",
+    "system-agent-ops"
+  ],
+  "agentOpsOwnerAccess": false,
+  "jobStatus": "placeholder",
+  "folderPath": "qa-agent/agents/vendor-external"
+}

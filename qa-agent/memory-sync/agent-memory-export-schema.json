@@ -1,0 +1,101 @@
+{
+  "version": "1.0.0",
+  "description": "Stage 16C dry-run export shape for future per-agent memory file sync",
+  "syncStatusEnum": [
+    "dry_run_only",
+    "ready_for_owner_review",
+    "blocked_sensitive_content",
+    "future_sync_candidate",
+    "skipped_no_memory"
+  ],
+  "agentExportRecord": {
+    "version": "string",
+    "exportId": "string",
+    "generatedAt": "ISO-8601 string",
+    "dryRun": "boolean",
+    "agentId": "string",
+    "displayName": "string",
+    "syntheticEmail": "string",
+    "agentSkillSpecialty": "string",
+    "appRole": "admin|manager|employee|guest|unknown",
+    "agentOpsOwnerAccess": "boolean",
+    "memoryMode": "Database-only",
+    "memoryItems": [
+      {
+        "id": "string",
+        "memoryType": "string",
+        "content": "string",
+        "createdAt": "ISO-8601 string",
+        "source": "string",
+        "priority": "low|medium|high"
+      }
+    ],
+    "focusDirectives": [
+      {
+        "id": "string",
+        "content": "string",
+        "createdAt": "ISO-8601 string"
+      }
+    ],
+    "corrections": [
+      {
+        "id": "string",
+        "content": "string",
+        "createdAt": "ISO-8601 string"
+      }
+    ],
+    "featureIdeas": [
+      {
+        "id": "string",
+        "content": "string",
+        "createdAt": "ISO-8601 string"
+      }
+    ],
+    "fixInstructions": [
+      {
+        "id": "string",
+        "content": "string",
+        "createdAt": "ISO-8601 string"
+      }
+    ],
+    "testInstructions": [
+      {
+        "id": "string",
+        "content": "string",
+        "createdAt": "ISO-8601 string"
+      }
+    ],
+    "blockedBehaviors": [
+      {
+        "id": "string",
+        "content": "string",
+        "createdAt": "ISO-8601 string"
+      }
+    ],
+    "interactionNotes": [
+      {
+        "id": "string",
+        "messageType": "string",
+        "content": "string",
+        "priority": "low|medium|high",
+        "status": "logged|acknowledged_later|needs_agent_review|ready_for_future_sync",
+        "createdAt": "ISO-8601 string"
+      }
+    ],
+    "latestStatus": "active|quiet|needs_memory|blocked|disabled|unknown",
+    "sourceRecords": {
+      "memoryRecordCount": "number",
+      "interactionRecordCount": "number",
+      "statusRecordCount": "number",
+      "dbReadMode": "live_db_or_local_only"
+    },
+    "safetyWarnings": [
+      "No passwords/secrets/credentials/private data may be exported.",
+      "Dry-run only. No files synced.",
+      "No Hermes/CodeGraph runtime calls.",
+      "Final rulebooks remain postponed."
+    ],
+    "targetFilePath": "qa-agent/agent-memory/<agentId>.memory.md",
+    "syncStatus": "syncStatusEnum"
+  }
+}

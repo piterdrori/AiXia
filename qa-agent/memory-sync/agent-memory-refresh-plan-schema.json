@@ -1,0 +1,80 @@
+{
+  "version": "1.0.0",
+  "description": "Stage 16F reviewed memory refresh workflow schema",
+  "refreshStatusEnum": [
+    "no_change",
+    "draft_ready",
+    "blocked_sensitive_content",
+    "missing_existing_file",
+    "skipped_no_memory"
+  ],
+  "changeTypeEnum": [
+    "add_memory",
+    "update_focus",
+    "add_interaction_note",
+    "add_correction",
+    "add_feature_idea",
+    "add_fix_instruction",
+    "add_test_instruction",
+    "remove_unsafe_item"
+  ],
+  "agentMemoryRefreshPlan": {
+    "version": "string",
+    "generatedAt": "ISO-8601 string",
+    "dryRun": "boolean",
+    "sourceDbRead": {
+      "enabled": "boolean",
+      "reason": "string"
+    },
+    "previousExportReportPath": "string",
+    "previousMemoryFilesFolder": "string",
+    "draftOutputFolder": "string",
+    "agents": [
+      {
+        "agentId": "string",
+        "displayName": "string",
+        "targetFilePath": "string",
+        "draftFilePath": "string",
+        "existingFileFound": "boolean",
+        "dbMemoryCount": "number",
+        "dbInteractionCount": "number",
+        "existingFileMemorySummary": "string",
+        "proposedChangeCount": "number",
+        "proposedChanges": [
+          {
+            "changeType": "changeTypeEnum",
+            "sourceRecordId": "string",
+            "summary": "string",
+            "safeToExport": "boolean",
+            "reason": "string"
+          }
+        ],
+        "sensitiveWarnings": [
+          "string"
+        ],
+        "skippedItems": [
+          {
+            "sourceRecordId": "string",
+            "reason": "string"
+          }
+        ],
+        "refreshStatus": "refreshStatusEnum",
+        "ownerReviewRequired": "boolean"
+      }
+    ],
+    "summary": {
+      "totalAgents": "number",
+      "agentsWithChanges": "number",
+      "agentsNoChange": "number",
+      "sensitiveWarningsCount": "number",
+      "skippedItemsCount": "number"
+    },
+    "safety": {
+      "liveSyncActive": false,
+      "hermesAutomation": false,
+      "codeGraphAutomation": false,
+      "finalRulebooksCreated": false
+    },
+    "recommendedAction": "string"
+  }
+}

@@ -1,0 +1,50 @@
+---
+description: AiXia living source-of-truth — follow aixia-global during work, improve it only with Piter approval
+alwaysApply: true
+---
+
+# AiXia Living Source of Truth — Agent Autonomy Rule
+
+`src/design-system/aixia-global/` is **active law for implementation and QA**, not a frozen snapshot. AiXia still evolves. Agents must help improve the source of truth over time — **never silently rewrite it**.
+
+## During implementation and QA
+
+- Follow `aixia-global/` owner files `00`–`16` as current law.
+- Use Hermes and memory for rules, history, mistakes, and paused states.
+- Memory and qa-agent docs are **not stronger than** `aixia-global/`.
+- Crawl, test, explore, and play with the website within approved scope.
+- Do not create local page rules when the fix belongs in a shared owner file.
+
+## Discover and report (do not self-approve)
+
+Identify design, logic, UX, workflow, performance, refresh, permission, data, and consistency issues — including where `aixia-global/` is missing, weak, outdated, or contradictory.
+
+For each finding, report to Piter with:
+
+1. Evidence (browser QA, AgentOps, user feedback, code inspection, repeated mistakes).
+2. Classification: implementation bug · source-of-truth gap · new standard needed.
+3. Exact owner file that should change (see routing table in `00-README-SOURCE-OF-TRUTH.md`).
+4. Proposed wording or rule change — as a **proposal**, not law.
+
+## Forbidden without explicit Piter approval
+
+- Silently changing `aixia-global/` owner files, guardrails, code, CSS, pages, schemas, or workflows.
+- Silently changing implementation to bypass the standard.
+- Treating memory or qa-agent reports as current design law.
+- Ignoring `aixia-global/` because you prefer a different idea.
+- Freezing AiXia into the current design forever.
+
+## Correct improvement loop
+
+1. Discover issue or improvement opportunity.
+2. Check `aixia-global/` and memory.
+3. Classify: bug · gap · new standard.
+4. Report with evidence.
+5. Propose the exact owner file update.
+6. Hermes/memory records it as a **proposal**, not law.
+7. Piter reviews and approves.
+8. Approved rule is written into the correct owner file.
+9. Guardrails, memory, and implementation plans are updated to match.
+10. Future agents follow the improved source of truth.
+
+**Living law:** stable enough to prevent chaos, flexible enough to evolve with AiXia.

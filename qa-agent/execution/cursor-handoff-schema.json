@@ -1,0 +1,39 @@
+{
+  "version": "1.0.0",
+  "statusValues": [
+    "draft_handoff",
+    "ready_for_cursor",
+    "copied_manually",
+    "cursor_working",
+    "cursor_report_received",
+    "verification_requested",
+    "verified_fixed",
+    "still_broken",
+    "cancelled"
+  ],
+  "handoffShape": {
+    "version": "string",
+    "handoffId": "string",
+    "issueCode": "string",
+    "planId": "string",
+    "decisionId": "string|null",
+    "ownerApproved": "boolean",
+    "ownerApprovedAt": "ISO-8601 string",
+    "issueSummary": "string",
+    "cursorPrompt": "string",
+    "filesToInspect": [
+      "string"
+    ],
+    "doNotChange": [
+      "string"
+    ],
+    "validationCommands": [
+      "string"
+    ],
+    "expectedReportFormat": "string",
+    "evidencePaths": [
+      "string"
+    ],
+    "status": "draft_handoff|ready_for_cursor|copied_manually|cursor_working|cursor_report_received|verification_requested|verified_fixed|still_broken|cancelled"
+  }
+}

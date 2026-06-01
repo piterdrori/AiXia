@@ -1,0 +1,78 @@
+{
+  "version": "1.0.0",
+  "description": "Machine-readable registry of AiXia QA severity levels and release governance defaults.",
+  "levels": [
+    {
+      "id": "critical",
+      "name": "Critical",
+      "definition": "Permission, security, or data leak risk, tenant isolation risk, finance or HR sensitive exposure, wrong financial data, destructive action risk, production route failure, build failure, or backend data corruption risk.",
+      "useWhen": [
+        "Cross-tenant data exposure is possible or proven",
+        "Sensitive finance or payroll data is visible to the wrong role",
+        "Destructive actions lack confirmation or audit where required",
+        "Production cannot build or deploy",
+        "Data integrity or corruption risk is present"
+      ],
+      "defaultPriorityOrder": 1,
+      "requiresCouncilReview": true,
+      "requiresImmediateOwnerAttention": true,
+      "canBlockRelease": true
+    },
+    {
+      "id": "high",
+      "name": "High",
+      "definition": "Major broken workflow, failed create, edit, archive, restore, or delete, broken registry, broken AI action, failed HR or payroll workflow, or severe user-blocking bug.",
+      "useWhen": [
+        "Primary workflow cannot complete for an authorized role",
+        "Core registry or list views fail to load or mutate correctly",
+        "Repeated failures block finance or HR operations"
+      ],
+      "defaultPriorityOrder": 2,
+      "requiresCouncilReview": true,
+      "requiresImmediateOwnerAttention": false,
+      "canBlockRelease": true
+    },
+    {
+      "id": "medium",
+      "name": "Medium",
+      "definition": "Important usability, design, or functionality issue that does not fully block the workflow.",
+      "useWhen": [
+        "Workaround exists but quality or trust is materially reduced",
+        "Issue affects a secondary path or subset of users",
+        "Issue is isolated but important for operational clarity"
+      ],
+      "defaultPriorityOrder": 3,
+      "requiresCouncilReview": true,
+      "requiresImmediateOwnerAttention": false,
+      "canBlockRelease": false
+    },
+    {
+      "id": "low",
+      "name": "Low",
+      "definition": "Minor visual, text, spacing, alignment, or non-blocking issue.",
+      "useWhen": [
+        "Cosmetic defect with no workflow impact",
+        "Copy or spacing inconsistency without blocking confusion",
+        "Minor alignment issue on non-critical screens"
+      ],
+      "defaultPriorityOrder": 4,
+      "requiresCouncilReview": false,
+      "requiresImmediateOwnerAttention": false,
+      "canBlockRelease": false
+    },
+    {
+      "id": "suggestion",
+      "name": "Suggestion",
+      "definition": "Improvement ideas only, not bugs.",
+      "useWhen": [
+        "Enhancement idea without a reproducible defect",
+        "Product or SaaS packaging idea pending council review",
+        "UX polish that is optional relative to current scope"
+      ],
+      "defaultPriorityOrder": 5,
+      "requiresCouncilReview": true,
+      "requiresImmediateOwnerAttention": false,
+      "canBlockRelease": false
+    }
+  ]
+}

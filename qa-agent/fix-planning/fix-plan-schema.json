@@ -1,0 +1,47 @@
+{
+  "version": "1.0.0",
+  "resultStatuses": [
+    "draft_plan",
+    "ready_for_owner_review",
+    "needs_more_evidence",
+    "blocked_missing_context"
+  ],
+  "planShape": {
+    "version": "string",
+    "planId": "string",
+    "issueCode": "string",
+    "issueTitle": "string",
+    "issueCategory": "string",
+    "severity": "Critical|High|Medium|Low|Suggestion",
+    "queueState": "backlog|active_top_10|archived|unknown",
+    "status": "string",
+    "affectedRoute": "string|null",
+    "affectedModule": "string|null",
+    "affectedRole": "string|null",
+    "evidenceSummary": "string",
+    "evidencePaths": [
+      "string"
+    ],
+    "readableSummary": "string",
+    "whyItMatters": "string",
+    "likelyRootCause": "string",
+    "filesToInspect": [
+      "string"
+    ],
+    "preferredFixStrategy": "string",
+    "doNotChange": [
+      "string"
+    ],
+    "validationCommands": [
+      "string"
+    ],
+    "expectedVerificationResult": "string",
+    "cursorPrompt": "string",
+    "ownerApprovalRequired": "boolean",
+    "autoFixEligible": "boolean",
+    "riskLevel": "low|medium|high",
+    "createdAt": "ISO-8601 string",
+    "sourceFindingMetadata": {},
+    "planStatus": "draft_plan|ready_for_owner_review|needs_more_evidence|blocked_missing_context"
+  }
+}

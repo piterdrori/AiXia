@@ -1,0 +1,251 @@
+{
+  "version": "1.0.0",
+  "description": "Machine-readable registry of AiXia QA review panels and required combined agents, aligned with qa-agent/qa-agent-council.md.",
+  "panels": [
+    {
+      "id": "design-panel",
+      "name": "Design Panel",
+      "usedFor": [
+        "UI design",
+        "UX flow",
+        "Responsiveness",
+        "Typography",
+        "Spacing",
+        "Empty gaps",
+        "Shared design-system visual behavior",
+        "Avatar placement or visual guidance"
+      ],
+      "requiredAgents": [
+        "design-ux-excellence",
+        "design-system-frontend-quality",
+        "synthetic-user-qa",
+        "final-council-chair-implementation-planner"
+      ],
+      "optionalAgents": [],
+      "approvalRules": [
+        "Design and UX Excellence Agent and Design System and Frontend Quality Agent must agree on shared design-system direction before approval.",
+        "Synthetic User QA Agent must confirm evidence supports the reported design defect.",
+        "Final Council Chair must record APPROVED, NEEDS REVIEW, or REJECTED with scope and non-changes."
+      ],
+      "blockingRules": [
+        "Reject page-local design drift when a shared component or shared CSS fix is required.",
+        "Reject approval when evidence does not show the visual defect across the stated viewport and role."
+      ]
+    },
+    {
+      "id": "functional-engineering-panel",
+      "name": "Functional Engineering Panel",
+      "usedFor": [
+        "Buttons",
+        "Forms",
+        "Modals",
+        "Uploads",
+        "Search, filter, and sort",
+        "Create, edit, archive, delete, and restore",
+        "Tabs",
+        "Broken user interactions"
+      ],
+      "requiredAgents": [
+        "synthetic-user-qa",
+        "design-system-frontend-quality",
+        "backend-database-reliability",
+        "final-council-chair-implementation-planner"
+      ],
+      "optionalAgents": [
+        "security-permissions-tenant-isolation"
+      ],
+      "approvalRules": [
+        "Include Security, Permissions, and Tenant Isolation Agent when permissions, record-level access, or tenant boundaries may cause the defect.",
+        "Final Council Chair must align fix strategy with evidence and with shared AiXia source-of-truth rules."
+      ],
+      "blockingRules": [
+        "Block approval when reproduction steps or console and network evidence are missing for user-visible breakage.",
+        "Block approval when a proposed fix bypasses permissions or creates unsafe automation."
+      ]
+    },
+    {
+      "id": "business-logic-panel",
+      "name": "Business Logic Panel",
+      "usedFor": [
+        "Finance logic",
+        "Record lifecycle",
+        "Approval flow",
+        "Status visibility",
+        "Redundant or missing steps",
+        "Archive or delete logic",
+        "Real company operational workflows"
+      ],
+      "requiredAgents": [
+        "business-logic-operations",
+        "security-permissions-tenant-isolation",
+        "synthetic-user-qa",
+        "final-council-chair-implementation-planner"
+      ],
+      "optionalAgents": [
+        "backend-database-reliability"
+      ],
+      "approvalRules": [
+        "Include Backend, Database, and Reliability Agent when backend or persisted data state likely causes incorrect lifecycle behavior.",
+        "Security agent must validate that proposed visibility matches role and tenant policy."
+      ],
+      "blockingRules": [
+        "Block approval when business rule intent is unclear or contradicts finance and HR boundaries.",
+        "Block approval when schema or data-state assumptions are unverified for Supabase-backed behavior."
+      ]
+    },
+    {
+      "id": "hr-panel",
+      "name": "HR Panel",
+      "usedFor": [
+        "Employee data",
+        "HR workflows",
+        "Leave, attendance, workstation booking",
+        "HR documents",
+        "Payroll handoff",
+        "Employee self-service",
+        "HR privacy"
+      ],
+      "requiredAgents": [
+        "hr-people-operations",
+        "security-permissions-tenant-isolation",
+        "business-logic-operations",
+        "final-council-chair-implementation-planner"
+      ],
+      "optionalAgents": [
+        "product-saas-strategy"
+      ],
+      "approvalRules": [
+        "Include Product and SaaS Strategy Agent when SaaS customer value, onboarding, or commercial packaging is materially impacted.",
+        "Security agent must confirm employee-facing surfaces do not expose admin-only HR data."
+      ],
+      "blockingRules": [
+        "Block approval when employee privacy or HR and finance boundary risks are unresolved.",
+        "Block approval when payroll ownership and handoff responsibilities are ambiguous."
+      ]
+    },
+    {
+      "id": "technical-panel",
+      "name": "Technical Panel",
+      "usedFor": [
+        "Console errors",
+        "Network errors",
+        "Supabase errors",
+        "Build and type errors",
+        "Hydration errors",
+        "Slow loading",
+        "Silent refresh",
+        "Realtime reliability",
+        "Environment and configuration issues"
+      ],
+      "requiredAgents": [
+        "backend-database-reliability",
+        "synthetic-user-qa",
+        "final-council-chair-implementation-planner"
+      ],
+      "optionalAgents": [
+        "design-system-frontend-quality",
+        "security-permissions-tenant-isolation"
+      ],
+      "approvalRules": [
+        "Include Design System and Frontend Quality Agent when frontend rendering or hydration is implicated.",
+        "Include Security, Permissions, and Tenant Isolation Agent when errors suggest permission, RLS, or tenant isolation problems."
+      ],
+      "blockingRules": [
+        "Block approval when root cause is guessed without logs, traces, or schema verification where needed.",
+        "Block approval when proposed fixes would clear visible UI state on silent refresh failure."
+      ]
+    },
+    {
+      "id": "ai-mcp-panel",
+      "name": "AI and MCP Panel",
+      "usedFor": [
+        "MCP tools",
+        "AI execution",
+        "AI read and write access",
+        "AI action logs",
+        "AI retrieval",
+        "AI observability",
+        "Owner AI, tenant AI, and personal AI boundary"
+      ],
+      "requiredAgents": [
+        "ai-mcp-architecture",
+        "security-permissions-tenant-isolation",
+        "backend-database-reliability",
+        "final-council-chair-implementation-planner"
+      ],
+      "optionalAgents": [
+        "personal-ai-productivity",
+        "tools-integrations-commercial-open-source"
+      ],
+      "approvalRules": [
+        "Include Personal AI Productivity Agent when memory, personalization, voice, avatar, or user productivity workflows are involved.",
+        "Include Tools, Integrations, and Commercial Open Source Agent when vendor or integration selection is part of the decision.",
+        "All required agents must agree before APPROVED; otherwise mark NEEDS REVIEW per council rules."
+      ],
+      "blockingRules": [
+        "Block approval when tool contracts omit tenant boundary, role checks, confirmation, or audit requirements.",
+        "Block approval when AI could exceed manual user permissions or bypass RLS intent."
+      ]
+    },
+    {
+      "id": "personal-ai-panel",
+      "name": "Personal AI Panel",
+      "usedFor": [
+        "Personal AI memory",
+        "User activity learning",
+        "User-specific assistant",
+        "PDF, document, and image generation",
+        "Voice, STT, and TTS",
+        "Personal AI workflow automation",
+        "User memory controls"
+      ],
+      "requiredAgents": [
+        "personal-ai-productivity",
+        "ai-mcp-architecture",
+        "security-permissions-tenant-isolation",
+        "backend-database-reliability",
+        "final-council-chair-implementation-planner"
+      ],
+      "optionalAgents": [],
+      "approvalRules": [
+        "Security agent must confirm memory and tool access respect tenant and role boundaries.",
+        "Personal AI Productivity Agent must confirm user controls and privacy posture are adequate for proposed memory use."
+      ],
+      "blockingRules": [
+        "Block approval when personal AI could learn from unauthorized records or cross user boundaries.",
+        "Block approval when destructive or sensitive actions lack confirmation, cancel path, and audit."
+      ]
+    },
+    {
+      "id": "saas-conversion-panel",
+      "name": "SaaS Conversion Panel",
+      "usedFor": [
+        "Tenant isolation",
+        "SaaS onboarding",
+        "Billing and plans",
+        "Feature flags",
+        "Tenant settings",
+        "Multi-company support",
+        "Product analytics",
+        "Customer success"
+      ],
+      "requiredAgents": [
+        "product-saas-strategy",
+        "security-permissions-tenant-isolation",
+        "backend-database-reliability",
+        "tools-integrations-commercial-open-source",
+        "business-logic-operations",
+        "final-council-chair-implementation-planner"
+      ],
+      "optionalAgents": [],
+      "approvalRules": [
+        "Security and backend agents must agree on tenant isolation, RLS posture, and entitlement enforcement before APPROVED.",
+        "Product and SaaS Strategy Agent must confirm customer value and packaging coherence for SaaS-facing changes."
+      ],
+      "blockingRules": [
+        "Block approval when cross-tenant leakage risk exists or is unverified.",
+        "Block approval when plan entitlements, billing boundaries, or per-tenant configuration rules are undefined for the proposed feature."
+      ]
+    }
+  ]
+}

@@ -1,0 +1,245 @@
+{
+  "version": "1.0.0",
+  "description": "Machine-readable readiness score models for SaaS conversion, MCP and AI tooling, and personal AI maturity, aligned with qa-agent/saas-readiness-council.md and qa-agent/personal-ai-memory-and-tools.md.",
+  "scoreModels": [
+    {
+      "id": "saas-readiness",
+      "name": "SaaS readiness",
+      "description": "Scores how close AiXia is to multi-tenant SaaS operations with isolation, onboarding, billing, configuration, analytics, support, and AI usage governance.",
+      "scores": [
+        {
+          "value": 0,
+          "label": "Internal company only",
+          "definition": "Internal company only, not SaaS-ready.",
+          "requiredCapabilities": [
+            "Single-company mental model acceptable for internal pilot usage only"
+          ],
+          "blockers": [
+            "No meaningful tenant isolation story for external companies",
+            "No SaaS onboarding or entitlement model"
+          ]
+        },
+        {
+          "value": 1,
+          "label": "Basic tenant identifier",
+          "definition": "Basic company_id exists but tenant separation is incomplete.",
+          "requiredCapabilities": [
+            "Company or tenant identifier present in core tables or queries"
+          ],
+          "blockers": [
+            "RLS, storage, or UI paths still risk cross-tenant reads or writes",
+            "No standardized tenant configuration surface"
+          ]
+        },
+        {
+          "value": 2,
+          "label": "Tenant-separated data",
+          "definition": "Tenant-separated data exists but onboarding and configuration are weak.",
+          "requiredCapabilities": [
+            "Data paths consistently scoped by tenant for primary modules"
+          ],
+          "blockers": [
+            "No guided onboarding or weak default tenant setup",
+            "Limited self-service admin configuration"
+          ]
+        },
+        {
+          "value": 3,
+          "label": "Tenant-ready",
+          "definition": "Tenant-ready with roles and settings but no billing or plan controls.",
+          "requiredCapabilities": [
+            "Role model and tenant-level settings sufficient for multiple companies in pilot",
+            "Support for feature flags or module toggles at tenant scope where applicable"
+          ],
+          "blockers": [
+            "No subscription, seat, or usage-based billing controls",
+            "No formal plan entitlements enforcement across modules"
+          ]
+        },
+        {
+          "value": 4,
+          "label": "SaaS-ready core",
+          "definition": "SaaS-ready with onboarding, tenant settings, plan controls, and analytics.",
+          "requiredCapabilities": [
+            "Guided onboarding and workspace setup for new tenants",
+            "Plan and entitlement enforcement for paid or limited modules",
+            "Product analytics for activation and retention signals"
+          ],
+          "blockers": [
+            "Customer success tooling still shallow",
+            "Limited AI usage metering or governance tied to plans"
+          ]
+        },
+        {
+          "value": 5,
+          "label": "Full SaaS-grade",
+          "definition": "Full SaaS-grade tenant isolation, billing, onboarding, analytics, support, AI usage controls, and audit logs.",
+          "requiredCapabilities": [
+            "Strong tenant isolation across database, storage, AI tools, and MCP",
+            "Operational billing and downgrade or upgrade paths with clear entitlements",
+            "In-product guidance, health metrics, and support workflows",
+            "AI usage limits and audit trails aligned to plans and security policy"
+          ],
+          "blockers": []
+        }
+      ]
+    },
+    {
+      "id": "mcp-readiness",
+      "name": "MCP readiness",
+      "description": "Scores how safely AiXia functions could be exposed as MCP tools with permissions, confirmation, audit, and recovery posture.",
+      "scores": [
+        {
+          "value": 0,
+          "label": "Not ready for AI access",
+          "definition": "Not ready for AI access through MCP or similar automation.",
+          "requiredCapabilities": [
+            "Human-only interaction is the only supported mode"
+          ],
+          "blockers": [
+            "No tool contract, no permission mapping, no audit story"
+          ]
+        },
+        {
+          "value": 1,
+          "label": "Explain page only",
+          "definition": "AI can explain the page only.",
+          "requiredCapabilities": [
+            "Stable route metadata and safe public help text for explanation"
+          ],
+          "blockers": [
+            "No safe read APIs for domain objects through tools",
+            "No structured error handling for model calls"
+          ]
+        },
+        {
+          "value": 2,
+          "label": "Search and read records",
+          "definition": "AI can search and read records within strict permission boundaries.",
+          "requiredCapabilities": [
+            "Record-level authorization checks mirrored from the app",
+            "Tenant scoping enforced for every query path"
+          ],
+          "blockers": [
+            "No logging of read access for sensitive domains",
+            "Ambiguous filters that could leak neighboring rows"
+          ]
+        },
+        {
+          "value": 3,
+          "label": "Prepare drafts",
+          "definition": "AI can prepare drafts of records or documents under preview rules.",
+          "requiredCapabilities": [
+            "Draft lifecycle distinct from official submit",
+            "Field-level validation parity with manual forms"
+          ],
+          "blockers": [
+            "Drafts can be mistaken for committed records",
+            "No preview or diff step before commit"
+          ]
+        },
+        {
+          "value": 4,
+          "label": "Execute safe actions with confirmation",
+          "definition": "AI can execute safe actions with explicit confirmation and audit.",
+          "requiredCapabilities": [
+            "High-friction confirmation for mutating tools",
+            "Structured audit records for each tool invocation"
+          ],
+          "blockers": [
+            "Missing rollback or compensating actions for partial failures",
+            "Incomplete permission checks on tool arguments"
+          ]
+        },
+        {
+          "value": 5,
+          "label": "Fully MCP-ready",
+          "definition": "Fully MCP-ready with permissions, audit logs, and rollback or fallback paths.",
+          "requiredCapabilities": [
+            "Comprehensive allowlist of tools with documented risk class",
+            "End-to-end observability for tool failures and retries",
+            "Documented rollback or safe fallback behavior for multi-step workflows"
+          ],
+          "blockers": []
+        }
+      ]
+    },
+    {
+      "id": "personal-ai-maturity",
+      "name": "Personal AI maturity",
+      "description": "Scores end-user personal assistant capability from explain-only through safe execution with confirmation, audit, memory, and user controls.",
+      "scores": [
+        {
+          "value": 0,
+          "label": "No AI support",
+          "definition": "No AI support for the reviewed surface.",
+          "requiredCapabilities": [
+            "Baseline product works without assistant features"
+          ],
+          "blockers": [
+            "No assistant entry point",
+            "No safe integration hooks"
+          ]
+        },
+        {
+          "value": 1,
+          "label": "Explain",
+          "definition": "AI can explain allowed UI within the session context.",
+          "requiredCapabilities": [
+            "Basic assistant shell with safe static explanations"
+          ],
+          "blockers": [
+            "No navigation or data-backed answers yet"
+          ]
+        },
+        {
+          "value": 2,
+          "label": "Guide and navigate",
+          "definition": "AI can guide and navigate within permitted routes.",
+          "requiredCapabilities": [
+            "Route graph or feature map aligned to permissions"
+          ],
+          "blockers": [
+            "No read access to registries for grounded answers"
+          ]
+        },
+        {
+          "value": 3,
+          "label": "Read and search allowed data",
+          "definition": "AI can read and search allowed data for the active user and tenant.",
+          "requiredCapabilities": [
+            "Search APIs that respect RLS and role rules",
+            "Redaction rules for sensitive fields"
+          ],
+          "blockers": [
+            "No logging or policy for sensitive HR or finance reads"
+          ]
+        },
+        {
+          "value": 4,
+          "label": "Create drafts and assets",
+          "definition": "AI can create drafts, documents, images, or PDFs from allowed data.",
+          "requiredCapabilities": [
+            "Preview flows for official outputs",
+            "Branding and template hooks where required"
+          ],
+          "blockers": [
+            "No controls for memory retention of generated artifacts",
+            "No clear separation between draft and official documents"
+          ]
+        },
+        {
+          "value": 5,
+          "label": "Execute workflows with governance",
+          "definition": "AI can execute allowed workflows with confirmation, audit, memory, and user controls.",
+          "requiredCapabilities": [
+            "Per-user memory controls including view, delete, disable, export, and reset",
+            "Confirmation and cancel paths for voice and non-voice execution",
+            "Audit trail tying actions to user, tenant, tool, and outcome"
+          ],
+          "blockers": []
+        }
+      ]
+    }
+  ]
+}

@@ -1,0 +1,288 @@
+{
+  "version": "1.0.0",
+  "description": "Machine-readable registry of synthetic QA user roles aligned with qa-agent/qa-user-roles.md.",
+  "roles": [
+    {
+      "id": "owner-platform-owner",
+      "name": "Owner and Platform Owner",
+      "purpose": "Tests owner-only visibility, system intelligence, SaaS readiness, global QA reports, and Owner AI boundaries.",
+      "expectedAiTypes": [
+        "owner-ai"
+      ],
+      "mainModulesToTest": [
+        "core-app-shell",
+        "saas-tenant-management",
+        "ai-assistant"
+      ],
+      "allowedActionLevels": [
+        "explain-only",
+        "navigate-only",
+        "read-search-allowed-records",
+        "prepare-draft",
+        "execute-after-confirmation",
+        "owner-ai-only"
+      ],
+      "blockedActionExamples": [
+        "Acting outside explicit owner policy restrictions",
+        "Weakening tenant isolation for convenience"
+      ],
+      "dataVisibilityBoundary": "Platform-level visibility according to owner permissions without exposing normal user Owner AI surfaces.",
+      "personalAiBoundary": "Must not be confused with normal Personal User AI; Owner AI scope and governance only.",
+      "saasTenantBoundary": "May assess cross-tenant readiness and policy; must not weaken tenant isolation.",
+      "productionTestingPolicy": "Prefer staging; production must be read-only unless explicitly approved by owner policy."
+    },
+    {
+      "id": "company-admin",
+      "name": "Company Admin",
+      "purpose": "Tests company-level administration inside one tenant or company.",
+      "expectedAiTypes": [
+        "company-tenant-ai",
+        "personal-user-ai"
+      ],
+      "mainModulesToTest": [
+        "core-app-shell",
+        "finance-hub",
+        "finance-master-data",
+        "hr-people-operations",
+        "saas-tenant-management"
+      ],
+      "allowedActionLevels": [
+        "explain-only",
+        "navigate-only",
+        "read-search-allowed-records",
+        "prepare-draft",
+        "execute-after-confirmation"
+      ],
+      "blockedActionExamples": [
+        "Accessing another tenant's data or configuration",
+        "Using owner-only global platform controls without authorization"
+      ],
+      "dataVisibilityBoundary": "Tenant-scoped administrative data for the administered company only.",
+      "personalAiBoundary": "Personal AI may assist only within the admin's tenant permissions and role limits.",
+      "saasTenantBoundary": "Strict single-tenant boundary; no cross-company reads or writes.",
+      "productionTestingPolicy": "Prefer staging; production synthetic admin users must be read-only unless explicitly approved."
+    },
+    {
+      "id": "finance-admin",
+      "name": "Finance Admin",
+      "purpose": "Tests finance workflows with create, edit, archive, delete, and restore permissions where allowed.",
+      "expectedAiTypes": [
+        "personal-user-ai",
+        "company-tenant-ai"
+      ],
+      "mainModulesToTest": [
+        "finance-hub",
+        "finance-master-data",
+        "finance-transactions"
+      ],
+      "allowedActionLevels": [
+        "explain-only",
+        "navigate-only",
+        "read-search-allowed-records",
+        "prepare-draft",
+        "execute-after-confirmation"
+      ],
+      "blockedActionExamples": [
+        "Owner-only finance or platform actions",
+        "Cross-tenant finance reads or writes"
+      ],
+      "dataVisibilityBoundary": "Tenant finance data permitted by finance admin role and record state.",
+      "personalAiBoundary": "AI may assist only with finance records and actions explicitly allowed to this user.",
+      "saasTenantBoundary": "No finance data or actions outside the active tenant boundary.",
+      "productionTestingPolicy": "Prefer staging; production must be read-only unless explicitly approved."
+    },
+    {
+      "id": "finance-viewer",
+      "name": "Finance Viewer",
+      "purpose": "Tests read-only finance access and read-only AI assistance.",
+      "expectedAiTypes": [
+        "personal-user-ai"
+      ],
+      "mainModulesToTest": [
+        "finance-hub",
+        "finance-master-data",
+        "finance-transactions"
+      ],
+      "allowedActionLevels": [
+        "explain-only",
+        "navigate-only",
+        "read-search-allowed-records"
+      ],
+      "blockedActionExamples": [
+        "Create, edit, archive, delete, restore, or approval execution in finance",
+        "Invoking write-capable tools or MCP actions for finance records"
+      ],
+      "dataVisibilityBoundary": "Read-only finance records explicitly permitted to the viewer role.",
+      "personalAiBoundary": "AI cannot execute write actions; explain, navigate, and read-search only within permitted finance data.",
+      "saasTenantBoundary": "Read-only access within the active tenant only.",
+      "productionTestingPolicy": "Prefer staging; production must be read-only unless explicitly approved."
+    },
+    {
+      "id": "hr-admin",
+      "name": "HR Admin",
+      "purpose": "Tests HR module and people operations with HR administrative permissions.",
+      "expectedAiTypes": [
+        "personal-user-ai",
+        "company-tenant-ai"
+      ],
+      "mainModulesToTest": [
+        "hr-people-operations",
+        "finance-transactions"
+      ],
+      "allowedActionLevels": [
+        "explain-only",
+        "navigate-only",
+        "read-search-allowed-records",
+        "prepare-draft",
+        "execute-after-confirmation"
+      ],
+      "blockedActionExamples": [
+        "Unauthorized finance execution outside HR-approved scope",
+        "Cross-tenant HR access"
+      ],
+      "dataVisibilityBoundary": "HR-sensitive records within authorized HR admin scope for the tenant.",
+      "personalAiBoundary": "AI must respect HR privacy, least privilege, and role boundaries for people data.",
+      "saasTenantBoundary": "Tenant-scoped HR data only.",
+      "productionTestingPolicy": "Prefer staging; production must be read-only unless explicitly approved."
+    },
+    {
+      "id": "hr-viewer-assistant",
+      "name": "HR Viewer and HR Assistant",
+      "purpose": "Tests limited HR support access with constrained AI.",
+      "expectedAiTypes": [
+        "personal-user-ai"
+      ],
+      "mainModulesToTest": [
+        "hr-people-operations"
+      ],
+      "allowedActionLevels": [
+        "explain-only",
+        "navigate-only",
+        "read-search-allowed-records",
+        "prepare-draft"
+      ],
+      "blockedActionExamples": [
+        "Accessing sensitive private employee data beyond permission",
+        "Editing restricted HR records without authorization",
+        "Payroll or HR approvals unless explicitly allowed to this role"
+      ],
+      "dataVisibilityBoundary": "Minimum necessary HR data for the limited support role.",
+      "personalAiBoundary": "AI is restricted to role-limited HR data and non-destructive assistance unless explicitly allowed.",
+      "saasTenantBoundary": "Tenant-only, role-limited HR visibility.",
+      "productionTestingPolicy": "Prefer staging; production must be read-only unless explicitly approved."
+    },
+    {
+      "id": "manager",
+      "name": "Manager",
+      "purpose": "Tests team-level management workflows.",
+      "expectedAiTypes": [
+        "personal-user-ai"
+      ],
+      "mainModulesToTest": [
+        "core-app-shell",
+        "hr-people-operations",
+        "finance-hub"
+      ],
+      "allowedActionLevels": [
+        "explain-only",
+        "navigate-only",
+        "read-search-allowed-records",
+        "prepare-draft",
+        "execute-after-confirmation"
+      ],
+      "blockedActionExamples": [
+        "Owner-only or global platform settings",
+        "Unauthorized HR or finance admin operations outside manager scope"
+      ],
+      "dataVisibilityBoundary": "Team and workflow data granted to the manager role within the tenant.",
+      "personalAiBoundary": "AI cannot exceed manager role permissions for people or finance visibility.",
+      "saasTenantBoundary": "Tenant-scoped manager access only.",
+      "productionTestingPolicy": "Prefer staging; production must be read-only unless explicitly approved."
+    },
+    {
+      "id": "employee",
+      "name": "Employee",
+      "purpose": "Tests normal employee self-service and strict least-privilege visibility.",
+      "expectedAiTypes": [
+        "personal-user-ai"
+      ],
+      "mainModulesToTest": [
+        "core-app-shell",
+        "hr-people-operations",
+        "finance-transactions"
+      ],
+      "allowedActionLevels": [
+        "explain-only",
+        "navigate-only",
+        "read-search-allowed-records",
+        "prepare-draft",
+        "execute-after-confirmation"
+      ],
+      "blockedActionExamples": [
+        "Must not see internal finance funding statuses",
+        "Must not see other employees' private data",
+        "Must not see admin-only HR data",
+        "Must not see company-wide sensitive records outside self-service scope"
+      ],
+      "dataVisibilityBoundary": "Own records and explicitly shared records only within the tenant.",
+      "personalAiBoundary": "AI may help only with the employee's allowed records and actions; never exceed manual permissions.",
+      "saasTenantBoundary": "No cross-tenant access.",
+      "productionTestingPolicy": "Prefer staging; production must be read-only unless explicitly approved."
+    },
+    {
+      "id": "guest-restricted-user",
+      "name": "Guest and Restricted User",
+      "purpose": "Tests lowest-permission access; this role has the lowest practical permissions among standard synthetic personas.",
+      "expectedAiTypes": [
+        "personal-user-ai"
+      ],
+      "mainModulesToTest": [
+        "core-app-shell"
+      ],
+      "allowedActionLevels": [
+        "explain-only",
+        "navigate-only"
+      ],
+      "blockedActionExamples": [
+        "Sensitive route access",
+        "Write actions",
+        "Restricted tools or MCP actions",
+        "Private records outside explicitly allowed guest scope"
+      ],
+      "dataVisibilityBoundary": "Minimal non-sensitive permitted surfaces only.",
+      "personalAiBoundary": "No restricted tool or record access; explain and navigate only if policy allows even that.",
+      "saasTenantBoundary": "Strict tenant and role restrictions with default deny for unknown routes.",
+      "productionTestingPolicy": "Prefer staging; production must be read-only unless explicitly approved."
+    },
+    {
+      "id": "saas-tenant-admin-future",
+      "name": "SaaS Tenant Admin Future",
+      "purpose": "Tests SaaS tenant onboarding and company workspace setup when SaaS mode exists.",
+      "expectedAiTypes": [
+        "company-tenant-ai",
+        "personal-user-ai"
+      ],
+      "mainModulesToTest": [
+        "saas-tenant-management",
+        "core-app-shell",
+        "finance-hub",
+        "hr-people-operations"
+      ],
+      "allowedActionLevels": [
+        "explain-only",
+        "navigate-only",
+        "read-search-allowed-records",
+        "prepare-draft",
+        "execute-after-confirmation"
+      ],
+      "blockedActionExamples": [
+        "Platform-owner-only controls",
+        "Configuration or reads for tenants other than the administered tenant"
+      ],
+      "dataVisibilityBoundary": "Tenant admin scope for the administered tenant only.",
+      "personalAiBoundary": "Personal AI operates only within tenant-admin permissions and must not cross tenant boundaries.",
+      "saasTenantBoundary": "Must enforce strict tenant isolation, entitlements, and onboarding policy.",
+      "productionTestingPolicy": "Future role; verify only in dedicated staging or sandbox tenants; production must be read-only unless explicitly approved."
+    }
+  ]
+}

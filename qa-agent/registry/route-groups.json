@@ -1,0 +1,326 @@
+{
+  "version": "1.0.0",
+  "description": "Machine-readable starting registry of AiXia route and module groups for future Synthetic User QA planning. Patterns are indicative; uncertain or future areas use status future-verify-later.",
+  "routeGroups": [
+    {
+      "id": "core-app-shell",
+      "name": "Core and App Shell",
+      "status": "mixed",
+      "routePatterns": [
+        "/",
+        "/dashboard",
+        "/settings",
+        "/profile",
+        "/tasks"
+      ],
+      "module": "core-app-shell",
+      "pageTypes": [
+        "hub",
+        "registry",
+        "detail",
+        "create",
+        "settings",
+        "report",
+        "assistant",
+        "unknown"
+      ],
+      "primaryRolesToTest": [
+        "owner-platform-owner",
+        "company-admin",
+        "manager",
+        "employee",
+        "guest-restricted-user"
+      ],
+      "mainIssueCategoriesToTest": [
+        "design",
+        "functional",
+        "technical",
+        "improvement"
+      ],
+      "requiredReviewPanels": [
+        "design-panel",
+        "functional-engineering-panel",
+        "technical-panel"
+      ],
+      "defaultAiAccessClassification": "explain-only",
+      "saasReadinessRelevance": "medium",
+      "notes": "Root navigation, shell layout, and global settings surfaces. Patterns beyond slash may be future-verify-later depending on deployment."
+    },
+    {
+      "id": "finance-hub",
+      "name": "Finance Hub",
+      "status": "current",
+      "routePatterns": [
+        "/finance",
+        "/finance/reports",
+        "/finance/settings"
+      ],
+      "module": "finance",
+      "pageTypes": [
+        "hub",
+        "registry",
+        "detail",
+        "settings",
+        "report",
+        "unknown"
+      ],
+      "primaryRolesToTest": [
+        "finance-admin",
+        "finance-viewer",
+        "company-admin"
+      ],
+      "mainIssueCategoriesToTest": [
+        "design",
+        "functional",
+        "logical",
+        "technical"
+      ],
+      "requiredReviewPanels": [
+        "design-panel",
+        "functional-engineering-panel",
+        "business-logic-panel",
+        "technical-panel"
+      ],
+      "defaultAiAccessClassification": "read-search-allowed-records",
+      "saasReadinessRelevance": "high",
+      "notes": "Finance entry, reporting, and finance-scoped settings. Non-finance roles must be blocked from sensitive admin paths."
+    },
+    {
+      "id": "finance-master-data",
+      "name": "Finance Master Data",
+      "status": "current",
+      "routePatterns": [
+        "/finance/master-data",
+        "/finance/master-data/*"
+      ],
+      "module": "finance-master-data",
+      "pageTypes": [
+        "hub",
+        "registry",
+        "detail",
+        "create",
+        "settings",
+        "unknown"
+      ],
+      "primaryRolesToTest": [
+        "finance-admin",
+        "finance-viewer",
+        "company-admin"
+      ],
+      "mainIssueCategoriesToTest": [
+        "functional",
+        "logical",
+        "technical"
+      ],
+      "requiredReviewPanels": [
+        "functional-engineering-panel",
+        "business-logic-panel",
+        "technical-panel"
+      ],
+      "defaultAiAccessClassification": "read-search-allowed-records",
+      "saasReadinessRelevance": "high",
+      "notes": "Master data for companies, clients, vendors, banks, currencies, tax, units, items, categories, and finance roles when present. Expand sub-paths as routes are verified."
+    },
+    {
+      "id": "finance-transactions",
+      "name": "Finance Transactions",
+      "status": "current",
+      "routePatterns": [
+        "/finance/transactions",
+        "/finance/transactions/*",
+        "/finance/transactions/customer-pos",
+        "/finance/transactions/quotations",
+        "/finance/transactions/payments-made",
+        "/finance/transactions/expenses",
+        "/finance/transactions/expense-payments-made",
+        "/finance/transactions/paycheck-requests"
+      ],
+      "module": "finance-transactions",
+      "pageTypes": [
+        "hub",
+        "registry",
+        "detail",
+        "create",
+        "report",
+        "unknown"
+      ],
+      "primaryRolesToTest": [
+        "finance-admin",
+        "finance-viewer",
+        "company-admin"
+      ],
+      "mainIssueCategoriesToTest": [
+        "functional",
+        "logical",
+        "technical",
+        "design"
+      ],
+      "requiredReviewPanels": [
+        "functional-engineering-panel",
+        "business-logic-panel",
+        "technical-panel",
+        "design-panel"
+      ],
+      "defaultAiAccessClassification": "prepare-draft",
+      "saasReadinessRelevance": "high",
+      "notes": "Lifecycle-heavy workflows including customer POs, quotations, payments, expenses, expense payments, paycheck requests, and related payroll or paycheck areas when present. Additional transaction sub-routes may be future-verify-later until enumerated."
+    },
+    {
+      "id": "hr-people-operations",
+      "name": "HR and People Operations",
+      "status": "future-verify-later",
+      "routePatterns": [
+        "/hr",
+        "/hr/*",
+        "/hr/employees",
+        "/hr/employees/*",
+        "/hr/leave-requests",
+        "/hr/leave-requests/*",
+        "/hr/attendance",
+        "/hr/attendance/*",
+        "/hr/workstation-booking",
+        "/hr/workstation-booking/*",
+        "/hr/onboarding",
+        "/hr/onboarding/*",
+        "/hr/offboarding",
+        "/hr/offboarding/*",
+        "/hr/documents",
+        "/hr/documents/*",
+        "/hr/policies",
+        "/hr/policies/*",
+        "/hr/payroll-handoff",
+        "/hr/payroll-handoff/*"
+      ],
+      "module": "hr-people-operations",
+      "pageTypes": [
+        "hub",
+        "registry",
+        "detail",
+        "create",
+        "settings",
+        "report",
+        "unknown"
+      ],
+      "primaryRolesToTest": [
+        "hr-admin",
+        "hr-viewer-assistant",
+        "manager",
+        "employee"
+      ],
+      "mainIssueCategoriesToTest": [
+        "functional",
+        "logical",
+        "technical",
+        "design",
+        "improvement"
+      ],
+      "requiredReviewPanels": [
+        "hr-panel",
+        "functional-engineering-panel",
+        "business-logic-panel",
+        "technical-panel"
+      ],
+      "defaultAiAccessClassification": "read-search-allowed-records",
+      "saasReadinessRelevance": "high",
+      "notes": "Patterns are indicative HR surface names; actual routes must be verified before automation. Employee-facing privacy and HR versus finance boundaries are critical."
+    },
+    {
+      "id": "ai-assistant",
+      "name": "AI Assistant",
+      "status": "future-verify-later",
+      "routePatterns": [
+        "/assistant/personal-ai",
+        "/assistant/personal-ai/*",
+        "/assistant/owner-ai-dashboard",
+        "/assistant/owner-ai-dashboard/*",
+        "/assistant/ai-activity-logs",
+        "/assistant/ai-activity-logs/*",
+        "/assistant/ai-tool-permissions",
+        "/assistant/ai-tool-permissions/*",
+        "/assistant/voice-avatar-settings",
+        "/assistant/voice-avatar-settings/*",
+        "/assistant/mcp-tool-registry",
+        "/assistant/mcp-tool-registry/*",
+        "/assistant/ai-memory-settings",
+        "/assistant/ai-memory-settings/*"
+      ],
+      "module": "ai-assistant",
+      "pageTypes": [
+        "assistant",
+        "settings",
+        "registry",
+        "report",
+        "unknown"
+      ],
+      "primaryRolesToTest": [
+        "owner-platform-owner",
+        "company-admin",
+        "manager",
+        "employee",
+        "guest-restricted-user"
+      ],
+      "mainIssueCategoriesToTest": [
+        "functional",
+        "logical",
+        "technical",
+        "improvement"
+      ],
+      "requiredReviewPanels": [
+        "ai-mcp-panel",
+        "personal-ai-panel",
+        "technical-panel"
+      ],
+      "defaultAiAccessClassification": "explain-only",
+      "saasReadinessRelevance": "high",
+      "notes": "Future assistant and governance surfaces for personal AI, owner AI, MCP registry, permissions, voice and avatar, and memory controls. Routes are placeholders until product routing is finalized."
+    },
+    {
+      "id": "saas-tenant-management",
+      "name": "SaaS Tenant Management",
+      "status": "future-verify-later",
+      "routePatterns": [
+        "/saas/tenant-onboarding",
+        "/saas/tenant-onboarding/*",
+        "/saas/company-workspace-setup",
+        "/saas/company-workspace-setup/*",
+        "/saas/subscription-billing",
+        "/saas/subscription-billing/*",
+        "/saas/feature-flags",
+        "/saas/feature-flags/*",
+        "/saas/tenant-branding",
+        "/saas/tenant-branding/*",
+        "/saas/tenant-analytics",
+        "/saas/tenant-analytics/*",
+        "/saas/support-help-center",
+        "/saas/support-help-center/*"
+      ],
+      "module": "saas-tenant-management",
+      "pageTypes": [
+        "hub",
+        "settings",
+        "registry",
+        "report",
+        "unknown"
+      ],
+      "primaryRolesToTest": [
+        "owner-platform-owner",
+        "saas-tenant-admin-future",
+        "company-admin"
+      ],
+      "mainIssueCategoriesToTest": [
+        "logical",
+        "functional",
+        "technical",
+        "improvement"
+      ],
+      "requiredReviewPanels": [
+        "saas-conversion-panel",
+        "technical-panel",
+        "ai-mcp-panel"
+      ],
+      "defaultAiAccessClassification": "execute-after-confirmation",
+      "saasReadinessRelevance": "critical",
+      "notes": "Future SaaS control plane routes for onboarding, billing, entitlements, branding, analytics, and support. All patterns are placeholders until SaaS admin UI exists."
+    }
+  ]
+}

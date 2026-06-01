@@ -1,0 +1,224 @@
+{
+  "version": "1.0.0",
+  "description": "Machine-readable registry of AiXia QA issue categories for Synthetic User QA and council routing.",
+  "categories": [
+    {
+      "id": "design",
+      "name": "Design Issue",
+      "definition": "A visual, layout, UI, UX, responsiveness, spacing, typography, shared-design-system, or user clarity problem.",
+      "examples": [
+        "Different font sizes between equivalent pages",
+        "Missing shared AiXia hero",
+        "Missing overview/status cards",
+        "Local card design instead of shared components",
+        "Wrong button color",
+        "Wrong spacing",
+        "Empty gaps",
+        "Card height mismatch",
+        "Table header/content misalignment",
+        "Horizontal scroll problems",
+        "Mobile/tablet layout issues",
+        "Avatar placement or visual guidance problems"
+      ],
+      "requiredEvidence": [
+        "Screenshot",
+        "Viewport size",
+        "Route",
+        "User role",
+        "Expected vs actual visual behavior",
+        "Suspected shared component or CSS source when relevant"
+      ],
+      "likelyRootCauses": [
+        "Shared component regression",
+        "Shared CSS regression",
+        "Page-local layout override",
+        "Responsive breakpoint gap",
+        "Design-system misuse"
+      ],
+      "defaultReviewPanels": [
+        "design-panel"
+      ],
+      "fixPromptRules": [
+        "Inspect shared AiXia source of truth first.",
+        "Prefer shared component and shared CSS fixes over page-local patches.",
+        "Do not change business logic for design-only issues.",
+        "Escalate to Functional Engineering Panel if the visual issue is caused by broken interaction wiring."
+      ]
+    },
+    {
+      "id": "functional",
+      "name": "Functional Issue",
+      "definition": "A user action, workflow, button, form, modal, tab, upload, search, filter, sort, create, edit, archive, delete, restore, or interaction does not work correctly.",
+      "examples": [
+        "Buttons do not click",
+        "Forms do not open",
+        "Create page fails",
+        "Edit mode fails",
+        "Save Draft fails",
+        "Archive opens incorrectly",
+        "Restore fails",
+        "Delete workflow fails",
+        "Search/filter/sort does not work",
+        "Tabs do not switch",
+        "Modal does not close",
+        "Upload panel does not respond"
+      ],
+      "requiredEvidence": [
+        "Steps to reproduce",
+        "Screenshot, video, or trace",
+        "Console errors when present",
+        "Network errors when present",
+        "Route",
+        "User role",
+        "Expected result",
+        "Actual result"
+      ],
+      "likelyRootCauses": [
+        "Frontend event handler bug",
+        "State management bug",
+        "Routing bug",
+        "Permission gate blocking UI incorrectly",
+        "Backend or Supabase failure surfaced in UI",
+        "Broken shared component behavior"
+      ],
+      "defaultReviewPanels": [
+        "functional-engineering-panel"
+      ],
+      "fixPromptRules": [
+        "Preserve app logic unless the issue truly requires a logic fix.",
+        "Identify whether the cause is frontend, backend, permission, routing, or data-state related.",
+        "Do not create local replacement systems when shared AiXia components exist.",
+        "Add Security panel review when permissions or tenant isolation may be involved."
+      ]
+    },
+    {
+      "id": "logical",
+      "name": "Logical Issue",
+      "definition": "The page technically works, but business behavior, role visibility, lifecycle state, finance or HR workflow, approval, archive or delete behavior, or data relationship is wrong.",
+      "examples": [
+        "Employee sees internal funding status",
+        "Finance viewer sees Delete button",
+        "Draft document shows final approval action",
+        "Company bank currency does not follow company currency",
+        "Vendor bank currency does not use general currency master data",
+        "Paid records show editable draft actions",
+        "Archived records appear on active registry",
+        "Payroll approval and finance payment execution are mixed incorrectly",
+        "Employee-facing HR page exposes company-internal HR or admin data"
+      ],
+      "requiredEvidence": [
+        "Route",
+        "User role",
+        "Record state or status",
+        "Expected business rule",
+        "Actual behavior",
+        "Screenshot or trace when available",
+        "Permission or lifecycle rule violated"
+      ],
+      "likelyRootCauses": [
+        "Incorrect visibility conditions in UI",
+        "Permission or role mapping error",
+        "Lifecycle state handling error",
+        "Backend or data-state mismatch",
+        "Cross-module workflow boundary error"
+      ],
+      "defaultReviewPanels": [
+        "business-logic-panel"
+      ],
+      "fixPromptRules": [
+        "Explain why the behavior is wrong against the expected business rule.",
+        "Identify whether the cause is frontend visibility, permission, backend, or data-state related.",
+        "Preserve existing backend unless an explicit backend or permission fix is required.",
+        "Require schema inspection before any uncertain database change.",
+        "Route to HR Panel when people data, privacy, or HR workflow boundaries are involved."
+      ]
+    },
+    {
+      "id": "technical",
+      "name": "Technical Issue",
+      "definition": "A technical failure such as console error, network failure, Supabase error, build error, TypeScript error, hydration error, slow loading, missing environment variable, route error, broken data loading, realtime failure, or silent refresh failure.",
+      "examples": [
+        "Console errors",
+        "Network failed requests",
+        "404 routes",
+        "Supabase query errors",
+        "Build errors",
+        "TypeScript errors",
+        "Hydration errors",
+        "Slow loading pages",
+        "Missing environment variables",
+        "Realtime or silent refresh failure"
+      ],
+      "requiredEvidence": [
+        "Console logs",
+        "Network logs",
+        "Failed request URL when relevant",
+        "Error message",
+        "Stack trace when available",
+        "Route",
+        "User role",
+        "Screenshot when relevant",
+        "Timing or performance data when relevant"
+      ],
+      "likelyRootCauses": [
+        "Build or type system regression",
+        "Runtime exception in frontend",
+        "Supabase query or policy error",
+        "Routing or deployment configuration error",
+        "Environment configuration error",
+        "Performance or reliability regression"
+      ],
+      "defaultReviewPanels": [
+        "technical-panel"
+      ],
+      "fixPromptRules": [
+        "Identify whether the issue is build, frontend, backend, routing, Supabase, environment, or performance related.",
+        "Do not guess database columns.",
+        "Require schema inspection for Supabase uncertainty.",
+        "Preserve visible state during silent refresh and avoid clearing UI on failed refresh."
+      ]
+    },
+    {
+      "id": "improvement",
+      "name": "Improvement Suggestion",
+      "definition": "Not a bug. A product, UX, workflow, AI, SaaS, HR, finance, automation, document, image, report, integration, or performance idea that can improve usefulness, professionalism, uniqueness, commercialization, or ease of use.",
+      "examples": [
+        "Workflow needs fewer clicks",
+        "Page needs better summary",
+        "Table needs missing filter",
+        "User role needs clearer messaging",
+        "Dashboard should show a KPI",
+        "Action needs confirmation text",
+        "AI should help prepare a document",
+        "Personal AI should suggest next task",
+        "HR module needs onboarding checklist",
+        "SaaS tenant setup needs guided wizard"
+      ],
+      "requiredEvidence": [
+        "Current workflow or page context",
+        "Reason the suggestion adds value",
+        "Expected benefit",
+        "Risk",
+        "Required review panel",
+        "Whether SaaS readiness, AI or MCP readiness, HR, permissions, or backend are affected"
+      ],
+      "likelyRootCauses": [
+        "Product gap",
+        "UX friction",
+        "Missing automation or guidance",
+        "Missing analytics or success instrumentation",
+        "SaaS packaging or onboarding gap"
+      ],
+      "defaultReviewPanels": [
+        "design-panel",
+        "business-logic-panel"
+      ],
+      "fixPromptRules": [
+        "Do not become an implementation task until reviewed by the relevant council panels.",
+        "Include scope, non-changes, risk, required source files, and implementation plan only after approval.",
+        "Reject if redundant, too risky, page-local only, or misaligned with AiXia standards.",
+        "Route to SaaS Conversion Panel, AI MCP Panel, Personal AI Panel, or HR Panel based on impact."
+      ]
+    }
+  ]
+}

@@ -1,0 +1,196 @@
+{
+  "version": "1.0.0",
+  "description": "Machine-readable registry of AiXia AI access levels for QA, council review, and future MCP tool planning. Aligns with qa-agent/ai-access-boundary.md and qa-agent/ai-function-access-map.md.",
+  "levels": [
+    {
+      "id": "no-ai-access",
+      "numericLevel": 0,
+      "name": "No AI access",
+      "definition": "Function or data must not be accessed or influenced by any AI assistant or tool.",
+      "allowedAiTypes": [],
+      "requiresConfirmation": false,
+      "requiresAudit": false,
+      "riskLevel": "low",
+      "exampleFunctions": [
+        "Owner-only secret configuration stores",
+        "Raw security keys or token surfaces if ever exposed in UI by mistake"
+      ],
+      "restrictions": [
+        "No model or tool may read, summarize, or navigate this surface."
+      ]
+    },
+    {
+      "id": "explain-only",
+      "numericLevel": 1,
+      "name": "Explain only",
+      "definition": "AI may describe what a page or concept means using only information already visible to the user.",
+      "allowedAiTypes": [
+        "owner-ai",
+        "company-tenant-ai",
+        "personal-user-ai"
+      ],
+      "requiresConfirmation": false,
+      "requiresAudit": false,
+      "riskLevel": "low",
+      "exampleFunctions": [
+        "Page explanation",
+        "Field help text expansion",
+        "Clarifying UI labels for the current screen"
+      ],
+      "restrictions": [
+        "Must not fetch or infer hidden records beyond current manual access.",
+        "Must not trigger mutations."
+      ]
+    },
+    {
+      "id": "navigate-only",
+      "numericLevel": 2,
+      "name": "Navigate only",
+      "definition": "AI may suggest navigation targets such as routes or tabs that the user is already allowed to open manually.",
+      "allowedAiTypes": [
+        "owner-ai",
+        "company-tenant-ai",
+        "personal-user-ai"
+      ],
+      "requiresConfirmation": false,
+      "requiresAudit": false,
+      "riskLevel": "low",
+      "exampleFunctions": [
+        "Deep link suggestions within allowed routes",
+        "Guided next-step navigation without executing workflows"
+      ],
+      "restrictions": [
+        "Must not open admin-only routes for non-admin users.",
+        "Must not bypass route guards."
+      ]
+    },
+    {
+      "id": "read-search-allowed-records",
+      "numericLevel": 3,
+      "name": "Read and search allowed records",
+      "definition": "AI may query or summarize records that the user role may already read in the active tenant, including record-level checks.",
+      "allowedAiTypes": [
+        "owner-ai",
+        "company-tenant-ai",
+        "personal-user-ai"
+      ],
+      "requiresConfirmation": false,
+      "requiresAudit": true,
+      "riskLevel": "medium",
+      "exampleFunctions": [
+        "Registry search assistance",
+        "Read-only finance or HR summaries for authorized roles"
+      ],
+      "restrictions": [
+        "Must enforce user role, tenant, and record-level permission checks equivalent to manual access.",
+        "Must not broaden search scope beyond manual permissions."
+      ]
+    },
+    {
+      "id": "prepare-draft",
+      "numericLevel": 4,
+      "name": "Prepare draft",
+      "definition": "AI may assemble draft content or draft records that still require explicit user review before commit.",
+      "allowedAiTypes": [
+        "owner-ai",
+        "company-tenant-ai",
+        "personal-user-ai"
+      ],
+      "requiresConfirmation": true,
+      "requiresAudit": true,
+      "riskLevel": "medium",
+      "exampleFunctions": [
+        "Draft expense or finance forms",
+        "Draft HR letters or employee communications where policy allows",
+        "Draft documents or PDFs from allowed fields only"
+      ],
+      "restrictions": [
+        "Drafts must be clearly labeled and previewed before save when policy requires.",
+        "Must not auto-submit official records without confirmation."
+      ]
+    },
+    {
+      "id": "execute-after-confirmation",
+      "numericLevel": 5,
+      "name": "Execute after confirmation",
+      "definition": "AI may perform mutating actions only after explicit user confirmation and successful permission checks.",
+      "allowedAiTypes": [
+        "owner-ai",
+        "company-tenant-ai",
+        "personal-user-ai"
+      ],
+      "requiresConfirmation": true,
+      "requiresAudit": true,
+      "riskLevel": "high",
+      "exampleFunctions": [
+        "Submit official records after confirmation",
+        "Archive or restore records after confirmation where role allows",
+        "Execute approved finance or HR workflow steps after confirmation"
+      ],
+      "restrictions": [
+        "Confirmation dialogs must be explicit and intentional.",
+        "Must never silently mutate production data."
+      ]
+    },
+    {
+      "id": "execute-automatically-limited-safe-rules",
+      "numericLevel": 6,
+      "name": "Execute automatically within limited safe rules",
+      "definition": "AI may auto-execute only narrowly scoped, reversible, user-configured actions that cannot violate tenant isolation or permissions.",
+      "allowedAiTypes": [
+        "company-tenant-ai",
+        "personal-user-ai"
+      ],
+      "requiresConfirmation": false,
+      "requiresAudit": true,
+      "riskLevel": "medium",
+      "exampleFunctions": [
+        "User-enabled auto-sort of a personal task list within one tenant",
+        "Low-risk UI preference toggles explicitly opted in by the user"
+      ],
+      "restrictions": [
+        "Limited to safe, reversible, user-configured actions only.",
+        "Must remain disabled by default unless user explicitly opts in with clear scope.",
+        "Must not include archive, delete, payment, payroll, or cross-record writes."
+      ]
+    },
+    {
+      "id": "owner-ai-only",
+      "numericLevel": 7,
+      "name": "Owner AI only",
+      "definition": "Only Owner AI may access or act against these capabilities; used for platform-wide governance and owner-grade improvement prompts.",
+      "allowedAiTypes": [
+        "owner-ai"
+      ],
+      "requiresConfirmation": true,
+      "requiresAudit": true,
+      "riskLevel": "critical",
+      "exampleFunctions": [
+        "Owner system improvement prompt generation",
+        "Cross-tenant readiness diagnostics reserved to the platform owner"
+      ],
+      "restrictions": [
+        "Normal users and Personal User AI cannot access.",
+        "Must never be exposed in standard user-facing AI surfaces."
+      ]
+    },
+    {
+      "id": "never-expose-to-ai",
+      "numericLevel": 8,
+      "name": "Never expose to AI",
+      "definition": "Hard deny-list surfaces where no AI type may read, infer, navigate, or act, regardless of role.",
+      "allowedAiTypes": [],
+      "requiresConfirmation": false,
+      "requiresAudit": false,
+      "riskLevel": "critical",
+      "exampleFunctions": [
+        "Highly classified security material if ever rendered",
+        "Emergency legal hold buckets if introduced"
+      ],
+      "restrictions": [
+        "No AI type should access this function or data.",
+        "Must be excluded from MCP tool catalogs and from model context policies."
+      ]
+    }
+  ]
+}

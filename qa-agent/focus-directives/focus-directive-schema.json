@@ -1,0 +1,61 @@
+{
+  "version": "1.0.0",
+  "entity": "AgentOpsFocusDirective",
+  "sourceEnum": [
+    "piter_remark",
+    "agent_memory",
+    "agent_interaction",
+    "owner_feedback",
+    "scan_result",
+    "manual_entry"
+  ],
+  "directiveTypeEnum": [
+    "prioritize_module",
+    "deprioritize_module",
+    "prioritize_issue_type",
+    "deprioritize_issue_type",
+    "prioritize_agent",
+    "assign_agent_focus",
+    "ignore_pattern",
+    "raise_severity_pattern",
+    "lower_severity_pattern",
+    "workflow_focus",
+    "route_focus",
+    "design_focus",
+    "permission_focus",
+    "business_logic_focus",
+    "stability_focus"
+  ],
+  "targetEnum": [
+    "module",
+    "route",
+    "issueType",
+    "agentId",
+    "severity",
+    "workflow",
+    "keyword"
+  ],
+  "fields": {
+    "directiveId": "string",
+    "title": "string",
+    "description": "string",
+    "source": "sourceEnum",
+    "directiveType": "directiveTypeEnum",
+    "target": "targetEnum",
+    "targetValue": "string",
+    "priorityWeight": "number",
+    "active": "boolean",
+    "expiresAt": "ISO-8601 string | null",
+    "createdBy": "string",
+    "createdAt": "ISO-8601 string",
+    "metadata": "object"
+  },
+  "decisionResult": {
+    "rankingBoost": "number",
+    "rankingPenalty": "number",
+    "recommendedAgent": "string | null",
+    "recommendedScanMode": "string | null",
+    "recommendedValidationCommand": "string | null",
+    "explanation": "string"
+  }
+}

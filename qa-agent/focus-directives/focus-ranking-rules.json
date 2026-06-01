@@ -1,0 +1,58 @@
+{
+  "version": "1.0.0",
+  "priorityWeights": {
+    "criticalOwnerRemark": 50,
+    "repeatedPiterComplaint": 40,
+    "activeModuleFocus": 30,
+    "securityPermissionIssue": 25,
+    "uiLayoutComplaint": 25,
+    "activeRouteIssue": 20,
+    "verifiedFixed": -100,
+    "falsePositive": -100,
+    "deferred": -60,
+    "heldNotApproved": -40,
+    "duplicate": -80
+  },
+  "agentMatching": [
+    {
+      "agentSkill": "Design and UX Agent",
+      "matches": ["design", "layout", "ui", "readability", "table", "card"]
+    },
+    {
+      "agentSkill": "Business Logic and Operations Agent",
+      "matches": ["workflow", "process", "logic", "routing", "state"]
+    },
+    {
+      "agentSkill": "Security, Permissions, and Tenant Isolation Agent",
+      "matches": ["access", "permission", "rls", "role", "owner-only", "tenant"]
+    },
+    {
+      "agentSkill": "Finance Workflow Agent",
+      "matches": ["finance", "transactions", "master data", "reporting", "payments", "quotations"]
+    },
+    {
+      "agentSkill": "HR and People Operations Agent",
+      "matches": ["hr", "payroll", "employee"]
+    },
+    {
+      "agentSkill": "Personal AI Productivity Agent",
+      "matches": ["ai management", "notes", "memory", "productivity"]
+    },
+    {
+      "agentSkill": "Final Council Chair and Implementation Planner",
+      "matches": ["cross-module", "conflict", "final priority", "coordination"]
+    }
+  ],
+  "allowedOutputs": [
+    "ranking_recommendation_only",
+    "agent_recommendation_only",
+    "scan_recommendation_only",
+    "import_review_recommendation_only"
+  ],
+  "blockedOutputs": [
+    "automatic_fix",
+    "automatic_import",
+    "scheduler_activation",
+    "ui_command_execution"
+  ]
+}

@@ -1,0 +1,34 @@
+{
+  "version": "1.0.0",
+  "outputFolder": "qa-agent/reports/fix-plans",
+  "perIssueFolder": "qa-agent/reports/fix-plans/issues",
+  "defaultValidationCommands": [
+    "npm run build",
+    "npm run qa:validate-foundation"
+  ],
+  "optionalValidationByCategory": {
+    "Security/Permission": "npm run qa:agentops-role-workflow-safe",
+    "Functional": "npm run qa:agentops-synthetic-users-smoke",
+    "Write/Draft": "npm run qa:agentops-write-draft-safe",
+    "Design": "npm run qa:static-design-guardrails"
+  },
+  "defaultDoNotChangeRules": [
+    "staging only; no production/main changes",
+    "no schema/RLS changes unless explicitly approved",
+    "no unrelated logic changes",
+    "no UI redesign unless issue is design-related",
+    "preserve authorized access behavior",
+    "do not run destructive/write tests outside approved safe scripts"
+  ],
+  "issueSelectionRules": {
+    "includeActiveTop10OpenFindings": true,
+    "includeBacklogApprovedByPiter": true,
+    "includeBacklogCriticalOrHigh": true,
+    "skipStatuses": [
+      "Verified Fixed",
+      "Archived",
+      "False Positive",
+      "Deferred"
+    ]
+  }
+}
